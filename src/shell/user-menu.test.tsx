@@ -95,6 +95,28 @@ describe("UserMenu", () => {
     expect(document.querySelector("[role=dialog]")).toBeNull();
   });
 
+  it("leaves Change password out without onChangePassword; the others keep their order", () => {
+    renderMenu({ onChangePassword: undefined });
+    fireEvent.click(screen.getByTestId("user-menu-trigger"));
+    expect(screen.queryByTestId("user-menu-change-password")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("user-menu-change-password-locked")).not.toBeInTheDocument();
+    expect(menuTestIds()).toEqual([
+      "user-menu-profile",
+      "user-menu-language",
+      "user-menu-appearance",
+      "user-menu-security",
+      "user-menu-notifications",
+      "user-menu-logout",
+    ]);
+    expect(userMenuOrderViolations(menuTestIds())).toEqual([]);
+  });
+
+  it("shows the locked entry even without onChangePassword", () => {
+    renderMenu({ onChangePassword: undefined, changePasswordLocked: true });
+    fireEvent.click(screen.getByTestId("user-menu-trigger"));
+    expect(menuTestIds().indexOf("user-menu-change-password-locked")).toBe(3);
+  });
+
   it.each([
     ["de", "Letzter aktiver Administrator — Passwort gesperrt."],
     ["es", "Último administrador activo — contraseña bloqueada."],

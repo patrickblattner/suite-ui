@@ -18,16 +18,22 @@ const USER_MENU_LOCKED: Record<string, string> = {
   "user-menu-change-password-locked": "user-menu-change-password",
 };
 
+// Change password may be left out (an account without a local password); nothing takes its place.
+const USER_MENU_OPTIONAL = "user-menu-change-password";
+
 /**
  * Checks the `user-menu-*` test ids of an open user menu, in document order: the fixed entries in
- * their order (Change password or its locked entry), then the app's entries in any order, then Log
- * out. Returns one line per violation.
+ * their order (Change password, its locked entry or neither), then the app's entries in any order,
+ * then Log out. Returns one line per violation.
  */
 export function userMenuOrderViolations(testIds: readonly string[]): string[] {
   const ids = testIds.map((id) => USER_MENU_LOCKED[id] ?? id);
   const fixed = new Set<string>([...USER_MENU_FIXED, USER_MENU_LAST]);
   const appEntries = ids.filter((id) => !fixed.has(id));
-  const expected = [...USER_MENU_FIXED, ...appEntries, USER_MENU_LAST];
+  const fixedEntries = USER_MENU_FIXED.filter(
+    (id) => id !== USER_MENU_OPTIONAL || ids.includes(id),
+  );
+  const expected = [...fixedEntries, ...appEntries, USER_MENU_LAST];
   return expected.join(" ") === ids.join(" ")
     ? []
     : [`user menu order ${testIds.join(" · ")} ≠ ${expected.join(" · ")}`];

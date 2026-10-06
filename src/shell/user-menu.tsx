@@ -92,9 +92,11 @@ type UserMenuProps = {
   appearance: Appearance;
   onAppearanceChange: (appearance: Appearance) => void;
   onProfile: () => void;
-  onChangePassword: () => void;
+  // Left out (an account without a local password), the menu has no Change password entry; the
+  // others keep their order. The app decides which accounts get it.
+  onChangePassword?: () => void;
   // The server locks the own password change (sole active admin): the entry becomes a non-interactive
-  // notice in the same place instead of opening the form.
+  // notice in the same place instead of opening the form. Takes precedence over leaving the entry out.
   changePasswordLocked?: boolean;
   onSecurity: () => void;
   onLogOut: () => void;
@@ -274,13 +276,15 @@ function UserMenu({
                 <span>{t("account.changePasswordLocked")}</span>
               </div>
             ) : (
-              <UserMenuItem
-                testId="user-menu-change-password"
-                icon={KeyIcon}
-                label={t("account.changePassword")}
-                hint={t("account.changePasswordHint")}
-                onSelect={onChangePassword}
-              />
+              onChangePassword !== undefined && (
+                <UserMenuItem
+                  testId="user-menu-change-password"
+                  icon={KeyIcon}
+                  label={t("account.changePassword")}
+                  hint={t("account.changePasswordHint")}
+                  onSelect={onChangePassword}
+                />
+              )
             )}
             <UserMenuItem
               testId="user-menu-security"

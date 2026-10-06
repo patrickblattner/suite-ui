@@ -69,6 +69,15 @@ describe("userMenuOrderViolations", () => {
     const moved = [...ids.slice(0, 3), ...ids.slice(4, 6), ids[3] as string, ...ids.slice(6)];
     expect(userMenuOrderViolations(moved)).toHaveLength(1);
   });
+
+  it("accepts the menu without Change password; still reports a swap of the others", () => {
+    const without = order("user-menu-change-password").filter(
+      (id) => id !== "user-menu-change-password",
+    );
+    expect(userMenuOrderViolations(without)).toEqual([]);
+    const swapped = [without[0], without[2], without[1], ...without.slice(3)] as string[];
+    expect(userMenuOrderViolations(swapped)).toHaveLength(1);
+  });
 });
 
 describe("searchDialogViolations", () => {
