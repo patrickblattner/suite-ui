@@ -23,3 +23,4 @@
 {"ts":"2026-10-06T19:05:29.182Z","key":"SUI-FEATURE-019","from":null,"to":2,"disposition":"ticket","ref":"10"}
 {"ts":"2026-10-06T19:05:29.182Z","key":"SUI-DESIGN-012","from":6,"to":7,"disposition":"ticket","ref":"10"}
 {"ts":"2026-10-06T19:12:18.973Z","key":"SUI-FEATURE-019","from":2,"to":3,"disposition":"ticket","ref":"10"}
+{"ts":"2026-10-06T20:14:32.241Z","key":"PROC-REL-022","from":9,"to":10,"disposition":"editorial","ref":"rev10 adds env-key rename/removal rule; suite-ui is a component library without env contract (no .env, no process.env/import.meta.env, not a deployed stack) - no code impact"}
