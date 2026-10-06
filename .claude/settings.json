@@ -1,0 +1,73 @@
+{
+  "model": "opus",
+  "effortLevel": "medium",
+  "permissions": {
+    "deny": [
+      "mcp__spec__spec_create",
+      "mcp__spec__spec_update",
+      "mcp__spec__spec_set_status",
+      "mcp__spec__spec_link",
+      "mcp__spec__spec_unlink",
+      "mcp__spec__spec_alias_set",
+      "mcp__spec__answer_question",
+      "mcp__spec__dismiss_question",
+      "mcp__spec__escalate_question",
+      "mcp__spec__record_decision",
+      "Edit(//Users/pbl/projects/specs-meta/**)",
+      "Edit(//Users/pbl/projects/overmind/**)",
+      "Write(//Users/pbl/projects/overmind/**)",
+      "Bash(git -C /Users/pbl/projects/specs-meta*:*)",
+      "Bash(git -C /Users/pbl/projects/overmind*:*)"
+    ],
+    "additionalDirectories": [
+      "/Users/pbl/projects/.worktrees/suite-ui"
+    ],
+    "allow": [
+      "Bash(caffeinate -ims git *)",
+      "Bash(git worktree *)",
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git merge *)",
+      "Bash(git push *)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "/Users/pbl/.claude/hooks/role-guard.sh worker"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node /Users/pbl/projects/spec-sync-toolkit/dist/hooks/stop-check.js",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node /Users/pbl/projects/spec-sync-toolkit/dist/hooks/subagent-stop-check.js",
+            "timeout": 60
+          }
+        ]
+      }
+    ]
+  },
+  "disabledMcpjsonServers": [
+    "serena",
+    "codegraph"
+  ]
+}

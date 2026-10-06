@@ -1,0 +1,8 @@
+{
+  "name": "suite-ui",
+  "private": true,
+  "type": "module",
+  "devDependencies": {
+    "spec-sync-toolkit": "github:patrickblattner/spec-sync-toolkit#v0.22.0"
+  }
+}

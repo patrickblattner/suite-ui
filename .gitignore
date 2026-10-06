@@ -1,0 +1,10 @@
+# Claude Code local state
+worklogs/
+.claude/settings.local.json
+
+# spec-sync toolkit run state (spec-sync.config.json + spec-pins.json stay versioned)
+.spec-sync/*
+!.spec-sync/review-prompt.md
+!.spec-sync/drift-coverage.jsonl
+.spec-sync-pause
+.spec-sync-handover.md
