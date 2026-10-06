@@ -8,3 +8,9 @@ worklogs/
 !.spec-sync/drift-coverage.jsonl
 .spec-sync-pause
 .spec-sync-handover.md
+
+# Build and test output (package-lock.json stays versioned)
+node_modules/
+dist/
+test-results/
+playwright-report/

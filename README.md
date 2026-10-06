@@ -30,6 +30,33 @@ npm install --save-dev github:patrickblattner/suite-ui#vX.Y.Z
 
 Switching to a new tag always needs this explicit `npm install` (lockfile). Then add `@import "@suite/ui/styles.css";` once in the app CSS and call `registerSuiteStrings(i18n)` once in the i18n setup.
 
+Peer dependencies (never bundled): `react` and `react-dom` ^19.2, `react-router-dom` ^7, `radix-ui` ^1.5, `lucide-react` >=1.17, `class-variance-authority` ^0.7, `tailwind-merge` ^3, `clsx` ^2, `react-i18next` >=15 <18.
+
+### Parity check
+
+```bash
+npx suite-ui-parity --app <cockpit|community> [--root <path>] [--report]
+```
+
+Compares the app's own texts for every shared element in `parity-map.json` with the canonical `suite` text and prints one line per deviation. `pending` elements only report, `aligned` elements fail the command (exit 1). `--report` never fails.
+
+## Development
+
+Node 22, npm. `npm ci` builds `dist/` (`prepare`).
+
+| Script                 | Purpose                                                               |
+| ---------------------- | --------------------------------------------------------------------- |
+| `npm run build`        | tsup: ESM and `.d.ts` into `dist/`                                    |
+| `npm run format:check` | Prettier                                                              |
+| `npm run lint`         | ESLint                                                                |
+| `npm run typecheck`    | TypeScript strict                                                     |
+| `npm test`             | Vitest with Testing Library                                           |
+| `npm run gallery`      | Playwright captures of the gallery (de/en/es × light/dark, 1920×1080) |
+| `npm run gallery:dev`  | Gallery dev server                                                    |
+| `npm run parity`       | Parity command from `dist/`                                           |
+
+Gallery baselines live in `gallery/__screenshots__/`; an intended visual change updates them with `npx playwright test --config gallery/playwright.config.ts --update-snapshots`.
+
 ## Requests and questions
 
 Ask through the spec server Q&A mailbox (project `suite-ui`), never by editing a copy in an app. The question starts with `Paket-Anfrage (<cockpit|community>): <component>` and states:

@@ -1,0 +1,14 @@
+dist/
+node_modules/
+test-results/
+playwright-report/
+package-lock.json
+spec-pins.json
+.spec-sync/
+gallery/__screenshots__/
+# Agent and tooling files managed by the project scaffold
+.claude/
+.mcp.json
+AGENTS.md
+CLAUDE.md
+task-config.md

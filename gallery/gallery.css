@@ -1,0 +1,58 @@
+/* Gallery chrome only. Component styling comes from `src/styles.css` once tokens exist. */
+:root {
+  color-scheme: light;
+  --gallery-bg: #ffffff;
+  --gallery-fg: #18181b;
+  --gallery-muted: #52525b;
+  --gallery-border: #e4e4e7;
+}
+
+:root.dark {
+  color-scheme: dark;
+  --gallery-bg: #09090b;
+  --gallery-fg: #fafafa;
+  --gallery-muted: #a1a1aa;
+  --gallery-border: #27272a;
+}
+
+body {
+  margin: 0;
+  background: var(--gallery-bg);
+  color: var(--gallery-fg);
+  font:
+    14px/1.5 system-ui,
+    sans-serif;
+}
+
+header {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  padding: 16px 24px;
+  border-bottom: 1px solid var(--gallery-border);
+}
+
+header h1 {
+  margin: 0 auto 0 0;
+  font-size: 18px;
+}
+
+main {
+  padding: 24px;
+}
+
+table {
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: 4px 16px 4px 0;
+  border-bottom: 1px solid var(--gallery-border);
+  text-align: left;
+}
+
+th {
+  color: var(--gallery-muted);
+  font-weight: 500;
+}

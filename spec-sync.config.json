@@ -2,23 +2,38 @@
   "project": "suite-ui",
   "gate": {
     "profiles": {
-      "local": ["format", "lint", "typecheck", "unit"],
-      "merge": ["format", "lint", "typecheck", "unit"],
-      "nightly": ["format", "lint", "typecheck", "unit"]
+      "local": ["format", "lint", "typecheck", "unit", "gallery"],
+      "merge": ["format", "lint", "typecheck", "unit", "gallery"],
+      "nightly": ["format", "lint", "typecheck", "unit", "gallery"]
     },
     "phases": [
-      { "name": "format", "cmd": "npm run format:check" },
-      { "name": "lint", "cmd": "npm run lint" },
-      { "name": "typecheck", "cmd": "npm run typecheck" },
-      { "name": "unit", "cmd": "npm test" }
+      {
+        "name": "format",
+        "cmd": "npm run format:check"
+      },
+      {
+        "name": "lint",
+        "cmd": "npm run lint"
+      },
+      {
+        "name": "typecheck",
+        "cmd": "npm run typecheck"
+      },
+      {
+        "name": "unit",
+        "cmd": "npm test"
+      },
+      {
+        "name": "gallery",
+        "cmd": "npm run gallery"
+      }
     ]
   },
   "lenses": {
     "acceptance": ["**"],
     "tests": ["**"],
-    "a11y": ["client/**", "public/**"],
-    "security": ["server/**", "worker/**", "package-lock.json", "**/auth/**"],
-    "migration": ["server/migrations/**"]
+    "a11y": ["src/**", "gallery/**"],
+    "security": ["src/**", "package-lock.json"]
   },
   "labels": {
     "build": "spec-sync",
