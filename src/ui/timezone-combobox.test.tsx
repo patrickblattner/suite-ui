@@ -68,4 +68,30 @@ describe("TimezoneCombobox", () => {
     expect(input).toHaveValue("Europe/Berlin");
     expect(onValueChange).not.toHaveBeenCalled();
   });
+
+  it("hint: the field is described by the hint text", () => {
+    render(<TimezoneCombobox value="UTC" onValueChange={vi.fn()} hint="The zone of every date" />);
+    const input = screen.getByRole("combobox");
+    const ids = input.getAttribute("aria-describedby")?.split(" ") ?? [];
+    expect(ids.map((id) => document.getElementById(id)?.textContent)).toContain(
+      "The zone of every date",
+    );
+  });
+
+  it("invalid: aria-invalid and the error styling of the other form fields", () => {
+    render(<TimezoneCombobox value="" onValueChange={vi.fn()} invalid />);
+    const input = screen.getByRole("combobox");
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(input).toHaveClass(
+      "aria-invalid:border-destructive",
+      "aria-invalid:ring-destructive/20",
+    );
+  });
+
+  it("neither hint nor invalid: no description, not invalid", () => {
+    render(<TimezoneCombobox value="UTC" onValueChange={vi.fn()} />);
+    const input = screen.getByRole("combobox");
+    expect(input).not.toHaveAttribute("aria-describedby");
+    expect(input).not.toHaveAttribute("aria-invalid");
+  });
 });

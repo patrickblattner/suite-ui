@@ -3,6 +3,7 @@ import * as React from "react";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
+import { Hint } from "./hint.js";
 
 // The IANA zones of the runtime's own Intl database (`GL-UI-030` §Zeitzonen-Feld).
 const TIME_ZONES: readonly string[] = Intl.supportedValuesOf("timeZone");
@@ -23,6 +24,10 @@ type TimezoneComboboxProps = {
   id?: string;
   disabled?: boolean;
   className?: string;
+  // The field hint: a hover hint on the field and its description for assistive tech.
+  hint?: string;
+  // The error state, shown like every other form field of the package.
+  invalid?: boolean;
   "aria-invalid"?: boolean;
   "aria-describedby"?: string;
   "data-testid"?: string;
@@ -40,6 +45,8 @@ function TimezoneCombobox({
   id,
   disabled = false,
   className,
+  hint,
+  invalid = false,
   "aria-invalid": ariaInvalid,
   "aria-describedby": ariaDescribedBy,
   "data-testid": testId,
@@ -124,39 +131,43 @@ function TimezoneCombobox({
     }
   };
 
+  const field = (
+    <input
+      id={inputId}
+      type="text"
+      role="combobox"
+      autoComplete="off"
+      spellCheck={false}
+      aria-expanded={open}
+      aria-controls={listId}
+      aria-autocomplete="list"
+      aria-activedescendant={
+        open && matches[active] !== undefined ? `${listId}-${active}` : undefined
+      }
+      aria-invalid={invalid || ariaInvalid}
+      aria-describedby={ariaDescribedBy}
+      data-testid={testId}
+      disabled={disabled}
+      placeholder={t("timezone.placeholder")}
+      value={open ? query : value}
+      onClick={openList}
+      onChange={(event) => {
+        if (!open) setOpen(true);
+        setQuery(event.target.value);
+        setActive(0);
+      }}
+      onKeyDown={onKeyDown}
+      onBlur={(event) => {
+        if (!rootRef.current?.contains(event.relatedTarget)) close();
+      }}
+      className="h-9 w-full min-w-0 rounded-md border border-input bg-transparent py-1 pr-9 pl-3 text-base shadow-xs transition-[color,box-shadow] outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 md:text-sm dark:bg-input/30 dark:aria-invalid:ring-destructive/40"
+    />
+  );
+
   return (
     <div ref={rootRef} data-slot="timezone-combobox" className={cn("w-full", className)}>
       <div className="relative">
-        <input
-          id={inputId}
-          type="text"
-          role="combobox"
-          autoComplete="off"
-          spellCheck={false}
-          aria-expanded={open}
-          aria-controls={listId}
-          aria-autocomplete="list"
-          aria-activedescendant={
-            open && matches[active] !== undefined ? `${listId}-${active}` : undefined
-          }
-          aria-invalid={ariaInvalid}
-          aria-describedby={ariaDescribedBy}
-          data-testid={testId}
-          disabled={disabled}
-          placeholder={t("timezone.placeholder")}
-          value={open ? query : value}
-          onClick={openList}
-          onChange={(event) => {
-            if (!open) setOpen(true);
-            setQuery(event.target.value);
-            setActive(0);
-          }}
-          onKeyDown={onKeyDown}
-          onBlur={(event) => {
-            if (!rootRef.current?.contains(event.relatedTarget)) close();
-          }}
-          className="h-9 w-full min-w-0 rounded-md border border-input bg-transparent py-1 pr-9 pl-3 text-base shadow-xs transition-[color,box-shadow] outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 md:text-sm dark:bg-input/30 dark:aria-invalid:ring-destructive/40"
-        />
+        {hint === undefined ? field : <Hint text={hint}>{field}</Hint>}
         <ChevronDownIcon
           aria-hidden="true"
           className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted-foreground"

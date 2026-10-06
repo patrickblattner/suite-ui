@@ -531,6 +531,12 @@
       "status": "pending",
       "cockpit": "version.buildDate",
       "community": "version.buildDate"
+    },
+    {
+      "element": "DialogFooter",
+      "suite": "actions.close",
+      "status": "pending",
+      "cockpit": "common.close"
     }
   ]
 }

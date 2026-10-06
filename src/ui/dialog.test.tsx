@@ -1,5 +1,6 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import i18n from "i18next";
+import { afterEach, describe, expect, it } from "vitest";
 
 import { Button } from "./button.js";
 import {
@@ -70,5 +71,59 @@ describe("Dialog", () => {
   it("names the close button in the suite namespace", () => {
     render(<FormDialog mode="edit" />);
     expect(screen.getByRole("button", { name: "Close" })).toBeInTheDocument();
+  });
+});
+
+function CloseFooterDialog() {
+  return (
+    <Dialog defaultOpen>
+      <DialogContent showCloseButton={false}>
+        <DialogTitle>Details</DialogTitle>
+        <DialogFooter showCloseButton>
+          <Button variant="success" size="default">
+            Save
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function footerButtons(): HTMLElement[] {
+  const footer = screen.getByRole("dialog").querySelector<HTMLElement>("[data-slot=dialog-footer]");
+  return within(footer as HTMLElement).getAllByRole("button");
+}
+
+describe("DialogFooter showCloseButton", () => {
+  afterEach(async () => {
+    await act(() => i18n.changeLanguage("en"));
+  });
+
+  it("puts an outline Close button before the other children", () => {
+    render(<CloseFooterDialog />);
+    const [close, save] = footerButtons();
+    expect(close).toHaveTextContent("Close");
+    expect(close).toHaveAttribute("data-variant", "outline");
+    expect(save).toHaveTextContent("Save");
+  });
+
+  it("closes the dialog on click", () => {
+    render(<CloseFooterDialog />);
+    fireEvent.click(footerButtons()[0] as HTMLElement);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ["de", "Schließen"],
+    ["es", "Cerrar"],
+  ])("reads the suite text in %s", async (lng, text) => {
+    await i18n.changeLanguage(lng);
+    render(<CloseFooterDialog />);
+    expect(footerButtons()[0]).toHaveTextContent(text);
+  });
+
+  it("adds no button without the prop", () => {
+    render(<FormDialog mode="edit" />);
+    expect(footerButtons().map((b) => b.textContent)).toEqual(["Cancel", "Save"]);
   });
 });

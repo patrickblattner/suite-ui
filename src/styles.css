@@ -26,6 +26,26 @@
   /* The tight gap that keeps the pager's chevrons and "Page X / Y" one compact cluster. */
   --pager-gap: 0.25rem;
 
+  /* The toast column starts below the page title row, derived from the shell: the app bar, the
+     shell's top banner band (status banners; the app measures and sets it at runtime), the top
+     content inset and the tallest page header, plus a small gap. A banner that pushes the page down
+     pushes the toast with it. */
+  --app-bar-height: 0rem;
+  --shell-chrome-height: 0rem;
+  --page-inset-top: 1.5rem;
+  --toast-offset-top: calc(
+    var(--app-bar-height) + var(--shell-chrome-height) + var(--page-inset-top) +
+      var(--page-header-height) + 0.5rem
+  );
+
+  /* Tooltip delays (`GL-UI-016`/`GL-UI-017`): the overflow tooltip opens at once, every description
+     hint after the one hint delay. `tooltip.tsx` keeps the numbers radix needs in step with these. */
+  --tooltip-overflow-delay: 0ms;
+  --tooltip-hint-delay: 1500ms;
+
+  /* The square size of the transparency checkerboard behind media previews. */
+  --checker-size: 12px;
+
   --background: oklch(1 0 0);
   --foreground: oklch(0.21 0.006 285.9);
   --card: oklch(1 0 0);

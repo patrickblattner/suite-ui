@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
+import { TOOLTIP_HINT_DELAY, TOOLTIP_OVERFLOW_DELAY } from "./ui/tooltip.js";
+
 const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
 
 function block(selector: string): Map<string, string> {
@@ -93,6 +95,25 @@ describe("styles.css tokens", () => {
     for (const fill of ["success", "warn", "destructive", "instance-name"]) {
       expect(checked).toContain(`${fill}-foreground`);
     }
+  });
+
+  it("carries the shell offsets, the tooltip delays and the checker size of the seed", () => {
+    expect(Object.fromEntries(root)).toMatchObject({
+      "app-bar-height": "0rem",
+      "shell-chrome-height": "0rem",
+      "page-inset-top": "1.5rem",
+      "tooltip-overflow-delay": "0ms",
+      "tooltip-hint-delay": "1500ms",
+      "checker-size": "12px",
+    });
+    expect(root.get("toast-offset-top")?.replace(/\s+/g, " ")).toBe(
+      "calc( var(--app-bar-height) + var(--shell-chrome-height) + var(--page-inset-top) + var(--page-header-height) + 0.5rem )",
+    );
+  });
+
+  it("keeps the tooltip delay constants equal to their tokens", () => {
+    expect(root.get("tooltip-overflow-delay")).toBe(`${TOOLTIP_OVERFLOW_DELAY}ms`);
+    expect(root.get("tooltip-hint-delay")).toBe(`${TOOLTIP_HINT_DELAY}ms`);
   });
 
   it("carries no domain token and no font", () => {

@@ -4,12 +4,14 @@ import * as React from "react";
 import { cn } from "../lib/cn.js";
 
 // Two tooltip behaviours (`GL-UI-016`/`GL-UI-017`): the overflow tooltip opens at once and reveals a
-// clipped text; every description hint opens after the one hint delay. Radix needs numeric delays.
+// clipped text; every description hint opens after the one hint delay. Radix needs numeric delays, so
+// these mirror `--tooltip-overflow-delay` and `--tooltip-hint-delay` in styles.css.
 const TOOLTIP_OVERFLOW_DELAY = 0;
 const TOOLTIP_HINT_DELAY = 1500;
 
+// A bare provider opens at once; every description hint sets the hint delay itself.
 function TooltipProvider({
-  delayDuration = TOOLTIP_HINT_DELAY,
+  delayDuration = TOOLTIP_OVERFLOW_DELAY,
   ...props
 }: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
   return (
@@ -119,7 +121,53 @@ function OverflowTooltip({
   );
 }
 
+// The description hint of an icon-only control: opens after the hint delay and shows the same text as
+// the control's `aria-label`, which the caller still sets. While the control is `disabled`,
+// `disabledText` (the condition under which it becomes usable) takes the place of `label`; a disabled
+// control takes no pointer events, so it then sits in a span that is the trigger, focusable and the
+// owner of the description. The span stands either way, so toggling `disabled` never remounts it.
+function IconButtonTooltip({
+  label,
+  disabledText,
+  children,
+}: {
+  label: string;
+  disabledText?: string | undefined;
+  children: React.ReactElement<{ disabled?: boolean }>;
+}) {
+  const id = React.useId();
+  const disabled = disabledText !== undefined && children.props.disabled === true;
+  const trigger =
+    disabledText === undefined ? (
+      children
+    ) : (
+      <span
+        tabIndex={disabled ? 0 : undefined}
+        className="inline-grid"
+        aria-describedby={disabled ? id : undefined}
+      >
+        {children}
+      </span>
+    );
+  return (
+    <>
+      <TooltipProvider delayDuration={TOOLTIP_HINT_DELAY}>
+        <TooltipPrimitive.Root>
+          <TooltipTrigger asChild>{trigger}</TooltipTrigger>
+          <TooltipContent>{disabled ? disabledText : label}</TooltipContent>
+        </TooltipPrimitive.Root>
+      </TooltipProvider>
+      {disabled ? (
+        <span id={id} hidden>
+          {disabledText}
+        </span>
+      ) : null}
+    </>
+  );
+}
+
 export {
+  IconButtonTooltip,
   OverflowTooltip,
   Tooltip,
   TooltipContent,

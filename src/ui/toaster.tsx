@@ -21,12 +21,11 @@ export const TOAST_VARIANT_CLASSNAMES = {
   info: "[--normal-bg:var(--info)] [--normal-text:var(--info-foreground)] [--normal-border:var(--info)]",
 } as const;
 
-// Top right, below the page title row, so a fresh toast never covers the page's primary action.
+// Top right, below the page title row, so a fresh toast never covers the page's primary action. The
+// shell-derived `--toast-offset-top` (styles.css) moves with a banner that pushes the page down.
 // Applied after the prop spread: placement is not a per-page choice.
 export const TOAST_POSITION = "top-right" as const;
-export const TOAST_OFFSET = {
-  top: "calc(var(--page-gutter) + var(--page-header-height) + 0.5rem)",
-} as const;
+export const TOAST_OFFSET = { top: "var(--toast-offset-top)" } as const;
 
 // A click on any toast dismisses all visible toasts; clicks on a toast's own buttons keep their
 // behaviour. Sonner drops unknown props on its list, so the handler sits on a wrapper.

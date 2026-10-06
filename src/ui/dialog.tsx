@@ -5,6 +5,7 @@ import type * as React from "react";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
+import { Button } from "./button.js";
 
 // The height cap of a form dialog as a number, for anything that has to compute how far the dialog
 // can still grow (an open panel drives the height while the dialog is below the cap).
@@ -134,8 +135,15 @@ function DialogBody({ className, ...props }: React.ComponentProps<"div">) {
 
 // The action row (`GL-UI-027`): a fixed footer with a full-width divider, the buttons right-aligned.
 // Children go in reading order, Cancel first and the primary action last, so Cancel stands directly
-// left of it; Cancel never stands alone at the left edge.
-function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {
+// left of it; Cancel never stands alone at the left edge. `showCloseButton` puts an outline Close
+// button first, at the Cancel place.
+function DialogFooter({
+  className,
+  showCloseButton = false,
+  children,
+  ...props
+}: React.ComponentProps<"div"> & { showCloseButton?: boolean }) {
+  const { t } = useTranslation("suite");
   return (
     <div
       data-slot="dialog-footer"
@@ -144,7 +152,16 @@ function DialogFooter({ className, ...props }: React.ComponentProps<"div">) {
         className,
       )}
       {...props}
-    />
+    >
+      {showCloseButton && (
+        <DialogPrimitive.Close asChild>
+          <Button variant="outline" size="default">
+            {t("actions.close")}
+          </Button>
+        </DialogPrimitive.Close>
+      )}
+      {children}
+    </div>
   );
 }
 

@@ -120,6 +120,17 @@ test("confirm dialog: destructive right, Cancel directly left", async ({ page })
   await expectActionRow(dialog, page.getByTestId("confirm-dialog-cancel"), confirm);
 });
 
+test("a shell banner pushes the toast down by exactly its height", async ({ page }) => {
+  await page.goto("/?page=toast");
+  const toaster = page.locator("[data-sonner-toaster]");
+  await expect(page.getByText("Success")).toBeVisible();
+  const before = await box(toaster);
+  await page.evaluate(() =>
+    document.documentElement.style.setProperty("--shell-chrome-height", "40px"),
+  );
+  await expect.poll(async () => (await box(toaster)).y - before.y).toBeCloseTo(40, 0);
+});
+
 test("the open time zone list grows the dialog", async ({ page }) => {
   await page.goto("/?page=dialog");
   const dialog = page.getByTestId("form-dialog");

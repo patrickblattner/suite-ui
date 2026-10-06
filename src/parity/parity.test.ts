@@ -69,6 +69,20 @@ describe("checkParity", () => {
 });
 
 describe("parity map", () => {
+  it("finds no deviation for the dialog footer's Close against the cockpit seed texts", () => {
+    const map: ParityMap = {
+      elements: parityMap.elements.filter((e) => e.element === "DialogFooter"),
+    };
+    const seed = {
+      en: { common: { close: "Close" } },
+      de: { common: { close: "Schließen" } },
+      es: { common: { close: "Cerrar" } },
+    };
+    const result = checkParity("cockpit", seed, map);
+    expect(result.elements).toHaveLength(1);
+    expect(result.deviations).toEqual([]);
+  });
+
   it("names a suite key that exists in en and at least one app key per element", () => {
     const broken = parityMap.elements
       .filter(
@@ -81,10 +95,11 @@ describe("parity map", () => {
     expect(broken).toEqual([]);
   });
 
-  it("maps the list frame, the settings footer and the shell, pending until the apps have switched", () => {
+  it("maps the list frame, the settings footer, the shell and the dialog footer, pending until the apps have switched", () => {
     const elements = new Set(parityMap.elements.map((e) => e.element));
     expect([...elements].sort()).toEqual([
       "AppSidebar",
+      "DialogFooter",
       "FilterBar",
       "GlobalSearch",
       "SettingsFooter",
