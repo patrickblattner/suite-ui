@@ -2,14 +2,19 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { AppSidebar } from "./app-sidebar.js";
+import type { NavModel } from "./nav.js";
 import { ShellHarness, TEST_NAV } from "./test-utils.js";
 
-function renderSidebar(route: string, isAllowed: (viewKey: string) => boolean = () => true) {
+function renderSidebar(
+  route: string,
+  isAllowed: (viewKey: string) => boolean = () => true,
+  nav: NavModel = TEST_NAV,
+) {
   return render(
     <ShellHarness route={route}>
       <AppSidebar
         instanceName="Test instance"
-        nav={TEST_NAV}
+        nav={nav}
         isAllowed={isAllowed}
         onHelp={() => {}}
         version={{ info: { version: "1.2.3", commit: "abc1234", buildDate: "2026-10-01" } }}
@@ -96,6 +101,38 @@ describe("AppSidebar", () => {
     ]);
     expect(screen.getByTestId("help-button")).toHaveTextContent("Help");
     expect(screen.getByTestId("version-button")).toHaveTextContent("Version info");
+  });
+
+  it("a counter carries the app's label and test id, expanded and collapsed", () => {
+    const nav: NavModel = {
+      ...TEST_NAV,
+      primary: TEST_NAV.primary.map((entry) =>
+        entry.key === "ideas"
+          ? { ...entry, countLabel: "3 offene Reviews", countTestId: "nav-review-badge" }
+          : entry,
+      ),
+    };
+    renderSidebar("/dashboard", () => true, nav);
+    expect(screen.queryByTestId("nav-ideas-count")).not.toBeInTheDocument();
+    expect(screen.getByTestId("nav-review-badge")).toHaveAttribute(
+      "aria-label",
+      "3 offene Reviews",
+    );
+    fireEvent.click(screen.getByTestId("sidebar-trigger"));
+    expect(screen.getByTestId("app-sidebar")).toHaveAttribute("data-state", "collapsed");
+    expect(screen.getByTestId("nav-review-badge")).toHaveAttribute(
+      "aria-label",
+      "3 offene Reviews",
+    );
+    fireEvent.click(screen.getByTestId("sidebar-trigger"));
+  });
+
+  it("a counter without label and test id keeps nav-<key>-count without aria-label", () => {
+    renderSidebar("/dashboard");
+    expect(screen.getByTestId("nav-ideas-count")).not.toHaveAttribute("aria-label");
+    fireEvent.click(screen.getByTestId("sidebar-trigger"));
+    expect(screen.getByTestId("nav-ideas-count")).not.toHaveAttribute("aria-label");
+    fireEvent.click(screen.getByTestId("sidebar-trigger"));
   });
 
   it("collapsed, the head keeps only the toggle and entries keep their names", () => {

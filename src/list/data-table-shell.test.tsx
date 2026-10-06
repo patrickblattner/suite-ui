@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import { TableCell, TableHead, TableRow } from "../ui/table.js";
 import { DataTableShell, SKELETON_ROW_COUNT } from "./data-table-shell.js";
 
-function renderShell(state: { isPending?: boolean; isEmpty?: boolean }) {
+function renderShell(state: { isPending?: boolean; isEmpty?: boolean; scrollTestId?: string }) {
   render(
     <DataTableShell
       head={
@@ -20,6 +20,7 @@ function renderShell(state: { isPending?: boolean; isEmpty?: boolean }) {
       loadingRowTestId="rows-loading"
       emptyTestId="rows-empty"
       headerTestId="rows-header"
+      {...(state.scrollTestId !== undefined && { scrollTestId: state.scrollTestId })}
       pagination={<div data-testid="pager" />}
     >
       <TableRow data-testid="row">
@@ -40,6 +41,15 @@ describe("DataTableShell", () => {
     expect(scroll).toContainElement(screen.getByTestId("rows-header"));
     expect(scroll).not.toContainElement(screen.getByTestId("pager"));
     expect(scroll.nextElementSibling).toBe(screen.getByTestId("pager"));
+  });
+
+  it("names the one scroller after scrollTestId when given", () => {
+    renderShell({ scrollTestId: "users-scroll" });
+    const scroll = screen.getByTestId("users-scroll");
+    expect(scroll).toHaveClass("overflow-auto");
+    expect(scroll).toContainElement(screen.getByTestId("row"));
+    expect(screen.queryByTestId("data-table-scroll")).not.toBeInTheDocument();
+    expect(screen.getByTestId("data-table").querySelectorAll(".overflow-auto")).toHaveLength(1);
   });
 
   it("shows skeleton rows while pending, never the empty state", () => {

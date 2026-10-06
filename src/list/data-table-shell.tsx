@@ -23,6 +23,8 @@ type DataTableShellProps = {
   loadingRowTestId: string;
   emptyTestId: string;
   headerTestId?: string;
+  // The scroller's `data-testid`; without it `data-table-scroll`.
+  scrollTestId?: string;
   // The pager under the table, usually a `TablePagination`.
   pagination?: React.ReactNode;
   // The data rows, rendered once the query finished with rows.
@@ -43,6 +45,7 @@ function DataTableShell({
   loadingRowTestId,
   emptyTestId,
   headerTestId,
+  scrollTestId = "data-table-scroll",
   pagination,
   children,
 }: DataTableShellProps) {
@@ -50,7 +53,7 @@ function DataTableShell({
     <div className="flex min-h-0 flex-1 flex-col gap-4" data-testid="data-table">
       <div
         className="min-h-0 flex-1 overflow-auto [&_[data-slot=table-container]]:overflow-visible"
-        data-testid="data-table-scroll"
+        data-testid={scrollTestId}
       >
         <Table>
           <TableHeader className={STICKY_HEADER_CLASS} data-testid={headerTestId}>

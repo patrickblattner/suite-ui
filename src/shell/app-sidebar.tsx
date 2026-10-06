@@ -84,6 +84,7 @@ function AppSidebar({
     const Icon = entry.icon;
     const label = i18n.t(entry.labelKey);
     const count = entry.count ?? 0;
+    const countTestId = entry.countTestId ?? `nav-${entry.key}-count`;
     return (
       <li key={entry.key}>
         {withHint(
@@ -102,7 +103,8 @@ function AppSidebar({
               <Icon className="size-4" aria-hidden="true" />
               {count > 0 && !isOpen && (
                 <span
-                  data-testid={`nav-${entry.key}-count`}
+                  data-testid={countTestId}
+                  aria-label={entry.countLabel}
                   className="absolute -top-1.5 -right-1.5 inline-flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-warn px-1 text-[10px] leading-none font-medium text-warn-foreground tabular-nums"
                 >
                   {count}
@@ -112,7 +114,8 @@ function AppSidebar({
             {isOpen && <span className="truncate">{label}</span>}
             {count > 0 && isOpen && (
               <span
-                data-testid={`nav-${entry.key}-count`}
+                data-testid={countTestId}
+                aria-label={entry.countLabel}
                 className="ml-auto inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-warn px-1.5 text-xs font-medium text-warn-foreground tabular-nums"
               >
                 {count}

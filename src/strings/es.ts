@@ -93,6 +93,7 @@ export const es: SuiteStrings = {
     securityHint: "Gestionar el segundo factor y los códigos de recuperación.",
     logOut: "Cerrar sesión",
     logOutHint: "Cierra la sesión y vuelve al inicio de sesión.",
+    notAvailable: "Aún no disponible",
   },
   language: {
     en: "English",

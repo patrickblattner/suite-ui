@@ -95,6 +95,7 @@ export const en = {
     securityHint: "Manage the second factor and recovery codes.",
     logOut: "Log out",
     logOutHint: "Signs out and returns to the sign-in page.",
+    notAvailable: "Not available yet",
   },
   // Each language under its own name, the same in every interface language.
   language: {

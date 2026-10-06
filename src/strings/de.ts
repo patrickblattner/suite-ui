@@ -94,6 +94,7 @@ export const de: SuiteStrings = {
     securityHint: "Zweiten Faktor und Wiederherstellungscodes verwalten.",
     logOut: "Abmelden",
     logOutHint: "Meldet ab und kehrt zur Anmeldung zurück.",
+    notAvailable: "Noch nicht verfügbar",
   },
   language: {
     en: "English",

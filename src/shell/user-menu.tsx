@@ -78,6 +78,29 @@ function UserMenuItem({
   );
 }
 
+// An entry the app does not offer yet: it keeps its place, is `aria-disabled` and triggers nothing.
+function UnavailableItem({
+  testId,
+  icon: Icon,
+  label,
+}: Pick<UserMenuItemProps, "testId" | "icon" | "label">) {
+  const { t } = useTranslation("suite");
+  return (
+    <div
+      role="menuitem"
+      aria-disabled="true"
+      data-testid={testId}
+      className="flex w-full items-start gap-2 rounded-sm px-2 py-1.5 text-left text-sm text-muted-foreground"
+    >
+      <Icon className="size-4 shrink-0 translate-y-0.5" aria-hidden="true" />
+      <span className="grid">
+        <span>{label}</span>
+        <span className="text-xs">{t("account.notAvailable")}</span>
+      </span>
+    </div>
+  );
+}
+
 function Separator() {
   return <div role="separator" className="my-1 border-t" />;
 }
@@ -92,12 +115,17 @@ type UserMenuProps = {
   appearance: Appearance;
   onAppearanceChange: (appearance: Appearance) => void;
   onProfile: () => void;
+  // The app has no profile page yet: the entry stays in its place as a non-interactive notice.
+  profileUnavailable?: boolean;
   // Left out (an account without a local password), the menu has no Change password entry; the
   // others keep their order. The app decides which accounts get it.
   onChangePassword?: () => void;
   // The server locks the own password change (sole active admin): the entry becomes a non-interactive
   // notice in the same place instead of opening the form. Takes precedence over leaving the entry out.
   changePasswordLocked?: boolean;
+  // The app does not offer the password change yet: the entry stays in its place as a non-interactive
+  // notice. `changePasswordLocked` takes precedence; this one over leaving the entry out.
+  changePasswordUnavailable?: boolean;
   onSecurity: () => void;
   onLogOut: () => void;
   // The app's own entries (`UserMenuItem`), placed between Security / MFA and Log out.
@@ -116,8 +144,10 @@ function UserMenu({
   appearance,
   onAppearanceChange,
   onProfile,
+  profileUnavailable = false,
   onChangePassword,
   changePasswordLocked = false,
+  changePasswordUnavailable = false,
   onSecurity,
   onLogOut,
   children,
@@ -190,13 +220,21 @@ function UserMenu({
             data-testid="user-menu-content"
             className="absolute bottom-full left-0 z-50 mb-1 w-full overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
           >
-            <UserMenuItem
-              testId="user-menu-profile"
-              icon={UserIcon}
-              label={t("account.profile")}
-              hint={t("account.profileHint")}
-              onSelect={onProfile}
-            />
+            {profileUnavailable ? (
+              <UnavailableItem
+                testId="user-menu-profile"
+                icon={UserIcon}
+                label={t("account.profile")}
+              />
+            ) : (
+              <UserMenuItem
+                testId="user-menu-profile"
+                icon={UserIcon}
+                label={t("account.profile")}
+                hint={t("account.profileHint")}
+                onSelect={onProfile}
+              />
+            )}
             <Separator />
             <div className="px-2 py-1.5" data-testid="user-menu-language">
               <div className="mb-1.5 text-xs font-medium text-muted-foreground">
@@ -211,7 +249,7 @@ function UserMenu({
                     size="sm"
                     className="w-full"
                     aria-label={t("account.language")}
-                    data-testid="language-select"
+                    data-testid="language-switcher"
                   >
                     <SelectValue />
                   </SelectTrigger>
@@ -275,6 +313,12 @@ function UserMenu({
                 <KeyIcon className="size-4 shrink-0 translate-y-0.5" aria-hidden="true" />
                 <span>{t("account.changePasswordLocked")}</span>
               </div>
+            ) : changePasswordUnavailable ? (
+              <UnavailableItem
+                testId="user-menu-change-password"
+                icon={KeyIcon}
+                label={t("account.changePassword")}
+              />
             ) : (
               onChangePassword !== undefined && (
                 <UserMenuItem

@@ -30,6 +30,11 @@ export interface NavEntry {
   hintKey?: string;
   // A counter (open approvals and the like); 0 or undefined shows nothing.
   count?: number;
+  // The counter's accessible name, already translated ("3 open reviews"); without it the counter
+  // has no `aria-label`.
+  countLabel?: string;
+  // The counter's `data-testid`; without it `nav-<key>-count`.
+  countTestId?: string;
 }
 
 /** A lower sidebar section (Tools, Administration, Settings): a replace-nav entry with sub-pages. */

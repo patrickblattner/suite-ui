@@ -131,6 +131,66 @@ describe("UserMenu", () => {
     }
   });
 
+  it("the language trigger is language-switcher", () => {
+    renderMenu();
+    fireEvent.click(screen.getByTestId("user-menu-trigger"));
+    expect(screen.getByTestId("language-switcher")).toHaveAccessibleName("Language");
+    expect(screen.queryByTestId("language-select")).not.toBeInTheDocument();
+  });
+
+  it("shows unavailable Profile and Change password in place; click and Enter do nothing", () => {
+    const props = renderMenu({ profileUnavailable: true, changePasswordUnavailable: true });
+    fireEvent.click(screen.getByTestId("user-menu-trigger"));
+    expect(menuTestIds().slice(0, 4)).toEqual([
+      "user-menu-profile",
+      "user-menu-language",
+      "user-menu-appearance",
+      "user-menu-change-password",
+    ]);
+    for (const id of ["user-menu-profile", "user-menu-change-password"]) {
+      const entry = screen.getByTestId(id);
+      expect(entry).toHaveAttribute("aria-disabled", "true");
+      expect(entry).toHaveTextContent("Not available yet");
+      fireEvent.click(entry);
+      fireEvent.keyDown(entry, { key: "Enter" });
+    }
+    expect(props.onProfile).not.toHaveBeenCalled();
+    expect(props.onChangePassword).not.toHaveBeenCalled();
+    expect(screen.getByTestId("user-menu-content")).toBeInTheDocument();
+  });
+
+  it("shows the unavailable Change password entry even without onChangePassword", () => {
+    renderMenu({ onChangePassword: undefined, changePasswordUnavailable: true });
+    fireEvent.click(screen.getByTestId("user-menu-trigger"));
+    expect(screen.getByTestId("user-menu-change-password")).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+  });
+
+  it("the lock takes precedence over unavailable", () => {
+    renderMenu({ changePasswordLocked: true, changePasswordUnavailable: true });
+    fireEvent.click(screen.getByTestId("user-menu-trigger"));
+    expect(screen.queryByTestId("user-menu-change-password")).not.toBeInTheDocument();
+    expect(screen.getByTestId("user-menu-change-password-locked")).toHaveTextContent(
+      "Last active admin — password locked.",
+    );
+  });
+
+  it.each([
+    ["de", "Noch nicht verfügbar"],
+    ["es", "Aún no disponible"],
+  ])("reads the unavailable text from suite in %s", async (lng, text) => {
+    await i18n.changeLanguage(lng);
+    try {
+      renderMenu({ profileUnavailable: true });
+      fireEvent.click(screen.getByTestId("user-menu-trigger"));
+      expect(screen.getByTestId("user-menu-profile")).toHaveTextContent(text);
+    } finally {
+      await act(() => i18n.changeLanguage("en"));
+    }
+  });
+
   it("closes on Escape", () => {
     renderMenu();
     fireEvent.click(screen.getByTestId("user-menu-trigger"));
