@@ -14,3 +14,5 @@
 {"ts":"2026-10-06T10:43:39.598Z","key":"SUI-FEATURE-016","from":2,"to":3,"disposition":"ticket","ref":"7"}
 {"ts":"2026-10-06T10:48:50.115Z","key":"SUI-FEATURE-017","from":null,"to":2,"disposition":"ticket","ref":"8"}
 {"ts":"2026-10-06T10:49:04.215Z","key":"SUI-DESIGN-012","from":4,"to":5,"disposition":"ticket","ref":"8"}
+{"ts":"2026-10-06T12:01:34.023Z","key":"GL-OPS-001","from":6,"to":7,"disposition":"editorial","ref":"Message wording rule for operation-state event producers (first recovery vs. return); suite-ui is a UI package with no event producers or state rows — no code impact"}
+{"ts":"2026-10-06T12:01:34.462Z","key":"PROC-DEV-020","from":10,"to":11,"disposition":"editorial","ref":"Architect inbox session boundary rules (harness process); no code impact on suite-ui"}
