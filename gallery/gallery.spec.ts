@@ -2,7 +2,11 @@ import { expect, type Locator, type Page, test } from "@playwright/test";
 
 import {
   collectVisibleTexts,
+  controlHeightViolations,
   foreignTexts,
+  pagerEdgeViolations,
+  searchDialogViolations,
+  settingsFooterViolations,
   userMenuOrderViolations,
 } from "../src/testing/index.js";
 import { shellTexts } from "./shell-labels.js";
@@ -51,8 +55,9 @@ for (const lng of LANGUAGES) {
     test(`list scrolled to the pager ${lng} ${theme}`, async ({ page }) => {
       await page.goto(`/?page=list&lng=${lng}&theme=${theme}`);
       await expect(page.locator("html")).toHaveAttribute("lang", lng);
-      const scroller = page.getByTestId("page-scroll");
+      const scroller = page.getByTestId("data-table-scroll");
       await scroller.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+      await expect(page.getByTestId("list-row").last()).toBeInViewport();
       await expect(page.getByTestId("pagination-summary")).toBeInViewport();
       await expect(page).toHaveScreenshot(`list-bottom-${lng}-${theme}.png`, { fullPage: true });
     });
@@ -126,13 +131,14 @@ test("the open time zone list grows the dialog", async ({ page }) => {
   expect(await body.evaluate((el) => el.scrollHeight <= el.clientHeight)).toBe(true);
 });
 
-// `GL-UI-018` at 1920×1080: 200 rows and several selects overflow the page by far, yet the document
-// never scrolls; PageScroll is the one element that does.
-test("list frame: only PageScroll scrolls", async ({ page }) => {
+// `GL-UI-018`/`GL-UI-025` at 1920×1080: 200 rows and several selects overflow the table by far, yet
+// neither the document nor PageScroll scrolls; the table body in DataTableShell is the one element
+// that does.
+test("list frame: only the table body scrolls", async ({ page }) => {
   await page.goto("/?page=list");
   await expect(page.getByTestId("list-row")).toHaveCount(200);
   await expect(page.locator("select[aria-hidden]")).toHaveCount(4);
-  const scroller = page.getByTestId("page-scroll");
+  const scroller = page.getByTestId("data-table-scroll");
   await scroller.evaluate((el) => el.scrollTo(0, el.scrollHeight));
 
   const doc = await page.evaluate(() => ({
@@ -151,7 +157,53 @@ test("list frame: only PageScroll scrolls", async ({ page }) => {
       })
       .map((el) => el.dataset.testid ?? el.tagName),
   );
-  expect(scrollers).toEqual(["page-scroll"]);
+  expect(scrollers).toEqual(["data-table-scroll"]);
+});
+
+// AC2 of step 6 at 1920×1080: scrolled to the end, the column header and the pager are still in the
+// viewport where they were; only the table body moved. The shared geometry checks hold on the list.
+test("list frame: header and pager stay put while the rows scroll", async ({ page }) => {
+  await page.goto("/?page=list");
+  await expect(page.getByTestId("list-row")).toHaveCount(200);
+  const header = page.getByTestId("list-header");
+  const pager = page.getByTestId("pagination");
+  const firstRow = page.getByTestId("list-row").first();
+  const lastRow = page.getByTestId("list-row").last();
+  await expect(lastRow).not.toBeInViewport();
+  const [headerBefore, pagerBefore, titleBefore, rowBefore] = await Promise.all([
+    box(header),
+    box(pager),
+    box(page.getByTestId("page-title")),
+    box(firstRow),
+  ]);
+
+  await page.getByTestId("data-table-scroll").evaluate((el) => el.scrollTo(0, el.scrollHeight));
+  await expect(lastRow).toBeInViewport();
+  await expect(header).toBeInViewport();
+  await expect(pager).toBeInViewport();
+  expect(await box(header)).toEqual(headerBefore);
+  expect(await box(pager)).toEqual(pagerBefore);
+  expect(await box(page.getByTestId("page-title"))).toEqual(titleBefore);
+  expect((await box(firstRow)).y).toBeLessThan(rowBefore.y);
+  expect(await page.getByTestId("page-scroll").evaluate((el) => el.scrollTop)).toBe(0);
+
+  const gutterRight = await page.getByTestId("page-scroll").evaluate((el) => {
+    const rect = el.getBoundingClientRect();
+    return (
+      rect.left + el.clientLeft + el.clientWidth - parseFloat(getComputedStyle(el).paddingRight)
+    );
+  });
+  expect(
+    pagerEdgeViolations(await box(page.getByTestId("pagination-page-size")), gutterRight),
+  ).toEqual([]);
+  const controls = await page.getByTestId("filterbar").locator("[data-testid]").all();
+  const heights = await Promise.all(
+    controls.map(async (control) => ({
+      testId: (await control.getAttribute("data-testid")) ?? "",
+      box: await box(control),
+    })),
+  );
+  expect(controlHeightViolations(heights)).toEqual([]);
 });
 
 test("list frame: the page gutter is the same left and right of the content", async ({ page }) => {
@@ -240,6 +292,7 @@ test("settings: the footer stays at the bottom, only the form body scrolls", asy
   ]);
   expect(Math.abs(save.x + save.width - (f.x + f.width))).toBeLessThanOrEqual(1);
   expect(Math.abs(reset.x + reset.width + 8 - save.x)).toBeLessThanOrEqual(1);
+  expect(await footer.evaluate(settingsFooterViolations)).toEqual([]);
 });
 
 async function look(locator: Locator) {
@@ -394,6 +447,7 @@ for (const lng of LANGUAGES) {
     await page.getByTestId("search-dialog-input").fill("summer");
     await expect(page.getByTestId("search-hit")).toHaveCount(2);
     await check();
+    expect(await page.locator("body").evaluate(searchDialogViolations)).toEqual([]);
     await page.getByTestId("search-dialog-input").fill("zz");
     await expect(page.getByTestId("search-dialog-empty")).toBeVisible();
     await check();

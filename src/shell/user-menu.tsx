@@ -93,6 +93,9 @@ type UserMenuProps = {
   onAppearanceChange: (appearance: Appearance) => void;
   onProfile: () => void;
   onChangePassword: () => void;
+  // The server locks the own password change (sole active admin): the entry becomes a non-interactive
+  // notice in the same place instead of opening the form.
+  changePasswordLocked?: boolean;
   onSecurity: () => void;
   onLogOut: () => void;
   // The app's own entries (`UserMenuItem`), placed between Security / MFA and Log out.
@@ -112,6 +115,7 @@ function UserMenu({
   onAppearanceChange,
   onProfile,
   onChangePassword,
+  changePasswordLocked = false,
   onSecurity,
   onLogOut,
   children,
@@ -259,13 +263,25 @@ function UserMenu({
               </div>
             </div>
             <Separator />
-            <UserMenuItem
-              testId="user-menu-change-password"
-              icon={KeyIcon}
-              label={t("account.changePassword")}
-              hint={t("account.changePasswordHint")}
-              onSelect={onChangePassword}
-            />
+            {changePasswordLocked ? (
+              <div
+                role="menuitem"
+                aria-disabled="true"
+                data-testid="user-menu-change-password-locked"
+                className="flex w-full items-start gap-2 rounded-sm px-2 py-1.5 text-left text-sm text-muted-foreground"
+              >
+                <KeyIcon className="size-4 shrink-0 translate-y-0.5" aria-hidden="true" />
+                <span>{t("account.changePasswordLocked")}</span>
+              </div>
+            ) : (
+              <UserMenuItem
+                testId="user-menu-change-password"
+                icon={KeyIcon}
+                label={t("account.changePassword")}
+                hint={t("account.changePasswordHint")}
+                onSelect={onChangePassword}
+              />
+            )}
             <UserMenuItem
               testId="user-menu-security"
               icon={ShieldIcon}

@@ -88,6 +88,8 @@ export const de: SuiteStrings = {
     appearanceHint: "Stellt die Darstellung auf „{{mode}}“.",
     changePassword: "Passwort ändern",
     changePasswordHint: "Öffnet das Formular, um das eigene Passwort zu ändern.",
+    changePasswordLocked:
+      "Letzter aktiver Administrator — Passwort gesperrt. Lege zuerst einen zweiten Administrator an.",
     security: "Sicherheit / MFA",
     securityHint: "Zweiten Faktor und Wiederherstellungscodes verwalten.",
     logOut: "Abmelden",

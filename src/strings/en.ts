@@ -90,6 +90,7 @@ export const en = {
     appearanceHint: "Sets the appearance to “{{mode}}”.",
     changePassword: "Change password",
     changePasswordHint: "Opens the form to change your own password.",
+    changePasswordLocked: "Last active admin — password locked. Create a second admin first.",
     security: "Security / MFA",
     securityHint: "Manage the second factor and recovery codes.",
     logOut: "Log out",

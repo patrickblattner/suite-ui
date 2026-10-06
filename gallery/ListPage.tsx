@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { DataTableShell } from "../src/list/data-table-shell.js";
 import { dynamicFilter, FilterBar, staticFilter } from "../src/list/filter-bar.js";
 import { FilterSelect } from "../src/list/filter-select.js";
 import { PageHeader } from "../src/list/page-header.js";
@@ -8,7 +9,7 @@ import { PageScroll } from "../src/list/page-scroll.js";
 import { useSort } from "../src/list/sort-select.js";
 import { TablePagination } from "../src/list/table-pagination.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../src/ui/select.js";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "../src/ui/table.js";
+import { TableCell, TableHead, TableRow } from "../src/ui/table.js";
 
 // App-side labels: field names and options come from the app, not from the `suite` namespace.
 const LABELS = {
@@ -31,8 +32,8 @@ const ROWS = Array.from({ length: 200 }, (_, i) => ({
 const ROWS_WITH_SELECT = new Set([1, 100, 200]);
 
 // The list frame inside a fixed full-height frame, as an app mounts it: PageScroll fills the area
-// below the gallery header and is its only scroller. All 200 rows render at once, so the page
-// overflows by far.
+// below the gallery header, and DataTableShell takes the height left under the FilterBar. All 200
+// rows render at once, so the table body overflows by far and is the only part that scrolls.
 export function ListPage() {
   const { t, i18n } = useTranslation("suite");
   const labels = LABELS[i18n.language as keyof typeof LABELS] ?? LABELS.en;
@@ -45,7 +46,7 @@ export function ListPage() {
 
   return (
     <PageScroll>
-      <div className="flex flex-col gap-4">
+      <div className="flex min-h-0 flex-1 flex-col gap-4">
         <PageHeader
           title={labels.event}
           subtitle="Every event of the last day."
@@ -88,49 +89,57 @@ export function ListPage() {
             )),
           ]}
         />
-        <form onSubmit={(event) => event.preventDefault()} className="flex flex-col gap-4">
-          <Table>
-            <TableHeader>
-              <TableRow>
+        <form onSubmit={(event) => event.preventDefault()} className="flex min-h-0 flex-1 flex-col">
+          <DataTableShell
+            head={
+              <>
                 <TableHead>#</TableHead>
                 <TableHead>{labels.owner}</TableHead>
                 <TableHead>{labels.severity}</TableHead>
                 <TableHead>{labels.status}</TableHead>
+              </>
+            }
+            columnCount={4}
+            isPending={false}
+            isEmpty={false}
+            empty=""
+            loadingRowTestId="list-row-loading"
+            emptyTestId="list-empty"
+            headerTestId="list-header"
+            pagination={
+              <TablePagination
+                page={page}
+                setPage={setPage}
+                pageSize={pageSize}
+                setPageSize={setPageSize}
+                totalPages={Math.ceil(ROWS.length / pageSize)}
+                total={ROWS.length}
+              />
+            }
+          >
+            {ROWS.map((row) => (
+              <TableRow key={row.id} data-testid="list-row">
+                <TableCell>{row.id}</TableCell>
+                <TableCell>{row.owner}</TableCell>
+                <TableCell>{row.severity}</TableCell>
+                <TableCell>
+                  {ROWS_WITH_SELECT.has(row.id) ? (
+                    <Select name={`status-${row.id}`} defaultValue="open">
+                      <SelectTrigger size="sm" aria-label={labels.status} className="w-32">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="open">open</SelectItem>
+                        <SelectItem value="done">done</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    "open"
+                  )}
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {ROWS.map((row) => (
-                <TableRow key={row.id} data-testid="list-row">
-                  <TableCell>{row.id}</TableCell>
-                  <TableCell>{row.owner}</TableCell>
-                  <TableCell>{row.severity}</TableCell>
-                  <TableCell>
-                    {ROWS_WITH_SELECT.has(row.id) ? (
-                      <Select name={`status-${row.id}`} defaultValue="open">
-                        <SelectTrigger size="sm" aria-label={labels.status} className="w-32">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="open">open</SelectItem>
-                          <SelectItem value="done">done</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      "open"
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-          <TablePagination
-            page={page}
-            setPage={setPage}
-            pageSize={pageSize}
-            setPageSize={setPageSize}
-            totalPages={Math.ceil(ROWS.length / pageSize)}
-            total={ROWS.length}
-          />
+            ))}
+          </DataTableShell>
         </form>
       </div>
     </PageScroll>

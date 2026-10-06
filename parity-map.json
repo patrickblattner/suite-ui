@@ -384,6 +384,12 @@
     },
     {
       "element": "UserMenu",
+      "suite": "account.changePasswordLocked",
+      "status": "pending",
+      "cockpit": "user.changePasswordLocked"
+    },
+    {
+      "element": "UserMenu",
       "suite": "account.security",
       "status": "pending",
       "cockpit": "user.security",

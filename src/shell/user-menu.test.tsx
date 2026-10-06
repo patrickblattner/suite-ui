@@ -1,4 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
+import i18n from "i18next";
 import { BellIcon } from "lucide-react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -75,6 +76,37 @@ describe("UserMenu", () => {
     fireEvent.click(screen.getByTestId("theme-option-dark"));
     expect(props.onAppearanceChange).toHaveBeenCalledWith("dark");
     expect(screen.getByTestId("user-menu-content")).toBeInTheDocument();
+  });
+
+  it("shows the locked Change password entry in its place; a click does nothing", () => {
+    const props = renderMenu({ changePasswordLocked: true });
+    fireEvent.click(screen.getByTestId("user-menu-trigger"));
+    expect(screen.queryByTestId("user-menu-change-password")).not.toBeInTheDocument();
+    const locked = screen.getByTestId("user-menu-change-password-locked");
+    expect(locked).toHaveAttribute("aria-disabled", "true");
+    expect(locked).toHaveTextContent(
+      "Last active admin — password locked. Create a second admin first.",
+    );
+    expect(menuTestIds().indexOf("user-menu-change-password-locked")).toBe(3);
+    expect(userMenuOrderViolations(menuTestIds())).toEqual([]);
+    fireEvent.click(locked);
+    expect(props.onChangePassword).not.toHaveBeenCalled();
+    expect(screen.getByTestId("user-menu-content")).toBeInTheDocument();
+    expect(document.querySelector("[role=dialog]")).toBeNull();
+  });
+
+  it.each([
+    ["de", "Letzter aktiver Administrator — Passwort gesperrt."],
+    ["es", "Último administrador activo — contraseña bloqueada."],
+  ])("reads the locked entry from suite in %s", async (lng, text) => {
+    await i18n.changeLanguage(lng);
+    try {
+      renderMenu({ changePasswordLocked: true });
+      fireEvent.click(screen.getByTestId("user-menu-trigger"));
+      expect(screen.getByTestId("user-menu-change-password-locked")).toHaveTextContent(text);
+    } finally {
+      await act(() => i18n.changeLanguage("en"));
+    }
   });
 
   it("closes on Escape", () => {

@@ -87,6 +87,8 @@ export const es: SuiteStrings = {
     appearanceHint: "Cambia la apariencia a «{{mode}}».",
     changePassword: "Cambiar contraseña",
     changePasswordHint: "Abre el formulario para cambiar la contraseña propia.",
+    changePasswordLocked:
+      "Último administrador activo — contraseña bloqueada. Crea primero un segundo administrador.",
     security: "Seguridad / MFA",
     securityHint: "Gestionar el segundo factor y los códigos de recuperación.",
     logOut: "Cerrar sesión",
