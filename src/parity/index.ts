@@ -11,6 +11,8 @@ export type App = (typeof APPS)[number];
  * `aligned` fails on it. An app key leaves the map once the element moved into the package.
  */
 export interface ParityElement {
+  // The shared building block the key belongs to (FilterBar, TablePagination, …).
+  element?: string;
   suite: string;
   status: "pending" | "aligned";
   cockpit?: string;

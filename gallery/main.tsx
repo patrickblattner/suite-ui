@@ -8,6 +8,7 @@ import { initReactI18next, useTranslation } from "react-i18next";
 
 import { registerSuiteStrings, suiteStrings, type SuiteLanguage } from "../src/strings/index.js";
 import { ComponentsPage } from "./ComponentsPage.js";
+import { ListPage } from "./ListPage.js";
 import {
   ConfirmPage,
   DialogPage,
@@ -25,6 +26,7 @@ const PAGES = [
   "strings",
   "tokens",
   "components",
+  "list",
   "dialog",
   "confirm",
   "overlays",
@@ -52,6 +54,7 @@ registerSuiteStrings(i18n);
 const PAGE_CONTENT: Record<Exclude<Page, "strings">, (theme: Theme) => ReactNode> = {
   tokens: () => <TokensPage />,
   components: () => <ComponentsPage />,
+  list: () => <ListPage />,
   dialog: () => <DialogPage />,
   confirm: () => <ConfirmPage />,
   overlays: () => <OverlaysPage />,
@@ -128,7 +131,7 @@ function Gallery() {
           </select>
         </label>
       </header>
-      <main>
+      <main className={page === "list" ? "frame" : undefined}>
         {page === "strings" ? (
           <section aria-labelledby="strings-heading">
             <h2 id="strings-heading">Strings</h2>

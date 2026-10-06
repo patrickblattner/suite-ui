@@ -23,6 +23,8 @@
   --page-header-height: 3.75rem;
   --sidebar-width: 14rem;
   --sidebar-width-collapsed: 3.5rem;
+  /* The tight gap that keeps the pager's chevrons and "Page X / Y" one compact cluster. */
+  --pager-gap: 0.25rem;
 
   --background: oklch(1 0 0);
   --foreground: oklch(0.21 0.006 285.9);

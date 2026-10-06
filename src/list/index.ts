@@ -1,2 +1,7 @@
-// Placeholder module: the list components arrive in a later build step (SUI-DESIGN-012).
-export {};
+// The list frame of `@suite/ui/list/*`, one module each; this barrel re-exports them all.
+export * from "./filter-bar.js";
+export * from "./filter-select.js";
+export * from "./page-header.js";
+export * from "./page-scroll.js";
+export * from "./sort-select.js";
+export * from "./table-pagination.js";

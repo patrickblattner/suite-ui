@@ -57,3 +57,19 @@ h2 {
   font-size: 1.125rem;
   font-weight: 500;
 }
+
+/* The list page stands in for an app's fixed full-height frame (`GL-UI-018`): the document never
+   scrolls, the PageScroll inside the frame does. */
+#root:has(> main.frame) {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+}
+
+main.frame {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  padding: 0;
+}

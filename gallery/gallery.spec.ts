@@ -6,6 +6,7 @@ const THEMES = ["light", "dark"] as const;
 // Every page of the gallery and the element that tells it has rendered.
 const PAGES: [name: string, ready: (page: Page) => Locator][] = [
   ["components", (page) => page.getByTestId("section-structure")],
+  ["list", (page) => page.getByTestId("pagination")],
   ["dialog", (page) => page.getByTestId("form-dialog")],
   ["confirm", (page) => page.getByTestId("confirm-dialog")],
   ["overlays", (page) => page.getByRole("menu")],
@@ -38,6 +39,15 @@ for (const lng of LANGUAGES) {
         await expect(page).toHaveScreenshot(`${name}-${lng}-${theme}.png`, { fullPage: true });
       });
     }
+
+    test(`list scrolled to the pager ${lng} ${theme}`, async ({ page }) => {
+      await page.goto(`/?page=list&lng=${lng}&theme=${theme}`);
+      await expect(page.locator("html")).toHaveAttribute("lang", lng);
+      const scroller = page.getByTestId("page-scroll");
+      await scroller.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+      await expect(page.getByTestId("pagination-summary")).toBeInViewport();
+      await expect(page).toHaveScreenshot(`list-bottom-${lng}-${theme}.png`, { fullPage: true });
+    });
 
     test(`dialog with open time zone list ${lng} ${theme}`, async ({ page }) => {
       await page.goto(`/?page=dialog&lng=${lng}&theme=${theme}`);
@@ -107,3 +117,75 @@ test("the open time zone list grows the dialog", async ({ page }) => {
   const body = dialog.locator("[data-slot=dialog-body]");
   expect(await body.evaluate((el) => el.scrollHeight <= el.clientHeight)).toBe(true);
 });
+
+// `GL-UI-018` at 1920×1080: 200 rows and several selects overflow the page by far, yet the document
+// never scrolls; PageScroll is the one element that does.
+test("list frame: only PageScroll scrolls", async ({ page }) => {
+  await page.goto("/?page=list");
+  await expect(page.getByTestId("list-row")).toHaveCount(200);
+  await expect(page.locator("select[aria-hidden]")).toHaveCount(4);
+  const scroller = page.getByTestId("page-scroll");
+  await scroller.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+
+  const doc = await page.evaluate(() => ({
+    scrollHeight: document.documentElement.scrollHeight,
+    clientHeight: document.documentElement.clientHeight,
+  }));
+  expect(doc.scrollHeight).toBe(doc.clientHeight);
+  expect(await scroller.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+  const scrollers = await page.evaluate(() =>
+    [...document.querySelectorAll<HTMLElement>("body *")]
+      .filter((el) => {
+        const { overflowY } = getComputedStyle(el);
+        return (
+          (overflowY === "auto" || overflowY === "scroll") && el.scrollHeight > el.clientHeight
+        );
+      })
+      .map((el) => el.dataset.testid ?? el.tagName),
+  );
+  expect(scrollers).toEqual(["page-scroll"]);
+});
+
+test("list frame: the page gutter is the same left and right of the content", async ({ page }) => {
+  await page.goto("/?page=list");
+  const scroller = page.getByTestId("page-scroll");
+  const inner = await scroller.evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    return { left: r.left, right: r.left + el.clientWidth };
+  });
+  const [title, add, pager] = await Promise.all([
+    box(page.getByTestId("page-title")),
+    box(page.getByTestId("page-add")),
+    box(page.getByTestId("pagination-page-size")),
+  ]);
+  expect(Math.abs(title.x - inner.left - 24)).toBeLessThanOrEqual(1);
+  expect(Math.abs(inner.right - (add.x + add.width) - 24)).toBeLessThanOrEqual(1);
+  expect(Math.abs(inner.right - (pager.x + pager.width) - 24)).toBeLessThanOrEqual(1);
+});
+
+test("filter bar order: static filter, search, reset, dynamic filter, sort", async ({ page }) => {
+  await page.goto("/?page=list");
+  const order = await page
+    .getByTestId("filterbar")
+    .evaluate((bar) =>
+      [...bar.querySelectorAll("[data-testid]")].map((el) => el.getAttribute("data-testid")),
+    );
+  expect(order).toEqual([
+    "filter-severity",
+    "filter-haystack",
+    "filter-reset",
+    "filter-owner",
+    "filter-sort",
+  ]);
+});
+
+for (const [lng, label] of [
+  ["de", "Schweregrad: Alle"],
+  ["en", "Severity: All"],
+  ["es", "Gravedad: Todos"],
+] as const) {
+  test(`a filter without a choice reads "${label}"`, async ({ page }) => {
+    await page.goto(`/?page=list&lng=${lng}`);
+    await expect(page.getByTestId("filter-severity")).toHaveText(label);
+  });
+}

@@ -5,10 +5,24 @@ import { promisify } from "node:util";
 
 import { describe, expect, it } from "vitest";
 
-import { checkParity, exitCode, formatDeviation, parityMap, type ParityMap } from "./index.js";
+import { suiteStrings } from "../strings/index.js";
+import {
+  checkParity,
+  exitCode,
+  formatDeviation,
+  lookup,
+  parityMap,
+  type ParityMap,
+} from "./index.js";
 import { loadAppStrings } from "./load.js";
 
 const fixtureRoot = fileURLToPath(new URL("../../test/fixtures/app", import.meta.url));
+const communityBefore = fileURLToPath(
+  new URL("../../test/fixtures/community-before", import.meta.url),
+);
+const communityMigrated = fileURLToPath(
+  new URL("../../test/fixtures/community-migrated", import.meta.url),
+);
 const cli = fileURLToPath(new URL("./cli.ts", import.meta.url));
 
 describe("loadAppStrings", () => {
@@ -54,21 +68,54 @@ describe("checkParity", () => {
   });
 });
 
-describe("suite-ui-parity", () => {
-  it("ships an empty map", () => {
-    expect(parityMap).toEqual({ elements: [] });
+describe("parity map", () => {
+  it("names a suite key that exists in en and at least one app key per element", () => {
+    const broken = parityMap.elements
+      .filter(
+        (e) =>
+          e.element === undefined ||
+          lookup(suiteStrings.en, e.suite) === undefined ||
+          (e.cockpit === undefined && e.community === undefined),
+      )
+      .map((e) => e.suite);
+    expect(broken).toEqual([]);
   });
 
-  it("exits 0 and reports 0 elements for the empty map", async () => {
-    const { stdout } = await promisify(execFile)(process.execPath, [
+  it("maps the list frame of both apps, pending until both have switched", () => {
+    const elements = new Set(parityMap.elements.map((e) => e.element));
+    expect([...elements].sort()).toEqual(["FilterBar", "SortSelect", "TablePagination"]);
+    expect(parityMap.elements.every((e) => e.status === "pending")).toBe(true);
+  });
+});
+
+describe("suite-ui-parity", () => {
+  const run = (app: string, root: string) =>
+    promisify(execFile)(process.execPath, [
       "--import",
       "jiti/register",
       cli,
       "--app",
-      "cockpit",
+      app,
       "--root",
-      fixtureRoot,
+      root,
     ]);
-    expect(stdout).toContain("suite-ui-parity cockpit: 0 elements");
+
+  it("reports one line per deviating language and key while the community has its own list texts", async () => {
+    const { stdout } = await run("community", communityBefore);
+    const lines = stdout.trim().split("\n");
+    expect(lines.at(-1)).toBe(
+      "suite-ui-parity community: 16 elements (16 pending, 0 aligned), 16 deviations",
+    );
+    expect(lines).toContain("es filter.reset Quitar el filtro ≠ Borrar filtro");
+    expect(lines).toContain("en pagination.pageSizeLabel Items per page ≠ Rows per page");
+    // The non-filter value is the same word in both apps already.
+    expect(lines.filter((line) => line.includes(" filter.all "))).toEqual([]);
+  });
+
+  it("reports no line once the community carries the suite texts", async () => {
+    const { stdout } = await run("community", communityMigrated);
+    expect(stdout.trim()).toBe(
+      "suite-ui-parity community: 16 elements (16 pending, 0 aligned), 0 deviations",
+    );
   });
 });

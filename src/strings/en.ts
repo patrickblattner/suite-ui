@@ -20,7 +20,36 @@ export const en = {
     recovered: "Recovered",
   },
   filter: {
+    // The trigger of a filter dropdown without a choice; `allValue` is the same word as its option.
     all: "{{field}}: All",
+    allValue: "All",
+    placeholder: "Filter…",
+    reset: "Clear filter",
+    label: "Filter the list",
+    hint: 'Searches every column; several words must all match. A phrase in "quotes" stays together. Single characters are ignored.',
+  },
+  sort: {
+    label: "Sort by",
+    hint: "Sets the order in which the entries appear.",
+    updated: "Last edited",
+  },
+  pagination: {
+    firstPage: "First page",
+    prevPage: "Previous page",
+    nextPage: "Next page",
+    lastPage: "Last page",
+    summary: "Page {{page}} / {{totalPages}} ({{total}})",
+    pageSize: "{{size}} per page",
+    pageSizeLabel: "Rows per page",
+    pageSizeHint: "How many entries one page shows.",
+    firstPageDisabled: "First page: possible once you are on a later page.",
+    prevPageDisabled: "Previous page: possible once you are on a later page.",
+    nextPageDisabled: "Next page: possible once there is a page after this one.",
+    lastPageDisabled: "Last page: possible once there is a page after this one.",
+  },
+  list: {
+    empty: "No entries yet.",
+    noMatches: "No entries found.",
   },
   account: {
     menu: "Account",
