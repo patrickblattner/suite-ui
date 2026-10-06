@@ -5,7 +5,12 @@ import { defineConfig } from "tsup";
 // each `exports` subpath (including the `ui/*`, `list/*`, `settings/*` and `shell/*` wildcards)
 // maps to one file, shared modules exist once, and peer dependencies are never bundled.
 export default defineConfig({
-  entry: ["src/**/*.{ts,tsx}", "!src/**/*.test.{ts,tsx}", "!src/test-setup.ts"],
+  entry: [
+    "src/**/*.{ts,tsx}",
+    "!src/**/*.test.{ts,tsx}",
+    "!src/test-setup.ts",
+    "!src/**/test-utils.tsx",
+  ],
   format: ["esm"],
   bundle: false,
   dts: true,

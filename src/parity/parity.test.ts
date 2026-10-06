@@ -81,13 +81,17 @@ describe("parity map", () => {
     expect(broken).toEqual([]);
   });
 
-  it("maps the list frame and the settings footer, pending until the apps have switched", () => {
+  it("maps the list frame, the settings footer and the shell, pending until the apps have switched", () => {
     const elements = new Set(parityMap.elements.map((e) => e.element));
     expect([...elements].sort()).toEqual([
+      "AppSidebar",
       "FilterBar",
+      "GlobalSearch",
       "SettingsFooter",
       "SortSelect",
       "TablePagination",
+      "UserMenu",
+      "VersionPopover",
     ]);
     expect(parityMap.elements.every((e) => e.status === "pending")).toBe(true);
   });
@@ -108,8 +112,9 @@ describe("suite-ui-parity", () => {
   it("reports one line per deviating language and key while the community has its own list texts", async () => {
     const { stdout } = await run("community", communityBefore);
     const lines = stdout.trim().split("\n");
+    // 16 list texts deviate; the 42 shell keys are missing from this list-only fixture, in 3 languages.
     expect(lines.at(-1)).toBe(
-      "suite-ui-parity community: 16 elements (16 pending, 0 aligned), 16 deviations",
+      "suite-ui-parity community: 58 elements (58 pending, 0 aligned), 142 deviations",
     );
     expect(lines).toContain("es filter.reset Quitar el filtro ≠ Borrar filtro");
     expect(lines).toContain("en pagination.pageSizeLabel Items per page ≠ Rows per page");
@@ -120,7 +125,7 @@ describe("suite-ui-parity", () => {
   it("reports no line once the community carries the suite texts", async () => {
     const { stdout } = await run("community", communityMigrated);
     expect(stdout.trim()).toBe(
-      "suite-ui-parity community: 16 elements (16 pending, 0 aligned), 0 deviations",
+      "suite-ui-parity community: 58 elements (58 pending, 0 aligned), 0 deviations",
     );
   });
 });

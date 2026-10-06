@@ -18,6 +18,7 @@ import {
   ToastPage,
 } from "./OverlayPages.js";
 import { SettingsPage } from "./SettingsPage.js";
+import { registerShellLabels, ShellPage } from "./ShellPage.js";
 import { TokensPage } from "./TokensPage.js";
 
 const LANGUAGES = Object.keys(suiteStrings) as SuiteLanguage[];
@@ -29,6 +30,7 @@ const PAGES = [
   "components",
   "list",
   "settings",
+  "shell",
   "dialog",
   "confirm",
   "overlays",
@@ -51,6 +53,7 @@ const initialPage: Page = (PAGES as readonly string[]).includes(params.get("page
 
 await i18n.use(initReactI18next).init({ lng: initialLng, fallbackLng: "en", resources: {} });
 registerSuiteStrings(i18n);
+registerShellLabels();
 
 // Every page but the strings table, by name.
 const PAGE_CONTENT: Record<Exclude<Page, "strings">, (theme: Theme) => ReactNode> = {
@@ -58,6 +61,7 @@ const PAGE_CONTENT: Record<Exclude<Page, "strings">, (theme: Theme) => ReactNode
   components: () => <ComponentsPage />,
   list: () => <ListPage />,
   settings: () => <SettingsPage />,
+  shell: () => <ShellPage />,
   dialog: () => <DialogPage />,
   confirm: () => <ConfirmPage />,
   overlays: () => <OverlaysPage />,
@@ -134,7 +138,9 @@ function Gallery() {
           </select>
         </label>
       </header>
-      <main className={page === "list" || page === "settings" ? "frame" : undefined}>
+      <main
+        className={page === "list" || page === "settings" || page === "shell" ? "frame" : undefined}
+      >
         {page === "strings" ? (
           <section aria-labelledby="strings-heading">
             <h2 id="strings-heading">Strings</h2>

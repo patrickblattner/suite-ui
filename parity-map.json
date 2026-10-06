@@ -177,6 +177,354 @@
       "suite": "settings.resetDisabledHint",
       "status": "pending",
       "cockpit": "settings.hint.resetDisabled"
+    },
+    {
+      "element": "AppSidebar",
+      "suite": "nav.label",
+      "status": "pending",
+      "cockpit": "nav.label",
+      "community": "nav.label"
+    },
+    {
+      "element": "AppSidebar",
+      "suite": "nav.toggleSidebar",
+      "status": "pending",
+      "cockpit": "nav.toggleSidebar",
+      "community": "nav.toggleSidebar"
+    },
+    {
+      "element": "AppSidebar",
+      "suite": "nav.home",
+      "status": "pending",
+      "cockpit": "nav.hints.home",
+      "community": "navHints.instanceName"
+    },
+    {
+      "element": "AppSidebar",
+      "suite": "nav.backToDashboard",
+      "status": "pending",
+      "cockpit": "nav.hints.back",
+      "community": "navHints.back"
+    },
+    {
+      "element": "AppSidebar",
+      "suite": "nav.helpHint",
+      "status": "pending",
+      "cockpit": "nav.hints.help",
+      "community": "navHints.help"
+    },
+    {
+      "element": "AppSidebar",
+      "suite": "nav.shared.help",
+      "status": "pending",
+      "cockpit": "help.label",
+      "community": "nav.help"
+    },
+    {
+      "element": "AppSidebar",
+      "suite": "nav.shared.users",
+      "status": "pending",
+      "cockpit": "nav.users",
+      "community": "nav.adminItems.users"
+    },
+    {
+      "element": "AppSidebar",
+      "suite": "nav.shared.permissions",
+      "status": "pending",
+      "cockpit": "nav.permissions",
+      "community": "nav.adminItems.permissions"
+    },
+    {
+      "element": "AppSidebar",
+      "suite": "nav.shared.systemLog",
+      "status": "pending",
+      "cockpit": "nav.systemLog",
+      "community": "nav.adminItems.systemLog"
+    },
+    {
+      "element": "AppSidebar",
+      "suite": "nav.shared.backupRestore",
+      "status": "pending",
+      "cockpit": "nav.backup",
+      "community": "nav.adminItems.backup"
+    },
+    {
+      "element": "AppSidebar",
+      "suite": "nav.shared.general",
+      "status": "pending",
+      "cockpit": "settings.nav.general",
+      "community": "nav.settingsItems.general"
+    },
+    {
+      "element": "AppSidebar",
+      "suite": "nav.shared.ai",
+      "status": "pending",
+      "cockpit": "settings.nav.ki",
+      "community": "nav.settingsItems.ai"
+    },
+    {
+      "element": "AppSidebar",
+      "suite": "nav.shared.integrations",
+      "status": "pending",
+      "cockpit": "settings.nav.integrations",
+      "community": "nav.settingsItems.integrations"
+    },
+    {
+      "element": "AppSidebar",
+      "suite": "nav.shared.backup",
+      "status": "pending",
+      "cockpit": "settings.nav.backup",
+      "community": "nav.settingsItems.backup"
+    },
+    {
+      "element": "AppSidebar",
+      "suite": "nav.shared.system",
+      "status": "pending",
+      "cockpit": "settings.nav.system"
+    },
+    {
+      "element": "AppSidebar",
+      "suite": "nav.shared.loginSecurity",
+      "status": "pending",
+      "cockpit": "settings.nav.login",
+      "community": "nav.settingsItems.auth"
+    },
+    {
+      "element": "AppSidebar",
+      "suite": "nav.shared.mediaLibrary",
+      "status": "pending",
+      "cockpit": "nav.mediaLibrary",
+      "community": "nav.toolsItems.mediaLibrary"
+    },
+    {
+      "element": "AppSidebar",
+      "suite": "nav.shared.textBlocks",
+      "status": "pending",
+      "cockpit": "nav.textBlocks",
+      "community": "nav.toolsItems.textBlocks"
+    },
+    {
+      "element": "AppSidebar",
+      "suite": "nav.shared.brandKits",
+      "status": "pending",
+      "cockpit": "nav.brandKits",
+      "community": "nav.toolsItems.brandKit"
+    },
+    {
+      "element": "UserMenu",
+      "suite": "account.menuHint",
+      "status": "pending",
+      "cockpit": "hints.user.trigger",
+      "community": "shellHints.userMenu"
+    },
+    {
+      "element": "UserMenu",
+      "suite": "account.profile",
+      "status": "pending",
+      "cockpit": "user.profile"
+    },
+    {
+      "element": "UserMenu",
+      "suite": "account.profileHint",
+      "status": "pending",
+      "cockpit": "hints.user.profile"
+    },
+    {
+      "element": "UserMenu",
+      "suite": "account.language",
+      "status": "pending",
+      "cockpit": "language.label",
+      "community": "language.label"
+    },
+    {
+      "element": "UserMenu",
+      "suite": "account.appearance",
+      "status": "pending",
+      "cockpit": "user.appearance.label",
+      "community": "user.appearance.label"
+    },
+    {
+      "element": "UserMenu",
+      "suite": "account.system",
+      "status": "pending",
+      "cockpit": "user.appearance.system",
+      "community": "user.appearance.system"
+    },
+    {
+      "element": "UserMenu",
+      "suite": "account.light",
+      "status": "pending",
+      "cockpit": "user.appearance.light",
+      "community": "user.appearance.light"
+    },
+    {
+      "element": "UserMenu",
+      "suite": "account.dark",
+      "status": "pending",
+      "cockpit": "user.appearance.dark",
+      "community": "user.appearance.dark"
+    },
+    {
+      "element": "UserMenu",
+      "suite": "account.appearanceHint",
+      "status": "pending",
+      "cockpit": "hints.user.theme"
+    },
+    {
+      "element": "UserMenu",
+      "suite": "account.changePassword",
+      "status": "pending",
+      "cockpit": "user.changePassword"
+    },
+    {
+      "element": "UserMenu",
+      "suite": "account.changePasswordHint",
+      "status": "pending",
+      "cockpit": "hints.user.changePassword"
+    },
+    {
+      "element": "UserMenu",
+      "suite": "account.security",
+      "status": "pending",
+      "cockpit": "user.security",
+      "community": "user.security"
+    },
+    {
+      "element": "UserMenu",
+      "suite": "account.securityHint",
+      "status": "pending",
+      "cockpit": "hints.user.security",
+      "community": "shellHints.security"
+    },
+    {
+      "element": "UserMenu",
+      "suite": "account.logOut",
+      "status": "pending",
+      "cockpit": "user.logout",
+      "community": "auth.logout"
+    },
+    {
+      "element": "UserMenu",
+      "suite": "account.logOutHint",
+      "status": "pending",
+      "cockpit": "hints.user.logout",
+      "community": "shellHints.logout"
+    },
+    {
+      "element": "GlobalSearch",
+      "suite": "search.label",
+      "status": "pending",
+      "cockpit": "search.label",
+      "community": "search.open"
+    },
+    {
+      "element": "GlobalSearch",
+      "suite": "search.placeholder",
+      "status": "pending",
+      "cockpit": "search.placeholder",
+      "community": "search.placeholder"
+    },
+    {
+      "element": "GlobalSearch",
+      "suite": "search.title",
+      "status": "pending",
+      "cockpit": "search.dialog.title",
+      "community": "search.title"
+    },
+    {
+      "element": "GlobalSearch",
+      "suite": "search.subtitle",
+      "status": "pending",
+      "cockpit": "search.dialog.subtitle",
+      "community": "search.subtitleIn"
+    },
+    {
+      "element": "GlobalSearch",
+      "suite": "search.empty",
+      "status": "pending",
+      "cockpit": "search.empty",
+      "community": "search.emptyIn"
+    },
+    {
+      "element": "GlobalSearch",
+      "suite": "search.loading",
+      "status": "pending",
+      "cockpit": "search.loading"
+    },
+    {
+      "element": "GlobalSearch",
+      "suite": "search.results",
+      "status": "pending",
+      "cockpit": "search.results"
+    },
+    {
+      "element": "GlobalSearch",
+      "suite": "search.fieldHint",
+      "status": "pending",
+      "cockpit": "hints.search.field",
+      "community": "shellHints.search"
+    },
+    {
+      "element": "GlobalSearch",
+      "suite": "search.inputHint",
+      "status": "pending",
+      "cockpit": "hints.search.input"
+    },
+    {
+      "element": "GlobalSearch",
+      "suite": "search.hitHint",
+      "status": "pending",
+      "cockpit": "hints.search.hit",
+      "community": "shellHints.searchHit"
+    },
+    {
+      "element": "VersionPopover",
+      "suite": "version.label",
+      "status": "pending",
+      "cockpit": "version.label",
+      "community": "version.title"
+    },
+    {
+      "element": "VersionPopover",
+      "suite": "version.hint",
+      "status": "pending",
+      "cockpit": "nav.hints.version",
+      "community": "shellHints.version"
+    },
+    {
+      "element": "VersionPopover",
+      "suite": "version.title",
+      "status": "pending",
+      "cockpit": "version.title",
+      "community": "version.label"
+    },
+    {
+      "element": "VersionPopover",
+      "suite": "version.version",
+      "status": "pending",
+      "cockpit": "version.version",
+      "community": "version.version"
+    },
+    {
+      "element": "VersionPopover",
+      "suite": "version.noRelease",
+      "status": "pending",
+      "cockpit": "version.noRelease",
+      "community": "version.noRelease"
+    },
+    {
+      "element": "VersionPopover",
+      "suite": "version.commit",
+      "status": "pending",
+      "cockpit": "version.commit",
+      "community": "version.commit"
+    },
+    {
+      "element": "VersionPopover",
+      "suite": "version.buildDate",
+      "status": "pending",
+      "cockpit": "version.buildDate",
+      "community": "version.buildDate"
     }
   ]
 }

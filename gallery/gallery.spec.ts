@@ -1,5 +1,12 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 
+import {
+  collectVisibleTexts,
+  foreignTexts,
+  userMenuOrderViolations,
+} from "../src/testing/index.js";
+import { shellTexts } from "./shell-labels.js";
+
 const LANGUAGES = ["de", "en", "es"] as const;
 const THEMES = ["light", "dark"] as const;
 
@@ -311,4 +318,159 @@ test("settings: left column at half width, form directly under the subtitle", as
     .getByTestId("settings-general-form")
     .evaluate((el) => el.firstElementChild?.getAttribute("data-testid"));
   expect(first).toBe("settings-body");
+});
+
+// The shell frame (`GL-UI-019`/`GL-UI-020`/`GL-UI-031`) in every language and theme: the primary nav,
+// a section in replace mode opened by a deep link, the open user menu and the search dialog.
+const SHELL_STATES: [name: string, route: string, open: (page: Page) => Promise<void>][] = [
+  ["shell", "/dashboard", async () => {}],
+  ["shell-settings", "/settings/general", async () => {}],
+  [
+    "shell-menu",
+    "/dashboard",
+    async (page) => {
+      await page.getByTestId("user-menu-trigger").click();
+      await expect(page.getByTestId("user-menu-content")).toBeVisible();
+    },
+  ],
+  [
+    "shell-search",
+    "/dashboard",
+    async (page) => {
+      await page.getByTestId("shell-search").click();
+      await page.getByTestId("search-dialog-input").fill("summer");
+      await expect(page.getByTestId("search-hit")).toHaveCount(2);
+    },
+  ],
+];
+
+for (const lng of LANGUAGES) {
+  for (const theme of THEMES) {
+    for (const [name, route, open] of SHELL_STATES) {
+      test(`${name} ${lng} ${theme}`, async ({ page }) => {
+        await page.goto(`/?page=shell&route=${route}&lng=${lng}&theme=${theme}`);
+        await expect(page.locator("html")).toHaveAttribute("lang", lng);
+        await expect(page.getByTestId("app-sidebar")).toBeVisible();
+        await open(page);
+        // No hint tooltip in the capture: the pointer rests outside every control.
+        await page.mouse.move(1900, 1060);
+        await expect(page).toHaveScreenshot(`${name}-${lng}-${theme}.png`, { fullPage: true });
+      });
+    }
+  }
+}
+
+// AC6 of the shell: every visible text is a `suite` text or one of the app's labels and data.
+for (const lng of LANGUAGES) {
+  test(`shell texts come from suite or the app's labels ${lng}`, async ({ page }) => {
+    const allowed = shellTexts(lng);
+    // The frame and whatever it opened into a portal (popover, dialog); the gallery chrome is not
+    // part of the shell.
+    const check = async () => {
+      const roots = page.locator(
+        "[data-testid=shell-frame], [data-radix-popper-content-wrapper], [role=dialog]",
+      );
+      const all = await roots.all();
+      const texts = (
+        await Promise.all(all.map((root) => root.evaluate(collectVisibleTexts)))
+      ).flat();
+      expect(texts.length).toBeGreaterThan(0);
+      expect(foreignTexts(texts, lng, allowed)).toEqual([]);
+    };
+    await page.goto(`/?page=shell&route=/dashboard&lng=${lng}`);
+    await check();
+    await page.getByTestId("user-menu-trigger").click();
+    await check();
+    await page.keyboard.press("Escape");
+    await page.getByTestId("version-button").click();
+    await expect(page.getByTestId("version-popover")).toBeVisible();
+    await check();
+    await page.keyboard.press("Escape");
+    await page.getByTestId("nav-section-settings").click();
+    await check();
+    await page.getByTestId("shell-search").click();
+    await page.getByTestId("search-dialog-input").fill("s");
+    await check();
+    await page.getByTestId("search-dialog-input").fill("summer");
+    await expect(page.getByTestId("search-hit")).toHaveCount(2);
+    await check();
+    await page.getByTestId("search-dialog-input").fill("zz");
+    await expect(page.getByTestId("search-dialog-empty")).toBeVisible();
+    await check();
+  });
+}
+
+test("shell: a deep link opens the section; the mark stays without the pointer", async ({
+  page,
+}) => {
+  await page.goto("/?page=shell&route=/settings/general");
+  const active = page.getByTestId("nav-settings-general");
+  await expect(page.getByTestId("nav-back")).toContainText("Settings");
+  await expect(page.getByTestId("nav-dashboard")).toHaveCount(0);
+  await expect(active).toHaveAttribute("aria-current", "page");
+  const resting = await look(page.getByTestId("nav-settings-ai"));
+  await page.getByTestId("nav-settings-ai").hover();
+  await page.mouse.move(1900, 1060);
+  const marked = await look(active);
+  expect(marked.background).not.toBe(resting.background);
+  await page.getByTestId("app-sidebar").hover({ position: { x: 5, y: 1000 } });
+  await page.mouse.move(1900, 1060);
+  expect(await look(active)).toEqual(marked);
+  await expect(active).toHaveAttribute("aria-current", "page");
+});
+
+test("shell: ‹ Settings leads to the dashboard and restores the primary nav", async ({ page }) => {
+  await page.goto("/?page=shell&route=/settings/ai");
+  const back = page.getByTestId("nav-back");
+  await expect(back).toHaveAccessibleName("Back to dashboard");
+  await back.click();
+  await expect(page.getByTestId("nav-primary")).toBeVisible();
+  await expect(page.getByTestId("nav-dashboard")).toHaveAttribute("aria-current", "page");
+  await expect(page.getByTestId("page-title")).toHaveText("Dashboard");
+});
+
+test("shell: user menu order, the app entry before Log out", async ({ page }) => {
+  await page.goto("/?page=shell");
+  await page.getByTestId("user-menu-trigger").click();
+  const ids = await page
+    .getByTestId("user-menu-content")
+    .evaluate((menu) =>
+      [...menu.querySelectorAll("[data-testid^='user-menu-']")].map((el) =>
+        el.getAttribute("data-testid"),
+      ),
+    );
+  expect(ids).toEqual([
+    "user-menu-profile",
+    "user-menu-language",
+    "user-menu-appearance",
+    "user-menu-change-password",
+    "user-menu-security",
+    "user-menu-notifications",
+    "user-menu-logout",
+  ]);
+  expect(userMenuOrderViolations(ids as string[])).toEqual([]);
+});
+
+test("shell: one character searches nothing, Esc returns to the sidebar field", async ({
+  page,
+}) => {
+  await page.goto("/?page=shell");
+  await page.getByTestId("shell-search").pressSequentially("s");
+  const dialog = page.getByTestId("search-dialog");
+  await expect(dialog).toBeVisible();
+  await expect(page.getByTestId("search-dialog-input")).toHaveValue("s");
+  await page.waitForTimeout(400);
+  await expect(dialog.locator("[data-slot=dialog-body]")).toBeEmpty();
+  const text = (await dialog.textContent()) ?? "";
+  expect(text.split("Content, Events")).toHaveLength(2);
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(page.getByTestId("shell-search")).toBeFocused();
+  await expect(page.getByTestId("page-title")).toHaveText("Dashboard");
+});
+
+test("shell: the shortcut opens the search from a section route", async ({ page }) => {
+  await page.goto("/?page=shell&route=/admin/users");
+  await page.keyboard.press("ControlOrMeta+k");
+  await expect(page.getByTestId("search-dialog")).toBeVisible();
 });
