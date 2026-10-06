@@ -9,3 +9,5 @@
 {"ts":"2026-10-06T10:32:01.001Z","key":"SUI-DESIGN-010","from":3,"to":4,"disposition":"editorial","ref":"Ratifies built state: tailwindcss/sonner peers + toaster re-export already shipped in #2/#3 (v0.2.0/v0.3.0); answers Q#2562/Q#2566"}
 {"ts":"2026-10-06T10:32:01.458Z","key":"SUI-FEATURE-010","from":3,"to":4,"disposition":"editorial","ref":"Ratifies built state: English parity CLI output shipped in #1 (v0.1.0); answers Q#2560"}
 {"ts":"2026-10-06T10:32:01.947Z","key":"SUI-FEATURE-011","from":3,"to":4,"disposition":"editorial","ref":"Ratifies built state: tailwind import, info token, sidebar widths, tile-* exclusion shipped in #2 (v0.2.0); answers Q#2562"}
+{"ts":"2026-10-06T10:35:05.775Z","key":"SUI-DESIGN-012","from":3,"to":4,"disposition":"ticket","ref":"7"}
+{"ts":"2026-10-06T10:35:05.775Z","key":"SUI-FEATURE-016","from":null,"to":2,"disposition":"ticket","ref":"7"}
