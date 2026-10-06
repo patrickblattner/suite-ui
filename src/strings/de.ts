@@ -8,6 +8,7 @@ export const de: SuiteStrings = {
     delete: "Löschen",
     create: "Erstellen",
     back: "Zurück",
+    close: "Schließen",
   },
   status: {
     success: "Erfolg",
@@ -30,5 +31,15 @@ export const de: SuiteStrings = {
   },
   version: {
     label: "Version",
+  },
+  confirmDelete: {
+    title: "Löschen bestätigen",
+    cancelHint: "Schließt den Dialog, ohne etwas zu löschen.",
+    cancelDisabledHint: "Schließen geht wieder, sobald das Löschen abgeschlossen ist.",
+    confirmHint: "Löscht endgültig; das lässt sich nicht rückgängig machen.",
+  },
+  timezone: {
+    placeholder: "Zeitzone suchen…",
+    empty: "Keine passende Zeitzone",
   },
 };

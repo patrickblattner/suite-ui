@@ -27,7 +27,7 @@ header h1 {
   font-weight: 600;
 }
 
-select {
+header select {
   border: 1px solid var(--input);
   border-radius: calc(var(--radius) - 2px);
   padding: 2px 4px;
@@ -37,18 +37,18 @@ main {
   padding: 24px;
 }
 
-table {
+.strings-table {
   border-collapse: collapse;
 }
 
-th,
-td {
+.strings-table th,
+.strings-table td {
   padding: 4px 16px 4px 0;
   border-bottom: 1px solid var(--border);
   text-align: left;
 }
 
-th {
+.strings-table th {
   color: var(--muted-foreground);
   font-weight: 500;
 }

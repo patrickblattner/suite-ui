@@ -1,2 +1,25 @@
-// Placeholder module: the ui components arrive in a later build step (SUI-DESIGN-012).
-export {};
+// The base components of `@suite/ui/ui/*`, one module each; this barrel re-exports them all.
+export * from "./accordion.js";
+export * from "./badge.js";
+export * from "./button.js";
+export * from "./card.js";
+export * from "./checkbox.js";
+export * from "./confirm-delete-dialog.js";
+export * from "./dialog.js";
+export * from "./dropdown-menu.js";
+export * from "./hint.js";
+export * from "./input.js";
+export * from "./label.js";
+export * from "./label-with-help.js";
+export * from "./popover.js";
+export * from "./radio-group.js";
+export * from "./select.js";
+export * from "./sheet.js";
+export * from "./skeleton.js";
+export * from "./switch.js";
+export * from "./table.js";
+export * from "./tabs.js";
+export * from "./textarea.js";
+export * from "./timezone-combobox.js";
+export * from "./toaster.js";
+export * from "./tooltip.js";

@@ -2,17 +2,36 @@ import "../src/styles.css";
 import "./gallery.css";
 
 import i18n from "i18next";
-import { StrictMode, useEffect, useState } from "react";
+import { type ReactNode, StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { initReactI18next, useTranslation } from "react-i18next";
 
 import { registerSuiteStrings, suiteStrings, type SuiteLanguage } from "../src/strings/index.js";
+import { ComponentsPage } from "./ComponentsPage.js";
+import {
+  ConfirmPage,
+  DialogPage,
+  OverlaysPage,
+  SelectPage,
+  SheetPage,
+  ToastPage,
+} from "./OverlayPages.js";
 import { TokensPage } from "./TokensPage.js";
 
 const LANGUAGES = Object.keys(suiteStrings) as SuiteLanguage[];
 const THEMES = ["light", "dark"] as const;
 type Theme = (typeof THEMES)[number];
-const PAGES = ["strings", "tokens"] as const;
+const PAGES = [
+  "strings",
+  "tokens",
+  "components",
+  "dialog",
+  "confirm",
+  "overlays",
+  "select",
+  "sheet",
+  "toast",
+] as const;
 type Page = (typeof PAGES)[number];
 
 // The initial state comes from the URL (`?page=tokens&lng=de&theme=dark`), so every capture is
@@ -22,10 +41,24 @@ const initialLng = (LANGUAGES as string[]).includes(params.get("lng") ?? "")
   ? (params.get("lng") as SuiteLanguage)
   : "en";
 const initialTheme: Theme = params.get("theme") === "dark" ? "dark" : "light";
-const initialPage: Page = params.get("page") === "tokens" ? "tokens" : "strings";
+const initialPage: Page = (PAGES as readonly string[]).includes(params.get("page") ?? "")
+  ? (params.get("page") as Page)
+  : "strings";
 
 await i18n.use(initReactI18next).init({ lng: initialLng, fallbackLng: "en", resources: {} });
 registerSuiteStrings(i18n);
+
+// Every page but the strings table, by name.
+const PAGE_CONTENT: Record<Exclude<Page, "strings">, (theme: Theme) => ReactNode> = {
+  tokens: () => <TokensPage />,
+  components: () => <ComponentsPage />,
+  dialog: () => <DialogPage />,
+  confirm: () => <ConfirmPage />,
+  overlays: () => <OverlaysPage />,
+  select: () => <SelectPage />,
+  sheet: () => <SheetPage />,
+  toast: (theme) => <ToastPage theme={theme} />,
+};
 
 function keysOf(tree: object, prefix = ""): string[] {
   return Object.entries(tree).flatMap(([key, value]) =>
@@ -96,12 +129,10 @@ function Gallery() {
         </label>
       </header>
       <main>
-        {page === "tokens" ? (
-          <TokensPage />
-        ) : (
+        {page === "strings" ? (
           <section aria-labelledby="strings-heading">
             <h2 id="strings-heading">Strings</h2>
-            <table>
+            <table className="strings-table">
               <thead>
                 <tr>
                   <th scope="col">Key</th>
@@ -118,6 +149,8 @@ function Gallery() {
               </tbody>
             </table>
           </section>
+        ) : (
+          PAGE_CONTENT[page](theme)
         )}
       </main>
     </>

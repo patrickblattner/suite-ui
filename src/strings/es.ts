@@ -8,6 +8,7 @@ export const es: SuiteStrings = {
     delete: "Eliminar",
     create: "Crear",
     back: "Volver",
+    close: "Cerrar",
   },
   status: {
     success: "Éxito",
@@ -30,5 +31,15 @@ export const es: SuiteStrings = {
   },
   version: {
     label: "Versión",
+  },
+  confirmDelete: {
+    title: "Confirmar eliminación",
+    cancelHint: "Cierra el diálogo sin borrar nada.",
+    cancelDisabledHint: "Cerrar vuelve a ser posible en cuanto termine la eliminación.",
+    confirmHint: "Borra definitivamente; no se puede deshacer.",
+  },
+  timezone: {
+    placeholder: "Buscar zona horaria…",
+    empty: "Ninguna zona horaria coincide",
   },
 };

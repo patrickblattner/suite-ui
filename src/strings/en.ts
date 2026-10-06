@@ -8,6 +8,7 @@ export const en = {
     delete: "Delete",
     create: "Create",
     back: "Back",
+    close: "Close",
   },
   status: {
     success: "Success",
@@ -30,6 +31,16 @@ export const en = {
   },
   version: {
     label: "Version",
+  },
+  confirmDelete: {
+    title: "Confirm deletion",
+    cancelHint: "Closes the dialog without deleting anything.",
+    cancelDisabledHint: "Closing becomes possible again once the deletion has finished.",
+    confirmHint: "Deletes for good; this cannot be undone.",
+  },
+  timezone: {
+    placeholder: "Search time zone…",
+    empty: "No matching time zone",
   },
 } as const;
 
