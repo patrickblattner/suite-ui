@@ -1,45 +1,52 @@
 # suite-ui
 
-> _TODO: One-line description of what this project does._
+> `@suite/ui` — the one shared UI implementation of the suite apps (Production Cockpit, Community Platform): design tokens, base components, shell frame and their texts in de / en / es.
 
 ## Overview
 
-_TODO: 2-3 sentences explaining the purpose, target audience, and core value proposition._
+Cockpit and Community are used by the same people, so they must look and speak identically. The UI rules live in the foundation specs on the spec server (`GL-UI-0xx`, entry point `GL-UI-004`). This package is the single implementation of those rules. Both apps consume it, so a shared element exists once instead of twice.
 
-## Features
+- **Rules:** foundation specs (what it should look like). They are never restated here.
+- **Package:** this repo (how it is built). Spec project `suite-ui`, key prefix `SUI`.
+- **Apps:** consume the package and never override its tokens, components or texts.
 
-_TODO: List the main features/capabilities._
+Status: being set up (October 2026). The package is seeded from the cockpit, which is the suite reference. The community migrates first and the cockpit follows after its go-live. Moving onto the package changes presentation only, never function.
 
-## Tech Stack
+## Contents (planned)
 
-_TODO: Language, framework, database, key libraries._
+- Design tokens (`styles.css`: palette, action tokens, layout variables, dark mode)
+- Base components (button, dialog, form fields, badge, hint, confirm dialog)
+- List frame (page header, filter bar, sort, pagination)
+- Settings footer
+- Shell frame (sidebar, user menu, search dialog) with slots for app-specific entries
+- Texts of all shared elements in de / en / es (i18n namespace `suite`)
+- Parity check and shared test assertions for both apps
 
-## Getting Started
-
-### Prerequisites
-
-_TODO: What needs to be installed (Node.js, Python, Docker, etc.)._
-
-### Installation
-
-```bash
-git clone https://github.com/patrickblattner/suite-ui.git
-cd suite-ui
-# TODO: install commands
-```
-
-### Development
+## Usage in an app
 
 ```bash
-# TODO: dev server command
+npm install --save-dev github:patrickblattner/suite-ui#vX.Y.Z
 ```
 
-## Project Structure
+Switching to a new tag always needs this explicit `npm install` (lockfile). Then add `@import "@suite/ui/styles.css";` once in the app CSS and call `registerSuiteStrings(i18n)` once in the i18n setup.
 
-_TODO: Brief overview of the folder layout._
+## Requests and questions
+
+Ask through the spec server Q&A mailbox (project `suite-ui`), never by editing a copy in an app. The question starts with `Paket-Anfrage (<cockpit|community>): <component>` and states:
+
+- what is missing or wrong
+- the route where it is visible
+- the affected languages
+- whether it blocks a release
+
+Questions about a design rule go to project `foundation`. Domain questions stay with the app's architect.
+
+## Ownership
+
+- Architect: the Overmind (as for `spec-sync-toolkit`)
+- Build and releases: the `suite-ui` worker under the worker harness
+- Releases are semver tags from a green gate
 
 ## License
 
-_TODO: Specify license or remove this section._
-
-<!-- scaffolded by init-project.sh on 2026-10-06 -->
+Private use within the suite. Public repository so the apps' CI and Docker builds need no token.
