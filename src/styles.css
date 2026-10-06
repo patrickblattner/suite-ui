@@ -1,1 +1,266 @@
-/* @suite/ui shared tokens. Filled with the design tokens in build step 1 (SUI-DESIGN-012). */
+/* @suite/ui shared tokens (SUI-FEATURE-011, rules GL-UI-010). An app includes the package with the
+   single line `@import "@suite/ui/styles.css";` in place of its own `@import "tailwindcss";`.
+   Seed values are the Production Cockpit's; `--warn-text` comes from the Community Platform (the
+   Cockpit has none), and the few seed values that miss AA are retuned where they are defined.
+   Domain tokens (Cockpit `status-*`, `plan-*`, `tile-*`; Community `agenda-*`, `content-*`) and the
+   UI font stay in the apps. All colors are OKLCH; every `-foreground` and
+   `-text` token is checked for WCAG AA in `src/styles.test.ts`. */
+@import "tailwindcss";
+
+/* Tailwind v4 skips `node_modules` when it detects sources, so the package registers its own build
+   output: this file is shipped as `dist/styles.css`, and `.` is that `dist/` directory. */
+@source ".";
+
+/* Dark mode is driven by a `.dark` class on the html element, not the media query. */
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --radius: 0.5rem;
+
+  /* App-shell layout: the symmetric page inset, the tallest page-header variant (back-link line +
+     gap + action row) and the sidebar width open (`w-56`) and collapsed (`w-14`). */
+  --page-gutter: 1.5rem;
+  --page-header-height: 3.75rem;
+  --sidebar-width: 14rem;
+  --sidebar-width-collapsed: 3.5rem;
+
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.21 0.006 285.9);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.21 0.006 285.9);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.21 0.006 285.9);
+  --primary: oklch(0.21 0.006 285.9);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.967 0.001 286.4);
+  --secondary-foreground: oklch(0.21 0.006 285.9);
+  --muted: oklch(0.967 0.001 286.4);
+  /* The Community value: the Cockpit's L 0.552 holds on the page but drops to 4.39:1 on `muted`. */
+  --muted-foreground: oklch(0.543 0.016 285.9);
+  --accent: oklch(0.967 0.001 286.4);
+  --accent-foreground: oklch(0.21 0.006 285.9);
+  --destructive: oklch(0.577 0.245 27.3);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(0.92 0.004 286.3);
+  --input: oklch(0.92 0.004 286.3);
+  --ring: oklch(0.705 0.015 286.1);
+
+  /* Action fills carry a near-white `-foreground` and are tuned to the lightest lightness that keeps
+     it at AA. A fill that is also used as text on a neutral ground has its own `-text` token, tuned
+     against the ground instead (GL-UI-010); in light the fill itself already passes, so it aliases. */
+  --success: oklch(0.53 0.17 152);
+  --success-foreground: oklch(0.985 0 0);
+  --warn: oklch(0.56 0.17 70);
+  --warn-foreground: oklch(0.985 0 0);
+  --destructive-text: var(--destructive);
+  --success-text: var(--success);
+  --warn-text: oklch(0.505 0.17 70);
+
+  /* Info is the blue toast/status fill with black text, identical in both themes. */
+  --info: oklch(0.62 0.17 256);
+  --info-foreground: oklch(0 0 0);
+  --instance-name: oklch(0.55 0.18 256);
+  --instance-name-foreground: oklch(0.985 0 0);
+
+  /* Hover steps of the filled surfaces: their own lightness step of the same hue (|ΔL| ≥ 0.10), in
+     the direction that raises the contrast to the unchanged `-foreground` — never opacity. */
+  --primary-hover: oklch(0.1 0.006 285.9);
+  --secondary-hover: oklch(0.857 0.001 286.4);
+  --success-hover: oklch(0.42 0.17 152);
+  --warn-hover: oklch(0.45 0.17 70);
+  --destructive-hover: oklch(0.467 0.245 27.3);
+  --instance-name-hover: oklch(0.44 0.18 256);
+
+  /* Tag palette: a fixed, ordered set of chip colors, each with a readable `-foreground`. Fills
+     with near-white text sit at the lightest lightness that keeps it at AA (hue and chroma kept);
+     the seed's green 0.62, blue 0.58 and pink 0.64 measured 3.25, 4.12 and 3.58:1. */
+  --tag-slate: oklch(0.52 0.03 256);
+  --tag-slate-foreground: oklch(0.985 0 0);
+  --tag-red: oklch(0.56 0.22 25);
+  --tag-red-foreground: oklch(0.985 0 0);
+  --tag-amber: oklch(0.77 0.15 75);
+  --tag-amber-foreground: oklch(0.21 0.006 285.9);
+  --tag-green: oklch(0.53 0.16 152);
+  --tag-green-foreground: oklch(0.985 0 0);
+  --tag-blue: oklch(0.55 0.16 252);
+  --tag-blue-foreground: oklch(0.985 0 0);
+  --tag-violet: oklch(0.56 0.2 295);
+  --tag-violet-foreground: oklch(0.985 0 0);
+  --tag-pink: oklch(0.58 0.2 350);
+  --tag-pink-foreground: oklch(0.985 0 0);
+  --tag-cyan: oklch(0.7 0.12 210);
+  --tag-cyan-foreground: oklch(0.21 0.006 285.9);
+
+  /* Editor markers: the four fixed text-highlight colors, no free palette. */
+  --marker-blue: oklch(0.9 0.05 252);
+  --marker-blue-foreground: oklch(0.21 0.006 285.9);
+  --marker-cyan: oklch(0.9 0.06 210);
+  --marker-cyan-foreground: oklch(0.21 0.006 285.9);
+  --marker-magenta: oklch(0.8 0.15 350);
+  --marker-magenta-foreground: oklch(0.21 0.006 285.9);
+  --marker-yellow: oklch(0.93 0.11 100);
+  --marker-yellow-foreground: oklch(0.21 0.006 285.9);
+}
+
+/* Dark is the deliberately high-contrast palette. */
+.dark {
+  --background: oklch(0.16 0.004 285.9);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.21 0.006 285.9);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.21 0.006 285.9);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.985 0 0);
+  --primary-foreground: oklch(0.21 0.006 285.9);
+  --secondary: oklch(0.274 0.006 286);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.274 0.006 286);
+  --muted-foreground: oklch(0.712 0.013 286.1);
+  --accent: oklch(0.274 0.006 286);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.58 0.191 22.2);
+  --destructive-foreground: oklch(0.985 0 0);
+  --border: oklch(1 0 0 / 12%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.552 0.016 285.9);
+
+  /* In dark the text steps go LIGHTER than their fills: only that direction raises the contrast
+     against the dark ground, and lightening the fill would break the near-white text on it. */
+  --success: oklch(0.53 0.17 152);
+  --success-foreground: oklch(0.985 0 0);
+  --warn: oklch(0.56 0.17 70);
+  --warn-foreground: oklch(0.985 0 0);
+  --destructive-text: oklch(0.64 0.191 22.2);
+  --success-text: oklch(0.62 0.17 152);
+  --warn-text: oklch(0.69 0.17 70);
+
+  --info: oklch(0.62 0.17 256);
+  --info-foreground: oklch(0 0 0);
+  /* The instance name carries dark text in dark, so its hover goes lighter. */
+  --instance-name: oklch(0.7 0.16 256);
+  --instance-name-foreground: oklch(0.16 0.004 285.9);
+
+  /* primary is the light surface here and goes darker; secondary lifts off the dark ground. */
+  --primary-hover: oklch(0.875 0 0);
+  --secondary-hover: oklch(0.384 0.006 286);
+  --success-hover: oklch(0.42 0.17 152);
+  --warn-hover: oklch(0.45 0.17 70);
+  --destructive-hover: oklch(0.47 0.191 22.2);
+  --instance-name-hover: oklch(0.81 0.16 256);
+
+  --tag-slate: oklch(0.55 0.03 256);
+  --tag-slate-foreground: oklch(0.985 0 0);
+  --tag-red: oklch(0.58 0.2 25);
+  --tag-red-foreground: oklch(0.985 0 0);
+  --tag-amber: oklch(0.72 0.15 75);
+  --tag-amber-foreground: oklch(0.16 0.004 285.9);
+  /* Same AA tuning as light; the seed's green 0.58, blue 0.6, violet 0.58 and pink 0.62 measured
+     3.79, 3.79, 4.48 and 3.88:1. */
+  --tag-green: oklch(0.53 0.16 152);
+  --tag-green-foreground: oklch(0.985 0 0);
+  --tag-blue: oklch(0.55 0.16 252);
+  --tag-blue-foreground: oklch(0.985 0 0);
+  --tag-violet: oklch(0.57 0.2 295);
+  --tag-violet-foreground: oklch(0.985 0 0);
+  --tag-pink: oklch(0.58 0.2 350);
+  --tag-pink-foreground: oklch(0.985 0 0);
+  --tag-cyan: oklch(0.68 0.12 210);
+  --tag-cyan-foreground: oklch(0.16 0.004 285.9);
+
+  /* Deeper, lower-chroma marker tints with light text. */
+  --marker-blue: oklch(0.45 0.08 252);
+  --marker-blue-foreground: oklch(0.985 0 0);
+  --marker-cyan: oklch(0.45 0.07 210);
+  --marker-cyan-foreground: oklch(0.985 0 0);
+  --marker-magenta: oklch(0.48 0.16 350);
+  --marker-magenta-foreground: oklch(0.985 0 0);
+  --marker-yellow: oklch(0.5 0.11 100);
+  --marker-yellow-foreground: oklch(0.985 0 0);
+}
+
+/* Maps the tokens into Tailwind's theme, so utilities like `bg-success` or `text-warn-text`
+   resolve. Radius helpers follow shadcn's convention. */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary-hover: var(--primary-hover);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary-hover: var(--secondary-hover);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-destructive-hover: var(--destructive-hover);
+  --color-destructive-text: var(--destructive-text);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-success-hover: var(--success-hover);
+  --color-success-text: var(--success-text);
+  --color-warn: var(--warn);
+  --color-warn-foreground: var(--warn-foreground);
+  --color-warn-hover: var(--warn-hover);
+  --color-warn-text: var(--warn-text);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-instance-name: var(--instance-name);
+  --color-instance-name-foreground: var(--instance-name-foreground);
+  --color-instance-name-hover: var(--instance-name-hover);
+
+  --color-tag-slate: var(--tag-slate);
+  --color-tag-slate-foreground: var(--tag-slate-foreground);
+  --color-tag-red: var(--tag-red);
+  --color-tag-red-foreground: var(--tag-red-foreground);
+  --color-tag-amber: var(--tag-amber);
+  --color-tag-amber-foreground: var(--tag-amber-foreground);
+  --color-tag-green: var(--tag-green);
+  --color-tag-green-foreground: var(--tag-green-foreground);
+  --color-tag-blue: var(--tag-blue);
+  --color-tag-blue-foreground: var(--tag-blue-foreground);
+  --color-tag-violet: var(--tag-violet);
+  --color-tag-violet-foreground: var(--tag-violet-foreground);
+  --color-tag-pink: var(--tag-pink);
+  --color-tag-pink-foreground: var(--tag-pink-foreground);
+  --color-tag-cyan: var(--tag-cyan);
+  --color-tag-cyan-foreground: var(--tag-cyan-foreground);
+
+  --color-marker-blue: var(--marker-blue);
+  --color-marker-blue-foreground: var(--marker-blue-foreground);
+  --color-marker-cyan: var(--marker-cyan);
+  --color-marker-cyan-foreground: var(--marker-cyan-foreground);
+  --color-marker-magenta: var(--marker-magenta);
+  --color-marker-magenta-foreground: var(--marker-magenta-foreground);
+  --color-marker-yellow: var(--marker-yellow);
+  --color-marker-yellow-foreground: var(--marker-yellow-foreground);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+    outline-color: color-mix(in oklch, var(--ring) 50%, transparent);
+  }
+  /* Body base is 14px / line-height 1.5 on the theme colors (GL-UI-010); the font family is the
+     app's own theme declaration. */
+  body {
+    @apply bg-background text-foreground;
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+}

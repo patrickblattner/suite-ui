@@ -11,6 +11,13 @@ for (const lng of LANGUAGES) {
       await expect(page.locator("html")).toHaveAttribute("lang", lng);
       await expect(page).toHaveScreenshot(`gallery-${lng}-${theme}.png`, { fullPage: true });
     });
+
+    test(`tokens ${lng} ${theme}`, async ({ page }) => {
+      await page.goto(`/?page=tokens&lng=${lng}&theme=${theme}`);
+      await expect(page.getByTestId("token-warn-text")).toBeVisible();
+      await expect(page.locator("html")).toHaveAttribute("lang", lng);
+      await expect(page).toHaveScreenshot(`tokens-${lng}-${theme}.png`, { fullPage: true });
+    });
   }
 }
 
