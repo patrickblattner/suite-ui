@@ -17,6 +17,7 @@ import {
   SheetPage,
   ToastPage,
 } from "./OverlayPages.js";
+import { SettingsPage } from "./SettingsPage.js";
 import { TokensPage } from "./TokensPage.js";
 
 const LANGUAGES = Object.keys(suiteStrings) as SuiteLanguage[];
@@ -27,6 +28,7 @@ const PAGES = [
   "tokens",
   "components",
   "list",
+  "settings",
   "dialog",
   "confirm",
   "overlays",
@@ -55,6 +57,7 @@ const PAGE_CONTENT: Record<Exclude<Page, "strings">, (theme: Theme) => ReactNode
   tokens: () => <TokensPage />,
   components: () => <ComponentsPage />,
   list: () => <ListPage />,
+  settings: () => <SettingsPage />,
   dialog: () => <DialogPage />,
   confirm: () => <ConfirmPage />,
   overlays: () => <OverlaysPage />,
@@ -131,7 +134,7 @@ function Gallery() {
           </select>
         </label>
       </header>
-      <main className={page === "list" ? "frame" : undefined}>
+      <main className={page === "list" || page === "settings" ? "frame" : undefined}>
         {page === "strings" ? (
           <section aria-labelledby="strings-heading">
             <h2 id="strings-heading">Strings</h2>

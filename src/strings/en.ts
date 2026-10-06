@@ -67,6 +67,12 @@ export const en = {
     cancelDisabledHint: "Closing becomes possible again once the deletion has finished.",
     confirmHint: "Deletes for good; this cannot be undone.",
   },
+  settings: {
+    saveHint: "Saves the changes on this page.",
+    saveDisabledHint: "Saving becomes possible once you have changed something here.",
+    resetHint: "Discards the unsaved changes on this page.",
+    resetDisabledHint: "Resetting becomes possible once you have changed something here.",
+  },
   timezone: {
     placeholder: "Search time zone…",
     empty: "No matching time zone",

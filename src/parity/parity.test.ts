@@ -81,9 +81,14 @@ describe("parity map", () => {
     expect(broken).toEqual([]);
   });
 
-  it("maps the list frame of both apps, pending until both have switched", () => {
+  it("maps the list frame and the settings footer, pending until the apps have switched", () => {
     const elements = new Set(parityMap.elements.map((e) => e.element));
-    expect([...elements].sort()).toEqual(["FilterBar", "SortSelect", "TablePagination"]);
+    expect([...elements].sort()).toEqual([
+      "FilterBar",
+      "SettingsFooter",
+      "SortSelect",
+      "TablePagination",
+    ]);
     expect(parityMap.elements.every((e) => e.status === "pending")).toBe(true);
   });
 });

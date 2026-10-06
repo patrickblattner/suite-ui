@@ -66,6 +66,12 @@ export const es: SuiteStrings = {
     cancelDisabledHint: "Cerrar vuelve a ser posible en cuanto termine la eliminación.",
     confirmHint: "Borra definitivamente; no se puede deshacer.",
   },
+  settings: {
+    saveHint: "Guarda los cambios de esta página.",
+    saveDisabledHint: "Se puede guardar en cuanto cambies algo aquí.",
+    resetHint: "Descarta los cambios sin guardar de esta página.",
+    resetDisabledHint: "Se puede restablecer en cuanto cambies algo aquí.",
+  },
   timezone: {
     placeholder: "Buscar zona horaria…",
     empty: "Ninguna zona horaria coincide",

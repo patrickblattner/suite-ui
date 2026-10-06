@@ -66,6 +66,12 @@ export const de: SuiteStrings = {
     cancelDisabledHint: "Schließen geht wieder, sobald das Löschen abgeschlossen ist.",
     confirmHint: "Löscht endgültig; das lässt sich nicht rückgängig machen.",
   },
+  settings: {
+    saveHint: "Speichert die Änderungen auf dieser Seite.",
+    saveDisabledHint: "Speichern geht, sobald du hier etwas geändert hast.",
+    resetHint: "Verwirft die ungespeicherten Änderungen auf dieser Seite.",
+    resetDisabledHint: "Zurücksetzen geht, sobald du hier etwas geändert hast.",
+  },
   timezone: {
     placeholder: "Zeitzone suchen…",
     empty: "Keine passende Zeitzone",

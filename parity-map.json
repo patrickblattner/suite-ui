@@ -141,6 +141,42 @@
       "suite": "pagination.lastPageDisabled",
       "status": "pending",
       "cockpit": "pagination.lastPageDisabled"
+    },
+    {
+      "element": "SettingsFooter",
+      "suite": "actions.save",
+      "status": "pending",
+      "cockpit": "settings.save"
+    },
+    {
+      "element": "SettingsFooter",
+      "suite": "actions.reset",
+      "status": "pending",
+      "cockpit": "settings.reset"
+    },
+    {
+      "element": "SettingsFooter",
+      "suite": "settings.saveHint",
+      "status": "pending",
+      "cockpit": "settings.hint.save"
+    },
+    {
+      "element": "SettingsFooter",
+      "suite": "settings.saveDisabledHint",
+      "status": "pending",
+      "cockpit": "settings.hint.saveDisabled"
+    },
+    {
+      "element": "SettingsFooter",
+      "suite": "settings.resetHint",
+      "status": "pending",
+      "cockpit": "settings.hint.reset"
+    },
+    {
+      "element": "SettingsFooter",
+      "suite": "settings.resetDisabledHint",
+      "status": "pending",
+      "cockpit": "settings.hint.resetDisabled"
     }
   ]
 }

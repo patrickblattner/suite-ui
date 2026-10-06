@@ -7,6 +7,7 @@ const THEMES = ["light", "dark"] as const;
 const PAGES: [name: string, ready: (page: Page) => Locator][] = [
   ["components", (page) => page.getByTestId("section-structure")],
   ["list", (page) => page.getByTestId("pagination")],
+  ["settings", (page) => page.getByTestId("settings-footer")],
   ["dialog", (page) => page.getByTestId("form-dialog")],
   ["confirm", (page) => page.getByTestId("confirm-dialog")],
   ["overlays", (page) => page.getByRole("menu")],
@@ -65,7 +66,7 @@ test("the toggles switch language and theme", async ({ page }) => {
   await page.goto("/");
   await page.getByTestId("gallery-language").selectOption("de");
   await page.getByTestId("gallery-theme").selectOption("dark");
-  await expect(page.getByText("Speichern")).toBeVisible();
+  await expect(page.getByText("Speichern", { exact: true })).toBeVisible();
   await expect(page.locator("html")).toHaveClass(/dark/);
 });
 
@@ -189,3 +190,125 @@ for (const [lng, label] of [
     await expect(page.getByTestId("filter-severity")).toHaveText(label);
   });
 }
+
+// The content area of a page: the content box of PageScroll, without its padding and without the
+// gutter `scrollbar-gutter: stable` reserves.
+async function contentArea(page: Page) {
+  return page.getByTestId("page-scroll").evaluate((el) => {
+    const rect = el.getBoundingClientRect();
+    const style = getComputedStyle(el);
+    const left = rect.left + parseFloat(style.paddingLeft);
+    const right = rect.left + el.clientLeft + el.clientWidth - parseFloat(style.paddingRight);
+    return { bottom: rect.bottom - parseFloat(style.paddingBottom), left, width: right - left };
+  });
+}
+
+// `GL-UI-026` at 1920×1080: 24 fields overflow the body; the footer stays at the bottom of the
+// content area before and after scrolling, and the body is the only scroller.
+test("settings: the footer stays at the bottom, only the form body scrolls", async ({ page }) => {
+  await page.goto("/?page=settings");
+  const body = page.getByTestId("settings-body");
+  const footer = page.getByTestId("settings-footer");
+  expect(await body.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+  expect(
+    await page.getByTestId("page-scroll").evaluate((el) => el.scrollHeight - el.clientHeight),
+  ).toBeLessThanOrEqual(1);
+
+  const area = await contentArea(page);
+  let f = await box(footer);
+  expect(Math.abs(f.y + f.height - area.bottom)).toBeLessThanOrEqual(1);
+  await body.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+  await expect(page.getByTestId("settings-field-24")).toBeInViewport();
+  f = await box(footer);
+  expect(Math.abs(f.y + f.height - area.bottom)).toBeLessThanOrEqual(1);
+
+  // The divider spans the content area; Reset directly left of Save at the right edge.
+  await expect(footer).toHaveCSS("border-top-style", "solid");
+  await expect(footer).toHaveCSS("border-top-width", "1px");
+  expect(Math.abs(f.x - area.left)).toBeLessThanOrEqual(1);
+  expect(Math.abs(f.width - area.width)).toBeLessThanOrEqual(1);
+  const [save, reset] = await Promise.all([
+    box(page.getByTestId("settings-general-save")),
+    box(page.getByTestId("settings-general-reset")),
+  ]);
+  expect(Math.abs(save.x + save.width - (f.x + f.width))).toBeLessThanOrEqual(1);
+  expect(Math.abs(reset.x + reset.width + 8 - save.x)).toBeLessThanOrEqual(1);
+});
+
+async function look(locator: Locator) {
+  return locator.evaluate((el) => {
+    const style = getComputedStyle(el);
+    return { background: style.backgroundColor, opacity: parseFloat(style.opacity) };
+  });
+}
+
+// `GL-UI-027`: disabled while unchanged, in the dimmed colour of the action; active after a change;
+// disabled again after a reset and after a save.
+test("settings: the pair follows the dirty state", async ({ page }) => {
+  await page.goto("/?page=settings");
+  const save = page.getByTestId("settings-general-save");
+  const reset = page.getByTestId("settings-general-reset");
+  const field = page.getByTestId("settings-field-1");
+  await expect(save).toBeDisabled();
+  await expect(reset).toBeDisabled();
+  const [dimSave, dimReset] = await Promise.all([look(save), look(reset)]);
+
+  await field.fill("changed");
+  await expect(save).toBeEnabled();
+  await expect(reset).toBeEnabled();
+  const [fullSave, fullReset] = await Promise.all([look(save), look(reset)]);
+  expect(dimSave.background).toBe(fullSave.background);
+  expect(dimReset.background).toBe(fullReset.background);
+  expect(dimSave.opacity).toBeLessThan(fullSave.opacity);
+  expect(dimReset.opacity).toBeLessThan(fullReset.opacity);
+
+  await reset.click();
+  await expect(field).toHaveValue("1");
+  await expect(save).toBeDisabled();
+  await expect(reset).toBeDisabled();
+
+  await field.fill("changed");
+  await save.click();
+  await expect(save).not.toHaveAttribute("aria-busy");
+  await expect(save).toBeDisabled();
+  await expect(reset).toBeDisabled();
+  await expect(field).toHaveValue("changed");
+});
+
+// `GL-UI-027`: a running save keeps the full colour, shows the working sign, and a second click
+// starts nothing.
+test("settings: a second click during a save has no effect", async ({ page }) => {
+  await page.goto("/?page=settings");
+  const save = page.getByTestId("settings-general-save");
+  await page.getByTestId("settings-field-1").fill("changed");
+  const enabled = await look(save);
+  await save.click();
+  await expect(save).toHaveAttribute("aria-busy", "true");
+  await expect(save.locator("[data-slot=busy]")).toBeVisible();
+  expect(await look(save)).toEqual(enabled);
+  await save.click({ force: true });
+  await save.dblclick({ force: true });
+  await page.getByTestId("settings-field-1").press("Enter");
+  // One save of 1.5 s: had a second one started, the button would turn busy again after the first.
+  await expect(save).not.toHaveAttribute("aria-busy", { timeout: 5000 });
+  await page.waitForTimeout(500);
+  await expect(save).not.toHaveAttribute("aria-busy");
+  await expect(save).toBeDisabled();
+});
+
+// `GL-UI-026`: the left column is half the content width, and nothing stands between the subtitle
+// and the form.
+test("settings: left column at half width, form directly under the subtitle", async ({ page }) => {
+  await page.goto("/?page=settings");
+  const area = await contentArea(page);
+  const left = await box(page.getByTestId("settings-column-left"));
+  expect(Math.abs(left.width / area.width - 0.5)).toBeLessThanOrEqual(0.01);
+  const next = await page
+    .getByTestId("page-header")
+    .evaluate((el) => el.nextElementSibling?.getAttribute("data-testid"));
+  expect(next).toBe("settings-general-form");
+  const first = await page
+    .getByTestId("settings-general-form")
+    .evaluate((el) => el.firstElementChild?.getAttribute("data-testid"));
+  expect(first).toBe("settings-body");
+});
