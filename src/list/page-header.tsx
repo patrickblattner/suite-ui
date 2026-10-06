@@ -9,6 +9,9 @@ type PageHeaderProps = {
   subtitle: string;
   // List pages: the green `+ Add` that creates an object.
   add?: { label: string; onClick: () => void; disabled?: boolean };
+  // An action the app builds itself (its own `+ Add` with its own testid, several buttons, an action
+  // with a loading state); it replaces `add`.
+  action?: React.ReactNode;
   // Detail and editor pages: the next lifecycle step, a `success` button naming the step.
   primaryAction?: React.ReactNode;
   // Secondary or backward actions as `outline`, left of the primary action.
@@ -17,9 +20,16 @@ type PageHeaderProps = {
 
 // The title row of every page (`GL-UI-026`): an `h1` and a one-line subtitle on the left, the page's
 // action on the right of the same row — the `+ Add` on a list page, the lifecycle next step on a
-// detail page, never both. The `mb-2` on top of the page column's `gap-4` gives the head its 24 px to
-// the first content.
-function PageHeader({ title, subtitle, add, primaryAction, secondaryAction }: PageHeaderProps) {
+// detail page, never two at once: `primaryAction`/`secondaryAction` before `action` before `add`. The
+// `mb-2` on top of the page column's `gap-4` gives the head its 24 px to the first content.
+function PageHeader({
+  title,
+  subtitle,
+  add,
+  action,
+  primaryAction,
+  secondaryAction,
+}: PageHeaderProps) {
   const actions =
     primaryAction !== undefined || secondaryAction !== undefined ? (
       <div className="flex shrink-0 items-center gap-2">
@@ -27,6 +37,10 @@ function PageHeader({ title, subtitle, add, primaryAction, secondaryAction }: Pa
         {primaryAction !== undefined ? (
           <div data-testid="page-primary-action">{primaryAction}</div>
         ) : null}
+      </div>
+    ) : action !== undefined ? (
+      <div className="shrink-0" data-testid="page-header-action">
+        {action}
       </div>
     ) : add !== undefined ? (
       <Button

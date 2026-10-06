@@ -28,9 +28,11 @@ type SettingsScaffoldProps = {
 // as a two-column grid, then the fixed footer. The page fills the content area and may shrink in it
 // (`min-h-0 flex-1` down the chain), so the body is the only scroller and the footer stays at the
 // bottom of the content area; without that chain PageScroll would scroll and take the footer along.
+// The body is positioned like PageScroll, so absolutely placed helpers (the hidden native checkbox of a
+// Checkbox) stay in it instead of lengthening PageScroll or the document.
 function SettingsScaffold({ pageKey, title, subtitle, left, right, form }: SettingsScaffoldProps) {
   const body = (
-    <div className="min-h-0 flex-1 overflow-y-auto pb-4" data-testid="settings-body">
+    <div className="relative min-h-0 flex-1 overflow-y-auto pb-4" data-testid="settings-body">
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2" data-testid="settings-grid">
         <div className="flex min-w-0 flex-col gap-4" data-testid="settings-column-left">
           {left}

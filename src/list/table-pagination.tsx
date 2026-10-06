@@ -10,6 +10,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "../ui/button.js";
 import { Hint } from "../ui/hint.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select.js";
+import { IconButtonTooltip } from "../ui/tooltip.js";
 
 const PAGE_SIZES = [10, 25, 50, 100] as const;
 
@@ -46,7 +47,11 @@ function TablePagination({
   const atFirst = page <= 1;
   const atLast = page >= totalPages;
   const step = ({ key, testId, icon, target, disabled }: Step) => (
-    <Hint key={key} text={t(`pagination.${key}`)} disabledText={t(`pagination.${key}Disabled`)}>
+    <IconButtonTooltip
+      key={key}
+      label={t(`pagination.${key}`)}
+      disabledText={t(`pagination.${key}Disabled`)}
+    >
       <Button
         variant="ghost"
         size="icon-sm"
@@ -57,7 +62,7 @@ function TablePagination({
       >
         {icon}
       </Button>
-    </Hint>
+    </IconButtonTooltip>
   );
 
   return (

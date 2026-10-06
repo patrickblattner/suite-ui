@@ -285,4 +285,10 @@
     font-size: 0.875rem;
     line-height: 1.5;
   }
+  /* A horizontal scroller inside the page keeps the page gutter between its content and its bar, exactly
+     while the bar exists: `data-overflow-x` is set by PageScroll only while it overflows horizontally,
+     so a table that is the last element never pays the gutter twice. */
+  :where([data-testid="page-scroll"]) :where([data-overflow-x]) {
+    padding-block-end: var(--page-gutter);
+  }
 }

@@ -306,6 +306,62 @@ test("settings: the footer stays at the bottom, only the form body scrolls", asy
   expect(await footer.evaluate(settingsFooterViolations)).toEqual([]);
 });
 
+// AC 5 of step 9: a hidden native checkbox (absolute, no inset, as Radix renders it in a form) at the
+// end of a long form stays in the positioned body; neither the document nor PageScroll grows.
+test("settings: a hidden native checkbox at the end of the form lengthens nothing", async ({
+  page,
+}) => {
+  await page.goto("/?page=settings");
+  await page.getByTestId("settings-column-left").evaluate((column) => {
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.setAttribute("aria-hidden", "true");
+    input.tabIndex = -1;
+    input.style.cssText =
+      "position:absolute;pointer-events:none;opacity:0;margin:0;transform:translateX(-100%)";
+    column.append(input);
+  });
+  const doc = await page.evaluate(() => ({
+    scrollHeight: document.documentElement.scrollHeight,
+    clientHeight: document.documentElement.clientHeight,
+  }));
+  expect(doc.scrollHeight).toBe(doc.clientHeight);
+  expect(
+    await page.getByTestId("page-scroll").evaluate((el) => el.scrollHeight - el.clientHeight),
+  ).toBeLessThanOrEqual(1);
+  expect(
+    await page.getByTestId("settings-body").evaluate((el) => el.scrollHeight > el.clientHeight),
+  ).toBe(true);
+});
+
+// AC 2 of step 9: a horizontal scroller inside PageScroll carries `data-overflow-x` exactly while it
+// overflows, and then the page gutter between its content and its bar.
+test("list frame: a horizontal scroller is marked while it overflows", async ({ page }) => {
+  await page.goto("/?page=list");
+  await page.getByTestId("page-scroll").evaluate((scroll) => {
+    const scroller = document.createElement("div");
+    scroller.className = "overflow-x-auto";
+    scroller.dataset.testid = "wide-scroller";
+    const content = document.createElement("div");
+    content.style.width = "4000px";
+    content.textContent = "wide";
+    scroller.append(content);
+    scroll.append(scroller);
+  });
+  const scroller = page.getByTestId("wide-scroller");
+  await expect(scroller).toHaveAttribute("data-overflow-x", "");
+  await expect(scroller).toHaveCSS("padding-bottom", "24px");
+
+  // New, narrower content, as a re-render brings it.
+  await scroller.evaluate((el) => {
+    const content = document.createElement("div");
+    content.textContent = "narrow";
+    el.replaceChildren(content);
+  });
+  await expect(scroller).not.toHaveAttribute("data-overflow-x");
+  await expect(scroller).toHaveCSS("padding-bottom", "0px");
+});
+
 async function look(locator: Locator) {
   return locator.evaluate((el) => {
     const style = getComputedStyle(el);

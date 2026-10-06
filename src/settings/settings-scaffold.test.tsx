@@ -148,4 +148,9 @@ describe("SettingsScaffold", () => {
     expect(screen.getByTestId("settings-general-reset")).toHaveTextContent(reset);
     expect(screen.getByTestId("settings-general-save")).toHaveTextContent(save);
   });
+
+  it("positions the scrolling body, so hidden native inputs stay in it", () => {
+    render(<GeneralPage save={() => Promise.resolve()} />);
+    expect(screen.getByTestId("settings-body")).toHaveClass("relative", "overflow-y-auto");
+  });
 });

@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "../ui/button.js";
 import { Hint } from "../ui/hint.js";
 import { Input } from "../ui/input.js";
+import { IconButtonTooltip } from "../ui/tooltip.js";
 import { SortSelect, type SortOption } from "./sort-select.js";
 
 // A filter control together with the origin of its value set; the origin decides where it sits, so no
@@ -40,8 +41,9 @@ type FilterBarProps = {
   helpText?: string;
   // The page's filter dropdowns; their place follows their kind.
   filters?: FilterBarFilter[];
-  // The page's sort, rendered as the `SortSelect` at the far right of the row.
-  sort: { value: string; onChange: (value: string) => void; options: SortOption[] };
+  // The page's sort, rendered as the `SortSelect` at the far right of the row; without it the row has
+  // no sort.
+  sort?: { value: string; onChange: (value: string) => void; options: SortOption[] };
   "data-testid"?: string;
 };
 
@@ -78,7 +80,7 @@ function FilterBar({
           data-testid={testId ?? "filter-haystack"}
         />
       </Hint>
-      <Hint text={resetLabel}>
+      <IconButtonTooltip label={resetLabel}>
         <Button
           variant="outline"
           size="icon"
@@ -88,9 +90,11 @@ function FilterBar({
         >
           <FilterXIcon />
         </Button>
-      </Hint>
+      </IconButtonTooltip>
       {controls("dynamic")}
-      <SortSelect value={sort.value} onChange={sort.onChange} options={sort.options} />
+      {sort !== undefined ? (
+        <SortSelect value={sort.value} onChange={sort.onChange} options={sort.options} />
+      ) : null}
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { useState } from "react";
 import { describe, expect, it } from "vitest";
 
 import { TablePagination } from "./table-pagination.js";
+import { hintOf } from "./test-utils.js";
 
 function Harness({ total }: { total: number }) {
   const [page, setPage] = useState(1);
@@ -52,5 +53,21 @@ describe("TablePagination", () => {
     expect(screen.getByRole("combobox", { name: "Rows per page" })).toHaveTextContent(
       "10 per page",
     );
+  });
+
+  it("opens each chevron's hint with its aria-label text on keyboard focus and after 1500 ms hover", () => {
+    render(<Harness total={23} />);
+    fireEvent.click(screen.getByTestId("pagination-next"));
+    for (const id of [
+      "pagination-first",
+      "pagination-prev",
+      "pagination-next",
+      "pagination-last",
+    ]) {
+      const button = screen.getByTestId(id);
+      const label = button.getAttribute("aria-label");
+      expect(label).not.toBeNull();
+      expect(hintOf(button)).toEqual({ focus: label, hover1499: null, hover1500: label });
+    }
   });
 });

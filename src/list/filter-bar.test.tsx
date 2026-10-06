@@ -2,6 +2,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { dynamicFilter, FilterBar, staticFilter } from "./filter-bar.js";
+import { hintOf } from "./test-utils.js";
 
 const SORT = {
   value: "updatedDesc",
@@ -52,5 +53,23 @@ describe("FilterBar", () => {
     const search = screen.getByRole("textbox", { name: "Filter the list" });
     expect(search).toHaveAttribute("placeholder", "Filter…");
     expect(search).toHaveAccessibleDescription(/Searches every column/);
+  });
+
+  it("renders without a sort and leaves the SortSelect out", () => {
+    render(<FilterBar value="" onChange={() => {}} onReset={() => {}} />);
+    const order = [...screen.getByTestId("filterbar").querySelectorAll("[data-testid]")].map((el) =>
+      el.getAttribute("data-testid"),
+    );
+    expect(order).toEqual(["filter-haystack", "filter-reset"]);
+    expect(screen.queryByRole("combobox")).toBeNull();
+  });
+
+  it("opens the reset hint with the aria-label text on keyboard focus and after 1500 ms hover", () => {
+    render(<FilterBar value="" onChange={() => {}} onReset={() => {}} sort={SORT} />);
+    expect(hintOf(screen.getByTestId("filter-reset"))).toEqual({
+      focus: "Clear filter",
+      hover1499: null,
+      hover1500: "Clear filter",
+    });
   });
 });

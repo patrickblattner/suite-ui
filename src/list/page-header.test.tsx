@@ -45,4 +45,46 @@ describe("PageHeader", () => {
       Node.DOCUMENT_POSITION_FOLLOWING,
     );
   });
+
+  it("puts an app-built action in its own slot instead of the add", () => {
+    render(
+      <PageHeader
+        title="Backups"
+        subtitle="Every backup."
+        add={{ label: "Add", onClick: () => {} }}
+        action={
+          <Button variant="success" size="default" data-testid="backup-add">
+            Add backup
+          </Button>
+        }
+      />,
+    );
+    const slot = screen.getByTestId("page-header-action");
+    expect(slot).toHaveClass("shrink-0");
+    expect(slot).toContainElement(screen.getByTestId("backup-add"));
+    expect(screen.getByTestId("page-header")).toContainElement(slot);
+    expect(screen.queryByTestId("page-add")).toBeNull();
+  });
+
+  it("shows only the primary action when a page passes both it and an action", () => {
+    render(
+      <PageHeader
+        title="Draft"
+        subtitle="One draft."
+        action={
+          <Button variant="success" size="default">
+            Add backup
+          </Button>
+        }
+        primaryAction={
+          <Button variant="success" size="default">
+            Publish
+          </Button>
+        }
+      />,
+    );
+    expect(screen.getByTestId("page-primary-action")).toHaveTextContent("Publish");
+    expect(screen.queryByTestId("page-header-action")).toBeNull();
+    expect(screen.queryByText("Add backup")).toBeNull();
+  });
 });
