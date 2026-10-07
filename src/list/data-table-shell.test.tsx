@@ -81,6 +81,7 @@ describe("DataTableShell", () => {
     const empty = screen.getByTestId("rows-empty");
     expect(empty).toHaveTextContent("Nothing here.");
     expect(empty).toHaveAttribute("colspan", "2");
+    expect(empty).toHaveClass("text-muted-foreground");
     expect(screen.queryByTestId("row")).not.toBeInTheDocument();
   });
 
@@ -134,6 +135,8 @@ describe("DataTableShell", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]).toHaveTextContent("Liste konnte nicht geladen werden.");
     expect(rows[0]).toHaveAttribute("colspan", "2");
+    expect(rows[0]).toHaveClass("text-destructive-text");
+    expect(rows[0]).not.toHaveClass("text-muted-foreground");
     expect(screen.queryByTestId("row")).not.toBeInTheDocument();
     expect(screen.queryByTestId("rows-empty")).not.toBeInTheDocument();
   });

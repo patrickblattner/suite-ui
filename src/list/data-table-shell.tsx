@@ -96,7 +96,7 @@ function DataTableShell({
               <TableRow>
                 <TableCell
                   colSpan={columnCount}
-                  className="text-center text-muted-foreground"
+                  className="text-center text-destructive-text"
                   data-testid={errorTestId}
                 >
                   {error}
