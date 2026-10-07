@@ -42,3 +42,6 @@
 {"ts":"2026-10-07T07:18:45.990Z","key":"SUI-FEATURE-023","from":3,"to":4,"disposition":"ticket","ref":"18"}
 {"ts":"2026-10-07T09:20:35.225Z","key":"SUI-FEATURE-024","from":null,"to":2,"disposition":"ticket","ref":"20"}
 {"ts":"2026-10-07T09:20:35.225Z","key":"SUI-DESIGN-012","from":14,"to":16,"disposition":"ticket","ref":"20"}
+{"ts":"2026-10-07T13:17:09.798Z","key":"SUI-FEATURE-025","from":null,"to":2,"disposition":"ticket","ref":"21"}
+{"ts":"2026-10-07T13:17:10.300Z","key":"SUI-FEATURE-026","from":null,"to":2,"disposition":"ticket","ref":"22"}
+{"ts":"2026-10-07T13:17:10.300Z","key":"SUI-DESIGN-012","from":16,"to":17,"disposition":"ticket","ref":"22"}
