@@ -132,6 +132,7 @@ export const es: SuiteStrings = {
   settings: {
     saveHint: "Guarda los cambios de esta página.",
     saveDisabledHint: "Se puede guardar en cuanto cambies algo aquí.",
+    saveInvalidHint: "Se puede guardar en cuanto todos los datos de aquí sean válidos.",
     resetHint: "Descarta los cambios sin guardar de esta página.",
     resetDisabledHint: "Se puede restablecer en cuanto cambies algo aquí.",
   },

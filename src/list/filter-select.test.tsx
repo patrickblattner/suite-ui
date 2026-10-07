@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import i18n from "i18next";
 import { act } from "react";
 import { afterEach, describe, expect, it } from "vitest";
@@ -117,5 +117,46 @@ describe("FilterSelect select width (SUI-FEATURE-026)", () => {
     expect(screen.getByTestId("filter-room-sizer")).toHaveTextContent("Room: Alle");
     await act(() => i18n.changeLanguage("es"));
     expect(screen.getByTestId("filter-room-sizer")).toHaveTextContent("Room: Todos");
+  });
+});
+
+describe("FilterSelect without allValue (SUI-FEATURE-031)", () => {
+  const DATES = [
+    { value: "2026-10-12", label: "12.10." },
+    { value: "2026-10-19", label: "19.10." },
+  ];
+  const renderDate = () =>
+    render(
+      <FilterSelect
+        field="Termin"
+        value="2026-10-12"
+        onValueChange={() => {}}
+        options={DATES}
+        hint="Shows the entries of one date."
+        data-testid="filter-date"
+      />,
+    );
+
+  afterEach(() => {
+    configureSuiteUi({});
+  });
+
+  it("AC4: reads field and value and offers no All entry", () => {
+    renderDate();
+    expect(screen.getByTestId("filter-date")).toHaveTextContent("Termin: 12.10.");
+    // jsdom lays nothing out; the open list scrolls its chosen item into view.
+    Element.prototype.scrollIntoView = () => {};
+    fireEvent.keyDown(screen.getByTestId("filter-date"), { key: "Enter" });
+    expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
+      "12.10.",
+      "19.10.",
+    ]);
+  });
+
+  it("AC4: measured sizes by the value texts only", () => {
+    configureSuiteUi({ selectWidth: "measured" });
+    renderDate();
+    const rows = [...screen.getByTestId("filter-date-sizer").children];
+    expect(rows.map((row) => row.textContent)).toEqual(["Termin: 12.10.", "Termin: 19.10."]);
   });
 });

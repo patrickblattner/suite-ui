@@ -133,6 +133,7 @@ export const de: SuiteStrings = {
   settings: {
     saveHint: "Speichert die Änderungen auf dieser Seite.",
     saveDisabledHint: "Speichern geht, sobald du hier etwas geändert hast.",
+    saveInvalidHint: "Speichern geht, sobald alle Angaben hier gültig sind.",
     resetHint: "Verwirft die ungespeicherten Änderungen auf dieser Seite.",
     resetDisabledHint: "Zurücksetzen geht, sobald du hier etwas geändert hast.",
   },

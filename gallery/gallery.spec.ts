@@ -1017,3 +1017,72 @@ test("edit panel: close returns the focus to the trigger, the list keeps its pla
   await expect(trigger).toBeFocused();
   expect(await scroller.evaluate((el) => el.scrollTop)).toBe(before);
 });
+
+// SUI-FEATURE-031 AC1–AC3: the tabbed settings page — the testids under the prefix, a tab row over one
+// full-width body that is the only scroller, one form over every tab, Save locked while invalid.
+test("settings tabs: tab row over one full-width scrolling body, one form", async ({ page }) => {
+  await page.goto("/?page=settings&layout=tabs");
+  const form = page.getByTestId("hauptmenue-form");
+  const body = page.getByTestId("hauptmenue-scroll");
+  await expect(page.getByTestId("hauptmenue-actions")).toBeVisible();
+  await expect(page.getByTestId("hauptmenue-tabs").getByRole("tab")).toHaveCount(3);
+  await expect(page.locator("form")).toHaveCount(1);
+  const row = await box(page.getByTestId("hauptmenue-tabs"));
+  const bodyBox = await box(body);
+  expect(bodyBox.y).toBeGreaterThanOrEqual(row.y + row.height);
+  expect(Math.abs(bodyBox.width - (await box(form)).width)).toBeLessThanOrEqual(1);
+  expect(await body.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+
+  await body.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+  expect((await box(page.getByTestId("hauptmenue-tabs"))).y).toBe(row.y);
+  await expect(page.getByTestId("hauptmenue-save")).toBeInViewport();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollHeight - document.documentElement.clientHeight,
+    ),
+  ).toBeLessThanOrEqual(0);
+});
+
+test("settings tabs: an invalid change locks Save, Reset stays usable", async ({ page }) => {
+  await page.goto("/?page=settings&layout=tabs");
+  const save = page.getByTestId("hauptmenue-save");
+  const reset = page.getByTestId("hauptmenue-reset");
+  await page.getByTestId("settings-field-1").fill("");
+  await expect(save).toBeDisabled();
+  await expect(reset).toBeEnabled();
+  await page.getByTestId("settings-field-1").fill("changed");
+  await expect(save).toBeEnabled();
+  // The change survives a tab switch: one form over every tab.
+  await page.getByTestId("hauptmenue-tab-areas").click();
+  await expect(page.getByTestId("hauptmenue-panel-areas")).toBeVisible();
+  await expect(page.getByTestId("settings-field-1")).toHaveValue("changed");
+  await expect(save).toBeEnabled();
+});
+
+// SUI-FEATURE-031 AC4/AC5: pickers that always hold a value — a FilterSelect without `allValue` and a
+// LabeledSelect, the latter one width for every value under `measured`.
+for (const [lng, date, view, values] of [
+  ["de", "Termin", "Sicht", ["Kompakt", "Ausführlich"]],
+  ["en", "Date", "View", ["Compact", "Detailed"]],
+  ["es", "Fecha", "Vista", ["Compacta", "Detallada"]],
+] as const) {
+  test(`pickers: no All entry, one width for every value ${lng}`, async ({ page }) => {
+    await page.goto(`/?page=list&filterBar=block&selectWidth=measured&pickers=1&lng=${lng}`);
+    const dateTrigger = page.getByTestId("filter-date");
+    await expect(dateTrigger).toHaveText(`${date}: 12.10.`);
+    await dateTrigger.click();
+    await expect(page.getByRole("option")).toHaveText(["12.10.", "19.10."]);
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("listbox")).toBeHidden();
+
+    const trigger = page.getByTestId("picker-view");
+    await expect(trigger).toHaveText(`${view}: ${values[0]}`);
+    const widths = [(await box(trigger)).width];
+    for (const option of [values[1], values[0]]) {
+      await choose(page, trigger, option);
+      await expect(trigger).toHaveText(`${view}: ${option}`);
+      widths.push((await box(trigger)).width);
+    }
+    for (const width of widths) expect(Math.abs(width - (widths[0] ?? 0))).toBeLessThanOrEqual(1);
+  });
+}

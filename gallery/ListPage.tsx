@@ -6,6 +6,7 @@ import { suiteUiConfig } from "../src/config/index.js";
 import { DataTableShell } from "../src/list/data-table-shell.js";
 import { dynamicFilter, FilterBar, staticFilter } from "../src/list/filter-bar.js";
 import { FilterSelect } from "../src/list/filter-select.js";
+import { LabeledSelect } from "../src/list/labeled-select.js";
 import { PageHeader } from "../src/list/page-header.js";
 import { PageScroll } from "../src/list/page-scroll.js";
 import { useSort } from "../src/list/sort-select.js";
@@ -24,6 +25,9 @@ const LABELS = {
     status: "Status",
     room: "Room",
     all: "All",
+    date: "Date",
+    view: "View",
+    views: ["Compact", "Detailed"],
   },
   de: {
     severity: "Schweregrad",
@@ -32,6 +36,9 @@ const LABELS = {
     status: "Status",
     room: "Raum",
     all: "Alle",
+    date: "Termin",
+    view: "Sicht",
+    views: ["Kompakt", "Ausführlich"],
   },
   es: {
     severity: "Gravedad",
@@ -40,6 +47,9 @@ const LABELS = {
     status: "Estado",
     room: "Sala",
     all: "Todos",
+    date: "Fecha",
+    view: "Vista",
+    views: ["Compacta", "Detallada"],
   },
 } as const;
 
@@ -50,6 +60,10 @@ const ROOMS =
   new URLSearchParams(window.location.search).get("rooms") === "glyphs"
     ? ["WWWW", "iiiiii"]
     : ["Seminarraum", "Konferenzzentrum"];
+// `?pickers=1` adds two pickers that always hold a value (`SUI-FEATURE-031`): a FilterSelect without
+// `allValue` and a LabeledSelect.
+const PICKERS = new URLSearchParams(window.location.search).get("pickers") === "1";
+const DATES = ["12.10.", "19.10."];
 const OWNERS = ["Ada", "Grace", "Linus"];
 const ROWS = Array.from({ length: 200 }, (_, i) => ({
   id: i + 1,
@@ -84,6 +98,8 @@ export function ListPage() {
   const [severity, setSeverity] = useState("all");
   const [owner, setOwner] = useState("all");
   const [room, setRoom] = useState("all");
+  const [date, setDate] = useState("12.10.");
+  const [viewMode, setViewMode] = useState("0");
   // Under `filterBar: "block"` the page passes its filters as one node, ordered by the page, with a
   // third filter so the search group wraps at narrow widths.
   const block = suiteUiConfig().filterBar === "block";
@@ -144,6 +160,26 @@ export function ListPage() {
               hint="Shows only the entries of one room."
               data-testid="filter-room"
             />
+            {PICKERS ? (
+              <>
+                <FilterSelect
+                  field={labels.date}
+                  value={date}
+                  onValueChange={setDate}
+                  options={DATES.map((value) => ({ value, label: value }))}
+                  hint="Shows the entries of one date."
+                  data-testid="filter-date"
+                />
+                <LabeledSelect
+                  label={labels.view}
+                  value={viewMode}
+                  onValueChange={setViewMode}
+                  options={labels.views.map((label, index) => ({ value: `${index}`, label }))}
+                  hint="Sets how much each row shows."
+                  data-testid="picker-view"
+                />
+              </>
+            ) : null}
           </>
         ) : (
           [dynamicFilter(OWNERS, ownerFilter), staticFilter(SEVERITIES, severityFilter)]

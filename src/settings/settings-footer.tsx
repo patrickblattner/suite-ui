@@ -7,10 +7,13 @@ type SettingsFooterProps = {
   // The route segment of the settings page (`/settings/<pageKey>`); the buttons are
   // `<testIdPrefix>-save` and `<testIdPrefix>-reset`.
   pageKey: string;
-  // The stem of the button testids; defaults to `settings-<pageKey>`.
+  // The stem of the button testids; defaults to `settings-<pageKey>`. Given, the button row also
+  // carries `<testIdPrefix>-actions`.
   testIdPrefix?: string;
   // The form differs from the loaded state. Only then are Reset and Save usable.
   dirty: boolean;
+  // The form holds an entry that cannot be saved: Save stays locked while Reset still follows `dirty`.
+  valid?: boolean;
   onReset: () => void;
   // A save is running: Save carries the working state and is locked against a second trigger.
   saving?: boolean;
@@ -24,14 +27,16 @@ type SettingsFooterProps = {
 // why it takes no class or slot props.
 function SettingsFooter({
   pageKey,
-  testIdPrefix = `settings-${pageKey}`,
+  testIdPrefix,
   dirty,
+  valid = true,
   onReset,
   saving = false,
 }: SettingsFooterProps) {
   const { t } = useTranslation("suite");
-  return (
-    <div className="flex shrink-0 justify-end gap-2 border-t pt-4" data-testid="settings-footer">
+  const stem = testIdPrefix ?? `settings-${pageKey}`;
+  const buttons = (
+    <>
       <Hint text={t("settings.resetHint")} disabledText={t("settings.resetDisabledHint")}>
         <Button
           type="button"
@@ -39,23 +44,37 @@ function SettingsFooter({
           size="default"
           disabled={!dirty}
           onClick={onReset}
-          data-testid={`${testIdPrefix}-reset`}
+          data-testid={`${stem}-reset`}
         >
           {t("actions.reset")}
         </Button>
       </Hint>
-      <Hint text={t("settings.saveHint")} disabledText={t("settings.saveDisabledHint")}>
+      <Hint
+        text={t("settings.saveHint")}
+        disabledText={t(dirty ? "settings.saveInvalidHint" : "settings.saveDisabledHint")}
+      >
         <Button
           type="submit"
           variant="success"
           size="default"
-          disabled={!dirty}
+          disabled={!dirty || !valid}
           busy={saving}
-          data-testid={`${testIdPrefix}-save`}
+          data-testid={`${stem}-save`}
         >
           {t("actions.save")}
         </Button>
       </Hint>
+    </>
+  );
+  return (
+    <div className="flex shrink-0 justify-end gap-2 border-t pt-4" data-testid="settings-footer">
+      {testIdPrefix !== undefined ? (
+        <div className="flex gap-2" data-testid={`${testIdPrefix}-actions`}>
+          {buttons}
+        </div>
+      ) : (
+        buttons
+      )}
     </div>
   );
 }

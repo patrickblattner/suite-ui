@@ -135,6 +135,7 @@ export const en = {
   settings: {
     saveHint: "Saves the changes on this page.",
     saveDisabledHint: "Saving becomes possible once you have changed something here.",
+    saveInvalidHint: "Saving becomes possible once every entry here is valid.",
     resetHint: "Discards the unsaved changes on this page.",
     resetDisabledHint: "Resetting becomes possible once you have changed something here.",
   },

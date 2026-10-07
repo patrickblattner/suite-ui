@@ -12,8 +12,9 @@ type FilterSelectProps = {
   // The name of the field the filter narrows: the left half of the trigger.
   field: string;
   value: string;
-  // The value that means "no filter".
-  allValue: string;
+  // The value that means "no filter". Without it the list has no All entry: a picker that always
+  // holds a value ("Date: 12.10.").
+  allValue?: string;
   onValueChange: (value: string) => void;
   options: readonly FilterSelectOption[];
   // What choosing a value does on this page.
@@ -38,7 +39,10 @@ function FilterSelect({
 }: FilterSelectProps) {
   const { t } = useTranslation("suite");
   const chosen = options.find((option) => option.value === value)?.label ?? value;
-  const trigger = value === allValue ? t("filter.all", { field }) : `${field}: ${chosen}`;
+  const trigger =
+    allValue !== undefined && value === allValue
+      ? t("filter.all", { field })
+      : `${field}: ${chosen}`;
   const measured = suiteUiConfig().selectWidth === "measured";
   const select = (
     <Select value={value} onValueChange={onValueChange}>
@@ -52,7 +56,9 @@ function FilterSelect({
         </SelectTrigger>
       </Hint>
       <SelectContent>
-        <SelectItem value={allValue}>{t("filter.allValue")}</SelectItem>
+        {allValue !== undefined ? (
+          <SelectItem value={allValue}>{t("filter.allValue")}</SelectItem>
+        ) : null}
         {options.map((option) => (
           <SelectItem key={option.value} value={option.value}>
             {option.label}
@@ -64,7 +70,10 @@ function FilterSelect({
   if (!measured) return select;
   return (
     <MeasuredCell
-      texts={[t("filter.all", { field }), ...options.map((option) => `${field}: ${option.label}`)]}
+      texts={[
+        ...(allValue !== undefined ? [t("filter.all", { field })] : []),
+        ...options.map((option) => `${field}: ${option.label}`),
+      ]}
       data-testid={testId}
     >
       {select}

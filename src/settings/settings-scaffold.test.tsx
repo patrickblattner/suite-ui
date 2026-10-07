@@ -3,6 +3,7 @@ import i18n from "i18next";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { TabsContent, TabsList, TabsTrigger } from "../ui/tabs.js";
 import { SettingsScaffold } from "./settings-scaffold.js";
 
 afterEach(async () => {
@@ -154,7 +155,7 @@ describe("SettingsScaffold", () => {
     expect(screen.getByTestId("settings-body")).toHaveClass("relative", "overflow-y-auto");
   });
 
-  it("names the pair after testIdPrefix and keeps the footer and form testids", () => {
+  it("names the pair after testIdPrefix and keeps the footer testid", () => {
     render(
       <SettingsScaffold
         pageKey="general"
@@ -169,6 +170,106 @@ describe("SettingsScaffold", () => {
     expect(screen.getByTestId("settings-reset")).toBeInTheDocument();
     expect(screen.queryByTestId("settings-general-save")).toBeNull();
     expect(screen.getByTestId("settings-footer")).toBeInTheDocument();
+  });
+});
+
+describe("SettingsScaffold community additions (SUI-FEATURE-031)", () => {
+  const scaffold = (props: Partial<React.ComponentProps<typeof SettingsScaffold>>) =>
+    render(
+      <SettingsScaffold
+        pageKey="general"
+        title="General"
+        subtitle="The name of this instance."
+        left={<p>Name</p>}
+        form={{ dirty: false, onSave: () => {}, onReset: () => {} }}
+        {...(props as object)}
+      />,
+    );
+
+  it("AC1: the prefix names form, action row and Save", () => {
+    scaffold({ testIdPrefix: "hauptmenue" });
+    const actions = screen.getByTestId("hauptmenue-actions");
+    expect(screen.getByTestId("hauptmenue-form")).toBeInTheDocument();
+    expect(actions).toContainElement(screen.getByTestId("hauptmenue-save"));
+    expect(actions).toContainElement(screen.getByTestId("hauptmenue-reset"));
+    expect(actions.parentElement).toBe(screen.getByTestId("settings-footer"));
+    expect(screen.queryByTestId("settings-general-form")).toBeNull();
+  });
+
+  it("AC1: formTestId names the form over the prefix", () => {
+    scaffold({ testIdPrefix: "settings-ai", formTestId: "settings-ai-page" });
+    expect(screen.getByTestId("settings-ai-page").tagName).toBe("FORM");
+    expect(screen.queryByTestId("settings-ai-form")).toBeNull();
+  });
+
+  it("AC1: without a prefix the footer holds the pair directly, as in v0.21.0", () => {
+    scaffold({});
+    const footer = screen.getByTestId("settings-footer");
+    expect(footer.querySelector('[data-testid$="-actions"]')).toBeNull();
+    expect(footer.children).toHaveLength(2);
+    expect(footer).toContainElement(screen.getByTestId("settings-general-save"));
     expect(screen.getByTestId("settings-general-form")).toBeInTheDocument();
+  });
+
+  it("AC2: valid={false} on a changed form locks Save and keeps Reset", () => {
+    const save = vi.fn();
+    scaffold({ form: { dirty: true, valid: false, onSave: save, onReset: () => {} } });
+    expect(screen.getByTestId("settings-general-save")).toBeDisabled();
+    expect(screen.getByTestId("settings-general-reset")).toBeEnabled();
+    fireEvent.submit(screen.getByTestId("settings-general-form"));
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it("AC2: without valid a changed form saves as before", () => {
+    const save = vi.fn();
+    scaffold({ form: { dirty: true, onSave: save, onReset: () => {} } });
+    expect(screen.getByTestId("settings-general-save")).toBeEnabled();
+    fireEvent.submit(screen.getByTestId("settings-general-form"));
+    expect(save).toHaveBeenCalledTimes(1);
+  });
+
+  it("AC3: tabs put one tab row over one full-width body inside one form", () => {
+    const keys = ["provider", "areas", "prompts"];
+    scaffold({
+      left: undefined,
+      scrollTestId: "settings-ai-scroll",
+      tabs: {
+        defaultValue: "provider",
+        list: (
+          <TabsList data-testid="tab-row">
+            {keys.map((key) => (
+              <TabsTrigger key={key} value={key}>
+                {key}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        ),
+        panels: keys.map((key) => (
+          <TabsContent key={key} value={key} data-testid={`panel-${key}`}>
+            {key}
+          </TabsContent>
+        )),
+      },
+    });
+    const body = screen.getByTestId("settings-ai-scroll");
+    expect(screen.getAllByRole("tab")).toHaveLength(3);
+    expect(screen.getByTestId("tab-row").nextElementSibling).toBe(body);
+    expect(body).toHaveClass("min-h-0", "flex-1", "overflow-y-auto");
+    expect(body).toContainElement(screen.getByTestId("panel-provider"));
+    expect(screen.queryByTestId("settings-grid")).toBeNull();
+    expect(screen.queryByTestId("settings-body")).toBeNull();
+    expect(document.querySelectorAll("form")).toHaveLength(1);
+    expect(screen.getByTestId("settings-general-form")).toContainElement(body);
+    expect(screen.getByTestId("settings-tabs").nextElementSibling).toBe(
+      screen.getByTestId("settings-footer"),
+    );
+  });
+
+  it("AC3: without tabs the two halves stay", () => {
+    scaffold({ right: <p>Status</p> });
+    expect(screen.getByTestId("settings-body").firstElementChild).toBe(
+      screen.getByTestId("settings-grid"),
+    );
+    expect(screen.queryByTestId("settings-tabs")).toBeNull();
   });
 });

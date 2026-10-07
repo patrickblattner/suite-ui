@@ -2,6 +2,7 @@
 export * from "./data-table-shell.js";
 export * from "./filter-bar.js";
 export * from "./filter-select.js";
+export * from "./labeled-select.js";
 export * from "./page-header.js";
 export * from "./page-scroll.js";
 export * from "./sort-select.js";
