@@ -37,6 +37,27 @@ describe("ConfirmDeleteDialog", () => {
     expect(screen.getByTestId("confirm-confirm")).toHaveTextContent(confirm);
   });
 
+  function confirmHintText() {
+    const ids =
+      screen.getByTestId("confirm-confirm").getAttribute("aria-describedby")?.split(" ") ?? [];
+    return ids.map((id) => document.getElementById(id)?.textContent ?? "").join(" ");
+  }
+
+  it("confirmHint replaces the package hint on the delete button", () => {
+    renderDialog({ confirmHint: "Wandert in den Papierkorb; dort wiederherstellbar." });
+    expect(confirmHintText()).toBe("Wandert in den Papierkorb; dort wiederherstellbar.");
+  });
+
+  it.each([
+    ["en", "Deletes for good; this cannot be undone."],
+    ["de", "Löscht endgültig; das lässt sich nicht rückgängig machen."],
+    ["es", "Borra definitivamente; no se puede deshacer."],
+  ])("%s: without confirmHint the package hint stays", async (lng, hint) => {
+    await i18n.changeLanguage(lng);
+    renderDialog();
+    expect(confirmHintText()).toBe(hint);
+  });
+
   it("destructive button last, Cancel directly before it", () => {
     renderDialog();
     const footer = screen.getByTestId("confirm").querySelector("[data-slot=dialog-footer]");

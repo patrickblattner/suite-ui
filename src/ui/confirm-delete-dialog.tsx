@@ -23,6 +23,9 @@ type ConfirmDeleteDialogProps = {
   confirmLabel?: string;
   // Where "Cancel" would be ambiguous next to the action; defaults to "Cancel".
   cancelLabel?: string;
+  // Already translated hint on the delete button, replacing the shared "Deletes for good" one, where
+  // deleting goes to a restorable trash or has a further consequence (`GL-UI-017`).
+  confirmHint?: string;
   // The confirmed action is running (`GL-UI-027`): the confirm button shows the working state and is
   // locked, Cancel is locked with it, and the dialog ignores every close request until the caller
   // closes it on the result.
@@ -42,6 +45,7 @@ function ConfirmDeleteDialog({
   description,
   confirmLabel,
   cancelLabel,
+  confirmHint,
   busy = false,
   children,
   "data-testid": testId,
@@ -77,7 +81,7 @@ function ConfirmDeleteDialog({
               {cancelLabel ?? t("actions.cancel")}
             </Button>
           </Hint>
-          <Hint text={t("confirmDelete.confirmHint")}>
+          <Hint text={confirmHint ?? t("confirmDelete.confirmHint")}>
             <Button
               type="button"
               variant="destructive"
