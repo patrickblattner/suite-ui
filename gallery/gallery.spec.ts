@@ -749,6 +749,59 @@ test("shell: the shortcut opens the search from a section route", async ({ page 
   await expect(page.getByTestId("search-dialog")).toBeVisible();
 });
 
+// The right edge of a scroller's content box, left of its vertical scrollbar.
+function scrollerRight(scroller: Locator) {
+  return scroller.evaluate(
+    (el) => el.getBoundingClientRect().left + el.clientLeft + el.clientWidth,
+  );
+}
+
+// SUI-FEATURE-029 AC4: under `tableActions: "sticky"` at 1100 px the table is wider than its scroller,
+// yet at `scrollLeft` 0 the actions column ends on the scroller's right edge.
+test("table actions sticky: the actions column sits on the scroller's right edge at 1100 px", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1100, height: 900 });
+  await page.goto("/?page=list&tableActions=sticky");
+  const scroller = page.getByTestId("data-table-scroll");
+  await expect(page.getByTestId("list-actions").first()).toBeVisible();
+  expect(await scroller.evaluate((el) => el.scrollLeft)).toBe(0);
+  expect(await scroller.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
+  const right = await scrollerRight(scroller);
+  for (const actions of [
+    page.getByTestId("list-actions-head"),
+    page.getByTestId("list-actions").first(),
+  ]) {
+    const cell = await box(actions);
+    expect(Math.abs(cell.x + cell.width - right)).toBeLessThanOrEqual(1);
+  }
+});
+
+// SUI-FEATURE-029 AC5: DataTableShell under all three table keys — scrolled to the end on both axes,
+// the header and the pager stay where they were and the actions column stays at the right edge.
+test("table switch: header and pager stay visible after scrolling to the end", async ({ page }) => {
+  await page.setViewportSize({ width: 1100, height: 900 });
+  await page.goto("/?page=list&tableScroll=page&tableRowHover=target&tableActions=sticky");
+  await expect(page.getByTestId("list-row")).toHaveCount(200);
+  const scroller = page.getByTestId("data-table-scroll");
+  const header = page.getByTestId("list-header");
+  const pager = page.getByTestId("pagination");
+  const lastRow = page.getByTestId("list-row").last();
+  await expect(lastRow).not.toBeInViewport();
+  const [headerBefore, pagerBefore] = await Promise.all([box(header), box(pager)]);
+
+  await scroller.evaluate((el) => el.scrollTo(el.scrollWidth, el.scrollHeight));
+  await expect(lastRow).toBeInViewport();
+  await expect(header).toBeInViewport();
+  await expect(pager).toBeInViewport();
+  expect((await box(header)).y).toBe(headerBefore.y);
+  expect(await box(pager)).toEqual(pagerBefore);
+  const actions = await box(page.getByTestId("list-actions").last());
+  expect(Math.abs(actions.x + actions.width - (await scrollerRight(scroller)))).toBeLessThanOrEqual(
+    1,
+  );
+});
+
 // SUI-FEATURE-026 AC3: under `filterBar: "block"` the row wraps instead of shrinking — at 1100 px with
 // three filters the search group moves below the filter block as a whole, the search keeps its 20rem
 // and the document gains no horizontal scroll.

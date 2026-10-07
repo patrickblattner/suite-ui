@@ -13,9 +13,26 @@ type SuiteUiConfig = {
   // `fit`: the panel takes the width of its longest entry, and the collapsed trigger shows only avatar
   // and kebab (`GL-020`, `SUI-FEATURE-028`).
   userMenu: "fixed" | "fit";
+  // `frame`: the table container scrolls sideways itself and the header is not sticky. `page`: the
+  // container has no overflow of its own and `TableHeader` is sticky against the page's scroll area
+  // (`GL-UI-023`, `SUI-FEATURE-029`).
+  tableScroll: "frame" | "page";
+  // `all`: every row highlights on hover. `target`: only rows with `data-grid-row`, the ones that open
+  // something (`COM-GL-012`).
+  tableRowHover: "all" | "target";
+  // `static`: the actions column scrolls with the rest. `sticky`: head and cell with
+  // `data-col-kind="actions"` stick to the right edge.
+  tableActions: "static" | "sticky";
 };
 
-const DEFAULTS: SuiteUiConfig = { filterBar: "kind", selectWidth: "content", userMenu: "fixed" };
+const DEFAULTS: SuiteUiConfig = {
+  filterBar: "kind",
+  selectWidth: "content",
+  userMenu: "fixed",
+  tableScroll: "frame",
+  tableRowHover: "all",
+  tableActions: "static",
+};
 
 let current: SuiteUiConfig = DEFAULTS;
 

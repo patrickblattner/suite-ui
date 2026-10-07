@@ -1,3 +1,4 @@
+import { PencilIcon, Trash2Icon } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -9,6 +10,7 @@ import { PageHeader } from "../src/list/page-header.js";
 import { PageScroll } from "../src/list/page-scroll.js";
 import { useSort } from "../src/list/sort-select.js";
 import { TablePagination } from "../src/list/table-pagination.js";
+import { Button } from "../src/ui/button.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../src/ui/select.js";
 import { TableCell, TableHead, TableRow } from "../src/ui/table.js";
 import { Tabs, TabsList, TabsTrigger } from "../src/ui/tabs.js";
@@ -70,6 +72,10 @@ const FLOOR = new URLSearchParams(window.location.search).get("floor") === "1";
 const SLOTS = new URLSearchParams(window.location.search).get("slots");
 const TABS = SLOTS === "tabs";
 const TOOLBAR = TABS || SLOTS === "toolbar";
+// Under `tableActions: "sticky"` the rows carry a long note and an actions column, so the table is
+// wider than its scroller at 1100 px and the gallery measures that the actions stay at the right edge.
+const NOTE =
+  "Rescheduled after the venue changed; attendees were notified by mail, the waitlist moved up and the catering order was adjusted to the new room and time.";
 
 export function ListPage() {
   const { t, i18n } = useTranslation("suite");
@@ -81,6 +87,7 @@ export function ListPage() {
   // Under `filterBar: "block"` the page passes its filters as one node, ordered by the page, with a
   // third filter so the search group wraps at narrow widths.
   const block = suiteUiConfig().filterBar === "block";
+  const actions = suiteUiConfig().tableActions === "sticky";
   const [sort, setSort] = useSort();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -153,9 +160,15 @@ export function ListPage() {
             <TableHead>{labels.owner}</TableHead>
             <TableHead>{labels.severity}</TableHead>
             <TableHead>{labels.status}</TableHead>
+            {actions && (
+              <>
+                <TableHead>Note</TableHead>
+                <TableHead data-col-kind="actions" data-testid="list-actions-head" />
+              </>
+            )}
           </>
         }
-        columnCount={4}
+        columnCount={actions ? 6 : 4}
         isPending={false}
         isEmpty={false}
         empty=""
@@ -205,6 +218,19 @@ export function ListPage() {
                 "open"
               )}
             </TableCell>
+            {actions && (
+              <>
+                <TableCell>{NOTE}</TableCell>
+                <TableCell data-col-kind="actions" data-testid="list-actions">
+                  <Button variant="warn" size="icon-xs" aria-label="Edit">
+                    <PencilIcon />
+                  </Button>
+                  <Button variant="destructive" size="icon-xs" aria-label={t("actions.delete")}>
+                    <Trash2Icon />
+                  </Button>
+                </TableCell>
+              </>
+            )}
           </TableRow>
         ))}
       </DataTableShell>

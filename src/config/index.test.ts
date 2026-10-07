@@ -30,18 +30,27 @@ describe("@suite/ui/config", () => {
       filterBar: "kind",
       selectWidth: "content",
       userMenu: "fixed",
+      tableScroll: "frame",
+      tableRowHover: "all",
+      tableActions: "static",
     });
     built.configureSuiteUi({ filterBar: "block" });
     expect(built.suiteUiConfig()).toEqual({
       filterBar: "block",
       selectWidth: "content",
       userMenu: "fixed",
+      tableScroll: "frame",
+      tableRowHover: "all",
+      tableActions: "static",
     });
     built.configureSuiteUi({});
     expect(built.suiteUiConfig()).toEqual({
       filterBar: "kind",
       selectWidth: "content",
       userMenu: "fixed",
+      tableScroll: "frame",
+      tableRowHover: "all",
+      tableActions: "static",
     });
   });
 });
