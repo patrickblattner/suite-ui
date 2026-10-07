@@ -50,8 +50,9 @@ function withDuration(
 }
 
 // sonner's `toast` with the four variants timed by `toastDurationFor`; everything else (the plain
-// call, `dismiss`, `promise`, `loading`, `custom`) is sonner's own.
-const toast = Object.assign(
+// call, `dismiss`, `promise`, `loading`, `custom`) is sonner's own. Typed as sonner's `toast` so the
+// emitted declaration can name it (the inferred type references sonner's unexported types, TS4023).
+const toast: typeof sonnerToast = Object.assign(
   (message: Message, opts?: ExternalToast) => sonnerToast(message, opts),
   {
     ...sonnerToast,
