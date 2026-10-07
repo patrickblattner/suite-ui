@@ -169,6 +169,18 @@ function Fields() {
         <Textarea aria-label="Textarea filled" defaultValue={"Two\nlines"} />
         <Textarea aria-label="Textarea disabled" defaultValue="Disabled" disabled />
         <Textarea aria-label="Textarea invalid" defaultValue="Invalid" aria-invalid />
+        <Textarea
+          aria-label="Textarea overflowing"
+          data-testid="textarea-overflowing"
+          className="h-24"
+          defaultValue={Array.from({ length: 12 }, (_, i) => `Line ${i + 1}`).join("\n")}
+        />
+        <Textarea
+          aria-label="Textarea fitting"
+          data-testid="textarea-fitting"
+          className="h-24"
+          defaultValue="Line 1"
+        />
         <TimezoneCombobox
           value={timezone}
           onValueChange={setTimezone}

@@ -473,6 +473,30 @@ test("select: field name and value at the leading edge, chevron right", async ({
   await expect(page.getByRole("tooltip")).toHaveText("A value too long for its trigger");
 });
 
+// `SUI-FEATURE-023`: a textarea of fixed height is a framed scroll surface; the bar's place is
+// reserved, so the text lines are as wide with overflow as without, and padding stays beside the bar.
+test("textarea: stable scrollbar gutter, same line width with and without overflow", async ({
+  page,
+}) => {
+  await page.goto("/?page=components");
+  const measure = (el: HTMLElement | SVGElement) => {
+    const style = getComputedStyle(el);
+    return {
+      overflows: el.scrollHeight > el.clientHeight,
+      gutter: style.scrollbarGutter,
+      lineWidth: el.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight),
+      paddingRight: parseFloat(style.paddingRight),
+    };
+  };
+  const overflowing = await page.getByTestId("textarea-overflowing").evaluate(measure);
+  const fitting = await page.getByTestId("textarea-fitting").evaluate(measure);
+  expect(overflowing.overflows).toBe(true);
+  expect(fitting.overflows).toBe(false);
+  expect(overflowing.gutter).toBe("stable");
+  expect(overflowing.lineWidth).toBe(fitting.lineWidth);
+  expect(overflowing.paddingRight).toBeGreaterThan(0);
+});
+
 // `SUI-FEATURE-022`: the help of a full-width label opens on its text only.
 test("label with help: the text opens the help, the space beside it does not", async ({ page }) => {
   await page.goto("/?page=components");
