@@ -7,6 +7,7 @@ import { Hint } from "./hint.js";
 import { Input } from "./input.js";
 import { LabelWithHelp } from "./label-with-help.js";
 import { Switch } from "./switch.js";
+import { Tabs, TabsList, TabsTrigger } from "./tabs.js";
 
 describe("Hint", () => {
   it("keeps the full active class of a NavLink className function", () => {
@@ -71,6 +72,40 @@ describe("Hint", () => {
       </Hint>,
     );
     expect(screen.getByRole("switch", { name: "Notify" })).toHaveAttribute("data-state", "checked");
+  });
+
+  it("keeps a wrapped tab's own data-slot and data-state", () => {
+    render(
+      <Tabs defaultValue="a">
+        <TabsList>
+          <Hint text="Shows A">
+            <TabsTrigger value="a">A</TabsTrigger>
+          </Hint>
+          <Hint text="Shows B">
+            <TabsTrigger value="b">B</TabsTrigger>
+          </Hint>
+        </TabsList>
+      </Tabs>,
+    );
+    const a = screen.getByRole("tab", { name: "A" });
+    const b = screen.getByRole("tab", { name: "B" });
+    expect(a).toHaveAttribute("data-slot", "tabs-trigger");
+    expect(a).toHaveAttribute("data-state", "active");
+    expect(b).toHaveAttribute("data-slot", "tabs-trigger");
+    expect(b).toHaveAttribute("data-state", "inactive");
+  });
+
+  it("keeps a wrapped button's own data-slot", () => {
+    render(
+      <Hint text="Saves the draft">
+        <Button variant="success" size="default">
+          Save
+        </Button>
+      </Hint>,
+    );
+    const button = screen.getByRole("button", { name: "Save" });
+    expect(button).toHaveAttribute("data-slot", "button");
+    expect(button).not.toHaveAttribute("data-state");
   });
 
   it("names the condition while the control is disabled", () => {

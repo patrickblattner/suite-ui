@@ -29,8 +29,8 @@ function composeRefs<T>(...refs: (React.Ref<T> | undefined)[]): React.RefCallbac
 // differences:
 // - A `className` function (a router `NavLink`) stays a function. `Slot` joins class names as strings,
 //   which turns the function into its source text and loses the active classes.
-// - The trigger's `data-state` ("closed", "delayed-open") is dropped, so a switch, tab or checkbox keeps
-//   its own `data-state`.
+// - The trigger's `data-slot` ("tooltip-trigger") and `data-state` ("closed", "delayed-open") are
+//   dropped, so a tab, select trigger, button or switch keeps its own slot and state.
 const PassThrough = React.forwardRef<HTMLElement, AnyProps>(function PassThrough(
   { children, ...slotProps },
   ref,
@@ -50,8 +50,10 @@ const PassThrough = React.forwardRef<HTMLElement, AnyProps>(function PassThrough
           : slotValue;
     }
   }
-  delete merged["data-state"];
-  if (own["data-state"] !== undefined) merged["data-state"] = own["data-state"];
+  for (const key of ["data-slot", "data-state"]) {
+    delete merged[key];
+    if (own[key] !== undefined) merged[key] = own[key];
+  }
   if (slotProps.style !== undefined || own.style !== undefined) {
     merged.style = { ...(slotProps.style as object), ...(own.style as object) };
   }
