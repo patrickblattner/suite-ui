@@ -153,4 +153,22 @@ describe("SettingsScaffold", () => {
     render(<GeneralPage save={() => Promise.resolve()} />);
     expect(screen.getByTestId("settings-body")).toHaveClass("relative", "overflow-y-auto");
   });
+
+  it("names the pair after testIdPrefix and keeps the footer and form testids", () => {
+    render(
+      <SettingsScaffold
+        pageKey="general"
+        testIdPrefix="settings"
+        title="General"
+        subtitle="The name of this instance."
+        left={<p>Name</p>}
+        form={{ dirty: false, onSave: () => {}, onReset: () => {} }}
+      />,
+    );
+    expect(screen.getByTestId("settings-save")).toBeInTheDocument();
+    expect(screen.getByTestId("settings-reset")).toBeInTheDocument();
+    expect(screen.queryByTestId("settings-general-save")).toBeNull();
+    expect(screen.getByTestId("settings-footer")).toBeInTheDocument();
+    expect(screen.getByTestId("settings-general-form")).toBeInTheDocument();
+  });
 });

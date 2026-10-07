@@ -20,6 +20,8 @@
   /* App-shell layout: the symmetric page inset, the tallest page-header variant (back-link line +
      gap + action row) and the sidebar width open (`w-56`) and collapsed (`w-14`). */
   --page-gutter: 1.5rem;
+  /* The lower bound of the content surface under PageScroll's `floor` (`GL-UI-018` §Notausfahrt). */
+  --shell-content-min: 16rem;
   --page-header-height: 3.75rem;
   --sidebar-width: 14rem;
   --sidebar-width-collapsed: 3.5rem;

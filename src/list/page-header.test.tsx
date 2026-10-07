@@ -87,4 +87,33 @@ describe("PageHeader", () => {
     expect(screen.queryByTestId("page-header-action")).toBeNull();
     expect(screen.queryByText("Add backup")).toBeNull();
   });
+
+  it("takes nodes as title and subtitle: an input in the h1, a feature row in the subtitle", () => {
+    render(
+      <PageHeader
+        title={<input aria-label="Title" data-testid="t" />}
+        subtitle={<span>#1</span>}
+      />,
+    );
+    const title = screen.getByTestId("page-title");
+    expect(title.tagName).toBe("H1");
+    expect(title).toContainElement(screen.getByTestId("t"));
+    expect(screen.getByTestId("page-subtitle")).toContainElement(screen.getByText("#1"));
+  });
+
+  it("keeps the markup and classes of v0.15.0 for text title and subtitle", () => {
+    render(<PageHeader title="Events" subtitle="Every event." />);
+    const title = screen.getByTestId("page-title");
+    expect(title.outerHTML).toBe(
+      '<h1 class="text-xl font-semibold tracking-tight" data-testid="page-title">Events</h1>',
+    );
+    expect(screen.getByTestId("page-subtitle").outerHTML).toBe(
+      '<p class="mt-1 text-sm text-muted-foreground" data-testid="page-subtitle">Every event.</p>',
+    );
+    expect(title.parentElement).toHaveAttribute("class", "min-w-0");
+    expect(screen.getByTestId("page-header")).toHaveAttribute(
+      "class",
+      "mb-2 flex items-start justify-between gap-4",
+    );
+  });
 });

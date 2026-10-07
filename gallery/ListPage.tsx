@@ -34,6 +34,9 @@ const ROWS_WITH_SELECT = new Set([1, 100, 200]);
 // The list frame inside a fixed full-height frame, as an app mounts it: PageScroll fills the area
 // below the gallery header, and DataTableShell takes the height left under the FilterBar. All 200
 // rows render at once, so the table body overflows by far and is the only part that scrolls.
+// `?floor=1` mounts PageScroll with its lower bound, so the gallery measures `--shell-content-min`.
+const FLOOR = new URLSearchParams(window.location.search).get("floor") === "1";
+
 export function ListPage() {
   const { t, i18n } = useTranslation("suite");
   const labels = LABELS[i18n.language as keyof typeof LABELS] ?? LABELS.en;
@@ -45,7 +48,7 @@ export function ListPage() {
   const [pageSize, setPageSize] = useState(25);
 
   return (
-    <PageScroll>
+    <PageScroll floor={FLOOR}>
       <div className="flex min-h-0 flex-1 flex-col gap-4">
         <PageHeader
           title={labels.event}

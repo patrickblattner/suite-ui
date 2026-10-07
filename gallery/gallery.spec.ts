@@ -217,6 +217,21 @@ test("list frame: header and pager stay put while the rows scroll", async ({ pag
   expect(controlHeightViolations(heights)).toEqual([]);
 });
 
+// AC2 of step 15: without `floor` PageScroll may shrink to nothing (`min-h-0`); with it the content
+// surface keeps the 16rem lower bound from styles.css (`GL-UI-018` §Notausfahrt).
+test("list frame: PageScroll floor is 256 px, without it the scroller may shrink", async ({
+  page,
+}) => {
+  await page.goto("/?page=list");
+  const scroll = page.getByTestId("page-scroll");
+  await expect(scroll).toHaveClass(/(^|\s)min-h-0(\s|$)/);
+  expect(await scroll.evaluate((el) => getComputedStyle(el).minHeight)).toBe("0px");
+
+  await page.goto("/?page=list&floor=1");
+  await expect(scroll).not.toHaveClass(/(^|\s)min-h-0(\s|$)/);
+  expect(await scroll.evaluate((el) => getComputedStyle(el).minHeight)).toBe("256px");
+});
+
 test("list frame: the page gutter is the same left and right of the content", async ({ page }) => {
   await page.goto("/?page=list");
   const scroller = page.getByTestId("page-scroll");

@@ -6,6 +6,8 @@ import { SettingsFooter } from "./settings-footer.js";
 type SettingsScaffoldProps = {
   // The route segment of the page (`/settings/<pageKey>`); the form and footer testids derive from it.
   pageKey: string;
+  // The stem of the Save/Reset testids, passed to SettingsFooter; defaults to `settings-<pageKey>`.
+  testIdPrefix?: string;
   title: string;
   // One line on what the page sets; nothing else stands between it and the form.
   subtitle: string;
@@ -30,7 +32,15 @@ type SettingsScaffoldProps = {
 // bottom of the content area; without that chain PageScroll would scroll and take the footer along.
 // The body is positioned like PageScroll, so absolutely placed helpers (the hidden native checkbox of a
 // Checkbox) stay in it instead of lengthening PageScroll or the document.
-function SettingsScaffold({ pageKey, title, subtitle, left, right, form }: SettingsScaffoldProps) {
+function SettingsScaffold({
+  pageKey,
+  testIdPrefix,
+  title,
+  subtitle,
+  left,
+  right,
+  form,
+}: SettingsScaffoldProps) {
   const body = (
     <div className="relative min-h-0 flex-1 overflow-y-auto pb-4" data-testid="settings-body">
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2" data-testid="settings-grid">
@@ -63,6 +73,7 @@ function SettingsScaffold({ pageKey, title, subtitle, left, right, form }: Setti
           {body}
           <SettingsFooter
             pageKey={pageKey}
+            testIdPrefix={testIdPrefix}
             dirty={form.dirty}
             onReset={form.onReset}
             saving={form.saving}

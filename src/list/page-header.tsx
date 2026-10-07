@@ -4,9 +4,10 @@ import type * as React from "react";
 import { Button } from "../ui/button.js";
 
 type PageHeaderProps = {
-  title: string;
-  // One line on what the page is for.
-  subtitle: string;
+  // A text, or a node the page builds itself (an inline-editable title field).
+  title: React.ReactNode;
+  // One line on what the page is for; it sits in a `<p>`, so phrasing content only (a row of features).
+  subtitle: React.ReactNode;
   // List pages: the green `+ Add` that creates an object.
   add?: { label: string; onClick: () => void; disabled?: boolean };
   // An action the app builds itself (its own `+ Add` with its own testid, several buttons, an action

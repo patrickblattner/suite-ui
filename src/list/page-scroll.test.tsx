@@ -49,4 +49,16 @@ describe("PageScroll", () => {
     await nextFrame();
     expect(scroller).not.toHaveAttribute("data-overflow-x");
   });
+
+  it("keeps the classes of v0.15.0 without floor and swaps min-h-0 for the floor with it", () => {
+    const view = render(<PageScroll>x</PageScroll>);
+    expect(screen.getByTestId("page-scroll")).toHaveAttribute(
+      "class",
+      "relative flex min-h-0 flex-1 flex-col overflow-y-auto p-[var(--page-gutter)] [scrollbar-gutter:stable]",
+    );
+    view.rerender(<PageScroll floor>x</PageScroll>);
+    const scroll = screen.getByTestId("page-scroll");
+    expect(scroll).toHaveClass("min-h-[var(--shell-content-min)]");
+    expect(scroll).not.toHaveClass("min-h-0");
+  });
 });

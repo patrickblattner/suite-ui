@@ -7,8 +7,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 type SortOption = { value: string; label: string };
 
 // Sort state with the default of every list (`GL-UI-024`): last edited, newest first.
-function useSort(defaultKey = "updatedDesc"): [string, (value: string) => void] {
+// With a `slot` the key lives outside the page (it survives the return from a detail); the state hook
+// still runs so the hook order stays the same either way.
+function useSort(
+  defaultKey = "updatedDesc",
+  slot?: { value: string; set: (value: string) => void },
+): [string, (value: string) => void] {
   const [sortKey, setSortKey] = useState(defaultKey);
+  if (slot !== undefined) return [slot.value, slot.set];
   return [sortKey, setSortKey];
 }
 
