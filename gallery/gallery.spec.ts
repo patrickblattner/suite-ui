@@ -423,6 +423,28 @@ test("settings: a second click during a save has no effect", async ({ page }) =>
   await expect(save).toBeDisabled();
 });
 
+// `SUI-FEATURE-021`: a busy button swaps its leading icon for the working sign in place; one icon
+// shows, the text stays, the width does not jump.
+test("busy button with a leading icon keeps one icon, its text and its width", async ({ page }) => {
+  await page.goto("/?page=components");
+  const idle = page.getByTestId("button-idle");
+  const busy = page.getByTestId("button-busy");
+  await expect(busy.getByTestId("button-loading")).toBeVisible();
+  await expect(busy.locator("svg:visible")).toHaveCount(1);
+  await expect(busy).toHaveText(await idle.innerText());
+  expect((await box(busy)).width).toBeCloseTo((await box(idle)).width, 0);
+});
+
+// `SUI-FEATURE-021`: the overlay menu groups its items under a label, a separator before the
+// destructive one.
+test("dropdown menu: a labelled group and a separator", async ({ page }) => {
+  await page.goto("/?page=overlays");
+  const menu = page.getByRole("menu");
+  await expect(menu.locator("[data-slot=dropdown-menu-label]")).toHaveText("Run");
+  await expect(menu.getByRole("group").getByRole("menuitem")).toHaveCount(2);
+  await expect(menu.getByRole("separator")).toBeVisible();
+});
+
 // `GL-UI-026`: the left column is half the content width, and nothing stands between the subtitle
 // and the form.
 test("settings: left column at half width, form directly under the subtitle", async ({ page }) => {

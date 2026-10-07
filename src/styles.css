@@ -69,13 +69,15 @@
 
   /* Action fills carry a near-white `-foreground` and are tuned to the lightest lightness that keeps
      it at AA. A fill that is also used as text on a neutral ground has its own `-text` token, tuned
-     against the ground instead (GL-UI-010); in light the fill itself already passes, so it aliases. */
+     against the ground instead (GL-UI-010): its own value in each theme, never the fill, at AA on
+     the worst list-row ground, its fill at /15 over `bg-muted` and over `bg-muted/50`
+     (SUI-FEATURE-021). Seed values are the Community Platform's. */
   --success: oklch(0.53 0.17 152);
   --success-foreground: oklch(0.985 0 0);
   --warn: oklch(0.56 0.17 70);
   --warn-foreground: oklch(0.985 0 0);
-  --destructive-text: var(--destructive);
-  --success-text: var(--success);
+  --destructive-text: oklch(0.472 0.245 27.3);
+  --success-text: oklch(0.468 0.17 152);
   --warn-text: oklch(0.505 0.17 70);
 
   /* Info is the blue toast/status fill with black text, identical in both themes. */
@@ -152,8 +154,8 @@
   --success-foreground: oklch(0.985 0 0);
   --warn: oklch(0.56 0.17 70);
   --warn-foreground: oklch(0.985 0 0);
-  --destructive-text: oklch(0.64 0.191 22.2);
-  --success-text: oklch(0.62 0.17 152);
+  --destructive-text: oklch(0.7 0.191 22.2);
+  --success-text: oklch(0.662 0.17 152);
   --warn-text: oklch(0.69 0.17 70);
 
   --info: oklch(0.62 0.17 256);

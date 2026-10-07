@@ -107,7 +107,12 @@ function Button(props: ButtonProps) {
       ) : (
         <>
           {working ? (
-            <Loader2Icon data-slot="busy" aria-hidden="true" className="animate-spin" />
+            <Loader2Icon
+              data-slot="busy"
+              data-testid="button-loading"
+              aria-hidden="true"
+              className="animate-spin"
+            />
           ) : null}
           {children}
         </>

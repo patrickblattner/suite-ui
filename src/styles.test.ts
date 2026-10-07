@@ -54,13 +54,40 @@ function resolve(tokens: Map<string, string>, name: string): string {
   return ref ? resolve(tokens, ref[1] as string) : value;
 }
 
-function contrast(tokens: Map<string, string>, text: string, ground: string): number {
-  const luminance = (name: string) => {
-    const [r, g, b] = oklchToLinearSrgb(resolve(tokens, name));
-    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-  };
-  const [hi, lo] = [luminance(text), luminance(ground)].sort((x, y) => y - x) as [number, number];
+function luminanceOf([r, g, b]: Rgb): number {
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function ratio(a: number, b: number): number {
+  const [hi, lo] = [a, b].sort((x, y) => y - x) as [number, number];
   return (hi + 0.05) / (lo + 0.05);
+}
+
+function contrast(tokens: Map<string, string>, text: string, ground: string): number {
+  const luminance = (name: string) => luminanceOf(oklchToLinearSrgb(resolve(tokens, name)));
+  return ratio(luminance(text), luminance(ground));
+}
+
+// The browser blends a translucent layer in gamma-encoded sRGB.
+const encode = (x: number) => (x <= 0.0031308 ? 12.92 * x : 1.055 * x ** (1 / 2.4) - 0.055);
+const decode = (x: number) => (x <= 0.04045 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4);
+
+function over(top: Rgb, alpha: number, bottom: Rgb): Rgb {
+  return top.map((t, i) =>
+    decode(alpha * encode(t) + (1 - alpha) * encode(bottom[i] as number)),
+  ) as Rgb;
+}
+
+// A status text on its own fill at /15, the way a status badge sits in a list row: over the selected
+// row (`bg-muted`) and over the hover row (`bg-muted/50` on the page).
+function statusGrounds(tokens: Map<string, string>, fill: string): [string, Rgb][] {
+  const color = (name: string) => oklchToLinearSrgb(resolve(tokens, name));
+  const tint = color(fill);
+  const muted = color("muted");
+  return [
+    ["bg-muted", over(tint, 0.15, muted)],
+    ["bg-muted/50", over(tint, 0.15, over(muted, 0.5, color("background")))],
+  ];
 }
 
 // A `-foreground` sits ON its fill (and on the fill's hover step); `foreground` sits on the page.
@@ -86,6 +113,28 @@ describe("styles.css tokens", () => {
       expect(contrast(tokens, text, ground)).toBeGreaterThanOrEqual(4.5);
     });
   }
+
+  for (const [theme, tokens] of Object.entries(themes)) {
+    for (const fill of ["destructive", "success", "warn"]) {
+      it.each(statusGrounds(tokens, fill))(
+        `${theme}: --${fill}-text on ${fill}/15 over %s meets WCAG AA (4.5:1)`,
+        (_, ground) => {
+          const text = luminanceOf(oklchToLinearSrgb(resolve(tokens, `${fill}-text`)));
+          expect(ratio(text, luminanceOf(ground))).toBeGreaterThanOrEqual(4.5);
+        },
+      );
+    }
+  }
+
+  it("gives every status text tone its own value in each theme, never the fill", () => {
+    for (const tokens of Object.values(themes)) {
+      for (const fill of ["destructive", "success", "warn"]) {
+        const value = tokens.get(`${fill}-text`) ?? "";
+        expect(value).toMatch(/^oklch\(/);
+        expect(value).not.toBe(tokens.get(fill));
+      }
+    }
+  });
 
   it("checks every -text token and the action -foreground tokens", () => {
     const checked = new Set(pairs(themes.light).map(([text]) => text));

@@ -175,4 +175,5 @@ export {
   TooltipTrigger,
   TOOLTIP_HINT_DELAY,
   TOOLTIP_OVERFLOW_DELAY,
+  useIsOverflowing,
 };

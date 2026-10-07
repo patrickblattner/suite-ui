@@ -3,7 +3,15 @@ import * as React from "react";
 import { createPortal } from "react-dom";
 
 import { cn } from "../lib/cn.js";
-import { TOOLTIP_HINT_DELAY, TooltipContent, TooltipProvider, TooltipTrigger } from "./tooltip.js";
+import { helpIdFor } from "./label-with-help.js";
+import {
+  TOOLTIP_HINT_DELAY,
+  TOOLTIP_OVERFLOW_DELAY,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+  useIsOverflowing,
+} from "./tooltip.js";
 
 type AnyProps = Record<string, unknown>;
 type Handler = (...args: unknown[]) => void;
@@ -57,10 +65,19 @@ const PassThrough = React.forwardRef<HTMLElement, AnyProps>(function PassThrough
   return React.cloneElement(child, merged);
 });
 
-// The element's own describedby ids first, the hint id last, each once.
-function describedBy(existing: string | undefined, id: string): string {
-  const own = (existing ?? "").split(/\s+/).filter((part) => part !== "" && part !== id);
-  return [...own, id].join(" ");
+// The element's own describedby ids first, the hint id last, each once. The label help of the same
+// field (`LabelWithHelp`) is dropped: the hint takes its place as the field's description
+// (`GL-UI-017` §Assistive Tech), so the field is never described twice.
+function describedBy(
+  existing: string | undefined,
+  fieldId: string | undefined,
+  id: string,
+): string {
+  const labelHelp = fieldId === undefined ? undefined : helpIdFor(fieldId);
+  const own = (existing ?? "")
+    .split(/\s+/)
+    .filter((part) => part !== "" && part !== id && part !== labelHelp);
+  return [...new Set(own), id].join(" ");
 }
 
 // The hint text is a description, never part of a name: it lives hidden outside every subtree of the
@@ -82,6 +99,7 @@ function keepClosedOnFocus(event: React.FocusEvent): void {
 }
 
 type HintChildProps = {
+  id?: string;
   "aria-describedby"?: string;
   "aria-label"?: string;
   disabled?: boolean;
@@ -106,8 +124,29 @@ type HintProps = {
 //
 // Extra props (handlers, ref, class) pass through to the control, so a wrapping `OverflowTooltip` keeps
 // working.
+//
+// A control whose own text is clipped (it carries `truncate`) gets both in one bubble (`GL-UI-016`): it
+// opens at once with the full text, and after the hint delay the description joins as a second line.
 function Hint({ text, disabledText, children, ...passThrough }: HintProps) {
   const id = React.useId();
+  const overflow = useIsOverflowing();
+  const ownRef = passThrough.ref;
+  const ref = React.useMemo(() => composeRefs(ownRef, overflow.ref), [ownRef, overflow.ref]);
+  const twoSteps = overflow.isOverflowing && overflow.text !== "";
+  const [open, setOpen] = React.useState(false);
+  const [secondStep, setSecondStep] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!open || !twoSteps) return;
+    const timer = setTimeout(() => setSecondStep(true), TOOLTIP_HINT_DELAY);
+    return () => clearTimeout(timer);
+  }, [open, twoSteps]);
+
+  function changeOpen(next: boolean): void {
+    setOpen(next);
+    if (!next) setSecondStep(false);
+  }
+
   const disabled = children.props.disabled === true;
   const shown = disabled && disabledText !== undefined ? disabledText : text;
   const describes = children.props["aria-label"] !== shown;
@@ -116,7 +155,11 @@ function Hint({ text, disabledText, children, ...passThrough }: HintProps) {
   let trigger: React.ReactElement =
     describes && !(carried && disabled)
       ? React.cloneElement(children, {
-          "aria-describedby": describedBy(children.props["aria-describedby"], id),
+          "aria-describedby": describedBy(
+            children.props["aria-describedby"],
+            children.props.id,
+            id,
+          ),
         })
       : children;
   if (carried) {
@@ -133,12 +176,30 @@ function Hint({ text, disabledText, children, ...passThrough }: HintProps) {
 
   return (
     <>
-      <TooltipProvider delayDuration={TOOLTIP_HINT_DELAY} skipDelayDuration={0}>
-        <TooltipPrimitive.Root>
+      <TooltipProvider
+        delayDuration={twoSteps ? TOOLTIP_OVERFLOW_DELAY : TOOLTIP_HINT_DELAY}
+        skipDelayDuration={0}
+      >
+        <TooltipPrimitive.Root open={open} onOpenChange={changeOpen}>
           <TooltipTrigger asChild onFocus={keepClosedOnFocus}>
-            <PassThrough {...passThrough}>{trigger}</PassThrough>
+            <PassThrough {...passThrough} ref={ref}>
+              {trigger}
+            </PassThrough>
           </TooltipTrigger>
-          <TooltipContent>{shown}</TooltipContent>
+          <TooltipContent>
+            {twoSteps ? (
+              <>
+                <span className="block">{overflow.text}</span>
+                {secondStep ? (
+                  <span className="mt-1 block opacity-90" data-slot="tooltip-hint">
+                    {shown}
+                  </span>
+                ) : null}
+              </>
+            ) : (
+              shown
+            )}
+          </TooltipContent>
         </TooltipPrimitive.Root>
       </TooltipProvider>
       {describes ? <DescriptionText id={id} text={shown} /> : null}

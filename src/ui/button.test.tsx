@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import { PlusIcon } from "lucide-react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -78,5 +79,19 @@ describe("Button", () => {
     expect(button.className).toContain("disabled:opacity-100");
     expect(button.className).not.toContain("disabled:opacity-50");
     expect(button.querySelector("[data-slot=busy]")).not.toBeNull();
+  });
+
+  it("busy: the working sign carries the loading test id, a leading icon stays in the DOM", () => {
+    render(
+      <Button variant="success" size="default" busy>
+        <PlusIcon data-testid="leading" />
+        Save
+      </Button>,
+    );
+    const button = screen.getByRole("button", { name: "Save" });
+    expect(screen.getByTestId("button-loading")).toHaveAttribute("data-slot", "busy");
+    expect(screen.getByTestId("leading")).toBeInTheDocument();
+    expect(button.className).toContain("[&_svg:not([data-slot=busy])]:hidden");
+    expect(button).toHaveTextContent("Save");
   });
 });

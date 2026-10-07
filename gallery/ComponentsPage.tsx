@@ -119,6 +119,16 @@ function Buttons() {
           </Button>
         </Row>
       ))}
+      <Row label="idle · busy">
+        <Button variant="default" size="default" data-testid="button-idle">
+          <PlusIcon />
+          {t("actions.create")}
+        </Button>
+        <Button variant="default" size="default" busy data-testid="button-busy">
+          <PlusIcon />
+          {t("actions.create")}
+        </Button>
+      </Row>
       <Row label="row actions">
         <Button variant="warn" size="icon-xs" aria-label="Edit">
           <PencilIcon />

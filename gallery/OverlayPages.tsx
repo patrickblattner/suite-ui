@@ -1,5 +1,8 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+// sonner's own toast: the package's `toast` caps every duration at 12 s, and the gallery holds its
+// toasts for the screenshots.
+import { toast } from "sonner";
 
 import { Button } from "../src/ui/button.js";
 import { ConfirmDeleteDialog } from "../src/ui/confirm-delete-dialog.js";
@@ -15,7 +18,10 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "../src/ui/dropdown-menu.js";
 import { Input } from "../src/ui/input.js";
@@ -32,7 +38,7 @@ import {
 } from "../src/ui/sheet.js";
 import { Textarea } from "../src/ui/textarea.js";
 import { TimezoneCombobox } from "../src/ui/timezone-combobox.js";
-import { toast, Toaster } from "../src/ui/toaster.js";
+import { Toaster } from "../src/ui/toaster.js";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../src/ui/tooltip.js";
 
 // Keeps a gallery overlay open while another one takes the focus or the pointer.
@@ -107,8 +113,12 @@ export function OverlaysPage() {
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" {...stayOpen}>
-          <DropdownMenuItem>Edit</DropdownMenuItem>
-          <DropdownMenuItem disabled>Disabled</DropdownMenuItem>
+          <DropdownMenuLabel>Run</DropdownMenuLabel>
+          <DropdownMenuGroup>
+            <DropdownMenuItem>Edit</DropdownMenuItem>
+            <DropdownMenuItem disabled>Disabled</DropdownMenuItem>
+          </DropdownMenuGroup>
+          <DropdownMenuSeparator />
           <DropdownMenuItem variant="destructive">{t("actions.delete")}</DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
