@@ -25,6 +25,13 @@ type DataTableShellProps = {
   headerTestId?: string;
   // The scroller's `data-testid`; without it `data-table-scroll`.
   scrollTestId?: string;
+  // Ref object or callback on the scroller, so the app can restore the scroll position on return.
+  scrollRef?: React.Ref<HTMLDivElement>;
+  // The list query failed: one error row instead of rows or the empty state; loading still wins.
+  isError?: boolean;
+  // Error-row content, already translated.
+  error?: React.ReactNode;
+  errorTestId?: string;
   // The view switch above the table, a `TabsList`; the page wraps the frame in `Tabs` and picks the
   // data by the active value.
   tabs?: React.ReactNode;
@@ -39,8 +46,8 @@ type DataTableShellProps = {
 // The frame of a list table (`GL-UI-025`), seeded from the cockpit: the bold header stays at the top
 // with its rule, only the data rows scroll, and the pager sits below, right-aligned and always in
 // view. It fills the remaining height of its flex column (PageScroll on a list page), so the page
-// itself never scrolls. Loading and empty are two states: skeleton rows while pending, never a
-// spinner; one centred cell when there is nothing. View switch, FilterBar, table and pager share the
+// itself never scrolls. Loading, error and empty take precedence in that order: skeleton rows while
+// pending, never a spinner; one centred cell across all columns on error or when there is nothing. View switch, FilterBar, table and pager share the
 // column's one gap (`GL-UI-010` §Listenbereich); a missing slot leaves no gap behind.
 function DataTableShell({
   head,
@@ -52,6 +59,10 @@ function DataTableShell({
   emptyTestId,
   headerTestId,
   scrollTestId = "data-table-scroll",
+  scrollRef,
+  isError = false,
+  error,
+  errorTestId,
   tabs,
   toolbar,
   pagination,
@@ -64,6 +75,7 @@ function DataTableShell({
       <div
         className="min-h-0 flex-1 overflow-auto [&_[data-slot=table-container]]:overflow-visible"
         data-testid={scrollTestId}
+        ref={scrollRef}
       >
         <Table>
           <TableHeader className={STICKY_HEADER_CLASS} data-testid={headerTestId}>
@@ -80,6 +92,16 @@ function DataTableShell({
                   ))}
                 </TableRow>
               ))
+            ) : isError ? (
+              <TableRow>
+                <TableCell
+                  colSpan={columnCount}
+                  className="text-center text-muted-foreground"
+                  data-testid={errorTestId}
+                >
+                  {error}
+                </TableCell>
+              </TableRow>
             ) : isEmpty ? (
               <TableRow>
                 <TableCell

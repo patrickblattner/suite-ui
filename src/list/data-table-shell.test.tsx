@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
-import type * as React from "react";
-import { describe, expect, it } from "vitest";
+import * as React from "react";
+import { describe, expect, it, vi } from "vitest";
 
 import { TableCell, TableHead, TableRow } from "../ui/table.js";
 import { DataTableShell, SKELETON_ROW_COUNT } from "./data-table-shell.js";
@@ -9,10 +9,12 @@ function renderShell(state: {
   isPending?: boolean;
   isEmpty?: boolean;
   scrollTestId?: string;
+  scrollRef?: React.Ref<HTMLDivElement>;
+  isError?: boolean;
   tabs?: React.ReactNode;
   toolbar?: React.ReactNode;
 }) {
-  render(
+  return render(
     <DataTableShell
       head={
         <>
@@ -28,6 +30,12 @@ function renderShell(state: {
       emptyTestId="rows-empty"
       headerTestId="rows-header"
       {...(state.scrollTestId !== undefined && { scrollTestId: state.scrollTestId })}
+      {...(state.scrollRef !== undefined && { scrollRef: state.scrollRef })}
+      {...(state.isError !== undefined && {
+        isError: state.isError,
+        error: "Liste konnte nicht geladen werden.",
+        errorTestId: "x-error",
+      })}
       tabs={state.tabs}
       toolbar={state.toolbar}
       pagination={<div data-testid="pager" />}
@@ -107,5 +115,41 @@ describe("DataTableShell", () => {
     expect(screen.getByTestId("data-table-scroll").className).toBe(
       "min-h-0 flex-1 overflow-auto [&_[data-slot=table-container]]:overflow-visible",
     );
+  });
+
+  it("hands the scroller to a ref object and to a callback ref", () => {
+    const ref = React.createRef<HTMLDivElement>();
+    renderShell({ scrollRef: ref });
+    expect(ref.current).toBe(screen.getByTestId("data-table-scroll"));
+
+    const callback = vi.fn();
+    const { unmount } = renderShell({ scrollTestId: "users-scroll", scrollRef: callback });
+    expect(callback).toHaveBeenCalledWith(screen.getByTestId("users-scroll"));
+    unmount();
+  });
+
+  it("shows one error row across all columns instead of rows and the empty state", () => {
+    renderShell({ isError: true, isEmpty: true });
+    const rows = screen.getAllByTestId("x-error");
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toHaveTextContent("Liste konnte nicht geladen werden.");
+    expect(rows[0]).toHaveAttribute("colspan", "2");
+    expect(screen.queryByTestId("row")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("rows-empty")).not.toBeInTheDocument();
+  });
+
+  it("shows skeleton rows, not the error row, while pending", () => {
+    renderShell({ isPending: true, isError: true });
+    expect(screen.getAllByTestId("rows-loading")).toHaveLength(SKELETON_ROW_COUNT);
+    expect(screen.queryByTestId("x-error")).not.toBeInTheDocument();
+  });
+
+  // The v0.23.0 frame: without scrollRef and isError the markup is the same as before.
+  it("keeps the v0.23.0 markup without scrollRef and isError", () => {
+    const { container: before } = renderShell({ isEmpty: true });
+    const { container: after } = renderShell({ isEmpty: true, isError: false });
+    expect(after.innerHTML).toBe(before.innerHTML);
+    const scroll = before.querySelector('[data-testid="data-table-scroll"]');
+    expect(scroll?.getAttributeNames()).toEqual(["class", "data-testid"]);
   });
 });
