@@ -3,8 +3,7 @@
   "gate": {
     "profiles": {
       "local": ["format", "lint", "typecheck", "unit", "gallery"],
-      "merge": ["format", "lint", "typecheck", "build", "unit", "gallery"],
-      "nightly": ["format", "lint", "typecheck", "unit", "gallery"]
+      "merge": ["format", "lint", "typecheck", "build", "unit", "gallery"]
     },
     "phases": [
       {
