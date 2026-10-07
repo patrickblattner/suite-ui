@@ -42,7 +42,12 @@ const LABELS = {
 } as const;
 
 const SEVERITIES = ["info", "warning", "error"] as const;
-const ROOMS = ["Seminarraum", "Konferenzzentrum"];
+// `?rooms=glyphs` swaps in a wide short and a narrow long option, so the gallery measures that the
+// sizer goes by the rendering, not the character count.
+const ROOMS =
+  new URLSearchParams(window.location.search).get("rooms") === "glyphs"
+    ? ["WWWW", "iiiiii"]
+    : ["Seminarraum", "Konferenzzentrum"];
 const OWNERS = ["Ada", "Grace", "Linus"];
 const ROWS = Array.from({ length: 200 }, (_, i) => ({
   id: i + 1,

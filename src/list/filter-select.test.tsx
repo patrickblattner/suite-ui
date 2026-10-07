@@ -87,6 +87,18 @@ describe("FilterSelect select width (SUI-FEATURE-026)", () => {
     expect(screen.getByTestId("filter-room")).not.toHaveClass("min-w-24");
   });
 
+  it("AC5: the sizer stacks every full trigger text in one grid cell", () => {
+    configureSuiteUi({ selectWidth: "measured" });
+    renderRoom("Room");
+    const rows = [...screen.getByTestId("filter-room-sizer").children];
+    expect(rows.map((row) => row.textContent)).toEqual([
+      "Room: All",
+      "Room: Seminarraum",
+      "Room: Konferenzzentrum",
+    ]);
+    for (const row of rows) expect(row).toHaveClass("col-start-1", "row-start-1");
+  });
+
   it("AC5: the sizer follows the active language", async () => {
     configureSuiteUi({ selectWidth: "measured" });
     render(

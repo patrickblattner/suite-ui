@@ -794,13 +794,30 @@ for (const [lng, all] of [
   });
 }
 
+// SUI-FEATURE-026 AC5: the sizer goes by the rendering — a short wide option and a long narrow one
+// give one trigger width, and neither is cut off.
+test("measured select width: the widest rendered text wins, not the longest", async ({ page }) => {
+  await page.goto("/?page=list&filterBar=block&selectWidth=measured&lng=en&rooms=glyphs");
+  const trigger = page.getByTestId("filter-room");
+  await expect(page.getByTestId("filter-room-sizer")).toContainText("WWWW");
+  const widths: number[] = [];
+  for (const option of ["WWWW", "iiiiii"]) {
+    await choose(page, trigger, option);
+    widths.push((await box(trigger)).width);
+    const value = trigger.locator('[data-slot="select-value"]');
+    await expect(value).toHaveText(`Room: ${option}`);
+    expect(await value.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(0);
+  }
+  expect(Math.abs((widths[0] ?? 0) - (widths[1] ?? 0))).toBeLessThanOrEqual(1);
+});
+
 test("measured select width: the sizers follow the language switch", async ({ page }) => {
   await page.goto("/?page=list&filterBar=block&selectWidth=measured&lng=en");
-  await expect(page.getByTestId("filter-room-sizer")).toHaveText("Room: Konferenzzentrum");
-  await expect(page.getByTestId("pagination-page-size-sizer")).toHaveText("100 per page");
+  await expect(page.getByTestId("filter-room-sizer")).toContainText("Room: Konferenzzentrum");
+  await expect(page.getByTestId("pagination-page-size-sizer")).toContainText("100 per page");
   await page.getByTestId("gallery-language").selectOption("es");
-  await expect(page.getByTestId("filter-room-sizer")).toHaveText("Sala: Konferenzzentrum");
-  await expect(page.getByTestId("pagination-page-size-sizer")).toHaveText("100 por página");
+  await expect(page.getByTestId("filter-room-sizer")).toContainText("Sala: Konferenzzentrum");
+  await expect(page.getByTestId("pagination-page-size-sizer")).toContainText("100 por página");
 });
 
 // SUI-FEATURE-026 AC5: the sort keeps one width for its shortest and longest option; the Spanish page
@@ -808,7 +825,7 @@ test("measured select width: the sizers follow the language switch", async ({ pa
 test("measured select width: sort and page size", async ({ page }) => {
   await page.goto("/?page=list&selectWidth=measured&lng=es");
   const sort = page.getByTestId("filter-sort");
-  await expect(page.getByTestId("filter-sort-sizer")).toHaveText("Ordenar por:Última edición ↓");
+  await expect(page.getByTestId("filter-sort-sizer")).toContainText("Ordenar por:Última edición ↓");
   const longest = (await box(sort)).width;
   await choose(page, sort, "Responsable ↑");
   expect(Math.abs((await box(sort)).width - longest)).toBeLessThanOrEqual(1);
