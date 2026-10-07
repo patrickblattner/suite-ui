@@ -50,3 +50,6 @@
 {"ts":"2026-10-07T13:32:23.002Z","key":"SUI-DESIGN-012","from":17,"to":19,"disposition":"ticket","ref":"23"}
 {"ts":"2026-10-07T13:32:23.002Z","key":"GL-UI-010","from":3,"to":4,"disposition":"ticket","ref":"23"}
 {"ts":"2026-10-07T13:32:23.447Z","key":"PROC-DEV-038","from":2,"to":3,"disposition":"editorial","ref":"Process rule: no nightly triage without nightlyWorkflow; suite-ui config declares none and CLAUDE.md already lists only local|merge — no code impact"}
+{"ts":"2026-10-07T13:33:08.269Z","key":"SUI-FEATURE-028","from":null,"to":2,"disposition":"ticket","ref":"24"}
+{"ts":"2026-10-07T13:33:08.269Z","key":"SUI-DESIGN-012","from":17,"to":19,"disposition":"ticket","ref":"24"}
+{"ts":"2026-10-07T13:33:08.708Z","key":"SUI-FEATURE-029","from":null,"to":2,"disposition":"ticket","ref":"25"}
