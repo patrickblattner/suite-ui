@@ -925,3 +925,95 @@ for (const lng of LANGUAGES) {
     }
   });
 }
+
+// SUI-FEATURE-030 at 1920×1080: the edit panel covers the whole content area beside the sidebar.
+async function openEditPanel(page: Page, row = 1) {
+  await page.goto("/?page=edit-panel");
+  await page.getByTestId(`edit-panel-trigger-${row}`).click();
+  const panel = page.getByTestId("edit-panel");
+  await expect(panel).toBeVisible();
+  return panel;
+}
+
+async function expectPanelBesideSidebar(page: Page, panel: Locator) {
+  const sidebar = page.getByTestId("app-sidebar");
+  // The rail and the panel edge move over 200 ms; measure once both have settled.
+  await expect
+    .poll(async () => {
+      const [s, p] = await Promise.all([box(sidebar), box(panel)]);
+      return Math.abs(p.x - (s.x + s.width)) <= 1;
+    })
+    .toBe(true);
+  const p = await box(panel);
+  expect(Math.abs(p.x + p.width - 1920)).toBeLessThanOrEqual(1);
+  expect(Math.abs(p.y)).toBeLessThanOrEqual(1);
+  expect(Math.abs(p.height - 1080)).toBeLessThanOrEqual(1);
+}
+
+test("edit panel: edges at the sidebar and the viewport, expanded and collapsed", async ({
+  page,
+}) => {
+  const panel = await openEditPanel(page);
+  await expectPanelBesideSidebar(page, panel);
+  await page.getByTestId("sidebar-trigger").click();
+  await expect(page.getByTestId("app-sidebar")).toHaveAttribute("data-state", "collapsed");
+  await expect.poll(async () => (await box(page.getByTestId("app-sidebar"))).width).toBe(56);
+  await expect(panel).toBeVisible();
+  await expectPanelBesideSidebar(page, panel);
+});
+
+test("edit panel: a sidebar entry navigates while the panel is open", async ({ page }) => {
+  const panel = await openEditPanel(page);
+  await page.getByTestId("nav-ideas").click();
+  await expect(page.getByTestId("nav-ideas")).toHaveAttribute("aria-current", "page");
+  await expect(panel).toBeHidden();
+});
+
+test("edit panel: only the body scrolls, the action row stays in one line", async ({ page }) => {
+  const panel = await openEditPanel(page);
+  const body = page.getByTestId("edit-panel-body");
+  expect(await body.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+  await body.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+  expect(await body.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+  expect(await panel.evaluate((el) => el.scrollHeight - el.clientHeight)).toBe(0);
+  const footer = panel.locator("[data-slot=edit-panel-footer]");
+  await expect(footer).toHaveCSS("border-top-style", "solid");
+  const cancel = page.getByTestId("edit-panel-cancel");
+  const submit = page.getByTestId("edit-panel-submit");
+  await expect(cancel).toBeInViewport();
+  await expect(submit).toBeInViewport();
+  const [f, c, s] = await Promise.all([box(footer), box(cancel), box(submit)]);
+  expect(Math.abs(s.x + s.width - (f.x + f.width - 24))).toBeLessThanOrEqual(1);
+  expect(Math.abs(c.x + c.width + 8 - s.x)).toBeLessThanOrEqual(1);
+  expect(Math.abs(c.y - s.y)).toBeLessThanOrEqual(1);
+});
+
+test("edit panel: busy locks the primary action and keeps the panel open", async ({ page }) => {
+  const panel = await openEditPanel(page);
+  const submit = page.getByTestId("edit-panel-submit");
+  await submit.click();
+  await expect(submit).toHaveAttribute("data-busy", "true");
+  await expect(submit).toBeDisabled();
+  await expect(submit).toHaveCSS("opacity", "1");
+  await page.keyboard.press("Escape");
+  await expect(panel).toBeVisible();
+  await expect(panel).toBeHidden({ timeout: 5000 });
+});
+
+test("edit panel: close returns the focus to the trigger, the list keeps its place", async ({
+  page,
+}) => {
+  await page.goto("/?page=edit-panel");
+  const scroller = page.getByTestId("page-scroll");
+  await scroller.evaluate((el) => el.scrollTo(0, 600));
+  const trigger = page.getByTestId("edit-panel-trigger-20");
+  await trigger.scrollIntoViewIfNeeded();
+  const before = await scroller.evaluate((el) => el.scrollTop);
+  expect(before).toBeGreaterThan(0);
+  await trigger.click();
+  await expect(page.getByTestId("edit-panel")).toBeVisible();
+  await page.getByTestId("edit-panel-cancel").click();
+  await expect(page.getByTestId("edit-panel")).toBeHidden();
+  await expect(trigger).toBeFocused();
+  expect(await scroller.evaluate((el) => el.scrollTop)).toBe(before);
+});

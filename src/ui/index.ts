@@ -7,6 +7,7 @@ export * from "./checkbox.js";
 export * from "./confirm-delete-dialog.js";
 export * from "./dialog.js";
 export * from "./dropdown-menu.js";
+export * from "./edit-panel.js";
 export * from "./hint.js";
 export * from "./input.js";
 export * from "./label.js";

@@ -29,8 +29,8 @@ const dialogContentVariants = cva(
   },
 );
 
-// The fields that count for the add-mode focus.
-const FIELD_SELECTOR =
+// The fields that count for the add-mode focus (also of the `EditPanel`).
+export const FIELD_SELECTOR =
   "input:not([type=hidden]):not(:disabled), textarea:not(:disabled), select:not(:disabled), [role=combobox]:not([aria-disabled=true]):not(:disabled)";
 
 function Dialog({ ...props }: React.ComponentProps<typeof DialogPrimitive.Root>) {

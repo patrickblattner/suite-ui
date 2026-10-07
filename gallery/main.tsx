@@ -9,6 +9,7 @@ import { initReactI18next, useTranslation } from "react-i18next";
 import { configureSuiteUi } from "../src/config/index.js";
 import { registerSuiteStrings, suiteStrings, type SuiteLanguage } from "../src/strings/index.js";
 import { ComponentsPage } from "./ComponentsPage.js";
+import { EditPanelPage } from "./EditPanelPage.js";
 import { ListPage } from "./ListPage.js";
 import {
   ConfirmPage,
@@ -37,6 +38,7 @@ const PAGES = [
   "overlays",
   "select",
   "sheet",
+  "edit-panel",
   "toast",
 ] as const;
 type Page = (typeof PAGES)[number];
@@ -79,6 +81,7 @@ const PAGE_CONTENT: Record<Exclude<Page, "strings">, (theme: Theme) => ReactNode
   overlays: () => <OverlaysPage />,
   select: () => <SelectPage />,
   sheet: () => <SheetPage />,
+  "edit-panel": () => <EditPanelPage />,
   toast: (theme) => <ToastPage theme={theme} />,
 };
 
@@ -151,7 +154,11 @@ function Gallery() {
         </label>
       </header>
       <main
-        className={page === "list" || page === "settings" || page === "shell" ? "frame" : undefined}
+        className={
+          page === "list" || page === "settings" || page === "shell" || page === "edit-panel"
+            ? "frame"
+            : undefined
+        }
       >
         {page === "strings" ? (
           <section aria-labelledby="strings-heading">

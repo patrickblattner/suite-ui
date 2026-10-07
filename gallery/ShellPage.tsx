@@ -9,7 +9,7 @@ import {
   ShieldIcon,
   WrenchIcon,
 } from "lucide-react";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { MemoryRouter, useLocation } from "react-router-dom";
 
@@ -170,8 +170,9 @@ function Content() {
 }
 
 // The shell frame as an app mounts it: sidebar with search and user block, content beside it. The
-// start route comes from `?route=`, so a capture can open on a deep link.
-export function ShellPage() {
+// start route comes from `?route=`, so a capture can open on a deep link. `content` replaces the
+// routed page header, for a demo that needs the frame around it.
+export function ShellPage({ content }: { content?: ReactNode } = {}) {
   const { t, i18n: instance } = useTranslation();
   const [appearance, setAppearance] = useState<Appearance>("system");
   const route = new URLSearchParams(window.location.search).get("route") ?? "/dashboard";
@@ -211,9 +212,7 @@ export function ShellPage() {
               </UserMenu>
             }
           />
-          <div className="flex min-w-0 flex-1 flex-col">
-            <Content />
-          </div>
+          <div className="flex min-w-0 flex-1 flex-col">{content ?? <Content />}</div>
         </div>
       </SidebarProvider>
     </MemoryRouter>
