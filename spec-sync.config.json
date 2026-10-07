@@ -3,7 +3,7 @@
   "gate": {
     "profiles": {
       "local": ["format", "lint", "typecheck", "unit", "gallery"],
-      "merge": ["format", "lint", "typecheck", "unit", "gallery"],
+      "merge": ["format", "lint", "typecheck", "build", "unit", "gallery"],
       "nightly": ["format", "lint", "typecheck", "unit", "gallery"]
     },
     "phases": [
@@ -18,6 +18,10 @@
       {
         "name": "typecheck",
         "cmd": "npm run typecheck"
+      },
+      {
+        "name": "build",
+        "cmd": "npm run build"
       },
       {
         "name": "unit",
