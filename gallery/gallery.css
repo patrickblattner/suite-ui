@@ -8,6 +8,13 @@
   color-scheme: dark;
 }
 
+/* Scrollbars render the same on every host: macOS draws overlay or classic bars depending on a
+   system setting, a styled scrollbar is always a classic one of fixed width (#14). */
+::-webkit-scrollbar {
+  width: 15px;
+  height: 15px;
+}
+
 body {
   margin: 0;
   font-family: system-ui, sans-serif;
