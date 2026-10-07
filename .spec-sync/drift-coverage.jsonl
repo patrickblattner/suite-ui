@@ -68,3 +68,4 @@
 {"ts":"2026-10-07T15:36:32.299Z","key":"SUI-FEATURE-031","from":2,"to":3,"disposition":"ticket","ref":"28"}
 {"ts":"2026-10-07T18:23:31.418Z","key":"SUI-FEATURE-032","from":null,"to":2,"disposition":"ticket","ref":"29"}
 {"ts":"2026-10-07T18:23:31.418Z","key":"SUI-DESIGN-012","from":21,"to":22,"disposition":"ticket","ref":"29"}
+{"ts":"2026-10-07T19:23:56.198Z","key":"PROC-REL-040","from":4,"to":5,"disposition":"editorial","ref":"CI runner lock-waiter chain bound; suite-ui has no .github workflows or locked CI steps — no code impact"}
