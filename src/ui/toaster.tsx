@@ -27,8 +27,13 @@ const TOAST_DURATION_BASE_MS: Record<ToastVariant, number> = {
 const TOAST_DURATION_PER_WORD_MS = 50;
 const TOAST_DURATION_MAX_MS = 12000;
 
-// A message that is not a string (a React node) counts zero words and gets its variant's base.
-function toastDurationFor(message: unknown, variant: ToastVariant): number {
+// A message that is not a string (a React node) counts zero words and gets its variant's base. An
+// explicit duration replaces the heuristic but stays within [base, cap]; a non-finite one gets the cap.
+function toastDurationFor(message: unknown, variant: ToastVariant, duration?: number): number {
+  if (duration !== undefined) {
+    if (!Number.isFinite(duration)) return TOAST_DURATION_MAX_MS;
+    return Math.min(TOAST_DURATION_MAX_MS, Math.max(TOAST_DURATION_BASE_MS[variant], duration));
+  }
   const words =
     typeof message === "string" ? message.trim().split(/\s+/).filter(Boolean).length : 0;
   const raw = TOAST_DURATION_BASE_MS[variant] + words * TOAST_DURATION_PER_WORD_MS;
@@ -37,16 +42,12 @@ function toastDurationFor(message: unknown, variant: ToastVariant): number {
 
 type Message = Parameters<typeof sonnerToast.success>[0];
 
-// The heuristic applies unless the call passes a duration; an explicit duration is capped as well.
 function withDuration(
   message: Message,
   variant: ToastVariant,
   opts?: ExternalToast,
 ): ExternalToast {
-  if (opts?.duration !== undefined) {
-    return { ...opts, duration: Math.min(TOAST_DURATION_MAX_MS, opts.duration) };
-  }
-  return { ...opts, duration: toastDurationFor(message, variant) };
+  return { ...opts, duration: toastDurationFor(message, variant, opts?.duration) };
 }
 
 // sonner's `toast` with the four variants timed by `toastDurationFor`; everything else (the plain
