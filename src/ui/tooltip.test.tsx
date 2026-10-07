@@ -68,6 +68,55 @@ describe("IconButtonTooltip", () => {
   });
 });
 
+describe("IconButtonTooltip shortcut and labels", () => {
+  it("shows the shortcut as a hidden key hint and sets aria-keyshortcuts", () => {
+    render(
+      <IconButtonTooltip label="Fett" shortcut="Ctrl+B">
+        <Button variant="ghost" size="icon" />
+      </IconButtonTooltip>,
+    );
+    const button = screen.getByRole("button", { name: "Fett" });
+    expect(button).toHaveAttribute("aria-keyshortcuts", "Control+B");
+    expect(openAfter(button, 1500)).toBe(true);
+    const tooltip = screen.getByRole("tooltip");
+    expect(tooltip).toHaveTextContent("FettCtrl+B");
+    const kbd = document.querySelector("[data-slot=tooltip-content] kbd");
+    expect(kbd).toHaveTextContent("Ctrl+B");
+    expect(kbd).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("throws outside production when the child names itself differently", () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(() =>
+      render(
+        <IconButtonTooltip label="Fett">
+          <Button variant="ghost" size="icon" aria-label="Bold" />
+        </IconButtonTooltip>,
+      ),
+    ).toThrow(/"Bold".*"Fett"/);
+  });
+
+  it("names the control by label in production", () => {
+    vi.stubEnv("NODE_ENV", "production");
+    render(
+      <IconButtonTooltip label="Fett">
+        <Button variant="ghost" size="icon" aria-label="Bold" />
+      </IconButtonTooltip>,
+    );
+    expect(screen.getByRole("button")).toHaveAccessibleName("Fett");
+    vi.unstubAllEnvs();
+  });
+
+  it("keeps each own describedby id once, in order", () => {
+    render(
+      <IconButtonTooltip label="Fett">
+        <Button variant="ghost" size="icon" aria-describedby="a a b" />
+      </IconButtonTooltip>,
+    );
+    expect(screen.getByRole("button")).toHaveAttribute("aria-describedby", "a b");
+  });
+});
+
 describe("tooltip delays", () => {
   it("a TooltipProvider without delayDuration opens at once", () => {
     render(

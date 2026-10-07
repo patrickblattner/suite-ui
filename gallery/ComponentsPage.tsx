@@ -253,6 +253,26 @@ function Choices() {
           </SelectContent>
         </Select>
       </Row>
+      <Row label="Select · field name">
+        <Select defaultValue="weekly">
+          <SelectTrigger className="w-80" data-testid="select-named-wide">
+            <span>Interval</span>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="weekly">Weekly</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select defaultValue="long">
+          <SelectTrigger className="w-48" data-testid="select-named-clipped">
+            <span>Interval</span>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="long">A value too long for its trigger</SelectItem>
+          </SelectContent>
+        </Select>
+      </Row>
     </Section>
   );
 }

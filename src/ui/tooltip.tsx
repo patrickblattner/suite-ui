@@ -121,32 +121,63 @@ function OverflowTooltip({
   );
 }
 
-// The description hint of an icon-only control: opens after the hint delay and shows the same text as
-// the control's `aria-label`, which the caller still sets. While the control is `disabled`,
-// `disabledText` (the condition under which it becomes usable) takes the place of `label`; a disabled
-// control takes no pointer events, so it then sits in a span that is the trigger, focusable and the
-// owner of the description. The span stands either way, so toggling `disabled` never remounts it.
+// An element's own `aria-describedby` ids, in order and each once.
+function uniqueIds(describedBy: string | undefined): string | undefined {
+  const ids = [...new Set(describedBy?.split(/\s+/).filter(Boolean))];
+  return ids.length === 0 ? undefined : ids.join(" ");
+}
+
+// The description hint of an icon-only control: opens after the hint delay and shows `label`, which
+// is also the control's `aria-label` (`GL-UI-016`); the component sets it. A child carrying a different
+// `aria-label` means two texts were intended for one meaning: outside production that throws, in
+// production `label` wins. The hint text is the name, so it never becomes a description as well
+// (`GL-UI-017`): the child keeps only its own `aria-describedby` ids, each once. `shortcut` (`Ctrl+B`)
+// shows as a key hint behind the text of a usable control, hidden from the name, and becomes
+// `aria-keyshortcuts`. While the control is `disabled`, `disabledText` (the condition under which it
+// becomes usable) takes the place of `label`; a disabled control takes no pointer events, so it then
+// sits in a span that is the trigger, focusable and the owner of the description. The span stands
+// either way, so toggling `disabled` never remounts it.
 function IconButtonTooltip({
   label,
+  shortcut,
   disabledText,
   children,
 }: {
   label: string;
+  shortcut?: string | undefined;
   disabledText?: string | undefined;
-  children: React.ReactElement<{ disabled?: boolean }>;
+  children: React.ReactElement<{
+    disabled?: boolean;
+    "aria-label"?: string;
+    "aria-describedby"?: string | undefined;
+    "aria-keyshortcuts"?: string | undefined;
+  }>;
 }) {
   const id = React.useId();
+  const ownLabel = children.props["aria-label"];
+  if (ownLabel !== undefined && ownLabel !== label && process.env.NODE_ENV !== "production") {
+    throw new Error(
+      `IconButtonTooltip: the control's aria-label ${JSON.stringify(ownLabel)} differs from the hint ` +
+        `text ${JSON.stringify(label)}; the hint text is the aria-label, pass \`label\` only.`,
+    );
+  }
+  // The explicit `aria-describedby` key, even undefined, wins over the one radix points at the bubble.
+  const control = React.cloneElement(children, {
+    "aria-label": label,
+    "aria-describedby": uniqueIds(children.props["aria-describedby"]),
+    "aria-keyshortcuts": shortcut?.replace("Ctrl", "Control"),
+  });
   const disabled = disabledText !== undefined && children.props.disabled === true;
   const trigger =
     disabledText === undefined ? (
-      children
+      control
     ) : (
       <span
         tabIndex={disabled ? 0 : undefined}
         className="inline-grid"
         aria-describedby={disabled ? id : undefined}
       >
-        {children}
+        {control}
       </span>
     );
   return (
@@ -154,7 +185,14 @@ function IconButtonTooltip({
       <TooltipProvider delayDuration={TOOLTIP_HINT_DELAY}>
         <TooltipPrimitive.Root>
           <TooltipTrigger asChild>{trigger}</TooltipTrigger>
-          <TooltipContent>{disabled ? disabledText : label}</TooltipContent>
+          <TooltipContent>
+            {disabled ? disabledText : label}
+            {disabled || shortcut === undefined ? null : (
+              <kbd aria-hidden className="ml-2 opacity-70">
+                {shortcut}
+              </kbd>
+            )}
+          </TooltipContent>
         </TooltipPrimitive.Root>
       </TooltipProvider>
       {disabled ? (

@@ -445,6 +445,47 @@ test("dropdown menu: a labelled group and a separator", async ({ page }) => {
   await expect(menu.getByRole("separator")).toBeVisible();
 });
 
+// `SUI-FEATURE-022`: in a wide select the field name and the value stand together at the leading
+// edge, the chevron at the trailing one; a long value stays on one line, clipped.
+test("select: field name and value at the leading edge, chevron right", async ({ page }) => {
+  await page.goto("/?page=components");
+  const wide = page.getByTestId("select-named-wide");
+  const trigger = await box(wide);
+  const name = await box(wide.getByText("Interval"));
+  const value = await box(wide.locator("[data-slot=select-value]"));
+  const chevron = await box(wide.locator("svg"));
+  expect(name.x - trigger.x).toBeLessThan(16);
+  expect(value.x - (name.x + name.width)).toBeCloseTo(8, 0);
+  expect(trigger.x + trigger.width - (chevron.x + chevron.width)).toBeLessThan(16);
+  expect(chevron.x - (value.x + value.width)).toBeGreaterThan(100);
+
+  const clipped = page.getByTestId("select-named-clipped").locator("[data-slot=select-value]");
+  const slot = await clipped.evaluate((node) => ({
+    clipped: node.scrollWidth > node.clientWidth,
+    lines: Math.round(
+      node.getBoundingClientRect().height / parseFloat(getComputedStyle(node).lineHeight),
+    ),
+  }));
+  expect(slot).toEqual({ clipped: true, lines: 1 });
+  await expect(clipped).toHaveCSS("text-overflow", "ellipsis");
+  await expect(clipped).toHaveCSS("white-space", "nowrap");
+  await clipped.hover();
+  await expect(page.getByRole("tooltip")).toHaveText("A value too long for its trigger");
+});
+
+// `SUI-FEATURE-022`: the help of a full-width label opens on its text only.
+test("label with help: the text opens the help, the space beside it does not", async ({ page }) => {
+  await page.goto("/?page=components");
+  const label = page.locator("label[for=input-filled]");
+  const text = label.getByText("LabelWithHelp");
+  expect((await box(label)).width).toBeGreaterThan((await box(text)).width + 40);
+  await label.hover({ position: { x: (await box(label)).width - 4, y: 4 } });
+  await page.waitForTimeout(1700);
+  await expect(page.getByRole("tooltip")).toHaveCount(0);
+  await text.hover();
+  await expect(page.getByRole("tooltip")).toHaveText("The name shown in lists");
+});
+
 // `GL-UI-026`: the left column is half the content width, and nothing stands between the subtitle
 // and the form.
 test("settings: left column at half width, form directly under the subtitle", async ({ page }) => {
