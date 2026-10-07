@@ -3,12 +3,14 @@ import type * as React from "react";
 import { useTranslation } from "react-i18next";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 
+import { suiteUiConfig } from "../config/index.js";
 import { cn } from "../lib/cn.js";
 import { Hint, type HintProps } from "../ui/hint.js";
 import {
   allowedModel,
   DEFAULT_HOME_PATH,
   HELP_ICON,
+  isNavSection,
   type NavEntry,
   type NavModel,
   type NavSection,
@@ -40,7 +42,7 @@ const rowClass =
 // The app sidebar (`GL-UI-019`/`GL-UI-020`): instance-name head with the collapse toggle, the search
 // field, the primary nav, the lower sections, Help and Version info, and the user block.
 //
-// A section (Tools, Administration, Settings) is a replace-nav entry: its click navigates to its first
+// A section (Tools, Administration, Settings, or one in `primary`) is a replace-nav entry: its click navigates to its first
 // entry, and while the route belongs to a section the sidebar shows only `‹ <Section>` and that
 // section's entries. The mode is derived from the route on every render, never stored, so every way
 // out of the section (back link, instance name, deep link) restores the primary nav. The active entry
@@ -64,7 +66,10 @@ function AppSidebar({
   const navigate = useNavigate();
 
   const visible = allowedModel(nav, isAllowed);
-  const activeSection = sectionForPath(visible.sections, pathname);
+  const activeSection = sectionForPath(
+    [...visible.primary.filter(isNavSection), ...visible.sections],
+    pathname,
+  );
 
   // Collapsed, an entry shows only its icon, so its hint names it first.
   function hintFor(label: string, hintKey: string | undefined): string | undefined {
@@ -91,6 +96,7 @@ function AppSidebar({
           hintFor(label, entry.hintKey),
           <NavLink
             to={entry.to}
+            end={entry.end}
             data-testid={`nav-${entry.key}`}
             aria-label={isOpen ? undefined : label}
             className={cn(
@@ -209,7 +215,9 @@ function AppSidebar({
         ) : (
           <>
             <ul className="flex flex-col gap-1" data-testid="nav-primary">
-              {visible.primary.map(renderEntry)}
+              {visible.primary.map((item) =>
+                isNavSection(item) ? renderSection(item) : renderEntry(item),
+              )}
             </ul>
             {(visible.sections.length > 0 || onHelp !== undefined || version !== undefined) && (
               <ul className="mt-3 flex flex-col gap-1 border-t pt-3" data-testid="nav-lower">
@@ -241,7 +249,10 @@ function AppSidebar({
         )}
       </div>
 
-      <div className="border-t p-2">{userMenu}</div>
+      {/* Under `userMenu: "fit"` the collapsed footer gives the trigger the full rail width. */}
+      <div className={cn("border-t p-2", suiteUiConfig().userMenu === "fit" && !isOpen && "px-0")}>
+        {userMenu}
+      </div>
     </nav>
   );
 }

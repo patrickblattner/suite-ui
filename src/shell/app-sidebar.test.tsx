@@ -1,6 +1,8 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { CalendarIcon, FileTextIcon, ListIcon, NewspaperIcon } from "lucide-react";
+import { afterEach, describe, expect, it } from "vitest";
 
+import { configureSuiteUi } from "../config/index.js";
 import { AppSidebar } from "./app-sidebar.js";
 import type { NavModel } from "./nav.js";
 import { ShellHarness, TEST_NAV } from "./test-utils.js";
@@ -142,5 +144,98 @@ describe("AppSidebar", () => {
     expect(screen.queryByTestId("sidebar-instance-name")).not.toBeInTheDocument();
     expect(screen.getByTestId("nav-dashboard")).toHaveAccessibleName("Dashboard");
     fireEvent.click(screen.getByTestId("sidebar-trigger"));
+  });
+
+  // SUI-FEATURE-028 AC1/AC2: a section in `primary` at its list position, with an exact entry.
+  const PRIMARY_SECTION_NAV: NavModel = {
+    ...TEST_NAV,
+    primary: [
+      TEST_NAV.primary[0]!,
+      {
+        key: "inhalte",
+        labelKey: "Inhalte",
+        icon: FileTextIcon,
+        entries: [
+          { key: "posts", labelKey: "Posts", icon: NewspaperIcon, to: "/posts", viewKey: "posts" },
+          {
+            key: "workshops-catalog",
+            labelKey: "Katalog",
+            icon: ListIcon,
+            to: "/workshops",
+            viewKey: "workshops",
+            end: true,
+          },
+          {
+            key: "workshops-termine",
+            labelKey: "Termine",
+            icon: CalendarIcon,
+            to: "/workshops/termine",
+            viewKey: "workshops",
+          },
+        ],
+      },
+      TEST_NAV.primary[1]!,
+    ],
+  };
+
+  it("a primary section keeps its position and opens as replace-nav on its first entry", () => {
+    renderSidebar("/dashboard", () => true, PRIMARY_SECTION_NAV);
+    const ids = [...screen.getByTestId("nav-primary").querySelectorAll("[data-testid]")]
+      .map((el) => el.getAttribute("data-testid"))
+      .filter((id) => !id?.endsWith("-count"));
+    expect(ids).toEqual(["nav-dashboard", "nav-section-inhalte", "nav-ideas"]);
+    fireEvent.click(screen.getByTestId("nav-section-inhalte"));
+    expect(screen.getByTestId("location")).toHaveTextContent("/posts");
+    const entries = screen.getByTestId("nav-section-entries");
+    expect(within(entries).getByTestId("nav-back")).toHaveTextContent("Inhalte");
+    expect(within(entries).getByTestId("nav-posts")).toHaveAttribute("aria-current", "page");
+    expect(screen.queryByTestId("nav-primary")).not.toBeInTheDocument();
+  });
+
+  it("a direct link to a primary section entry opens the section with the entry marked", () => {
+    renderSidebar("/posts", () => true, PRIMARY_SECTION_NAV);
+    expect(screen.getByTestId("nav-back")).toHaveTextContent("Inhalte");
+    expect(screen.getByTestId("nav-posts")).toHaveAttribute("aria-current", "page");
+  });
+
+  it("an entry with end is not active on the routes below it", () => {
+    renderSidebar("/workshops/termine", () => true, PRIMARY_SECTION_NAV);
+    expect(screen.getByTestId("nav-workshops-termine")).toHaveAttribute("aria-current", "page");
+    expect(screen.getByTestId("nav-workshops-catalog")).not.toHaveAttribute("aria-current");
+    expect(screen.getAllByRole("link", { current: "page" })).toHaveLength(1);
+  });
+
+  it("an emptied primary section drops from its position", () => {
+    renderSidebar(
+      "/dashboard",
+      (key) => key !== "posts" && key !== "workshops",
+      PRIMARY_SECTION_NAV,
+    );
+    expect(screen.queryByTestId("nav-section-inhalte")).not.toBeInTheDocument();
+    expect(screen.getByTestId("nav-ideas")).toBeInTheDocument();
+  });
+
+  describe("userMenu switch", () => {
+    afterEach(() => configureSuiteUi({}));
+
+    it("the footer keeps its padding without the switch, collapsed too", () => {
+      renderSidebar("/dashboard");
+      fireEvent.click(screen.getByTestId("sidebar-trigger"));
+      expect(screen.getByTestId("user-block").parentElement).toHaveAttribute(
+        "class",
+        "border-t p-2",
+      );
+      fireEvent.click(screen.getByTestId("sidebar-trigger"));
+    });
+
+    it("fit: the collapsed footer has no side padding", () => {
+      configureSuiteUi({ userMenu: "fit" });
+      renderSidebar("/dashboard");
+      const footer = screen.getByTestId("user-block").parentElement;
+      expect(footer).toHaveClass("p-2");
+      fireEvent.click(screen.getByTestId("sidebar-trigger"));
+      expect(footer).toHaveClass("px-0");
+      fireEvent.click(screen.getByTestId("sidebar-trigger"));
+    });
   });
 });

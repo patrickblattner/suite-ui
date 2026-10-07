@@ -51,6 +51,11 @@ function useSidebar(): SidebarContextValue {
   return context;
 }
 
+/** The sidebar state, or null outside a `SidebarProvider` (a block that also renders without one). */
+function useOptionalSidebar(): SidebarContextValue | null {
+  return React.useContext(SidebarContext);
+}
+
 // The collapse toggle: the panel symbol, never a chevron (`GL-UI-020`). It sits only in the sidebar
 // head.
 function SidebarTrigger() {
@@ -71,4 +76,10 @@ function SidebarTrigger() {
   );
 }
 
-export { SidebarProvider, SidebarTrigger, useSidebar, type SidebarProviderProps };
+export {
+  SidebarProvider,
+  SidebarTrigger,
+  useOptionalSidebar,
+  useSidebar,
+  type SidebarProviderProps,
+};

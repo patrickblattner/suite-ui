@@ -106,4 +106,77 @@ describe("GlobalSearch", () => {
     fireEvent.keyDown(document, { key: "k", ctrlKey: true });
     expect(await screen.findByTestId("search-dialog")).toBeInTheDocument();
   });
+
+  // SUI-FEATURE-028 AC3.
+  const TWO_HITS: SearchResult = {
+    groups: [{ area: "content", hits: RESULT.groups[1]!.hits }],
+  };
+
+  it("marks only the active row; arrow down and Enter on the dialog open the second hit", async () => {
+    renderSearch(vi.fn(() => Promise.resolve(TWO_HITS)));
+    fireEvent.change(screen.getByTestId("shell-search"), { target: { value: "su" } });
+    await screen.findAllByTestId("search-hit");
+    const [first, second] = screen.getAllByTestId("search-hit");
+    expect(first).toHaveAttribute("data-active", "true");
+    expect(second).not.toHaveAttribute("data-active");
+
+    const dialog = screen.getByTestId("search-dialog");
+    fireEvent.keyDown(dialog, { key: "ArrowDown" });
+    expect(first).not.toHaveAttribute("data-active");
+    expect(second).toHaveAttribute("data-active", "true");
+    fireEvent.keyDown(dialog, { key: "Enter" });
+    expect(screen.getByTestId("location")).toHaveTextContent("/content/2");
+  });
+
+  it("a focused hit keeps its own Enter", async () => {
+    renderSearch(vi.fn(() => Promise.resolve(TWO_HITS)));
+    fireEvent.change(screen.getByTestId("shell-search"), { target: { value: "su" } });
+    await screen.findAllByTestId("search-hit");
+    const second = screen.getAllByTestId("search-hit")[1]!;
+    fireEvent.keyDown(second, { key: "ArrowDown" });
+    fireEvent.keyDown(second, { key: "Enter" });
+    expect(screen.getAllByTestId("search-hit")[0]).toHaveAttribute("data-active", "true");
+    expect(screen.getByTestId("location")).toHaveTextContent("/dashboard");
+  });
+
+  it("without areas the description names none", async () => {
+    render(
+      <ShellHarness route="/dashboard">
+        <GlobalSearch areas={[]} search={vi.fn(() => Promise.resolve({ groups: [] }))} />
+      </ShellHarness>,
+    );
+    fireEvent.change(screen.getByTestId("shell-search"), { target: { value: "s" } });
+    const dialog = await screen.findByTestId("search-dialog");
+    const description = dialog.querySelector(`#${dialog.getAttribute("aria-describedby") ?? ""}`);
+    expect(description).toBeEmptyDOMElement();
+  });
+
+  it("carries the app's test ids on the result body and the empty state", async () => {
+    const search = vi.fn((term: string) =>
+      Promise.resolve(term === "zz" ? { groups: [] } : TWO_HITS),
+    );
+    render(
+      <ShellHarness route="/dashboard">
+        <GlobalSearch
+          areas={AREAS}
+          search={search}
+          resultsTestId="global-search-results"
+          emptyTestId="global-search-empty"
+        />
+      </ShellHarness>,
+    );
+    fireEvent.change(screen.getByTestId("shell-search"), { target: { value: "su" } });
+    const body = await screen.findByTestId("global-search-results");
+    expect(within(body).getAllByTestId("search-hit")).toHaveLength(2);
+    fireEvent.change(screen.getByTestId("search-dialog-input"), { target: { value: "zz" } });
+    expect(await screen.findByTestId("global-search-empty")).toHaveTextContent("Nothing found in");
+    expect(screen.queryByTestId("search-dialog-empty")).not.toBeInTheDocument();
+  });
+
+  it("the result body has no test id by default", async () => {
+    renderSearch(vi.fn(() => Promise.resolve(TWO_HITS)));
+    fireEvent.change(screen.getByTestId("shell-search"), { target: { value: "su" } });
+    await screen.findAllByTestId("search-hit");
+    expect(screen.getByRole("listbox")).not.toHaveAttribute("data-testid");
+  });
 });

@@ -17,7 +17,12 @@ import { PageHeader } from "../src/list/page-header.js";
 import { PageScroll } from "../src/list/page-scroll.js";
 import { AppSidebar } from "../src/shell/app-sidebar.js";
 import { GlobalSearch, type SearchHit, type SearchResult } from "../src/shell/global-search.js";
-import { type NavModel, SHARED_NAV_ENTRIES } from "../src/shell/nav.js";
+import {
+  isNavSection,
+  type NavEntry,
+  type NavModel,
+  SHARED_NAV_ENTRIES,
+} from "../src/shell/nav.js";
 import { SidebarProvider } from "../src/shell/sidebar-provider.js";
 import { type Appearance, UserMenu, UserMenuItem } from "../src/shell/user-menu.js";
 import type { SuiteLanguage } from "../src/strings/index.js";
@@ -153,9 +158,10 @@ function search(term: string): Promise<SearchResult> {
 function Content() {
   const { pathname } = useLocation();
   const { t } = useTranslation();
-  const entry = [...NAV.primary, ...NAV.sections.flatMap((section) => section.entries)].find(
-    (candidate) => candidate.to === pathname,
-  );
+  const entry = [
+    ...NAV.primary.filter((item): item is NavEntry => !isNavSection(item)),
+    ...NAV.sections.flatMap((section) => section.entries),
+  ].find((candidate) => candidate.to === pathname);
   return (
     <PageScroll>
       <PageHeader title={entry ? t(entry.labelKey) : ""} subtitle={t("page.subtitle")} />

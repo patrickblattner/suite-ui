@@ -838,3 +838,37 @@ test("measured select width: sort and page size", async ({ page }) => {
     expect(await value.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(0);
   }
 });
+
+// SUI-FEATURE-028 AC4: under `userMenu: "fit"` on the collapsed rail at 1920×1080 the panel is at
+// least 14rem wide and cuts no entry off; the trigger is named by the user and its avatar sits on the
+// axis of the toggle.
+for (const lng of LANGUAGES) {
+  test(`user menu fit: collapsed panel and trigger ${lng}`, async ({ page }) => {
+    await page.goto(`/?page=shell&route=/dashboard&lng=${lng}&userMenu=fit`);
+    await page.getByTestId("sidebar-trigger").click();
+    await expect(page.getByTestId("app-sidebar")).toHaveAttribute("data-state", "collapsed");
+    // The rail narrows over 200 ms; measure once it has settled at 3.5rem.
+    await expect.poll(async () => (await box(page.getByTestId("app-sidebar"))).width).toBe(56);
+    const trigger = page.getByTestId("user-menu-trigger");
+    await expect(trigger).toHaveAccessibleName("Ada Lovelace");
+    const toggle = await box(page.getByTestId("sidebar-trigger"));
+    const avatar = await box(trigger.locator("span").first());
+    expect(
+      Math.abs(avatar.x + avatar.width / 2 - (toggle.x + toggle.width / 2)),
+    ).toBeLessThanOrEqual(2);
+
+    await trigger.click();
+    const panel = page.getByTestId("user-menu-content");
+    const frame = await box(panel);
+    expect(frame.width).toBeGreaterThanOrEqual(224);
+    const entries = panel.locator(
+      "[role=menuitem], [data-testid=language-switcher], [data-testid^=theme-option-]",
+    );
+    expect(await entries.count()).toBeGreaterThan(0);
+    for (const entry of await entries.all()) {
+      expect(await entry.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(0);
+      const at = await box(entry);
+      expect(at.x + at.width).toBeLessThanOrEqual(frame.x + frame.width);
+    }
+  });
+}

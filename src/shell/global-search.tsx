@@ -45,6 +45,10 @@ type GlobalSearchProps = {
   areas: SearchArea[];
   // The app's search; the package never filters what it returns.
   search: (term: string, signal: AbortSignal) => Promise<SearchResult>;
+  // The `data-testid` of the result body; without it the body has none.
+  resultsTestId?: string;
+  // The `data-testid` of the empty state.
+  emptyTestId?: string;
 };
 
 // Below this many characters the dialog does not search and its body stays empty: the subtitle
@@ -61,7 +65,12 @@ function isMacPlatform(): boolean {
 // The app-shell search (`GL-UI-031`): a field in the sidebar under the head, with its shortcut badge.
 // The field never shows results; focus, click, typing or the shortcut open the centred dialog, which
 // is the one place hits appear. Collapsed, the field is an icon that expands the rail and focuses it.
-function GlobalSearch({ areas, search }: GlobalSearchProps) {
+function GlobalSearch({
+  areas,
+  search,
+  resultsTestId,
+  emptyTestId = "search-dialog-empty",
+}: GlobalSearchProps) {
   const { t } = useTranslation("suite");
   const { isOpen, toggle } = useSidebar();
   const navigate = useNavigate();
@@ -169,6 +178,8 @@ function GlobalSearch({ areas, search }: GlobalSearchProps) {
         term={term}
         areas={areas}
         search={search}
+        resultsTestId={resultsTestId}
+        emptyTestId={emptyTestId}
         onTermChange={setTerm}
         onSelect={(hit) => {
           closeDialog();
@@ -192,6 +203,8 @@ function SearchDialog({
   term,
   areas,
   search,
+  resultsTestId,
+  emptyTestId,
   onTermChange,
   onSelect,
   onClose,
@@ -200,6 +213,8 @@ function SearchDialog({
   term: string;
   areas: SearchArea[];
   search: GlobalSearchProps["search"];
+  resultsTestId: string | undefined;
+  emptyTestId: string;
   onTermChange: (term: string) => void;
   onSelect: (hit: SearchHit) => void;
   onClose: () => void;
@@ -207,6 +222,7 @@ function SearchDialog({
   const { t, i18n } = useTranslation("suite");
   const [debounced, setDebounced] = React.useState("");
   const [outcome, setOutcome] = React.useState<Outcome | null>(null);
+  const inputRef = React.useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
     const timer = setTimeout(() => setDebounced(term.trim()), DEBOUNCE_MS);
@@ -240,9 +256,8 @@ function SearchDialog({
     [areas, i18n],
   );
   // The searched areas come from the scope, never from a list in a text.
-  const named = (result?.searchedAreas ?? areas.map((a) => a.key))
-    .map(labelOf)
-    .join(t("search.areaSeparator"));
+  const searchedAreas = result?.searchedAreas ?? areas.map((a) => a.key);
+  const named = searchedAreas.map(labelOf).join(t("search.areaSeparator"));
 
   const groups = React.useMemo(
     () =>
@@ -264,7 +279,10 @@ function SearchDialog({
   const activeIndex = cursor.hits === orderedHits ? cursor.index : 0;
   const moveTo = (index: number) => setCursor({ hits: orderedHits, index });
 
-  function onInputKeyDown(event: React.KeyboardEvent<HTMLInputElement>): void {
+  // On the whole dialog while the focus rests on the field or the dialog itself; a focused hit keeps
+  // its own Enter.
+  function onDialogKeyDown(event: React.KeyboardEvent<HTMLDivElement>): void {
+    if (event.target !== inputRef.current && event.target !== event.currentTarget) return;
     if (orderedHits.length === 0) return;
     if (event.key === "ArrowDown") {
       event.preventDefault();
@@ -298,13 +316,13 @@ function SearchDialog({
     );
   } else if (orderedHits.length === 0) {
     body = (
-      <p data-testid="search-dialog-empty" className="px-2 py-3 text-sm text-muted-foreground">
+      <p data-testid={emptyTestId} className="px-2 py-3 text-sm text-muted-foreground">
         {t("search.empty", { areas: named })}
       </p>
     );
   } else {
     body = (
-      <div role="listbox" aria-label={t("search.results")}>
+      <div role="listbox" aria-label={t("search.results")} data-testid={resultsTestId}>
         {groups.map(({ area, hits }) => (
           <section
             key={area.key}
@@ -342,13 +360,17 @@ function SearchDialog({
         data-testid="search-dialog"
         // The shell returns the focus to the sidebar field itself, in `onClose`.
         onCloseAutoFocus={(event) => event.preventDefault()}
+        onKeyDown={onDialogKeyDown}
       >
         <DialogHeader>
           <DialogTitle>{t("search.title")}</DialogTitle>
-          <DialogDescription>{t("search.subtitle", { areas: named })}</DialogDescription>
+          <DialogDescription>
+            {searchedAreas.length > 0 ? t("search.subtitle", { areas: named }) : ""}
+          </DialogDescription>
         </DialogHeader>
         <Hint text={t("search.inputHint")}>
           <input
+            ref={inputRef}
             autoFocus
             type="search"
             data-testid="search-dialog-input"
@@ -356,7 +378,6 @@ function SearchDialog({
             aria-label={t("search.label")}
             placeholder={t("search.placeholder")}
             onChange={(event) => onTermChange(event.target.value)}
-            onKeyDown={onInputKeyDown}
             className="h-9 w-full shrink-0 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:bg-input/30"
           />
         </Hint>
@@ -393,7 +414,7 @@ function HitRow({
           role="option"
           aria-selected={active}
           data-testid="search-hit"
-          data-active={active}
+          data-active={active ? true : undefined}
           onClick={() => onSelect(hit)}
           className={cn(
             "flex w-full cursor-pointer items-start gap-2 rounded-md px-2 py-1.5 text-left outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50",

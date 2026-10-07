@@ -55,11 +55,12 @@ const initialPage: Page = (PAGES as readonly string[]).includes(params.get("page
 await i18n.use(initReactI18next).init({ lng: initialLng, fallbackLng: "en", resources: {} });
 registerSuiteStrings(i18n);
 registerShellLabels();
-// The app switch as an app sets it at start (`?filterBar=block&selectWidth=measured`); without the
+// The app switch as an app sets it at start (`?filterBar=block&selectWidth=measured&userMenu=fit`); without the
 // parameters the gallery shows the defaults.
 configureSuiteUi({
   filterBar: params.get("filterBar") === "block" ? "block" : "kind",
   selectWidth: params.get("selectWidth") === "measured" ? "measured" : "content",
+  userMenu: params.get("userMenu") === "fit" ? "fit" : "fixed",
 });
 
 // Every page but the strings table, by name.

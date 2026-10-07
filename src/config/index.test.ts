@@ -26,10 +26,22 @@ describe("@suite/ui/config", () => {
     const built = (await import(
       /* @vite-ignore */ `${root}${pkg.exports["./config"]?.import ?? ""}`
     )) as typeof import("./index.js");
-    expect(built.suiteUiConfig()).toEqual({ filterBar: "kind", selectWidth: "content" });
+    expect(built.suiteUiConfig()).toEqual({
+      filterBar: "kind",
+      selectWidth: "content",
+      userMenu: "fixed",
+    });
     built.configureSuiteUi({ filterBar: "block" });
-    expect(built.suiteUiConfig()).toEqual({ filterBar: "block", selectWidth: "content" });
+    expect(built.suiteUiConfig()).toEqual({
+      filterBar: "block",
+      selectWidth: "content",
+      userMenu: "fixed",
+    });
     built.configureSuiteUi({});
-    expect(built.suiteUiConfig()).toEqual({ filterBar: "kind", selectWidth: "content" });
+    expect(built.suiteUiConfig()).toEqual({
+      filterBar: "kind",
+      selectWidth: "content",
+      userMenu: "fixed",
+    });
   });
 });

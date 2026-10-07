@@ -9,9 +9,13 @@ type SuiteUiConfig = {
   // `content`: minimum widths that grow with the chosen value. `measured`: the trigger takes its width
   // from the longest translated entry of the active language (`COM-GL-004`).
   selectWidth: "content" | "measured";
+  // `fixed`: the user-menu panel has the footer's width and the trigger always shows name and role.
+  // `fit`: the panel takes the width of its longest entry, and the collapsed trigger shows only avatar
+  // and kebab (`GL-020`, `SUI-FEATURE-028`).
+  userMenu: "fixed" | "fit";
 };
 
-const DEFAULTS: SuiteUiConfig = { filterBar: "kind", selectWidth: "content" };
+const DEFAULTS: SuiteUiConfig = { filterBar: "kind", selectWidth: "content", userMenu: "fixed" };
 
 let current: SuiteUiConfig = DEFAULTS;
 
