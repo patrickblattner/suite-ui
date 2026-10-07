@@ -58,3 +58,4 @@
 {"ts":"2026-10-07T13:48:32.980Z","key":"GL-UI-004","from":2,"to":3,"disposition":"editorial","ref":"Clarifies which apps are suite apps (cockpit, community; virtualization-assessment-app excluded) — scope statement, no package code impact"}
 {"ts":"2026-10-07T13:50:20.115Z","key":"GL-UI-004","from":3,"to":4,"disposition":"editorial","ref":"Reverts the rev 3 suite-app scope line — no package code impact"}
 {"ts":"2026-10-07T13:58:14.168Z","key":"GL-UI-004","from":4,"to":5,"disposition":"editorial","ref":"rev 5 scopes suite apps to Cockpit/Community and excludes virtualization-assessment-app; no package code/API impact"}
+{"ts":"2026-10-07T14:56:55.462Z","key":"PROC-DEV-031","from":13,"to":15,"disposition":"editorial","ref":"worker-harness behaviour (input-line draft hold, no countdown after /clear); no suite-ui code impact"}
