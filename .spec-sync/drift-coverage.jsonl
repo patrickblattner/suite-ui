@@ -55,3 +55,4 @@
 {"ts":"2026-10-07T13:33:08.708Z","key":"SUI-FEATURE-029","from":null,"to":2,"disposition":"ticket","ref":"25"}
 {"ts":"2026-10-07T13:38:42.568Z","key":"SUI-FEATURE-026","from":3,"to":4,"disposition":"ticket","ref":"26"}
 {"ts":"2026-10-07T13:42:48.389Z","key":"SUI-FEATURE-026","from":4,"to":5,"disposition":"ticket","ref":"26"}
+{"ts":"2026-10-07T13:48:32.980Z","key":"GL-UI-004","from":2,"to":3,"disposition":"editorial","ref":"Clarifies which apps are suite apps (cockpit, community; virtualization-assessment-app excluded) — scope statement, no package code impact"}
