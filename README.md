@@ -30,6 +30,8 @@ npm install --save-dev github:patrickblattner/suite-ui#vX.Y.Z
 
 Switching to a new tag always needs this explicit `npm install` (lockfile). Then add `@import "@suite/ui/styles.css";` once in the app CSS and call `registerSuiteStrings(i18n)` once in the i18n setup.
 
+An app that follows a different norm until the cockpit go-live sets the app switch once at start, next to `registerSuiteStrings`: `configureSuiteUi({ filterBar?: "kind" | "block"; selectWidth?: "content" | "measured" })` from `@suite/ui/config`. The defaults `kind` and `content` are the previous package behaviour.
+
 Peer dependencies (never bundled): `react` and `react-dom` ^19.2, `react-router-dom` ^7, `radix-ui` ^1.5, `lucide-react` >=1.17, `class-variance-authority` ^0.7, `tailwind-merge` ^3, `clsx` ^2, `react-i18next` >=15 <18.
 
 ### Parity check

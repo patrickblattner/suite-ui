@@ -1,7 +1,8 @@
-import { act, renderHook } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { act, render, renderHook, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { useSort } from "./sort-select.js";
+import { configureSuiteUi } from "../config/index.js";
+import { SortSelect, useSort } from "./sort-select.js";
 
 describe("useSort", () => {
   it("keeps the key in its own state without a slot", () => {
@@ -31,5 +32,29 @@ describe("useSort", () => {
     expect(result.current[0]).toBe("y");
     rerender({ withSlot: false });
     expect(result.current[0]).toBe("x");
+  });
+});
+
+describe("SortSelect select width (SUI-FEATURE-026)", () => {
+  const OPTIONS = [
+    { value: "updatedDesc", label: "Last edited ↓" },
+    { value: "nameAsc", label: "Name ↑" },
+  ];
+  const renderSort = () =>
+    render(<SortSelect value="nameAsc" onChange={() => {}} options={OPTIONS} />);
+
+  afterEach(() => configureSuiteUi({}));
+
+  it("AC6: content has no sizer and keeps the v0.15.0 classes", () => {
+    renderSort();
+    expect(screen.queryByTestId("filter-sort-sizer")).toBeNull();
+    expect(screen.getByTestId("filter-sort")).toHaveClass("min-w-[200px]", "shrink-0");
+  });
+
+  it("AC5: measured sizes the trigger by its label and longest option", () => {
+    configureSuiteUi({ selectWidth: "measured" });
+    renderSort();
+    expect(screen.getByTestId("filter-sort-sizer")).toHaveTextContent("Sort by:Last edited ↓");
+    expect(screen.getByTestId("filter-sort")).toHaveClass("col-start-1", "row-start-1", "w-full");
   });
 });

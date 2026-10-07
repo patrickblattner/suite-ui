@@ -28,6 +28,10 @@
       "types": "./dist/shell/*.d.ts",
       "import": "./dist/shell/*.js"
     },
+    "./config": {
+      "types": "./dist/config/index.d.ts",
+      "import": "./dist/config/index.js"
+    },
     "./strings": {
       "types": "./dist/strings/index.d.ts",
       "import": "./dist/strings/index.js"

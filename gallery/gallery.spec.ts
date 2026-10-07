@@ -697,3 +697,76 @@ test("shell: the shortcut opens the search from a section route", async ({ page 
   await page.keyboard.press("ControlOrMeta+k");
   await expect(page.getByTestId("search-dialog")).toBeVisible();
 });
+
+// SUI-FEATURE-026 AC3: under `filterBar: "block"` the row wraps instead of shrinking — at 1100 px with
+// three filters the search group moves below the filter block as a whole, the search keeps its 20rem
+// and the document gains no horizontal scroll.
+test("filter bar block: the search group wraps below three filters at 1100 px", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1100, height: 900 });
+  await page.goto("/?page=list&filterBar=block&selectWidth=measured");
+  await expect(page.getByTestId("filter-room")).toBeVisible();
+  const filters = await box(page.getByTestId("filterbar-filters"));
+  const group = await box(page.getByTestId("filterbar-search-group"));
+  expect(group.y).toBeGreaterThanOrEqual(filters.y + filters.height);
+  expect((await box(page.getByTestId("filter-haystack"))).width).toBeGreaterThanOrEqual(320);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    ),
+  ).toBeLessThanOrEqual(0);
+});
+
+async function choose(page: Page, trigger: Locator, option: string) {
+  await trigger.click();
+  await page.getByRole("option", { name: option, exact: true }).click();
+  await expect(page.getByRole("listbox")).toBeHidden();
+}
+
+// SUI-FEATURE-026 AC5: under `selectWidth: "measured"` the trigger keeps one width whatever is chosen.
+for (const [lng, all] of [
+  ["de", "Alle"],
+  ["en", "All"],
+  ["es", "Todos"],
+] as const) {
+  test(`measured select width: the filter does not move on a choice ${lng}`, async ({ page }) => {
+    await page.goto(`/?page=list&filterBar=block&selectWidth=measured&lng=${lng}`);
+    const trigger = page.getByTestId("filter-room");
+    await expect(page.getByTestId("filter-room-sizer")).toContainText("Konferenzzentrum");
+    const widths = [(await box(trigger)).width];
+    for (const option of ["Seminarraum", "Konferenzzentrum", all]) {
+      await choose(page, trigger, option);
+      widths.push((await box(trigger)).width);
+    }
+    for (const width of widths) expect(Math.abs(width - (widths[0] ?? 0))).toBeLessThanOrEqual(1);
+  });
+}
+
+test("measured select width: the sizers follow the language switch", async ({ page }) => {
+  await page.goto("/?page=list&filterBar=block&selectWidth=measured&lng=en");
+  await expect(page.getByTestId("filter-room-sizer")).toHaveText("Room: Konferenzzentrum");
+  await expect(page.getByTestId("pagination-page-size-sizer")).toHaveText("100 per page");
+  await page.getByTestId("gallery-language").selectOption("es");
+  await expect(page.getByTestId("filter-room-sizer")).toHaveText("Sala: Konferenzzentrum");
+  await expect(page.getByTestId("pagination-page-size-sizer")).toHaveText("100 por página");
+});
+
+// SUI-FEATURE-026 AC5: the sort keeps one width for its shortest and longest option; the Spanish page
+// size is never cut off.
+test("measured select width: sort and page size", async ({ page }) => {
+  await page.goto("/?page=list&selectWidth=measured&lng=es");
+  const sort = page.getByTestId("filter-sort");
+  await expect(page.getByTestId("filter-sort-sizer")).toHaveText("Ordenar por:Última edición ↓");
+  const longest = (await box(sort)).width;
+  await choose(page, sort, "Responsable ↑");
+  expect(Math.abs((await box(sort)).width - longest)).toBeLessThanOrEqual(1);
+
+  const pageSize = page.getByTestId("pagination-page-size");
+  for (const size of ["10 por página", "100 por página"]) {
+    await choose(page, pageSize, size);
+    const value = pageSize.locator('[data-slot="select-value"]');
+    await expect(value).toHaveText(size);
+    expect(await value.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(0);
+  }
+});

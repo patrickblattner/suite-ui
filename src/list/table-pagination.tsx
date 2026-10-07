@@ -7,6 +7,8 @@ import {
 import type * as React from "react";
 import { useTranslation } from "react-i18next";
 
+import { suiteUiConfig } from "../config/index.js";
+import { MEASURED_TRIGGER, MeasuredCell } from "../lib/select-sizer.js";
 import { Button } from "../ui/button.js";
 import { Hint } from "../ui/hint.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select.js";
@@ -34,7 +36,8 @@ type Step = {
 
 // The pager under every list (`GL-UI-025`): four chevrons around "Page X / Y (Total)" and the page
 // size (10/25/50/100), right-aligned so its right edge meets the page gutter on every surface.
-// `--pager-gap` keeps chevrons and indicator one compact cluster.
+// `--pager-gap` keeps chevrons and indicator one compact cluster. Under `selectWidth: "measured"` the
+// page size is as wide as its longest option in the active language.
 function TablePagination({
   page,
   setPage,
@@ -46,6 +49,7 @@ function TablePagination({
   const { t } = useTranslation("suite");
   const atFirst = page <= 1;
   const atLast = page >= totalPages;
+  const measured = suiteUiConfig().selectWidth === "measured";
   const step = ({ key, testId, icon, target, disabled }: Step) => (
     <IconButtonTooltip
       key={key}
@@ -63,6 +67,28 @@ function TablePagination({
         {icon}
       </Button>
     </IconButtonTooltip>
+  );
+
+  const pageSizeSelect = (
+    <Select value={String(pageSize)} onValueChange={(size) => setPageSize(Number(size))}>
+      <Hint text={t("pagination.pageSizeHint")}>
+        <SelectTrigger
+          size="sm"
+          className={measured ? MEASURED_TRIGGER : "min-w-[160px]"}
+          aria-label={t("pagination.pageSizeLabel")}
+          data-testid="pagination-page-size"
+        >
+          <SelectValue />
+        </SelectTrigger>
+      </Hint>
+      <SelectContent>
+        {PAGE_SIZES.map((size) => (
+          <SelectItem key={size} value={String(size)}>
+            {t("pagination.pageSize", { size })}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
   );
 
   return (
@@ -101,25 +127,16 @@ function TablePagination({
         target: totalPages,
         disabled: atLast,
       })}
-      <Select value={String(pageSize)} onValueChange={(size) => setPageSize(Number(size))}>
-        <Hint text={t("pagination.pageSizeHint")}>
-          <SelectTrigger
-            size="sm"
-            className="min-w-[160px]"
-            aria-label={t("pagination.pageSizeLabel")}
-            data-testid="pagination-page-size"
-          >
-            <SelectValue />
-          </SelectTrigger>
-        </Hint>
-        <SelectContent>
-          {PAGE_SIZES.map((size) => (
-            <SelectItem key={size} value={String(size)}>
-              {t("pagination.pageSize", { size })}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
+      {measured ? (
+        <MeasuredCell
+          texts={PAGE_SIZES.map((size) => t("pagination.pageSize", { size }))}
+          data-testid="pagination-page-size"
+        >
+          {pageSizeSelect}
+        </MeasuredCell>
+      ) : (
+        pageSizeSelect
+      )}
     </div>
   );
 }

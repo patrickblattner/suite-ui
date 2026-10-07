@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { suiteUiConfig } from "../config/index.js";
+import { MEASURED_TRIGGER, MeasuredCell } from "../lib/select-sizer.js";
 import { Hint } from "../ui/hint.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select.js";
 
@@ -27,14 +29,16 @@ type SortSelectProps = {
 };
 
 // The "Sort by" dropdown every list carries at the far right of its FilterBar (`GL-UI-024`).
-// Presentation only: the page owns the sort key and the comparator behind it.
+// Presentation only: the page owns the sort key and the comparator behind it. Under
+// `selectWidth: "measured"` the trigger is as wide as its longest option in the active language.
 function SortSelect({ value, onChange, options, "data-testid": testId }: SortSelectProps) {
   const { t } = useTranslation("suite");
-  return (
+  const measured = suiteUiConfig().selectWidth === "measured";
+  const select = (
     <Select value={value} onValueChange={onChange}>
       <Hint text={t("sort.hint")}>
         <SelectTrigger
-          className="min-w-[200px] shrink-0"
+          className={measured ? MEASURED_TRIGGER : "min-w-[200px] shrink-0"}
           aria-label={t("sort.label")}
           data-testid={testId ?? "filter-sort"}
         >
@@ -50,6 +54,16 @@ function SortSelect({ value, onChange, options, "data-testid": testId }: SortSel
         ))}
       </SelectContent>
     </Select>
+  );
+  if (!measured) return select;
+  return (
+    <MeasuredCell
+      texts={options.map((option) => option.label)}
+      prefix={`${t("sort.label")}:`}
+      data-testid={testId ?? "filter-sort"}
+    >
+      {select}
+    </MeasuredCell>
   );
 }
 

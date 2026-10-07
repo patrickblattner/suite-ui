@@ -1,7 +1,9 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { useState } from "react";
-import { describe, expect, it } from "vitest";
+import i18n from "i18next";
+import { act, useState } from "react";
+import { afterEach, describe, expect, it } from "vitest";
 
+import { configureSuiteUi } from "../config/index.js";
 import { TablePagination } from "./table-pagination.js";
 import { hintOf } from "./test-utils.js";
 
@@ -69,5 +71,27 @@ describe("TablePagination", () => {
       expect(label).not.toBeNull();
       expect(hintOf(button)).toEqual({ focus: label, hover1499: null, hover1500: label });
     }
+  });
+});
+
+describe("TablePagination select width (SUI-FEATURE-026)", () => {
+  afterEach(async () => {
+    configureSuiteUi({});
+    await act(() => i18n.changeLanguage("en"));
+  });
+
+  it("AC6: content has no sizer and keeps the v0.15.0 classes", () => {
+    render(<Harness total={42} />);
+    expect(screen.queryByTestId("pagination-page-size-sizer")).toBeNull();
+    expect(screen.getByTestId("pagination-page-size")).toHaveClass("min-w-[160px]");
+  });
+
+  it("AC5: measured sizes the page size by its longest option in the active language", async () => {
+    configureSuiteUi({ selectWidth: "measured" });
+    render(<Harness total={42} />);
+    expect(screen.getByTestId("pagination-page-size-sizer")).toHaveTextContent("100 per page");
+    expect(screen.getByTestId("pagination-page-size")).not.toHaveClass("min-w-[160px]");
+    await act(() => i18n.changeLanguage("es"));
+    expect(screen.getByTestId("pagination-page-size-sizer")).toHaveTextContent("100 por página");
   });
 });

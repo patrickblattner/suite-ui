@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { suiteUiConfig } from "../src/config/index.js";
 import { DataTableShell } from "../src/list/data-table-shell.js";
 import { dynamicFilter, FilterBar, staticFilter } from "../src/list/filter-bar.js";
 import { FilterSelect } from "../src/list/filter-select.js";
@@ -13,12 +14,25 @@ import { TableCell, TableHead, TableRow } from "../src/ui/table.js";
 
 // App-side labels: field names and options come from the app, not from the `suite` namespace.
 const LABELS = {
-  en: { severity: "Severity", owner: "Owner", event: "Event", status: "Status" },
-  de: { severity: "Schweregrad", owner: "Verantwortlich", event: "Ereignis", status: "Status" },
-  es: { severity: "Gravedad", owner: "Responsable", event: "Evento", status: "Estado" },
+  en: { severity: "Severity", owner: "Owner", event: "Event", status: "Status", room: "Room" },
+  de: {
+    severity: "Schweregrad",
+    owner: "Verantwortlich",
+    event: "Ereignis",
+    status: "Status",
+    room: "Raum",
+  },
+  es: {
+    severity: "Gravedad",
+    owner: "Responsable",
+    event: "Evento",
+    status: "Estado",
+    room: "Sala",
+  },
 } as const;
 
 const SEVERITIES = ["info", "warning", "error"] as const;
+const ROOMS = ["Seminarraum", "Konferenzzentrum"];
 const OWNERS = ["Ada", "Grace", "Linus"];
 const ROWS = Array.from({ length: 200 }, (_, i) => ({
   id: i + 1,
@@ -43,9 +57,35 @@ export function ListPage() {
   const [query, setQuery] = useState("");
   const [severity, setSeverity] = useState("all");
   const [owner, setOwner] = useState("all");
+  const [room, setRoom] = useState("all");
+  // Under `filterBar: "block"` the page passes its filters as one node, ordered by the page, with a
+  // third filter so the search group wraps at narrow widths.
+  const block = suiteUiConfig().filterBar === "block";
   const [sort, setSort] = useSort();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
+  const ownerFilter = (values: readonly string[]) => (
+    <FilterSelect
+      field={labels.owner}
+      value={owner}
+      allValue="all"
+      onValueChange={setOwner}
+      options={values.map((value) => ({ value, label: value }))}
+      hint="Shows only the entries of one owner."
+      data-testid="filter-owner"
+    />
+  );
+  const severityFilter = (values: readonly string[]) => (
+    <FilterSelect
+      field={labels.severity}
+      value={severity}
+      allValue="all"
+      onValueChange={setSeverity}
+      options={values.map((value) => ({ value, label: value }))}
+      hint="Shows only the entries of one severity."
+      data-testid="filter-severity"
+    />
+  );
 
   return (
     <PageScroll floor={FLOOR}>
@@ -65,32 +105,28 @@ export function ListPage() {
             options: [
               { value: "updatedDesc", label: `${t("sort.updated")} ↓` },
               { value: "updatedAsc", label: `${t("sort.updated")} ↑` },
+              { value: "ownerAsc", label: `${labels.owner} ↑` },
             ],
           }}
-          filters={[
-            dynamicFilter(OWNERS, (values) => (
-              <FilterSelect
-                field={labels.owner}
-                value={owner}
-                allValue="all"
-                onValueChange={setOwner}
-                options={values.map((value) => ({ value, label: value }))}
-                hint="Shows only the entries of one owner."
-                data-testid="filter-owner"
-              />
-            )),
-            staticFilter(SEVERITIES, (values) => (
-              <FilterSelect
-                field={labels.severity}
-                value={severity}
-                allValue="all"
-                onValueChange={setSeverity}
-                options={values.map((value) => ({ value, label: value }))}
-                hint="Shows only the entries of one severity."
-                data-testid="filter-severity"
-              />
-            )),
-          ]}
+          filters={
+            block ? (
+              <>
+                {ownerFilter(OWNERS)}
+                {severityFilter(SEVERITIES)}
+                <FilterSelect
+                  field={labels.room}
+                  value={room}
+                  allValue="all"
+                  onValueChange={setRoom}
+                  options={ROOMS.map((value) => ({ value, label: value }))}
+                  hint="Shows only the entries of one room."
+                  data-testid="filter-room"
+                />
+              </>
+            ) : (
+              [dynamicFilter(OWNERS, ownerFilter), staticFilter(SEVERITIES, severityFilter)]
+            )
+          }
         />
         <form onSubmit={(event) => event.preventDefault()} className="flex min-h-0 flex-1 flex-col">
           <DataTableShell
