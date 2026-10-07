@@ -104,7 +104,7 @@ describe("DataTableShell", () => {
     ).toEqual(["toolbar", "data-table-scroll", "pager"]);
   });
 
-  // The v0.17.0 frame: the column holds only scroller and pager, with unchanged classes.
+  // The v0.17.0 frame: the column holds only scroller and pager; the scroller keeps a 24 px floor (v0.24.2).
   it("keeps the v0.17.0 markup without view switch and FilterBar", () => {
     renderShell({});
     const column = screen.getByTestId("data-table");
@@ -114,7 +114,7 @@ describe("DataTableShell", () => {
       "pager",
     ]);
     expect(screen.getByTestId("data-table-scroll").className).toBe(
-      "min-h-0 flex-1 overflow-auto [&_[data-slot=table-container]]:overflow-visible",
+      "min-h-6 flex-1 overflow-auto [&_[data-slot=table-container]]:overflow-visible",
     );
   });
 

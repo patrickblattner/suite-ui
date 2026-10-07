@@ -73,7 +73,7 @@ function DataTableShell({
       {tabs}
       {toolbar}
       <div
-        className="min-h-0 flex-1 overflow-auto [&_[data-slot=table-container]]:overflow-visible"
+        className="min-h-6 flex-1 overflow-auto [&_[data-slot=table-container]]:overflow-visible"
         data-testid={scrollTestId}
         ref={scrollRef}
       >

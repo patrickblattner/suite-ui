@@ -411,6 +411,21 @@ test("list area: FilterBar alone sits 16 px above the table", async ({ page }) =
   expect((await box(page.getByTestId("filterbar"))).y).toBe(area.y);
 });
 
+// AC 6 of step 17 (`GL-UI-018` §Notausfahrt): on a low viewport the column overflows the page instead of
+// squeezing the scroller below 24 px, and the page scroll brings the scroller into view.
+test("list area: on a 300 px viewport the scroller keeps 24 px and is reachable", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 300 });
+  await page.goto("/?page=list&slots=tabs");
+  for (const part of ["list-tabs", "filterbar", "pagination"])
+    await expect(page.getByTestId(part)).toBeVisible();
+  const scroller = page.getByTestId("data-table-scroll");
+  expect((await box(scroller)).height).toBeGreaterThanOrEqual(24);
+  await scroller.scrollIntoViewIfNeeded();
+  await expect(scroller).toBeInViewport();
+});
+
 // AC 4 and 5 of step 17: the gallery list with tab row, FilterBar and pager; switching the view swaps
 // the rows while frame, tab row and FilterBar stay where they were.
 test("list area: switching the view keeps frame, tab row and FilterBar in place", async ({
