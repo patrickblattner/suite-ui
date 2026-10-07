@@ -64,3 +64,5 @@
 {"ts":"2026-10-07T15:18:33.637Z","key":"GL-UI-027","from":8,"to":9,"disposition":"ticket","ref":"27"}
 {"ts":"2026-10-07T15:22:27.686Z","key":"SUI-FEATURE-031","from":null,"to":2,"disposition":"ticket","ref":"28"}
 {"ts":"2026-10-07T15:22:27.686Z","key":"SUI-DESIGN-012","from":20,"to":21,"disposition":"ticket","ref":"28"}
+{"ts":"2026-10-07T15:36:31.786Z","key":"SUI-FEATURE-030","from":2,"to":3,"disposition":"editorial","ref":"rev 3 legalises no slide-in animation; v0.21.0 already built that way (answer to Q 2800)"}
+{"ts":"2026-10-07T15:36:32.299Z","key":"SUI-FEATURE-031","from":2,"to":3,"disposition":"ticket","ref":"28"}
