@@ -377,6 +377,57 @@ test("list frame: a horizontal scroller is marked while it overflows", async ({ 
   await expect(scroller).toHaveCSS("padding-bottom", "0px");
 });
 
+// The children of DataTableShell's column, by test id, and the gaps between neighbours.
+async function listArea(page: Page) {
+  const children = page.getByTestId("data-table").locator(":scope > *");
+  const ids = await children.evaluateAll((els) => els.map((el) => el.getAttribute("data-testid")));
+  const boxes = await Promise.all((await children.all()).map(box));
+  const gaps = boxes.slice(1).map((b, i) => {
+    const prev = boxes[i]!;
+    return Math.round((b.y - (prev.y + prev.height)) * 10) / 10;
+  });
+  return { ids, gaps };
+}
+
+// AC 1 of step 17: tab row, FilterBar, scroller and pager sit in the one column, 16 px apart.
+test("list area: view switch, FilterBar, table and pager are 16 px apart", async ({ page }) => {
+  await page.goto("/?page=list&slots=tabs");
+  await expect(page.getByTestId("list-tabs")).toBeVisible();
+  expect(await listArea(page)).toEqual({
+    ids: ["list-tabs", "filterbar", "data-table-scroll", "pagination"],
+    gaps: [16, 16, 16],
+  });
+});
+
+// AC 2 of step 17: only the FilterBar in its slot, 16 px above the scroller, no gap for the tabs.
+test("list area: FilterBar alone sits 16 px above the table", async ({ page }) => {
+  await page.goto("/?page=list&slots=toolbar");
+  await expect(page.getByTestId("filterbar")).toBeVisible();
+  expect(await listArea(page)).toEqual({
+    ids: ["filterbar", "data-table-scroll", "pagination"],
+    gaps: [16, 16],
+  });
+  const area = await box(page.getByTestId("data-table"));
+  expect((await box(page.getByTestId("filterbar"))).y).toBe(area.y);
+});
+
+// AC 4 and 5 of step 17: the gallery list with tab row, FilterBar and pager; switching the view swaps
+// the rows while frame, tab row and FilterBar stay where they were.
+test("list area: switching the view keeps frame, tab row and FilterBar in place", async ({
+  page,
+}) => {
+  await page.goto("/?page=list&slots=tabs");
+  await expect(page.getByTestId("list-row")).toHaveCount(200);
+  const parts = ["data-table", "list-tabs", "filterbar", "data-table-scroll", "pagination"];
+  for (const part of parts) await expect(page.getByTestId(part)).toBeVisible();
+  const before = await Promise.all(parts.map((part) => box(page.getByTestId(part))));
+
+  await page.getByTestId("list-tab-error").click();
+  await expect(page.getByTestId("list-tab-error")).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByTestId("list-row")).toHaveCount(66);
+  expect(await Promise.all(parts.map((part) => box(page.getByTestId(part))))).toEqual(before);
+});
+
 async function look(locator: Locator) {
   return locator.evaluate((el) => {
     const style = getComputedStyle(el);

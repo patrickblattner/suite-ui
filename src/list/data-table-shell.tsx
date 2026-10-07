@@ -25,6 +25,11 @@ type DataTableShellProps = {
   headerTestId?: string;
   // The scroller's `data-testid`; without it `data-table-scroll`.
   scrollTestId?: string;
+  // The view switch above the table, a `TabsList`; the page wraps the frame in `Tabs` and picks the
+  // data by the active value.
+  tabs?: React.ReactNode;
+  // The `FilterBar`, between the view switch and the table.
+  toolbar?: React.ReactNode;
   // The pager under the table, usually a `TablePagination`.
   pagination?: React.ReactNode;
   // The data rows, rendered once the query finished with rows.
@@ -35,7 +40,8 @@ type DataTableShellProps = {
 // with its rule, only the data rows scroll, and the pager sits below, right-aligned and always in
 // view. It fills the remaining height of its flex column (PageScroll on a list page), so the page
 // itself never scrolls. Loading and empty are two states: skeleton rows while pending, never a
-// spinner; one centred cell when there is nothing.
+// spinner; one centred cell when there is nothing. View switch, FilterBar, table and pager share the
+// column's one gap (`GL-UI-010` §Listenbereich); a missing slot leaves no gap behind.
 function DataTableShell({
   head,
   columnCount,
@@ -46,11 +52,15 @@ function DataTableShell({
   emptyTestId,
   headerTestId,
   scrollTestId = "data-table-scroll",
+  tabs,
+  toolbar,
   pagination,
   children,
 }: DataTableShellProps) {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4" data-testid="data-table">
+      {tabs}
+      {toolbar}
       <div
         className="min-h-0 flex-1 overflow-auto [&_[data-slot=table-container]]:overflow-visible"
         data-testid={scrollTestId}
