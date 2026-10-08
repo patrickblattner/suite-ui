@@ -76,3 +76,4 @@
 {"ts":"2026-10-07T23:37:54.593Z","key":"PROC-REL-022","from":10,"to":11,"disposition":"editorial","ref":"Env-key rename rule (breaking-change commit footer); suite-ui is a UI package without env contract or deployment, no code impact"}
 {"ts":"2026-10-08T02:27:24.523Z","key":"SUI-FEATURE-034","from":null,"to":2,"disposition":"ticket","ref":"33"}
 {"ts":"2026-10-08T02:27:24.523Z","key":"SUI-DESIGN-012","from":23,"to":24,"disposition":"ticket","ref":"33"}
+{"ts":"2026-10-08T10:03:57.258Z","key":"GL-UI-004","from":5,"to":6,"disposition":"editorial","ref":"rev 6 adds virtualization-assessment-webservice to the non-suite-app list + title heading; no package code impact"}
