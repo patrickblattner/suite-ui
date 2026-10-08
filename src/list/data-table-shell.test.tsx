@@ -1,9 +1,13 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import * as React from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { TableCell, TableHead, TableRow } from "../ui/table.js";
-import { DataTableShell, SKELETON_ROW_COUNT } from "./data-table-shell.js";
+import {
+  DataTableShell,
+  type DataTableShellProps,
+  SKELETON_ROW_COUNT,
+} from "./data-table-shell.js";
 
 function renderShell(state: {
   isPending?: boolean;
@@ -13,6 +17,7 @@ function renderShell(state: {
   isError?: boolean;
   tabs?: React.ReactNode;
   toolbar?: React.ReactNode;
+  tableProps?: DataTableShellProps["tableProps"];
 }) {
   return render(
     <DataTableShell
@@ -39,6 +44,7 @@ function renderShell(state: {
       tabs={state.tabs}
       toolbar={state.toolbar}
       pagination={<div data-testid="pager" />}
+      {...(state.tableProps !== undefined && { tableProps: state.tableProps })}
     >
       <TableRow data-testid="row">
         <TableCell>a</TableCell>
@@ -154,5 +160,43 @@ describe("DataTableShell", () => {
     expect(after.innerHTML).toBe(before.innerHTML);
     const scroll = before.querySelector('[data-testid="data-table-scroll"]');
     expect(scroll?.getAttributeNames()).toEqual(["class", "data-testid"]);
+  });
+
+  it("forwards tableProps with ref to the inner table and switches it to a grid", () => {
+    const ref = React.createRef<HTMLTableElement>();
+    const onKeyDown = vi.fn();
+    renderShell({ tableProps: { role: "grid", ref, onKeyDown } });
+    const table = screen.getByRole("grid");
+    expect(ref.current).toBe(table);
+    expect(table.tagName).toBe("TABLE");
+    fireEvent.keyDown(screen.getByText("Ada"), { key: "ArrowDown" });
+    expect(onKeyDown).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("row")).toHaveAttribute("role", "row");
+    expect(screen.getByText("Ada")).toHaveAttribute("role", "gridcell");
+    expect(screen.getByText("Name")).toHaveAttribute("role", "columnheader");
+  });
+
+  it("keeps className and style out of tableProps, in the type and at runtime", () => {
+    // @ts-expect-error className is not part of tableProps
+    const withClass: DataTableShellProps["tableProps"] = { className: "bg-red-500" };
+    // @ts-expect-error style is not part of tableProps
+    const withStyle: DataTableShellProps["tableProps"] = { style: { color: "red" } };
+    const { container: plain } = renderShell({});
+    const plainTable = plain.querySelector("table");
+    const { container } = renderShell({
+      tableProps: { ...withClass, ...withStyle, "aria-label": "Rows" },
+    });
+    const table = container.querySelector("table");
+    expect(table).toHaveAttribute("aria-label", "Rows");
+    expect(table?.className).toBe(plainTable?.className);
+    expect(table).not.toHaveAttribute("style");
+  });
+
+  it("renders the table without tableProps exactly as before", () => {
+    const { container } = renderShell({});
+    const table = container.querySelector("table");
+    expect(table?.getAttributeNames().sort()).toEqual(["class", "data-slot"]);
+    expect(table).toHaveClass("w-full", "caption-bottom", "text-sm");
+    expect(screen.getByTestId("row")).not.toHaveAttribute("role");
   });
 });

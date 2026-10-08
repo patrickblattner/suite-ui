@@ -39,6 +39,9 @@ type DataTableShellProps = {
   toolbar?: React.ReactNode;
   // The pager under the table, usually a `TablePagination`.
   pagination?: React.ReactNode;
+  // Props for the inner `Table`, `ref` included, e.g. `role="grid"` with `onKeyDown` for a keyboard
+  // grid. Look and spacing stay with the package (`GL-UI-004`), so `className` and `style` are out.
+  tableProps?: Omit<React.ComponentProps<typeof Table>, "className" | "style">;
   // The data rows, rendered once the query finished with rows.
   children: React.ReactNode;
 };
@@ -66,8 +69,13 @@ function DataTableShell({
   tabs,
   toolbar,
   pagination,
+  tableProps,
   children,
 }: DataTableShellProps) {
+  // Stripped at runtime too: a caller bypassing the type must not restyle the table.
+  const forwardedTableProps: React.ComponentProps<typeof Table> = { ...tableProps };
+  delete forwardedTableProps.className;
+  delete forwardedTableProps.style;
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4" data-testid="data-table">
       {tabs}
@@ -77,7 +85,7 @@ function DataTableShell({
         data-testid={scrollTestId}
         ref={scrollRef}
       >
-        <Table>
+        <Table {...forwardedTableProps}>
           <TableHeader className={STICKY_HEADER_CLASS} data-testid={headerTestId}>
             <TableRow>{head}</TableRow>
           </TableHeader>
