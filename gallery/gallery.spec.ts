@@ -1015,6 +1015,45 @@ test("edit panel: busy locks the primary action and keeps the panel open", async
   await expect(panel).toBeHidden({ timeout: 5000 });
 });
 
+// SUI-FEATURE-035 AC1, AC2, AC4: invalid native values reach onSubmit without a browser bubble; Back
+// sits left, Cancel and the primary action right, in one row, tabbed Back → Cancel → primary.
+test("edit panel: noValidate submit and Back left in the footer", async ({ page }) => {
+  await page.goto("/?page=edit-panel");
+  await page.getByTestId("edit-panel-check-trigger").click();
+  const panel = page.getByTestId("check-panel");
+  await expect(panel).toBeVisible();
+  const counts = page.getByTestId("edit-panel-check-counts");
+  const submit = page.getByTestId("check-panel-submit");
+  await submit.click();
+  await expect(counts).toHaveText("submits 1 · backs 0");
+  expect(
+    await page.locator("#check-count").evaluate((el) => (el as HTMLInputElement).validity.valid),
+  ).toBe(false);
+  expect(
+    await page.locator("#check-mail").evaluate((el) => (el as HTMLInputElement).validity.valid),
+  ).toBe(false);
+
+  const footer = panel.locator("[data-slot=edit-panel-footer]");
+  const back = page.getByTestId("check-panel-back");
+  const cancel = page.getByTestId("check-panel-cancel");
+  const [f, b, c, s] = await Promise.all([box(footer), box(back), box(cancel), box(submit)]);
+  expect(Math.abs(b.x - (f.x + 24))).toBeLessThanOrEqual(1);
+  expect(Math.abs(s.x + s.width - (f.x + f.width - 24))).toBeLessThanOrEqual(1);
+  expect(Math.abs(c.x + c.width + 8 - s.x)).toBeLessThanOrEqual(1);
+  expect(Math.abs(b.y - c.y)).toBeLessThanOrEqual(1);
+  expect(Math.abs(c.y - s.y)).toBeLessThanOrEqual(1);
+
+  await back.focus();
+  await page.keyboard.press("Tab");
+  await expect(cancel).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(submit).toBeFocused();
+
+  await back.click();
+  await expect(counts).toHaveText("submits 1 · backs 1");
+  await expect(panel).toBeVisible();
+});
+
 test("edit panel: close returns the focus to the trigger, the list keeps its place", async ({
   page,
 }) => {

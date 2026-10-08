@@ -19,6 +19,9 @@ function Demo() {
   const [start] = useState(pathname);
   const [row, setRow] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [checkOpen, setCheckOpen] = useState(false);
+  const [submits, setSubmits] = useState(0);
+  const [backs, setBacks] = useState(0);
 
   if (pathname !== start) {
     return (
@@ -31,6 +34,19 @@ function Demo() {
   return (
     <PageScroll>
       <PageHeader title="Channels" subtitle="Every row opens the edit panel." />
+      <div className="mb-4 flex items-center gap-4">
+        <Button
+          variant="outline"
+          size="sm"
+          data-testid="edit-panel-check-trigger"
+          onClick={() => setCheckOpen(true)}
+        >
+          Open with invalid native values
+        </Button>
+        <span data-testid="edit-panel-check-counts">
+          submits {submits} · backs {backs}
+        </span>
+      </div>
       <ul className="flex flex-col gap-2" data-testid="edit-panel-list">
         {ROWS.map((name, index) => (
           <li key={name} className="flex items-center justify-between rounded-md border px-4 py-2">
@@ -69,6 +85,27 @@ function Demo() {
               <Input id={field} defaultValue={row ?? ""} />
             </div>
           ))}
+        </div>
+      </EditPanel>
+      {/* SUI-FEATURE-035: noValidate lets an invalid native value through to onSubmit; Back left. */}
+      <EditPanel
+        open={checkOpen}
+        onOpenChange={setCheckOpen}
+        title="Native constraints"
+        mode="edit"
+        testIdPrefix="check-panel"
+        onSubmit={() => setSubmits((n) => n + 1)}
+        onBack={() => setBacks((n) => n + 1)}
+      >
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="check-count">Count (min 1)</Label>
+            <Input id="check-count" type="number" min={1} defaultValue={0} />
+          </div>
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="check-mail">Email</Label>
+            <Input id="check-mail" type="email" defaultValue="not-an-email" />
+          </div>
         </div>
       </EditPanel>
     </PageScroll>

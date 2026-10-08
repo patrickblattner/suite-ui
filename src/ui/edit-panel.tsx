@@ -21,9 +21,12 @@ type EditPanelProps = {
   // Cancel locked with it, and the panel ignores every close request until the caller closes it.
   busy?: boolean;
   submitDisabled?: boolean;
+  // With `onBack` the footer carries Back left-aligned (`SUI-FEATURE-035`); it only calls `onBack`.
+  onBack?: () => void;
+  backDisabled?: boolean;
   // The opening focus as in `DialogContent`: only `add` focuses the first field.
   mode?: "add" | "edit";
-  // Replaces `edit-panel` in `edit-panel`, `-body`, `-cancel` and `-submit`.
+  // Replaces `edit-panel` in `edit-panel`, `-body`, `-back`, `-cancel` and `-submit`.
   testIdPrefix?: string;
   className?: string;
   style?: React.CSSProperties;
@@ -44,6 +47,8 @@ function EditPanel({
   onSubmit,
   busy = false,
   submitDisabled = false,
+  onBack,
+  backDisabled = false,
   mode,
   testIdPrefix = "edit-panel",
   className,
@@ -116,7 +121,9 @@ function EditPanel({
             <SheetTitle className="text-lg leading-none">{title}</SheetTitle>
             {description !== undefined && <SheetDescription>{description}</SheetDescription>}
           </div>
+          {/* Validation belongs to the call site (Zod, `GL-UI-027`): no browser bubble blocks submit. */}
           <form
+            noValidate
             className="flex min-h-0 flex-1 flex-col"
             onSubmit={(event) => {
               event.preventDefault();
@@ -134,6 +141,19 @@ function EditPanel({
               data-slot="edit-panel-footer"
               className="flex shrink-0 flex-row items-center justify-end gap-2 border-t px-6 py-4"
             >
+              {onBack !== undefined && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="default"
+                  className="mr-auto"
+                  disabled={busy || backDisabled}
+                  onClick={onBack}
+                  data-testid={`${testIdPrefix}-back`}
+                >
+                  {t("actions.back")}
+                </Button>
+              )}
               <Button
                 type="button"
                 variant="outline"

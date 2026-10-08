@@ -173,6 +173,78 @@ describe("EditPanel", () => {
     expect(screen.getByTestId("edit-panel")).toHaveFocus();
   });
 
+  // SUI-FEATURE-035 AC1: native constraints never block the submit.
+  it("the form is noValidate: an invalid number or email still calls onSubmit", () => {
+    const onSubmit = vi.fn();
+    render(
+      <EditPanel open onOpenChange={() => {}} title="Channel" onSubmit={onSubmit}>
+        <Input aria-label="Count" type="number" min={1} defaultValue={0} />
+        <Input aria-label="Mail" type="email" defaultValue="not-an-email" />
+      </EditPanel>,
+    );
+    expect(screen.getByLabelText("Count").closest("form")).toHaveAttribute("novalidate");
+    fireEvent.click(screen.getByTestId("edit-panel-submit"));
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+  });
+
+  // SUI-FEATURE-035 AC2, AC4
+  it("onBack: Back left-aligned before Cancel and the primary action, calls only onBack", () => {
+    const onBack = vi.fn();
+    const { onOpenChange, onSubmit } = renderPanel({ onBack });
+    const footer = screen.getByTestId("edit-panel").querySelector("[data-slot=edit-panel-footer]");
+    expect(footer).toHaveClass("flex-row", "justify-end");
+    const buttons = [...(footer?.querySelectorAll("button") ?? [])];
+    expect(buttons.map((b) => b.dataset.testid)).toEqual([
+      "edit-panel-back",
+      "edit-panel-cancel",
+      "edit-panel-submit",
+    ]);
+    const back = screen.getByTestId("edit-panel-back");
+    expect(back).toHaveAttribute("type", "button");
+    expect(back).toHaveClass("mr-auto");
+    expect(back.className.replace(" mr-auto", "")).toBe(
+      screen.getByTestId("edit-panel-cancel").className,
+    );
+    fireEvent.click(back);
+    expect(onBack).toHaveBeenCalledTimes(1);
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(onOpenChange).not.toHaveBeenCalled();
+    expect(screen.getByTestId("edit-panel")).toBeInTheDocument();
+  });
+
+  // SUI-FEATURE-035 AC3
+  it.each([[{ backDisabled: true }], [{ busy: true }]])("%o locks Back", (props) => {
+    renderPanel({ onBack: () => {}, ...props });
+    expect(screen.getByTestId("edit-panel-back")).toBeDisabled();
+  });
+
+  it("testIdPrefix applies to Back", () => {
+    renderPanel({ onBack: () => {}, testIdPrefix: "channel-panel" });
+    expect(screen.getByTestId("channel-panel-back")).toBeInTheDocument();
+  });
+
+  // SUI-FEATURE-035 AC5
+  it("without onBack the footer markup and classes are as before", () => {
+    renderPanel();
+    const footer = screen.getByTestId("edit-panel").querySelector("[data-slot=edit-panel-footer]");
+    expect(footer?.className).toBe(
+      "flex shrink-0 flex-row items-center justify-end gap-2 border-t px-6 py-4",
+    );
+    expect(footer?.children).toHaveLength(2);
+    expect(screen.queryByTestId("edit-panel-back")).toBeNull();
+  });
+
+  // SUI-FEATURE-035 AC6
+  it.each([
+    ["en", "Back"],
+    ["de", "Zurück"],
+    ["es", "Volver"],
+  ])("%s: Back comes from the suite namespace", async (lng, back) => {
+    await i18n.changeLanguage(lng);
+    renderPanel({ onBack: () => {} });
+    expect(screen.getByTestId("edit-panel-back")).toHaveTextContent(back);
+  });
+
   // AC5
   it("close returns the focus to the trigger", async () => {
     render(<WithTrigger />);
