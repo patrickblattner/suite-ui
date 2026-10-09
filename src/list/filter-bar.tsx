@@ -9,6 +9,7 @@ import { Hint } from "../ui/hint.js";
 import { Input } from "../ui/input.js";
 import { IconButtonTooltip } from "../ui/tooltip.js";
 import { SortSelect, type SortOption } from "./sort-select.js";
+import { ViewToggle, type ViewToggleProps } from "./view-toggle.js";
 
 // A filter control together with the origin of its value set; the origin decides where it sits, so no
 // page orders the row by hand. Build one with `staticFilter` or `dynamicFilter`.
@@ -46,6 +47,9 @@ type FilterBarProps = {
   // The page's sort, rendered as the `SortSelect` at the far right of the row; without it the row has
   // no sort.
   sort?: { value: string; onChange: (value: string) => void; options: SortOption[] };
+  // The table/tiles switch of a media list, the last element of the row; the choice is remembered
+  // under `storageKey`.
+  view?: ViewToggleProps;
   "data-testid"?: string;
 };
 
@@ -73,6 +77,7 @@ function FilterBar({
   helpText,
   filters = [],
   sort,
+  view,
   "data-testid": testId,
 }: FilterBarProps) {
   const { t } = useTranslation("suite");
@@ -123,6 +128,7 @@ function FilterBar({
     sort !== undefined ? (
       <SortSelect value={sort.value} onChange={sort.onChange} options={sort.options} />
     ) : null;
+  const viewToggle = view !== undefined ? <ViewToggle {...view} /> : null;
 
   if (block) {
     const blockFilters = list
@@ -143,6 +149,7 @@ function FilterBar({
           {search}
           {reset}
           {sortSelect}
+          {viewToggle}
         </div>
       </div>
     );
@@ -155,6 +162,7 @@ function FilterBar({
       {reset}
       {controls("dynamic")}
       {sortSelect}
+      {viewToggle}
     </div>
   );
 }

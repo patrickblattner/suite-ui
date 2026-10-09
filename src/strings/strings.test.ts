@@ -65,6 +65,39 @@ describe("suite action texts", () => {
   });
 });
 
+// SUI-FEATURE-046: the list-state and view-switch texts.
+describe("suite list-state texts", () => {
+  it.each([
+    [
+      "de",
+      "Noch keine Medien.",
+      "Keine Treffer für diesen Filter.",
+      "Erneut versuchen",
+      "Tabelle",
+      "Kacheln",
+    ],
+    ["en", "No media yet.", "No matches for this filter.", "Try again", "Table", "Tiles"],
+    [
+      "es",
+      "Todavía no hay medios.",
+      "Ningún resultado para este filtro.",
+      "Reintentar",
+      "Tabla",
+      "Mosaico",
+    ],
+  ] as const)(
+    "%s emptyOf, noMatches, retry and the two views",
+    (lng, emptyOf, noMatches, retry, table, tiles) => {
+      const strings = suiteStrings[lng];
+      const objects = { de: "Medien", en: "media", es: "medios" }[lng];
+      expect(strings.list.emptyOf.replace("{{objects}}", objects)).toBe(emptyOf);
+      expect(strings.list.noMatches).toBe(noMatches);
+      expect(strings.actions.retry).toBe(retry);
+      expect(strings.view).toEqual({ table, tiles });
+    },
+  );
+});
+
 // SUI-FEATURE-044: the 15 state texts in sentence case, in the order of the spec.
 describe("suite state texts", () => {
   const order = [

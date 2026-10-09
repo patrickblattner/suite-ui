@@ -22,6 +22,7 @@ import {
 } from "./OverlayPages.js";
 import { SettingsPage } from "./SettingsPage.js";
 import { registerShellLabels, ShellPage } from "./ShellPage.js";
+import { TilesPage } from "./TilesPage.js";
 import { TokensPage } from "./TokensPage.js";
 
 const LANGUAGES = Object.keys(suiteStrings) as SuiteLanguage[];
@@ -32,6 +33,7 @@ const PAGES = [
   "tokens",
   "components",
   "list",
+  "tiles",
   "settings",
   "shell",
   "dialog",
@@ -76,6 +78,7 @@ const PAGE_CONTENT: Record<Exclude<Page, "strings">, (theme: Theme) => ReactNode
   tokens: () => <TokensPage />,
   components: () => <ComponentsPage />,
   list: () => <ListPage />,
+  tiles: () => <TilesPage />,
   settings: () => <SettingsPage />,
   shell: () => <ShellPage />,
   dialog: () => <DialogPage />,

@@ -18,6 +18,7 @@ const THEMES = ["light", "dark"] as const;
 const PAGES: [name: string, ready: (page: Page) => Locator][] = [
   ["components", (page) => page.getByTestId("section-structure")],
   ["list", (page) => page.getByTestId("pagination")],
+  ["tiles", (page) => page.getByTestId("tiles-error-error-retry")],
   ["settings", (page) => page.getByTestId("settings-footer")],
   ["dialog", (page) => page.getByTestId("form-dialog")],
   ["confirm", (page) => page.getByTestId("confirm-dialog")],
@@ -278,6 +279,41 @@ test("filter bar order: static filter, search, reset, dynamic filter, sort", asy
     "filter-owner",
     "filter-sort",
   ]);
+});
+
+for (const filterBar of ["kind", "block"] as const) {
+  test(`filter bar ${filterBar}: the view switch is the last element, after the sort`, async ({
+    page,
+  }) => {
+    await page.goto(`/?page=tiles&filterBar=${filterBar}`);
+    const bar = page.getByTestId("filterbar");
+    const order = await bar.evaluate((el) =>
+      [...el.querySelectorAll("[data-testid]")].map((node) => node.getAttribute("data-testid")),
+    );
+    expect(order.slice(-4)).toEqual(["filter-sort", "view-toggle", "view-table", "view-tiles"]);
+    const [barBox, toggleBox, sortBox] = await Promise.all([
+      box(bar),
+      box(page.getByTestId("view-toggle")),
+      box(page.getByTestId("filter-sort")),
+    ]);
+    expect(toggleBox.x).toBeGreaterThan(sortBox.x + sortBox.width);
+    expect(Math.abs(barBox.x + barBox.width - (toggleBox.x + toggleBox.width))).toBeLessThanOrEqual(
+      1,
+    );
+  });
+}
+
+test("view switch: tiles survives a reload, the arrow keys move the choice", async ({ page }) => {
+  await page.goto("/?page=tiles");
+  await expect(page.getByTestId("media-row").first()).toBeVisible();
+  await page.getByTestId("view-tiles").click();
+  await expect(page.getByTestId("tiles-media").getByTestId("tile-grid")).toBeVisible();
+  await page.reload();
+  await expect(page.getByTestId("view-tiles")).toHaveAttribute("aria-checked", "true");
+  await expect(page.getByTestId("tiles-media").getByTestId("tile-grid")).toBeVisible();
+  await page.getByTestId("view-tiles").press("ArrowRight");
+  await expect(page.getByTestId("view-table")).toBeFocused();
+  await expect(page.getByTestId("media-row").first()).toBeVisible();
 });
 
 for (const [lng, label] of [

@@ -2,6 +2,7 @@ import type * as React from "react";
 
 import { Skeleton } from "../ui/skeleton.js";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "../ui/table.js";
+import { listState, ListStateContent, type ListStateProps } from "./list-state.js";
 
 const SKELETON_ROW_COUNT = 5;
 
@@ -14,24 +15,12 @@ type DataTableShellProps = {
   head: React.ReactNode;
   // Number of rendered columns: drives the skeleton cells and the empty cell's `colSpan`.
   columnCount: number;
-  // The list query is still in flight: skeleton rows instead of rows or the empty state.
-  isPending: boolean;
-  // The query finished and returned nothing.
-  isEmpty: boolean;
-  // Empty-state text, already translated.
-  empty: React.ReactNode;
   loadingRowTestId: string;
-  emptyTestId: string;
   headerTestId?: string;
   // The scroller's `data-testid`; without it `data-table-scroll`.
   scrollTestId?: string;
   // Ref object or callback on the scroller, so the app can restore the scroll position on return.
   scrollRef?: React.Ref<HTMLDivElement>;
-  // The list query failed: one error row instead of rows or the empty state; loading still wins.
-  isError?: boolean;
-  // Error-row content, already translated.
-  error?: React.ReactNode;
-  errorTestId?: string;
   // The view switch above the table, a `TabsList`; the page wraps the frame in `Tabs` and picks the
   // data by the active value.
   tabs?: React.ReactNode;
@@ -44,7 +33,7 @@ type DataTableShellProps = {
   tableProps?: Omit<React.ComponentProps<typeof Table>, "className" | "style">;
   // The data rows, rendered once the query finished with rows.
   children: React.ReactNode;
-};
+} & ListStateProps;
 
 // The frame of a list table (`GL-UI-025`), seeded from the cockpit: the bold header stays at the top
 // with its rule, only the data rows scroll, and the pager sits below, right-aligned and always in
@@ -57,21 +46,19 @@ function DataTableShell({
   columnCount,
   isPending,
   isEmpty,
-  empty,
   loadingRowTestId,
-  emptyTestId,
   headerTestId,
   scrollTestId = "data-table-scroll",
   scrollRef,
-  isError = false,
-  error,
-  errorTestId,
+  isError,
   tabs,
   toolbar,
   pagination,
   tableProps,
   children,
+  ...stateProps
 }: DataTableShellProps) {
+  const state = listState({ isPending, isError, isEmpty });
   // Stripped at runtime too: a caller bypassing the type must not restyle the table.
   const forwardedTableProps: React.ComponentProps<typeof Table> = { ...tableProps };
   delete forwardedTableProps.className;
@@ -90,7 +77,7 @@ function DataTableShell({
             <TableRow>{head}</TableRow>
           </TableHeader>
           <TableBody>
-            {isPending ? (
+            {state === "pending" ? (
               Array.from({ length: SKELETON_ROW_COUNT }, (_, index) => (
                 <TableRow key={`skeleton-${index}`} data-testid={loadingRowTestId}>
                   {Array.from({ length: columnCount }, (_, cell) => (
@@ -100,28 +87,22 @@ function DataTableShell({
                   ))}
                 </TableRow>
               ))
-            ) : isError ? (
-              <TableRow>
-                <TableCell
-                  colSpan={columnCount}
-                  className="text-center text-destructive-text"
-                  data-testid={errorTestId}
-                >
-                  {error}
-                </TableCell>
-              </TableRow>
-            ) : isEmpty ? (
-              <TableRow>
-                <TableCell
-                  colSpan={columnCount}
-                  className="text-center text-muted-foreground"
-                  data-testid={emptyTestId}
-                >
-                  {empty}
-                </TableCell>
-              </TableRow>
-            ) : (
+            ) : state === "items" ? (
               children
+            ) : (
+              <TableRow>
+                <TableCell
+                  colSpan={columnCount}
+                  className={
+                    state === "error"
+                      ? "text-center text-destructive-text"
+                      : "text-center text-muted-foreground"
+                  }
+                  data-testid={state === "error" ? stateProps.errorTestId : stateProps.emptyTestId}
+                >
+                  <ListStateContent state={state} {...stateProps} />
+                </TableCell>
+              </TableRow>
             )}
           </TableBody>
         </Table>

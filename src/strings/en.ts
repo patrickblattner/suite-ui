@@ -13,6 +13,7 @@ export const en = {
     replace: "Replace",
     remove: "Remove",
     testConnection: "Test connection",
+    retry: "Try again",
   },
   status: {
     success: "Success",
@@ -71,7 +72,12 @@ export const en = {
   },
   list: {
     empty: "No entries yet.",
-    noMatches: "No entries found.",
+    noMatches: "No matches for this filter.",
+    emptyOf: "No {{objects}} yet.",
+  },
+  view: {
+    table: "Table",
+    tiles: "Tiles",
   },
   nav: {
     label: "Primary navigation",

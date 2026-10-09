@@ -13,6 +13,7 @@ export const es: SuiteStrings = {
     replace: "Reemplazar",
     remove: "Quitar",
     testConnection: "Probar conexión",
+    retry: "Reintentar",
   },
   status: {
     success: "Éxito",
@@ -69,7 +70,12 @@ export const es: SuiteStrings = {
   },
   list: {
     empty: "Aún no hay entradas.",
-    noMatches: "No se encontraron entradas.",
+    noMatches: "Ningún resultado para este filtro.",
+    emptyOf: "Todavía no hay {{objects}}.",
+  },
+  view: {
+    table: "Tabla",
+    tiles: "Mosaico",
   },
   nav: {
     label: "Navegación principal",
