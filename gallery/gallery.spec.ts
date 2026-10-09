@@ -1179,6 +1179,41 @@ test("settings tabs: an invalid change locks Save, Reset stays usable", async ({
   await expect(save).toBeEnabled();
 });
 
+// SUI-FEATURE-041 AC1/AC2: the single settings column spans the inner width of the scroller, and a Card
+// in it spans the column — at 1280 and 1920 px, with no `max-w-*` on column or scroller.
+for (const width of [1280, 1920]) {
+  test(`settings column: full inner width of the scroller at ${width} px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 1080 });
+    await page.goto("/?page=settings&layout=body");
+    const column = page.getByTestId("settings-column");
+    const scroller = page.getByTestId("settings-body");
+    const inner = await scroller.evaluate((el) => el.clientWidth);
+    const columnWidth = (await box(column)).width;
+    expect(Math.abs(columnWidth - inner)).toBeLessThanOrEqual(1);
+    expect(
+      Math.abs((await box(page.getByTestId("settings-card"))).width - columnWidth),
+    ).toBeLessThanOrEqual(1);
+    for (const el of [column, scroller]) {
+      expect(await el.getAttribute("class")).not.toMatch(/max-w-/);
+    }
+  });
+}
+
+// SUI-FEATURE-041 AC5: loading and error replace the body; title, subtitle and footer stay, Save locked.
+for (const [state, testId] of [
+  ["loading", "settings-loading"],
+  ["error", "settings-error"],
+] as const) {
+  test(`settings column: the ${state} state keeps the header and locks Save`, async ({ page }) => {
+    await page.goto(`/?page=settings&layout=body&state=${state}`);
+    await expect(page.getByTestId(testId)).toBeVisible();
+    await expect(page.getByTestId("settings-column")).toHaveCount(0);
+    await expect(page.getByTestId("page-title")).toBeVisible();
+    await expect(page.getByTestId("page-subtitle")).toBeVisible();
+    await expect(page.getByTestId("settings-general-save")).toBeDisabled();
+  });
+}
+
 // SUI-FEATURE-031 AC4/AC5: pickers that always hold a value — a FilterSelect without `allValue` and a
 // LabeledSelect, the latter one width for every value under `measured`.
 for (const [lng, date, view, values] of [

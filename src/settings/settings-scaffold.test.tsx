@@ -315,3 +315,80 @@ describe("SettingsFooter icons (SUI-FEATURE-037)", () => {
     );
   });
 });
+
+describe("SettingsScaffold single column and states (SUI-FEATURE-041)", () => {
+  const form = { dirty: true, onSave: () => {}, onReset: () => {} };
+
+  it("AC1: body is one column in the scroller, without a width limit", () => {
+    render(
+      <SettingsScaffold
+        pageKey="general"
+        title="General"
+        subtitle="The name of this instance."
+        body={<p>Name</p>}
+        form={form}
+      />,
+    );
+    const column = screen.getByTestId("settings-column");
+    const scroller = screen.getByTestId("settings-body");
+    expect(column.parentElement).toBe(scroller);
+    expect(column).toHaveClass("flex", "flex-col", "gap-6");
+    expect(column).toHaveTextContent("Name");
+    for (const el of [column, scroller]) expect(el.className).not.toMatch(/max-w-/);
+    expect(screen.queryByTestId("settings-grid")).toBeNull();
+  });
+
+  it("AC4: body together with left or tabs does not type-check", () => {
+    const tabs = { list: null, panels: null };
+    // @ts-expect-error body and left exclude each other
+    void (<SettingsScaffold pageKey="g" title="G" subtitle="S" body={null} left={null} />);
+    // @ts-expect-error body and tabs exclude each other
+    void (<SettingsScaffold pageKey="g" title="G" subtitle="S" body={null} tabs={tabs} />);
+  });
+
+  it.each([
+    ["loading", { loading: true }],
+    ["loading over error", { loading: true, error: "Settings could not be loaded." }],
+  ])("AC5: %s shows the loading row instead of the content", (_, state) => {
+    render(
+      <SettingsScaffold
+        pageKey="general"
+        title="General"
+        subtitle="The name of this instance."
+        body={<p data-testid="content">Name</p>}
+        form={form}
+        {...state}
+      />,
+    );
+    expect(screen.getByTestId("settings-loading")).toHaveAttribute("data-slot", "skeleton");
+    expect(screen.queryByTestId("settings-error")).toBeNull();
+    expect(screen.queryByTestId("content")).toBeNull();
+    expect(screen.getByTestId("page-title")).toHaveTextContent("General");
+    expect(screen.getByTestId("page-subtitle")).toHaveTextContent("The name of this instance.");
+    expect(screen.getByTestId("settings-general-save")).toBeDisabled();
+  });
+
+  it("AC5: error shows the text in text-destructive, header stays, Save is locked", () => {
+    const save = vi.fn();
+    render(
+      <SettingsScaffold
+        pageKey="general"
+        title="General"
+        subtitle="The name of this instance."
+        tabs={{ list: <p data-testid="tab-row">Tabs</p>, panels: null }}
+        form={{ ...form, onSave: save }}
+        error="Settings could not be loaded."
+      />,
+    );
+    const error = screen.getByTestId("settings-error");
+    expect(error).toHaveTextContent("Settings could not be loaded.");
+    expect(error).toHaveClass("text-destructive");
+    expect(screen.queryByTestId("tab-row")).toBeNull();
+    expect(screen.getByTestId("page-title")).toHaveTextContent("General");
+    expect(screen.getByTestId("page-subtitle")).toBeInTheDocument();
+    expect(screen.getByTestId("settings-footer")).toBeInTheDocument();
+    expect(screen.getByTestId("settings-general-save")).toBeDisabled();
+    fireEvent.submit(screen.getByTestId("settings-general-form"));
+    expect(save).not.toHaveBeenCalled();
+  });
+});
