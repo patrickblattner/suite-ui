@@ -2,7 +2,7 @@ import { copyFile } from "node:fs/promises";
 import { defineConfig } from "tsup";
 
 // Transpile file by file (no bundling): every source module becomes its own file in `dist/`, so
-// each `exports` subpath (including the `ui/*`, `list/*`, `settings/*` and `shell/*` wildcards)
+// each `exports` subpath (including the `ui/*`, `list/*`, `settings/*`, `shell/*` and `help/*` wildcards)
 // maps to one file, shared modules exist once, and peer dependencies are never bundled.
 export default defineConfig({
   entry: [

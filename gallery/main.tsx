@@ -10,6 +10,7 @@ import { configureSuiteUi } from "../src/config/index.js";
 import { registerSuiteStrings, suiteStrings, type SuiteLanguage } from "../src/strings/index.js";
 import { ComponentsPage } from "./ComponentsPage.js";
 import { EditPanelPage } from "./EditPanelPage.js";
+import { HelpPage } from "./HelpPage.js";
 import { ListPage } from "./ListPage.js";
 import {
   ConfirmPage,
@@ -39,6 +40,7 @@ const PAGES = [
   "select",
   "sheet",
   "edit-panel",
+  "help",
   "toast",
 ] as const;
 type Page = (typeof PAGES)[number];
@@ -82,6 +84,7 @@ const PAGE_CONTENT: Record<Exclude<Page, "strings">, (theme: Theme) => ReactNode
   select: () => <SelectPage />,
   sheet: () => <SheetPage />,
   "edit-panel": () => <EditPanelPage />,
+  help: () => <HelpPage />,
   toast: (theme) => <ToastPage theme={theme} />,
 };
 

@@ -537,6 +537,48 @@
       "suite": "actions.close",
       "status": "pending",
       "cockpit": "common.close"
+    },
+    {
+      "element": "HelpDrawer",
+      "suite": "help.title",
+      "status": "pending",
+      "cockpit": "help.title"
+    },
+    {
+      "element": "HelpDrawer",
+      "suite": "help.searchPlaceholder",
+      "status": "pending",
+      "cockpit": "help.searchPlaceholder"
+    },
+    {
+      "element": "HelpDrawer",
+      "suite": "help.searchHint",
+      "status": "pending",
+      "cockpit": "hints.help.search"
+    },
+    {
+      "element": "HelpDrawer",
+      "suite": "help.pageHint",
+      "status": "pending",
+      "cockpit": "hints.help.page"
+    },
+    {
+      "element": "HelpDrawer",
+      "suite": "help.noResults",
+      "status": "pending",
+      "cockpit": "help.noResults"
+    },
+    {
+      "element": "HelpDrawer",
+      "suite": "help.empty",
+      "status": "pending",
+      "cockpit": "help.empty"
+    },
+    {
+      "element": "HelpMarkdown",
+      "suite": "help.screenshotPending",
+      "status": "pending",
+      "cockpit": "help.screenshotPending"
     }
   ]
 }

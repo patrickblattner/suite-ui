@@ -24,6 +24,7 @@ const PAGES: [name: string, ready: (page: Page) => Locator][] = [
   ["overlays", (page) => page.getByRole("menu")],
   ["select", (page) => page.getByRole("listbox")],
   ["sheet", (page) => page.getByTestId("sheet")],
+  ["help", (page) => page.getByTestId("help-version")],
   ["toast", (page) => page.getByText("Success")],
 ];
 
@@ -101,6 +102,20 @@ async function expectActionRow(dialog: Locator, cancel: Locator, primary: Locato
   expect(Math.abs(c.x + c.width + 8 - p.x)).toBeLessThanOrEqual(1);
   expect(Math.abs(c.y - p.y)).toBeLessThanOrEqual(1);
 }
+
+test("the help drawer spans at least 90 % of the content width", async ({ page }) => {
+  await page.goto("/?page=help");
+  const drawer = page.getByTestId("help-drawer");
+  await expect(drawer).toBeVisible();
+  const box = await drawer.boundingBox();
+  const width = page.viewportSize()?.width ?? 0;
+  expect(box?.width ?? 0).toBeGreaterThanOrEqual(width * 0.9);
+  await page.getByTestId("help-search").fill("platforms");
+  await expect(page.getByTestId("help-link-platforms")).toBeVisible();
+  await expect(page.getByTestId("help-link-dashboard")).toBeHidden();
+  await page.keyboard.press("Escape");
+  await expect(drawer).toBeHidden();
+});
 
 test("form dialog footer geometry", async ({ page }) => {
   await page.goto("/?page=dialog");

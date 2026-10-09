@@ -115,6 +115,15 @@ export const es: SuiteStrings = {
     inputHint: "Encuentra entradas de todas las áreas por título o contenido.",
     hitHint: "Abre este resultado.",
   },
+  help: {
+    title: "Ayuda",
+    searchPlaceholder: "Buscar en la ayuda…",
+    searchHint: "Busca el término introducido en todas las páginas de ayuda.",
+    pageHint: "Abre esta página de ayuda.",
+    noResults: "No hay páginas coincidentes.",
+    empty: "Elige una página a la izquierda.",
+    screenshotPending: "Captura pendiente",
+  },
   version: {
     label: "Información de versión",
     hint: "Muestra la versión, el commit y la compilación de esta instancia.",

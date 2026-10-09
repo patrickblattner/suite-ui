@@ -95,13 +95,15 @@ describe("parity map", () => {
     expect(broken).toEqual([]);
   });
 
-  it("maps the list frame, the settings footer, the shell and the dialog footer, pending until the apps have switched", () => {
+  it("maps the list frame, the settings footer, the shell, the dialog footer and the help drawer, pending until the apps have switched", () => {
     const elements = new Set(parityMap.elements.map((e) => e.element));
     expect([...elements].sort()).toEqual([
       "AppSidebar",
       "DialogFooter",
       "FilterBar",
       "GlobalSearch",
+      "HelpDrawer",
+      "HelpMarkdown",
       "SettingsFooter",
       "SortSelect",
       "TablePagination",

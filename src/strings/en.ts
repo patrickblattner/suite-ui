@@ -118,6 +118,15 @@ export const en = {
     inputHint: "Finds entries of every area by title or content.",
     hitHint: "Opens this result.",
   },
+  help: {
+    title: "Help",
+    searchPlaceholder: "Search help…",
+    searchHint: "Searches every help page for the term you enter.",
+    pageHint: "Opens this help page.",
+    noResults: "No matching pages.",
+    empty: "Pick a page on the left.",
+    screenshotPending: "Screenshot pending",
+  },
   version: {
     label: "Version info",
     hint: "Shows the version, commit and build of this instance.",

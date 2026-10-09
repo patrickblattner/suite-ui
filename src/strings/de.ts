@@ -116,6 +116,15 @@ export const de: SuiteStrings = {
     inputHint: "Findet Einträge aller Bereiche nach Titel oder Inhalt.",
     hitHint: "Öffnet diesen Treffer.",
   },
+  help: {
+    title: "Hilfe",
+    searchPlaceholder: "Hilfe durchsuchen…",
+    searchHint: "Durchsucht alle Hilfeseiten nach dem eingegebenen Begriff.",
+    pageHint: "Öffnet diese Hilfeseite.",
+    noResults: "Keine passenden Seiten.",
+    empty: "Wähle links eine Seite.",
+    screenshotPending: "Screenshot folgt",
+  },
   version: {
     label: "Versionsinfo",
     hint: "Zeigt Version, Commit und Build dieser Instanz.",
