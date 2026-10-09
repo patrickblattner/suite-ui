@@ -2,22 +2,41 @@ import { PlusIcon } from "lucide-react";
 import type * as React from "react";
 
 import { Button } from "../ui/button.js";
+import { Hint } from "../ui/hint.js";
 
 type PageHeaderProps = {
   // A text, or a node the page builds itself (an inline-editable title field).
   title: React.ReactNode;
   // One line on what the page is for; it sits in a `<p>`, so phrasing content only (a row of features).
   subtitle: React.ReactNode;
-  // List pages: the green `+ Add` that creates an object.
-  add?: { label: string; onClick: () => void; disabled?: boolean };
-  // An action the app builds itself (its own `+ Add` with its own testid, several buttons, an action
-  // with a loading state); it replaces `add`.
+  // List pages: the green `+ Add` that creates an object. `hint` says what a press does next
+  // (`GL-UI-017`); `busy` is the Button's working state (`GL-UI-027`).
+  add?: { label: string; onClick: () => void; disabled?: boolean; hint?: string; busy?: boolean };
+  // An action the app builds itself (an add outside the title row with its own testid, several
+  // buttons, an action that is no add); it replaces `add`.
   action?: React.ReactNode;
   // Detail and editor pages: the next lifecycle step, a `success` button naming the step.
   primaryAction?: React.ReactNode;
   // Secondary or backward actions as `outline`, left of the primary action.
   secondaryAction?: React.ReactNode;
 };
+
+function addButton(add: NonNullable<PageHeaderProps["add"]>) {
+  return (
+    <Button
+      variant="success"
+      size="default"
+      onClick={add.onClick}
+      disabled={add.disabled}
+      // Only when given: declaring `busy` also turns on the Button's repeat-click guard.
+      {...(add.busy !== undefined ? { busy: add.busy } : {})}
+      data-testid="page-add"
+    >
+      <PlusIcon aria-hidden="true" />
+      {add.label}
+    </Button>
+  );
+}
 
 // The title row of every page (`GL-UI-026`): an `h1` and a one-line subtitle on the left, the page's
 // action on the right of the same row — the `+ Add` on a list page, the lifecycle next step on a
@@ -44,16 +63,11 @@ function PageHeader({
         {action}
       </div>
     ) : add !== undefined ? (
-      <Button
-        variant="success"
-        size="default"
-        onClick={add.onClick}
-        disabled={add.disabled}
-        data-testid="page-add"
-      >
-        <PlusIcon />
-        {add.label}
-      </Button>
+      add.hint === undefined ? (
+        addButton(add)
+      ) : (
+        <Hint text={add.hint}>{addButton(add)}</Hint>
+      )
     ) : null;
 
   return (

@@ -20,6 +20,64 @@ describe("PageHeader", () => {
     expect(onClick).toHaveBeenCalledTimes(1);
   });
 
+  it("wraps the add in the hint only when the add carries one", () => {
+    const { unmount } = render(
+      <PageHeader
+        title="Events"
+        subtitle="Every event."
+        add={{ label: "Add event", onClick: () => {}, hint: "Opens the form for a new event." }}
+      />,
+    );
+    expect(screen.getByTestId("page-add")).toHaveAccessibleDescription(
+      "Opens the form for a new event.",
+    );
+    unmount();
+    render(
+      <PageHeader
+        title="Events"
+        subtitle="Every event."
+        add={{ label: "Add", onClick: () => {} }}
+      />,
+    );
+    expect(screen.getByTestId("page-add")).not.toHaveAttribute("aria-describedby");
+    expect(screen.queryByText("Opens the form for a new event.")).toBeNull();
+  });
+
+  it("shows only the working sign while busy and blocks a second click", () => {
+    const onClick = vi.fn();
+    render(
+      <PageHeader
+        title="Backups"
+        subtitle="Every backup."
+        add={{ label: "Back up now", onClick, busy: true }}
+      />,
+    );
+    const add = screen.getByTestId("page-add");
+    expect(add).toHaveAttribute("aria-busy", "true");
+    expect(add).toBeDisabled();
+    expect(screen.getByTestId("button-loading")).toBeInTheDocument();
+    expect(add.querySelector("svg:not([data-slot=busy])")).toHaveAttribute("aria-hidden", "true");
+    expect(add).toHaveClass("[&_svg:not([data-slot=busy])]:hidden");
+    fireEvent.click(add);
+    fireEvent.click(add, { detail: 2 });
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it("keeps role, name, variant, size and testid of v0.29.0 with hint and busy", () => {
+    render(
+      <PageHeader
+        title="Events"
+        subtitle="Every event."
+        add={{ label: "Add event", onClick: () => {}, hint: "Opens the form.", busy: false }}
+      />,
+    );
+    const add = screen.getByRole("button", { name: "Add event" });
+    expect(add).toHaveAttribute("data-testid", "page-add");
+    expect(add).toHaveAttribute("data-variant", "success");
+    expect(add).toHaveAttribute("data-size", "default");
+    expect(add.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+  });
+
   it("puts the lifecycle next step top right instead of an add, with secondary actions left of it", () => {
     render(
       <PageHeader
