@@ -364,6 +364,57 @@ test("settings: a hidden native checkbox at the end of the form lengthens nothin
   ).toBe(true);
 });
 
+// Step 30 (`GL-UI-018` rev 8): every package scroller is a positioning anchor. An absolutely
+// positioned helper inside it stays in its scroll area; the document does not grow.
+const ANCHOR_SCROLLERS: { name: string; open: (page: Page) => Promise<Locator> }[] = [
+  {
+    name: "DataTableShell",
+    open: async (page) => {
+      await page.goto("/?page=list");
+      return page.getByTestId("data-table-scroll");
+    },
+  },
+  {
+    name: "EditPanel",
+    open: async (page) => {
+      await openEditPanel(page);
+      return page.getByTestId("edit-panel-body");
+    },
+  },
+  {
+    name: "DialogBody",
+    open: async (page) => {
+      await page.goto("/?page=dialog");
+      return page.getByTestId("form-dialog").locator("[data-slot=dialog-body]");
+    },
+  },
+];
+
+for (const { name, open } of ANCHOR_SCROLLERS) {
+  test(`${name}: the scroller is a positioning anchor`, async ({ page }) => {
+    const scroller = await open(page);
+    await expect(scroller).toHaveCSS("position", "relative");
+  });
+
+  test(`${name}: an absolute helper in the scroller lengthens nothing`, async ({ page }) => {
+    const scroller = await open(page);
+    await scroller.evaluate((el) => {
+      const helper = document.createElement("div");
+      helper.setAttribute("aria-hidden", "true");
+      helper.style.cssText = "position:absolute;width:1px;height:4000px;pointer-events:none";
+      el.append(helper);
+      el.scrollTo(0, el.scrollHeight);
+    });
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    const doc = await page.evaluate(() => ({
+      scrollHeight: document.documentElement.scrollHeight,
+      clientHeight: document.documentElement.clientHeight,
+    }));
+    expect(doc.scrollHeight).toBe(doc.clientHeight);
+    expect(await scroller.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+  });
+}
+
 // AC 2 of step 9: a horizontal scroller inside PageScroll carries `data-overflow-x` exactly while it
 // overflows, and then the page gutter between its content and its bar.
 test("list frame: a horizontal scroller is marked while it overflows", async ({ page }) => {

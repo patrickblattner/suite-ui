@@ -120,7 +120,7 @@ describe("DataTableShell", () => {
       "pager",
     ]);
     expect(screen.getByTestId("data-table-scroll").className).toBe(
-      "min-h-6 flex-1 overflow-auto [&_[data-slot=table-container]]:overflow-visible",
+      "relative min-h-6 flex-1 overflow-auto [&_[data-slot=table-container]]:overflow-visible",
     );
   });
 

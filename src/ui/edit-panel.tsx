@@ -133,7 +133,7 @@ function EditPanel({
           >
             <div
               data-testid={`${testIdPrefix}-body`}
-              className="min-h-0 flex-1 overflow-y-auto p-6 [scrollbar-gutter:stable]"
+              className="relative min-h-0 flex-1 overflow-y-auto p-6 [scrollbar-gutter:stable]"
             >
               {children}
             </div>
