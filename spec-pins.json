@@ -221,7 +221,7 @@
   "GL-UI-015": 2,
   "GL-UI-016": 3,
   "GL-UI-017": 6,
-  "GL-UI-018": 7,
+  "GL-UI-018": 8,
   "GL-UI-019": 6,
   "GL-UI-020": 6,
   "GL-UI-021": 3,
@@ -319,7 +319,7 @@
   "SUI-ADR-001": 2,
   "SUI-DESIGN-010": 4,
   "SUI-DESIGN-011": 3,
-  "SUI-DESIGN-012": 29,
+  "SUI-DESIGN-012": 30,
   "SUI-FEATURE-010": 4,
   "SUI-FEATURE-011": 4,
   "SUI-FEATURE-012": 4,
@@ -350,6 +350,7 @@
   "SUI-FEATURE-037": 2,
   "SUI-FEATURE-038": 3,
   "SUI-FEATURE-039": 2,
+  "SUI-FEATURE-040": 2,
   "SUI-VISION-001": 3,
   "VISION-001": 2
 }
