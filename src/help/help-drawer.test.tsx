@@ -120,6 +120,14 @@ describe("HelpDrawer", () => {
     expect(screen.queryByTestId("help-link-platforms")).not.toBeInTheDocument();
   });
 
+  it("finds pages by their category label", async () => {
+    await openDrawer();
+    fireEvent.change(screen.getByTestId("help-search"), { target: { value: "overview" } });
+    expect(screen.getByTestId("help-link-dashboard")).toBeInTheDocument();
+    expect(screen.getByTestId("help-link-ideas")).toBeInTheDocument();
+    expect(screen.queryByTestId("help-link-platforms")).not.toBeInTheDocument();
+  });
+
   it("shows a no-results state when the search matches nothing", async () => {
     await openDrawer();
     fireEvent.change(screen.getByTestId("help-search"), { target: { value: "zzzznomatch" } });
