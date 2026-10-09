@@ -95,3 +95,8 @@
 {"ts":"2026-10-09T12:00:49.107Z","key":"SUI-DESIGN-012","from":29,"to":30,"disposition":"ticket","ref":"42"}
 {"ts":"2026-10-09T12:00:49.107Z","key":"SUI-FEATURE-040","from":null,"to":2,"disposition":"ticket","ref":"42"}
 {"ts":"2026-10-09T12:07:20.343Z","key":"SUI-FEATURE-040","from":2,"to":3,"disposition":"editorial","ref":"AC3 wording aligned to the #42 build (test class string gained only 'relative'); implementation already conforms, no code impact"}
+{"ts":"2026-10-09T12:47:50.228Z","key":"GL-UI-010","from":4,"to":5,"disposition":"ticket","ref":"43"}
+{"ts":"2026-10-09T12:48:08.794Z","key":"GL-UI-011","from":4,"to":5,"disposition":"ticket","ref":"44"}
+{"ts":"2026-10-09T12:48:25.056Z","key":"GL-UI-023","from":3,"to":5,"disposition":"ticket","ref":"45"}
+{"ts":"2026-10-09T12:49:06.398Z","key":"GL-UI-024","from":11,"to":12,"disposition":"ticket","ref":"46"}
+{"ts":"2026-10-09T12:49:24.952Z","key":"GL-UI-026","from":8,"to":9,"disposition":"ticket","ref":"47"}
