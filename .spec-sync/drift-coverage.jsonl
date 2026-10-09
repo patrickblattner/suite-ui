@@ -90,3 +90,4 @@
 {"ts":"2026-10-09T07:10:13.768Z","key":"SUI-FEATURE-038","from":2,"to":3,"disposition":"ticket","ref":"40"}
 {"ts":"2026-10-09T11:22:05.541Z","key":"SUI-DESIGN-012","from":28,"to":29,"disposition":"ticket","ref":"41"}
 {"ts":"2026-10-09T11:22:05.541Z","key":"SUI-FEATURE-039","from":null,"to":2,"disposition":"ticket","ref":"41"}
+{"ts":"2026-10-09T11:25:38.052Z","key":"GL-UI-026","from":7,"to":8,"disposition":"editorial","ref":"Settings page width rule targets app pages; package SettingsScaffold grid already full content width without max-w — no code impact in suite-ui"}
