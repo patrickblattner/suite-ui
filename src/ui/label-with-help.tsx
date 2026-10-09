@@ -20,11 +20,14 @@ function keepClosedOnFocus(event: React.FocusEvent): void {
 // same text is a hidden description under the id `${htmlFor}-help`, outside the label so it never
 // becomes part of the field's name; the field may reference it through `aria-describedby`.
 function LabelWithHelp({
+  id,
   htmlFor,
   help,
   className,
   children,
 }: {
+  // The label's own id, for a group that takes it as its name through `aria-labelledby`.
+  id?: string;
   htmlFor: string;
   help: string;
   className?: string;
@@ -33,6 +36,7 @@ function LabelWithHelp({
   return (
     <>
       <label
+        id={id}
         data-slot="label"
         htmlFor={htmlFor}
         className={cn("mb-1 block text-sm text-foreground", className)}

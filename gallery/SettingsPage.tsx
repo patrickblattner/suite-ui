@@ -2,10 +2,15 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { PageScroll } from "../src/list/page-scroll.js";
+import { SettingsField } from "../src/settings/settings-field.js";
 import { SettingsScaffold } from "../src/settings/settings-scaffold.js";
+import { SettingsSection } from "../src/settings/settings-section.js";
+import { Button } from "../src/ui/button.js";
 import { Card, CardContent, CardHeader, CardTitle } from "../src/ui/card.js";
+import { Checkbox } from "../src/ui/checkbox.js";
 import { Input } from "../src/ui/input.js";
 import { Label } from "../src/ui/label.js";
+import { RadioGroup, RadioGroupItem } from "../src/ui/radio-group.js";
 import { TabsContent, TabsList, TabsTrigger } from "../src/ui/tabs.js";
 
 // App-side labels: page title, subtitle and field names come from the app, not from `suite`.
@@ -48,6 +53,11 @@ const TABBED = PARAMS.get("layout") === "tabs";
 // status in a second one after it. `&state=loading|error` shows the body's loading or error state.
 const COLUMN = PARAMS.get("layout") === "body";
 const STATE = PARAMS.get("state");
+// `?layout=fields` shows SettingsSection and SettingsField in the column (`SUI-FEATURE-042`): a section
+// with an action, a text field with hint and help, a short field, a RadioGroup and a checkbox group,
+// and a RadioGroup outside any field after the section.
+const FIELD_LAYOUT = PARAMS.get("layout") === "fields";
+const OPTIONS = ["a", "b", "c"] as const;
 const TAB_KEYS = ["provider", "areas", "prompts"] as const;
 // Long enough for a check of the working state, short enough for the test to wait for its end.
 const SAVE_MS = 1500;
@@ -84,6 +94,79 @@ export function SettingsPage() {
       }, SAVE_MS);
     },
   };
+
+  if (FIELD_LAYOUT) {
+    const options = (prefix: string) =>
+      OPTIONS.map((value, i) => (
+        <div key={value} className="flex items-center gap-2" data-testid={`${prefix}-${value}`}>
+          <RadioGroupItem id={`${prefix}-${value}`} value={value} />
+          <Label htmlFor={`${prefix}-${value}`}>{`${labels.field} ${i + 1}`}</Label>
+        </div>
+      ));
+    return (
+      <PageScroll>
+        <SettingsScaffold
+          pageKey="general"
+          title={labels.title}
+          subtitle={labels.subtitle}
+          body={
+            <>
+              <SettingsSection
+                title={labels.title}
+                description={labels.subtitle}
+                action={
+                  <Button variant="outline" size="sm" type="button" data-testid="section-action">
+                    {labels.status}
+                  </Button>
+                }
+              >
+                <SettingsField
+                  label={`${labels.field} 1`}
+                  htmlFor="field-1"
+                  hint={labels.status}
+                  help={labels.subtitle}
+                >
+                  <Input
+                    id="field-1"
+                    data-testid="settings-field-1"
+                    value={form["field-1"]}
+                    onChange={(event) => setForm((f) => ({ ...f, "field-1": event.target.value }))}
+                  />
+                </SettingsField>
+                <SettingsField label={`${labels.field} 2`} htmlFor="field-2" size="short">
+                  <Input
+                    id="field-2"
+                    data-testid="settings-field-2"
+                    value={form["field-2"]}
+                    onChange={(event) => setForm((f) => ({ ...f, "field-2": event.target.value }))}
+                  />
+                </SettingsField>
+                <SettingsField label={`${labels.field} 3`} htmlFor="field-3" group>
+                  <RadioGroup defaultValue="a">{options("field-3")}</RadioGroup>
+                </SettingsField>
+                <SettingsField label={`${labels.field} 4`} htmlFor="field-4" group>
+                  {OPTIONS.map((value, i) => (
+                    <div
+                      key={value}
+                      className="flex items-center gap-2"
+                      data-testid={`field-4-${value}`}
+                    >
+                      <Checkbox id={`field-4-${value}`} />
+                      <Label htmlFor={`field-4-${value}`}>{`${labels.field} ${i + 1}`}</Label>
+                    </div>
+                  ))}
+                </SettingsField>
+              </SettingsSection>
+              <RadioGroup defaultValue="a" aria-label={labels.status}>
+                {options("outside")}
+              </RadioGroup>
+            </>
+          }
+          form={formProps}
+        />
+      </PageScroll>
+    );
+  }
 
   if (COLUMN) {
     return (

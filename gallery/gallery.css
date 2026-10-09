@@ -60,7 +60,8 @@ main {
   font-weight: 500;
 }
 
-h2 {
+/* Unlayered, so it beats the utilities of a package heading; the SettingsSection title keeps its own. */
+h2:not([data-slot="settings-section-title"]) {
   font-size: 1.125rem;
   font-weight: 500;
 }

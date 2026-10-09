@@ -1214,6 +1214,101 @@ for (const [state, testId] of [
   });
 }
 
+// SUI-FEATURE-042 AC1/AC2: the label above the input, label → input and input → help text 8 px, two
+// fields in a section 16 px apart; the label in 14 px at weight 500.
+test("settings field: label over the input, 8 px to input and help, 16 px between fields", async ({
+  page,
+}) => {
+  await page.goto("/?page=settings&layout=fields");
+  const fields = page.locator("[data-slot=settings-field]");
+  const first = fields.nth(0);
+  const label = await box(first.locator("label").first());
+  const input = await box(page.getByTestId("settings-field-1"));
+  const help = await box(first.locator("p"));
+  expect(label.y + label.height).toBeLessThanOrEqual(input.y);
+  expect(Math.abs(input.y - (label.y + label.height) - 8)).toBeLessThanOrEqual(1);
+  expect(Math.abs(help.y - (input.y + input.height) - 8)).toBeLessThanOrEqual(1);
+  const [a, b] = [await box(first), await box(fields.nth(1))];
+  expect(Math.abs(b.y - (a.y + a.height) - 16)).toBeLessThanOrEqual(1);
+  for (const field of [first, fields.nth(1)]) {
+    const font = await field
+      .locator("label")
+      .first()
+      .evaluate((el) => [getComputedStyle(el).fontWeight, getComputedStyle(el).fontSize]);
+    expect(font).toEqual(["500", "14px"]);
+  }
+});
+
+// SUI-FEATURE-042 AC3: in a 1200 px column a text field is 576 px and a short one 192 px wide; in a
+// 400 px column the text field fills the column.
+for (const [column, text, short] of [
+  [1200, 576, 192],
+  [400, 400, 192],
+] as const) {
+  test(`settings field: widths in a ${column} px column`, async ({ page }) => {
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await page.goto("/?page=settings&layout=fields");
+    await page
+      .getByTestId("settings-column")
+      .evaluate((el, width) => (el.style.width = `${width}px`), column);
+    expect(
+      Math.abs((await box(page.getByTestId("settings-field-1"))).width - text),
+    ).toBeLessThanOrEqual(1);
+    expect(
+      Math.abs((await box(page.getByTestId("settings-field-2"))).width - short),
+    ).toBeLessThanOrEqual(1);
+  });
+}
+
+// SUI-FEATURE-042 AC4: `group` is a group named by the label, its options 8 px apart, a package
+// RadioGroup in it included; a RadioGroup outside keeps its 12 px gap.
+test("settings field: option groups named by the label, options 8 px apart", async ({ page }) => {
+  await page.goto("/?page=settings&layout=fields");
+  const gap = async (prefix: string) => {
+    const [a, b] = [
+      await box(page.getByTestId(`${prefix}-a`)),
+      await box(page.getByTestId(`${prefix}-b`)),
+    ];
+    return b.y - (a.y + a.height);
+  };
+  for (const [name, prefix] of [
+    ["3", "field-3"],
+    ["4", "field-4"],
+  ] as const) {
+    const group = page.getByRole("group", { name: `Field ${name}`, exact: true });
+    await expect(group).toBeVisible();
+    await expect(group.getByTestId(`${prefix}-a`)).toBeVisible();
+    expect(Math.abs((await gap(prefix)) - 8)).toBeLessThanOrEqual(1);
+  }
+  expect(Math.abs((await gap("outside")) - 12)).toBeLessThanOrEqual(1);
+});
+
+// SUI-FEATURE-042 AC5: the section title is an h2 in 16 px at weight 600, the divider lies between
+// head and content, the action stands at the right.
+test("settings section: h2 title, divider between head and content, action at the right", async ({
+  page,
+}) => {
+  await page.goto("/?page=settings&layout=fields");
+  const section = page.locator("[data-slot=settings-section]");
+  const title = section.getByRole("heading", { level: 2 });
+  const font = await title.evaluate((el) => [
+    getComputedStyle(el).fontSize,
+    getComputedStyle(el).fontWeight,
+  ]);
+  expect(font).toEqual(["16px", "600"]);
+  const header = section.locator("[data-slot=settings-section-header]");
+  expect(await header.evaluate((el) => getComputedStyle(el).borderBottomWidth)).toBe("1px");
+  const [head, content] = [
+    await box(header),
+    await box(section.locator("[data-slot=settings-section-content]")),
+  ];
+  expect(head.y + head.height).toBeLessThanOrEqual(content.y);
+  const [titleBox, action] = [await box(title), await box(page.getByTestId("section-action"))];
+  expect(Math.abs(action.x + action.width - (head.x + head.width))).toBeLessThanOrEqual(1);
+  expect(action.x).toBeGreaterThan(titleBox.x + titleBox.width);
+  expect(Math.abs(action.y - titleBox.y)).toBeLessThanOrEqual(1);
+});
+
 // SUI-FEATURE-031 AC4/AC5: pickers that always hold a value — a FilterSelect without `allValue` and a
 // LabeledSelect, the latter one width for every value under `measured`.
 for (const [lng, date, view, values] of [
