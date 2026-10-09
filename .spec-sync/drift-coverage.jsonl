@@ -117,3 +117,5 @@
 {"ts":"2026-10-09T12:53:20.015Z","key":"GL-UI-023","from":3,"to":6,"disposition":"ticket","ref":"45"}
 {"ts":"2026-10-09T12:53:20.449Z","key":"SUI-DESIGN-012","from":30,"to":31,"disposition":"ticket","ref":"48"}
 {"ts":"2026-10-09T12:53:39.758Z","key":"SUI-FEATURE-026","from":5,"to":6,"disposition":"ticket","ref":"46"}
+{"ts":"2026-10-09T13:33:17.138Z","key":"SUI-FEATURE-045","from":2,"to":3,"disposition":"ticket","ref":"52"}
+{"ts":"2026-10-09T13:33:17.587Z","key":"GL-UI-004","from":6,"to":8,"disposition":"editorial","ref":"no package code impact: the self-build guard runs in each app's lint gate, the comparison audit is the Overmind's; package scope unchanged"}
