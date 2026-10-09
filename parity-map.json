@@ -579,6 +579,46 @@
       "suite": "help.screenshotPending",
       "status": "pending",
       "cockpit": "help.screenshotPending"
+    },
+    {
+      "element": "SecretCardHeader",
+      "suite": "settings.active",
+      "status": "pending",
+      "cockpit": "settings.integrations.active.on",
+      "community": "integrations.active.on"
+    },
+    {
+      "element": "SecretCardHeader",
+      "suite": "actions.replace",
+      "status": "pending",
+      "cockpit": "settings.integrations.actions.replace",
+      "community": "settings.secret.replace"
+    },
+    {
+      "element": "SecretCardHeader",
+      "suite": "actions.replace",
+      "status": "pending",
+      "cockpit": "settings.secretField.replace"
+    },
+    {
+      "element": "SecretCardHeader",
+      "suite": "actions.remove",
+      "status": "pending",
+      "cockpit": "settings.integrations.actions.remove",
+      "community": "settings.secret.remove"
+    },
+    {
+      "element": "SecretCardHeader",
+      "suite": "actions.remove",
+      "status": "pending",
+      "cockpit": "settings.secretField.remove"
+    },
+    {
+      "element": "SecretCardHeader",
+      "suite": "actions.testConnection",
+      "status": "pending",
+      "cockpit": "settings.n8n.testConnection",
+      "community": "integrations.test.run"
     }
   ]
 }

@@ -10,6 +10,9 @@ export const es: SuiteStrings = {
     create: "Crear",
     back: "Volver",
     close: "Cerrar",
+    replace: "Reemplazar",
+    remove: "Quitar",
+    testConnection: "Probar conexión",
   },
   status: {
     success: "Éxito",
@@ -140,6 +143,7 @@ export const es: SuiteStrings = {
     confirmHint: "Borra definitivamente; no se puede deshacer.",
   },
   settings: {
+    active: "Activo",
     saveHint: "Guarda los cambios de esta página.",
     saveDisabledHint: "Se puede guardar en cuanto cambies algo aquí.",
     saveInvalidHint: "Se puede guardar en cuanto todos los datos de aquí sean válidos.",

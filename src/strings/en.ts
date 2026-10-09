@@ -10,6 +10,9 @@ export const en = {
     create: "Create",
     back: "Back",
     close: "Close",
+    replace: "Replace",
+    remove: "Remove",
+    testConnection: "Test connection",
   },
   status: {
     success: "Success",
@@ -143,6 +146,7 @@ export const en = {
     confirmHint: "Deletes for good; this cannot be undone.",
   },
   settings: {
+    active: "Active",
     saveHint: "Saves the changes on this page.",
     saveDisabledHint: "Saving becomes possible once you have changed something here.",
     saveInvalidHint: "Saving becomes possible once every entry here is valid.",

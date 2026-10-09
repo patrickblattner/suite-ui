@@ -87,5 +87,12 @@ export function migrated(suite: SuiteStrings) {
       commit: suite.version.commit,
       buildDate: suite.version.buildDate,
     },
+    integrations: {
+      active: { on: suite.settings.active },
+      test: { run: suite.actions.testConnection },
+    },
+    settings: {
+      secret: { replace: suite.actions.replace, remove: suite.actions.remove },
+    },
   };
 }

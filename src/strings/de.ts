@@ -10,6 +10,9 @@ export const de: SuiteStrings = {
     create: "Anlegen",
     back: "Zurück",
     close: "Schließen",
+    replace: "Ersetzen",
+    remove: "Entfernen",
+    testConnection: "Verbindung testen",
   },
   status: {
     success: "Erfolg",
@@ -141,6 +144,7 @@ export const de: SuiteStrings = {
     confirmHint: "Löscht endgültig; das lässt sich nicht rückgängig machen.",
   },
   settings: {
+    active: "Aktiv",
     saveHint: "Speichert die Änderungen auf dieser Seite.",
     saveDisabledHint: "Speichern geht, sobald du hier etwas geändert hast.",
     saveInvalidHint: "Speichern geht, sobald alle Angaben hier gültig sind.",

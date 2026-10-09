@@ -1336,3 +1336,86 @@ for (const [lng, date, view, values] of [
     for (const width of widths) expect(Math.abs(width - (widths[0] ?? 0))).toBeLessThanOrEqual(1);
   });
 }
+
+// SUI-FEATURE-043 AC1: the block is a section named by the entry, without fieldset or legend, and
+// the aside's top edge meets the name line's (±2 px).
+test("settings block: a named section, the aside on the name line", async ({ page }) => {
+  await page.goto("/?page=settings&layout=blocks");
+  const block = page.getByRole("region", { name: "Field", exact: true });
+  await expect(block).toBeVisible();
+  await expect(block.locator("fieldset, legend")).toHaveCount(0);
+  const name = await box(block.locator("[data-slot=settings-block-name]"));
+  const aside = await box(block.locator("[data-slot=settings-block-aside]"));
+  expect(Math.abs(aside.y - name.y)).toBeLessThanOrEqual(2);
+});
+
+// SUI-FEATURE-043 AC2: Switch, test chip, state chip, Replace and Remove stand in that order from
+// left to right on one line; "Test connection" stands in its own row below them.
+test("secret card header: fixed order on one line, the test in a row below", async ({ page }) => {
+  await page.goto("/?page=settings&layout=blocks");
+  const ids = [
+    "secret-active",
+    "secret-test-chip",
+    "secret-state-chip",
+    "secret-replace",
+    "secret-remove",
+  ];
+  const group = page.locator("[data-slot=secret-card-header-group]");
+  expect(
+    await group.locator("[data-testid]").evaluateAll((els) => els.map((el) => el.dataset.testid)),
+  ).toEqual(ids);
+  const boxes = await Promise.all(ids.map((id) => box(page.getByTestId(id))));
+  for (let i = 1; i < boxes.length; i++) {
+    const [prev, next] = [boxes[i - 1]!, boxes[i]!];
+    expect(next.x).toBeGreaterThanOrEqual(prev.x + prev.width);
+    expect(Math.abs(next.y + next.height / 2 - (prev.y + prev.height / 2))).toBeLessThanOrEqual(1);
+  }
+  const test = await box(page.getByTestId("secret-test"));
+  expect(test.y).toBeGreaterThanOrEqual(Math.max(...boxes.map((b) => b.y + b.height)));
+});
+
+// SUI-FEATURE-043 AC3: a locked button with `disabledText` shows the reason as its tooltip.
+test("secret card header: a locked button shows its reason as tooltip", async ({ page }) => {
+  await page.goto("/?page=settings&layout=blocks");
+  const remove = page.getByTestId("secret-remove");
+  await expect(remove).toBeDisabled();
+  await remove.locator("..").hover();
+  await expect(page.getByRole("tooltip")).toHaveText("Basic data of this instance.");
+});
+
+// SUI-FEATURE-043 AC4: the row of a block shows Reset and Save like the page footer does, and its
+// Save carries the working state while the save runs.
+test("settings action row: like the footer, right-aligned at the foot of the block", async ({
+  page,
+}) => {
+  await page.goto("/?page=settings&layout=blocks");
+  const look = (button: Locator) =>
+    button.evaluate((el) => {
+      const style = getComputedStyle(el);
+      return [
+        el.dataset.variant,
+        el.dataset.size,
+        el.textContent,
+        (el as HTMLButtonElement).disabled,
+        style.backgroundColor,
+        style.opacity,
+        style.height,
+      ];
+    });
+  const same = async () => {
+    for (const kind of ["save", "reset"]) {
+      expect(await look(page.getByTestId(`secret-${kind}`))).toEqual(
+        await look(page.getByTestId(`settings-general-${kind}`)),
+      );
+    }
+  };
+  await same();
+  await page.getByTestId("secret-value").fill("changed");
+  await page.getByTestId("settings-field-1").fill("changed");
+  await same();
+  const block = await box(page.getByRole("region", { name: "Field", exact: true }));
+  const save = await box(page.getByTestId("secret-save"));
+  expect(Math.abs(block.x + block.width - 16 - (save.x + save.width))).toBeLessThanOrEqual(1);
+  await page.getByTestId("secret-save").click();
+  await expect(page.getByTestId("secret-save")).toHaveAttribute("aria-busy", "true");
+});

@@ -2,9 +2,13 @@ import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { PageScroll } from "../src/list/page-scroll.js";
+import { SecretCardHeader } from "../src/settings/secret-card-header.js";
+import { SettingsActionRow } from "../src/settings/settings-action-row.js";
+import { SettingsBlock } from "../src/settings/settings-block.js";
 import { SettingsField } from "../src/settings/settings-field.js";
 import { SettingsScaffold } from "../src/settings/settings-scaffold.js";
 import { SettingsSection } from "../src/settings/settings-section.js";
+import { Badge } from "../src/ui/badge.js";
 import { Button } from "../src/ui/button.js";
 import { Card, CardContent, CardHeader, CardTitle } from "../src/ui/card.js";
 import { Checkbox } from "../src/ui/checkbox.js";
@@ -57,6 +61,9 @@ const STATE = PARAMS.get("state");
 // with an action, a text field with hint and help, a short field, a RadioGroup and a checkbox group,
 // and a RadioGroup outside any field after the section.
 const FIELD_LAYOUT = PARAMS.get("layout") === "fields";
+// `?layout=blocks` shows a SettingsBlock with a full SecretCardHeader as its aside, Remove locked with a
+// reason, and a SettingsActionRow at its foot, after one field of the page form (`SUI-FEATURE-043`).
+const BLOCK_LAYOUT = PARAMS.get("layout") === "blocks";
 const OPTIONS = ["a", "b", "c"] as const;
 const TAB_KEYS = ["provider", "areas", "prompts"] as const;
 // Long enough for a check of the working state, short enough for the test to wait for its end.
@@ -94,6 +101,25 @@ export function SettingsPage() {
       }, SAVE_MS);
     },
   };
+
+  if (BLOCK_LAYOUT) {
+    return (
+      <PageScroll>
+        <SettingsScaffold
+          pageKey="general"
+          title={labels.title}
+          subtitle={labels.subtitle}
+          body={
+            <>
+              {field("field-1", 0)}
+              <SecretBlock labels={labels} />
+            </>
+          }
+          form={formProps}
+        />
+      </PageScroll>
+    );
+  }
 
   if (FIELD_LAYOUT) {
     const options = (prefix: string) =>
@@ -248,5 +274,57 @@ export function SettingsPage() {
         form={formProps}
       />
     </PageScroll>
+  );
+}
+
+// One secret entry with its own Save and Reset; Active and Test act at once.
+function SecretBlock({ labels }: { labels: (typeof LABELS)[keyof typeof LABELS] }) {
+  const [active, setActive] = useState(true);
+  const [value, setValue] = useState("");
+  const [saving, setSaving] = useState(false);
+  return (
+    <SettingsBlock
+      name={labels.field}
+      purpose={labels.subtitle}
+      aside={
+        <SecretCardHeader
+          testIdPrefix="secret"
+          active={{ checked: active, onCheckedChange: setActive }}
+          testChip={
+            <Badge variant="outline" data-testid="secret-test-chip">
+              {labels.status}
+            </Badge>
+          }
+          stateChip={
+            <Badge variant="outline" data-testid="secret-state-chip">
+              OK
+            </Badge>
+          }
+          replace={{ onReplace: () => {} }}
+          remove={{ onRemove: () => {}, disabledText: labels.subtitle }}
+          test={{ onTest: () => {} }}
+        />
+      }
+    >
+      <Input
+        aria-label={labels.field}
+        data-testid="secret-value"
+        value={value}
+        onChange={(event) => setValue(event.target.value)}
+      />
+      <SettingsActionRow
+        dirty={value !== ""}
+        saving={saving}
+        onSave={() => {
+          setSaving(true);
+          window.setTimeout(() => {
+            setValue("");
+            setSaving(false);
+          }, SAVE_MS);
+        }}
+        onReset={() => setValue("")}
+        testIdPrefix="secret"
+      />
+    </SettingsBlock>
   );
 }
