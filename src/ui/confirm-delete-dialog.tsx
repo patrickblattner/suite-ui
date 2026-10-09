@@ -18,6 +18,8 @@ type ConfirmDeleteDialogProps = {
   onConfirm: () => void;
   // What is deleted, in the app's words. Defaults to the shared "Confirm deletion".
   title?: string;
+  // The translated name of the deleted object; titles "Delete <object>?" unless `title` is set.
+  object?: string;
   description: string;
   // For a destructive confirm that is not a plain delete; defaults to "Delete".
   confirmLabel?: string;
@@ -42,6 +44,7 @@ function ConfirmDeleteDialog({
   onOpenChange,
   onConfirm,
   title,
+  object,
   description,
   confirmLabel,
   cancelLabel,
@@ -61,7 +64,12 @@ function ConfirmDeleteDialog({
     >
       <DialogContent data-testid={testId}>
         <DialogHeader>
-          <DialogTitle>{title ?? t("confirmDelete.title")}</DialogTitle>
+          <DialogTitle>
+            {title ??
+              (object !== undefined
+                ? t("confirmDelete.titleOf", { object, interpolation: { escapeValue: false } })
+                : t("confirmDelete.title"))}
+          </DialogTitle>
           <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         {children}

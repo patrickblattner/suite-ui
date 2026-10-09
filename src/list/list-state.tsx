@@ -93,7 +93,9 @@ function ListStateContent({
         ) : null,
       ]
     : [
-        emptyObjects !== undefined ? t("list.emptyOf", { objects: emptyObjects }) : t("list.empty"),
+        emptyObjects !== undefined
+          ? t("list.emptyOf", { objects: emptyObjects, interpolation: { escapeValue: false } })
+          : t("list.empty"),
         onAdd !== undefined ? (
           <Button
             variant="success"

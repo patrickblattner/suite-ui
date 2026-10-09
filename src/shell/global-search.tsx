@@ -111,7 +111,7 @@ function GlobalSearch({
   }
 
   const shortcut = isMacPlatform() ? "⌘K" : "Ctrl K";
-  const fieldHint = t("search.fieldHint", { shortcut });
+  const fieldHint = t("search.fieldHint", { shortcut, interpolation: { escapeValue: false } });
 
   const field = isOpen ? (
     <div className="px-2 pb-2">
@@ -317,7 +317,7 @@ function SearchDialog({
   } else if (orderedHits.length === 0) {
     body = (
       <p data-testid={emptyTestId} className="px-2 py-3 text-sm text-muted-foreground">
-        {t("search.empty", { areas: named })}
+        {t("search.empty", { areas: named, interpolation: { escapeValue: false } })}
       </p>
     );
   } else {
@@ -365,7 +365,9 @@ function SearchDialog({
         <DialogHeader>
           <DialogTitle>{t("search.title")}</DialogTitle>
           <DialogDescription>
-            {searchedAreas.length > 0 ? t("search.subtitle", { areas: named }) : ""}
+            {searchedAreas.length > 0
+              ? t("search.subtitle", { areas: named, interpolation: { escapeValue: false } })
+              : ""}
           </DialogDescription>
         </DialogHeader>
         <Hint text={t("search.inputHint")}>

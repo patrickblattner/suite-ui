@@ -8,7 +8,8 @@ export const es: SuiteStrings = {
     restoreDefaults: "Restaurar valores predeterminados",
     edit: "Editar",
     delete: "Eliminar",
-    create: "Crear",
+    create: "Añadir",
+    upload: "Subir",
     back: "Volver",
     close: "Cerrar",
     replace: "Reemplazar",
@@ -46,6 +47,7 @@ export const es: SuiteStrings = {
     all: "{{field}}: Todos",
     allValue: "Todos",
     placeholder: "Filtrar…",
+    searchPlaceholder: "Buscar ({{fields}}) …",
     reset: "Borrar filtro",
     label: "Filtrar la lista",
     hint: 'Busca en todas las columnas; varias palabras deben coincidir todas. Una frase entre "comillas" se mantiene unida. Los caracteres sueltos se ignoran.',
@@ -75,6 +77,19 @@ export const es: SuiteStrings = {
     emptyOf: "Todavía no hay {{objects}}.",
     actions: "Acciones",
     emptyValue: "vacío",
+  },
+  severity: {
+    error: "Error",
+    warning: "Advertencia",
+    info: "Información",
+  },
+  outcome: {
+    succeeded: "Correcto",
+    failed: "Fallido",
+    note: "Nota",
+  },
+  columns: {
+    type: "Tipo",
   },
   view: {
     label: "Vista",
@@ -165,6 +180,7 @@ export const es: SuiteStrings = {
   },
   confirmDelete: {
     title: "Confirmar eliminación",
+    titleOf: "¿Eliminar {{object}}?",
     cancelHint: "Cierra el diálogo sin borrar nada.",
     cancelDisabledHint: "Cerrar vuelve a ser posible en cuanto termine la eliminación.",
     confirmHint: "Borra definitivamente; no se puede deshacer.",

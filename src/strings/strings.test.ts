@@ -54,14 +54,46 @@ describe("suite strings", () => {
 
 describe("suite action texts", () => {
   it.each([
-    ["de", "Anlegen", "Standard wiederherstellen", "Zurücksetzen"],
-    ["en", "Create", "Restore defaults", "Reset"],
-    ["es", "Crear", "Restaurar valores predeterminados", "Restablecer"],
-  ] as const)("%s create, restoreDefaults and reset", (lng, create, restoreDefaults, reset) => {
-    const { actions } = suiteStrings[lng];
-    expect(actions.create).toBe(create);
-    expect(actions.restoreDefaults).toBe(restoreDefaults);
-    expect(actions.reset).toBe(reset);
+    ["de", "Anlegen", "Hochladen", "Standard wiederherstellen", "Zurücksetzen"],
+    ["en", "Add", "Upload", "Restore defaults", "Reset"],
+    ["es", "Añadir", "Subir", "Restaurar valores predeterminados", "Restablecer"],
+  ] as const)(
+    "%s create, upload, restoreDefaults and reset",
+    (lng, create, upload, restoreDefaults, reset) => {
+      const { actions } = suiteStrings[lng];
+      expect(actions.create).toBe(create);
+      expect(actions.upload).toBe(upload);
+      expect(actions.restoreDefaults).toBe(restoreDefaults);
+      expect(actions.reset).toBe(reset);
+    },
+  );
+});
+
+// SUI-FEATURE-048 AC3: the shared terms, exactly as the spec's table gives them.
+describe("suite shared terms", () => {
+  const keys = [
+    "severity.error",
+    "severity.warning",
+    "severity.info",
+    "outcome.succeeded",
+    "outcome.failed",
+    "outcome.note",
+    "columns.type",
+    "confirmDelete.titleOf",
+  ];
+  it.each([
+    [
+      "de",
+      "Fehler | Warnung | Info | Erfolgreich | Fehlgeschlagen | Notiz | Typ | {{object}} löschen?",
+    ],
+    ["en", "Error | Warning | Info | Succeeded | Failed | Note | Type | Delete {{object}}?"],
+    [
+      "es",
+      "Error | Advertencia | Información | Correcto | Fallido | Nota | Tipo | ¿Eliminar {{object}}?",
+    ],
+  ] as const)("%s", (lng, texts) => {
+    const strings = flatten(suiteStrings[lng]);
+    expect(keys.map((key) => strings.get(key)).join(" | ")).toBe(texts);
   });
 });
 

@@ -37,6 +37,9 @@ type FilterBarProps = {
   value: string;
   onChange: (value: string) => void;
   onReset: () => void;
+  // The translated names of the searched columns; the package builds the placeholder from them and
+  // they win over `placeholder`.
+  searchFields?: string[];
   // Derived from the same fields as the haystack, never hard-coded.
   placeholder?: string;
   // Replaces the search field's hint where a page searches something other than its columns.
@@ -73,6 +76,7 @@ function FilterBar({
   value,
   onChange,
   onReset,
+  searchFields,
   placeholder,
   helpText,
   filters = [],
@@ -104,7 +108,14 @@ function FilterBar({
       <Input
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder ?? t("filter.placeholder")}
+        placeholder={
+          searchFields !== undefined
+            ? t("filter.searchPlaceholder", {
+                fields: searchFields.join(", "),
+                interpolation: { escapeValue: false },
+              })
+            : (placeholder ?? t("filter.placeholder"))
+        }
         aria-label={t("filter.label")}
         className={block ? "w-full min-w-[20rem] flex-1" : "flex-1"}
         data-testid={testId ?? "filter-haystack"}

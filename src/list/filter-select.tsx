@@ -41,7 +41,7 @@ function FilterSelect({
   const chosen = options.find((option) => option.value === value)?.label ?? value;
   const trigger =
     allValue !== undefined && value === allValue
-      ? t("filter.all", { field })
+      ? t("filter.all", { field, interpolation: { escapeValue: false } })
       : `${field}: ${chosen}`;
   const measured = suiteUiConfig().selectWidth === "measured";
   const select = (
@@ -71,7 +71,9 @@ function FilterSelect({
   return (
     <MeasuredCell
       texts={[
-        ...(allValue !== undefined ? [t("filter.all", { field })] : []),
+        ...(allValue !== undefined
+          ? [t("filter.all", { field, interpolation: { escapeValue: false } })]
+          : []),
         ...options.map((option) => `${field}: ${option.label}`),
       ]}
       data-testid={testId}

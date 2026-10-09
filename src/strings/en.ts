@@ -8,7 +8,8 @@ export const en = {
     restoreDefaults: "Restore defaults",
     edit: "Edit",
     delete: "Delete",
-    create: "Create",
+    create: "Add",
+    upload: "Upload",
     back: "Back",
     close: "Close",
     replace: "Replace",
@@ -48,6 +49,8 @@ export const en = {
     all: "{{field}}: All",
     allValue: "All",
     placeholder: "Filter…",
+    // The search field's placeholder built from the searched columns' names, joined with ", ".
+    searchPlaceholder: "Search ({{fields}}) …",
     reset: "Clear filter",
     label: "Filter the list",
     hint: 'Searches every column; several words must all match. A phrase in "quotes" stays together. Single characters are ignored.',
@@ -77,6 +80,20 @@ export const en = {
     emptyOf: "No {{objects}} yet.",
     actions: "Actions",
     emptyValue: "empty",
+  },
+  // Terms the suite apps share: the severity and outcome of an event, the type column.
+  severity: {
+    error: "Error",
+    warning: "Warning",
+    info: "Info",
+  },
+  outcome: {
+    succeeded: "Succeeded",
+    failed: "Failed",
+    note: "Note",
+  },
+  columns: {
+    type: "Type",
   },
   view: {
     label: "View",
@@ -169,6 +186,7 @@ export const en = {
   },
   confirmDelete: {
     title: "Confirm deletion",
+    titleOf: "Delete {{object}}?",
     cancelHint: "Closes the dialog without deleting anything.",
     cancelDisabledHint: "Closing becomes possible again once the deletion has finished.",
     confirmHint: "Deletes for good; this cannot be undone.",

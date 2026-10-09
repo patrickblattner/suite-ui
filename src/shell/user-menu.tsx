@@ -306,7 +306,10 @@ function UserMenu({
                   return (
                     <Hint
                       key={mode}
-                      text={t("account.appearanceHint", { mode: t(`account.${mode}`) })}
+                      text={t("account.appearanceHint", {
+                        mode: t(`account.${mode}`),
+                        interpolation: { escapeValue: false },
+                      })}
                     >
                       <button
                         type="button"

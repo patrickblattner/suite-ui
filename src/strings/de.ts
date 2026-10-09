@@ -9,6 +9,7 @@ export const de: SuiteStrings = {
     edit: "Bearbeiten",
     delete: "Löschen",
     create: "Anlegen",
+    upload: "Hochladen",
     back: "Zurück",
     close: "Schließen",
     replace: "Ersetzen",
@@ -46,6 +47,7 @@ export const de: SuiteStrings = {
     all: "{{field}}: Alle",
     allValue: "Alle",
     placeholder: "Filtern…",
+    searchPlaceholder: "Suchen ({{fields}}) …",
     reset: "Filter zurücksetzen",
     label: "Liste filtern",
     hint: 'Durchsucht alle Spalten; mehrere Wörter müssen alle passen. Eine Wortgruppe in "Anführungszeichen" bleibt zusammen. Einzelne Zeichen werden ignoriert.',
@@ -75,6 +77,19 @@ export const de: SuiteStrings = {
     emptyOf: "Noch keine {{objects}}.",
     actions: "Aktionen",
     emptyValue: "leer",
+  },
+  severity: {
+    error: "Fehler",
+    warning: "Warnung",
+    info: "Info",
+  },
+  outcome: {
+    succeeded: "Erfolgreich",
+    failed: "Fehlgeschlagen",
+    note: "Notiz",
+  },
+  columns: {
+    type: "Typ",
   },
   view: {
     label: "Ansicht",
@@ -166,6 +181,7 @@ export const de: SuiteStrings = {
   },
   confirmDelete: {
     title: "Löschen bestätigen",
+    titleOf: "{{object}} löschen?",
     cancelHint: "Schließt den Dialog, ohne etwas zu löschen.",
     cancelDisabledHint: "Schließen geht wieder, sobald das Löschen abgeschlossen ist.",
     confirmHint: "Löscht endgültig; das lässt sich nicht rückgängig machen.",

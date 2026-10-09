@@ -37,6 +37,30 @@ describe("ConfirmDeleteDialog", () => {
     expect(screen.getByTestId("confirm-confirm")).toHaveTextContent(confirm);
   });
 
+  // SUI-FEATURE-048 AC4.
+  it.each([
+    ["de", "Tag löschen?"],
+    ["en", "Delete Tag?"],
+    ["es", "¿Eliminar Tag?"],
+  ])("%s: object titles the dialog with the deleted object", async (lng, title) => {
+    await i18n.changeLanguage(lng);
+    renderDialog({ object: "Tag" });
+    expect(screen.getByRole("heading", { name: title })).toBeInTheDocument();
+  });
+
+  it("never escapes the object, whatever the app's escapeValue", async () => {
+    // The test instance keeps i18next's default escapeValue: true.
+    expect(i18n.options.interpolation?.escapeValue).not.toBe(false);
+    await i18n.changeLanguage("de");
+    renderDialog({ object: "Tag & Co" });
+    expect(screen.getByRole("heading", { name: "Tag & Co löschen?" })).toBeInTheDocument();
+  });
+
+  it("title wins over object", () => {
+    renderDialog({ object: "Tag", title: "Remove the tag for good?" });
+    expect(screen.getByRole("heading", { name: "Remove the tag for good?" })).toBeInTheDocument();
+  });
+
   function confirmHintText() {
     const ids =
       screen.getByTestId("confirm-confirm").getAttribute("aria-describedby")?.split(" ") ?? [];

@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import i18n from "i18next";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { configureSuiteUi } from "../config/index.js";
@@ -54,6 +55,61 @@ describe("FilterBar", () => {
     const search = screen.getByRole("textbox", { name: "Filter the list" });
     expect(search).toHaveAttribute("placeholder", "Filter…");
     expect(search).toHaveAccessibleDescription(/Searches every column/);
+  });
+
+  // SUI-FEATURE-048 AC1.
+  it.each([
+    ["de", "Suchen (Name, Typ) …"],
+    ["en", "Search (Name, Typ) …"],
+    ["es", "Buscar (Name, Typ) …"],
+  ])("%s: builds the placeholder from searchFields", async (lng, placeholder) => {
+    await i18n.changeLanguage(lng);
+    try {
+      render(
+        <FilterBar
+          value=""
+          onChange={() => {}}
+          onReset={() => {}}
+          searchFields={["Name", "Typ"]}
+        />,
+      );
+      expect(screen.getByTestId("filter-haystack")).toHaveAttribute("placeholder", placeholder);
+    } finally {
+      await i18n.changeLanguage("en");
+    }
+  });
+
+  it("never escapes the search fields, whatever the app's escapeValue", async () => {
+    // The test instance keeps i18next's default escapeValue: true.
+    expect(i18n.options.interpolation?.escapeValue).not.toBe(false);
+    await i18n.changeLanguage("de");
+    try {
+      render(
+        <FilterBar value="" onChange={() => {}} onReset={() => {}} searchFields={["A & B"]} />,
+      );
+      expect(screen.getByTestId("filter-haystack")).toHaveAttribute(
+        "placeholder",
+        "Suchen (A & B) …",
+      );
+    } finally {
+      await i18n.changeLanguage("en");
+    }
+  });
+
+  it("lets searchFields win over placeholder, and placeholder over the default", () => {
+    const { unmount } = render(
+      <FilterBar
+        value=""
+        onChange={() => {}}
+        onReset={() => {}}
+        searchFields={["Name"]}
+        placeholder="Own…"
+      />,
+    );
+    expect(screen.getByTestId("filter-haystack")).toHaveAttribute("placeholder", "Search (Name) …");
+    unmount();
+    render(<FilterBar value="" onChange={() => {}} onReset={() => {}} placeholder="Own…" />);
+    expect(screen.getByTestId("filter-haystack")).toHaveAttribute("placeholder", "Own…");
   });
 
   it("renders without a sort and leaves the SortSelect out", () => {

@@ -84,7 +84,7 @@ function TablePagination({
       <SelectContent>
         {PAGE_SIZES.map((size) => (
           <SelectItem key={size} value={String(size)}>
-            {t("pagination.pageSize", { size })}
+            {t("pagination.pageSize", { size, interpolation: { escapeValue: false } })}
           </SelectItem>
         ))}
       </SelectContent>
@@ -111,7 +111,12 @@ function TablePagination({
         disabled: atFirst,
       })}
       <span className="px-1 text-muted-foreground" data-testid="pagination-summary">
-        {t("pagination.summary", { page, totalPages, total })}
+        {t("pagination.summary", {
+          page,
+          totalPages,
+          total,
+          interpolation: { escapeValue: false },
+        })}
       </span>
       {step({
         key: "nextPage",
@@ -129,7 +134,9 @@ function TablePagination({
       })}
       {measured ? (
         <MeasuredCell
-          texts={PAGE_SIZES.map((size) => t("pagination.pageSize", { size }))}
+          texts={PAGE_SIZES.map((size) =>
+            t("pagination.pageSize", { size, interpolation: { escapeValue: false } }),
+          )}
           data-testid="pagination-page-size"
         >
           {pageSizeSelect}
