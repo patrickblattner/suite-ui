@@ -1,3 +1,4 @@
+import { RotateCcwIcon, SaveIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "../ui/button.js";
@@ -21,9 +22,10 @@ type SettingsFooterProps = {
 
 // The action row of a settings page with a page-wide form (`GL-UI-026`): a divider over the full
 // width of the content area on top, Reset (`destructive`) and Save (`success`) right-aligned below
-// it. Without a change both are disabled in the dimmed colour of their action, never grey; while a
-// save runs, Save keeps its full colour and shows the working sign (`GL-UI-027`). It sits inside the
-// form, so Save is the form's submit button. Place, order, variants and look live here only, which is
+// it, each with its fixed decorative icon before the label. Without a change both are disabled in the
+// dimmed colour of their action, never grey; while a save runs, Save keeps its full colour and shows
+// the working sign in place of its icon (`GL-UI-027`). It sits inside the form, so Save is the form's
+// submit button. Place, order, variants and look live here only, which is
 // why it takes no class or slot props.
 function SettingsFooter({
   pageKey,
@@ -46,6 +48,7 @@ function SettingsFooter({
           onClick={onReset}
           data-testid={`${stem}-reset`}
         >
+          <RotateCcwIcon aria-hidden="true" />
           {t("actions.reset")}
         </Button>
       </Hint>
@@ -61,6 +64,7 @@ function SettingsFooter({
           busy={saving}
           data-testid={`${stem}-save`}
         >
+          <SaveIcon aria-hidden="true" />
           {t("actions.save")}
         </Button>
       </Hint>

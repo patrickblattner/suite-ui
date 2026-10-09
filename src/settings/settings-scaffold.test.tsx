@@ -273,3 +273,45 @@ describe("SettingsScaffold community additions (SUI-FEATURE-031)", () => {
     expect(screen.queryByTestId("settings-tabs")).toBeNull();
   });
 });
+
+describe("SettingsFooter icons (SUI-FEATURE-037)", () => {
+  it("AC1: Reset carries RotateCcwIcon and Save carries SaveIcon, each before the label", () => {
+    render(<GeneralPage save={() => Promise.resolve()} />);
+    const reset = screen.getByTestId("settings-general-reset");
+    const save = screen.getByTestId("settings-general-save");
+    const resetIcon = reset.querySelector("svg.lucide-rotate-ccw");
+    const saveIcon = save.querySelector("svg.lucide-save");
+    expect(resetIcon).not.toBeNull();
+    expect(saveIcon).not.toBeNull();
+    expect(reset.firstElementChild).toBe(resetIcon);
+    expect(save.firstElementChild).toBe(saveIcon);
+    expect(reset.lastChild).toHaveProperty("nodeType", Node.TEXT_NODE);
+    expect(save.lastChild).toHaveProperty("nodeType", Node.TEXT_NODE);
+    // Size comes from the button token, not from the icon.
+    expect(resetIcon?.getAttribute("class")).not.toMatch(/size-/);
+    expect(saveIcon?.getAttribute("class")).not.toMatch(/size-/);
+  });
+
+  it("AC2: while saving, Save shows only the working sign and hides its icon", () => {
+    render(<GeneralPage save={() => new Promise<void>(() => {})} />);
+    fireEvent.change(screen.getByTestId("settings-name"), { target: { value: "Studio 2" } });
+    const save = screen.getByTestId("settings-general-save");
+    fireEvent.click(save, { detail: 1 });
+    expect(save.firstElementChild).toHaveAttribute("data-slot", "busy");
+    expect(save.querySelector("svg.lucide-save")).not.toHaveAttribute("data-slot", "busy");
+    expect(save.className).toContain("[&_svg:not([data-slot=busy])]:hidden");
+  });
+
+  it("AC3: icons are decorative; role and accessible name stay as in v0.27.0", () => {
+    render(<GeneralPage save={() => Promise.resolve()} />);
+    for (const icon of screen.getByTestId("settings-footer").querySelectorAll("svg")) {
+      expect(icon).toHaveAttribute("aria-hidden", "true");
+    }
+    expect(screen.getByRole("button", { name: "Reset" })).toBe(
+      screen.getByTestId("settings-general-reset"),
+    );
+    expect(screen.getByRole("button", { name: "Save" })).toBe(
+      screen.getByTestId("settings-general-save"),
+    );
+  });
+});
