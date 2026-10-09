@@ -100,3 +100,20 @@
 {"ts":"2026-10-09T12:48:25.056Z","key":"GL-UI-023","from":3,"to":5,"disposition":"ticket","ref":"45"}
 {"ts":"2026-10-09T12:49:06.398Z","key":"GL-UI-024","from":11,"to":12,"disposition":"ticket","ref":"46"}
 {"ts":"2026-10-09T12:49:24.952Z","key":"GL-UI-026","from":8,"to":9,"disposition":"ticket","ref":"47"}
+{"ts":"2026-10-09T12:50:49.893Z","key":"SUI-FEATURE-041","from":null,"to":2,"disposition":"ticket","ref":"48"}
+{"ts":"2026-10-09T12:50:53.930Z","key":"SUI-FEATURE-042","from":null,"to":2,"disposition":"ticket","ref":"49"}
+{"ts":"2026-10-09T12:50:58.485Z","key":"SUI-FEATURE-043","from":null,"to":2,"disposition":"ticket","ref":"50"}
+{"ts":"2026-10-09T12:51:03.243Z","key":"SUI-FEATURE-044","from":null,"to":2,"disposition":"ticket","ref":"51"}
+{"ts":"2026-10-09T12:51:07.648Z","key":"SUI-FEATURE-045","from":null,"to":2,"disposition":"ticket","ref":"52"}
+{"ts":"2026-10-09T12:51:11.863Z","key":"SUI-FEATURE-046","from":null,"to":2,"disposition":"ticket","ref":"53"}
+{"ts":"2026-10-09T12:51:15.660Z","key":"SUI-FEATURE-047","from":null,"to":2,"disposition":"ticket","ref":"54"}
+{"ts":"2026-10-09T12:51:32.293Z","key":"GL-UI-019","from":6,"to":7,"disposition":"editorial","ref":"no package code impact: shared tools/settings nav order and shared route segments are app-side (apps own nav entries and routes); package strings already carry the entries"}
+{"ts":"2026-10-09T12:51:32.719Z","key":"GL-UI-027","from":9,"to":10,"disposition":"ticket","ref":"50"}
+{"ts":"2026-10-09T12:52:37.217Z","key":"SUI-FEATURE-048","from":null,"to":2,"disposition":"ticket","ref":"55"}
+{"ts":"2026-10-09T12:52:37.654Z","key":"GL-UI-024","from":11,"to":13,"disposition":"ticket","ref":"46"}
+{"ts":"2026-10-09T12:52:38.097Z","key":"GL-UI-002","from":5,"to":6,"disposition":"ticket","ref":"53"}
+{"ts":"2026-10-09T12:52:38.536Z","key":"GL-UI-032","from":11,"to":12,"disposition":"ticket","ref":"52"}
+{"ts":"2026-10-09T12:52:38.972Z","key":"GL-OPS-010","from":3,"to":4,"disposition":"ticket","ref":"51"}
+{"ts":"2026-10-09T12:53:20.015Z","key":"GL-UI-023","from":3,"to":6,"disposition":"ticket","ref":"45"}
+{"ts":"2026-10-09T12:53:20.449Z","key":"SUI-DESIGN-012","from":30,"to":31,"disposition":"ticket","ref":"48"}
+{"ts":"2026-10-09T12:53:39.758Z","key":"SUI-FEATURE-026","from":5,"to":6,"disposition":"ticket","ref":"46"}
