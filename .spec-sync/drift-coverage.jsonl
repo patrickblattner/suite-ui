@@ -122,3 +122,8 @@
 {"ts":"2026-10-09T14:01:23.027Z","key":"SUI-FEATURE-047","from":2,"to":3,"disposition":"ticket","ref":"54"}
 {"ts":"2026-10-09T14:01:23.027Z","key":"GL-UI-018","from":8,"to":9,"disposition":"ticket","ref":"54"}
 {"ts":"2026-10-09T14:48:20.946Z","key":"GL-UI-005","from":null,"to":3,"disposition":"editorial","ref":"review process for app editing surfaces (editors/builders), run by a read-only UX sub-agent after a package build; suite-ui ships no editing surface, no code impact"}
+{"ts":"2026-10-09T15:21:27.351Z","key":"GL-UI-004","from":8,"to":9,"disposition":"editorial","ref":"rev 9 only adds rule-by-rule rollout of the app-side lint guard; applies to consuming apps, no package code impact"}
+{"ts":"2026-10-09T15:22:10.399Z","key":"GL-UI-016","from":3,"to":4,"disposition":"ticket","ref":"56"}
+{"ts":"2026-10-09T15:22:10.399Z","key":"SUI-FEATURE-049","from":null,"to":3,"disposition":"ticket","ref":"56"}
+{"ts":"2026-10-09T15:22:10.399Z","key":"SUI-DESIGN-012","from":31,"to":32,"disposition":"ticket","ref":"56"}
+{"ts":"2026-10-09T15:22:10.859Z","key":"GL-OPS-010","from":4,"to":5,"disposition":"ticket","ref":"57"}
