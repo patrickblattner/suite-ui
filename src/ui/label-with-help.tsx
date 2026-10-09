@@ -3,7 +3,7 @@ import type * as React from "react";
 import { createPortal } from "react-dom";
 
 import { cn } from "../lib/cn.js";
-import { TOOLTIP_HINT_DELAY, TooltipContent, TooltipProvider, TooltipTrigger } from "./tooltip.js";
+import { TooltipContent, TooltipProvider, TooltipTrigger } from "./tooltip.js";
 
 function helpIdFor(htmlFor: string): string {
   return `${htmlFor}-help`;
@@ -41,7 +41,7 @@ function LabelWithHelp({
         htmlFor={htmlFor}
         className={cn("mb-1 block text-sm text-foreground", className)}
       >
-        <TooltipProvider delayDuration={TOOLTIP_HINT_DELAY} skipDelayDuration={0}>
+        <TooltipProvider>
           <TooltipPrimitive.Root>
             <TooltipTrigger asChild onFocus={keepClosedOnFocus}>
               <span>{children}</span>

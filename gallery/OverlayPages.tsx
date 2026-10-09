@@ -138,7 +138,7 @@ export function OverlaysPage() {
             Tooltip
           </Button>
         </TooltipTrigger>
-        <TooltipContent side="bottom">Saves the draft</TooltipContent>
+        <TooltipContent>Saves the draft</TooltipContent>
       </Tooltip>
     </div>
   );

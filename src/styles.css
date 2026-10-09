@@ -40,9 +40,8 @@
       var(--page-header-height) + 0.5rem
   );
 
-  /* Tooltip delays (`GL-UI-016`/`GL-UI-017`): the overflow tooltip opens at once, every description
-     hint after the one hint delay. `tooltip.tsx` keeps the numbers radix needs in step with these. */
-  --tooltip-overflow-delay: 0ms;
+  /* Tooltip delay (`GL-UI-016`/`GL-UI-017`): every tooltip, the overflow tooltip included, opens after
+     the one hint delay. `tooltip.tsx` keeps the number radix needs in step with this. */
   --tooltip-hint-delay: 1500ms;
 
   /* The square size of the transparency checkerboard behind media previews. */

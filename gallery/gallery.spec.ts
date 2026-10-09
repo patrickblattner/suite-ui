@@ -1695,3 +1695,48 @@ test("list view shell: the view swaps under the keyboard, the FilterBar is not r
   await expect(page.getByTestId("view-tiles")).toBeFocused();
   await expect(media.getByTestId("filterbar")).toHaveAttribute("data-probe", "kept");
 });
+
+// SUI-FEATURE-049 AC1–AC4: the tooltip waits for the hint delay, stands to the right of its element
+// with its top edge 4 px above the element's, covers neither the element nor the rows above and below,
+// and closes at once when the pointer leaves.
+test("tooltip: delayed, right of the element and raised, closes at once", async ({ page }) => {
+  await page.goto("/?page=components&lng=en");
+  const button = page.getByTestId("hint-save");
+  await button.hover();
+  await page.waitForTimeout(1000);
+  await expect(page.getByRole("tooltip")).toHaveCount(0);
+  await expect(page.getByRole("tooltip")).toHaveText("Saves the draft");
+  const element = await box(button);
+  const bubble = await box(page.locator("[data-slot=tooltip-content]"));
+  expect(Math.abs(element.y - bubble.y - 4)).toBeLessThanOrEqual(1);
+  expect(bubble.x).toBeGreaterThanOrEqual(element.x + element.width + 8);
+  await page.mouse.move(element.x - 20, element.y + element.height / 2);
+  await expect(page.getByRole("tooltip")).toHaveCount(0, { timeout: 100 });
+});
+
+// SUI-FEATURE-049 AC2: the pointer moved onto the bubble does not hold it open.
+test("tooltip: the pointer on the bubble does not hold it open", async ({ page }) => {
+  await page.goto("/?page=components&lng=en");
+  await page.getByTestId("hint-save").hover();
+  await expect(page.getByRole("tooltip")).toHaveText("Saves the draft");
+  const bubble = await box(page.locator("[data-slot=tooltip-content]"));
+  await page.mouse.move(bubble.x + bubble.width / 2, bubble.y + bubble.height / 2, { steps: 4 });
+  await expect(page.getByRole("tooltip")).toHaveCount(0, { timeout: 100 });
+});
+
+// SUI-FEATURE-049 AC3: at the right viewport edge the tooltip stands to the left, same offsets.
+test("tooltip: at the right edge it flips to the left", async ({ page }) => {
+  await page.goto("/?page=components&lng=en");
+  const button = page.getByTestId("hint-save");
+  await button.evaluate((el) =>
+    Object.assign(el.style, { position: "fixed", right: "0", top: "300px" }),
+  );
+  await button.hover();
+  await expect(page.getByRole("tooltip")).toHaveText("Saves the draft");
+  const content = page.locator("[data-slot=tooltip-content]");
+  await expect(content).toHaveAttribute("data-side", "left");
+  const element = await box(button);
+  const bubble = await box(content);
+  expect(Math.abs(element.y - bubble.y - 4)).toBeLessThanOrEqual(1);
+  expect(bubble.x + bubble.width).toBeLessThanOrEqual(element.x - 8);
+});

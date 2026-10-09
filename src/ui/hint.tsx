@@ -4,14 +4,7 @@ import { createPortal } from "react-dom";
 
 import { cn } from "../lib/cn.js";
 import { helpIdFor } from "./label-with-help.js";
-import {
-  TOOLTIP_HINT_DELAY,
-  TOOLTIP_OVERFLOW_DELAY,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-  useIsOverflowing,
-} from "./tooltip.js";
+import { TooltipContent, TooltipProvider, TooltipTrigger, useIsOverflowing } from "./tooltip.js";
 
 type AnyProps = Record<string, unknown>;
 type Handler = (...args: unknown[]) => void;
@@ -127,27 +120,14 @@ type HintProps = {
 // Extra props (handlers, ref, class) pass through to the control, so a wrapping `OverflowTooltip` keeps
 // working.
 //
-// A control whose own text is clipped (it carries `truncate`) gets both in one bubble (`GL-UI-016`): it
-// opens at once with the full text, and after the hint delay the description joins as a second line.
+// A control whose own text is clipped (it carries `truncate`) gets both in one bubble (`GL-UI-016`): the
+// full text on top, the description below.
 function Hint({ text, disabledText, children, ...passThrough }: HintProps) {
   const id = React.useId();
   const overflow = useIsOverflowing();
   const ownRef = passThrough.ref;
   const ref = React.useMemo(() => composeRefs(ownRef, overflow.ref), [ownRef, overflow.ref]);
-  const twoSteps = overflow.isOverflowing && overflow.text !== "";
-  const [open, setOpen] = React.useState(false);
-  const [secondStep, setSecondStep] = React.useState(false);
-
-  React.useEffect(() => {
-    if (!open || !twoSteps) return;
-    const timer = setTimeout(() => setSecondStep(true), TOOLTIP_HINT_DELAY);
-    return () => clearTimeout(timer);
-  }, [open, twoSteps]);
-
-  function changeOpen(next: boolean): void {
-    setOpen(next);
-    if (!next) setSecondStep(false);
-  }
+  const clipped = overflow.isOverflowing && overflow.text !== "";
 
   const disabled = children.props.disabled === true;
   const shown = disabled && disabledText !== undefined ? disabledText : text;
@@ -178,25 +158,20 @@ function Hint({ text, disabledText, children, ...passThrough }: HintProps) {
 
   return (
     <>
-      <TooltipProvider
-        delayDuration={twoSteps ? TOOLTIP_OVERFLOW_DELAY : TOOLTIP_HINT_DELAY}
-        skipDelayDuration={0}
-      >
-        <TooltipPrimitive.Root open={open} onOpenChange={changeOpen}>
+      <TooltipProvider>
+        <TooltipPrimitive.Root>
           <TooltipTrigger asChild onFocus={keepClosedOnFocus}>
             <PassThrough {...passThrough} ref={ref}>
               {trigger}
             </PassThrough>
           </TooltipTrigger>
           <TooltipContent>
-            {twoSteps ? (
+            {clipped ? (
               <>
                 <span className="block">{overflow.text}</span>
-                {secondStep ? (
-                  <span className="mt-1 block opacity-90" data-slot="tooltip-hint">
-                    {shown}
-                  </span>
-                ) : null}
+                <span className="mt-1 block opacity-90" data-slot="tooltip-hint">
+                  {shown}
+                </span>
               </>
             ) : (
               shown

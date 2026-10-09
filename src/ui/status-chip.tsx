@@ -13,6 +13,7 @@ const STATE_TONES = {
   active: "success",
   failed: "destructive",
   error: "destructive",
+  failing: "destructive",
   untested: "warn",
   unconfigured: "warn",
   expiring: "warn",

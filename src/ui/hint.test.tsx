@@ -176,7 +176,7 @@ describe("Hint timing", () => {
 
   const secondLine = () => document.querySelector("[data-slot=tooltip-hint]");
 
-  it("clipped text: opens at once with the full text, the description joins after 1500 ms", () => {
+  it("clipped text: opens after 1500 ms, the full text on top and the description below", () => {
     render(
       <Hint text="Saves the draft">
         <Button variant="success" size="default" className="w-24 truncate">
@@ -185,17 +185,35 @@ describe("Hint timing", () => {
       </Hint>,
     );
     const button = screen.getByRole("button");
-    hoverFor(button, 0);
-    expect(screen.getByRole("tooltip")).toHaveTextContent("Save the very long draft name");
-    expect(secondLine()).toBeNull();
-    act(() => {
-      vi.advanceTimersByTime(1499);
-    });
-    expect(secondLine()).toBeNull();
+    hoverFor(button, 1499);
+    expect(screen.queryByRole("tooltip")).toBeNull();
     act(() => {
       vi.advanceTimersByTime(1);
     });
-    expect(secondLine()).toHaveTextContent("Saves the draft");
+    const bubbles = document.querySelectorAll("[data-slot=tooltip-content]");
+    expect(bubbles).toHaveLength(1);
+    const lines = bubbles[0]?.querySelectorAll("span.block") ?? [];
+    expect(lines[0]).toHaveTextContent(/^Save the very long draft name$/);
+    expect(lines[1]).toBe(secondLine());
+    expect(secondLine()).toHaveTextContent(/^Saves the draft$/);
+  });
+
+  // Step 35 unchanged: keyboard focus keeps the bubble closed, the text arrives as the description.
+  it("keyboard focus: the bubble stays closed, the description is the control's describedby", () => {
+    render(
+      <Hint text="Saves the draft">
+        <Button variant="success" size="default">
+          Save
+        </Button>
+      </Hint>,
+    );
+    const button = screen.getByRole("button", { name: "Save" });
+    act(() => {
+      button.focus();
+      vi.advanceTimersByTime(1500);
+    });
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    expect(button).toHaveAccessibleDescription("Saves the draft");
   });
 
   it("text that fits: opens only after 1500 ms, with the description alone", () => {

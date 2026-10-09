@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
-import { TOOLTIP_HINT_DELAY, TOOLTIP_OVERFLOW_DELAY } from "./ui/tooltip.js";
+import { TOOLTIP_HINT_DELAY } from "./ui/tooltip.js";
 
 const css = readFileSync(new URL("./styles.css", import.meta.url), "utf8");
 
@@ -161,12 +161,11 @@ describe("styles.css tokens", () => {
     },
   );
 
-  it("carries the shell offsets, the tooltip delays and the checker size of the seed", () => {
+  it("carries the shell offsets, the tooltip delay and the checker size of the seed", () => {
     expect(Object.fromEntries(root)).toMatchObject({
       "app-bar-height": "0rem",
       "shell-chrome-height": "0rem",
       "page-inset-top": "1.5rem",
-      "tooltip-overflow-delay": "0ms",
       "tooltip-hint-delay": "1500ms",
       "checker-size": "12px",
     });
@@ -175,8 +174,8 @@ describe("styles.css tokens", () => {
     );
   });
 
-  it("keeps the tooltip delay constants equal to their tokens", () => {
-    expect(root.get("tooltip-overflow-delay")).toBe(`${TOOLTIP_OVERFLOW_DELAY}ms`);
+  it("keeps the tooltip delay constant equal to its token, with no immediate stage", () => {
+    expect(root.has("tooltip-overflow-delay")).toBe(false);
     expect(root.get("tooltip-hint-delay")).toBe(`${TOOLTIP_HINT_DELAY}ms`);
   });
 

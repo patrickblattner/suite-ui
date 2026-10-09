@@ -33,6 +33,7 @@ export const es: SuiteStrings = {
     active: "Activo",
     failed: "Fallido",
     error: "Error",
+    failing: "Con fallo",
     untested: "Sin probar",
     unconfigured: "Sin configurar",
     expiring: "Por caducar",

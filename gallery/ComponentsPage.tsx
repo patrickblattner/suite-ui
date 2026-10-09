@@ -377,7 +377,7 @@ function Badges() {
       </Row>
       <Row label="Hint">
         <Hint text="Saves the draft">
-          <Button variant="success" size="default">
+          <Button variant="success" size="default" data-testid="hint-save">
             {t("actions.save")}
           </Button>
         </Hint>

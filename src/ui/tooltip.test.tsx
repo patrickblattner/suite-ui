@@ -118,7 +118,7 @@ describe("IconButtonTooltip shortcut and labels", () => {
 });
 
 describe("tooltip delays", () => {
-  it("a TooltipProvider without delayDuration opens at once", () => {
+  it("a bare TooltipProvider opens after 1500 ms as well: there is no immediate stage", () => {
     render(
       <TooltipProvider>
         <TooltipPrimitive.Root>
@@ -127,10 +127,14 @@ describe("tooltip delays", () => {
         </TooltipPrimitive.Root>
       </TooltipProvider>,
     );
-    expect(openAfter(screen.getByText("Trigger"), 0)).toBe(true);
+    expect(openAfter(screen.getByText("Trigger"), 1499)).toBe(false);
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Full text");
   });
 
-  it("a Tooltip without delayDuration opens after 1500 ms", () => {
+  it("a Tooltip opens after 1500 ms", () => {
     render(
       <Tooltip>
         <TooltipTrigger>Trigger</TooltipTrigger>
@@ -143,5 +147,67 @@ describe("tooltip delays", () => {
       vi.advanceTimersByTime(1);
     });
     expect(screen.getByRole("tooltip")).toHaveTextContent("Description");
+  });
+});
+
+// SUI-FEATURE-049 AC2: the bubble closes at once; the pointer on it does not hold it open.
+describe("tooltip closing", () => {
+  function openTooltip(): HTMLElement {
+    render(
+      <Tooltip>
+        <TooltipTrigger>Trigger</TooltipTrigger>
+        <TooltipContent>Description</TooltipContent>
+      </Tooltip>,
+    );
+    const trigger = screen.getByText("Trigger");
+    expect(openAfter(trigger, 1500)).toBe(true);
+    return trigger;
+  }
+
+  it("closes when the pointer leaves the element, without a grace area toward the bubble", () => {
+    const trigger = openTooltip();
+    fireEvent.pointerLeave(trigger, { pointerType: "mouse", clientX: 500, clientY: 10 });
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
+  it("closes on a click", () => {
+    const trigger = openTooltip();
+    fireEvent.pointerDown(trigger, { pointerType: "mouse" });
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
+  it("closes on a focus change", () => {
+    const trigger = openTooltip();
+    fireEvent.blur(trigger);
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
+  it("closes on scroll", () => {
+    openTooltip();
+    fireEvent.scroll(document);
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
+  it("closes on Escape", () => {
+    openTooltip();
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+});
+
+// SUI-FEATURE-049 AC3: right of the element, top-aligned and raised; the geometry itself is measured
+// in the gallery.
+describe("tooltip placement", () => {
+  it("stands on the right, aligned at the start", () => {
+    render(
+      <Tooltip>
+        <TooltipTrigger>Trigger</TooltipTrigger>
+        <TooltipContent>Description</TooltipContent>
+      </Tooltip>,
+    );
+    expect(openAfter(screen.getByText("Trigger"), 1500)).toBe(true);
+    const content = document.querySelector("[data-slot=tooltip-content]");
+    expect(content).toHaveAttribute("data-side", "right");
+    expect(content).toHaveAttribute("data-align", "start");
   });
 });

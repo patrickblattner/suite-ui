@@ -6,7 +6,7 @@ import { Code } from "./code.js";
 import { ColorDotBadge } from "./color-dot-badge.js";
 import { STATUS_CHIP_STATES, StatusChip, type StatusChipState } from "./status-chip.js";
 
-// SUI-FEATURE-044: state → tone, and the English text of each state.
+// SUI-FEATURE-044, SUI-FEATURE-049 (`failing`): state → tone, and the English text of each state.
 const EXPECTED: [StatusChipState, string, string][] = [
   ["succeeded", "success", "Succeeded"],
   ["ok", "success", "OK"],
@@ -14,6 +14,7 @@ const EXPECTED: [StatusChipState, string, string][] = [
   ["active", "success", "Active"],
   ["failed", "destructive", "Failed"],
   ["error", "destructive", "Error"],
+  ["failing", "destructive", "Failing"],
   ["untested", "warn", "Untested"],
   ["unconfigured", "warn", "Not configured"],
   ["expiring", "warn", "Expiring"],
@@ -32,7 +33,7 @@ describe("StatusChip", () => {
     await i18n.changeLanguage("en");
   });
 
-  it("knows exactly the 15 states", () => {
+  it("knows exactly the 16 states", () => {
     expect([...STATUS_CHIP_STATES].sort()).toEqual(EXPECTED.map(([state]) => state).sort());
   });
 

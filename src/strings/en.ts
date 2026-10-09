@@ -34,6 +34,7 @@ export const en = {
     active: "Active",
     failed: "Failed",
     error: "Error",
+    failing: "Failing",
     untested: "Untested",
     unconfigured: "Not configured",
     expiring: "Expiring",

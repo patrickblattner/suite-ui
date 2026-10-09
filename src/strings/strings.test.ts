@@ -131,7 +131,7 @@ describe("suite list-state texts", () => {
   );
 });
 
-// SUI-FEATURE-044: the 15 state texts in sentence case, in the order of the spec.
+// SUI-FEATURE-044, SUI-FEATURE-049 (`failing`): the 16 state texts in sentence case, in the order of the spec.
 describe("suite state texts", () => {
   const order = [
     "succeeded",
@@ -140,6 +140,7 @@ describe("suite state texts", () => {
     "active",
     "failed",
     "error",
+    "failing",
     "untested",
     "unconfigured",
     "expiring",
@@ -153,15 +154,15 @@ describe("suite state texts", () => {
   it.each([
     [
       "de",
-      "Erfolgreich, OK, Verbunden, Aktiv, Fehlgeschlagen, Fehler, Ungetestet, Nicht konfiguriert, Läuft ab, Läuft, In Arbeit, Gesetzt, Nicht gesetzt, Nicht testbar, Unbekannt",
+      "Erfolgreich, OK, Verbunden, Aktiv, Fehlgeschlagen, Fehler, Gestört, Ungetestet, Nicht konfiguriert, Läuft ab, Läuft, In Arbeit, Gesetzt, Nicht gesetzt, Nicht testbar, Unbekannt",
     ],
     [
       "en",
-      "Succeeded, OK, Connected, Active, Failed, Error, Untested, Not configured, Expiring, Running, In progress, Set, Not set, Not testable, Unknown",
+      "Succeeded, OK, Connected, Active, Failed, Error, Failing, Untested, Not configured, Expiring, Running, In progress, Set, Not set, Not testable, Unknown",
     ],
     [
       "es",
-      "Correcto, OK, Conectado, Activo, Fallido, Error, Sin probar, Sin configurar, Por caducar, En ejecución, En curso, Definido, No definido, No comprobable, Desconocido",
+      "Correcto, OK, Conectado, Activo, Fallido, Error, Con fallo, Sin probar, Sin configurar, Por caducar, En ejecución, En curso, Definido, No definido, No comprobable, Desconocido",
     ],
   ] as const)("%s", (lng, texts) => {
     const { state } = suiteStrings[lng];

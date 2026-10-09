@@ -3,33 +3,31 @@ import * as React from "react";
 
 import { cn } from "../lib/cn.js";
 
-// Two tooltip behaviours (`GL-UI-016`/`GL-UI-017`): the overflow tooltip opens at once and reveals a
-// clipped text; every description hint opens after the one hint delay. Radix needs numeric delays, so
-// these mirror `--tooltip-overflow-delay` and `--tooltip-hint-delay` in styles.css.
-const TOOLTIP_OVERFLOW_DELAY = 0;
+// One tooltip behaviour (`GL-UI-016`/`GL-UI-017`): every tooltip, the overflow tooltip included, opens
+// after the one hint delay and closes at once — on pointer leave, click, focus change, scroll and `Esc`;
+// the pointer on the bubble does not hold it open. Radix needs a numeric delay, so this mirrors
+// `--tooltip-hint-delay` in styles.css. Apps set no delay of their own.
 const TOOLTIP_HINT_DELAY = 1500;
 
-// A bare provider opens at once; every description hint sets the hint delay itself.
-function TooltipProvider({
-  delayDuration = TOOLTIP_OVERFLOW_DELAY,
-  ...props
-}: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
+type FixedTiming = "delayDuration" | "skipDelayDuration" | "disableHoverableContent";
+
+function TooltipProvider(
+  props: Omit<React.ComponentProps<typeof TooltipPrimitive.Provider>, FixedTiming>,
+) {
   return (
     <TooltipPrimitive.Provider
       data-slot="tooltip-provider"
-      delayDuration={delayDuration}
       {...props}
+      delayDuration={TOOLTIP_HINT_DELAY}
+      skipDelayDuration={0}
+      disableHoverableContent
     />
   );
 }
 
-// A plain tooltip is a description hint, so it opens after the hint delay.
-function Tooltip({
-  delayDuration = TOOLTIP_HINT_DELAY,
-  ...props
-}: React.ComponentProps<typeof TooltipPrimitive.Root>) {
+function Tooltip(props: Omit<React.ComponentProps<typeof TooltipPrimitive.Root>, FixedTiming>) {
   return (
-    <TooltipProvider delayDuration={delayDuration}>
+    <TooltipProvider>
       <TooltipPrimitive.Root data-slot="tooltip" {...props} />
     </TooltipProvider>
   );
@@ -39,18 +37,26 @@ function TooltipTrigger({ ...props }: React.ComponentProps<typeof TooltipPrimiti
   return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />;
 }
 
+// The bubble stands to the right of its element, its top edge 4 px above the element's, 8 px apart;
+// without room on the right it flips to the left with the same offsets, never above or below, so it
+// covers neither the element nor the neighbour rows. Apps set no placement of their own.
 function TooltipContent({
   className,
-  sideOffset = 4,
   collisionPadding = 8,
   children,
   ...props
-}: React.ComponentProps<typeof TooltipPrimitive.Content>) {
+}: Omit<
+  React.ComponentProps<typeof TooltipPrimitive.Content>,
+  "side" | "align" | "sideOffset" | "alignOffset"
+>) {
   return (
     <TooltipPrimitive.Portal>
       <TooltipPrimitive.Content
         data-slot="tooltip-content"
-        sideOffset={sideOffset}
+        side="right"
+        align="start"
+        sideOffset={8}
+        alignOffset={-4}
         collisionPadding={collisionPadding}
         className={cn(
           "z-50 max-w-xs origin-(--radix-tooltip-content-transform-origin) rounded-md bg-primary px-3 py-1.5 text-xs text-balance text-primary-foreground",
@@ -97,8 +103,7 @@ function useIsOverflowing() {
   return { ref: setNode, ...measurement };
 }
 
-// Wraps one clipping element (it carries `truncate`) and shows its full text at once while it is
-// clipped. `text` is optional: without it the text is read back from the element.
+// Wraps one clipping element (it carries `truncate`) and shows its full text while it is clipped. `text` is optional: without it the text is read back from the element.
 function OverflowTooltip({
   text,
   children,
@@ -112,7 +117,7 @@ function OverflowTooltip({
   if (!isOverflowing || full === "") return child;
 
   return (
-    <TooltipProvider delayDuration={TOOLTIP_OVERFLOW_DELAY}>
+    <TooltipProvider>
       <TooltipPrimitive.Root>
         <TooltipTrigger asChild>{child}</TooltipTrigger>
         <TooltipContent>{full}</TooltipContent>
@@ -127,7 +132,7 @@ function uniqueIds(describedBy: string | undefined): string | undefined {
   return ids.length === 0 ? undefined : ids.join(" ");
 }
 
-// The description hint of an icon-only control: opens after the hint delay and shows `label`, which
+// The description hint of an icon-only control: shows `label`, which
 // is also the control's `aria-label` (`GL-UI-016`); the component sets it. A child carrying a different
 // `aria-label` means two texts were intended for one meaning: outside production that throws, in
 // production `label` wins. The hint text is the name, so it never becomes a description as well
@@ -182,7 +187,7 @@ function IconButtonTooltip({
     );
   return (
     <>
-      <TooltipProvider delayDuration={TOOLTIP_HINT_DELAY}>
+      <TooltipProvider>
         <TooltipPrimitive.Root>
           <TooltipTrigger asChild>{trigger}</TooltipTrigger>
           <TooltipContent>
@@ -212,6 +217,5 @@ export {
   TooltipProvider,
   TooltipTrigger,
   TOOLTIP_HINT_DELAY,
-  TOOLTIP_OVERFLOW_DELAY,
   useIsOverflowing,
 };
