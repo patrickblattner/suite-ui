@@ -146,6 +146,21 @@ describe("styles.css tokens", () => {
     }
   });
 
+  // SUI-FEATURE-044 AC1: the text of every soft badge on its own ground, in both themes; the AA
+  // check itself is the `-foreground` pair above.
+  it.each(["success", "warn", "destructive", "info"])(
+    "carries --%s-soft and its -foreground in each theme, checked as a pair",
+    (tone) => {
+      for (const [theme, tokens] of Object.entries(themes)) {
+        expect(pairs(tokens), theme).toContainEqual([`${tone}-soft-foreground`, `${tone}-soft`]);
+        expect(contrast(tokens, `${tone}-soft-foreground`, `${tone}-soft`)).toBeGreaterThanOrEqual(
+          4.5,
+        );
+      }
+      expect(block(".dark").get(`${tone}-soft`)).not.toBe(root.get(`${tone}-soft`));
+    },
+  );
+
   it("carries the shell offsets, the tooltip delays and the checker size of the seed", () => {
     expect(Object.fromEntries(root)).toMatchObject({
       "app-bar-height": "0rem",

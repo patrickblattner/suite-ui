@@ -4,6 +4,8 @@ import { useTranslation } from "react-i18next";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
+import { Code } from "../ui/code.js";
+
 // The GFM renderer of the help pages (`GL-UI-021`, `SUI-FEATURE-038`). Beyond styling it does two
 // things: a missing or empty image source, or an image that fails to load, renders a "Screenshot
 // pending" placeholder instead of a broken image, and a link survives only with an HTTP(S) scheme or
@@ -91,11 +93,11 @@ const components: Components = {
   },
   strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
   em: ({ children }) => <em className="italic">{children}</em>,
-  code: ({ children }) => (
-    <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[0.85em]">{children}</code>
-  ),
+  code: ({ children }) => <Code>{children}</Code>,
   pre: ({ children }) => (
-    <pre className="my-3 overflow-x-auto rounded-md bg-muted p-3 font-mono text-xs">{children}</pre>
+    <pre className="my-3 overflow-x-auto rounded-md bg-muted p-3 [font-family:inherit] text-xs">
+      {children}
+    </pre>
   ),
   table: ({ children }) => (
     <div className="my-4 overflow-x-auto">

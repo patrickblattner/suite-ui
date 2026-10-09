@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
+import { Code } from "../ui/code.js";
 import { Hint } from "../ui/hint.js";
 import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover.js";
 import { VERSION_ICON } from "./nav.js";
@@ -57,14 +58,18 @@ function VersionPopover({ info, collapsed = false }: VersionPopoverProps) {
                 {t("version.noRelease")}
               </dd>
             ) : (
-              <dd className="font-mono" data-testid="version-value">
-                {info?.version ?? "—"}
+              <dd data-testid="version-value">
+                <Code>{info?.version ?? "—"}</Code>
               </dd>
             )}
             <dt className="text-muted-foreground">{t("version.commit")}</dt>
-            <dd className="font-mono">{info?.commit ?? "—"}</dd>
+            <dd>
+              <Code>{info?.commit ?? "—"}</Code>
+            </dd>
             <dt className="text-muted-foreground">{t("version.buildDate")}</dt>
-            <dd className="font-mono">{info?.buildDate ?? "—"}</dd>
+            <dd>
+              <Code>{info?.buildDate ?? "—"}</Code>
+            </dd>
           </dl>
         </div>
       </PopoverContent>

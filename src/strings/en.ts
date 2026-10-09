@@ -23,6 +23,24 @@ export const en = {
     failed: "Failed",
     recovered: "Recovered",
   },
+  // The text of each `StatusChip` state, in sentence case.
+  state: {
+    succeeded: "Succeeded",
+    ok: "OK",
+    connected: "Connected",
+    active: "Active",
+    failed: "Failed",
+    error: "Error",
+    untested: "Untested",
+    unconfigured: "Not configured",
+    expiring: "Expiring",
+    running: "Running",
+    inProgress: "In progress",
+    set: "Set",
+    notSet: "Not set",
+    notTestable: "Not testable",
+    unknown: "Unknown",
+  },
   filter: {
     // The trigger of a filter dropdown without a choice; `allValue` is the same word as its option.
     all: "{{field}}: All",

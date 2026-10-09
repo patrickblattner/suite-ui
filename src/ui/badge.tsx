@@ -4,8 +4,9 @@ import type * as React from "react";
 
 import { cn } from "../lib/cn.js";
 
-// Status variants (`success`, `warn`, `destructive`) are filled and carry a state only; a category
-// (type, origin, kind) is neutral, `secondary` or `outline` (`GL-UI-011` §Statusfarbe heißt Zustand).
+// Status variants carry a state only: filled (`success`, `warn`, `destructive`, `info`) for the one key
+// state of a page, `-soft` for states that repeat in tables and lists. A category (type, origin,
+// kind) is `outline`; `secondary` is a neutral state (`GL-UI-011` §Statusfarbe heißt Zustand).
 const badgeVariants = cva(
   "inline-flex w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-full border border-transparent px-2 py-0.5 text-xs font-medium whitespace-nowrap transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 [&>svg]:pointer-events-none [&>svg]:size-3",
   {
@@ -18,6 +19,11 @@ const badgeVariants = cva(
         success: "bg-success text-success-foreground [a&]:hover:bg-success-hover",
         warn: "bg-warn text-warn-foreground [a&]:hover:bg-warn-hover",
         destructive: "bg-destructive text-destructive-foreground [a&]:hover:bg-destructive-hover",
+        info: "bg-info text-info-foreground",
+        "success-soft": "bg-success-soft text-success-soft-foreground",
+        "warn-soft": "bg-warn-soft text-warn-soft-foreground",
+        "destructive-soft": "bg-destructive-soft text-destructive-soft-foreground",
+        "info-soft": "bg-info-soft text-info-soft-foreground",
       },
     },
   },

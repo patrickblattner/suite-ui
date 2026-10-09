@@ -1419,3 +1419,52 @@ test("settings action row: like the footer, right-aligned at the foot of the blo
   await page.getByTestId("secret-save").click();
   await expect(page.getByTestId("secret-save")).toHaveAttribute("aria-busy", "true");
 });
+
+// `SUI-FEATURE-044`: a user color is a dot in a neutral outline badge, never a fill.
+test("color dot badge: outline, no fill, a dot in the chosen color", async ({ page }) => {
+  await page.goto("/?page=components");
+  const badge = page.getByTestId("color-dot-badge");
+  await expect(badge).toHaveAttribute("data-variant", "outline");
+  await expect(badge).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  const dot = badge.locator("[data-slot=color-dot]");
+  await expect(dot).toHaveAttribute("aria-hidden", "true");
+  const expected = await page.evaluate(() => {
+    const probe = document.createElement("span");
+    probe.style.backgroundColor = "oklch(0.6 0.2 300)";
+    document.body.append(probe);
+    const color = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    return color;
+  });
+  await expect(dot).toHaveCSS("background-color", expected);
+  expect((await box(dot)).width).toBeCloseTo(8, 0);
+});
+
+// `SUI-FEATURE-044`: an identifier in the base family on `--muted`, smaller than its context.
+for (const theme of THEMES) {
+  test(`code: no monospace, muted ground, smaller than its context (${theme})`, async ({
+    page,
+  }) => {
+    await page.goto(`/?page=components&theme=${theme}`);
+    const code = page.getByTestId("code");
+    const context = page.getByTestId("code-context");
+    const style = (node: Element) => {
+      const { fontFamily, fontSize, backgroundColor } = getComputedStyle(node);
+      return { fontFamily, fontSize, backgroundColor };
+    };
+    const own = await code.evaluate(style);
+    const around = await context.evaluate(style);
+    const muted = await page.evaluate(() => {
+      const probe = document.createElement("span");
+      probe.className = "bg-muted";
+      document.body.append(probe);
+      const color = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      return color;
+    });
+    expect(own.fontFamily).toBe(around.fontFamily);
+    expect(own.fontFamily).not.toMatch(/mono/i);
+    expect(own.backgroundColor).toBe(muted);
+    expect(parseFloat(own.fontSize)).toBeLessThan(parseFloat(around.fontSize));
+  });
+}

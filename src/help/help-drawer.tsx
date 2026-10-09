@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
 import type { VersionInfo } from "../shell/version-popover.js";
+import { Code } from "../ui/code.js";
 import { Hint } from "../ui/hint.js";
 import { Input } from "../ui/input.js";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "../ui/sheet.js";
@@ -149,14 +150,18 @@ function HelpDrawer({ open, onOpenChange, pages, categories, version }: HelpDraw
                       {t("version.noRelease")}
                     </dd>
                   ) : (
-                    <dd className="font-mono" data-testid="help-version-value">
-                      {version.info?.version ?? "—"}
+                    <dd data-testid="help-version-value">
+                      <Code>{version.info?.version ?? "—"}</Code>
                     </dd>
                   )}
                   <dt className="text-muted-foreground">{t("version.commit")}</dt>
-                  <dd className="truncate font-mono">{version.info?.commit ?? "—"}</dd>
+                  <dd className="truncate">
+                    <Code>{version.info?.commit ?? "—"}</Code>
+                  </dd>
                   <dt className="text-muted-foreground">{t("version.buildDate")}</dt>
-                  <dd className="font-mono">{version.info?.buildDate ?? "—"}</dd>
+                  <dd>
+                    <Code>{version.info?.buildDate ?? "—"}</Code>
+                  </dd>
                 </dl>
               </section>
             )}

@@ -85,6 +85,18 @@
   /* Info is the blue toast/status fill with black text, identical in both themes. */
   --info: oklch(0.62 0.17 256);
   --info-foreground: oklch(0 0 0);
+
+  /* Soft status tones: a tinted ground of the hue with a dark text of the same hue, for states
+     that repeat in tables and lists (GL-UI-011 §Zwei Stufen, SUI-FEATURE-044). Opaque, AA. */
+  --success-soft: oklch(0.95 0.05 152);
+  --success-soft-foreground: oklch(0.4 0.12 152);
+  --warn-soft: oklch(0.95 0.06 70);
+  --warn-soft-foreground: oklch(0.43 0.12 70);
+  --destructive-soft: oklch(0.94 0.04 27.3);
+  --destructive-soft-foreground: oklch(0.45 0.2 27.3);
+  --info-soft: oklch(0.94 0.04 256);
+  --info-soft-foreground: oklch(0.43 0.15 256);
+
   --instance-name: oklch(0.55 0.18 256);
   --instance-name-foreground: oklch(0.985 0 0);
 
@@ -162,6 +174,17 @@
 
   --info: oklch(0.62 0.17 256);
   --info-foreground: oklch(0 0 0);
+
+  /* In dark the soft ground is a deep tint and its text a light step of the same hue. */
+  --success-soft: oklch(0.3 0.06 152);
+  --success-soft-foreground: oklch(0.85 0.13 152);
+  --warn-soft: oklch(0.32 0.06 70);
+  --warn-soft-foreground: oklch(0.86 0.12 70);
+  --destructive-soft: oklch(0.3 0.08 22.2);
+  --destructive-soft-foreground: oklch(0.85 0.09 22.2);
+  --info-soft: oklch(0.3 0.07 256);
+  --info-soft-foreground: oklch(0.85 0.08 256);
+
   /* The instance name carries dark text in dark, so its hover goes lighter. */
   --instance-name: oklch(0.7 0.16 256);
   --instance-name-foreground: oklch(0.16 0.004 285.9);
@@ -241,6 +264,14 @@
   --color-warn-text: var(--warn-text);
   --color-info: var(--info);
   --color-info-foreground: var(--info-foreground);
+  --color-success-soft: var(--success-soft);
+  --color-success-soft-foreground: var(--success-soft-foreground);
+  --color-warn-soft: var(--warn-soft);
+  --color-warn-soft-foreground: var(--warn-soft-foreground);
+  --color-destructive-soft: var(--destructive-soft);
+  --color-destructive-soft-foreground: var(--destructive-soft-foreground);
+  --color-info-soft: var(--info-soft);
+  --color-info-soft-foreground: var(--info-soft-foreground);
   --color-instance-name: var(--instance-name);
   --color-instance-name-foreground: var(--instance-name-foreground);
   --color-instance-name-hover: var(--instance-name-hover);

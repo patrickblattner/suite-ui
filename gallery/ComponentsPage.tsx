@@ -21,6 +21,8 @@ import {
   CardTitle,
 } from "../src/ui/card.js";
 import { Checkbox } from "../src/ui/checkbox.js";
+import { Code } from "../src/ui/code.js";
+import { ColorDotBadge } from "../src/ui/color-dot-badge.js";
 import { Hint } from "../src/ui/hint.js";
 import { Input } from "../src/ui/input.js";
 import { Label } from "../src/ui/label.js";
@@ -28,6 +30,7 @@ import { LabelWithHelp } from "../src/ui/label-with-help.js";
 import { RadioGroup, RadioGroupItem } from "../src/ui/radio-group.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../src/ui/select.js";
 import { Skeleton } from "../src/ui/skeleton.js";
+import { STATUS_CHIP_STATES, StatusChip } from "../src/ui/status-chip.js";
 import { Switch } from "../src/ui/switch.js";
 import {
   Table,
@@ -58,6 +61,11 @@ const BADGES: BadgeVariant[] = [
   "success",
   "warn",
   "destructive",
+  "info",
+  "success-soft",
+  "warn-soft",
+  "destructive-soft",
+  "info-soft",
   "secondary",
   "outline",
   "default",
@@ -295,15 +303,41 @@ function Badges() {
     success: t("status.success"),
     warn: t("status.warning"),
     destructive: t("status.error"),
+    info: t("status.info"),
+    "success-soft": t("status.success"),
+    "warn-soft": t("status.warning"),
+    "destructive-soft": t("status.error"),
+    "info-soft": t("status.info"),
   };
   return (
-    <Section id="badge" title="Badge · Hint · Skeleton">
+    <Section id="badge" title="Badge · StatusChip · Code · Hint · Skeleton">
       <Row label="Badge">
         {BADGES.map((variant) => (
           <Badge key={variant} variant={variant}>
             {label[variant] ?? variant}
           </Badge>
         ))}
+      </Row>
+      <Row label="StatusChip">
+        {STATUS_CHIP_STATES.map((state) => (
+          <StatusChip key={state} state={state} data-testid={`status-chip-${state}`} />
+        ))}
+      </Row>
+      <Row label="StatusChip filled">
+        {STATUS_CHIP_STATES.map((state) => (
+          <StatusChip key={state} state={state} emphasis="filled" />
+        ))}
+      </Row>
+      <Row label="ColorDotBadge">
+        <ColorDotBadge color="oklch(0.6 0.2 300)" data-testid="color-dot-badge">
+          Newsletter
+        </ColorDotBadge>
+        <ColorDotBadge color="oklch(0.7 0.15 75)">Events</ColorDotBadge>
+      </Row>
+      <Row label="Code">
+        <span data-testid="code-context">
+          Slot <Code data-testid="code">slot-07</Code> · <Code>smtp.password</Code>
+        </span>
       </Row>
       <Row label="Hint">
         <Hint text="Saves the draft">
