@@ -93,6 +93,9 @@ export function migrated(suite: SuiteStrings) {
     },
     settings: {
       secret: { replace: suite.actions.replace, remove: suite.actions.remove },
+      ai: { prompts: { resetToDefault: suite.actions.restoreDefaults } },
     },
+    brandKit: { restoreDefaults: suite.actions.restoreDefaults },
+    mailTemplates: { form: { restoreDefault: suite.actions.restoreDefaults } },
   };
 }

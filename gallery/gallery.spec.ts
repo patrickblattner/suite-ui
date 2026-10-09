@@ -1468,3 +1468,61 @@ for (const theme of THEMES) {
     expect(parseFloat(own.fontSize)).toBeLessThan(parseFloat(around.fontSize));
   });
 }
+
+// SUI-FEATURE-045 AC2: the second add is outline, in the same row left of the first, 8 px apart; the
+// first stays at the right end of the title row; both carry the default size.
+test("page header add pair: second outline left of the first, first at the right end", async ({
+  page,
+}) => {
+  await page.goto("/?page=components");
+  const frame = page.getByTestId("section-adds");
+  const header = frame.getByTestId("page-header");
+  const primary = frame.getByTestId("page-add");
+  const secondary = frame.getByTestId("page-add-secondary");
+  await expect(primary).toHaveAttribute("data-variant", "success");
+  await expect(secondary).toHaveAttribute("data-variant", "outline");
+  await expect(primary).toHaveAttribute("data-size", "default");
+  await expect(secondary).toHaveAttribute("data-size", "default");
+  const [row, first, second] = await Promise.all([box(header), box(primary), box(secondary)]);
+  expect(Math.abs(row.x + row.width - (first.x + first.width))).toBeLessThanOrEqual(1);
+  expect(Math.abs(first.x - (second.x + second.width) - 8)).toBeLessThanOrEqual(1);
+  expect(Math.abs(first.y + first.height / 2 - (second.y + second.height / 2))).toBeLessThanOrEqual(
+    1,
+  );
+  expect(first.height).toBe(36);
+  expect(second.height).toBe(36);
+});
+
+// SUI-FEATURE-045 AC3: a locked add with `disabledText` shows the reason as its tooltip on hover; on
+// keyboard focus its wrapper takes the focus and carries the reason as its description.
+test("page header add pair: a locked entry shows its reason", async ({ page }) => {
+  await page.goto("/?page=components");
+  const secondary = page.getByTestId("page-add-secondary");
+  await expect(secondary).toBeDisabled();
+  const wrapper = secondary.locator("..");
+  await wrapper.hover();
+  await expect(page.getByRole("tooltip")).toHaveText("Possible once a directory is connected.");
+  await page.mouse.move(1900, 1060);
+  await wrapper.focus();
+  await expect(wrapper).toBeFocused();
+  await expect(wrapper).toHaveAccessibleDescription("Possible once a directory is connected.");
+});
+
+// SUI-FEATURE-045 AC5: Restore defaults is outline, size sm, with an icon and the package text.
+test("restore defaults button: outline, sm, icon and package text", async ({ page }) => {
+  await page.goto("/?page=components");
+  const button = page.getByTestId("restore-defaults");
+  await expect(button).toHaveAttribute("data-variant", "outline");
+  await expect(button).toHaveAttribute("data-size", "sm");
+  await expect(button).toHaveText("Restore defaults");
+  await expect(button.locator("svg")).toHaveCount(1);
+  expect((await box(button)).height).toBe(32);
+});
+
+// SUI-FEATURE-045 AC6: the submit of the edit panel carries `SaveIcon`; text, variant and testid stay.
+test("edit panel submit: carries the save icon", async ({ page }) => {
+  await openEditPanel(page);
+  const submit = page.getByTestId("edit-panel-submit");
+  await expect(submit).toHaveAttribute("data-variant", "success");
+  await expect(submit.locator("svg.lucide-save")).toHaveCount(1);
+});

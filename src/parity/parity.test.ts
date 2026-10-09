@@ -95,7 +95,7 @@ describe("parity map", () => {
     expect(broken).toEqual([]);
   });
 
-  it("maps the list frame, the settings footer, the shell, the dialog footer, the help drawer and the secret card head, pending until the apps have switched", () => {
+  it("maps the list frame, the settings footer, the shell, the dialog footer, the help drawer, the secret card head and restore defaults, pending until the apps have switched", () => {
     const elements = new Set(parityMap.elements.map((e) => e.element));
     expect([...elements].sort()).toEqual([
       "AppSidebar",
@@ -104,6 +104,7 @@ describe("parity map", () => {
       "GlobalSearch",
       "HelpDrawer",
       "HelpMarkdown",
+      "RestoreDefaultsButton",
       "SecretCardHeader",
       "SettingsFooter",
       "SortSelect",
@@ -130,10 +131,10 @@ describe("suite-ui-parity", () => {
   it("reports one line per deviating language and key while the community has its own list texts", async () => {
     const { stdout } = await run("community", communityBefore);
     const lines = stdout.trim().split("\n");
-    // 16 list texts deviate; the 42 shell keys and the 4 secret card keys are missing from this
-    // list-only fixture, in 3 languages.
+    // 16 list texts deviate; the 42 shell keys, the 4 secret card keys and the 3 restore-defaults
+    // keys are missing from this list-only fixture, in 3 languages.
     expect(lines.at(-1)).toBe(
-      "suite-ui-parity community: 62 elements (62 pending, 0 aligned), 154 deviations",
+      "suite-ui-parity community: 65 elements (65 pending, 0 aligned), 163 deviations",
     );
     expect(lines).toContain("es filter.reset Quitar el filtro ≠ Borrar filtro");
     expect(lines).toContain("en pagination.pageSizeLabel Items per page ≠ Rows per page");
@@ -144,7 +145,7 @@ describe("suite-ui-parity", () => {
   it("reports no line once the community carries the suite texts", async () => {
     const { stdout } = await run("community", communityMigrated);
     expect(stdout.trim()).toBe(
-      "suite-ui-parity community: 62 elements (62 pending, 0 aligned), 0 deviations",
+      "suite-ui-parity community: 65 elements (65 pending, 0 aligned), 0 deviations",
     );
   });
 });

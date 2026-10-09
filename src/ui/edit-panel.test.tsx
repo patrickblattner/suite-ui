@@ -90,6 +90,19 @@ describe("EditPanel", () => {
     expect(screen.getByTestId("edit-panel-body")).toHaveClass("overflow-y-auto");
   });
 
+  // SUI-FEATURE-045 AC6: the submit carries `SaveIcon` before its text; text, variant and testid stay.
+  it("submit carries the decorative SaveIcon with its text, variant and testid", () => {
+    renderPanel();
+    const submit = screen.getByRole("button", { name: "Save" });
+    expect(submit).toHaveAttribute("data-testid", "edit-panel-submit");
+    expect(submit).toHaveAttribute("data-variant", "success");
+    expect(submit).toHaveAttribute("data-size", "default");
+    expect(submit).toHaveTextContent(/^Save$/);
+    const icon = submit.querySelector("svg");
+    expect(icon).toHaveClass("lucide-save");
+    expect(icon).toHaveAttribute("aria-hidden", "true");
+  });
+
   it("submit and Enter in a field call onSubmit, Cancel requests the close", () => {
     const { onOpenChange, onSubmit } = renderPanel();
     fireEvent.click(screen.getByTestId("edit-panel-submit"));

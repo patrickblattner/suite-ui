@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { PageHeader } from "../src/list/page-header.js";
 import {
   Accordion,
   AccordionContent,
@@ -28,6 +29,7 @@ import { Input } from "../src/ui/input.js";
 import { Label } from "../src/ui/label.js";
 import { LabelWithHelp } from "../src/ui/label-with-help.js";
 import { RadioGroup, RadioGroupItem } from "../src/ui/radio-group.js";
+import { RestoreDefaultsButton } from "../src/ui/restore-defaults-button.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../src/ui/select.js";
 import { Skeleton } from "../src/ui/skeleton.js";
 import { STATUS_CHIP_STATES, StatusChip } from "../src/ui/status-chip.js";
@@ -144,6 +146,40 @@ function Buttons() {
         <Button variant="destructive" size="icon-xs" aria-label={t("actions.delete")}>
           <Trash2Icon />
         </Button>
+      </Row>
+    </Section>
+  );
+}
+
+// `SUI-FEATURE-045`: two adds in one title row, the second locked with its reason, and the one look
+// of "Restore defaults".
+function Adds() {
+  const { t } = useTranslation("suite");
+  return (
+    <Section id="adds" title="PageHeader add pair · RestoreDefaultsButton">
+      <div className="max-w-3xl rounded-md border p-4" data-testid="adds-frame">
+        <PageHeader
+          title="Users"
+          subtitle="Two adds in one title row."
+          add={[
+            { label: t("actions.create"), onClick: () => {} },
+            {
+              label: "Import",
+              onClick: () => {},
+              disabled: true,
+              disabledText: "Possible once a directory is connected.",
+            },
+          ]}
+        />
+      </div>
+      <Row label="restore">
+        <RestoreDefaultsButton onClick={() => {}} />
+        <RestoreDefaultsButton
+          onClick={() => {}}
+          disabled
+          disabledText="Already the defaults."
+          testId="restore-defaults-locked"
+        />
       </Row>
     </Section>
   );
@@ -456,6 +492,7 @@ export function ComponentsPage() {
   return (
     <>
       <Buttons />
+      <Adds />
       <Badges />
       <Fields />
       <Choices />

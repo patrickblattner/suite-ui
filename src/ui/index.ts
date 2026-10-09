@@ -16,6 +16,7 @@ export * from "./label.js";
 export * from "./label-with-help.js";
 export * from "./popover.js";
 export * from "./radio-group.js";
+export * from "./restore-defaults-button.js";
 export * from "./select.js";
 export * from "./sheet.js";
 export * from "./skeleton.js";

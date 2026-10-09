@@ -1,3 +1,4 @@
+import { SaveIcon } from "lucide-react";
 import { Dialog as SheetPrimitive } from "radix-ui";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
@@ -173,6 +174,7 @@ function EditPanel({
                   disabled={submitDisabled}
                   data-testid={`${testIdPrefix}-submit`}
                 >
+                  <SaveIcon aria-hidden="true" />
                   {submitLabel ?? t("actions.save")}
                 </Button>
               )}

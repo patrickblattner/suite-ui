@@ -619,6 +619,25 @@
       "status": "pending",
       "cockpit": "settings.n8n.testConnection",
       "community": "integrations.test.run"
+    },
+    {
+      "element": "RestoreDefaultsButton",
+      "suite": "actions.restoreDefaults",
+      "status": "pending",
+      "cockpit": "brandKits.restoreStandard",
+      "community": "brandKit.restoreDefaults"
+    },
+    {
+      "element": "RestoreDefaultsButton",
+      "suite": "actions.restoreDefaults",
+      "status": "pending",
+      "community": "mailTemplates.form.restoreDefault"
+    },
+    {
+      "element": "RestoreDefaultsButton",
+      "suite": "actions.restoreDefaults",
+      "status": "pending",
+      "community": "settings.ai.prompts.resetToDefault"
     }
   ]
 }

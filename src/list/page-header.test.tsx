@@ -78,6 +78,103 @@ describe("PageHeader", () => {
     expect(add.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
   });
 
+  // SUI-FEATURE-045 AC1: a single entry stands alone in the row, without a group around it.
+  it("renders a single add without a group, as in v0.35.0", () => {
+    render(
+      <PageHeader
+        title="Events"
+        subtitle="Every event."
+        add={{ label: "Add event", onClick: () => {} }}
+      />,
+    );
+    const add = screen.getByRole("button", { name: "Add event" });
+    expect(add.parentElement).toBe(screen.getByTestId("page-header"));
+    expect(add).toHaveAttribute("data-size", "default");
+    expect(screen.queryByTestId("page-add-group")).toBeNull();
+    expect(screen.queryByTestId("page-add-secondary")).toBeNull();
+  });
+
+  // SUI-FEATURE-045 AC2: the second entry is outline, left of the first, both size default.
+  it("renders a pair: the second outline left of the green first", () => {
+    const first = vi.fn();
+    const second = vi.fn();
+    render(
+      <PageHeader
+        title="Users"
+        subtitle="Every user."
+        add={[
+          { label: "Add user", onClick: first },
+          { label: "Add group", onClick: second },
+        ]}
+      />,
+    );
+    const group = screen.getByTestId("page-add-group");
+    expect(group).toHaveClass("flex", "items-center", "gap-2", "shrink-0");
+    const buttons = [...group.querySelectorAll("button")];
+    expect(buttons.map((b) => b.dataset.testid)).toEqual(["page-add-secondary", "page-add"]);
+    const [secondary, primary] = buttons;
+    expect(primary).toHaveAttribute("data-variant", "success");
+    expect(primary).toHaveTextContent("Add user");
+    expect(secondary).toHaveAttribute("data-variant", "outline");
+    expect(secondary).toHaveTextContent("Add group");
+    for (const button of buttons) expect(button).toHaveAttribute("data-size", "default");
+    fireEvent.click(screen.getByTestId("page-add-secondary"));
+    expect(second).toHaveBeenCalledTimes(1);
+    expect(first).not.toHaveBeenCalled();
+  });
+
+  // SUI-FEATURE-045 AC3: a locked entry names its reason; `disabledText` goes before `hint`.
+  it.each<[string, string | undefined]>([
+    ["with a hint", "Opens the form."],
+    ["without a hint", undefined],
+  ])("names the reason of a locked entry %s", (_case, hint) => {
+    render(
+      <PageHeader
+        title="Users"
+        subtitle="Every user."
+        add={[
+          { label: "Add user", onClick: () => {} },
+          {
+            label: "Add group",
+            onClick: () => {},
+            disabled: true,
+            disabledText: "Possible once a directory is connected",
+            ...(hint !== undefined ? { hint } : {}),
+          },
+        ]}
+      />,
+    );
+    const secondary = screen.getByTestId("page-add-secondary");
+    expect(secondary).toBeDisabled();
+    const wrapper = secondary.parentElement;
+    expect(wrapper).toHaveAttribute("tabindex", "0");
+    const id = wrapper?.getAttribute("aria-describedby") ?? "";
+    expect(document.getElementById(id)).toHaveTextContent("Possible once a directory is connected");
+    expect(screen.getByTestId("page-add")).toBeEnabled();
+  });
+
+  // SUI-FEATURE-045 AC4: busy locks only its own entry.
+  it("locks only the busy entry of a pair", () => {
+    const first = vi.fn();
+    render(
+      <PageHeader
+        title="Users"
+        subtitle="Every user."
+        add={[
+          { label: "Add user", onClick: first },
+          { label: "Add group", onClick: () => {}, busy: true },
+        ]}
+      />,
+    );
+    expect(screen.getByTestId("page-add-secondary")).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByTestId("page-add-secondary")).toBeDisabled();
+    const primary = screen.getByTestId("page-add");
+    expect(primary).toBeEnabled();
+    expect(primary).not.toHaveAttribute("aria-busy");
+    fireEvent.click(primary);
+    expect(first).toHaveBeenCalledTimes(1);
+  });
+
   it("puts the lifecycle next step top right instead of an add, with secondary actions left of it", () => {
     render(
       <PageHeader
