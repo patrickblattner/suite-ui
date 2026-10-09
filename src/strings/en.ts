@@ -5,6 +5,7 @@ export const en = {
     save: "Save",
     cancel: "Cancel",
     reset: "Reset",
+    restoreDefaults: "Restore defaults",
     delete: "Delete",
     create: "Create",
     back: "Back",

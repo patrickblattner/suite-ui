@@ -51,3 +51,16 @@ describe("suite strings", () => {
     expect(hits).toEqual([]);
   });
 });
+
+describe("suite action texts", () => {
+  it.each([
+    ["de", "Anlegen", "Standard wiederherstellen", "Zurücksetzen"],
+    ["en", "Create", "Restore defaults", "Reset"],
+    ["es", "Crear", "Restaurar valores predeterminados", "Restablecer"],
+  ] as const)("%s create, restoreDefaults and reset", (lng, create, restoreDefaults, reset) => {
+    const { actions } = suiteStrings[lng];
+    expect(actions.create).toBe(create);
+    expect(actions.restoreDefaults).toBe(restoreDefaults);
+    expect(actions.reset).toBe(reset);
+  });
+});

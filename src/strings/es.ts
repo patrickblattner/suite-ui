@@ -5,6 +5,7 @@ export const es: SuiteStrings = {
     save: "Guardar",
     cancel: "Cancelar",
     reset: "Restablecer",
+    restoreDefaults: "Restaurar valores predeterminados",
     delete: "Eliminar",
     create: "Crear",
     back: "Volver",
