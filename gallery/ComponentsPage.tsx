@@ -329,6 +329,24 @@ function Choices() {
           </SelectContent>
         </Select>
       </Row>
+      {(["default", "sm"] as const).map((size) => (
+        <Row key={size} label={`Height · ${size}`}>
+          <div className="flex items-center gap-3" data-testid={`height-row-${size}`}>
+            <Input aria-label={`Input ${size}`} size={size} placeholder="Search" className="w-48" />
+            <Select defaultValue="weekly">
+              <SelectTrigger aria-label={`Select ${size}`} size={size} className="w-48">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="weekly">Weekly</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button variant="default" size={size}>
+              Apply
+            </Button>
+          </div>
+        </Row>
+      ))}
     </Section>
   );
 }
