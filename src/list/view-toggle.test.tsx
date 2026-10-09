@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import i18n from "i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { configureSuiteUi } from "../config/index.js";
@@ -87,6 +88,20 @@ describe("ViewToggle (SUI-FEATURE-046)", () => {
     expect(screen.getByTestId("shown")).toHaveTextContent("table");
     fireEvent.click(screen.getByRole("radio", { name: "Tiles" }));
     expect(screen.getByTestId("shown")).toHaveTextContent("tiles");
+  });
+
+  it.each([
+    ["de", "Ansicht"],
+    ["en", "View"],
+    ["es", "Vista"],
+  ])("%s: the radio group is named by view.label", async (lng, name) => {
+    await i18n.changeLanguage(lng);
+    try {
+      render(<MediaPage />);
+      expect(screen.getByRole("radiogroup", { name })).toBeInTheDocument();
+    } finally {
+      await i18n.changeLanguage("en");
+    }
   });
 
   it("keeps only the checked radio in the tab order", () => {

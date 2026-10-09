@@ -14,6 +14,17 @@ export default defineConfig({
     baseURL: `http://localhost:${PORT}`,
     viewport: { width: 1920, height: 1080 },
   },
+  // Headless Chromium hides scrollbars, yet `scrollbar-gutter: stable` still reserves their width, so
+  // a sticky column there sees a reserved gutter without a bar. Tests tagged `@scrollbars` measure
+  // geometry that depends on a real bar and run with classic scrollbars shown; they take no screenshots.
+  projects: [
+    { name: "gallery", grepInvert: /@scrollbars/ },
+    {
+      name: "scrollbars",
+      grep: /@scrollbars/,
+      use: { launchOptions: { ignoreDefaultArgs: ["--hide-scrollbars"] } },
+    },
+  ],
   expect: {
     toHaveScreenshot: { maxDiffPixels: 0 },
   },

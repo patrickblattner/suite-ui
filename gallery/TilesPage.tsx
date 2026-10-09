@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { DataTableShell } from "../src/list/data-table-shell.js";
 import { FilterBar } from "../src/list/filter-bar.js";
 import type { ListStateProps } from "../src/list/list-state.js";
+import { ListViewShell } from "../src/list/list-view-shell.js";
 import { useSort } from "../src/list/sort-select.js";
 import { TileGridShell } from "../src/list/tile-grid-shell.js";
 import { useListView } from "../src/list/view-toggle.js";
@@ -87,37 +87,32 @@ export function TilesPage() {
 
   return (
     <div className="flex flex-col gap-8" data-testid="tiles-page">
-      {/* The FilterBar sits above the swapped frame, not in its slot: a slot would remount it with the
-          frame, and the switch would lose focus under the arrow keys. */}
-      <section className="flex h-96 flex-col gap-4" data-testid="tiles-media">
-        {filterBar}
-        {view === "tiles" ? (
-          <TileGridShell
-            isPending={false}
-            isEmpty={false}
-            loadingTestId="media-tile-loading"
-            emptyTestId="media-empty"
-          >
-            {FILES.map((name) => (
-              <Tile key={name} name={name} />
-            ))}
-          </TileGridShell>
-        ) : (
-          <DataTableShell
-            head={<TableHead>{labels.name}</TableHead>}
-            columnCount={1}
-            isPending={false}
-            isEmpty={false}
-            loadingRowTestId="media-row-loading"
-            emptyTestId="media-empty"
-          >
-            {FILES.map((name) => (
+      {/* One toolbar over both frames: the view switch keeps its focus under the arrow keys. */}
+      <section className="flex h-96 flex-col" data-testid="tiles-media">
+        <ListViewShell
+          view={view}
+          toolbar={filterBar}
+          table={{
+            head: <TableHead>{labels.name}</TableHead>,
+            columnCount: 1,
+            isPending: false,
+            isEmpty: false,
+            loadingRowTestId: "media-row-loading",
+            emptyTestId: "media-empty",
+            children: FILES.map((name) => (
               <TableRow key={name} data-testid="media-row">
                 <TableCell>{name}</TableCell>
               </TableRow>
-            ))}
-          </DataTableShell>
-        )}
+            )),
+          }}
+          tiles={{
+            isPending: false,
+            isEmpty: false,
+            loadingTestId: "media-tile-loading",
+            emptyTestId: "media-empty",
+            children: FILES.map((name) => <Tile key={name} name={name} />),
+          }}
+        />
       </section>
       <div className="grid grid-cols-2 gap-6">
         {STATES.map(([name, state]) => (

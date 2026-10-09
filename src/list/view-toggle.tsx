@@ -62,6 +62,7 @@ function ViewToggle({ value, onChange, storageKey }: ViewToggleProps) {
   return (
     <div
       role="radiogroup"
+      aria-label={t("view.label")}
       className="flex items-center gap-1"
       onKeyDown={onKeyDown}
       data-testid="view-toggle"

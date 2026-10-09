@@ -54,6 +54,15 @@ function renderShell(state: {
   );
 }
 
+// The column's slots by test id; FilterBar and pager sit in the shared-gutter wrapper.
+function slotIds(column: HTMLElement) {
+  return [...column.children].map((el) =>
+    el.getAttribute("data-slot") === "list-gutter-row"
+      ? el.firstElementChild?.getAttribute("data-testid")
+      : el.getAttribute("data-testid"),
+  );
+}
+
 describe("DataTableShell", () => {
   it("renders the rows under a sticky header, the pager below the scroll area", () => {
     renderShell({});
@@ -63,7 +72,7 @@ describe("DataTableShell", () => {
     expect(scroll).toHaveClass("overflow-auto");
     expect(scroll).toContainElement(screen.getByTestId("rows-header"));
     expect(scroll).not.toContainElement(screen.getByTestId("pager"));
-    expect(scroll.nextElementSibling).toBe(screen.getByTestId("pager"));
+    expect(scroll.nextElementSibling).toContainElement(screen.getByTestId("pager"));
   });
 
   it("names the one scroller after scrollTestId when given", () => {
@@ -95,33 +104,39 @@ describe("DataTableShell", () => {
     renderShell({ tabs: <div data-testid="tabs" />, toolbar: <div data-testid="toolbar" /> });
     const column = screen.getByTestId("data-table");
     expect(column).toHaveClass("flex-col", "gap-4");
-    expect([...column.children].map((el) => el.getAttribute("data-testid"))).toEqual([
-      "tabs",
+    expect(slotIds(column)).toEqual(["tabs", "toolbar", "data-table-scroll", "pager"]);
+  });
+
+  it("leaves no slot behind for a missing view switch", () => {
+    renderShell({ toolbar: <div data-testid="toolbar" /> });
+    expect(slotIds(screen.getByTestId("data-table"))).toEqual([
       "toolbar",
       "data-table-scroll",
       "pager",
     ]);
   });
 
-  it("leaves no slot behind for a missing view switch", () => {
-    renderShell({ toolbar: <div data-testid="toolbar" /> });
-    expect(
-      [...screen.getByTestId("data-table").children].map((el) => el.getAttribute("data-testid")),
-    ).toEqual(["toolbar", "data-table-scroll", "pager"]);
-  });
-
-  // The v0.17.0 frame: the column holds only scroller and pager; the scroller keeps a 24 px floor (v0.24.2).
+  // The v0.17.0 frame: the column holds only scroller and pager; the scroller keeps a 24 px floor (v0.24.2)
+  // and, with the pager, the shared scrollbar gutter (SUI-FEATURE-047).
   it("keeps the v0.17.0 markup without view switch and FilterBar", () => {
     renderShell({});
     const column = screen.getByTestId("data-table");
     expect(column.className).toBe("flex min-h-0 flex-1 flex-col gap-4");
-    expect([...column.children].map((el) => el.getAttribute("data-testid"))).toEqual([
-      "data-table-scroll",
-      "pager",
-    ]);
+    expect(slotIds(column)).toEqual(["data-table-scroll", "pager"]);
     expect(screen.getByTestId("data-table-scroll").className).toBe(
-      "relative min-h-6 flex-1 overflow-auto [&_[data-slot=table-container]]:overflow-visible",
+      "relative min-h-6 flex-1 overflow-auto [scrollbar-gutter:stable] [&_[data-slot=table-container]]:overflow-visible",
     );
+  });
+
+  it("AC3: FilterBar, scroller and pager reserve the same scrollbar gutter", () => {
+    renderShell({ toolbar: <div data-testid="toolbar" /> });
+    for (const id of ["toolbar", "pager"]) {
+      expect(screen.getByTestId(id).parentElement).toHaveClass(
+        "overflow-hidden",
+        "[scrollbar-gutter:stable]",
+      );
+    }
+    expect(screen.getByTestId("data-table-scroll")).toHaveClass("[scrollbar-gutter:stable]");
   });
 
   it("hands the scroller to a ref object and to a callback ref", () => {

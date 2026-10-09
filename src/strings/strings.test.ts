@@ -93,7 +93,8 @@ describe("suite list-state texts", () => {
       expect(strings.list.emptyOf.replace("{{objects}}", objects)).toBe(emptyOf);
       expect(strings.list.noMatches).toBe(noMatches);
       expect(strings.actions.retry).toBe(retry);
-      expect(strings.view).toEqual({ table, tiles });
+      expect(strings.view.table).toBe(table);
+      expect(strings.view.tiles).toBe(tiles);
     },
   );
 });
@@ -133,5 +134,22 @@ describe("suite state texts", () => {
   ] as const)("%s", (lng, texts) => {
     const { state } = suiteStrings[lng];
     expect(order.map((key) => state[key]).join(", ")).toBe(texts);
+  });
+});
+
+// SUI-FEATURE-047 AC8 and the view switch's name.
+describe("suite row texts", () => {
+  it.each([
+    ["de", "Aktionen", "leer", "Bearbeiten", "Ansicht"],
+    ["en", "Actions", "empty", "Edit", "View"],
+    ["es", "Acciones", "vacío", "Editar", "Vista"],
+  ] as const)("%s list.actions, list.emptyValue, actions.edit, view.label", (lng, ...texts) => {
+    const strings = suiteStrings[lng];
+    expect([
+      strings.list.actions,
+      strings.list.emptyValue,
+      strings.actions.edit,
+      strings.view.label,
+    ]).toEqual(texts);
   });
 });

@@ -164,7 +164,8 @@ test("the open time zone list grows the dialog", async ({ page }) => {
 test("list frame: only the table body scrolls", async ({ page }) => {
   await page.goto("/?page=list");
   await expect(page.getByTestId("list-row")).toHaveCount(200);
-  await expect(page.locator("select[aria-hidden]")).toHaveCount(4);
+  // Three rows and the page size, plus the FilterBar's three selects inside the form's slot.
+  await expect(page.locator("select[aria-hidden]")).toHaveCount(7);
   const scroller = page.getByTestId("data-table-scroll");
   await scroller.evaluate((el) => el.scrollTo(0, el.scrollHeight));
 
@@ -214,12 +215,8 @@ test("list frame: header and pager stay put while the rows scroll", async ({ pag
   expect((await box(firstRow)).y).toBeLessThan(rowBefore.y);
   expect(await page.getByTestId("page-scroll").evaluate((el) => el.scrollTop)).toBe(0);
 
-  const gutterRight = await page.getByTestId("page-scroll").evaluate((el) => {
-    const rect = el.getBoundingClientRect();
-    return (
-      rect.left + el.clientLeft + el.clientWidth - parseFloat(getComputedStyle(el).paddingRight)
-    );
-  });
+  // The pager ends where the table does: on the list frame's shared scrollbar gutter (`GL-UI-018`).
+  const gutterRight = await scrollerRight(page.getByTestId("data-table-scroll"));
   expect(
     pagerEdgeViolations(await box(page.getByTestId("pagination-page-size")), gutterRight),
   ).toEqual([]);
@@ -262,7 +259,10 @@ test("list frame: the page gutter is the same left and right of the content", as
   ]);
   expect(Math.abs(title.x - inner.left - 24)).toBeLessThanOrEqual(1);
   expect(Math.abs(inner.right - (add.x + add.width) - 24)).toBeLessThanOrEqual(1);
-  expect(Math.abs(inner.right - (pager.x + pager.width) - 24)).toBeLessThanOrEqual(1);
+  // The pager shares the table's scrollbar gutter, so it ends that gutter left of the page gutter.
+  const tableRight = await scrollerRight(page.getByTestId("data-table-scroll"));
+  expect(Math.abs(tableRight - (pager.x + pager.width))).toBeLessThanOrEqual(1);
+  expect(Math.abs(inner.right - tableRight - 24 - 15)).toBeLessThanOrEqual(1);
 });
 
 test("filter bar order: static filter, search, reset, dynamic filter, sort", async ({ page }) => {
@@ -479,9 +479,14 @@ test("list frame: a horizontal scroller is marked while it overflows", async ({ 
   await expect(scroller).toHaveCSS("padding-bottom", "0px");
 });
 
-// The children of DataTableShell's column, by test id, and the gaps between neighbours.
+// The children of DataTableShell's column, by test id, and the gaps between neighbours; FilterBar and
+// pager count as themselves, not as their shared-gutter wrapper.
 async function listArea(page: Page) {
-  const children = page.getByTestId("data-table").locator(":scope > *");
+  const children = page
+    .getByTestId("data-table")
+    .locator(
+      ":scope > :not([data-slot=list-gutter-row]), :scope > [data-slot=list-gutter-row] > *",
+    );
   const ids = await children.evaluateAll((els) => els.map((el) => el.getAttribute("data-testid")));
   const boxes = await Promise.all((await children.all()).map(box));
   const gaps = boxes.slice(1).map((b, i) => {
@@ -875,7 +880,7 @@ function scrollerRight(scroller: Locator) {
 
 // SUI-FEATURE-029 AC4: under `tableActions: "sticky"` at 1100 px the table is wider than its scroller,
 // yet at `scrollLeft` 0 the actions column ends on the scroller's right edge.
-test("table actions sticky: the actions column sits on the scroller's right edge at 1100 px", async ({
+test("table actions sticky: the actions column sits on the scroller's right edge at 1100 px @scrollbars", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1100, height: 900 });
@@ -896,7 +901,9 @@ test("table actions sticky: the actions column sits on the scroller's right edge
 
 // SUI-FEATURE-029 AC5: DataTableShell under all three table keys — scrolled to the end on both axes,
 // the header and the pager stay where they were and the actions column stays at the right edge.
-test("table switch: header and pager stay visible after scrolling to the end", async ({ page }) => {
+test("table switch: header and pager stay visible after scrolling to the end @scrollbars", async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 1100, height: 900 });
   await page.goto("/?page=list&tableScroll=page&tableRowHover=target&tableActions=sticky");
   await expect(page.getByTestId("list-row")).toHaveCount(200);
@@ -1561,4 +1568,130 @@ test("edit panel submit: carries the save icon", async ({ page }) => {
   const submit = page.getByTestId("edit-panel-submit");
   await expect(submit).toHaveAttribute("data-variant", "success");
   await expect(submit.locator("svg.lucide-save")).toHaveCount(1);
+});
+
+// SUI-FEATURE-047 AC1: the package's 12 px cell padding, in the standard and the sticky form.
+for (const query of ["", "&tableActions=sticky"]) {
+  test(`table cells: 12 px left and right padding${query === "" ? "" : " (sticky)"}`, async ({
+    page,
+  }) => {
+    await page.goto(`/?page=list${query}`);
+    await expect(page.getByTestId("list-row").first()).toBeVisible();
+    const cells = [
+      page.getByTestId("list-header").locator("th").first(),
+      page.getByTestId("list-row").first().locator("td").first(),
+      ...(query === ""
+        ? []
+        : [page.getByTestId("list-actions-head"), page.getByTestId("list-actions").first()]),
+    ];
+    for (const cell of cells) {
+      const padding = await cell.evaluate((el) => {
+        const style = getComputedStyle(el);
+        return [style.paddingLeft, style.paddingRight];
+      });
+      expect(padding).toEqual(["12px", "12px"]);
+    }
+  });
+}
+
+// The colour of one screen pixel, read back from a 1×1 screenshot.
+async function pixelAt(page: Page, x: number, y: number) {
+  const png = await page.screenshot({ clip: { x, y, width: 1, height: 1 } });
+  return page.evaluate(async (base64) => {
+    const image = new Image();
+    image.src = `data:image/png;base64,${base64}`;
+    await image.decode();
+    const canvas = document.createElement("canvas");
+    canvas.width = 1;
+    canvas.height = 1;
+    const context = canvas.getContext("2d");
+    if (context === null) throw new Error("no 2d context");
+    context.drawImage(image, 0, 0);
+    return [...context.getImageData(0, 0, 1, 1).data.slice(0, 3)];
+  }, png.toString("base64"));
+}
+
+// SUI-FEATURE-047 AC2: scrolled sideways, the sticky actions head keeps the header rule — the pixel
+// row under its text is `--border` on the background, as a swatch of that colour shows it.
+for (const theme of THEMES) {
+  test(`sticky actions head: the header rule runs under it when scrolled (${theme}) @scrollbars`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1100, height: 900 });
+    await page.goto(`/?page=list&tableActions=sticky&theme=${theme}`);
+    const scroller = page.getByTestId("data-table-scroll");
+    await expect(page.getByTestId("list-actions-head")).toBeVisible();
+    await scroller.evaluate((el) => el.scrollTo(200, 0));
+    expect(await scroller.evaluate((el) => el.scrollLeft)).toBe(200);
+    await page.evaluate(() => {
+      const ground = document.createElement("div");
+      ground.style.cssText =
+        "position:fixed;left:0;bottom:0;padding:4px;background:var(--background)";
+      const swatch = document.createElement("div");
+      swatch.dataset.testid = "border-swatch";
+      swatch.style.cssText = "width:8px;height:8px;background:var(--border)";
+      ground.append(swatch);
+      document.body.append(ground);
+    });
+    const swatch = await box(page.getByTestId("border-swatch"));
+    const border = await pixelAt(page, swatch.x + 4, swatch.y + 4);
+    const head = await box(page.getByTestId("list-actions-head"));
+    const x = Math.round(head.x + head.width / 2);
+    expect(await pixelAt(page, x, Math.round(head.y + head.height - 1))).toEqual(border);
+    // The cell above the rule is the plain background, so the probe really hit a line.
+    expect(await pixelAt(page, x, Math.round(head.y + 2))).not.toEqual(border);
+  });
+}
+
+// SUI-FEATURE-047 AC3: table, FilterBar and pager end on one right edge (±1 px), with the vertical bar
+// of 200 rows and without it at 3 rows.
+// The default list page and its `?slots=toolbar` form both pass the FilterBar through the slot.
+for (const [rows, query] of [
+  [200, ""],
+  [3, ""],
+  [200, "&slots=toolbar"],
+  [200, "&tableActions=sticky"],
+  [3, "&tableActions=sticky"],
+] as const) {
+  test(`list frame: table, FilterBar and pager share the right edge with ${rows} rows${query} @scrollbars`, async ({
+    page,
+  }) => {
+    await page.goto(`/?page=list&rows=${rows}${query}`);
+    await expect(page.getByTestId("list-row")).toHaveCount(rows);
+    const scroller = page.getByTestId("data-table-scroll");
+    expect(await scroller.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(rows === 200);
+    // With a sticky actions column the visible table ends with that column, the table may be wider.
+    const [table, bar, sort, pager, pageSize] = await Promise.all([
+      box(
+        query.includes("sticky")
+          ? page.getByTestId("list-actions-head")
+          : scroller.locator("table"),
+      ),
+      box(page.getByTestId("filterbar")),
+      box(page.getByTestId("filter-sort")),
+      box(page.getByTestId("pagination")),
+      box(page.getByTestId("pagination-page-size")),
+    ]);
+    const right = table.x + table.width;
+    for (const part of [bar, sort, pager, pageSize]) {
+      expect(Math.abs(part.x + part.width - right)).toBeLessThanOrEqual(1);
+    }
+  });
+}
+
+// SUI-FEATURE-047 AC7: in ListViewShell the arrow key swaps table for tiles while the focus stays on
+// the switch and the FilterBar stays the same node.
+test("list view shell: the view swaps under the keyboard, the FilterBar is not remounted", async ({
+  page,
+}) => {
+  await page.goto("/?page=tiles");
+  await expect(page.getByTestId("media-row").first()).toBeVisible();
+  const media = page.getByTestId("tiles-media");
+  await media.getByTestId("filterbar").evaluate((el) => el.setAttribute("data-probe", "kept"));
+  await page.getByTestId("view-table").focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(media.getByTestId("tile-grid")).toBeVisible();
+  await expect(media.getByTestId("data-table")).toHaveCount(0);
+  await expect(page.getByTestId("view-tiles")).toBeFocused();
+  await expect(media.getByTestId("filterbar")).toHaveAttribute("data-probe", "kept");
 });

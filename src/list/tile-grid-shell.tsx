@@ -1,6 +1,7 @@
 import type * as React from "react";
 
 import { Skeleton } from "../ui/skeleton.js";
+import { GutterRow } from "./list-gutter.js";
 import { listState, ListStateContent, type ListStateProps } from "./list-state.js";
 
 const SKELETON_TILE_COUNT = 6;
@@ -43,9 +44,9 @@ function TileGridShell({
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4" data-testid="tile-grid">
       {tabs}
-      {toolbar}
+      <GutterRow>{toolbar}</GutterRow>
       <div
-        className="relative min-h-6 flex-1 overflow-auto"
+        className="relative min-h-6 flex-1 overflow-auto [scrollbar-gutter:stable]"
         data-testid={scrollTestId}
         ref={scrollRef}
       >
@@ -70,7 +71,7 @@ function TileGridShell({
           </div>
         )}
       </div>
-      {pagination}
+      <GutterRow>{pagination}</GutterRow>
     </div>
   );
 }

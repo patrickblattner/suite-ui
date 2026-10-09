@@ -1,4 +1,4 @@
-import { PencilIcon, Trash2Icon } from "lucide-react";
+import { CopyIcon } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -9,9 +9,9 @@ import { FilterSelect } from "../src/list/filter-select.js";
 import { LabeledSelect } from "../src/list/labeled-select.js";
 import { PageHeader } from "../src/list/page-header.js";
 import { PageScroll } from "../src/list/page-scroll.js";
+import { RowActions, RowActionsHead } from "../src/list/row-actions.js";
 import { useSort } from "../src/list/sort-select.js";
 import { TablePagination } from "../src/list/table-pagination.js";
-import { Button } from "../src/ui/button.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../src/ui/select.js";
 import { TableCell, TableHead, TableRow } from "../src/ui/table.js";
 import { Tabs, TabsList, TabsTrigger } from "../src/ui/tabs.js";
@@ -28,6 +28,8 @@ const LABELS = {
     date: "Date",
     view: "View",
     views: ["Compact", "Detailed"],
+    copy: "Copy",
+    inUse: "Still booked; delete the bookings first.",
   },
   de: {
     severity: "Schweregrad",
@@ -39,6 +41,8 @@ const LABELS = {
     date: "Termin",
     view: "Sicht",
     views: ["Kompakt", "Ausführlich"],
+    copy: "Kopieren",
+    inUse: "Noch gebucht; zuerst die Buchungen löschen.",
   },
   es: {
     severity: "Gravedad",
@@ -50,6 +54,8 @@ const LABELS = {
     date: "Fecha",
     view: "Vista",
     views: ["Compacta", "Detallada"],
+    copy: "Copiar",
+    inUse: "Aún reservado; elimine primero las reservas.",
   },
 } as const;
 
@@ -65,7 +71,9 @@ const ROOMS =
 const PICKERS = new URLSearchParams(window.location.search).get("pickers") === "1";
 const DATES = ["12.10.", "19.10."];
 const OWNERS = ["Ada", "Grace", "Linus"];
-const ROWS = Array.from({ length: 200 }, (_, i) => ({
+// `?rows=<n>` renders fewer rows, so the gallery can measure the frame without a vertical bar.
+const ROW_COUNT = Number(new URLSearchParams(window.location.search).get("rows") ?? 200);
+const ROWS = Array.from({ length: ROW_COUNT }, (_, i) => ({
   id: i + 1,
   owner: OWNERS[i % OWNERS.length] ?? "",
   severity: SEVERITIES[i % SEVERITIES.length] ?? "info",
@@ -81,11 +89,10 @@ const ROWS_WITH_SELECT = new Set([1, 100, 200]);
 // rows render at once, so the table body overflows by far and is the only part that scrolls.
 // `?floor=1` mounts PageScroll with its lower bound, so the gallery measures `--shell-content-min`.
 const FLOOR = new URLSearchParams(window.location.search).get("floor") === "1";
-// `?slots=toolbar` puts the FilterBar into DataTableShell's slot; `?slots=tabs` adds a view switch by
-// severity above it. Either way the page sets no gap of its own inside the list area.
-const SLOTS = new URLSearchParams(window.location.search).get("slots");
-const TABS = SLOTS === "tabs";
-const TOOLBAR = TABS || SLOTS === "toolbar";
+// The FilterBar always sits in DataTableShell's `toolbar` slot, so it shares the frame's scrollbar
+// gutter; `?slots=tabs` adds a view switch by severity above it. Either way the page sets no gap of its
+// own inside the list area.
+const TABS = new URLSearchParams(window.location.search).get("slots") === "tabs";
 // Under `tableActions: "sticky"` the rows carry a long note and an actions column, so the table is
 // wider than its scroller at 1100 px and the gallery measures that the actions stay at the right edge.
 const NOTE =
@@ -199,7 +206,7 @@ export function ListPage() {
             {actions && (
               <>
                 <TableHead>Note</TableHead>
-                <TableHead data-col-kind="actions" data-testid="list-actions-head" />
+                <RowActionsHead data-testid="list-actions-head" />
               </>
             )}
           </>
@@ -222,7 +229,7 @@ export function ListPage() {
             </TabsList>
           )
         }
-        toolbar={TOOLBAR && filterBar}
+        toolbar={filterBar}
         pagination={
           <TablePagination
             page={page}
@@ -257,14 +264,14 @@ export function ListPage() {
             {actions && (
               <>
                 <TableCell>{NOTE}</TableCell>
-                <TableCell data-col-kind="actions" data-testid="list-actions">
-                  <Button variant="warn" size="icon-xs" aria-label="Edit">
-                    <PencilIcon />
-                  </Button>
-                  <Button variant="destructive" size="icon-xs" aria-label={t("actions.delete")}>
-                    <Trash2Icon />
-                  </Button>
-                </TableCell>
+                <RowActions
+                  rowName={`${labels.event} ${row.id}`}
+                  extra={[{ label: labels.copy, icon: CopyIcon, onClick: () => {} }]}
+                  onEdit={() => {}}
+                  onDelete={() => {}}
+                  {...(row.id === 1 ? { deleteDisabledText: labels.inUse } : {})}
+                  data-testid="list-actions"
+                />
               </>
             )}
           </TableRow>
@@ -285,13 +292,8 @@ export function ListPage() {
           <Tabs value={view} onValueChange={setView} className="flex min-h-0 flex-1">
             {table}
           </Tabs>
-        ) : TOOLBAR ? (
-          table
         ) : (
-          <>
-            {filterBar}
-            {table}
-          </>
+          table
         )}
       </div>
     </PageScroll>

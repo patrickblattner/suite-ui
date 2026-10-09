@@ -1,10 +1,22 @@
 import type * as React from "react";
 
+import { suiteUiConfig } from "../config/index.js";
 import { Skeleton } from "../ui/skeleton.js";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "../ui/table.js";
+import { GutterRow } from "./list-gutter.js";
 import { listState, ListStateContent, type ListStateProps } from "./list-state.js";
 
 const SKELETON_ROW_COUNT = 5;
+
+// The scroller reserves the list frame's shared gutter (`GL-UI-018`). Under `tableActions: "sticky"`
+// the bar always shows: Chromium sticks the actions column to the scrollport without an empty
+// gutter, so without a bar the column would slide into the gutter and be clipped there.
+const SCROLL_CLASS = {
+  static:
+    "relative min-h-6 flex-1 overflow-auto [scrollbar-gutter:stable] [&_[data-slot=table-container]]:overflow-visible",
+  sticky:
+    "relative min-h-6 flex-1 overflow-auto overflow-y-scroll [scrollbar-gutter:stable] [&_[data-slot=table-container]]:overflow-visible",
+} as const;
 
 // The inset shadow draws the header rule without a border that would scroll away with the rows.
 const STICKY_HEADER_CLASS =
@@ -40,7 +52,8 @@ type DataTableShellProps = {
 // view. It fills the remaining height of its flex column (PageScroll on a list page), so the page
 // itself never scrolls. Loading, error and empty take precedence in that order: skeleton rows while
 // pending, never a spinner; one centred cell across all columns on error or when there is nothing. View switch, FilterBar, table and pager share the
-// column's one gap (`GL-UI-010` §Listenbereich); a missing slot leaves no gap behind.
+// column's one gap (`GL-UI-010` §Listenbereich); a missing slot leaves no gap behind. FilterBar, body and pager
+// reserve one scrollbar gutter, so they end on one right edge with and without a bar (`GL-UI-018`).
 function DataTableShell({
   head,
   columnCount,
@@ -66,9 +79,9 @@ function DataTableShell({
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4" data-testid="data-table">
       {tabs}
-      {toolbar}
+      <GutterRow>{toolbar}</GutterRow>
       <div
-        className="relative min-h-6 flex-1 overflow-auto [&_[data-slot=table-container]]:overflow-visible"
+        className={SCROLL_CLASS[suiteUiConfig().tableActions]}
         data-testid={scrollTestId}
         ref={scrollRef}
       >
@@ -107,7 +120,7 @@ function DataTableShell({
           </TableBody>
         </Table>
       </div>
-      {pagination}
+      <GutterRow>{pagination}</GutterRow>
     </div>
   );
 }

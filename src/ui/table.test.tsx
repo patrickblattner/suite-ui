@@ -5,17 +5,20 @@ import { configureSuiteUi } from "../config/index.js";
 import { DataTableShell } from "../list/data-table-shell.js";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./table.js";
 
-// The classes of `v0.18.0`, which every part keeps without the switch (SUI-FEATURE-029 AC1).
-const V0_18 = {
+// The classes every part has without the switch: those of `v0.18.0` (SUI-FEATURE-029 AC1) with the
+// 12 px cell padding of SUI-FEATURE-047.
+const DEFAULT = {
   container: "relative w-full overflow-x-auto",
   header: "[&_tr]:border-b",
   row: "border-b transition-colors hover:bg-muted/50 has-aria-expanded:bg-muted/50 data-[state=selected]:bg-muted",
-  head: "h-10 px-2 text-left align-middle font-medium whitespace-nowrap text-foreground [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
-  cell: "p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
+  head: "h-10 px-3 text-left align-middle font-medium whitespace-nowrap text-foreground [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
+  cell: "px-3 py-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
 };
 const STICKY_HEADER = "sticky top-0 z-10 bg-background shadow-[inset_0_-1px_0_0_var(--border)]";
 const STICKY_ACTIONS =
   "data-[col-kind=actions]:sticky data-[col-kind=actions]:right-0 data-[col-kind=actions]:bg-background";
+// The sticky head cell draws the header rule itself, its ground would cover it.
+const STICKY_HEAD_LINE = "data-[col-kind=actions]:shadow-[inset_0_-1px_0_0_var(--border)]";
 
 function renderTable(role?: string) {
   render(
@@ -48,16 +51,16 @@ const container = () => screen.getByTestId("table").parentElement?.className;
 describe("Table", () => {
   afterEach(() => configureSuiteUi({}));
 
-  it("keeps the v0.18.0 classes of every part without the switch", () => {
+  it("keeps the default classes of every part without the switch", () => {
     renderTable();
-    expect(container()).toBe(V0_18.container);
-    expect(classOf("header")).toBe(V0_18.header);
-    expect(classOf("plain-row")).toBe(V0_18.row);
-    expect(classOf("target-row")).toBe(V0_18.row);
-    expect(classOf("head")).toBe(V0_18.head);
-    expect(classOf("actions-head")).toBe(V0_18.head);
-    expect(classOf("cell")).toBe(V0_18.cell);
-    expect(classOf("actions-cell")).toBe(V0_18.cell);
+    expect(container()).toBe(DEFAULT.container);
+    expect(classOf("header")).toBe(DEFAULT.header);
+    expect(classOf("plain-row")).toBe(DEFAULT.row);
+    expect(classOf("target-row")).toBe(DEFAULT.row);
+    expect(classOf("head")).toBe(DEFAULT.head);
+    expect(classOf("actions-head")).toBe(DEFAULT.head);
+    expect(classOf("cell")).toBe(DEFAULT.cell);
+    expect(classOf("actions-cell")).toBe(DEFAULT.cell);
   });
 
   it("leaves the roles implicit on a plain table", () => {
@@ -100,8 +103,8 @@ describe("Table", () => {
   it('tableActions "sticky": the actions head and cell stick right on the background', () => {
     configureSuiteUi({ tableActions: "sticky" });
     renderTable();
-    expect(classOf("actions-head")).toBe(`${V0_18.head} ${STICKY_ACTIONS}`);
-    expect(classOf("actions-cell")).toBe(`${V0_18.cell} ${STICKY_ACTIONS}`);
+    expect(classOf("actions-head")).toBe(`${DEFAULT.head} ${STICKY_ACTIONS} ${STICKY_HEAD_LINE}`);
+    expect(classOf("actions-cell")).toBe(`${DEFAULT.cell} ${STICKY_ACTIONS}`);
   });
 
   it("DataTableShell inherits the switch and keeps its own scroller and sticky header", () => {
@@ -123,6 +126,11 @@ describe("Table", () => {
       </DataTableShell>,
     );
     expect(screen.getByTestId("data-table-scroll").className).toContain("overflow-auto");
+    // A sticky actions column needs the bar shown, or it slides into the empty gutter.
+    expect(screen.getByTestId("data-table-scroll")).toHaveClass(
+      "overflow-y-scroll",
+      "[scrollbar-gutter:stable]",
+    );
     expect(classOf("rows-header")).toContain(STICKY_HEADER);
     expect(classOf("shell-row")).toContain("data-[grid-row]:hover:bg-muted/50");
     expect(classOf("shell-actions")).toContain(STICKY_ACTIONS);
