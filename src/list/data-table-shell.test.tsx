@@ -19,6 +19,7 @@ function renderShell(state: {
   tabs?: React.ReactNode;
   toolbar?: React.ReactNode;
   tableProps?: DataTableShellProps["tableProps"];
+  inset?: DataTableShellProps["inset"];
 }) {
   return render(
     <DataTableShell
@@ -47,6 +48,7 @@ function renderShell(state: {
       toolbar={state.toolbar}
       pagination={<div data-testid="pager" />}
       {...(state.tableProps !== undefined && { tableProps: state.tableProps })}
+      {...(state.inset !== undefined && { inset: state.inset })}
     >
       <TableRow data-testid="row">
         <TableCell>a</TableCell>
@@ -267,5 +269,62 @@ describe("DataTableShell", () => {
     expect(scroll).not.toHaveAttribute("role");
     expect(scroll).not.toHaveAttribute("aria-label");
     expect(container.querySelector("[tabindex]")).toBeNull();
+  });
+
+  // SUI-FEATURE-059 AC1: without inset, and with inset="page", the frame stays as in v0.49.0.
+  it("keeps the v0.49.0 markup without inset", () => {
+    const { container } = renderShell({ toolbar: <div data-testid="toolbar" /> });
+    const { container: page } = renderShell({
+      toolbar: <div data-testid="toolbar" />,
+      inset: "page",
+    });
+    const frame = container.querySelector('[data-testid="data-table"]');
+    expect(frame?.getAttributeNames()).toEqual(["class", "data-testid", "data-slot"]);
+    expect(container.querySelector('[data-testid="data-table-scroll"]')?.className).toBe(
+      "relative min-h-6 flex-1 overflow-auto [scrollbar-gutter:stable] [&_[data-slot=table-container]]:overflow-visible",
+    );
+    for (const row of container.querySelectorAll('[data-slot="list-gutter-row"]')) {
+      expect(row.className).toBe(
+        "-m-[3px] shrink-0 overflow-hidden p-[3px] [scrollbar-gutter:stable]",
+      );
+    }
+    expect(page.innerHTML).toBe(container.innerHTML);
+  });
+
+  // SUI-FEATURE-059 AC2/AC5: in a drawer no start inset, 16 px to the bar on the scroller, the same
+  // end inset on FilterBar and pager; 16 px under the rows only while they overflow horizontally.
+  it('gives the scroller and both gutter rows the end inset under inset="sheet"', () => {
+    renderShell({ toolbar: <div data-testid="toolbar" />, inset: "sheet" });
+    const scroll = screen.getByTestId("data-table-scroll");
+    expect(scroll).toHaveClass(
+      "[scrollbar-gutter:stable]",
+      "pe-4",
+      "data-[overflow-x]:pb-4",
+      "[&_[data-slot=table-container]]:pb-0",
+    );
+    expect(scroll.className).not.toMatch(/\b(px|ps|pl)-/);
+    for (const id of ["toolbar", "pager"]) {
+      expect(screen.getByTestId(id).parentElement).toHaveClass(
+        "[scrollbar-gutter:stable]",
+        "pe-[calc(1rem+3px)]",
+      );
+    }
+  });
+
+  // SUI-FEATURE-059 AC3/AC5: in a framed card 16 px on both sides, on FilterBar and pager as well.
+  it('gives the scroller and both gutter rows the symmetric inset under inset="framed"', () => {
+    renderShell({ toolbar: <div data-testid="toolbar" />, inset: "framed" });
+    expect(screen.getByTestId("data-table-scroll")).toHaveClass(
+      "[scrollbar-gutter:stable]",
+      "px-4",
+      "data-[overflow-x]:pb-4",
+      "[&_[data-slot=table-container]]:pb-0",
+    );
+    for (const id of ["toolbar", "pager"]) {
+      expect(screen.getByTestId(id).parentElement).toHaveClass(
+        "[scrollbar-gutter:stable]",
+        "px-[calc(1rem+3px)]",
+      );
+    }
   });
 });

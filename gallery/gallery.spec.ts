@@ -2656,3 +2656,107 @@ test("slider: keys move the value, the number field follows, centres line up", a
     "tabindex",
   );
 });
+
+// `SUI-FEATURE-059`: the box of a scroller's content area, inside its border and left of its bar.
+function scrollerBox(scroller: Locator) {
+  return scroller.evaluate((el) => {
+    const rect = el.getBoundingClientRect();
+    const left = rect.left + el.clientLeft;
+    const top = rect.top + el.clientTop;
+    return { left, right: left + el.clientWidth, bottom: top + el.clientHeight };
+  });
+}
+
+// `SUI-FEATURE-059` AC2/AC5: in a drawer the table's left edge is the header content's, 16 px to the bar
+// with and without a visible bar, FilterBar and pager end on the table's right edge.
+for (const rows of [40, 3]) {
+  test(`inset sheet: header line on the left, 16 px to the bar with ${rows} rows @scrollbars`, async ({
+    page,
+  }) => {
+    await page.goto(`/?page=inset&inset=sheet&rows=${rows}`);
+    await expect(page.getByTestId("inset-row")).toHaveCount(rows);
+    const scroller = page.getByTestId("inset-scroll");
+    expect(await scroller.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(rows === 40);
+    const [table, title, bar, pager, area] = await Promise.all([
+      box(scroller.locator("table")),
+      box(page.getByTestId("inset-sheet-title")),
+      box(page.getByTestId("filterbar")),
+      box(page.getByTestId("pagination")),
+      scrollerBox(scroller),
+    ]);
+    expect(Math.abs(table.x - title.x)).toBeLessThanOrEqual(1);
+    expect(Math.abs(area.right - (table.x + table.width) - 16)).toBeLessThanOrEqual(1);
+    for (const part of [bar, pager]) {
+      expect(Math.abs(part.x + part.width - (table.x + table.width))).toBeLessThanOrEqual(1);
+    }
+  });
+}
+
+// `SUI-FEATURE-059` AC3/AC5: in a bordered card 16 px from the frame's inner edge and to the bar.
+for (const rows of [40, 3]) {
+  test(`inset framed: 16 px from the frame and to the bar with ${rows} rows @scrollbars`, async ({
+    page,
+  }) => {
+    await page.goto(`/?page=inset&inset=framed&rows=${rows}`);
+    await expect(page.getByTestId("inset-row")).toHaveCount(rows);
+    const card = page.getByTestId("inset-card");
+    const scroller = page.getByTestId("inset-scroll");
+    expect(await scroller.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(rows === 40);
+    const [table, frame, bar, pager, area] = await Promise.all([
+      box(scroller.locator("table")),
+      scrollerBox(card),
+      box(page.getByTestId("filterbar")),
+      box(page.getByTestId("pagination")),
+      scrollerBox(scroller),
+    ]);
+    expect(Math.abs(table.x - frame.left - 16)).toBeLessThanOrEqual(1);
+    expect(Math.abs(area.right - (table.x + table.width) - 16)).toBeLessThanOrEqual(1);
+    for (const part of [bar, pager]) {
+      expect(Math.abs(part.x + part.width - (table.x + table.width))).toBeLessThanOrEqual(1);
+    }
+  });
+}
+
+// `SUI-FEATURE-059` AC4/AC5: with a sticky actions column and horizontal overflow the column ends 16 px
+// before the bar at `scrollLeft` 0, the rows end 16 px above the horizontal bar; FilterBar and pager end
+// on the column's right edge. Without overflow there is no gap under the rows.
+for (const inset of ["sheet", "framed"] as const) {
+  test(`inset ${inset}: sticky actions 16 px before the bar, 16 px under the rows @scrollbars`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1100, height: 900 });
+    await page.goto(`/?page=inset&inset=${inset}&tableActions=sticky`);
+    const scroller = page.getByTestId("inset-scroll");
+    await expect(page.getByTestId("inset-actions").first()).toBeVisible();
+    expect(await scroller.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
+    expect(await scroller.evaluate((el) => el.scrollLeft)).toBe(0);
+    const area = await scrollerBox(scroller);
+    const head = await box(page.getByTestId("inset-actions-head"));
+    const right = head.x + head.width;
+    expect(Math.abs(area.right - right - 16)).toBeLessThanOrEqual(1);
+    const cell = await box(page.getByTestId("inset-actions").first());
+    expect(Math.abs(area.right - (cell.x + cell.width) - 16)).toBeLessThanOrEqual(1);
+    for (const part of [page.getByTestId("filterbar"), page.getByTestId("pagination")]) {
+      const edge = await box(part);
+      expect(Math.abs(edge.x + edge.width - right)).toBeLessThanOrEqual(1);
+    }
+    await expect(scroller).toHaveAttribute("data-overflow-x", "");
+    await scroller.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+    const table = await box(scroller.locator("table"));
+    expect(Math.abs(area.bottom - (table.y + table.height) - 16)).toBeLessThanOrEqual(1);
+  });
+
+  test(`inset ${inset}: no gap under the rows without horizontal overflow`, async ({ page }) => {
+    await page.goto(`/?page=inset&inset=${inset}`);
+    const scroller = page.getByTestId("inset-scroll");
+    await expect(page.getByTestId("inset-row").first()).toBeVisible();
+    expect(await scroller.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(false);
+    await expect(scroller).not.toHaveAttribute("data-overflow-x");
+    await scroller.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+    const [area, table] = await Promise.all([
+      scrollerBox(scroller),
+      box(scroller.locator("table")),
+    ]);
+    expect(Math.abs(area.bottom - (table.y + table.height))).toBeLessThanOrEqual(1);
+  });
+}
