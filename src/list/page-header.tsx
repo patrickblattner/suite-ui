@@ -3,6 +3,7 @@ import type * as React from "react";
 
 import { Button } from "../ui/button.js";
 import { Hint } from "../ui/hint.js";
+import { OperationStatusSlot } from "../ui/operation-status.js";
 
 // One add of the title row. `hint` says what a press does next (`GL-UI-017`); `busy` is the Button's
 // working state (`GL-UI-027`); `disabledText` is the reason a locked entry shows instead of `hint`
@@ -31,6 +32,9 @@ type PageHeaderProps = {
   primaryAction?: React.ReactNode;
   // Secondary or backward actions as `outline`, left of the primary action.
   secondaryAction?: React.ReactNode;
+  // The key of the running operations (`useOperationStatus`) this head shows in its status slot,
+  // between the title block and the actions (`GL-UI-033`).
+  operationScope?: string;
 };
 
 function addButton(add: PageHeaderAdd, secondary: boolean) {
@@ -87,6 +91,7 @@ function PageHeader({
   action,
   primaryAction,
   secondaryAction,
+  operationScope,
 }: PageHeaderProps) {
   const actions =
     primaryAction !== undefined || secondaryAction !== undefined ? (
@@ -114,6 +119,7 @@ function PageHeader({
           {subtitle}
         </p>
       </div>
+      {operationScope !== undefined ? <OperationStatusSlot scope={operationScope} /> : null}
       {actions}
     </div>
   );

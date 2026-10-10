@@ -623,6 +623,70 @@ test("busy button with a leading icon keeps one icon, its text and its width", a
   expect((await box(busy)).width).toBeCloseTo((await box(idle)).width, 0);
 });
 
+// `SUI-FEATURE-050`/`GL-UI-033`: an operation shows in the head's status slot; the head keeps its
+// height and the first field below moves by 0 px.
+test("status slot: start and end move nothing below the head", async ({ page }) => {
+  await page.goto("/?page=components");
+  const frame = page.getByTestId("status-frame-toggle");
+  const head = frame.getByTestId("page-header");
+  const below = frame.getByTestId("status-below");
+  const slot = frame.getByTestId("page-operation-status");
+  // Head and first field, measured against the frame, so a scroll by the click does not count.
+  const layout = async () => {
+    const origin = await box(frame);
+    const [h, b] = [await box(head), await box(below)];
+    return { headHeight: h.height, headTop: h.y - origin.y, belowTop: b.y - origin.y };
+  };
+  const before = await layout();
+  expect((await box(slot)).width).toBe(0);
+
+  await frame.getByTestId("status-toggle").click();
+  await expect(slot).toHaveText("Website is updating");
+  await expect(slot.getByTestId("operation-spinner")).toBeVisible();
+  expect(await layout()).toEqual(before);
+
+  await frame.getByTestId("status-toggle").click();
+  await expect(slot).toBeEmpty();
+  expect(await layout()).toEqual(before);
+});
+
+// With a subtitle that already wraps, the filled slot takes no width from the title block.
+test("status slot: a full title block keeps its width and height", async ({ page }) => {
+  await page.goto("/?page=components");
+  const frame = page.getByTestId("status-frame-squeezed");
+  const subtitle = frame.getByTestId("page-subtitle");
+  const head = frame.getByTestId("page-header");
+  const before = { subtitle: await box(subtitle), head: (await box(head)).height };
+  expect(before.subtitle.height).toBeGreaterThan(20);
+
+  await frame.getByTestId("status-toggle").click();
+  await expect(frame.getByTestId("page-operation-status")).not.toBeEmpty();
+  const after = await box(subtitle);
+  expect(after.width).toBe(before.subtitle.width);
+  expect(after.height).toBe(before.subtitle.height);
+  expect((await box(head)).height).toBe(before.head);
+});
+
+test("status slot: progress, several operations, and the row status keeps its width", async ({
+  page,
+}) => {
+  await page.goto("/?page=components");
+  const progress = page.getByTestId("status-frame-progress").getByTestId("operation-progress");
+  await expect(progress).toHaveAttribute("aria-valuenow", "60");
+  const multiple = page.getByTestId("status-frame-multiple");
+  await expect(multiple.getByTestId("operation-label")).toHaveText("Exporting events");
+  await expect(multiple.getByTestId("page-operation-more")).toHaveText("+1");
+  const slot = page.getByTestId("status-frame-running").getByTestId("page-operation-status");
+  const actions = page.getByTestId("status-preview-running");
+  expect((await box(slot)).x).toBeLessThan((await box(actions)).x);
+
+  const inline = page.getByTestId("section-operation-status").getByTestId("inline-status");
+  await expect(inline).toHaveCount(5);
+  const widths = new Set<number>();
+  for (const item of await inline.all()) widths.add((await box(item)).width);
+  expect([...widths]).toEqual([128]);
+});
+
 // `SUI-FEATURE-021`: the overlay menu groups its items under a label, a separator before the
 // destructive one.
 test("dropdown menu: a labelled group and a separator", async ({ page }) => {

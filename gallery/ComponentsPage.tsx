@@ -1,6 +1,6 @@
 import { PencilIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import type { ReactNode } from "react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { PageHeader } from "../src/list/page-header.js";
@@ -25,9 +25,16 @@ import { Checkbox } from "../src/ui/checkbox.js";
 import { Code } from "../src/ui/code.js";
 import { ColorDotBadge } from "../src/ui/color-dot-badge.js";
 import { Hint } from "../src/ui/hint.js";
+import { InlineStatus } from "../src/ui/inline-status.js";
 import { Input } from "../src/ui/input.js";
 import { Label } from "../src/ui/label.js";
 import { LabelWithHelp } from "../src/ui/label-with-help.js";
+import {
+  type OperationHandle,
+  type OperationStart,
+  OperationStatusProvider,
+  useOperationStatus,
+} from "../src/ui/operation-status.js";
 import { RadioGroup, RadioGroupItem } from "../src/ui/radio-group.js";
 import { RestoreDefaultsButton } from "../src/ui/restore-defaults-button.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../src/ui/select.js";
@@ -180,6 +187,136 @@ function Adds() {
           disabledText="Already the defaults."
           testId="restore-defaults-locked"
         />
+      </Row>
+    </Section>
+  );
+}
+
+// Starts the given operations once, as a page would after a press.
+function SeedOperations({ operations }: { operations: OperationStart[] }) {
+  const { start } = useOperationStatus();
+  const seeded = useRef(false);
+  useEffect(() => {
+    if (seeded.current) return;
+    seeded.current = true;
+    for (const operation of operations) start(operation);
+  }, [operations, start]);
+  return null;
+}
+
+function StatusFrame({
+  id,
+  title,
+  operations,
+}: {
+  id: string;
+  title: string;
+  operations: OperationStart[];
+}) {
+  return (
+    <div className="max-w-3xl rounded-md border p-4" data-testid={`status-frame-${id}`}>
+      <OperationStatusProvider>
+        <SeedOperations operations={operations} />
+        <PageHeader
+          title={title}
+          subtitle="The status slot sits left of the actions."
+          operationScope={id}
+          secondaryAction={
+            <Button variant="outline" size="default" data-testid={`status-preview-${id}`}>
+              Preview
+            </Button>
+          }
+          primaryAction={
+            <Button variant="success" size="default">
+              Publish
+            </Button>
+          }
+        />
+      </OperationStatusProvider>
+    </div>
+  );
+}
+
+// The toggle starts and ends one operation, so the head can be measured before and after; its text
+// stays the same, so the actions keep their width.
+function StatusToggle({ subtitle }: { subtitle: string }) {
+  const { start } = useOperationStatus();
+  const handle = useRef<OperationHandle | null>(null);
+  const [running, setRunning] = useState(false);
+  const toggle = () => {
+    if (handle.current === null) {
+      handle.current = start({ scope: "toggle", label: "Website is updating" });
+    } else {
+      handle.current.succeed("Website updated");
+      handle.current = null;
+    }
+    setRunning(handle.current !== null);
+  };
+  return (
+    <>
+      <PageHeader
+        title="Brand kit"
+        subtitle={subtitle}
+        operationScope="toggle"
+        action={
+          <Button
+            variant="outline"
+            size="default"
+            onClick={toggle}
+            aria-pressed={running}
+            data-testid="status-toggle"
+          >
+            Run
+          </Button>
+        }
+      />
+      <Input aria-label="First field" data-testid="status-below" />
+    </>
+  );
+}
+
+// `SUI-FEATURE-050`: the status slot of the page head (running, progress, several) and the row status.
+function OperationStatus() {
+  return (
+    <Section id="operation-status" title="PageHeader status slot · InlineStatus">
+      <div className="flex flex-col gap-4">
+        <StatusFrame
+          id="running"
+          title="Brand kit"
+          operations={[
+            { scope: "running", label: "Website is updating — visible in about 1–2 minutes" },
+          ]}
+        />
+        <StatusFrame
+          id="progress"
+          title="Media"
+          operations={[{ scope: "progress", label: "3 of 5 files uploaded", progress: 0.6 }]}
+        />
+        <StatusFrame
+          id="multiple"
+          title="Exports"
+          operations={[
+            { scope: "multiple", label: "Exporting members" },
+            { scope: "multiple", label: "Exporting events" },
+          ]}
+        />
+        <div className="max-w-3xl rounded-md border p-4" data-testid="status-frame-toggle">
+          <OperationStatusProvider>
+            <StatusToggle subtitle="Start and end an operation." />
+          </OperationStatusProvider>
+        </div>
+        <div className="max-w-md rounded-md border p-4" data-testid="status-frame-squeezed">
+          <OperationStatusProvider>
+            <StatusToggle subtitle="A subtitle long enough to wrap, so the title block already fills the row before anything runs." />
+          </OperationStatusProvider>
+        </div>
+      </div>
+      <Row label="inline">
+        <InlineStatus />
+        <InlineStatus state="running" label="Uploading logo.svg" />
+        <InlineStatus state="running" progress={0.4} label="40 %" />
+        <InlineStatus state="done" label="Uploaded" />
+        <InlineStatus state="failed" label="File too large" />
       </Row>
     </Section>
   );
@@ -511,6 +648,7 @@ export function ComponentsPage() {
     <>
       <Buttons />
       <Adds />
+      <OperationStatus />
       <Badges />
       <Fields />
       <Choices />
