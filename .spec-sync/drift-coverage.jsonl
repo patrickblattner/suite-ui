@@ -164,3 +164,5 @@
 {"ts":"2026-10-10T17:25:06.984Z","key":"SUI-DESIGN-012","from":41,"to":42,"disposition":"ticket","ref":"71"}
 {"ts":"2026-10-10T17:25:06.984Z","key":"SUI-FEATURE-059","from":null,"to":1,"disposition":"ticket","ref":"71"}
 {"ts":"2026-10-10T17:35:32.569Z","key":"SUI-FEATURE-059","from":1,"to":2,"disposition":"ticket","ref":"72"}
+{"ts":"2026-10-10T19:00:21.299Z","key":"PROC-DEV-060","from":6,"to":7,"disposition":"editorial","ref":"remote-mode worker rule (cancelled main-check runs are no verdict); repo runs GATE_MODE local and has no main-check workflow — no code impact"}
+{"ts":"2026-10-10T19:00:21.717Z","key":"PROC-REL-012","from":19,"to":20,"disposition":"editorial","ref":"main-check movement-guard mechanics (no concurrency group on guard job, dispatch always judges); repo has no .github/workflows / main-check — no code impact"}
