@@ -8,6 +8,7 @@ import { SettingsBlock } from "../src/settings/settings-block.js";
 import { SettingsField } from "../src/settings/settings-field.js";
 import { SettingsScaffold } from "../src/settings/settings-scaffold.js";
 import { SettingsSection } from "../src/settings/settings-section.js";
+import { SettingsToggleField } from "../src/settings/settings-toggle-field.js";
 import { Badge } from "../src/ui/badge.js";
 import { Button } from "../src/ui/button.js";
 import { Card, CardContent, CardHeader, CardTitle } from "../src/ui/card.js";
@@ -15,6 +16,7 @@ import { Checkbox } from "../src/ui/checkbox.js";
 import { Input } from "../src/ui/input.js";
 import { Label } from "../src/ui/label.js";
 import { RadioGroup, RadioGroupItem } from "../src/ui/radio-group.js";
+import { Switch } from "../src/ui/switch.js";
 import { TabsContent, TabsList, TabsTrigger } from "../src/ui/tabs.js";
 
 // App-side labels: page title, subtitle and field names come from the app, not from `suite`.
@@ -59,7 +61,8 @@ const COLUMN = PARAMS.get("layout") === "body";
 const STATE = PARAMS.get("state");
 // `?layout=fields` shows SettingsSection and SettingsField in the column (`SUI-FEATURE-042`): a section
 // with an action, a text field with hint and help, a short field, a RadioGroup and a checkbox group,
-// and a RadioGroup outside any field after the section.
+// then a Checkbox and a Switch each in a SettingsToggleField (`SUI-FEATURE-058`), and a RadioGroup
+// outside any field after the section.
 const FIELD_LAYOUT = PARAMS.get("layout") === "fields";
 // `?layout=blocks` shows a SettingsBlock with a full SecretCardHeader as its aside, Remove locked with a
 // reason, and a SettingsActionRow at its foot, after one field of the page form (`SUI-FEATURE-043`).
@@ -182,6 +185,29 @@ export function SettingsPage() {
                     </div>
                   ))}
                 </SettingsField>
+                <SettingsToggleField
+                  label={`${labels.field} 5`}
+                  htmlFor="field-5"
+                  hint={labels.status}
+                  help={labels.subtitle}
+                >
+                  <Checkbox
+                    id="field-5"
+                    data-testid="settings-field-5"
+                    aria-describedby="field-5-help field-5-description"
+                  />
+                </SettingsToggleField>
+                <SettingsToggleField
+                  label={`${labels.field} 6`}
+                  htmlFor="field-6"
+                  help={labels.subtitle}
+                >
+                  <Switch
+                    id="field-6"
+                    data-testid="settings-field-6"
+                    aria-describedby="field-6-description"
+                  />
+                </SettingsToggleField>
               </SettingsSection>
               <RadioGroup defaultValue="a" aria-label={labels.status}>
                 {options("outside")}
