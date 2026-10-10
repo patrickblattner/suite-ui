@@ -1600,6 +1600,68 @@ test("settings section: h2 title, divider between head and content, action at th
   expect(Math.abs(action.y - titleBox.y)).toBeLessThanOrEqual(1);
 });
 
+// SUI-FEATURE-058 AC1: the control at the left, the label 8 px to its right on the same centre line;
+// the help text starts at the label's x, 8 px under the row.
+test("settings toggle field: control left, label right, help flush with the label", async ({
+  page,
+}) => {
+  await page.goto("/?page=settings&layout=fields");
+  const fields = page.locator("[data-slot=settings-toggle-field]");
+  for (const [i, id] of [
+    [0, "field-5"],
+    [1, "field-6"],
+  ] as const) {
+    const field = fields.nth(i);
+    const [control, label, help] = [
+      await box(page.getByTestId(`settings-${id}`)),
+      await box(field.locator("label")),
+      await box(field.locator("p")),
+    ];
+    expect(Math.abs(label.x - (control.x + control.width) - 8)).toBeLessThanOrEqual(1);
+    expect(
+      Math.abs(label.y + label.height / 2 - (control.y + control.height / 2)),
+    ).toBeLessThanOrEqual(1);
+    expect(Math.abs(help.x - label.x)).toBeLessThanOrEqual(1);
+    const row = Math.max(control.y + control.height, label.y + label.height);
+    expect(Math.abs(help.y - row - 8)).toBeLessThanOrEqual(1);
+  }
+});
+
+// SUI-FEATURE-058 AC2/AC3: a click on the label toggles Checkbox and Switch, both named by the label;
+// with a hint the label text opens the hover help as in a SettingsField.
+test("settings toggle field: the label names and toggles the control, the hint on hover", async ({
+  page,
+}) => {
+  await page.goto("/?page=settings&layout=fields");
+  const fields = page.locator("[data-slot=settings-toggle-field]");
+  for (const [i, role, name] of [
+    [0, "checkbox", "Field 5"],
+    [1, "switch", "Field 6"],
+  ] as const) {
+    const control = page.getByRole(role, { name, exact: true });
+    await expect(control).not.toBeChecked();
+    await fields.nth(i).locator("label").click();
+    await expect(control).toBeChecked();
+  }
+  await fields.nth(0).locator("label").getByText("Field 5").hover();
+  await expect(page.getByRole("tooltip")).toHaveText("Status");
+});
+
+// SUI-FEATURE-058 AC4: a SettingsField and two SettingsToggleFields in one section, 16 px apart each.
+test("settings toggle field: 16 px apart from each other and from a SettingsField", async ({
+  page,
+}) => {
+  await page.goto("/?page=settings&layout=fields");
+  const content = page.locator("[data-slot=settings-section-content]");
+  const [field, first, second] = [
+    await box(content.locator("[data-slot=settings-field]").last()),
+    await box(content.locator("[data-slot=settings-toggle-field]").nth(0)),
+    await box(content.locator("[data-slot=settings-toggle-field]").nth(1)),
+  ];
+  expect(Math.abs(first.y - (field.y + field.height) - 16)).toBeLessThanOrEqual(1);
+  expect(Math.abs(second.y - (first.y + first.height) - 16)).toBeLessThanOrEqual(1);
+});
+
 // SUI-FEATURE-031 AC4/AC5: pickers that always hold a value — a FilterSelect without `allValue` and a
 // LabeledSelect, the latter one width for every value under `measured`.
 for (const [lng, date, view, values] of [

@@ -16,6 +16,7 @@ describe("Settings class strings", () => {
     "settings-footer.tsx",
     "settings-scaffold.tsx",
     "settings-section.tsx",
+    "settings-toggle-field.tsx",
   ]
     .map((file) => readFileSync(`${root}src/settings/${file}`, "utf8"))
     .join("\n");
@@ -34,6 +35,8 @@ describe("Settings class strings", () => {
     "flex flex-col gap-4 rounded-lg border p-4",
     "flex flex-col items-end gap-2",
     "flex justify-end gap-2",
+    // SUI-FEATURE-058: the row of a SettingsToggleField.
+    "grid max-w-xl grid-cols-[auto_1fr] items-center gap-2",
   ];
 
   it.each(forms)("%s", (form) => {
