@@ -1,10 +1,11 @@
-import type * as React from "react";
+import * as React from "react";
 
 import { suiteUiConfig } from "../config/index.js";
 import { Skeleton } from "../ui/skeleton.js";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "../ui/table.js";
-import { GutterRow } from "./list-gutter.js";
+import { type GutterInset, GutterRow } from "./list-gutter.js";
 import { listState, ListStateContent, type ListStateProps } from "./list-state.js";
+import { useOverflowXMarker } from "./use-overflow-x-marker.js";
 
 const SKELETON_ROW_COUNT = 5;
 
@@ -16,6 +17,17 @@ const SCROLL_CLASS = {
     "relative min-h-6 flex-1 overflow-auto [scrollbar-gutter:stable] [&_[data-slot=table-container]]:overflow-visible",
   sticky:
     "relative min-h-6 flex-1 overflow-auto overflow-y-scroll [scrollbar-gutter:stable] [&_[data-slot=table-container]]:overflow-visible",
+} as const;
+
+// The table's own inset in a drawer or a framed card (`SUI-FEATURE-059`, `GL-UI-018`): 16 px to the bar
+// on the scroller itself, together with the gutter, in a framed card on both sides; while the body
+// overflows horizontally 16 px under the rows instead of the page gutter. Component utilities, so they
+// beat the app's `:where(…)` floor rule without `!important`, on the table's own container too: it is
+// marked as well, since its content overflows it.
+const SCROLL_INSET_CLASS = {
+  page: "",
+  sheet: " pe-4 data-[overflow-x]:pb-4 [&_[data-slot=table-container]]:pb-0",
+  framed: " px-4 data-[overflow-x]:pb-4 [&_[data-slot=table-container]]:pb-0",
 } as const;
 
 // The focus ring of a labelled scroller (`SUI-FEATURE-053`): the package's one `focus-ring` rule.
@@ -45,6 +57,9 @@ type DataTableShellProps = {
   tabs?: React.ReactNode;
   // The `FilterBar`, between the view switch and the table.
   toolbar?: React.ReactNode;
+  // Where the frame sits: `"page"` (default) in PageScroll with the shared gutter, `"sheet"` in a drawer
+  // body that carries `px-4` itself, `"framed"` in a card whose border bounds the table.
+  inset?: GutterInset;
   // The pager under the table, usually a `TablePagination`.
   pagination?: React.ReactNode;
   // Props for the inner `Table`, `ref` included, e.g. `role="grid"` with `onKeyDown` for a keyboard
@@ -75,10 +90,14 @@ function DataTableShell({
   tabs,
   toolbar,
   pagination,
+  inset = "page",
   tableProps,
   children,
   ...stateProps
 }: DataTableShellProps) {
+  // Outside PageScroll (a drawer) nobody marks the overflow, so an inset frame marks its own scroller.
+  const frameRef = React.useRef<HTMLDivElement>(null);
+  useOverflowXMarker(frameRef);
   const state = listState({ isPending, isError, isEmpty });
   // Stripped at runtime too: a caller bypassing the type must not restyle the table.
   const forwardedTableProps: React.ComponentProps<typeof Table> = { ...tableProps };
@@ -87,15 +106,16 @@ function DataTableShell({
   // An empty label counts as unset (`SUI-FEATURE-054`): no tab stop, no region without a name.
   const label = scrollLabel === "" ? undefined : scrollLabel;
   const focusable = label !== undefined && tableProps?.role !== "grid";
-  const scrollClass = SCROLL_CLASS[suiteUiConfig().tableActions];
+  const scrollClass = `${SCROLL_CLASS[suiteUiConfig().tableActions]}${SCROLL_INSET_CLASS[inset]}`;
   return (
     <div
       className="flex min-h-0 flex-1 flex-col gap-4"
       data-testid="data-table"
       data-slot="list-frame"
+      ref={inset === "page" ? undefined : frameRef}
     >
       {tabs}
-      <GutterRow>{toolbar}</GutterRow>
+      <GutterRow inset={inset}>{toolbar}</GutterRow>
       <div
         className={focusable ? `${scrollClass} ${SCROLL_FOCUS_CLASS}` : scrollClass}
         data-testid={scrollTestId}
@@ -139,7 +159,7 @@ function DataTableShell({
           </TableBody>
         </Table>
       </div>
-      <GutterRow>{pagination}</GutterRow>
+      <GutterRow inset={inset}>{pagination}</GutterRow>
     </div>
   );
 }

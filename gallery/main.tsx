@@ -11,6 +11,7 @@ import { registerSuiteStrings, suiteStrings, type SuiteLanguage } from "../src/s
 import { ComponentsPage } from "./ComponentsPage.js";
 import { EditPanelPage } from "./EditPanelPage.js";
 import { HelpPage } from "./HelpPage.js";
+import { InsetPage } from "./InsetPage.js";
 import { KeysPage } from "./KeysPage.js";
 import { ListPage } from "./ListPage.js";
 import {
@@ -43,6 +44,7 @@ const PAGES = [
   "overlays",
   "select",
   "sheet",
+  "inset",
   "edit-panel",
   "help",
   "toast",
@@ -89,6 +91,7 @@ const PAGE_CONTENT: Record<Exclude<Page, "strings">, (theme: Theme) => ReactNode
   overlays: () => <OverlaysPage />,
   select: () => <SelectPage />,
   sheet: () => <SheetPage />,
+  inset: () => <InsetPage />,
   "edit-panel": () => <EditPanelPage />,
   help: () => <HelpPage />,
   toast: (theme) => <ToastPage theme={theme} />,
@@ -164,7 +167,11 @@ function Gallery() {
       </header>
       <main
         className={
-          page === "list" || page === "settings" || page === "shell" || page === "edit-panel"
+          page === "list" ||
+          page === "settings" ||
+          page === "shell" ||
+          page === "edit-panel" ||
+          page === "inset"
             ? "frame"
             : undefined
         }
