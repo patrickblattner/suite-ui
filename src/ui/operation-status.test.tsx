@@ -158,8 +158,8 @@ describe("useOperationStatus and the PageHeader status slot", () => {
       api().start({ scope: "brand-kit", label: "Publishing" });
     });
     const slot = screen.getByTestId("page-operation-status");
-    // Padding, spinner, gap and 10rem for the label; never narrower than padding and spinner.
-    expect(slot).toHaveStyle({ flexBasis: "12.5rem", minWidth: "2rem" });
+    // Paddings, spinner, gap and 10rem for the label; never narrower than paddings and spinner.
+    expect(slot).toHaveStyle({ flexBasis: "12.75rem", minWidth: "2.25rem" });
   });
 
   it("still toasts the end after the head is gone", () => {

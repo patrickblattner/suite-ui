@@ -2373,9 +2373,10 @@ test("target size: every icon button, indicator control and hint trigger hits at
   );
 });
 
-// SUI-FEATURE-055 AC3: the hint triggers of `InlineStatus` and of the compact status slot grow only
-// their hit area; every element in the row status and in the slot keeps its place when the grown
-// area is taken away again.
+// SUI-FEATURE-055 AC3/AC4 (rev 4): the hint triggers of `InlineStatus` and of the compact status slot
+// hit at 24 × 24 px; every element in the row status keeps its place when the grown area is taken away
+// again; in the slot, the icon's hit area and its focus ring (4 px past the icon each) lie inside the
+// slot, which reserves padding for them instead of relying on `overflow-clip-margin`.
 test("target size: hint triggers hit at 24 × 24 px and move no neighbour", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 900 });
   await page.goto("/?page=components&lng=en");
@@ -2390,10 +2391,16 @@ test("target size: hint triggers hit at 24 × 24 px and move no neighbour", asyn
   expect(result.small).toEqual([]);
   expect(result.measured).toEqual(expect.arrayContaining([label, "File too large"]));
 
-  const containers = [
-    slot,
-    page.getByTestId("section-operation-status").getByTestId("inline-status"),
-  ];
+  const icon = slot.getByRole("img", { name: label });
+  await icon.focus();
+  const [outer, inner] = await Promise.all([slot.boundingBox(), icon.boundingBox()]);
+  const reach = 4;
+  expect(inner!.x - reach).toBeGreaterThanOrEqual(outer!.x);
+  expect(inner!.y - reach).toBeGreaterThanOrEqual(outer!.y);
+  expect(inner!.x + inner!.width + reach).toBeLessThanOrEqual(outer!.x + outer!.width);
+  expect(inner!.y + inner!.height + reach).toBeLessThanOrEqual(outer!.y + outer!.height);
+
+  const containers = [page.getByTestId("section-operation-status").getByTestId("inline-status")];
   const layout = () =>
     Promise.all(
       containers.map((c) =>

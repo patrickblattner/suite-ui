@@ -123,7 +123,7 @@ function OperationLabel({ id, label }: { id?: string; label: string }) {
 // no live region (`GL-UI-033`, `SUI-FEATURE-052`): inside it a screen-reader-only status, present before
 // its content, holds exactly the newest label, so compact and full read the same and only once. The
 // compact indicator is a hint trigger whose hit area grows to 24 × 24 px by a pseudo-element
-// (`SUI-FEATURE-055`); the slot's clip leaves the 4 px it reaches past the slot's edge.
+// (`SUI-FEATURE-055`); the slot's 4 px end padding keeps that area and the focus ring inside its clip.
 function OperationStatusSlot({ scope }: { scope: string }) {
   const labelId = React.useId();
   const operations = React.useContext(OperationsContext) ?? [];
@@ -132,10 +132,10 @@ function OperationStatusSlot({ scope }: { scope: string }) {
   const [node, setNode] = React.useState<HTMLDivElement | null>(null);
   const [compact, setCompact] = React.useState(false);
 
-  // In rem: the inner padding, the indicator, the gap, the label, and "+n" with its gap.
+  // In rem: the inner padding, the end padding, the indicator, the gap, the label, and "+n" with its gap.
   const known = newest?.progress !== undefined && Number.isFinite(newest.progress);
   const indicator = known ? 3 : 1;
-  const basis = 1 + indicator + 0.5 + 10 + (inScope.length > 1 ? 2 : 0);
+  const basis = 1 + 0.25 + indicator + 0.5 + 10 + (inScope.length > 1 ? 2 : 0);
 
   React.useLayoutEffect(() => {
     if (node === null || newest === undefined) return;
@@ -162,12 +162,12 @@ function OperationStatusSlot({ scope }: { scope: string }) {
     <div
       ref={setNode}
       className={cn(
-        "-ml-4 flex h-9 min-w-0 grow items-center overflow-clip [overflow-clip-margin:4px]",
-        newest === undefined && "flex-none",
+        "-ml-4 flex h-9 min-w-0 grow items-center overflow-clip",
+        newest === undefined ? "flex-none" : "pr-1",
       )}
       style={
         newest !== undefined
-          ? { flexBasis: `${basis}rem`, minWidth: `${1 + indicator}rem` }
+          ? { flexBasis: `${basis}rem`, minWidth: `${1.25 + indicator}rem` }
           : undefined
       }
       data-testid="page-operation-status"

@@ -63,3 +63,17 @@ describe("focus ring", () => {
     expect(readFileSync(`${src}${file}`, "utf8")).toContain("focus-ring-inset");
   });
 });
+
+// SUI-FEATURE-055 rev 4: WebKit ignores `overflow-clip-margin`, so nothing in the package relies on it;
+// a clip that must spare a ring or a hit area reserves padding instead.
+describe("clip margin", () => {
+  it("no source or style sheet uses overflow-clip-margin", () => {
+    const sheets = readdirSync(src, { recursive: true, encoding: "utf8" })
+      .filter((file) => file.endsWith(".css"))
+      .map((file) => [file, readFileSync(`${src}${file}`, "utf8")] as const);
+    const hits = [...sources, ...sheets]
+      .filter(([, text]) => /overflow-clip-margin/.test(text))
+      .map(([file]) => file);
+    expect(hits).toEqual([]);
+  });
+});
