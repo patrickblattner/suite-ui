@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import i18n from "i18next";
 import { act } from "react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { configureSuiteUi } from "../config/index.js";
 import { FilterSelect } from "./filter-select.js";
@@ -158,5 +158,66 @@ describe("FilterSelect without allValue (SUI-FEATURE-031)", () => {
     renderDate();
     const rows = [...screen.getByTestId("filter-date-sizer").children];
     expect(rows.map((row) => row.textContent)).toEqual(["Termin: 12.10.", "Termin: 19.10."]);
+  });
+});
+
+describe("FilterSelect tooltip (SUI-FEATURE-049 criterion 6)", () => {
+  let clipped = false;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    // jsdom has no layout: the select value (it carries `truncate`) is clipped while `clipped` is set.
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(100);
+    vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return clipped && this.classList.contains("truncate") ? 200 : 100;
+    });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  function hoverValue(): void {
+    renderFilter("Severity", "warning");
+    const value = document.querySelector<HTMLElement>("[data-slot=select-value]");
+    if (value === null) throw new Error("select value missing");
+    fireEvent.pointerMove(value, { pointerType: "mouse" });
+    act(() => {
+      vi.advanceTimersByTime(1500);
+    });
+  }
+
+  it("clipped value: exactly one tooltip, the full value on top and the hint below", () => {
+    clipped = true;
+    hoverValue();
+    const bubbles = screen.getAllByRole("tooltip");
+    expect(bubbles).toHaveLength(1);
+    expect(document.querySelectorAll("[data-slot=tooltip-content]")).toHaveLength(1);
+    const lines = document.querySelectorAll("[data-slot=tooltip-content] span.block");
+    expect(lines[0]).toHaveTextContent(/^Severity: Warning$/);
+    expect(lines[1]).toHaveAttribute("data-slot", "tooltip-hint");
+    expect(lines[1]).toHaveTextContent(/^Shows only entries of the chosen severity\.$/);
+  });
+
+  it("value that fits: exactly one tooltip with the hint alone", () => {
+    clipped = false;
+    hoverValue();
+    expect(screen.getAllByRole("tooltip")).toHaveLength(1);
+    expect(screen.getByRole("tooltip")).toHaveTextContent(
+      /^Shows only entries of the chosen severity\.$/,
+    );
+    expect(document.querySelector("[data-slot=tooltip-hint]")).toBeNull();
   });
 });

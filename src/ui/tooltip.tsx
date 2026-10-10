@@ -105,7 +105,14 @@ function useIsOverflowing() {
   return { ref: setNode, ...measurement };
 }
 
+// The clipped full text of an `OverflowTooltip` inside a `Hint` ("" while it fits); the hint shows it
+// in its own bubble.
+type ReportOverflow = (full: string) => void;
+const OverflowReportContext = React.createContext<ReportOverflow | null>(null);
+
 // Wraps one clipping element (it carries `truncate`) and shows its full text while it is clipped. `text` is optional: without it the text is read back from the element.
+// Inside a `Hint` it opens no bubble of its own (one element, one tooltip, `SUI-FEATURE-049`): it
+// reports the full text to the hint instead.
 function OverflowTooltip({
   text,
   children,
@@ -114,9 +121,18 @@ function OverflowTooltip({
   children: React.ReactElement<{ ref?: React.Ref<HTMLElement> }>;
 }) {
   const { ref, isOverflowing, text: measured } = useIsOverflowing();
+  const report = React.useContext(OverflowReportContext);
   const child = React.cloneElement(children, { ref });
   const full = text ?? measured;
-  if (!isOverflowing || full === "") return child;
+  const clipped = isOverflowing ? full : "";
+
+  React.useLayoutEffect(() => {
+    if (report === null) return;
+    report(clipped);
+    return () => report("");
+  }, [report, clipped]);
+
+  if (report !== null || clipped === "") return child;
 
   return (
     <TooltipProvider>
@@ -217,6 +233,7 @@ function IconButtonTooltip({
 
 export {
   IconButtonTooltip,
+  OverflowReportContext,
   OverflowTooltip,
   Tooltip,
   TooltipContent,
