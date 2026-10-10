@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -37,20 +37,39 @@ function List({
   onOpen,
   onDeleted = () => {},
   withDelete = true,
+  initialIds = IDS,
+  removeLater = false,
+  loadPages = false,
 }: {
   onOpen?: (id: number) => void;
   onDeleted?: (id: number) => void;
   withDelete?: boolean;
+  initialIds?: number[];
+  // The confirmed delete closes the dialog first; the row goes once `remove` is clicked (a refetch).
+  removeLater?: boolean;
+  // A page change shows the loading state until `load` is clicked (an async query).
+  loadPages?: boolean;
 }) {
   const rowGrid = useRowGrid();
+  const [ids, setIds] = useState(initialIds);
   const [page, setPage] = useState(1);
+  const [loadedPage, setLoadedPage] = useState(1);
   const [query, setQuery] = useState("");
   const [pending, setPending] = useState<number | null>(null);
-  const rows = IDS.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const [doomed, setDoomed] = useState<number | null>(null);
+  const shownPage = loadPages ? loadedPage : page;
+  const rows = ids.slice((shownPage - 1) * PAGE_SIZE, shownPage * PAGE_SIZE);
+  const remove = (id: number) => setIds((current) => current.filter((other) => other !== id));
   return (
     <>
       <button type="button" data-testid="before">
         before
+      </button>
+      <button type="button" data-testid="remove" onClick={() => doomed !== null && remove(doomed)}>
+        remove
+      </button>
+      <button type="button" data-testid="load" onClick={() => setLoadedPage(page)}>
+        load
       </button>
       <DataTableShell
         head={
@@ -60,7 +79,7 @@ function List({
           </>
         }
         columnCount={2}
-        isPending={false}
+        isPending={loadPages && loadedPage !== page}
         isEmpty={false}
         loadingRowTestId="loading"
         emptyTestId="empty"
@@ -72,8 +91,8 @@ function List({
             setPage={setPage}
             pageSize={PAGE_SIZE}
             setPageSize={() => {}}
-            totalPages={Math.ceil(IDS.length / PAGE_SIZE)}
-            total={IDS.length}
+            totalPages={Math.ceil(ids.length / PAGE_SIZE)}
+            total={ids.length}
           />
         }
       >
@@ -104,7 +123,11 @@ function List({
           if (!open) setPending(null);
         }}
         onConfirm={() => {
-          if (pending !== null) onDeleted(pending);
+          if (pending !== null) {
+            onDeleted(pending);
+            if (removeLater) setDoomed(pending);
+            else remove(pending);
+          }
           setPending(null);
         }}
         description="Gone for good."
@@ -180,6 +203,55 @@ describe("useRowGrid delete (AC2)", () => {
     },
   );
 
+  it("Cancel puts the focus back on the same row, also when opened from its delete button", async () => {
+    render(<List />);
+    act(() => row(2).focus());
+    key(row(2), "Delete");
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(row(2)).toHaveFocus());
+    const button = row(3).querySelector<HTMLElement>("[data-testid=row-delete]")!;
+    act(() => button.focus());
+    fireEvent.click(button);
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(row(3)).toHaveFocus());
+  });
+
+  it("Delete puts the focus on the row that moves up into the deleted row's place", async () => {
+    render(<List />);
+    act(() => row(2).focus());
+    key(row(2), "Delete");
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(row(3)).toHaveFocus());
+    expect(screen.queryByTestId("row-2")).toBeNull();
+    expect(row(3).tabIndex).toBe(0);
+  });
+
+  it("Delete of the last row focuses the previous one, of the only row the list frame", async () => {
+    const { unmount } = render(<List initialIds={[1, 2]} />);
+    act(() => row(2).focus());
+    key(row(2), "Delete");
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(row(1)).toHaveFocus());
+    unmount();
+    render(<List initialIds={[1]} />);
+    act(() => row(1).focus());
+    key(row(1), "Delete");
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(screen.getByTestId("data-table")).toHaveFocus());
+    expect(document.activeElement).not.toBe(document.body);
+  });
+
+  it("a row removed only after the dialog closed hands the focus to the row in its place", async () => {
+    render(<List removeLater />);
+    act(() => row(2).focus());
+    key(row(2), "Delete");
+    fireEvent.click(screen.getByRole("button", { name: "Delete" }));
+    await waitFor(() => expect(row(2)).toHaveFocus());
+    fireEvent.click(screen.getByTestId("remove"));
+    expect(screen.queryByTestId("row-2")).toBeNull();
+    expect(row(3)).toHaveFocus();
+  });
+
   it("Delete inside a row action button triggers nothing", () => {
     render(<List />);
     const edit = row(1).querySelector<HTMLElement>("[data-testid=row-edit]")!;
@@ -218,6 +290,29 @@ describe("TablePagination ←/→ (AC3)", () => {
     key(row(4), "ArrowLeft");
     expect(summary()).toHaveTextContent("Page 1 / 3 (7)");
     expect(row(1)).toHaveFocus();
+  });
+
+  it("→ focuses the first row of page 2 once it is rendered after a loading state", async () => {
+    render(<List loadPages />);
+    act(() => row(2).focus());
+    key(row(2), "ArrowRight");
+    expect(summary()).toHaveTextContent("Page 2 / 3 (7)");
+    expect(screen.getAllByTestId("loading").length).toBeGreaterThan(0);
+    expect(screen.getByTestId("data-table")).toHaveFocus();
+    fireEvent.click(screen.getByTestId("load"));
+    await waitFor(() => expect(row(4)).toHaveFocus());
+    expect(row(4).tabIndex).toBe(0);
+  });
+
+  it("while page 2 loads, a focus moved elsewhere stays there", async () => {
+    render(<List loadPages />);
+    act(() => row(1).focus());
+    key(row(1), "ArrowRight");
+    act(() => screen.getByTestId("before").focus());
+    fireEvent.click(screen.getByTestId("load"));
+    await act(async () => {});
+    expect(row(4)).toBeInTheDocument();
+    expect(screen.getByTestId("before")).toHaveFocus();
   });
 
   it("on page 1 ← does nothing; on the last page → does nothing", () => {

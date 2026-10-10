@@ -9,12 +9,12 @@ import { useTranslation } from "react-i18next";
 
 import { suiteUiConfig } from "../config/index.js";
 import { isInDialog, isTextField } from "../lib/keyboard.js";
+import { focusListFrame, GRID_ITEM_ATTR, LIST_FRAME_SELECTOR } from "../lib/list-focus.js";
 import { MEASURED_TRIGGER, MeasuredCell } from "../lib/select-sizer.js";
 import { Button } from "../ui/button.js";
 import { Hint } from "../ui/hint.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select.js";
 import { IconButtonTooltip } from "../ui/tooltip.js";
-import { GRID_ITEM_ATTR } from "./use-row-grid.js";
 
 const PAGE_SIZES = [10, 25, 50, 100] as const;
 
@@ -45,7 +45,7 @@ const OWN_ARROWS =
   '[role="tablist"], [role="listbox"], [role="menu"], [role="combobox"], [role="radiogroup"], [role="slider"]';
 
 // Whether ←/→ at `focused` page the list of the pager `root`: in the same list frame — an entry, the
-// table or the pager — or on `body` with this the only pager; never in a field, a control with its own
+// table, the pager or the frame itself — or on `body` with this the only pager; never in a field, a control with its own
 // arrows, the toolbar or the focused scroller (`SUI-FEATURE-053`).
 function pagesFrom(focused: Element | null, root: HTMLElement): boolean {
   if (focused === null || focused === document.body || focused === document.documentElement) {
@@ -53,11 +53,11 @@ function pagesFrom(focused: Element | null, root: HTMLElement): boolean {
   }
   if (isTextField(focused) || focused.closest(OWN_ARROWS)) return false;
   if (root.contains(focused)) return true;
-  const frame = root.closest("[data-slot=list-frame]");
+  const frame = root.closest(LIST_FRAME_SELECTOR);
   return (
     frame !== null &&
-    frame.contains(focused) &&
-    focused.closest(`[${GRID_ITEM_ATTR}], table`) !== null
+    (focused === frame ||
+      (frame.contains(focused) && focused.closest(`[${GRID_ITEM_ATTR}], table`) !== null))
   );
 }
 
@@ -100,20 +100,42 @@ function TablePagination({
       const target = event.key === "ArrowLeft" ? page - 1 : page + 1;
       if (target < 1 || target > totalPages) return;
       event.preventDefault();
-      focusFirstEntry.current = focused?.closest(`[${GRID_ITEM_ATTR}]`) != null;
+      // The frame holds the focus for the entries while a page loads.
+      focusFirstEntry.current =
+        focused?.closest(`[${GRID_ITEM_ATTR}]`) != null ||
+        focused === root.closest(LIST_FRAME_SELECTOR);
       setPage(target);
     };
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [page, totalPages, setPage]);
 
+  // The new page's first entry takes the focus as soon as it is rendered, also after a loading state.
+  // Until then the frame holds it; whoever moves it elsewhere in the meantime keeps it.
   React.useEffect(() => {
     if (!focusFirstEntry.current) return;
     focusFirstEntry.current = false;
-    rootRef.current
-      ?.closest("[data-slot=list-frame]")
-      ?.querySelector<HTMLElement>(`[${GRID_ITEM_ATTR}]`)
-      ?.focus();
+    const frame = rootRef.current?.closest<HTMLElement>(LIST_FRAME_SELECTOR);
+    if (!frame) return;
+    const firstEntry = () => frame.querySelector<HTMLElement>(`[${GRID_ITEM_ATTR}]`);
+    const entry = firstEntry();
+    if (entry !== null) {
+      entry.focus();
+      return;
+    }
+    focusListFrame(frame);
+    const observer = new MutationObserver(() => {
+      if (document.activeElement !== frame) {
+        observer.disconnect();
+        return;
+      }
+      const rendered = firstEntry();
+      if (rendered === null) return;
+      observer.disconnect();
+      rendered.focus();
+    });
+    observer.observe(frame, { childList: true, subtree: true });
+    return () => observer.disconnect();
   }, [page]);
 
   const step = ({ key, testId, icon, target, disabled, shortcut }: Step) => (

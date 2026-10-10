@@ -1,5 +1,12 @@
-import type * as React from "react";
+import * as React from "react";
 import { useTranslation } from "react-i18next";
+
+import {
+  focusListEntry,
+  GRID_ITEM_ATTR,
+  LIST_FRAME_SELECTOR,
+  listEntries,
+} from "../lib/list-focus.js";
 
 import { Button } from "./button.js";
 import {
@@ -38,7 +45,8 @@ type ConfirmDeleteDialogProps = {
 };
 
 // The one confirm-before-delete dialog (`GL-UI-027` §Löschen): compact, the destructive button on the
-// right and Cancel directly left of it.
+// right and Cancel directly left of it. Opened from a list entry, it hands the focus back to that entry
+// on close; when the entry is gone, to the one in its place (`SUI-FEATURE-056`).
 function ConfirmDeleteDialog({
   open,
   onOpenChange,
@@ -54,6 +62,10 @@ function ConfirmDeleteDialog({
   "data-testid": testId,
 }: ConfirmDeleteDialogProps) {
   const { t } = useTranslation("suite");
+  // The list entry the dialog was opened from, its frame and its position there.
+  const opener = React.useRef<{ entry: HTMLElement; frame: HTMLElement; index: number } | null>(
+    null,
+  );
   return (
     <Dialog
       open={open}
@@ -62,7 +74,28 @@ function ConfirmDeleteDialog({
         onOpenChange(next);
       }}
     >
-      <DialogContent data-testid={testId}>
+      <DialogContent
+        data-testid={testId}
+        onOpenAutoFocus={() => {
+          // Still before the dialog takes the focus: the active element is what opened it.
+          const entry = document.activeElement?.closest<HTMLElement>(`[${GRID_ITEM_ATTR}]`);
+          const frame = entry?.closest<HTMLElement>(LIST_FRAME_SELECTOR);
+          opener.current =
+            entry && frame ? { entry, frame, index: listEntries(frame).indexOf(entry) } : null;
+        }}
+        onCloseAutoFocus={(event) => {
+          const from = opener.current;
+          opener.current = null;
+          if (from === null) return;
+          if (from.entry.isConnected) {
+            event.preventDefault();
+            from.entry.focus();
+          } else if (from.frame.isConnected) {
+            event.preventDefault();
+            focusListEntry(from.frame, from.index);
+          }
+        }}
+      >
         <DialogHeader>
           <DialogTitle>
             {title ??

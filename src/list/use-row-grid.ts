@@ -1,5 +1,12 @@
 import { type FocusEvent, type KeyboardEvent, useCallback, useEffect, useRef } from "react";
 
+import {
+  focusListEntry,
+  GRID_ITEM_ATTR,
+  LIST_FRAME_SELECTOR,
+  listEntries,
+} from "../lib/list-focus.js";
+
 // The keyboard operation of a list (`GL-UI-006` §Listen, `SUI-FEATURE-056`), seeded from the
 // community's `rowInteraction.ts`. Three parts that only work together:
 //   1. Roles: `role="grid"` on the table; `Table` gives rows, heads and cells their grid roles.
@@ -8,9 +15,7 @@ import { type FocusEvent, type KeyboardEvent, useCallback, useEffect, useRef } f
 //   3. Arrows: ↑/↓ to the previous/next entry, Home/End to the ends; at the ends the focus stays.
 // Enter (Space as an alias) opens, Delete and Backspace delete — each only with its handler. Keys
 // bubbling up from a control inside the entry (an action button, a field) belong to that control.
-
-/** Marks every entry of a list; the arrows find their entries by it. */
-const GRID_ITEM_ATTR = "data-grid-item";
+// When the focused entry disappears (deleted, refetched), the focus moves to the entry in its place.
 
 const ENTRY_FOCUS_CLASS = "outline-none focus-visible:focus-ring-inset";
 
@@ -30,6 +35,7 @@ type RowGridProps = {
   ref: (node: HTMLElement | null) => void;
   onKeyDown: (event: KeyboardEvent<HTMLElement>) => void;
   onFocus: (event: FocusEvent<HTMLElement>) => void;
+  onBlur: (event: FocusEvent<HTMLElement>) => void;
 };
 
 type RowGridEntryProps = {
@@ -48,15 +54,10 @@ type RowGrid = {
   rowProps: (entry?: RowGridEntry) => RowGridEntryProps;
 };
 
-function gridItems(container: HTMLElement | null): HTMLElement[] {
-  if (!container) return [];
-  return Array.from(container.querySelectorAll<HTMLElement>(`[${GRID_ITEM_ATTR}]`));
-}
-
 // The active entry carries `tabIndex=0`, all others `-1`. Imperative, because a refetch re-renders
 // the entries; the effect restores the one tab stop afterwards without page state.
 function applyRoving(container: HTMLElement | null, activeIndex: number): number {
-  const items = gridItems(container);
+  const items = listEntries(container);
   if (items.length === 0) return 0;
   const index = Math.min(Math.max(activeIndex, 0), items.length - 1);
   items.forEach((item, i) => {
@@ -69,15 +70,28 @@ function applyRoving(container: HTMLElement | null, activeIndex: number): number
 function useRowGrid(): RowGrid {
   const containerRef = useRef<HTMLElement | null>(null);
   const activeIndexRef = useRef(0);
+  // The entry that had the focus last, while the focus has not left it for somewhere else.
+  const focusedEntryRef = useRef<HTMLElement | null>(null);
 
   // After EVERY render (deliberately without dependencies): filter, sort and refetch replace the
-  // entries, and the one tab stop must exist exactly once afterwards.
+  // entries, and the one tab stop must exist exactly once afterwards. If the focused entry was
+  // removed, the browser dropped the focus to `body`; it goes to the entry now at its place instead.
   useEffect(() => {
-    activeIndexRef.current = applyRoving(containerRef.current, activeIndexRef.current);
+    const container = containerRef.current;
+    const lost = focusedEntryRef.current;
+    const dropped = document.activeElement === null || document.activeElement === document.body;
+    if (lost !== null && !lost.isConnected && dropped && container !== null) {
+      focusedEntryRef.current = null;
+      focusListEntry(
+        container.closest<HTMLElement>(LIST_FRAME_SELECTOR) ?? container,
+        activeIndexRef.current,
+      );
+    }
+    activeIndexRef.current = applyRoving(container, activeIndexRef.current);
   });
 
   const focusItem = useCallback((index: number): void => {
-    const items = gridItems(containerRef.current);
+    const items = listEntries(containerRef.current);
     const target = items[Math.min(Math.max(index, 0), items.length - 1)];
     if (!target) return;
     activeIndexRef.current = applyRoving(containerRef.current, items.indexOf(target));
@@ -88,7 +102,7 @@ function useRowGrid(): RowGrid {
     (event: KeyboardEvent<HTMLElement>): void => {
       const item = event.target as HTMLElement;
       if (!item.hasAttribute?.(GRID_ITEM_ATTR)) return;
-      const items = gridItems(containerRef.current);
+      const items = listEntries(containerRef.current);
       const current = items.indexOf(item);
       if (current === -1) return;
       const next = {
@@ -106,8 +120,18 @@ function useRowGrid(): RowGrid {
 
   // A click or the pager moving the focus to an entry makes it the tab stop as well.
   const onFocus = useCallback((event: FocusEvent<HTMLElement>): void => {
-    const index = gridItems(containerRef.current).indexOf(event.target);
-    if (index !== -1) activeIndexRef.current = applyRoving(containerRef.current, index);
+    const index = listEntries(containerRef.current).indexOf(event.target);
+    if (index === -1) return;
+    focusedEntryRef.current = event.target;
+    activeIndexRef.current = applyRoving(containerRef.current, index);
+  }, []);
+
+  // A click on a blank spot drops the focus to `body` on purpose: no entry may take it back later.
+  // A dialog opened from the entry keeps it, since its Delete may remove the entry.
+  const onBlur = useCallback((event: FocusEvent<HTMLElement>): void => {
+    if (event.target === focusedEntryRef.current && event.relatedTarget === null) {
+      if (event.target.isConnected) focusedEntryRef.current = null;
+    }
   }, []);
 
   const ref = useCallback((node: HTMLElement | null) => {
@@ -115,7 +139,7 @@ function useRowGrid(): RowGrid {
   }, []);
 
   return {
-    gridProps: { role: "grid", ref, onKeyDown, onFocus },
+    gridProps: { role: "grid", ref, onKeyDown, onFocus, onBlur },
     rowProps: ({ onOpen, onDelete } = {}) => ({
       // The effect above sets the real tab stop right after the render.
       tabIndex: -1,
