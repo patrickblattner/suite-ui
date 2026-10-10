@@ -140,6 +140,21 @@ describe("styles.css tokens", () => {
     expect(rule).toMatch(/@apply ring-\[3px\] ring-ring;/);
   });
 
+  // SUI-FEATURE-055 AC2 / GL-UI-013 rev 4: the inset ring of a highlighted menu entry, against the
+  // popover around it and the tint inside it.
+  for (const [theme, tokens] of Object.entries(themes)) {
+    it.each(["popover", "accent"])(`${theme}: --ring on --%s meets 3:1`, (ground) => {
+      expect(contrast(tokens, "ring", ground)).toBeGreaterThanOrEqual(3);
+    });
+  }
+
+  it("draws the inset ring from the same token, inside the element", () => {
+    const rule = /@utility focus-ring-inset \{([^}]*)\}/.exec(css)?.[1] ?? "";
+    expect(rule).toMatch(/outline: 2px solid transparent;/);
+    expect(rule).toMatch(/outline-offset: -2px;/);
+    expect(rule).toMatch(/@apply ring-\[3px\] ring-ring ring-inset;/);
+  });
+
   it("gives every status text tone its own value in each theme, never the fill", () => {
     for (const tokens of Object.values(themes)) {
       for (const fill of ["destructive", "success", "warn"]) {

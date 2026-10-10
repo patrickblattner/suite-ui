@@ -60,6 +60,9 @@ function TimezoneCombobox({
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
   const [active, setActive] = React.useState(0);
+  // Whether the keyboard placed the highlight: then it carries the inset ring on top of the tint
+  // (`GL-UI-013`); a highlight under the mouse keeps the tint alone.
+  const [keyboard, setKeyboard] = React.useState(false);
 
   // A value outside the runtime's list (an older database) is still offered, so it stays visible.
   const zones = React.useMemo(
@@ -78,6 +81,7 @@ function TimezoneCombobox({
     setOpen(true);
     setQuery("");
     setActive(Math.max(0, zones.indexOf(value)));
+    setKeyboard(false);
   };
 
   const pick = (zone: string) => {
@@ -117,8 +121,10 @@ function TimezoneCombobox({
       event.preventDefault();
       if (!open) {
         openList();
+        setKeyboard(true);
         return;
       }
+      setKeyboard(true);
       const step = event.key === "ArrowDown" ? 1 : -1;
       setActive((index) => Math.min(Math.max(index + step, 0), Math.max(matches.length - 1, 0)));
     } else if (event.key === "Enter" && open) {
@@ -155,6 +161,7 @@ function TimezoneCombobox({
         if (!open) setOpen(true);
         setQuery(event.target.value);
         setActive(0);
+        setKeyboard(true);
       }}
       onKeyDown={onKeyDown}
       onBlur={(event) => {
@@ -194,9 +201,15 @@ function TimezoneCombobox({
                 data-active={index === active ? "" : undefined}
                 // Keeps the focus in the field, so the blur does not close the list before the click.
                 onPointerDown={(event) => event.preventDefault()}
-                onMouseMove={() => setActive(index)}
+                onMouseMove={() => {
+                  setActive(index);
+                  setKeyboard(false);
+                }}
                 onClick={() => pick(zone)}
-                className="cursor-pointer rounded-sm px-2 py-1.5 text-sm select-none aria-selected:font-medium data-active:bg-accent data-active:text-accent-foreground"
+                className={cn(
+                  "cursor-pointer rounded-sm px-2 py-1.5 text-sm select-none aria-selected:font-medium data-active:bg-accent data-active:text-accent-foreground",
+                  keyboard && "data-active:focus-ring-inset",
+                )}
               >
                 {zone}
               </li>

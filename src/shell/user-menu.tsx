@@ -30,7 +30,7 @@ const APPEARANCES: { mode: Appearance; icon: LucideIcon }[] = [
 const LANGUAGES = Object.keys(suiteStrings) as SuiteLanguage[];
 
 const itemClass =
-  "flex w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground disabled:cursor-not-allowed disabled:opacity-50";
+  "flex w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground focus-visible:focus-ring-inset disabled:cursor-not-allowed disabled:opacity-50";
 
 // Lets an entry close the menu after its action.
 const CloseMenuContext = React.createContext<() => void>(() => {});

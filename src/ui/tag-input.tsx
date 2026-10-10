@@ -93,7 +93,7 @@ function TagInput({
             <li
               key={tag}
               data-testid={`${testId}-chip`}
-              className="inline-flex h-6 items-center gap-1 rounded-full bg-secondary pr-1 pl-2.5 text-xs font-medium text-secondary-foreground"
+              className="inline-flex h-6 items-center gap-1 rounded-full bg-secondary pl-2.5 text-xs font-medium text-secondary-foreground"
             >
               {tag}
               <button
@@ -105,7 +105,7 @@ function TagInput({
                   remove(tag);
                 }}
                 data-testid={`${testId}-remove`}
-                className="inline-flex size-4 items-center justify-center rounded-full outline-none hover:bg-secondary-hover focus-visible:focus-ring disabled:pointer-events-none"
+                className="inline-flex size-6 items-center justify-center rounded-full outline-none hover:bg-secondary-hover focus-visible:focus-ring disabled:pointer-events-none"
               >
                 <XIcon aria-hidden="true" className="size-3" />
               </button>

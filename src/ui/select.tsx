@@ -1,12 +1,26 @@
-import type * as React from "react";
+import * as React from "react";
 import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from "lucide-react";
 import { Select as SelectPrimitive } from "radix-ui";
 
 import { cn } from "../lib/cn.js";
+import { useHighlightInput } from "../lib/highlight-input.js";
 import { OverflowTooltip } from "./tooltip.js";
 
+// Whether the pointer opened the list: the entry the list highlights on opening then keeps the tint
+// alone, like the time zone list (`SUI-FEATURE-055`); the keyboard opening gives it the ring.
+const SelectOpenerContext = React.createContext<{
+  openedByPointer: boolean;
+  setOpenedByPointer: (pointer: boolean) => void;
+} | null>(null);
+
 function Select({ ...props }: React.ComponentProps<typeof SelectPrimitive.Root>) {
-  return <SelectPrimitive.Root data-slot="select" {...props} />;
+  const [openedByPointer, setOpenedByPointer] = React.useState(false);
+  const opener = React.useMemo(() => ({ openedByPointer, setOpenedByPointer }), [openedByPointer]);
+  return (
+    <SelectOpenerContext.Provider value={opener}>
+      <SelectPrimitive.Root data-slot="select" {...props} />
+    </SelectOpenerContext.Provider>
+  );
 }
 
 function SelectGroup({ ...props }: React.ComponentProps<typeof SelectPrimitive.Group>) {
@@ -33,13 +47,24 @@ function SelectTrigger({
   className,
   size = "default",
   children,
+  onPointerDown,
+  onKeyDown,
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Trigger> & {
   size?: "sm" | "default";
 }) {
+  const opener = React.useContext(SelectOpenerContext);
   return (
     <SelectPrimitive.Trigger
       data-size={size}
+      onPointerDown={(event) => {
+        opener?.setOpenedByPointer(true);
+        onPointerDown?.(event);
+      }}
+      onKeyDown={(event) => {
+        opener?.setOpenedByPointer(false);
+        onKeyDown?.(event);
+      }}
       className={cn(
         "flex w-fit items-center justify-start gap-2 rounded-md border border-input bg-transparent px-3 py-2 text-sm whitespace-nowrap shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive data-[placeholder]:text-muted-foreground data-[size=default]:h-9 data-[size=sm]:h-8 *:data-[slot=select-value]:min-w-0 dark:bg-input/30 dark:hover:bg-input/50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-muted-foreground",
         className,
@@ -106,13 +131,22 @@ function SelectLabel({ className, ...props }: React.ComponentProps<typeof Select
 function SelectItem({
   className,
   children,
+  onPointerMove,
+  onPointerLeave,
+  onBlur,
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Item>) {
+  const opener = React.useContext(SelectOpenerContext);
+  const highlight = useHighlightInput(
+    { onPointerMove, onPointerLeave, onBlur },
+    opener?.openedByPointer ?? false,
+  );
   return (
     <SelectPrimitive.Item
       data-slot="select-item"
+      {...highlight}
       className={cn(
-        "relative flex w-full cursor-default items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-muted-foreground *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
+        "relative flex w-full cursor-default items-center gap-2 rounded-sm py-1.5 pr-8 pl-2 text-sm outline-hidden select-none focus:bg-accent focus:text-accent-foreground data-[highlighted]:data-[input=keyboard]:focus-ring-inset data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-muted-foreground *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
         className,
       )}
       {...props}

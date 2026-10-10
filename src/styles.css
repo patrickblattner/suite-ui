@@ -318,6 +318,15 @@
   @apply ring-[3px] ring-ring;
 }
 
+/* The same ring drawn inside the element, for the keyboard-highlighted entry of a menu or a choice
+   list (`GL-UI-013` rev 4, `SUI-FEATURE-055`): the list clips nothing and the entries stay flush. Mouse
+   hover keeps the tint alone. */
+@utility focus-ring-inset {
+  outline: 2px solid transparent;
+  outline-offset: -2px;
+  @apply ring-[3px] ring-ring ring-inset;
+}
+
 @layer base {
   * {
     border-color: var(--border);

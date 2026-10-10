@@ -2,6 +2,7 @@ import type * as React from "react";
 import { DropdownMenu as DropdownMenuPrimitive } from "radix-ui";
 
 import { cn } from "../lib/cn.js";
+import { useHighlightInput } from "../lib/highlight-input.js";
 
 // The content is portalled to the body, so a menu opened from inside an `overflow-hidden` surface is
 // never clipped.
@@ -43,16 +44,21 @@ function DropdownMenuContent({
 function DropdownMenuItem({
   className,
   variant = "default",
+  onPointerMove,
+  onPointerLeave,
+  onBlur,
   ...props
 }: React.ComponentProps<typeof DropdownMenuPrimitive.Item> & {
   variant?: "default" | "destructive";
 }) {
+  const highlight = useHighlightInput({ onPointerMove, onPointerLeave, onBlur });
   return (
     <DropdownMenuPrimitive.Item
       data-slot="dropdown-menu-item"
       data-variant={variant}
+      {...highlight}
       className={cn(
-        "relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0",
+        "relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[highlighted]:data-[input=keyboard]:focus-ring-inset data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0",
         variant === "destructive" &&
           "text-destructive-text focus:bg-destructive/10 focus:text-destructive-text [&_svg]:text-destructive-text",
         className,

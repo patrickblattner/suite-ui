@@ -419,7 +419,7 @@ function HitRow({
           data-active={active ? true : undefined}
           onClick={() => onSelect(hit)}
           className={cn(
-            "flex w-full cursor-pointer items-start gap-2 rounded-md px-2 py-1.5 text-left outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:focus-ring",
+            "flex w-full cursor-pointer items-start gap-2 rounded-md px-2 py-1.5 text-left outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:focus-ring data-active:focus-ring-inset",
             active && "bg-accent text-accent-foreground",
           )}
         >

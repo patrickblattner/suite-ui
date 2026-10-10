@@ -191,5 +191,5 @@ export function ToastPage({ theme }: { theme: "light" | "dark" }) {
     toast.error("Error", options("error"));
     toast.success("Success", options("success"));
   }, []);
-  return <Toaster theme={theme} expand visibleToasts={5} />;
+  return <Toaster theme={theme} expand visibleToasts={5} closeButton />;
 }

@@ -25,6 +25,12 @@ import {
 import { Checkbox } from "../src/ui/checkbox.js";
 import { Code } from "../src/ui/code.js";
 import { ColorDotBadge } from "../src/ui/color-dot-badge.js";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../src/ui/dropdown-menu.js";
 import { Hint } from "../src/ui/hint.js";
 import { InlineStatus } from "../src/ui/inline-status.js";
 import { Input } from "../src/ui/input.js";
@@ -826,7 +832,8 @@ function FocusRow() {
 }
 
 // `SUI-FEATURE-054`: the one focus ring of every component, drawn statically with the `focus-ring`
-// rule the components apply on `focus-visible`, on the page and on a card.
+// rule the components apply on `focus-visible`, on the page and on a card. `SUI-FEATURE-055`: a
+// closed menu to open by keyboard, whose highlighted entry carries the inset ring.
 function FocusRing() {
   return (
     <Section id="focus" title="Focus ring">
@@ -853,6 +860,17 @@ function FocusRing() {
               <AccordionContent>Hidden.</AccordionContent>
             </AccordionItem>
           </Accordion>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="default" className="w-fit" data-testid="focus-menu">
+                Menu
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem>Edit</DropdownMenuItem>
+              <DropdownMenuItem>Duplicate</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Card interactive tabIndex={0} className="focus-ring">
             <CardHeader>
               <CardTitle>Interactive card</CardTitle>

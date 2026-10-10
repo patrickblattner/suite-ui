@@ -51,4 +51,15 @@ describe("focus ring", () => {
   ])("%s uses the central rule", (file) => {
     expect(readFileSync(`${src}${file}`, "utf8")).toContain("focus-visible:focus-ring");
   });
+
+  // SUI-FEATURE-055: the keyboard-highlighted entry of a menu or choice list carries the inset ring.
+  it.each([
+    "ui/dropdown-menu.tsx",
+    "ui/select.tsx",
+    "ui/timezone-combobox.tsx",
+    "shell/global-search.tsx",
+    "shell/user-menu.tsx",
+  ])("%s rings the highlighted entry inset", (file) => {
+    expect(readFileSync(`${src}${file}`, "utf8")).toContain("focus-ring-inset");
+  });
 });

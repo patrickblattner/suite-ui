@@ -2082,3 +2082,286 @@ test("focus ring: a focused button shows an outline under forced colors", async 
   expect(style).toMatchObject({ outlineStyle: "solid", outlineWidth: "2px" });
   expect(style.outlineColor).not.toBe("rgba(0, 0, 0, 0)");
 });
+
+// The sRGB channels of any CSS color the browser computed (`oklch(…)` included), read back from a
+// one-pixel canvas, and the WCAG contrast of two of them.
+async function contrastOf(page: Page, first: string, second: string) {
+  return page.evaluate(
+    ([a, b]) => {
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = 1;
+      const context = canvas.getContext("2d", {
+        willReadFrequently: true,
+      }) as CanvasRenderingContext2D;
+      const luminance = (color: string) => {
+        context.clearRect(0, 0, 1, 1);
+        context.fillStyle = color;
+        context.fillRect(0, 0, 1, 1);
+        const [r, g, bl] = [...context.getImageData(0, 0, 1, 1).data].map((channel) => {
+          const c = channel / 255;
+          return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+        }) as [number, number, number];
+        return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
+      };
+      const [high, low] = [luminance(a as string), luminance(b as string)].sort((x, y) => y - x);
+      return ((high as number) + 0.05) / ((low as number) + 0.05);
+    },
+    [first, second],
+  );
+}
+
+const boxShadowOf = (element: Locator) => element.evaluate((el) => getComputedStyle(el).boxShadow);
+
+for (const theme of THEMES) {
+  // SUI-FEATURE-055 AC1: the tab panel stays a tab stop and draws the one ring at 3:1.
+  test(`focus ring: a tab panel reached by Tab shows the ring (${theme})`, async ({ page }) => {
+    await page.goto(`/?page=components&lng=en&theme=${theme}`);
+    const ring = await utilityColor(page, "bg-ring", "backgroundColor");
+    const structure = page.getByTestId("section-structure");
+    await page.keyboard.press("Tab");
+    await structure.getByRole("tab", { name: "General" }).first().focus();
+    await page.keyboard.press("Tab");
+    const panel = structure.getByRole("tabpanel").first();
+    await expect(panel).toBeFocused();
+    await expect.poll(() => boxShadowOf(panel)).toContain(`${ring} 0px 0px 0px 3px`);
+    const ground = await utilityColor(page, "bg-background", "backgroundColor");
+    expect(await contrastOf(page, ring, ground)).toBeGreaterThanOrEqual(3);
+  });
+
+  // SUI-FEATURE-055 AC2: opened by keyboard, the highlighted entry carries the inset ring on top of
+  // the tint, at 3:1 against the popover it sits on.
+  test(`focus ring: the keyboard-highlighted menu entry shows the inset ring (${theme})`, async ({
+    page,
+  }) => {
+    await page.goto(`/?page=components&lng=en&theme=${theme}`);
+    const ring = await utilityColor(page, "bg-ring", "backgroundColor");
+    await page.keyboard.press("Tab");
+    await page.getByTestId("focus-menu").focus();
+    await page.keyboard.press("Enter");
+    const menu = page.getByRole("menu");
+    await expect(menu.getByRole("menuitem", { name: "Edit" })).toBeFocused();
+    await page.keyboard.press("ArrowDown");
+    const item = menu.getByRole("menuitem", { name: "Duplicate" });
+    await expect(item).toHaveAttribute("data-highlighted", "");
+    await expect.poll(() => boxShadowOf(item)).toContain(`${ring} 0px 0px 0px 3px inset`);
+    const popover = await menu.evaluate((el) => getComputedStyle(el).backgroundColor);
+    expect(popover).toBe(await utilityColor(page, "bg-popover", "backgroundColor"));
+    expect(await contrastOf(page, ring, popover)).toBeGreaterThanOrEqual(3);
+    const tint = await item.evaluate((el) => getComputedStyle(el).backgroundColor);
+    expect(await contrastOf(page, ring, tint)).toBeGreaterThanOrEqual(3);
+  });
+}
+
+// SUI-FEATURE-055: the mouse highlights with the tint alone.
+test("focus ring: a menu entry under the mouse keeps the tint without the ring", async ({
+  page,
+}) => {
+  await page.goto("/?page=components&lng=en");
+  await page.getByTestId("focus-menu").click();
+  const item = page.getByRole("menu").getByRole("menuitem", { name: "Duplicate" });
+  await item.hover();
+  await expect(item).toHaveAttribute("data-highlighted", "");
+  await expect(item).toBeFocused();
+  await expect
+    .poll(() => item.evaluate((el) => getComputedStyle(el).backgroundColor))
+    .toBe(await utilityColor(page, "bg-accent", "backgroundColor"));
+  expect(await boxShadowOf(item)).not.toContain("3px inset");
+});
+
+// SUI-FEATURE-055: a Select opened by keyboard rings its highlighted entry the same way.
+test("focus ring: the keyboard-highlighted select entry shows the inset ring", async ({ page }) => {
+  await page.goto("/?page=components&lng=en");
+  const ring = await utilityColor(page, "bg-ring", "backgroundColor");
+  await page.keyboard.press("Tab");
+  await page.getByRole("combobox", { name: "Select empty" }).focus();
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("ArrowDown");
+  const item = page.getByRole("listbox").locator("[data-highlighted]");
+  await expect.poll(() => boxShadowOf(item)).toContain(`${ring} 0px 0px 0px 3px inset`);
+});
+
+// SUI-FEATURE-055: the combobox entry the arrow keys reach carries the ring, the one under the
+// mouse only the tint.
+test("focus ring: the time zone list rings the keyboard entry, not the hovered one", async ({
+  page,
+}) => {
+  await page.goto("/?page=components&lng=en");
+  const ring = await utilityColor(page, "bg-ring", "backgroundColor");
+  const field = page.getByTestId("timezone-value");
+  await page.keyboard.press("Tab");
+  await field.focus();
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("ArrowDown");
+  const active = page.locator("[role=option][data-active]");
+  await expect.poll(() => boxShadowOf(active)).toContain(`${ring} 0px 0px 0px 3px inset`);
+  const other = page.getByRole("option", { name: "Europe/Zurich", exact: true });
+  await other.hover();
+  await expect(other).toHaveAttribute("data-active", "");
+  expect(await boxShadowOf(other)).not.toContain("3px inset");
+});
+
+// Under forced colors the shadow ring is gone; the outline the ring rule sets carries the highlight.
+async function expectForcedOutline(element: Locator) {
+  const style = await element.evaluate((el) => {
+    const { outlineStyle, outlineWidth, outlineColor } = getComputedStyle(el);
+    return { outlineStyle, outlineWidth, outlineColor };
+  });
+  expect(style).toMatchObject({ outlineStyle: "solid", outlineWidth: "2px" });
+  expect(style.outlineColor).not.toBe("rgba(0, 0, 0, 0)");
+}
+
+// SUI-FEATURE-055: the Select opened by the pointer gives its highlighted entry the tint alone,
+// like the time zone list; an entry under the mouse keeps the tint too.
+test("focus ring: a select opened and hovered by the mouse shows no ring", async ({ page }) => {
+  await page.goto("/?page=components&lng=en");
+  await page.getByRole("combobox", { name: "Select with value" }).click();
+  const listbox = page.getByRole("listbox");
+  const opened = listbox.locator("[data-highlighted]");
+  await expect(opened).toHaveCount(1);
+  expect(await boxShadowOf(opened)).not.toContain("3px inset");
+  const item = listbox.getByRole("option", { name: "Daily" });
+  await item.hover();
+  await expect(item).toHaveAttribute("data-highlighted", "");
+  expect(await boxShadowOf(item)).not.toContain("3px inset");
+});
+
+// SUI-FEATURE-055: the active hit of the global search carries the inset ring, under forced colors
+// the outline.
+for (const forced of [false, true]) {
+  test(`focus ring: the active search hit is ringed${forced ? " under forced colors" : ""}`, async ({
+    page,
+  }) => {
+    if (forced) await page.emulateMedia({ forcedColors: "active" });
+    await page.goto("/?page=shell&route=/dashboard&lng=en");
+    const ring = await utilityColor(page, "bg-ring", "backgroundColor");
+    await page.getByTestId("shell-search").click();
+    await page.getByTestId("search-dialog-input").fill("summer");
+    const active = page.locator("[data-testid=search-hit][data-active]");
+    await expect(active).toHaveCount(1);
+    if (forced) await expectForcedOutline(active);
+    else await expect.poll(() => boxShadowOf(active)).toContain(`${ring} 0px 0px 0px 3px inset`);
+  });
+
+  // SUI-FEATURE-055: the user menu entry reached by Tab carries the inset ring on top of the tint.
+  test(`focus ring: the keyboard-focused user menu entry is ringed${forced ? " under forced colors" : ""}`, async ({
+    page,
+  }) => {
+    if (forced) await page.emulateMedia({ forcedColors: "active" });
+    await page.goto("/?page=shell&route=/dashboard&lng=en");
+    const ring = await utilityColor(page, "bg-ring", "backgroundColor");
+    await page.keyboard.press("Tab");
+    await page.getByTestId("user-menu-trigger").focus();
+    await page.keyboard.press("Enter");
+    await page.keyboard.press("Tab");
+    const entry = page.getByTestId("user-menu-profile");
+    await expect(entry).toBeFocused();
+    if (forced) await expectForcedOutline(entry);
+    else await expect.poll(() => boxShadowOf(entry)).toContain(`${ring} 0px 0px 0px 3px inset`);
+  });
+}
+
+// SUI-FEATURE-055: the keyboard-highlighted menu entry keeps a visible outline under forced colors.
+test("focus ring: the keyboard-highlighted menu entry under forced colors", async ({ page }) => {
+  await page.emulateMedia({ forcedColors: "active" });
+  await page.goto("/?page=components&lng=en");
+  await page.keyboard.press("Tab");
+  await page.getByTestId("focus-menu").focus();
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("ArrowDown");
+  await expectForcedOutline(page.getByRole("menu").getByRole("menuitem", { name: "Duplicate" }));
+});
+
+// SUI-FEATURE-055 AC3 / GL-UI-013 rev 4: every icon button of the gallery, the close buttons of
+// dialog, panel and toast and the icon toggles among them, and every checkbox, radio and switch
+// measures at least 24 × 24 px. Text only screen readers get (`.sr-only`) does not make a button a
+// text button; a hit area grown by a pseudo-element counts.
+const TARGET_PAGES = [
+  "components",
+  "list",
+  "tiles",
+  "settings",
+  "shell",
+  "dialog",
+  "confirm",
+  "overlays",
+  "select",
+  "sheet",
+  "edit-panel",
+  "help",
+  "toast",
+];
+
+test("target size: every icon button and indicator control is at least 24 × 24 px", async ({
+  page,
+}) => {
+  const small: string[] = [];
+  const measured: string[] = [];
+  for (const name of TARGET_PAGES) {
+    await page.goto(`/?page=${name}&lng=en`);
+    await page.waitForLoadState("networkidle");
+    // Overlays settle their open animation before the boxes are read.
+    await page.waitForTimeout(500);
+    const targets = await page.evaluate(() => {
+      const visibleText = (el: HTMLElement) => {
+        const clone = el.cloneNode(true) as HTMLElement;
+        for (const hidden of clone.querySelectorAll(".sr-only")) hidden.remove();
+        return (clone.textContent ?? "").trim();
+      };
+      const selector =
+        "button, [role=button], [role=tab], [role=radio], [role=checkbox], [role=switch]";
+      return [...document.querySelectorAll<HTMLElement>(selector)]
+        .filter((el) => {
+          const role = el.getAttribute("role");
+          if (role === "checkbox" || role === "radio" || role === "switch") return true;
+          return visibleText(el) === "" && el.querySelector("svg") !== null;
+        })
+        .map((el) => {
+          const box = el.getBoundingClientRect();
+          const hit = getComputedStyle(el, "::after");
+          const label =
+            el.getAttribute("aria-label") ??
+            el.dataset.testid ??
+            ((el.textContent ?? "").trim() || el.outerHTML.slice(0, 80));
+          return {
+            label,
+            visible: box.width > 0 && box.height > 0,
+            width: Math.max(box.width, parseFloat(hit.width) || 0),
+            height: Math.max(box.height, parseFloat(hit.height) || 0),
+          };
+        })
+        .filter(({ visible }) => visible);
+    });
+    for (const { label, width, height } of targets) {
+      measured.push(`${name}: ${label}`);
+      if (width < 24 || height < 24) small.push(`${name}: ${label} ${width}×${height}`);
+    }
+  }
+  expect(small).toEqual([]);
+  expect(measured).toEqual(
+    expect.arrayContaining([
+      "dialog: Close",
+      "sheet: Close",
+      "toast: Close toast",
+      "tiles: Table",
+      "tiles: Tiles",
+      "components: unchecked",
+      "components: off",
+      "components: Focus radio item",
+    ]),
+  );
+});
+
+test("target size: the close buttons of dialog, panel and toast", async ({ page }) => {
+  for (const [name, close] of [
+    ["dialog", (p: Page) => p.getByTestId("form-dialog").getByRole("button", { name: "Close" })],
+    ["sheet", (p: Page) => p.getByTestId("sheet").getByRole("button", { name: "Close" }).last()],
+    ["toast", (p: Page) => p.locator("[data-close-button]").first()],
+  ] as const) {
+    await page.goto(`/?page=${name}&lng=en`);
+    const box = await close(page).boundingBox();
+    expect(box?.width, name).toBeGreaterThanOrEqual(24);
+    expect(box?.height, name).toBeGreaterThanOrEqual(24);
+    const icon = await close(page).locator("svg").boundingBox();
+    expect(icon?.width, name).toBeLessThanOrEqual(16);
+  }
+});
