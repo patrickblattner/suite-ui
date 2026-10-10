@@ -1,6 +1,6 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { useState } from "react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { TagInput } from "./tag-input.js";
 
@@ -110,5 +110,64 @@ describe("TagInput", () => {
     fireEvent.keyDown(field(), { key: ",", keyCode: 229 });
     expect(chips()).toEqual([]);
     expect(field()).toHaveValue("にほ");
+  });
+
+  // SUI-FEATURE-052: announcements and the commit on leaving the field.
+  it("announces a chip added by Enter and one removed by Backspace, with its name", () => {
+    render(<Controlled initial={["a"]} />);
+    const announcement = screen.getByTestId("tag-input-announcement");
+    expect(announcement).toHaveAttribute("role", "status");
+    expect(announcement).toHaveAttribute("aria-live", "polite");
+    expect(announcement).toHaveClass("sr-only");
+    expect(announcement).toBeEmptyDOMElement();
+    type("R&D");
+    fireEvent.keyDown(field(), { key: "Enter" });
+    expect(announcement).toHaveTextContent("Tag R&D added");
+    fireEvent.keyDown(field(), { key: "Backspace" });
+    expect(chips()).toEqual(["a"]);
+    expect(announcement).toHaveTextContent("Tag R&D removed");
+  });
+
+  it('announces "a, b" + Enter once, with both names', () => {
+    render(<Controlled />);
+    type("a, b");
+    fireEvent.keyDown(field(), { key: "Enter" });
+    expect(screen.getByTestId("tag-input-announcement").textContent).toBe("Tags a, b added");
+  });
+
+  it("announces a chip removed with ×", () => {
+    render(<Controlled initial={["a", "b"]} />);
+    fireEvent.click(screen.getByRole("button", { name: "Remove tag a" }));
+    expect(screen.getByTestId("tag-input-announcement")).toHaveTextContent("Tag a removed");
+  });
+
+  it("takes typed text over as a chip when the field loses the focus", () => {
+    render(
+      <>
+        <Controlled initial={["a"]} />
+        <button type="button">Next</button>
+      </>,
+    );
+    field().focus();
+    type(" neu ");
+    act(() => screen.getByRole("button", { name: "Next" }).focus());
+    expect(chips()).toEqual(["a", "neu"]);
+    expect(field()).toHaveValue("");
+    expect(screen.getByTestId("tag-input-announcement")).toHaveTextContent("Tag neu added");
+  });
+
+  it("leaving the field with a duplicate or blank text adds nothing", () => {
+    const onChange = vi.fn();
+    render(<TagInput value={["a"]} onChange={onChange} />);
+    field().focus();
+    type("A");
+    fireEvent.blur(field());
+    expect(field()).toHaveValue("");
+    type("  ");
+    fireEvent.blur(field());
+    expect(onChange).not.toHaveBeenCalled();
+    expect(screen.getByTestId("tag-input-announcement")).toBeEmptyDOMElement();
+    // The duplicate is dropped and the field cleared, as Enter does; blank text stays as typed.
+    expect(field()).toHaveValue("  ");
   });
 });

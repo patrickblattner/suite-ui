@@ -382,7 +382,10 @@ describe("SettingsScaffold single column and states (SUI-FEATURE-041)", () => {
     );
     const error = screen.getByTestId("settings-error");
     expect(error).toHaveTextContent("Settings could not be loaded.");
-    expect(error).toHaveClass("text-destructive");
+    // SUI-FEATURE-052: the AA text token, not the fill; its 4.5:1 on --background in both themes is
+    // checked in styles.test.ts.
+    expect(error).toHaveClass("text-destructive-text");
+    expect(error).not.toHaveClass("text-destructive");
     expect(screen.queryByTestId("tab-row")).toBeNull();
     expect(screen.getByTestId("page-title")).toHaveTextContent("General");
     expect(screen.getByTestId("page-subtitle")).toBeInTheDocument();

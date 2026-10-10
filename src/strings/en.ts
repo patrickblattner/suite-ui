@@ -208,9 +208,13 @@ export const en = {
   upload: {
     drop: "Drop files here",
     choose: "Choose files",
+    rejected: "Not taken, file type not allowed: {{files}}",
   },
   tags: {
     remove: "Remove tag {{tag}}",
+    added: "Tag {{tag}} added",
+    addedMany: "Tags {{tags}} added",
+    removed: "Tag {{tag}} removed",
   },
   // The previous/next buttons of an edit panel that pages through a set of records.
   pager: {

@@ -641,12 +641,13 @@ test("status slot: start and end move nothing below the head", async ({ page }) 
   expect((await box(slot)).width).toBe(0);
 
   await frame.getByTestId("status-toggle").click();
-  await expect(slot).toHaveText("Website is updating");
+  await expect(slot.getByRole("status")).toHaveText("Website is updating");
   await expect(slot.getByTestId("operation-spinner")).toBeVisible();
   expect(await layout()).toEqual(before);
 
   await frame.getByTestId("status-toggle").click();
-  await expect(slot).toBeEmpty();
+  await expect(slot.getByRole("status")).toBeEmpty();
+  await expect(slot.getByTestId("operation-spinner")).toHaveCount(0);
   expect(await layout()).toEqual(before);
 });
 
@@ -699,9 +700,16 @@ test("status slot: compact at 390 px returns to the label when the window widens
   await frame.getByTestId("status-toggle").click();
   await expect(slot).toHaveAttribute("data-compact", "");
   await expect(slot.getByTestId("operation-label")).toHaveCount(0);
+  // `SUI-FEATURE-052`: one status in the slot, holding the label alone, compact and full alike.
+  const live = slot.getByRole("status");
+  const label = "Website is updating — visible in about 1–2 minutes";
+  await expect(live).toHaveCount(1);
+  await expect(live).toHaveText(label);
   await page.setViewportSize({ width: 1024, height: 900 });
   await expect(slot).not.toHaveAttribute("data-compact");
   await expect(slot.getByTestId("operation-label")).toBeVisible();
+  await expect(live).toHaveCount(1);
+  await expect(live).toHaveText(label);
 });
 
 test("status slot: progress, several operations, and the row status keeps its width", async ({
@@ -793,6 +801,48 @@ test("tag input: input height, comma and Enter make chips, duplicates dropped", 
   await field.getByRole("button", { name: "Remove tag team" }).click();
   await input.press("Backspace");
   await expect(field.getByTestId("tag-input-chip")).toHaveText(["summer", "a"]);
+});
+
+// `SUI-FEATURE-052`: a file outside `accept` is named below the drop zone as a status.
+test("upload step: the rejected file is named below the drop zone", async ({ page }) => {
+  await page.goto("/?page=components");
+  const frame = page.getByTestId("upload-frame-rejected");
+  const message = frame.getByRole("status");
+  await expect(message).toHaveText("Not taken, file type not allowed: notes.txt");
+  await expect(message).toBeVisible();
+  expect((await box(message)).y).toBeGreaterThanOrEqual(
+    (await box(frame.getByTestId("upload-drop"))).y +
+      (await box(frame.getByTestId("upload-drop"))).height,
+  );
+});
+
+// `SUI-FEATURE-052`: Tab out of the field takes typed text over; adding and removing are announced.
+test("tag input: leaving by Tab makes a chip, chips are announced", async ({ page }) => {
+  await page.goto("/?page=components");
+  const field = page.getByTestId("tag-input");
+  const input = page.getByTestId("tag-input-input");
+  const announcement = page.getByTestId("tag-input-announcement");
+  await input.click();
+  await input.pressSequentially("neu");
+  await input.press("Tab");
+  await expect(field.getByTestId("tag-input-chip")).toHaveText(["summer", "team", "neu"]);
+  await expect(announcement).toHaveText("Tag neu added");
+  await input.focus();
+  await input.press("Backspace");
+  await expect(announcement).toHaveText("Tag neu removed");
+});
+
+// `SUI-FEATURE-052`: once the app shows the rows, the message stands above them.
+test("upload step: the rejected file is named above the rows", async ({ page }) => {
+  await page.goto("/?page=components");
+  const frame = page.getByTestId("upload-frame-rejected-rows");
+  const message = frame.getByRole("status");
+  await expect(frame.getByTestId("upload-row")).toContainText("team-photo.jpg");
+  await expect(message).toHaveText("Not taken, file type not allowed: notes.txt");
+  await expect(message).toBeVisible();
+  expect((await box(message)).y + (await box(message)).height).toBeLessThanOrEqual(
+    (await box(frame.getByTestId("upload-rows"))).y,
+  );
 });
 
 // The edit panel pages through a set with ‹ and › left of the title, each locked at its end.

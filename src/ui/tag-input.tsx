@@ -18,8 +18,9 @@ type TagInputProps = {
 
 // The one chip field for tags (`GL-UI-027` §Hochladen, `SUI-FEATURE-051`): Enter and comma take the
 // typed text over as chips, Backspace in the empty field removes the last one. Tags are trimmed, and a
-// tag already there in any letter case is dropped. The field has the input height (`GL-UI-011`) and
-// grows with each row of chips.
+// tag already there in any letter case is dropped. Leaving the field takes typed text over as Enter does,
+// so a click on Save never loses it. Each added or removed chip is announced politely
+// (`SUI-FEATURE-052`). The field has the input height (`GL-UI-011`) and grows with each row of chips.
 function TagInput({
   value,
   onChange,
@@ -31,6 +32,7 @@ function TagInput({
 }: TagInputProps) {
   const { t } = useTranslation("suite");
   const [draft, setDraft] = React.useState("");
+  const [announcement, setAnnouncement] = React.useState("");
   const root = React.useRef<HTMLDivElement>(null);
   // The index of a chip removed with ×: once the chips re-render, the focus moves to the chip now in
   // its place, else the one before it, else the text field.
@@ -45,6 +47,13 @@ function TagInput({
     (next ?? root.current.querySelector<HTMLElement>("input"))?.focus();
   }, [value, testId]);
 
+  const raw = { interpolation: { escapeValue: false } };
+
+  const remove = (tag: string) => {
+    onChange(value.filter((other) => other !== tag));
+    setAnnouncement(t("tags.removed", { tag, ...raw }));
+  };
+
   const commit = () => {
     const known = new Set(value.map((tag) => tag.toLowerCase()));
     const added: string[] = [];
@@ -54,7 +63,15 @@ function TagInput({
       known.add(tag.toLowerCase());
       added.push(tag);
     }
-    if (added.length > 0) onChange([...value, ...added]);
+    if (added.length > 0) {
+      onChange([...value, ...added]);
+      // Several tags from one entry are announced together (`SUI-FEATURE-052`).
+      setAnnouncement(
+        added.length === 1
+          ? t("tags.added", { tag: added[0], ...raw })
+          : t("tags.addedMany", { tags: added.join(", "), ...raw }),
+      );
+    }
     setDraft("");
   };
 
@@ -85,7 +102,7 @@ function TagInput({
                 disabled={disabled}
                 onClick={() => {
                   removed.current = index;
-                  onChange(value.filter((other) => other !== tag));
+                  remove(tag);
                 }}
                 data-testid={`${testId}-remove`}
                 className="inline-flex size-4 items-center justify-center rounded-full outline-none hover:bg-secondary-hover focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none"
@@ -102,6 +119,9 @@ function TagInput({
         placeholder={value.length === 0 ? placeholder : undefined}
         disabled={disabled}
         onChange={(event) => setDraft(event.target.value)}
+        onBlur={() => {
+          if (draft.trim() !== "") commit();
+        }}
         onKeyDown={(event) => {
           // An IME is still composing: its Enter or comma belongs to the composition.
           if (event.nativeEvent.isComposing || event.keyCode === 229) return;
@@ -109,13 +129,22 @@ function TagInput({
           if ((event.key === "Enter" && draft.trim() !== "") || event.key === ",") {
             event.preventDefault();
             commit();
-          } else if (event.key === "Backspace" && draft === "" && value.length > 0) {
-            onChange(value.slice(0, -1));
+          } else if (event.key === "Backspace" && draft === "") {
+            const last = value.at(-1);
+            if (last !== undefined) remove(last);
           }
         }}
         data-testid={`${testId}-input`}
         className="h-6 min-w-24 flex-1 bg-transparent px-1 text-base outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed md:text-sm"
       />
+      <span
+        role="status"
+        aria-live="polite"
+        className="sr-only"
+        data-testid={`${testId}-announcement`}
+      >
+        {announcement}
+      </span>
     </div>
   );
 }

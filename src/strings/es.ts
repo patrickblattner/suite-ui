@@ -202,9 +202,13 @@ export const es: SuiteStrings = {
   upload: {
     drop: "Suelta los archivos aquí",
     choose: "Elegir archivos",
+    rejected: "No se han tomado, tipo de archivo no permitido: {{files}}",
   },
   tags: {
     remove: "Quitar etiqueta {{tag}}",
+    added: "Etiqueta {{tag}} añadida",
+    addedMany: "Etiquetas {{tags}} añadidas",
+    removed: "Etiqueta {{tag}} quitada",
   },
   pager: {
     previous: "Anterior",

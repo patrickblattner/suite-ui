@@ -95,7 +95,7 @@ function SettingsScaffold({
   const state = loading ? (
     <Skeleton className="h-9 w-full" aria-busy="true" data-testid="settings-loading" />
   ) : error !== undefined ? (
-    <p className="text-sm text-destructive" role="alert" data-testid="settings-error">
+    <p className="text-sm text-destructive-text" role="alert" data-testid="settings-error">
       {error}
     </p>
   ) : null;

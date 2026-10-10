@@ -168,7 +168,9 @@ function EditPanel({
                     <ChevronRightIcon aria-hidden="true" />
                   </Button>
                 </IconButtonTooltip>
+                {/* A change of position is announced politely (`SUI-FEATURE-052`). */}
                 <span
+                  role="status"
                   className="mr-2 text-sm text-muted-foreground tabular-nums"
                   data-testid={`${testIdPrefix}-position`}
                 >

@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import i18n from "i18next";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { SidebarProvider, useSidebar } from "../shell/sidebar-provider.js";
 import { EditPanel, type EditPanelProps } from "./edit-panel.js";
 import { Input } from "./input.js";
+import { TagInput } from "./tag-input.js";
 
 afterEach(async () => {
   localStorage.clear();
@@ -309,5 +310,69 @@ describe("EditPanel", () => {
     expect(header.querySelector("[data-slot=edit-panel-pager]")).toBeNull();
     expect(screen.getByRole("heading", { name: "Channel" }).parentElement).toBe(header);
     expect(screen.queryByTestId("edit-panel-previous")).toBeNull();
+  });
+
+  // SUI-FEATURE-052: a change of position is announced politely.
+  it("pager: the position is a status, so ‹ and › announce the new one", () => {
+    function Paging() {
+      const [index, setIndex] = useState(1);
+      return (
+        <EditPanel
+          open
+          onOpenChange={() => {}}
+          title="Channel"
+          onSubmit={() => {}}
+          submitLabel="Save"
+          pager={{
+            position: `${index}/3`,
+            onPrevious: () => setIndex((value) => value - 1),
+            onNext: () => setIndex((value) => value + 1),
+          }}
+        >
+          <Input aria-label="Name" />
+        </EditPanel>
+      );
+    }
+    render(<Paging />);
+    const position = screen.getByTestId("edit-panel-position");
+    expect(position).toHaveAttribute("role", "status");
+    fireEvent.click(screen.getByTestId("edit-panel-next"));
+    expect(position).toHaveTextContent("2/3");
+    fireEvent.click(screen.getByTestId("edit-panel-previous"));
+    expect(position).toHaveTextContent("1/3");
+  });
+
+  // SUI-FEATURE-052: Save takes typed tag text over before the submit.
+  it("Save: a TagInput's typed text reaches onChange before onSubmit", () => {
+    const calls: string[] = [];
+    function WithTags() {
+      const [tags, setTags] = useState<string[]>([]);
+      return (
+        <EditPanel
+          open
+          onOpenChange={() => {}}
+          title="Media"
+          onSubmit={() => calls.push(`submit ${tags.join(",")}`)}
+          submitLabel="Save"
+        >
+          <TagInput
+            value={tags}
+            onChange={(next) => {
+              calls.push(`change ${next.join(",")}`);
+              setTags(next);
+            }}
+          />
+        </EditPanel>
+      );
+    }
+    render(<WithTags />);
+    const field = screen.getByTestId("tag-input-input");
+    field.focus();
+    fireEvent.change(field, { target: { value: "neu" } });
+    // A click moves the focus to the button first, as the browser does on mousedown.
+    const save = screen.getByRole("button", { name: "Save" });
+    act(() => save.focus());
+    fireEvent.click(save);
+    expect(calls).toEqual(["change neu", "submit neu"]);
   });
 });

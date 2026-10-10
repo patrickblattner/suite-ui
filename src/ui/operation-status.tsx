@@ -1,6 +1,7 @@
 import { Loader2Icon } from "lucide-react";
 import * as React from "react";
 
+import { cn } from "../lib/cn.js";
 import { Hint } from "./hint.js";
 import { toast } from "./toaster.js";
 import { OverflowTooltip } from "./tooltip.js";
@@ -118,8 +119,9 @@ function OperationLabel({ id, label }: { id?: string; label: string }) {
 // subtitle keeps any width (`SUI-FEATURE-051`): its basis is that room, and the head's title block
 // shrinks first, down to the title. Below that room the label moves into the indicator's hint, so the
 // slot never disappears. It grows into the row's free space with its content right-aligned; its
-// negative margin cancels the row gap it adds. A live region exists before its content, so the slot
-// stands empty while nothing runs and then takes no width.
+// negative margin cancels the row gap it adds; while nothing runs it takes no width. The slot itself is
+// no live region (`GL-UI-033`, `SUI-FEATURE-052`): inside it a screen-reader-only status, present before
+// its content, holds exactly the newest label, so compact and full read the same and only once.
 function OperationStatusSlot({ scope }: { scope: string }) {
   const labelId = React.useId();
   const operations = React.useContext(OperationsContext) ?? [];
@@ -157,9 +159,10 @@ function OperationStatusSlot({ scope }: { scope: string }) {
   return (
     <div
       ref={setNode}
-      role="status"
-      aria-live="polite"
-      className="-ml-4 flex h-9 min-w-0 grow items-center overflow-hidden empty:flex-none"
+      className={cn(
+        "-ml-4 flex h-9 min-w-0 grow items-center overflow-hidden",
+        newest === undefined && "flex-none",
+      )}
       style={
         newest !== undefined
           ? { flexBasis: `${basis}rem`, minWidth: `${1 + indicator}rem` }
@@ -168,6 +171,9 @@ function OperationStatusSlot({ scope }: { scope: string }) {
       data-testid="page-operation-status"
       data-compact={newest !== undefined && compact ? "" : undefined}
     >
+      <span role="status" aria-live="polite" className="sr-only" data-testid="page-operation-live">
+        {newest?.label}
+      </span>
       {newest === undefined ? null : compact ? (
         <div className="ml-auto flex items-center gap-2 pl-4">
           <Hint text={newest.label}>

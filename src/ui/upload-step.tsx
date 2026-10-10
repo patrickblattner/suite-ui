@@ -42,7 +42,9 @@ function accepts(file: File, accept: string | undefined): boolean {
 
 // The upload step, the create mode of the media panel (`GL-UI-027` §Hochladen, `SUI-FEATURE-051`):
 // first the options, then the file choice by drop or button; once the app transfers, one row per file
-// with its status (`GL-UI-033`), the error at its own row. A row keeps its height in every state.
+// with its status (`GL-UI-033`), the error at its own row. A row keeps its height in every state. Files
+// that do not match `accept` are named below the drop zone, then above the rows, until the next choice
+// (`SUI-FEATURE-052`).
 function UploadStep({
   options,
   accept,
@@ -54,6 +56,7 @@ function UploadStep({
   const { t } = useTranslation("suite");
   const input = React.useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = React.useState(false);
+  const [rejected, setRejected] = React.useState<string[]>([]);
   const rowsId = React.useId();
   const list = React.useRef<HTMLUListElement>(null);
   // Whether the focus is in the step: when the rows replace the choose button, the focus that went
@@ -79,90 +82,108 @@ function UploadStep({
   };
 
   const take = (list: FileList | null) => {
-    const files = Array.from(list ?? []).filter((file) => accepts(file, accept));
+    const all = Array.from(list ?? []);
+    const files = all.filter((file) => accepts(file, accept));
+    setRejected(all.filter((file) => !files.includes(file)).map((file) => file.name));
     const chosen = multiple ? files : files.slice(0, 1);
     if (chosen.length > 0) onFiles(chosen);
   };
 
-  if (items !== undefined) {
-    return (
-      <ul
-        ref={list}
-        tabIndex={-1}
-        data-testid="upload-step"
-        className={cn("flex min-w-0 flex-col outline-none", className)}
-        {...track}
-      >
-        {items.map((item) => (
-          <li
-            key={item.id}
-            data-testid="upload-row"
-            data-state={item.state}
-            className="flex h-10 min-w-0 items-center gap-3 border-b last:border-b-0"
-          >
-            <OverflowTooltip text={item.name}>
-              <span id={`${rowsId}-${item.id}`} className="w-0 min-w-0 flex-1 truncate text-sm">
-                {item.name}
-              </span>
-            </OverflowTooltip>
-            <InlineStatus
-              state={item.state}
-              progress={item.progress}
-              label={item.error}
-              labelledBy={`${rowsId}-${item.id}`}
-            />
-          </li>
-        ))}
-      </ul>
-    );
-  }
-
+  // One wrapper for both views keeps the same live region mounted (`SUI-FEATURE-052`): it stands at a
+  // fixed place between the choice and the rows, so it is below the drop zone and above the rows, and
+  // a message survives the switch to the rows until the next choice. Empty, its negative margin
+  // cancels the gap it adds.
   return (
     <div
       data-testid="upload-step"
       className={cn("flex min-w-0 flex-col gap-4", className)}
       {...track}
     >
-      {options !== undefined ? <div data-testid="upload-options">{options}</div> : null}
-      <div
-        data-testid="upload-drop"
-        data-dragging={dragging || undefined}
-        className="flex flex-col items-center justify-center gap-3 rounded-md border border-dashed p-8 text-sm text-muted-foreground transition-colors data-[dragging]:border-ring data-[dragging]:bg-accent"
-        onDragOver={(event) => {
-          event.preventDefault();
-          setDragging(true);
-        }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={(event) => {
-          event.preventDefault();
-          setDragging(false);
-          take(event.dataTransfer.files);
-        }}
+      {showsRows ? null : (
+        <>
+          {options !== undefined ? <div data-testid="upload-options">{options}</div> : null}
+          <div
+            data-testid="upload-drop"
+            data-dragging={dragging || undefined}
+            className="flex flex-col items-center justify-center gap-3 rounded-md border border-dashed p-8 text-sm text-muted-foreground transition-colors data-[dragging]:border-ring data-[dragging]:bg-accent"
+            onDragOver={(event) => {
+              event.preventDefault();
+              setDragging(true);
+            }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={(event) => {
+              event.preventDefault();
+              setDragging(false);
+              take(event.dataTransfer.files);
+            }}
+          >
+            <UploadIcon aria-hidden="true" className="size-6" />
+            <span>{t("upload.drop")}</span>
+            <Button
+              type="button"
+              variant="outline"
+              size="default"
+              onClick={() => input.current?.click()}
+              data-testid="upload-choose"
+            >
+              {t("upload.choose")}
+            </Button>
+            <input
+              ref={input}
+              type="file"
+              hidden
+              accept={accept}
+              multiple={multiple}
+              onChange={(event) => {
+                take(event.target.files);
+                event.target.value = "";
+              }}
+              data-testid="upload-input"
+            />
+          </div>
+        </>
+      )}
+      <p
+        role="status"
+        className={cn("text-sm text-destructive-text", showsRows ? "empty:-mb-4" : "empty:-mt-4")}
+        data-testid="upload-rejected"
       >
-        <UploadIcon aria-hidden="true" className="size-6" />
-        <span>{t("upload.drop")}</span>
-        <Button
-          type="button"
-          variant="outline"
-          size="default"
-          onClick={() => input.current?.click()}
-          data-testid="upload-choose"
+        {rejected.length > 0
+          ? t("upload.rejected", {
+              files: rejected.join(", "),
+              interpolation: { escapeValue: false },
+            })
+          : null}
+      </p>
+      {showsRows ? (
+        <ul
+          ref={list}
+          tabIndex={-1}
+          data-testid="upload-rows"
+          className="flex min-w-0 flex-col outline-none"
         >
-          {t("upload.choose")}
-        </Button>
-        <input
-          ref={input}
-          type="file"
-          hidden
-          accept={accept}
-          multiple={multiple}
-          onChange={(event) => {
-            take(event.target.files);
-            event.target.value = "";
-          }}
-          data-testid="upload-input"
-        />
-      </div>
+          {items.map((item) => (
+            <li
+              key={item.id}
+              data-testid="upload-row"
+              data-state={item.state}
+              className="flex h-10 min-w-0 items-center gap-3 border-b last:border-b-0"
+            >
+              <OverflowTooltip text={item.name}>
+                <span id={`${rowsId}-${item.id}`} className="w-0 min-w-0 flex-1 truncate text-sm">
+                  {item.name}
+                </span>
+              </OverflowTooltip>
+              <InlineStatus
+                state={item.state}
+                progress={item.progress}
+                label={item.error}
+                labelledBy={`${rowsId}-${item.id}`}
+              />
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </div>
   );
 }

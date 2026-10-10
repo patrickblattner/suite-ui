@@ -203,9 +203,13 @@ export const de: SuiteStrings = {
   upload: {
     drop: "Dateien hier ablegen",
     choose: "Dateien wählen",
+    rejected: "Nicht übernommen, Dateityp nicht erlaubt: {{files}}",
   },
   tags: {
     remove: "Tag {{tag}} entfernen",
+    added: "Tag {{tag}} hinzugefügt",
+    addedMany: "Tags {{tags}} hinzugefügt",
+    removed: "Tag {{tag}} entfernt",
   },
   pager: {
     previous: "Vorheriges",

@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { PageHeader } from "../list/page-header.js";
@@ -12,6 +12,8 @@ import { toast } from "./toaster.js";
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+  document.documentElement.style.fontSize = "";
 });
 
 // Renders the provider with a head of `scope` (or none) and hands back the hook's api.
@@ -46,12 +48,17 @@ describe("useOperationStatus and the PageHeader status slot", () => {
   it("shows a spinner and the label of an operation in the head's scope", () => {
     const { api } = setup("brand-kit");
     const slot = screen.getByTestId("page-operation-status");
-    expect(slot).toHaveAttribute("role", "status");
-    expect(slot).toHaveAttribute("aria-live", "polite");
-    expect(slot).toBeEmptyDOMElement();
+    // SUI-FEATURE-052: the slot is no live region; its screen-reader-only status is there beforehand.
+    expect(slot).not.toHaveAttribute("role");
+    expect(slot).not.toHaveAttribute("aria-live");
+    const live = within(slot).getByRole("status");
+    expect(live).toHaveAttribute("aria-live", "polite");
+    expect(live).toHaveClass("sr-only");
+    expect(live).toBeEmptyDOMElement();
     act(() => {
       api().start({ scope: "brand-kit", label: "Website is updating" });
     });
+    expect(live).toHaveTextContent(/^Website is updating$/);
     expect(screen.getByTestId("operation-spinner")).toHaveClass("animate-spin");
     expect(screen.getByTestId("operation-label")).toHaveTextContent("Website is updating");
     expect(screen.getByTestId("operation-label")).toHaveClass(
@@ -87,21 +94,23 @@ describe("useOperationStatus and the PageHeader status slot", () => {
     const success = vi.spyOn(toast, "success").mockReturnValue(1);
     const error = vi.spyOn(toast, "error").mockReturnValue(1);
     const { api } = setup("brand-kit");
-    const slot = screen.getByTestId("page-operation-status");
+    const live = screen.getByTestId("page-operation-live");
 
     let handle!: OperationHandle;
     act(() => {
       handle = api().start({ scope: "brand-kit", label: "Publishing" });
     });
     act(() => handle.succeed("Website updated"));
-    expect(slot).toBeEmptyDOMElement();
+    expect(live).toBeEmptyDOMElement();
+    expect(screen.queryByTestId("operation-spinner")).toBeNull();
     expect(success).toHaveBeenCalledWith("Website updated");
 
     act(() => {
       handle = api().start({ scope: "brand-kit", label: "Publishing" });
     });
     act(() => handle.fail("Update failed"));
-    expect(slot).toBeEmptyDOMElement();
+    expect(live).toBeEmptyDOMElement();
+    expect(screen.queryByTestId("operation-spinner")).toBeNull();
     expect(error).toHaveBeenCalledWith("Update failed");
   });
 
@@ -114,6 +123,7 @@ describe("useOperationStatus and the PageHeader status slot", () => {
     });
     expect(screen.getByTestId("operation-label")).toHaveTextContent("Second");
     expect(screen.getByTestId("page-operation-more")).toHaveTextContent("+1");
+    expect(screen.getByTestId("page-operation-live")).toHaveTextContent(/^Second$/);
   });
 
   it("shows nothing for another scope and renders no slot without a scope", () => {
@@ -121,7 +131,8 @@ describe("useOperationStatus and the PageHeader status slot", () => {
     act(() => {
       api().start({ scope: "elsewhere", label: "Other page" });
     });
-    expect(screen.getByTestId("page-operation-status")).toBeEmptyDOMElement();
+    expect(screen.getByTestId("page-operation-live")).toBeEmptyDOMElement();
+    expect(screen.queryByTestId("operation-spinner")).toBeNull();
     expect(screen.queryByText("Other page")).toBeNull();
   });
 
@@ -171,5 +182,42 @@ describe("useOperationStatus and the PageHeader status slot", () => {
       return null;
     }
     expect(() => render(<Lonely />)).toThrow(/OperationStatusProvider/);
+  });
+
+  // SUI-FEATURE-052: one status in the slot, holding only the label, the same compact and full.
+  it("holds exactly one status with the label alone, unchanged between full and compact", () => {
+    // Every observer of the page (the overflow hints observe too) hears the resize.
+    const observers: (() => void)[] = [];
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(callback: () => void) {
+          observers.push(callback);
+        }
+        observe() {}
+        disconnect() {}
+      },
+    );
+    const width = vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(400);
+    document.documentElement.style.fontSize = "16px";
+    const { api } = setup("brand-kit");
+    act(() => {
+      api().start({ scope: "brand-kit", label: "Website is updating", progress: 0.5 });
+    });
+    const slot = screen.getByTestId("page-operation-status");
+    expect(slot).not.toHaveAttribute("data-compact");
+    expect(within(slot).getAllByRole("status")).toHaveLength(1);
+    const live = within(slot).getByRole("status");
+    expect(live.textContent).toBe("Website is updating");
+    // Visible label and progress bar stand outside the status.
+    expect(live).not.toContainElement(screen.getByTestId("operation-label"));
+    expect(live).not.toContainElement(screen.getByTestId("operation-progress"));
+
+    width.mockReturnValue(40);
+    act(() => observers.forEach((callback) => callback()));
+    expect(slot).toHaveAttribute("data-compact", "");
+    expect(within(slot).getAllByRole("status")).toHaveLength(1);
+    expect(within(slot).getByRole("status")).toBe(live);
+    expect(live.textContent).toBe("Website is updating");
   });
 });

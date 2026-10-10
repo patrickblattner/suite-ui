@@ -355,6 +355,35 @@ function UploadChoose() {
   );
 }
 
+// The rejection state (`SUI-FEATURE-052`): on mount the frame chooses one matching and one other file,
+// so the message stands in the gallery, below the drop zone, or above the rows when `onFiles` sets them.
+function UploadRejected({ rows = false }: { rows?: boolean }) {
+  const frame = useRef<HTMLDivElement>(null);
+  const [items, setItems] = useState<UploadItem[]>();
+  useEffect(() => {
+    const input = frame.current?.querySelector<HTMLInputElement>("[data-testid=upload-input]");
+    if (input == null) return;
+    const files = new DataTransfer();
+    files.items.add(new File(["a"], "team-photo.jpg", { type: "image/jpeg" }));
+    files.items.add(new File(["b"], "notes.txt", { type: "text/plain" }));
+    input.files = files.files;
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  }, []);
+  return (
+    <div ref={frame} data-testid={rows ? "upload-frame-rejected-rows" : "upload-frame-rejected"}>
+      <UploadStep
+        accept="image/*"
+        items={items}
+        onFiles={(files) => {
+          if (rows) {
+            setItems(files.map((file) => ({ id: file.name, name: file.name, state: "running" })));
+          }
+        }}
+      />
+    </div>
+  );
+}
+
 const UPLOAD_LOADING: UploadItem[] = [
   { id: "1", name: "team-photo.jpg", state: "running", progress: 0.4 },
   { id: "2", name: "logo.svg", state: "running" },
@@ -370,7 +399,8 @@ const UPLOAD_RESULT: UploadItem[] = [
   },
 ];
 
-// `SUI-FEATURE-051`: the upload step (choose, loading, result with an error) and the tag field.
+// `SUI-FEATURE-051`: the upload step (choose, loading, result with an error) and the tag field;
+// `SUI-FEATURE-052`: the rejection message.
 function UploadAndTags() {
   const [tags, setTags] = useState(["summer", "team"]);
   const [loading, setLoading] = useState(true);
@@ -393,6 +423,8 @@ function UploadAndTags() {
         <div data-testid="upload-frame-error">
           <UploadStep onFiles={() => {}} items={UPLOAD_RESULT} />
         </div>
+        <UploadRejected />
+        <UploadRejected rows />
       </div>
       <div className="mt-4 flex max-w-md flex-col gap-2">
         <Label htmlFor="gallery-tags">Tags</Label>
