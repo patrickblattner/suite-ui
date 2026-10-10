@@ -4,7 +4,13 @@ import { createPortal } from "react-dom";
 
 import { cn } from "../lib/cn.js";
 import { helpIdFor } from "./label-with-help.js";
-import { TooltipContent, TooltipProvider, TooltipTrigger, useIsOverflowing } from "./tooltip.js";
+import {
+  OverflowReportContext,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+  useIsOverflowing,
+} from "./tooltip.js";
 
 type AnyProps = Record<string, unknown>;
 type Handler = (...args: unknown[]) => void;
@@ -121,13 +127,16 @@ type HintProps = {
 // working.
 //
 // A control whose own text is clipped (it carries `truncate`) gets both in one bubble (`GL-UI-016`): the
-// full text on top, the description below.
+// full text on top, the description below. So does a clipped `OverflowTooltip` inside it (the value of
+// a select trigger), which then opens no bubble of its own: one element, one tooltip.
 function Hint({ text, disabledText, children, ...passThrough }: HintProps) {
   const id = React.useId();
   const overflow = useIsOverflowing();
   const ownRef = passThrough.ref;
   const ref = React.useMemo(() => composeRefs(ownRef, overflow.ref), [ownRef, overflow.ref]);
-  const clipped = overflow.isOverflowing && overflow.text !== "";
+  const [innerClipped, setInnerClipped] = React.useState("");
+  const fullText = overflow.isOverflowing && overflow.text !== "" ? overflow.text : innerClipped;
+  const clipped = fullText !== "";
 
   const disabled = children.props.disabled === true;
   const shown = disabled && disabledText !== undefined ? disabledText : text;
@@ -157,7 +166,7 @@ function Hint({ text, disabledText, children, ...passThrough }: HintProps) {
   }
 
   return (
-    <>
+    <OverflowReportContext.Provider value={setInnerClipped}>
       <TooltipProvider>
         <TooltipPrimitive.Root>
           <TooltipTrigger asChild onFocus={keepClosedOnFocus}>
@@ -168,7 +177,7 @@ function Hint({ text, disabledText, children, ...passThrough }: HintProps) {
           <TooltipContent>
             {clipped ? (
               <>
-                <span className="block">{overflow.text}</span>
+                <span className="block">{fullText}</span>
                 <span className="mt-1 block opacity-90" data-slot="tooltip-hint">
                   {shown}
                 </span>
@@ -180,7 +189,7 @@ function Hint({ text, disabledText, children, ...passThrough }: HintProps) {
         </TooltipPrimitive.Root>
       </TooltipProvider>
       {describes ? <DescriptionText id={id} text={shown} /> : null}
-    </>
+    </OverflowReportContext.Provider>
   );
 }
 
