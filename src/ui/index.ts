@@ -22,6 +22,7 @@ export * from "./restore-defaults-button.js";
 export * from "./select.js";
 export * from "./sheet.js";
 export * from "./skeleton.js";
+export * from "./slider.js";
 export * from "./status-chip.js";
 export * from "./switch.js";
 export * from "./table.js";

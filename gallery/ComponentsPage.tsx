@@ -46,6 +46,7 @@ import { RadioGroup, RadioGroupItem } from "../src/ui/radio-group.js";
 import { RestoreDefaultsButton } from "../src/ui/restore-defaults-button.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../src/ui/select.js";
 import { Skeleton } from "../src/ui/skeleton.js";
+import { Slider } from "../src/ui/slider.js";
 import { STATUS_CHIP_STATES, StatusChip } from "../src/ui/status-chip.js";
 import { Switch } from "../src/ui/switch.js";
 import {
@@ -607,6 +608,73 @@ function Choices() {
   );
 }
 
+const TILE_SIZES = ["small", "medium", "large"] as const;
+
+// `SUI-FEATURE-057`: alone, beside a number field holding the same value, and in three named steps.
+function Sliders() {
+  const [width, setWidth] = useState(50);
+  const [linked, setLinked] = useState(40);
+  const [size, setSize] = useState(1);
+  return (
+    <Section id="slider" title="Slider">
+      <Row label="Alone">
+        <Slider
+          value={width}
+          onValueChange={setWidth}
+          min={1}
+          max={100}
+          aria-label="Image width"
+          className="w-48"
+          data-testid="slider-alone"
+        />
+        <Slider
+          value={30}
+          onValueChange={() => {}}
+          disabled
+          aria-label="Disabled"
+          className="w-48"
+          data-testid="slider-disabled"
+        />
+      </Row>
+      <Row label="With number">
+        <Slider
+          value={linked}
+          onValueChange={setLinked}
+          min={1}
+          max={100}
+          aria-label="Linked width"
+          className="w-48"
+          data-testid="slider-linked"
+        />
+        <Input
+          type="number"
+          size="sm"
+          min={1}
+          max={100}
+          value={linked}
+          onChange={(event) => setLinked(Number(event.target.value))}
+          aria-label="Linked width in %"
+          className="w-20"
+          data-testid="slider-linked-input"
+        />
+      </Row>
+      <Row label="Three steps">
+        <Slider
+          value={size}
+          onValueChange={setSize}
+          min={0}
+          max={2}
+          getAriaValueText={(value) => TILE_SIZES[value] ?? ""}
+          aria-label="Tile size"
+          className="w-48"
+          data-testid="slider-steps"
+        />
+        <span className="text-muted-foreground">{TILE_SIZES[size]}</span>
+      </Row>
+    </Section>
+  );
+}
+
 function Badges() {
   const { t } = useTranslation("suite");
   const label: Partial<Record<BadgeVariant, string>> = {
@@ -910,6 +978,7 @@ export function ComponentsPage() {
       <Badges />
       <Fields />
       <Choices />
+      <Sliders />
       <Structure />
       <ReadTable />
       <FocusRing />

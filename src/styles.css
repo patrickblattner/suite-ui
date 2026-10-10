@@ -345,4 +345,9 @@
   :where([data-testid="page-scroll"]) :where([data-overflow-x]) {
     padding-block-end: var(--page-gutter);
   }
+  /* A list frame holds the focus only while its list has no entry to put it on (a page loading after
+     ←/→, the last row deleted; `SUI-FEATURE-056`): no browser outline around the whole list. */
+  [data-slot="list-frame"]:focus {
+    outline: none;
+  }
 }

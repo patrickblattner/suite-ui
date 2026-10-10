@@ -2554,3 +2554,43 @@ test("keyboard page: no axe violations", async ({ page }) => {
     .analyze();
   expect(violations.map((violation) => violation.id)).toEqual([]);
 });
+
+// `SUI-FEATURE-056`: the list frame holds the focus while a page loads, without a browser outline.
+test("list frame: holding the focus draws no outline", async ({ page }) => {
+  await page.goto("/?page=keys&lng=en");
+  await page.getByTestId("keys-row").nth(1).focus();
+  await page.keyboard.press("ArrowDown");
+  const outline = await page.evaluate(() => {
+    const frame = document.querySelector<HTMLElement>("[data-slot=list-frame]")!;
+    frame.tabIndex = -1;
+    frame.focus();
+    return [frame.matches(":focus-visible"), getComputedStyle(frame).outlineStyle];
+  });
+  expect(outline).toEqual([true, "none"]);
+});
+
+// `SUI-FEATURE-057` AC2/AC5: the slider by keyboard, beside a number field at the same height scale.
+test("slider: keys move the value, the number field follows, centres line up", async ({ page }) => {
+  await page.goto("/?page=components");
+  const thumb = page.getByTestId("slider-linked").getByRole("slider");
+  const input = page.getByTestId("slider-linked-input");
+  await thumb.focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(input).toHaveValue("41");
+  await page.keyboard.press("End");
+  await expect(input).toHaveValue("100");
+  await input.fill("25");
+  await expect(thumb).toHaveAttribute("aria-valuenow", "25");
+  const slider = await box(page.getByTestId("slider-linked"));
+  const field = await box(input);
+  expect(Math.abs(slider.y + slider.height / 2 - (field.y + field.height / 2))).toBeLessThan(1);
+  const steps = page.getByTestId("slider-steps").getByRole("slider");
+  await expect(steps).toHaveAttribute("aria-valuetext", "medium");
+  await steps.focus();
+  await page.keyboard.press("Home");
+  await expect(steps).toHaveAttribute("aria-valuetext", "small");
+  // Disabled: no tab stop.
+  await expect(page.getByTestId("slider-disabled").getByRole("slider")).not.toHaveAttribute(
+    "tabindex",
+  );
+});
