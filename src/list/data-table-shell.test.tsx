@@ -223,7 +223,7 @@ describe("DataTableShell", () => {
     const region = screen.getByRole("region", { name: "System log" });
     expect(region).toBe(screen.getByTestId("data-table-scroll"));
     expect(region).toHaveAttribute("tabindex", "0");
-    expect(region).toHaveClass("focus-visible:ring-[3px]", "focus-visible:ring-ring/50");
+    expect(region).toHaveClass("focus-visible:focus-ring");
     region.focus();
     expect(region).toHaveFocus();
   });
@@ -252,10 +252,20 @@ describe("DataTableShell", () => {
     });
     const region = screen.getByRole("region", { name: "System log" });
     expect(region).not.toHaveAttribute("tabindex");
-    expect(region).not.toHaveClass("focus-visible:ring-[3px]");
+    expect(region).not.toHaveClass("focus-visible:focus-ring");
     const stops = [...container.querySelectorAll("[tabindex]")].filter(
       (el) => (el as HTMLElement).tabIndex >= 0,
     );
     expect(stops).toEqual([screen.getByRole("grid")]);
+  });
+
+  // SUI-FEATURE-054 AC4: an empty label counts as unset, no tab stop and no unnamed region.
+  it('treats scrollLabel="" as unset', () => {
+    const { container } = renderShell({ scrollLabel: "" });
+    const scroll = screen.getByTestId("data-table-scroll");
+    expect(scroll).not.toHaveAttribute("tabindex");
+    expect(scroll).not.toHaveAttribute("role");
+    expect(scroll).not.toHaveAttribute("aria-label");
+    expect(container.querySelector("[tabindex]")).toBeNull();
   });
 });

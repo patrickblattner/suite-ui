@@ -18,8 +18,8 @@ const SCROLL_CLASS = {
     "relative min-h-6 flex-1 overflow-auto overflow-y-scroll [scrollbar-gutter:stable] [&_[data-slot=table-container]]:overflow-visible",
 } as const;
 
-// The focus ring of a labelled scroller (`SUI-FEATURE-053`), the same token ring as an interactive card.
-const SCROLL_FOCUS_CLASS = "outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50";
+// The focus ring of a labelled scroller (`SUI-FEATURE-053`): the package's one `focus-ring` rule.
+const SCROLL_FOCUS_CLASS = "outline-none focus-visible:focus-ring";
 
 // The inset shadow draws the header rule without a border that would scroll away with the rows.
 const STICKY_HEADER_CLASS =
@@ -84,7 +84,9 @@ function DataTableShell({
   const forwardedTableProps: React.ComponentProps<typeof Table> = { ...tableProps };
   delete forwardedTableProps.className;
   delete forwardedTableProps.style;
-  const focusable = scrollLabel !== undefined && tableProps?.role !== "grid";
+  // An empty label counts as unset (`SUI-FEATURE-054`): no tab stop, no region without a name.
+  const label = scrollLabel === "" ? undefined : scrollLabel;
+  const focusable = label !== undefined && tableProps?.role !== "grid";
   const scrollClass = SCROLL_CLASS[suiteUiConfig().tableActions];
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4" data-testid="data-table">
@@ -94,8 +96,8 @@ function DataTableShell({
         className={focusable ? `${scrollClass} ${SCROLL_FOCUS_CLASS}` : scrollClass}
         data-testid={scrollTestId}
         ref={scrollRef}
-        role={scrollLabel === undefined ? undefined : "region"}
-        aria-label={scrollLabel}
+        role={label === undefined ? undefined : "region"}
+        aria-label={label}
         tabIndex={focusable ? 0 : undefined}
       >
         <Table {...forwardedTableProps}>

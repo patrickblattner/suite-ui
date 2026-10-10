@@ -795,6 +795,93 @@ function ReadTable() {
   );
 }
 
+function FocusRow() {
+  return (
+    <div className="flex flex-wrap items-center gap-4">
+      <Button variant="default" size="default" className="focus-ring">
+        Button
+      </Button>
+      <Button variant="outline" size="default" className="focus-ring">
+        Outline
+      </Button>
+      <Button variant="destructive" size="default" className="focus-ring">
+        Destructive
+      </Button>
+      <Input aria-label="Focus input" className="w-40 focus-ring" />
+      <Select>
+        <SelectTrigger aria-label="Focus select" className="w-40 focus-ring">
+          <SelectValue placeholder="Select" />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="daily">Daily</SelectItem>
+        </SelectContent>
+      </Select>
+      <Checkbox aria-label="Focus checkbox" className="focus-ring" />
+      <RadioGroup aria-label="Focus radio" defaultValue="a">
+        <RadioGroupItem value="a" aria-label="Focus radio item" className="focus-ring" />
+      </RadioGroup>
+      <Switch aria-label="Focus switch" className="focus-ring" />
+    </div>
+  );
+}
+
+// `SUI-FEATURE-054`: the one focus ring of every component, drawn statically with the `focus-ring`
+// rule the components apply on `focus-visible`, on the page and on a card.
+function FocusRing() {
+  return (
+    <Section id="focus" title="Focus ring">
+      <div className="flex flex-col gap-6">
+        <FocusRow />
+        <Card>
+          <CardContent className="flex flex-col gap-6">
+            <FocusRow />
+            <Textarea aria-label="Focus textarea" className="max-w-md focus-ring" />
+          </CardContent>
+        </Card>
+        <div className="grid max-w-2xl grid-cols-2 gap-6">
+          <Tabs defaultValue="general">
+            <TabsList>
+              <TabsTrigger value="general" className="focus-ring">
+                General
+              </TabsTrigger>
+              <TabsTrigger value="mail">Mail</TabsTrigger>
+            </TabsList>
+          </Tabs>
+          <Accordion type="single" collapsible>
+            <AccordionItem value="item">
+              <AccordionTrigger className="focus-ring">Accordion</AccordionTrigger>
+              <AccordionContent>Hidden.</AccordionContent>
+            </AccordionItem>
+          </Accordion>
+          <Card interactive tabIndex={0} className="focus-ring">
+            <CardHeader>
+              <CardTitle>Interactive card</CardTitle>
+            </CardHeader>
+          </Card>
+          <div className="flex h-32 flex-col rounded-md focus-ring">
+            <DataTableShell
+              head={<TableHead>Time</TableHead>}
+              columnCount={1}
+              isPending={false}
+              isEmpty={false}
+              empty="No entries."
+              emptyTestId="focus-log-empty"
+              loadingRowTestId="focus-log-loading"
+              scrollTestId="focus-log-scroll"
+            >
+              {LOG_ROWS.map((row) => (
+                <TableRow key={row.time}>
+                  <TableCell>{row.time}</TableCell>
+                </TableRow>
+              ))}
+            </DataTableShell>
+          </div>
+        </div>
+      </div>
+    </Section>
+  );
+}
+
 export function ComponentsPage() {
   return (
     <>
@@ -807,6 +894,7 @@ export function ComponentsPage() {
       <Choices />
       <Structure />
       <ReadTable />
+      <FocusRing />
     </>
   );
 }

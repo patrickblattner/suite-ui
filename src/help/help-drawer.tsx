@@ -119,7 +119,7 @@ function HelpDrawer({ open, onOpenChange, pages, categories, version }: HelpDraw
                                 type="button"
                                 onClick={() => setActiveId(page.id)}
                                 className={cn(
-                                  "block w-full rounded px-2 py-1 text-left hover:bg-accent",
+                                  "block w-full rounded px-2 py-1 text-left outline-none hover:bg-accent focus-visible:focus-ring",
                                   active?.id === page.id && "bg-accent font-medium",
                                 )}
                                 data-testid={`help-link-${page.id}`}

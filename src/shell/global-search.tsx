@@ -139,7 +139,7 @@ function GlobalSearch({
               openDialog();
             }}
             onClick={() => openDialog()}
-            className="h-9 w-full rounded-md border border-input bg-transparent py-1 pr-16 pl-8 text-sm shadow-xs outline-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:bg-input/30"
+            className="h-9 w-full rounded-md border border-input bg-transparent py-1 pr-16 pl-8 text-sm shadow-xs outline-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:focus-ring dark:bg-input/30"
           />
         </Hint>
         <span
@@ -162,7 +162,7 @@ function GlobalSearch({
             toggle();
           }}
           aria-label={t("search.label")}
-          className="flex cursor-pointer items-center justify-center rounded-md p-2 text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
+          className="flex cursor-pointer items-center justify-center rounded-md p-2 text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:focus-ring"
         >
           <SearchIcon className="size-4" aria-hidden="true" />
         </button>
@@ -380,7 +380,7 @@ function SearchDialog({
             aria-label={t("search.label")}
             placeholder={t("search.placeholder")}
             onChange={(event) => onTermChange(event.target.value)}
-            className="h-9 w-full shrink-0 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 dark:bg-input/30"
+            className="h-9 w-full shrink-0 rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-xs outline-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:focus-ring dark:bg-input/30"
           />
         </Hint>
         <DialogBody>{body}</DialogBody>
@@ -419,7 +419,7 @@ function HitRow({
           data-active={active ? true : undefined}
           onClick={() => onSelect(hit)}
           className={cn(
-            "flex w-full cursor-pointer items-start gap-2 rounded-md px-2 py-1.5 text-left outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50",
+            "flex w-full cursor-pointer items-start gap-2 rounded-md px-2 py-1.5 text-left outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:focus-ring",
             active && "bg-accent text-accent-foreground",
           )}
         >

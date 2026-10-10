@@ -199,7 +199,7 @@ function UserMenu({
           data-testid="user-menu-trigger"
           aria-label={collapsed ? name : undefined}
           className={cn(
-            "flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-left outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50",
+            "flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-left outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:focus-ring",
             // The avatar alone in the flow sits on the axis of the toggle above it.
             collapsed && "relative justify-center px-0",
             isOpen && "bg-accent text-accent-foreground",
@@ -318,7 +318,7 @@ function UserMenu({
                         onClick={() => onAppearanceChange(mode)}
                         data-testid={`theme-option-${mode}`}
                         className={cn(
-                          "flex cursor-pointer flex-col items-center gap-1 rounded-sm px-1 py-1.5 text-xs outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50",
+                          "flex cursor-pointer flex-col items-center gap-1 rounded-sm px-1 py-1.5 text-xs outline-none transition-colors focus-visible:focus-ring",
                           active
                             ? "bg-background text-foreground shadow-sm"
                             : "text-muted-foreground hover:text-foreground",

@@ -85,7 +85,7 @@ const components: Components = {
         href={safe}
         target={external ? "_blank" : undefined}
         rel={external ? "noreferrer" : undefined}
-        className="text-primary underline hover:no-underline"
+        className="rounded-sm text-primary underline outline-none hover:no-underline focus-visible:focus-ring"
       >
         {children}
       </a>

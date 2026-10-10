@@ -63,7 +63,7 @@ function InlineStatus({
             role="img"
             aria-label={label}
             tabIndex={0}
-            className="inline-flex rounded-full outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+            className="inline-flex rounded-full outline-none focus-visible:focus-ring"
           >
             {icon}
           </span>

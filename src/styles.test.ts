@@ -126,6 +126,20 @@ describe("styles.css tokens", () => {
     }
   }
 
+  // SUI-FEATURE-054 AC1 / GL-UI-013: the focus ring at full opacity against the grounds it sits on.
+  for (const [theme, tokens] of Object.entries(themes)) {
+    it.each(["background", "card"])(`${theme}: --ring on --%s meets 3:1`, (ground) => {
+      expect(contrast(tokens, "ring", ground)).toBeGreaterThanOrEqual(3);
+    });
+  }
+
+  it("draws the focus ring from the token at full opacity, with a transparent outline", () => {
+    const rule = /@utility focus-ring \{([^}]*)\}/.exec(css)?.[1] ?? "";
+    expect(rule).toMatch(/outline: 2px solid transparent;/);
+    expect(rule).toMatch(/outline-offset: 2px;/);
+    expect(rule).toMatch(/@apply ring-\[3px\] ring-ring;/);
+  });
+
   it("gives every status text tone its own value in each theme, never the fill", () => {
     for (const tokens of Object.values(themes)) {
       for (const fill of ["destructive", "success", "warn"]) {

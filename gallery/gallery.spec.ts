@@ -2016,3 +2016,69 @@ test("read table: scrollLabel makes the scroller a reachable, named region", asy
     "scrollable-region-focusable",
   ]);
 });
+
+// The computed color of a utility class, so a test compares against the token, not a literal.
+async function utilityColor(page: Page, className: string, property: "backgroundColor") {
+  return page.evaluate(
+    ([name, prop]) => {
+      const probe = document.createElement("span");
+      probe.className = name as string;
+      document.body.append(probe);
+      const color = getComputedStyle(probe)[prop as "backgroundColor"];
+      probe.remove();
+      return color;
+    },
+    [className, property],
+  );
+}
+
+// SUI-FEATURE-054 / GL-UI-013: every component focused by keyboard draws the one ring, the token at
+// full opacity, with the transparent outline as the forced-colors fallback.
+for (const theme of THEMES) {
+  test(`focus ring: one token ring at full opacity on every component (${theme})`, async ({
+    page,
+  }) => {
+    await page.goto(`/?page=components&lng=en&theme=${theme}`);
+    const ring = await utilityColor(page, "bg-ring", "backgroundColor");
+    const focused = [
+      page.getByTestId("section-button").getByRole("button").first(),
+      page.getByRole("checkbox", { name: "unchecked", exact: true }),
+      page.getByRole("switch", { name: "off", exact: true }),
+      page.getByRole("combobox", { name: "Select empty" }),
+      page.getByTestId("section-structure").getByRole("tab", { name: "Mail" }).first(),
+      page.getByRole("region", { name: "System log" }),
+    ];
+    await page.keyboard.press("Tab");
+    for (const element of focused) {
+      await element.focus();
+      // The components transition `box-shadow`, so the ring reaches its end value after a moment.
+      await expect
+        .poll(() => element.evaluate((el) => getComputedStyle(el).boxShadow))
+        .toContain(`${ring} 0px 0px 0px 3px`);
+      const style = await element.evaluate((el) => {
+        const { outlineStyle, outlineWidth, outlineColor } = getComputedStyle(el);
+        return { outlineStyle, outlineWidth, outlineColor };
+      });
+      expect(style).toMatchObject({
+        outlineStyle: "solid",
+        outlineWidth: "2px",
+        outlineColor: "rgba(0, 0, 0, 0)",
+      });
+    }
+  });
+}
+
+// SUI-FEATURE-054 AC3: in forced colors the shadow ring is gone; the outline carries the focus.
+test("focus ring: a focused button shows an outline under forced colors", async ({ page }) => {
+  await page.emulateMedia({ forcedColors: "active" });
+  await page.goto("/?page=components&lng=en");
+  const button = page.getByTestId("section-button").getByRole("button").first();
+  await page.keyboard.press("Tab");
+  await button.focus();
+  const style = await button.evaluate((el) => {
+    const { outlineStyle, outlineWidth, outlineColor } = getComputedStyle(el);
+    return { outlineStyle, outlineWidth, outlineColor };
+  });
+  expect(style).toMatchObject({ outlineStyle: "solid", outlineWidth: "2px" });
+  expect(style.outlineColor).not.toBe("rgba(0, 0, 0, 0)");
+});

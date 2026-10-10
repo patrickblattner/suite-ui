@@ -66,7 +66,8 @@
   --destructive-foreground: oklch(0.985 0 0);
   --border: oklch(0.92 0.004 286.3);
   --input: oklch(0.92 0.004 286.3);
-  --ring: oklch(0.705 0.015 286.1);
+  /* The focus ring at full opacity, at least 3:1 against `--background` and `--card` (`GL-UI-013`). */
+  --ring: oklch(0.6 0.015 286.1);
 
   /* Action fills carry a near-white `-foreground` and are tuned to the lightest lightness that keeps
      it at AA. A fill that is also used as text on a neutral ground has its own `-text` token, tuned
@@ -307,10 +308,20 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
+/* The one focus ring of the package (`GL-UI-013`, `SUI-FEATURE-054`), applied as
+   `focus-visible:focus-ring` (or `focus-within:` on a field wrapper): the `--ring` token at full
+   opacity, never tinted per component. The transparent outline is the forced-colors fallback: the
+   system drops the shadow ring there and paints the outline instead. */
+@utility focus-ring {
+  outline: 2px solid transparent;
+  outline-offset: 2px;
+  @apply ring-[3px] ring-ring;
+}
+
 @layer base {
   * {
     border-color: var(--border);
-    outline-color: color-mix(in oklch, var(--ring) 50%, transparent);
+    outline-color: var(--ring);
   }
   /* Body base is 14px / line-height 1.5 on the theme colors (GL-UI-010); the font family is the
      app's own theme declaration. */

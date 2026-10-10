@@ -181,7 +181,7 @@ function OperationStatusSlot({ scope }: { scope: string }) {
               role="img"
               aria-label={newest.label}
               tabIndex={0}
-              className="inline-flex rounded-full outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+              className="inline-flex rounded-full outline-none focus-visible:focus-ring"
             >
               <OperationIndicator progress={newest.progress} />
             </span>

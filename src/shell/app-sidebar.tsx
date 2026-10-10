@@ -37,7 +37,7 @@ type AppSidebarProps = {
 };
 
 const rowClass =
-  "relative flex w-full cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50";
+  "relative flex w-full cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:focus-ring";
 
 // The app sidebar (`GL-UI-019`/`GL-UI-020`): instance-name head with the collapse toggle, the search
 // field, the primary nav, the lower sections, Help and Version info, and the user block.
@@ -177,7 +177,7 @@ function AppSidebar({
               type="button"
               data-testid="sidebar-instance-name"
               onClick={() => void navigate(homePath)}
-              className="min-w-0 flex-1 cursor-pointer truncate rounded-md bg-instance-name px-3 py-2 text-left font-medium text-instance-name-foreground outline-none transition-colors hover:bg-instance-name-hover focus-visible:ring-[3px] focus-visible:ring-ring/50"
+              className="min-w-0 flex-1 cursor-pointer truncate rounded-md bg-instance-name px-3 py-2 text-left font-medium text-instance-name-foreground outline-none transition-colors hover:bg-instance-name-hover focus-visible:focus-ring"
             >
               {instanceName}
             </button>

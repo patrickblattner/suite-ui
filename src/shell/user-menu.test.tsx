@@ -257,7 +257,7 @@ describe("userMenuOrderViolations", () => {
       const trigger = screen.getByTestId("user-menu-trigger");
       expect(trigger).toHaveAttribute(
         "class",
-        "flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-left outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50",
+        "flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-left outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:focus-ring",
       );
       expect(trigger).not.toHaveAttribute("aria-label");
       expect(screen.getByTestId("user-menu-name")).toHaveTextContent("ada");

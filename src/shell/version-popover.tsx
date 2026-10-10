@@ -34,7 +34,7 @@ function VersionPopover({ info, collapsed = false }: VersionPopoverProps) {
             aria-label={label}
             data-testid="version-button"
             className={cn(
-              "flex w-full cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50",
+              "flex w-full cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:focus-ring",
               collapsed && "justify-center px-0",
             )}
           >

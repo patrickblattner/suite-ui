@@ -82,10 +82,7 @@ describe("TimezoneCombobox", () => {
     render(<TimezoneCombobox value="" onValueChange={vi.fn()} invalid />);
     const input = screen.getByRole("combobox");
     expect(input).toHaveAttribute("aria-invalid", "true");
-    expect(input).toHaveClass(
-      "aria-invalid:border-destructive",
-      "aria-invalid:ring-destructive/20",
-    );
+    expect(input).toHaveClass("aria-invalid:border-destructive");
   });
 
   it("neither hint nor invalid: no description, not invalid", () => {

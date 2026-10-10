@@ -10,16 +10,14 @@ import { cn } from "../lib/cn.js";
 // check in that window reads the mix instead of the token pair. Filled variants hover onto their own
 // `-hover` token, never onto a lower opacity (`GL-UI-014`).
 const buttonVariants = cva(
-  "inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow] outline-none focus-visible:border-ring focus-visible:focus-ring disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
         default: "bg-primary text-primary-foreground hover:bg-primary-hover",
-        destructive:
-          "bg-destructive text-destructive-foreground hover:bg-destructive-hover focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40",
-        success:
-          "bg-success text-success-foreground hover:bg-success-hover focus-visible:ring-success/20 dark:focus-visible:ring-success/40",
-        warn: "bg-warn text-warn-foreground hover:bg-warn-hover focus-visible:ring-warn/20 dark:focus-visible:ring-warn/40",
+        destructive: "bg-destructive text-destructive-foreground hover:bg-destructive-hover",
+        success: "bg-success text-success-foreground hover:bg-success-hover",
+        warn: "bg-warn text-warn-foreground hover:bg-warn-hover",
         outline:
           "border bg-background shadow-xs hover:border-ring hover:bg-accent hover:text-accent-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
         secondary: "bg-secondary text-secondary-foreground hover:bg-secondary-hover",

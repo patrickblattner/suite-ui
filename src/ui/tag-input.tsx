@@ -82,7 +82,7 @@ function TagInput({
       data-disabled={disabled || undefined}
       className={cn(
         "flex min-h-9 w-full min-w-0 flex-wrap items-center gap-1 rounded-md border border-input bg-transparent px-2 py-1 shadow-xs transition-[color,box-shadow] dark:bg-input/30",
-        "focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/50",
+        "focus-within:border-ring focus-within:focus-ring",
         "data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50",
         className,
       )}
@@ -105,7 +105,7 @@ function TagInput({
                   remove(tag);
                 }}
                 data-testid={`${testId}-remove`}
-                className="inline-flex size-4 items-center justify-center rounded-full outline-none hover:bg-secondary-hover focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none"
+                className="inline-flex size-4 items-center justify-center rounded-full outline-none hover:bg-secondary-hover focus-visible:focus-ring disabled:pointer-events-none"
               >
                 <XIcon aria-hidden="true" className="size-3" />
               </button>
