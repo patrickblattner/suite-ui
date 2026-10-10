@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
+import i18n from "i18next";
 import { Tooltip as TooltipPrimitive } from "radix-ui";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -27,6 +28,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
+  vi.restoreAllMocks();
 });
 
 // Hovers the trigger and reports whether the tooltip is open after `ms`.
@@ -83,6 +85,53 @@ describe("IconButtonTooltip shortcut and labels", () => {
     const kbd = document.querySelector("[data-slot=tooltip-content] kbd");
     expect(kbd).toHaveTextContent("Ctrl+B");
     expect(kbd).toHaveAttribute("aria-hidden", "true");
+  });
+
+  // SUI-FEATURE-056 AC5: the chip shows the variant of this system, aria-keyshortcuts names all.
+  it.each([
+    ["MacIntel", "⌘Z"],
+    ["Win32", "Ctrl+Z"],
+    ["Linux x86_64", "Ctrl+Z"],
+  ])("a shortcut list on platform %s shows %s", (platform, chip) => {
+    vi.spyOn(navigator, "platform", "get").mockReturnValue(platform);
+    render(
+      <IconButtonTooltip label="Undo" shortcut={["Ctrl+Z", "Meta+Z"]}>
+        <Button variant="ghost" size="icon" />
+      </IconButtonTooltip>,
+    );
+    const button = screen.getByRole("button", { name: "Undo" });
+    expect(button).toHaveAttribute("aria-keyshortcuts", "Control+Z Meta+Z");
+    expect(openAfter(button, 1500)).toBe(true);
+    expect(document.querySelector("[data-slot=tooltip-content] kbd")).toHaveTextContent(chip);
+  });
+
+  it.each([
+    ["de", "Entf"],
+    ["en", "Del"],
+    ["es", "Supr"],
+  ])("in %s the Delete key reads %s", async (lng, chip) => {
+    await i18n.changeLanguage(lng);
+    render(
+      <IconButtonTooltip label="Remove" shortcut={["Delete", "Backspace"]}>
+        <Button variant="ghost" size="icon" data-testid="remove" />
+      </IconButtonTooltip>,
+    );
+    const button = screen.getByTestId("remove");
+    expect(button).toHaveAttribute("aria-keyshortcuts", "Delete Backspace");
+    expect(openAfter(button, 1500)).toBe(true);
+    expect(document.querySelector("[data-slot=tooltip-content] kbd")).toHaveTextContent(chip);
+    await i18n.changeLanguage("en");
+  });
+
+  it("an arrow key shows as its arrow", () => {
+    render(
+      <IconButtonTooltip label="Next page" shortcut="ArrowRight">
+        <Button variant="ghost" size="icon" />
+      </IconButtonTooltip>,
+    );
+    const button = screen.getByRole("button", { name: "Next page" });
+    expect(openAfter(button, 1500)).toBe(true);
+    expect(document.querySelector("[data-slot=tooltip-content] kbd")).toHaveTextContent("→");
   });
 
   it("throws outside production when the child names itself differently", () => {

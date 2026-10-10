@@ -3,6 +3,7 @@ import type * as React from "react";
 import { Skeleton } from "../ui/skeleton.js";
 import { GutterRow } from "./list-gutter.js";
 import { listState, ListStateContent, type ListStateProps } from "./list-state.js";
+import type { RowGrid } from "./use-row-grid.js";
 
 const SKELETON_TILE_COUNT = 6;
 
@@ -20,6 +21,9 @@ type TileGridShellProps = {
   toolbar?: React.ReactNode;
   // The pager under the grid, usually a `TablePagination`.
   pagination?: React.ReactNode;
+  // `useRowGrid().gridProps` for keyboard operation of the tiles (`GL-UI-006`). The tile container
+  // takes ref and handlers; it keeps its own look and has no grid role, since tiles are no rows.
+  gridProps?: Omit<RowGrid["gridProps"], "role">;
   // The tiles, rendered once the query finished with items.
   children: React.ReactNode;
 } & ListStateProps;
@@ -37,12 +41,19 @@ function TileGridShell({
   tabs,
   toolbar,
   pagination,
+  gridProps,
   children,
   ...stateProps
 }: TileGridShellProps) {
   const state = listState({ isPending, isError, isEmpty });
+  // Stripped at runtime too: a caller spreading the whole `gridProps` must not give tiles a grid role.
+  const containerProps = gridProps === undefined ? {} : { ...gridProps, role: undefined };
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4" data-testid="tile-grid">
+    <div
+      className="flex min-h-0 flex-1 flex-col gap-4"
+      data-testid="tile-grid"
+      data-slot="list-frame"
+    >
       {tabs}
       <GutterRow>{toolbar}</GutterRow>
       <div
@@ -57,7 +68,9 @@ function TileGridShell({
             ))}
           </div>
         ) : state === "items" ? (
-          <div className={GRID_CLASS}>{children}</div>
+          <div className={GRID_CLASS} {...containerProps}>
+            {children}
+          </div>
         ) : (
           <div
             className={

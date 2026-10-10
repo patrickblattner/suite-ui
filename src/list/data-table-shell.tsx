@@ -89,7 +89,11 @@ function DataTableShell({
   const focusable = label !== undefined && tableProps?.role !== "grid";
   const scrollClass = SCROLL_CLASS[suiteUiConfig().tableActions];
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4" data-testid="data-table">
+    <div
+      className="flex min-h-0 flex-1 flex-col gap-4"
+      data-testid="data-table"
+      data-slot="list-frame"
+    >
       {tabs}
       <GutterRow>{toolbar}</GutterRow>
       <div

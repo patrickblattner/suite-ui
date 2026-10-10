@@ -215,4 +215,7 @@ export const de: SuiteStrings = {
     previous: "Vorheriges",
     next: "Nächstes",
   },
+  keys: {
+    delete: "Entf",
+  },
 };

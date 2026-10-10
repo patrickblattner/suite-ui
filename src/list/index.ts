@@ -12,4 +12,5 @@ export * from "./row-actions.js";
 export * from "./sort-select.js";
 export * from "./table-pagination.js";
 export * from "./tile-grid-shell.js";
+export * from "./use-row-grid.js";
 export * from "./view-toggle.js";

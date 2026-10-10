@@ -221,6 +221,10 @@ export const en = {
     previous: "Previous",
     next: "Next",
   },
+  // The key names a shortcut chip shows (`GL-UI-006`).
+  keys: {
+    delete: "Del",
+  },
 } as const;
 
 type Widen<T> = { [K in keyof T]: T[K] extends string ? string : Widen<T[K]> };

@@ -1,7 +1,9 @@
 import { Tooltip as TooltipPrimitive } from "radix-ui";
 import * as React from "react";
+import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
+import { ariaKeyShortcuts, shortcutChip } from "../lib/keyboard.js";
 
 // One tooltip behaviour (`GL-UI-016`/`GL-UI-017`): every tooltip, the overflow tooltip included, opens
 // after the one hint delay and closes at once — on pointer leave, click, focus change, scroll and `Esc`;
@@ -136,9 +138,10 @@ function uniqueIds(describedBy: string | undefined): string | undefined {
 // is also the control's `aria-label` (`GL-UI-016`); the component sets it. A child carrying a different
 // `aria-label` means two texts were intended for one meaning: outside production that throws, in
 // production `label` wins. The hint text is the name, so it never becomes a description as well
-// (`GL-UI-017`): the child keeps only its own `aria-describedby` ids, each once. `shortcut` (`Ctrl+B`)
-// shows as a key hint behind the text of a usable control, hidden from the name, and becomes
-// `aria-keyshortcuts`. While the control is `disabled`, `disabledText` (the condition under which it
+// (`GL-UI-017`): the child keeps only its own `aria-describedby` ids, each once. `shortcut` (`Ctrl+B`,
+// or a list of variants such as `["Ctrl+Z", "Meta+Z"]`) shows as a key hint behind the text of a usable
+// control, hidden from the name: the variant of this system, `⌘Z` on macOS, `Ctrl+Z` elsewhere
+// (`GL-UI-006`). `aria-keyshortcuts` names every variant. While the control is `disabled`, `disabledText` (the condition under which it
 // becomes usable) takes the place of `label`; a disabled control takes no pointer events, so it then
 // sits in a span that is the trigger, focusable and the owner of the description. The span stands
 // either way, so toggling `disabled` never remounts it.
@@ -149,7 +152,7 @@ function IconButtonTooltip({
   children,
 }: {
   label: string;
-  shortcut?: string | undefined;
+  shortcut?: string | readonly string[] | undefined;
   disabledText?: string | undefined;
   children: React.ReactElement<{
     disabled?: boolean;
@@ -158,7 +161,10 @@ function IconButtonTooltip({
     "aria-keyshortcuts"?: string | undefined;
   }>;
 }) {
+  const { t } = useTranslation("suite");
   const id = React.useId();
+  const variants =
+    shortcut === undefined ? undefined : typeof shortcut === "string" ? [shortcut] : shortcut;
   const ownLabel = children.props["aria-label"];
   if (ownLabel !== undefined && ownLabel !== label && process.env.NODE_ENV !== "production") {
     throw new Error(
@@ -170,7 +176,7 @@ function IconButtonTooltip({
   const control = React.cloneElement(children, {
     "aria-label": label,
     "aria-describedby": uniqueIds(children.props["aria-describedby"]),
-    "aria-keyshortcuts": shortcut?.replace("Ctrl", "Control"),
+    "aria-keyshortcuts": variants === undefined ? undefined : ariaKeyShortcuts(variants),
   });
   const disabled = disabledText !== undefined && children.props.disabled === true;
   const trigger =
@@ -192,9 +198,9 @@ function IconButtonTooltip({
           <TooltipTrigger asChild>{trigger}</TooltipTrigger>
           <TooltipContent>
             {disabled ? disabledText : label}
-            {disabled || shortcut === undefined ? null : (
+            {disabled || variants === undefined ? null : (
               <kbd aria-hidden className="ml-2 opacity-70">
-                {shortcut}
+                {shortcutChip(variants, t("keys.delete"))}
               </kbd>
             )}
           </TooltipContent>

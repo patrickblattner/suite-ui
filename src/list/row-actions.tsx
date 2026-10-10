@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "../ui/button.js";
 import { TableCell, TableHead } from "../ui/table.js";
 import { IconButtonTooltip } from "../ui/tooltip.js";
+import { DELETE_SHORTCUT } from "../ui/use-edit-shortcuts.js";
 
 // One action of a row. `label` is the verb; the name and the hint read "‹label› ‹rowName›". With
 // `disabledText` the action is locked and its hint names the reason.
@@ -13,6 +14,7 @@ type RowAction = {
   icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
   onClick: () => void;
   disabledText?: string;
+  shortcut?: readonly string[];
   "data-testid"?: string;
 };
 
@@ -26,6 +28,9 @@ type RowActionsProps = {
   // Lock edit or delete and name the reason in its hint.
   editDisabledText?: string;
   deleteDisabledText?: string;
+  // Set when the row gives the same `onDelete` to `useRowGrid`: the delete button shows Delete as its
+  // shortcut chip (`GL-UI-006` §Sichtbarkeit).
+  deleteShortcut?: boolean;
 } & Omit<React.ComponentProps<typeof TableCell>, "children">;
 
 // Keys a row's keyboard handler reacts to as "open": they stay with the action.
@@ -43,7 +48,11 @@ function RowActionButton({
   const Icon = action.icon;
   const locked = action.disabledText !== undefined;
   return (
-    <IconButtonTooltip label={`${action.label} ${rowName}`} disabledText={action.disabledText}>
+    <IconButtonTooltip
+      label={`${action.label} ${rowName}`}
+      disabledText={action.disabledText}
+      shortcut={action.shortcut}
+    >
       <Button
         variant={variant}
         size="icon-xs"
@@ -78,6 +87,7 @@ function RowActions({
   onDelete,
   editDisabledText,
   deleteDisabledText,
+  deleteShortcut = false,
   ...cellProps
 }: RowActionsProps) {
   const { t } = useTranslation("suite");
@@ -115,6 +125,7 @@ function RowActions({
               icon: Trash2Icon,
               onClick: onDelete,
               ...(deleteDisabledText === undefined ? {} : { disabledText: deleteDisabledText }),
+              ...(deleteShortcut ? { shortcut: DELETE_SHORTCUT } : {}),
               "data-testid": "row-delete",
             }}
             rowName={rowName}

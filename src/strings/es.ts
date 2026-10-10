@@ -214,4 +214,7 @@ export const es: SuiteStrings = {
     previous: "Anterior",
     next: "Siguiente",
   },
+  keys: {
+    delete: "Supr",
+  },
 };

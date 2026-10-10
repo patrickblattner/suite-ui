@@ -11,6 +11,7 @@ import { registerSuiteStrings, suiteStrings, type SuiteLanguage } from "../src/s
 import { ComponentsPage } from "./ComponentsPage.js";
 import { EditPanelPage } from "./EditPanelPage.js";
 import { HelpPage } from "./HelpPage.js";
+import { KeysPage } from "./KeysPage.js";
 import { ListPage } from "./ListPage.js";
 import {
   ConfirmPage,
@@ -34,6 +35,7 @@ const PAGES = [
   "components",
   "list",
   "tiles",
+  "keys",
   "settings",
   "shell",
   "dialog",
@@ -79,6 +81,7 @@ const PAGE_CONTENT: Record<Exclude<Page, "strings">, (theme: Theme) => ReactNode
   components: () => <ComponentsPage />,
   list: () => <ListPage />,
   tiles: () => <TilesPage />,
+  keys: () => <KeysPage />,
   settings: () => <SettingsPage />,
   shell: () => <ShellPage />,
   dialog: () => <DialogPage />,

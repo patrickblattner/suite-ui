@@ -57,19 +57,21 @@ describe("TablePagination", () => {
     );
   });
 
+  // ‹ and › add their key as a chip behind the text (SUI-FEATURE-056).
   it("opens each chevron's hint with its aria-label text on keyboard focus and after 1500 ms hover", () => {
     render(<Harness total={23} />);
     fireEvent.click(screen.getByTestId("pagination-next"));
-    for (const id of [
-      "pagination-first",
-      "pagination-prev",
-      "pagination-next",
-      "pagination-last",
-    ]) {
+    for (const [id, chip] of [
+      ["pagination-first", ""],
+      ["pagination-prev", "←"],
+      ["pagination-next", "→"],
+      ["pagination-last", ""],
+    ] as const) {
       const button = screen.getByTestId(id);
       const label = button.getAttribute("aria-label");
       expect(label).not.toBeNull();
-      expect(hintOf(button)).toEqual({ focus: label, hover1499: null, hover1500: label });
+      const hint = `${label}${chip}`;
+      expect(hintOf(button)).toEqual({ focus: hint, hover1499: null, hover1500: hint });
     }
   });
 });

@@ -2436,3 +2436,121 @@ test("target size: the close buttons of dialog, panel and toast", async ({ page 
     expect(icon?.width, name).toBeLessThanOrEqual(16);
   }
 });
+
+// `SUI-FEATURE-056` AC6 (`GL-UI-006`): table, tiles and pager by keyboard in a real browser.
+test("keyboard: Tab enters the table at one row, ↓/↑ move, Enter opens", async ({ page }) => {
+  await page.goto("/?page=keys&lng=en");
+  const rows = page.getByTestId("keys-row");
+  await page.getByTestId("filter-reset").focus();
+  await page.keyboard.press("Tab");
+  await expect(rows.nth(0)).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(rows.nth(1)).toBeFocused();
+  await page.keyboard.press("ArrowUp");
+  await expect(rows.nth(0)).toBeFocused();
+  await page.keyboard.press("End");
+  await page.keyboard.press("ArrowDown");
+  await expect(rows.nth(9)).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("keys-opened")).toHaveText("Entry 10");
+  // The next Tab leaves the rows: it reaches the actions of the active row, not the next row.
+  await page.keyboard.press("Tab");
+  await expect(rows.nth(9).getByTestId("row-edit")).toBeFocused();
+});
+
+test("keyboard: Delete and Backspace open the confirm dialog, Cancel keeps the row", async ({
+  page,
+}) => {
+  await page.goto("/?page=keys&lng=de");
+  const rows = page.getByTestId("keys-row");
+  for (const key of ["Delete", "Backspace"]) {
+    await rows.nth(1).focus();
+    await page.keyboard.press(key);
+    const dialog = page.getByTestId("keys-confirm");
+    await expect(dialog).toBeVisible();
+    // ←/→ and the edit shortcuts rest behind the dialog.
+    await page.keyboard.press("ArrowRight");
+    await page.keyboard.press("Control+z");
+    await dialog.getByRole("button", { name: "Abbrechen" }).click();
+    await expect(dialog).toBeHidden();
+  }
+  await expect(page.getByTestId("pagination-summary").first()).toContainText("1 / 3");
+  await expect(page.getByTestId("keys-history")).toHaveText("0 / 0");
+  await expect(rows.nth(1)).toHaveText(/Entry 2/);
+  // Delete in a row action button belongs to the button.
+  await rows.nth(1).getByTestId("row-edit").focus();
+  await page.keyboard.press("Delete");
+  await expect(page.getByTestId("keys-confirm")).toHaveCount(0);
+  // The delete button shows its key as a chip: "Entf" in German.
+  await rows.nth(2).getByTestId("row-delete").hover();
+  await expect(page.locator("[data-slot=tooltip-content] kbd")).toHaveText("Entf");
+});
+
+test("keyboard: ←/→ page the list the focus is in, the search field keeps its arrows", async ({
+  page,
+}) => {
+  await page.goto("/?page=keys&lng=en");
+  const table = page.getByTestId("keys-table");
+  const summary = table.getByTestId("pagination-summary");
+  const rows = page.getByTestId("keys-row");
+  await rows.nth(3).focus();
+  await page.keyboard.press("ArrowLeft");
+  await expect(summary).toHaveText("Page 1 / 3 (23)");
+  await page.keyboard.press("ArrowRight");
+  await expect(summary).toHaveText("Page 2 / 3 (23)");
+  await expect(rows.nth(0)).toHaveText(/Entry 11/);
+  await expect(rows.nth(0)).toBeFocused();
+  await page.keyboard.press("ArrowLeft");
+  await expect(summary).toHaveText("Page 1 / 3 (23)");
+  await expect(rows.nth(0)).toBeFocused();
+  const search = table.getByTestId("filter-haystack");
+  await search.fill("abc");
+  await page.keyboard.press("ArrowLeft");
+  await expect(summary).toHaveText("Page 1 / 3 (23)");
+  expect(await search.evaluate((el: HTMLInputElement) => el.selectionStart)).toBe(2);
+  // The tiles have their own pager; ↓ moves between tiles, → pages them.
+  const tiles = page.getByTestId("keys-tile");
+  await tiles.nth(0).focus();
+  await page.keyboard.press("ArrowDown");
+  await expect(tiles.nth(1)).toBeFocused();
+  await page.keyboard.press("ArrowRight");
+  await expect(page.getByTestId("keys-tiles").getByTestId("pagination-summary")).toHaveText(
+    "Page 2 / 3 (9)",
+  );
+  await expect(tiles.nth(0)).toHaveText("Tile 5");
+  await expect(tiles.nth(0)).toBeFocused();
+  await expect(summary).toHaveText("Page 1 / 3 (23)");
+});
+
+test("keyboard: Ctrl/Cmd+Z undo, Ctrl/Cmd+Y and Shift+Z redo; chips per platform", async ({
+  page,
+}) => {
+  await page.goto("/?page=keys&lng=en");
+  const history = page.getByTestId("keys-history");
+  await page.getByTestId("keys-undo").focus();
+  for (const key of ["Control+z", "Meta+z"]) await page.keyboard.press(key);
+  await expect(history).toHaveText("-2 / 2");
+  for (const key of ["Control+y", "Meta+y", "Control+Shift+z", "Meta+Shift+z"]) {
+    await page.keyboard.press(key);
+  }
+  await expect(history).toHaveText("2 / -2");
+  // In a text field the keys belong to the field.
+  await page.getByTestId("filter-haystack").focus();
+  await page.keyboard.press("Control+z");
+  await expect(history).toHaveText("2 / -2");
+  const undo = page.getByTestId("keys-undo");
+  await expect(undo).toHaveAttribute("aria-keyshortcuts", "Control+Z Meta+Z");
+  await undo.hover();
+  const chip = page.locator("[data-slot=tooltip-content] kbd");
+  const mac = await page.evaluate(() => /mac/i.test(navigator.platform || navigator.userAgent));
+  await expect(chip).toHaveText(mac ? "⌘Z" : "Ctrl+Z");
+});
+
+test("keyboard page: no axe violations", async ({ page }) => {
+  await page.goto("/?page=keys&lng=en");
+  await expect(page.getByTestId("keys-row").first()).toBeVisible();
+  const { violations } = await new AxeBuilder({ page })
+    .include("[data-testid=keys-page]")
+    .analyze();
+  expect(violations.map((violation) => violation.id)).toEqual([]);
+});
