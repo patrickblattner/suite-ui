@@ -22,12 +22,11 @@ const SCROLL_CLASS = {
 // The table's own inset in a drawer or a framed card (`SUI-FEATURE-059`, `GL-UI-018`): 16 px to the bar
 // on the scroller itself, together with the gutter, in a framed card on both sides; while the body
 // overflows horizontally 16 px under the rows instead of the page gutter. Component utilities, so they
-// beat the app's `:where(…)` floor rule without `!important`, on the table's own container too: it is
-// marked as well, since its content overflows it.
+// beat the app's `:where(…)` floor rule without `!important`.
 const SCROLL_INSET_CLASS = {
   page: "",
-  sheet: " pe-4 data-[overflow-x]:pb-4 [&_[data-slot=table-container]]:pb-0",
-  framed: " px-4 data-[overflow-x]:pb-4 [&_[data-slot=table-container]]:pb-0",
+  sheet: " pe-4 data-[overflow-x]:pb-4",
+  framed: " px-4 data-[overflow-x]:pb-4",
 } as const;
 
 // The focus ring of a labelled scroller (`SUI-FEATURE-053`): the package's one `focus-ring` rule.

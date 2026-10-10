@@ -2760,3 +2760,47 @@ for (const inset of ["sheet", "framed"] as const) {
     expect(Math.abs(area.bottom - (table.y + table.height))).toBeLessThanOrEqual(1);
   });
 }
+
+// `SUI-FEATURE-059` rev 2 AC1/AC2: the gap under horizontally overflowing rows is paid once, by the
+// scroller; the table's own container carries no marker. Without `inset` that is the page gutter
+// (24 px, not 48), in a drawer or a framed card the 16 px of the inset.
+for (const [inset, gap] of [
+  ["page", 24],
+  ["sheet", 16],
+  ["framed", 16],
+] as const) {
+  test(`inset ${inset}: ${gap} px under overflowing rows, the table container unmarked @scrollbars`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1100, height: 900 });
+    await page.goto(`/?page=inset&inset=${inset}&tableActions=sticky`);
+    const scroller = page.getByTestId("inset-scroll");
+    await expect(page.getByTestId("inset-actions").first()).toBeVisible();
+    await expect(scroller).toHaveAttribute("data-overflow-x", "");
+    const container = scroller.locator('[data-slot="table-container"]');
+    await expect(container).not.toHaveAttribute("data-overflow-x");
+    await expect(container).toHaveCSS("padding-bottom", "0px");
+    await scroller.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+    const [area, table] = await Promise.all([
+      scrollerBox(scroller),
+      box(scroller.locator("table")),
+    ]);
+    expect(Math.abs(area.bottom - (table.y + table.height) - gap)).toBeLessThanOrEqual(1);
+  });
+}
+
+// `SUI-FEATURE-059` rev 2 AC3: in a framed card FilterBar and pager start on the table's content edge.
+test("inset framed: FilterBar and pager start on the table's left edge @scrollbars", async ({
+  page,
+}) => {
+  await page.goto("/?page=inset&inset=framed");
+  await expect(page.getByTestId("inset-row").first()).toBeVisible();
+  const [table, bar, pager] = await Promise.all([
+    box(page.getByTestId("inset-scroll").locator("table")),
+    box(page.getByTestId("filterbar")),
+    box(page.getByTestId("pagination")),
+  ]);
+  for (const part of [bar, pager]) {
+    expect(Math.abs(part.x - table.x)).toBeLessThanOrEqual(1);
+  }
+});

@@ -33,7 +33,10 @@ function useOverflowXMarker(ref: React.RefObject<HTMLElement | null>): void {
           observed.add(el);
           resize?.observe(el);
         }
-        if (el.scrollWidth > el.clientWidth) el.setAttribute("data-overflow-x", "");
+        // A scroller whose overflow a parent switched to `visible` (the table's own container inside
+        // DataTableShell) does not scroll: its parent pays the gap, so it stays unmarked (`SUI-FEATURE-059`).
+        const scrolls = getComputedStyle(el).overflowX !== "visible";
+        if (scrolls && el.scrollWidth > el.clientWidth) el.setAttribute("data-overflow-x", "");
         else el.removeAttribute("data-overflow-x");
       }
     };

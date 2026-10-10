@@ -50,6 +50,18 @@ describe("PageScroll", () => {
     expect(scroller).not.toHaveAttribute("data-overflow-x");
   });
 
+  // SUI-FEATURE-059 rev 2: a scroller whose overflow is switched to visible (DataTableShell's table
+  // container) does not scroll, so the gap is paid once, by its scrolling parent.
+  it("ignores a scroller whose horizontal overflow is visible", async () => {
+    const view = render(<Page wide={false} className="overflow-x-auto" />);
+    const scroller = screen.getByTestId("scroller");
+    scroller.style.overflowX = "visible";
+    fakeWidths(scroller, 900, 400);
+    view.rerender(<Page wide className="overflow-x-auto" />);
+    await nextFrame();
+    expect(scroller).not.toHaveAttribute("data-overflow-x");
+  });
+
   it("keeps the classes of v0.15.0 without floor and swaps min-h-0 for the floor with it", () => {
     const view = render(<PageScroll>x</PageScroll>);
     expect(screen.getByTestId("page-scroll")).toHaveAttribute(

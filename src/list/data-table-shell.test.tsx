@@ -296,11 +296,9 @@ describe("DataTableShell", () => {
   it('gives the scroller and both gutter rows the end inset under inset="sheet"', () => {
     renderShell({ toolbar: <div data-testid="toolbar" />, inset: "sheet" });
     const scroll = screen.getByTestId("data-table-scroll");
-    expect(scroll).toHaveClass(
-      "[scrollbar-gutter:stable]",
-      "pe-4",
-      "data-[overflow-x]:pb-4",
-      "[&_[data-slot=table-container]]:pb-0",
+    expect(scroll).toHaveClass("[scrollbar-gutter:stable]", "pe-4", "data-[overflow-x]:pb-4");
+    expect(screen.getByTestId("data-table-scroll").className).not.toContain(
+      "table-container]]:pb-",
     );
     expect(scroll.className).not.toMatch(/\b(px|ps|pl)-/);
     for (const id of ["toolbar", "pager"]) {
@@ -318,7 +316,9 @@ describe("DataTableShell", () => {
       "[scrollbar-gutter:stable]",
       "px-4",
       "data-[overflow-x]:pb-4",
-      "[&_[data-slot=table-container]]:pb-0",
+    );
+    expect(screen.getByTestId("data-table-scroll").className).not.toContain(
+      "table-container]]:pb-",
     );
     for (const id of ["toolbar", "pager"]) {
       expect(screen.getByTestId(id).parentElement).toHaveClass(
