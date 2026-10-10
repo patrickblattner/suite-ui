@@ -121,7 +121,9 @@ function OperationLabel({ id, label }: { id?: string; label: string }) {
 // slot never disappears. It grows into the row's free space with its content right-aligned; its
 // negative margin cancels the row gap it adds; while nothing runs it takes no width. The slot itself is
 // no live region (`GL-UI-033`, `SUI-FEATURE-052`): inside it a screen-reader-only status, present before
-// its content, holds exactly the newest label, so compact and full read the same and only once.
+// its content, holds exactly the newest label, so compact and full read the same and only once. The
+// compact indicator is a hint trigger whose hit area grows to 24 × 24 px by a pseudo-element
+// (`SUI-FEATURE-055`); the slot's clip leaves the 4 px it reaches past the slot's edge.
 function OperationStatusSlot({ scope }: { scope: string }) {
   const labelId = React.useId();
   const operations = React.useContext(OperationsContext) ?? [];
@@ -160,7 +162,7 @@ function OperationStatusSlot({ scope }: { scope: string }) {
     <div
       ref={setNode}
       className={cn(
-        "-ml-4 flex h-9 min-w-0 grow items-center overflow-hidden",
+        "-ml-4 flex h-9 min-w-0 grow items-center overflow-clip [overflow-clip-margin:4px]",
         newest === undefined && "flex-none",
       )}
       style={
@@ -181,7 +183,7 @@ function OperationStatusSlot({ scope }: { scope: string }) {
               role="img"
               aria-label={newest.label}
               tabIndex={0}
-              className="inline-flex rounded-full outline-none focus-visible:focus-ring"
+              className="relative inline-flex rounded-full outline-none after:absolute after:top-1/2 after:left-1/2 after:size-6 after:-translate-x-1/2 after:-translate-y-1/2 focus-visible:focus-ring"
             >
               <OperationIndicator progress={newest.progress} />
             </span>

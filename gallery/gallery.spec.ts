@@ -2272,9 +2272,61 @@ test("focus ring: the keyboard-highlighted menu entry under forced colors", asyn
 });
 
 // SUI-FEATURE-055 AC3 / GL-UI-013 rev 4: every icon button of the gallery, the close buttons of
-// dialog, panel and toast and the icon toggles among them, and every checkbox, radio and switch
-// measures at least 24 × 24 px. Text only screen readers get (`.sr-only`) does not make a button a
-// text button; a hit area grown by a pseudo-element counts.
+// dialog, panel and toast and the icon toggles among them, every checkbox, radio and switch, and every
+// focusable hint trigger (a focusable `role=img`) takes a hit at each corner of a 24 × 24 px square
+// around its centre. Text only screen readers get (`.sr-only`) does not make a button a text button;
+// a hit area grown by a pseudo-element counts, since a pseudo-element hits as its element. A target
+// whose centre another element covers (the page behind a modal) cannot be hit and is not measured.
+const hitAreaViolations = (page: Page, selector: string) =>
+  page.evaluate((selector) => {
+    const visibleText = (el: HTMLElement) => {
+      const clone = el.cloneNode(true) as HTMLElement;
+      for (const hidden of clone.querySelectorAll(".sr-only")) hidden.remove();
+      return (clone.textContent ?? "").trim();
+    };
+    const measured: string[] = [];
+    const small: string[] = [];
+    for (const el of document.querySelectorAll<HTMLElement>(selector)) {
+      const role = el.getAttribute("role");
+      const indicator = role === "checkbox" || role === "radio" || role === "switch";
+      const hint = role === "img";
+      if (!indicator && !hint && (visibleText(el) !== "" || el.querySelector("svg") === null)) {
+        continue;
+      }
+      if (el.getBoundingClientRect().width === 0) continue;
+      // "nearest" leaves a clipping box that already shows the element unscrolled, so a hit area it
+      // clips stays clipped.
+      el.scrollIntoView({ block: "nearest", inline: "nearest" });
+      // The window alone then centres it vertically, so no probe falls off the viewport.
+      const near = el.getBoundingClientRect();
+      window.scrollBy(0, near.y + near.height / 2 - innerHeight / 2);
+      const box = el.getBoundingClientRect();
+      const [x, y] = [box.x + box.width / 2, box.y + box.height / 2];
+      const hits = (px: number, py: number) => {
+        const hit = document.elementFromPoint(px, py);
+        return hit !== null && (hit === el || el.contains(hit));
+      };
+      if (!hits(x, y)) continue;
+      const label =
+        el.getAttribute("aria-label") ??
+        el.dataset.testid ??
+        ((el.textContent ?? "").trim() || el.outerHTML.slice(0, 80));
+      measured.push(label);
+      // Half of 24 px, less half a pixel, so the probe stays inside the square.
+      const r = 11.5;
+      const missed = [
+        [-r, -r],
+        [r, -r],
+        [-r, r],
+        [r, r],
+      ].filter(([dx, dy]) => !hits(x + dx!, y + dy!));
+      if (missed.length > 0) small.push(`${label} misses ${JSON.stringify(missed)}`);
+    }
+    return { measured, small };
+  }, selector);
+
+const TARGET_SELECTOR =
+  "button, [role=button], [role=tab], [role=radio], [role=checkbox], [role=switch], [role=img][tabindex='0']";
 const TARGET_PAGES = [
   "components",
   "list",
@@ -2291,7 +2343,7 @@ const TARGET_PAGES = [
   "toast",
 ];
 
-test("target size: every icon button and indicator control is at least 24 × 24 px", async ({
+test("target size: every icon button, indicator control and hint trigger hits at 24 × 24 px", async ({
   page,
 }) => {
   const small: string[] = [];
@@ -2301,40 +2353,9 @@ test("target size: every icon button and indicator control is at least 24 × 24 
     await page.waitForLoadState("networkidle");
     // Overlays settle their open animation before the boxes are read.
     await page.waitForTimeout(500);
-    const targets = await page.evaluate(() => {
-      const visibleText = (el: HTMLElement) => {
-        const clone = el.cloneNode(true) as HTMLElement;
-        for (const hidden of clone.querySelectorAll(".sr-only")) hidden.remove();
-        return (clone.textContent ?? "").trim();
-      };
-      const selector =
-        "button, [role=button], [role=tab], [role=radio], [role=checkbox], [role=switch]";
-      return [...document.querySelectorAll<HTMLElement>(selector)]
-        .filter((el) => {
-          const role = el.getAttribute("role");
-          if (role === "checkbox" || role === "radio" || role === "switch") return true;
-          return visibleText(el) === "" && el.querySelector("svg") !== null;
-        })
-        .map((el) => {
-          const box = el.getBoundingClientRect();
-          const hit = getComputedStyle(el, "::after");
-          const label =
-            el.getAttribute("aria-label") ??
-            el.dataset.testid ??
-            ((el.textContent ?? "").trim() || el.outerHTML.slice(0, 80));
-          return {
-            label,
-            visible: box.width > 0 && box.height > 0,
-            width: Math.max(box.width, parseFloat(hit.width) || 0),
-            height: Math.max(box.height, parseFloat(hit.height) || 0),
-          };
-        })
-        .filter(({ visible }) => visible);
-    });
-    for (const { label, width, height } of targets) {
-      measured.push(`${name}: ${label}`);
-      if (width < 24 || height < 24) small.push(`${name}: ${label} ${width}×${height}`);
-    }
+    const result = await hitAreaViolations(page, TARGET_SELECTOR);
+    measured.push(...result.measured.map((label) => `${name}: ${label}`));
+    small.push(...result.small.map((label) => `${name}: ${label}`));
   }
   expect(small).toEqual([]);
   expect(measured).toEqual(
@@ -2347,8 +2368,51 @@ test("target size: every icon button and indicator control is at least 24 × 24 
       "components: unchecked",
       "components: off",
       "components: Focus radio item",
+      "components: File too large",
     ]),
   );
+});
+
+// SUI-FEATURE-055 AC3: the hint triggers of `InlineStatus` and of the compact status slot grow only
+// their hit area; every element in the row status and in the slot keeps its place when the grown
+// area is taken away again.
+test("target size: hint triggers hit at 24 × 24 px and move no neighbour", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.goto("/?page=components&lng=en");
+  const frame = page.getByTestId("status-frame-squeezed");
+  await frame.getByTestId("status-toggle").click();
+  const slot = frame.getByTestId("page-operation-status");
+  await expect(slot).toHaveAttribute("data-compact", "");
+  const label = "Website is updating — visible in about 1–2 minutes";
+  await expect(slot.getByRole("img", { name: label })).toBeVisible();
+
+  const result = await hitAreaViolations(page, "[role=img][tabindex='0']");
+  expect(result.small).toEqual([]);
+  expect(result.measured).toEqual(expect.arrayContaining([label, "File too large"]));
+
+  const containers = [
+    slot,
+    page.getByTestId("section-operation-status").getByTestId("inline-status"),
+  ];
+  const layout = () =>
+    Promise.all(
+      containers.map((c) =>
+        c.evaluateAll((roots) =>
+          roots.flatMap((root) =>
+            // The spinner turns, so its icon's box changes by itself; the boxes around it do not.
+            [root, ...root.querySelectorAll(":not(svg, svg *)")].map((el) => {
+              const r = el.getBoundingClientRect();
+              return [r.x, r.y, r.width, r.height];
+            }),
+          ),
+        ),
+      ),
+    );
+  const before = await layout();
+  await page.addStyleTag({
+    content: "[role=img][tabindex='0']::after { content: none !important; }",
+  });
+  expect(await layout()).toEqual(before);
 });
 
 test("target size: the close buttons of dialog, panel and toast", async ({ page }) => {

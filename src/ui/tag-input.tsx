@@ -105,7 +105,7 @@ function TagInput({
                   remove(tag);
                 }}
                 data-testid={`${testId}-remove`}
-                className="inline-flex size-6 items-center justify-center rounded-full outline-none hover:bg-secondary-hover focus-visible:focus-ring disabled:pointer-events-none"
+                className="relative inline-flex size-6 items-center justify-center rounded-full outline-none after:absolute after:top-1/2 after:left-1/2 after:size-6 after:-translate-x-1/2 after:-translate-y-1/2 hover:bg-secondary-hover focus-visible:focus-ring disabled:pointer-events-none"
               >
                 <XIcon aria-hidden="true" className="size-3" />
               </button>

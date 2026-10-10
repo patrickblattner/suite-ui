@@ -23,7 +23,9 @@ type InlineStatusProps = {
 // The status of one row or element (`GL-UI-033` §Status an einer Zeile): running like the page head's
 // status slot, done as a check in the success colour, failed as a cross in the error colour with the
 // `label` as its hint. Each state starts with a word only screen readers read (`SUI-FEATURE-051`), so
-// an icon without a `label` still names its state; the `label` follows it.
+// an icon without a `label` still names its state; the `label` follows it. The failed icon's hint
+// trigger grows its hit area to 24 × 24 px by a pseudo-element, so its neighbours keep their place
+// (`SUI-FEATURE-055`).
 function InlineStatus({
   state,
   progress,
@@ -63,7 +65,7 @@ function InlineStatus({
             role="img"
             aria-label={label}
             tabIndex={0}
-            className="inline-flex rounded-full outline-none focus-visible:focus-ring"
+            className="relative inline-flex rounded-full outline-none after:absolute after:top-1/2 after:left-1/2 after:size-6 after:-translate-x-1/2 after:-translate-y-1/2 focus-visible:focus-ring"
           >
             {icon}
           </span>

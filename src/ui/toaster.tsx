@@ -113,8 +113,15 @@ function Toaster({ theme = "light", ...props }: ToasterAppProps) {
           loading: <Loader2Icon className="size-4 animate-spin" />,
         }}
         // The close button, when an app turns it on, gets a 24 px hit area (`GL-UI-013`); `!` because
-        // sonner's own unlayered rule sets 20 px.
-        toastOptions={{ classNames: { ...TOAST_VARIANT_CLASSNAMES, closeButton: "size-6!" } }}
+        // sonner's own unlayered rule sets 20 px. Its round corners do not hit, so an unpainted square
+        // over the border box covers them.
+        toastOptions={{
+          classNames: {
+            ...TOAST_VARIANT_CLASSNAMES,
+            closeButton:
+              "size-6! after:absolute after:top-1/2 after:left-1/2 after:size-6 after:-translate-x-1/2 after:-translate-y-1/2",
+          },
+        }}
         style={
           {
             "--normal-bg": "var(--popover)",
