@@ -1,6 +1,6 @@
 {
   "name": "@suite/ui",
-  "version": "0.43.0",
+  "version": "0.44.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -83,6 +83,7 @@
     "tailwindcss": "^4"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@eslint/js": "^9.39.5",
     "@playwright/test": "^1.60.0",
     "@tailwindcss/vite": "^4.3.3",

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import * as React from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -14,6 +14,7 @@ function renderShell(state: {
   isEmpty?: boolean;
   scrollTestId?: string;
   scrollRef?: React.Ref<HTMLDivElement>;
+  scrollLabel?: string;
   isError?: boolean;
   tabs?: React.ReactNode;
   toolbar?: React.ReactNode;
@@ -36,6 +37,7 @@ function renderShell(state: {
       headerTestId="rows-header"
       {...(state.scrollTestId !== undefined && { scrollTestId: state.scrollTestId })}
       {...(state.scrollRef !== undefined && { scrollRef: state.scrollRef })}
+      {...(state.scrollLabel !== undefined && { scrollLabel: state.scrollLabel })}
       {...(state.isError !== undefined && {
         isError: state.isError,
         error: "Liste konnte nicht geladen werden.",
@@ -213,5 +215,47 @@ describe("DataTableShell", () => {
     expect(table?.getAttributeNames().sort()).toEqual(["class", "data-slot"]);
     expect(table).toHaveClass("w-full", "caption-bottom", "text-sm");
     expect(screen.getByTestId("row")).not.toHaveAttribute("role");
+  });
+
+  // SUI-FEATURE-053 AC1: the labelled scroller is a region reachable by Tab.
+  it("makes the scroller a labelled region in the tab order with scrollLabel", () => {
+    renderShell({ scrollLabel: "System log" });
+    const region = screen.getByRole("region", { name: "System log" });
+    expect(region).toBe(screen.getByTestId("data-table-scroll"));
+    expect(region).toHaveAttribute("tabindex", "0");
+    expect(region).toHaveClass("focus-visible:ring-[3px]", "focus-visible:ring-ring/50");
+    region.focus();
+    expect(region).toHaveFocus();
+  });
+
+  // SUI-FEATURE-053 AC2: without scrollLabel the scroller stays as in v0.43.0.
+  it("keeps the v0.43.0 scroller without scrollLabel", () => {
+    const { container: labelled } = renderShell({ scrollLabel: "System log" });
+    const { container } = renderShell({});
+    const scroll = container.querySelector('[data-testid="data-table-scroll"]');
+    expect(scroll?.getAttributeNames()).toEqual(["class", "data-testid"]);
+    expect(scroll?.className).toBe(
+      "relative min-h-6 flex-1 overflow-auto [scrollbar-gutter:stable] [&_[data-slot=table-container]]:overflow-visible",
+    );
+    expect(container.querySelector("[tabindex]")).toBeNull();
+    expect(within(container).queryByRole("region")).toBeNull();
+    expect(labelled.querySelector("table")?.outerHTML).toBe(
+      container.querySelector("table")?.outerHTML,
+    );
+  });
+
+  // SUI-FEATURE-053 AC3: under a keyboard grid the table stays the one tab stop.
+  it("names the scroller but leaves the tab stop to a grid table", () => {
+    const { container } = renderShell({
+      scrollLabel: "System log",
+      tableProps: { role: "grid", tabIndex: 0 },
+    });
+    const region = screen.getByRole("region", { name: "System log" });
+    expect(region).not.toHaveAttribute("tabindex");
+    expect(region).not.toHaveClass("focus-visible:ring-[3px]");
+    const stops = [...container.querySelectorAll("[tabindex]")].filter(
+      (el) => (el as HTMLElement).tabIndex >= 0,
+    );
+    expect(stops).toEqual([screen.getByRole("grid")]);
   });
 });

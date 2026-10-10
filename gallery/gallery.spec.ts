@@ -1,3 +1,4 @@
+import AxeBuilder from "@axe-core/playwright";
 import { expect, type Locator, type Page, test } from "@playwright/test";
 
 import {
@@ -1986,4 +1987,32 @@ test("tooltip: at the right edge it flips to the left", async ({ page }) => {
   const bubble = await box(content);
   expect(Math.abs(element.y - bubble.y - 4)).toBeLessThanOrEqual(1);
   expect(bubble.x + bubble.width).toBeLessThanOrEqual(element.x - 8);
+});
+
+// SUI-FEATURE-053 AC1/AC4: the read table's scroller is a named region in the tab order, the keys
+// scroll it, and axe finds no unreachable scroll area; without the stop axe would report it.
+test("read table: scrollLabel makes the scroller a reachable, named region", async ({ page }) => {
+  await page.goto("/?page=components&lng=en");
+  const region = page.getByRole("region", { name: "System log" });
+  await expect(region).toHaveAttribute("data-testid", "log-scroll");
+  await region.focus();
+  await page.keyboard.press("Shift+Tab");
+  await expect(region).not.toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(region).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect.poll(() => region.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+  const afterArrow = await region.evaluate((el) => el.scrollTop);
+  await page.keyboard.press("PageDown");
+  await expect.poll(() => region.evaluate((el) => el.scrollTop)).toBeGreaterThan(afterArrow);
+  const scan = () =>
+    new AxeBuilder({ page })
+      .include("[data-testid=section-read-table]")
+      .withRules(["scrollable-region-focusable"])
+      .analyze();
+  expect((await scan()).violations).toEqual([]);
+  await region.evaluate((el) => el.removeAttribute("tabindex"));
+  expect((await scan()).violations.map((violation) => violation.id)).toEqual([
+    "scrollable-region-focusable",
+  ]);
 });

@@ -18,6 +18,9 @@ const SCROLL_CLASS = {
     "relative min-h-6 flex-1 overflow-auto overflow-y-scroll [scrollbar-gutter:stable] [&_[data-slot=table-container]]:overflow-visible",
 } as const;
 
+// The focus ring of a labelled scroller (`SUI-FEATURE-053`), the same token ring as an interactive card.
+const SCROLL_FOCUS_CLASS = "outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50";
+
 // The inset shadow draws the header rule without a border that would scroll away with the rows.
 const STICKY_HEADER_CLASS =
   "sticky top-0 z-10 bg-background shadow-[inset_0_-1px_0_0_var(--border)]";
@@ -33,6 +36,10 @@ type DataTableShellProps = {
   scrollTestId?: string;
   // Ref object or callback on the scroller, so the app can restore the scroll position on return.
   scrollRef?: React.Ref<HTMLDivElement>;
+  // The translated name of the content, e.g. "System log" (`SUI-FEATURE-053`). Set, the scroller is a
+  // labelled region reachable by Tab, so a read table without focusable rows scrolls by keyboard.
+  // Under `tableProps.role="grid"` the grid is the tab stop and the scroller only gets role and name.
+  scrollLabel?: string;
   // The view switch above the table, a `TabsList`; the page wraps the frame in `Tabs` and picks the
   // data by the active value.
   tabs?: React.ReactNode;
@@ -63,6 +70,7 @@ function DataTableShell({
   headerTestId,
   scrollTestId = "data-table-scroll",
   scrollRef,
+  scrollLabel,
   isError,
   tabs,
   toolbar,
@@ -76,14 +84,19 @@ function DataTableShell({
   const forwardedTableProps: React.ComponentProps<typeof Table> = { ...tableProps };
   delete forwardedTableProps.className;
   delete forwardedTableProps.style;
+  const focusable = scrollLabel !== undefined && tableProps?.role !== "grid";
+  const scrollClass = SCROLL_CLASS[suiteUiConfig().tableActions];
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-4" data-testid="data-table">
       {tabs}
       <GutterRow>{toolbar}</GutterRow>
       <div
-        className={SCROLL_CLASS[suiteUiConfig().tableActions]}
+        className={focusable ? `${scrollClass} ${SCROLL_FOCUS_CLASS}` : scrollClass}
         data-testid={scrollTestId}
         ref={scrollRef}
+        role={scrollLabel === undefined ? undefined : "region"}
+        aria-label={scrollLabel}
+        tabIndex={focusable ? 0 : undefined}
       >
         <Table {...forwardedTableProps}>
           <TableHeader className={STICKY_HEADER_CLASS} data-testid={headerTestId}>

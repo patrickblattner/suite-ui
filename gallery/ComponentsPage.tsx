@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { DataTableShell } from "../src/list/data-table-shell.js";
 import { PageHeader } from "../src/list/page-header.js";
 import {
   Accordion,
@@ -755,6 +756,45 @@ function Structure() {
   );
 }
 
+const LOG_ROWS = Array.from({ length: 12 }, (_, index) => ({
+  time: `09:${String(index * 5).padStart(2, "0")}`,
+  message: `Sync run ${index + 1} finished`,
+}));
+
+// `SUI-FEATURE-053`: a read table without focusable rows; `scrollLabel` makes its scroller a named
+// region in the tab order, so the rows scroll by keyboard.
+function ReadTable() {
+  return (
+    <Section id="read-table" title="DataTableShell · scrollLabel">
+      <div className="flex h-56 max-w-md flex-col">
+        <DataTableShell
+          head={
+            <>
+              <TableHead>Time</TableHead>
+              <TableHead>Message</TableHead>
+            </>
+          }
+          columnCount={2}
+          isPending={false}
+          isEmpty={false}
+          empty="No entries."
+          emptyTestId="log-empty"
+          loadingRowTestId="log-loading"
+          scrollTestId="log-scroll"
+          scrollLabel="System log"
+        >
+          {LOG_ROWS.map((row) => (
+            <TableRow key={row.time} data-testid="log-row">
+              <TableCell>{row.time}</TableCell>
+              <TableCell>{row.message}</TableCell>
+            </TableRow>
+          ))}
+        </DataTableShell>
+      </div>
+    </Section>
+  );
+}
+
 export function ComponentsPage() {
   return (
     <>
@@ -766,6 +806,7 @@ export function ComponentsPage() {
       <Fields />
       <Choices />
       <Structure />
+      <ReadTable />
     </>
   );
 }
