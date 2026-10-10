@@ -10,11 +10,11 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "../src/ui/sheet.js
 import { TableCell, TableHead, TableRow } from "../src/ui/table.js";
 
 // `SUI-FEATURE-059`: the list frame with its own inset — `?inset=sheet` in a drawer body that carries
-// `px-4`, `?inset=framed` in a bordered card. `?rows=<n>` sets the row count, so the gallery measures
+// `px-4`, `?inset=framed` in a bordered card, `?inset=page` without `inset` straight in PageScroll. `?rows=<n>` sets the row count, so the gallery measures
 // with and without a vertical bar; under `tableActions: "sticky"` a long note and an actions column
 // make the table wider than its scroller.
 const PARAMS = new URLSearchParams(window.location.search);
-const INSET = PARAMS.get("inset") === "framed" ? "framed" : "sheet";
+const INSET = (["framed", "page"] as const).find((v) => v === PARAMS.get("inset")) ?? "sheet";
 const ROWS = Array.from({ length: Number(PARAMS.get("rows") ?? 40) }, (_, i) => i + 1);
 const NOTE =
   "Rescheduled after the venue changed; attendees were notified by mail, the waitlist moved up and the catering order was adjusted to the new room and time.";
@@ -26,7 +26,7 @@ function InsetTable() {
   const [pageSize, setPageSize] = useState(25);
   return (
     <DataTableShell
-      inset={INSET}
+      {...(INSET !== "page" && { inset: INSET })}
       head={
         <>
           <TableHead>#</TableHead>
@@ -92,6 +92,13 @@ export function InsetPage() {
           </div>
         </SheetContent>
       </Sheet>
+    );
+  }
+  if (INSET === "page") {
+    return (
+      <PageScroll>
+        <InsetTable />
+      </PageScroll>
     );
   }
   return (
