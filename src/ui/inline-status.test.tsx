@@ -32,4 +32,23 @@ describe("InlineStatus", () => {
     expect(icon.querySelector("svg")).toHaveClass("text-destructive-text");
     expect(screen.queryByTestId("operation-label")).toBeNull();
   });
+
+  it.each([
+    ["done", "Done"],
+    ["failed", "Failed"],
+  ] as const)(
+    "names the %s state to screen readers without a label, showing only the icon",
+    (state, word) => {
+      render(<InlineStatus state={state} />);
+      const box = screen.getByTestId("inline-status");
+      expect(box).toHaveTextContent(word);
+      expect(screen.getByText(word)).toHaveClass("sr-only");
+      expect(box.querySelector("svg")).toBeInTheDocument();
+    },
+  );
+
+  it("puts the state word before the label", () => {
+    render(<InlineStatus state="running" label="Uploading" />);
+    expect(screen.getByTestId("inline-status")).toHaveTextContent(/^RunningUploading$/);
+  });
 });

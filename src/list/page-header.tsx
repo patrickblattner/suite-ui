@@ -4,6 +4,7 @@ import type * as React from "react";
 import { Button } from "../ui/button.js";
 import { Hint } from "../ui/hint.js";
 import { OperationStatusSlot } from "../ui/operation-status.js";
+import { OverflowTooltip } from "../ui/tooltip.js";
 
 // One add of the title row. `hint` says what a press does next (`GL-UI-017`); `busy` is the Button's
 // working state (`GL-UI-027`); `disabledText` is the reason a locked entry shows instead of `hint`
@@ -109,6 +110,32 @@ function PageHeader({
       addActions(add)
     ) : null;
 
+  // With a status slot the head keeps one height (`SUI-FEATURE-051`): the title never shortens, the
+  // subtitle stays on one line and truncates with the overflow hint, so a running slot takes its width
+  // from the subtitle first (the block's huge shrink factor). The grid's `minmax(auto, 1fr)` column holds the title's width as the
+  // block's minimum, while the clipped subtitle adds nothing to it.
+  if (operationScope !== undefined) {
+    return (
+      <div className="mb-2 flex items-start justify-between gap-4" data-testid="page-header">
+        <div className="grid min-w-min shrink-[100000] grid-cols-[minmax(auto,1fr)]">
+          <h1
+            className="justify-self-start text-xl font-semibold tracking-tight whitespace-nowrap"
+            data-testid="page-title"
+          >
+            {title}
+          </h1>
+          <OverflowTooltip>
+            <p className="mt-1 truncate text-sm text-muted-foreground" data-testid="page-subtitle">
+              {subtitle}
+            </p>
+          </OverflowTooltip>
+        </div>
+        <OperationStatusSlot scope={operationScope} />
+        {actions}
+      </div>
+    );
+  }
+
   return (
     <div className="mb-2 flex items-start justify-between gap-4" data-testid="page-header">
       <div className="min-w-0">
@@ -119,7 +146,6 @@ function PageHeader({
           {subtitle}
         </p>
       </div>
-      {operationScope !== undefined ? <OperationStatusSlot scope={operationScope} /> : null}
       {actions}
     </div>
   );

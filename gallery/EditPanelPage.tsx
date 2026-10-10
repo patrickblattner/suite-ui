@@ -10,6 +10,7 @@ import { Label } from "../src/ui/label.js";
 import { ShellPage } from "./ShellPage.js";
 
 const ROWS = Array.from({ length: 60 }, (_, index) => `Channel ${index + 1}`);
+const MEDIA = ["team-photo.jpg", "logo.svg", "brochure.pdf"];
 const FIELDS = Array.from({ length: 24 }, (_, index) => `Field ${index + 1}`);
 
 // A long list whose rows open the edit panel, inside the shell frame (`SUI-FEATURE-030`). The panel
@@ -22,6 +23,7 @@ function Demo() {
   const [checkOpen, setCheckOpen] = useState(false);
   const [submits, setSubmits] = useState(0);
   const [backs, setBacks] = useState(0);
+  const [media, setMedia] = useState<number | null>(null);
 
   if (pathname !== start) {
     return (
@@ -42,6 +44,14 @@ function Demo() {
           onClick={() => setCheckOpen(true)}
         >
           Open with invalid native values
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          data-testid="media-panel-trigger"
+          onClick={() => setMedia(0)}
+        >
+          Open media with pager
         </Button>
         <span data-testid="edit-panel-check-counts">
           submits {submits} · backs {backs}
@@ -106,6 +116,31 @@ function Demo() {
             <Label htmlFor="check-mail">Email</Label>
             <Input id="check-mail" type="email" defaultValue="not-an-email" />
           </div>
+        </div>
+      </EditPanel>
+      {/* SUI-FEATURE-051: the media detail pages through the uploaded set. */}
+      <EditPanel
+        open={media !== null}
+        onOpenChange={(open) => !open && setMedia(null)}
+        title={media !== null ? MEDIA[media] : ""}
+        mode="edit"
+        testIdPrefix="media-panel"
+        pager={
+          media !== null
+            ? {
+                position: `${media + 1}/${MEDIA.length}`,
+                onPrevious: () => setMedia(media - 1),
+                onNext: () => setMedia(media + 1),
+                previousDisabled: media === 0,
+                nextDisabled: media === MEDIA.length - 1,
+              }
+            : undefined
+        }
+        onSubmit={() => setMedia(null)}
+      >
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="media-name">File name</Label>
+          <Input id="media-name" key={media} defaultValue={media !== null ? MEDIA[media] : ""} />
         </div>
       </EditPanel>
     </PageScroll>

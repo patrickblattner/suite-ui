@@ -51,8 +51,10 @@ import {
   TableRow,
 } from "../src/ui/table.js";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "../src/ui/tabs.js";
+import { TagInput } from "../src/ui/tag-input.js";
 import { Textarea } from "../src/ui/textarea.js";
 import { TimezoneCombobox } from "../src/ui/timezone-combobox.js";
+import { type UploadItem, UploadStep } from "../src/ui/upload-step.js";
 
 const VARIANTS: ButtonVariant[] = [
   "success",
@@ -239,13 +241,19 @@ function StatusFrame({
 
 // The toggle starts and ends one operation, so the head can be measured before and after; its text
 // stays the same, so the actions keep their width.
-function StatusToggle({ subtitle }: { subtitle: string }) {
+function StatusToggle({
+  subtitle,
+  label = "Website is updating",
+}: {
+  subtitle: string;
+  label?: string;
+}) {
   const { start } = useOperationStatus();
   const handle = useRef<OperationHandle | null>(null);
   const [running, setRunning] = useState(false);
   const toggle = () => {
     if (handle.current === null) {
-      handle.current = start({ scope: "toggle", label: "Website is updating" });
+      handle.current = start({ scope: "toggle", label });
     } else {
       handle.current.succeed("Website updated");
       handle.current = null;
@@ -305,9 +313,12 @@ function OperationStatus() {
             <StatusToggle subtitle="Start and end an operation." />
           </OperationStatusProvider>
         </div>
-        <div className="max-w-md rounded-md border p-4" data-testid="status-frame-squeezed">
+        <div className="max-w-3xl rounded-md border p-4" data-testid="status-frame-squeezed">
           <OperationStatusProvider>
-            <StatusToggle subtitle="A subtitle long enough to wrap, so the title block already fills the row before anything runs." />
+            <StatusToggle
+              subtitle="A subtitle long enough to fill the row on its own, so a running operation has to take its width from it: it truncates on one line, the title stays whole."
+              label="Website is updating — visible in about 1–2 minutes"
+            />
           </OperationStatusProvider>
         </div>
       </div>
@@ -318,6 +329,75 @@ function OperationStatus() {
         <InlineStatus state="done" label="Uploaded" />
         <InlineStatus state="failed" label="File too large" />
       </Row>
+    </Section>
+  );
+}
+
+// The choice state: the chosen files' names land below, so a test can read what `onFiles` got.
+function UploadChoose() {
+  const [chosen, setChosen] = useState<string[]>([]);
+  return (
+    <div className="flex flex-col gap-2" data-testid="upload-frame-choose">
+      <UploadStep
+        options={
+          <div className="flex items-center gap-2">
+            <Checkbox id="upload-optimise" defaultChecked />
+            <Label htmlFor="upload-optimise">Optimise images</Label>
+          </div>
+        }
+        accept="image/*"
+        onFiles={(files) => setChosen(files.map((file) => file.name))}
+      />
+      <span className="text-sm text-muted-foreground" data-testid="upload-chosen">
+        {chosen.join(", ")}
+      </span>
+    </div>
+  );
+}
+
+const UPLOAD_LOADING: UploadItem[] = [
+  { id: "1", name: "team-photo.jpg", state: "running", progress: 0.4 },
+  { id: "2", name: "logo.svg", state: "running" },
+];
+
+const UPLOAD_RESULT: UploadItem[] = [
+  { id: "1", name: "team-photo.jpg", state: "done" },
+  {
+    id: "2",
+    name: "brochure-with-a-very-long-file-name-2026.pdf",
+    state: "failed",
+    error: "File too large",
+  },
+];
+
+// `SUI-FEATURE-051`: the upload step (choose, loading, result with an error) and the tag field.
+function UploadAndTags() {
+  const [tags, setTags] = useState(["summer", "team"]);
+  const [loading, setLoading] = useState(true);
+  return (
+    <Section id="upload" title="UploadStep · TagInput">
+      <div className="grid max-w-3xl gap-4 md:grid-cols-3">
+        <UploadChoose />
+        <div className="flex flex-col gap-2" data-testid="upload-frame-loading">
+          <UploadStep onFiles={() => {}} items={loading ? UPLOAD_LOADING : UPLOAD_RESULT} />
+          <Button
+            variant="outline"
+            size="sm"
+            className="self-start"
+            onClick={() => setLoading((value) => !value)}
+            data-testid="upload-toggle"
+          >
+            Switch state
+          </Button>
+        </div>
+        <div data-testid="upload-frame-error">
+          <UploadStep onFiles={() => {}} items={UPLOAD_RESULT} />
+        </div>
+      </div>
+      <div className="mt-4 flex max-w-md flex-col gap-2">
+        <Label htmlFor="gallery-tags">Tags</Label>
+        <TagInput id="gallery-tags" value={tags} onChange={setTags} placeholder="Add tags" />
+      </div>
     </Section>
   );
 }
@@ -649,6 +729,7 @@ export function ComponentsPage() {
       <Buttons />
       <Adds />
       <OperationStatus />
+      <UploadAndTags />
       <Badges />
       <Fields />
       <Choices />

@@ -270,4 +270,44 @@ describe("EditPanel", () => {
     // radix hands the focus back on a tick after the unmount.
     await waitFor(() => expect(trigger).toHaveFocus());
   });
+
+  // SUI-FEATURE-051: paging through a set of records.
+  it("pager: ‹ and › left of the title call their callbacks and lock per flag", () => {
+    const onPrevious = vi.fn();
+    const onNext = vi.fn();
+    renderPanel({ pager: { position: "1/3", onPrevious, onNext, previousDisabled: true } });
+    const previous = screen.getByTestId("edit-panel-previous");
+    const next = screen.getByTestId("edit-panel-next");
+    expect(previous).toHaveAccessibleName("Previous");
+    expect(next).toHaveAccessibleName("Next");
+    expect(previous).toHaveAttribute("aria-disabled", "true");
+    expect(next).not.toHaveAttribute("aria-disabled");
+    expect(screen.getByTestId("edit-panel-position")).toHaveTextContent("1/3");
+    const title = screen.getByRole("heading", { name: "Channel" });
+    expect(next.compareDocumentPosition(title) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    fireEvent.click(next);
+    expect(onNext).toHaveBeenCalledTimes(1);
+    fireEvent.click(previous);
+    expect(onPrevious).not.toHaveBeenCalled();
+  });
+
+  it("pager: the next lock holds too", () => {
+    const onNext = vi.fn();
+    renderPanel({ pager: { position: "3/3", onPrevious: vi.fn(), onNext, nextDisabled: true } });
+    expect(screen.getByTestId("edit-panel-previous")).not.toHaveAttribute("aria-disabled");
+    const next = screen.getByTestId("edit-panel-next");
+    next.focus();
+    fireEvent.click(next);
+    expect(onNext).not.toHaveBeenCalled();
+    // Locked by aria-disabled, the button keeps the focus it had when paging reached the end.
+    expect(next).toHaveFocus();
+  });
+
+  it("without pager the header holds the title alone, as before", () => {
+    renderPanel();
+    const header = document.querySelector("[data-slot=edit-panel-header]")!;
+    expect(header.querySelector("[data-slot=edit-panel-pager]")).toBeNull();
+    expect(screen.getByRole("heading", { name: "Channel" }).parentElement).toBe(header);
+    expect(screen.queryByTestId("edit-panel-previous")).toBeNull();
+  });
 });

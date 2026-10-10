@@ -23,6 +23,7 @@ export const en = {
     error: "Error",
     info: "Info",
     running: "Running",
+    done: "Done",
     failed: "Failed",
     recovered: "Recovered",
   },
@@ -203,6 +204,18 @@ export const en = {
   timezone: {
     placeholder: "Search time zone…",
     empty: "No matching time zone",
+  },
+  upload: {
+    drop: "Drop files here",
+    choose: "Choose files",
+  },
+  tags: {
+    remove: "Remove tag {{tag}}",
+  },
+  // The previous/next buttons of an edit panel that pages through a set of records.
+  pager: {
+    previous: "Previous",
+    next: "Next",
   },
 } as const;
 

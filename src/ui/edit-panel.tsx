@@ -1,4 +1,4 @@
-import { SaveIcon } from "lucide-react";
+import { ChevronLeftIcon, ChevronRightIcon, SaveIcon } from "lucide-react";
 import { Dialog as SheetPrimitive } from "radix-ui";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
@@ -8,6 +8,16 @@ import { useOptionalSidebar } from "../shell/sidebar-provider.js";
 import { Button } from "./button.js";
 import { FIELD_SELECTOR } from "./dialog.js";
 import { Sheet, SheetDescription, SheetTitle } from "./sheet.js";
+import { IconButtonTooltip } from "./tooltip.js";
+
+// Paging through a set of records in one panel (`SUI-FEATURE-051`); `position` is e.g. "1/3".
+type EditPanelPager = {
+  position: string;
+  onPrevious: () => void;
+  onNext: () => void;
+  previousDisabled?: boolean;
+  nextDisabled?: boolean;
+};
 
 type EditPanelProps = {
   open: boolean;
@@ -25,9 +35,13 @@ type EditPanelProps = {
   // With `onBack` the footer carries Back left-aligned (`SUI-FEATURE-035`); it only calls `onBack`.
   onBack?: () => void;
   backDisabled?: boolean;
+  // With `pager` the header carries ‹ and › left of the title, the position beside them. A locked
+  // button is `aria-disabled`, not `disabled`: paging to the end keeps the focus on it.
+  pager?: EditPanelPager;
   // The opening focus as in `DialogContent`: only `add` focuses the first field.
   mode?: "add" | "edit";
-  // Replaces `edit-panel` in `edit-panel`, `-body`, `-back`, `-cancel` and `-submit`.
+  // Replaces `edit-panel` in `edit-panel`, `-body`, `-back`, `-cancel`, `-submit`, `-previous` and
+  // `-next`.
   testIdPrefix?: string;
   className?: string;
   style?: React.CSSProperties;
@@ -50,6 +64,7 @@ function EditPanel({
   submitDisabled = false,
   onBack,
   backDisabled = false,
+  pager,
   mode,
   testIdPrefix = "edit-panel",
   className,
@@ -119,7 +134,49 @@ function EditPanel({
             data-slot="edit-panel-header"
             className="flex shrink-0 flex-col gap-1.5 border-b p-6"
           >
-            <SheetTitle className="text-lg leading-none">{title}</SheetTitle>
+            {pager === undefined ? (
+              <SheetTitle className="text-lg leading-none">{title}</SheetTitle>
+            ) : (
+              <div data-slot="edit-panel-pager" className="flex items-center gap-1">
+                <IconButtonTooltip label={t("pager.previous")}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-disabled={pager.previousDisabled === true || undefined}
+                    className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+                    onClick={() => {
+                      if (pager.previousDisabled !== true) pager.onPrevious();
+                    }}
+                    data-testid={`${testIdPrefix}-previous`}
+                  >
+                    <ChevronLeftIcon aria-hidden="true" />
+                  </Button>
+                </IconButtonTooltip>
+                <IconButtonTooltip label={t("pager.next")}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-disabled={pager.nextDisabled === true || undefined}
+                    className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+                    onClick={() => {
+                      if (pager.nextDisabled !== true) pager.onNext();
+                    }}
+                    data-testid={`${testIdPrefix}-next`}
+                  >
+                    <ChevronRightIcon aria-hidden="true" />
+                  </Button>
+                </IconButtonTooltip>
+                <span
+                  className="mr-2 text-sm text-muted-foreground tabular-nums"
+                  data-testid={`${testIdPrefix}-position`}
+                >
+                  {pager.position}
+                </span>
+                <SheetTitle className="text-lg leading-none">{title}</SheetTitle>
+              </div>
+            )}
             {description !== undefined && <SheetDescription>{description}</SheetDescription>}
           </div>
           {/* Validation belongs to the call site (Zod, `GL-UI-027`): no browser bubble blocks submit. */}
@@ -186,4 +243,4 @@ function EditPanel({
   );
 }
 
-export { EditPanel, type EditPanelProps };
+export { EditPanel, type EditPanelPager, type EditPanelProps };

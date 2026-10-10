@@ -138,6 +138,19 @@ describe("useOperationStatus and the PageHeader status slot", () => {
     expect(screen.getByTestId("page-subtitle")).toHaveTextContent("Colours and logo.");
   });
 
+  // SUI-FEATURE-051: with a status slot the subtitle stays on one line and the title never shortens.
+  it("keeps one line for the subtitle and the whole title beside a status slot", () => {
+    const { api } = setup("brand-kit");
+    expect(screen.getByTestId("page-subtitle")).toHaveClass("truncate");
+    expect(screen.getByTestId("page-title")).toHaveClass("whitespace-nowrap");
+    act(() => {
+      api().start({ scope: "brand-kit", label: "Publishing" });
+    });
+    const slot = screen.getByTestId("page-operation-status");
+    // Padding, spinner, gap and 10rem for the label; never narrower than padding and spinner.
+    expect(slot).toHaveStyle({ flexBasis: "12.5rem", minWidth: "2rem" });
+  });
+
   it("still toasts the end after the head is gone", () => {
     const success = vi.spyOn(toast, "success").mockReturnValue(1);
     const { api, hideHeader } = setup("brand-kit");

@@ -23,6 +23,7 @@ export const es: SuiteStrings = {
     error: "Error",
     info: "Información",
     running: "En curso",
+    done: "Listo",
     failed: "Fallido",
     recovered: "Recuperado",
   },
@@ -197,5 +198,16 @@ export const es: SuiteStrings = {
   timezone: {
     placeholder: "Buscar zona horaria…",
     empty: "Ninguna zona horaria coincide",
+  },
+  upload: {
+    drop: "Suelta los archivos aquí",
+    choose: "Elegir archivos",
+  },
+  tags: {
+    remove: "Quitar etiqueta {{tag}}",
+  },
+  pager: {
+    previous: "Anterior",
+    next: "Siguiente",
   },
 };

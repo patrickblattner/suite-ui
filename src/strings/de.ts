@@ -23,6 +23,7 @@ export const de: SuiteStrings = {
     error: "Fehler",
     info: "Info",
     running: "Läuft",
+    done: "Fertig",
     failed: "Fehlgeschlagen",
     recovered: "Wiederhergestellt",
   },
@@ -198,5 +199,16 @@ export const de: SuiteStrings = {
   timezone: {
     placeholder: "Zeitzone suchen…",
     empty: "Keine passende Zeitzone",
+  },
+  upload: {
+    drop: "Dateien hier ablegen",
+    choose: "Dateien wählen",
+  },
+  tags: {
+    remove: "Tag {{tag}} entfernen",
+  },
+  pager: {
+    previous: "Vorheriges",
+    next: "Nächstes",
   },
 };

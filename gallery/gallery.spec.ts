@@ -650,21 +650,58 @@ test("status slot: start and end move nothing below the head", async ({ page }) 
   expect(await layout()).toEqual(before);
 });
 
-// With a subtitle that already wraps, the filled slot takes no width from the title block.
-test("status slot: a full title block keeps its width and height", async ({ page }) => {
+// `SUI-FEATURE-051`: a running slot takes its room from the long subtitle, which truncates on one line;
+// the title stays whole and the head keeps its height. Too narrow for the label, the slot keeps the
+// spinner and carries the label as its hint.
+for (const width of [1024, 390]) {
+  test(`status slot: a long subtitle gives way, the head keeps its height at ${width} px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/?page=components");
+    const frame = page.getByTestId("status-frame-squeezed");
+    const head = frame.getByTestId("page-header");
+    const title = frame.getByTestId("page-title");
+    const subtitle = frame.getByTestId("page-subtitle");
+    const slot = frame.getByTestId("page-operation-status");
+    const before = { head: (await box(head)).height, title: (await box(title)).width };
+    const subtitleBefore = await box(subtitle);
+
+    await frame.getByTestId("status-toggle").click();
+    await expect(slot.getByTestId("operation-spinner")).toBeVisible();
+    expect((await box(head)).height).toBe(before.head);
+    expect((await box(title)).width).toBe(before.title);
+    expect((await box(subtitle)).height).toBe(subtitleBefore.height);
+    if (width === 1024) {
+      // The slot holds padding 16, spinner 16, gap 8 and 10rem for the label.
+      await expect(slot).not.toHaveAttribute("data-compact");
+      expect((await box(slot)).width).toBeGreaterThanOrEqual(200);
+      expect((await box(slot.getByTestId("operation-label"))).width).toBeGreaterThanOrEqual(160);
+      expect((await box(subtitle)).width).toBeLessThan(subtitleBefore.width);
+      expect(await subtitle.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
+    } else {
+      await expect(slot).toHaveAttribute("data-compact", "");
+      await expect(
+        slot.getByRole("img", { name: "Website is updating — visible in about 1–2 minutes" }),
+      ).toBeVisible();
+    }
+  });
+}
+
+// The compact slot follows the row's width: widened again, it shows the label once more.
+test("status slot: compact at 390 px returns to the label when the window widens", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 900 });
   await page.goto("/?page=components");
   const frame = page.getByTestId("status-frame-squeezed");
-  const subtitle = frame.getByTestId("page-subtitle");
-  const head = frame.getByTestId("page-header");
-  const before = { subtitle: await box(subtitle), head: (await box(head)).height };
-  expect(before.subtitle.height).toBeGreaterThan(20);
-
+  const slot = frame.getByTestId("page-operation-status");
   await frame.getByTestId("status-toggle").click();
-  await expect(frame.getByTestId("page-operation-status")).not.toBeEmpty();
-  const after = await box(subtitle);
-  expect(after.width).toBe(before.subtitle.width);
-  expect(after.height).toBe(before.subtitle.height);
-  expect((await box(head)).height).toBe(before.head);
+  await expect(slot).toHaveAttribute("data-compact", "");
+  await expect(slot.getByTestId("operation-label")).toHaveCount(0);
+  await page.setViewportSize({ width: 1024, height: 900 });
+  await expect(slot).not.toHaveAttribute("data-compact");
+  await expect(slot.getByTestId("operation-label")).toBeVisible();
 });
 
 test("status slot: progress, several operations, and the row status keeps its width", async ({
@@ -685,6 +722,102 @@ test("status slot: progress, several operations, and the row status keeps its wi
   const widths = new Set<number>();
   for (const item of await inline.all()) widths.add((await box(item)).width);
   expect([...widths]).toEqual([128]);
+});
+
+// `SUI-FEATURE-051`: the upload step shows its options above the drop zone and hands every chosen
+// file to one `onFiles`.
+test("upload step: options above the drop zone, two files in one call", async ({ page }) => {
+  await page.goto("/?page=components");
+  const frame = page.getByTestId("upload-frame-choose");
+  const options = frame.getByTestId("upload-options");
+  const drop = frame.getByTestId("upload-drop");
+  await expect(options).toHaveText("Optimise images");
+  expect((await box(options)).y + (await box(options)).height).toBeLessThanOrEqual(
+    (await box(drop)).y,
+  );
+  const chooser = page.waitForEvent("filechooser");
+  await frame.getByTestId("upload-choose").click();
+  await (
+    await chooser
+  ).setFiles([
+    { name: "a.png", mimeType: "image/png", buffer: Buffer.from("a") },
+    { name: "b.png", mimeType: "image/png", buffer: Buffer.from("b") },
+  ]);
+  await expect(frame.getByTestId("upload-chosen")).toHaveText("a.png, b.png");
+});
+
+// One row per file; a state change keeps every row's height, and the error stands at its row.
+test("upload step: rows keep their height, the error at its row", async ({ page }) => {
+  await page.goto("/?page=components");
+  const frame = page.getByTestId("upload-frame-loading");
+  const rows = frame.getByTestId("upload-row");
+  await expect(rows).toHaveCount(2);
+  const heights = async () =>
+    Promise.all((await rows.all()).map(async (r) => (await box(r)).height));
+  const before = await heights();
+  await expect(rows.first().getByTestId("operation-progress")).toBeVisible();
+  await frame.getByTestId("upload-toggle").click();
+  await expect(rows.nth(1)).toHaveAttribute("data-state", "failed");
+  expect(await heights()).toEqual(before);
+  await expect(rows.first().getByRole("img", { name: "File too large" })).toHaveCount(0);
+  await expect(rows.nth(1).getByRole("img", { name: "File too large" })).toBeVisible();
+});
+
+// A long file name truncates in its row; the section never scrolls sideways at phone width.
+test("upload step: a long file name truncates at 390 px", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.goto("/?page=components");
+  const section = page.getByTestId("section-upload");
+  await expect(section.getByTestId("upload-row").first()).toBeVisible();
+  expect(await section.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+  const name = page
+    .getByTestId("upload-frame-error")
+    .getByText("brochure-with-a-very-long-file-name-2026.pdf");
+  expect(await name.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
+});
+
+// The tag field has the input height while it fits one row (`GL-UI-011`) and takes typed tags over.
+test("tag input: input height, comma and Enter make chips, duplicates dropped", async ({
+  page,
+}) => {
+  await page.goto("/?page=components");
+  const field = page.getByTestId("tag-input");
+  const input = page.getByTestId("tag-input-input");
+  expect((await box(field)).height).toBe(36);
+  await input.click();
+  await input.pressSequentially("a, b");
+  await input.press("Enter");
+  await input.pressSequentially("SUMMER");
+  await input.press("Enter");
+  await expect(field.getByTestId("tag-input-chip")).toHaveText(["summer", "team", "a", "b"]);
+  await field.getByRole("button", { name: "Remove tag team" }).click();
+  await input.press("Backspace");
+  await expect(field.getByTestId("tag-input-chip")).toHaveText(["summer", "a"]);
+});
+
+// The edit panel pages through a set with ‹ and › left of the title, each locked at its end.
+test("edit panel pager: previous and next page through the set", async ({ page }) => {
+  await page.goto("/?page=edit-panel");
+  await page.getByTestId("media-panel-trigger").click();
+  const panel = page.getByTestId("media-panel");
+  const previous = panel.getByTestId("media-panel-previous");
+  const next = panel.getByTestId("media-panel-next");
+  const title = panel.getByRole("heading");
+  await expect(title).toHaveText("team-photo.jpg");
+  await expect(panel.getByTestId("media-panel-position")).toHaveText("1/3");
+  await expect(previous).toHaveAttribute("aria-disabled", "true");
+  expect((await box(next)).x).toBeLessThan((await box(title)).x);
+  await next.click();
+  await next.click();
+  await expect(title).toHaveText("brochure.pdf");
+  await expect(panel.getByTestId("media-panel-position")).toHaveText("3/3");
+  await expect(next).toHaveAttribute("aria-disabled", "true");
+  // Paging to the end keeps the focus on the locked button; another press does nothing.
+  await expect(next).toBeFocused();
+  await next.press("Enter");
+  await expect(title).toHaveText("brochure.pdf");
+  await previous.click();
+  await expect(title).toHaveText("logo.svg");
 });
 
 // `SUI-FEATURE-021`: the overlay menu groups its items under a label, a separator before the

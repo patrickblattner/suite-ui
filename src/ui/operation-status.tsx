@@ -1,6 +1,7 @@
 import { Loader2Icon } from "lucide-react";
 import * as React from "react";
 
+import { Hint } from "./hint.js";
 import { toast } from "./toaster.js";
 import { OverflowTooltip } from "./tooltip.js";
 
@@ -113,37 +114,81 @@ function OperationLabel({ id, label }: { id?: string; label: string }) {
 }
 
 // The status slot of the page head for one `scope`: the newest operation, the count of the others as
-// "+n". It never takes width from the title block, so the head keeps its height (`GL-UI-033`): its
-// negative margin cancels the row gap it adds, and filled it takes only the row's free space. Inside,
-// the content sits right (auto margin) with its own 16 px to the title; squeezed, the auto margin drops
-// to 0, the label truncates and what still does not fit is clipped. A live region exists before its
-// content, so the slot stands empty while nothing runs and then takes no width.
+// "+n" (`GL-UI-033`). Running, the slot claims the indicator plus `10rem` for the label before the
+// subtitle keeps any width (`SUI-FEATURE-051`): its basis is that room, and the head's title block
+// shrinks first, down to the title. Below that room the label moves into the indicator's hint, so the
+// slot never disappears. It grows into the row's free space with its content right-aligned; its
+// negative margin cancels the row gap it adds. A live region exists before its content, so the slot
+// stands empty while nothing runs and then takes no width.
 function OperationStatusSlot({ scope }: { scope: string }) {
   const labelId = React.useId();
   const operations = React.useContext(OperationsContext) ?? [];
   const inScope = operations.filter((op) => op.scope === scope);
   const newest = inScope.at(-1);
+  const [node, setNode] = React.useState<HTMLDivElement | null>(null);
+  const [compact, setCompact] = React.useState(false);
+
+  // In rem: the inner padding, the indicator, the gap, the label, and "+n" with its gap.
+  const known = newest?.progress !== undefined && Number.isFinite(newest.progress);
+  const indicator = known ? 3 : 1;
+  const basis = 1 + indicator + 0.5 + 10 + (inScope.length > 1 ? 2 : 0);
+
+  React.useLayoutEffect(() => {
+    if (node === null || newest === undefined) return;
+    const measure = () => {
+      if (node.clientWidth === 0) return;
+      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+      setCompact(node.clientWidth < basis * rem - 0.5);
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [node, newest, basis]);
+
+  const more =
+    inScope.length > 1 ? (
+      <span className="shrink-0 text-sm text-muted-foreground" data-testid="page-operation-more">
+        +{inScope.length - 1}
+      </span>
+    ) : null;
+
   return (
     <div
+      ref={setNode}
       role="status"
       aria-live="polite"
-      className="-ml-4 flex h-9 min-w-0 flex-1 items-center overflow-hidden empty:flex-none"
+      className="-ml-4 flex h-9 min-w-0 grow items-center overflow-hidden empty:flex-none"
+      style={
+        newest !== undefined
+          ? { flexBasis: `${basis}rem`, minWidth: `${1 + indicator}rem` }
+          : undefined
+      }
       data-testid="page-operation-status"
+      data-compact={newest !== undefined && compact ? "" : undefined}
     >
-      {newest !== undefined ? (
+      {newest === undefined ? null : compact ? (
+        <div className="ml-auto flex items-center gap-2 pl-4">
+          <Hint text={newest.label}>
+            <span
+              role="img"
+              aria-label={newest.label}
+              tabIndex={0}
+              className="inline-flex rounded-full outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+            >
+              <OperationIndicator progress={newest.progress} />
+            </span>
+          </Hint>
+          {more}
+        </div>
+      ) : (
         <div className="ml-auto flex min-w-0 items-center gap-2 pl-4">
           <OperationIndicator progress={newest.progress} labelledBy={labelId} />
           <OperationLabel id={labelId} label={newest.label} />
-          {inScope.length > 1 ? (
-            <span
-              className="shrink-0 text-sm text-muted-foreground"
-              data-testid="page-operation-more"
-            >
-              +{inScope.length - 1}
-            </span>
-          ) : null}
+          {more}
         </div>
-      ) : null}
+      )}
     </div>
   );
 }
