@@ -6,6 +6,7 @@ import { Table, TableBody, TableCell, TableHeader, TableRow } from "../ui/table.
 import { type GutterInset, GutterRow } from "./list-gutter.js";
 import { listState, ListStateContent, type ListStateProps } from "./list-state.js";
 import { useOverflowXMarker } from "./use-overflow-x-marker.js";
+import { useStickyActionsMarker } from "./use-sticky-actions-marker.js";
 
 const SKELETON_ROW_COUNT = 5;
 
@@ -35,6 +36,12 @@ const SCROLL_FOCUS_CLASS = "outline-none focus-visible:focus-ring";
 // The inset shadow draws the header rule without a border that would scroll away with the rows.
 const STICKY_HEADER_CLASS =
   "sticky top-0 z-10 bg-background shadow-[inset_0_-1px_0_0_var(--border)]";
+
+// Hands the scroller to the app's ref, object or callback.
+function assignRef<T>(ref: React.Ref<T> | undefined, node: T | null): void {
+  if (typeof ref === "function") ref(node);
+  else if (ref) ref.current = node;
+}
 
 type DataTableShellProps = {
   // The `<TableHead>` cells of the header row.
@@ -105,7 +112,18 @@ function DataTableShell({
   // An empty label counts as unset (`SUI-FEATURE-054`): no tab stop, no region without a name.
   const label = scrollLabel === "" ? undefined : scrollLabel;
   const focusable = label !== undefined && tableProps?.role !== "grid";
-  const scrollClass = `${SCROLL_CLASS[suiteUiConfig().tableActions]}${SCROLL_INSET_CLASS[inset]}`;
+  const tableActions = suiteUiConfig().tableActions;
+  const scrollClass = `${SCROLL_CLASS[tableActions]}${SCROLL_INSET_CLASS[inset]}`;
+  // The scroller as state, for the sticky-actions marker; the app's `scrollRef` gets it too.
+  const [scroller, setScroller] = React.useState<HTMLDivElement | null>(null);
+  const scrollerRef = React.useCallback(
+    (node: HTMLDivElement | null) => {
+      setScroller(node);
+      assignRef(scrollRef, node);
+    },
+    [scrollRef],
+  );
+  useStickyActionsMarker(scroller, tableActions === "sticky");
   return (
     <div
       className="flex min-h-0 flex-1 flex-col gap-4"
@@ -118,7 +136,7 @@ function DataTableShell({
       <div
         className={focusable ? `${scrollClass} ${SCROLL_FOCUS_CLASS}` : scrollClass}
         data-testid={scrollTestId}
-        ref={scrollRef}
+        ref={scrollerRef}
         role={label === undefined ? undefined : "region"}
         aria-label={label}
         tabIndex={focusable ? 0 : undefined}

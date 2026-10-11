@@ -11,10 +11,13 @@ const DEFAULT = {
   cell: "px-3 py-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
 };
 const STICKY_HEADER = "sticky top-0 z-10 bg-background shadow-[inset_0_-1px_0_0_var(--border)]";
-const STICKY_ACTIONS =
-  "data-[col-kind=actions]:sticky data-[col-kind=actions]:right-0 data-[col-kind=actions]:bg-background";
-// The sticky head cell draws the header rule itself, its ground would cover it.
-const STICKY_HEAD_LINE = "data-[col-kind=actions]:shadow-[inset_0_-1px_0_0_var(--border)]";
+const STICKY_EDGE =
+  "data-[col-kind=actions]:in-data-actions-shadow:[--actions-edge:-8px_0_8px_-8px_rgb(0_0_0/0.2)]";
+const STUCK = "data-[col-kind=actions]:in-data-actions-stuck";
+// Sticky only while the scroller overflows (`data-actions-stuck`); the head on the background with
+// the header rule it would cover, the cell with an opaque ground under the row's own background.
+const STICKY_HEAD_ACTIONS = `${STICKY_EDGE} ${STUCK}:sticky ${STUCK}:right-0 ${STUCK}:bg-background ${STUCK}:shadow-[inset_0_-1px_0_0_var(--border),var(--actions-edge,0_0_#0000)]`;
+const STICKY_CELL_ACTIONS = `${STICKY_EDGE} ${STUCK}:sticky ${STUCK}:right-0 ${STUCK}:bg-inherit ${STUCK}:shadow-[var(--actions-edge,0_0_#0000)] ${STUCK}:before:absolute ${STUCK}:before:inset-0 ${STUCK}:before:-z-10 ${STUCK}:before:bg-background ${STUCK}:after:absolute ${STUCK}:after:inset-0 ${STUCK}:after:-z-10 ${STUCK}:after:bg-inherit`;
 
 // AC6: every form is one literal class string in the source and in the built `dist` (the gate builds
 // before the unit phase), where the apps' Tailwind scan finds it.
@@ -30,8 +33,8 @@ describe("Table class strings", () => {
     "relative w-full",
     `${STICKY_HEADER} [&_tr]:border-b`,
     "border-b transition-colors data-[grid-row]:hover:bg-muted/50 has-aria-expanded:bg-muted/50 data-[state=selected]:bg-muted",
-    `${DEFAULT.head} ${STICKY_ACTIONS} ${STICKY_HEAD_LINE}`,
-    `${DEFAULT.cell} ${STICKY_ACTIONS}`,
+    `${DEFAULT.head} ${STICKY_HEAD_ACTIONS}`,
+    `${DEFAULT.cell} ${STICKY_CELL_ACTIONS}`,
   ];
 
   it.each(forms)("%s", (form) => {
