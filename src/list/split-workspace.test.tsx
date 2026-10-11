@@ -235,6 +235,29 @@ describe("SplitWorkspace (GL-UI-009)", () => {
     expect(workspace()).toHaveAttribute("data-stop", "1/4");
   });
 
+  it("ignores a 0-wide measurement (hidden or collapsed mid-capture) and keeps the stop", () => {
+    const observers: ResizeObserverCallback[] = [];
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(callback: ResizeObserverCallback) {
+          observers.push(callback);
+        }
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    window.localStorage.setItem(KEY, "1/2");
+    workspaceWidth = 750;
+    render(<Surface minWidths={{ list: 320, preview: 320 }} />);
+    fireEvent.click(screen.getByRole("button", { name: "Home" }));
+    expect(workspace()).toHaveAttribute("data-stop", "1/2");
+    workspaceWidth = 0;
+    act(() => observers.forEach((callback) => callback([], {} as ResizeObserver)));
+    expect(workspace()).toHaveAttribute("data-stop", "1/2");
+  });
+
   it("falls back to the surface default for a stop that is not a package stop", () => {
     window.localStorage.setItem(KEY, "37%");
     expect(readSplitStop(KEY, "2/3")).toBe("2/3");

@@ -105,7 +105,10 @@ function SplitWorkspace({
 
   React.useLayoutEffect(() => {
     if (node === null) return;
-    const measure = () => setWidth(node.clientWidth);
+    // A 0-wide node is hidden or collapsed mid-capture, not a real width: keep the last one.
+    const measure = () => {
+      if (node.clientWidth > 0) setWidth(node.clientWidth);
+    };
     measure();
     if (typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(measure);

@@ -72,7 +72,10 @@ function PreviewFrame({
 
   React.useLayoutEffect(() => {
     if (column === null || page === null) return;
-    const measure = () => setSize({ column: column.clientWidth, page: page.offsetHeight });
+    // A 0-wide column is hidden or collapsed mid-capture, not a real width: keep the last size.
+    const measure = () => {
+      if (column.clientWidth > 0) setSize({ column: column.clientWidth, page: page.offsetHeight });
+    };
     measure();
     if (typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(measure);

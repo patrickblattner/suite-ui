@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -51,6 +51,27 @@ describe("PreviewFrame (GL-UI-008)", () => {
     expect(page().style.transformOrigin).toBe("top left");
     // The viewport takes the scaled height of the page.
     expect(viewport()).toHaveStyle({ height: "1000px" });
+  });
+
+  it("ignores a 0-wide column (hidden or collapsed mid-capture) and keeps the last scale", () => {
+    const observers: ResizeObserverCallback[] = [];
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(callback: ResizeObserverCallback) {
+          observers.push(callback);
+        }
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    columnWidth = 374;
+    render(<PreviewFrame device="desktop">Page</PreviewFrame>);
+    expect(page()).toHaveStyle({ transform: "scale(0.2921875)" });
+    columnWidth = 0;
+    act(() => observers.forEach((callback) => callback([], {} as ResizeObserver)));
+    expect(page()).toHaveStyle({ transform: "scale(0.2921875)" });
   });
 
   it("renders Mobile at the true mobile width, unscaled when the column holds it", () => {
