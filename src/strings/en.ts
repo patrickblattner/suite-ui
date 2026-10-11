@@ -187,8 +187,6 @@ export const en = {
     screenshotPending: "Screenshot pending",
   },
   version: {
-    label: "Version info",
-    hint: "Shows the version, commit and build of this instance.",
     title: "Version",
     version: "Version",
     noRelease: "No release (untagged build)",

@@ -59,7 +59,6 @@ export function migrated(suite: SuiteStrings) {
       logout: suite.account.logOutHint,
       search: suite.search.fieldHint,
       searchHit: suite.search.hitHint,
-      version: suite.version.hint,
     },
     language: { label: suite.account.language },
     user: {
@@ -80,7 +79,6 @@ export function migrated(suite: SuiteStrings) {
       emptyIn: suite.search.empty,
     },
     version: {
-      title: suite.version.label,
       label: suite.version.title,
       version: suite.version.version,
       noRelease: suite.version.noRelease,

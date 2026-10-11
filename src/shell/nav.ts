@@ -3,7 +3,6 @@ import {
   BlocksIcon,
   BookOpenIcon,
   DatabaseBackupIcon,
-  InfoIcon,
   KeyRoundIcon,
   LibraryIcon,
   LockIcon,
@@ -87,7 +86,6 @@ export const SHARED_NAV_ENTRIES = {
 } as const satisfies Record<string, SharedEntry>;
 
 export const HELP_ICON: LucideIcon = BookOpenIcon;
-export const VERSION_ICON: LucideIcon = InfoIcon;
 
 /** The route of the dashboard: the back link and the instance name lead there. */
 export const DEFAULT_HOME_PATH = "/dashboard";

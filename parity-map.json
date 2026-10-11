@@ -484,49 +484,35 @@
       "community": "shellHints.searchHit"
     },
     {
-      "element": "VersionPopover",
-      "suite": "version.label",
-      "status": "pending",
-      "cockpit": "version.label",
-      "community": "version.title"
-    },
-    {
-      "element": "VersionPopover",
-      "suite": "version.hint",
-      "status": "pending",
-      "cockpit": "nav.hints.version",
-      "community": "shellHints.version"
-    },
-    {
-      "element": "VersionPopover",
+      "element": "VersionLine",
       "suite": "version.title",
       "status": "pending",
       "cockpit": "version.title",
       "community": "version.label"
     },
     {
-      "element": "VersionPopover",
+      "element": "VersionLine",
       "suite": "version.version",
       "status": "pending",
       "cockpit": "version.version",
       "community": "version.version"
     },
     {
-      "element": "VersionPopover",
+      "element": "VersionLine",
       "suite": "version.noRelease",
       "status": "pending",
       "cockpit": "version.noRelease",
       "community": "version.noRelease"
     },
     {
-      "element": "VersionPopover",
+      "element": "VersionLine",
       "suite": "version.commit",
       "status": "pending",
       "cockpit": "version.commit",
       "community": "version.commit"
     },
     {
-      "element": "VersionPopover",
+      "element": "VersionLine",
       "suite": "version.buildDate",
       "status": "pending",
       "cockpit": "version.buildDate",

@@ -181,8 +181,6 @@ export const de: SuiteStrings = {
     screenshotPending: "Screenshot folgt",
   },
   version: {
-    label: "Versionsinfo",
-    hint: "Zeigt Version, Commit und Build dieser Instanz.",
     title: "Version",
     version: "Version",
     noRelease: "Kein Release (Stand ohne Tag)",
