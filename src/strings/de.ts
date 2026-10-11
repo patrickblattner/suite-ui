@@ -98,6 +98,14 @@ export const de: SuiteStrings = {
     table: "Tabelle",
     tiles: "Kacheln",
   },
+  preview: {
+    label: "Vorschau",
+    language: "Sprache",
+    status: "Status",
+    device: "Gerät",
+    desktop: "Desktop",
+    mobile: "Mobil",
+  },
   nav: {
     label: "Hauptnavigation",
     toggleSidebar: "Seitenleiste ein-/ausklappen",

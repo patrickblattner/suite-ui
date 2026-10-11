@@ -22,6 +22,7 @@ import {
   SheetPage,
   ToastPage,
 } from "./OverlayPages.js";
+import { PreviewPage } from "./PreviewPage.js";
 import { SettingsPage } from "./SettingsPage.js";
 import { registerShellLabels, ShellPage } from "./ShellPage.js";
 import { TilesPage } from "./TilesPage.js";
@@ -48,6 +49,7 @@ const PAGES = [
   "edit-panel",
   "help",
   "toast",
+  "preview",
 ] as const;
 type Page = (typeof PAGES)[number];
 
@@ -95,6 +97,7 @@ const PAGE_CONTENT: Record<Exclude<Page, "strings">, (theme: Theme) => ReactNode
   "edit-panel": () => <EditPanelPage />,
   help: () => <HelpPage />,
   toast: (theme) => <ToastPage theme={theme} />,
+  preview: () => <PreviewPage />,
 };
 
 function keysOf(tree: object, prefix = ""): string[] {
