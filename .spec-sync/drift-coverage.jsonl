@@ -170,3 +170,6 @@
 {"ts":"2026-10-11T09:46:41.304Z","key":"GL-UI-007","from":null,"to":1,"disposition":"ticket","ref":"75"}
 {"ts":"2026-10-11T10:00:52.574Z","key":"GL-UI-007","from":1,"to":2,"disposition":"ticket","ref":"75"}
 {"ts":"2026-10-11T10:00:53.004Z","key":"GL-UI-027","from":11,"to":12,"disposition":"ticket","ref":"76"}
+{"ts":"2026-10-11T10:18:06.330Z","key":"GL-TEST-011","from":4,"to":5,"disposition":"editorial","ref":"main-check trigger moved to night test window; suite-ui has no .github/workflows (local mode), no code impact"}
+{"ts":"2026-10-11T10:18:06.758Z","key":"PROC-REL-012","from":20,"to":21,"disposition":"editorial","ref":"main-check nightly via harness dispatch, runner labels; suite-ui has no CI workflows (local mode), no code impact"}
+{"ts":"2026-10-11T10:18:07.183Z","key":"PROC-REL-003","from":null,"to":1,"disposition":"editorial","ref":"new night test window process: harness-side (labels, window file, dispatch); suite-ui has no workflows, worker obeys the window file at ticket start — no repo code impact"}
