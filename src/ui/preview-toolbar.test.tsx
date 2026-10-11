@@ -144,7 +144,7 @@ describe("PreviewToolbar (GL-UI-008)", () => {
     expect(screen.queryByTestId("row-edit")).toBeNull();
   });
 
-  it("shows the row's action set, the same buttons, with edit last", () => {
+  it("shows the row's action set: the same buttons in the same order", () => {
     const onEdit = vi.fn();
     const entry = { ...ENTRY, onEdit };
     render(
@@ -165,8 +165,11 @@ describe("PreviewToolbar (GL-UI-008)", () => {
         .map((button) => [button.getAttribute("aria-label"), button.dataset.variant]);
     const row = buttonsOf(screen.getByTestId("row-actions"));
     const toolbar = buttonsOf(screen.getByTestId("preview-actions"));
-    expect([...toolbar].sort()).toEqual([...row].sort());
-    expect(toolbar.at(-1)).toEqual(["Edit Home", "warn"]);
+    expect(toolbar).toEqual(row);
+    expect(toolbar.slice(-2)).toEqual([
+      ["Edit Home", "warn"],
+      ["Delete Home", "destructive"],
+    ]);
     fireEvent.click(within(screen.getByTestId("preview-actions")).getByTestId("row-edit"));
     expect(onEdit).toHaveBeenCalledOnce();
   });

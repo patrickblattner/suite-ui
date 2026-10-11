@@ -36,14 +36,15 @@ type PreviewToolbarProps = {
   children?: React.ReactNode;
 };
 
-// The selected entry's actions, far right: every other action, then edit last (`GL-UI-008`).
+// The selected entry's actions, far right, in the row's own order (`GL-UI-008` rev 5, `GL-UI-011`):
+// extra actions, then edit and delete.
 function PreviewActions({ className, ...set }: RowActionSet & { className?: string | undefined }) {
   const buttons = useRowActionButtons(set);
   return (
     <div className={cn("flex items-center gap-1", className)} data-testid="preview-actions">
       {buttons.extra}
-      {buttons.delete}
       {buttons.edit}
+      {buttons.delete}
     </div>
   );
 }
