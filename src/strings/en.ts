@@ -115,6 +115,7 @@ export const en = {
     device: "Device",
     desktop: "Desktop",
     mobile: "Mobile",
+    maximize: "Maximize preview",
   },
   nav: {
     label: "Primary navigation",

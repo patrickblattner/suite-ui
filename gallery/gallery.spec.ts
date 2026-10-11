@@ -3043,8 +3043,8 @@ test("inset framed: FilterBar and pager start on the table's left edge @scrollba
   }
 });
 
-// `GL-UI-008`: language · status · device in every state, the device far right, select and device
-// switch on one height, and no axe violations.
+// `GL-UI-008`: language · status · device + maximize · actions in every state, the actions far
+// right, select, device switch and maximize on one height, and no axe violations.
 test("preview toolbar: fixed order, one height, no axe violations", async ({ page }) => {
   await page.goto("/?page=preview&lng=en");
   const order = (state: string) =>
@@ -3052,24 +3052,38 @@ test("preview toolbar: fixed order, one height, no axe violations", async ({ pag
       .getByTestId(state)
       .getByTestId("preview-toolbar")
       .evaluate((el) => [...el.children].map((child) => child.getAttribute("data-testid")));
+  const right = ["preview-device", "preview-maximize", "preview-actions"];
   expect(await order("preview-full")).toEqual([
     "preview-language",
     "preview-status",
     null,
-    "preview-device",
+    ...right,
   ]);
-  expect(await order("preview-single-language")).toEqual(["preview-status", "preview-device"]);
-  expect(await order("preview-no-status")).toEqual(["preview-language", "preview-device"]);
-  expect(await order("preview-no-device")).toEqual(["preview-language", "preview-status"]);
+  expect(await order("preview-single-language")).toEqual(["preview-status", ...right]);
+  expect(await order("preview-no-status")).toEqual(["preview-language", ...right]);
+  expect(await order("preview-no-device")).toEqual([
+    "preview-language",
+    "preview-status",
+    "preview-maximize",
+    "preview-actions",
+  ]);
+  expect(await order("preview-no-selection")).toEqual([
+    "preview-language",
+    "preview-status",
+    "preview-device",
+    "preview-maximize",
+  ]);
   const full = page.getByTestId("preview-full");
   const toolbar = await box(full.getByTestId("preview-toolbar"));
-  const device = await box(full.getByTestId("preview-device"));
-  expect(device.x + device.width).toBeCloseTo(toolbar.x + toolbar.width, 0);
+  const actions = await box(full.getByTestId("preview-actions"));
+  expect(actions.x + actions.width).toBeCloseTo(toolbar.x + toolbar.width, 0);
   const heights = await Promise.all(
-    ["preview-language", "preview-device-desktop", "preview-device-mobile"].map(async (testId) => ({
-      testId,
-      box: await box(full.getByTestId(testId)),
-    })),
+    ["preview-language", "preview-device-desktop", "preview-device-mobile", "preview-maximize"].map(
+      async (testId) => ({
+        testId,
+        box: await box(full.getByTestId(testId)),
+      }),
+    ),
   );
   expect(controlHeightViolations(heights)).toEqual([]);
   await expect(full.getByTestId("preview-status")).toHaveCSS("cursor", "auto");
@@ -3077,4 +3091,46 @@ test("preview toolbar: fixed order, one height, no axe violations", async ({ pag
     .include("[data-testid=section-preview-toolbar]")
     .analyze();
   expect(violations.map((violation) => violation.id)).toEqual([]);
+});
+
+// `GL-UI-008` §Gerät heißt Gerät: in a narrow column Desktop is the desktop layout scaled down, never
+// reflowed; Mobile stands at true mobile width; maximize covers the content area at true size, and
+// the same button or `Esc` returns.
+test("preview frame: desktop scales, mobile at true width, maximize over the content area", async ({
+  page,
+}) => {
+  await page.goto("/?page=preview&lng=en");
+  const desktop = page.getByTestId("frame-desktop");
+  const viewport = await box(desktop.getByTestId("preview-frame-desktop-viewport"));
+  const scaled = await box(desktop.getByTestId("preview-frame-desktop-page"));
+  expect(scaled.width).toBeCloseTo(viewport.width, 0);
+  expect(scaled.height).toBeCloseTo(viewport.height, 0);
+  expect(
+    await desktop
+      .getByTestId("preview-frame-desktop-page")
+      .evaluate((el) => (el as HTMLElement).offsetWidth),
+  ).toBe(1280);
+  // Not reflowed: the three cards stand in one row.
+  const cards = await desktop
+    .getByTestId("sample-card")
+    .evaluateAll((els) => els.map((el) => el.getBoundingClientRect().top));
+  expect(new Set(cards).size).toBe(1);
+
+  const mobile = page.getByTestId("frame-mobile").getByTestId("preview-frame-mobile-page");
+  expect((await box(mobile)).width).toBeCloseTo(390, 0);
+
+  const maximize = desktop.getByTestId("preview-maximize");
+  const frame = desktop.getByTestId("preview-frame-desktop");
+  await maximize.click();
+  await expect(frame).toHaveAttribute("data-maximized", "true");
+  const area = page.viewportSize()!;
+  const covered = await box(frame);
+  expect(covered).toEqual({ x: 0, y: 0, width: area.width, height: area.height });
+  expect((await box(desktop.getByTestId("preview-frame-desktop-page"))).width).toBeCloseTo(1280, 0);
+  await page.keyboard.press("Escape");
+  await expect(frame).toHaveAttribute("data-maximized", "false");
+  await maximize.click();
+  await expect(frame).toHaveAttribute("data-maximized", "true");
+  await maximize.click();
+  await expect(frame).toHaveAttribute("data-maximized", "false");
 });

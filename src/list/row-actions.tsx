@@ -18,7 +18,8 @@ type RowAction = {
   "data-testid"?: string;
 };
 
-type RowActionsProps = {
+// The actions of one entry: what its table row and the preview toolbar (`GL-UI-008`) both show.
+type RowActionSet = {
   // The row's name, the object of every action's name.
   rowName: string;
   // Further actions, left of edit and delete.
@@ -31,7 +32,9 @@ type RowActionsProps = {
   // Set when the row gives the same `onDelete` to `useRowGrid`: the delete button shows Delete as its
   // shortcut chip (`GL-UI-006` §Sichtbarkeit).
   deleteShortcut?: boolean;
-} & Omit<React.ComponentProps<typeof TableCell>, "children">;
+};
+
+type RowActionsProps = RowActionSet & Omit<React.ComponentProps<typeof TableCell>, "children">;
 
 // Keys a row's keyboard handler reacts to as "open": they stay with the action.
 const ROW_KEYS = new Set(["Enter", " "]);
@@ -66,6 +69,54 @@ function RowActionButton({
   );
 }
 
+// The buttons of an entry's actions, each in its fixed variant (`GL-UI-011`): extra actions
+// `outline`, edit `warn`, delete `destructive`, all `icon-xs`. The caller places them.
+function useRowActionButtons({
+  rowName,
+  extra = [],
+  onEdit,
+  onDelete,
+  editDisabledText,
+  deleteDisabledText,
+  deleteShortcut = false,
+}: RowActionSet) {
+  const { t } = useTranslation("suite");
+  return {
+    extra: extra.map((action) => (
+      <RowActionButton key={action.label} action={action} rowName={rowName} variant="outline" />
+    )),
+    edit:
+      onEdit === undefined ? null : (
+        <RowActionButton
+          action={{
+            label: t("actions.edit"),
+            icon: PencilIcon,
+            onClick: onEdit,
+            ...(editDisabledText === undefined ? {} : { disabledText: editDisabledText }),
+            "data-testid": "row-edit",
+          }}
+          rowName={rowName}
+          variant="warn"
+        />
+      ),
+    delete:
+      onDelete === undefined ? null : (
+        <RowActionButton
+          action={{
+            label: t("actions.delete"),
+            icon: Trash2Icon,
+            onClick: onDelete,
+            ...(deleteDisabledText === undefined ? {} : { disabledText: deleteDisabledText }),
+            ...(deleteShortcut ? { shortcut: DELETE_SHORTCUT } : {}),
+            "data-testid": "row-delete",
+          }}
+          rowName={rowName}
+          variant="destructive"
+        />
+      ),
+  };
+}
+
 // The head of the actions column (`GL-UI-023`): "Actions", marked as the actions column.
 function RowActionsHead(props: Omit<React.ComponentProps<typeof TableHead>, "children">) {
   const { t } = useTranslation("suite");
@@ -82,15 +133,23 @@ function RowActionsHead(props: Omit<React.ComponentProps<typeof TableHead>, "chi
 // Enter or Space on an action.
 function RowActions({
   rowName,
-  extra = [],
+  extra,
   onEdit,
   onDelete,
   editDisabledText,
   deleteDisabledText,
-  deleteShortcut = false,
+  deleteShortcut,
   ...cellProps
 }: RowActionsProps) {
-  const { t } = useTranslation("suite");
+  const buttons = useRowActionButtons({
+    rowName,
+    extra,
+    onEdit,
+    onDelete,
+    editDisabledText,
+    deleteDisabledText,
+    deleteShortcut,
+  });
   return (
     <TableCell data-col-kind="actions" {...cellProps}>
       <div
@@ -102,39 +161,19 @@ function RowActions({
         }}
         data-slot="row-actions"
       >
-        {extra.map((action) => (
-          <RowActionButton key={action.label} action={action} rowName={rowName} variant="outline" />
-        ))}
-        {onEdit === undefined ? null : (
-          <RowActionButton
-            action={{
-              label: t("actions.edit"),
-              icon: PencilIcon,
-              onClick: onEdit,
-              ...(editDisabledText === undefined ? {} : { disabledText: editDisabledText }),
-              "data-testid": "row-edit",
-            }}
-            rowName={rowName}
-            variant="warn"
-          />
-        )}
-        {onDelete === undefined ? null : (
-          <RowActionButton
-            action={{
-              label: t("actions.delete"),
-              icon: Trash2Icon,
-              onClick: onDelete,
-              ...(deleteDisabledText === undefined ? {} : { disabledText: deleteDisabledText }),
-              ...(deleteShortcut ? { shortcut: DELETE_SHORTCUT } : {}),
-              "data-testid": "row-delete",
-            }}
-            rowName={rowName}
-            variant="destructive"
-          />
-        )}
+        {buttons.extra}
+        {buttons.edit}
+        {buttons.delete}
       </div>
     </TableCell>
   );
 }
 
-export { RowActions, RowActionsHead, type RowAction, type RowActionsProps };
+export {
+  RowActions,
+  RowActionsHead,
+  useRowActionButtons,
+  type RowAction,
+  type RowActionSet,
+  type RowActionsProps,
+};

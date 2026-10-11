@@ -1,10 +1,13 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import i18n from "i18next";
+import { CopyIcon } from "lucide-react";
 import { useState } from "react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { RowActions, type RowActionSet } from "../list/row-actions.js";
 import { type PreviewDevice, PreviewToolbar, type PreviewToolbarProps } from "./preview-toolbar.js";
 import type { StatusChipState } from "./status-chip.js";
+import { Table, TableBody, TableRow } from "./table.js";
 
 const LANGUAGES = [
   { value: "de", label: "Deutsch" },
@@ -17,14 +20,25 @@ const STATUS: Record<string, StatusChipState> = {
   en: "draft",
 };
 
-function Preview() {
+// The selected entry's actions, the same set its table row shows.
+const ENTRY: RowActionSet = {
+  rowName: "Home",
+  extra: [{ label: "Copy", icon: CopyIcon, onClick: () => {}, "data-testid": "row-copy" }],
+  onEdit: () => {},
+  onDelete: () => {},
+};
+
+function Preview({ selected = true }: { selected?: boolean }) {
   const [language, setLanguage] = useState("de");
   const [device, setDevice] = useState<PreviewDevice>("desktop");
+  const [maximized, setMaximized] = useState(false);
   return (
     <PreviewToolbar
       language={{ value: language, options: LANGUAGES, onChange: setLanguage }}
       status={STATUS[language]}
       device={{ value: device, onChange: setDevice }}
+      maximize={{ value: maximized, onChange: setMaximized }}
+      {...(selected ? { actions: ENTRY } : {})}
     >
       <span data-testid="preview-zoom">100 %</span>
     </PreviewToolbar>
@@ -38,6 +52,8 @@ const FULL: PreviewToolbarProps = {
   language: { value: "de", options: LANGUAGES, onChange: () => {} },
   status: "published",
   device: { value: "desktop", onChange: () => {} },
+  maximize: { value: false, onChange: () => {} },
+  actions: ENTRY,
 };
 
 describe("PreviewToolbar (GL-UI-008)", () => {
@@ -46,29 +62,116 @@ describe("PreviewToolbar (GL-UI-008)", () => {
     await i18n.changeLanguage("en");
   });
 
-  it("orders language · status · extra tools · device", () => {
+  it("orders language · status · extra tools · device · maximize · actions", () => {
     render(<Preview />);
     expect(order()).toEqual([
       "preview-language",
       "preview-status",
       "preview-zoom",
       "preview-device",
+      "preview-maximize",
+      "preview-actions",
     ]);
     expect(screen.getByTestId("preview-device")).toHaveClass("ml-auto");
   });
 
+  const RIGHT = ["preview-device", "preview-maximize", "preview-actions"];
   it.each([
-    ["language", { ...FULL, language: undefined }, ["preview-status", "preview-device"]],
+    ["language", { ...FULL, language: undefined }, ["preview-status", ...RIGHT]],
     [
       "language with a single option",
       { ...FULL, language: { ...FULL.language!, options: [LANGUAGES[0]!] } },
-      ["preview-status", "preview-device"],
+      ["preview-status", ...RIGHT],
     ],
-    ["status", { ...FULL, status: undefined }, ["preview-language", "preview-device"]],
-    ["device", { ...FULL, device: undefined }, ["preview-language", "preview-status"]],
+    ["status", { ...FULL, status: undefined }, ["preview-language", ...RIGHT]],
+    [
+      "device",
+      { ...FULL, device: undefined },
+      ["preview-language", "preview-status", "preview-maximize", "preview-actions"],
+    ],
+    [
+      "maximize",
+      { ...FULL, maximize: undefined },
+      ["preview-language", "preview-status", "preview-device", "preview-actions"],
+    ],
+    [
+      "actions",
+      { ...FULL, actions: undefined },
+      ["preview-language", "preview-status", "preview-device", "preview-maximize"],
+    ],
   ] as const)("without %s keeps the others in order", (_, props, expected) => {
     render(<PreviewToolbar {...props} />);
     expect(order()).toEqual(expected);
+  });
+
+  it.each([
+    ["device", { ...FULL, device: undefined }, "preview-maximize"],
+    ["device and maximize", { ...FULL, device: undefined, maximize: undefined }, "preview-actions"],
+  ] as const)("without %s the right group still stands right", (_, props, first) => {
+    render(<PreviewToolbar {...props} />);
+    expect(screen.getByTestId(first)).toHaveClass("ml-auto");
+  });
+
+  it("maximize toggles with the same button and leaves with Esc", () => {
+    render(<Preview />);
+    const button = screen.getByTestId("preview-maximize");
+    expect(button).toHaveAttribute("aria-pressed", "false");
+    expect(button).toHaveAccessibleName("Maximize preview");
+    fireEvent.click(button);
+    expect(button).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(button);
+    expect(button).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(button);
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(button).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("an Esc an inner layer takes first keeps the preview maximized", () => {
+    const onChange = vi.fn();
+    render(<PreviewToolbar {...FULL} maximize={{ value: true, onChange }} />);
+    const inner = (event: KeyboardEvent) => event.preventDefault();
+    document.addEventListener("keydown", inner, { capture: true });
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    document.removeEventListener("keydown", inner, { capture: true });
+    expect(onChange).not.toHaveBeenCalled();
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(onChange).toHaveBeenCalledWith(false);
+  });
+
+  it("without a selected entry the actions are absent", () => {
+    render(<Preview selected={false} />);
+    expect(screen.queryByTestId("preview-actions")).toBeNull();
+    expect(screen.queryByTestId("row-edit")).toBeNull();
+  });
+
+  it("shows the row's action set: the same buttons in the same order", () => {
+    const onEdit = vi.fn();
+    const entry = { ...ENTRY, onEdit };
+    render(
+      <>
+        <Table>
+          <TableBody>
+            <TableRow>
+              <RowActions {...entry} data-testid="row-actions" />
+            </TableRow>
+          </TableBody>
+        </Table>
+        <PreviewToolbar {...FULL} actions={entry} />
+      </>,
+    );
+    const buttonsOf = (root: HTMLElement) =>
+      within(root)
+        .getAllByRole("button")
+        .map((button) => [button.getAttribute("aria-label"), button.dataset.variant]);
+    const row = buttonsOf(screen.getByTestId("row-actions"));
+    const toolbar = buttonsOf(screen.getByTestId("preview-actions"));
+    expect(toolbar).toEqual(row);
+    expect(toolbar.slice(-2)).toEqual([
+      ["Edit Home", "warn"],
+      ["Delete Home", "destructive"],
+    ]);
+    fireEvent.click(within(screen.getByTestId("preview-actions")).getByTestId("row-edit"));
+    expect(onEdit).toHaveBeenCalledOnce();
   });
 
   it("uses the package Select for the language, never a button row", () => {
