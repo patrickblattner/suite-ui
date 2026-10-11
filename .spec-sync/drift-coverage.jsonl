@@ -168,3 +168,5 @@
 {"ts":"2026-10-10T19:00:21.717Z","key":"PROC-REL-012","from":19,"to":20,"disposition":"editorial","ref":"main-check movement-guard mechanics (no concurrency group on guard job, dispatch always judges); repo has no .github/workflows / main-check — no code impact"}
 {"ts":"2026-10-10T21:32:45.131Z","key":"SUI-FEATURE-049","from":4,"to":5,"disposition":"ticket","ref":"73"}
 {"ts":"2026-10-11T09:46:41.304Z","key":"GL-UI-007","from":null,"to":1,"disposition":"ticket","ref":"75"}
+{"ts":"2026-10-11T10:00:52.574Z","key":"GL-UI-007","from":1,"to":2,"disposition":"ticket","ref":"75"}
+{"ts":"2026-10-11T10:00:53.004Z","key":"GL-UI-027","from":11,"to":12,"disposition":"ticket","ref":"76"}
