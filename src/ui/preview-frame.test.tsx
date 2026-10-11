@@ -2,6 +2,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { SplitWorkspace } from "../list/split-workspace.js";
 import { PREVIEW_DEVICE_WIDTHS, PreviewFrame } from "./preview-frame.js";
 import { type PreviewDevice, PreviewToolbar } from "./preview-toolbar.js";
 
@@ -15,6 +16,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 const page = () => screen.getByTestId("preview-frame-page");
@@ -32,6 +34,7 @@ function Surface() {
         <PreviewToolbar
           device={{ value: device, onChange: setDevice }}
           maximize={{ value: maximized, onChange: setMaximized }}
+          onClose={() => {}}
         />
       }
     >
@@ -100,5 +103,101 @@ describe("PreviewFrame (GL-UI-008)", () => {
     expect(frame).toHaveAttribute("data-device", "mobile");
     expect(page()).toHaveStyle({ width: "390px" });
     expect(screen.getByText("Page")).toBe(content);
+  });
+
+  it("maximized, the frame moves to the body, so no transformed ancestor traps it; back inline after", () => {
+    render(
+      <div style={{ transform: "translateX(10px)" }} data-testid="transformed">
+        <Surface />
+      </div>,
+    );
+    const frame = screen.getByTestId("preview-frame");
+    const content = screen.getByText("Page");
+    expect(screen.getByTestId("transformed")).toContainElement(frame);
+    // The focused button opens its tooltip, whose popper measures with a ResizeObserver.
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    screen.getByTestId("preview-maximize").focus();
+    fireEvent.click(screen.getByTestId("preview-maximize"));
+    expect(screen.getByTestId("transformed")).not.toContainElement(frame);
+    expect(frame.parentElement?.parentElement).toBe(document.body);
+    expect(screen.getByText("Page")).toBe(content);
+    expect(screen.getByTestId("preview-maximize")).toHaveFocus();
+    fireEvent.click(screen.getByTestId("preview-maximize"));
+    expect(screen.getByTestId("transformed")).toContainElement(frame);
+    expect(screen.getByText("Page")).toBe(content);
+  });
+
+  it("innermost Esc first: maximized → Esc leaves maximize → Esc closes the preview", () => {
+    function Split() {
+      const [open, setOpen] = useState(true);
+      const [maximized, setMaximized] = useState(false);
+      return (
+        <SplitWorkspace
+          list={<p>List</p>}
+          preview={
+            <PreviewFrame
+              device="desktop"
+              maximized={maximized}
+              toolbar={
+                <PreviewToolbar
+                  maximize={{ value: maximized, onChange: setMaximized }}
+                  onClose={() => setOpen(false)}
+                />
+              }
+            >
+              <p>Page</p>
+            </PreviewFrame>
+          }
+          open={open}
+          onClose={() => setOpen(false)}
+          defaultStop="1/2"
+          minWidths={{ list: 0, preview: 0 }}
+          storageKey="split:esc"
+        />
+      );
+    }
+    render(<Split />);
+    fireEvent.click(screen.getByTestId("preview-maximize"));
+    expect(screen.getByTestId("preview-frame")).toHaveAttribute("data-maximized", "true");
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(screen.getByTestId("preview-frame")).toHaveAttribute("data-maximized", "false");
+    expect(screen.getByTestId("split-workspace")).toHaveAttribute("data-open", "true");
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(screen.getByTestId("split-workspace")).toHaveAttribute("data-open", "false");
+    expect(screen.queryByTestId("preview-frame")).toBeNull();
+  });
+
+  it("Close in the toolbar closes the split preview", () => {
+    function Split() {
+      const [open, setOpen] = useState(true);
+      return (
+        <SplitWorkspace
+          list={<p>List</p>}
+          preview={
+            <PreviewFrame
+              device="desktop"
+              toolbar={<PreviewToolbar onClose={() => setOpen(false)} />}
+            >
+              <p>Page</p>
+            </PreviewFrame>
+          }
+          open={open}
+          onClose={() => setOpen(false)}
+          defaultStop="1/2"
+          minWidths={{ list: 0, preview: 0 }}
+          storageKey="split:close"
+        />
+      );
+    }
+    render(<Split />);
+    fireEvent.click(screen.getByTestId("preview-close"));
+    expect(screen.getByTestId("split-workspace")).toHaveAttribute("data-open", "false");
   });
 });

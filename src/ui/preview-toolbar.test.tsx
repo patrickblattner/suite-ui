@@ -28,7 +28,13 @@ const ENTRY: RowActionSet = {
   onDelete: () => {},
 };
 
-function Preview({ selected = true }: { selected?: boolean }) {
+function Preview({
+  selected = true,
+  onClose = () => {},
+}: {
+  selected?: boolean;
+  onClose?: () => void;
+}) {
   const [language, setLanguage] = useState("de");
   const [device, setDevice] = useState<PreviewDevice>("desktop");
   const [maximized, setMaximized] = useState(false);
@@ -39,6 +45,7 @@ function Preview({ selected = true }: { selected?: boolean }) {
       device={{ value: device, onChange: setDevice }}
       maximize={{ value: maximized, onChange: setMaximized }}
       {...(selected ? { actions: ENTRY } : {})}
+      onClose={onClose}
     >
       <span data-testid="preview-zoom">100 %</span>
     </PreviewToolbar>
@@ -54,6 +61,7 @@ const FULL: PreviewToolbarProps = {
   device: { value: "desktop", onChange: () => {} },
   maximize: { value: false, onChange: () => {} },
   actions: ENTRY,
+  onClose: () => {},
 };
 
 describe("PreviewToolbar (GL-UI-008)", () => {
@@ -62,7 +70,7 @@ describe("PreviewToolbar (GL-UI-008)", () => {
     await i18n.changeLanguage("en");
   });
 
-  it("orders language · status · extra tools · device · maximize · actions", () => {
+  it("orders language · status · extra tools · device · maximize · actions · close", () => {
     render(<Preview />);
     expect(order()).toEqual([
       "preview-language",
@@ -71,11 +79,12 @@ describe("PreviewToolbar (GL-UI-008)", () => {
       "preview-device",
       "preview-maximize",
       "preview-actions",
+      "preview-close",
     ]);
     expect(screen.getByTestId("preview-device")).toHaveClass("ml-auto");
   });
 
-  const RIGHT = ["preview-device", "preview-maximize", "preview-actions"];
+  const RIGHT = ["preview-device", "preview-maximize", "preview-actions", "preview-close"];
   it.each([
     ["language", { ...FULL, language: undefined }, ["preview-status", ...RIGHT]],
     [
@@ -87,17 +96,23 @@ describe("PreviewToolbar (GL-UI-008)", () => {
     [
       "device",
       { ...FULL, device: undefined },
-      ["preview-language", "preview-status", "preview-maximize", "preview-actions"],
+      [
+        "preview-language",
+        "preview-status",
+        "preview-maximize",
+        "preview-actions",
+        "preview-close",
+      ],
     ],
     [
       "maximize",
       { ...FULL, maximize: undefined },
-      ["preview-language", "preview-status", "preview-device", "preview-actions"],
+      ["preview-language", "preview-status", "preview-device", "preview-actions", "preview-close"],
     ],
     [
       "actions",
       { ...FULL, actions: undefined },
-      ["preview-language", "preview-status", "preview-device", "preview-maximize"],
+      ["preview-language", "preview-status", "preview-device", "preview-maximize", "preview-close"],
     ],
   ] as const)("without %s keeps the others in order", (_, props, expected) => {
     render(<PreviewToolbar {...props} />);
@@ -107,9 +122,39 @@ describe("PreviewToolbar (GL-UI-008)", () => {
   it.each([
     ["device", { ...FULL, device: undefined }, "preview-maximize"],
     ["device and maximize", { ...FULL, device: undefined, maximize: undefined }, "preview-actions"],
+    [
+      "device, maximize and actions",
+      { ...FULL, device: undefined, maximize: undefined, actions: undefined },
+      "preview-close",
+    ],
   ] as const)("without %s the right group still stands right", (_, props, first) => {
     render(<PreviewToolbar {...props} />);
     expect(screen.getByTestId(first)).toHaveClass("ml-auto");
+  });
+
+  it("Close stands far right, labelled, and closes the preview", async () => {
+    const onClose = vi.fn();
+    render(<Preview selected={false} onClose={onClose} />);
+    const close = screen.getByTestId("preview-close");
+    expect(order().at(-1)).toBe("preview-close");
+    expect(close).toHaveAccessibleName("Close preview");
+    fireEvent.click(close);
+    expect(onClose).toHaveBeenCalledOnce();
+    cleanup();
+    await i18n.changeLanguage("de");
+    render(<Preview />);
+    expect(screen.getByTestId("preview-close")).toHaveAccessibleName("Vorschau schließen");
+  });
+
+  it("the actions stand at the toolbar's height, icon-sm, like maximize and close", () => {
+    render(<Preview />);
+    for (const button of [
+      ...screen.getByTestId("preview-actions").querySelectorAll("button"),
+      screen.getByTestId("preview-maximize"),
+      screen.getByTestId("preview-close"),
+    ]) {
+      expect(button).toHaveAttribute("data-size", "icon-sm");
+    }
   });
 
   it("maximize toggles with the same button and leaves with Esc", () => {

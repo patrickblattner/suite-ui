@@ -3053,7 +3053,7 @@ test("preview toolbar: fixed order, one height, no axe violations", async ({ pag
       .getByTestId(state)
       .getByTestId("preview-toolbar")
       .evaluate((el) => [...el.children].map((child) => child.getAttribute("data-testid")));
-  const right = ["preview-device", "preview-maximize", "preview-actions"];
+  const right = ["preview-device", "preview-maximize", "preview-actions", "preview-close"];
   expect(await order("preview-full")).toEqual([
     "preview-language",
     "preview-status",
@@ -3067,25 +3067,33 @@ test("preview toolbar: fixed order, one height, no axe violations", async ({ pag
     "preview-status",
     "preview-maximize",
     "preview-actions",
+    "preview-close",
   ]);
   expect(await order("preview-no-selection")).toEqual([
     "preview-language",
     "preview-status",
     "preview-device",
     "preview-maximize",
+    "preview-close",
   ]);
   const full = page.getByTestId("preview-full");
   const toolbar = await box(full.getByTestId("preview-toolbar"));
-  const actions = await box(full.getByTestId("preview-actions"));
-  expect(actions.x + actions.width).toBeCloseTo(toolbar.x + toolbar.width, 0);
-  const heights = await Promise.all(
-    ["preview-language", "preview-device-desktop", "preview-device-mobile", "preview-maximize"].map(
-      async (testId) => ({
-        testId,
-        box: await box(full.getByTestId(testId)),
-      }),
+  const close = await box(full.getByTestId("preview-close"));
+  expect(close.x + close.width).toBeCloseTo(toolbar.x + toolbar.width, 0);
+  // One height per row (`GL-UI-008` rev 6): the actions stand at `icon-sm` like the other controls.
+  const heights = await Promise.all([
+    ...[
+      "preview-language",
+      "preview-device-desktop",
+      "preview-device-mobile",
+      "preview-maximize",
+      "preview-close",
+    ].map(async (testId) => ({ testId, box: await box(full.getByTestId(testId)) })),
+    ...(await full.getByTestId("preview-actions").locator("button").all()).map(
+      async (button, index) => ({ testId: `preview-action-${index}`, box: await box(button) }),
     ),
-  );
+  ]);
+  expect(heights).toHaveLength(8);
   expect(controlHeightViolations(heights)).toEqual([]);
   await expect(full.getByTestId("preview-status")).toHaveCSS("cursor", "auto");
   const { violations } = await new AxeBuilder({ page })
@@ -3120,14 +3128,17 @@ test("preview frame: desktop scales, mobile at true width, maximize over the con
   const mobile = page.getByTestId("frame-mobile").getByTestId("preview-frame-mobile-page");
   expect((await box(mobile)).width).toBeCloseTo(390, 0);
 
-  const maximize = desktop.getByTestId("preview-maximize");
-  const frame = desktop.getByTestId("preview-frame-desktop");
+  // The demo column sits in a transformed ancestor; maximized, the frame leaves it for the body.
+  expect(await desktop.evaluate((el) => getComputedStyle(el).transform)).not.toBe("none");
+  const frame = page.getByTestId("preview-frame-desktop");
+  const maximize = frame.getByTestId("preview-maximize");
   await maximize.click();
   await expect(frame).toHaveAttribute("data-maximized", "true");
   const area = page.viewportSize()!;
   const covered = await box(frame);
   expect(covered).toEqual({ x: 0, y: 0, width: area.width, height: area.height });
-  expect((await box(desktop.getByTestId("preview-frame-desktop-page"))).width).toBeCloseTo(1280, 0);
+  expect((await box(frame.getByTestId("preview-frame-desktop-page"))).width).toBeCloseTo(1280, 0);
+  expect(await desktop.getByTestId("preview-frame-desktop").count()).toBe(0);
   await page.keyboard.press("Escape");
   await expect(frame).toHaveAttribute("data-maximized", "false");
   await maximize.click();
@@ -3277,4 +3288,31 @@ test("sticky actions: beside a preview the actions column never sticks", async (
   await expect(scroller).not.toHaveAttribute("data-actions-stuck");
   await expect(page.getByTestId("split-table-actions").first()).toHaveCSS("position", "static");
   await expect(page.getByRole("columnheader", { name: "Actions" })).toHaveCSS("position", "static");
+});
+
+// `GL-UI-008` rev 6 with `GL-UI-009`: beside the list the preview's Close (✕) and `Esc` close it; the
+// innermost `Esc` comes first — maximized, one `Esc` leaves the maximized view, the next closes the
+// preview.
+test("split preview: maximize → Esc → Esc, then Close", async ({ page }) => {
+  await page.goto("/?page=split&lng=en");
+  const workspace = page.getByTestId("split-table");
+  const frame = page.getByTestId("split-table-frame");
+  await frame.getByTestId("preview-maximize").click();
+  await expect(frame).toHaveAttribute("data-maximized", "true");
+  const area = page.viewportSize()!;
+  expect(await box(frame)).toEqual({ x: 0, y: 0, width: area.width, height: area.height });
+  await page.mouse.move(0, 0);
+  await page.keyboard.press("Escape");
+  // The maximize button may hold focus with its tooltip open: that tooltip is the innermost layer.
+  if ((await page.getByRole("tooltip").count()) > 0) await page.keyboard.press("Escape");
+  await expect(frame).toHaveAttribute("data-maximized", "false");
+  await expect(workspace).toHaveAttribute("data-open", "true");
+  await page.keyboard.press("Escape");
+  await expect(workspace).toHaveAttribute("data-open", "false");
+
+  await workspace.getByRole("cell", { name: "About", exact: true }).click();
+  await expect(workspace).toHaveAttribute("data-open", "true");
+  await expect(frame.getByTestId("preview-close")).toHaveAccessibleName("Close preview");
+  await frame.getByTestId("preview-close").click();
+  await expect(workspace).toHaveAttribute("data-open", "false");
 });

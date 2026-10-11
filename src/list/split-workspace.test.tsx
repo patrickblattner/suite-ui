@@ -100,10 +100,11 @@ describe("SplitWorkspace (GL-UI-009)", () => {
   it("Esc closes back to the full list, unless an inner layer took it first", () => {
     render(<Surface />);
     fireEvent.click(screen.getByRole("button", { name: "Home" }));
+    // An inner layer (a select, a dialog) takes `Esc` in the capture phase and prevents its default.
     const inner = (event: KeyboardEvent) => event.preventDefault();
-    document.addEventListener("keydown", inner);
+    document.addEventListener("keydown", inner, { capture: true });
     fireEvent.keyDown(document.body, { key: "Escape" });
-    document.removeEventListener("keydown", inner);
+    document.removeEventListener("keydown", inner, { capture: true });
     expect(screen.getByTestId("split-workspace-preview")).toBeInTheDocument();
     fireEvent.keyDown(document.body, { key: "Escape" });
     expect(screen.queryByTestId("split-workspace-preview")).toBeNull();
