@@ -180,8 +180,6 @@ export const es: SuiteStrings = {
     screenshotPending: "Captura pendiente",
   },
   version: {
-    label: "Información de versión",
-    hint: "Muestra la versión, el commit y la compilación de esta instancia.",
     title: "Versión",
     version: "Versión",
     noRelease: "Sin versión publicada (compilación sin etiqueta)",
