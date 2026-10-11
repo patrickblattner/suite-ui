@@ -3043,8 +3043,8 @@ test("inset framed: FilterBar and pager start on the table's left edge @scrollba
   }
 });
 
-// `GL-UI-008`: language · status · device in every state, the device far right, select and device
-// switch on one height, and no axe violations.
+// `GL-UI-008`: language · status · device + maximize · actions in every state, the actions far
+// right, select, device switch and maximize on one height, and no axe violations.
 test("preview toolbar: fixed order, one height, no axe violations", async ({ page }) => {
   await page.goto("/?page=preview&lng=en");
   const order = (state: string) =>
@@ -3052,24 +3052,38 @@ test("preview toolbar: fixed order, one height, no axe violations", async ({ pag
       .getByTestId(state)
       .getByTestId("preview-toolbar")
       .evaluate((el) => [...el.children].map((child) => child.getAttribute("data-testid")));
+  const right = ["preview-device", "preview-maximize", "preview-actions"];
   expect(await order("preview-full")).toEqual([
     "preview-language",
     "preview-status",
     null,
-    "preview-device",
+    ...right,
   ]);
-  expect(await order("preview-single-language")).toEqual(["preview-status", "preview-device"]);
-  expect(await order("preview-no-status")).toEqual(["preview-language", "preview-device"]);
-  expect(await order("preview-no-device")).toEqual(["preview-language", "preview-status"]);
+  expect(await order("preview-single-language")).toEqual(["preview-status", ...right]);
+  expect(await order("preview-no-status")).toEqual(["preview-language", ...right]);
+  expect(await order("preview-no-device")).toEqual([
+    "preview-language",
+    "preview-status",
+    "preview-maximize",
+    "preview-actions",
+  ]);
+  expect(await order("preview-no-selection")).toEqual([
+    "preview-language",
+    "preview-status",
+    "preview-device",
+    "preview-maximize",
+  ]);
   const full = page.getByTestId("preview-full");
   const toolbar = await box(full.getByTestId("preview-toolbar"));
-  const device = await box(full.getByTestId("preview-device"));
-  expect(device.x + device.width).toBeCloseTo(toolbar.x + toolbar.width, 0);
+  const actions = await box(full.getByTestId("preview-actions"));
+  expect(actions.x + actions.width).toBeCloseTo(toolbar.x + toolbar.width, 0);
   const heights = await Promise.all(
-    ["preview-language", "preview-device-desktop", "preview-device-mobile"].map(async (testId) => ({
-      testId,
-      box: await box(full.getByTestId(testId)),
-    })),
+    ["preview-language", "preview-device-desktop", "preview-device-mobile", "preview-maximize"].map(
+      async (testId) => ({
+        testId,
+        box: await box(full.getByTestId(testId)),
+      }),
+    ),
   );
   expect(controlHeightViolations(heights)).toEqual([]);
   await expect(full.getByTestId("preview-status")).toHaveCSS("cursor", "auto");
