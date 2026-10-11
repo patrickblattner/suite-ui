@@ -3193,3 +3193,88 @@ test("split workspace: snap stops, Esc closes, single column, no axe violations"
     .analyze();
   expect(violations.map((violation) => violation.id)).toEqual([]);
 });
+
+// `GL-UI-023` §Aktions-Spalte, sticky only when needed: a table that fits its frame keeps the actions
+// column an ordinary last column, without a shadow.
+test("sticky actions: a fitting table leaves the actions column in place @scrollbars", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 2560, height: 900 });
+  await page.goto("/?page=list&tableActions=sticky");
+  const scroller = page.getByTestId("data-table-scroll");
+  await expect(page.getByTestId("list-actions").first()).toBeVisible();
+  expect(await scroller.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+  await expect(scroller).not.toHaveAttribute("data-actions-stuck");
+  for (const cell of [
+    page.getByTestId("list-actions-head"),
+    page.getByTestId("list-actions").first(),
+  ]) {
+    await expect(cell).toHaveCSS("position", "static");
+    await expect(cell).toHaveCSS("box-shadow", "none");
+  }
+});
+
+// Overflowing, the actions column sticks with a shadow on its left edge while content lies under it;
+// scrolled fully right the shadow is gone. Hovered or selected, its cell shows the row's background,
+// opaque over the cells scrolling under it.
+test("sticky actions: overflow sticks with an edge shadow, the cell follows the row @scrollbars", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1100, height: 900 });
+  await page.goto("/?page=list&tableActions=sticky");
+  const scroller = page.getByTestId("data-table-scroll");
+  const cell = page.getByTestId("list-actions").first();
+  await expect(cell).toBeVisible();
+  await expect(scroller).toHaveAttribute("data-actions-stuck", "");
+  await expect(scroller).toHaveAttribute("data-actions-shadow", "");
+  await expect(cell).toHaveCSS("position", "sticky");
+  expect(await cell.evaluate((el) => getComputedStyle(el).boxShadow)).toContain(
+    "-8px 0px 8px -8px",
+  );
+
+  // Hover the first row while cells scroll under the actions column: the action cell's ground (its
+  // top padding) shows the same colour as the row 40 px further left, clear of the edge shadow.
+  await scroller.evaluate((el) => el.scrollTo(200, 0));
+  const row = page.getByTestId("list-row").first();
+  const first = row.locator("td").first();
+  const probe = async () => {
+    const b = await box(cell);
+    const y = Math.round(b.y + 2);
+    return [
+      await pixelAt(page, Math.round(b.x - 40), y),
+      await pixelAt(page, Math.round(b.x + 2), y),
+    ];
+  };
+  const [plainFirst, plainActions] = await probe();
+  expect(plainActions).toEqual(plainFirst);
+  // The row fades its colour in (`transition-colors`): wait until both probes settle on it.
+  const follows = async () => {
+    const [row, actions] = await probe();
+    return (
+      JSON.stringify(row) !== JSON.stringify(plainFirst) &&
+      JSON.stringify(actions) === JSON.stringify(row)
+    );
+  };
+  await first.hover();
+  await expect.poll(follows).toBe(true);
+  await page.mouse.move(0, 0);
+  await row.evaluate((el) => el.setAttribute("data-state", "selected"));
+  await expect.poll(follows).toBe(true);
+
+  await scroller.evaluate((el) => el.scrollTo(el.scrollWidth, 0));
+  await expect(scroller).not.toHaveAttribute("data-actions-shadow");
+  await expect(cell).toHaveCSS("position", "sticky");
+  expect(await cell.evaluate((el) => getComputedStyle(el).boxShadow)).not.toContain("-8px 0px 8px");
+});
+
+// §Neben einer Vorschau nie fixiert: beside a preview the overflowing table keeps its actions column
+// as an ordinary last column, reached by scrolling sideways.
+test("sticky actions: beside a preview the actions column never sticks", async ({ page }) => {
+  await page.goto("/?page=split&lng=en&tableActions=sticky");
+  const scroller = page.getByTestId("split-table-scroll");
+  await expect(page.getByTestId("split-table-actions").first()).toBeAttached();
+  expect(await scroller.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
+  await expect(scroller).not.toHaveAttribute("data-actions-stuck");
+  await expect(page.getByTestId("split-table-actions").first()).toHaveCSS("position", "static");
+  await expect(page.getByRole("columnheader", { name: "Actions" })).toHaveCSS("position", "static");
+});
