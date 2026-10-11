@@ -1,5 +1,6 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import i18n from "i18next";
+import type { ComponentType, ReactNode } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { Code } from "./code.js";
@@ -57,15 +58,37 @@ describe("StatusChip", () => {
     expect(screen.getByTestId("chip")).toHaveAttribute("data-variant", tone);
   });
 
-  it("lets children replace the text, the tone stays", () => {
-    render(
-      <StatusChip state="succeeded" data-testid="chip">
-        Succeeded · 09.10.2026
-      </StatusChip>,
-    );
+  it("appends the detail after the package text, the tone stays", () => {
+    render(<StatusChip state="succeeded" detail="09.10.2026" data-testid="chip" />);
     const chip = screen.getByTestId("chip");
     expect(chip).toHaveTextContent(/^Succeeded · 09\.10\.2026$/);
     expect(chip).toHaveAttribute("data-variant", "success-soft");
+  });
+
+  it("an empty detail adds nothing", () => {
+    render(<StatusChip state="failed" detail="" data-testid="chip" />);
+    expect(screen.getByTestId("chip")).toHaveTextContent(/^Failed$/);
+  });
+
+  it("children never replace the package text", () => {
+    // A caller bypassing the type.
+    const Chip = StatusChip as unknown as ComponentType<{
+      state: StatusChipState;
+      "data-testid": string;
+      children: ReactNode;
+    }>;
+    render(
+      <Chip state="failed" data-testid="chip">
+        All good
+      </Chip>,
+    );
+    expect(screen.getByTestId("chip")).toHaveTextContent(/^Failed$/);
+  });
+
+  it("speaks the detail after the text in each language", async () => {
+    await i18n.changeLanguage("de");
+    render(<StatusChip state="succeeded" detail="09.10.2026" data-testid="chip" />);
+    expect(screen.getByTestId("chip")).toHaveTextContent(/^Erfolgreich · 09\.10\.2026$/);
   });
 
   it.each([

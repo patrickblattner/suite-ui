@@ -14,7 +14,7 @@ type SecretCardHeaderProps = {
   testIdPrefix: string;
   // "Active" as a Switch; a change takes effect at once, without Save.
   active?: { checked: boolean; onCheckedChange: (checked: boolean) => void };
-  // The result of the last connection test; the app sets a `StatusChip` with its date.
+  // The result of the last connection test; the app sets a `StatusChip` with its date as `detail`.
   testChip?: React.ReactNode;
   // The state of the secret; the app sets a `StatusChip`.
   stateChip?: React.ReactNode;

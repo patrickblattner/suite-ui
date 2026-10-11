@@ -121,10 +121,10 @@ function PreviewToolbar({
         </Select>
       ) : null}
       {status !== undefined ? (
-        <StatusChip state={status} emphasis="filled" data-testid="preview-status">
+        <span className="flex items-center" data-testid="preview-status">
           <span className="sr-only">{t("preview.status")}: </span>
-          {t(`state.${status}`)}
-        </StatusChip>
+          <StatusChip state={status} emphasis="filled" data-testid="preview-status-chip" />
+        </span>
       ) : null}
       {children}
       {device !== undefined ? (
