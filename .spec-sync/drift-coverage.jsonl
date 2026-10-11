@@ -182,3 +182,5 @@
 {"ts":"2026-10-11T12:21:56.579Z","key":"GL-UI-008","from":2,"to":3,"disposition":"ticket","ref":"81"}
 {"ts":"2026-10-11T12:21:57.024Z","key":"GL-UI-009","from":1,"to":2,"disposition":"ticket","ref":"82"}
 {"ts":"2026-10-11T12:21:57.495Z","key":"GL-UI-023","from":6,"to":7,"disposition":"ticket","ref":"83"}
+{"ts":"2026-10-11T12:27:35.183Z","key":"GL-UI-008","from":3,"to":4,"disposition":"ticket","ref":"81"}
+{"ts":"2026-10-11T12:27:35.617Z","key":"GL-UI-009","from":2,"to":3,"disposition":"ticket","ref":"82"}
