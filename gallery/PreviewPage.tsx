@@ -2,6 +2,7 @@ import { CopyIcon } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { PreviewFrame } from "../src/ui/preview-frame.js";
 import { type PreviewDevice, PreviewToolbar } from "../src/ui/preview-toolbar.js";
 import { Section } from "./ComponentsPage.js";
 
@@ -62,6 +63,48 @@ function Toolbar({
   );
 }
 
+// An app's page as the preview content: three 360 px cards that stand in one row only at desktop
+// width, so a reflowed page would show at once.
+function SamplePage() {
+  return (
+    <div className="flex flex-wrap gap-4 bg-muted p-6" data-testid="sample-page">
+      {["One", "Two", "Three"].map((name) => (
+        <div
+          key={name}
+          className="h-24 w-[360px] rounded-md border bg-background p-4"
+          data-testid="sample-card"
+        >
+          {name}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// `GL-UI-008` §Gerät heißt Gerät: a frame in a narrow column, with its toolbar driving device and
+// maximize.
+function Frame({ initial }: { initial: PreviewDevice }) {
+  const [device, setDevice] = useState<PreviewDevice>(initial);
+  const [maximized, setMaximized] = useState(false);
+  return (
+    <div className="w-[480px] rounded-md border p-2" data-testid={`frame-${initial}`}>
+      <PreviewFrame
+        device={device}
+        maximized={maximized}
+        toolbar={
+          <PreviewToolbar
+            device={{ value: device, onChange: setDevice }}
+            maximize={{ value: maximized, onChange: setMaximized }}
+          />
+        }
+        data-testid={`preview-frame-${initial}`}
+      >
+        <SamplePage />
+      </PreviewFrame>
+    </div>
+  );
+}
+
 // `GL-UI-008`: the preview toolbar full, with a single language, without status, without device and
 // without a selected entry.
 export function PreviewPage() {
@@ -81,6 +124,11 @@ export function PreviewPage() {
       </div>
       <div data-testid="preview-no-selection">
         <Toolbar languages={CONTENT_LANGUAGES} selected={false} />
+      </div>
+      <h3 className="mt-6 mb-2 text-sm font-medium">PreviewFrame</h3>
+      <div className="flex flex-wrap items-start gap-4">
+        <Frame initial="desktop" />
+        <Frame initial="mobile" />
       </div>
     </Section>
   );

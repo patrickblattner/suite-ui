@@ -3092,3 +3092,45 @@ test("preview toolbar: fixed order, one height, no axe violations", async ({ pag
     .analyze();
   expect(violations.map((violation) => violation.id)).toEqual([]);
 });
+
+// `GL-UI-008` §Gerät heißt Gerät: in a narrow column Desktop is the desktop layout scaled down, never
+// reflowed; Mobile stands at true mobile width; maximize covers the content area at true size, and
+// the same button or `Esc` returns.
+test("preview frame: desktop scales, mobile at true width, maximize over the content area", async ({
+  page,
+}) => {
+  await page.goto("/?page=preview&lng=en");
+  const desktop = page.getByTestId("frame-desktop");
+  const viewport = await box(desktop.getByTestId("preview-frame-desktop-viewport"));
+  const scaled = await box(desktop.getByTestId("preview-frame-desktop-page"));
+  expect(scaled.width).toBeCloseTo(viewport.width, 0);
+  expect(scaled.height).toBeCloseTo(viewport.height, 0);
+  expect(
+    await desktop
+      .getByTestId("preview-frame-desktop-page")
+      .evaluate((el) => (el as HTMLElement).offsetWidth),
+  ).toBe(1280);
+  // Not reflowed: the three cards stand in one row.
+  const cards = await desktop
+    .getByTestId("sample-card")
+    .evaluateAll((els) => els.map((el) => el.getBoundingClientRect().top));
+  expect(new Set(cards).size).toBe(1);
+
+  const mobile = page.getByTestId("frame-mobile").getByTestId("preview-frame-mobile-page");
+  expect((await box(mobile)).width).toBeCloseTo(390, 0);
+
+  const maximize = desktop.getByTestId("preview-maximize");
+  const frame = desktop.getByTestId("preview-frame-desktop");
+  await maximize.click();
+  await expect(frame).toHaveAttribute("data-maximized", "true");
+  const area = page.viewportSize()!;
+  const covered = await box(frame);
+  expect(covered).toEqual({ x: 0, y: 0, width: area.width, height: area.height });
+  expect((await box(desktop.getByTestId("preview-frame-desktop-page"))).width).toBeCloseTo(1280, 0);
+  await page.keyboard.press("Escape");
+  await expect(frame).toHaveAttribute("data-maximized", "false");
+  await maximize.click();
+  await expect(frame).toHaveAttribute("data-maximized", "true");
+  await maximize.click();
+  await expect(frame).toHaveAttribute("data-maximized", "false");
+});

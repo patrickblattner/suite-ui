@@ -27,8 +27,8 @@ type PreviewToolbarProps = {
   // The app picks the state only; tone and text come from the package (`GL-UI-011`).
   status?: StatusChipState;
   device?: { value: PreviewDevice; onChange: (value: PreviewDevice) => void };
-  // Whether the app shows the preview over the whole content area, in the chosen device at true
-  // size. The toolbar holds the toggle and `Esc`; the app renders the maximized preview.
+  // Whether the preview stands over the whole content area, in the chosen device at true size. The
+  // toolbar holds the toggle and `Esc`; `PreviewFrame` renders the maximized view.
   maximize?: { value: boolean; onChange: (value: boolean) => void };
   // The actions of the selected entry, the same set as its table row; absent without a selection.
   actions?: RowActionSet;
