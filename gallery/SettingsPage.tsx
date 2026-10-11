@@ -9,13 +9,13 @@ import { SettingsField } from "../src/settings/settings-field.js";
 import { SettingsScaffold } from "../src/settings/settings-scaffold.js";
 import { SettingsSection } from "../src/settings/settings-section.js";
 import { SettingsToggleField } from "../src/settings/settings-toggle-field.js";
-import { Badge } from "../src/ui/badge.js";
 import { Button } from "../src/ui/button.js";
 import { Card, CardContent, CardHeader, CardTitle } from "../src/ui/card.js";
 import { Checkbox } from "../src/ui/checkbox.js";
 import { Input } from "../src/ui/input.js";
 import { Label } from "../src/ui/label.js";
 import { RadioGroup, RadioGroupItem } from "../src/ui/radio-group.js";
+import { StatusChip } from "../src/ui/status-chip.js";
 import { Switch } from "../src/ui/switch.js";
 import { TabsContent, TabsList, TabsTrigger } from "../src/ui/tabs.js";
 
@@ -317,15 +317,9 @@ function SecretBlock({ labels }: { labels: (typeof LABELS)[keyof typeof LABELS] 
           testIdPrefix="secret"
           active={{ checked: active, onCheckedChange: setActive }}
           testChip={
-            <Badge variant="outline" data-testid="secret-test-chip">
-              {labels.status}
-            </Badge>
+            <StatusChip state="succeeded" detail="09.10.2026" data-testid="secret-test-chip" />
           }
-          stateChip={
-            <Badge variant="outline" data-testid="secret-state-chip">
-              OK
-            </Badge>
-          }
+          stateChip={<StatusChip state="set" data-testid="secret-state-chip" />}
           replace={{ onReplace: () => {} }}
           remove={{ onRemove: () => {}, disabledText: labels.subtitle }}
           test={{ onTest: () => {} }}

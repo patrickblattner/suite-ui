@@ -185,22 +185,24 @@ describe("PreviewToolbar (GL-UI-008)", () => {
     Element.prototype.scrollIntoView = () => {};
     render(<Preview />);
     expect(screen.getByTestId("preview-status")).toHaveTextContent("Published");
-    expect(screen.getByTestId("preview-status")).toHaveAttribute("data-variant", "success");
+    expect(screen.getByTestId("preview-status-chip")).toHaveAttribute("data-variant", "success");
     fireEvent.keyDown(screen.getByTestId("preview-language"), { key: "Enter" });
     fireEvent.click(screen.getByRole("option", { name: "English" }));
     expect(screen.getByTestId("preview-status")).toHaveTextContent("Draft");
-    expect(screen.getByTestId("preview-status")).toHaveAttribute("data-variant", "secondary");
+    expect(screen.getByTestId("preview-status-chip")).toHaveAttribute("data-variant", "secondary");
   });
 
   it("the status chip is a display: not focusable, no button, no pointer, no hover", () => {
     render(<Preview />);
-    const chip = screen.getByTestId("preview-status");
+    const chip = screen.getByTestId("preview-status-chip");
     expect(chip.tagName).toBe("SPAN");
     expect(chip).not.toHaveAttribute("tabindex");
     expect(chip).not.toHaveAttribute("role");
     // Only an `a` badge would hover (`[a&]:hover:`); a span never does.
     expect(chip.className).not.toMatch(/(^|\s)(cursor-pointer|hover:)/);
-    expect(chip).toHaveTextContent("Status: Published");
+    expect(chip).toHaveTextContent(/^Published$/);
+    // Screen readers hear the name before the chip.
+    expect(screen.getByTestId("preview-status")).toHaveTextContent("Status: Published");
   });
 
   it("the device switch is a labelled radio group driven by the arrow keys", () => {
