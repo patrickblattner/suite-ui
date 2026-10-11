@@ -117,7 +117,8 @@ export const de: SuiteStrings = {
     list: "Liste",
     preview: "Vorschau",
     divider: "Breite von Liste und Vorschau ändern",
-    dividerHint: "Ziehen oder ←/→ ändert die Aufteilung; Doppelklick oder Enter stellt den Standard wieder her.",
+    dividerHint:
+      "Ziehen oder ←/→ ändert die Aufteilung; Doppelklick oder Enter stellt den Standard wieder her.",
   },
   nav: {
     label: "Hauptnavigation",
