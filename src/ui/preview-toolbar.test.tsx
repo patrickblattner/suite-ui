@@ -12,9 +12,9 @@ const LANGUAGES = [
 ];
 
 // The app's data: each language has its own publication status.
-const STATUS: Record<string, { state: StatusChipState; label: string }> = {
-  de: { state: "active", label: "Published" },
-  en: { state: "notSet", label: "Draft" },
+const STATUS: Record<string, StatusChipState> = {
+  de: "published",
+  en: "draft",
 };
 
 function Preview() {
@@ -36,7 +36,7 @@ const order = () =>
 
 const FULL: PreviewToolbarProps = {
   language: { value: "de", options: LANGUAGES, onChange: () => {} },
-  status: { state: "active", label: "Published" },
+  status: "published",
   device: { value: "desktop", onChange: () => {} },
 };
 

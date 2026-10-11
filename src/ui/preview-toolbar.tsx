@@ -21,8 +21,8 @@ type PreviewToolbarProps = {
     onChange: (value: string) => void;
   };
   // The publication status of the chosen language; the app supplies it anew on each language change.
-  // `label` replaces the state's own text (e.g. "Published").
-  status?: { state: StatusChipState; label?: string };
+  // The app picks the state only; tone and text come from the package (`GL-UI-011`).
+  status?: StatusChipState;
   device?: { value: PreviewDevice; onChange: (value: PreviewDevice) => void };
   // Further preview tools (e.g. zoom), between status and device. Never actions such as Publish.
   children?: React.ReactNode;
@@ -72,9 +72,9 @@ function PreviewToolbar({ language, status, device, children }: PreviewToolbarPr
         </Select>
       ) : null}
       {status !== undefined ? (
-        <StatusChip state={status.state} emphasis="filled" data-testid="preview-status">
+        <StatusChip state={status} emphasis="filled" data-testid="preview-status">
           <span className="sr-only">{t("preview.status")}: </span>
-          {status.label ?? t(`state.${status.state}`)}
+          {t(`state.${status}`)}
         </StatusChip>
       ) : null}
       {children}

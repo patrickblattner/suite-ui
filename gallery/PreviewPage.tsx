@@ -4,11 +4,11 @@ import { useTranslation } from "react-i18next";
 import { type PreviewDevice, PreviewToolbar } from "../src/ui/preview-toolbar.js";
 import { Section } from "./ComponentsPage.js";
 
-// App-side data: the publication status of each content language comes from the app.
+// App-side labels: the zoom readout comes from the app; the status picks a package state.
 const LABELS = {
-  en: { published: "Published", draft: "Draft", zoom: "Zoom 100 %" },
-  de: { published: "Veröffentlicht", draft: "Entwurf", zoom: "Zoom 100 %" },
-  es: { published: "Publicado", draft: "Borrador", zoom: "Zoom 100 %" },
+  en: { zoom: "Zoom 100 %" },
+  de: { zoom: "Zoom 100 %" },
+  es: { zoom: "Zoom 100 %" },
 } as const;
 
 const CONTENT_LANGUAGES = ["de", "en", "es"] as const;
@@ -37,13 +37,7 @@ function Toolbar({
           options: languages.map((lng) => ({ value: lng, label: t(`language.${lng}`) })),
           onChange: setLanguage,
         }}
-        status={
-          status
-            ? language === "es"
-              ? { state: "notSet", label: labels.draft }
-              : { state: "active", label: labels.published }
-            : undefined
-        }
+        status={status ? (language === "es" ? "draft" : "published") : undefined}
         device={device ? { value: view, onChange: setView } : undefined}
       >
         {zoom ? <span className="text-sm text-muted-foreground">{labels.zoom}</span> : null}

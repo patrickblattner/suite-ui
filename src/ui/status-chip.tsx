@@ -11,18 +11,23 @@ const STATE_TONES = {
   ok: "success",
   connected: "success",
   active: "success",
+  published: "success",
   failed: "destructive",
   error: "destructive",
   failing: "destructive",
   untested: "warn",
   unconfigured: "warn",
   expiring: "warn",
+  unpublishedChanges: "warn",
   running: "info",
   inProgress: "info",
+  scheduled: "info",
   set: "neutral",
   notSet: "neutral",
   notTestable: "neutral",
   unknown: "neutral",
+  draft: "neutral",
+  notPublished: "neutral",
 } as const satisfies Record<string, Tone>;
 
 type StatusChipState = keyof typeof STATE_TONES;
