@@ -110,6 +110,7 @@ export const de: SuiteStrings = {
     device: "Gerät",
     desktop: "Desktop",
     mobile: "Mobil",
+    maximize: "Vorschau maximieren",
   },
   nav: {
     label: "Hauptnavigation",

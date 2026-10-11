@@ -1,10 +1,13 @@
-import { MonitorIcon, SmartphoneIcon } from "lucide-react";
-import type * as React from "react";
+import { Maximize2Icon, Minimize2Icon, MonitorIcon, SmartphoneIcon } from "lucide-react";
+import * as React from "react";
 import { useTranslation } from "react-i18next";
 
+import { cn } from "../lib/cn.js";
+import { type RowActionSet, useRowActionButtons } from "../list/row-actions.js";
 import { Button } from "./button.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select.js";
 import { StatusChip, type StatusChipState } from "./status-chip.js";
+import { IconButtonTooltip } from "./tooltip.js";
 
 type PreviewDevice = "desktop" | "mobile";
 
@@ -24,15 +27,60 @@ type PreviewToolbarProps = {
   // The app picks the state only; tone and text come from the package (`GL-UI-011`).
   status?: StatusChipState;
   device?: { value: PreviewDevice; onChange: (value: PreviewDevice) => void };
+  // Whether the app shows the preview over the whole content area, in the chosen device at true
+  // size. The toolbar holds the toggle and `Esc`; the app renders the maximized preview.
+  maximize?: { value: boolean; onChange: (value: boolean) => void };
+  // The actions of the selected entry, the same set as its table row; absent without a selection.
+  actions?: RowActionSet;
   // Further preview tools (e.g. zoom), between status and device. Never actions such as Publish.
   children?: React.ReactNode;
 };
 
-// The toolbar over every live preview (`GL-UI-008`): language · status · device, always in that
-// order. A missing element is left out, the others keep their order and the device stays far right.
-// The status chip is a display, not a control. The device switch is a radio group like `ViewToggle`.
-function PreviewToolbar({ language, status, device, children }: PreviewToolbarProps) {
+// The selected entry's actions, far right: every other action, then edit last (`GL-UI-008`).
+function PreviewActions({ className, ...set }: RowActionSet & { className?: string | undefined }) {
+  const buttons = useRowActionButtons(set);
+  return (
+    <div className={cn("flex items-center gap-1", className)} data-testid="preview-actions">
+      {buttons.extra}
+      {buttons.delete}
+      {buttons.edit}
+    </div>
+  );
+}
+
+// The toolbar over every live preview (`GL-UI-008`): language · status · device + maximize ·
+// actions, always in that order. A missing element is left out, the others keep their order and the
+// right group (device, maximize, actions) stays right. The status chip is a display, not a control.
+// The device switch is a radio group like `ViewToggle`.
+function PreviewToolbar({
+  language,
+  status,
+  device,
+  maximize,
+  actions,
+  children,
+}: PreviewToolbarProps) {
   const { t } = useTranslation("suite");
+  // `Esc` leaves the maximized view, unless an inner layer (select, menu, dialog) or an editor took
+  // it first (`GL-UI-007`: innermost `Esc` first).
+  const maximized = maximize?.value === true;
+  const leave = React.useRef(maximize?.onChange);
+  React.useEffect(() => {
+    leave.current = maximize?.onChange;
+  });
+  React.useEffect(() => {
+    if (!maximized) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      event.preventDefault();
+      leave.current?.(false);
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [maximized]);
+  // The first element of the right group pushes it right.
+  const rightStart =
+    device !== undefined ? "device" : maximize !== undefined ? "maximize" : "actions";
   const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (device === undefined) return;
     const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key];
@@ -82,7 +130,7 @@ function PreviewToolbar({ language, status, device, children }: PreviewToolbarPr
         <div
           role="radiogroup"
           aria-label={t("preview.device")}
-          className="ml-auto flex items-center gap-1"
+          className={cn("flex items-center gap-1", rightStart === "device" && "ml-auto")}
           onKeyDown={onKeyDown}
           data-testid="preview-device"
         >
@@ -103,6 +151,27 @@ function PreviewToolbar({ language, status, device, children }: PreviewToolbarPr
             </Button>
           ))}
         </div>
+      ) : null}
+      {maximize !== undefined ? (
+        <IconButtonTooltip label={t("preview.maximize")}>
+          <Button
+            variant="outline"
+            size="icon-sm"
+            aria-pressed={maximize.value}
+            className={cn(rightStart === "maximize" && "ml-auto")}
+            onClick={() => maximize.onChange(!maximize.value)}
+            data-testid="preview-maximize"
+          >
+            {maximize.value ? (
+              <Minimize2Icon aria-hidden="true" />
+            ) : (
+              <Maximize2Icon aria-hidden="true" />
+            )}
+          </Button>
+        </IconButtonTooltip>
+      ) : null}
+      {actions !== undefined ? (
+        <PreviewActions {...actions} className={cn(rightStart === "actions" && "ml-auto")} />
       ) : null}
     </div>
   );
