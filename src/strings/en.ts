@@ -102,6 +102,15 @@ export const en = {
     table: "Table",
     tiles: "Tiles",
   },
+  // The toolbar over a live preview (`PreviewToolbar`).
+  preview: {
+    label: "Preview",
+    language: "Language",
+    status: "Status",
+    device: "Device",
+    desktop: "Desktop",
+    mobile: "Mobile",
+  },
   nav: {
     label: "Primary navigation",
     toggleSidebar: "Toggle sidebar",

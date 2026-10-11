@@ -98,6 +98,14 @@ export const es: SuiteStrings = {
     table: "Tabla",
     tiles: "Mosaico",
   },
+  preview: {
+    label: "Vista previa",
+    language: "Idioma",
+    status: "Estado",
+    device: "Dispositivo",
+    desktop: "Escritorio",
+    mobile: "Móvil",
+  },
   nav: {
     label: "Navegación principal",
     toggleSidebar: "Mostrar u ocultar la barra lateral",

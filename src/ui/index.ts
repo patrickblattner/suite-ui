@@ -18,6 +18,7 @@ export * from "./label-with-help.js";
 export * from "./leave-guard.js";
 export * from "./operation-status.js";
 export * from "./popover.js";
+export * from "./preview-toolbar.js";
 export * from "./radio-group.js";
 export * from "./restore-defaults-button.js";
 export * from "./select.js";

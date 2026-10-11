@@ -28,6 +28,7 @@ const PAGES: [name: string, ready: (page: Page) => Locator][] = [
   ["sheet", (page) => page.getByTestId("sheet")],
   ["help", (page) => page.getByTestId("help-version")],
   ["toast", (page) => page.getByText("Success")],
+  ["preview", (page) => page.getByTestId("preview-no-device")],
 ];
 
 for (const lng of LANGUAGES) {
@@ -3040,4 +3041,40 @@ test("inset framed: FilterBar and pager start on the table's left edge @scrollba
   for (const part of [bar, pager]) {
     expect(Math.abs(part.x - table.x)).toBeLessThanOrEqual(1);
   }
+});
+
+// `GL-UI-008`: language · status · device in every state, the device far right, select and device
+// switch on one height, and no axe violations.
+test("preview toolbar: fixed order, one height, no axe violations", async ({ page }) => {
+  await page.goto("/?page=preview&lng=en");
+  const order = (state: string) =>
+    page
+      .getByTestId(state)
+      .getByTestId("preview-toolbar")
+      .evaluate((el) => [...el.children].map((child) => child.getAttribute("data-testid")));
+  expect(await order("preview-full")).toEqual([
+    "preview-language",
+    "preview-status",
+    null,
+    "preview-device",
+  ]);
+  expect(await order("preview-single-language")).toEqual(["preview-status", "preview-device"]);
+  expect(await order("preview-no-status")).toEqual(["preview-language", "preview-device"]);
+  expect(await order("preview-no-device")).toEqual(["preview-language", "preview-status"]);
+  const full = page.getByTestId("preview-full");
+  const toolbar = await box(full.getByTestId("preview-toolbar"));
+  const device = await box(full.getByTestId("preview-device"));
+  expect(device.x + device.width).toBeCloseTo(toolbar.x + toolbar.width, 0);
+  const heights = await Promise.all(
+    ["preview-language", "preview-device-desktop", "preview-device-mobile"].map(async (testId) => ({
+      testId,
+      box: await box(full.getByTestId(testId)),
+    })),
+  );
+  expect(controlHeightViolations(heights)).toEqual([]);
+  await expect(full.getByTestId("preview-status")).toHaveCSS("cursor", "auto");
+  const { violations } = await new AxeBuilder({ page })
+    .include("[data-testid=section-preview-toolbar]")
+    .analyze();
+  expect(violations.map((violation) => violation.id)).toEqual([]);
 });
