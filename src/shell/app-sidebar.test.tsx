@@ -1,10 +1,12 @@
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { CalendarIcon, FileTextIcon, ListIcon, NewspaperIcon } from "lucide-react";
-import { afterEach, describe, expect, it } from "vitest";
+import i18n from "i18next";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { configureSuiteUi } from "../config/index.js";
 import { AppSidebar } from "./app-sidebar.js";
 import type { NavModel } from "./nav.js";
+import type { VersionInfo } from "./version-line.js";
 import { ShellHarness, TEST_NAV } from "./test-utils.js";
 
 function renderSidebar(
@@ -88,21 +90,16 @@ describe("AppSidebar", () => {
     expect(screen.queryByTestId("nav-settings-general")).not.toBeInTheDocument();
   });
 
-  it("shows a counter and the lower entries in order: sections, Help, Version info", () => {
+  it("shows a counter and the lower entries in order: sections, Help; no Version info nav point", () => {
     renderSidebar("/dashboard");
     expect(screen.getByTestId("nav-ideas-count")).toHaveTextContent("3");
     const lower = screen.getByTestId("nav-lower");
     const ids = [...lower.querySelectorAll("[data-testid]")].map((el) =>
       el.getAttribute("data-testid"),
     );
-    expect(ids).toEqual([
-      "nav-section-admin",
-      "nav-section-settings",
-      "help-button",
-      "version-button",
-    ]);
+    expect(ids).toEqual(["nav-section-admin", "nav-section-settings", "help-button"]);
     expect(screen.getByTestId("help-button")).toHaveTextContent("Help");
-    expect(screen.getByTestId("version-button")).toHaveTextContent("Version info");
+    expect(screen.getByTestId("app-sidebar")).not.toHaveTextContent("Version info");
   });
 
   it("a counter carries the app's label and test id, expanded and collapsed", () => {
@@ -237,5 +234,96 @@ describe("AppSidebar", () => {
       expect(footer).toHaveClass("px-0");
       fireEvent.click(screen.getByTestId("sidebar-trigger"));
     });
+  });
+});
+
+describe("AppSidebar version line", () => {
+  function renderVersion(info: VersionInfo | null | undefined) {
+    return render(
+      <ShellHarness route="/dashboard">
+        <AppSidebar
+          instanceName="Test instance"
+          nav={TEST_NAV}
+          isAllowed={() => true}
+          version={{ info }}
+          userMenu={<div data-testid="user-block" />}
+        />
+      </ShellHarness>,
+    );
+  }
+
+  afterEach(async () => {
+    await i18n.changeLanguage("en");
+    vi.unstubAllGlobals();
+  });
+
+  it("sits directly above the user block, outside the nav lists", () => {
+    renderVersion({ version: "1.2.3", commit: "abc1234", buildDate: "2026-10-01" });
+    const line = screen.getByTestId("version-line");
+    expect(line).toHaveTextContent(/^1\.2\.3$/);
+    expect(line.closest("ul")).toBeNull();
+    expect(line.parentElement?.nextElementSibling).toContainElement(
+      screen.getByTestId("user-block"),
+    );
+  });
+
+  it("without a release shows the short commit; a dev string passes through unchanged", () => {
+    const { unmount } = renderVersion({
+      version: null,
+      commit: "a1b2c3d",
+      buildDate: "2026-10-01",
+    });
+    expect(screen.getByTestId("version-line")).toHaveTextContent(/^a1b2c3d$/);
+    unmount();
+    renderVersion({ version: "v0.4.2+12 · a1b2c3d*", commit: "a1b2c3d", buildDate: "2026-10-01" });
+    expect(screen.getByTestId("version-line")).toHaveTextContent(/^v0\.4\.2\+12 · a1b2c3d\*$/);
+  });
+
+  it("an unreadable state shows unknown / unbekannt, never a placeholder; loading shows nothing", async () => {
+    const { unmount } = renderVersion(null);
+    expect(screen.getByTestId("version-line")).toHaveTextContent(/^unknown$/);
+    unmount();
+    await i18n.changeLanguage("de");
+    const second = renderVersion({ version: null, commit: "", buildDate: "" });
+    expect(screen.getByTestId("version-line")).toHaveTextContent(/^unbekannt$/);
+    second.unmount();
+    renderVersion(undefined);
+    expect(screen.getByTestId("version-line")).toBeEmptyDOMElement();
+  });
+
+  it("one line in the smallest text step, muted, never wrapped or truncated", () => {
+    renderVersion({ version: "1.2.3", commit: "abc1234", buildDate: "2026-10-01" });
+    const line = screen.getByTestId("version-line");
+    expect(line).toHaveClass("text-xs", "text-muted-foreground", "whitespace-nowrap");
+    expect(line).not.toHaveClass("truncate");
+  });
+
+  it("keyboard focus shows version, commit and build date as tooltip", async () => {
+    // jsdom has no ResizeObserver; the open tooltip's popper measures its arrow with one.
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    renderVersion({ version: null, commit: "abc1234", buildDate: "2026-10-01" });
+    const line = screen.getByTestId("version-line");
+    act(() => line.focus());
+    expect(line).toHaveFocus();
+    const tooltip = await screen.findByTestId("version-tooltip");
+    expect(tooltip).toHaveTextContent("No release (untagged build)");
+    expect(tooltip).toHaveTextContent("abc1234");
+    expect(tooltip).toHaveTextContent("2026-10-01");
+  });
+
+  it("collapsed, the line is not rendered", () => {
+    renderVersion({ version: "1.2.3", commit: "abc1234", buildDate: "2026-10-01" });
+    fireEvent.click(screen.getByTestId("sidebar-trigger"));
+    expect(screen.getByTestId("app-sidebar")).toHaveAttribute("data-state", "collapsed");
+    expect(screen.queryByTestId("version-line")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("sidebar-trigger"));
+    expect(screen.getByTestId("version-line")).toBeInTheDocument();
   });
 });

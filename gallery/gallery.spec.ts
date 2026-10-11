@@ -1222,8 +1222,8 @@ for (const lng of LANGUAGES) {
     await page.getByTestId("user-menu-trigger").click();
     await check();
     await page.keyboard.press("Escape");
-    await page.getByTestId("version-button").click();
-    await expect(page.getByTestId("version-popover")).toBeVisible();
+    await page.getByTestId("version-line").focus();
+    await expect(page.getByTestId("version-tooltip")).toBeVisible();
     await check();
     await page.keyboard.press("Escape");
     await page.getByTestId("nav-section-settings").click();
@@ -1269,6 +1269,46 @@ test("shell: ‹ Settings leads to the dashboard and restores the primary nav", 
   await expect(page.getByTestId("nav-dashboard")).toHaveAttribute("aria-current", "page");
   await expect(page.getByTestId("page-title")).toHaveText("Dashboard");
 });
+
+// `GL-UI-020` §Versionszeile / §Abnahme: one line, flush with the nav text, directly above the
+// separator to the user block; gone while collapsed.
+for (const lng of LANGUAGES) {
+  test(`shell: the version line is one line, flush with the nav text, above the separator ${lng}`, async ({
+    page,
+  }) => {
+    await page.goto(`/?page=shell&route=/dashboard&lng=${lng}`);
+    const geometry = await page.getByTestId("app-sidebar").evaluate((sidebar) => {
+      const line = sidebar.querySelector<HTMLElement>("[data-testid=version-line]")!;
+      const label = sidebar.querySelector("[data-testid=nav-dashboard] span.truncate")!;
+      const footer = sidebar
+        .querySelector("[data-testid=user-menu-trigger]")!
+        .closest("nav > div")!;
+      const box = line.getBoundingClientRect();
+      return {
+        text: line.textContent,
+        lineLeft: box.left,
+        labelLeft: label.getBoundingClientRect().left,
+        height: box.height,
+        lineHeight: parseFloat(getComputedStyle(line).lineHeight),
+        clipped: line.scrollWidth > line.clientWidth,
+        gap: footer.getBoundingClientRect().top - box.bottom,
+        separator: getComputedStyle(footer).borderTopWidth,
+      };
+    });
+    expect(geometry.text).toBe("0.6.0");
+    expect(geometry.lineLeft).toBeCloseTo(geometry.labelLeft, 0);
+    expect(geometry.height).toBeCloseTo(geometry.lineHeight, 0);
+    expect(geometry.clipped).toBe(false);
+    expect(geometry.separator).toBe("1px");
+    expect(geometry.gap).toBeGreaterThanOrEqual(0);
+    expect(geometry.gap).toBeLessThanOrEqual(8);
+    await page.getByTestId("version-line").hover();
+    await expect(page.getByTestId("version-tooltip")).toContainText("a1b2c3d");
+    await page.getByTestId("sidebar-trigger").click();
+    await expect(page.getByTestId("app-sidebar")).toHaveAttribute("data-state", "collapsed");
+    await expect(page.getByTestId("version-line")).toHaveCount(0);
+  });
+}
 
 test("shell: user menu order, the app entry before Log out", async ({ page }) => {
   await page.goto("/?page=shell");
