@@ -187,6 +187,11 @@ export const es: SuiteStrings = {
     cancelDisabledHint: "Cerrar vuelve a ser posible en cuanto termine la eliminación.",
     confirmHint: "Borra definitivamente; no se puede deshacer.",
   },
+  leaveGuard: {
+    title: "¿Guardar los cambios?",
+    description: "Esta entrada tiene cambios que aún no se han guardado.",
+    discard: "Descartar",
+  },
   settings: {
     active: "Activo",
     saveHint: "Guarda los cambios de esta página.",

@@ -188,6 +188,11 @@ export const de: SuiteStrings = {
     cancelDisabledHint: "Schließen geht wieder, sobald das Löschen abgeschlossen ist.",
     confirmHint: "Löscht endgültig; das lässt sich nicht rückgängig machen.",
   },
+  leaveGuard: {
+    title: "Änderungen speichern?",
+    description: "Dieser Eintrag hat Änderungen, die noch nicht gespeichert sind.",
+    discard: "Verwerfen",
+  },
   settings: {
     active: "Aktiv",
     saveHint: "Speichert die Änderungen auf dieser Seite.",

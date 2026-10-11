@@ -7,6 +7,7 @@ import { cn } from "../lib/cn.js";
 import { useOptionalSidebar } from "../shell/sidebar-provider.js";
 import { Button } from "./button.js";
 import { FIELD_SELECTOR } from "./dialog.js";
+import { useLeaveConfirm } from "./leave-guard.js";
 import { Sheet, SheetDescription, SheetTitle } from "./sheet.js";
 import { IconButtonTooltip } from "./tooltip.js";
 
@@ -27,7 +28,12 @@ type EditPanelProps = {
   children: React.ReactNode;
   // Without `onSubmit` the panel only shows a record: the footer carries Close alone.
   submitLabel?: string;
-  onSubmit?: () => void;
+  // Returning `true` (or a promise of it) reports a successful save: Save in the leave dialog then
+  // carries out the held leave (Back, Previous/Next, a route change). Otherwise the call site closes
+  // the panel on success as for a plain submit.
+  onSubmit?: () => unknown;
+  // Unsaved changes against the loaded state (`GL-UI-007`): every way out asks "Save changes?" first.
+  dirty?: boolean;
   // The primary action is running (`GL-UI-027`): working state and lock on the primary action,
   // Cancel locked with it, and the panel ignores every close request until the caller closes it.
   busy?: boolean;
@@ -60,6 +66,7 @@ function EditPanel({
   children,
   submitLabel,
   onSubmit,
+  dirty = false,
   busy = false,
   submitDisabled = false,
   onBack,
@@ -73,6 +80,25 @@ function EditPanel({
   const { t } = useTranslation("suite");
   const sidebar = useOptionalSidebar();
   const returnFocus = React.useRef<HTMLElement | null>(null);
+  const { guard, dialog } = useLeaveConfirm({
+    dirty: open && dirty,
+    busy: open && busy,
+    onSave: () => (submitDisabled ? false : onSubmit?.()),
+  });
+  // The `Esc` the panel gets as the top-most layer: an open select, menu, tooltip or dialog takes it
+  // first. It leaves only once it has bubbled to the document, so an editor's own `Esc` meaning
+  // (stopping its propagation) keeps the panel open.
+  const escape = React.useRef<KeyboardEvent | null>(null);
+  React.useEffect(() => {
+    if (!open) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event !== escape.current) return;
+      escape.current = null;
+      guard(() => onOpenChange(false));
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [open, guard, onOpenChange]);
 
   const left =
     sidebar === null
@@ -100,7 +126,8 @@ function EditPanel({
       modal={false}
       onOpenChange={(next) => {
         if (busy) return;
-        onOpenChange(next);
+        if (next) onOpenChange(next);
+        else guard(() => onOpenChange(false));
       }}
     >
       <SheetPrimitive.Portal>
@@ -129,6 +156,10 @@ function EditPanel({
             returnFocus.current = null;
           }}
           onInteractOutside={(event) => event.preventDefault()}
+          onEscapeKeyDown={(event) => {
+            event.preventDefault();
+            escape.current = event;
+          }}
         >
           <div
             data-slot="edit-panel-header"
@@ -146,7 +177,7 @@ function EditPanel({
                     aria-disabled={pager.previousDisabled === true || undefined}
                     className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
                     onClick={() => {
-                      if (pager.previousDisabled !== true) pager.onPrevious();
+                      if (pager.previousDisabled !== true) guard(pager.onPrevious);
                     }}
                     data-testid={`${testIdPrefix}-previous`}
                   >
@@ -161,7 +192,7 @@ function EditPanel({
                     aria-disabled={pager.nextDisabled === true || undefined}
                     className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
                     onClick={() => {
-                      if (pager.nextDisabled !== true) pager.onNext();
+                      if (pager.nextDisabled !== true) guard(pager.onNext);
                     }}
                     data-testid={`${testIdPrefix}-next`}
                   >
@@ -188,7 +219,7 @@ function EditPanel({
             onSubmit={(event) => {
               event.preventDefault();
               if (busy || submitDisabled) return;
-              onSubmit?.();
+              void onSubmit?.();
             }}
           >
             <div
@@ -208,7 +239,7 @@ function EditPanel({
                   size="default"
                   className="mr-auto"
                   disabled={busy || backDisabled}
-                  onClick={onBack}
+                  onClick={() => guard(onBack)}
                   data-testid={`${testIdPrefix}-back`}
                 >
                   {t("actions.back")}
@@ -219,7 +250,7 @@ function EditPanel({
                 variant="outline"
                 size="default"
                 disabled={busy}
-                onClick={() => onOpenChange(false)}
+                onClick={() => guard(() => onOpenChange(false))}
                 data-testid={`${testIdPrefix}-cancel`}
               >
                 {onSubmit === undefined ? t("actions.close") : t("actions.cancel")}
@@ -241,6 +272,7 @@ function EditPanel({
           </form>
         </SheetPrimitive.Content>
       </SheetPrimitive.Portal>
+      {dialog}
     </Sheet>
   );
 }

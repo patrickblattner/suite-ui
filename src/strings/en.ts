@@ -193,6 +193,11 @@ export const en = {
     cancelDisabledHint: "Closing becomes possible again once the deletion has finished.",
     confirmHint: "Deletes for good; this cannot be undone.",
   },
+  leaveGuard: {
+    title: "Save changes?",
+    description: "This entry has changes that are not saved yet.",
+    discard: "Discard",
+  },
   settings: {
     active: "Active",
     saveHint: "Saves the changes on this page.",
