@@ -25,6 +25,7 @@ import {
 import { PreviewPage } from "./PreviewPage.js";
 import { SettingsPage } from "./SettingsPage.js";
 import { registerShellLabels, ShellPage } from "./ShellPage.js";
+import { SplitPage } from "./SplitPage.js";
 import { TilesPage } from "./TilesPage.js";
 import { TokensPage } from "./TokensPage.js";
 
@@ -50,6 +51,7 @@ const PAGES = [
   "help",
   "toast",
   "preview",
+  "split",
 ] as const;
 type Page = (typeof PAGES)[number];
 
@@ -98,6 +100,7 @@ const PAGE_CONTENT: Record<Exclude<Page, "strings">, (theme: Theme) => ReactNode
   help: () => <HelpPage />,
   toast: (theme) => <ToastPage theme={theme} />,
   preview: () => <PreviewPage />,
+  split: () => <SplitPage />,
 };
 
 function keysOf(tree: object, prefix = ""): string[] {

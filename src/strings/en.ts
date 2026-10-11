@@ -117,6 +117,13 @@ export const en = {
     mobile: "Mobile",
     maximize: "Maximize preview",
   },
+  // The split workspace list | preview (`SplitWorkspace`).
+  split: {
+    view: "View",
+    list: "List",
+    preview: "Preview",
+    divider: "Resize list and preview",
+  },
   nav: {
     label: "Primary navigation",
     toggleSidebar: "Toggle sidebar",

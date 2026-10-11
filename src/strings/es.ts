@@ -112,6 +112,12 @@ export const es: SuiteStrings = {
     mobile: "Móvil",
     maximize: "Maximizar vista previa",
   },
+  split: {
+    view: "Vista",
+    list: "Lista",
+    preview: "Vista previa",
+    divider: "Cambiar el ancho de la lista y la vista previa",
+  },
   nav: {
     label: "Navegación principal",
     toggleSidebar: "Mostrar u ocultar la barra lateral",
