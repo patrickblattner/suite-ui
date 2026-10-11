@@ -29,6 +29,7 @@ const PAGES: [name: string, ready: (page: Page) => Locator][] = [
   ["help", (page) => page.getByTestId("help-version")],
   ["toast", (page) => page.getByText("Success")],
   ["preview", (page) => page.getByTestId("preview-no-device")],
+  ["split", (page) => page.getByTestId("split-single-toggle")],
 ];
 
 for (const lng of LANGUAGES) {
@@ -3133,4 +3134,62 @@ test("preview frame: desktop scales, mobile at true width, maximize over the con
   await expect(frame).toHaveAttribute("data-maximized", "true");
   await maximize.click();
   await expect(frame).toHaveAttribute("data-maximized", "false");
+});
+
+// `GL-UI-009`: the divider snaps to the package stops when dragged and with ←/→, Enter restores the
+// default, `Esc` closes back to the full list, a narrow surface shows one column with a toggle, and no axe violations.
+test("split workspace: snap stops, Esc closes, single column, no axe violations", async ({
+  page,
+}) => {
+  await page.goto("/?page=split&lng=en");
+  const surface = page.getByTestId("split-two-fifths");
+  const list = await box(surface.getByTestId("split-two-fifths-list"));
+  const whole = await box(surface);
+  expect(list.width / whole.width).toBeCloseTo(0.4, 2);
+  expect(await box(page.getByTestId("split-closed-list"))).toMatchObject({
+    width: (await box(page.getByTestId("split-closed"))).width,
+  });
+
+  const divider = surface.getByTestId("split-two-fifths-divider");
+  const handle = await box(divider);
+  await page.mouse.move(handle.x, handle.y + 20);
+  await page.mouse.down();
+  await page.mouse.move(whole.x + whole.width * 0.64, handle.y + 20, { steps: 4 });
+  await page.mouse.up();
+  await expect(surface).toHaveAttribute("data-stop", "2/3");
+  await divider.focus();
+  await page.keyboard.press("ArrowLeft");
+  await expect(surface).toHaveAttribute("data-stop", "3/5");
+  await page.keyboard.press("Enter");
+  await expect(surface).toHaveAttribute("data-stop", "2/5");
+  // The drag's pointer closed the tooltip, so this `Esc` reaches the workspace.
+  await expect(page.getByTestId("split-two-fifths-divider-hint")).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(surface).toHaveAttribute("data-open", "false");
+  await expect(surface.getByTestId("split-two-fifths-preview")).toHaveCount(0);
+
+  // The tooltip names the reset; open, it takes the first `Esc` (innermost first).
+  const other = page.getByTestId("split-three-fifths");
+  await other.getByTestId("split-three-fifths-divider").hover();
+  await expect(page.getByTestId("split-three-fifths-divider-hint").first()).toContainText(
+    "double-click or Enter restores the default",
+  );
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("split-three-fifths-divider-hint")).toHaveCount(0);
+  await expect(other).toHaveAttribute("data-open", "true");
+  await page.mouse.move(0, 0);
+
+  const single = page.getByTestId("split-single");
+  await expect(single).toHaveAttribute("data-stop", "single");
+  await expect(single.getByRole("radio", { name: "Preview" })).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
+  await single.getByRole("radio", { name: "List" }).click();
+  await expect(single.getByTestId("split-single-list")).toBeVisible();
+
+  const { violations } = await new AxeBuilder({ page })
+    .include("[data-testid=section-split-workspace]")
+    .analyze();
+  expect(violations.map((violation) => violation.id)).toEqual([]);
 });

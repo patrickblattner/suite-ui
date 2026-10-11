@@ -10,6 +10,7 @@ export * from "./page-header.js";
 export * from "./page-scroll.js";
 export * from "./row-actions.js";
 export * from "./sort-select.js";
+export * from "./split-workspace.js";
 export * from "./table-pagination.js";
 export * from "./tile-grid-shell.js";
 export * from "./use-row-grid.js";

@@ -112,6 +112,14 @@ export const de: SuiteStrings = {
     mobile: "Mobil",
     maximize: "Vorschau maximieren",
   },
+  split: {
+    view: "Ansicht",
+    list: "Liste",
+    preview: "Vorschau",
+    divider: "Breite von Liste und Vorschau ändern",
+    dividerHint:
+      "Ziehen oder ←/→ ändert die Aufteilung; Doppelklick oder Enter stellt den Standard wieder her.",
+  },
   nav: {
     label: "Hauptnavigation",
     toggleSidebar: "Seitenleiste ein-/ausklappen",
