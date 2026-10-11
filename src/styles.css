@@ -65,6 +65,8 @@
   --destructive: oklch(0.577 0.245 27.3);
   --destructive-foreground: oklch(0.985 0 0);
   --border: oklch(0.92 0.004 286.3);
+  /* The edge shadow of the sticky action column (`GL-UI-023`). */
+  --shadow-edge: oklch(0 0 0 / 20%);
   --input: oklch(0.92 0.004 286.3);
   /* The focus ring at full opacity, at least 3:1 against `--background` and `--card` (`GL-UI-013`). */
   --ring: oklch(0.6 0.015 286.1);
@@ -159,6 +161,7 @@
   --destructive: oklch(0.58 0.191 22.2);
   --destructive-foreground: oklch(0.985 0 0);
   --border: oklch(1 0 0 / 12%);
+  --shadow-edge: oklch(0 0 0 / 60%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.552 0.016 285.9);
 
@@ -260,6 +263,7 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-shadow-edge: var(--shadow-edge);
 
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);

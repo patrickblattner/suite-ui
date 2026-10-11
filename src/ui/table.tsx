@@ -35,7 +35,7 @@ const HEAD_CLASS = {
   // header's rule, so the cell draws the same inset line itself, and while content lies under it
   // (`data-actions-shadow`) a shadow on its left edge (`GL-UI-023`).
   sticky:
-    "h-10 px-3 text-left align-middle font-medium whitespace-nowrap text-foreground [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px] data-[col-kind=actions]:in-data-actions-shadow:[--actions-edge:-8px_0_8px_-8px_rgb(0_0_0/0.2)] data-[col-kind=actions]:in-data-actions-stuck:sticky data-[col-kind=actions]:in-data-actions-stuck:right-0 data-[col-kind=actions]:in-data-actions-stuck:bg-background data-[col-kind=actions]:in-data-actions-stuck:shadow-[inset_0_-1px_0_0_var(--border),var(--actions-edge,0_0_#0000)]",
+    "h-10 px-3 text-left align-middle font-medium whitespace-nowrap text-foreground [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px] data-[col-kind=actions]:in-data-actions-shadow:[--actions-edge:-8px_0_8px_-8px_var(--shadow-edge)] data-[col-kind=actions]:in-data-actions-stuck:sticky data-[col-kind=actions]:in-data-actions-stuck:right-0 data-[col-kind=actions]:in-data-actions-stuck:bg-background data-[col-kind=actions]:in-data-actions-stuck:shadow-[inset_0_-1px_0_0_var(--border),var(--actions-edge,0_0_#0000)]",
 } as const;
 
 const CELL_CLASS = {
@@ -45,7 +45,7 @@ const CELL_CLASS = {
   // scrolling under it, and over it the row's own background (`::after`, inherited through the cell)
   // repeats hover, selection or zebra — never a dark bar.
   sticky:
-    "px-3 py-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px] data-[col-kind=actions]:in-data-actions-shadow:[--actions-edge:-8px_0_8px_-8px_rgb(0_0_0/0.2)] data-[col-kind=actions]:in-data-actions-stuck:sticky data-[col-kind=actions]:in-data-actions-stuck:right-0 data-[col-kind=actions]:in-data-actions-stuck:bg-inherit data-[col-kind=actions]:in-data-actions-stuck:shadow-[var(--actions-edge,0_0_#0000)] data-[col-kind=actions]:in-data-actions-stuck:before:absolute data-[col-kind=actions]:in-data-actions-stuck:before:inset-0 data-[col-kind=actions]:in-data-actions-stuck:before:-z-10 data-[col-kind=actions]:in-data-actions-stuck:before:bg-background data-[col-kind=actions]:in-data-actions-stuck:after:absolute data-[col-kind=actions]:in-data-actions-stuck:after:inset-0 data-[col-kind=actions]:in-data-actions-stuck:after:-z-10 data-[col-kind=actions]:in-data-actions-stuck:after:bg-inherit",
+    "px-3 py-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px] data-[col-kind=actions]:in-data-actions-shadow:[--actions-edge:-8px_0_8px_-8px_var(--shadow-edge)] data-[col-kind=actions]:in-data-actions-stuck:sticky data-[col-kind=actions]:in-data-actions-stuck:right-0 data-[col-kind=actions]:in-data-actions-stuck:bg-inherit data-[col-kind=actions]:in-data-actions-stuck:shadow-[var(--actions-edge,0_0_#0000)] data-[col-kind=actions]:in-data-actions-stuck:before:absolute data-[col-kind=actions]:in-data-actions-stuck:before:inset-0 data-[col-kind=actions]:in-data-actions-stuck:before:-z-10 data-[col-kind=actions]:in-data-actions-stuck:before:bg-background data-[col-kind=actions]:in-data-actions-stuck:after:absolute data-[col-kind=actions]:in-data-actions-stuck:after:inset-0 data-[col-kind=actions]:in-data-actions-stuck:after:-z-10 data-[col-kind=actions]:in-data-actions-stuck:after:bg-inherit",
 } as const;
 
 // A table with `role="grid"` gives its rows, heads and cells their grid roles; an explicit `role` on

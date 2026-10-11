@@ -16,7 +16,7 @@ const DEFAULT = {
 };
 const STICKY_HEADER = "sticky top-0 z-10 bg-background shadow-[inset_0_-1px_0_0_var(--border)]";
 const STICKY_EDGE =
-  "data-[col-kind=actions]:in-data-actions-shadow:[--actions-edge:-8px_0_8px_-8px_rgb(0_0_0/0.2)]";
+  "data-[col-kind=actions]:in-data-actions-shadow:[--actions-edge:-8px_0_8px_-8px_var(--shadow-edge)]";
 const STUCK = "data-[col-kind=actions]:in-data-actions-stuck";
 // Sticky only while the scroller overflows (`data-actions-stuck`); the head on the background with
 // the header rule it would cover, the cell with an opaque ground under the row's own background.
@@ -137,5 +137,16 @@ describe("Table", () => {
     expect(classOf("rows-header")).toContain(STICKY_HEADER);
     expect(classOf("shell-row")).toContain("data-[grid-row]:hover:bg-muted/50");
     expect(classOf("shell-actions")).toContain(STICKY_HEAD_ACTIONS);
+  });
+});
+
+describe("action-column edge shadow token (#86)", () => {
+  it("uses --shadow-edge instead of a fixed rgb colour", () => {
+    configureSuiteUi({ tableActions: "sticky" });
+    renderTable();
+    expect(classOf("actions-head")).toContain("var(--shadow-edge)");
+    expect(classOf("actions-head")).not.toContain("rgb(");
+    expect(classOf("actions-cell")).toContain("var(--shadow-edge)");
+    expect(classOf("actions-cell")).not.toContain("rgb(");
   });
 });
