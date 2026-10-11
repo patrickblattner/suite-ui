@@ -26,6 +26,11 @@ type EditPanelProps = {
   title: React.ReactNode;
   description?: React.ReactNode;
   children: React.ReactNode;
+  // A preview of the record (image, video, post, page, template; `GL-UI-027` §Panel mit Vorschau):
+  // left of the fields, as large as its column allows; below the package's `panel-split` width it
+  // stacks on top. An `img` or `video` as the direct child fills the frame and keeps its ratio; any
+  // other preview (post, page, template) takes the frame's width and scrolls inside it when taller.
+  preview?: React.ReactNode;
   // Without `onSubmit` the panel only shows a record: the footer carries Close alone.
   submitLabel?: string;
   // Returning `true` (or a promise of it) reports a successful save: Save in the leave dialog then
@@ -46,8 +51,8 @@ type EditPanelProps = {
   pager?: EditPanelPager;
   // The opening focus as in `DialogContent`: only `add` focuses the first field.
   mode?: "add" | "edit";
-  // Replaces `edit-panel` in `edit-panel`, `-body`, `-back`, `-cancel`, `-submit`, `-previous` and
-  // `-next`.
+  // Replaces `edit-panel` in `edit-panel`, `-body`, `-preview`, `-back`, `-cancel`, `-submit`,
+  // `-previous` and `-next`.
   testIdPrefix?: string;
   className?: string;
   style?: React.CSSProperties;
@@ -64,6 +69,7 @@ function EditPanel({
   title,
   description,
   children,
+  preview,
   submitLabel,
   onSubmit,
   dirty = false,
@@ -147,7 +153,11 @@ function EditPanel({
             event.preventDefault();
             const content = event.currentTarget as HTMLElement;
             const field =
-              mode === "add" ? content.querySelector<HTMLElement>(FIELD_SELECTOR) : null;
+              mode === "add"
+                ? (
+                    content.querySelector("[data-slot=edit-panel-fields]") ?? content
+                  ).querySelector<HTMLElement>(FIELD_SELECTOR)
+                : null;
             (field ?? content).focus();
           }}
           onCloseAutoFocus={(event) => {
@@ -222,12 +232,43 @@ function EditPanel({
               void onSubmit?.();
             }}
           >
-            <div
-              data-testid={`${testIdPrefix}-body`}
-              className="relative min-h-0 flex-1 overflow-y-auto p-6 [scrollbar-gutter:stable]"
-            >
-              {children}
-            </div>
+            {preview === undefined ? (
+              <div
+                data-testid={`${testIdPrefix}-body`}
+                className="relative min-h-0 flex-1 overflow-y-auto p-6 [scrollbar-gutter:stable]"
+              >
+                {children}
+              </div>
+            ) : (
+              // The split follows the panel's own width, not the window's: the container is the area
+              // between header and footer. From `panel-split` on, preview and fields stand side by
+              // side, the preview over the full body height and only the fields scroll; below it the
+              // preview stacks on top and the whole body scrolls. Side by side the fields column is an
+              // inner scroll surface (`GL-UI-018`): it runs to the panel's right edge, where it holds the
+              // stable gutter and `--page-gutter` as its end padding on the same element, and its content
+              // starts flush with its column. Room for a focus ring comes from 6px block padding and a
+              // 6px start padding cancelled by a matching negative margin, so the edge stays flush.
+              <div data-slot="edit-panel-split" className="@container min-h-0 flex-1">
+                <div
+                  data-testid={`${testIdPrefix}-body`}
+                  className="relative flex h-full flex-col gap-6 overflow-y-auto p-6 [scrollbar-gutter:stable] @panel-split:grid @panel-split:grid-cols-[minmax(0,3fr)_minmax(20rem,2fr)] @panel-split:overflow-hidden @panel-split:pe-0 @panel-split:[scrollbar-gutter:auto]"
+                >
+                  <div
+                    data-slot="edit-panel-preview"
+                    data-testid={`${testIdPrefix}-preview`}
+                    className="flex h-[45vh] shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted @panel-split:h-full [&>*]:max-h-full [&>*]:w-full [&>:not(img,video)]:overflow-y-auto [&>img]:size-full [&>img]:object-contain [&>video]:size-full [&>video]:object-contain"
+                  >
+                    {preview}
+                  </div>
+                  <div
+                    data-slot="edit-panel-fields"
+                    className="relative @panel-split:-my-1.5 @panel-split:-ms-1.5 @panel-split:min-h-0 @panel-split:overflow-y-auto @panel-split:py-1.5 @panel-split:ps-1.5 @panel-split:pe-[var(--page-gutter)] @panel-split:[scrollbar-gutter:stable]"
+                  >
+                    {children}
+                  </div>
+                </div>
+              </div>
+            )}
             <div
               data-slot="edit-panel-footer"
               className="flex shrink-0 flex-row items-center justify-end gap-2 border-t px-6 py-4"

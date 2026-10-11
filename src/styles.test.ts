@@ -213,4 +213,11 @@ describe("styles.css tokens", () => {
     expect(css).not.toMatch(/--(status|plan|tile|agenda|content)-[a-z0-9-]+\s*:/);
     expect(css).not.toMatch(/--font-|font-family|@fontsource/);
   });
+
+  it("defines the one panel-split width of the preview layout as a container breakpoint", () => {
+    // `GL-UI-027` §Panel mit Vorschau: the package sets the width; `@panel-split:` reads it.
+    const matches = [...css.matchAll(/--container-([a-z0-9-]+):\s*([^;]+);/g)];
+    expect(matches.map(([, name, value]) => [name, value])).toEqual([["panel-split", "48rem"]]);
+    expect(css).toMatch(/@theme \{\s*--container-panel-split: 48rem;\s*\}/);
+  });
 });

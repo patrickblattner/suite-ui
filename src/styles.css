@@ -227,6 +227,13 @@
   --marker-yellow-foreground: oklch(0.985 0 0);
 }
 
+/* Package-owned layout widths. `panel-split` is the one width of the edit panel's body from which a
+   preview stands left of the fields instead of on top (`GL-UI-027` §Panel mit Vorschau); it drives
+   the `@panel-split:` container variant. */
+@theme {
+  --container-panel-split: 48rem;
+}
+
 /* Maps the tokens into Tailwind's theme, so utilities like `bg-success` or `text-warn-text`
    resolve. Radius helpers follow shadcn's convention. */
 @theme inline {

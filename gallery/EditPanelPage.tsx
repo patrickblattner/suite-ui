@@ -11,6 +11,12 @@ import { ShellPage } from "./ShellPage.js";
 
 const ROWS = Array.from({ length: 60 }, (_, index) => `Channel ${index + 1}`);
 const MEDIA = ["team-photo.jpg", "logo.svg", "brochure.pdf"];
+// A landscape stand-in picture per medium, so the preview shows how an image fills its column.
+const PICTURE = `data:image/svg+xml,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800">' +
+    '<rect width="1200" height="800" fill="#8a94a6"/><circle cx="380" cy="300" r="140" fill="#d8dce3"/>' +
+    '<path d="M0 800 L420 420 L700 640 L900 480 L1200 760 L1200 800 Z" fill="#5b6475"/></svg>',
+)}`;
 const FIELDS = Array.from({ length: 24 }, (_, index) => `Field ${index + 1}`);
 
 // A long list whose rows open the edit panel, inside the shell frame (`SUI-FEATURE-030`). The panel
@@ -137,6 +143,11 @@ function Demo() {
             : undefined
         }
         onSubmit={() => setMedia(null)}
+        preview={
+          media !== null ? (
+            <img src={PICTURE} alt={MEDIA[media]} data-testid="media-panel-picture" />
+          ) : undefined
+        }
       >
         <div className="flex flex-col gap-2">
           <Label htmlFor="media-name">File name</Label>

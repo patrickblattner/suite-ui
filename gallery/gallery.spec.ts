@@ -74,6 +74,22 @@ for (const lng of LANGUAGES) {
         fullPage: true,
       });
     });
+
+    // `GL-UI-027` §Panel mit Vorschau: side by side on a wide panel, stacked below `panel-split`.
+    for (const [state, width] of [
+      ["split", 1920],
+      ["stacked", 900],
+    ] as const) {
+      test(`edit panel preview ${state} ${lng} ${theme}`, async ({ page }) => {
+        await page.setViewportSize({ width, height: 1080 });
+        await openMediaPanel(page, `&lng=${lng}&theme=${theme}`);
+        await expect(page.locator("html")).toHaveAttribute("lang", lng);
+        await page.mouse.move(width - 20, 1060);
+        await expect(page).toHaveScreenshot(`edit-panel-preview-${state}-${lng}-${theme}.png`, {
+          fullPage: true,
+        });
+      });
+    }
   }
 }
 
@@ -844,6 +860,187 @@ test("upload step: the rejected file is named above the rows", async ({ page }) 
   expect((await box(message)).y + (await box(message)).height).toBeLessThanOrEqual(
     (await box(frame.getByTestId("upload-rows"))).y,
   );
+});
+
+// The media panel with its preview picture loaded.
+async function openMediaPanel(page: Page, query = "") {
+  await page.goto(`/?page=edit-panel${query}`);
+  await page.getByTestId("media-panel-trigger").click();
+  const picture = page.getByTestId("media-panel-picture");
+  await expect(picture).toBeVisible();
+  await expect
+    .poll(() => picture.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth))
+    .toBeGreaterThan(0);
+  return page.getByTestId("media-panel");
+}
+
+// `GL-UI-027` §Panel mit Vorschau: from the package's `panel-split` width the preview stands left,
+// over the full body height and wider than the fields; the picture fills its column.
+test("edit panel preview: two columns on a wide panel, the picture fills its column", async ({
+  page,
+}) => {
+  const panel = await openMediaPanel(page);
+  const body = await box(panel.getByTestId("media-panel-body"));
+  const preview = await box(panel.getByTestId("media-panel-preview"));
+  const fields = await box(panel.locator("[data-slot=edit-panel-fields]"));
+  const picture = await box(panel.getByTestId("media-panel-picture"));
+  expect(preview.x + preview.width).toBeLessThanOrEqual(fields.x);
+  expect(preview.width).toBeGreaterThan(fields.width);
+  // The fields scroller reaches 6px past its column for the focus ring.
+  expect(fields.y).toBe(preview.y - 6);
+  // The column runs the body's full height inside its padding.
+  expect(preview.height).toBeCloseTo(body.height - 48, 0);
+  // The picture takes the whole frame; `object-contain` keeps its ratio inside it.
+  expect(picture).toEqual(preview);
+});
+
+test("edit panel preview: below panel-split the preview stacks on top at full width", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 900, height: 1080 });
+  const panel = await openMediaPanel(page);
+  const body = await box(panel.getByTestId("media-panel-body"));
+  const preview = await box(panel.getByTestId("media-panel-preview"));
+  const fields = await box(panel.locator("[data-slot=edit-panel-fields]"));
+  expect(body.width).toBeLessThan(48 * 16);
+  expect(preview.y + preview.height).toBeLessThanOrEqual(fields.y);
+  expect(preview.x).toBe(fields.x);
+  expect(preview.width).toBeCloseTo(fields.width, 0);
+});
+
+// The panel starts at the 224px sidebar, so its width is the viewport minus 224: 760px stacks,
+// 776px splits, around the 48rem (768px) of `panel-split`.
+for (const [width, display] of [
+  [984, "flex"],
+  [1000, "grid"],
+] as const) {
+  test(`edit panel preview: a ${width - 224}px panel is ${display === "grid" ? "split" : "stacked"}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 1080 });
+    const panel = await openMediaPanel(page);
+    const split = await box(panel.locator("[data-slot=edit-panel-split]"));
+    expect(split.width).toBe(width - 224);
+    await expect(panel.getByTestId("media-panel-body")).toHaveCSS("display", display);
+  });
+}
+
+// Overflowing fields: side by side only the fields scroll and the preview stays; stacked the body
+// scrolls as a whole.
+for (const [width, scroller] of [
+  [1920, "fields"],
+  [900, "body"],
+] as const) {
+  test(`edit panel preview: overflowing fields scroll the ${scroller} at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 1080 });
+    const panel = await openMediaPanel(page);
+    const fields = panel.locator("[data-slot=edit-panel-fields]");
+    const body = panel.getByTestId("media-panel-body");
+    await fields.evaluate((el) => {
+      for (let i = 0; i < 40; i += 1) {
+        const row = document.createElement("div");
+        row.style.height = "60px";
+        el.append(row);
+      }
+    });
+    const overflows = (locator: Locator) =>
+      locator.evaluate((el) => el.scrollHeight > el.clientHeight);
+    const preview = await box(panel.getByTestId("media-panel-preview"));
+    if (scroller === "fields") {
+      expect(await overflows(fields)).toBe(true);
+      expect(await overflows(body)).toBe(false);
+      await fields.evaluate((el) => el.scrollTo(0, 400));
+      expect(await box(panel.getByTestId("media-panel-preview"))).toEqual(preview);
+    } else {
+      expect(await overflows(body)).toBe(true);
+      expect(await overflows(fields)).toBe(false);
+    }
+  });
+}
+
+// A focused field side by side keeps its whole focus ring inside the fields scroller.
+test("edit panel preview: the focus ring of a field is not clipped in the fields column", async ({
+  page,
+}) => {
+  const panel = await openMediaPanel(page);
+  const input = panel.getByLabel("File name");
+  await input.focus();
+  await expect(input).toHaveCSS("box-shadow", /3px/);
+  const clip = await panel.locator("[data-slot=edit-panel-fields]").evaluate((el) => {
+    const rect = el.getBoundingClientRect();
+    return { left: rect.left, top: rect.top, right: rect.left + el.clientWidth };
+  });
+  const field = await box(input);
+  // Ring 3px, forced-colors outline 2px at 2px offset: 4px around the field.
+  expect(field.x - 4).toBeGreaterThanOrEqual(clip.left);
+  expect(field.y - 4).toBeGreaterThanOrEqual(clip.top);
+  expect(field.x + field.width + 4).toBeLessThanOrEqual(clip.right);
+});
+
+// `GL-UI-018` on the fields column side by side, an inner scroll surface: (a) its content starts
+// flush with its column, one column gap right of the preview, with no second indent; (b) the gap
+// from the content to its own scrollbar is `--page-gutter`, with the stable gutter on the same
+// element, which runs to the panel's right edge.
+test("edit panel preview: the fields scroller is left-flush with a page-gutter gap to its bar", async ({
+  page,
+}) => {
+  const panel = await openMediaPanel(page);
+  const preview = await box(panel.getByTestId("media-panel-preview"));
+  const outer = await box(panel);
+  const scroller = await panel.locator("[data-slot=edit-panel-fields]").evaluate((el) => {
+    const style = getComputedStyle(el);
+    const rect = el.getBoundingClientRect();
+    const gutter =
+      parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--page-gutter")) * 16;
+    return {
+      contentLeft: rect.left + el.clientLeft + parseFloat(style.paddingLeft),
+      barStart: rect.left + el.clientLeft + el.clientWidth,
+      right: rect.right,
+      paddingEnd: parseFloat(style.paddingRight),
+      scrollbarGutter: style.scrollbarGutter,
+      gutter,
+    };
+  });
+  const field = await box(panel.getByLabel("File name"));
+  const label = await box(panel.getByText("File name", { exact: true }));
+  // (a) Flush: one 24px column gap right of the preview; label and field share that edge.
+  expect(Math.abs(scroller.contentLeft - (preview.x + preview.width + 24))).toBeLessThanOrEqual(1);
+  expect(Math.abs(label.x - scroller.contentLeft)).toBeLessThanOrEqual(1);
+  expect(Math.abs(field.x - scroller.contentLeft)).toBeLessThanOrEqual(1);
+  // (b) Content → bar == page gutter, gutter and end padding on the scrolling element itself.
+  expect(scroller.gutter).toBe(24);
+  expect(scroller.paddingEnd).toBe(scroller.gutter);
+  expect(scroller.scrollbarGutter).toBe("stable");
+  expect(
+    Math.abs(scroller.barStart - (field.x + field.width) - scroller.gutter),
+  ).toBeLessThanOrEqual(1);
+  expect(Math.abs(scroller.right - (outer.x + outer.width))).toBeLessThanOrEqual(1);
+});
+
+// A preview that is not a picture (post, page, template) scrolls inside its frame when taller.
+test("edit panel preview: a tall non-media preview scrolls inside the frame", async ({ page }) => {
+  const panel = await openMediaPanel(page);
+  const frame = panel.getByTestId("media-panel-preview");
+  const post = await frame.evaluate((el) => {
+    const article = document.createElement("article");
+    article.style.height = "auto";
+    const content = document.createElement("div");
+    content.style.height = "3000px";
+    article.append(content);
+    el.replaceChildren(article);
+    article.scrollTop = 500;
+    return {
+      frame: el.clientHeight,
+      height: article.clientHeight,
+      overflow: getComputedStyle(article).overflowY,
+      scrolled: article.scrollTop,
+    };
+  });
+  expect(post.height).toBeLessThanOrEqual(post.frame);
+  expect(post.overflow).toBe("auto");
+  expect(post.scrolled).toBe(500);
 });
 
 // The edit panel pages through a set with ‹ and › left of the title, each locked at its end.

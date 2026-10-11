@@ -375,4 +375,134 @@ describe("EditPanel", () => {
     fireEvent.click(save);
     expect(calls).toEqual(["change neu", "submit neu"]);
   });
+
+  describe("preview (GL-UI-027 §Panel mit Vorschau)", () => {
+    function renderPreview(props: Partial<EditPanelProps> = {}) {
+      render(
+        <EditPanel
+          open
+          onOpenChange={() => {}}
+          title="team-photo.jpg"
+          onSubmit={() => {}}
+          preview={<img src="data:," alt="team-photo.jpg" />}
+          {...props}
+        >
+          <Input aria-label="Name" />
+        </EditPanel>,
+      );
+      return screen.getByTestId(`${props.testIdPrefix ?? "edit-panel"}-body`);
+    }
+
+    it("puts the preview left of the fields, inside the one scrolling body", () => {
+      const body = renderPreview();
+      const [preview, fields] = [...body.children] as HTMLElement[];
+      expect(preview).toBe(screen.getByTestId("edit-panel-preview"));
+      expect(preview).toContainElement(screen.getByRole("img", { name: "team-photo.jpg" }));
+      expect(fields).toHaveAttribute("data-slot", "edit-panel-fields");
+      expect(fields).toContainElement(screen.getByLabelText("Name"));
+      expect(body.children).toHaveLength(2);
+    });
+
+    it("splits at the package's panel-split width of the panel itself, nowhere else", () => {
+      const body = renderPreview();
+      const split = body.parentElement!;
+      expect(split).toHaveAttribute("data-slot", "edit-panel-split");
+      expect(split).toHaveClass("@container", "min-h-0", "flex-1");
+      // Stacked by default; side by side, preview wider than the fields, from `panel-split` on.
+      expect(body).toHaveClass(
+        "flex",
+        "flex-col",
+        "overflow-y-auto",
+        "@panel-split:grid",
+        "@panel-split:grid-cols-[minmax(0,3fr)_minmax(20rem,2fr)]",
+        "@panel-split:overflow-hidden",
+      );
+      // One breakpoint: no viewport breakpoint and no other container size anywhere in the split.
+      const fields = body.querySelector("[data-slot=edit-panel-fields]")!;
+      const classes = [split, body, screen.getByTestId("edit-panel-preview"), fields]
+        .flatMap((element) => [...element.classList])
+        .filter((name) => name.includes(":"));
+      for (const name of classes) {
+        expect(name).not.toMatch(/^(sm|md|lg|xl|2xl):/);
+        expect(name).not.toMatch(/^@(?!panel-split:)[a-z0-9]+:/);
+      }
+    });
+
+    it("the preview fills its column: full body height side by side, the picture fills the frame", () => {
+      renderPreview();
+      const preview = screen.getByTestId("edit-panel-preview");
+      expect(preview).toHaveClass(
+        "h-[45vh]",
+        "@panel-split:h-full",
+        "[&>img]:size-full",
+        "[&>img]:object-contain",
+        "[&>video]:size-full",
+        "[&>video]:object-contain",
+        "[&>*]:w-full",
+      );
+      expect(
+        screen.getByTestId("edit-panel").querySelector("[data-slot=edit-panel-fields]"),
+      ).toHaveClass("@panel-split:overflow-y-auto");
+    });
+
+    it("side by side the fields column is a GL-UI-018 inner scroll surface", () => {
+      const body = renderPreview();
+      const fields = body.querySelector("[data-slot=edit-panel-fields]")!;
+      // Gutter and end padding on the same scrolling element; the body gives up its own.
+      expect(fields).toHaveClass(
+        "relative",
+        "@panel-split:overflow-y-auto",
+        "@panel-split:[scrollbar-gutter:stable]",
+        "@panel-split:pe-[var(--page-gutter)]",
+        // Start padding only as focus-ring room, cancelled by the margin: the edge stays flush.
+        "@panel-split:ps-1.5",
+        "@panel-split:-ms-1.5",
+      );
+      expect(body).toHaveClass("@panel-split:pe-0", "@panel-split:[scrollbar-gutter:auto]");
+    });
+
+    it("sizing stays with the package: call-site class and style do not reach the split", () => {
+      renderPreview({ className: "w-1/3", style: { width: "30%" }, testIdPrefix: "media" });
+      const preview = screen.getByTestId("media-preview");
+      expect(screen.getByTestId("media").style.width).toBe("auto");
+      expect(preview.getAttribute("style")).toBeNull();
+      expect(screen.getByTestId("media-body").getAttribute("style")).toBeNull();
+    });
+
+    it("add mode focuses the first field of the fields column, not one in the preview", () => {
+      render(
+        <EditPanel
+          open
+          onOpenChange={() => {}}
+          title="New post"
+          mode="add"
+          preview={<input aria-label="Preview search" />}
+        >
+          <Input aria-label="Name" />
+        </EditPanel>,
+      );
+      expect(screen.getByLabelText("Name")).toHaveFocus();
+    });
+
+    it("a non-media preview scrolls inside the frame", () => {
+      renderPreview({ preview: <article>Post</article> });
+      expect(screen.getByTestId("edit-panel-preview")).toHaveClass(
+        "[&>*]:max-h-full",
+        "[&>:not(img,video)]:overflow-y-auto",
+      );
+    });
+
+    it("without a preview the body is the plain scrolling form body", () => {
+      render(
+        <EditPanel open onOpenChange={() => {}} title="Channel">
+          x
+        </EditPanel>,
+      );
+      const body = screen.getByTestId("edit-panel-body");
+      expect(body.className).toBe(
+        "relative min-h-0 flex-1 overflow-y-auto p-6 [scrollbar-gutter:stable]",
+      );
+      expect(screen.queryByTestId("edit-panel-preview")).toBeNull();
+    });
+  });
 });
