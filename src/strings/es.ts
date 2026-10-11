@@ -111,6 +111,7 @@ export const es: SuiteStrings = {
     desktop: "Escritorio",
     mobile: "Móvil",
     maximize: "Maximizar vista previa",
+    close: "Cerrar vista previa",
   },
   split: {
     view: "Vista",

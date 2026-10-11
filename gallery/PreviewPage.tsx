@@ -46,6 +46,7 @@ function Toolbar({
         status={status ? (language === "es" ? "draft" : "published") : undefined}
         device={device ? { value: view, onChange: setView } : undefined}
         maximize={{ value: maximized, onChange: setMaximized }}
+        onClose={() => {}}
         actions={
           selected
             ? {
@@ -87,7 +88,12 @@ function Frame({ initial }: { initial: PreviewDevice }) {
   const [device, setDevice] = useState<PreviewDevice>(initial);
   const [maximized, setMaximized] = useState(false);
   return (
-    <div className="w-[480px] rounded-md border p-2" data-testid={`frame-${initial}`}>
+    // A transformed ancestor, as an animated column would be: maximized, the frame still covers the
+    // whole content area.
+    <div
+      className="w-[480px] [transform:translateZ(0)] rounded-md border p-2"
+      data-testid={`frame-${initial}`}
+    >
       <PreviewFrame
         device={device}
         maximized={maximized}
@@ -95,6 +101,7 @@ function Frame({ initial }: { initial: PreviewDevice }) {
           <PreviewToolbar
             device={{ value: device, onChange: setDevice }}
             maximize={{ value: maximized, onChange: setMaximized }}
+            onClose={() => {}}
           />
         }
         data-testid={`preview-frame-${initial}`}

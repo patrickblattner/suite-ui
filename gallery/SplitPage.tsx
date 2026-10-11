@@ -4,6 +4,8 @@ import { useTranslation } from "react-i18next";
 import { DataTableShell } from "../src/list/data-table-shell.js";
 import { RowActions, RowActionsHead } from "../src/list/row-actions.js";
 import { type SplitStop, SplitWorkspace } from "../src/list/split-workspace.js";
+import { PreviewFrame } from "../src/ui/preview-frame.js";
+import { PreviewToolbar } from "../src/ui/preview-toolbar.js";
 import { TableCell, TableHead, TableRow } from "../src/ui/table.js";
 import { Section } from "./ComponentsPage.js";
 
@@ -87,6 +89,7 @@ function TableWorkspace() {
   const { i18n } = useTranslation("suite");
   const labels = LABELS[i18n.language as keyof typeof LABELS] ?? LABELS.en;
   const [selected, setSelected] = useState<number | null>(0);
+  const [maximized, setMaximized] = useState(false);
   return (
     <div className="mb-4 flex h-64 max-w-3xl flex-col rounded-md border p-2">
       <SplitWorkspace
@@ -130,12 +133,32 @@ function TableWorkspace() {
           </div>
         }
         preview={
-          <div className="h-full rounded-sm bg-muted p-3 text-sm">
-            {labels.preview} {selected === null ? "" : labels.rows[selected]}
-          </div>
+          <PreviewFrame
+            device="desktop"
+            maximized={maximized}
+            toolbar={
+              <PreviewToolbar
+                maximize={{ value: maximized, onChange: setMaximized }}
+                actions={
+                  selected === null
+                    ? undefined
+                    : { rowName: labels.rows[selected]!, onEdit: () => {}, onDelete: () => {} }
+                }
+                onClose={() => setSelected(null)}
+              />
+            }
+            data-testid="split-table-frame"
+          >
+            <div className="h-64 bg-muted p-6 text-2xl">
+              {labels.preview} {selected === null ? "" : labels.rows[selected]}
+            </div>
+          </PreviewFrame>
         }
         open={selected !== null}
-        onClose={() => setSelected(null)}
+        onClose={() => {
+          setMaximized(false);
+          setSelected(null);
+        }}
         defaultStop="1/2"
         minWidths={{ list: 240, preview: 240 }}
         storageKey="gallery:split:table"

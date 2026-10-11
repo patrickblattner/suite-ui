@@ -43,10 +43,12 @@ function RowActionButton({
   action,
   rowName,
   variant,
+  size,
 }: {
   action: RowAction;
   rowName: string;
   variant: "outline" | "warn" | "destructive";
+  size: "icon-xs" | "icon-sm";
 }) {
   const Icon = action.icon;
   const locked = action.disabledText !== undefined;
@@ -58,7 +60,7 @@ function RowActionButton({
     >
       <Button
         variant={variant}
-        size="icon-xs"
+        size={size}
         disabled={locked}
         onClick={action.onClick}
         data-testid={action["data-testid"]}
@@ -71,19 +73,29 @@ function RowActionButton({
 
 // The buttons of an entry's actions, each in its fixed variant (`GL-UI-011`): extra actions
 // `outline`, edit `warn`, delete `destructive`, all `icon-xs`. The caller places them.
-function useRowActionButtons({
-  rowName,
-  extra = [],
-  onEdit,
-  onDelete,
-  editDisabledText,
-  deleteDisabledText,
-  deleteShortcut = false,
-}: RowActionSet) {
+function useRowActionButtons(
+  {
+    rowName,
+    extra = [],
+    onEdit,
+    onDelete,
+    editDisabledText,
+    deleteDisabledText,
+    deleteShortcut = false,
+  }: RowActionSet,
+  // `icon-xs` in the row; a toolbar passes its own height step (`GL-UI-008`: `icon-sm`).
+  size: "icon-xs" | "icon-sm" = "icon-xs",
+) {
   const { t } = useTranslation("suite");
   return {
     extra: extra.map((action) => (
-      <RowActionButton key={action.label} action={action} rowName={rowName} variant="outline" />
+      <RowActionButton
+        key={action.label}
+        action={action}
+        rowName={rowName}
+        variant="outline"
+        size={size}
+      />
     )),
     edit:
       onEdit === undefined ? null : (
@@ -97,6 +109,7 @@ function useRowActionButtons({
           }}
           rowName={rowName}
           variant="warn"
+          size={size}
         />
       ),
     delete:
@@ -112,6 +125,7 @@ function useRowActionButtons({
           }}
           rowName={rowName}
           variant="destructive"
+          size={size}
         />
       ),
   };

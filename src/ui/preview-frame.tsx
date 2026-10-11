@@ -1,4 +1,5 @@
 import * as React from "react";
+import { createPortal } from "react-dom";
 
 import { cn } from "../lib/cn.js";
 import { useOptionalSidebar } from "../shell/sidebar-provider.js";
@@ -28,8 +29,10 @@ type PreviewFrameProps = {
 // The device-aware frame of a live preview (`GL-UI-008` §Gerät heißt Gerät): the page renders at the
 // device's full width and never reflows. In a narrower column it is scaled down to the column width;
 // maximized, the frame covers the content area (left edge at the sidebar, like `EditPanel`) and
-// shows the page at true size, scrolling when it is wider. The view switches in place, so the
-// content (an iframe, say) is never remounted.
+// shows the page at true size, scrolling when it is wider. The frame renders into a host element of
+// its own that moves to `document.body` while maximized, so no transformed or clipping ancestor of
+// the column can trap the `fixed` view; React keeps the content mounted, and `moveBefore`, where the
+// browser has it, keeps even an iframe's document and the focus.
 function PreviewFrame({
   device,
   maximized = false,
@@ -44,6 +47,28 @@ function PreviewFrame({
   const [column, setColumn] = React.useState<HTMLDivElement | null>(null);
   const [page, setPage] = React.useState<HTMLDivElement | null>(null);
   const [size, setSize] = React.useState<{ column: number; page: number } | null>(null);
+  const [anchor, setAnchor] = React.useState<HTMLDivElement | null>(null);
+  const [host] = React.useState(() => {
+    const element = document.createElement("div");
+    element.dataset.slot = "preview-frame-host";
+    element.style.display = "contents";
+    return element;
+  });
+
+  // Inline the host sits in the frame's place in the column; maximized it moves to the body.
+  React.useLayoutEffect(() => {
+    const target = maximized ? document.body : anchor;
+    if (target === null || host.parentNode === target) return;
+    const focused = document.activeElement;
+    moveInto(target, host);
+    if (
+      focused instanceof HTMLElement &&
+      host.contains(focused) &&
+      document.activeElement !== focused
+    )
+      focused.focus({ preventScroll: true });
+  }, [maximized, anchor, host]);
+  React.useEffect(() => () => host.remove(), [host]);
 
   React.useLayoutEffect(() => {
     if (column === null || page === null) return;
@@ -65,7 +90,7 @@ function PreviewFrame({
         ? "var(--sidebar-width)"
         : "var(--sidebar-width-collapsed)";
 
-  return (
+  const frame = (
     <div
       data-slot="preview-frame"
       data-device={device}
@@ -102,6 +127,21 @@ function PreviewFrame({
       </div>
     </div>
   );
+
+  return (
+    <div ref={setAnchor} data-slot="preview-frame-anchor" className="contents">
+      {createPortal(frame, host)}
+    </div>
+  );
+}
+
+// Moves `node` to the end of `parent`; `moveBefore` keeps an iframe's document and the focus where the
+// browser supports it, a plain `appendChild` reloads an iframe.
+function moveInto(parent: Element, node: Element): void {
+  const move = (parent as Element & { moveBefore?: (node: Node, child: Node | null) => void })
+    .moveBefore;
+  if (typeof move === "function" && node.isConnected) move.call(parent, node, null);
+  else parent.appendChild(node);
 }
 
 export { PREVIEW_DEVICE_WIDTHS, PreviewFrame, type PreviewFrameProps };

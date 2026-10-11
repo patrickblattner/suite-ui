@@ -2,6 +2,7 @@ import * as React from "react";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
+import { useEscapeLayer } from "../lib/escape-layers.js";
 import { Button } from "../ui/button.js";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip.js";
 
@@ -119,22 +120,9 @@ function SplitWorkspace({
     if (open) setPane("preview");
   }
 
-  // Listening on the window, the workspace is the outermost `Esc`: a maximized preview, an open
-  // select or dialog in the document take it first.
-  const close = React.useRef(onClose);
-  React.useEffect(() => {
-    close.current = onClose;
-  });
-  React.useEffect(() => {
-    if (!open) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || event.defaultPrevented) return;
-      event.preventDefault();
-      close.current();
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [open]);
+  // The open preview is an `Esc` layer: a preview maximized after it, an open select or dialog take
+  // `Esc` first.
+  useEscapeLayer(open, onClose, node);
 
   const choose = (stop: SplitStop) => {
     try {

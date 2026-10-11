@@ -1,8 +1,9 @@
-import { Maximize2Icon, Minimize2Icon, MonitorIcon, SmartphoneIcon } from "lucide-react";
+import { Maximize2Icon, Minimize2Icon, MonitorIcon, SmartphoneIcon, XIcon } from "lucide-react";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
+import { useEscapeLayer } from "../lib/escape-layers.js";
 import { type RowActionSet, useRowActionButtons } from "../list/row-actions.js";
 import { Button } from "./button.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select.js";
@@ -32,14 +33,17 @@ type PreviewToolbarProps = {
   maximize?: { value: boolean; onChange: (value: boolean) => void };
   // The actions of the selected entry, the same set as its table row; absent without a selection.
   actions?: RowActionSet;
+  // Closes the preview and gives the list its full width back: the same callback as the
+  // `SplitWorkspace`'s `onClose` (`GL-UI-009`). Close always stands far right.
+  onClose: () => void;
   // Further preview tools (e.g. zoom), between status and device. Never actions such as Publish.
   children?: React.ReactNode;
 };
 
-// The selected entry's actions, far right, in the row's own order (`GL-UI-008` rev 5, `GL-UI-011`):
-// extra actions, then edit and delete.
+// The selected entry's actions, in the row's own order (`GL-UI-008`, `GL-UI-011`): extra actions,
+// then edit and delete, at the toolbar's height (`icon-sm`).
 function PreviewActions({ className, ...set }: RowActionSet & { className?: string | undefined }) {
-  const buttons = useRowActionButtons(set);
+  const buttons = useRowActionButtons(set, "icon-sm");
   return (
     <div className={cn("flex items-center gap-1", className)} data-testid="preview-actions">
       {buttons.extra}
@@ -50,8 +54,8 @@ function PreviewActions({ className, ...set }: RowActionSet & { className?: stri
 }
 
 // The toolbar over every live preview (`GL-UI-008`): language · status · device + maximize ·
-// actions, always in that order. A missing element is left out, the others keep their order and the
-// right group (device, maximize, actions) stays right. The status chip is a display, not a control.
+// actions · close, always in that order. A missing element is left out, the others keep their order
+// and the right group (device, maximize, actions, close) stays right. The status chip is a display, not a control.
 // The device switch is a radio group like `ViewToggle`.
 function PreviewToolbar({
   language,
@@ -59,29 +63,23 @@ function PreviewToolbar({
   device,
   maximize,
   actions,
+  onClose,
   children,
 }: PreviewToolbarProps) {
   const { t } = useTranslation("suite");
-  // `Esc` leaves the maximized view, unless an inner layer (select, menu, dialog) or an editor took
-  // it first (`GL-UI-007`: innermost `Esc` first).
-  const maximized = maximize?.value === true;
-  const leave = React.useRef(maximize?.onChange);
-  React.useEffect(() => {
-    leave.current = maximize?.onChange;
-  });
-  React.useEffect(() => {
-    if (!maximized) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || event.defaultPrevented) return;
-      event.preventDefault();
-      leave.current?.(false);
-    };
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
-  }, [maximized]);
-  // The first element of the right group pushes it right.
+  // The maximized view is an `Esc` layer above the open preview: the first `Esc` leaves it, the next
+  // closes the preview (`GL-UI-007`: innermost `Esc` first).
+  const [root, setRoot] = React.useState<HTMLDivElement | null>(null);
+  useEscapeLayer(maximize?.value === true, () => maximize?.onChange(false), root);
+  // The first element of the right group pushes it right; Close always stands last.
   const rightStart =
-    device !== undefined ? "device" : maximize !== undefined ? "maximize" : "actions";
+    device !== undefined
+      ? "device"
+      : maximize !== undefined
+        ? "maximize"
+        : actions !== undefined
+          ? "actions"
+          : "close";
   const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (device === undefined) return;
     const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[event.key];
@@ -97,6 +95,7 @@ function PreviewToolbar({
   };
   return (
     <div
+      ref={setRoot}
       role="group"
       aria-label={t("preview.label")}
       className="flex items-center gap-2"
@@ -174,6 +173,17 @@ function PreviewToolbar({
       {actions !== undefined ? (
         <PreviewActions {...actions} className={cn(rightStart === "actions" && "ml-auto")} />
       ) : null}
+      <IconButtonTooltip label={t("preview.close")}>
+        <Button
+          variant="outline"
+          size="icon-sm"
+          className={cn(rightStart === "close" && "ml-auto")}
+          onClick={onClose}
+          data-testid="preview-close"
+        >
+          <XIcon aria-hidden="true" />
+        </Button>
+      </IconButtonTooltip>
     </div>
   );
 }

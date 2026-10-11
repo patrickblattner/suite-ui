@@ -116,6 +116,7 @@ export const en = {
     desktop: "Desktop",
     mobile: "Mobile",
     maximize: "Maximize preview",
+    close: "Close preview",
   },
   // The split workspace list | preview (`SplitWorkspace`).
   split: {
