@@ -4,4 +4,4 @@ export * from "./global-search.js";
 export * from "./nav.js";
 export * from "./sidebar-provider.js";
 export * from "./user-menu.js";
-export * from "./version-popover.js";
+export * from "./version-line.js";

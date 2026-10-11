@@ -180,6 +180,7 @@ export const de: SuiteStrings = {
     noRelease: "Kein Release (Stand ohne Tag)",
     commit: "Commit",
     buildDate: "Build-Datum",
+    unknown: "unbekannt",
   },
   confirmDelete: {
     title: "Löschen bestätigen",

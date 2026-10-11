@@ -179,6 +179,7 @@ export const es: SuiteStrings = {
     noRelease: "Sin versión publicada (compilación sin etiqueta)",
     commit: "Commit",
     buildDate: "Fecha de compilación",
+    unknown: "desconocida",
   },
   confirmDelete: {
     title: "Confirmar eliminación",

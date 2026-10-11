@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
-import type { VersionInfo } from "../shell/version-popover.js";
+import type { VersionInfo } from "../shell/version-line.js";
 import { Code } from "../ui/code.js";
 import { Hint } from "../ui/hint.js";
 import { Input } from "../ui/input.js";

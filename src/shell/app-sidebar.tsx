@@ -17,7 +17,7 @@ import {
   sectionForPath,
 } from "./nav.js";
 import { SidebarTrigger, useSidebar } from "./sidebar-provider.js";
-import { type VersionInfo, VersionPopover } from "./version-popover.js";
+import { type VersionInfo, VersionLine } from "./version-line.js";
 
 type AppSidebarProps = {
   // The instance name from the app's settings, or the app name as its fallback (`GL-UI-019`).
@@ -30,8 +30,8 @@ type AppSidebarProps = {
   search?: React.ReactNode;
   // Opens the app's help surface; without it the sidebar has no Help entry.
   onHelp?: () => void;
-  // The version info nav point right after Help; `info` is undefined while it loads.
-  version?: { info: VersionInfo | undefined };
+  // The version line above the user block; `info` is undefined while it loads, null when unreadable.
+  version?: { info: VersionInfo | null | undefined };
   // The user block (`UserMenu`).
   userMenu: React.ReactNode;
 };
@@ -40,7 +40,7 @@ const rowClass =
   "relative flex w-full cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:focus-ring";
 
 // The app sidebar (`GL-UI-019`/`GL-UI-020`): instance-name head with the collapse toggle, the search
-// field, the primary nav, the lower sections, Help and Version info, and the user block.
+// field, the primary nav, the lower sections and Help, the version line, and the user block.
 //
 // A section (Tools, Administration, Settings, or one in `primary`) is a replace-nav entry: its click navigates to its first
 // entry, and while the route belongs to a section the sidebar shows only `‹ <Section>` and that
@@ -219,7 +219,7 @@ function AppSidebar({
                 isNavSection(item) ? renderSection(item) : renderEntry(item),
               )}
             </ul>
-            {(visible.sections.length > 0 || onHelp !== undefined || version !== undefined) && (
+            {(visible.sections.length > 0 || onHelp !== undefined) && (
               <ul className="mt-3 flex flex-col gap-1 border-t pt-3" data-testid="nav-lower">
                 {visible.sections.map(renderSection)}
                 {onHelp !== undefined && (
@@ -238,16 +238,18 @@ function AppSidebar({
                     </Hint>
                   </li>
                 )}
-                {version !== undefined && (
-                  <li>
-                    <VersionPopover info={version.info} collapsed={!isOpen} />
-                  </li>
-                )}
               </ul>
             )}
           </>
         )}
       </div>
+
+      {/* Flush with the nav entry text: the list inset, the row inset, the icon and its gap. */}
+      {version !== undefined && isOpen && (
+        <div className="py-2 pr-5 pl-11">
+          <VersionLine info={version.info} />
+        </div>
+      )}
 
       {/* Under `userMenu: "fit"` the collapsed footer gives the trigger the full rail width. */}
       <div className={cn("border-t p-2", suiteUiConfig().userMenu === "fit" && !isOpen && "px-0")}>

@@ -3,7 +3,7 @@ import i18n from "i18next";
 import { useEffect, useState } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 
-import type { VersionInfo } from "../shell/version-popover.js";
+import type { VersionInfo } from "../shell/version-line.js";
 import { type HelpPage, parseHelpPage, selectHelpPages } from "./help-bundle.js";
 import { type HelpCategory, HelpDrawer } from "./help-drawer.js";
 

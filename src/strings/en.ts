@@ -185,6 +185,7 @@ export const en = {
     noRelease: "No release (untagged build)",
     commit: "Commit",
     buildDate: "Build date",
+    unknown: "unknown",
   },
   confirmDelete: {
     title: "Confirm deletion",
