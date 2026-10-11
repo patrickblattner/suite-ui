@@ -13,10 +13,19 @@ import {
 
 const KEY = "split:pages";
 
-// jsdom has no layout: the workspace reports this width, starting at x = 0.
+// jsdom has no layout: the workspace reports this width, starting at x = 0. It has no
+// ResizeObserver either; the divider's open tooltip measures its arrow with one.
 let workspaceWidth = 1600;
 beforeEach(() => {
   workspaceWidth = 1600;
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  );
   window.localStorage.clear();
   vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(() => workspaceWidth);
   vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
@@ -26,6 +35,7 @@ beforeEach(() => {
 afterEach(async () => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
   await i18n.changeLanguage("en");
 });
 
@@ -140,14 +150,26 @@ describe("SplitWorkspace (GL-UI-009)", () => {
     expect(workspace()).toHaveAttribute("data-stop", "1/2");
   });
 
-  it("a double click on the divider restores the surface default", () => {
+  it.each([
+    ["a double click", () => fireEvent.doubleClick(divider())],
+    ["Enter", () => fireEvent.keyDown(divider(), { key: "Enter" })],
+  ])("%s on the divider restores the surface default", (_, reset) => {
     window.localStorage.setItem(KEY, "3/4");
     render(<Surface />);
     fireEvent.click(screen.getByRole("button", { name: "Home" }));
     expect(workspace()).toHaveAttribute("data-stop", "3/4");
-    fireEvent.doubleClick(divider());
+    reset();
     expect(workspace()).toHaveAttribute("data-stop", "2/5");
     expect(window.localStorage.getItem(KEY)).toBe("2/5");
+  });
+
+  it("the divider's tooltip names drag, arrows and the reset", async () => {
+    render(<Surface />);
+    fireEvent.click(screen.getByRole("button", { name: "Home" }));
+    fireEvent.focus(divider());
+    expect(await screen.findByTestId("split-workspace-divider-hint")).toHaveTextContent(
+      "Drag or press ←/→ to change the split; double-click or Enter restores the default.",
+    );
   });
 
   it.each<[number, SplitStop, { list: number; preview: number }, SplitStop]>([
@@ -196,6 +218,7 @@ describe("SplitWorkspace (GL-UI-009)", () => {
           observers.push(callback);
         }
         observe() {}
+        unobserve() {}
         disconnect() {}
       },
     );
@@ -209,7 +232,6 @@ describe("SplitWorkspace (GL-UI-009)", () => {
     workspaceWidth = 1600;
     act(() => observers.forEach((callback) => callback([], {} as ResizeObserver)));
     expect(workspace()).toHaveAttribute("data-stop", "1/4");
-    vi.unstubAllGlobals();
   });
 
   it("falls back to the surface default for a stop that is not a package stop", () => {

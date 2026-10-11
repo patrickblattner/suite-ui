@@ -3136,8 +3136,8 @@ test("preview frame: desktop scales, mobile at true width, maximize over the con
   await expect(frame).toHaveAttribute("data-maximized", "false");
 });
 
-// `GL-UI-009`: the divider snaps to the package stops when dragged and with ←/→, `Esc` closes back to
-// the full list, a narrow surface shows one column with a toggle, and no axe violations.
+// `GL-UI-009`: the divider snaps to the package stops when dragged and with ←/→, Enter restores the
+// default, `Esc` closes back to the full list, a narrow surface shows one column with a toggle, and no axe violations.
 test("split workspace: snap stops, Esc closes, single column, no axe violations", async ({
   page,
 }) => {
@@ -3160,9 +3160,24 @@ test("split workspace: snap stops, Esc closes, single column, no axe violations"
   await divider.focus();
   await page.keyboard.press("ArrowLeft");
   await expect(surface).toHaveAttribute("data-stop", "3/5");
+  await page.keyboard.press("Enter");
+  await expect(surface).toHaveAttribute("data-stop", "2/5");
+  // The drag's pointer closed the tooltip, so this `Esc` reaches the workspace.
+  await expect(page.getByTestId("split-two-fifths-divider-hint")).toHaveCount(0);
   await page.keyboard.press("Escape");
   await expect(surface).toHaveAttribute("data-open", "false");
   await expect(surface.getByTestId("split-two-fifths-preview")).toHaveCount(0);
+
+  // The tooltip names the reset; open, it takes the first `Esc` (innermost first).
+  const other = page.getByTestId("split-three-fifths");
+  await other.getByTestId("split-three-fifths-divider").hover();
+  await expect(page.getByTestId("split-three-fifths-divider-hint").first()).toContainText(
+    "double-click or Enter restores the default",
+  );
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("split-three-fifths-divider-hint")).toHaveCount(0);
+  await expect(other).toHaveAttribute("data-open", "true");
+  await page.mouse.move(0, 0);
 
   const single = page.getByTestId("split-single");
   await expect(single).toHaveAttribute("data-stop", "single");

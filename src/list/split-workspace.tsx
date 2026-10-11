@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
 import { Button } from "../ui/button.js";
+import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip.js";
 
 // The package's snap stops for the list column's width (`GL-UI-009` §Raststufen), narrowest first.
 // A surface that needs another split adds it here, for every app.
@@ -78,8 +79,8 @@ type SplitWorkspaceProps = {
 
 // The split workspace list | preview in the content area (`GL-UI-009`), the only divider apps use.
 // The list column's width is always one of `SPLIT_STOPS`: dragging snaps to the nearest one, ←/→
-// on the focused divider step to the previous/next one, a double click restores the surface
-// default. A stop that would squeeze a column below its minimum width gives way to the nearest one
+// on the focused divider step to the previous/next one, a double click or Enter restores the
+// surface default, as the divider's tooltip says. A stop that would squeeze a column below its minimum width gives way to the nearest one
 // that holds both, without overwriting the choice; when none does, one column with a List / Preview
 // toggle remains. `Esc` closes the preview unless an inner layer took it first (`GL-UI-007`).
 function SplitWorkspace({
@@ -148,6 +149,11 @@ function SplitWorkspace({
   const stop = fitting.includes(chosen) ? chosen : nearestStop(FRACTIONS[chosen], fitting);
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      choose(defaultStop);
+      return;
+    }
     const step = { ArrowRight: 1, ArrowLeft: -1 }[event.key];
     if (step === undefined || stop === undefined) return;
     event.preventDefault();
@@ -235,21 +241,28 @@ function SplitWorkspace({
           {list}
         </div>
         {open && !single ? (
-          <div
-            role="separator"
-            aria-orientation="vertical"
-            aria-label={t("split.divider")}
-            aria-valuemin={Math.round(FRACTIONS[SPLIT_STOPS[0]] * 100)}
-            aria-valuemax={Math.round(FRACTIONS[SPLIT_STOPS[SPLIT_STOPS.length - 1]!] * 100)}
-            aria-valuenow={stop === undefined ? undefined : Math.round(FRACTIONS[stop] * 100)}
-            aria-valuetext={stop}
-            tabIndex={0}
-            className="relative w-px shrink-0 cursor-col-resize touch-none bg-border outline-none before:absolute before:inset-y-0 before:-left-1 before:w-2 before:content-[''] focus-visible:focus-ring"
-            onKeyDown={onKeyDown}
-            onPointerDown={onPointerDown}
-            onDoubleClick={() => choose(defaultStop)}
-            data-testid={`${testId}-divider`}
-          />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div
+                role="separator"
+                aria-orientation="vertical"
+                aria-label={t("split.divider")}
+                aria-valuemin={Math.round(FRACTIONS[SPLIT_STOPS[0]] * 100)}
+                aria-valuemax={Math.round(FRACTIONS[SPLIT_STOPS[SPLIT_STOPS.length - 1]!] * 100)}
+                aria-valuenow={stop === undefined ? undefined : Math.round(FRACTIONS[stop] * 100)}
+                aria-valuetext={stop}
+                tabIndex={0}
+                className="relative w-px shrink-0 cursor-col-resize touch-none bg-border outline-none before:absolute before:inset-y-0 before:-left-1 before:w-2 before:content-[''] focus-visible:focus-ring"
+                onKeyDown={onKeyDown}
+                onPointerDown={onPointerDown}
+                onDoubleClick={() => choose(defaultStop)}
+                data-testid={`${testId}-divider`}
+              />
+            </TooltipTrigger>
+            <TooltipContent data-testid={`${testId}-divider-hint`}>
+              {t("split.dividerHint")}
+            </TooltipContent>
+          </Tooltip>
         ) : null}
         {open ? (
           <div

@@ -123,6 +123,7 @@ export const en = {
     list: "List",
     preview: "Preview",
     divider: "Resize list and preview",
+    dividerHint: "Drag or press ←/→ to change the split; double-click or Enter restores the default.",
   },
   nav: {
     label: "Primary navigation",
