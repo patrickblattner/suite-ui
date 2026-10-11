@@ -6,24 +6,30 @@ import { Code } from "./code.js";
 import { ColorDotBadge } from "./color-dot-badge.js";
 import { STATUS_CHIP_STATES, StatusChip, type StatusChipState } from "./status-chip.js";
 
-// SUI-FEATURE-044, SUI-FEATURE-049 (`failing`): state → tone, and the English text of each state.
+// SUI-FEATURE-044, SUI-FEATURE-049 (`failing`), GL-UI-011 rev 7 (publication states): state → tone,
+// and the English text of each state.
 const EXPECTED: [StatusChipState, string, string][] = [
   ["succeeded", "success", "Succeeded"],
   ["ok", "success", "OK"],
   ["connected", "success", "Connected"],
   ["active", "success", "Active"],
+  ["published", "success", "Published"],
   ["failed", "destructive", "Failed"],
   ["error", "destructive", "Error"],
   ["failing", "destructive", "Failing"],
   ["untested", "warn", "Untested"],
   ["unconfigured", "warn", "Not configured"],
   ["expiring", "warn", "Expiring"],
+  ["unpublishedChanges", "warn", "Unpublished changes"],
   ["running", "info", "Running"],
   ["inProgress", "info", "In progress"],
+  ["scheduled", "info", "Scheduled"],
   ["set", "secondary", "Set"],
   ["notSet", "secondary", "Not set"],
   ["notTestable", "secondary", "Not testable"],
   ["unknown", "secondary", "Unknown"],
+  ["draft", "secondary", "Draft"],
+  ["notPublished", "secondary", "Not published"],
 ];
 
 describe("StatusChip", () => {
@@ -33,7 +39,7 @@ describe("StatusChip", () => {
     await i18n.changeLanguage("en");
   });
 
-  it("knows exactly the 16 states", () => {
+  it("knows exactly the 21 states", () => {
     expect([...STATUS_CHIP_STATES].sort()).toEqual(EXPECTED.map(([state]) => state).sort());
   });
 
@@ -69,6 +75,32 @@ describe("StatusChip", () => {
     await i18n.changeLanguage(lng);
     render(<StatusChip state="unconfigured" />);
     expect(screen.getByText(text)).toBeInTheDocument();
+  });
+
+  it.each([
+    [
+      "de",
+      [
+        "Veröffentlicht",
+        "Unveröffentlichte Änderungen",
+        "Geplant",
+        "Entwurf",
+        "Nicht veröffentlicht",
+      ],
+    ],
+    ["en", ["Published", "Unpublished changes", "Scheduled", "Draft", "Not published"]],
+    ["es", ["Publicado", "Cambios sin publicar", "Programado", "Borrador", "No publicado"]],
+  ])("names the publication states in %s, in sentence case", async (lng, texts) => {
+    await i18n.changeLanguage(lng);
+    const states: StatusChipState[] = [
+      "published",
+      "unpublishedChanges",
+      "scheduled",
+      "draft",
+      "notPublished",
+    ];
+    states.forEach((state) => render(<StatusChip state={state} data-testid={state} />));
+    expect(states.map((state) => screen.getByTestId(state).textContent)).toEqual(texts);
   });
 });
 
