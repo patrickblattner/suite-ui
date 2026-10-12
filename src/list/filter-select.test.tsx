@@ -3,7 +3,6 @@ import i18n from "i18next";
 import { act } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { configureSuiteUi } from "../config/index.js";
 import { FilterSelect } from "./filter-select.js";
 
 const FIELD = { de: "Schweregrad", en: "Severity", es: "Gravedad" } as const;
@@ -64,19 +63,10 @@ describe("FilterSelect select width (SUI-FEATURE-026)", () => {
     );
 
   afterEach(async () => {
-    configureSuiteUi({});
     await act(() => i18n.changeLanguage("en"));
   });
 
-  it("AC6: content has no sizer and keeps the v0.15.0 classes", () => {
-    renderRoom("Room");
-    expect(screen.queryByTestId("filter-room-sizer")).toBeNull();
-    expect(document.querySelector('[data-slot="select-sizer"]')).toBeNull();
-    expect(screen.getByTestId("filter-room")).toHaveClass("min-w-24");
-  });
-
   it("AC5: measured sizes the trigger by its longest full text and fills the sizer's cell", () => {
-    configureSuiteUi({ selectWidth: "measured" });
     renderRoom("Room");
     const sizer = screen.getByTestId("filter-room-sizer");
     expect(sizer).toHaveTextContent("Room: Konferenzzentrum");
@@ -88,7 +78,6 @@ describe("FilterSelect select width (SUI-FEATURE-026)", () => {
   });
 
   it("AC5: the sizer stacks every full trigger text in one grid cell", () => {
-    configureSuiteUi({ selectWidth: "measured" });
     renderRoom("Room");
     const rows = [...screen.getByTestId("filter-room-sizer").children];
     expect(rows.map((row) => row.textContent)).toEqual([
@@ -100,7 +89,6 @@ describe("FilterSelect select width (SUI-FEATURE-026)", () => {
   });
 
   it("AC5: the sizer follows the active language", async () => {
-    configureSuiteUi({ selectWidth: "measured" });
     render(
       <FilterSelect
         field="Room"
@@ -137,10 +125,6 @@ describe("FilterSelect without allValue (SUI-FEATURE-031)", () => {
       />,
     );
 
-  afterEach(() => {
-    configureSuiteUi({});
-  });
-
   it("AC4: reads field and value and offers no All entry", () => {
     renderDate();
     expect(screen.getByTestId("filter-date")).toHaveTextContent("Termin: 12.10.");
@@ -154,7 +138,6 @@ describe("FilterSelect without allValue (SUI-FEATURE-031)", () => {
   });
 
   it("AC4: measured sizes by the value texts only", () => {
-    configureSuiteUi({ selectWidth: "measured" });
     renderDate();
     const rows = [...screen.getByTestId("filter-date-sizer").children];
     expect(rows.map((row) => row.textContent)).toEqual(["Termin: 12.10.", "Termin: 19.10."]);

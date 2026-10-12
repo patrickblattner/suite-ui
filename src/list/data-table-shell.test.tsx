@@ -128,7 +128,7 @@ describe("DataTableShell", () => {
     expect(column.className).toBe("flex min-h-0 flex-1 flex-col gap-4");
     expect(slotIds(column)).toEqual(["data-table-scroll", "pager"]);
     expect(screen.getByTestId("data-table-scroll").className).toBe(
-      "relative min-h-6 flex-1 overflow-auto [scrollbar-gutter:stable] [&_[data-slot=table-container]]:overflow-visible",
+      "relative min-h-6 flex-1 overflow-auto overflow-y-scroll [scrollbar-gutter:stable] [&_[data-slot=table-container]]:overflow-visible",
     );
   });
 
@@ -237,7 +237,7 @@ describe("DataTableShell", () => {
     const scroll = container.querySelector('[data-testid="data-table-scroll"]');
     expect(scroll?.getAttributeNames()).toEqual(["class", "data-testid"]);
     expect(scroll?.className).toBe(
-      "relative min-h-6 flex-1 overflow-auto [scrollbar-gutter:stable] [&_[data-slot=table-container]]:overflow-visible",
+      "relative min-h-6 flex-1 overflow-auto overflow-y-scroll [scrollbar-gutter:stable] [&_[data-slot=table-container]]:overflow-visible",
     );
     expect(container.querySelector("[tabindex]")).toBeNull();
     expect(within(container).queryByRole("region")).toBeNull();
@@ -281,7 +281,7 @@ describe("DataTableShell", () => {
     const frame = container.querySelector('[data-testid="data-table"]');
     expect(frame?.getAttributeNames()).toEqual(["class", "data-testid", "data-slot"]);
     expect(container.querySelector('[data-testid="data-table-scroll"]')?.className).toBe(
-      "relative min-h-6 flex-1 overflow-auto [scrollbar-gutter:stable] [&_[data-slot=table-container]]:overflow-visible",
+      "relative min-h-6 flex-1 overflow-auto overflow-y-scroll [scrollbar-gutter:stable] [&_[data-slot=table-container]]:overflow-visible",
     );
     for (const row of container.querySelectorAll('[data-slot="list-gutter-row"]')) {
       expect(row.className).toBe(

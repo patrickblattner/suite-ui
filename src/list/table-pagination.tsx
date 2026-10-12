@@ -7,7 +7,6 @@ import {
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 
-import { suiteUiConfig } from "../config/index.js";
 import { isInDialog, isTextField } from "../lib/keyboard.js";
 import { focusListFrame, GRID_ITEM_ATTR, LIST_FRAME_SELECTOR } from "../lib/list-focus.js";
 import { MEASURED_TRIGGER, MeasuredCell } from "../lib/select-sizer.js";
@@ -63,8 +62,8 @@ function pagesFrom(focused: Element | null, root: HTMLElement): boolean {
 
 // The pager under every list (`GL-UI-025`): four chevrons around "Page X / Y (Total)" and the page
 // size (10/25/50/100), right-aligned so its right edge meets the page gutter on every surface.
-// `--pager-gap` keeps chevrons and indicator one compact cluster. Under `selectWidth: "measured"` the
-// page size is as wide as its longest option in the active language.
+// `--pager-gap` keeps chevrons and indicator one compact cluster. The page
+// size is as wide as its longest option in the active language.
 function TablePagination({
   page,
   setPage,
@@ -76,7 +75,6 @@ function TablePagination({
   const { t } = useTranslation("suite");
   const atFirst = page <= 1;
   const atLast = page >= totalPages;
-  const measured = suiteUiConfig().selectWidth === "measured";
   const rootRef = React.useRef<HTMLDivElement>(null);
   // Set when a page change by key started in an entry: the focus then moves to the new first entry.
   const focusFirstEntry = React.useRef(false);
@@ -163,7 +161,7 @@ function TablePagination({
       <Hint text={t("pagination.pageSizeHint")}>
         <SelectTrigger
           size="sm"
-          className={measured ? MEASURED_TRIGGER : "min-w-[160px]"}
+          className={MEASURED_TRIGGER}
           aria-label={t("pagination.pageSizeLabel")}
           data-testid="pagination-page-size"
         >
@@ -224,18 +222,14 @@ function TablePagination({
         target: totalPages,
         disabled: atLast,
       })}
-      {measured ? (
-        <MeasuredCell
-          texts={PAGE_SIZES.map((size) =>
-            t("pagination.pageSize", { size, interpolation: { escapeValue: false } }),
-          )}
-          data-testid="pagination-page-size"
-        >
-          {pageSizeSelect}
-        </MeasuredCell>
-      ) : (
-        pageSizeSelect
-      )}
+      <MeasuredCell
+        texts={PAGE_SIZES.map((size) =>
+          t("pagination.pageSize", { size, interpolation: { escapeValue: false } }),
+        )}
+        data-testid="pagination-page-size"
+      >
+        {pageSizeSelect}
+      </MeasuredCell>
     </div>
   );
 }

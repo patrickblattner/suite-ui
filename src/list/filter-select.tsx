@@ -1,6 +1,5 @@
 import { useTranslation } from "react-i18next";
 
-import { suiteUiConfig } from "../config/index.js";
 import { cn } from "../lib/cn.js";
 import { MEASURED_TRIGGER, MeasuredCell } from "../lib/select-sizer.js";
 import { Hint } from "../ui/hint.js";
@@ -25,8 +24,7 @@ type FilterSelectProps = {
 
 // The filter dropdown of a list (`GL-UI-024`). Its trigger always reads "<Field>: <Value>" —
 // "Severity: All", after a choice "Severity: Warning". The no-filter value is the one word
-// All/Alle/Todos in every list, never a form inflected by field. Under `selectWidth: "measured"` the
-// trigger is as wide as its longest text in the active language, whichever value is chosen.
+// All/Alle/Todos in every list, never a form inflected by field. The trigger is as wide as its longest text in the active language, whichever value is chosen.
 function FilterSelect({
   field,
   value,
@@ -43,13 +41,12 @@ function FilterSelect({
     allValue !== undefined && value === allValue
       ? t("filter.all", { field, interpolation: { escapeValue: false } })
       : `${field}: ${chosen}`;
-  const measured = suiteUiConfig().selectWidth === "measured";
   const select = (
     <Select value={value} onValueChange={onValueChange}>
       <Hint text={hint}>
         <SelectTrigger
           aria-label={field}
-          className={cn(measured ? MEASURED_TRIGGER : "min-w-24", className)}
+          className={cn(MEASURED_TRIGGER, className)}
           data-testid={testId}
         >
           <SelectValue>{trigger}</SelectValue>
@@ -67,7 +64,6 @@ function FilterSelect({
       </SelectContent>
     </Select>
   );
-  if (!measured) return select;
   return (
     <MeasuredCell
       texts={[

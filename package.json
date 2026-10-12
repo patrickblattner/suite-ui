@@ -32,10 +32,6 @@
       "types": "./dist/help/*.d.ts",
       "import": "./dist/help/*.js"
     },
-    "./config": {
-      "types": "./dist/config/index.d.ts",
-      "import": "./dist/config/index.js"
-    },
     "./strings": {
       "types": "./dist/strings/index.d.ts",
       "import": "./dist/strings/index.js"

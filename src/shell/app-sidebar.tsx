@@ -3,7 +3,6 @@ import type * as React from "react";
 import { useTranslation } from "react-i18next";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 
-import { suiteUiConfig } from "../config/index.js";
 import { cn } from "../lib/cn.js";
 import { Hint, type HintProps } from "../ui/hint.js";
 import {
@@ -251,10 +250,8 @@ function AppSidebar({
         </div>
       )}
 
-      {/* Under `userMenu: "fit"` the collapsed footer gives the trigger the full rail width. */}
-      <div className={cn("border-t p-2", suiteUiConfig().userMenu === "fit" && !isOpen && "px-0")}>
-        {userMenu}
-      </div>
+      {/* The collapsed footer gives the trigger the full rail width. */}
+      <div className={cn("border-t p-2", !isOpen && "px-0")}>{userMenu}</div>
     </nav>
   );
 }

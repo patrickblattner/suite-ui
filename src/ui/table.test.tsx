@@ -1,16 +1,12 @@
 import { render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 
-import { configureSuiteUi } from "../config/index.js";
 import { DataTableShell } from "../list/data-table-shell.js";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./table.js";
 
-// The classes every part has without the switch: those of `v0.18.0` (SUI-FEATURE-029 AC1) with the
-// 12 px cell padding of SUI-FEATURE-047.
-const DEFAULT = {
-  container: "relative w-full overflow-x-auto",
-  header: "[&_tr]:border-b",
-  row: "border-b transition-colors hover:bg-muted/50 has-aria-expanded:bg-muted/50 data-[state=selected]:bg-muted",
+// The base classes of head and cell, with the 12 px cell padding of SUI-FEATURE-047; the actions
+// column adds its sticky classes on top (SUI-FEATURE-002).
+const BASE = {
   head: "h-10 px-3 text-left align-middle font-medium whitespace-nowrap text-foreground [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
   cell: "px-3 py-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
 };
@@ -52,20 +48,6 @@ const classOf = (testId: string) => screen.getByTestId(testId).className;
 const container = () => screen.getByTestId("table").parentElement?.className;
 
 describe("Table", () => {
-  afterEach(() => configureSuiteUi({}));
-
-  it("keeps the default classes of every part without the switch", () => {
-    renderTable();
-    expect(container()).toBe(DEFAULT.container);
-    expect(classOf("header")).toBe(DEFAULT.header);
-    expect(classOf("plain-row")).toBe(DEFAULT.row);
-    expect(classOf("target-row")).toBe(DEFAULT.row);
-    expect(classOf("head")).toBe(DEFAULT.head);
-    expect(classOf("actions-head")).toBe(DEFAULT.head);
-    expect(classOf("cell")).toBe(DEFAULT.cell);
-    expect(classOf("actions-cell")).toBe(DEFAULT.cell);
-  });
-
   it("leaves the roles implicit on a plain table", () => {
     renderTable();
     for (const id of ["plain-row", "head", "cell"]) {
@@ -84,16 +66,13 @@ describe("Table", () => {
     expect(screen.getAllByRole("gridcell")).toHaveLength(3);
   });
 
-  it('tableScroll "page": the container has no overflow, the header is sticky', () => {
-    configureSuiteUi({ tableScroll: "page" });
+  it("SUI-FEATURE-002: the container has no overflow, the header is sticky", () => {
     renderTable();
     expect(container()).toBe("relative w-full");
-    expect(container()).not.toMatch(/overflow/);
     expect(classOf("header")).toBe(`${STICKY_HEADER} [&_tr]:border-b`);
   });
 
-  it('tableRowHover "target": only a row with data-grid-row highlights on hover', () => {
-    configureSuiteUi({ tableRowHover: "target" });
+  it("SUI-FEATURE-002 AC3: only a row with data-grid-row highlights on hover", () => {
     renderTable();
     for (const id of ["plain-row", "target-row"]) {
       expect(classOf(id)).not.toMatch(/(^| )hover:bg-/);
@@ -103,15 +82,15 @@ describe("Table", () => {
     }
   });
 
-  it('tableActions "sticky": the actions head and cell stick right only on a stuck scroller', () => {
-    configureSuiteUi({ tableActions: "sticky" });
+  it("SUI-FEATURE-002 AC3: the actions head and cell stick right only on a stuck scroller", () => {
     renderTable();
-    expect(classOf("actions-head")).toBe(`${DEFAULT.head} ${STICKY_HEAD_ACTIONS}`);
-    expect(classOf("actions-cell")).toBe(`${DEFAULT.cell} ${STICKY_CELL_ACTIONS}`);
+    expect(classOf("head")).toBe(`${BASE.head} ${STICKY_HEAD_ACTIONS}`);
+    expect(classOf("actions-head")).toBe(`${BASE.head} ${STICKY_HEAD_ACTIONS}`);
+    expect(classOf("cell")).toBe(`${BASE.cell} ${STICKY_CELL_ACTIONS}`);
+    expect(classOf("actions-cell")).toBe(`${BASE.cell} ${STICKY_CELL_ACTIONS}`);
   });
 
-  it("DataTableShell inherits the switch and keeps its own scroller and sticky header", () => {
-    configureSuiteUi({ tableScroll: "page", tableRowHover: "target", tableActions: "sticky" });
+  it("DataTableShell inherits the table classes and keeps its own scroller and sticky header", () => {
     render(
       <DataTableShell
         head={<TableHead data-col-kind="actions" data-testid="shell-actions" />}
@@ -142,7 +121,6 @@ describe("Table", () => {
 
 describe("action-column edge shadow token (#86)", () => {
   it("uses --shadow-edge instead of a fixed rgb colour", () => {
-    configureSuiteUi({ tableActions: "sticky" });
     renderTable();
     expect(classOf("actions-head")).toContain("var(--shadow-edge)");
     expect(classOf("actions-head")).not.toContain("rgb(");

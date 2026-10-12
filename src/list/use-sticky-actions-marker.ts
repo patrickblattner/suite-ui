@@ -5,9 +5,9 @@ import * as React from "react";
 // edge; while content lies under that column (not scrolled fully right) also `data-actions-shadow`,
 // the column's left-edge shadow. Beside a preview, in a `SplitWorkspace` list column, it never
 // sticks. Rechecked on scroll and whenever the scroller or its table changes size.
-function useStickyActionsMarker(scroller: HTMLElement | null, enabled: boolean): void {
+function useStickyActionsMarker(scroller: HTMLElement | null): void {
   React.useLayoutEffect(() => {
-    if (scroller === null || !enabled) return;
+    if (scroller === null) return;
     const apply = (): void => {
       const overflows = scroller.scrollWidth > scroller.clientWidth;
       const stuck = overflows && scroller.closest('[data-slot="split-workspace-list"]') === null;
@@ -27,7 +27,7 @@ function useStickyActionsMarker(scroller: HTMLElement | null, enabled: boolean):
       scroller.removeAttribute("data-actions-stuck");
       scroller.removeAttribute("data-actions-shadow");
     };
-  }, [scroller, enabled]);
+  }, [scroller]);
 }
 
 export { useStickyActionsMarker };
