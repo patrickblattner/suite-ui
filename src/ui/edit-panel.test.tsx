@@ -185,6 +185,9 @@ describe("EditPanel", () => {
     cleanup();
     renderPanel({ mode: "edit" });
     expect(screen.getByTestId("edit-panel")).toHaveFocus();
+    cleanup();
+    renderPanel();
+    expect(screen.getByTestId("edit-panel")).toHaveFocus();
   });
 
   // SUI-FEATURE-035 AC1: native constraints never block the submit.
