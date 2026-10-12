@@ -217,17 +217,20 @@ export function ListPage() {
         loadingRowTestId="list-row-loading"
         emptyTestId="list-empty"
         headerTestId="list-header"
-        tabs={
-          TABS && (
-            <TabsList data-testid="list-tabs">
-              {["all", ...SEVERITIES].map((value) => (
-                <TabsTrigger key={value} value={value} data-testid={`list-tab-${value}`}>
-                  {value === "all" ? labels.all : value}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          )
-        }
+        {...(TABS && {
+          tabs: {
+            list: (
+              <TabsList data-testid="list-tabs">
+                {["all", ...SEVERITIES].map((value) => (
+                  <TabsTrigger key={value} value={value} data-testid={`list-tab-${value}`}>
+                    {value === "all" ? labels.all : value}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            ),
+            value: view,
+          },
+        })}
         toolbar={filterBar}
         pagination={
           <TablePagination

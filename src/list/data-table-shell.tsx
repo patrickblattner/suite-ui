@@ -4,6 +4,7 @@ import { Skeleton } from "../ui/skeleton.js";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "../ui/table.js";
 import { type GutterInset, GutterRow } from "./list-gutter.js";
 import { listState, ListStateContent, type ListStateProps } from "./list-state.js";
+import { ListTabPanel, type ListTabs } from "./list-tabs.js";
 import { useOverflowXMarker } from "./use-overflow-x-marker.js";
 import { useStickyActionsMarker } from "./use-sticky-actions-marker.js";
 
@@ -55,9 +56,9 @@ type DataTableShellProps = {
   // labelled region reachable by Tab, so a read table without focusable rows scrolls by keyboard.
   // Under `tableProps.role="grid"` the grid is the tab stop and the scroller only gets role and name.
   scrollLabel?: string;
-  // The view switch above the table, a `TabsList`; the page wraps the frame in `Tabs` and picks the
-  // data by the active value.
-  tabs?: React.ReactNode;
+  // The view switch above the table: its `TabsList` and the active value (`ListTabs`). The scroller is
+  // then the active tab's panel, named by its tab, and a tab stop unless the table is a grid.
+  tabs?: ListTabs;
   // The `FilterBar`, between the view switch and the table.
   toolbar?: React.ReactNode;
   // Where the frame sits: `"page"` (default) in PageScroll with the shared gutter, `"sheet"` in a drawer
@@ -108,7 +109,8 @@ function DataTableShell({
   delete forwardedTableProps.style;
   // An empty label counts as unset (`SUI-FEATURE-054`): no tab stop, no region without a name.
   const label = scrollLabel === "" ? undefined : scrollLabel;
-  const focusable = label !== undefined && tableProps?.role !== "grid";
+  // A tab panel is a tab stop like a labelled scroller; under a grid the grid is the one stop.
+  const focusable = (label !== undefined || tabs !== undefined) && tableProps?.role !== "grid";
   const scrollClass = `${SCROLL_CLASS}${SCROLL_INSET_CLASS[inset]}`;
   // The scroller as state, for the sticky-actions marker; the app's `scrollRef` gets it too.
   const [scroller, setScroller] = React.useState<HTMLDivElement | null>(null);
@@ -127,51 +129,58 @@ function DataTableShell({
       data-slot="list-frame"
       ref={inset === "page" ? undefined : frameRef}
     >
-      {tabs}
+      {tabs?.list}
       <GutterRow inset={inset}>{toolbar}</GutterRow>
-      <div
-        className={focusable ? `${scrollClass} ${SCROLL_FOCUS_CLASS}` : scrollClass}
-        data-testid={scrollTestId}
-        ref={scrollerRef}
-        role={label === undefined ? undefined : "region"}
-        aria-label={label}
-        tabIndex={focusable ? 0 : undefined}
-      >
-        <Table {...forwardedTableProps}>
-          <TableHeader className={STICKY_HEADER_CLASS} data-testid={headerTestId}>
-            <TableRow>{head}</TableRow>
-          </TableHeader>
-          <TableBody>
-            {state === "pending" ? (
-              Array.from({ length: SKELETON_ROW_COUNT }, (_, index) => (
-                <TableRow key={`skeleton-${index}`} data-testid={loadingRowTestId}>
-                  {Array.from({ length: columnCount }, (_, cell) => (
-                    <TableCell key={cell}>
-                      <Skeleton className="h-4 w-full" />
-                    </TableCell>
-                  ))}
+      <ListTabPanel tabs={tabs}>
+        <div
+          className={focusable ? `${scrollClass} ${SCROLL_FOCUS_CLASS}` : scrollClass}
+          data-testid={scrollTestId}
+          ref={scrollerRef}
+          // As a tab panel the scroller keeps the panel's role and its name from the tab
+          // (`aria-labelledby` would beat `aria-label` anyway), so neither key overrides them; `tabIndex`
+          // always overrides the panel's own, so a grid stays the one tab stop.
+          {...(label !== undefined &&
+            tabs === undefined && { role: "region", "aria-label": label })}
+          tabIndex={focusable ? 0 : undefined}
+        >
+          <Table {...forwardedTableProps}>
+            <TableHeader className={STICKY_HEADER_CLASS} data-testid={headerTestId}>
+              <TableRow>{head}</TableRow>
+            </TableHeader>
+            <TableBody>
+              {state === "pending" ? (
+                Array.from({ length: SKELETON_ROW_COUNT }, (_, index) => (
+                  <TableRow key={`skeleton-${index}`} data-testid={loadingRowTestId}>
+                    {Array.from({ length: columnCount }, (_, cell) => (
+                      <TableCell key={cell}>
+                        <Skeleton className="h-4 w-full" />
+                      </TableCell>
+                    ))}
+                  </TableRow>
+                ))
+              ) : state === "items" ? (
+                children
+              ) : (
+                <TableRow>
+                  <TableCell
+                    colSpan={columnCount}
+                    className={
+                      state === "error"
+                        ? "text-center text-destructive-text"
+                        : "text-center text-muted-foreground"
+                    }
+                    data-testid={
+                      state === "error" ? stateProps.errorTestId : stateProps.emptyTestId
+                    }
+                  >
+                    <ListStateContent state={state} {...stateProps} />
+                  </TableCell>
                 </TableRow>
-              ))
-            ) : state === "items" ? (
-              children
-            ) : (
-              <TableRow>
-                <TableCell
-                  colSpan={columnCount}
-                  className={
-                    state === "error"
-                      ? "text-center text-destructive-text"
-                      : "text-center text-muted-foreground"
-                  }
-                  data-testid={state === "error" ? stateProps.errorTestId : stateProps.emptyTestId}
-                >
-                  <ListStateContent state={state} {...stateProps} />
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+      </ListTabPanel>
       <GutterRow inset={inset}>{pagination}</GutterRow>
     </div>
   );

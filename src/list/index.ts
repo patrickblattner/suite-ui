@@ -5,6 +5,7 @@ export * from "./filter-bar.js";
 export * from "./filter-select.js";
 export * from "./labeled-select.js";
 export * from "./list-state.js";
+export * from "./list-tabs.js";
 export * from "./list-view-shell.js";
 export * from "./page-header.js";
 export * from "./page-scroll.js";

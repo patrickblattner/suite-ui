@@ -144,9 +144,12 @@ export function OverlaysPage() {
   );
 }
 
+// `?select=closed` keeps the list shut, so axe also scans the page with its controls reachable.
+const SELECT_CLOSED = new URLSearchParams(window.location.search).get("select") === "closed";
+
 export function SelectPage() {
   return (
-    <Select open defaultValue="weekly">
+    <Select open={!SELECT_CLOSED} defaultValue="weekly">
       <SelectTrigger aria-label="Select open" className="w-48">
         <SelectValue />
       </SelectTrigger>

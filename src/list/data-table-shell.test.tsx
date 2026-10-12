@@ -3,6 +3,8 @@ import * as React from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { TableCell, TableHead, TableRow } from "../ui/table.js";
+import { Tabs, TabsList, TabsTrigger } from "../ui/tabs.js";
+import type { ListTabs } from "./list-tabs.js";
 import {
   DataTableShell,
   type DataTableShellProps,
@@ -16,12 +18,12 @@ function renderShell(state: {
   scrollRef?: React.Ref<HTMLDivElement>;
   scrollLabel?: string;
   isError?: boolean;
-  tabs?: React.ReactNode;
+  tabs?: ListTabs;
   toolbar?: React.ReactNode;
   tableProps?: DataTableShellProps["tableProps"];
   inset?: DataTableShellProps["inset"];
 }) {
-  return render(
+  const shell = (
     <DataTableShell
       head={
         <>
@@ -44,7 +46,7 @@ function renderShell(state: {
         error: "Liste konnte nicht geladen werden.",
         errorTestId: "x-error",
       })}
-      tabs={state.tabs}
+      {...(state.tabs !== undefined && { tabs: state.tabs })}
       toolbar={state.toolbar}
       pagination={<div data-testid="pager" />}
       {...(state.tableProps !== undefined && { tableProps: state.tableProps })}
@@ -54,8 +56,10 @@ function renderShell(state: {
         <TableCell>a</TableCell>
         <TableCell>Ada</TableCell>
       </TableRow>
-    </DataTableShell>,
+    </DataTableShell>
   );
+  // The tab panel needs the page's `Tabs` around the frame.
+  return render(state.tabs === undefined ? shell : <Tabs value={state.tabs.value}>{shell}</Tabs>);
 }
 
 // The column's slots by test id; FilterBar and pager sit in the shared-gutter wrapper.
@@ -105,7 +109,10 @@ describe("DataTableShell", () => {
   });
 
   it("orders view switch, FilterBar, scroller and pager in the one gap-4 column", () => {
-    renderShell({ tabs: <div data-testid="tabs" />, toolbar: <div data-testid="toolbar" /> });
+    renderShell({
+      tabs: { list: <div data-testid="tabs" />, value: "a" },
+      toolbar: <div data-testid="toolbar" />,
+    });
     const column = screen.getByTestId("data-table");
     expect(column).toHaveClass("flex-col", "gap-4");
     expect(slotIds(column)).toEqual(["tabs", "toolbar", "data-table-scroll", "pager"]);
@@ -326,5 +333,95 @@ describe("DataTableShell", () => {
         "px-[calc(1rem+3px)]",
       );
     }
+  });
+
+  // `#96`, `SUI-FEATURE-027` AC 8: the scroller is the active tab's panel, named by its tab.
+  describe("tabs: { list, value }", () => {
+    const LIST = (
+      <TabsList>
+        <TabsTrigger value="all">All</TabsTrigger>
+        <TabsTrigger value="error">Error</TabsTrigger>
+      </TabsList>
+    );
+
+    it("makes the scroller the active tab's panel and a tab stop", () => {
+      renderShell({ tabs: { list: LIST, value: "error" }, scrollLabel: "Events" });
+      const tab = screen.getByRole("tab", { name: "Error" });
+      const panel = screen.getByRole("tabpanel", { name: "Error" });
+      expect(panel).toBe(screen.getByTestId("data-table-scroll"));
+      expect(tab).toHaveAttribute("aria-controls", panel.id);
+      expect(panel).toHaveAttribute("aria-labelledby", tab.id);
+      expect(panel).toHaveAttribute("tabindex", "0");
+      // The tab names the panel; `scrollLabel` sets neither role nor name in tab mode.
+      expect(panel).not.toHaveAttribute("aria-label");
+    });
+
+    it("follows a tab switch", () => {
+      const { rerender } = renderShell({ tabs: { list: LIST, value: "all" } });
+      expect(screen.getByRole("tabpanel", { name: "All" })).toBeInTheDocument();
+      rerender(
+        <Tabs value="error">
+          <DataTableShell
+            head={<TableHead>Name</TableHead>}
+            columnCount={1}
+            isPending={false}
+            isEmpty={false}
+            empty="Nothing here."
+            loadingRowTestId="rows-loading"
+            emptyTestId="rows-empty"
+            tabs={{ list: LIST, value: "error" }}
+          >
+            <TableRow data-testid="row">
+              <TableCell>a</TableCell>
+            </TableRow>
+          </DataTableShell>
+        </Tabs>,
+      );
+      const panel = screen.getByRole("tabpanel", { name: "Error" });
+      expect(panel).toBe(screen.getByTestId("data-table-scroll"));
+      expect(screen.getByRole("tab", { name: "Error" })).toHaveAttribute("aria-controls", panel.id);
+      expect(screen.getByTestId("row")).toBeVisible();
+    });
+
+    it("under a grid leaves the grid the one tab stop", () => {
+      renderShell({ tabs: { list: LIST, value: "all" }, tableProps: { role: "grid" } });
+      expect(screen.getByRole("tabpanel")).not.toHaveAttribute("tabindex");
+    });
+
+    it("keeps the list when the value matches no tab of the Tabs", () => {
+      render(
+        <Tabs value="all">
+          <DataTableShell
+            head={<TableHead>Name</TableHead>}
+            columnCount={1}
+            isPending={false}
+            isEmpty={false}
+            empty="Nothing here."
+            loadingRowTestId="rows-loading"
+            emptyTestId="rows-empty"
+            tabs={{ list: LIST, value: "error" }}
+          >
+            <TableRow data-testid="row">
+              <TableCell>a</TableCell>
+            </TableRow>
+          </DataTableShell>
+        </Tabs>,
+      );
+      expect(screen.getByTestId("data-table-scroll")).not.toHaveAttribute("hidden");
+      expect(screen.getByTestId("row")).toBeVisible();
+    });
+
+    it("refuses a tab row without a value", () => {
+      // @ts-expect-error `tabs` needs the active value (`SUI-FEATURE-027` AC 8).
+      const tabs: DataTableShellProps["tabs"] = { list: LIST };
+      expect(tabs).toBeDefined();
+    });
+  });
+
+  it("without tabs, a labelled scroller stays a named region", () => {
+    renderShell({ scrollLabel: "Events" });
+    const scroller = screen.getByRole("region", { name: "Events" });
+    expect(scroller).toBe(screen.getByTestId("data-table-scroll"));
+    expect(scroller).not.toHaveAttribute("aria-labelledby");
   });
 });

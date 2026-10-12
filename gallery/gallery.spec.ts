@@ -98,7 +98,14 @@ for (const lng of LANGUAGES) {
 // `GL-UX-001`: axe with the WCAG 2.2 AA tag set on every gallery page, light and dark, at the
 // configured 1920×1080 desktop viewport.
 const WCAG_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
-const AXE_PAGES: [name: string, ready: (page: Page) => Locator][] = [
+// Each entry: the page, the element that tells it has rendered, an optional variant query and an
+// optional step (its title, then the action) before the scan.
+const AXE_PAGES: [
+  name: string,
+  ready: (page: Page) => Locator,
+  query?: string,
+  step?: [title: string, act: (page: Page) => Promise<void>],
+][] = [
   ["strings", (page) => page.locator("#strings-heading")],
   ["tokens", (page) => page.getByTestId("token-warn-text")],
   ["keys", (page) => page.getByTestId("keys-row").first()],
@@ -106,13 +113,42 @@ const AXE_PAGES: [name: string, ready: (page: Page) => Locator][] = [
   ["inset", (page) => page.getByTestId("inset-row").first()],
   ["edit-panel", (page) => page.getByTestId("media-panel-trigger")],
   ...PAGES,
+  ["list", (page) => page.getByTestId("list-tabs"), "&slots=tabs"],
+  [
+    "list",
+    (page) => page.getByTestId("list-tabs"),
+    "&slots=tabs",
+    [
+      "on the error tab",
+      async (page) => {
+        await page.getByTestId("list-tab-error").click();
+        await expect(page.getByRole("tabpanel", { name: "error" })).toBeVisible();
+      },
+    ],
+  ],
+  ["list", (page) => page.getByTestId("list-actions").first(), "&actions=1"],
+  ["select", (page) => page.getByRole("combobox", { expanded: false }), "&select=closed"],
 ];
 
+// A new gallery page cannot skip axe: the page switch offers exactly the pages axe scans.
+test("axe covers every gallery page", async ({ page }) => {
+  await page.goto("/");
+  const options = await page
+    .getByTestId("gallery-page")
+    .locator("option")
+    .evaluateAll((nodes) => nodes.map((node) => (node as HTMLOptionElement).value));
+  expect([...new Set(AXE_PAGES.map(([name]) => name))].sort()).toEqual([...options].sort());
+});
+
 for (const theme of THEMES) {
-  for (const [name, ready] of AXE_PAGES) {
-    test(`axe wcag 2.2 aa: ${name} ${theme}`, async ({ page }) => {
-      await page.goto(`/?page=${name}&lng=en&theme=${theme}`);
+  for (const [name, ready, query = "", step] of AXE_PAGES) {
+    const title = `${name}${query}${step === undefined ? "" : ` ${step[0]}`}`;
+    test(`axe wcag 2.2 aa: ${title} ${theme}`, async ({ page }) => {
+      await page.goto(`/?page=${name}${query}&lng=en&theme=${theme}`);
       await expect(ready(page)).toBeVisible();
+      await step?.[1](page);
+      const html = expect(page.locator("html"));
+      await (theme === "dark" ? html.toHaveClass(/\bdark\b/) : html.not.toHaveClass(/\bdark\b/));
       // Entering toasts and overlays fade in; mid-fade their text fails contrast and they overlap.
       // Endless animations (skeleton pulse, spinners) never settle and are left out.
       await page.waitForFunction(() =>
@@ -126,8 +162,9 @@ for (const theme of THEMES) {
       );
       const axe = new AxeBuilder({ page }).withTags(WCAG_TAGS);
       // The open Select traps focus like a modal but is no dialog, so axe misses that the page under
-      // its `aria-hidden` is unreachable and flags the page's controls there.
-      if (name === "select") axe.disableRules(["aria-hidden-focus"]);
+      // its `aria-hidden` is unreachable and flags the page's controls there. The closed variant scans
+      // with the rule on.
+      if (name === "select" && query === "") axe.disableRules(["aria-hidden-focus"]);
       const { violations } = await axe.analyze();
       expect(
         violations.map(({ id, nodes }) => ({ id, targets: nodes.map((node) => node.target) })),
