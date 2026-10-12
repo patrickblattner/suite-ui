@@ -192,3 +192,5 @@
 {"ts":"2026-10-11T12:53:00.311Z","key":"GL-UI-009","from":4,"to":5,"disposition":"ticket","ref":"82"}
 {"ts":"2026-10-11T13:46:48.887Z","key":"GL-TEST-027","from":3,"to":4,"disposition":"editorial","ref":"rev4 adds agent conduct for dispatched flake-repeat runs (no cancel, not a merge check) + drops inline references; suite-ui is local gate mode without workflows, delivery clause unchanged — no code impact"}
 {"ts":"2026-10-11T19:17:58.517Z","key":"SUI-DESIGN-011","from":3,"to":4,"disposition":"editorial","ref":"rev4 codifies synchronous bundling of en/de/es and defers per-language export; src/strings/index.ts already imports all three statically, no ./strings/<lng> export — no code impact"}
+{"ts":"2026-10-12T01:52:42.550Z","key":"SUI-FEATURE-045","from":3,"to":4,"disposition":"ticket","ref":"88"}
+{"ts":"2026-10-12T01:52:43.028Z","key":"GL-TEST-027","from":4,"to":5,"disposition":"editorial","ref":"Repeat-count semantics of flake-repeat refined (class maximum, no summing dispatches); repo has no flake-repeat job/workflows yet, so no code impact"}
