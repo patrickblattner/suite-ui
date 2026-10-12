@@ -1,15 +1,13 @@
 import { de } from "./de.js";
 import { en, type SuiteStrings } from "./en.js";
 import { es } from "./es.js";
-import { SUITE_NAMESPACE, type SuiteI18n } from "./types.js";
+import { SUITE_NAMESPACE, type SuiteI18n, type SuiteLanguage } from "./types.js";
 
 export type { SuiteStrings };
-export { SUITE_NAMESPACE, type SuiteI18n } from "./types.js";
+export { SUITE_LANGUAGES, SUITE_NAMESPACE, type SuiteI18n, type SuiteLanguage } from "./types.js";
 export { registerSuiteStringsLazy, type SuiteLazyI18n } from "./lazy.js";
 
-export const suiteStrings = { en, de, es } as const satisfies Record<string, SuiteStrings>;
-
-export type SuiteLanguage = keyof typeof suiteStrings;
+export const suiteStrings = { en, de, es } as const satisfies Record<SuiteLanguage, SuiteStrings>;
 
 /**
  * Adds the `suite` namespace in en, de and es to the app's i18next at once: the synchronous path for

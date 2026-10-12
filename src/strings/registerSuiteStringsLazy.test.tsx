@@ -60,4 +60,50 @@ describe("registerSuiteStringsLazy", () => {
     expect(inSpanish.every((entry) => entry.loaded && entry.text === "Guardar")).toBe(true);
     expect(i18n.hasResourceBundle("de", "suite")).toBe(false);
   });
+
+  it.each(["constructor", "__proto__", "toString", "fr"])(
+    "treats %s as an unknown code: English stays the fallback, nothing throws",
+    async (lng) => {
+      const i18n = createInstance();
+      await i18n.init({ lng: "en", fallbackLng: "en", resources: {} });
+      await registerSuiteStringsLazy(i18n);
+      await expect(i18n.changeLanguage(lng)).resolves.toBeDefined();
+      expect(i18n.t("actions.save", { ns: "suite" })).toBe("Save");
+    },
+  );
+
+  it("a switch without a language loads what the detector settles on before rendering in it", async () => {
+    let detect = "es";
+    const i18n = createInstance();
+    await i18n
+      .use({
+        type: "languageDetector",
+        init: () => {},
+        detect: () => detect,
+        cacheUserLanguage: () => {},
+      })
+      .use(initReactI18next)
+      .init({ fallbackLng: "en", resources: {} });
+    await registerSuiteStringsLazy(i18n);
+    expect(i18n.language).toBe("es");
+    expect(i18n.hasResourceBundle("es", "suite")).toBe(true);
+    const renders: { lng: string; text: string }[] = [];
+    function SaveLabel() {
+      const { t, i18n: active } = useTranslation("suite");
+      renders.push({ lng: active.language, text: t("actions.save") });
+      return <span>{t("actions.save")}</span>;
+    }
+    render(
+      <I18nextProvider i18n={i18n}>
+        <SaveLabel />
+      </I18nextProvider>,
+    );
+    detect = "de";
+    await act(() => i18n.changeLanguage());
+    expect(i18n.language).toBe("de");
+    expect(screen.getByText("Speichern")).toBeInTheDocument();
+    expect(renders.filter((entry) => entry.lng === "de").map((entry) => entry.text)).not.toContain(
+      "Save",
+    );
+  });
 });
