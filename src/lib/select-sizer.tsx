@@ -1,7 +1,6 @@
 import type * as React from "react";
 
-// The trigger classes under `selectWidth: "measured"`: the trigger shares the sizer's grid cell and
-// fills it.
+// The measured trigger classes: the trigger shares the sizer's grid cell and fills it.
 const MEASURED_TRIGGER = "col-start-1 row-start-1 w-full";
 
 type MeasuredCellProps = {

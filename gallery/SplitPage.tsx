@@ -83,8 +83,7 @@ const NOTE =
   "Rescheduled after the venue changed; attendees were notified by mail and the waitlist moved up.";
 
 // `GL-UI-023` §Neben einer Vorschau nie fixiert: a list table with an actions column beside a
-// preview; under `tableActions: "sticky"` it overflows, yet its actions column stays an ordinary last
-// column.
+// preview; it overflows, yet its actions column stays an ordinary last column.
 function TableWorkspace() {
   const { i18n } = useTranslation("suite");
   const labels = LABELS[i18n.language as keyof typeof LABELS] ?? LABELS.en;
