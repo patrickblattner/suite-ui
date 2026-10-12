@@ -53,11 +53,15 @@ type LeaveConfirmDialogProps = {
 };
 
 // The compact "Save changes?" dialog (`GL-UI-007`): Cancel, Discard and Save as the primary action on
-// the right. `Esc` is Cancel; `Enter` is Save unless the focus stands on another button.
+// the right. It opens with the focus on Save, so `Enter` saves; `Esc` is Cancel.
 function LeaveConfirmDialog({ open, onCancel, onDiscard, onSave }: LeaveConfirmDialogProps) {
   const { t } = useTranslation("suite");
   // What had the focus when the dialog opened; it gets it back when the surface stays.
   const opener = React.useRef<HTMLElement | null>(null);
+  const save = React.useRef<HTMLButtonElement>(null);
+  // The opening focus on Save shows its ring even when a pointer opened the dialog, where the browser
+  // would not match `:focus-visible` for a focus set by script; it ends with the first blur.
+  const [openingFocus, setOpeningFocus] = React.useState(false);
   return (
     <Dialog
       open={open}
@@ -68,9 +72,12 @@ function LeaveConfirmDialog({ open, onCancel, onDiscard, onSave }: LeaveConfirmD
       <DialogContent
         showCloseButton={false}
         data-testid="leave-guard"
-        onOpenAutoFocus={() => {
+        onOpenAutoFocus={(event) => {
           opener.current =
             document.activeElement instanceof HTMLElement ? document.activeElement : null;
+          event.preventDefault();
+          save.current?.focus();
+          setOpeningFocus(true);
         }}
         onCloseAutoFocus={(event) => {
           event.preventDefault();
@@ -114,7 +121,11 @@ function LeaveConfirmDialog({ open, onCancel, onDiscard, onSave }: LeaveConfirmD
             type="button"
             variant="success"
             size="default"
+            ref={save}
             onClick={onSave}
+            onBlur={() => setOpeningFocus(false)}
+            data-opening-focus={openingFocus || undefined}
+            className="data-[opening-focus]:focus:focus-ring"
             data-testid="leave-guard-save"
           >
             <SaveIcon aria-hidden="true" />

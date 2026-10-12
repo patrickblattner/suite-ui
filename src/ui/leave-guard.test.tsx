@@ -371,6 +371,20 @@ function Where() {
 }
 
 describe("EditPanel leave guard: focus, keys and routes (GL-UI-007)", () => {
+  // GL-UI-007 rev 3: the dialog opens with the focus on Save, its ring shown, so Enter saves.
+  it("the dialog opens with the focus on Save and its ring until the first blur", async () => {
+    render(<ListWithPanel />);
+    openRow();
+    edit();
+    fireEvent.click(screen.getByTestId("edit-panel-cancel"));
+    const save = await screen.findByTestId("leave-guard-save");
+    await waitFor(() => expect(save).toHaveFocus());
+    expect(save).toHaveAttribute("data-opening-focus", "true");
+    expect(save).toHaveClass("data-[opening-focus]:focus:focus-ring");
+    act(() => screen.getByTestId("leave-guard-discard").focus());
+    expect(save).not.toHaveAttribute("data-opening-focus");
+  });
+
   it.each([
     ["Cancel", () => fireEvent.click(screen.getByTestId("leave-guard-cancel"))],
     ["Esc", () => escape(screen.getByTestId("leave-guard"))],
@@ -539,6 +553,22 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
       </MemoryRouter>,
     );
   }
+
+  // GL-UI-007 rev 3
+  it("dirty Esc: the dialog opens on Save; Esc in it is Cancel and the page stays", async () => {
+    const save = vi.fn(() => true);
+    renderPage(save);
+    edit();
+    escape(screen.getByLabelText("Name"));
+    const button = await screen.findByTestId("leave-guard-save");
+    await waitFor(() => expect(button).toHaveFocus());
+    expect(button).toHaveAttribute("data-opening-focus", "true");
+    escape(button);
+    await waitFor(() => expect(screen.queryByTestId("leave-guard")).toBeNull());
+    expect(screen.getByTestId("path")).toHaveTextContent("/detail");
+    expect(screen.getByLabelText("Name")).toHaveValue("Changed");
+    expect(save).not.toHaveBeenCalled();
+  });
 
   it("clean: Esc returns to the list without a prompt", async () => {
     renderPage();

@@ -1138,6 +1138,29 @@ test("media detail shell: image, video and PDF, paged by the head and the arrow 
   await expect(shell).toBeHidden();
 });
 
+// `GL-UI-007` rev 3: a mouse-triggered leave opens the guard with the focus on Save and its ring
+// visible; Enter saves and carries out the held close, Esc stays.
+test("leave guard: the dialog opens on Save with its ring; Esc stays, Enter saves and leaves", async ({
+  page,
+}) => {
+  const shell = await openMediaDetail(page);
+  await shell.getByLabel("Name").fill("renamed.jpg");
+  await shell.getByTestId("media-detail-close").click();
+  const save = page.getByTestId("leave-guard-save");
+  await expect(save).toBeFocused();
+  await expect(save).not.toHaveCSS("box-shadow", "none");
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("leave-guard")).toBeHidden();
+  await expect(shell.getByLabel("Name")).toHaveValue("renamed.jpg");
+
+  await shell.getByTestId("media-detail-close").click();
+  await expect(save).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(shell).toBeHidden({ timeout: 5000 });
+  await page.getByTestId("media-detail-trigger").click();
+  await expect(page.getByTestId("media-detail").getByLabel("Name")).toHaveValue("renamed.jpg");
+});
+
 // `SUI-FEATURE-061` AC 3: one surface geometry for the shell and the edit panel.
 test("media detail shell: the same box as the edit panel", async ({ page }) => {
   await page.goto("/?page=edit-panel");

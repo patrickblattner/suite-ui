@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.67.1 — GL-UI-007 rev 3 (#104): the leave guard opens with the focus on Save
+
+Not breaking (no API change).
+
+- The "Save changes?" dialog opens with the focus on Save, so Enter saves and, on success, carries out the held way out; Esc stays Cancel. This applies to the guard built into `EditPanel` and `MediaDetailShell` and to `useLeaveGuard` on detail and editor pages.
+- Save shows its focus ring from the moment the dialog opens, even when a pointer opened it (the browser would not match `:focus-visible` there). The ring goes away with the first blur; after that the usual `focus-visible` rule applies.
+
+### Per app, when raising the pin
+
+No change needed. A test that expected the focus on the dialog itself when it opens now finds it on `leave-guard-save`.
+
 ## 0.67.0 — SUI-FEATURE-062 rev 3 (#103): crop and flip at an image placement
 
 Not breaking (new exports only).
