@@ -1,6 +1,6 @@
 {
   "name": "@suite/ui",
-  "version": "0.62.0",
+  "version": "0.63.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -35,6 +35,18 @@
     "./strings": {
       "types": "./dist/strings/index.d.ts",
       "import": "./dist/strings/index.js"
+    },
+    "./strings/en": {
+      "types": "./dist/strings/en.d.ts",
+      "import": "./dist/strings/en.js"
+    },
+    "./strings/de": {
+      "types": "./dist/strings/de.d.ts",
+      "import": "./dist/strings/de.js"
+    },
+    "./strings/es": {
+      "types": "./dist/strings/es.d.ts",
+      "import": "./dist/strings/es.js"
     },
     "./parity": {
       "types": "./dist/parity/index.d.ts",
