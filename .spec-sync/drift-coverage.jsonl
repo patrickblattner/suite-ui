@@ -207,3 +207,5 @@
 {"ts":"2026-10-12T09:25:38.375Z","key":"PROC-DEV-002","from":null,"to":2,"disposition":"ticket","ref":"94"}
 {"ts":"2026-10-12T09:25:38.804Z","key":"GL-TEST-018","from":2,"to":3,"disposition":"editorial","ref":"persona/role/journey rules are app-level (CPT/COM persona units); suite-ui is a UI package without roles, login or routes — no code impact; axe part handled via GL-UX-001 #93"}
 {"ts":"2026-10-12T09:25:39.228Z","key":"PROC-REL-031","from":18,"to":19,"disposition":"editorial","ref":"CI step retry timing (normal = longest green under operating condition); suite-ui has no CI workflows (local mode) — no code impact"}
+{"ts":"2026-10-12T11:34:07.771Z","key":"GL-SEC-010","from":11,"to":12,"disposition":"editorial","ref":"MFA reset via IdP + wording; app auth only, suite-ui package has no auth surface"}
+{"ts":"2026-10-12T11:34:08.219Z","key":"GL-SEC-022","from":null,"to":2,"disposition":"editorial","ref":"Authelia TOTP reset bridge lives in stage-infra/apps; no surface in the suite-ui package"}
