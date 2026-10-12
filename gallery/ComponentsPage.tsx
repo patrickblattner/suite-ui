@@ -47,7 +47,7 @@ import { RestoreDefaultsButton } from "../src/ui/restore-defaults-button.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../src/ui/select.js";
 import { Skeleton } from "../src/ui/skeleton.js";
 import { Slider } from "../src/ui/slider.js";
-import { STATUS_CHIP_STATES, StatusChip } from "../src/ui/status-chip.js";
+import { STATUS_CHIP_STATES, StatusChip, type StatusChipTone } from "../src/ui/status-chip.js";
 import { Switch } from "../src/ui/switch.js";
 import {
   Table,
@@ -675,8 +675,43 @@ function Sliders() {
   );
 }
 
+// Domain states with the app's own text (`GL-UI-011` §Fachzustände): a tone and a translated label.
+const DOMAIN_STATES = {
+  en: {
+    paid: "Paid",
+    cancelled: "Cancelled",
+    signatureMissing: "Signature missing",
+    sending: "Sending",
+    ended: "Ended",
+  },
+  de: {
+    paid: "Bezahlt",
+    cancelled: "Storniert",
+    signatureMissing: "Unterschrift fehlt",
+    sending: "Wird versendet",
+    ended: "Beendet",
+  },
+  es: {
+    paid: "Pagado",
+    cancelled: "Cancelado",
+    signatureMissing: "Falta la firma",
+    sending: "Enviando",
+    ended: "Finalizado",
+  },
+};
+
+const DOMAIN_TONES = {
+  paid: "success",
+  cancelled: "destructive",
+  signatureMissing: "warn",
+  sending: "info",
+  ended: "neutral",
+} as const satisfies Record<keyof typeof DOMAIN_STATES.en, StatusChipTone>;
+
 function Badges() {
-  const { t } = useTranslation("suite");
+  const { t, i18n } = useTranslation("suite");
+  const domainLabels =
+    DOMAIN_STATES[i18n.language as keyof typeof DOMAIN_STATES] ?? DOMAIN_STATES.en;
   const label: Partial<Record<BadgeVariant, string>> = {
     success: t("status.success"),
     warn: t("status.warning"),
@@ -705,6 +740,23 @@ function Badges() {
         {STATUS_CHIP_STATES.map((state) => (
           <StatusChip key={state} state={state} emphasis="filled" />
         ))}
+      </Row>
+      <Row label="StatusChip domain">
+        {Object.entries(DOMAIN_TONES).map(([key, tone]) => (
+          <StatusChip
+            key={key}
+            tone={tone}
+            label={domainLabels[key as keyof typeof DOMAIN_TONES]}
+            data-testid={`status-chip-domain-${key}`}
+          />
+        ))}
+        <StatusChip
+          tone="success"
+          label={domainLabels.paid}
+          emphasis="filled"
+          detail="09.10.2026"
+          data-testid="status-chip-domain-filled"
+        />
       </Row>
       <Row label="ColorDotBadge">
         <ColorDotBadge color="oklch(0.6 0.2 300)" data-testid="color-dot-badge">

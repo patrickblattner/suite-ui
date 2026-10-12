@@ -5,7 +5,12 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { Code } from "./code.js";
 import { ColorDotBadge } from "./color-dot-badge.js";
-import { STATUS_CHIP_STATES, StatusChip, type StatusChipState } from "./status-chip.js";
+import {
+  STATUS_CHIP_STATES,
+  StatusChip,
+  type StatusChipState,
+  type StatusChipTone,
+} from "./status-chip.js";
 
 // SUI-FEATURE-044, SUI-FEATURE-049 (`failing`), GL-UI-011 rev 7 (publication states): state → tone,
 // and the English text of each state.
@@ -124,6 +129,76 @@ describe("StatusChip", () => {
     ];
     states.forEach((state) => render(<StatusChip state={state} data-testid={state} />));
     expect(states.map((state) => screen.getByTestId(state).textContent)).toEqual(texts);
+  });
+});
+
+// GL-UI-011 rev 9 §Fachzustände: a domain state is the app's tone and label, in the catalog's variants.
+describe("StatusChip with a domain state", () => {
+  afterEach(async () => {
+    cleanup();
+    await i18n.changeLanguage("en");
+  });
+
+  it.each<[StatusChipTone, string, string]>([
+    ["success", "success-soft", "success"],
+    ["destructive", "destructive-soft", "destructive"],
+    ["warn", "warn-soft", "warn"],
+    ["info", "info-soft", "info"],
+    ["neutral", "secondary", "secondary"],
+  ])("%s: soft %s, filled %s", (tone, soft, filled) => {
+    render(<StatusChip tone={tone} label="Paid" data-testid="soft" />);
+    render(<StatusChip tone={tone} label="Paid" emphasis="filled" data-testid="filled" />);
+    expect(screen.getByTestId("soft")).toHaveAttribute("data-variant", soft);
+    expect(screen.getByTestId("soft")).toHaveClass(`bg-${soft}`);
+    expect(screen.getByTestId("filled")).toHaveAttribute("data-variant", filled);
+  });
+
+  it("renders the app's label as given in any language, with the detail after it", async () => {
+    await i18n.changeLanguage("de");
+    render(<StatusChip tone="success" label="Bezahlt" detail="09.10.2026" data-testid="chip" />);
+    const chip = screen.getByTestId("chip");
+    expect(chip).toHaveTextContent(/^Bezahlt · 09\.10\.2026$/);
+    expect(chip).not.toHaveAttribute("data-state");
+  });
+
+  it("an empty detail adds nothing", () => {
+    render(<StatusChip tone="destructive" label="Cancelled" detail="" data-testid="chip" />);
+    expect(screen.getByTestId("chip")).toHaveTextContent(/^Cancelled$/);
+  });
+
+  it("children never replace the label", () => {
+    // A caller bypassing the type.
+    const Chip = StatusChip as unknown as ComponentType<{
+      tone: StatusChipTone;
+      label: string;
+      "data-testid": string;
+      children: ReactNode;
+    }>;
+    render(
+      <Chip tone="success" label="Signed" data-testid="chip">
+        All good
+      </Chip>,
+    );
+    expect(screen.getByTestId("chip")).toHaveTextContent(/^Signed$/);
+  });
+
+  it("takes either a state or a tone with a label, never both or neither", () => {
+    // Type-level only: the renders below exist to be checked by the compiler.
+    const invalid = [
+      // @ts-expect-error -- state and tone exclude each other
+      <StatusChip key="both" state="failed" tone="success" label="Paid" />,
+      // @ts-expect-error -- a label belongs to a tone, not to a state
+      <StatusChip key="state-label" state="failed" label="Paid" />,
+      // @ts-expect-error -- a tone needs its label
+      <StatusChip key="tone-only" tone="success" />,
+      // @ts-expect-error -- a label needs its tone
+      <StatusChip key="label-only" label="Paid" />,
+      // @ts-expect-error -- neither form
+      <StatusChip key="neither" />,
+      // @ts-expect-error -- the tone is one of the five
+      <StatusChip key="unknown-tone" tone="primary" label="Paid" />,
+    ];
+    expect(invalid).toHaveLength(6);
   });
 });
 
