@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.68.0 — SUI-FEATURE-063 rev 2 (#105): `MediaTile`
+
+Not breaking (new export only).
+
+- New `MediaTile` (`@suite/ui/ui/media-tile`), the tile of a media list in `TileGridShell`. The whole tile is one button, and a click (or Enter) calls `onOpen`.
+  - Preview on top at a fixed height. An image fills it edge to edge (`object-cover`). Other kinds show their type icon, muted: `FileVideoIcon` for video, `FileTextIcon` for everything else. The `extension` appears under the icon in capitals ("pdf" → "PDF").
+  - The name sits on one line and ends with "…" when it is too long; the full name is in the tooltip. The name is the button's accessible name.
+  - `description` shows on at most two lines (`text-xs text-muted-foreground`). `tags` show as outline badges that wrap. An empty description or an empty tag list drops its line. Both describe the button (`aria-describedby`).
+  - With `selected` the tile acts as a picker choice: it gets `aria-pressed`, and while `selected` is `true` an inset selection ring in `primary`, independent of the focus ring.
+  - `kind` uses `MediaDetailKind` (`image`, `video`, `audio`, `pdf`, `other`).
+
+### Per app, when raising the pin
+
+**production-cockpit** and **community-platform**: the tile view of the media library renders `MediaTile` in `TileGridShell`, switched with the view toggle; the picker passes `selected`.
+
 ## 0.67.1 — GL-UI-007 rev 3 (#104): the leave guard opens with the focus on Save
 
 Not breaking (no API change).

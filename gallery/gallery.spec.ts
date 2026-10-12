@@ -1138,6 +1138,70 @@ test("media detail shell: image, video and PDF, paged by the head and the arrow 
   await expect(shell).toBeHidden();
 });
 
+// `SUI-FEATURE-063`: the media tiles of the tiles page.
+async function mediaTiles(page: Page) {
+  await page.goto("/?page=tiles");
+  const grid = page.getByTestId("media-tiles");
+  await expect(grid.getByTestId("media-tile")).toHaveCount(6);
+  return grid;
+}
+
+test("media tile: an image fills its preview cropped; a PDF shows the icon and PDF", async ({
+  page,
+}) => {
+  const grid = await mediaTiles(page);
+  const image = grid.getByTestId("media-tile").nth(0);
+  const preview = image.locator("[data-slot=media-tile-preview]");
+  const img = preview.locator("img");
+  await expect(img).toHaveCSS("object-fit", "cover");
+  expect(await box(img)).toEqual(await box(preview));
+  const pdf = grid.getByTestId("media-tile").nth(2).locator("[data-slot=media-tile-preview]");
+  await expect(pdf.locator("svg.lucide-file-text")).toBeVisible();
+  await expect(pdf).toHaveText("PDF");
+  // All previews share one fixed height.
+  const heights = await grid
+    .locator("[data-slot=media-tile-preview]")
+    .evaluateAll((nodes) => nodes.map((node) => node.getBoundingClientRect().height));
+  expect(new Set(heights).size).toBe(1);
+});
+
+test("media tile: a long name ends in an ellipsis, the tooltip shows it whole", async ({
+  page,
+}) => {
+  const grid = await mediaTiles(page);
+  const tile = grid.getByTestId("media-tile").nth(3);
+  const name = tile.locator(".truncate");
+  await expect(name).toHaveCSS("text-overflow", "ellipsis");
+  expect(await name.evaluate((node) => node.scrollWidth > node.clientWidth)).toBe(true);
+  await name.hover();
+  await expect(page.getByRole("tooltip")).toHaveText(
+    "a-very-long-file-name-from-the-summer-campaign-2026-final-version-approved.jpg",
+    { timeout: 5000 },
+  );
+});
+
+test("media tile: Tab reaches the tile with the focus ring, Enter and click open it", async ({
+  page,
+}) => {
+  const grid = await mediaTiles(page);
+  const first = grid.getByTestId("media-tile").first();
+  await first.focus();
+  await page.keyboard.press("Shift+Tab");
+  await page.keyboard.press("Tab");
+  await expect(first).toBeFocused();
+  await expect(first).not.toHaveCSS("box-shadow", "none");
+  await page.keyboard.press("Enter");
+  await expect(grid.getByTestId("media-tiles-opened")).toHaveText("team-photo.jpg");
+  await grid.getByTestId("media-tile").nth(2).click();
+  await expect(grid.getByTestId("media-tiles-opened")).toHaveText("brochure.pdf");
+  const selected = grid.getByTestId("media-tile").nth(5);
+  await expect(selected).toHaveAttribute("aria-pressed", "true");
+  await expect(selected.locator("[data-slot=media-tile-selection]")).not.toHaveCSS(
+    "box-shadow",
+    "none",
+  );
+});
+
 // `GL-UI-007` rev 3: a mouse-triggered leave opens the guard with the focus on Save and its ring
 // visible; Enter saves and carries out the held close, Esc stays.
 test("leave guard: the dialog opens on Save with its ring; Esc stays, Enter saves and leaves", async ({

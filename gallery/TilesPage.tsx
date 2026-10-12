@@ -7,6 +7,7 @@ import { ListViewShell } from "../src/list/list-view-shell.js";
 import { useSort } from "../src/list/sort-select.js";
 import { TileGridShell } from "../src/list/tile-grid-shell.js";
 import { useListView } from "../src/list/view-toggle.js";
+import { MediaTile, type MediaTileProps } from "../src/ui/media-tile.js";
 import { TableCell, TableHead, TableRow } from "../src/ui/table.js";
 
 // App-side labels: what the list holds and what failed come from the app, not from `suite`.
@@ -32,6 +33,45 @@ const LABELS = {
 } as const;
 
 const FILES = ["hero.jpg", "team.png", "logo.svg", "intro.mp4", "banner.webp", "poster.pdf"];
+
+// A landscape stand-in picture for the image tiles.
+const PICTURE = `data:image/svg+xml,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800">' +
+    '<rect width="1200" height="800" fill="#8a94a6"/><circle cx="380" cy="300" r="140" fill="#d8dce3"/>' +
+    '<path d="M0 800 L420 420 L700 640 L900 480 L1200 760 L1200 800 Z" fill="#5b6475"/></svg>',
+)}`;
+
+// `SUI-FEATURE-063`: image, video, PDF, a long name, many tags, a bare tile and a picker selection.
+const MEDIA: Omit<MediaTileProps, "onOpen">[] = [
+  {
+    kind: "image",
+    src: PICTURE,
+    name: "team-photo.jpg",
+    description: "The whole team on the roof terrace after the spring kick-off.",
+    tags: ["team", "event"],
+  },
+  { kind: "video", name: "intro.mp4", extension: "mp4", tags: ["video"] },
+  {
+    kind: "pdf",
+    name: "brochure.pdf",
+    extension: "pdf",
+    description: "Product brochure, autumn edition, print version with crop marks and bleed.",
+    tags: [],
+  },
+  {
+    kind: "image",
+    src: PICTURE,
+    name: "a-very-long-file-name-from-the-summer-campaign-2026-final-version-approved.jpg",
+    tags: [],
+  },
+  {
+    kind: "image",
+    src: PICTURE,
+    name: "landscape.jpg",
+    tags: ["nature", "mountain", "summer", "campaign", "outdoor", "hero", "banner", "web"],
+  },
+  { kind: "image", src: PICTURE, name: "bare.jpg", tags: [], selected: true },
+];
 
 type State = Pick<ListStateProps, "isPending" | "isEmpty" | "isError" | "filtered">;
 
@@ -60,6 +100,7 @@ export function TilesPage() {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useSort();
   const [view, setView] = useListView("gallery-media-view");
+  const [opened, setOpened] = useState("–");
   const states = {
     emptyObjects: labels.objects,
     onAdd: { label: labels.add, onClick: () => {} },
@@ -113,6 +154,22 @@ export function TilesPage() {
             children: FILES.map((name) => <Tile key={name} name={name} />),
           }}
         />
+      </section>
+      <section className="flex h-[22rem] flex-col gap-2" data-testid="media-tiles">
+        <h3 className="text-sm text-muted-foreground">
+          MediaTile · opened: <span data-testid="media-tiles-opened">{opened}</span>
+        </h3>
+        <TileGridShell
+          isPending={false}
+          isEmpty={false}
+          loadingTestId="media-tiles-loading"
+          emptyTestId="media-tiles-empty"
+          scrollTestId="media-tiles-scroll"
+        >
+          {MEDIA.map((medium) => (
+            <MediaTile key={medium.name} {...medium} onOpen={() => setOpened(medium.name)} />
+          ))}
+        </TileGridShell>
       </section>
       <div className="grid grid-cols-2 gap-6">
         {STATES.map(([name, state]) => (
