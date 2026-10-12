@@ -1,0 +1,304 @@
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import i18n from "i18next";
+import { MemoryRouter } from "react-router-dom";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import { SidebarProvider, useSidebar } from "../shell/sidebar-provider.js";
+import { EditPanel } from "./edit-panel.js";
+import { Input } from "./input.js";
+import {
+  MediaDetailShell,
+  type MediaDetailShellProps,
+  MediaUsageList,
+} from "./media-detail-shell.js";
+
+afterEach(async () => {
+  cleanup();
+  localStorage.clear();
+  await i18n.changeLanguage("en");
+});
+
+function renderShell(props: Partial<MediaDetailShellProps> = {}) {
+  const handlers = {
+    onPrev: vi.fn(),
+    onNext: vi.fn(),
+    onClose: vi.fn(),
+    onSave: vi.fn(),
+    onReset: vi.fn(),
+  };
+  render(
+    <MediaDetailShell
+      position={3}
+      total={65}
+      kind="image"
+      src="data:,"
+      alt="team-photo.jpg"
+      dirty={false}
+      saving={false}
+      fields={<Input aria-label="Name" />}
+      {...handlers}
+      {...props}
+    />,
+  );
+  return handlers;
+}
+
+const panel = () => screen.getByTestId("media-detail");
+
+function Toggle() {
+  const { toggle } = useSidebar();
+  return (
+    <button type="button" data-testid="toggle" onClick={toggle}>
+      toggle
+    </button>
+  );
+}
+
+describe("MediaDetailShell", () => {
+  // AC 1
+  it.each([
+    ["de", "3 von 65"],
+    ["en", "3 of 65"],
+    ["es", "3 de 65"],
+  ])("%s: the head reads %s", async (lng, text) => {
+    await i18n.changeLanguage(lng);
+    renderShell();
+    expect(screen.getByTestId("media-detail-position")).toHaveTextContent(text);
+    expect(screen.getByTestId("media-detail-position")).toHaveAttribute("role", "status");
+  });
+
+  it("→ calls onNext, ← calls onPrev, Esc calls onClose", () => {
+    const { onPrev, onNext, onClose } = renderShell();
+    fireEvent.keyDown(panel(), { key: "ArrowRight" });
+    expect(onNext).toHaveBeenCalledTimes(1);
+    fireEvent.keyDown(panel(), { key: "ArrowLeft" });
+    expect(onPrev).toHaveBeenCalledTimes(1);
+    fireEvent.keyDown(panel(), { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("the head buttons page and close; at the ends ‹ and › stay locked", () => {
+    const { onPrev, onNext, onClose } = renderShell({ position: 1, total: 2 });
+    fireEvent.click(screen.getByTestId("media-detail-previous"));
+    expect(onPrev).not.toHaveBeenCalled();
+    expect(screen.getByTestId("media-detail-previous")).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(screen.getByTestId("media-detail-next"));
+    expect(onNext).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("arrows in a text field belong to the field", () => {
+    const { onPrev, onNext } = renderShell();
+    fireEvent.keyDown(screen.getByLabelText("Name"), { key: "ArrowRight" });
+    fireEvent.keyDown(screen.getByLabelText("Name"), { key: "ArrowLeft" });
+    expect(onNext).not.toHaveBeenCalled();
+    expect(onPrev).not.toHaveBeenCalled();
+  });
+
+  it("with dirty, paging and closing ask first; Discard carries the leave out", async () => {
+    const { onNext, onClose } = renderShell({ dirty: true });
+    fireEvent.keyDown(panel(), { key: "ArrowRight" });
+    expect(onNext).not.toHaveBeenCalled();
+    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+    expect(onNext).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(screen.queryByTestId("leave-guard")).toBeNull());
+
+    fireEvent.keyDown(panel(), { key: "Escape" });
+    expect(onClose).not.toHaveBeenCalled();
+    fireEvent.click(await screen.findByTestId("leave-guard-cancel"));
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("Save in the guard saves, then leaves on true", async () => {
+    const onSave = vi.fn(() => true);
+    const { onClose } = renderShell({ dirty: true, onSave });
+    fireEvent.click(screen.getByTestId("media-detail-close"));
+    fireEvent.click(await screen.findByTestId("leave-guard-save"));
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+    expect(onSave).toHaveBeenCalledTimes(1);
+  });
+
+  // AC 2
+  it("Reset and Save are locked while not dirty", () => {
+    const { onSave } = renderShell();
+    expect(screen.getByTestId("media-detail-reset")).toBeDisabled();
+    expect(screen.getByTestId("media-detail-save")).toBeDisabled();
+    fireEvent.submit(screen.getByLabelText("Name"));
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("dirty: Reset calls onReset directly, Save and Enter call onSave", () => {
+    const { onReset, onSave } = renderShell({ dirty: true });
+    fireEvent.click(screen.getByTestId("media-detail-reset"));
+    expect(onReset).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("leave-guard")).toBeNull();
+    fireEvent.click(screen.getByTestId("media-detail-save"));
+    fireEvent.submit(screen.getByLabelText("Name"));
+    expect(onSave).toHaveBeenCalledTimes(2);
+  });
+
+  it("saving: Save carries the working state and is locked; nothing closes", () => {
+    const { onSave, onClose } = renderShell({ dirty: true, saving: true });
+    const save = screen.getByTestId("media-detail-save");
+    expect(save).toHaveAttribute("data-busy", "true");
+    expect(save).toBeDisabled();
+    fireEvent.submit(screen.getByLabelText("Name"));
+    fireEvent.keyDown(panel(), { key: "Escape" });
+    expect(onSave).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("footer: Reset directly before Save, right-aligned, no Cancel", () => {
+    renderShell({ dirty: true });
+    const footer = panel().querySelector("[data-slot=media-detail-footer]")!;
+    expect(footer).toHaveClass("justify-end", "flex-row", "border-t");
+    expect([...footer.children].map((button) => button.textContent)).toEqual(["Reset", "Save"]);
+    expect(screen.getByTestId("media-detail-reset")).toHaveAttribute("data-variant", "destructive");
+    expect(screen.getByTestId("media-detail-save")).toHaveAttribute("data-variant", "success");
+  });
+
+  // AC 3
+  it("width and left edge are those of EditPanel, open and collapsed sidebar alike", () => {
+    render(
+      <SidebarProvider storageKey="test.sidebar">
+        <Toggle />
+        <EditPanel open onOpenChange={() => {}} title="Channel">
+          x
+        </EditPanel>
+        <MediaDetailShell
+          position={1}
+          total={1}
+          kind="other"
+          src="data:,"
+          dirty={false}
+          saving={false}
+          onPrev={() => {}}
+          onNext={() => {}}
+          onClose={() => {}}
+          onSave={() => {}}
+          onReset={() => {}}
+        />
+      </SidebarProvider>,
+    );
+    const edit = screen.getByTestId("edit-panel");
+    expect(panel().getAttribute("style")).toBe(edit.getAttribute("style"));
+    expect(panel().style.left).toBe("var(--sidebar-width)");
+    expect(panel().className).toBe(edit.className);
+    fireEvent.click(screen.getByTestId("toggle"));
+    expect(panel().style.left).toBe("var(--sidebar-width-collapsed)");
+    expect(panel().getAttribute("style")).toBe(edit.getAttribute("style"));
+  });
+
+  it("exactly one head and one footer: one title, no Cancel", () => {
+    renderShell({ pickAction: () => {} });
+    expect(screen.getAllByRole("heading")).toHaveLength(1);
+    expect(screen.getByRole("heading")).toHaveTextContent("Details");
+    expect(panel()).toHaveAccessibleName("Details");
+    expect(panel().querySelectorAll("[data-slot=media-detail-footer]")).toHaveLength(1);
+    expect(screen.queryByRole("button", { name: "Cancel" })).toBeNull();
+  });
+
+  it("pickAction puts Choose this media item into the head", () => {
+    const pick = vi.fn();
+    renderShell({ pickAction: pick });
+    const head = panel().querySelector("[data-slot=media-detail-head]")!;
+    fireEvent.click(within(head as HTMLElement).getByText("Choose this media item"));
+    expect(pick).toHaveBeenCalledTimes(1);
+  });
+
+  it("without pickAction the head has no pick button", () => {
+    renderShell();
+    expect(screen.queryByTestId("media-detail-pick")).toBeNull();
+  });
+
+  // AC 4
+  it("splits at the package's panel-split width; below it the preview stacks on top", () => {
+    renderShell();
+    const body = screen.getByTestId("media-detail-body");
+    expect(body.parentElement).toHaveClass("@container");
+    expect(body).toHaveClass(
+      "flex",
+      "flex-col",
+      "@panel-split:grid",
+      "@panel-split:grid-cols-[minmax(0,3fr)_minmax(20rem,2fr)]",
+    );
+    const [previewColumn, details] = [...body.children] as HTMLElement[];
+    expect(previewColumn).toContainElement(screen.getByTestId("media-detail-preview"));
+    expect(details).toHaveAttribute("data-slot", "media-detail-details");
+  });
+
+  it("the slots stand in fixed order below Details", () => {
+    renderShell({
+      usage: "U",
+      actions: "A",
+      suggest: "S",
+      fields: "F",
+      facts: "X",
+    });
+    const details = panel().querySelector("[data-slot=media-detail-details]")!;
+    expect([...details.children].map((child) => child.getAttribute("data-slot"))).toEqual([
+      "sheet-title",
+      "media-detail-facts",
+      "media-detail-fields",
+      "media-detail-suggest",
+      "media-detail-actions",
+      "media-detail-usage",
+    ]);
+  });
+
+  it.each([
+    ["image", "IMG"],
+    ["video", "VIDEO"],
+    ["audio", "AUDIO"],
+    ["pdf", "IFRAME"],
+    ["other", "svg"],
+  ] as const)("kind %s shows a %s", (kind, tag) => {
+    renderShell({ kind });
+    const preview = screen.getByTestId("media-detail-preview");
+    expect(preview.firstElementChild?.tagName).toBe(tag);
+    if (kind === "video" || kind === "audio") {
+      expect(preview.firstElementChild).toHaveAttribute("controls");
+    }
+  });
+
+  it("open={false} renders nothing", () => {
+    renderShell({ open: false });
+    expect(screen.queryByTestId("media-detail")).toBeNull();
+  });
+});
+
+describe("MediaUsageList", () => {
+  // AC 5
+  it.each([
+    ["de", "nicht verwendet"],
+    ["en", "not used"],
+    ["es", "sin usar"],
+  ])("%s: without entries it reads %s", async (lng, text) => {
+    await i18n.changeLanguage(lng);
+    render(
+      <MemoryRouter>
+        <MediaUsageList items={[]} />
+      </MemoryRouter>,
+    );
+    expect(screen.getByTestId("media-usage-empty")).toHaveTextContent(text);
+  });
+
+  it("each use is a link with language and status muted after it", () => {
+    render(
+      <MemoryRouter>
+        <MediaUsageList
+          items={[
+            { id: "1", title: "Spring news", to: "/posts/1", language: "DE", status: "Published" },
+            { id: "2", title: "Landing", to: "/pages/2" },
+          ]}
+        />
+      </MemoryRouter>,
+    );
+    expect(screen.getByRole("region", { name: "Used in" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Spring news" })).toHaveAttribute("href", "/posts/1");
+    expect(screen.getByText("DE · Published")).toHaveClass("text-muted-foreground");
+    expect(screen.getByRole("link", { name: "Landing" })).toHaveAttribute("href", "/pages/2");
+    expect(screen.queryByTestId("media-usage-empty")).toBeNull();
+  });
+});

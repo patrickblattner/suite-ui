@@ -77,6 +77,14 @@ for (const lng of LANGUAGES) {
       });
     });
 
+    // `SUI-FEATURE-061`: the media detail shell on the image, side by side.
+    test(`media detail shell ${lng} ${theme}`, async ({ page }) => {
+      await openMediaDetail(page, `&lng=${lng}&theme=${theme}`);
+      await expect(page.locator("html")).toHaveAttribute("lang", lng);
+      await page.mouse.move(1900, 1060);
+      await expect(page).toHaveScreenshot(`media-detail-${lng}-${theme}.png`, { fullPage: true });
+    });
+
     // `GL-UI-027` §Panel mit Vorschau: side by side on a wide panel, stacked below `panel-split`.
     for (const [state, width] of [
       ["split", 1920],
@@ -112,6 +120,18 @@ const AXE_PAGES: [
   ["shell", (page) => page.getByTestId("app-sidebar")],
   ["inset", (page) => page.getByTestId("inset-row").first()],
   ["edit-panel", (page) => page.getByTestId("media-panel-trigger")],
+  [
+    "edit-panel",
+    (page) => page.getByTestId("media-detail-trigger"),
+    "",
+    [
+      "with the media detail shell",
+      async (page) => {
+        await page.getByTestId("media-detail-trigger").click();
+        await expect(page.getByTestId("media-detail")).toBeVisible();
+      },
+    ],
+  ],
   ...PAGES,
   ["list", (page) => page.getByTestId("list-tabs"), "&slots=tabs"],
   [
@@ -968,6 +988,91 @@ async function openMediaPanel(page: Page, query = "") {
     .poll(() => picture.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth))
     .toBeGreaterThan(0);
   return page.getByTestId("media-panel");
+}
+
+// The media detail shell on its image, with the picture loaded.
+async function openMediaDetail(page: Page, query = "") {
+  await page.goto(`/?page=edit-panel${query}`);
+  await page.getByTestId("media-detail-trigger").click();
+  const shell = page.getByTestId("media-detail");
+  const picture = shell.getByTestId("media-detail-preview").locator("img");
+  await expect(picture).toBeVisible();
+  await expect
+    .poll(() => picture.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth))
+    .toBeGreaterThan(0);
+  return shell;
+}
+
+// `SUI-FEATURE-061`: the shell pages through an image, a video with its control bar and a PDF frame;
+// ← and → page, Esc closes.
+test("media detail shell: image, video and PDF, paged by the head and the arrow keys", async ({
+  page,
+}) => {
+  const shell = await openMediaDetail(page);
+  const preview = shell.getByTestId("media-detail-preview");
+  await expect(shell.getByTestId("media-detail-position")).toHaveText("1 of 3");
+  await shell.getByTestId("media-detail-next").click();
+  await expect(shell.getByTestId("media-detail-position")).toHaveText("2 of 3");
+  await expect(preview.locator("video[controls]")).toBeVisible();
+  await page.keyboard.press("ArrowRight");
+  await expect(shell.getByTestId("media-detail-position")).toHaveText("3 of 3");
+  await expect(preview.locator("iframe")).toBeVisible();
+  await page.keyboard.press("ArrowLeft");
+  await expect(shell.getByTestId("media-detail-position")).toHaveText("2 of 3");
+  await page.keyboard.press("Escape");
+  await expect(shell).toBeHidden();
+});
+
+// `SUI-FEATURE-061` AC 3: one surface geometry for the shell and the edit panel.
+test("media detail shell: the same box as the edit panel", async ({ page }) => {
+  await page.goto("/?page=edit-panel");
+  await page.getByTestId("edit-panel-trigger-1").click();
+  const panel = await box(page.getByTestId("edit-panel"));
+  await page.getByTestId("edit-panel-cancel").click();
+  await expect(page.getByTestId("edit-panel")).toBeHidden();
+  const shell = await openMediaDetail(page);
+  expect(await box(shell)).toEqual(panel);
+  await expect(shell.locator("[data-slot=media-detail-footer]")).toHaveCount(1);
+  await expect(shell.getByRole("heading")).toHaveText(["Details", "Used in"]);
+});
+
+// `SUI-FEATURE-061` AC 2: the pair follows the dirty state, Save carries the working state.
+test("media detail shell: Reset and Save follow the dirty state", async ({ page }) => {
+  const shell = await openMediaDetail(page);
+  const reset = shell.getByTestId("media-detail-reset");
+  const save = shell.getByTestId("media-detail-save");
+  await expect(reset).toBeDisabled();
+  await expect(save).toBeDisabled();
+  await shell.getByLabel("Name").fill("renamed.jpg");
+  await expect(reset).toBeEnabled();
+  await reset.click();
+  await expect(shell.getByLabel("Name")).toHaveValue("team-photo.jpg");
+  await expect(save).toBeDisabled();
+  await shell.getByLabel("Name").fill("renamed.jpg");
+  await save.click();
+  await expect(save).toHaveAttribute("data-busy", "true");
+  await expect(save).toHaveCSS("opacity", "1");
+  await expect(save).toBeDisabled({ timeout: 5000 });
+  await expect(save).not.toHaveAttribute("data-busy");
+});
+
+// `SUI-FEATURE-061` AC 4: side by side from `panel-split`, the preview stacked on top below it.
+for (const [width, layout] of [
+  [1920, "split"],
+  [900, "stacked"],
+] as const) {
+  test(`media detail shell: ${layout} at ${width}px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 1080 });
+    const shell = await openMediaDetail(page);
+    const preview = await box(shell.getByTestId("media-detail-preview"));
+    const details = await box(shell.locator("[data-slot=media-detail-details]"));
+    if (layout === "split") {
+      expect(preview.x + preview.width).toBeLessThanOrEqual(details.x);
+      expect(preview.width).toBeGreaterThan(details.width);
+    } else {
+      expect(preview.y + preview.height).toBeLessThanOrEqual(details.y);
+    }
+  });
 }
 
 // `GL-UI-027` §Panel mit Vorschau: from the package's `panel-split` width the preview stands left,

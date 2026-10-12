@@ -17,6 +17,7 @@ export * from "./input.js";
 export * from "./label.js";
 export * from "./label-with-help.js";
 export * from "./leave-guard.js";
+export * from "./media-detail-shell.js";
 export * from "./operation-status.js";
 export * from "./popover.js";
 export * from "./preview-frame.js";

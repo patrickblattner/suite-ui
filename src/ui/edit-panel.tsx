@@ -4,7 +4,7 @@ import * as React from "react";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
-import { useOptionalSidebar } from "../shell/sidebar-provider.js";
+import { PANEL_SURFACE_CLASS, usePanelGeometry } from "../lib/panel-geometry.js";
 import { Button } from "./button.js";
 import { FIELD_SELECTOR } from "./dialog.js";
 import { useLeaveConfirm } from "./leave-guard.js";
@@ -84,7 +84,6 @@ function EditPanel({
   style,
 }: EditPanelProps) {
   const { t } = useTranslation("suite");
-  const sidebar = useOptionalSidebar();
   const returnFocus = React.useRef<HTMLElement | null>(null);
   const { guard, dialog } = useLeaveConfirm({
     dirty: open && dirty,
@@ -106,25 +105,7 @@ function EditPanel({
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [open, guard, onOpenChange]);
 
-  const left =
-    sidebar === null
-      ? 0
-      : sidebar.isOpen
-        ? "var(--sidebar-width)"
-        : "var(--sidebar-width-collapsed)";
-  // Edges and width belong to the package (`GL-UI-027`): set inline after the caller's style, they
-  // win over every width or inset class and style of the call site.
-  const geometry: React.CSSProperties = {
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left,
-    width: "auto",
-    minWidth: 0,
-    maxWidth: "none",
-    height: "auto",
-    margin: 0,
-  };
+  const geometry = usePanelGeometry();
 
   return (
     <Sheet
@@ -142,10 +123,7 @@ function EditPanel({
           data-testid={testIdPrefix}
           data-mode={mode}
           {...(description === undefined ? { "aria-describedby": undefined } : {})}
-          className={cn(
-            "fixed z-50 flex flex-col bg-background shadow-lg outline-none transition-[left] duration-200 data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right data-[state=open]:animate-in data-[state=open]:slide-in-from-right",
-            className,
-          )}
+          className={cn(PANEL_SURFACE_CLASS, className)}
           style={{ ...style, ...geometry }}
           onOpenAutoFocus={(event) => {
             returnFocus.current =

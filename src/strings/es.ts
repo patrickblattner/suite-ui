@@ -234,6 +234,15 @@ export const es: SuiteStrings = {
     fileSize: "Tamaño del archivo",
     notMeasured: "no medido",
   },
+  media: {
+    position: "{{n}} de {{total}}",
+    details: "Detalles",
+    pick: "Elegir este medio",
+    usedIn: "Usado en",
+    unused: "sin usar",
+    uploadedAt: "Subido",
+    uploadedBy: "Subido por",
+  },
   upload: {
     drop: "Suelta los archivos aquí",
     choose: "Elegir archivos",

@@ -243,6 +243,16 @@ export const en = {
     fileSize: "File size",
     notMeasured: "not measured",
   },
+  // The media detail view (`MediaDetailShell`, `MediaUsageList`).
+  media: {
+    position: "{{n}} of {{total}}",
+    details: "Details",
+    pick: "Choose this media item",
+    usedIn: "Used in",
+    unused: "not used",
+    uploadedAt: "Uploaded",
+    uploadedBy: "Uploaded by",
+  },
   upload: {
     drop: "Drop files here",
     choose: "Choose files",

@@ -235,6 +235,15 @@ export const de: SuiteStrings = {
     fileSize: "Dateigröße",
     notMeasured: "nicht gemessen",
   },
+  media: {
+    position: "{{n}} von {{total}}",
+    details: "Details",
+    pick: "Dieses Medium wählen",
+    usedIn: "Verwendet in",
+    unused: "nicht verwendet",
+    uploadedAt: "Hochgeladen",
+    uploadedBy: "Hochgeladen von",
+  },
   upload: {
     drop: "Dateien hier ablegen",
     choose: "Dateien wählen",

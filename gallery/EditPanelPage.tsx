@@ -6,7 +6,9 @@ import { PageScroll } from "../src/list/page-scroll.js";
 import { Button } from "../src/ui/button.js";
 import { EditPanel } from "../src/ui/edit-panel.js";
 import { Input } from "../src/ui/input.js";
+import { FileFacts } from "../src/ui/file-facts.js";
 import { Label } from "../src/ui/label.js";
+import { MediaDetailShell, MediaUsageList } from "../src/ui/media-detail-shell.js";
 import { ShellPage } from "./ShellPage.js";
 
 const ROWS = Array.from({ length: 60 }, (_, index) => `Channel ${index + 1}`);
@@ -17,6 +19,13 @@ const PICTURE = `data:image/svg+xml,${encodeURIComponent(
     '<rect width="1200" height="800" fill="#8a94a6"/><circle cx="380" cy="300" r="140" fill="#d8dce3"/>' +
     '<path d="M0 800 L420 420 L700 640 L900 480 L1200 760 L1200 800 Z" fill="#5b6475"/></svg>',
 )}`;
+// The media detail shell pages through one image, one video and one PDF (`SUI-FEATURE-061`). The
+// video and the PDF are stand-ins without bytes worth playing: the frame and the control bar show.
+const SHELL_MEDIA = [
+  { kind: "image", name: "team-photo.jpg", src: PICTURE },
+  { kind: "video", name: "intro.mp4", src: "data:video/mp4;base64," },
+  { kind: "pdf", name: "brochure.pdf", src: "data:application/pdf;base64," },
+] as const;
 const FIELDS = Array.from({ length: 24 }, (_, index) => `Field ${index + 1}`);
 
 // A long list whose rows open the edit panel, inside the shell frame (`SUI-FEATURE-030`). The panel
@@ -30,6 +39,11 @@ function Demo() {
   const [submits, setSubmits] = useState(0);
   const [backs, setBacks] = useState(0);
   const [media, setMedia] = useState<number | null>(null);
+  const [shell, setShell] = useState<number | null>(null);
+  const [shellName, setShellName] = useState("");
+  const [shellSaving, setShellSaving] = useState(false);
+  const [savedNames, setSavedNames] = useState<string[]>(SHELL_MEDIA.map(({ name }) => name));
+  const shellMedium = shell === null ? undefined : SHELL_MEDIA[shell];
 
   if (pathname !== start) {
     return (
@@ -58,6 +72,17 @@ function Demo() {
           onClick={() => setMedia(0)}
         >
           Open media with pager
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          data-testid="media-detail-trigger"
+          onClick={() => {
+            setShell(0);
+            setShellName(savedNames[0]!);
+          }}
+        >
+          Open media detail shell
         </Button>
         <span data-testid="edit-panel-check-counts">
           submits {submits} · backs {backs}
@@ -154,6 +179,67 @@ function Demo() {
           <Input id="media-name" key={media} defaultValue={media !== null ? MEDIA[media] : ""} />
         </div>
       </EditPanel>
+      {/* SUI-FEATURE-061: the media detail shell; Save works for 1.5 s. */}
+      {shellMedium !== undefined && shell !== null && (
+        <MediaDetailShell
+          position={shell + 1}
+          total={SHELL_MEDIA.length}
+          onPrev={() => {
+            setShell(shell - 1);
+            setShellName(savedNames[shell - 1]!);
+          }}
+          onNext={() => {
+            setShell(shell + 1);
+            setShellName(savedNames[shell + 1]!);
+          }}
+          onClose={() => setShell(null)}
+          kind={shellMedium.kind}
+          src={shellMedium.src}
+          alt={savedNames[shell]}
+          dirty={shellName !== savedNames[shell]}
+          saving={shellSaving}
+          onSave={() => {
+            setShellSaving(true);
+            return new Promise<boolean>((resolve) =>
+              setTimeout(() => {
+                setShellSaving(false);
+                setSavedNames((names) => names.map((name, i) => (i === shell ? shellName : name)));
+                resolve(true);
+              }, 1500),
+            );
+          }}
+          onReset={() => setShellName(savedNames[shell]!)}
+          pickAction={() => setShell(null)}
+          facts={<FileFacts kind={shellMedium.kind === "pdf" ? "other" : shellMedium.kind} />}
+          fields={
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="shell-name">Name</Label>
+              <Input
+                id="shell-name"
+                value={shellName}
+                onChange={(event) => setShellName(event.target.value)}
+              />
+            </div>
+          }
+          usage={
+            <MediaUsageList
+              items={
+                shell === 0
+                  ? [
+                      {
+                        id: "1",
+                        title: "Spring newsletter",
+                        to: "/posts/1",
+                        language: "DE",
+                        status: "Published",
+                      },
+                    ]
+                  : []
+              }
+            />
+          }
+        />
+      )}
     </PageScroll>
   );
 }
