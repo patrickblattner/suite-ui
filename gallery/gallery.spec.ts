@@ -77,6 +77,14 @@ for (const lng of LANGUAGES) {
       });
     });
 
+    // `SUI-FEATURE-062`: the crop editor over the whole image.
+    test(`crop editor ${lng} ${theme}`, async ({ page }) => {
+      await openCropEditor(page, `&lng=${lng}&theme=${theme}`);
+      await expect(page.locator("html")).toHaveAttribute("lang", lng);
+      await page.mouse.move(1900, 1060);
+      await expect(page).toHaveScreenshot(`crop-editor-${lng}-${theme}.png`);
+    });
+
     // `SUI-FEATURE-061`: the media detail shell on the image, side by side.
     test(`media detail shell ${lng} ${theme}`, async ({ page }) => {
       await openMediaDetail(page, `&lng=${lng}&theme=${theme}`);
@@ -120,6 +128,18 @@ const AXE_PAGES: [
   ["shell", (page) => page.getByTestId("app-sidebar")],
   ["inset", (page) => page.getByTestId("inset-row").first()],
   ["edit-panel", (page) => page.getByTestId("media-panel-trigger")],
+  [
+    "components",
+    (page) => page.getByTestId("section-crop"),
+    "",
+    [
+      "with the crop editor",
+      async (page) => {
+        await page.getByTestId("image-crop").click();
+        await expect(page.getByTestId("crop-frame")).toBeVisible();
+      },
+    ],
+  ],
   [
     "edit-panel",
     (page) => page.getByTestId("media-detail-trigger"),
@@ -989,6 +1009,101 @@ async function openMediaPanel(page: Page, query = "") {
     .toBeGreaterThan(0);
   return page.getByTestId("media-panel");
 }
+
+// The crop editor of the components page, with its frame over the loaded image.
+async function openCropEditor(page: Page, query = "") {
+  await page.goto(`/?page=components${query}`);
+  await page.getByTestId("image-crop").click();
+  const editor = page.getByTestId("crop-editor");
+  await expect(editor.getByTestId("crop-frame")).toBeVisible();
+  // The dialog fades in; the page's endless animations (skeleton pulse, spinners) never settle.
+  await page.waitForFunction(() =>
+    document
+      .getAnimations()
+      .every(
+        (animation) =>
+          animation.playState !== "running" ||
+          animation.effect?.getComputedTiming().iterations === Infinity,
+      ),
+  );
+  return editor;
+}
+
+// `SUI-FEATURE-062` AC 1: with 16:9 a side handle keeps 16:9, and the frame never leaves the image.
+test("crop editor: a side handle keeps 16:9 and the frame inside the image", async ({ page }) => {
+  const editor = await openCropEditor(page);
+  const frame = editor.getByTestId("crop-frame");
+  const image = await box(editor.locator("img"));
+  const start = await box(frame);
+  expect(start.width / start.height).toBeCloseTo(16 / 9, 1);
+  const east = await box(frame.locator('[data-handle="e"]'));
+  await page.mouse.move(east.x + east.width / 2, east.y + east.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(east.x - 200, east.y + 40, { steps: 5 });
+  const smaller = await box(frame);
+  expect(smaller.width).toBeLessThan(start.width - 150);
+  expect(smaller.width / smaller.height).toBeCloseTo(16 / 9, 1);
+  await page.mouse.move(east.x + 2000, east.y, { steps: 5 });
+  await page.mouse.up();
+  const larger = await box(frame);
+  expect(larger.width / larger.height).toBeCloseTo(16 / 9, 1);
+  expect(larger.x).toBeGreaterThanOrEqual(image.x - 0.5);
+  expect(larger.y).toBeGreaterThanOrEqual(image.y - 0.5);
+  expect(larger.x + larger.width).toBeLessThanOrEqual(image.x + image.width + 0.5);
+  expect(larger.y + larger.height).toBeLessThanOrEqual(image.y + image.height + 0.5);
+});
+
+// AC 2 and the drawn result: Apply sets the crop, the placement draws it, Reset removes it.
+test("crop editor: Apply crops the placement, Reset removes the crop", async ({ page }) => {
+  const editor = await openCropEditor(page);
+  await editor.getByTestId("crop-frame").press("Minus");
+  await editor.getByTestId("crop-editor-apply").click();
+  await expect(editor).toBeHidden();
+  const crop = page.getByTestId("image-crop");
+  await expect(crop).toHaveText("Cropped");
+  await expect(crop).toHaveAttribute("data-active", "true");
+  const placement = await box(page.getByTestId("crop-placement").locator(".."));
+  expect(placement.width / placement.height).toBeCloseTo(16 / 9, 1);
+  await crop.click();
+  await page.getByTestId("crop-editor-reset").click();
+  await expect(crop).toHaveText("Crop");
+  await page.getByTestId("image-flip").click();
+  await expect(page.getByTestId("image-flip")).toHaveText("Flipped");
+  await expect(page.getByTestId("crop-placement")).toHaveCSS(
+    "transform",
+    "matrix(-1, 0, 0, 1, 0, 0)",
+  );
+});
+
+// AC 3: the middle half of the 2000 × 1000 image in a square frame, the image itself unchanged.
+test("CroppedImage: the frame shows exactly the middle half", async ({ page }) => {
+  await page.goto("/?page=components");
+  const img = page.getByTestId("crop-middle");
+  await expect
+    .poll(() => img.evaluate((node: HTMLImageElement) => node.complete && node.naturalWidth))
+    .toBe(2000);
+  const frame = await box(img.locator(".."));
+  const picture = await box(img);
+  expect(frame.width).toBeCloseTo(frame.height, 0);
+  expect(picture.width).toBeCloseTo(frame.width * 2, 0);
+  expect(picture.x).toBeCloseTo(frame.x - frame.width / 2, 0);
+  expect(await img.getAttribute("src")).toMatch(/^data:image\/svg\+xml,/);
+});
+
+// AC 5: the background shows the middle half; only its layer mirrors, never the text above it.
+test("CroppedBackground: the middle half covers the surface, the text is not mirrored", async ({
+  page,
+}) => {
+  await page.goto("/?page=components");
+  const surface = page.getByTestId("crop-background");
+  const layer = surface.locator("[data-slot=cropped-background-layer]");
+  const size = await box(surface);
+  await expect(layer).toHaveCSS("background-size", `${size.width * 2}px ${size.height}px`);
+  await expect(layer).toHaveCSS("background-position", `${-size.width / 2}px 0px`);
+  await expect(layer).toHaveCSS("transform", "matrix(-1, 0, 0, 1, 0, 0)");
+  await expect(surface).toHaveCSS("transform", "none");
+  await expect(surface.getByText("Not mirrored")).toHaveCSS("transform", "none");
+});
 
 // The media detail shell on its image, with the picture loaded.
 async function openMediaDetail(page: Page, query = "") {

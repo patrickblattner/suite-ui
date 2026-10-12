@@ -243,6 +243,16 @@ export const es: SuiteStrings = {
     uploadedAt: "Subido",
     uploadedBy: "Subido por",
   },
+  crop: {
+    action: "Recortar",
+    active: "Recortado",
+    apply: "Aplicar",
+    reset: "Restablecer",
+  },
+  flip: {
+    action: "Reflejar",
+    active: "Reflejado",
+  },
   upload: {
     drop: "Suelta los archivos aquí",
     choose: "Elegir archivos",

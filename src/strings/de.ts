@@ -244,6 +244,16 @@ export const de: SuiteStrings = {
     uploadedAt: "Hochgeladen",
     uploadedBy: "Hochgeladen von",
   },
+  crop: {
+    action: "Zuschneiden",
+    active: "Zugeschnitten",
+    apply: "Übernehmen",
+    reset: "Zurücksetzen",
+  },
+  flip: {
+    action: "Spiegeln",
+    active: "Gespiegelt",
+  },
   upload: {
     drop: "Dateien hier ablegen",
     choose: "Dateien wählen",

@@ -31,6 +31,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "../src/ui/dropdown-menu.js";
+import { ImagePlacementButtons } from "../src/ui/crop-editor.js";
+import { type Crop, CroppedBackground, CroppedImage } from "../src/ui/cropped-image.js";
 import { FileFacts } from "../src/ui/file-facts.js";
 import { Hint } from "../src/ui/hint.js";
 import { InlineStatus } from "../src/ui/inline-status.js";
@@ -961,6 +963,85 @@ function FileFactsRow() {
   );
 }
 
+// A 2000 × 1000 stand-in in four bands, with an arrow pointing right across the middle half, so the
+// crop and the flip read at a glance.
+const BANDS = `data:image/svg+xml,${encodeURIComponent(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="2000" height="1000" viewBox="0 0 2000 1000">' +
+    '<rect width="500" height="1000" fill="#c0392b"/><rect x="500" width="500" height="1000" fill="#2e86c1"/>' +
+    '<rect x="1000" width="500" height="1000" fill="#28b463"/><rect x="1500" width="500" height="1000" fill="#d4ac0d"/>' +
+    '<path d="M600 420 H1250 V300 L1450 500 L1250 700 V580 H600 Z" fill="#ffffff"/></svg>',
+)}`;
+const MIDDLE: Crop = { x: 0.25, y: 0, width: 0.5, height: 1 };
+
+// `SUI-FEATURE-062`: the image placement buttons with the crop editor, the drawn image (original,
+// middle half, middle half flipped) and a cropped, flipped background whose text stays unflipped.
+function CropRow() {
+  const [flipped, setFlipped] = useState(false);
+  const [crop, setCrop] = useState<Crop | null>(null);
+  return (
+    <Section id="crop" title="Crop and flip">
+      <Row label="Placement buttons">
+        <Button variant="outline" size="sm">
+          Change image
+        </Button>
+        <ImagePlacementButtons
+          src={BANDS}
+          alt="Four bands"
+          aspect={16 / 9}
+          flipped={flipped}
+          onFlippedChange={setFlipped}
+          crop={crop}
+          onCropChange={setCrop}
+        />
+      </Row>
+      <Row label="CroppedImage">
+        <CroppedImage
+          src={BANDS}
+          alt="Placement"
+          crop={crop}
+          flipped={flipped}
+          naturalWidth={2000}
+          naturalHeight={1000}
+          className="w-48"
+          data-testid="crop-placement"
+        />
+        <CroppedImage src={BANDS} alt="Original" className="w-48" />
+        <CroppedImage
+          src={BANDS}
+          alt="Middle half"
+          crop={MIDDLE}
+          naturalWidth={2000}
+          naturalHeight={1000}
+          className="w-24"
+          data-testid="crop-middle"
+        />
+        <CroppedImage
+          src={BANDS}
+          alt="Middle half, flipped"
+          crop={MIDDLE}
+          flipped
+          naturalWidth={2000}
+          naturalHeight={1000}
+          className="w-24"
+        />
+      </Row>
+      <Row label="CroppedBackground">
+        <CroppedBackground
+          src={BANDS}
+          crop={MIDDLE}
+          flipped
+          naturalWidth={2000}
+          naturalHeight={1000}
+          className="flex size-48 items-end p-3"
+          data-testid="crop-background"
+        >
+          <span className="rounded-sm bg-background px-2 py-1 text-sm">Not mirrored</span>
+        </CroppedBackground>
+      </Row>
+    </Section>
+  );
+}
+
 function FocusRow() {
   return (
     <div className="flex flex-wrap items-center gap-4">
@@ -1077,6 +1158,7 @@ export function ComponentsPage() {
       <Structure />
       <ReadTable />
       <FileFactsRow />
+      <CropRow />
       <FocusRing />
     </>
   );

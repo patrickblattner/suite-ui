@@ -253,6 +253,17 @@ export const en = {
     uploadedAt: "Uploaded",
     uploadedBy: "Uploaded by",
   },
+  // Crop and flip at an image placement (`CropEditor`, `ImagePlacementButtons`).
+  crop: {
+    action: "Crop",
+    active: "Cropped",
+    apply: "Apply",
+    reset: "Reset",
+  },
+  flip: {
+    action: "Flip",
+    active: "Flipped",
+  },
   upload: {
     drop: "Drop files here",
     choose: "Choose files",
