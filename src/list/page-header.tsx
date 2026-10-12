@@ -1,4 +1,4 @@
-import { PlusIcon } from "lucide-react";
+import { PlusIcon, UploadIcon } from "lucide-react";
 import type * as React from "react";
 
 import { Button } from "../ui/button.js";
@@ -8,9 +8,11 @@ import { OverflowTooltip } from "../ui/tooltip.js";
 
 // One add of the title row. `hint` says what a press does next (`GL-UI-017`); `busy` is the Button's
 // working state (`GL-UI-027`); `disabledText` is the reason a locked entry shows instead of `hint`
-// (`GL-UI-016`).
+// (`GL-UI-016`). `kind` picks the icon — the package owns the action → icon mapping (`GL-UI-011`):
+// `create` (default) shows `PlusIcon`, `upload` shows `UploadIcon`.
 type PageHeaderAdd = {
   label: string;
+  kind?: "create" | "upload";
   onClick: () => void;
   disabled?: boolean;
   disabledText?: string;
@@ -49,7 +51,7 @@ function addButton(add: PageHeaderAdd, secondary: boolean) {
       {...(add.busy !== undefined ? { busy: add.busy } : {})}
       data-testid={secondary ? "page-add-secondary" : "page-add"}
     >
-      <PlusIcon aria-hidden="true" />
+      {add.kind === "upload" ? <UploadIcon aria-hidden="true" /> : <PlusIcon aria-hidden="true" />}
       {add.label}
     </Button>
   );

@@ -271,4 +271,38 @@ describe("PageHeader", () => {
       "mb-2 flex items-start justify-between gap-4",
     );
   });
+
+  it("shows UploadIcon instead of PlusIcon for kind upload, otherwise the same", () => {
+    const { unmount } = render(
+      <PageHeader
+        title="Media"
+        subtitle="Every file."
+        add={[
+          { label: "Upload", onClick: () => {}, kind: "upload" },
+          { label: "Import", onClick: () => {}, kind: "upload" },
+        ]}
+      />,
+    );
+    for (const [testId, variant] of [
+      ["page-add", "success"],
+      ["page-add-secondary", "outline"],
+    ] as const) {
+      const add = screen.getByTestId(testId);
+      expect(add).toHaveAttribute("data-variant", variant);
+      expect(add).toHaveAttribute("data-size", "default");
+      const icon = add.querySelector("svg");
+      expect(icon).toHaveClass("lucide-upload");
+      expect(icon).toHaveAttribute("aria-hidden", "true");
+      expect(add.querySelector(".lucide-plus")).toBeNull();
+    }
+    unmount();
+    render(
+      <PageHeader title="Media" subtitle="Every file." add={{ label: "Add", onClick: () => {} }} />,
+    );
+    const add = screen.getByRole("button", { name: "Add" });
+    expect(add).toHaveAttribute("data-testid", "page-add");
+    expect(add).toHaveAttribute("data-variant", "success");
+    expect(add.querySelector("svg")).toHaveClass("lucide-plus");
+    expect(add.querySelector(".lucide-upload")).toBeNull();
+  });
 });
