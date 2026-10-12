@@ -54,4 +54,16 @@ describe("registerSuiteStringsLazy loading", () => {
     expect(i18n.language).toBe("es");
     expect(i18n.t("actions.save", { ns: "suite" })).toBe("Guardar");
   });
+
+  it("a chunk failing during a switch keeps English without rejecting, and the next switch retries", async () => {
+    const i18n = createInstance();
+    await i18n.init({ lng: "en", fallbackLng: "en", resources: {} });
+    await registerSuiteStringsLazy(i18n);
+    chunks.failEs = 1;
+    await expect(i18n.changeLanguage("es")).resolves.toBeDefined();
+    expect(i18n.language).toBe("es");
+    expect(i18n.t("actions.save", { ns: "suite" })).toBe("Save");
+    await i18n.changeLanguage("es");
+    expect(i18n.t("actions.save", { ns: "suite" })).toBe("Guardar");
+  });
 });

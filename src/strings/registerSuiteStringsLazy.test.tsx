@@ -106,4 +106,22 @@ describe("registerSuiteStringsLazy", () => {
       "Save",
     );
   });
+
+  it("loads the language i18next settles on when the detector reports an unsupported code first", async () => {
+    let detect: string[] = ["en"];
+    const i18n = createInstance();
+    await i18n
+      .use({
+        type: "languageDetector",
+        init: () => {},
+        detect: () => detect,
+        cacheUserLanguage: () => {},
+      })
+      .init({ fallbackLng: "en", supportedLngs: ["en", "de", "es"], resources: {} });
+    await registerSuiteStringsLazy(i18n);
+    detect = ["fr", "es"];
+    await i18n.changeLanguage();
+    expect(i18n.language).toBe("es");
+    expect(i18n.t("actions.save", { ns: "suite" })).toBe("Guardar");
+  });
 });
