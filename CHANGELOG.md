@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.70.0 — SUI-FEATURE-065 rev 2 (#107): `ConfirmDeleteDialog` locks Confirm alone
+
+Not breaking (two new optional props).
+
+- `ConfirmDeleteDialog` takes `confirmDisabled` (default `false`): only the confirm button is locked, in the muted destructive colour. Cancel stays usable, no working state shows (unlike `busy`), and Enter triggers nothing. Use it for a condition inside the dialog, such as a confirmation word in `children`.
+- `confirmDisabledHint`: the already translated reason, shown as the confirm button's hint while locked.
+- Gallery: new page `typed-word` with a confirmation-word field.
+
 ## 0.69.0 — SUI-FEATURE-064 rev 3 (#106): `EditorHeader` and `useEditorLeaveGuard`
 
 Not breaking (new exports, one new optional option).

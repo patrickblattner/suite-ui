@@ -23,6 +23,7 @@ const PAGES: [name: string, ready: (page: Page) => Locator][] = [
   ["settings", (page) => page.getByTestId("settings-footer")],
   ["dialog", (page) => page.getByTestId("form-dialog")],
   ["confirm", (page) => page.getByTestId("confirm-dialog")],
+  ["typed-word", (page) => page.getByTestId("confirm-word-dialog")],
   ["overlays", (page) => page.getByRole("menu")],
   ["select", (page) => page.getByRole("listbox")],
   ["sheet", (page) => page.getByTestId("sheet")],
@@ -271,6 +272,25 @@ test("confirm dialog: destructive right, Cancel directly left", async ({ page })
   const confirm = page.getByTestId("confirm-dialog-confirm");
   await expect(confirm).toHaveAttribute("data-variant", "destructive");
   await expectActionRow(dialog, page.getByTestId("confirm-dialog-cancel"), confirm);
+});
+
+// `SUI-FEATURE-065`: the confirmation word unlocks Confirm alone; Enter does nothing before.
+test("confirm dialog: Confirm locked until the confirmation word", async ({ page }) => {
+  await page.goto("/?page=typed-word");
+  const dialog = page.getByTestId("confirm-word-dialog");
+  const confirm = page.getByTestId("confirm-word-dialog-confirm");
+  const input = page.getByTestId("confirm-word-input");
+  await expect(confirm).toBeDisabled();
+  await expect(confirm).not.toHaveAttribute("data-busy");
+  await expect(page.getByTestId("confirm-word-dialog-cancel")).toBeEnabled();
+  await input.fill("Mai");
+  await input.press("Enter");
+  await expect(dialog).toBeVisible();
+  await expect(confirm).toBeDisabled();
+  await input.fill("Main");
+  await expect(confirm).toBeEnabled();
+  await confirm.click();
+  await expect(dialog).toBeHidden();
 });
 
 test("a shell banner pushes the toast down by exactly its height", async ({ page }) => {

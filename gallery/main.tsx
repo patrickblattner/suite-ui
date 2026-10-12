@@ -15,6 +15,7 @@ import { KeysPage } from "./KeysPage.js";
 import { ListPage } from "./ListPage.js";
 import {
   ConfirmPage,
+  ConfirmWordPage,
   DialogPage,
   OverlaysPage,
   SelectPage,
@@ -42,6 +43,7 @@ const PAGES = [
   "shell",
   "dialog",
   "confirm",
+  "typed-word",
   "overlays",
   "select",
   "sheet",
@@ -79,6 +81,7 @@ const PAGE_CONTENT: Record<Exclude<Page, "strings">, (theme: Theme) => ReactNode
   shell: () => <ShellPage />,
   dialog: () => <DialogPage />,
   confirm: () => <ConfirmPage />,
+  "typed-word": () => <ConfirmWordPage />,
   overlays: () => <OverlaysPage />,
   select: () => <SelectPage />,
   sheet: () => <SheetPage />,

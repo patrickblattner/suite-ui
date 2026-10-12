@@ -39,6 +39,12 @@ type ConfirmDeleteDialogProps = {
   // locked, Cancel is locked with it, and the dialog ignores every close request until the caller
   // closes it on the result.
   busy?: boolean;
+  // A condition in the dialog is not met yet, such as a confirmation word (`SUI-FEATURE-065`): only
+  // the confirm button is locked, in the muted destructive colour; Cancel stays usable and no working
+  // state shows.
+  confirmDisabled?: boolean;
+  // Already translated reason for `confirmDisabled`, shown as the confirm button's hint while locked.
+  confirmDisabledHint?: string;
   // Extra content between header and footer, such as a list the person must have seen.
   children?: React.ReactNode;
   "data-testid"?: string;
@@ -58,6 +64,8 @@ function ConfirmDeleteDialog({
   cancelLabel,
   confirmHint,
   busy = false,
+  confirmDisabled = false,
+  confirmDisabledHint,
   children,
   "data-testid": testId,
 }: ConfirmDeleteDialogProps) {
@@ -122,12 +130,16 @@ function ConfirmDeleteDialog({
               {cancelLabel ?? t("actions.cancel")}
             </Button>
           </Hint>
-          <Hint text={confirmHint ?? t("confirmDelete.confirmHint")}>
+          <Hint
+            text={confirmHint ?? t("confirmDelete.confirmHint")}
+            disabledText={confirmDisabledHint}
+          >
             <Button
               type="button"
               variant="destructive"
               size="default"
               busy={busy}
+              disabled={confirmDisabled}
               onClick={onConfirm}
               data-testid={testId !== undefined ? `${testId}-confirm` : undefined}
             >

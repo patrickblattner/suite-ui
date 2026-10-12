@@ -102,6 +102,33 @@ export function ConfirmPage() {
   );
 }
 
+// `SUI-FEATURE-065`: Confirm stays locked until the confirmation word is typed.
+export function ConfirmWordPage() {
+  const [open, setOpen] = useState(true);
+  const [word, setWord] = useState("");
+  return (
+    <ConfirmDeleteDialog
+      open={open}
+      description="Channel “Main” and its whole history are removed for good."
+      confirmDisabled={word !== "Main"}
+      confirmDisabledHint="Type the channel name to confirm."
+      onConfirm={() => setOpen(false)}
+      onOpenChange={setOpen}
+      data-testid="confirm-word-dialog"
+    >
+      <div className="flex flex-col gap-2">
+        <Label htmlFor="confirm-word">Type “Main” to confirm</Label>
+        <Input
+          id="confirm-word"
+          value={word}
+          onChange={(event) => setWord(event.target.value)}
+          data-testid="confirm-word-input"
+        />
+      </div>
+    </ConfirmDeleteDialog>
+  );
+}
+
 export function OverlaysPage() {
   const { t } = useTranslation("suite");
   return (
