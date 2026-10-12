@@ -62,7 +62,7 @@ describe("FileFacts", () => {
     render(<FileFacts kind="video" {...VIDEO} data-testid="facts" />);
     expect(rows()).toEqual([
       ["Format", "MP4 (video/mp4)"],
-      ["Resolution", "1,920 × 1,080 px"],
+      ["Resolution", "1920 × 1080 px"],
       ["Duration", "1:02:05"],
       ["Frame rate", "29.97 fps"],
       ["File size", "1.5 KB"],
@@ -151,6 +151,17 @@ describe("FileFacts", () => {
   ])("%d bytes read %s: the unit follows the rounded value", (bytes, text) => {
     render(<FileFacts kind="other" bytes={bytes} data-testid="facts" />);
     expect(rows()[1]?.[1]).toBe(text);
+  });
+
+  it.each(["de", "en", "es"])("resolution in %s has no thousands separator", async (lng) => {
+    await i18n.changeLanguage(lng);
+    render(<FileFacts kind="image" width={1920} height={1080} data-testid="facts" />);
+    expect(rows()[1]?.[1]).toBe("1920 × 1080 px");
+  });
+
+  it("512 bytes read 512 B", () => {
+    render(<FileFacts kind="other" bytes={512} data-testid="facts" />);
+    expect(rows()[1]?.[1]).toBe("512 B");
   });
 
   it("frame rate keeps at most two decimals", () => {

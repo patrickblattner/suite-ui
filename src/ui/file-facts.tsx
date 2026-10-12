@@ -58,7 +58,6 @@ function formatBytes(bytes: number, lng: string): string {
 }
 
 function factValue(fact: Fact, props: FileFactsValues, lng: string): string | undefined {
-  const number = new Intl.NumberFormat(lng);
   switch (fact) {
     case "format": {
       const { formatName, mime } = props;
@@ -68,7 +67,7 @@ function factValue(fact: Fact, props: FileFactsValues, lng: string): string | un
     case "resolution":
       return props.width === undefined || props.height === undefined
         ? undefined
-        : `${number.format(props.width)} × ${number.format(props.height)} px`;
+        : `${props.width} × ${props.height} px`;
     case "duration":
       return props.durationSeconds === undefined
         ? undefined
