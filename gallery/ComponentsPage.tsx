@@ -568,8 +568,7 @@ function Choices() {
       </Row>
       <Row label="Select · field name">
         <Select defaultValue="weekly">
-          <SelectTrigger className="w-80" data-testid="select-named-wide" aria-label="Interval">
-            <span>Interval</span>
+          <SelectTrigger className="w-80" data-testid="select-named-wide" fieldName="Interval">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -577,8 +576,7 @@ function Choices() {
           </SelectContent>
         </Select>
         <Select defaultValue="long">
-          <SelectTrigger className="w-48" data-testid="select-named-clipped" aria-label="Interval">
-            <span>Interval</span>
+          <SelectTrigger className="w-48" data-testid="select-named-clipped" fieldName="Interval">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
