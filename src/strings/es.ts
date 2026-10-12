@@ -226,6 +226,14 @@ export const es: SuiteStrings = {
     placeholder: "Buscar zona horaria…",
     empty: "Ninguna zona horaria coincide",
   },
+  fileFacts: {
+    format: "Formato",
+    resolution: "Resolución",
+    duration: "Duración",
+    frameRate: "Velocidad de fotogramas",
+    fileSize: "Tamaño del archivo",
+    notMeasured: "no medido",
+  },
   upload: {
     drop: "Suelta los archivos aquí",
     choose: "Elegir archivos",

@@ -10,6 +10,7 @@ export * from "./confirm-delete-dialog.js";
 export * from "./dialog.js";
 export * from "./dropdown-menu.js";
 export * from "./edit-panel.js";
+export * from "./file-facts.js";
 export * from "./hint.js";
 export * from "./inline-status.js";
 export * from "./input.js";

@@ -31,6 +31,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "../src/ui/dropdown-menu.js";
+import { FileFacts } from "../src/ui/file-facts.js";
 import { Hint } from "../src/ui/hint.js";
 import { InlineStatus } from "../src/ui/inline-status.js";
 import { Input } from "../src/ui/input.js";
@@ -921,6 +922,45 @@ function ReadTable() {
   );
 }
 
+// `SUI-FEATURE-060`: the file details of an image, a video without a measured frame rate, and an audio.
+function FileFactsRow() {
+  return (
+    <Section id="file-facts" title="FileFacts">
+      <Row label="FileFacts">
+        <div className="flex flex-wrap items-start gap-8">
+          <FileFacts
+            kind="image"
+            formatName="PNG"
+            mime="image/png"
+            width={1920}
+            height={1080}
+            bytes={2_516_582}
+            data-testid="file-facts-image"
+          />
+          <FileFacts
+            kind="video"
+            formatName="MP4"
+            mime="video/mp4"
+            width={1280}
+            height={720}
+            durationSeconds={3725}
+            bytes={157_286_400}
+            data-testid="file-facts-video"
+          />
+          <FileFacts
+            kind="audio"
+            formatName="MP3"
+            mime="audio/mpeg"
+            durationSeconds={185}
+            bytes={1536}
+            data-testid="file-facts-audio"
+          />
+        </div>
+      </Row>
+    </Section>
+  );
+}
+
 function FocusRow() {
   return (
     <div className="flex flex-wrap items-center gap-4">
@@ -1036,6 +1076,7 @@ export function ComponentsPage() {
       <Sliders />
       <Structure />
       <ReadTable />
+      <FileFactsRow />
       <FocusRing />
     </>
   );

@@ -234,6 +234,15 @@ export const en = {
     placeholder: "Search time zone…",
     empty: "No matching time zone",
   },
+  // The file details of a medium in its detail view (`FileFacts`).
+  fileFacts: {
+    format: "Format",
+    resolution: "Resolution",
+    duration: "Duration",
+    frameRate: "Frame rate",
+    fileSize: "File size",
+    notMeasured: "not measured",
+  },
   upload: {
     drop: "Drop files here",
     choose: "Choose files",

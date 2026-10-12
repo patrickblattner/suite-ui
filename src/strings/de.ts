@@ -227,6 +227,14 @@ export const de: SuiteStrings = {
     placeholder: "Zeitzone suchen…",
     empty: "Keine passende Zeitzone",
   },
+  fileFacts: {
+    format: "Format",
+    resolution: "Auflösung",
+    duration: "Dauer",
+    frameRate: "Bildrate",
+    fileSize: "Dateigröße",
+    notMeasured: "nicht gemessen",
+  },
   upload: {
     drop: "Dateien hier ablegen",
     choose: "Dateien wählen",
