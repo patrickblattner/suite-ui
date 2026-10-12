@@ -10,6 +10,10 @@
     "dist",
     "parity-map.json"
   ],
+  "sideEffects": [
+    "./dist/styles.css",
+    "./dist/parity/cli.js"
+  ],
   "exports": {
     "./styles.css": "./dist/styles.css",
     "./ui/*": {
@@ -103,6 +107,7 @@
     "@vitejs/plugin-react": "^5.2.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "esbuild": "^0.27.7",
     "eslint": "^9.39.5",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react-hooks": "^7.1.1",
