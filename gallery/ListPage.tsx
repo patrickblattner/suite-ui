@@ -2,7 +2,6 @@ import { CopyIcon } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import { suiteUiConfig } from "../src/config/index.js";
 import { DataTableShell } from "../src/list/data-table-shell.js";
 import { dynamicFilter, FilterBar, staticFilter } from "../src/list/filter-bar.js";
 import { FilterSelect } from "../src/list/filter-select.js";
@@ -93,8 +92,12 @@ const FLOOR = new URLSearchParams(window.location.search).get("floor") === "1";
 // gutter; `?slots=tabs` adds a view switch by severity above it. Either way the page sets no gap of its
 // own inside the list area.
 const TABS = new URLSearchParams(window.location.search).get("slots") === "tabs";
-// Under `tableActions: "sticky"` the rows carry a long note and an actions column, so the table is
-// wider than its scroller at 1100 px and the gallery measures that the actions stay at the right edge.
+// `?actions=1` gives the rows a long note and an actions column, so the table is wider than its
+// scroller at 1100 px and the gallery measures that the actions stay at the right edge.
+const ACTIONS = new URLSearchParams(window.location.search).get("actions") === "1";
+// `?filters=node` passes the filters as one node, ordered by the page, with a third filter so the
+// controls group wraps at narrow widths; without it a list of one dynamic and one static filter.
+const NODE_FILTERS = new URLSearchParams(window.location.search).get("filters") === "node";
 const NOTE =
   "Rescheduled after the venue changed; attendees were notified by mail, the waitlist moved up and the catering order was adjusted to the new room and time.";
 
@@ -107,10 +110,6 @@ export function ListPage() {
   const [room, setRoom] = useState("all");
   const [date, setDate] = useState("12.10.");
   const [viewMode, setViewMode] = useState("0");
-  // Under `filterBar: "block"` the page passes its filters as one node, ordered by the page, with a
-  // third filter so the search group wraps at narrow widths.
-  const block = suiteUiConfig().filterBar === "block";
-  const actions = suiteUiConfig().tableActions === "sticky";
   const [sort, setSort] = useSort();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
@@ -154,7 +153,7 @@ export function ListPage() {
         ],
       }}
       filters={
-        block ? (
+        NODE_FILTERS ? (
           <>
             {ownerFilter(OWNERS)}
             {severityFilter(SEVERITIES)}
@@ -203,7 +202,7 @@ export function ListPage() {
             <TableHead>{labels.owner}</TableHead>
             <TableHead>{labels.severity}</TableHead>
             <TableHead>{labels.status}</TableHead>
-            {actions && (
+            {ACTIONS && (
               <>
                 <TableHead>Note</TableHead>
                 <RowActionsHead data-testid="list-actions-head" />
@@ -211,7 +210,7 @@ export function ListPage() {
             )}
           </>
         }
-        columnCount={actions ? 6 : 4}
+        columnCount={ACTIONS ? 6 : 4}
         isPending={false}
         isEmpty={false}
         empty=""
@@ -261,7 +260,7 @@ export function ListPage() {
                 "open"
               )}
             </TableCell>
-            {actions && (
+            {ACTIONS && (
               <>
                 <TableCell>{NOTE}</TableCell>
                 <RowActions

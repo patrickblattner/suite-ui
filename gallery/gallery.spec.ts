@@ -284,43 +284,56 @@ test("list frame: the page gutter is the same left and right of the content", as
   expect(Math.abs(inner.right - tableRight - 24 - 15)).toBeLessThanOrEqual(1);
 });
 
-test("filter bar order: static filter, search, reset, dynamic filter, sort", async ({ page }) => {
+// SUI-FEATURE-002 AC1: at 1920 px with two filters one row reads search, filter A, filter B, reset,
+// sort; the search takes the remaining width, so the controls end on the bar's right edge.
+test("filter bar order: search, static filter, dynamic filter, reset, sort", async ({ page }) => {
   await page.goto("/?page=list");
-  const order = await page
-    .getByTestId("filterbar")
-    .evaluate((bar) =>
-      [...bar.querySelectorAll("[data-testid]")].map((el) => el.getAttribute("data-testid")),
-    );
-  expect(order).toEqual([
-    "filter-severity",
-    "filter-haystack",
-    "filter-reset",
-    "filter-owner",
-    "filter-sort",
-  ]);
+  const bar = page.getByTestId("filterbar");
+  const ids = ["filter-haystack", "filter-severity", "filter-owner", "filter-reset", "filter-sort"];
+  const order = await bar.evaluate(
+    (el, wanted) =>
+      [...el.querySelectorAll("[data-testid]")]
+        .map((node) => node.getAttribute("data-testid"))
+        .filter((id) => wanted.includes(id ?? "")),
+    ids,
+  );
+  expect(order).toEqual(ids);
+  const boxes = await Promise.all(ids.map((id) => box(page.getByTestId(id))));
+  for (const [index, current] of boxes.entries()) {
+    const next = boxes[index + 1];
+    if (next === undefined) break;
+    expect(
+      Math.abs(next.y + next.height / 2 - (current.y + current.height / 2)),
+    ).toBeLessThanOrEqual(1);
+    expect(next.x).toBeGreaterThanOrEqual(current.x + current.width);
+  }
+  const barBox = await box(bar);
+  const [search, severity, , , sort] = boxes;
+  expect(Math.abs((search?.x ?? 0) - barBox.x)).toBeLessThanOrEqual(1);
+  // 8 px gap between the search and the first filter: the search fills the rest of the row.
+  const searchRight = (search?.x ?? 0) + (search?.width ?? 0);
+  expect(Math.abs((severity?.x ?? 0) - searchRight - 8)).toBeLessThanOrEqual(1);
+  const sortRight = (sort?.x ?? 0) + (sort?.width ?? 0);
+  expect(Math.abs(barBox.x + barBox.width - sortRight)).toBeLessThanOrEqual(1);
 });
 
-for (const filterBar of ["kind", "block"] as const) {
-  test(`filter bar ${filterBar}: the view switch is the last element, after the sort`, async ({
-    page,
-  }) => {
-    await page.goto(`/?page=tiles&filterBar=${filterBar}`);
-    const bar = page.getByTestId("filterbar");
-    const order = await bar.evaluate((el) =>
-      [...el.querySelectorAll("[data-testid]")].map((node) => node.getAttribute("data-testid")),
-    );
-    expect(order.slice(-4)).toEqual(["filter-sort", "view-toggle", "view-table", "view-tiles"]);
-    const [barBox, toggleBox, sortBox] = await Promise.all([
-      box(bar),
-      box(page.getByTestId("view-toggle")),
-      box(page.getByTestId("filter-sort")),
-    ]);
-    expect(toggleBox.x).toBeGreaterThan(sortBox.x + sortBox.width);
-    expect(Math.abs(barBox.x + barBox.width - (toggleBox.x + toggleBox.width))).toBeLessThanOrEqual(
-      1,
-    );
-  });
-}
+test("filter bar: the view switch is the last element, after the sort", async ({ page }) => {
+  await page.goto("/?page=tiles");
+  const bar = page.getByTestId("filterbar");
+  const order = await bar.evaluate((el) =>
+    [...el.querySelectorAll("[data-testid]")].map((node) => node.getAttribute("data-testid")),
+  );
+  expect(order.slice(-4)).toEqual(["filter-sort", "view-toggle", "view-table", "view-tiles"]);
+  const [barBox, toggleBox, sortBox] = await Promise.all([
+    box(bar),
+    box(page.getByTestId("view-toggle")),
+    box(page.getByTestId("filter-sort")),
+  ]);
+  expect(toggleBox.x).toBeGreaterThan(sortBox.x + sortBox.width);
+  expect(Math.abs(barBox.x + barBox.width - (toggleBox.x + toggleBox.width))).toBeLessThanOrEqual(
+    1,
+  );
+});
 
 test("view switch: tiles survives a reload, the arrow keys move the choice", async ({ page }) => {
   await page.goto("/?page=tiles");
@@ -1365,13 +1378,13 @@ function scrollerRight(scroller: Locator) {
   );
 }
 
-// SUI-FEATURE-029 AC4: under `tableActions: "sticky"` at 1100 px the table is wider than its scroller,
-// yet at `scrollLeft` 0 the actions column ends on the scroller's right edge.
+// SUI-FEATURE-029 AC4, SUI-FEATURE-002 AC3: at 1100 px the table with its actions column is wider than
+// its scroller, yet at `scrollLeft` 0 the actions column ends on the scroller's right edge.
 test("table actions sticky: the actions column sits on the scroller's right edge at 1100 px @scrollbars", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1100, height: 900 });
-  await page.goto("/?page=list&tableActions=sticky");
+  await page.goto("/?page=list&actions=1");
   const scroller = page.getByTestId("data-table-scroll");
   await expect(page.getByTestId("list-actions").first()).toBeVisible();
   expect(await scroller.evaluate((el) => el.scrollLeft)).toBe(0);
@@ -1386,13 +1399,13 @@ test("table actions sticky: the actions column sits on the scroller's right edge
   }
 });
 
-// SUI-FEATURE-029 AC5: DataTableShell under all three table keys — scrolled to the end on both axes,
+// SUI-FEATURE-029 AC5: DataTableShell — scrolled to the end on both axes,
 // the header and the pager stay where they were and the actions column stays at the right edge.
-test("table switch: header and pager stay visible after scrolling to the end @scrollbars", async ({
+test("table: header and pager stay visible after scrolling to the end @scrollbars", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1100, height: 900 });
-  await page.goto("/?page=list&tableScroll=page&tableRowHover=target&tableActions=sticky");
+  await page.goto("/?page=list&actions=1");
   await expect(page.getByTestId("list-row")).toHaveCount(200);
   const scroller = page.getByTestId("data-table-scroll");
   const header = page.getByTestId("list-header");
@@ -1413,24 +1426,53 @@ test("table switch: header and pager stay visible after scrolling to the end @sc
   );
 });
 
-// SUI-FEATURE-026 AC3: under `filterBar: "block"` the row wraps instead of shrinking — at 1100 px with
-// three filters the search group moves below the filter block as a whole, the search keeps its 20rem
-// and the document gains no horizontal scroll.
-test("filter bar block: the search group wraps below three filters at 1100 px", async ({
-  page,
-}) => {
+// SUI-FEATURE-002 AC1: the row wraps instead of shrinking — at 1100 px with three filters the search
+// keeps at least 320 px, every control stays visible and the document gains no horizontal scroll.
+test("filter bar: the search keeps 320 px with three filters at 1100 px", async ({ page }) => {
   await page.setViewportSize({ width: 1100, height: 900 });
-  await page.goto("/?page=list&filterBar=block&selectWidth=measured");
+  await page.goto("/?page=list&filters=node");
   await expect(page.getByTestId("filter-room")).toBeVisible();
-  const filters = await box(page.getByTestId("filterbar-filters"));
-  const group = await box(page.getByTestId("filterbar-search-group"));
-  expect(group.y).toBeGreaterThanOrEqual(filters.y + filters.height);
   expect((await box(page.getByTestId("filter-haystack"))).width).toBeGreaterThanOrEqual(320);
+  const bar = await box(page.getByTestId("filterbar"));
+  for (const id of [
+    "filter-owner",
+    "filter-severity",
+    "filter-room",
+    "filter-reset",
+    "filter-sort",
+  ]) {
+    const control = page.getByTestId(id);
+    await expect(control).toBeVisible();
+    const { x, width } = await box(control);
+    expect(x).toBeGreaterThanOrEqual(bar.x - 1);
+    expect(x + width).toBeLessThanOrEqual(bar.x + bar.width + 1);
+  }
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
     ),
   ).toBeLessThanOrEqual(0);
+});
+
+// Reflow (WCAG 1.4.10): at 320 px the search never forces a horizontal scroll; its 20rem lower bound
+// gives way to the row's width. The gallery's own header (page, language and theme pickers) is wider
+// than 320 px, so the check is on the list's content surface and on every FilterBar element rather
+// than on the document.
+test("filter bar: no horizontal scroll at 320 px", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 800 });
+  await page.goto("/?page=list&filters=node");
+  const bar = page.getByTestId("filterbar");
+  const search = await box(page.getByTestId("filter-haystack"));
+  expect(search.width).toBeLessThanOrEqual((await box(bar)).width + 0.5);
+  expect(
+    await page.getByTestId("page-scroll").evaluate((el) => el.scrollWidth - el.clientWidth),
+  ).toBeLessThanOrEqual(0);
+  const overflowing = await bar.evaluate((el) =>
+    [el, ...el.querySelectorAll("*")]
+      .filter((node) => node.getBoundingClientRect().right > window.innerWidth + 0.5)
+      .map((node) => node.getAttribute("data-testid") ?? node.tagName),
+  );
+  expect(overflowing).toEqual([]);
 });
 
 async function choose(page: Page, trigger: Locator, option: string) {
@@ -1439,14 +1481,14 @@ async function choose(page: Page, trigger: Locator, option: string) {
   await expect(page.getByRole("listbox")).toBeHidden();
 }
 
-// SUI-FEATURE-026 AC5: under `selectWidth: "measured"` the trigger keeps one width whatever is chosen.
+// SUI-FEATURE-026 AC5: the measured trigger keeps one width whatever is chosen.
 for (const [lng, all] of [
   ["de", "Alle"],
   ["en", "All"],
   ["es", "Todos"],
 ] as const) {
   test(`measured select width: the filter does not move on a choice ${lng}`, async ({ page }) => {
-    await page.goto(`/?page=list&filterBar=block&selectWidth=measured&lng=${lng}`);
+    await page.goto(`/?page=list&filters=node&lng=${lng}`);
     const trigger = page.getByTestId("filter-room");
     await expect(page.getByTestId("filter-room-sizer")).toContainText("Konferenzzentrum");
     const widths = [(await box(trigger)).width];
@@ -1458,25 +1500,33 @@ for (const [lng, all] of [
   });
 }
 
-// SUI-FEATURE-026 AC5: the sizer goes by the rendering — a short wide option and a long narrow one
-// give one trigger width, and neither is cut off.
-test("measured select width: the widest rendered text wins, not the longest", async ({ page }) => {
-  await page.goto("/?page=list&filterBar=block&selectWidth=measured&lng=en&rooms=glyphs");
-  const trigger = page.getByTestId("filter-room");
-  await expect(page.getByTestId("filter-room-sizer")).toContainText("WWWW");
-  const widths: number[] = [];
-  for (const option of ["WWWW", "iiiiii"]) {
-    await choose(page, trigger, option);
-    widths.push((await box(trigger)).width);
-    const value = trigger.locator('[data-slot="select-value"]');
-    await expect(value).toHaveText(`Room: ${option}`);
-    expect(await value.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(0);
-  }
-  expect(Math.abs((widths[0] ?? 0) - (widths[1] ?? 0))).toBeLessThanOrEqual(1);
-});
+// SUI-FEATURE-026 AC5, SUI-FEATURE-002 AC2: the sizer goes by the rendering — a short wide option and
+// a long narrow one give one trigger width, and neither is cut off.
+for (const [lng, room] of [
+  ["de", "Raum"],
+  ["en", "Room"],
+  ["es", "Sala"],
+] as const) {
+  test(`measured select width: the widest rendered text wins, not the longest ${lng}`, async ({
+    page,
+  }) => {
+    await page.goto(`/?page=list&filters=node&lng=${lng}&rooms=glyphs`);
+    const trigger = page.getByTestId("filter-room");
+    await expect(page.getByTestId("filter-room-sizer")).toContainText("WWWW");
+    const widths: number[] = [];
+    for (const option of ["WWWW", "iiiiii"]) {
+      await choose(page, trigger, option);
+      widths.push((await box(trigger)).width);
+      const value = trigger.locator('[data-slot="select-value"]');
+      await expect(value).toHaveText(`${room}: ${option}`);
+      expect(await value.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(0);
+    }
+    expect(Math.abs((widths[0] ?? 0) - (widths[1] ?? 0))).toBeLessThanOrEqual(1);
+  });
+}
 
 test("measured select width: the sizers follow the language switch", async ({ page }) => {
-  await page.goto("/?page=list&filterBar=block&selectWidth=measured&lng=en");
+  await page.goto("/?page=list&filters=node&lng=en");
   await expect(page.getByTestId("filter-room-sizer")).toContainText("Room: Konferenzzentrum");
   await expect(page.getByTestId("pagination-page-size-sizer")).toContainText("100 per page");
   await page.getByTestId("gallery-language").selectOption("es");
@@ -1487,7 +1537,7 @@ test("measured select width: the sizers follow the language switch", async ({ pa
 // SUI-FEATURE-026 AC5: the sort keeps one width for its shortest and longest option; the Spanish page
 // size is never cut off.
 test("measured select width: sort and page size", async ({ page }) => {
-  await page.goto("/?page=list&selectWidth=measured&lng=es");
+  await page.goto("/?page=list&lng=es");
   const sort = page.getByTestId("filter-sort");
   await expect(page.getByTestId("filter-sort-sizer")).toContainText("Ordenar por:Última edición ↓");
   const longest = (await box(sort)).width;
@@ -1503,12 +1553,12 @@ test("measured select width: sort and page size", async ({ page }) => {
   }
 });
 
-// SUI-FEATURE-028 AC4: under `userMenu: "fit"` on the collapsed rail at 1920×1080 the panel is at
+// SUI-FEATURE-028 AC4, SUI-FEATURE-002 AC4: on the collapsed rail at 1920×1080 the panel is at
 // least 14rem wide and cuts no entry off; the trigger is named by the user and its avatar sits on the
 // axis of the toggle.
 for (const lng of LANGUAGES) {
   test(`user menu fit: collapsed panel and trigger ${lng}`, async ({ page }) => {
-    await page.goto(`/?page=shell&route=/dashboard&lng=${lng}&userMenu=fit`);
+    await page.goto(`/?page=shell&route=/dashboard&lng=${lng}`);
     await page.getByTestId("sidebar-trigger").click();
     await expect(page.getByTestId("app-sidebar")).toHaveAttribute("data-state", "collapsed");
     // The rail narrows over 200 ms; measure once it has settled at 3.5rem.
@@ -1909,7 +1959,7 @@ for (const [lng, date, view, values] of [
   ["es", "Fecha", "Vista", ["Compacta", "Detallada"]],
 ] as const) {
   test(`pickers: no All entry, one width for every value ${lng}`, async ({ page }) => {
-    await page.goto(`/?page=list&filterBar=block&selectWidth=measured&pickers=1&lng=${lng}`);
+    await page.goto(`/?page=list&filters=node&pickers=1&lng=${lng}`);
     const dateTrigger = page.getByTestId("filter-date");
     await expect(dateTrigger).toHaveText(`${date}: 12.10.`);
     await dateTrigger.click();
@@ -2120,7 +2170,7 @@ test("edit panel submit: carries the save icon", async ({ page }) => {
 });
 
 // SUI-FEATURE-047 AC1: the package's 12 px cell padding, in the standard and the sticky form.
-for (const query of ["", "&tableActions=sticky"]) {
+for (const query of ["", "&actions=1"]) {
   test(`table cells: 12 px left and right padding${query === "" ? "" : " (sticky)"}`, async ({
     page,
   }) => {
@@ -2167,7 +2217,7 @@ for (const theme of THEMES) {
     page,
   }) => {
     await page.setViewportSize({ width: 1100, height: 900 });
-    await page.goto(`/?page=list&tableActions=sticky&theme=${theme}`);
+    await page.goto(`/?page=list&actions=1&theme=${theme}`);
     const scroller = page.getByTestId("data-table-scroll");
     await expect(page.getByTestId("list-actions-head")).toBeVisible();
     await scroller.evaluate((el) => el.scrollTo(200, 0));
@@ -2199,8 +2249,8 @@ for (const [rows, query] of [
   [200, ""],
   [3, ""],
   [200, "&slots=toolbar"],
-  [200, "&tableActions=sticky"],
-  [3, "&tableActions=sticky"],
+  [200, "&actions=1"],
+  [3, "&actions=1"],
 ] as const) {
   test(`list frame: table, FilterBar and pager share the right edge with ${rows} rows${query} @scrollbars`, async ({
     page,
@@ -2964,7 +3014,7 @@ for (const inset of ["sheet", "framed"] as const) {
     page,
   }) => {
     await page.setViewportSize({ width: 1100, height: 900 });
-    await page.goto(`/?page=inset&inset=${inset}&tableActions=sticky`);
+    await page.goto(`/?page=inset&inset=${inset}&actions=1`);
     const scroller = page.getByTestId("inset-scroll");
     await expect(page.getByTestId("inset-actions").first()).toBeVisible();
     expect(await scroller.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
@@ -3012,7 +3062,7 @@ for (const [inset, gap] of [
     page,
   }) => {
     await page.setViewportSize({ width: 1100, height: 900 });
-    await page.goto(`/?page=inset&inset=${inset}&tableActions=sticky`);
+    await page.goto(`/?page=inset&inset=${inset}&actions=1`);
     const scroller = page.getByTestId("inset-scroll");
     await expect(page.getByTestId("inset-actions").first()).toBeVisible();
     await expect(scroller).toHaveAttribute("data-overflow-x", "");
@@ -3211,7 +3261,7 @@ test("sticky actions: a fitting table leaves the actions column in place @scroll
   page,
 }) => {
   await page.setViewportSize({ width: 2560, height: 900 });
-  await page.goto("/?page=list&tableActions=sticky");
+  await page.goto("/?page=list&actions=1");
   const scroller = page.getByTestId("data-table-scroll");
   await expect(page.getByTestId("list-actions").first()).toBeVisible();
   expect(await scroller.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
@@ -3232,7 +3282,7 @@ test("sticky actions: overflow sticks with an edge shadow, the cell follows the 
   page,
 }) => {
   await page.setViewportSize({ width: 1100, height: 900 });
-  await page.goto("/?page=list&tableActions=sticky");
+  await page.goto("/?page=list&actions=1");
   const scroller = page.getByTestId("data-table-scroll");
   const cell = page.getByTestId("list-actions").first();
   await expect(cell).toBeVisible();
@@ -3258,6 +3308,19 @@ test("sticky actions: overflow sticks with an edge shadow, the cell follows the 
   };
   const [plainFirst, plainActions] = await probe();
   expect(plainActions).toEqual(plainFirst);
+  // SUI-FEATURE-002 AC3: a row without `data-grid-row` opens nothing and keeps its ground on hover; a
+  // row with it highlights.
+  await first.hover();
+  await expect.poll(() => row.evaluate((el) => el.matches(":hover"))).toBe(true);
+  // A hover colour would start a `transition-colors` animation on the row; none starts.
+  expect(
+    await row.evaluate((el) => {
+      const ground = getComputedStyle(el).backgroundColor;
+      return { ground, animations: el.getAnimations().length };
+    }),
+  ).toEqual({ ground: "rgba(0, 0, 0, 0)", animations: 0 });
+  await page.mouse.move(0, 0);
+  await row.evaluate((el) => el.setAttribute("data-grid-row", ""));
   // The row fades its colour in (`transition-colors`): wait until both probes settle on it.
   const follows = async () => {
     const [row, actions] = await probe();
@@ -3278,10 +3341,58 @@ test("sticky actions: overflow sticks with an edge shadow, the cell follows the 
   expect(await cell.evaluate((el) => getComputedStyle(el).boxShadow)).not.toContain("-8px 0px 8px");
 });
 
+// a11y (WCAG 2.4.11): a row reached by keyboard is never hidden behind the sticky header or the stuck
+// actions column — the scroller's scroll padding keeps it clear.
+test("list frame: keyboard focus scrolls clear of the sticky header and actions @scrollbars", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1100, height: 900 });
+  await page.goto("/?page=list&actions=1");
+  const scroller = page.getByTestId("data-table-scroll");
+  await expect(scroller).toHaveAttribute("data-actions-stuck", "");
+  const row = page.getByTestId("list-row").nth(99);
+  const select = row.getByRole("combobox");
+  const next = row.getByTestId("list-actions").getByRole("button").first();
+  const uncovered = () =>
+    select.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      return [
+        [r.left + 2, r.top + 2],
+        [r.right - 2, r.top + 2],
+        [r.left + 2, r.bottom - 2],
+        [r.right - 2, r.bottom - 2],
+      ].every(([x, y]) => el.contains(document.elementFromPoint(x ?? 0, y ?? 0)));
+    });
+
+  // Behind the header: the row's top sits where the header is.
+  await scroller.evaluate(
+    (el, header) => {
+      const target = el.querySelectorAll("[data-testid=list-row]")[99] as HTMLElement;
+      el.scrollTop = target.offsetTop - header / 2;
+    },
+    (await box(page.getByTestId("list-header"))).height,
+  );
+  await next.focus();
+  await page.keyboard.press("Shift+Tab");
+  await expect(select).toBeFocused();
+  expect(await uncovered()).toBe(true);
+
+  // Behind the stuck actions column: the select's left edge sits where the column starts.
+  const column = await box(page.getByTestId("list-actions-head"));
+  await scroller.evaluate((el, { columnX, selectX }) => el.scrollBy(selectX - columnX, 0), {
+    columnX: column.x,
+    selectX: (await box(select)).x,
+  });
+  await next.focus();
+  await page.keyboard.press("Shift+Tab");
+  await expect(select).toBeFocused();
+  expect(await uncovered()).toBe(true);
+});
+
 // §Neben einer Vorschau nie fixiert: beside a preview the overflowing table keeps its actions column
 // as an ordinary last column, reached by scrolling sideways.
 test("sticky actions: beside a preview the actions column never sticks", async ({ page }) => {
-  await page.goto("/?page=split&lng=en&tableActions=sticky");
+  await page.goto("/?page=split&lng=en");
   const scroller = page.getByTestId("split-table-scroll");
   await expect(page.getByTestId("split-table-actions").first()).toBeAttached();
   expect(await scroller.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);

@@ -1,6 +1,5 @@
 import * as React from "react";
 
-import { suiteUiConfig } from "../config/index.js";
 import { Skeleton } from "../ui/skeleton.js";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "../ui/table.js";
 import { type GutterInset, GutterRow } from "./list-gutter.js";
@@ -10,15 +9,13 @@ import { useStickyActionsMarker } from "./use-sticky-actions-marker.js";
 
 const SKELETON_ROW_COUNT = 5;
 
-// The scroller reserves the list frame's shared gutter (`GL-UI-018`). Under `tableActions: "sticky"`
-// the bar always shows: Chromium sticks the actions column to the scrollport without an empty
-// gutter, so without a bar the column would slide into the gutter and be clipped there.
-const SCROLL_CLASS = {
-  static:
-    "relative min-h-6 flex-1 overflow-auto [scrollbar-gutter:stable] [&_[data-slot=table-container]]:overflow-visible",
-  sticky:
-    "relative min-h-6 flex-1 overflow-auto overflow-y-scroll [scrollbar-gutter:stable] [&_[data-slot=table-container]]:overflow-visible",
-} as const;
+// The scroller reserves the list frame's shared gutter (`GL-UI-018`), and the bar always shows:
+// Chromium sticks the actions column to the scrollport without an empty gutter, so without a bar the
+// column would slide into the gutter and be clipped there. The top scroll padding is the sticky
+// header's height, so a row reached by keyboard scrolls clear of it; the right one, while the actions
+// column is stuck, sets `useStickyActionsMarker`.
+const SCROLL_CLASS =
+  "relative min-h-6 flex-1 scroll-pt-10 overflow-auto overflow-y-scroll [scrollbar-gutter:stable] [&_[data-slot=table-container]]:overflow-visible";
 
 // The table's own inset in a drawer or a framed card (`SUI-FEATURE-059`, `GL-UI-018`): 16 px to the bar
 // on the scroller itself, together with the gutter, in a framed card on both sides; while the body
@@ -112,8 +109,7 @@ function DataTableShell({
   // An empty label counts as unset (`SUI-FEATURE-054`): no tab stop, no region without a name.
   const label = scrollLabel === "" ? undefined : scrollLabel;
   const focusable = label !== undefined && tableProps?.role !== "grid";
-  const tableActions = suiteUiConfig().tableActions;
-  const scrollClass = `${SCROLL_CLASS[tableActions]}${SCROLL_INSET_CLASS[inset]}`;
+  const scrollClass = `${SCROLL_CLASS}${SCROLL_INSET_CLASS[inset]}`;
   // The scroller as state, for the sticky-actions marker; the app's `scrollRef` gets it too.
   const [scroller, setScroller] = React.useState<HTMLDivElement | null>(null);
   const scrollerRef = React.useCallback(
@@ -123,7 +119,7 @@ function DataTableShell({
     },
     [scrollRef],
   );
-  useStickyActionsMarker(scroller, tableActions === "sticky");
+  useStickyActionsMarker(scroller);
   return (
     <div
       className="flex min-h-0 flex-1 flex-col gap-4"

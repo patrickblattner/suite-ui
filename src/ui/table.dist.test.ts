@@ -3,10 +3,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-const DEFAULT = {
-  container: "relative w-full overflow-x-auto",
-  header: "[&_tr]:border-b",
-  row: "border-b transition-colors hover:bg-muted/50 has-aria-expanded:bg-muted/50 data-[state=selected]:bg-muted",
+const BASE = {
   head: "h-10 px-3 text-left align-middle font-medium whitespace-nowrap text-foreground [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
   cell: "px-3 py-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
 };
@@ -19,7 +16,7 @@ const STUCK = "data-[col-kind=actions]:in-data-actions-stuck";
 const STICKY_HEAD_ACTIONS = `${STICKY_EDGE} ${STUCK}:sticky ${STUCK}:right-0 ${STUCK}:bg-background ${STUCK}:shadow-[inset_0_-1px_0_0_var(--border),var(--actions-edge,0_0_#0000)]`;
 const STICKY_CELL_ACTIONS = `${STICKY_EDGE} ${STUCK}:sticky ${STUCK}:right-0 ${STUCK}:bg-inherit ${STUCK}:shadow-[var(--actions-edge,0_0_#0000)] ${STUCK}:before:absolute ${STUCK}:before:inset-0 ${STUCK}:before:-z-10 ${STUCK}:before:bg-background ${STUCK}:after:absolute ${STUCK}:after:inset-0 ${STUCK}:after:-z-10 ${STUCK}:after:bg-inherit`;
 
-// AC6: every form is one literal class string in the source and in the built `dist` (the gate builds
+// AC6 (SUI-FEATURE-029), SUI-FEATURE-002: every class is one literal string in the source and in the built `dist` (the gate builds
 // before the unit phase), where the apps' Tailwind scan finds it.
 describe("Table class strings", () => {
   const root = fileURLToPath(new URL("../../", import.meta.url));
@@ -29,12 +26,11 @@ describe("Table class strings", () => {
     .map((file) => readFileSync(`${root}dist/${file}`, "utf8"))
     .join("\n");
   const forms = [
-    ...Object.values(DEFAULT),
     "relative w-full",
     `${STICKY_HEADER} [&_tr]:border-b`,
     "border-b transition-colors data-[grid-row]:hover:bg-muted/50 has-aria-expanded:bg-muted/50 data-[state=selected]:bg-muted",
-    `${DEFAULT.head} ${STICKY_HEAD_ACTIONS}`,
-    `${DEFAULT.cell} ${STICKY_CELL_ACTIONS}`,
+    `${BASE.head} ${STICKY_HEAD_ACTIONS}`,
+    `${BASE.cell} ${STICKY_CELL_ACTIONS}`,
   ];
 
   it.each(forms)("%s", (form) => {

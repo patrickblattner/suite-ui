@@ -1,5 +1,6 @@
 // The shared rule checks both apps run in their Iris pass (`GL-TEST-019`), per language. They take
 // plain data (test ids, texts), so they work with Playwright and with Testing Library alike.
+import { SIZER_TEST_ID_SUFFIX } from "../lib/select-sizer-id.js";
 import { suiteStrings, type SuiteLanguage } from "../strings/index.js";
 
 /** The fixed entries of the user menu before the app's own ones, in order (`GL-UI-020`). */
@@ -192,14 +193,16 @@ export function pagerEdgeViolations(pager: Box, gutterRight: number): string[] {
 
 /**
  * Checks that the controls of a FilterBar share one height (`GL-UI-025`), given as test id and box.
- * Reports every control whose height differs from the first one by more than half a pixel.
+ * Reports every control whose height differs from the first one by more than half a pixel. The hidden
+ * sizers of measured selects (test id ending in `-sizer`) are no controls and are skipped.
  */
 export function controlHeightViolations(
   controls: readonly { testId: string; box: Box }[],
 ): string[] {
-  const [first] = controls;
+  const measured = controls.filter(({ testId }) => !testId.endsWith(SIZER_TEST_ID_SUFFIX));
+  const [first] = measured;
   if (first === undefined) return [];
-  return controls
+  return measured
     .filter(({ box }) => Math.abs(box.height - first.box.height) > 0.5)
     .map(
       ({ testId, box }) =>

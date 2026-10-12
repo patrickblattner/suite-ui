@@ -12,7 +12,6 @@ import {
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 
-import { suiteUiConfig } from "../config/index.js";
 import { cn } from "../lib/cn.js";
 import { suiteStrings, type SuiteLanguage } from "../strings/index.js";
 import { Hint } from "../ui/hint.js";
@@ -139,10 +138,9 @@ type UserMenuProps = {
 // Log out (`GL-UI-020`). A plain positioned panel rather than a Radix menu: it has to open upward from
 // the footer and hold a language select and a segmented control.
 //
-// Under `userMenu: "fit"` the panel takes the width of its longest entry, at least the footer's width
-// expanded and 14rem on the collapsed rail (`GL-020`); collapsed, the trigger shows only the avatar on
-// the rail axis and the kebab, and the name becomes its accessible name. Without a sidebar it counts
-// as expanded.
+// The panel takes the width of its longest entry, at least the footer's width expanded and 14rem on
+// the collapsed rail (`GL-020`); collapsed, the trigger shows only the avatar on the rail axis and the
+// kebab, and the name becomes its accessible name. Without a sidebar it counts as expanded.
 function UserMenu({
   name,
   role,
@@ -163,9 +161,8 @@ function UserMenu({
   const [isOpen, setIsOpen] = React.useState(false);
   const containerRef = React.useRef<HTMLDivElement>(null);
   const close = React.useCallback(() => setIsOpen(false), []);
-  const fit = suiteUiConfig().userMenu === "fit";
   const sidebar = useOptionalSidebar();
-  const collapsed = fit && sidebar?.isOpen === false;
+  const collapsed = sidebar?.isOpen === false;
 
   React.useEffect(() => {
     if (!isOpen) return;
@@ -243,8 +240,8 @@ function UserMenu({
             aria-label={t("account.menu")}
             data-testid="user-menu-content"
             className={cn(
-              "absolute bottom-full left-0 z-50 mb-1 w-full overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md",
-              fit && (collapsed ? "w-max min-w-56" : "w-max min-w-full"),
+              "absolute bottom-full left-0 z-50 mb-1 w-max overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md",
+              collapsed ? "min-w-56" : "min-w-full",
             )}
           >
             {profileUnavailable ? (
@@ -338,11 +335,8 @@ function UserMenu({
                 role="menuitem"
                 aria-disabled="true"
                 data-testid="user-menu-change-password-locked"
-                className={cn(
-                  "flex w-full items-start gap-2 rounded-sm px-2 py-1.5 text-left text-sm text-muted-foreground",
-                  // Under `fit` the notice wraps at the panel width instead of setting it.
-                  fit && "w-0 min-w-full",
-                )}
+                // The notice wraps at the panel width instead of setting it.
+                className="flex w-0 min-w-full items-start gap-2 rounded-sm px-2 py-1.5 text-left text-sm text-muted-foreground"
               >
                 <KeyIcon className="size-4 shrink-0 translate-y-0.5" aria-hidden="true" />
                 <span>{t("account.changePasswordLocked")}</span>

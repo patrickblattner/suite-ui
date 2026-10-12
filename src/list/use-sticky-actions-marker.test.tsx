@@ -1,7 +1,6 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { configureSuiteUi } from "../config/index.js";
 import { TableCell, TableHead, TableRow } from "../ui/table.js";
 import { DataTableShell } from "./data-table-shell.js";
 import { SplitWorkspace } from "./split-workspace.js";
@@ -17,7 +16,6 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
-  configureSuiteUi({ tableActions: "static" });
 });
 
 function Shell() {
@@ -42,14 +40,12 @@ const scroller = () => screen.getByTestId("data-table-scroll");
 
 describe("sticky actions marker (GL-UI-023)", () => {
   it("a table that fits its frame is not stuck: the actions column is an ordinary last column", () => {
-    configureSuiteUi({ tableActions: "sticky" });
     render(<Shell />);
     expect(scroller()).not.toHaveAttribute("data-actions-stuck");
     expect(scroller()).not.toHaveAttribute("data-actions-shadow");
   });
 
   it("an overflowing table sticks, with the edge shadow until it is scrolled fully right", () => {
-    configureSuiteUi({ tableActions: "sticky" });
     size.scrollWidth = 1400;
     render(<Shell />);
     expect(scroller()).toHaveAttribute("data-actions-stuck");
@@ -63,8 +59,19 @@ describe("sticky actions marker (GL-UI-023)", () => {
     expect(scroller()).toHaveAttribute("data-actions-shadow");
   });
 
+  it("while stuck the right scroll padding is the actions column's width, so focus scrolls clear", () => {
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(96);
+    render(<Shell />);
+    expect(scroller().style.scrollPaddingRight).toBe("");
+    size.scrollWidth = 1400;
+    fireEvent.scroll(scroller());
+    expect(scroller().style.scrollPaddingRight).toBe("96px");
+    size.scrollWidth = 800;
+    fireEvent.scroll(scroller());
+    expect(scroller().style.scrollPaddingRight).toBe("");
+  });
+
   it("beside a preview an overflowing table never sticks", () => {
-    configureSuiteUi({ tableActions: "sticky" });
     size.scrollWidth = 1400;
     render(
       <SplitWorkspace
@@ -79,11 +86,5 @@ describe("sticky actions marker (GL-UI-023)", () => {
     );
     expect(scroller()).not.toHaveAttribute("data-actions-stuck");
     expect(scroller()).not.toHaveAttribute("data-actions-shadow");
-  });
-
-  it('under tableActions "static" nothing is marked', () => {
-    size.scrollWidth = 1400;
-    render(<Shell />);
-    expect(scroller()).not.toHaveAttribute("data-actions-stuck");
   });
 });

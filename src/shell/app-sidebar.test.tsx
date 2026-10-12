@@ -3,7 +3,6 @@ import { CalendarIcon, FileTextIcon, ListIcon, NewspaperIcon } from "lucide-reac
 import i18n from "i18next";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { configureSuiteUi } from "../config/index.js";
 import { AppSidebar } from "./app-sidebar.js";
 import type { NavModel } from "./nav.js";
 import type { VersionInfo } from "./version-line.js";
@@ -212,21 +211,8 @@ describe("AppSidebar", () => {
     expect(screen.getByTestId("nav-ideas")).toBeInTheDocument();
   });
 
-  describe("userMenu switch", () => {
-    afterEach(() => configureSuiteUi({}));
-
-    it("the footer keeps its padding without the switch, collapsed too", () => {
-      renderSidebar("/dashboard");
-      fireEvent.click(screen.getByTestId("sidebar-trigger"));
-      expect(screen.getByTestId("user-block").parentElement).toHaveAttribute(
-        "class",
-        "border-t p-2",
-      );
-      fireEvent.click(screen.getByTestId("sidebar-trigger"));
-    });
-
-    it("fit: the collapsed footer has no side padding", () => {
-      configureSuiteUi({ userMenu: "fit" });
+  describe("user menu footer (SUI-FEATURE-028)", () => {
+    it("the collapsed footer has no side padding", () => {
       renderSidebar("/dashboard");
       const footer = screen.getByTestId("user-block").parentElement;
       expect(footer).toHaveClass("p-2");

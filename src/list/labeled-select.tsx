@@ -13,8 +13,8 @@ type LabeledSelectProps = {
 };
 
 // A picker that is not a filter (view, period, window): always one value chosen, no All entry. The
-// trigger reads "<Label>: <Value>" exactly like a FilterSelect, and under `selectWidth: "measured"` it
-// is sized the same way, so it is a FilterSelect without `allValue`.
+// trigger reads "<Label>: <Value>" exactly like a FilterSelect, and it is sized the same way, so it
+// is a FilterSelect without `allValue`.
 function LabeledSelect({ label, ...props }: LabeledSelectProps) {
   return <FilterSelect field={label} {...props} />;
 }

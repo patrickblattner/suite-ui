@@ -1,8 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import i18n from "i18next";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { configureSuiteUi } from "../config/index.js";
 import { dynamicFilter, FilterBar, staticFilter } from "./filter-bar.js";
 import { hintOf } from "./test-utils.js";
 
@@ -13,7 +12,7 @@ const SORT = {
 };
 
 describe("FilterBar", () => {
-  it("orders static filter, search, reset, dynamic filter, sort — whatever order the page lists them", () => {
+  it("SUI-FEATURE-002 AC1: orders search, static filter, dynamic filter, reset, sort — whatever order the page lists them", () => {
     render(
       <FilterBar
         value=""
@@ -32,10 +31,12 @@ describe("FilterBar", () => {
       el.getAttribute("data-testid"),
     );
     expect(order).toEqual([
-      "static-filter",
       "filter-haystack",
-      "filter-reset",
+      "filterbar-controls",
+      "static-filter",
       "dynamic-filter",
+      "filter-reset",
+      "filter-sort-sizer",
       "filter-sort",
     ]);
   });
@@ -117,7 +118,7 @@ describe("FilterBar", () => {
     const order = [...screen.getByTestId("filterbar").querySelectorAll("[data-testid]")].map((el) =>
       el.getAttribute("data-testid"),
     );
-    expect(order).toEqual(["filter-haystack", "filter-reset"]);
+    expect(order).toEqual(["filter-haystack", "filterbar-controls", "filter-reset"]);
     expect(screen.queryByRole("combobox")).toBeNull();
   });
 
@@ -136,39 +137,8 @@ const testIds = (root: HTMLElement) =>
 const childTestIds = (root: HTMLElement) =>
   [...root.children].map((el) => el.getAttribute("data-testid"));
 
-describe("FilterBar app switch (SUI-FEATURE-026)", () => {
-  afterEach(() => configureSuiteUi({}));
-
-  it("AC1: without configureSuiteUi keeps the kind order and the v0.15.0 classes", () => {
-    render(
-      <FilterBar
-        value=""
-        onChange={() => {}}
-        onReset={() => {}}
-        sort={SORT}
-        filters={[
-          dynamicFilter(["a"], () => <button data-testid="dynamic-filter">Owner</button>),
-          staticFilter(["info"] as const, () => <button data-testid="static-filter">Sev</button>),
-        ]}
-      />,
-    );
-    const bar = screen.getByTestId("filterbar");
-    expect(testIds(bar)).toEqual([
-      "static-filter",
-      "filter-haystack",
-      "filter-reset",
-      "dynamic-filter",
-      "filter-sort",
-    ]);
-    expect(bar).toHaveAttribute("class", "flex w-full items-center gap-2");
-    expect(screen.queryByTestId("filterbar-filters")).toBeNull();
-    expect(screen.queryByTestId("filterbar-search-group")).toBeNull();
-    expect(screen.getByTestId("filter-haystack")).toHaveClass("flex-1");
-    expect(screen.getByTestId("filter-haystack")).not.toHaveClass("min-w-[20rem]");
-  });
-
-  it("AC2: block puts the node filters in one block before the search group", () => {
-    configureSuiteUi({ filterBar: "block" });
+describe("FilterBar target form (SUI-FEATURE-002)", () => {
+  it("AC1: a node as filters sits in the controls group after the search, in page order", () => {
     render(
       <FilterBar
         value=""
@@ -184,45 +154,42 @@ describe("FilterBar app switch (SUI-FEATURE-026)", () => {
       />,
     );
     const bar = screen.getByTestId("filterbar");
-    expect(childTestIds(bar)).toEqual(["filterbar-filters", "filterbar-search-group"]);
+    expect(childTestIds(bar)).toEqual(["filter-haystack", "filterbar-controls"]);
     expect(testIds(bar)).toEqual([
-      "filterbar-filters",
+      "filter-haystack",
+      "filterbar-controls",
       "filter-a",
       "filter-b",
-      "filterbar-search-group",
-      "filter-haystack",
       "filter-reset",
+      "filter-sort-sizer",
       "filter-sort",
     ]);
   });
 
-  it("AC2: block without filters renders only the search group", () => {
-    configureSuiteUi({ filterBar: "block" });
-    render(<FilterBar value="" onChange={() => {}} onReset={() => {}} sort={SORT} />);
-    expect(childTestIds(screen.getByTestId("filterbar"))).toEqual(["filterbar-search-group"]);
-  });
-
-  it("block takes a list in list order, whatever its kinds", () => {
-    configureSuiteUi({ filterBar: "block" });
+  it("AC1: kind orders only within the filter block, otherwise list order", () => {
     render(
       <FilterBar
         value=""
         onChange={() => {}}
         onReset={() => {}}
         filters={[
-          dynamicFilter(["a"], () => <button data-testid="dynamic-filter">Owner</button>),
-          staticFilter(["info"] as const, () => <button data-testid="static-filter">Sev</button>),
+          dynamicFilter(["a"], () => <button data-testid="dynamic-1">Owner</button>),
+          staticFilter(["info"] as const, () => <button data-testid="static-1">Sev</button>),
+          dynamicFilter(["b"], () => <button data-testid="dynamic-2">Room</button>),
+          staticFilter(["x"] as const, () => <button data-testid="static-2">Type</button>),
         ]}
       />,
     );
-    expect(testIds(screen.getByTestId("filterbar-filters"))).toEqual([
-      "dynamic-filter",
-      "static-filter",
+    expect(testIds(screen.getByTestId("filterbar-controls"))).toEqual([
+      "static-1",
+      "static-2",
+      "dynamic-1",
+      "dynamic-2",
+      "filter-reset",
     ]);
   });
 
-  it("AC3: block wraps the row and never lets the search shrink below 20rem", () => {
-    configureSuiteUi({ filterBar: "block" });
+  it("AC1: the search grows, keeps 20rem and the row wraps the controls group right-aligned", () => {
     render(
       <FilterBar
         value=""
@@ -232,26 +199,12 @@ describe("FilterBar app switch (SUI-FEATURE-026)", () => {
       />,
     );
     expect(screen.getByTestId("filterbar")).toHaveClass("flex-wrap");
-    expect(screen.getByTestId("filterbar-search-group")).not.toHaveClass("min-w-0");
-    expect(screen.getByTestId("filter-haystack")).toHaveClass("w-full", "min-w-[20rem]", "flex-1");
+    expect(screen.getByTestId("filter-haystack")).toHaveClass(
+      "w-full",
+      "min-w-[min(20rem,100%)]",
+      "flex-1",
+    );
+    expect(screen.getByTestId("filterbar-controls")).toHaveClass("ml-auto", "justify-end");
     expect(screen.getByTestId("filter-reset")).toHaveClass("shrink-0");
-  });
-
-  it("AC4: kind with a node as filters throws outside production", () => {
-    vi.spyOn(console, "error").mockImplementation(() => {});
-    try {
-      expect(() =>
-        render(
-          <FilterBar
-            value=""
-            onChange={() => {}}
-            onReset={() => {}}
-            filters={<button data-testid="filter-a">A</button>}
-          />,
-        ),
-      ).toThrow(/filterBar: "block"/);
-    } finally {
-      vi.restoreAllMocks();
-    }
   });
 });

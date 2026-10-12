@@ -2,7 +2,6 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import i18n from "i18next";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { configureSuiteUi } from "../config/index.js";
 import { FilterBar } from "./filter-bar.js";
 import { useListView } from "./view-toggle.js";
 
@@ -47,23 +46,18 @@ describe("ViewToggle (SUI-FEATURE-046)", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     window.localStorage.clear();
-    configureSuiteUi({});
   });
 
-  it.each(["kind", "block"] as const)(
-    "AC5: is the last element of the FilterBar under %s",
-    (filterBar) => {
-      configureSuiteUi({ filterBar });
-      render(<MediaPage />);
-      const bar = screen.getByTestId("filterbar");
-      const ids = [...bar.querySelectorAll("[data-testid]")].map((el) =>
-        el.getAttribute("data-testid"),
-      );
-      expect(ids.slice(-4)).toEqual(["filter-sort", "view-toggle", "view-table", "view-tiles"]);
-      const group = screen.getByRole("radiogroup");
-      expect(group.parentElement?.lastElementChild).toBe(group);
-    },
-  );
+  it("AC5: is the last element of the FilterBar", () => {
+    render(<MediaPage />);
+    const bar = screen.getByTestId("filterbar");
+    const ids = [...bar.querySelectorAll("[data-testid]")].map((el) =>
+      el.getAttribute("data-testid"),
+    );
+    expect(ids.slice(-4)).toEqual(["filter-sort", "view-toggle", "view-table", "view-tiles"]);
+    const group = screen.getByRole("radiogroup");
+    expect(group.parentElement?.lastElementChild).toBe(group);
+  });
 
   it("AC5: defaults to table; names and marks the two outline icon buttons", () => {
     render(<MediaPage />);

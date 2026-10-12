@@ -6,7 +6,6 @@ import { type ReactNode, StrictMode, useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 import { initReactI18next, useTranslation } from "react-i18next";
 
-import { configureSuiteUi } from "../src/config/index.js";
 import { registerSuiteStrings, suiteStrings, type SuiteLanguage } from "../src/strings/index.js";
 import { ComponentsPage } from "./ComponentsPage.js";
 import { EditPanelPage } from "./EditPanelPage.js";
@@ -69,18 +68,6 @@ const initialPage: Page = (PAGES as readonly string[]).includes(params.get("page
 await i18n.use(initReactI18next).init({ lng: initialLng, fallbackLng: "en", resources: {} });
 registerSuiteStrings(i18n);
 registerShellLabels();
-// The app switch as an app sets it at start (`?filterBar=block&selectWidth=measured&userMenu=fit`,
-// `&tableScroll=page&tableRowHover=target&tableActions=sticky`); without the
-// parameters the gallery shows the defaults.
-configureSuiteUi({
-  filterBar: params.get("filterBar") === "block" ? "block" : "kind",
-  selectWidth: params.get("selectWidth") === "measured" ? "measured" : "content",
-  userMenu: params.get("userMenu") === "fit" ? "fit" : "fixed",
-  tableScroll: params.get("tableScroll") === "page" ? "page" : "frame",
-  tableRowHover: params.get("tableRowHover") === "target" ? "target" : "all",
-  tableActions: params.get("tableActions") === "sticky" ? "sticky" : "static",
-});
-
 // Every page but the strings table, by name.
 const PAGE_CONTENT: Record<Exclude<Page, "strings">, (theme: Theme) => ReactNode> = {
   tokens: () => <TokensPage />,

@@ -1,6 +1,6 @@
 {
   "name": "@suite/ui",
-  "version": "0.61.2",
+  "version": "0.62.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -31,10 +31,6 @@
     "./help/*": {
       "types": "./dist/help/*.d.ts",
       "import": "./dist/help/*.js"
-    },
-    "./config": {
-      "types": "./dist/config/index.d.ts",
-      "import": "./dist/config/index.js"
     },
     "./strings": {
       "types": "./dist/strings/index.d.ts",

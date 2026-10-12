@@ -1,9 +1,8 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import i18n from "i18next";
 import { BellIcon } from "lucide-react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-import { configureSuiteUi } from "../config/index.js";
 import { userMenuOrderViolations } from "../testing/index.js";
 import { SidebarTrigger } from "./sidebar-provider.js";
 import { ShellHarness } from "./test-utils.js";
@@ -227,9 +226,7 @@ describe("userMenuOrderViolations", () => {
     ).toHaveLength(1);
   });
 
-  describe("userMenu switch (SUI-FEATURE-028 AC4)", () => {
-    afterEach(() => configureSuiteUi({}));
-
+  describe("fit width (SUI-FEATURE-028, SUI-FEATURE-002 AC4)", () => {
     const menuProps = {
       name: "ada",
       role: "Admin",
@@ -251,26 +248,7 @@ describe("userMenuOrderViolations", () => {
       );
     }
 
-    it("without the switch, trigger and panel keep the classes of v0.17.0, collapsed too", () => {
-      renderInSidebar();
-      fireEvent.click(screen.getByTestId("sidebar-trigger"));
-      const trigger = screen.getByTestId("user-menu-trigger");
-      expect(trigger).toHaveAttribute(
-        "class",
-        "flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-left outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:focus-ring",
-      );
-      expect(trigger).not.toHaveAttribute("aria-label");
-      expect(screen.getByTestId("user-menu-name")).toHaveTextContent("ada");
-      fireEvent.click(trigger);
-      expect(screen.getByTestId("user-menu-content")).toHaveAttribute(
-        "class",
-        "absolute bottom-full left-0 z-50 mb-1 w-full overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md",
-      );
-      fireEvent.click(screen.getByTestId("sidebar-trigger"));
-    });
-
-    it("fit, expanded: the panel is as wide as its longest entry, at least the footer", () => {
-      configureSuiteUi({ userMenu: "fit" });
+    it("expanded: the panel is as wide as its longest entry, at least the footer", () => {
       renderInSidebar();
       fireEvent.click(screen.getByTestId("user-menu-trigger"));
       const panel = screen.getByTestId("user-menu-content");
@@ -279,8 +257,7 @@ describe("userMenuOrderViolations", () => {
       expect(screen.getByTestId("user-menu-name")).toHaveTextContent("ada");
     });
 
-    it("fit, collapsed: avatar and kebab only, the name as accessible name, a 14rem floor", () => {
-      configureSuiteUi({ userMenu: "fit" });
+    it("collapsed: avatar and kebab only, the name as accessible name, a 14rem floor", () => {
       renderInSidebar();
       fireEvent.click(screen.getByTestId("sidebar-trigger"));
       const trigger = screen.getByTestId("user-menu-trigger");
@@ -292,16 +269,14 @@ describe("userMenuOrderViolations", () => {
       fireEvent.click(screen.getByTestId("sidebar-trigger"));
     });
 
-    it("fit without a sidebar counts as expanded", () => {
-      configureSuiteUi({ userMenu: "fit" });
+    it("without a sidebar it counts as expanded", () => {
       render(<UserMenu {...menuProps} />);
       expect(screen.getByTestId("user-menu-name")).toHaveTextContent("ada");
       fireEvent.click(screen.getByTestId("user-menu-trigger"));
       expect(screen.getByTestId("user-menu-content")).toHaveClass("min-w-full");
     });
 
-    it("fit: the lock notice wraps at the panel width instead of setting it", () => {
-      configureSuiteUi({ userMenu: "fit" });
+    it("the lock notice wraps at the panel width instead of setting it", () => {
       render(<UserMenu {...menuProps} changePasswordLocked />);
       fireEvent.click(screen.getByTestId("user-menu-trigger"));
       expect(screen.getByTestId("user-menu-change-password-locked")).toHaveClass(
