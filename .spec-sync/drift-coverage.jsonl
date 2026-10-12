@@ -196,3 +196,5 @@
 {"ts":"2026-10-12T01:52:43.028Z","key":"GL-TEST-027","from":4,"to":5,"disposition":"editorial","ref":"Repeat-count semantics of flake-repeat refined (class maximum, no summing dispatches); repo has no flake-repeat job/workflows yet, so no code impact"}
 {"ts":"2026-10-12T06:45:48.276Z","key":"PROC-RUN-001","from":11,"to":12,"disposition":"editorial","ref":"CI-runner infra row (night test window labels); operations doc, no suite-ui code impact"}
 {"ts":"2026-10-12T06:45:51.480Z","key":"PROC-RUN-011","from":6,"to":7,"disposition":"editorial","ref":"disaster-recovery runner restore step (night window labels); operations doc, no suite-ui code impact"}
+{"ts":"2026-10-12T07:18:37.449Z","key":"PROC-DEV-032","from":9,"to":10,"disposition":"editorial","ref":"harness-side: parked PR excluded from in-flight probe; no suite-ui code impact"}
+{"ts":"2026-10-12T07:18:37.864Z","key":"PROC-DEV-047","from":5,"to":6,"disposition":"editorial","ref":"worker process: parked label on parked PRs; loop behavior, no suite-ui code impact"}
