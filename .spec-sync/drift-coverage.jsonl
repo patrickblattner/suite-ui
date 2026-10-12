@@ -199,3 +199,7 @@
 {"ts":"2026-10-12T07:18:37.449Z","key":"PROC-DEV-032","from":9,"to":10,"disposition":"editorial","ref":"harness-side: parked PR excluded from in-flight probe; no suite-ui code impact"}
 {"ts":"2026-10-12T07:18:37.864Z","key":"PROC-DEV-047","from":5,"to":6,"disposition":"editorial","ref":"worker process: parked label on parked PRs; loop behavior, no suite-ui code impact"}
 {"ts":"2026-10-12T07:51:45.275Z","key":"SUI-FEATURE-030","from":3,"to":4,"disposition":"ticket","ref":"89"}
+{"ts":"2026-10-12T08:35:14.790Z","key":"GL-UI-023","from":8,"to":9,"disposition":"ticket","ref":"90"}
+{"ts":"2026-10-12T08:35:14.790Z","key":"GL-UI-024","from":13,"to":14,"disposition":"ticket","ref":"90"}
+{"ts":"2026-10-12T08:35:14.790Z","key":"SUI-FEATURE-002","from":null,"to":2,"disposition":"ticket","ref":"90"}
+{"ts":"2026-10-12T08:35:15.199Z","key":"SUI-DESIGN-011","from":4,"to":5,"disposition":"ticket","ref":"91"}
