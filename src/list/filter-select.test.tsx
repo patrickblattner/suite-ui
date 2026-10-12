@@ -42,6 +42,20 @@ describe("FilterSelect", () => {
     expect(screen.getByTestId("filter-severity")).toHaveTextContent("Severity: Warning");
     expect(screen.getByRole("combobox", { name: "Severity" })).toBeInTheDocument();
   });
+
+  // `#97`, WCAG 4.1.2: the bare field name names the combobox, not the "Field: Value" run.
+  it("is named by the field name alone", () => {
+    renderFilter("Severity", "warning");
+    const trigger = screen.getByRole("combobox", { name: "Severity" });
+    expect(trigger).not.toHaveAttribute("aria-label");
+    const named = document.getElementById(trigger.getAttribute("aria-labelledby")!);
+    expect(named).toHaveAttribute("data-slot", "select-field-name");
+    expect(named).toHaveTextContent(/^Severity$/);
+    // The visible text stays one run in the value slot.
+    expect(trigger.querySelector("[data-slot=select-value]")).toHaveTextContent(
+      /^Severity: Warning$/,
+    );
+  });
 });
 
 describe("FilterSelect select width (SUI-FEATURE-026)", () => {

@@ -32,15 +32,18 @@ type SortSelectProps = {
 // as its longest option in the active language.
 function SortSelect({ value, onChange, options, "data-testid": testId }: SortSelectProps) {
   const { t } = useTranslation("suite");
+  // The bare field name names the combobox; the muted prefix with its colon is only shown (`#97`).
   const select = (
     <Select value={value} onValueChange={onChange}>
       <Hint text={t("sort.hint")}>
         <SelectTrigger
           className={MEASURED_TRIGGER}
-          aria-label={t("sort.label")}
+          fieldName={t("sort.label")}
           data-testid={testId ?? "filter-sort"}
         >
-          <span className="text-muted-foreground">{t("sort.label")}:</span>
+          <span className="text-muted-foreground" aria-hidden="true">
+            {t("sort.label")}:
+          </span>
           <SelectValue />
         </SelectTrigger>
       </Hint>

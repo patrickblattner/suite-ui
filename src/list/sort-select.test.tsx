@@ -1,4 +1,4 @@
-import { act, render, renderHook, screen } from "@testing-library/react";
+import { act, render, renderHook, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { SortSelect, useSort } from "./sort-select.js";
@@ -46,5 +46,35 @@ describe("SortSelect select width (SUI-FEATURE-026)", () => {
     renderSort();
     expect(screen.getByTestId("filter-sort-sizer")).toHaveTextContent("Sort by:Last edited ↓");
     expect(screen.getByTestId("filter-sort")).toHaveClass("col-start-1", "row-start-1", "w-full");
+  });
+});
+
+describe("SortSelect name (#97)", () => {
+  it("is named by its field name, not by the value", () => {
+    render(
+      <SortSelect
+        value="nameAsc"
+        onChange={() => {}}
+        options={[{ value: "nameAsc", label: "Name ↑" }]}
+      />,
+    );
+    const trigger = screen.getByRole("combobox", { name: "Sort by" });
+    const named = document.getElementById(trigger.getAttribute("aria-labelledby")!);
+    expect(named).toHaveAttribute("data-slot", "select-field-name");
+    expect(named).toHaveTextContent(/^Sort by$/);
+  });
+
+  it("shows the muted prefix with its colon, hidden from the name", () => {
+    render(
+      <SortSelect
+        value="nameAsc"
+        onChange={() => {}}
+        options={[{ value: "nameAsc", label: "Name ↑" }]}
+      />,
+    );
+    const prefix = within(screen.getByRole("combobox")).getByText("Sort by:");
+    expect(prefix).toBeVisible();
+    expect(prefix).toHaveClass("text-muted-foreground");
+    expect(prefix).toHaveAttribute("aria-hidden", "true");
   });
 });

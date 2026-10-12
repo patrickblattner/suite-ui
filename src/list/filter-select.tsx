@@ -44,9 +44,10 @@ function FilterSelect({
       : `${field}: ${chosen}`;
   const select = (
     <Select value={value} onValueChange={onValueChange}>
+      {/* The trigger shows "Field: Value" as one run; the bare field name names it (`#97`). */}
       <Hint text={hint}>
         <SelectTrigger
-          aria-label={field}
+          fieldName={field}
           className={cn(MEASURED_TRIGGER, className)}
           data-testid={testId}
         >

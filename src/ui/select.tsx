@@ -43,9 +43,10 @@ function SelectValue({ className, ...props }: React.ComponentProps<typeof Select
 // A field name, the value and the chevron sit at the reading edge (`GL-020`): `justify-start` with
 // the chevron at `ml-auto`, so the surplus width is one gap before the chevron instead of being spread
 // over every gap.
-// `fieldName` names the combobox: a combobox takes no name from its content (WCAG 4.1.2), so the
-// trigger points `aria-labelledby` at the field name, which is hidden from the content so a screen
-// reader does not read it again with the value.
+// `fieldName` names the combobox (`SUI-FEATURE-022` §Select): a combobox takes no name from its
+// content (WCAG 4.1.2), so the trigger points `aria-labelledby` at a hidden element holding the bare
+// field name, without a colon. It shows nothing; a visible field name is the caller's own aria-hidden
+// child, so a screen reader does not read it again with the value.
 function SelectTrigger({
   className,
   size = "default",
@@ -56,14 +57,17 @@ function SelectTrigger({
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Trigger> & {
   size?: "sm" | "default";
-  fieldName?: React.ReactNode;
+  fieldName?: string;
 }) {
   const opener = React.useContext(SelectOpenerContext);
   const fieldNameId = React.useId();
+  // Only non-blank text names the trigger; anything else (also a value bypassing the type) is none, so
+  // no empty name overrides `aria-label`.
+  const named = typeof fieldName === "string" && fieldName.trim() !== "";
   return (
     <SelectPrimitive.Trigger
       data-size={size}
-      aria-labelledby={fieldName === undefined ? undefined : fieldNameId}
+      aria-labelledby={named ? fieldNameId : undefined}
       onPointerDown={(event) => {
         opener?.setOpenedByPointer(true);
         onPointerDown?.(event);
@@ -80,8 +84,8 @@ function SelectTrigger({
       // After the spread: a wrapping Slot (a Hint's trigger) must not rename the select.
       data-slot="select-trigger"
     >
-      {fieldName !== undefined && (
-        <span id={fieldNameId} data-slot="select-field-name" aria-hidden="true">
+      {named && (
+        <span id={fieldNameId} data-slot="select-field-name" hidden>
           {fieldName}
         </span>
       )}

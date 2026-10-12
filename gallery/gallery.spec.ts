@@ -433,7 +433,10 @@ for (const [lng, label] of [
 ] as const) {
   test(`a filter without a choice reads "${label}"`, async ({ page }) => {
     await page.goto(`/?page=list&lng=${lng}`);
-    await expect(page.getByTestId("filter-severity")).toHaveText(label);
+    // The value slot: the trigger also holds the hidden element with the bare field name.
+    await expect(
+      page.getByTestId("filter-severity").locator("[data-slot=select-value]"),
+    ).toHaveText(label);
   });
 }
 
@@ -1177,7 +1180,8 @@ test("select: field name and value at the leading edge, chevron right", async ({
   await page.goto("/?page=components");
   const wide = page.getByTestId("select-named-wide");
   const trigger = await box(wide);
-  const name = await box(wide.getByText("Interval"));
+  // The visible field name, not the hidden element that names the combobox.
+  const name = await box(wide.getByText("Interval").and(page.locator("[aria-hidden=true]")));
   const value = await box(wide.locator("[data-slot=select-value]"));
   const chevron = await box(wide.locator("svg"));
   expect(name.x - trigger.x).toBeLessThan(16);
@@ -2039,18 +2043,20 @@ for (const [lng, date, view, values] of [
   test(`pickers: no All entry, one width for every value ${lng}`, async ({ page }) => {
     await page.goto(`/?page=list&filters=node&pickers=1&lng=${lng}`);
     const dateTrigger = page.getByTestId("filter-date");
-    await expect(dateTrigger).toHaveText(`${date}: 12.10.`);
+    // The value slot: the trigger also holds the hidden element with the bare field name.
+    await expect(dateTrigger.locator("[data-slot=select-value]")).toHaveText(`${date}: 12.10.`);
     await dateTrigger.click();
     await expect(page.getByRole("option")).toHaveText(["12.10.", "19.10."]);
     await page.keyboard.press("Escape");
     await expect(page.getByRole("listbox")).toBeHidden();
 
     const trigger = page.getByTestId("picker-view");
-    await expect(trigger).toHaveText(`${view}: ${values[0]}`);
+    const shown = trigger.locator("[data-slot=select-value]");
+    await expect(shown).toHaveText(`${view}: ${values[0]}`);
     const widths = [(await box(trigger)).width];
     for (const option of [values[1], values[0]]) {
       await choose(page, trigger, option);
-      await expect(trigger).toHaveText(`${view}: ${option}`);
+      await expect(shown).toHaveText(`${view}: ${option}`);
       widths.push((await box(trigger)).width);
     }
     for (const width of widths) expect(Math.abs(width - (widths[0] ?? 0))).toBeLessThanOrEqual(1);
