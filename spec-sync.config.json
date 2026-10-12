@@ -33,10 +33,24 @@
     ]
   },
   "lenses": {
-    "acceptance": ["**"],
-    "tests": ["**"],
-    "a11y": ["src/**", "gallery/**"],
-    "security": ["src/**", "package-lock.json"]
+    "code": [
+      "src/!(strings)/**",
+      "src/strings/!(en|de|es).ts",
+      "src/strings/*.tsx",
+      "src/*.{ts,tsx,css}",
+      "gallery/**",
+      "test/**",
+      "package.json",
+      "package-lock.json",
+      "tsconfig.json",
+      "tsup.config.ts",
+      "vitest.config.ts",
+      "eslint.config.js",
+      "spec-sync.config.json"
+    ],
+    "security": ["package.json", "package-lock.json", "src/help/help-markdown.tsx"],
+    "ui": ["src/!(strings)/**/!(*.test).tsx", "src/*.css", "gallery/**"],
+    "ux": ["src/!(strings)/**/!(*.test).tsx", "gallery/**"]
   },
   "labels": {
     "build": "spec-sync",
