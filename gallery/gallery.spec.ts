@@ -95,6 +95,47 @@ for (const lng of LANGUAGES) {
   }
 }
 
+// `GL-UX-001`: axe with the WCAG 2.2 AA tag set on every gallery page, light and dark, at the
+// configured 1920×1080 desktop viewport.
+const WCAG_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
+const AXE_PAGES: [name: string, ready: (page: Page) => Locator][] = [
+  ["strings", (page) => page.locator("#strings-heading")],
+  ["tokens", (page) => page.getByTestId("token-warn-text")],
+  ["keys", (page) => page.getByTestId("keys-row").first()],
+  ["shell", (page) => page.getByTestId("app-sidebar")],
+  ["inset", (page) => page.getByTestId("inset-row").first()],
+  ["edit-panel", (page) => page.getByTestId("media-panel-trigger")],
+  ...PAGES,
+];
+
+for (const theme of THEMES) {
+  for (const [name, ready] of AXE_PAGES) {
+    test(`axe wcag 2.2 aa: ${name} ${theme}`, async ({ page }) => {
+      await page.goto(`/?page=${name}&lng=en&theme=${theme}`);
+      await expect(ready(page)).toBeVisible();
+      // Entering toasts and overlays fade in; mid-fade their text fails contrast and they overlap.
+      // Endless animations (skeleton pulse, spinners) never settle and are left out.
+      await page.waitForFunction(() =>
+        document
+          .getAnimations()
+          .every(
+            (animation) =>
+              animation.playState !== "running" ||
+              animation.effect?.getComputedTiming().iterations === Infinity,
+          ),
+      );
+      const axe = new AxeBuilder({ page }).withTags(WCAG_TAGS);
+      // The open Select traps focus like a modal but is no dialog, so axe misses that the page under
+      // its `aria-hidden` is unreachable and flags the page's controls there.
+      if (name === "select") axe.disableRules(["aria-hidden-focus"]);
+      const { violations } = await axe.analyze();
+      expect(
+        violations.map(({ id, nodes }) => ({ id, targets: nodes.map((node) => node.target) })),
+      ).toEqual([]);
+    });
+  }
+}
+
 test("the toggles switch language and theme", async ({ page }) => {
   await page.goto("/");
   await page.getByTestId("gallery-language").selectOption("de");

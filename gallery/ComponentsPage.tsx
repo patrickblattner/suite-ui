@@ -568,7 +568,7 @@ function Choices() {
       </Row>
       <Row label="Select · field name">
         <Select defaultValue="weekly">
-          <SelectTrigger className="w-80" data-testid="select-named-wide">
+          <SelectTrigger className="w-80" data-testid="select-named-wide" aria-label="Interval">
             <span>Interval</span>
             <SelectValue />
           </SelectTrigger>
@@ -577,7 +577,7 @@ function Choices() {
           </SelectContent>
         </Select>
         <Select defaultValue="long">
-          <SelectTrigger className="w-48" data-testid="select-named-clipped">
+          <SelectTrigger className="w-48" data-testid="select-named-clipped" aria-label="Interval">
             <span>Interval</span>
             <SelectValue />
           </SelectTrigger>
@@ -921,6 +921,8 @@ function FocusRing() {
               </TabsTrigger>
               <TabsTrigger value="mail">Mail</TabsTrigger>
             </TabsList>
+            {/* The panel the active trigger controls (axe); this demo shows only the triggers. */}
+            <TabsContent value="general" className="hidden" />
           </Tabs>
           <Accordion type="single" collapsible>
             <AccordionItem value="item">
@@ -954,6 +956,7 @@ function FocusRing() {
               emptyTestId="focus-log-empty"
               loadingRowTestId="focus-log-loading"
               scrollTestId="focus-log-scroll"
+              scrollLabel="Log"
             >
               {LOG_ROWS.map((row) => (
                 <TableRow key={row.time}>

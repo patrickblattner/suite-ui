@@ -45,6 +45,7 @@ function InsetTable() {
       loadingRowTestId="inset-row-loading"
       emptyTestId="inset-empty"
       scrollTestId="inset-scroll"
+      scrollLabel="Events"
       toolbar={<FilterBar value={query} onChange={setQuery} onReset={() => setQuery("")} />}
       pagination={
         <TablePagination
