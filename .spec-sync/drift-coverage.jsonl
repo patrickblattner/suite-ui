@@ -218,3 +218,8 @@
 {"ts":"2026-10-12T14:58:16.563Z","key":"GL-UI-002","from":6,"to":7,"disposition":"editorial","ref":"rev 7 file-facts block belongs to the consuming apps' media detail view; suite-ui ships no media detail component (open non-blocking architect question re a shared block)"}
 {"ts":"2026-10-12T15:01:33.173Z","key":"SUI-FEATURE-060","from":null,"to":2,"disposition":"ticket","ref":"99"}
 {"ts":"2026-10-12T15:16:05.712Z","key":"SUI-FEATURE-060","from":2,"to":3,"disposition":"ticket","ref":"100"}
+{"ts":"2026-10-12T18:30:08.319Z","key":"SUI-FEATURE-061","from":null,"to":2,"disposition":"ticket","ref":"102"}
+{"ts":"2026-10-12T18:30:08.319Z","key":"GL-UI-027","from":12,"to":13,"disposition":"ticket","ref":"102"}
+{"ts":"2026-10-12T18:30:08.752Z","key":"SUI-FEATURE-062","from":null,"to":2,"disposition":"ticket","ref":"103"}
+{"ts":"2026-10-12T18:30:08.752Z","key":"GL-UI-002","from":7,"to":8,"disposition":"ticket","ref":"103"}
+{"ts":"2026-10-12T18:30:09.190Z","key":"GL-UI-002","from":7,"to":8,"disposition":"ticket","ref":"102"}
