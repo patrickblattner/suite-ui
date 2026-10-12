@@ -1138,6 +1138,52 @@ test("media detail shell: image, video and PDF, paged by the head and the arrow 
   await expect(shell).toBeHidden();
 });
 
+// `SUI-FEATURE-064`: the editor header saved and with a draft, in its fixed order.
+test("editor header: both states, the order, Reset asks first", async ({ page }) => {
+  await page.goto("/?page=components");
+  const saved = page.getByTestId("editor-header-saved");
+  const draft = page.getByTestId("editor-header-draft");
+  await expect(saved.getByTestId("editor-state")).toHaveText("Saved");
+  await expect(saved.getByTestId("editor-reset")).toBeDisabled();
+  await expect(saved.getByTestId("editor-save")).toBeDisabled();
+  await expect(draft.getByTestId("editor-state")).toHaveText("Draft · unsaved");
+  const order = await draft
+    .locator("[data-slot=editor-actions] [data-testid]")
+    .evaluateAll((nodes) =>
+      nodes.map(
+        (node) => [node.getAttribute("data-testid"), node.getBoundingClientRect().x] as const,
+      ),
+    );
+  expect(order.map(([id]) => id)).toEqual([
+    "editor-undo",
+    "editor-redo",
+    "editor-state",
+    "editor-reset",
+    "editor-save",
+  ]);
+  const xs = order.map(([, x]) => x);
+  expect([...xs].sort((a, b) => a - b)).toEqual(xs);
+
+  await draft.getByTestId("editor-reset").click();
+  const confirm = page.getByTestId("editor-reset-confirm");
+  await expect(confirm).toBeVisible();
+  await expect(draft.getByTestId("editor-state")).toHaveText("Draft · unsaved");
+  await confirm.getByTestId("editor-reset-confirm-confirm").click();
+  await expect(draft.getByTestId("editor-state")).toHaveText("Saved");
+});
+
+test("editor header: Ctrl+Z undoes outside a text field", async ({ page }) => {
+  await page.goto("/?page=components");
+  const draft = page.getByTestId("editor-header-draft");
+  await draft.getByTestId("editor-back").focus();
+  await page.keyboard.press("Control+z");
+  await page.keyboard.press("Control+z");
+  await expect(draft.getByTestId("editor-state")).toHaveText("Saved");
+  await expect(draft.getByTestId("editor-undo")).toBeDisabled();
+  await page.keyboard.press("Control+y");
+  await expect(draft.getByTestId("editor-state")).toHaveText("Draft · unsaved");
+});
+
 // `SUI-FEATURE-063`: the media tiles of the tiles page.
 async function mediaTiles(page: Page) {
   await page.goto("/?page=tiles");

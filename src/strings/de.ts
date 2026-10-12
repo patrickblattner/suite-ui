@@ -254,6 +254,14 @@ export const de: SuiteStrings = {
     action: "Spiegeln",
     active: "Gespiegelt",
   },
+  editor: {
+    back: "Zurück",
+    undo: "Rückgängig",
+    redo: "Wiederherstellen",
+    saved: "Gespeichert",
+    draft: "Entwurf · ungespeichert",
+    resetConfirm: "Entwurf verwerfen und zum gespeicherten Stand zurückkehren?",
+  },
   upload: {
     drop: "Dateien hier ablegen",
     choose: "Dateien wählen",

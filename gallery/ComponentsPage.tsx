@@ -33,6 +33,7 @@ import {
 } from "../src/ui/dropdown-menu.js";
 import { ImagePlacementButtons } from "../src/ui/crop-editor.js";
 import { type Crop, CroppedBackground, CroppedImage } from "../src/ui/cropped-image.js";
+import { EditorHeader } from "../src/ui/editor-header.js";
 import { FileFacts } from "../src/ui/file-facts.js";
 import { Hint } from "../src/ui/hint.js";
 import { InlineStatus } from "../src/ui/inline-status.js";
@@ -1042,6 +1043,62 @@ function CropRow() {
   );
 }
 
+// `SUI-FEATURE-064`: the editor header saved and with an unsaved draft. The draft counts edits as
+// history; Save works for 1.5 s, Reset asks first.
+function EditorHeaderRow() {
+  const [edits, setEdits] = useState(2);
+  const [undone, setUndone] = useState(0);
+  const [saving, setSaving] = useState(false);
+  return (
+    <Section id="editor-header" title="EditorHeader">
+      <div className="flex flex-col gap-4 rounded-md border" data-testid="editor-header-saved">
+        <EditorHeader
+          title="Spring newsletter"
+          onBack={() => {}}
+          canUndo={false}
+          canRedo={false}
+          onUndo={() => {}}
+          onRedo={() => {}}
+          dirty={false}
+          saving={false}
+          onSave={() => {}}
+          onReset={() => {}}
+        />
+      </div>
+      <div className="mt-4 flex flex-col gap-4 rounded-md border" data-testid="editor-header-draft">
+        <EditorHeader
+          title="Autumn campaign landing page"
+          onBack={() => {}}
+          canUndo={edits > 0}
+          canRedo={undone > 0}
+          onUndo={() => {
+            setEdits((n) => n - 1);
+            setUndone((n) => n + 1);
+          }}
+          onRedo={() => {
+            setEdits((n) => n + 1);
+            setUndone((n) => n - 1);
+          }}
+          dirty={edits > 0}
+          saving={saving}
+          onSave={() => {
+            setSaving(true);
+            setTimeout(() => {
+              setSaving(false);
+              setEdits(0);
+              setUndone(0);
+            }, 1500);
+          }}
+          onReset={() => {
+            setEdits(0);
+            setUndone(0);
+          }}
+        />
+      </div>
+    </Section>
+  );
+}
+
 function FocusRow() {
   return (
     <div className="flex flex-wrap items-center gap-4">
@@ -1159,6 +1216,7 @@ export function ComponentsPage() {
       <ReadTable />
       <FileFactsRow />
       <CropRow />
+      <EditorHeaderRow />
       <FocusRing />
     </>
   );

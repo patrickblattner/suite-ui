@@ -264,6 +264,15 @@ export const en = {
     action: "Flip",
     active: "Flipped",
   },
+  // The header of an editor page (`EditorHeader`).
+  editor: {
+    back: "Back",
+    undo: "Undo",
+    redo: "Redo",
+    saved: "Saved",
+    draft: "Draft · unsaved",
+    resetConfirm: "Discard the draft and return to the saved state?",
+  },
   upload: {
     drop: "Drop files here",
     choose: "Choose files",

@@ -291,17 +291,19 @@ type LeaveConfirmOptions = {
   dirty: boolean;
   busy: boolean;
   onSave: LeaveSave;
+  // Discard runs it before the held leave goes on (an editor resets its draft, `GL-UI-034`).
+  onDiscard?: (() => void) | undefined;
 };
 
 // The shared core of the edit panel and `useLeaveGuard`: `guard` leaves at once when clean, holds the
 // leave for the dialog when dirty and drops it while an action works; route changes in the app,
 // browser back and forward included, are held the same way while dirty or working. A confirmed leave
 // passes the hold.
-function useLeaveConfirm({ dirty, busy, onSave }: LeaveConfirmOptions) {
+function useLeaveConfirm({ dirty, busy, onSave, onDiscard }: LeaveConfirmOptions) {
   const [pending, setPending] = React.useState<PendingLeave | null>(null);
-  const latest = React.useRef({ dirty, busy, onSave });
+  const latest = React.useRef({ dirty, busy, onSave, onDiscard });
   React.useEffect(() => {
-    latest.current = { dirty, busy, onSave };
+    latest.current = { dirty, busy, onSave, onDiscard };
   });
   const releasing = React.useRef(false);
 
@@ -372,7 +374,9 @@ function useLeaveConfirm({ dirty, busy, onSave }: LeaveConfirmOptions) {
         }}
         onDiscard={() => {
           close();
-          if (pending !== null) release(pending);
+          if (pending === null) return;
+          latest.current.onDiscard?.();
+          release(pending);
         }}
         onSave={() => {
           close();
@@ -398,6 +402,8 @@ type LeaveGuardOptions = {
   // Back to the list (the same page, filters, sort and focused row are the app's route state).
   onLeave: () => void;
   onSave: LeaveSave;
+  // Discard runs it before the held leave goes on.
+  onDiscard?: (() => void) | undefined;
 };
 
 /**
@@ -408,8 +414,8 @@ type LeaveGuardOptions = {
  * select, menu, tooltip or dialog takes, or that an editor uses itself (it stops the propagation or
  * prevents the default), does not leave.
  */
-function useLeaveGuard({ dirty, busy = false, onLeave, onSave }: LeaveGuardOptions) {
-  const { guard, dialog } = useLeaveConfirm({ dirty, busy, onSave });
+function useLeaveGuard({ dirty, busy = false, onLeave, onSave, onDiscard }: LeaveGuardOptions) {
+  const { guard, dialog } = useLeaveConfirm({ dirty, busy, onSave, onDiscard });
   const leave = React.useRef(onLeave);
   React.useEffect(() => {
     leave.current = onLeave;

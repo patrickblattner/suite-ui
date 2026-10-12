@@ -12,6 +12,7 @@ export * from "./cropped-image.js";
 export * from "./dialog.js";
 export * from "./dropdown-menu.js";
 export * from "./edit-panel.js";
+export * from "./editor-header.js";
 export * from "./file-facts.js";
 export * from "./hint.js";
 export * from "./inline-status.js";

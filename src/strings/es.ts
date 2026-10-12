@@ -253,6 +253,14 @@ export const es: SuiteStrings = {
     action: "Reflejar",
     active: "Reflejado",
   },
+  editor: {
+    back: "Volver",
+    undo: "Deshacer",
+    redo: "Rehacer",
+    saved: "Guardado",
+    draft: "Borrador · sin guardar",
+    resetConfirm: "¿Descartar el borrador y volver al estado guardado?",
+  },
   upload: {
     drop: "Suelta los archivos aquí",
     choose: "Elegir archivos",
