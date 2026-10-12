@@ -194,3 +194,5 @@
 {"ts":"2026-10-11T19:17:58.517Z","key":"SUI-DESIGN-011","from":3,"to":4,"disposition":"editorial","ref":"rev4 codifies synchronous bundling of en/de/es and defers per-language export; src/strings/index.ts already imports all three statically, no ./strings/<lng> export — no code impact"}
 {"ts":"2026-10-12T01:52:42.550Z","key":"SUI-FEATURE-045","from":3,"to":4,"disposition":"ticket","ref":"88"}
 {"ts":"2026-10-12T01:52:43.028Z","key":"GL-TEST-027","from":4,"to":5,"disposition":"editorial","ref":"Repeat-count semantics of flake-repeat refined (class maximum, no summing dispatches); repo has no flake-repeat job/workflows yet, so no code impact"}
+{"ts":"2026-10-12T06:45:48.276Z","key":"PROC-RUN-001","from":11,"to":12,"disposition":"editorial","ref":"CI-runner infra row (night test window labels); operations doc, no suite-ui code impact"}
+{"ts":"2026-10-12T06:45:51.480Z","key":"PROC-RUN-011","from":6,"to":7,"disposition":"editorial","ref":"disaster-recovery runner restore step (night window labels); operations doc, no suite-ui code impact"}
