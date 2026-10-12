@@ -28,7 +28,7 @@ Status: being set up (October 2026). The package is seeded from the cockpit, whi
 npm install --save-dev github:patrickblattner/suite-ui#vX.Y.Z
 ```
 
-Switching to a new tag always needs this explicit `npm install` (lockfile). Then add `@import "@suite/ui/styles.css";` once in the app CSS and call `registerSuiteStrings(i18n)` once in the i18n setup.
+Switching to a new tag always needs this explicit `npm install` (lockfile). Then add `@import "@suite/ui/styles.css";` once in the app CSS and call `await registerSuiteStringsLazy(i18n)` from `@suite/ui/strings` once in the i18n setup, after `init` and before the first render: English is registered at once, the active language and every later one are loaded before i18next switches to them. `registerSuiteStrings(i18n)` registers all three languages synchronously, for tests.
 
 Peer dependencies (never bundled): `react` and `react-dom` ^19.2, `react-router-dom` ^7, `radix-ui` ^1.5, `lucide-react` >=1.17, `class-variance-authority` ^0.7, `tailwind-merge` ^3, `clsx` ^2, `react-i18next` >=15 <18.
 

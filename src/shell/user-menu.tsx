@@ -13,7 +13,7 @@ import * as React from "react";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
-import { suiteStrings, type SuiteLanguage } from "../strings/index.js";
+import { SUITE_LANGUAGES, type SuiteLanguage } from "../strings/types.js";
 import { Hint } from "../ui/hint.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select.js";
 import { useOptionalSidebar } from "./sidebar-provider.js";
@@ -25,8 +25,6 @@ const APPEARANCES: { mode: Appearance; icon: LucideIcon }[] = [
   { mode: "light", icon: SunIcon },
   { mode: "dark", icon: MoonIcon },
 ];
-
-const LANGUAGES = Object.keys(suiteStrings) as SuiteLanguage[];
 
 const itemClass =
   "flex w-full cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground focus-visible:focus-ring-inset disabled:cursor-not-allowed disabled:opacity-50";
@@ -279,7 +277,7 @@ function UserMenu({
                   </SelectTrigger>
                 </Hint>
                 <SelectContent>
-                  {LANGUAGES.map((lng) => (
+                  {SUITE_LANGUAGES.map((lng) => (
                     <SelectItem key={lng} value={lng} data-testid={`language-option-${lng}`}>
                       {t(`language.${lng}`)}
                     </SelectItem>
