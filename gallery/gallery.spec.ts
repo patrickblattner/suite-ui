@@ -239,11 +239,7 @@ test("list frame: header and pager stay put while the rows scroll", async ({ pag
   expect(
     pagerEdgeViolations(await box(page.getByTestId("pagination-page-size")), gutterRight),
   ).toEqual([]);
-  // The measured selects' sizers are hidden layout aids, not controls.
-  const controls = await page
-    .getByTestId("filterbar")
-    .locator("[data-testid]:not([data-slot=select-sizer])")
-    .all();
+  const controls = await page.getByTestId("filterbar").locator("[data-testid]").all();
   const heights = await Promise.all(
     controls.map(async (control) => ({
       testId: (await control.getAttribute("data-testid")) ?? "",

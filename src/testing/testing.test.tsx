@@ -201,4 +201,16 @@ describe("controlHeightViolations", () => {
       ]),
     ).toEqual(["filter-sort is 32.0 px high ≠ filter-haystack 36.0 px"]);
   });
+
+  it("skips the hidden sizers of measured selects, first entry included", () => {
+    expect(
+      controlHeightViolations([
+        { testId: "filter-room-sizer", box: at(0, 160, 22) },
+        { testId: "filter-haystack", box: at(0, 400) },
+        { testId: "filter-room", box: at(400, 160) },
+        { testId: "filter-sort-sizer", box: at(560, 200, 22) },
+        { testId: "filter-sort", box: at(560, 200) },
+      ]),
+    ).toEqual([]);
+  });
 });

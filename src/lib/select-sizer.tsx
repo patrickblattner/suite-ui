@@ -3,6 +3,10 @@ import type * as React from "react";
 // The measured trigger classes: the trigger shares the sizer's grid cell and fills it.
 const MEASURED_TRIGGER = "col-start-1 row-start-1 w-full";
 
+// The sizer's test id is the trigger's plus this suffix; `controlHeightViolations` skips it, since the
+// sizer is a hidden layout aid, not a control.
+const SIZER_TEST_ID_SUFFIX = "-sizer";
+
 type MeasuredCellProps = {
   // Every text the trigger can show; the widest rendered one sets the width, so a choice never moves
   // the edge.
@@ -24,7 +28,7 @@ function MeasuredCell({ texts, prefix, "data-testid": testId, children }: Measur
         aria-hidden="true"
         data-slot="select-sizer"
         className="invisible col-start-1 row-start-1 grid"
-        data-testid={testId !== undefined ? `${testId}-sizer` : undefined}
+        data-testid={testId !== undefined ? `${testId}${SIZER_TEST_ID_SUFFIX}` : undefined}
       >
         {/* Index keys: the list is static per render and two labels may coincide. */}
         {texts.map((text, index) => (
@@ -43,4 +47,4 @@ function MeasuredCell({ texts, prefix, "data-testid": testId, children }: Measur
   );
 }
 
-export { MEASURED_TRIGGER, MeasuredCell };
+export { MEASURED_TRIGGER, MeasuredCell, SIZER_TEST_ID_SUFFIX };
