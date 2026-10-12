@@ -203,3 +203,7 @@
 {"ts":"2026-10-12T08:35:14.790Z","key":"GL-UI-024","from":13,"to":14,"disposition":"ticket","ref":"90"}
 {"ts":"2026-10-12T08:35:14.790Z","key":"SUI-FEATURE-002","from":null,"to":2,"disposition":"ticket","ref":"90"}
 {"ts":"2026-10-12T08:35:15.199Z","key":"SUI-DESIGN-011","from":4,"to":5,"disposition":"ticket","ref":"91"}
+{"ts":"2026-10-12T09:25:37.940Z","key":"GL-UX-001","from":null,"to":2,"disposition":"ticket","ref":"93"}
+{"ts":"2026-10-12T09:25:38.375Z","key":"PROC-DEV-002","from":null,"to":2,"disposition":"ticket","ref":"94"}
+{"ts":"2026-10-12T09:25:38.804Z","key":"GL-TEST-018","from":2,"to":3,"disposition":"editorial","ref":"persona/role/journey rules are app-level (CPT/COM persona units); suite-ui is a UI package without roles, login or routes — no code impact; axe part handled via GL-UX-001 #93"}
+{"ts":"2026-10-12T09:25:39.228Z","key":"PROC-REL-031","from":18,"to":19,"disposition":"editorial","ref":"CI step retry timing (normal = longest green under operating condition); suite-ui has no CI workflows (local mode) — no code impact"}
