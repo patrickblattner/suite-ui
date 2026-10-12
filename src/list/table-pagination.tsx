@@ -62,8 +62,8 @@ function pagesFrom(focused: Element | null, root: HTMLElement): boolean {
 
 // The pager under every list (`GL-UI-025`): four chevrons around "Page X / Y (Total)" and the page
 // size (10/25/50/100), right-aligned so its right edge meets the page gutter on every surface.
-// `--pager-gap` keeps chevrons and indicator one compact cluster. The page
-// size is as wide as its longest option in the active language.
+// `--pager-gap` keeps chevrons and indicator one compact cluster. The page size is as wide as its
+// longest option in the active language.
 function TablePagination({
   page,
   setPage,

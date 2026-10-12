@@ -24,7 +24,8 @@ type FilterSelectProps = {
 
 // The filter dropdown of a list (`GL-UI-024`). Its trigger always reads "<Field>: <Value>" —
 // "Severity: All", after a choice "Severity: Warning". The no-filter value is the one word
-// All/Alle/Todos in every list, never a form inflected by field. The trigger is as wide as its longest text in the active language, whichever value is chosen.
+// All/Alle/Todos in every list, never a form inflected by field. The trigger is as wide as its
+// longest text in the active language, whichever value is chosen.
 function FilterSelect({
   field,
   value,

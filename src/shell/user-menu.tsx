@@ -138,10 +138,9 @@ type UserMenuProps = {
 // Log out (`GL-UI-020`). A plain positioned panel rather than a Radix menu: it has to open upward from
 // the footer and hold a language select and a segmented control.
 //
-// The panel takes the width of its longest entry, at least the footer's width
-// expanded and 14rem on the collapsed rail (`GL-020`); collapsed, the trigger shows only the avatar on
-// the rail axis and the kebab, and the name becomes its accessible name. Without a sidebar it counts
-// as expanded.
+// The panel takes the width of its longest entry, at least the footer's width expanded and 14rem on
+// the collapsed rail (`GL-020`); collapsed, the trigger shows only the avatar on the rail axis and the
+// kebab, and the name becomes its accessible name. Without a sidebar it counts as expanded.
 function UserMenu({
   name,
   role,

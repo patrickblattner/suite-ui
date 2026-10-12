@@ -68,8 +68,9 @@ function isFilterList(filters: FilterBarFilter[] | React.ReactNode): filters is 
 // The tool row above every list and board (`GL-UI-024`): the haystack search on the left takes the
 // remaining width, then the filters right-aligned, the filter reset, and the sort at the far right
 // (on a media list the view toggle after it). When the row is too narrow it wraps the controls group
-// as a whole to the next line, right-aligned, so the search never shrinks below 20rem and nothing is
-// dropped. The search field's hint explains the filter syntax; the row has no help element of its own.
+// as a whole to the next line, right-aligned, so the search never shrinks below 20rem (or the whole
+// row, if narrower) and nothing is dropped. The search field's hint explains the filter syntax; the
+// row has no help element of its own.
 function FilterBar({
   value,
   onChange,
@@ -94,7 +95,8 @@ function FilterBar({
       )
     : filters;
   // Two flex children: the search's lower bound of 20rem is what makes the row wrap instead of
-  // shrinking it, and the wrap never tears the controls group apart.
+  // shrinking it, and the wrap never tears the controls group apart. On a row narrower than 20rem the
+  // bound is the row itself, so the search never overflows it (320 px reflow).
   return (
     <div className="flex w-full flex-wrap items-center gap-2" data-testid="filterbar">
       <Hint text={helpText ?? t("filter.hint")}>
@@ -110,7 +112,7 @@ function FilterBar({
               : (placeholder ?? t("filter.placeholder"))
           }
           aria-label={t("filter.label")}
-          className="w-full min-w-[20rem] flex-1"
+          className="w-full min-w-[min(20rem,100%)] flex-1"
           data-testid={testId ?? "filter-haystack"}
         />
       </Hint>

@@ -59,6 +59,18 @@ describe("sticky actions marker (GL-UI-023)", () => {
     expect(scroller()).toHaveAttribute("data-actions-shadow");
   });
 
+  it("while stuck the right scroll padding is the actions column's width, so focus scrolls clear", () => {
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockReturnValue(96);
+    render(<Shell />);
+    expect(scroller().style.scrollPaddingRight).toBe("");
+    size.scrollWidth = 1400;
+    fireEvent.scroll(scroller());
+    expect(scroller().style.scrollPaddingRight).toBe("96px");
+    size.scrollWidth = 800;
+    fireEvent.scroll(scroller());
+    expect(scroller().style.scrollPaddingRight).toBe("");
+  });
+
   it("beside a preview an overflowing table never sticks", () => {
     size.scrollWidth = 1400;
     render(

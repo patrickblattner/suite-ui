@@ -3,8 +3,10 @@ import * as React from "react";
 // Marks a table scroller for the sticky actions column (`GL-UI-023` §Aktions-Spalte): while its body
 // overflows horizontally it carries `data-actions-stuck`, so the actions column sticks to the right
 // edge; while content lies under that column (not scrolled fully right) also `data-actions-shadow`,
-// the column's left-edge shadow. Beside a preview, in a `SplitWorkspace` list column, it never
-// sticks. Rechecked on scroll and whenever the scroller or its table changes size.
+// the column's left-edge shadow. While stuck, the scroller's right scroll padding is the column's
+// width, so a cell reached by keyboard scrolls clear of it. Beside a preview, in a `SplitWorkspace`
+// list column, it never sticks. Rechecked on scroll and whenever the scroller or its table changes
+// size.
 function useStickyActionsMarker(scroller: HTMLElement | null): void {
   React.useLayoutEffect(() => {
     if (scroller === null) return;
@@ -14,6 +16,12 @@ function useStickyActionsMarker(scroller: HTMLElement | null): void {
       const covered = scroller.scrollLeft + scroller.clientWidth < scroller.scrollWidth - 1;
       scroller.toggleAttribute("data-actions-stuck", stuck);
       scroller.toggleAttribute("data-actions-shadow", stuck && covered);
+      const actions = scroller.querySelector<HTMLElement>('th[data-col-kind="actions"]');
+      if (stuck && actions !== null) {
+        scroller.style.setProperty("scroll-padding-right", `${actions.offsetWidth}px`);
+      } else {
+        scroller.style.removeProperty("scroll-padding-right");
+      }
     };
     apply();
     scroller.addEventListener("scroll", apply, { passive: true });
@@ -26,6 +34,7 @@ function useStickyActionsMarker(scroller: HTMLElement | null): void {
       resize?.disconnect();
       scroller.removeAttribute("data-actions-stuck");
       scroller.removeAttribute("data-actions-shadow");
+      scroller.style.removeProperty("scroll-padding-right");
     };
   }, [scroller]);
 }

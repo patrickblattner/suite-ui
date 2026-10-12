@@ -199,7 +199,11 @@ describe("FilterBar target form (SUI-FEATURE-002)", () => {
       />,
     );
     expect(screen.getByTestId("filterbar")).toHaveClass("flex-wrap");
-    expect(screen.getByTestId("filter-haystack")).toHaveClass("w-full", "min-w-[20rem]", "flex-1");
+    expect(screen.getByTestId("filter-haystack")).toHaveClass(
+      "w-full",
+      "min-w-[min(20rem,100%)]",
+      "flex-1",
+    );
     expect(screen.getByTestId("filterbar-controls")).toHaveClass("ml-auto", "justify-end");
     expect(screen.getByTestId("filter-reset")).toHaveClass("shrink-0");
   });

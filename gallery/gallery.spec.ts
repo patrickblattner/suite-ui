@@ -1454,6 +1454,27 @@ test("filter bar: the search keeps 320 px with three filters at 1100 px", async 
   ).toBeLessThanOrEqual(0);
 });
 
+// Reflow (WCAG 1.4.10): at 320 px the search never forces a horizontal scroll; its 20rem lower bound
+// gives way to the row's width. The gallery's own header (page, language and theme pickers) is wider
+// than 320 px, so the check is on the list's content surface and on every FilterBar element rather
+// than on the document.
+test("filter bar: no horizontal scroll at 320 px", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 800 });
+  await page.goto("/?page=list&filters=node");
+  const bar = page.getByTestId("filterbar");
+  const search = await box(page.getByTestId("filter-haystack"));
+  expect(search.width).toBeLessThanOrEqual((await box(bar)).width + 0.5);
+  expect(
+    await page.getByTestId("page-scroll").evaluate((el) => el.scrollWidth - el.clientWidth),
+  ).toBeLessThanOrEqual(0);
+  const overflowing = await bar.evaluate((el) =>
+    [el, ...el.querySelectorAll("*")]
+      .filter((node) => node.getBoundingClientRect().right > window.innerWidth + 0.5)
+      .map((node) => node.getAttribute("data-testid") ?? node.tagName),
+  );
+  expect(overflowing).toEqual([]);
+});
+
 async function choose(page: Page, trigger: Locator, option: string) {
   await trigger.click();
   await page.getByRole("option", { name: option, exact: true }).click();
@@ -3290,9 +3311,14 @@ test("sticky actions: overflow sticks with an edge shadow, the cell follows the 
   // SUI-FEATURE-002 AC3: a row without `data-grid-row` opens nothing and keeps its ground on hover; a
   // row with it highlights.
   await first.hover();
-  // Past the 150 ms colour transition a highlight would have arrived.
-  await page.waitForTimeout(300);
-  await expect(row).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  await expect.poll(() => row.evaluate((el) => el.matches(":hover"))).toBe(true);
+  // A hover colour would start a `transition-colors` animation on the row; none starts.
+  expect(
+    await row.evaluate((el) => {
+      const ground = getComputedStyle(el).backgroundColor;
+      return { ground, animations: el.getAnimations().length };
+    }),
+  ).toEqual({ ground: "rgba(0, 0, 0, 0)", animations: 0 });
   await page.mouse.move(0, 0);
   await row.evaluate((el) => el.setAttribute("data-grid-row", ""));
   // The row fades its colour in (`transition-colors`): wait until both probes settle on it.
@@ -3313,6 +3339,54 @@ test("sticky actions: overflow sticks with an edge shadow, the cell follows the 
   await expect(scroller).not.toHaveAttribute("data-actions-shadow");
   await expect(cell).toHaveCSS("position", "sticky");
   expect(await cell.evaluate((el) => getComputedStyle(el).boxShadow)).not.toContain("-8px 0px 8px");
+});
+
+// a11y (WCAG 2.4.11): a row reached by keyboard is never hidden behind the sticky header or the stuck
+// actions column — the scroller's scroll padding keeps it clear.
+test("list frame: keyboard focus scrolls clear of the sticky header and actions @scrollbars", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1100, height: 900 });
+  await page.goto("/?page=list&actions=1");
+  const scroller = page.getByTestId("data-table-scroll");
+  await expect(scroller).toHaveAttribute("data-actions-stuck", "");
+  const row = page.getByTestId("list-row").nth(99);
+  const select = row.getByRole("combobox");
+  const next = row.getByTestId("list-actions").getByRole("button").first();
+  const uncovered = () =>
+    select.evaluate((el) => {
+      const r = el.getBoundingClientRect();
+      return [
+        [r.left + 2, r.top + 2],
+        [r.right - 2, r.top + 2],
+        [r.left + 2, r.bottom - 2],
+        [r.right - 2, r.bottom - 2],
+      ].every(([x, y]) => el.contains(document.elementFromPoint(x ?? 0, y ?? 0)));
+    });
+
+  // Behind the header: the row's top sits where the header is.
+  await scroller.evaluate(
+    (el, header) => {
+      const target = el.querySelectorAll("[data-testid=list-row]")[99] as HTMLElement;
+      el.scrollTop = target.offsetTop - header / 2;
+    },
+    (await box(page.getByTestId("list-header"))).height,
+  );
+  await next.focus();
+  await page.keyboard.press("Shift+Tab");
+  await expect(select).toBeFocused();
+  expect(await uncovered()).toBe(true);
+
+  // Behind the stuck actions column: the select's left edge sits where the column starts.
+  const column = await box(page.getByTestId("list-actions-head"));
+  await scroller.evaluate((el, { columnX, selectX }) => el.scrollBy(selectX - columnX, 0), {
+    columnX: column.x,
+    selectX: (await box(select)).x,
+  });
+  await next.focus();
+  await page.keyboard.press("Shift+Tab");
+  await expect(select).toBeFocused();
+  expect(await uncovered()).toBe(true);
 });
 
 // §Neben einer Vorschau nie fixiert: beside a preview the overflowing table keeps its actions column

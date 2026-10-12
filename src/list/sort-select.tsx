@@ -28,8 +28,8 @@ type SortSelectProps = {
 };
 
 // The "Sort by" dropdown every list carries at the far right of its FilterBar (`GL-UI-024`).
-// Presentation only: the page owns the sort key and the comparator behind it. The
-// trigger is as wide as its longest option in the active language.
+// Presentation only: the page owns the sort key and the comparator behind it. The trigger is as wide
+// as its longest option in the active language.
 function SortSelect({ value, onChange, options, "data-testid": testId }: SortSelectProps) {
   const { t } = useTranslation("suite");
   const select = (

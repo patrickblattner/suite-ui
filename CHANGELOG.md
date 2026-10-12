@@ -1,6 +1,6 @@
 # Changelog
 
-## Next minor — SUI-FEATURE-002 (#90): app switches removed
+## 0.62.0 — SUI-FEATURE-002 (#90): app switches removed
 
 Breaking (0.x minor). `configureSuiteUi` and the `@suite/ui/config` export are gone; every key had one target form, which is now the only behaviour:
 
@@ -8,6 +8,13 @@ Breaking (0.x minor). `configureSuiteUi` and the `@suite/ui/config` export are g
 - **Select width** `measured`: `FilterSelect`, `SortSelect` and the page size of `TablePagination` are as wide as their longest entry in the active language.
 - **User menu** `fit`: the panel is as wide as its longest entry (at least 14rem collapsed); collapsed, the trigger shows avatar and kebab only.
 - **Table** (`GL-UI-023`): sticky header, no own overflow on the table container; hover only on rows with `data-grid-row`; the actions column (`data-col-kind="actions"`) sticks right only while the body overflows sideways, never beside a preview.
+
+Also in this release:
+
+- Lists (`DataTableShell`) now always show a vertical scrollbar (`overflow-y-scroll`), so a sticky actions column never slides into an empty gutter; visible in the cockpit, where lists had no permanent bar before.
+- `DataTableShell`'s scroller keeps a keyboard-focused row clear of the sticky header and of a stuck actions column (scroll padding).
+- On a row narrower than 20rem the search takes the full row width instead of overflowing it (320 px reflow).
+- `controlHeightViolations` from `@suite/ui/testing` skips test ids ending in `-sizer` (the hidden sizers of measured selects).
 
 Importing `@suite/ui/config` is now a type and module-resolution error.
 

@@ -1,6 +1,6 @@
 // The shared rule checks both apps run in their Iris pass (`GL-TEST-019`), per language. They take
 // plain data (test ids, texts), so they work with Playwright and with Testing Library alike.
-import { SIZER_TEST_ID_SUFFIX } from "../lib/select-sizer.js";
+import { SIZER_TEST_ID_SUFFIX } from "../lib/select-sizer-id.js";
 import { suiteStrings, type SuiteLanguage } from "../strings/index.js";
 
 /** The fixed entries of the user menu before the app's own ones, in order (`GL-UI-020`). */
