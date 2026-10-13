@@ -291,6 +291,19 @@ export const en = {
     actual: "100 %",
     zoom: "Zoom",
     selected: "Selected: {{name}}",
+    tab: {
+      content: "Content",
+      layout: "Layout",
+      background: "Background",
+    },
+    drawer: {
+      add: "Add",
+      layers: "Layers",
+      style: "Style",
+      document: "Document",
+    },
+    styleSave: "Save style",
+    styleScope: "Applies to everything that uses this brand kit",
   },
   upload: {
     drop: "Drop files here",

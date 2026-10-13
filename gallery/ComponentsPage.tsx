@@ -70,6 +70,7 @@ import { IconButtonTooltip } from "../src/ui/tooltip.js";
 import { type UploadItem, UploadStep } from "../src/ui/upload-step.js";
 
 import { CanvasRow } from "./CanvasDemo.js";
+import { CanvasEditorRow } from "./CanvasEditorDemo.js";
 
 const VARIANTS: ButtonVariant[] = [
   "success",
@@ -1314,6 +1315,9 @@ export function ComponentsPage() {
       <EditorHeaderRow />
       <Section id="canvas" title="CanvasOverlay · CanvasZoom">
         <CanvasRow />
+      </Section>
+      <Section id="canvas-editor" title="DrawerRail · PropertyPanel">
+        <CanvasEditorRow />
       </Section>
       <FocusRing />
     </>

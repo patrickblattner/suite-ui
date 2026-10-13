@@ -277,6 +277,19 @@ export const de: SuiteStrings = {
     actual: "100 %",
     zoom: "Zoom",
     selected: "Ausgewählt: {{name}}",
+    tab: {
+      content: "Inhalt",
+      layout: "Anordnung",
+      background: "Hintergrund",
+    },
+    drawer: {
+      add: "Hinzufügen",
+      layers: "Ebenen",
+      style: "Stil",
+      document: "Dokument",
+    },
+    styleSave: "Stil speichern",
+    styleScope: "Gilt für alles, was dieses Brand-Kit nutzt",
   },
   upload: {
     drop: "Dateien hier ablegen",

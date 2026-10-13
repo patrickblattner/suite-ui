@@ -4107,6 +4107,9 @@ for (const zoom of [0.34, 2]) {
 // up to the parent; the zoom switches by the arrow keys.
 test("canvas: insert by keyboard, Esc to the parent, zoom by arrow keys", async ({ page }) => {
   await page.goto("/?page=components&lng=en");
+  // The page's editor frame holds an open drawer, an `Esc` layer of its own: close it first.
+  await page.getByTestId("canvas-editor").getByTestId("drawer-style").click();
+  await expect(page.getByTestId("canvas-editor").getByTestId("drawer")).toHaveCount(0);
   const demo = page.getByTestId("canvas-demo");
   const inserts = demo.getByTestId("canvas-insert");
   await expect(inserts).toHaveCount(3);
@@ -4129,4 +4132,42 @@ test("canvas: insert by keyboard, Esc to the parent, zoom by arrow keys", async 
   await expect(demo.getByTestId("canvas-zoom-actual")).toHaveAttribute("aria-checked", "true");
   await expect(demo.getByTestId("canvas-zoom-actual")).toBeFocused();
   await expect(demo.getByTestId("canvas-zoom-level")).toHaveText("100%");
+});
+
+// `SUI-FEATURE-071` AC 1, 4, 5: at 1920 px the property panel is 340 px wide and only its body
+// scrolls; the open drawer narrows the canvas instead of covering it, a second drawer replaces the
+// first and `Esc` closes it.
+test("canvas editor: panel 340 px, drawer narrows the canvas", async ({ page }) => {
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await page.goto("/?page=components&lng=en");
+  const editor = page.getByTestId("canvas-editor");
+  const panel = editor.getByTestId("property-panel");
+  expect((await box(panel)).width).toBe(340);
+  const body = panel.getByTestId("property-panel-body");
+  const head = panel.getByTestId("property-panel-head");
+  expect(await body.evaluate((node) => node.scrollHeight > node.clientHeight)).toBe(true);
+  const headTop = (await box(head)).y;
+  await body.evaluate((node) => node.scrollTo(0, node.scrollHeight));
+  expect((await box(head)).y).toBe(headTop);
+  expect(await body.evaluate((node) => node.scrollTop)).toBeGreaterThan(0);
+
+  const canvas = editor.getByTestId("canvas-editor-canvas");
+  const drawer = editor.getByTestId("drawer");
+  await expect(drawer).toHaveAttribute("data-drawer-open", "style");
+  await expect(editor.getByTestId("drawer-style-save")).toHaveText("Save style");
+  const withDrawer = await box(canvas);
+  const drawerBox = await box(drawer);
+  expect(drawerBox.width).toBe(300);
+  expect(drawerBox.x + drawerBox.width).toBeLessThanOrEqual(withDrawer.x);
+
+  await editor.getByTestId("drawer-layers").click();
+  await expect(editor.getByTestId("drawer")).toHaveCount(1);
+  await expect(editor.getByTestId("drawer")).toHaveAttribute("data-drawer-open", "layers");
+  await expect(editor.getByTestId("drawer-layers")).toHaveAttribute("aria-pressed", "true");
+  await expect(editor.getByTestId("drawer-style")).toHaveAttribute("aria-pressed", "false");
+
+  await editor.getByTestId("drawer").click();
+  await page.keyboard.press("Escape");
+  await expect(editor.getByTestId("drawer")).toHaveCount(0);
+  expect((await box(canvas)).width).toBe(withDrawer.width + 300);
 });

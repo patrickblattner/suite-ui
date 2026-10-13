@@ -276,6 +276,19 @@ export const es: SuiteStrings = {
     actual: "100 %",
     zoom: "Zoom",
     selected: "Seleccionado: {{name}}",
+    tab: {
+      content: "Contenido",
+      layout: "Disposición",
+      background: "Fondo",
+    },
+    drawer: {
+      add: "Añadir",
+      layers: "Capas",
+      style: "Estilo",
+      document: "Documento",
+    },
+    styleSave: "Guardar estilo",
+    styleScope: "Se aplica a todo lo que usa este kit de marca",
   },
   upload: {
     drop: "Suelta los archivos aquí",

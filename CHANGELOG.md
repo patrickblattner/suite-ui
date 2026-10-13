@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.79.0 — SUI-FEATURE-071 rev 1 (#117): `PropertyPanel` and `DrawerRail`
+
+Not breaking (new components).
+
+- New `PropertyPanel` (`path`, `tabs`, `activeTab`, `onTab`): the fixed 340 px column on the right of a visual editor, as high as the editor area, with a `--border` rule on the left. The head holds the path (Document › … › element; every step but the last is a link that selects its element) and the tabs in the fixed order Content · Layout · Background, leaving out the ones the element lacks. Only the body scrolls.
+- New `DrawerRail` (`items`, `open?`, `onOpen`, `styleSave?`): the narrow rail on the left with `ghost` `icon-sm` buttons Add · Layers · Style · Document (tooltip with the name, optional `badge`). A click opens the 300 px drawer beside it, which narrows the canvas instead of covering it; a second click or `Esc` closes it (innermost `Esc` first) and the focus returns to its button. At most one is open; its button is pressed.
+- The style drawer has a footer with "Save style" (`success`, `SaveIcon`) and the scope note "Applies to everything that uses this brand kit"; the app supplies the save and its dirty state through `styleSave`.
+- Texts `canvas.tab.*`, `canvas.drawer.*`, `canvas.styleSave` and `canvas.styleScope` in de/en/es.
+- Gallery: the components page shows an editor frame with the rail, the open style drawer, the canvas and the property panel.
+
 ## 0.78.0 — SUI-FEATURE-070 rev 1 (#116): `CanvasOverlay` and `CanvasZoom`
 
 Not breaking (new components).
