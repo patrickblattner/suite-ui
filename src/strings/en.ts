@@ -285,6 +285,13 @@ export const en = {
     resetConfirm: "Discard the draft and return to the saved state?",
     saveFirst: "Save first",
   },
+  // The canvas of a visual editor (`CanvasOverlay`, `CanvasZoom`).
+  canvas: {
+    fit: "Fit",
+    actual: "100 %",
+    zoom: "Zoom",
+    selected: "Selected: {{name}}",
+  },
   upload: {
     drop: "Drop files here",
     choose: "Choose files",

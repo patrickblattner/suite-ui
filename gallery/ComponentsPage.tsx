@@ -69,6 +69,8 @@ import { TimezoneCombobox } from "../src/ui/timezone-combobox.js";
 import { IconButtonTooltip } from "../src/ui/tooltip.js";
 import { type UploadItem, UploadStep } from "../src/ui/upload-step.js";
 
+import { CanvasRow } from "./CanvasDemo.js";
+
 const VARIANTS: ButtonVariant[] = [
   "success",
   "warn",
@@ -1310,6 +1312,9 @@ export function ComponentsPage() {
       <FileFactsRow />
       <CropRow />
       <EditorHeaderRow />
+      <Section id="canvas" title="CanvasOverlay · CanvasZoom">
+        <CanvasRow />
+      </Section>
       <FocusRing />
     </>
   );

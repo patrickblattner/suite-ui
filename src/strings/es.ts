@@ -271,6 +271,12 @@ export const es: SuiteStrings = {
     resetConfirm: "¿Descartar el borrador y volver al estado guardado?",
     saveFirst: "Guarda primero",
   },
+  canvas: {
+    fit: "Ajustar",
+    actual: "100 %",
+    zoom: "Zoom",
+    selected: "Seleccionado: {{name}}",
+  },
   upload: {
     drop: "Suelta los archivos aquí",
     choose: "Elegir archivos",

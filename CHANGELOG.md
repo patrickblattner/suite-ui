@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.78.0 — SUI-FEATURE-070 rev 1 (#116): `CanvasOverlay` and `CanvasZoom`
+
+Not breaking (new components).
+
+- New `CanvasOverlay` (`hovered?`, `selected?`, `actions?`, `inserts?`, `onSelectParent?`): the unscaled selection layer of a visual editor. It is rendered inside the positioned canvas frame and takes the pointer only on its own controls; the app passes its elements' rects in frame coordinates after zoom. Hover is a dashed 2 px `--ring` frame, the selection a solid 2 px `--ring` frame with a name tag (`--primary`) at its top left; the lines stay 2 px at any zoom. A new selection is announced once ("Selected: ‹name›").
+- `actions` float above the selection, right-aligned, and below it when the space above is less than their height. Each insert point is a round `+` (`outline`, `icon-xs`, named by its `label`), always visible and in the tab order.
+- `Esc` with a selection calls `onSelectParent`; without one it goes on outwards (`GL-UI-007`).
+- New `CanvasZoom` (`zoom`, `mode: "fit" | "actual"`, `onMode`): the radio group "Fit" · "100 %" with the current level as text, for the `PreviewToolbar`'s further tools between status and device.
+- Texts `canvas.fit`, `canvas.actual`, `canvas.selected` and `canvas.zoom` (the group's name) in de/en/es.
+- Gallery: the components page shows a canvas under a preview toolbar with the zoom, with hover, selection, actions and insert points.
+
 ## 0.77.0 — SUI-FEATURE-069 rev 1 (#115): a lifecycle slot in the `EditorHeader`
 
 Not breaking (one new optional property).

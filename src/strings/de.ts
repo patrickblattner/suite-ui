@@ -272,6 +272,12 @@ export const de: SuiteStrings = {
     resetConfirm: "Entwurf verwerfen und zum gespeicherten Stand zurückkehren?",
     saveFirst: "Erst speichern",
   },
+  canvas: {
+    fit: "Einpassen",
+    actual: "100 %",
+    zoom: "Zoom",
+    selected: "Ausgewählt: {{name}}",
+  },
   upload: {
     drop: "Dateien hier ablegen",
     choose: "Dateien wählen",

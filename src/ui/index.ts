@@ -2,6 +2,7 @@
 export * from "./accordion.js";
 export * from "./badge.js";
 export * from "./button.js";
+export * from "./canvas.js";
 export * from "./card.js";
 export * from "./checkbox.js";
 export * from "./code.js";

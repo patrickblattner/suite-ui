@@ -4085,3 +4085,48 @@ test("split preview: maximize → Esc → Esc, then Close", async ({ page }) => 
   await frame.getByTestId("preview-close").click();
   await expect(workspace).toHaveAttribute("data-open", "false");
 });
+
+// `SUI-FEATURE-070` AC 1: the overlay is unscaled, so the hover and selection lines stay 2 px at any zoom.
+for (const zoom of [0.34, 2]) {
+  test(`canvas overlay: 2 px lines at ${zoom * 100} %`, async ({ page }) => {
+    await page.goto(`/?page=components&lng=en&canvasZoom=${zoom}`);
+    const demo = page.getByTestId("canvas-demo");
+    await expect(demo.getByTestId("canvas-zoom-level")).toHaveText(`${zoom * 100}%`);
+    for (const id of ["canvas-hover", "canvas-selection"]) {
+      const frame = demo.getByTestId(id);
+      for (const side of ["top", "right", "bottom", "left"]) {
+        await expect(frame).toHaveCSS(`border-${side}-width`, "2px");
+      }
+    }
+    await expect(demo.getByTestId("canvas-hover")).toHaveCSS("border-top-style", "dashed");
+    await expect(demo.getByTestId("canvas-selection")).toHaveCSS("border-top-style", "solid");
+  });
+}
+
+// `SUI-FEATURE-070` AC 4–6: the insert points are shown without hover and answer Enter; `Esc` walks
+// up to the parent; the zoom switches by the arrow keys.
+test("canvas: insert by keyboard, Esc to the parent, zoom by arrow keys", async ({ page }) => {
+  await page.goto("/?page=components&lng=en");
+  const demo = page.getByTestId("canvas-demo");
+  const inserts = demo.getByTestId("canvas-insert");
+  await expect(inserts).toHaveCount(3);
+  for (const insert of await inserts.all()) await expect(insert).toBeVisible();
+  await demo.getByRole("button", { name: "Insert after Text" }).focus();
+  await page.keyboard.press("Enter");
+  await expect(demo.getByTestId("canvas-name")).toHaveText("Text");
+
+  await demo.getByText("Read more").click();
+  await expect(demo.getByTestId("canvas-name")).toHaveText("Button");
+  await expect(demo.getByTestId("canvas-announcement")).toHaveText("Selected: Button");
+  await page.keyboard.press("Escape");
+  await expect(demo.getByTestId("canvas-name")).toHaveText("Hero");
+  await page.keyboard.press("Escape");
+  await expect(demo.getByTestId("canvas-selection")).toHaveCount(0);
+
+  const fit = demo.getByTestId("canvas-zoom-fit");
+  await fit.focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(demo.getByTestId("canvas-zoom-actual")).toHaveAttribute("aria-checked", "true");
+  await expect(demo.getByTestId("canvas-zoom-actual")).toBeFocused();
+  await expect(demo.getByTestId("canvas-zoom-level")).toHaveText("100%");
+});
