@@ -249,3 +249,4 @@
 {"ts":"2026-10-13T12:01:16.446Z","key":"PROC-REL-040","from":5,"to":6,"disposition":"editorial","ref":"runner-lock cap re-derivation; suite-ui has no CI workflows or gate.lock (GATE_MODE local)"}
 {"ts":"2026-10-13T12:01:30.293Z","key":"PROC-DEV-013","from":4,"to":5,"disposition":"editorial","ref":"routing rule for UI-taste questions (ask_question to Overmind); process only, no code impact"}
 {"ts":"2026-10-13T12:01:46.514Z","key":"GL-UX-001","from":2,"to":3,"disposition":"editorial","ref":"taste-question reporting path (ask_question + screenshots, /taste page); process only, no code impact"}
+{"ts":"2026-10-13T12:02:04.832Z","key":"PROC-DEV-002","from":2,"to":3,"disposition":"editorial","ref":"review-lens taste routing via ask_question; process only, no code impact"}
