@@ -230,7 +230,6 @@ describe("MediaDetailShell", () => {
 
   it("the slots stand in fixed order below Details", () => {
     renderShell({
-      usage: "U",
       actions: "A",
       suggest: "S",
       fields: "F",
@@ -243,8 +242,39 @@ describe("MediaDetailShell", () => {
       "media-detail-fields",
       "media-detail-suggest",
       "media-detail-actions",
-      "media-detail-usage",
     ]);
+  });
+
+  // SUI-FEATURE-004 AC 5: "Used by" is a button in the preview head, never a list in the right column.
+  it("SUI-FEATURE-004: the usage button switches the preview column to the usages", () => {
+    const onToggle = vi.fn();
+    const { onClose } = renderShell({
+      usage: { count: 2, active: false, onToggle, content: <p>usages</p> },
+    });
+    const details = panel().querySelector("[data-slot=media-detail-details]")!;
+    expect(details.querySelector("[data-slot=media-detail-usage]")).toBeNull();
+    const button = screen.getByRole("button", { name: "Used by (2)" });
+    expect(panel().querySelector("[data-slot=media-detail-head]")).toContainElement(button);
+    expect(button).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByTestId("media-detail-usage")).toBeNull();
+    fireEvent.click(button);
+    expect(onToggle).toHaveBeenCalledTimes(1);
+    cleanup();
+
+    renderShell({ usage: { count: 2, active: true, onToggle, content: <p>usages</p> } });
+    expect(screen.getByRole("button", { name: "Used by (2)" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    const column = panel().querySelector("[data-slot=media-detail-preview-column]")!;
+    expect(within(column as HTMLElement).getByTestId("media-detail-usage")).toHaveTextContent(
+      "usages",
+    );
+    expect(screen.getByTestId("media-detail-preview")).not.toBeVisible();
+    // The first `Esc` returns to the preview, not closing the panel.
+    fireEvent.keyDown(panel(), { key: "Escape" });
+    expect(onToggle).toHaveBeenCalledTimes(2);
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   it.each([

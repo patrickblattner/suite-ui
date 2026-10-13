@@ -1301,7 +1301,31 @@ test("media detail shell: the same box as the edit panel", async ({ page }) => {
   const shell = await openMediaDetail(page);
   expect(await box(shell)).toEqual(panel);
   await expect(shell.locator("[data-slot=media-detail-footer]")).toHaveCount(1);
-  await expect(shell.getByRole("heading")).toHaveText(["Details", "Used in"]);
+  await expect(shell.getByRole("heading")).toHaveText(["Details"]);
+});
+
+// `SUI-FEATURE-004` AC 5: "Used by" is a button in the preview head; it switches the preview column
+// to the usages and back, `Esc` returns before it closes.
+test("media detail shell: Used by switches the preview column to the usages", async ({ page }) => {
+  const shell = await openMediaDetail(page);
+  await expect(
+    shell.locator("[data-slot=media-detail-details] [data-slot=media-usage]"),
+  ).toHaveCount(0);
+  const button = shell.getByRole("button", { name: "Used by (1)" });
+  const preview = await box(shell.getByTestId("media-detail-preview"));
+  await button.click();
+  await expect(button).toHaveAttribute("aria-pressed", "true");
+  const usage = shell.getByTestId("media-detail-usage");
+  await expect(usage.getByTestId("usage-row")).toHaveText(/Spring newsletter/);
+  await expect(shell.getByTestId("media-detail-preview")).toBeHidden();
+  const area = await box(usage);
+  expect(area.x).toBeCloseTo(preview.x, 0);
+  expect(area.width).toBeCloseTo(preview.width, 0);
+  await page.keyboard.press("Escape");
+  await expect(shell.getByTestId("media-detail-preview")).toBeVisible();
+  await expect(shell).toBeVisible();
+  await shell.getByTestId("media-detail-next").click();
+  await expect(shell.getByRole("button", { name: "Used by (0)" })).toBeDisabled();
 });
 
 // `SUI-FEATURE-061` AC 2: the pair follows the dirty state, Save carries the working state.
@@ -3663,6 +3687,37 @@ for (const theme of THEMES) {
       (await box(full.getByTestId("preview-maximize"))).height,
       0,
     );
+  });
+}
+
+// `SUI-FEATURE-004` AC 1, 3, 4, 7: "Used by" in the preview toolbar; on, the usages take the
+// preview's place, the button pressed and filled like the chosen device, in light and dark.
+for (const theme of THEMES) {
+  test(`preview Used by: the usages replace the preview ${theme}`, async ({ page }) => {
+    await page.goto(`/?page=preview&lng=en&theme=${theme}`);
+    const primary = await utilityColor(page, "bg-primary", "backgroundColor");
+    const off = page.getByTestId("usage-frame-off");
+    const on = page.getByTestId("usage-frame-on");
+    const offButton = off.getByRole("button", { name: "Used by (2)" });
+    const onButton = on.getByRole("button", { name: "Used by (2)" });
+    await expect(offButton).toHaveAttribute("aria-pressed", "false");
+    await expect(offButton).not.toHaveCSS("background-color", primary);
+    await expect(onButton).toHaveAttribute("aria-pressed", "true");
+    await expect(onButton).toHaveCSS("background-color", primary);
+    await expect(on.getByTestId("usage-row")).toHaveCount(2);
+    await expect(on.getByTestId("preview-frame-usage-on-viewport")).toBeHidden();
+    // The usages take the preview's place: same top, at least its height.
+    const frame = off.getByTestId("preview-frame-usage-off");
+    const before = await box(off.getByTestId("preview-frame-usage-off-viewport"));
+    const frameBefore = await box(frame);
+    await offButton.click();
+    await expect(off.getByTestId("usage-table")).toBeVisible();
+    const shown = await box(off.getByTestId("preview-frame-usage-off-usage"));
+    expect(shown.y - (await box(frame)).y).toBeCloseTo(before.y - frameBefore.y, 0);
+    expect(shown.height).toBeGreaterThanOrEqual(before.height - 1);
+    await page.keyboard.press("Escape");
+    await expect(off.getByTestId("usage-table")).toBeHidden();
+    await expect(off.getByTestId("sample-page")).toBeVisible();
   });
 }
 

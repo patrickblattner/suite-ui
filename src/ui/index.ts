@@ -42,4 +42,5 @@ export * from "./timezone-combobox.js";
 export * from "./toaster.js";
 export * from "./tooltip.js";
 export * from "./upload-step.js";
+export * from "./usage-table.js";
 export * from "./use-edit-shortcuts.js";

@@ -259,6 +259,53 @@ describe("RowActions overflow menu (SUI-FEATURE-066)", () => {
   });
 });
 
+describe("RowActions Used by (SUI-FEATURE-004)", () => {
+  afterEach(async () => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    await i18n.changeLanguage("en");
+  });
+
+  it("AC1: the usage button stands first, before the extra actions, its hint names the count", async () => {
+    await i18n.changeLanguage("de");
+    const onToggle = vi.fn();
+    renderRow({ usage: { count: 3, active: false, onToggle } });
+    const buttons = within(screen.getByTestId("actions")).getAllByRole("button");
+    expect(buttons[0]).toBe(screen.getByTestId("row-usage"));
+    expect(buttons[1]).toBe(screen.getByTestId("row-copy"));
+    expect(buttons[0]).toHaveAttribute("aria-label", "Verwendet von (3)");
+    expect(buttons[0]).toHaveAttribute("aria-pressed", "false");
+    expect(buttons[0]).toHaveAttribute("data-size", "icon-xs");
+    expect(screen.getByTestId("row-usage-count")).toHaveTextContent("3");
+    expect(hintOf(buttons[0]!).hover1500).toBe("Verwendet von (3)");
+    fireEvent.click(buttons[0]!);
+    expect(onToggle).toHaveBeenCalledTimes(1);
+  });
+
+  it("AC2: without a use the button is locked and its hint says so", async () => {
+    await i18n.changeLanguage("de");
+    const onToggle = vi.fn();
+    renderRow({ usage: { count: 0, active: false, onToggle } });
+    const button = screen.getByTestId("row-usage");
+    expect(button).toBeDisabled();
+    fireEvent.click(button);
+    expect(onToggle).not.toHaveBeenCalled();
+    expect(hintOf(button.parentElement as HTMLElement).focus).toBe("Nirgends verwendet");
+  });
+
+  it("AC3: active, the button is pressed and filled like the chosen device", () => {
+    renderRow({ usage: { count: 3, active: true, onToggle: vi.fn() } });
+    const button = screen.getByTestId("row-usage");
+    expect(button).toHaveAttribute("aria-pressed", "true");
+    expect(button).toHaveClass(
+      "aria-pressed:bg-primary",
+      "aria-pressed:text-primary-foreground",
+      "aria-pressed:border-primary",
+      "aria-pressed:hover:bg-primary",
+    );
+  });
+});
+
 describe("EmptyCell (SUI-FEATURE-047)", () => {
   afterEach(async () => {
     await i18n.changeLanguage("en");

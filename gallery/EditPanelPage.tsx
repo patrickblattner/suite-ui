@@ -8,7 +8,8 @@ import { EditPanel } from "../src/ui/edit-panel.js";
 import { Input } from "../src/ui/input.js";
 import { FileFacts } from "../src/ui/file-facts.js";
 import { Label } from "../src/ui/label.js";
-import { MediaDetailShell, MediaUsageList } from "../src/ui/media-detail-shell.js";
+import { MediaDetailShell } from "../src/ui/media-detail-shell.js";
+import { UsageTable } from "../src/ui/usage-table.js";
 import { ShellPage } from "./ShellPage.js";
 
 const ROWS = Array.from({ length: 60 }, (_, index) => `Channel ${index + 1}`);
@@ -42,6 +43,7 @@ function Demo() {
   const [shell, setShell] = useState<number | null>(null);
   const [shellName, setShellName] = useState("");
   const [shellSaving, setShellSaving] = useState(false);
+  const [shellUsage, setShellUsage] = useState(false);
   const [savedNames, setSavedNames] = useState<string[]>(SHELL_MEDIA.map(({ name }) => name));
   const shellMedium = shell === null ? undefined : SHELL_MEDIA[shell];
 
@@ -221,23 +223,28 @@ function Demo() {
               />
             </div>
           }
-          usage={
-            <MediaUsageList
-              items={
-                shell === 0
-                  ? [
-                      {
-                        id: "1",
-                        title: "Spring newsletter",
-                        to: "/posts/1",
-                        language: "DE",
-                        status: "Published",
-                      },
-                    ]
-                  : []
-              }
-            />
-          }
+          usage={{
+            count: shell === 0 ? 1 : 0,
+            active: shellUsage,
+            onToggle: () => setShellUsage(!shellUsage),
+            content: (
+              <UsageTable
+                items={
+                  shell === 0
+                    ? [
+                        {
+                          id: "1",
+                          title: "Spring newsletter",
+                          type: "Post",
+                          status: "published",
+                          href: "/posts/1",
+                        },
+                      ]
+                    : []
+                }
+              />
+            ),
+          }}
         />
       )}
     </PageScroll>

@@ -1,11 +1,13 @@
 import { CopyIcon } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { MemoryRouter } from "react-router-dom";
 
 import { RowActions, type RowActionSet } from "../src/list/row-actions.js";
 import { PreviewFrame } from "../src/ui/preview-frame.js";
 import { type PreviewDevice, PreviewToolbar } from "../src/ui/preview-toolbar.js";
 import { Table, TableBody, TableCell, TableRow } from "../src/ui/table.js";
+import { UsageTable } from "../src/ui/usage-table.js";
 import { Section } from "./ComponentsPage.js";
 
 // App-side labels: the zoom readout, the selected entry and its extra action come from the app; the
@@ -18,6 +20,10 @@ const LABELS = {
     more: "More for Home",
     export: "Export",
     archive: "Archive",
+    post: "Post",
+    page: "Page",
+    news: "Spring newsletter",
+    landing: "Landing page",
   },
   de: {
     zoom: "Zoom 100 %",
@@ -26,6 +32,10 @@ const LABELS = {
     more: "Mehr zu Startseite",
     export: "Exportieren",
     archive: "Archivieren",
+    post: "Beitrag",
+    page: "Seite",
+    news: "Frühlings-Newsletter",
+    landing: "Startseite Kampagne",
   },
   es: {
     zoom: "Zoom 100 %",
@@ -34,6 +44,10 @@ const LABELS = {
     more: "Más sobre Inicio",
     export: "Exportar",
     archive: "Archivar",
+    post: "Entrada",
+    page: "Página",
+    news: "Boletín de primavera",
+    landing: "Página de campaña",
   },
 } as const;
 
@@ -174,6 +188,56 @@ function Frame({ initial }: { initial: PreviewDevice }) {
   );
 }
 
+// `SUI-FEATURE-004`: a preview whose toolbar carries "Used by"; on, the usages take the preview's place.
+function UsageFrame({ initial }: { initial: boolean }) {
+  const { i18n } = useTranslation("suite");
+  const labels = LABELS[i18n.language as keyof typeof LABELS] ?? LABELS.en;
+  const [usage, setUsage] = useState(initial);
+  return (
+    <div
+      className="w-[480px] rounded-md border p-2"
+      data-testid={`usage-frame-${initial ? "on" : "off"}`}
+    >
+      <MemoryRouter>
+        <PreviewFrame
+          device="desktop"
+          usage={{
+            active: usage,
+            onClose: () => setUsage(false),
+            content: (
+              <UsageTable
+                items={[
+                  {
+                    id: "1",
+                    title: labels.news,
+                    type: labels.post,
+                    status: "published",
+                    href: "/",
+                  },
+                  { id: "2", title: labels.landing, type: labels.page, status: "draft", href: "/" },
+                ]}
+              />
+            ),
+          }}
+          toolbar={
+            <PreviewToolbar
+              actions={{
+                rowName: labels.entry,
+                usage: { count: 2, active: usage, onToggle: () => setUsage(!usage) },
+                onEdit: () => {},
+              }}
+              onClose={() => {}}
+            />
+          }
+          data-testid={`preview-frame-usage-${initial ? "on" : "off"}`}
+        >
+          <SamplePage />
+        </PreviewFrame>
+      </MemoryRouter>
+    </div>
+  );
+}
+
 // `GL-UI-008`: the preview toolbar full, with a single language, without status, without device and
 // without a selected entry.
 export function PreviewPage() {
@@ -206,6 +270,11 @@ export function PreviewPage() {
       <div className="flex flex-wrap items-start gap-4">
         <Frame initial="desktop" />
         <Frame initial="mobile" />
+      </div>
+      <h3 className="mt-6 mb-2 text-sm font-medium">PreviewFrame · Used by</h3>
+      <div className="flex flex-wrap items-start gap-4">
+        <UsageFrame initial={false} />
+        <UsageFrame initial />
       </div>
     </Section>
   );

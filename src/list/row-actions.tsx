@@ -1,4 +1,4 @@
-import { EllipsisIcon, PencilIcon, Trash2Icon } from "lucide-react";
+import { EllipsisIcon, LinkIcon, PencilIcon, Trash2Icon } from "lucide-react";
 import type * as React from "react";
 import { useTranslation } from "react-i18next";
 
@@ -34,10 +34,16 @@ type RowMenuItem = {
   disabled?: boolean;
 };
 
+// "Used by" (`SUI-FEATURE-004`): how often the entry is used, and whether the preview area shows the
+// `UsageTable` instead of the preview.
+type RowUsage = { count: number; active: boolean; onToggle: () => void };
+
 // The actions of one entry: what its table row and the preview toolbar (`GL-UI-008`) both show.
 type RowActionSet = {
   // The row's name, the object of every action's name.
   rowName: string;
+  // "Used by", the first of the extra actions.
+  usage?: RowUsage;
   // Further actions, left of edit and delete.
   extra?: readonly RowAction[];
   onEdit?: () => void;
@@ -90,6 +96,39 @@ function RowActionButton({
   );
 }
 
+// The "Used by" button (`SUI-FEATURE-004`): `outline` with the count as a small badge, pressed while
+// the usages show, filled like the chosen device of the `PreviewToolbar` (`SUI-FEATURE-003`). Without
+// a use it is locked.
+function UsageButton({ usage, size }: { usage: RowUsage; size: "icon-xs" | "icon-sm" }) {
+  const { t } = useTranslation("suite");
+  const unused = usage.count === 0;
+  return (
+    <IconButtonTooltip
+      label={t("usage.action", { count: usage.count })}
+      disabledText={unused ? t("usage.none") : undefined}
+    >
+      <Button
+        variant="outline"
+        size={size}
+        disabled={unused}
+        aria-pressed={usage.active}
+        className="relative aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:border-primary aria-pressed:hover:bg-primary aria-pressed:hover:text-primary-foreground dark:aria-pressed:border-primary dark:aria-pressed:bg-primary dark:aria-pressed:hover:bg-primary"
+        onClick={usage.onToggle}
+        data-testid="row-usage"
+      >
+        <LinkIcon aria-hidden="true" />
+        <span
+          aria-hidden="true"
+          className="absolute -top-1.5 -right-1.5 min-w-4 rounded-full border bg-background px-1 text-[10px] leading-3.5 font-medium text-foreground tabular-nums"
+          data-testid="row-usage-count"
+        >
+          {usage.count}
+        </span>
+      </Button>
+    </IconButtonTooltip>
+  );
+}
+
 // The ⋯ button of a row's overflow menu (`SUI-FEATURE-066`): `outline`, named `label`, opening a
 // `DropdownMenu` with the destructive entries last after a separator.
 function RowActionMenu({
@@ -130,12 +169,13 @@ function RowActionMenu({
   );
 }
 
-// The buttons of an entry's actions, each in its fixed variant (`GL-UI-011`): extra actions
-// `outline`, edit `warn`, the overflow menu `outline`, delete `destructive`, all `icon-xs`. The
+// The buttons of an entry's actions, each in its fixed variant (`GL-UI-011`): "Used by" and the extra
+// actions `outline`, edit `warn`, the overflow menu `outline`, delete `destructive`, all `icon-xs`. The
 // caller places them.
 function useRowActionButtons(
   {
     rowName,
+    usage,
     extra = [],
     onEdit,
     onDelete,
@@ -149,15 +189,18 @@ function useRowActionButtons(
 ) {
   const { t } = useTranslation("suite");
   return {
-    extra: extra.map((action) => (
-      <RowActionButton
-        key={action.label}
-        action={action}
-        rowName={rowName}
-        variant="outline"
-        size={size}
-      />
-    )),
+    extra: [
+      ...(usage === undefined ? [] : [<UsageButton key="usage" usage={usage} size={size} />]),
+      ...extra.map((action) => (
+        <RowActionButton
+          key={action.label}
+          action={action}
+          rowName={rowName}
+          variant="outline"
+          size={size}
+        />
+      )),
+    ],
     edit:
       onEdit === undefined ? null : (
         <RowActionButton
@@ -209,6 +252,7 @@ function RowActionsHead(props: Omit<React.ComponentProps<typeof TableHead>, "chi
 // Enter or Space on an action.
 function RowActions({
   rowName,
+  usage,
   extra,
   onEdit,
   onDelete,
@@ -220,6 +264,7 @@ function RowActions({
 }: RowActionsProps) {
   const buttons = useRowActionButtons({
     rowName,
+    usage,
     extra,
     onEdit,
     onDelete,
@@ -256,4 +301,5 @@ export {
   type RowActionSet,
   type RowMenuItem,
   type RowActionsProps,
+  type RowUsage,
 };

@@ -28,6 +28,8 @@ const ENTRY: RowActionSet = {
   onDelete: () => {},
 };
 
+const USAGE = { count: 3, active: false, onToggle: () => {} };
+
 function Preview({
   selected = true,
   onClose = () => {},
@@ -353,6 +355,29 @@ describe("PreviewToolbar (GL-UI-008)", () => {
     expect(screen.queryByTestId("preview-separator")).not.toBeInTheDocument();
   });
 
+  it("SUI-FEATURE-004 AC1: the row and the preview header show the usage button first", () => {
+    const actions: RowActionSet = { ...ENTRY, usage: USAGE };
+    render(
+      <>
+        <Table>
+          <TableBody>
+            <TableRow>
+              <RowActions {...actions} data-testid="row-cell" />
+            </TableRow>
+          </TableBody>
+        </Table>
+        <PreviewToolbar {...FULL} actions={actions} />
+      </>,
+    );
+    const labels = (root: HTMLElement) =>
+      within(root)
+        .getAllByRole("button")
+        .map((button) => button.getAttribute("aria-label"));
+    const row = labels(screen.getByTestId("row-cell"));
+    expect(row[0]).toBe("Used by (3)");
+    expect(labels(screen.getByTestId("preview-actions"))).toEqual(row);
+  });
+
   it("labels come from the package strings", async () => {
     await i18n.changeLanguage("de");
     render(<Preview />);
@@ -533,6 +558,13 @@ describe("PreviewToolbar in a narrow column (SUI-FEATURE-067)", () => {
     resize(150);
     expect(toolbar()).toHaveAttribute("data-shrink", "3");
     expect(screen.queryByTestId("preview-separator")).not.toBeInTheDocument();
+  });
+
+  it("SUI-FEATURE-004 AC6: folded, Used by is the first entry of the menu", () => {
+    render(<PreviewToolbar {...FULL} actions={{ ...ENTRY, usage: USAGE }} />);
+    resize(320);
+    expect(toolbar()).toHaveAttribute("data-shrink", "2");
+    expect(menuEntries()).toEqual(["Used by (3)", "Copy", "Edit", "—", "Delete"]);
   });
 
   it("keeps the device switch beside Close when nothing else would stand there", () => {

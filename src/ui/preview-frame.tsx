@@ -2,6 +2,7 @@ import * as React from "react";
 import { createPortal } from "react-dom";
 
 import { cn } from "../lib/cn.js";
+import { useEscapeLayer } from "../lib/escape-layers.js";
 import { useOptionalSidebar } from "../shell/sidebar-provider.js";
 import type { PreviewDevice } from "./preview-toolbar.js";
 
@@ -18,6 +19,9 @@ type PreviewFrameProps = {
   maximized?: boolean;
   // The `PreviewToolbar` over the preview; it stays on top in the maximized view too.
   toolbar?: React.ReactNode;
+  // "Used by" (`SUI-FEATURE-004`): while `active`, `content` (a `UsageTable`) takes the preview's place
+  // in the same area; `Esc` leaves it first, before any outer layer closes the preview.
+  usage?: { active: boolean; onClose: () => void; content: React.ReactNode };
   // Overrides the page width of a device, e.g. the target site's own desktop width.
   widths?: Partial<Record<PreviewDevice, number>>;
   // The preview content; the app supplies nothing else.
@@ -37,6 +41,7 @@ function PreviewFrame({
   device,
   maximized = false,
   toolbar,
+  usage,
   widths,
   children,
   className,
@@ -48,6 +53,9 @@ function PreviewFrame({
   const [page, setPage] = React.useState<HTMLDivElement | null>(null);
   const [size, setSize] = React.useState<{ column: number; page: number } | null>(null);
   const [anchor, setAnchor] = React.useState<HTMLDivElement | null>(null);
+  const [frameElement, setFrameElement] = React.useState<HTMLDivElement | null>(null);
+  const showUsage = usage?.active === true;
+  useEscapeLayer(showUsage, () => usage?.onClose(), frameElement);
   const [host] = React.useState(() => {
     const element = document.createElement("div");
     element.dataset.slot = "preview-frame-host";
@@ -95,6 +103,7 @@ function PreviewFrame({
 
   const frame = (
     <div
+      ref={setFrameElement}
       data-slot="preview-frame"
       data-device={device}
       data-maximized={maximized}
@@ -107,8 +116,21 @@ function PreviewFrame({
       data-testid={testId}
     >
       {toolbar}
+      {showUsage ? (
+        <div
+          data-slot="preview-frame-usage"
+          className={cn("min-h-0 min-w-0", maximized && "flex-1")}
+          // Inline it takes at least the height the preview had, so the area never shrinks.
+          style={!maximized && size !== null ? { minHeight: size.page * scale } : undefined}
+          data-testid={`${testId}-usage`}
+        >
+          {usage.content}
+        </div>
+      ) : null}
+      {/* The preview stays mounted under the usages, so an iframe keeps its document. */}
       <div
         ref={setColumn}
+        hidden={showUsage}
         data-slot="preview-frame-viewport"
         className={cn("min-w-0", maximized ? "min-h-0 flex-1 overflow-auto" : "overflow-hidden")}
         // Scaled, the page keeps its layout height; the viewport takes the visible one.

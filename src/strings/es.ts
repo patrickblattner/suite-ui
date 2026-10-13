@@ -244,6 +244,14 @@ export const es: SuiteStrings = {
     uploadedAt: "Subido",
     uploadedBy: "Subido por",
   },
+  usage: {
+    action: "Usado por ({{count}})",
+    none: "No se usa en ningún sitio",
+    empty: "Sin usos",
+    title: "Título",
+    type: "Tipo",
+    status: "Estado",
+  },
   crop: {
     action: "Recortar",
     active: "Recortado",

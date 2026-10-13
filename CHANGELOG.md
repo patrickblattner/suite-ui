@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.75.0 — SUI-FEATURE-004 rev 1 (#113): "Used by" action and `UsageTable`
+
+Breaking for `MediaDetailShell.usage` (see below); otherwise additive.
+
+- `RowActionSet` takes `usage?: { count; active; onToggle }`. `useRowActionButtons` draws it as the first extra action: an `outline` icon button (`Link`) with the count as a badge, tooltip "Used by ({{count}})", `aria-pressed = active`, filled while active like the chosen device of the `PreviewToolbar`. With `count: 0` it is locked with the tooltip "Not used anywhere". Row and `PreviewToolbar` show it alike; folded (`SUI-FEATURE-067`) it is the first entry of the ⋯ menu.
+- New `UsageTable` (`items: { id; title; type; status?; href?; onOpen? }[]`): Title · Type · Status (status as `StatusChip`), the whole row opens the entry by click or Enter (`onOpen`, else navigates to `href`), empty "No usages". Needs a router, like `MediaUsageList`.
+- `PreviewFrame` takes `usage?: { active; onClose; content }`. Active, `content` takes the preview's place at its height; the preview stays mounted. `Esc` returns to the preview first, the next `Esc` closes it.
+- **Breaking:** `MediaDetailShell.usage` is now `{ count; active; onToggle; content }` instead of a `ReactNode`. The usages no longer stand in the right column: the shell draws the "Used by" button in its preview head, and active, `content` (a `UsageTable`) replaces the media preview. `Esc` returns to the preview before it closes the shell.
+- `MediaUsageList` stays exported, marked `@deprecated` in favour of `UsageTable`.
+- New strings `usage.action`, `usage.none`, `usage.empty`, `usage.title`, `usage.type`, `usage.status` (de, en, es).
+- Gallery: the `preview` page shows a preview with "Used by" off and on; the media detail shell uses the button and `UsageTable`.
+
 ## 0.74.0 — SUI-FEATURE-003 rev 1 (#112): `PreviewToolbar` separator and filled active device
 
 Not breaking (no new props).

@@ -255,6 +255,15 @@ export const en = {
     uploadedAt: "Uploaded",
     uploadedBy: "Uploaded by",
   },
+  // "Used by": the action that switches a preview to its usages, and the `UsageTable`.
+  usage: {
+    action: "Used by ({{count}})",
+    none: "Not used anywhere",
+    empty: "No usages",
+    title: "Title",
+    type: "Type",
+    status: "Status",
+  },
   // Crop and flip at an image placement (`CropEditor`, `ImagePlacementButtons`).
   crop: {
     action: "Crop",

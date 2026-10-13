@@ -44,10 +44,10 @@ type PreviewToolbarProps = {
 // 1 the actions but edit folded into ⋯, 2 all actions folded, 3 the rest wrapped into a second line.
 type Shrink = 0 | 1 | 2 | 3;
 
-// The selected entry's actions, in the row's own order (`GL-UI-008`, `GL-UI-011`): extra actions,
-// then edit, the overflow menu and delete, at the toolbar's height (`icon-sm`). Folded, the menu holds
-// them in that same order: the extra actions, edit, the menu's own entries and delete, which stands
-// last after a separator (`SUI-FEATURE-067`).
+// The selected entry's actions, in the row's own order (`GL-UI-008`, `GL-UI-011`): "Used by", extra
+// actions, then edit, the overflow menu and delete, at the toolbar's height (`icon-sm`). Folded, the
+// menu holds them in that same order: "Used by", the extra actions, edit, the menu's own entries and
+// delete, which stands last after a separator (`SUI-FEATURE-067`).
 function PreviewActions({
   shrink,
   className,
@@ -56,6 +56,16 @@ function PreviewActions({
   const { t } = useTranslation("suite");
   const keepEdit = shrink === 1;
   const items: RowMenuItem[] = [
+    // `SUI-FEATURE-004`: "Used by" folds in first.
+    ...(set.usage === undefined
+      ? []
+      : [
+          {
+            label: t("usage.action", { count: set.usage.count }),
+            onSelect: set.usage.onToggle,
+            disabled: set.usage.count === 0,
+          },
+        ]),
     ...(set.extra ?? []).map((action) => ({
       label: action.label,
       onSelect: action.onClick,

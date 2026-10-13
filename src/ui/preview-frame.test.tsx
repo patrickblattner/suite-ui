@@ -195,6 +195,65 @@ describe("PreviewFrame (GL-UI-008)", () => {
     expect(screen.queryByTestId("preview-frame")).toBeNull();
   });
 
+  it("SUI-FEATURE-004 AC3: Used by swaps the preview for the usages; Esc returns, the next Esc closes", () => {
+    function Split() {
+      const [open, setOpen] = useState(true);
+      const [usage, setUsage] = useState(false);
+      return (
+        <SplitWorkspace
+          list={<p>List</p>}
+          preview={
+            <PreviewFrame
+              device="desktop"
+              usage={{
+                active: usage,
+                onClose: () => setUsage(false),
+                content: <p data-testid="usages">Usages</p>,
+              }}
+              toolbar={
+                <PreviewToolbar
+                  actions={{
+                    rowName: "Home",
+                    usage: { count: 3, active: usage, onToggle: () => setUsage(!usage) },
+                  }}
+                  onClose={() => setOpen(false)}
+                />
+              }
+            >
+              <p>Page</p>
+            </PreviewFrame>
+          }
+          open={open}
+          onClose={() => setOpen(false)}
+          defaultStop="1/2"
+          minWidths={{ list: 0, preview: 0 }}
+          storageKey="split:usage"
+        />
+      );
+    }
+    render(<Split />);
+    const button = screen.getByRole("button", { name: "Used by (3)" });
+    expect(screen.queryByTestId("usages")).toBeNull();
+    fireEvent.click(button);
+    expect(button).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("preview-frame-usage")).toContainElement(
+      screen.getByTestId("usages"),
+    );
+    // The preview stays mounted, hidden, in the same area.
+    expect(viewport()).not.toBeVisible();
+    expect(screen.getByTestId("preview-frame-usage")).toHaveStyle({ minHeight: "1000px" });
+    fireEvent.click(button);
+    expect(button).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByTestId("usages")).toBeNull();
+    expect(viewport()).toBeVisible();
+    fireEvent.click(button);
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(screen.queryByTestId("usages")).toBeNull();
+    expect(screen.getByTestId("split-workspace")).toHaveAttribute("data-open", "true");
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(screen.getByTestId("split-workspace")).toHaveAttribute("data-open", "false");
+  });
+
   it("Close in the toolbar closes the split preview", () => {
     function Split() {
       const [open, setOpen] = useState(true);

@@ -13,6 +13,7 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
 import { isTextField } from "../lib/keyboard.js";
+import { type RowUsage, useRowActionButtons } from "../list/row-actions.js";
 import { PANEL_SURFACE_CLASS, usePanelGeometry } from "../lib/panel-geometry.js";
 import { Button } from "./button.js";
 import { useLeaveConfirm } from "./leave-guard.js";
@@ -49,7 +50,9 @@ type MediaDetailShellProps = {
   fields?: React.ReactNode;
   suggest?: React.ReactNode;
   actions?: React.ReactNode;
-  usage?: React.ReactNode;
+  // "Used by" (`SUI-FEATURE-004`): a button in the preview head; while `active`, `content` (a
+  // `UsageTable`) takes the preview's place in the preview column.
+  usage?: RowUsage & { content: React.ReactNode };
 };
 
 // Keys that belong to the focused control, not to paging.
@@ -78,7 +81,7 @@ function MediaPreview({ kind, src, alt }: { kind: MediaDetailKind; src: string; 
   }
 }
 
-const SLOTS = ["facts", "fields", "suggest", "actions", "usage"] as const;
+const SLOTS = ["facts", "fields", "suggest", "actions"] as const;
 
 // The media detail view (`GL-UI-002`, `SUI-FEATURE-061`): its own panel surface with the geometry of
 // `EditPanel`, never nested in one. Preview left with its head (position, ‹, ›, close, the optional
@@ -100,9 +103,15 @@ function MediaDetailShell({
   onSave,
   onReset,
   pickAction,
+  usage,
   ...slots
 }: MediaDetailShellProps) {
   const { t } = useTranslation("suite");
+  const usageButton = useRowActionButtons(
+    { rowName: "", ...(usage === undefined ? {} : { usage }) },
+    "icon-sm",
+  ).extra;
+  const showUsage = usage?.active === true;
   const geometry = usePanelGeometry();
   const returnFocus = React.useRef<HTMLElement | null>(null);
   const { guard, dialog } = useLeaveConfirm({
@@ -162,7 +171,9 @@ function MediaDetailShell({
           onInteractOutside={(event) => event.preventDefault()}
           onEscapeKeyDown={(event) => {
             event.preventDefault();
-            escape.current = event;
+            // The usages are a layer above the panel: the first `Esc` returns to the preview.
+            if (showUsage) usage.onToggle();
+            else escape.current = event;
           }}
           onKeyDown={(event) => {
             if (event.key !== "ArrowLeft" && event.key !== "ArrowRight") return;
@@ -229,6 +240,7 @@ function MediaDetailShell({
                       {t("media.position", { n: position, total })}
                     </span>
                     <div className="ms-auto flex items-center gap-2">
+                      {usageButton}
                       {pickAction !== undefined && (
                         <Button
                           type="button"
@@ -259,10 +271,20 @@ function MediaDetailShell({
                     data-slot="media-detail-preview"
                     data-testid="media-detail-preview"
                     data-kind={kind}
+                    hidden={showUsage}
                     className="flex h-[45vh] shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted @panel-split:h-auto @panel-split:min-h-0 @panel-split:flex-1"
                   >
                     <MediaPreview kind={kind} src={src} alt={alt} />
                   </div>
+                  {showUsage ? (
+                    <div
+                      data-slot="media-detail-usage"
+                      data-testid="media-detail-usage"
+                      className="h-[45vh] shrink-0 overflow-hidden rounded-md border @panel-split:h-auto @panel-split:min-h-0 @panel-split:flex-1"
+                    >
+                      {usage.content}
+                    </div>
+                  ) : null}
                 </div>
                 <div
                   data-slot="media-detail-details"
@@ -327,6 +349,7 @@ type MediaUsageListProps = { items: readonly MediaUsage[] };
 
 // "Used in" (`GL-UI-002`): every use as a link into its editor, language and status muted after it;
 // without a use "not used".
+/** @deprecated Use `UsageTable` behind the "Used by" action (`SUI-FEATURE-004`). */
 function MediaUsageList({ items }: MediaUsageListProps) {
   const { t } = useTranslation("suite");
   const id = React.useId();

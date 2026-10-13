@@ -245,6 +245,14 @@ export const de: SuiteStrings = {
     uploadedAt: "Hochgeladen",
     uploadedBy: "Hochgeladen von",
   },
+  usage: {
+    action: "Verwendet von ({{count}})",
+    none: "Nirgends verwendet",
+    empty: "Keine Verwendungen",
+    title: "Titel",
+    type: "Typ",
+    status: "Status",
+  },
   crop: {
     action: "Zuschneiden",
     active: "Zugeschnitten",
