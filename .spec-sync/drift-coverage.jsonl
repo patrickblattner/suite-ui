@@ -262,3 +262,4 @@
 {"ts":"2026-10-13T15:43:04.541Z","key":"GL-UI-040","from":1,"to":2,"disposition":"editorial","ref":"point 7 fullscreen is app-side routing (editor route outside app frame); no @suite/ui package change"}
 {"ts":"2026-10-13T15:46:01.294Z","key":"SUI-FEATURE-070","from":3,"to":4,"disposition":"ticket","ref":"120"}
 {"ts":"2026-10-13T15:55:26.661Z","key":"SUI-FEATURE-070","from":4,"to":5,"disposition":"ticket","ref":"121"}
+{"ts":"2026-10-13T17:53:14.653Z","key":"GL-UI-027","from":13,"to":14,"disposition":"editorial","ref":"rev 14 sharpens Checkbox/Switch examples (task done, live preview is no effect); package ships both primitives, only built-in Switch (secret card Active) already conforms — app-side usage choice, no package impact"}
