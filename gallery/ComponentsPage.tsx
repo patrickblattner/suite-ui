@@ -69,7 +69,7 @@ import { TimezoneCombobox } from "../src/ui/timezone-combobox.js";
 import { IconButtonTooltip } from "../src/ui/tooltip.js";
 import { type UploadItem, UploadStep } from "../src/ui/upload-step.js";
 
-import { CanvasRow } from "./CanvasDemo.js";
+import { CanvasEdgeRow, CanvasRow } from "./CanvasDemo.js";
 import { CanvasEditorRow } from "./CanvasEditorDemo.js";
 
 const VARIANTS: ButtonVariant[] = [
@@ -1315,6 +1315,7 @@ export function ComponentsPage() {
       <EditorHeaderRow />
       <Section id="canvas" title="CanvasOverlay · CanvasZoom">
         <CanvasRow />
+        <CanvasEdgeRow />
       </Section>
       <Section id="canvas-editor" title="DrawerRail · PropertyPanel">
         <CanvasEditorRow />

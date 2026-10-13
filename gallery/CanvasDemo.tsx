@@ -153,3 +153,19 @@ export function CanvasRow() {
     </div>
   );
 }
+
+// `SUI-FEATURE-070` rev 4: two narrow frames with a selection at the right edge. In the first the name
+// badge moves left; in the second it is wider than the frame and ends in "…".
+export function CanvasEdgeRow() {
+  const frame = (name: string, testid: string) => (
+    <div className="relative h-24 w-40 rounded-md bg-muted" data-testid={testid}>
+      <CanvasOverlay selected={{ rect: new DOMRectReadOnly(130, 40, 30, 40), name }} />
+    </div>
+  );
+  return (
+    <div className="flex gap-4" data-testid="canvas-edges">
+      {frame("Button", "canvas-edge-right")}
+      {frame("Speakers of the season and all venues", "canvas-edge-wide")}
+    </div>
+  );
+}

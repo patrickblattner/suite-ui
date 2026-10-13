@@ -4200,3 +4200,31 @@ test("canvas: badge inside at the top edge, bar yields to the badge", async ({ p
     actions.y + actions.height <= tag.y;
   expect(apart).toBe(true);
 });
+
+// `SUI-FEATURE-070` rev 4, AC 9: at the right frame edge the name badge moves left and stays within
+// the frame; wider than the frame it ends in "…" and carries the full name in its title.
+test("canvas: badge moves left at the right edge, truncates when wider than the frame", async ({
+  page,
+}) => {
+  await page.goto("/?page=components&lng=en");
+  const right = page.getByTestId("canvas-edge-right");
+  const frame = await box(right);
+  const badge = right.getByTestId("canvas-name");
+  await expect(badge).toHaveText("Button");
+  await expect(badge).not.toHaveAttribute("title");
+  const shifted = await box(badge);
+  expect(shifted.x + shifted.width).toBeLessThanOrEqual(frame.x + frame.width);
+  expect(shifted.x).toBeGreaterThanOrEqual(frame.x);
+
+  const wide = page.getByTestId("canvas-edge-wide");
+  const wideFrame = await box(wide);
+  const long = wide.getByTestId("canvas-name");
+  await expect(long).toHaveAttribute("title", "Speakers of the season and all venues");
+  const capped = await box(long);
+  expect(capped.x).toBeGreaterThanOrEqual(wideFrame.x);
+  expect(capped.x + capped.width).toBeLessThanOrEqual(wideFrame.x + wideFrame.width);
+  const ellipsis = await long.evaluate(
+    (el) => getComputedStyle(el).textOverflow === "ellipsis" && el.scrollWidth > el.clientWidth,
+  );
+  expect(ellipsis).toBe(true);
+});

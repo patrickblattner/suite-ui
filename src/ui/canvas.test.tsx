@@ -130,23 +130,36 @@ describe("CanvasOverlay (SUI-FEATURE-070)", () => {
     expect(bar).toHaveAttribute("data-placement", "above");
   });
 
-  // Sizes per element: the bar 120 × 32, the name badge 60 × 20.
-  function mockSizes() {
-    const size = (node: HTMLElement, bar: number, badge: number) =>
+  // Sizes per element: the bar 120 × 32, the name badge 60 × 20 (its text `text` wide, capped by its
+  // `max-width`), the overlay `overlay` wide (0: unmeasured).
+  function mockSizes({ overlay = 0, text = 60 } = {}) {
+    const badgeWidth = (node: HTMLElement) => {
+      const cap = parseFloat(node.style.maxWidth);
+      return Number.isNaN(cap) ? text : Math.min(text, cap);
+    };
+    const size = (node: HTMLElement, bar: number, badge: number, frame: number) =>
       node.dataset.testid === "canvas-actions"
         ? bar
         : node.dataset.testid === "canvas-name"
           ? badge
-          : 0;
+          : node.dataset.testid === "canvas-overlay"
+            ? frame
+            : 0;
     vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockImplementation(function (
       this: HTMLElement,
     ) {
-      return size(this, 120, 60);
+      return size(this, 120, badgeWidth(this), overlay);
     });
     vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(function (
       this: HTMLElement,
     ) {
-      return size(this, 32, 20);
+      return size(this, 32, 20, 0);
+    });
+    vi.spyOn(Element.prototype, "clientWidth", "get").mockImplementation(function (this: Element) {
+      return this instanceof HTMLElement ? size(this, 120, badgeWidth(this), overlay) : 0;
+    });
+    vi.spyOn(Element.prototype, "scrollWidth", "get").mockImplementation(function (this: Element) {
+      return this instanceof HTMLElement && this.dataset.testid === "canvas-name" ? text : 0;
     });
   }
 
@@ -159,7 +172,7 @@ describe("CanvasOverlay (SUI-FEATURE-070)", () => {
     });
     expect(screen.getByTestId("canvas-actions")).toHaveAttribute("data-placement", "above");
     expect(screen.getByTestId("canvas-name")).toHaveAttribute("data-placement", "above");
-    // 40 + 100 wide: the bar (120) reaches left to 20, over the badge (38 to 98).
+    // 40 + 100 wide: the bar (120) reaches left to 20, over the badge (40 to 100).
     rerender(
       <div className="relative">
         <CanvasOverlay
@@ -171,11 +184,11 @@ describe("CanvasOverlay (SUI-FEATURE-070)", () => {
     expect(screen.getByTestId("canvas-actions")).toHaveAttribute("data-placement", "below");
     expect(screen.getByTestId("canvas-actions")).toHaveStyle({ top: "140px" });
     expect(screen.getByTestId("canvas-name")).toHaveAttribute("data-placement", "above");
-    // Just wide enough: the bar's left edge (98) meets the badge's right edge.
+    // Just wide enough: the bar's left edge (100) meets the badge's right edge.
     rerender(
       <div className="relative">
         <CanvasOverlay
-          selected={{ rect: rect(40, 100, 178, 40), name: "Hero" }}
+          selected={{ rect: rect(40, 100, 180, 40), name: "Hero" }}
           actions={ACTIONS}
         />
       </div>,
@@ -189,7 +202,8 @@ describe("CanvasOverlay (SUI-FEATURE-070)", () => {
     const { rerender } = renderOverlay({ selected: { rect: rect(0, 0, 400, 80), name: "Hero" } });
     const badge = screen.getByTestId("canvas-name");
     expect(badge).toHaveAttribute("data-placement", "inside");
-    expect(badge).toHaveClass("top-0", "left-0");
+    expect(badge).toHaveClass("top-0");
+    expect(badge).toHaveStyle({ left: "0px" });
     expect(badge).not.toHaveClass("bottom-full");
     rerender(
       <div className="relative">
@@ -212,6 +226,44 @@ describe("CanvasOverlay (SUI-FEATURE-070)", () => {
       </div>,
     );
     expect(badge).toHaveStyle({ left: "-2px" });
+  });
+
+  // AC 9 (rev 4)
+  it("at the right edge the badge moves left, above and inside, and stays within the frame", () => {
+    mockSizes({ overlay: 500 });
+    // Above: the selection starts at 470, the badge (60) would end at 530; it moves to 440.
+    const { rerender } = renderOverlay({
+      selected: { rect: rect(470, 100, 30, 40), name: "Hero" },
+    });
+    const badge = screen.getByTestId("canvas-name");
+    expect(badge).toHaveAttribute("data-placement", "above");
+    expect(badge).toHaveStyle({ left: "-32px" });
+    // Inside the top right corner: from 472 it moves to 440 as well.
+    rerender(
+      <div className="relative">
+        <CanvasOverlay selected={{ rect: rect(470, 0, 30, 40), name: "Hero" }} />
+      </div>,
+    );
+    expect(badge).toHaveAttribute("data-placement", "inside");
+    expect(badge).toHaveStyle({ left: "-32px" });
+    expect(badge).not.toHaveAttribute("title");
+    // With room to the right nothing moves.
+    rerender(
+      <div className="relative">
+        <CanvasOverlay selected={{ rect: rect(400, 100, 100, 40), name: "Hero" }} />
+      </div>,
+    );
+    expect(badge).toHaveStyle({ left: "-2px" });
+  });
+
+  // AC 9 (rev 4)
+  it("a badge wider than the frame is capped, ends in an ellipsis and carries the full name", () => {
+    mockSizes({ overlay: 100, text: 160 });
+    renderOverlay({ selected: { rect: rect(40, 100, 50, 40), name: "A very long element name" } });
+    const badge = screen.getByTestId("canvas-name");
+    expect(badge).toHaveClass("overflow-hidden", "text-ellipsis", "whitespace-nowrap");
+    expect(badge).toHaveStyle({ maxWidth: "100px", left: "-42px" });
+    expect(badge).toHaveAttribute("title", "A very long element name");
   });
 
   // AC 4

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.81.0 — SUI-FEATURE-070 rev 4 (#120): the name badge is clipped at no frame edge
+
+Not breaking.
+
+- `CanvasOverlay`: past the overlay's right edge the name badge moves left, above the selection and inside its top left corner alike.
+- A badge wider than the overlay is capped at its width and ends in "…"; it then carries the full name as its `title`.
+- The action bar's check against the badge now uses the badge's actual left edge (2 px further right than before at a selection away from the left edge).
+- Gallery: the canvas section shows two narrow frames with a selection at the right edge, one with a badge moved left and one truncated.
+
 ## 0.80.0 — SUI-FEATURE-070 rev 3 (#119): the name badge is never clipped
 
 Not breaking.

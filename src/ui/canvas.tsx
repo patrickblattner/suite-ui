@@ -57,24 +57,43 @@ function CanvasOverlay({
   const barRef = React.useRef<HTMLDivElement>(null);
   const badgeRef = React.useRef<HTMLSpanElement>(null);
   const [size, setSize] = React.useState({
+    overlay: { width: 0, height: 0 },
     bar: { width: 0, height: 0 },
     badge: { width: 0, height: 0 },
+    truncated: false,
   });
-  // The sizes of the bar and the name badge decide their sides; they are measured whenever the
-  // selection or its actions change.
+  // The sizes of the overlay, the bar and the name badge decide their sides; they are measured
+  // whenever the selection or its actions change, and again once the badge's width is capped.
   React.useLayoutEffect(() => {
     const measure = (node: HTMLElement | null) => ({
       width: node?.offsetWidth ?? 0,
       height: node?.offsetHeight ?? 0,
     });
-    const next = { bar: measure(barRef.current), badge: measure(badgeRef.current) };
+    const badge = badgeRef.current;
+    const next = {
+      overlay: measure(node),
+      bar: measure(barRef.current),
+      badge: measure(badge),
+      truncated: badge !== null && badge.scrollWidth > badge.clientWidth,
+    };
     setSize((current) => (JSON.stringify(current) === JSON.stringify(next) ? current : next));
-  }, [selected, actions]);
+  }, [node, selected, actions, size.overlay.width]);
   // The badge stands above the selection, its left edge on the frame's outer edge; without room up to
-  // the overlay's edge it moves inside the top left corner. It is never clipped.
+  // the overlay's edge it moves inside the top left corner. Past the right edge it moves left, and
+  // wider than the overlay it ends in "…" with the full name as its title. It is never clipped.
   const rect = selected?.rect;
   const badgeInside = rect !== undefined && rect.top < size.badge.height;
-  const badgeLeft = rect === undefined ? 0 : rect.left - Math.min(BORDER, rect.left);
+  // The badge's left edge in overlay coordinates; its box sits in the selection's padding box.
+  const badgeLeft =
+    rect === undefined
+      ? 0
+      : Math.max(
+          0,
+          Math.min(
+            badgeInside ? rect.left + BORDER : Math.max(rect.left, BORDER),
+            size.overlay.width > 0 ? size.overlay.width - size.badge.width : Infinity,
+          ),
+        );
   // The bar stands above, right-aligned; it moves below without room above or where it would cover
   // the badge (a narrow selection). The badge stays.
   const coversBadge =
@@ -107,10 +126,14 @@ function CanvasOverlay({
           <span
             ref={badgeRef}
             className={cn(
-              "absolute bg-primary px-1.5 py-0.5 text-xs whitespace-nowrap text-primary-foreground",
-              badgeInside ? "top-0 left-0 rounded-br-sm" : "bottom-full rounded-t-sm",
+              "absolute overflow-hidden bg-primary px-1.5 py-0.5 text-xs text-ellipsis whitespace-nowrap text-primary-foreground",
+              badgeInside ? "top-0 rounded-br-sm" : "bottom-full rounded-t-sm",
             )}
-            style={badgeInside ? undefined : { left: -Math.min(BORDER, selected.rect.left) }}
+            style={{
+              left: badgeLeft - selected.rect.left - BORDER,
+              maxWidth: size.overlay.width > 0 ? size.overlay.width : undefined,
+            }}
+            title={size.truncated ? selected.name : undefined}
             data-placement={badgeInside ? "inside" : "above"}
             data-testid="canvas-name"
           >
