@@ -246,7 +246,6 @@ describe("CanvasOverlay (SUI-FEATURE-070)", () => {
     );
     expect(badge).toHaveAttribute("data-placement", "inside");
     expect(badge).toHaveStyle({ left: "-32px" });
-    expect(badge).not.toHaveAttribute("title");
     // With room to the right nothing moves.
     rerender(
       <div className="relative">
@@ -257,13 +256,24 @@ describe("CanvasOverlay (SUI-FEATURE-070)", () => {
   });
 
   // AC 9 (rev 4)
-  it("a badge wider than the frame is capped, ends in an ellipsis and carries the full name", () => {
+  it("a badge wider than the frame is capped and ends in an ellipsis", () => {
     mockSizes({ overlay: 100, text: 160 });
     renderOverlay({ selected: { rect: rect(40, 100, 50, 40), name: "A very long element name" } });
     const badge = screen.getByTestId("canvas-name");
     expect(badge).toHaveClass("overflow-hidden", "text-ellipsis", "whitespace-nowrap");
     expect(badge).toHaveStyle({ maxWidth: "100px", left: "-42px" });
-    expect(badge).toHaveAttribute("title", "A very long element name");
+  });
+
+  // AC 2 (rev 5)
+  it("a truncated badge's selection is announced with the full name", async () => {
+    await i18n.changeLanguage("de");
+    mockSizes({ overlay: 100, text: 160 });
+    renderOverlay({ selected: { rect: rect(40, 100, 50, 40), name: "A very long element name" } });
+    expect(screen.getByTestId("canvas-name")).toHaveStyle({ maxWidth: "100px" });
+    expect(screen.getByTestId("canvas-name")).not.toHaveAttribute("title");
+    expect(screen.getByTestId("canvas-announcement")).toHaveTextContent(
+      "Ausgewählt: A very long element name",
+    );
   });
 
   // AC 4

@@ -60,7 +60,6 @@ function CanvasOverlay({
     overlay: { width: 0, height: 0 },
     bar: { width: 0, height: 0 },
     badge: { width: 0, height: 0 },
-    truncated: false,
   });
   // The sizes of the overlay, the bar and the name badge decide their sides; they are measured
   // whenever the selection or its actions change, and again once the badge's width is capped.
@@ -69,18 +68,16 @@ function CanvasOverlay({
       width: node?.offsetWidth ?? 0,
       height: node?.offsetHeight ?? 0,
     });
-    const badge = badgeRef.current;
     const next = {
       overlay: measure(node),
       bar: measure(barRef.current),
-      badge: measure(badge),
-      truncated: badge !== null && badge.scrollWidth > badge.clientWidth,
+      badge: measure(badgeRef.current),
     };
     setSize((current) => (JSON.stringify(current) === JSON.stringify(next) ? current : next));
   }, [node, selected, actions, size.overlay.width]);
   // The badge stands above the selection, its left edge on the frame's outer edge; without room up to
   // the overlay's edge it moves inside the top left corner. Past the right edge it moves left, and
-  // wider than the overlay it ends in "…" with the full name as its title. It is never clipped.
+  // wider than the overlay it ends in "…"; the full name stays in the announcement. It is never clipped.
   const rect = selected?.rect;
   const badgeInside = rect !== undefined && rect.top < size.badge.height;
   // The badge's left edge in overlay coordinates; its box sits in the selection's padding box.
@@ -133,7 +130,6 @@ function CanvasOverlay({
               left: badgeLeft - selected.rect.left - BORDER,
               maxWidth: size.overlay.width > 0 ? size.overlay.width : undefined,
             }}
-            title={size.truncated ? selected.name : undefined}
             data-placement={badgeInside ? "inside" : "above"}
             data-testid="canvas-name"
           >

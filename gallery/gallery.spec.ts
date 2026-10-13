@@ -4201,8 +4201,8 @@ test("canvas: badge inside at the top edge, bar yields to the badge", async ({ p
   expect(apart).toBe(true);
 });
 
-// `SUI-FEATURE-070` rev 4, AC 9: at the right frame edge the name badge moves left and stays within
-// the frame; wider than the frame it ends in "…" and carries the full name in its title.
+// `SUI-FEATURE-070` rev 5, AC 9: at the right frame edge the name badge moves left and stays within
+// the frame; wider than the frame it ends in "…" (no title; the full name is in the announcement).
 test("canvas: badge moves left at the right edge, truncates when wider than the frame", async ({
   page,
 }) => {
@@ -4219,7 +4219,7 @@ test("canvas: badge moves left at the right edge, truncates when wider than the 
   const wide = page.getByTestId("canvas-edge-wide");
   const wideFrame = await box(wide);
   const long = wide.getByTestId("canvas-name");
-  await expect(long).toHaveAttribute("title", "Speakers of the season and all venues");
+  await expect(long).not.toHaveAttribute("title");
   const capped = await box(long);
   expect(capped.x).toBeGreaterThanOrEqual(wideFrame.x);
   expect(capped.x + capped.width).toBeLessThanOrEqual(wideFrame.x + wideFrame.width);

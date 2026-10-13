@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.82.0 — SUI-FEATURE-070 rev 5 (#121): the truncated name badge carries no `title`
+
+Not breaking.
+
+- `CanvasOverlay`: a name badge that ends in "…" no longer carries the full name as its `title`; the full name stays in the `canvas.selected` announcement.
+
 ## 0.81.0 — SUI-FEATURE-070 rev 4 (#120): the name badge is clipped at no frame edge
 
 Not breaking.
