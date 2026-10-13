@@ -39,6 +39,9 @@ const LABELS = {
 
 const CONTENT_LANGUAGES = ["de", "en", "es"] as const;
 
+// The column widths the narrow toolbar is shown at (`SUI-FEATURE-067` AC 5).
+const NARROW = { 420: "w-[420px]", 600: "w-[600px]", 900: "w-[900px]" } as const;
+
 // One preview toolbar, with its own language and device state.
 function Toolbar({
   languages,
@@ -46,12 +49,14 @@ function Toolbar({
   device = true,
   zoom = false,
   selected = true,
+  width = "max-w-3xl",
 }: {
   languages: readonly (typeof CONTENT_LANGUAGES)[number][];
   status?: boolean;
   device?: boolean;
   zoom?: boolean;
   selected?: boolean;
+  width?: string;
 }) {
   const { t, i18n } = useTranslation("suite");
   const labels = LABELS[i18n.language as keyof typeof LABELS] ?? LABELS.en;
@@ -59,7 +64,7 @@ function Toolbar({
   const [view, setView] = useState<PreviewDevice>("desktop");
   const [maximized, setMaximized] = useState(false);
   return (
-    <div className="mb-4 max-w-3xl rounded-md border p-2">
+    <div className={`mb-4 rounded-md border p-2 ${width}`}>
       <PreviewToolbar
         language={{
           value: language,
@@ -190,6 +195,13 @@ export function PreviewPage() {
         <Toolbar languages={CONTENT_LANGUAGES} selected={false} />
       </div>
       <RowWithMenu />
+      {/* `SUI-FEATURE-067`: the full toolbar in a narrow column, a medium one and a wide one. */}
+      <h3 className="mt-6 mb-2 text-sm font-medium">PreviewToolbar 420 · 600 · 900 px</h3>
+      {([420, 600, 900] as const).map((width) => (
+        <div key={width} data-testid={`preview-narrow-${width}`}>
+          <Toolbar languages={CONTENT_LANGUAGES} width={NARROW[width]} />
+        </div>
+      ))}
       <h3 className="mt-6 mb-2 text-sm font-medium">PreviewFrame</h3>
       <div className="flex flex-wrap items-start gap-4">
         <Frame initial="desktop" />

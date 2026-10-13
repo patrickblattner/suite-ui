@@ -3641,6 +3641,42 @@ test("row action menu: row and preview header alike, destructive last, keyboard"
   await expect(menu).toBeHidden();
 });
 
+// `SUI-FEATURE-067` AC 1-3, 5: the full toolbar at 420, 600 and 900 px. Close stands top right in
+// each; at 420 the actions are folded into ⋯ and language and status stand in the second line; at
+// 600 the actions are at most partly folded; at 900 everything stands in one line.
+test("preview toolbar in a narrow column: fold, wrap, Close top right", async ({ page }) => {
+  await page.goto("/?page=preview&lng=en");
+  const at = (width: number) => page.getByTestId(`preview-narrow-${width}`);
+  const closeTopRight = async (width: number) => {
+    const toolbar = await box(at(width).getByTestId("preview-toolbar"));
+    const close = await box(at(width).getByTestId("preview-close"));
+    expect(close.x + close.width).toBeCloseTo(toolbar.x + toolbar.width, 0);
+    expect(close.y).toBeCloseTo(toolbar.y, 0);
+    return { toolbar, close };
+  };
+  const actionLabels = (width: number) =>
+    at(width)
+      .getByTestId("preview-actions")
+      .locator("button")
+      .evaluateAll((buttons) => buttons.map((b) => b.getAttribute("aria-label")));
+
+  const narrow = await closeTopRight(420);
+  expect(await actionLabels(420)).toEqual(["More for Home"]);
+  for (const part of ["preview-language", "preview-status"]) {
+    const { y } = await box(at(420).getByTestId(part));
+    expect(y).toBeGreaterThan(narrow.close.y + narrow.close.height);
+  }
+
+  await closeTopRight(600);
+  expect(await actionLabels(600)).toContain("Edit Home");
+
+  const wide = await closeTopRight(900);
+  expect(await actionLabels(900)).toEqual(["Duplicate Home", "Edit Home", "Delete Home"]);
+  const language = await box(at(900).getByTestId("preview-language"));
+  expect(language.y + language.height).toBeLessThanOrEqual(wide.close.y + wide.close.height + 1);
+  await expect(at(900).getByTestId("preview-toolbar")).toHaveAttribute("data-shrink", "0");
+});
+
 // `GL-UI-008` §Gerät heißt Gerät: in a narrow column Desktop is the desktop layout scaled down, never
 // reflowed; Mobile stands at true mobile width; maximize covers the content area at true size, and
 // the same button or `Esc` returns.

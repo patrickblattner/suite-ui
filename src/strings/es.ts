@@ -8,6 +8,7 @@ export const es: SuiteStrings = {
     restoreDefaults: "Restaurar valores predeterminados",
     edit: "Editar",
     delete: "Eliminar",
+    more: "Más sobre {{name}}",
     create: "Añadir",
     upload: "Subir",
     back: "Volver",

@@ -8,6 +8,8 @@ export const en = {
     restoreDefaults: "Restore defaults",
     edit: "Edit",
     delete: "Delete",
+    // The ⋯ button that holds a toolbar's folded actions (`SUI-FEATURE-067`).
+    more: "More for {{name}}",
     create: "Add",
     upload: "Upload",
     back: "Back",

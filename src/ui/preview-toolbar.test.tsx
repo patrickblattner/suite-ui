@@ -1,8 +1,8 @@
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import i18n from "i18next";
 import { CopyIcon } from "lucide-react";
 import { useState } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { RowActions, type RowActionSet } from "../list/row-actions.js";
 import { type PreviewDevice, PreviewToolbar, type PreviewToolbarProps } from "./preview-toolbar.js";
@@ -304,5 +304,157 @@ describe("PreviewToolbar (GL-UI-008)", () => {
     expect(screen.getByRole("combobox", { name: "Sprache" })).toBeInTheDocument();
     expect(screen.getByRole("radiogroup", { name: "Gerät" })).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "Mobil" })).toBeInTheDocument();
+  });
+});
+
+// `SUI-FEATURE-067`: in a narrow column the toolbar folds its actions into ⋯, edit last, then wraps
+// the rest into a second line; Close stays top right. The layout is modelled: the toolbar is
+// `available` wide and every button in it takes 50 px.
+describe("PreviewToolbar in a narrow column (SUI-FEATURE-067)", () => {
+  let available = 900;
+  const observers: ResizeObserverCallback[] = [];
+  const isToolbar = (el: HTMLElement) => el.dataset.testid === "preview-toolbar";
+  beforeEach(() => {
+    available = 900;
+    observers.length = 0;
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(callback: ResizeObserverCallback) {
+          observers.push(callback);
+        }
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return isToolbar(this) ? available : 0;
+    });
+    vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return isToolbar(this) ? this.querySelectorAll("button").length * 50 : 0;
+    });
+  });
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  // Full: language, two devices, maximize, Copy, Edit, Delete and Close are 8 buttons (400 px);
+  // edit kept beside ⋯ are 7 (350 px); ⋯ alone are 6 (300 px).
+  const resize = (width: number) => {
+    available = width;
+    act(() => observers.forEach((callback) => callback([], {} as ResizeObserver)));
+  };
+  const toolbar = () => screen.getByTestId("preview-toolbar");
+  const actionLabels = () =>
+    within(screen.getByTestId("preview-actions"))
+      .getAllByRole("button")
+      .map((button) => button.getAttribute("aria-label"));
+  const menuEntries = () => {
+    const trigger = within(screen.getByTestId("preview-actions")).getByTestId("row-menu");
+    trigger.focus();
+    fireEvent.keyDown(trigger, { key: "Enter" });
+    return [...screen.getByRole("menu").children].map((child) =>
+      child.getAttribute("role") === "separator" ? "—" : child.textContent,
+    );
+  };
+
+  it("AC3: wide enough, everything stands in one line as before", () => {
+    render(<Preview />);
+    expect(toolbar()).toHaveAttribute("data-shrink", "0");
+    expect(actionLabels()).toEqual(["Copy Home", "Edit Home", "Delete Home"]);
+  });
+
+  it("AC2: folds the actions but edit first, delete last in the menu after a separator", () => {
+    render(<Preview />);
+    resize(380);
+    expect(toolbar()).toHaveAttribute("data-shrink", "1");
+    expect(actionLabels()).toEqual(["Edit Home", "More for Home"]);
+    expect(menuEntries()).toEqual(["Copy", "—", "Delete"]);
+  });
+
+  it("AC4: folded entirely, the menu holds the row's actions in the row's order", () => {
+    render(<Preview />);
+    resize(320);
+    expect(toolbar()).toHaveAttribute("data-shrink", "2");
+    expect(actionLabels()).toEqual(["More for Home"]);
+    expect(menuEntries()).toEqual(["Copy", "Edit", "—", "Delete"]);
+  });
+
+  it("AC4: the row's own menu entries keep their place between edit and delete", () => {
+    const actions: RowActionSet = {
+      ...ENTRY,
+      menu: {
+        label: "More for Home",
+        items: [
+          { label: "Export", onSelect: () => {} },
+          { label: "Archive", onSelect: () => {}, destructive: true },
+        ],
+      },
+    };
+    render(<PreviewToolbar {...FULL} actions={actions} />);
+    resize(320);
+    expect(menuEntries()).toEqual(["Copy", "Edit", "Export", "—", "Archive", "Delete"]);
+  });
+
+  it("AC1: narrow, Close stands top right with ⋯; language, status and device wrap below", () => {
+    render(<Preview />);
+    resize(200);
+    expect(toolbar()).toHaveAttribute("data-shrink", "3");
+    const top = screen.getByTestId("preview-toolbar-top");
+    const bottom = screen.getByTestId("preview-toolbar-bottom");
+    expect([...toolbar().children]).toEqual([top, bottom]);
+    expect(within(top).getAllByRole("button").at(-1)).toBe(screen.getByTestId("preview-close"));
+    expect(within(top).getByTestId("preview-actions")).toBeInTheDocument();
+    expect([...bottom.children].map((el) => el.getAttribute("data-testid"))).toEqual([
+      "preview-language",
+      "preview-status",
+      "preview-zoom",
+      "preview-device",
+    ]);
+  });
+
+  it("restores in reverse order as the column widens", () => {
+    render(<Preview />);
+    resize(200);
+    expect(toolbar()).toHaveAttribute("data-shrink", "3");
+    resize(320);
+    expect(toolbar()).toHaveAttribute("data-shrink", "2");
+    resize(380);
+    expect(toolbar()).toHaveAttribute("data-shrink", "1");
+    resize(900);
+    expect(toolbar()).toHaveAttribute("data-shrink", "0");
+    expect(order()).toEqual([
+      "preview-language",
+      "preview-status",
+      "preview-zoom",
+      "preview-device",
+      "preview-maximize",
+      "preview-actions",
+      "preview-close",
+    ]);
+  });
+
+  it("never wraps Close into a line of its own", () => {
+    render(<PreviewToolbar language={FULL.language} status="published" onClose={() => {}} />);
+    resize(20);
+    expect(toolbar()).toHaveAttribute("data-shrink", "2");
+    expect(screen.queryByTestId("preview-toolbar-top")).not.toBeInTheDocument();
+  });
+
+  it("keeps the device switch beside Close when nothing else would stand there", () => {
+    render(<PreviewToolbar {...FULL} maximize={undefined} actions={undefined} />);
+    resize(20);
+    const top = screen.getByTestId("preview-toolbar-top");
+    expect([...top.children].map((el) => el.getAttribute("data-testid"))).toEqual([
+      "preview-device",
+      "preview-close",
+    ]);
   });
 });

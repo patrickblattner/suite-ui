@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.72.0 — SUI-FEATURE-067 rev 2 (#110): `PreviewToolbar` in a narrow column
+
+Not breaking (no new props).
+
+- `PreviewToolbar` measures its own width (`ResizeObserver`, never the window) and, when it does not fit one line, shrinks in order: the actions but edit fold into the ⋯ overflow menu, then edit too; after that language, status and device wrap into a second, left-aligned line. Widening restores in reverse order.
+- Folded, the menu holds the row's actions in the row's order (extra actions, edit, the row's own menu entries), delete last after a separator. Without a row `menu` the ⋯ button is named by the new string `actions.more` ("More for {{name}}").
+- Close stays far right in the first line in every state, never alone: without maximize or actions the device switch stays beside it, and with neither the toolbar does not wrap.
+- The toolbar carries `data-shrink` (`0`–`3`) for its current step.
+- Gallery: the `preview` page shows the full toolbar at 420, 600 and 900 px.
+
 ## 0.71.0 — SUI-FEATURE-066 rev 2 (#109): `RowActionSet` overflow menu
 
 Not breaking (one new optional property).
