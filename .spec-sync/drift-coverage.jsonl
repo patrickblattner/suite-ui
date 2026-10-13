@@ -244,3 +244,4 @@
 {"ts":"2026-10-13T07:08:52.547Z","key":"GL-UI-008","from":6,"to":8,"disposition":"ticket","ref":"113"}
 {"ts":"2026-10-13T07:31:35.704Z","key":"SUI-FEATURE-004","from":1,"to":2,"disposition":"ticket","ref":"113"}
 {"ts":"2026-10-13T07:31:36.186Z","key":"SUI-FEATURE-066","from":2,"to":3,"disposition":"ticket","ref":"114"}
+{"ts":"2026-10-13T07:40:31.208Z","key":"SUI-FEATURE-066","from":3,"to":4,"disposition":"editorial","ref":"rev 4 spells out the free folded-action hint (button tooltip 'label rowName'); already built and tested in #114 (preview-toolbar.test.tsx AC8 asserts 'Edit Home')"}
