@@ -259,3 +259,4 @@
 {"ts":"2026-10-13T15:28:43.360Z","key":"SUI-FEATURE-070","from":1,"to":2,"disposition":"ticket","ref":"116"}
 {"ts":"2026-10-13T15:37:14.659Z","key":"SUI-FEATURE-071","from":1,"to":2,"disposition":"ticket","ref":"117"}
 {"ts":"2026-10-13T15:37:34.348Z","key":"SUI-FEATURE-070","from":1,"to":3,"disposition":"ticket","ref":"119"}
+{"ts":"2026-10-13T15:43:04.541Z","key":"GL-UI-040","from":1,"to":2,"disposition":"editorial","ref":"point 7 fullscreen is app-side routing (editor route outside app frame); no @suite/ui package change"}
