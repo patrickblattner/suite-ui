@@ -1,8 +1,15 @@
-import { PencilIcon, Trash2Icon } from "lucide-react";
+import { EllipsisIcon, PencilIcon, Trash2Icon } from "lucide-react";
 import type * as React from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "../ui/button.js";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "../ui/dropdown-menu.js";
 import { TableCell, TableHead } from "../ui/table.js";
 import { IconButtonTooltip } from "../ui/tooltip.js";
 import { DELETE_SHORTCUT } from "../ui/use-edit-shortcuts.js";
@@ -18,6 +25,15 @@ type RowAction = {
   "data-testid"?: string;
 };
 
+// One entry of a row's overflow menu. A `destructive` entry stands last, after a separator, in the
+// destructive colour; a `disabled` entry is muted and cannot be chosen.
+type RowMenuItem = {
+  label: string;
+  onSelect: () => void;
+  destructive?: boolean;
+  disabled?: boolean;
+};
+
 // The actions of one entry: what its table row and the preview toolbar (`GL-UI-008`) both show.
 type RowActionSet = {
   // The row's name, the object of every action's name.
@@ -29,6 +45,9 @@ type RowActionSet = {
   // Lock edit or delete and name the reason in its hint.
   editDisabledText?: string;
   deleteDisabledText?: string;
+  // Further actions behind a ⋯ button after edit and before delete (`SUI-FEATURE-066`). `label`
+  // names the button.
+  menu?: { label: string; items: readonly RowMenuItem[] };
   // Set when the row gives the same `onDelete` to `useRowGrid`: the delete button shows Delete as its
   // shortcut chip (`GL-UI-006` §Sichtbarkeit).
   deleteShortcut?: boolean;
@@ -71,8 +90,49 @@ function RowActionButton({
   );
 }
 
+// The ⋯ button of a row's overflow menu (`SUI-FEATURE-066`): `outline`, named `label`, opening a
+// `DropdownMenu` with the destructive entries last after a separator.
+function RowActionMenu({
+  menu,
+  size,
+}: {
+  menu: NonNullable<RowActionSet["menu"]>;
+  size: "icon-xs" | "icon-sm";
+}) {
+  const plain = menu.items.filter((item) => item.destructive !== true);
+  const destructive = menu.items.filter((item) => item.destructive === true);
+  const entry = (item: RowMenuItem) => (
+    <DropdownMenuItem
+      key={item.label}
+      variant={item.destructive === true ? "destructive" : "default"}
+      disabled={item.disabled === true}
+      onSelect={item.onSelect}
+      data-testid="row-menu-item"
+    >
+      {item.label}
+    </DropdownMenuItem>
+  );
+  return (
+    <DropdownMenu>
+      <IconButtonTooltip label={menu.label}>
+        <DropdownMenuTrigger asChild>
+          <Button variant="outline" size={size} data-testid="row-menu">
+            <EllipsisIcon aria-hidden="true" />
+          </Button>
+        </DropdownMenuTrigger>
+      </IconButtonTooltip>
+      <DropdownMenuContent data-testid="row-menu-content">
+        {plain.map(entry)}
+        {plain.length > 0 && destructive.length > 0 ? <DropdownMenuSeparator /> : null}
+        {destructive.map(entry)}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 // The buttons of an entry's actions, each in its fixed variant (`GL-UI-011`): extra actions
-// `outline`, edit `warn`, delete `destructive`, all `icon-xs`. The caller places them.
+// `outline`, edit `warn`, the overflow menu `outline`, delete `destructive`, all `icon-xs`. The
+// caller places them.
 function useRowActionButtons(
   {
     rowName,
@@ -81,6 +141,7 @@ function useRowActionButtons(
     onDelete,
     editDisabledText,
     deleteDisabledText,
+    menu,
     deleteShortcut = false,
   }: RowActionSet,
   // `icon-xs` in the row; a toolbar passes its own height step (`GL-UI-008`: `icon-sm`).
@@ -112,6 +173,7 @@ function useRowActionButtons(
           size={size}
         />
       ),
+    menu: menu === undefined ? null : <RowActionMenu menu={menu} size={size} />,
     delete:
       onDelete === undefined ? null : (
         <RowActionButton
@@ -142,7 +204,7 @@ function RowActionsHead(props: Omit<React.ComponentProps<typeof TableHead>, "chi
 }
 
 // The action cluster at the end of a row (`GL-UI-011`, `GL-UI-023`): extra actions as `outline` on
-// the left, then edit (`warn`) and delete (`destructive`), all `icon-xs`. A click on the cluster, a
+// the left, then edit (`warn`), the overflow menu (`outline`) and delete (`destructive`), all `icon-xs`. A click on the cluster, a
 // locked action included, never reaches the row, so it does not open the row's target; neither does
 // Enter or Space on an action.
 function RowActions({
@@ -152,6 +214,7 @@ function RowActions({
   onDelete,
   editDisabledText,
   deleteDisabledText,
+  menu,
   deleteShortcut,
   ...cellProps
 }: RowActionsProps) {
@@ -162,6 +225,7 @@ function RowActions({
     onDelete,
     editDisabledText,
     deleteDisabledText,
+    menu,
     deleteShortcut,
   });
   return (
@@ -177,6 +241,7 @@ function RowActions({
       >
         {buttons.extra}
         {buttons.edit}
+        {buttons.menu}
         {buttons.delete}
       </div>
     </TableCell>
@@ -189,5 +254,6 @@ export {
   useRowActionButtons,
   type RowAction,
   type RowActionSet,
+  type RowMenuItem,
   type RowActionsProps,
 };

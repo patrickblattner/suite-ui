@@ -1,7 +1,7 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import i18n from "i18next";
 import { CopyIcon, DownloadIcon } from "lucide-react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Table, TableBody, TableHeader, TableRow } from "../ui/table.js";
 import { EmptyCell } from "./empty-cell.js";
@@ -145,6 +145,117 @@ describe("RowActions (SUI-FEATURE-047)", () => {
   it("the hint of a usable action is its name", () => {
     renderRow();
     expect(hintOf(screen.getByRole("button", { name: "Edit Ada" })).hover1500).toBe("Edit Ada");
+  });
+});
+
+describe("RowActions overflow menu (SUI-FEATURE-066)", () => {
+  // The open menu measures itself; jsdom has no ResizeObserver.
+  beforeEach(() => {
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const MENU = {
+    label: "More for Ada",
+    items: [
+      { label: "Archive", onSelect: vi.fn(), destructive: true },
+      { label: "Duplicate", onSelect: vi.fn() },
+      { label: "Export", onSelect: vi.fn(), disabled: true },
+    ],
+  };
+
+  const openMenu = () => {
+    const trigger = screen.getByRole("button", { name: "More for Ada" });
+    trigger.focus();
+    fireEvent.keyDown(trigger, { key: "Enter" });
+    return screen.getByRole("menu");
+  };
+
+  it("AC1: edit, then the outline ⋯ button named by its label, then delete", () => {
+    renderRow({ extra: [], menu: MENU });
+    const buttons = screen.getAllByRole("button");
+    expect(buttons.map((button) => button.getAttribute("aria-label"))).toEqual([
+      "Edit Ada",
+      "More for Ada",
+      "Delete Ada",
+    ]);
+    expect(buttons[1]?.dataset.variant).toBe("outline");
+    expect(buttons[1]?.dataset.size).toBe("icon-xs");
+    expect(buttons[1]).toHaveAttribute("aria-haspopup", "menu");
+    expect(hintOf(buttons[1] as HTMLElement).hover1500).toBe("More for Ada");
+  });
+
+  it("AC2: the destructive entry stands last after a separator; a disabled entry is muted", () => {
+    renderRow({ extra: [], menu: MENU });
+    const menu = openMenu();
+    const children = [...menu.children];
+    expect(children.map((el) => el.getAttribute("role"))).toEqual([
+      "menuitem",
+      "menuitem",
+      "separator",
+      "menuitem",
+    ]);
+    expect(children.map((el) => el.textContent)).toEqual(["Duplicate", "Export", "", "Archive"]);
+    expect(children[3]).toHaveAttribute("data-variant", "destructive");
+    expect(children[3]).toHaveClass("text-destructive-text");
+    expect(children[1]).toHaveAttribute("data-disabled");
+    expect(children[1]).toHaveAttribute("aria-disabled", "true");
+    expect(children[1]).toHaveClass("data-[disabled]:opacity-50");
+  });
+
+  it("AC3: Enter opens, the arrows skip the disabled entry, Enter chooses, Esc closes", async () => {
+    const onDuplicate = vi.fn();
+    const onArchive = vi.fn();
+    const onExport = vi.fn();
+    const onRowKey = vi.fn();
+    const onRowClick = vi.fn();
+    render(
+      <Table>
+        <TableBody>
+          <TableRow onKeyDown={onRowKey} onClick={onRowClick}>
+            <RowActions
+              rowName="Ada"
+              menu={{
+                label: "More for Ada",
+                items: [
+                  { label: "Duplicate", onSelect: onDuplicate },
+                  { label: "Export", onSelect: onExport, disabled: true },
+                  { label: "Archive", onSelect: onArchive, destructive: true },
+                ],
+              }}
+            />
+          </TableRow>
+        </TableBody>
+      </Table>,
+    );
+    let menu = openMenu();
+    const items = within(menu).getAllByRole("menuitem");
+    fireEvent.keyDown(menu, { key: "ArrowDown" });
+    expect(items[0]).toHaveFocus();
+    fireEvent.keyDown(items[0] as HTMLElement, { key: "ArrowDown" });
+    // The menu moves the focus on the next task.
+    await waitFor(() => expect(items[2]).toHaveFocus());
+    fireEvent.keyDown(items[2] as HTMLElement, { key: "Escape" });
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(onArchive).not.toHaveBeenCalled();
+
+    menu = openMenu();
+    const [duplicate] = within(menu).getAllByRole("menuitem");
+    (duplicate as HTMLElement).focus();
+    fireEvent.keyDown(duplicate as HTMLElement, { key: "Enter" });
+    expect(onDuplicate).toHaveBeenCalledOnce();
+    expect(onExport).not.toHaveBeenCalled();
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(onRowClick).not.toHaveBeenCalled();
   });
 });
 

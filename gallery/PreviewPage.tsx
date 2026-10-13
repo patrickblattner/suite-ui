@@ -2,16 +2,39 @@ import { CopyIcon } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { RowActions, type RowActionSet } from "../src/list/row-actions.js";
 import { PreviewFrame } from "../src/ui/preview-frame.js";
 import { type PreviewDevice, PreviewToolbar } from "../src/ui/preview-toolbar.js";
+import { Table, TableBody, TableCell, TableRow } from "../src/ui/table.js";
 import { Section } from "./ComponentsPage.js";
 
 // App-side labels: the zoom readout, the selected entry and its extra action come from the app; the
 // status picks a package state.
 const LABELS = {
-  en: { zoom: "Zoom 100 %", entry: "Home", duplicate: "Duplicate" },
-  de: { zoom: "Zoom 100 %", entry: "Startseite", duplicate: "Duplizieren" },
-  es: { zoom: "Zoom 100 %", entry: "Inicio", duplicate: "Duplicar" },
+  en: {
+    zoom: "Zoom 100 %",
+    entry: "Home",
+    duplicate: "Duplicate",
+    more: "More for Home",
+    export: "Export",
+    archive: "Archive",
+  },
+  de: {
+    zoom: "Zoom 100 %",
+    entry: "Startseite",
+    duplicate: "Duplizieren",
+    more: "Mehr zu Startseite",
+    export: "Exportieren",
+    archive: "Archivieren",
+  },
+  es: {
+    zoom: "Zoom 100 %",
+    entry: "Inicio",
+    duplicate: "Duplicar",
+    more: "Más sobre Inicio",
+    export: "Exportar",
+    archive: "Archivar",
+  },
 } as const;
 
 const CONTENT_LANGUAGES = ["de", "en", "es"] as const;
@@ -60,6 +83,40 @@ function Toolbar({
       >
         {zoom ? <span className="text-sm text-muted-foreground">{labels.zoom}</span> : null}
       </PreviewToolbar>
+    </div>
+  );
+}
+
+// `SUI-FEATURE-066`: a row with edit and an overflow menu, and the preview header of the same row
+// showing the same group. The menu holds a plain, a locked and a destructive entry.
+function RowWithMenu() {
+  const { i18n } = useTranslation("suite");
+  const labels = LABELS[i18n.language as keyof typeof LABELS] ?? LABELS.en;
+  const actions: RowActionSet = {
+    rowName: labels.entry,
+    onEdit: () => {},
+    menu: {
+      label: labels.more,
+      items: [
+        { label: labels.duplicate, onSelect: () => {} },
+        { label: labels.export, onSelect: () => {}, disabled: true },
+        { label: labels.archive, onSelect: () => {}, destructive: true },
+      ],
+    },
+  };
+  return (
+    <div className="mb-4 max-w-3xl rounded-md border p-2" data-testid="preview-row-menu">
+      <Table>
+        <TableBody>
+          <TableRow>
+            <TableCell>{labels.entry}</TableCell>
+            <RowActions {...actions} data-testid="row-menu-actions" />
+          </TableRow>
+        </TableBody>
+      </Table>
+      <div className="mt-2">
+        <PreviewToolbar actions={actions} onClose={() => {}} />
+      </div>
     </div>
   );
 }
@@ -132,6 +189,7 @@ export function PreviewPage() {
       <div data-testid="preview-no-selection">
         <Toolbar languages={CONTENT_LANGUAGES} selected={false} />
       </div>
+      <RowWithMenu />
       <h3 className="mt-6 mb-2 text-sm font-medium">PreviewFrame</h3>
       <div className="flex flex-wrap items-start gap-4">
         <Frame initial="desktop" />

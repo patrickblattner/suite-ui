@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.71.0 — SUI-FEATURE-066 rev 2 (#109): `RowActionSet` overflow menu
+
+Not breaking (one new optional property).
+
+- `RowActionSet` takes `menu?: { label; items: { label; onSelect; destructive?; disabled? }[] }`. It shows as an `outline` ⋯ icon button (`aria-label` and tooltip = `label`) after `extra` and edit and before delete, and opens a `DropdownMenu`.
+- Destructive entries stand last after a separator, in the destructive colour; disabled entries are muted and cannot be chosen. The menu works by keyboard (Enter opens, arrows select, Esc closes).
+- The table row (`RowActions`) and the `PreviewToolbar` render the menu alike through `useRowActionButtons`, which now also returns `menu`.
+- New type export `RowMenuItem`.
+- Gallery: the `preview` page shows a row with a menu and its matching preview header.
+
 ## 0.70.0 — SUI-FEATURE-065 rev 2 (#107): `ConfirmDeleteDialog` locks Confirm alone
 
 Not breaking (two new optional props).

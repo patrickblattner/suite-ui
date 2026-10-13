@@ -3609,6 +3609,38 @@ test("preview toolbar: fixed order, one height, no axe violations", async ({ pag
   expect(violations.map((violation) => violation.id)).toEqual([]);
 });
 
+// `SUI-FEATURE-066` AC 1, 2, 5: a row with edit and a menu and its preview header show the same
+// group; the menu opens by keyboard with the destructive entry last after a separator.
+test("row action menu: row and preview header alike, destructive last, keyboard", async ({
+  page,
+}) => {
+  await page.goto("/?page=preview&lng=en");
+  const block = page.getByTestId("preview-row-menu");
+  const labels = (root: Locator) =>
+    root
+      .locator("button")
+      .evaluateAll((buttons) => buttons.map((b) => b.getAttribute("aria-label")));
+  const row = await labels(block.getByTestId("row-menu-actions"));
+  expect(row).toEqual(["Edit Home", "More for Home"]);
+  expect(await labels(block.getByTestId("preview-actions"))).toEqual(row);
+  const trigger = block.getByTestId("preview-actions").getByTestId("row-menu");
+  await trigger.focus();
+  await page.keyboard.press("Enter");
+  const menu = page.getByRole("menu");
+  await expect(menu).toBeVisible();
+  expect(
+    await menu.evaluate((el) =>
+      [...el.children].map((child) => child.getAttribute("role") + ":" + child.textContent),
+    ),
+  ).toEqual(["menuitem:Duplicate", "menuitem:Export", "separator:", "menuitem:Archive"]);
+  await expect(menu.getByRole("menuitem", { name: "Export" })).toHaveAttribute("data-disabled", "");
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("ArrowDown");
+  await expect(menu.getByRole("menuitem", { name: "Archive" })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(menu).toBeHidden();
+});
+
 // `GL-UI-008` §Gerät heißt Gerät: in a narrow column Desktop is the desktop layout scaled down, never
 // reflowed; Mobile stands at true mobile width; maximize covers the content area at true size, and
 // the same button or `Esc` returns.

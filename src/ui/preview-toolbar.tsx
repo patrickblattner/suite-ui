@@ -41,13 +41,14 @@ type PreviewToolbarProps = {
 };
 
 // The selected entry's actions, in the row's own order (`GL-UI-008`, `GL-UI-011`): extra actions,
-// then edit and delete, at the toolbar's height (`icon-sm`).
+// then edit, the overflow menu and delete, at the toolbar's height (`icon-sm`).
 function PreviewActions({ className, ...set }: RowActionSet & { className?: string | undefined }) {
   const buttons = useRowActionButtons(set, "icon-sm");
   return (
     <div className={cn("flex items-center gap-1", className)} data-testid="preview-actions">
       {buttons.extra}
       {buttons.edit}
+      {buttons.menu}
       {buttons.delete}
     </div>
   );

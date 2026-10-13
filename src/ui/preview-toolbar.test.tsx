@@ -219,6 +219,38 @@ describe("PreviewToolbar (GL-UI-008)", () => {
     expect(onEdit).toHaveBeenCalledOnce();
   });
 
+  it("SUI-FEATURE-066 AC1: a row with edit and menu shows the same group in the same order", () => {
+    const entry: RowActionSet = {
+      rowName: "Home",
+      onEdit: () => {},
+      menu: { label: "More for Home", items: [{ label: "Duplicate", onSelect: () => {} }] },
+    };
+    render(
+      <>
+        <Table>
+          <TableBody>
+            <TableRow>
+              <RowActions {...entry} data-testid="row-actions" />
+            </TableRow>
+          </TableBody>
+        </Table>
+        <PreviewToolbar {...FULL} actions={entry} />
+      </>,
+    );
+    const buttonsOf = (root: HTMLElement) =>
+      within(root)
+        .getAllByRole("button")
+        .map((button) => [button.getAttribute("aria-label"), button.dataset.variant]);
+    const toolbar = buttonsOf(screen.getByTestId("preview-actions"));
+    expect(toolbar).toEqual(buttonsOf(screen.getByTestId("row-actions")));
+    expect(toolbar).toEqual([
+      ["Edit Home", "warn"],
+      ["More for Home", "outline"],
+    ]);
+    const menu = within(screen.getByTestId("preview-actions")).getByTestId("row-menu");
+    expect(menu.dataset.size).toBe("icon-sm");
+  });
+
   it("uses the package Select for the language, never a button row", () => {
     render(<Preview />);
     const trigger = screen.getByRole("combobox", { name: "Language" });
