@@ -269,6 +269,7 @@ export const es: SuiteStrings = {
     saved: "Guardado",
     draft: "Borrador · sin guardar",
     resetConfirm: "¿Descartar el borrador y volver al estado guardado?",
+    saveFirst: "Guarda primero",
   },
   upload: {
     drop: "Suelta los archivos aquí",

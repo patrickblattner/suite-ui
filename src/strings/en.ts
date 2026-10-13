@@ -283,6 +283,7 @@ export const en = {
     saved: "Saved",
     draft: "Draft · unsaved",
     resetConfirm: "Discard the draft and return to the saved state?",
+    saveFirst: "Save first",
   },
   upload: {
     drop: "Drop files here",

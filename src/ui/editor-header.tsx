@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import { Button } from "./button.js";
 import { ConfirmDeleteDialog } from "./confirm-delete-dialog.js";
+import { Hint } from "./hint.js";
 import { type LeaveSave, useLeaveGuard } from "./leave-guard.js";
 import { IconButtonTooltip } from "./tooltip.js";
 import { REDO_SHORTCUT, UNDO_SHORTCUT, useEditShortcuts } from "./use-edit-shortcuts.js";
@@ -24,13 +25,30 @@ type EditorHeaderProps = {
   onSave: () => void;
   // Returns the draft to the saved state; called only after the confirmation.
   onReset: () => void;
+  // The record's lifecycle (`SUI-FEATURE-069`): Preview, ⋯ and the next step, before the editor group.
+  lifecycle?: EditorLifecycle;
+};
+
+type EditorLifecycle = {
+  preview?: React.ReactNode;
+  menu?: React.ReactNode;
+  next?: {
+    label: string;
+    icon?: React.ReactNode;
+    onClick: () => void;
+    busy?: boolean;
+    // Locks the next step with this reason; it takes precedence over "Save first".
+    disabledText?: string;
+  };
 };
 
 // The one header of every editor page (`GL-UI-034`, `SUI-FEATURE-064`): Back and the title on the
 // left; on the right Undo, Redo, the state ("Saved" or "Draft · unsaved"), Reset and Save. Reset and
 // Save are locked while nothing differs from the saved state; Reset asks first. Ctrl/Cmd+Z and
 // Ctrl+Y / Cmd+Shift+Z answer as the buttons, except in a text field (`GL-UI-006`). The editor's own
-// toolbar stays below or beside it.
+// toolbar stays below or beside it. With `lifecycle` (`SUI-FEATURE-069`) Preview, ⋯ and the next step
+// stand before that group, behind a separator; the next step is locked while the draft is unsaved, so
+// never more than one green button is usable at a time.
 function EditorHeader({
   title,
   onBack,
@@ -42,6 +60,7 @@ function EditorHeader({
   saving,
   onSave,
   onReset,
+  lifecycle,
 }: EditorHeaderProps) {
   const { t } = useTranslation("suite");
   const [confirming, setConfirming] = React.useState(false);
@@ -62,6 +81,19 @@ function EditorHeader({
         {title}
       </div>
       <div data-slot="editor-actions" className="flex shrink-0 items-center gap-2">
+        {lifecycle === undefined ? null : (
+          <>
+            {lifecycle.preview}
+            {lifecycle.menu}
+            {lifecycle.next === undefined ? null : <NextStep {...lifecycle.next} dirty={dirty} />}
+            {/* Full bar height: the stretch reaches through the header's vertical padding. */}
+            <div
+              aria-hidden="true"
+              className="-my-3 w-px self-stretch bg-border"
+              data-testid="editor-lifecycle-separator"
+            />
+          </>
+        )}
         <IconButtonTooltip label={t("editor.undo")} shortcut={UNDO_SHORTCUT}>
           <Button
             type="button"
@@ -136,6 +168,41 @@ function EditorHeader({
   );
 }
 
+// The lifecycle's next step: locked while the draft is unsaved ("Save first") or while the app names
+// a reason of its own.
+function NextStep({
+  label,
+  icon,
+  onClick,
+  busy,
+  disabledText,
+  dirty,
+}: NonNullable<EditorLifecycle["next"]> & { dirty: boolean }) {
+  const { t } = useTranslation("suite");
+  const reason = disabledText ?? (dirty ? t("editor.saveFirst") : undefined);
+  const button = (
+    <Button
+      type="button"
+      variant="success"
+      size="default"
+      disabled={reason !== undefined}
+      {...(busy !== undefined ? { busy } : {})}
+      onClick={onClick}
+      data-testid="editor-next"
+    >
+      {icon}
+      {label}
+    </Button>
+  );
+  return reason === undefined ? (
+    button
+  ) : (
+    <Hint text={reason} disabledText={reason}>
+      {button}
+    </Hint>
+  );
+}
+
 type EditorLeaveGuardOptions = {
   dirty: boolean;
   saving?: boolean;
@@ -163,4 +230,10 @@ function useEditorLeaveGuard({
   return useLeaveGuard({ dirty, busy: saving, onLeave: onBack, onSave, onDiscard: onReset });
 }
 
-export { EditorHeader, type EditorHeaderProps, type EditorLeaveGuardOptions, useEditorLeaveGuard };
+export {
+  EditorHeader,
+  type EditorHeaderProps,
+  type EditorLeaveGuardOptions,
+  type EditorLifecycle,
+  useEditorLeaveGuard,
+};

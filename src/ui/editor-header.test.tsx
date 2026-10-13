@@ -4,7 +4,13 @@ import { useState } from "react";
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { EditorHeader, type EditorHeaderProps, useEditorLeaveGuard } from "./editor-header.js";
+import { Button } from "./button.js";
+import {
+  EditorHeader,
+  type EditorHeaderProps,
+  type EditorLifecycle,
+  useEditorLeaveGuard,
+} from "./editor-header.js";
 import { Input } from "./input.js";
 
 afterEach(async () => {
@@ -138,6 +144,111 @@ describe("EditorHeader", () => {
     fireEvent.keyDown(document.body, { key: "y", ctrlKey: true });
     expect(onUndo).not.toHaveBeenCalled();
     expect(onRedo).not.toHaveBeenCalled();
+  });
+});
+
+// `SUI-FEATURE-069`: the lifecycle slot.
+const lifecycle = (next: Partial<NonNullable<EditorLifecycle["next"]>> = {}): EditorLifecycle => ({
+  preview: (
+    <Button type="button" variant="outline" size="default" data-testid="lifecycle-preview">
+      Preview
+    </Button>
+  ),
+  menu: (
+    <Button
+      type="button"
+      variant="ghost"
+      size="icon-sm"
+      aria-label="More"
+      data-testid="lifecycle-menu"
+    >
+      ⋯
+    </Button>
+  ),
+  next: { label: "Publish", onClick: vi.fn(), ...next },
+});
+
+describe("EditorHeader lifecycle", () => {
+  // AC 1
+  it("reads Preview · ⋯ · next step · separator · Undo · Redo · state · Reset · Save", () => {
+    renderHeader({ lifecycle: lifecycle() });
+    const actions = document.querySelector("[data-slot=editor-actions]")!;
+    const order = [...actions.querySelectorAll("[data-testid]")].map((node) =>
+      node.getAttribute("data-testid"),
+    );
+    expect(order).toEqual([
+      "lifecycle-preview",
+      "lifecycle-menu",
+      "editor-next",
+      "editor-lifecycle-separator",
+      "editor-undo",
+      "editor-redo",
+      "editor-state",
+      "editor-reset",
+      "editor-save",
+    ]);
+    const next = screen.getByTestId("editor-next");
+    expect(next).toHaveTextContent("Publish");
+    expect(next).toHaveAttribute("data-variant", "success");
+    expect(next).toHaveAttribute("data-size", "default");
+    expect(screen.getByTestId("editor-lifecycle-separator")).toHaveAttribute("aria-hidden", "true");
+  });
+
+  // AC 2
+  it.each([
+    ["de", "Erst speichern"],
+    ["en", "Save first"],
+    ["es", "Guarda primero"],
+  ])("%s dirty: the next step is locked with %s, Save is free", async (lng, text) => {
+    await i18n.changeLanguage(lng);
+    renderHeader({ dirty: true, lifecycle: lifecycle() });
+    const next = screen.getByTestId("editor-next");
+    expect(next).toBeDisabled();
+    expect(next.parentElement).toHaveAccessibleDescription(text);
+    expect(screen.getByTestId("editor-save")).toBeEnabled();
+  });
+
+  it("dirty: the app's own disabledText takes precedence", () => {
+    renderHeader({ dirty: true, lifecycle: lifecycle({ disabledText: "Add a title first" }) });
+    expect(screen.getByTestId("editor-next")).toBeDisabled();
+    expect(screen.getByTestId("editor-next").parentElement).toHaveAccessibleDescription(
+      "Add a title first",
+    );
+  });
+
+  // AC 3
+  it("clean: the next step is free, Save and Reset are locked; one green button at most", () => {
+    const onClick = vi.fn();
+    renderHeader({ lifecycle: lifecycle({ onClick }) });
+    const next = screen.getByTestId("editor-next");
+    expect(next).toBeEnabled();
+    fireEvent.click(next);
+    expect(onClick).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("editor-save")).toBeDisabled();
+    expect(screen.getByTestId("editor-reset")).toBeDisabled();
+    for (const dirty of [false, true]) {
+      cleanup();
+      renderHeader({ dirty, lifecycle: lifecycle() });
+      const green = [...document.querySelectorAll("button[data-variant=success]")].filter(
+        (button) => !(button as HTMLButtonElement).disabled,
+      );
+      expect(green).toHaveLength(1);
+    }
+  });
+
+  it("busy: the next step carries the working state", () => {
+    const onClick = vi.fn();
+    renderHeader({ lifecycle: lifecycle({ busy: true, onClick }) });
+    expect(screen.getByTestId("editor-next")).toHaveAttribute("data-busy", "true");
+    fireEvent.click(screen.getByTestId("editor-next"));
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
+  // AC 4
+  it("without lifecycle there is neither slot nor separator", () => {
+    renderHeader();
+    expect(screen.queryByTestId("editor-next")).toBeNull();
+    expect(screen.queryByTestId("editor-lifecycle-separator")).toBeNull();
   });
 });
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.77.0 — SUI-FEATURE-069 rev 1 (#115): a lifecycle slot in the `EditorHeader`
+
+Not breaking (one new optional property).
+
+- `EditorHeader` takes `lifecycle?: { preview?; menu?; next?: { label; icon?; onClick; busy?; disabledText? } }`. It stands on the right before the editor group, in the order Preview · ⋯ · next step, followed by a vertical separator at the bar's height. Without it nothing changes.
+- The next step is a `Button` `success`, size `default`, with the working state while `busy`. While the draft is unsaved (`dirty`) it is locked with the tooltip "Save first" (`suite:editor.saveFirst`, de/en/es); a `disabledText` of the app takes precedence and locks it as well. So never more than one green button is usable at a time.
+- Gallery: the `EditorHeader` section shows an editor with a lifecycle saved and with a draft.
+
 ## 0.76.0 — SUI-FEATURE-066 rev 3 (#114): a hint per overflow menu entry
 
 Not breaking (one new optional property).

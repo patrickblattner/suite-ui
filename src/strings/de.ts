@@ -270,6 +270,7 @@ export const de: SuiteStrings = {
     saved: "Gespeichert",
     draft: "Entwurf · ungespeichert",
     resetConfirm: "Entwurf verwerfen und zum gespeicherten Stand zurückkehren?",
+    saveFirst: "Erst speichern",
   },
   upload: {
     drop: "Dateien hier ablegen",

@@ -1,4 +1,4 @@
-import { PencilIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import { EllipsisIcon, EyeIcon, PencilIcon, PlusIcon, SendIcon, Trash2Icon } from "lucide-react";
 import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -33,7 +33,7 @@ import {
 } from "../src/ui/dropdown-menu.js";
 import { ImagePlacementButtons } from "../src/ui/crop-editor.js";
 import { type Crop, CroppedBackground, CroppedImage } from "../src/ui/cropped-image.js";
-import { EditorHeader } from "../src/ui/editor-header.js";
+import { EditorHeader, type EditorLifecycle } from "../src/ui/editor-header.js";
 import { FileFacts } from "../src/ui/file-facts.js";
 import { Hint } from "../src/ui/hint.js";
 import { InlineStatus } from "../src/ui/inline-status.js";
@@ -66,6 +66,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../src/ui/tabs.js";
 import { TagInput } from "../src/ui/tag-input.js";
 import { Textarea } from "../src/ui/textarea.js";
 import { TimezoneCombobox } from "../src/ui/timezone-combobox.js";
+import { IconButtonTooltip } from "../src/ui/tooltip.js";
 import { type UploadItem, UploadStep } from "../src/ui/upload-step.js";
 
 const VARIANTS: ButtonVariant[] = [
@@ -1124,9 +1125,72 @@ function EditorHeaderRow() {
           }}
         />
       </div>
+      <div
+        className="mt-4 flex flex-col gap-4 rounded-md border"
+        data-testid="editor-lifecycle-saved"
+      >
+        <EditorHeader
+          title="Spring newsletter"
+          onBack={() => {}}
+          canUndo={false}
+          canRedo={false}
+          onUndo={() => {}}
+          onRedo={() => {}}
+          dirty={false}
+          saving={false}
+          onSave={() => {}}
+          onReset={() => {}}
+          lifecycle={galleryLifecycle}
+        />
+      </div>
+      <div
+        className="mt-4 flex flex-col gap-4 rounded-md border"
+        data-testid="editor-lifecycle-draft"
+      >
+        <EditorHeader
+          title="Autumn campaign landing page"
+          onBack={() => {}}
+          canUndo
+          canRedo={false}
+          onUndo={() => {}}
+          onRedo={() => {}}
+          dirty
+          saving={false}
+          onSave={() => {}}
+          onReset={() => {}}
+          lifecycle={galleryLifecycle}
+        />
+      </div>
     </Section>
   );
 }
+
+// `SUI-FEATURE-069`: Preview, ⋯ and the next step of a record with a lifecycle; saved, the next step is
+// free; with a draft it waits for Save.
+const galleryLifecycle: EditorLifecycle = {
+  preview: (
+    <Button type="button" variant="outline" size="default">
+      <EyeIcon aria-hidden="true" />
+      Preview
+    </Button>
+  ),
+  menu: (
+    <DropdownMenu>
+      <IconButtonTooltip label="More">
+        <DropdownMenuTrigger asChild>
+          <Button type="button" variant="ghost" size="icon-sm">
+            <EllipsisIcon aria-hidden="true" />
+          </Button>
+        </DropdownMenuTrigger>
+      </IconButtonTooltip>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem>Duplicate</DropdownMenuItem>
+        <DropdownMenuItem>Archive</DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  ),
+  next: { label: "Submit for review", icon: <SendIcon aria-hidden="true" />, onClick: () => {} },
+};
 
 function FocusRow() {
   return (
