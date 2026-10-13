@@ -247,3 +247,4 @@
 {"ts":"2026-10-13T07:40:31.208Z","key":"SUI-FEATURE-066","from":3,"to":4,"disposition":"editorial","ref":"rev 4 spells out the free folded-action hint (button tooltip 'label rowName'); already built and tested in #114 (preview-toolbar.test.tsx AC8 asserts 'Edit Home')"}
 {"ts":"2026-10-13T12:01:10.177Z","key":"PROC-CC-012","from":6,"to":7,"disposition":"editorial","ref":"process rule for Overmind/taste-question routing; no code impact in suite-ui"}
 {"ts":"2026-10-13T12:01:16.446Z","key":"PROC-REL-040","from":5,"to":6,"disposition":"editorial","ref":"runner-lock cap re-derivation; suite-ui has no CI workflows or gate.lock (GATE_MODE local)"}
+{"ts":"2026-10-13T12:01:30.293Z","key":"PROC-DEV-013","from":4,"to":5,"disposition":"editorial","ref":"routing rule for UI-taste questions (ask_question to Overmind); process only, no code impact"}
