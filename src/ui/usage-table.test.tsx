@@ -39,6 +39,16 @@ describe("UsageTable (SUI-FEATURE-004)", () => {
     expect(second).toHaveTextContent("LandingPage");
   });
 
+  it("AC9: the status is a catalog state or a domain state with tone and label", () => {
+    renderTable([
+      { id: "1", title: "Spring news", type: "Post", status: "published" },
+      { id: "2", title: "Landing", type: "Page", status: { tone: "warn", label: "In review" } },
+    ]);
+    const [first, second] = screen.getAllByTestId("usage-row");
+    expect(first!.querySelector("[data-state=published]")).not.toBeNull();
+    expect(second).toHaveTextContent("In review");
+  });
+
   it("AC4: a click on the row leads to its entry", () => {
     renderTable([{ id: "1", title: "Spring news", type: "Post", href: "/posts/1" }]);
     fireEvent.click(screen.getByTestId("usage-row"));

@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
 import { useRowGrid } from "../list/use-row-grid.js";
-import { StatusChip, type StatusChipState } from "./status-chip.js";
+import { StatusChip, type StatusChipState, type StatusChipTone } from "./status-chip.js";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./table.js";
 
 // One entry that uses the shown one. `href` is the in-app route of that entry; `onOpen`, when given,
@@ -11,7 +11,8 @@ type UsageItem = {
   id: string;
   title: string;
   type: string;
-  status?: StatusChipState;
+  // A catalog state, or a domain state as the app's tone and already translated label.
+  status?: StatusChipState | { tone: StatusChipTone; label: string };
   href?: string;
   onOpen?: () => void;
 };
@@ -53,7 +54,11 @@ function UsageTable({ items }: UsageTableProps) {
                 <TableCell className="font-medium">{item.title}</TableCell>
                 <TableCell className="text-muted-foreground">{item.type}</TableCell>
                 <TableCell>
-                  {item.status === undefined ? null : <StatusChip state={item.status} />}
+                  {item.status === undefined ? null : typeof item.status === "string" ? (
+                    <StatusChip state={item.status} />
+                  ) : (
+                    <StatusChip tone={item.status.tone} label={item.status.label} />
+                  )}
                 </TableCell>
               </TableRow>
             );

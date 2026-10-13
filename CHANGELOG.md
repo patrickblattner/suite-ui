@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.83.0 — SUI-FEATURE-004 rev 3 (#122): the usage table shows domain states
+
+Not breaking.
+
+- `UsageTable`: an item's `status` is a catalog state or a domain state `{ tone, label }`; the latter renders as a `StatusChip` in that tone with the app's label.
+
 ## 0.82.0 — SUI-FEATURE-070 rev 5 (#121): the truncated name badge carries no `title`
 
 Not breaking.
