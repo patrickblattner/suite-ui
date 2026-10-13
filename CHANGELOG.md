@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.80.0 — SUI-FEATURE-070 rev 3 (#119): the name badge is never clipped
+
+Not breaking.
+
+- `CanvasOverlay`: the selection's name badge stands above the selection, left-aligned; without room up to the overlay's edge it moves inside the top left corner, and at the left edge it does not reach past the frame.
+- The action bar also moves below the selection where, above it, it would cover the name badge (a narrow selection); the badge stays.
+
 ## 0.79.0 — SUI-FEATURE-071 rev 1 (#117): `PropertyPanel` and `DrawerRail`
 
 Not breaking (new components).

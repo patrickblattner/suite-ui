@@ -4171,3 +4171,32 @@ test("canvas editor: panel 340 px, drawer narrows the canvas", async ({ page }) 
   await expect(editor.getByTestId("drawer")).toHaveCount(0);
   expect((await box(canvas)).width).toBe(withDrawer.width + 300);
 });
+
+// `SUI-FEATURE-070` rev 3, AC 9 and AC 3: a selection at the top edge shows its name badge inside,
+// unclipped; on a narrow selection the action bar moves below instead of covering the badge.
+test("canvas: badge inside at the top edge, bar yields to the badge", async ({ page }) => {
+  await page.goto("/?page=components&lng=en");
+  const demo = page.getByTestId("canvas-demo");
+  const stage = demo.getByTestId("canvas-stage");
+  await stage.locator("[data-canvas-id=hero]").click({ position: { x: 4, y: 4 } });
+  const viewport = await box(stage.locator(".."));
+  const badge = demo.getByTestId("canvas-name");
+  await expect(badge).toHaveText("Hero");
+  await expect(badge).toHaveAttribute("data-placement", "inside");
+  const inside = await box(badge);
+  expect(inside.y).toBeGreaterThanOrEqual(viewport.y);
+  expect(inside.x).toBeGreaterThanOrEqual(viewport.x);
+
+  await demo.getByText("Read more").click();
+  await expect(badge).toHaveText("Button");
+  await expect(badge).toHaveAttribute("data-placement", "above");
+  const bar = demo.getByTestId("canvas-actions");
+  await expect(bar).toHaveAttribute("data-placement", "below");
+  const [tag, actions] = [await box(badge), await box(bar)];
+  const apart =
+    tag.x + tag.width <= actions.x ||
+    actions.x + actions.width <= tag.x ||
+    tag.y + tag.height <= actions.y ||
+    actions.y + actions.height <= tag.y;
+  expect(apart).toBe(true);
+});

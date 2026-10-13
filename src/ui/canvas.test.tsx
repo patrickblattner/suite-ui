@@ -130,6 +130,90 @@ describe("CanvasOverlay (SUI-FEATURE-070)", () => {
     expect(bar).toHaveAttribute("data-placement", "above");
   });
 
+  // Sizes per element: the bar 120 × 32, the name badge 60 × 20.
+  function mockSizes() {
+    const size = (node: HTMLElement, bar: number, badge: number) =>
+      node.dataset.testid === "canvas-actions"
+        ? bar
+        : node.dataset.testid === "canvas-name"
+          ? badge
+          : 0;
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return size(this, 120, 60);
+    });
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return size(this, 32, 20);
+    });
+  }
+
+  // AC 3 (rev 3)
+  it("a narrow selection: the bar moves below rather than cover the badge, which stays above", () => {
+    mockSizes();
+    const { rerender } = renderOverlay({
+      selected: { rect: rect(40, 100, 400, 80), name: "Hero" },
+      actions: ACTIONS,
+    });
+    expect(screen.getByTestId("canvas-actions")).toHaveAttribute("data-placement", "above");
+    expect(screen.getByTestId("canvas-name")).toHaveAttribute("data-placement", "above");
+    // 40 + 100 wide: the bar (120) reaches left to 20, over the badge (38 to 98).
+    rerender(
+      <div className="relative">
+        <CanvasOverlay
+          selected={{ rect: rect(40, 100, 100, 40), name: "Hero" }}
+          actions={ACTIONS}
+        />
+      </div>,
+    );
+    expect(screen.getByTestId("canvas-actions")).toHaveAttribute("data-placement", "below");
+    expect(screen.getByTestId("canvas-actions")).toHaveStyle({ top: "140px" });
+    expect(screen.getByTestId("canvas-name")).toHaveAttribute("data-placement", "above");
+    // Just wide enough: the bar's left edge (98) meets the badge's right edge.
+    rerender(
+      <div className="relative">
+        <CanvasOverlay
+          selected={{ rect: rect(40, 100, 178, 40), name: "Hero" }}
+          actions={ACTIONS}
+        />
+      </div>,
+    );
+    expect(screen.getByTestId("canvas-actions")).toHaveAttribute("data-placement", "above");
+  });
+
+  // AC 9
+  it("a selection at the top edge shows its badge inside the top left corner", () => {
+    mockSizes();
+    const { rerender } = renderOverlay({ selected: { rect: rect(0, 0, 400, 80), name: "Hero" } });
+    const badge = screen.getByTestId("canvas-name");
+    expect(badge).toHaveAttribute("data-placement", "inside");
+    expect(badge).toHaveClass("top-0", "left-0");
+    expect(badge).not.toHaveClass("bottom-full");
+    rerender(
+      <div className="relative">
+        <CanvasOverlay selected={{ rect: rect(0, 19, 400, 80), name: "Hero" }} />
+      </div>,
+    );
+    expect(badge).toHaveAttribute("data-placement", "inside");
+    rerender(
+      <div className="relative">
+        <CanvasOverlay selected={{ rect: rect(0, 20, 400, 80), name: "Hero" }} />
+      </div>,
+    );
+    expect(badge).toHaveAttribute("data-placement", "above");
+    expect(badge).toHaveClass("bottom-full");
+    // At the left edge it does not reach past the frame either.
+    expect(badge).toHaveStyle({ left: "0px" });
+    rerender(
+      <div className="relative">
+        <CanvasOverlay selected={{ rect: rect(40, 20, 400, 80), name: "Hero" }} />
+      </div>,
+    );
+    expect(badge).toHaveStyle({ left: "-2px" });
+  });
+
   // AC 4
   it("every insert point is shown without hover, in the tab order, named by its label", () => {
     const first = vi.fn();

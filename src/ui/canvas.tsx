@@ -2,6 +2,7 @@ import { PlusIcon } from "lucide-react";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 
+import { cn } from "../lib/cn.js";
 import { useEscapeLayer } from "../lib/escape-layers.js";
 import { Button } from "./button.js";
 import { IconButtonTooltip } from "./tooltip.js";
@@ -23,6 +24,9 @@ type CanvasOverlayProps = {
   // `Esc` with a selection selects the parent.
   onSelectParent?: (() => void) | undefined;
 };
+
+// The width of the hover and selection lines, at any zoom.
+const BORDER = 2;
 
 // A rect as the absolute box of an element on the overlay.
 function box(rect: DOMRectReadOnly): React.CSSProperties {
@@ -51,12 +55,33 @@ function CanvasOverlay({
     node?.parentElement ?? null,
   );
   const barRef = React.useRef<HTMLDivElement>(null);
-  const [barHeight, setBarHeight] = React.useState(0);
-  // The bar's height decides its side; it is measured whenever the selection or its actions change.
+  const badgeRef = React.useRef<HTMLSpanElement>(null);
+  const [size, setSize] = React.useState({
+    bar: { width: 0, height: 0 },
+    badge: { width: 0, height: 0 },
+  });
+  // The sizes of the bar and the name badge decide their sides; they are measured whenever the
+  // selection or its actions change.
   React.useLayoutEffect(() => {
-    setBarHeight(barRef.current?.offsetHeight ?? 0);
+    const measure = (node: HTMLElement | null) => ({
+      width: node?.offsetWidth ?? 0,
+      height: node?.offsetHeight ?? 0,
+    });
+    const next = { bar: measure(barRef.current), badge: measure(badgeRef.current) };
+    setSize((current) => (JSON.stringify(current) === JSON.stringify(next) ? current : next));
   }, [selected, actions]);
-  const below = selected !== undefined && selected.rect.top < barHeight;
+  // The badge stands above the selection, its left edge on the frame's outer edge; without room up to
+  // the overlay's edge it moves inside the top left corner. It is never clipped.
+  const rect = selected?.rect;
+  const badgeInside = rect !== undefined && rect.top < size.badge.height;
+  const badgeLeft = rect === undefined ? 0 : rect.left - Math.min(BORDER, rect.left);
+  // The bar stands above, right-aligned; it moves below without room above or where it would cover
+  // the badge (a narrow selection). The badge stays.
+  const coversBadge =
+    rect !== undefined &&
+    !badgeInside &&
+    rect.right - size.bar.width < badgeLeft + size.badge.width;
+  const below = rect !== undefined && (rect.top < size.bar.height || coversBadge);
   return (
     <div
       ref={setNode}
@@ -80,7 +105,13 @@ function CanvasOverlay({
           data-testid="canvas-selection"
         >
           <span
-            className="absolute bottom-full -left-0.5 rounded-t-sm bg-primary px-1.5 py-0.5 text-xs whitespace-nowrap text-primary-foreground"
+            ref={badgeRef}
+            className={cn(
+              "absolute bg-primary px-1.5 py-0.5 text-xs whitespace-nowrap text-primary-foreground",
+              badgeInside ? "top-0 left-0 rounded-br-sm" : "bottom-full rounded-t-sm",
+            )}
+            style={badgeInside ? undefined : { left: -Math.min(BORDER, selected.rect.left) }}
+            data-placement={badgeInside ? "inside" : "above"}
             data-testid="canvas-name"
           >
             {selected.name}
@@ -93,7 +124,7 @@ function CanvasOverlay({
           className="pointer-events-auto absolute flex items-center gap-1 rounded-md border bg-background p-1 shadow-sm"
           style={{
             right: `calc(100% - ${selected.rect.right}px)`,
-            top: below ? selected.rect.bottom : selected.rect.top - barHeight,
+            top: below ? selected.rect.bottom : selected.rect.top - size.bar.height,
           }}
           data-placement={below ? "below" : "above"}
           data-testid="canvas-actions"
