@@ -2574,7 +2574,7 @@ test("page header add pair: second outline left of the first, first at the right
   page,
 }) => {
   await page.goto("/?page=components");
-  const frame = page.getByTestId("section-adds");
+  const frame = page.getByTestId("adds-frame");
   const header = frame.getByTestId("page-header");
   const primary = frame.getByTestId("page-add");
   const secondary = frame.getByTestId("page-add-secondary");
@@ -2605,6 +2605,24 @@ test("page header add pair: a locked entry shows its reason", async ({ page }) =
   await wrapper.focus();
   await expect(wrapper).toBeFocused();
   await expect(wrapper).toHaveAccessibleDescription("Possible once a directory is connected.");
+});
+
+// SUI-FEATURE-068 AC4: the upload add reports whether its panel is open and names it.
+test("page header upload add reports open and closed", async ({ page }) => {
+  await page.goto("/?page=components");
+  const frame = page.getByTestId("adds-upload-frame");
+  const add = frame.getByTestId("page-add");
+  const panel = frame.getByTestId("adds-upload-panel");
+  await expect(add).toHaveAttribute("aria-controls", "gallery-upload-panel");
+  await expect(panel).toHaveAttribute("id", "gallery-upload-panel");
+  await expect(add).toHaveAttribute("aria-expanded", "false");
+  await expect(panel).toBeHidden();
+  await add.click();
+  await expect(add).toHaveAttribute("aria-expanded", "true");
+  await expect(panel).toBeVisible();
+  await add.click();
+  await expect(add).toHaveAttribute("aria-expanded", "false");
+  await expect(panel).toBeHidden();
 });
 
 // SUI-FEATURE-045 AC5: Restore defaults is outline, size sm, with an icon and the package text.

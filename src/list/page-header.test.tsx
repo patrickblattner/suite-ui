@@ -305,4 +305,41 @@ describe("PageHeader", () => {
     expect(add.querySelector("svg")).toHaveClass("lucide-plus");
     expect(add.querySelector(".lucide-upload")).toBeNull();
   });
+
+  // SUI-FEATURE-068: an add that opens a surface reports open and closed.
+  it("reports aria-expanded and aria-controls only when the add carries them", () => {
+    const { rerender } = render(
+      <PageHeader
+        title="Media"
+        subtitle="Every file."
+        add={{
+          label: "Upload",
+          kind: "upload",
+          onClick: () => {},
+          expanded: true,
+          controls: "upload-panel",
+        }}
+      />,
+    );
+    const add = screen.getByTestId("page-add");
+    expect(add).toHaveAttribute("aria-expanded", "true");
+    expect(add).toHaveAttribute("aria-controls", "upload-panel");
+    rerender(
+      <PageHeader
+        title="Media"
+        subtitle="Every file."
+        add={{ label: "Upload", kind: "upload", onClick: () => {}, expanded: false }}
+      />,
+    );
+    expect(screen.getByTestId("page-add")).toHaveAttribute("aria-expanded", "false");
+    rerender(
+      <PageHeader
+        title="Media"
+        subtitle="Every file."
+        add={{ label: "Upload", kind: "upload", onClick: () => {} }}
+      />,
+    );
+    expect(screen.getByTestId("page-add")).not.toHaveAttribute("aria-expanded");
+    expect(screen.getByTestId("page-add")).not.toHaveAttribute("aria-controls");
+  });
 });

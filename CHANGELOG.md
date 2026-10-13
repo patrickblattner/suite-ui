@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.73.0 — SUI-FEATURE-068 rev 2 (#111): `PageHeader` add entry reports open and closed
+
+Not breaking (two new optional props).
+
+- A `PageHeader` `add` entry takes optional `expanded?: boolean` and `controls?: string`; when set, the button renders `aria-expanded` and `aria-controls`. Without them nothing changes.
+- Gallery: new upload add entry that toggles a panel and reports open/closed.
+
 ## 0.72.0 — SUI-FEATURE-067 rev 2 (#110): `PreviewToolbar` in a narrow column
 
 Not breaking (no new props).

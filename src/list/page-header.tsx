@@ -9,7 +9,9 @@ import { OverflowTooltip } from "../ui/tooltip.js";
 // One add of the title row. `hint` says what a press does next (`GL-UI-017`); `busy` is the Button's
 // working state (`GL-UI-027`); `disabledText` is the reason a locked entry shows instead of `hint`
 // (`GL-UI-016`). `kind` picks the icon — the package owns the action → icon mapping (`GL-UI-011`):
-// `create` (default) shows `PlusIcon`, `upload` shows `UploadIcon`.
+// `create` (default) shows `PlusIcon`, `upload` shows `UploadIcon`. An add that opens a surface (the
+// upload panel) reports it with `expanded` and names it with `controls` — `aria-expanded` /
+// `aria-controls`, only when given (`SUI-FEATURE-068`).
 type PageHeaderAdd = {
   label: string;
   kind?: "create" | "upload";
@@ -18,6 +20,8 @@ type PageHeaderAdd = {
   disabledText?: string;
   hint?: string;
   busy?: boolean;
+  expanded?: boolean;
+  controls?: string;
 };
 
 type PageHeaderProps = {
@@ -49,6 +53,8 @@ function addButton(add: PageHeaderAdd, secondary: boolean) {
       disabled={add.disabled}
       // Only when given: declaring `busy` also turns on the Button's repeat-click guard.
       {...(add.busy !== undefined ? { busy: add.busy } : {})}
+      aria-expanded={add.expanded}
+      aria-controls={add.controls}
       data-testid={secondary ? "page-add-secondary" : "page-add"}
     >
       {add.kind === "upload" ? <UploadIcon aria-hidden="true" /> : <PlusIcon aria-hidden="true" />}

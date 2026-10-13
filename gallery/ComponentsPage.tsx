@@ -193,6 +193,7 @@ function Adds() {
           ]}
         />
       </div>
+      <UploadAdd />
       <Row label="restore">
         <RestoreDefaultsButton onClick={() => {}} />
         <RestoreDefaultsButton
@@ -203,6 +204,34 @@ function Adds() {
         />
       </Row>
     </Section>
+  );
+}
+
+// `SUI-FEATURE-068`: an upload add that opens its panel and reports open and closed.
+function UploadAdd() {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="max-w-3xl rounded-md border p-4" data-testid="adds-upload-frame">
+      <PageHeader
+        title="Media library"
+        subtitle="The upload add reports whether its panel is open."
+        add={{
+          label: "Upload",
+          kind: "upload",
+          onClick: () => setOpen((value) => !value),
+          expanded: open,
+          controls: "gallery-upload-panel",
+        }}
+      />
+      <div
+        id="gallery-upload-panel"
+        hidden={!open}
+        className="rounded-md border border-dashed p-4 text-sm text-muted-foreground"
+        data-testid="adds-upload-panel"
+      >
+        Drop files here.
+      </div>
+    </div>
   );
 }
 
