@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.76.0 — SUI-FEATURE-066 rev 3 (#114): a hint per overflow menu entry
+
+Not breaking (one new optional property).
+
+- `RowMenuItem` takes `hint?: string`. An entry with a hint shows it as the package's description hint (`Hint`, after `--tooltip-hint-delay`, never on focus) and references the same text through `aria-describedby`; its accessible name stays `label`.
+- A disabled entry with a hint still takes the pointer, so its hint (the condition under which it unlocks) opens too; it still cannot be chosen.
+- Folded actions in the `PreviewToolbar` (`SUI-FEATURE-067`) keep their hint in the ⋯ menu: their name with the row's ("Edit Home"), or their `disabledText` while locked. A folded "Used by" without a use carries "Not used anywhere".
+- Gallery: the `preview` page's row menu shows a plain and a locked entry with a hint.
+
 ## 0.75.0 — SUI-FEATURE-004 rev 1 (#113): "Used by" action and `UsageTable`
 
 Breaking for `MediaDetailShell.usage` (see below); otherwise additive.

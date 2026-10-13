@@ -3721,6 +3721,27 @@ for (const theme of THEMES) {
   });
 }
 
+// `SUI-FEATURE-066` rev 3 AC 7: a menu entry's hint opens on hover after the package delay, also on
+// a locked entry, and describes the entry.
+test("row action menu: entry hints on hover, locked entries included", async ({ page }) => {
+  await page.goto("/?page=preview&lng=en");
+  const block = page.getByTestId("preview-row-menu");
+  await block.getByTestId("row-menu-actions").getByTestId("row-menu").click();
+  const menu = page.getByRole("menu");
+  for (const [name, hint] of [
+    ["Duplicate", "Adds a copy of this page."],
+    ["Export", "Unlocks once the page is published."],
+  ] as const) {
+    const item = menu.getByRole("menuitem", { name });
+    await expect(item).toHaveAccessibleDescription(hint);
+    await item.hover();
+    await page.waitForTimeout(1000);
+    await expect(page.getByRole("tooltip")).toHaveCount(0);
+    await expect(page.getByRole("tooltip")).toHaveText(hint, { timeout: 2000 });
+    await page.mouse.move(0, 0);
+  }
+});
+
 // `SUI-FEATURE-066` AC 1, 2, 5: a row with edit and a menu and its preview header show the same
 // group; the menu opens by keyboard with the destructive entry last after a separator.
 test("row action menu: row and preview header alike, destructive last, keyboard", async ({

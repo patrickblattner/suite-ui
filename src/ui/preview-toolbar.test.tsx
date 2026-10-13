@@ -567,6 +567,28 @@ describe("PreviewToolbar in a narrow column (SUI-FEATURE-067)", () => {
     expect(menuEntries()).toEqual(["Used by (3)", "Copy", "Edit", "—", "Delete"]);
   });
 
+  it("SUI-FEATURE-066 AC8: folded actions keep their hint, a locked one its reason", () => {
+    render(
+      <PreviewToolbar
+        {...FULL}
+        actions={{ ...ENTRY, deleteDisabledText: "Still used on 2 pages." }}
+      />,
+    );
+    resize(320);
+    const trigger = within(screen.getByTestId("preview-actions")).getByTestId("row-menu");
+    trigger.focus();
+    fireEvent.keyDown(trigger, { key: "Enter" });
+    const menu = screen.getByRole("menu");
+    const description = (name: string) => {
+      const item = within(menu).getByRole("menuitem", { name });
+      return document.getElementById(item.getAttribute("aria-describedby") ?? "")?.textContent;
+    };
+    expect(description("Copy")).toBe("Copy Home");
+    expect(description("Edit")).toBe("Edit Home");
+    expect(description("Delete")).toBe("Still used on 2 pages.");
+    expect(within(menu).getByRole("menuitem", { name: "Delete" })).toHaveAttribute("data-disabled");
+  });
+
   it("keeps the device switch beside Close when nothing else would stand there", () => {
     render(<PreviewToolbar {...FULL} maximize={undefined} actions={undefined} />);
     resize(20);

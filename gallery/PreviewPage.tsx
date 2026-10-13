@@ -24,6 +24,8 @@ const LABELS = {
     page: "Page",
     news: "Spring newsletter",
     landing: "Landing page",
+    duplicateHint: "Adds a copy of this page.",
+    exportHint: "Unlocks once the page is published.",
   },
   de: {
     zoom: "Zoom 100 %",
@@ -36,6 +38,8 @@ const LABELS = {
     page: "Seite",
     news: "Frühlings-Newsletter",
     landing: "Startseite Kampagne",
+    duplicateHint: "Legt eine Kopie dieser Seite an.",
+    exportHint: "Wird frei, sobald die Seite veröffentlicht ist.",
   },
   es: {
     zoom: "Zoom 100 %",
@@ -48,6 +52,8 @@ const LABELS = {
     page: "Página",
     news: "Boletín de primavera",
     landing: "Página de campaña",
+    duplicateHint: "Crea una copia de esta página.",
+    exportHint: "Se habilita cuando la página esté publicada.",
   },
 } as const;
 
@@ -107,7 +113,8 @@ function Toolbar({
 }
 
 // `SUI-FEATURE-066`: a row with edit and an overflow menu, and the preview header of the same row
-// showing the same group. The menu holds a plain, a locked and a destructive entry.
+// showing the same group. The menu holds a plain, a locked and a destructive entry; the plain and the
+// locked one carry a hint (`SUI-FEATURE-066` rev 3).
 function RowWithMenu() {
   const { i18n } = useTranslation("suite");
   const labels = LABELS[i18n.language as keyof typeof LABELS] ?? LABELS.en;
@@ -117,8 +124,8 @@ function RowWithMenu() {
     menu: {
       label: labels.more,
       items: [
-        { label: labels.duplicate, onSelect: () => {} },
-        { label: labels.export, onSelect: () => {}, disabled: true },
+        { label: labels.duplicate, onSelect: () => {}, hint: labels.duplicateHint },
+        { label: labels.export, onSelect: () => {}, disabled: true, hint: labels.exportHint },
         { label: labels.archive, onSelect: () => {}, destructive: true },
       ],
     },

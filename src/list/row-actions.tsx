@@ -10,6 +10,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu.js";
+import { Hint } from "../ui/hint.js";
 import { TableCell, TableHead } from "../ui/table.js";
 import { IconButtonTooltip } from "../ui/tooltip.js";
 import { DELETE_SHORTCUT } from "../ui/use-edit-shortcuts.js";
@@ -26,12 +27,14 @@ type RowAction = {
 };
 
 // One entry of a row's overflow menu. A `destructive` entry stands last, after a separator, in the
-// destructive colour; a `disabled` entry is muted and cannot be chosen.
+// destructive colour; a `disabled` entry is muted and cannot be chosen. `hint` is the entry's
+// description hint (`GL-UI-017`); on a disabled entry it names the condition under which it unlocks.
 type RowMenuItem = {
   label: string;
   onSelect: () => void;
   destructive?: boolean;
   disabled?: boolean;
+  hint?: string;
 };
 
 // "Used by" (`SUI-FEATURE-004`): how often the entry is used, and whether the preview area shows the
@@ -140,17 +143,32 @@ function RowActionMenu({
 }) {
   const plain = menu.items.filter((item) => item.destructive !== true);
   const destructive = menu.items.filter((item) => item.destructive === true);
-  const entry = (item: RowMenuItem) => (
-    <DropdownMenuItem
-      key={item.label}
-      variant={item.destructive === true ? "destructive" : "default"}
-      disabled={item.disabled === true}
-      onSelect={item.onSelect}
-      data-testid="row-menu-item"
-    >
-      {item.label}
-    </DropdownMenuItem>
-  );
+  const entry = (item: RowMenuItem) => {
+    const control = (
+      <DropdownMenuItem
+        key={item.label}
+        variant={item.destructive === true ? "destructive" : "default"}
+        disabled={item.disabled === true}
+        onSelect={item.onSelect}
+        // A disabled entry with a hint still takes the pointer, so its hint can open.
+        className={
+          item.hint === undefined
+            ? undefined
+            : "data-[disabled]:pointer-events-auto data-[disabled]:cursor-not-allowed"
+        }
+        data-testid="row-menu-item"
+      >
+        {item.label}
+      </DropdownMenuItem>
+    );
+    return item.hint === undefined ? (
+      control
+    ) : (
+      <Hint key={item.label} text={item.hint}>
+        {control}
+      </Hint>
+    );
+  };
   return (
     <DropdownMenu>
       <IconButtonTooltip label={menu.label}>

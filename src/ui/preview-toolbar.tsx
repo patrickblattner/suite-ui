@@ -47,7 +47,8 @@ type Shrink = 0 | 1 | 2 | 3;
 // The selected entry's actions, in the row's own order (`GL-UI-008`, `GL-UI-011`): "Used by", extra
 // actions, then edit, the overflow menu and delete, at the toolbar's height (`icon-sm`). Folded, the
 // menu holds them in that same order: "Used by", the extra actions, edit, the menu's own entries and
-// delete, which stands last after a separator (`SUI-FEATURE-067`).
+// delete, which stands last after a separator (`SUI-FEATURE-067`). Each folded action keeps its hint:
+// its name with the row's, or its reason while locked (`SUI-FEATURE-066`).
 function PreviewActions({
   shrink,
   className,
@@ -64,12 +65,14 @@ function PreviewActions({
             label: t("usage.action", { count: set.usage.count }),
             onSelect: set.usage.onToggle,
             disabled: set.usage.count === 0,
+            ...(set.usage.count === 0 ? { hint: t("usage.none") } : {}),
           },
         ]),
     ...(set.extra ?? []).map((action) => ({
       label: action.label,
       onSelect: action.onClick,
       disabled: action.disabledText !== undefined,
+      hint: action.disabledText ?? `${action.label} ${set.rowName}`,
     })),
   ];
   if (!keepEdit && set.onEdit !== undefined)
@@ -77,6 +80,7 @@ function PreviewActions({
       label: t("actions.edit"),
       onSelect: set.onEdit,
       disabled: set.editDisabledText !== undefined,
+      hint: set.editDisabledText ?? `${t("actions.edit")} ${set.rowName}`,
     });
   items.push(...(set.menu?.items ?? []));
   if (set.onDelete !== undefined)
@@ -85,6 +89,7 @@ function PreviewActions({
       onSelect: set.onDelete,
       destructive: true,
       disabled: set.deleteDisabledText !== undefined,
+      hint: set.deleteDisabledText ?? `${t("actions.delete")} ${set.rowName}`,
     });
   const folded: RowActionSet =
     shrink === 0

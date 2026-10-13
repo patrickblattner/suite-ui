@@ -259,6 +259,82 @@ describe("RowActions overflow menu (SUI-FEATURE-066)", () => {
   });
 });
 
+describe("RowActions menu entry hint (SUI-FEATURE-066 rev 3)", () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  const MENU = {
+    label: "More for Ada",
+    items: [
+      { label: "Duplicate", onSelect: vi.fn(), hint: "Makes a copy of this entry." },
+      {
+        label: "Export",
+        onSelect: vi.fn(),
+        disabled: true,
+        hint: "Unlocks once the entry is published.",
+      },
+      { label: "Archive", onSelect: vi.fn() },
+    ],
+  };
+
+  const openMenu = () => {
+    const trigger = screen.getByRole("button", { name: "More for Ada" });
+    trigger.focus();
+    fireEvent.keyDown(trigger, { key: "Enter" });
+    return screen.getByRole("menu");
+  };
+  const description = (element: HTMLElement) =>
+    (element.getAttribute("aria-describedby") ?? "")
+      .split(" ")
+      .map((id) => document.getElementById(id)?.textContent)
+      .join(" ");
+
+  it("AC7: an entry with a hint keeps its label as name and is described by the hint", () => {
+    renderRow({ extra: [], menu: MENU });
+    const menu = openMenu();
+    const duplicate = within(menu).getByRole("menuitem", { name: "Duplicate" });
+    expect(description(duplicate)).toBe("Makes a copy of this entry.");
+    expect(within(menu).getByRole("menuitem", { name: "Archive" })).not.toHaveAttribute(
+      "aria-describedby",
+    );
+  });
+
+  it("AC7: the hint opens on hover after the package delay, not on focus", () => {
+    renderRow({ extra: [], menu: MENU });
+    const menu = openMenu();
+    const hint = hintOf(within(menu).getByRole("menuitem", { name: "Duplicate" }));
+    expect(hint).toEqual({
+      hover1499: null,
+      hover1500: "Makes a copy of this entry.",
+      focus: null,
+    });
+  });
+
+  it("AC7: a disabled entry shows its hint as well", () => {
+    renderRow({ extra: [], menu: MENU });
+    const menu = openMenu();
+    const exported = within(menu).getByRole("menuitem", { name: "Export" });
+    expect(exported).toHaveAttribute("data-disabled");
+    expect(exported).toHaveClass("data-[disabled]:pointer-events-auto");
+    expect(description(exported)).toBe("Unlocks once the entry is published.");
+    expect(hintOf(exported).hover1500).toBe("Unlocks once the entry is published.");
+    fireEvent.click(exported);
+    expect(MENU.items[1]!.onSelect).not.toHaveBeenCalled();
+  });
+});
+
 describe("RowActions Used by (SUI-FEATURE-004)", () => {
   afterEach(async () => {
     vi.useRealTimers();
