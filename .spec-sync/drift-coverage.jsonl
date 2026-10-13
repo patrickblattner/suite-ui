@@ -250,3 +250,9 @@
 {"ts":"2026-10-13T12:01:30.293Z","key":"PROC-DEV-013","from":4,"to":5,"disposition":"editorial","ref":"routing rule for UI-taste questions (ask_question to Overmind); process only, no code impact"}
 {"ts":"2026-10-13T12:01:46.514Z","key":"GL-UX-001","from":2,"to":3,"disposition":"editorial","ref":"taste-question reporting path (ask_question + screenshots, /taste page); process only, no code impact"}
 {"ts":"2026-10-13T12:02:04.832Z","key":"PROC-DEV-002","from":2,"to":3,"disposition":"editorial","ref":"review-lens taste routing via ask_question; process only, no code impact"}
+{"ts":"2026-10-13T15:07:36.622Z","key":"GL-UI-034","from":3,"to":4,"disposition":"ticket","ref":"115"}
+{"ts":"2026-10-13T15:07:37.132Z","key":"GL-UI-040","from":null,"to":1,"disposition":"ticket","ref":"116"}
+{"ts":"2026-10-13T15:08:12.457Z","key":"SUI-FEATURE-069","from":null,"to":1,"disposition":"ticket","ref":"115"}
+{"ts":"2026-10-13T15:08:12.963Z","key":"SUI-FEATURE-070","from":null,"to":1,"disposition":"ticket","ref":"116"}
+{"ts":"2026-10-13T15:08:13.430Z","key":"SUI-FEATURE-071","from":null,"to":1,"disposition":"ticket","ref":"117"}
+{"ts":"2026-10-13T15:08:13.905Z","key":"GL-UI-040","from":null,"to":1,"disposition":"ticket","ref":"117"}
