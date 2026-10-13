@@ -3578,7 +3578,13 @@ test("preview toolbar: fixed order, one height, no axe violations", async ({ pag
       .getByTestId(state)
       .getByTestId("preview-toolbar")
       .evaluate((el) => [...el.children].map((child) => child.getAttribute("data-testid")));
-  const right = ["preview-device", "preview-maximize", "preview-actions", "preview-close"];
+  const right = [
+    "preview-device",
+    "preview-maximize",
+    "preview-separator",
+    "preview-actions",
+    "preview-close",
+  ];
   expect(await order("preview-full")).toEqual([
     "preview-language",
     "preview-status",
@@ -3591,6 +3597,7 @@ test("preview toolbar: fixed order, one height, no axe violations", async ({ pag
     "preview-language",
     "preview-status",
     "preview-maximize",
+    "preview-separator",
     "preview-actions",
     "preview-close",
   ]);
@@ -3626,6 +3633,38 @@ test("preview toolbar: fixed order, one height, no axe violations", async ({ pag
     .analyze();
   expect(violations.map((violation) => violation.id)).toEqual([]);
 });
+
+// `SUI-FEATURE-003` AC 1, 2, 5: the chosen device is filled in the primary colour, the other stays
+// outline; a 1 px rule at the buttons' height parts maximize from the actions. In light and dark.
+for (const theme of THEMES) {
+  test(`preview toolbar: filled device and separator ${theme}`, async ({ page }) => {
+    await page.goto(`/?page=preview&lng=en&theme=${theme}`);
+    const full = page.getByTestId("preview-full");
+    const primary = await page.evaluate(() => {
+      const probe = document.createElement("div");
+      probe.className = "bg-primary";
+      document.body.append(probe);
+      const color = getComputedStyle(probe).backgroundColor;
+      probe.remove();
+      return color;
+    });
+    const desktop = full.getByTestId("preview-device-desktop");
+    const mobile = full.getByTestId("preview-device-mobile");
+    await expect(desktop).toHaveCSS("background-color", primary);
+    await expect(mobile).not.toHaveCSS("background-color", primary);
+    await desktop.hover();
+    await expect(desktop).toHaveCSS("background-color", primary);
+    await mobile.click();
+    await expect(mobile).toHaveCSS("background-color", primary);
+    await expect(desktop).not.toHaveCSS("background-color", primary);
+    const separator = await box(full.getByTestId("preview-separator"));
+    expect(separator.width).toBe(1);
+    expect(separator.height).toBeCloseTo(
+      (await box(full.getByTestId("preview-maximize"))).height,
+      0,
+    );
+  });
+}
 
 // `SUI-FEATURE-066` AC 1, 2, 5: a row with edit and a menu and its preview header show the same
 // group; the menu opens by keyboard with the destructive entry last after a separator.

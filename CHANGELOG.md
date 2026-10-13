@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.74.0 — SUI-FEATURE-003 rev 1 (#112): `PreviewToolbar` separator and filled active device
+
+Not breaking (no new props).
+
+- The chosen device in the `PreviewToolbar` is filled (`bg-primary`, `text-primary-foreground`, `border-primary`, also on hover) in light and dark; the other stays `outline`. `ViewToggle` and `SplitWorkspace` are unchanged.
+- A vertical 1 px rule (`bg-border`, the height of the `sm` buttons, `aria-hidden`, `data-testid="preview-separator"`) parts the view group (device and/or maximize) from the actions. It stands only when both are there; wrapped (`SUI-FEATURE-067` step 3) only when maximize stands beside the actions in the first line.
+- Gallery: the `preview` page shows the separator and the filled device.
+
 ## 0.73.0 — SUI-FEATURE-068 rev 2 (#111): `PageHeader` add entry reports open and closed
 
 Not breaking (two new optional props).

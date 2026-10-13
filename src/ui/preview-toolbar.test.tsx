@@ -78,13 +78,20 @@ describe("PreviewToolbar (GL-UI-008)", () => {
       "preview-zoom",
       "preview-device",
       "preview-maximize",
+      "preview-separator",
       "preview-actions",
       "preview-close",
     ]);
     expect(screen.getByTestId("preview-device")).toHaveClass("ml-auto");
   });
 
-  const RIGHT = ["preview-device", "preview-maximize", "preview-actions", "preview-close"];
+  const RIGHT = [
+    "preview-device",
+    "preview-maximize",
+    "preview-separator",
+    "preview-actions",
+    "preview-close",
+  ];
   it.each([
     ["language", { ...FULL, language: undefined }, ["preview-status", ...RIGHT]],
     [
@@ -100,6 +107,7 @@ describe("PreviewToolbar (GL-UI-008)", () => {
         "preview-language",
         "preview-status",
         "preview-maximize",
+        "preview-separator",
         "preview-actions",
         "preview-close",
       ],
@@ -107,7 +115,14 @@ describe("PreviewToolbar (GL-UI-008)", () => {
     [
       "maximize",
       { ...FULL, maximize: undefined },
-      ["preview-language", "preview-status", "preview-device", "preview-actions", "preview-close"],
+      [
+        "preview-language",
+        "preview-status",
+        "preview-device",
+        "preview-separator",
+        "preview-actions",
+        "preview-close",
+      ],
     ],
     [
       "actions",
@@ -297,6 +312,47 @@ describe("PreviewToolbar (GL-UI-008)", () => {
     expect(desktop).toHaveAttribute("aria-checked", "true");
   });
 
+  it("SUI-FEATURE-003 AC1: the chosen device is filled, the other stays outline", () => {
+    render(<Preview />);
+    const desktop = screen.getByRole("radio", { name: "Desktop" });
+    const mobile = screen.getByRole("radio", { name: "Mobile" });
+    const filled = ["aria-checked:bg-primary", "aria-checked:text-primary-foreground"];
+    for (const button of [desktop, mobile]) {
+      expect(button).toHaveClass(...filled, "aria-checked:border-primary");
+      expect(button).toHaveClass("aria-checked:hover:bg-primary", "border");
+    }
+    expect(desktop).toHaveAttribute("aria-checked", "true");
+    expect(mobile).toHaveAttribute("aria-checked", "false");
+    fireEvent.click(mobile);
+    expect(mobile).toHaveAttribute("aria-checked", "true");
+    expect(desktop).toHaveAttribute("aria-checked", "false");
+  });
+
+  it.each([
+    ["device, maximize and actions", FULL],
+    ["device and actions", { ...FULL, maximize: undefined }],
+    ["maximize and actions", { ...FULL, device: undefined }],
+  ] as const)(
+    "SUI-FEATURE-003 AC2: with %s one separator stands before the first action",
+    (_, props) => {
+      render(<PreviewToolbar {...props} />);
+      const separators = screen.getAllByTestId("preview-separator");
+      expect(separators).toHaveLength(1);
+      const separator = separators[0]!;
+      expect(separator).toHaveAttribute("aria-hidden", "true");
+      expect(separator).toHaveClass("w-px", "h-8", "bg-border");
+      expect(separator.nextElementSibling).toBe(screen.getByTestId("preview-actions"));
+    },
+  );
+
+  it.each([
+    ["without actions", { ...FULL, actions: undefined }],
+    ["without device and maximize", { ...FULL, device: undefined, maximize: undefined }],
+  ] as const)("SUI-FEATURE-003 AC3: %s no separator", (_, props) => {
+    render(<PreviewToolbar {...props} />);
+    expect(screen.queryByTestId("preview-separator")).not.toBeInTheDocument();
+  });
+
   it("labels come from the package strings", async () => {
     await i18n.changeLanguage("de");
     render(<Preview />);
@@ -436,6 +492,7 @@ describe("PreviewToolbar in a narrow column (SUI-FEATURE-067)", () => {
       "preview-zoom",
       "preview-device",
       "preview-maximize",
+      "preview-separator",
       "preview-actions",
       "preview-close",
     ]);
@@ -446,6 +503,36 @@ describe("PreviewToolbar in a narrow column (SUI-FEATURE-067)", () => {
     resize(20);
     expect(toolbar()).toHaveAttribute("data-shrink", "2");
     expect(screen.queryByTestId("preview-toolbar-top")).not.toBeInTheDocument();
+  });
+
+  it("SUI-FEATURE-003 AC4: folded, the separator stays before the actions", () => {
+    render(<Preview />);
+    for (const width of [380, 320]) {
+      resize(width);
+      expect(screen.getAllByTestId("preview-separator")).toHaveLength(1);
+      expect(screen.getByTestId("preview-separator").nextElementSibling).toBe(
+        screen.getByTestId("preview-actions"),
+      );
+    }
+  });
+
+  it("SUI-FEATURE-003 AC4: wrapped, the separator stands with maximize and the actions", () => {
+    render(<Preview />);
+    resize(200);
+    const top = screen.getByTestId("preview-toolbar-top");
+    expect([...top.children].map((el) => el.getAttribute("data-testid"))).toEqual([
+      "preview-maximize",
+      "preview-separator",
+      "preview-actions",
+      "preview-close",
+    ]);
+  });
+
+  it("SUI-FEATURE-003 AC4: wrapped without maximize, no separator is left at the line's edge", () => {
+    render(<PreviewToolbar {...FULL} maximize={undefined} />);
+    resize(150);
+    expect(toolbar()).toHaveAttribute("data-shrink", "3");
+    expect(screen.queryByTestId("preview-separator")).not.toBeInTheDocument();
   });
 
   it("keeps the device switch beside Close when nothing else would stand there", () => {

@@ -212,7 +212,8 @@ function PreviewToolbar({
             role="radio"
             aria-checked={device.value === value}
             tabIndex={device.value === value ? 0 : -1}
-            className="aria-checked:border-ring aria-checked:bg-accent aria-checked:text-accent-foreground dark:aria-checked:border-ring dark:aria-checked:bg-accent"
+            // `SUI-FEATURE-003`: the chosen device is filled, also on hover; the other stays outline.
+            className="aria-checked:border-primary aria-checked:bg-primary aria-checked:text-primary-foreground aria-checked:hover:border-primary aria-checked:hover:bg-primary aria-checked:hover:text-primary-foreground dark:aria-checked:border-primary dark:aria-checked:bg-primary dark:aria-checked:hover:bg-primary"
             onClick={() => device.onChange(value)}
             data-testid={`preview-device-${value}`}
           >
@@ -221,6 +222,12 @@ function PreviewToolbar({
           </Button>
         ))}
       </div>
+    ) : null;
+  // `SUI-FEATURE-003`: a vertical rule parts the view (device, maximize) from the actions, only where
+  // both stand in the same line. Wrapped, the device switch may have moved to the second line.
+  const separator =
+    actions !== undefined && (maximize !== undefined || (device !== undefined && !deviceBelow)) ? (
+      <div aria-hidden="true" className="h-8 w-px bg-border" data-testid="preview-separator" />
     ) : null;
   const right = (
     <>
@@ -242,6 +249,7 @@ function PreviewToolbar({
           </Button>
         </IconButtonTooltip>
       ) : null}
+      {separator}
       {actions !== undefined ? (
         <PreviewActions
           {...actions}
