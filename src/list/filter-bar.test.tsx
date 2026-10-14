@@ -122,10 +122,11 @@ describe("FilterBar", () => {
     expect(screen.queryByRole("combobox")).toBeNull();
   });
 
-  it("opens the reset hint with the aria-label text on keyboard focus and after 1500 ms hover", () => {
+  // SUI-FEATURE-074: keyboard focus keeps the hint closed.
+  it("opens the reset hint with the aria-label text after 1500 ms hover, not on keyboard focus", () => {
     render(<FilterBar value="" onChange={() => {}} onReset={() => {}} sort={SORT} />);
     expect(hintOf(screen.getByTestId("filter-reset"))).toEqual({
-      focus: "Clear filter",
+      focus: null,
       hover1499: null,
       hover1500: "Clear filter",
     });

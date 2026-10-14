@@ -139,7 +139,14 @@ describe("RowActions (SUI-FEATURE-047)", () => {
     fireEvent.click(remove.parentElement as HTMLElement);
     expect(onDelete).not.toHaveBeenCalled();
     expect(onRowClick).not.toHaveBeenCalled();
-    expect(hintOf(remove.parentElement as HTMLElement).focus).toBe("Still in use by 3 events.");
+    // SUI-FEATURE-074: the reason shows on hover; on focus it is the span's description.
+    const span = remove.parentElement as HTMLElement;
+    expect(hintOf(span)).toEqual({
+      focus: null,
+      hover1499: null,
+      hover1500: "Still in use by 3 events.",
+    });
+    expect(span).toHaveAccessibleDescription("Still in use by 3 events.");
   });
 
   it("the hint of a usable action is its name", () => {
@@ -366,7 +373,12 @@ describe("RowActions Used by (SUI-FEATURE-004)", () => {
     expect(button).toBeDisabled();
     fireEvent.click(button);
     expect(onToggle).not.toHaveBeenCalled();
-    expect(hintOf(button.parentElement as HTMLElement).focus).toBe("Nirgends verwendet");
+    // SUI-FEATURE-074: the hint shows on hover, not on focus.
+    expect(hintOf(button.parentElement as HTMLElement)).toEqual({
+      focus: null,
+      hover1499: null,
+      hover1500: "Nirgends verwendet",
+    });
   });
 
   it("AC3: active, the button is pressed and filled like the chosen device", () => {

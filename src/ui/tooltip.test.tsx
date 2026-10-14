@@ -1,9 +1,12 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import i18n from "i18next";
 import { Tooltip as TooltipPrimitive } from "radix-ui";
+import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Button } from "./button.js";
+import { EditPanel } from "./edit-panel.js";
+import { Input } from "./input.js";
 import {
   IconButtonTooltip,
   Tooltip,
@@ -67,6 +70,109 @@ describe("IconButtonTooltip", () => {
     expect(description).toHaveTextContent("Stop the run to delete it.");
     expect(openAfter(span, 1500)).toBe(true);
     expect(screen.getByRole("tooltip")).toHaveTextContent("Stop the run to delete it.");
+  });
+});
+
+// SUI-FEATURE-074: the bubble opens on hover only, never on focus, in every state.
+describe("IconButtonTooltip on focus", () => {
+  // Focuses `element` and waits past the hint delay.
+  function focusFor(element: HTMLElement): void {
+    act(() => {
+      element.focus();
+      vi.advanceTimersByTime(1500);
+    });
+  }
+
+  // A list row: the edit button opens an EditPanel, its neighbour is the next action of the row.
+  function Row({ onNeighbour }: { onNeighbour: () => void }) {
+    const [open, setOpen] = useState(false);
+    return (
+      <>
+        <IconButtonTooltip label="Edit the run">
+          <Button variant="ghost" size="icon" data-testid="edit" onClick={() => setOpen(true)} />
+        </IconButtonTooltip>
+        <IconButtonTooltip label="Delete the run">
+          <Button variant="ghost" size="icon" data-testid="neighbour" onClick={onNeighbour} />
+        </IconButtonTooltip>
+        <EditPanel open={open} onOpenChange={setOpen} title="Run">
+          <Input aria-label="Name" />
+        </EditPanel>
+      </>
+    );
+  }
+
+  it("AC1: keyboard focus on a free button opens no bubble; the name is label", () => {
+    render(
+      <IconButtonTooltip label="Delete the run">
+        <Button variant="ghost" size="icon" />
+      </IconButtonTooltip>,
+    );
+    const button = screen.getByRole("button", { name: "Delete the run" });
+    focusFor(button);
+    expect(button).toHaveFocus();
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    expect(button).toHaveAccessibleName("Delete the run");
+  });
+
+  it("AC2: focus returned by code after an EditPanel closes opens no bubble; the neighbour takes the click", () => {
+    const onNeighbour = vi.fn();
+    render(<Row onNeighbour={onNeighbour} />);
+    const edit = screen.getByTestId("edit");
+    act(() => edit.focus());
+    fireEvent.click(edit);
+    fireEvent.click(screen.getByTestId("edit-panel-cancel"));
+    // radix hands the focus back on a tick after the unmount.
+    act(() => {
+      vi.advanceTimersByTime(0);
+    });
+    expect(edit).toHaveFocus();
+    focusFor(edit);
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    fireEvent.click(screen.getByTestId("neighbour"));
+    expect(onNeighbour).toHaveBeenCalledOnce();
+  });
+
+  it("AC3: keyboard focus on a disabled button's span opens no bubble; the span is described by disabledText", () => {
+    render(
+      <IconButtonTooltip label="Delete the run" disabledText="Stop the run to delete it.">
+        <Button variant="ghost" size="icon" disabled />
+      </IconButtonTooltip>,
+    );
+    const span = screen.getByRole("button", { name: "Delete the run" })
+      .parentElement as HTMLElement;
+    focusFor(span);
+    expect(span).toHaveFocus();
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    expect(span).toHaveAccessibleDescription("Stop the run to delete it.");
+  });
+
+  // A running button is disabled and takes no focus; between runs it sits focusable in the span.
+  it("busy: focus on a button that declares busy, inside its span, opens no bubble", () => {
+    render(
+      <IconButtonTooltip label="Send the run">
+        <Button variant="ghost" size="icon" busy={false} />
+      </IconButtonTooltip>,
+    );
+    const button = screen.getByRole("button", { name: "Send the run" });
+    expect(button.parentElement?.tagName).toBe("SPAN");
+    focusFor(button);
+    expect(button).toHaveFocus();
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
+  it("AC4: hover still opens the bubble after the hint delay", () => {
+    render(
+      <IconButtonTooltip label="Delete the run">
+        <Button variant="ghost" size="icon" />
+      </IconButtonTooltip>,
+    );
+    const button = screen.getByRole("button", { name: "Delete the run" });
+    focusFor(button);
+    expect(openAfter(button, 1499)).toBe(false);
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Delete the run");
   });
 });
 

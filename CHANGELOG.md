@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.86.0 — SUI-FEATURE-074 rev 2 (#126): an icon button's hint opens on hover only
+
+Not breaking.
+
+- `IconButtonTooltip`: focus opens no bubble any more — keyboard, initial or programmatic focus, free, disabled with `disabledText` and declaring `busy` alike; a bubble beside the button covered the neighbour of its row and caught its clicks. The text reaches the focus as the name (`label`), while disabled as the span's description (`disabledText`). Hover opens it after the hint delay as before. Applies to every consumer, `RowActions` and `PreviewToolbar` included.
+
 ## 0.85.0 — SUI-FEATURE-073 rev 2 (#125): dialog mode only on the form size, the time zone list floats
 
 Breaking for types only: a compact `DialogContent` with `mode` no longer compiles. Runtime unchanged.

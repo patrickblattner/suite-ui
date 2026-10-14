@@ -144,6 +144,13 @@ function OverflowTooltip({
   );
 }
 
+// An icon button's hint opens on hover only (`SUI-FEATURE-074`): opened by focus, also when the focus
+// returns programmatically, the bubble beside it would cover the neighbour of its row and catch that
+// one's clicks. The text reaches the focus as the name, or as the description while disabled.
+function keepClosedOnFocus(event: React.FocusEvent): void {
+  event.preventDefault();
+}
+
 // An element's own `aria-describedby` ids, in order and each once.
 function uniqueIds(describedBy: string | undefined): string | undefined {
   const ids = [...new Set(describedBy?.split(/\s+/).filter(Boolean))];
@@ -214,7 +221,9 @@ function IconButtonTooltip({
     <>
       <TooltipProvider>
         <TooltipPrimitive.Root>
-          <TooltipTrigger asChild>{trigger}</TooltipTrigger>
+          <TooltipTrigger asChild onFocus={keepClosedOnFocus}>
+            {trigger}
+          </TooltipTrigger>
           <TooltipContent>
             {disabled ? disabledText : label}
             {disabled || variants === undefined ? null : (
