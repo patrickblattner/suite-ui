@@ -300,3 +300,4 @@
 {"ts":"2026-10-14T17:55:39.278Z","key":"GL-UI-002","from":12,"to":13,"disposition":"editorial","ref":"rev 13 aligns media detail view with SUI-FEATURE-004 (Used-by button in preview header, UsageTable, no right-column list) — already built in suite-ui; language in title is app-supplied; remaining change is app-side"}
 {"ts":"2026-10-14T21:32:47.889Z","key":"GL-UI-004","from":10,"to":11,"disposition":"ticket","ref":"127"}
 {"ts":"2026-10-14T21:33:53.050Z","key":"SUI-FEATURE-080","from":null,"to":2,"disposition":"ticket","ref":"127"}
+{"ts":"2026-10-14T22:14:10.614Z","key":"GL-UI-010","from":5,"to":6,"disposition":"editorial","ref":"rev 6 clarifies field spacing applies in dialogs too; code already conforms (gallery form dialog gap-4/gap-2, DialogBody sets no gap, no gap-3 field rows)"}
