@@ -1,4 +1,4 @@
-import { cva, type VariantProps } from "class-variance-authority";
+import { cva } from "class-variance-authority";
 import { XIcon } from "lucide-react";
 import { Dialog as DialogPrimitive } from "radix-ui";
 import type * as React from "react";
@@ -62,6 +62,11 @@ function DialogOverlay({
   );
 }
 
+// `mode` exists only on the form size (`SUI-FEATURE-073`): a compact dialog confirms or triggers and
+// has no add focus. On the form size it stays optional, for action dialogs with fields.
+type DialogContentSizeProps =
+  { size?: "default" | null; mode?: never } | { size: "form"; mode?: "add" | "edit" };
+
 // `mode` decides the opening focus (`GL-UI-027` §Tastatur): only `add` focuses the first field. In
 // `edit` and without a mode the dialog itself takes the focus, so no field is focused and the first
 // keystroke never overwrites a loaded value.
@@ -74,9 +79,8 @@ function DialogContent({
   onOpenAutoFocus,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> &
-  VariantProps<typeof dialogContentVariants> & {
+  DialogContentSizeProps & {
     showCloseButton?: boolean;
-    mode?: "add" | "edit";
   }) {
   const { t } = useTranslation("suite");
   return (

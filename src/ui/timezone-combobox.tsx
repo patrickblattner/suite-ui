@@ -30,15 +30,37 @@ type TimezoneComboboxProps = {
   invalid?: boolean;
   "aria-invalid"?: boolean;
   "aria-describedby"?: string;
+  // Set on the field only while it is invalid.
+  "aria-errormessage"?: string;
+  // Also names the open list `<id>-options` and each option `<id>-option`.
   "data-testid"?: string;
 };
+
+// The gap between the field and the list (`mt-1`/`mb-1`).
+const LIST_GAP = 4;
+
+// The nearest ancestor that clips the list: a scroll surface such as a dialog or panel body.
+function clippingAncestor(element: HTMLElement): HTMLElement | null {
+  for (let node = element.parentElement; node !== null; node = node.parentElement) {
+    if (getComputedStyle(node).overflowY !== "visible") return node;
+  }
+  return null;
+}
+
+function visibleBounds(clip: HTMLElement | null): { top: number; bottom: number } {
+  if (clip === null) return { top: 0, bottom: window.innerHeight };
+  const top = clip.getBoundingClientRect().top + clip.clientTop;
+  return { top, bottom: top + clip.clientHeight };
+}
 
 // A searchable choice over every IANA time zone. The value is always one of the offered zones: typing
 // only filters, and text without a pick is discarded when the field closes, so free text never becomes
 // a value.
 //
-// The list stands in the flow below the field instead of a portal (`GL-UI-027` §Floating Content): in
-// a dialog the open list is content that drives the dialog height and is never clipped by the form body.
+// The list floats over the content at the field's width and shifts nothing below (`SUI-FEATURE-073`).
+// It is no portal (`GL-UI-027` §Floating Content): where a dialog or panel body would clip it, the body
+// first grows by the missing part at its end, so the dialog grows with the list; where that does not
+// make room (the dialog at its height cap, a full-height panel), the list opens upwards.
 function TimezoneCombobox({
   value,
   onValueChange,
@@ -49,6 +71,7 @@ function TimezoneCombobox({
   invalid = false,
   "aria-invalid": ariaInvalid,
   "aria-describedby": ariaDescribedBy,
+  "aria-errormessage": ariaErrorMessage,
   "data-testid": testId,
 }: TimezoneComboboxProps) {
   const { t } = useTranslation("suite");
@@ -56,6 +79,8 @@ function TimezoneCombobox({
   const inputId = id ?? generatedId;
   const listId = `${inputId}-listbox`;
   const rootRef = React.useRef<HTMLDivElement>(null);
+  const anchorRef = React.useRef<HTMLDivElement>(null);
+  const popupRef = React.useRef<HTMLDivElement>(null);
   const listRef = React.useRef<HTMLUListElement>(null);
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
@@ -110,6 +135,33 @@ function TimezoneCombobox({
     };
   }, [open, close]);
 
+  // Places the open list before it paints; again when filtering changes its height.
+  React.useLayoutEffect(() => {
+    const anchor = anchorRef.current;
+    const popup = popupRef.current;
+    if (!open || anchor === null || popup === null) return;
+    const clip = clippingAncestor(anchor);
+    const padding = clip?.style.paddingBottom ?? "";
+    const needed = popup.offsetHeight + LIST_GAP;
+    const spaceBelow = () => visibleBounds(clip).bottom - anchor.getBoundingClientRect().bottom;
+    let below = spaceBelow();
+    if (below < needed && clip !== null) {
+      // Padding at the end of the body adds height without moving anything in it.
+      const current = parseFloat(getComputedStyle(clip).paddingBottom) || 0;
+      clip.style.paddingBottom = `${Math.ceil(current + needed - below)}px`;
+      below = spaceBelow();
+      if (below < needed) {
+        clip.style.paddingBottom = padding;
+        below = spaceBelow();
+      }
+    }
+    const above = anchor.getBoundingClientRect().top - visibleBounds(clip).top;
+    popup.dataset.side = below >= needed || below >= above ? "bottom" : "top";
+    return () => {
+      if (clip !== null) clip.style.paddingBottom = padding;
+    };
+  }, [open, matches.length]);
+
   React.useEffect(() => {
     if (!open) return;
     const option = listRef.current?.querySelector<HTMLElement>(`[data-index="${active}"]`);
@@ -152,6 +204,7 @@ function TimezoneCombobox({
       }
       aria-invalid={invalid || ariaInvalid}
       aria-describedby={ariaDescribedBy}
+      aria-errormessage={invalid || ariaInvalid ? ariaErrorMessage : undefined}
       data-testid={testId}
       disabled={disabled}
       placeholder={t("timezone.placeholder")}
@@ -173,50 +226,55 @@ function TimezoneCombobox({
 
   return (
     <div ref={rootRef} data-slot="timezone-combobox" className={cn("w-full", className)}>
-      <div className="relative">
+      <div ref={anchorRef} className="relative">
         {hint === undefined ? field : <Hint text={hint}>{field}</Hint>}
         <ChevronDownIcon
           aria-hidden="true"
           className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted-foreground"
         />
-      </div>
-      {open ? (
-        <div className="mt-1 rounded-md border bg-popover text-popover-foreground shadow-md">
-          {matches.length === 0 ? (
-            <p className="px-3 py-2 text-sm text-muted-foreground">{t("timezone.empty")}</p>
-          ) : null}
-          <ul
-            ref={listRef}
-            id={listId}
-            role="listbox"
-            className={cn("max-h-60 overflow-y-auto p-1", matches.length === 0 && "hidden")}
+        {open ? (
+          <div
+            ref={popupRef}
+            className="absolute inset-x-0 top-full z-50 mt-1 rounded-md border bg-popover text-popover-foreground shadow-md data-[side=top]:top-auto data-[side=top]:bottom-full data-[side=top]:mt-0 data-[side=top]:mb-1"
           >
-            {matches.map((zone, index) => (
-              <li
-                key={zone}
-                id={`${listId}-${index}`}
-                role="option"
-                data-index={index}
-                aria-selected={zone === value}
-                data-active={index === active ? "" : undefined}
-                // Keeps the focus in the field, so the blur does not close the list before the click.
-                onPointerDown={(event) => event.preventDefault()}
-                onMouseMove={() => {
-                  setActive(index);
-                  setKeyboard(false);
-                }}
-                onClick={() => pick(zone)}
-                className={cn(
-                  "cursor-pointer rounded-sm px-2 py-1.5 text-sm select-none aria-selected:font-medium data-active:bg-accent data-active:text-accent-foreground",
-                  keyboard && "data-active:focus-ring-inset",
-                )}
-              >
-                {zone}
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
+            {matches.length === 0 ? (
+              <p className="px-3 py-2 text-sm text-muted-foreground">{t("timezone.empty")}</p>
+            ) : null}
+            <ul
+              ref={listRef}
+              id={listId}
+              role="listbox"
+              data-testid={testId === undefined ? undefined : `${testId}-options`}
+              className={cn("max-h-60 overflow-y-auto p-1", matches.length === 0 && "hidden")}
+            >
+              {matches.map((zone, index) => (
+                <li
+                  key={zone}
+                  id={`${listId}-${index}`}
+                  role="option"
+                  data-testid={testId === undefined ? undefined : `${testId}-option`}
+                  data-index={index}
+                  aria-selected={zone === value}
+                  data-active={index === active ? "" : undefined}
+                  // Keeps the focus in the field, so the blur does not close the list before the click.
+                  onPointerDown={(event) => event.preventDefault()}
+                  onMouseMove={() => {
+                    setActive(index);
+                    setKeyboard(false);
+                  }}
+                  onClick={() => pick(zone)}
+                  className={cn(
+                    "cursor-pointer rounded-sm px-2 py-1.5 text-sm select-none aria-selected:font-medium data-active:bg-accent data-active:text-accent-foreground",
+                    keyboard && "data-active:focus-ring-inset",
+                  )}
+                >
+                  {zone}
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+      </div>
     </div>
   );
 }

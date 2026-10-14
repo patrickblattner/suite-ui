@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.85.0 — SUI-FEATURE-073 rev 2 (#125): dialog mode only on the form size, the time zone list floats
+
+Breaking for types only: a compact `DialogContent` with `mode` no longer compiles. Runtime unchanged.
+
+- `DialogContent`: `mode?: "add" | "edit"` types only together with `size="form"`; there it stays optional.
+- `TimezoneCombobox`: the open list floats over the content at the field's width and shifts nothing below. Where a dialog or panel body would clip it, the body grows by the missing part; where it cannot, the list opens upwards.
+- `TimezoneCombobox`: with `data-testid="<id>"` the list carries `<id>-options` and each option `<id>-option`.
+- `TimezoneCombobox`: `aria-errormessage`, set on the field only while it is invalid.
+
 ## 0.84.0 — SUI-FEATURE-072 rev 2 (#123): a row action can be running
 
 Not breaking.

@@ -60,6 +60,21 @@ describe("Dialog", () => {
     expect(isField(document.activeElement)).toBe(false);
   });
 
+  // `SUI-FEATURE-073`: `mode` types only together with the form size; checked by the typecheck.
+  it("types mode only on the form size", () => {
+    const typed = [
+      // @ts-expect-error A compact dialog has no add focus.
+      <DialogContent key="compact" mode="add" />,
+      // @ts-expect-error Neither has the explicit default size.
+      <DialogContent key="default" size="default" mode="edit" />,
+      <DialogContent key="form" size="form" />,
+      <DialogContent key="form-add" size="form" mode="add" />,
+      <DialogContent key="form-edit" size="form" mode="edit" />,
+      <DialogContent key="plain" />,
+    ];
+    expect(typed).toHaveLength(6);
+  });
+
   it("footer: divider, right-aligned, Cancel directly before the primary action", () => {
     render(<FormDialog mode="edit" />);
     const footer = screen.getByRole("dialog").querySelector("[data-slot=dialog-footer]");

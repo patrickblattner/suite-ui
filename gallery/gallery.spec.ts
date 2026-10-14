@@ -315,6 +315,60 @@ test("the open time zone list grows the dialog", async ({ page }) => {
   expect(await body.evaluate((el) => el.scrollHeight <= el.clientHeight)).toBe(true);
 });
 
+// `SUI-FEATURE-073`: the open list floats at the field's width and shifts nothing below.
+test("the open time zone list floats over the content below", async ({ page }) => {
+  await page.goto("/?page=components&lng=en");
+  const field = page.getByTestId("timezone-value");
+  // The disabled combobox stands in the grid row below the field.
+  const next = page.locator("[data-slot=timezone-combobox]").nth(2);
+  await field.scrollIntoViewIfNeeded();
+  const before = await box(next);
+  expect(before.y).toBeGreaterThan((await box(field)).y);
+  await field.click();
+  const list = page.getByTestId("timezone-value-options");
+  await expect(list).toBeVisible();
+  expect(await box(next)).toEqual(before);
+  const fieldBox = await box(field);
+  const popup = await box(list.locator(".."));
+  expect(popup.width).toBeCloseTo(fieldBox.width, 0);
+  expect(popup.x).toBeCloseTo(fieldBox.x, 0);
+});
+
+test("Tab focus does not open the time zone list; ArrowDown does", async ({ page }) => {
+  await page.goto("/?page=dialog");
+  const field = page.getByTestId("dialog-timezone");
+  await page.getByLabel("Notes").focus();
+  await page.keyboard.press("Tab");
+  await expect(field).toBeFocused();
+  await expect(page.getByTestId("dialog-timezone-options")).toHaveCount(0);
+  await page.keyboard.press("ArrowDown");
+  await expect(page.getByTestId("dialog-timezone-options")).toBeVisible();
+});
+
+// `SUI-FEATURE-073` with `GL-UI-027` §Floating Content: in a dialog at its height cap the field
+// stands at the bottom edge of the scrolled body; the list opens upwards, whole and unclipped.
+test("the time zone list near the bottom of a full dialog opens upwards, fully visible", async ({
+  page,
+}) => {
+  await page.goto("/?page=dialog");
+  const dialog = page.getByTestId("form-dialog");
+  const body = dialog.locator("[data-slot=dialog-body]");
+  await page.getByLabel("Notes").fill(Array.from({ length: 60 }, (_, i) => `Line ${i}`).join("\n"));
+  await body.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+  expect(await body.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+  const scrollTop = await body.evaluate((el) => el.scrollTop);
+  const field = page.getByTestId("dialog-timezone");
+  await field.click();
+  const list = page.getByTestId("dialog-timezone-options");
+  await expect(list).toBeVisible();
+  const visible = await box(body);
+  const listBox = await box(list.locator(".."));
+  expect(listBox.y + listBox.height).toBeLessThanOrEqual((await box(field)).y);
+  expect(listBox.y).toBeGreaterThanOrEqual(visible.y);
+  expect(listBox.y + listBox.height).toBeLessThanOrEqual(visible.y + visible.height);
+  expect(await body.evaluate((el) => el.scrollTop)).toBe(scrollTop);
+});
+
 // `GL-UI-018`/`GL-UI-025` at 1920×1080: 200 rows and several selects overflow the table by far, yet
 // neither the document nor PageScroll scrolls; the table body in DataTableShell is the one element
 // that does.

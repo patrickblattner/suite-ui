@@ -91,4 +91,45 @@ describe("TimezoneCombobox", () => {
     expect(input).not.toHaveAttribute("aria-describedby");
     expect(input).not.toHaveAttribute("aria-invalid");
   });
+
+  // SUI-FEATURE-073
+  it("data-testid names the open list and each option", () => {
+    render(<TimezoneCombobox value="UTC" onValueChange={vi.fn()} data-testid="tz" />);
+    fireEvent.change(screen.getByTestId("tz"), { target: { value: "zur" } });
+    expect(screen.getByTestId("tz-options")).toBe(screen.getByRole("listbox"));
+    const options = screen.getAllByTestId("tz-option");
+    expect(options).toEqual(screen.getAllByRole("option"));
+    expect(options.length).toBeGreaterThan(0);
+  });
+
+  it("without data-testid the list carries no testids", () => {
+    render(<TimezoneCombobox value="UTC" onValueChange={vi.fn()} />);
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "zur" } });
+    expect(screen.getByRole("listbox")).not.toHaveAttribute("data-testid");
+    expect(screen.getAllByRole("option")[0]).not.toHaveAttribute("data-testid");
+  });
+
+  it("aria-errormessage is set only while invalid", () => {
+    const { rerender } = render(
+      <TimezoneCombobox value="" onValueChange={vi.fn()} invalid aria-errormessage="e1" />,
+    );
+    const input = screen.getByRole("combobox");
+    expect(input).toHaveAttribute("aria-errormessage", "e1");
+    rerender(<TimezoneCombobox value="" onValueChange={vi.fn()} aria-errormessage="e1" />);
+    expect(input).not.toHaveAttribute("aria-errormessage");
+  });
+
+  it("focus alone does not open the list; click and ArrowDown do", () => {
+    render(<TimezoneCombobox value="UTC" onValueChange={vi.fn()} />);
+    const input = screen.getByRole("combobox");
+    fireEvent.focus(input);
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    expect(input).toHaveAttribute("aria-expanded", "false");
+    fireEvent.click(input);
+    expect(screen.getByRole("listbox")).toBeInTheDocument();
+    fireEvent.keyDown(input, { key: "Escape" });
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    expect(screen.getByRole("listbox")).toBeInTheDocument();
+  });
 });
