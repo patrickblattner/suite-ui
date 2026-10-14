@@ -443,6 +443,21 @@ describe("RowActions busy (SUI-FEATURE-072)", () => {
     expect(sendAda).not.toHaveBeenCalled();
   });
 
+  it.each(["Enter", " "])(
+    "AC1: %j on the focused busy button does not run it; aria-keyshortcuts stays",
+    (key) => {
+      const { sendAda } = renderRows();
+      const send = screen.getByRole("button", { name: "Send Ada" });
+      send.focus();
+      fireEvent.keyDown(send, { key });
+      fireEvent.keyUp(send, { key });
+      // The browser activates a focused button on Enter/Space with a click; the locked button drops it.
+      fireEvent.click(send, { detail: 0 });
+      expect(sendAda).not.toHaveBeenCalled();
+      expect(send).toHaveAttribute("aria-keyshortcuts", "Control+Enter");
+    },
+  );
+
   it("AC2: edit, delete and the other extras of the row stay operable; the same action elsewhere runs", () => {
     const { sendBob, copyAda, editAda, deleteAda } = renderRows();
     fireEvent.click(screen.getByRole("button", { name: "Copy Ada" }));
