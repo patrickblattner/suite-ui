@@ -264,3 +264,5 @@
 {"ts":"2026-10-13T15:55:26.661Z","key":"SUI-FEATURE-070","from":4,"to":5,"disposition":"ticket","ref":"121"}
 {"ts":"2026-10-13T17:53:14.653Z","key":"GL-UI-027","from":13,"to":14,"disposition":"editorial","ref":"rev 14 sharpens Checkbox/Switch examples (task done, live preview is no effect); package ships both primitives, only built-in Switch (secret card Active) already conforms — app-side usage choice, no package impact"}
 {"ts":"2026-10-13T18:48:49.940Z","key":"SUI-FEATURE-004","from":2,"to":3,"disposition":"ticket","ref":"122"}
+{"ts":"2026-10-14T06:25:46.484Z","key":"PROC-CC-012","from":7,"to":8,"disposition":"editorial","ref":"Overmind night-watch process rule (rot-2x forwarding); no code impact on the suite-ui package"}
+{"ts":"2026-10-14T06:25:53.026Z","key":"PROC-DEV-031","from":15,"to":17,"disposition":"editorial","ref":"Harness stop-semantics clarification (rot-2x/unerwartet only lifted by owner or Overmind night watch); worker-harness behavior, no suite-ui code impact"}
