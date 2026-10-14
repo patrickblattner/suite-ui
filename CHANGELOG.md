@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.88.0 — SUI-FEATURE-005 rev 2 (#128): LabelWithHelp and RadioGroup follow the field canon
+
+Not breaking. Two defaults change; apps drop their shims on the pin bump.
+
+- `LabelWithHelp`: the label is `text-sm font-medium` and has no outer margin any more (`mb-1` dropped). The field container sets the 8 px to the field (`gap-2`); an app override of `mb-0`/`font-medium` is no longer needed.
+- `RadioGroup`: the options stand 8 px apart (`gap-2`) instead of 12 px (`gap-3`); an app override to `gap-2` is no longer needed.
+- `SettingsField`, `SettingsToggleField`: their own overrides of both defaults removed; layout unchanged.
+
 ## 0.87.0 — SUI-FEATURE-080 rev 2 (#127): Cancel in the delete dialog is always "Cancel"
 
 Breaking for callers that pass `cancelLabel`: it no longer compiles.

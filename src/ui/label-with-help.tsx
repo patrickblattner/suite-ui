@@ -18,7 +18,8 @@ function keepClosedOnFocus(event: React.FocusEvent): void {
 // marking (`GL-UI-017`). The label keeps the form of a plain label; the trigger is the text in a span,
 // not the label, so hovering the empty space beside the text of a full-width label opens nothing. The
 // same text is a hidden description under the id `${htmlFor}-help`, outside the label so it never
-// becomes part of the field's name; the field may reference it through `aria-describedby`.
+// becomes part of the field's name; the field may reference it through `aria-describedby`. The label
+// has no outer margin: the field container sets the 8 px to the field (`SUI-FEATURE-005`).
 function LabelWithHelp({
   id,
   htmlFor,
@@ -39,7 +40,7 @@ function LabelWithHelp({
         id={id}
         data-slot="label"
         htmlFor={htmlFor}
-        className={cn("mb-1 block text-sm text-foreground", className)}
+        className={cn("block text-sm font-medium text-foreground", className)}
       >
         <TooltipProvider>
           <TooltipPrimitive.Root>

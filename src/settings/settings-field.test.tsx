@@ -58,13 +58,13 @@ describe("SettingsField", () => {
     expect(group).toContainElement(screen.getByRole("radio", { name: "A" }));
   });
 
-  it("leaves the RadioGroup's own gap outside a field", () => {
+  it("sets the RadioGroup's options 8 px apart outside a field too", () => {
     render(
       <RadioGroup aria-label="Plain">
         <RadioGroupItem value="a" aria-label="A" />
       </RadioGroup>,
     );
-    expect(screen.getByRole("radiogroup", { name: "Plain" })).toHaveClass("gap-3");
+    expect(screen.getByRole("radiogroup", { name: "Plain" })).toHaveClass("gap-2");
   });
 });
 

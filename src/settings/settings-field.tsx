@@ -22,8 +22,7 @@ type SettingsFieldProps = {
 
 // One field of a settings page (`SUI-FEATURE-042`): the label above the input, the help text under it,
 // 8 px apart. The input fills its frame up to 36rem (`short` up to 12rem); label and help text end at
-// 36rem too. With `group` the options stand in a named group 8 px apart, a package RadioGroup in it
-// included; outside a SettingsField the RadioGroup keeps its own gap.
+// 36rem too. With `group` the options stand in a named group 8 px apart, as in a package RadioGroup.
 function SettingsField({
   label,
   htmlFor,
@@ -37,12 +36,7 @@ function SettingsField({
   return (
     <div className="flex flex-col gap-2" data-slot="settings-field">
       {hint !== undefined ? (
-        <LabelWithHelp
-          id={labelId}
-          htmlFor={htmlFor}
-          help={hint}
-          className="mb-0 max-w-xl leading-none font-medium"
-        >
+        <LabelWithHelp id={labelId} htmlFor={htmlFor} help={hint} className="max-w-xl leading-none">
           {label}
         </LabelWithHelp>
       ) : (
@@ -55,7 +49,7 @@ function SettingsField({
           id={htmlFor}
           role="group"
           aria-labelledby={labelId}
-          className="flex w-full max-w-xl flex-col gap-2 [&_[data-slot=radio-group]]:gap-2"
+          className="flex w-full max-w-xl flex-col gap-2"
           data-slot="settings-field-group"
         >
           {children}

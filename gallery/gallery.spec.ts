@@ -1691,6 +1691,19 @@ test("label with help: the text opens the help, the space beside it does not", a
   await expect(page.getByRole("tooltip")).toHaveText("The name shown in lists");
 });
 
+// `SUI-FEATURE-005` AC1: the label in 14 px at weight 500 without a margin, 8 px above the field.
+test("label with help: 14 px at weight 500, 8 px to the field", async ({ page }) => {
+  await page.goto("/?page=components");
+  const label = page.locator("label[for=input-filled]");
+  const style = await label.evaluate((el) => {
+    const s = getComputedStyle(el);
+    return [s.fontSize, s.fontWeight, s.marginBottom];
+  });
+  expect(style).toEqual(["14px", "500", "0px"]);
+  const [above, field] = [await box(label), await box(page.locator("#input-filled"))];
+  expect(Math.abs(field.y - (above.y + above.height) - 8)).toBeLessThanOrEqual(1);
+});
+
 // `GL-UI-026`: the left column is half the content width, and nothing stands between the subtitle
 // and the form.
 test("settings: left column at half width, form directly under the subtitle", async ({ page }) => {
@@ -2374,7 +2387,7 @@ for (const [column, text, short] of [
 }
 
 // SUI-FEATURE-042 AC4: `group` is a group named by the label, its options 8 px apart, a package
-// RadioGroup in it included; a RadioGroup outside keeps its 12 px gap.
+// RadioGroup in it included; a RadioGroup outside stands 8 px apart too (`SUI-FEATURE-005` AC2).
 test("settings field: option groups named by the label, options 8 px apart", async ({ page }) => {
   await page.goto("/?page=settings&layout=fields");
   const gap = async (prefix: string) => {
@@ -2393,7 +2406,7 @@ test("settings field: option groups named by the label, options 8 px apart", asy
     await expect(group.getByTestId(`${prefix}-a`)).toBeVisible();
     expect(Math.abs((await gap(prefix)) - 8)).toBeLessThanOrEqual(1);
   }
-  expect(Math.abs((await gap("outside")) - 12)).toBeLessThanOrEqual(1);
+  expect(Math.abs((await gap("outside")) - 8)).toBeLessThanOrEqual(1);
 });
 
 // SUI-FEATURE-042 AC5: the section title is an h2 in 16 px at weight 600, the divider lies between

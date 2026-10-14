@@ -55,10 +55,10 @@ describe("LabelWithHelp", () => {
     expect(hover(label, 2000)).toBe(false);
   });
 
-  it("keeps exactly the classes of a plain label, no marking, and the help outside it", () => {
+  it("keeps exactly the classes of a plain label, no margin, no marking, and the help outside it", () => {
     const { label, text } = renderLabel();
     expect(label.className.split(" ").sort()).toEqual(
-      ["block", "mb-1", "text-foreground", "text-sm", "w-full"].sort(),
+      ["block", "font-medium", "text-foreground", "text-sm", "w-full"].sort(),
     );
     expect(text.tagName).toBe("SPAN");
     expect(text).not.toHaveAttribute("class");

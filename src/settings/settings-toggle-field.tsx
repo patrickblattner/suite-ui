@@ -29,7 +29,7 @@ function SettingsToggleField({ label, htmlFor, hint, help, children }: SettingsT
         {children}
       </div>
       {hint !== undefined ? (
-        <LabelWithHelp htmlFor={htmlFor} help={hint} className="mb-0 leading-none font-medium">
+        <LabelWithHelp htmlFor={htmlFor} help={hint} className="leading-none">
           {label}
         </LabelWithHelp>
       ) : (
