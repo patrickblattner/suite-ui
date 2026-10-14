@@ -30,8 +30,6 @@ type ConfirmDeleteDialogProps = {
   description: string;
   // For a destructive confirm that is not a plain delete; defaults to "Delete".
   confirmLabel?: string;
-  // Where "Cancel" would be ambiguous next to the action; defaults to "Cancel".
-  cancelLabel?: string;
   // Already translated hint on the delete button, replacing the shared "Deletes for good" one, where
   // deleting goes to a restorable trash or has a further consequence (`GL-UI-017`).
   confirmHint?: string;
@@ -61,7 +59,6 @@ function ConfirmDeleteDialog({
   object,
   description,
   confirmLabel,
-  cancelLabel,
   confirmHint,
   busy = false,
   confirmDisabled = false,
@@ -127,7 +124,7 @@ function ConfirmDeleteDialog({
               onClick={() => onOpenChange(false)}
               data-testid={testId !== undefined ? `${testId}-cancel` : undefined}
             >
-              {cancelLabel ?? t("actions.cancel")}
+              {t("actions.cancel")}
             </Button>
           </Hint>
           <Hint

@@ -147,4 +147,10 @@ describe("ConfirmDeleteDialog", () => {
     fireEvent.click(confirm);
     expect(onConfirm).toHaveBeenCalledTimes(1);
   });
+
+  it("Cancel always shows the package text; cancelLabel no longer exists", () => {
+    // @ts-expect-error -- cancelLabel was removed (SUI-FEATURE-080)
+    renderDialog({ cancelLabel: "Keep" });
+    expect(screen.getByTestId("confirm-cancel")).toHaveTextContent("Cancel");
+  });
 });

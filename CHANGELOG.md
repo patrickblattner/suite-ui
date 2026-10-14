@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.87.0 — SUI-FEATURE-080 rev 2 (#127): Cancel in the delete dialog is always "Cancel"
+
+Breaking for callers that pass `cancelLabel`: it no longer compiles.
+
+- `ConfirmDeleteDialog`: `cancelLabel` removed; Cancel always shows the package text (`actions.cancel`).
+
 ## 0.86.0 — SUI-FEATURE-074 rev 2 (#126): an icon button's hint opens on hover only
 
 Not breaking.
