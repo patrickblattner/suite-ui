@@ -160,7 +160,9 @@ function uniqueIds(describedBy: string | undefined): string | undefined {
 // (`GL-UI-006`). `aria-keyshortcuts` names every variant. While the control is `disabled`, `disabledText` (the condition under which it
 // becomes usable) takes the place of `label`; a disabled control takes no pointer events, so it then
 // sits in a span that is the trigger, focusable and the owner of the description. The span stands
-// either way, so toggling `disabled` never remounts it.
+// either way, so toggling `disabled` never remounts it. A control that declares `busy` sits in that
+// span as well: while it runs it is locked, and its hint, still `label`, opens on hover over the span
+// (`SUI-FEATURE-072`).
 function IconButtonTooltip({
   label,
   shortcut,
@@ -172,6 +174,7 @@ function IconButtonTooltip({
   disabledText?: string | undefined;
   children: React.ReactElement<{
     disabled?: boolean;
+    busy?: boolean;
     "aria-label"?: string;
     "aria-describedby"?: string | undefined;
     "aria-keyshortcuts"?: string | undefined;
@@ -196,7 +199,7 @@ function IconButtonTooltip({
   });
   const disabled = disabledText !== undefined && children.props.disabled === true;
   const trigger =
-    disabledText === undefined ? (
+    disabledText === undefined && !("busy" in children.props) ? (
       control
     ) : (
       <span

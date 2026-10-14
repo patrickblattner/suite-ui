@@ -589,6 +589,30 @@ describe("PreviewToolbar in a narrow column (SUI-FEATURE-067)", () => {
     expect(within(menu).getByRole("menuitem", { name: "Delete" })).toHaveAttribute("data-disabled");
   });
 
+  it("SUI-FEATURE-072 AC3: the row's running action shows the same state; folded, its entry is locked", () => {
+    const onClick = vi.fn();
+    const running: RowActionSet = {
+      ...ENTRY,
+      extra: [{ label: "Copy", icon: CopyIcon, onClick, busy: true }],
+    };
+    render(<PreviewToolbar {...FULL} actions={running} />);
+    const copy = within(screen.getByTestId("preview-actions")).getByRole("button", {
+      name: "Copy Home",
+    });
+    expect(copy).toHaveAttribute("aria-busy", "true");
+    expect(within(copy).getByTestId("button-loading")).toBeInTheDocument();
+    fireEvent.click(copy);
+    resize(320);
+    expect(toolbar()).toHaveAttribute("data-shrink", "2");
+    const trigger = within(screen.getByTestId("preview-actions")).getByTestId("row-menu");
+    trigger.focus();
+    fireEvent.keyDown(trigger, { key: "Enter" });
+    const entry = within(screen.getByRole("menu")).getByRole("menuitem", { name: "Copy" });
+    expect(entry).toHaveAttribute("data-disabled");
+    fireEvent.click(entry);
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
   it("keeps the device switch beside Close when nothing else would stand there", () => {
     render(<PreviewToolbar {...FULL} maximize={undefined} actions={undefined} />);
     resize(20);

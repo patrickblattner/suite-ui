@@ -382,6 +382,89 @@ describe("RowActions Used by (SUI-FEATURE-004)", () => {
   });
 });
 
+describe("RowActions busy (SUI-FEATURE-072)", () => {
+  afterEach(async () => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    await i18n.changeLanguage("en");
+  });
+
+  // Two rows with the same "Send" action; it runs in Ada's row only.
+  function renderRows() {
+    const sendAda = vi.fn();
+    const sendBob = vi.fn();
+    const copyAda = vi.fn();
+    const editAda = vi.fn();
+    const deleteAda = vi.fn();
+    render(
+      <Table>
+        <TableBody>
+          <TableRow>
+            <RowActions
+              rowName="Ada"
+              extra={[
+                { label: "Copy", icon: CopyIcon, onClick: copyAda },
+                {
+                  label: "Send",
+                  icon: DownloadIcon,
+                  onClick: sendAda,
+                  busy: true,
+                  shortcut: ["Ctrl+Enter"],
+                },
+              ]}
+              onEdit={editAda}
+              onDelete={deleteAda}
+            />
+          </TableRow>
+          <TableRow>
+            <RowActions
+              rowName="Bob"
+              extra={[{ label: "Send", icon: DownloadIcon, onClick: sendBob, busy: false }]}
+            />
+          </TableRow>
+        </TableBody>
+      </Table>,
+    );
+    return { sendAda, sendBob, copyAda, editAda, deleteAda };
+  }
+
+  it("AC1: shows the working state, aria-busy, full colour; click, double click and shortcut do not run it", () => {
+    const { sendAda } = renderRows();
+    const send = screen.getByRole("button", { name: "Send Ada" });
+    expect(within(send).getByTestId("button-loading")).toBeInTheDocument();
+    expect(send).toHaveAttribute("aria-busy", "true");
+    expect(send).toHaveClass("disabled:opacity-100");
+    expect(send).toHaveAttribute("aria-keyshortcuts", "Control+Enter");
+    fireEvent.click(send);
+    fireEvent.click(send, { detail: 2 });
+    fireEvent.dblClick(send);
+    // A shortcut dispatcher activates the button it names; the locked button drops it.
+    send.click();
+    expect(sendAda).not.toHaveBeenCalled();
+  });
+
+  it("AC2: edit, delete and the other extras of the row stay operable; the same action elsewhere runs", () => {
+    const { sendBob, copyAda, editAda, deleteAda } = renderRows();
+    fireEvent.click(screen.getByRole("button", { name: "Copy Ada" }));
+    fireEvent.click(screen.getByRole("button", { name: "Edit Ada" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete Ada" }));
+    const sendOther = screen.getByRole("button", { name: "Send Bob" });
+    expect(sendOther).not.toHaveAttribute("aria-busy");
+    fireEvent.click(sendOther);
+    expect([copyAda, editAda, deleteAda, sendBob].map((fn) => fn.mock.calls.length)).toEqual([
+      1, 1, 1, 1,
+    ]);
+  });
+
+  it("AC4: name and hint stay ‹label› ‹rowName›", () => {
+    renderRows();
+    const send = screen.getByRole("button", { name: "Send Ada" });
+    expect(send).toHaveAttribute("aria-label", "Send Ada");
+    // Locked while it runs, the button sits in a span that opens the hint on hover.
+    expect(hintOf(send.parentElement as HTMLElement).hover1500).toMatch(/^Send Ada/);
+  });
+});
+
 describe("EmptyCell (SUI-FEATURE-047)", () => {
   afterEach(async () => {
     await i18n.changeLanguage("en");

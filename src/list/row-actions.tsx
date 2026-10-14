@@ -16,12 +16,15 @@ import { IconButtonTooltip } from "../ui/tooltip.js";
 import { DELETE_SHORTCUT } from "../ui/use-edit-shortcuts.js";
 
 // One action of a row. `label` is the verb; the name and the hint read "‹label› ‹rowName›". With
-// `disabledText` the action is locked and its hint names the reason.
+// `disabledText` the action is locked and its hint names the reason. With `busy` the action is running
+// (`SUI-FEATURE-072`): the `Button` working state and its lock, for this action in this row only; name
+// and hint stay "‹label› ‹rowName›".
 type RowAction = {
   label: string;
   icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
   onClick: () => void;
   disabledText?: string;
+  busy?: boolean;
   shortcut?: readonly string[];
   "data-testid"?: string;
 };
@@ -90,6 +93,7 @@ function RowActionButton({
         variant={variant}
         size={size}
         disabled={locked}
+        {...(action.busy === undefined ? {} : { busy: action.busy })}
         onClick={action.onClick}
         data-testid={action["data-testid"]}
       >

@@ -71,7 +71,8 @@ function PreviewActions({
     ...(set.extra ?? []).map((action) => ({
       label: action.label,
       onSelect: action.onClick,
-      disabled: action.disabledText !== undefined,
+      // `SUI-FEATURE-072`: a running action's folded entry is locked while it runs.
+      disabled: action.disabledText !== undefined || action.busy === true,
       hint: action.disabledText ?? `${action.label} ${set.rowName}`,
     })),
   ];

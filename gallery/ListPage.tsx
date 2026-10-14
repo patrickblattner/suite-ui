@@ -268,7 +268,10 @@ export function ListPage() {
                 <TableCell>{NOTE}</TableCell>
                 <RowActions
                   rowName={`${labels.event} ${row.id}`}
-                  extra={[{ label: labels.copy, icon: CopyIcon, onClick: () => {} }]}
+                  // `SUI-FEATURE-072`: the second row's copy is running.
+                  extra={[
+                    { label: labels.copy, icon: CopyIcon, onClick: () => {}, busy: row.id === 2 },
+                  ]}
                   onEdit={() => {}}
                   onDelete={() => {}}
                   {...(row.id === 1 ? { deleteDisabledText: labels.inUse } : {})}

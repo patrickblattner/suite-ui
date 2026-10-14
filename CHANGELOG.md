@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.84.0 — SUI-FEATURE-072 rev 2 (#123): a row action can be running
+
+Not breaking.
+
+- `RowAction`: `busy?: boolean`. A running action shows the `Button` working state in full colour with `aria-busy` and is locked against a second click, a double click and activation through its shortcut; for this action in this row only, the other actions stay operable.
+- `PreviewToolbar`: the selected row's running action shows the same state; folded into ⋯, its entry is locked while it runs.
+- `IconButtonTooltip`: a control that declares `busy` sits in a span trigger, so its hint, still "‹label› ‹rowName›", opens on hover while it is locked.
+- Gallery: on the list with `?actions=1` the second row's copy is running.
+
 ## 0.83.0 — SUI-FEATURE-004 rev 3 (#122): the usage table shows domain states
 
 Not breaking.
