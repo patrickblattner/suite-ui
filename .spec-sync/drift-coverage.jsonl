@@ -296,3 +296,5 @@
 {"ts":"2026-10-14T07:48:14.690Z","key":"SUI-FEATURE-072","from":2,"to":3,"disposition":"ticket","ref":"124"}
 {"ts":"2026-10-14T16:11:11.412Z","key":"SUI-FEATURE-073","from":null,"to":2,"disposition":"ticket","ref":"125"}
 {"ts":"2026-10-14T17:41:03.043Z","key":"SUI-FEATURE-074","from":null,"to":2,"disposition":"ticket","ref":"126"}
+{"ts":"2026-10-14T17:54:36.726Z","key":"SUI-FEATURE-074","from":2,"to":3,"disposition":"editorial","ref":"rev 3 AC5 codifies test delta already shipped in #126 (f846f80: filter-bar, table-pagination, row-actions assert no focus bubble + aria text)"}
+{"ts":"2026-10-14T17:55:39.278Z","key":"GL-UI-002","from":12,"to":13,"disposition":"editorial","ref":"rev 13 aligns media detail view with SUI-FEATURE-004 (Used-by button in preview header, UsageTable, no right-column list) — already built in suite-ui; language in title is app-supplied; remaining change is app-side"}
