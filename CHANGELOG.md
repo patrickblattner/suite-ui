@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.98.0 — #150, SUI-FEATURE-120 rev 3 and GL-UI-050 rev 5: a running button keeps the focus
+
+Changed for apps: `busy` no longer sets the `disabled` attribute. A running `Button` carries `aria-disabled="true"` and `aria-busy="true"` and stays focusable. App tests that check `disabled` (`toBeDisabled`) on a running button switch to `aria-disabled` plus the trigger guard. In Playwright, `toBeDisabled()` also counts `aria-disabled`, while `not.toHaveAttribute("disabled")` tells the two apart. New: `useFocusAfterRun` in `focus-return`.
+
+- `Button busy`: the lock is a trigger guard. A click, `Enter` and `Space` (both click a button) and the implicit submit of a surrounding form (a click on its submit button) are cancelled. The button takes no pointer events, so the look is unchanged: full colour, the working sign, no hover, and the hint of a wrapping `IconButtonTooltip` behaves as before. The focus stays on the button for the whole run and after it, unless the button disappears. Real locks (`disabled`, with a reason) stay as they were. The repeat-click guard stays.
+- Applies to every component that passes `busy` through: `RowActions` (an extra action), `PageHeader` add, `SettingsFooter`, `SettingsActionRow`, `EditPanel`, `EditorHeader`, `ConfirmDeleteDialog`, `MediaDetailShell`, `RestoreDefaultsButton`, `SecretCardHeader`, `DrawerRail`.
+- A Save that locks itself as its run ends (the form is clean) hands the focus on (`GL-UI-050`), never to `<body>`. `SettingsFooter` and `SettingsActionRow` hand it to the next usable control of their row, else the page's main content. `MediaDetailShell` hands it to the next usable control of its footer, else the first field of the details. `EditorHeader` already did this. Their rows carry `data-focus-group`.
+- Gallery: a check that a running Save keeps the focus, that `Enter`, `Space`, a click and the form's implicit submit start no second run, and that the focus lands on the main content, not the body, once Save locks. The edit panel and media detail checks assert the focus too.
+
 ## 0.97.0 — #149, SUI-FEATURE-111 rev 2: EditPanel next step without the save symbol
 
 Not breaking. New: `EditPanel submitKind?: "save" | "next"`, default `"save"`. Without it the panel is unchanged.

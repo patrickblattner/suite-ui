@@ -142,11 +142,43 @@ describe("MediaDetailShell", () => {
     const { onSave, onClose } = renderShell({ dirty: true, saving: true });
     const save = screen.getByTestId("media-detail-save");
     expect(save).toHaveAttribute("data-busy", "true");
-    expect(save).toBeDisabled();
+    // SUI-FEATURE-120: aria-disabled and the click guard, so Save keeps the focus.
+    expect(save).toHaveAttribute("aria-disabled", "true");
+    expect(save).toBeEnabled();
+    fireEvent.click(save);
     fireEvent.submit(screen.getByLabelText("Name"));
     fireEvent.keyDown(panel(), { key: "Escape" });
     expect(onSave).not.toHaveBeenCalled();
     expect(onClose).not.toHaveBeenCalled();
+  });
+
+  // SUI-FEATURE-120 rev 3 AC1: Save keeps the focus while it runs; locked at the end, it hands it on.
+  it("a save that ends with nothing to save hands the focus to the first field, never the body", () => {
+    const shell = (dirty: boolean, saving: boolean) => (
+      <MediaDetailShell
+        position={3}
+        total={65}
+        kind="image"
+        src="data:,"
+        alt="team-photo.jpg"
+        dirty={dirty}
+        saving={saving}
+        fields={<Input aria-label="Name" />}
+        onPrev={vi.fn()}
+        onNext={vi.fn()}
+        onClose={vi.fn()}
+        onSave={vi.fn()}
+        onReset={vi.fn()}
+      />
+    );
+    const { rerender } = render(shell(true, false));
+    const save = screen.getByTestId("media-detail-save");
+    save.focus();
+    rerender(shell(true, true));
+    expect(save).toHaveFocus();
+    rerender(shell(false, false));
+    expect(save).toBeDisabled();
+    expect(screen.getByLabelText("Name")).toHaveFocus();
   });
 
   it("footer: Reset directly before Save, right-aligned, no Cancel", () => {

@@ -53,12 +53,17 @@ type ButtonProps = React.ComponentProps<"button"> &
   ({ variant: ButtonVariant; size: ButtonSize } | { variant: "link"; size: "inline" }) & {
     asChild?: boolean;
     // The action is running and must not run twice (`GL-UI-027`): the working state in the full colour
-    // of the variant, and a real lock against a second trigger.
+    // of the variant, and a lock against a second trigger that keeps the focus (`SUI-FEATURE-120`).
     busy?: boolean;
     // Only the working state, without the lock.
     loading?: boolean;
   };
 
+// A running button stays focusable (`GL-UI-050`, `SUI-FEATURE-120`): `busy` locks it with
+// `aria-disabled`, never the `disabled` attribute, which would drop the focus to `<body>` for the run.
+// The lock itself is the click guard: a click, `Enter` and `Space` (both click a button) and the
+// implicit submit of a surrounding form (a click on its submit button) are cancelled, and the button
+// takes no pointer events, so it shows no hover and the hint of a wrapping trigger stays as before.
 // The rendered lock alone does not hold against a real double-click: the second click of a burst is
 // dispatched before React renders the first one's busy state. A button that declares `busy` therefore
 // also drops every click the browser marks as a repeat (`event.detail > 1`): a double-click is one
@@ -89,17 +94,21 @@ function Button(props: ButtonProps) {
       data-size={size}
       {...(disabled !== undefined ? { disabled } : {})}
       {...(working ? { "data-busy": "true", "aria-busy": true } : {})}
-      // Last, so it wins over an explicit `disabled={false}`: the lock is the prop.
-      {...(locked ? { disabled: true } : {})}
+      {...(locked ? { "aria-disabled": true } : {})}
       className={cn(
         buttonVariants({ variant, size }),
         className,
         working && "[&_svg:not([data-slot=busy])]:hidden",
-        // "Runs" and "does not work" never share a look: the same utility keys as the base class's
-        // disabled dimming, so tailwind-merge drops it and the busy button keeps its full colour.
-        locked && "disabled:cursor-progress disabled:opacity-100",
+        // "Runs" and "does not work" never share a look: should a running button also be `disabled`,
+        // the same utility keys as the base class's dimming let tailwind-merge drop it, so the busy
+        // button keeps its full colour.
+        locked && "pointer-events-none disabled:cursor-progress disabled:opacity-100",
       )}
       onClick={(event: React.MouseEvent<HTMLButtonElement>) => {
+        if (locked) {
+          event.preventDefault();
+          return;
+        }
         if (guardsRepeatClick && event.detail > 1) return;
         onClick?.(event);
       }}

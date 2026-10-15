@@ -1616,8 +1616,11 @@ test("media detail shell: Reset and Save follow the dirty state", async ({ page 
   await save.click();
   await expect(save).toHaveAttribute("data-busy", "true");
   await expect(save).toHaveCSS("opacity", "1");
+  await expect(save).toBeFocused();
   await expect(save).toBeDisabled({ timeout: 5000 });
   await expect(save).not.toHaveAttribute("data-busy");
+  // SUI-FEATURE-120: locked at the end, Save hands the focus to the first field.
+  await expect(shell.getByLabel("Name")).toBeFocused();
 });
 
 // `SUI-FEATURE-061` AC 4: side by side from `panel-split`, the preview stacked on top below it.
@@ -2629,7 +2632,9 @@ test("edit panel: busy locks the primary action and keeps the panel open", async
   const submit = page.getByTestId("edit-panel-submit");
   await submit.click();
   await expect(submit).toHaveAttribute("data-busy", "true");
-  await expect(submit).toBeDisabled();
+  // SUI-FEATURE-120: locked by aria-disabled and the click guard; the running button keeps the focus.
+  await expect(submit).toHaveAttribute("aria-disabled", "true");
+  await expect(submit).toBeFocused();
   await expect(submit).toHaveCSS("opacity", "1");
   await page.keyboard.press("Escape");
   await expect(panel).toBeVisible();
@@ -4964,4 +4969,38 @@ test("edit panel: a next step shows its text, then an arrow, never the save symb
   expect((await box(next)).height).toBe(36);
   await next.click();
   await expect(page.getByTestId("next-panel")).toBeHidden();
+});
+
+// `SUI-FEATURE-120`, `GL-UI-050` §laufende Aktion: a running Save keeps the focus, and neither
+// `Enter`, `Space` nor a click nor the form's implicit submit starts a second run.
+test("busy keeps the focus: Enter, Space, a click and the form's submit start nothing", async ({
+  page,
+}) => {
+  await page.goto("/?page=settings&lng=en");
+  const save = page.getByTestId("settings-general-save");
+  const field = page.getByTestId("settings-field-1");
+  await field.fill("changed");
+  await save.focus();
+  await page.keyboard.press("Enter");
+  await expect(save).toHaveAttribute("aria-busy", "true");
+  await expect(save).toHaveAttribute("aria-disabled", "true");
+  await expect(save).not.toHaveAttribute("disabled");
+  await expect(save).toBeFocused();
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Space");
+  await save.click({ force: true });
+  await field.press("Enter");
+  await save.focus();
+  await expect(save).toBeFocused();
+  // One save of 1.5 s: a second run would turn the button busy again after the first ends.
+  await expect(save).not.toHaveAttribute("aria-busy", { timeout: 5000 });
+  await page.waitForTimeout(500);
+  await expect(save).not.toHaveAttribute("aria-busy");
+  // The clean form locks Save: the focus moves on to the page's main content, never to the body.
+  await expect(save).toBeDisabled();
+  const focused = await page.evaluate(() => {
+    const active = document.activeElement;
+    return active === null || active === document.body ? "body" : active.tagName.toLowerCase();
+  });
+  expect(focused).not.toBe("body");
 });

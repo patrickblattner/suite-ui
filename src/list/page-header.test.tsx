@@ -54,7 +54,9 @@ describe("PageHeader", () => {
     );
     const add = screen.getByTestId("page-add");
     expect(add).toHaveAttribute("aria-busy", "true");
-    expect(add).toBeDisabled();
+    // SUI-FEATURE-120: locked by aria-disabled and the click guard, never `disabled`, so it keeps focus.
+    expect(add).toHaveAttribute("aria-disabled", "true");
+    expect(add).toBeEnabled();
     expect(screen.getByTestId("button-loading")).toBeInTheDocument();
     expect(add.querySelector("svg:not([data-slot=busy])")).toHaveAttribute("aria-hidden", "true");
     expect(add).toHaveClass("[&_svg:not([data-slot=busy])]:hidden");
@@ -156,18 +158,22 @@ describe("PageHeader", () => {
   // SUI-FEATURE-045 AC4: busy locks only its own entry.
   it("locks only the busy entry of a pair", () => {
     const first = vi.fn();
+    const second = vi.fn();
     render(
       <PageHeader
         title="Users"
         subtitle="Every user."
         add={[
           { label: "Add user", onClick: first },
-          { label: "Add group", onClick: () => {}, busy: true },
+          { label: "Add group", onClick: second, busy: true },
         ]}
       />,
     );
-    expect(screen.getByTestId("page-add-secondary")).toHaveAttribute("aria-busy", "true");
-    expect(screen.getByTestId("page-add-secondary")).toBeDisabled();
+    const secondary = screen.getByTestId("page-add-secondary");
+    expect(secondary).toHaveAttribute("aria-busy", "true");
+    expect(secondary).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(secondary);
+    expect(second).not.toHaveBeenCalled();
     const primary = screen.getByTestId("page-add");
     expect(primary).toBeEnabled();
     expect(primary).not.toHaveAttribute("aria-busy");

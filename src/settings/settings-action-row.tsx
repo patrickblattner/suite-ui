@@ -25,7 +25,7 @@ function SettingsActionRow({
   testIdPrefix,
 }: SettingsActionRowProps) {
   return (
-    <div className="flex justify-end gap-2" data-slot="settings-action-row">
+    <div className="flex justify-end gap-2" data-focus-group="" data-slot="settings-action-row">
       <SaveResetButtons
         stem={testIdPrefix}
         dirty={dirty}
