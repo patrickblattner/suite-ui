@@ -2104,6 +2104,36 @@ test("shell: one character searches nothing, Esc returns to the sidebar field", 
   await expect(page.getByTestId("page-title")).toHaveText("Dashboard");
 });
 
+// `GL-UI-050` (#145): the search dialog closed by its × hands the focus back to the sidebar field
+// without reopening; opened by the shortcut, Esc returns it to the control that had it.
+test("shell: closing the search returns the focus, by × and after the shortcut", async ({
+  page,
+}) => {
+  await page.goto("/?page=shell&lng=en");
+  const field = page.getByTestId("shell-search");
+  const dialog = page.getByTestId("search-dialog");
+  await field.click();
+  await expect(dialog).toBeVisible();
+  const close = dialog.getByRole("button", { name: "Close" });
+  for (let i = 0; i < 10 && !(await close.evaluate((node) => node === document.activeElement)); i++)
+    await page.keyboard.press("Tab");
+  await expect(close).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(dialog).toHaveCount(0);
+  await expect(field).toBeFocused();
+  await page.waitForTimeout(300);
+  await expect(dialog).toHaveCount(0);
+
+  const link = page.getByTestId("app-sidebar").getByRole("link").first();
+  await link.focus();
+  await page.keyboard.press("ControlOrMeta+k");
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(link).toBeFocused();
+  expect(await page.evaluate(() => document.activeElement === document.body)).toBe(false);
+});
+
 test("shell: the shortcut opens the search from a section route", async ({ page }) => {
   await page.goto("/?page=shell&route=/admin/users");
   await expect(page.getByTestId("app-sidebar")).toBeVisible();

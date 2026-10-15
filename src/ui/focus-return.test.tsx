@@ -1,8 +1,9 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { Button } from "./button.js";
+import { ConfirmDeleteDialog } from "./confirm-delete-dialog.js";
 import {
   Dialog,
   DialogContent,
@@ -257,7 +258,234 @@ describe("focus return after a dialog (GL-UI-050)", () => {
       else fireEvent.click(await screen.findByTestId(close));
       await waitFor(() => expect(screen.queryByTestId("dialog")).toBeNull());
       expect(document.activeElement).not.toBe(document.body);
-      if (close === "confirm") break;
     }
+  });
+
+  // A dialog opened by `onOpen` from anything, closed by its Cancel; `onClose` runs on Cancel first.
+  function Plain({
+    children,
+    onClose,
+    returnFocus,
+    onCloseAutoFocus,
+  }: {
+    children: (open: () => void) => React.ReactNode;
+    onClose?: () => void;
+    returnFocus?: () => HTMLElement | null;
+    onCloseAutoFocus?: (event: Event) => void;
+  }) {
+    const [isOpen, setOpen] = useState(false);
+    return (
+      <main>
+        {children(() => setOpen(true))}
+        <input aria-label="Other field" data-testid="other-field" />
+        <Dialog open={isOpen} onOpenChange={setOpen}>
+          <DialogContent
+            data-testid="dialog"
+            {...(returnFocus === undefined ? {} : { returnFocus })}
+            {...(onCloseAutoFocus === undefined ? {} : { onCloseAutoFocus })}
+          >
+            <DialogTitle>Plain</DialogTitle>
+            <DialogDescription>Plain dialog</DialogDescription>
+            <Button
+              variant="outline"
+              size="default"
+              onClick={() => {
+                onClose?.();
+                setOpen(false);
+              }}
+              data-testid="cancel"
+            >
+              Cancel
+            </Button>
+          </DialogContent>
+        </Dialog>
+      </main>
+    );
+  }
+
+  it("a clickable card that cannot take the focus hands it to the main content", async () => {
+    render(
+      <Plain>
+        {(onOpen) => (
+          <div onClick={onOpen} data-testid="card">
+            Card
+          </div>
+        )}
+      </Plain>,
+    );
+    fireEvent.click(screen.getByTestId("card"));
+    fireEvent.click(await screen.findByTestId("cancel"));
+    await waitFor(() => expect(document.querySelector("main")).toHaveFocus());
+  });
+
+  it("opened with nothing focused (a click on a blank spot, then a shortcut): the main content", async () => {
+    function Shortcut({ onOpen }: { onOpen: () => void }) {
+      useEffect(() => {
+        const onKey = (event: KeyboardEvent) => {
+          if (event.key === "k" && event.ctrlKey) onOpen();
+        };
+        document.addEventListener("keydown", onKey);
+        return () => document.removeEventListener("keydown", onKey);
+      }, [onOpen]);
+      return (
+        <p data-testid="blank">
+          Text{" "}
+          <Button variant="outline" size="default" data-testid="earlier">
+            Earlier
+          </Button>
+        </p>
+      );
+    }
+    render(<Plain>{(onOpen) => <Shortcut onOpen={onOpen} />}</Plain>);
+    act(() => screen.getByTestId("earlier").focus());
+    fireEvent.click(screen.getByTestId("blank"));
+    act(() => (document.activeElement as HTMLElement).blur());
+    fireEvent.keyDown(document, { key: "k", ctrlKey: true });
+    fireEvent.click(await screen.findByTestId("cancel"));
+    await waitFor(() => expect(document.querySelector("main")).toHaveFocus());
+    expect(screen.getByTestId("earlier")).not.toHaveFocus();
+  });
+
+  it("main is focusable only while it holds the focus", async () => {
+    render(<Surface before={[{ id: "back", nav: "back" }]} />);
+    open();
+    fireEvent.click(await screen.findByTestId("confirm"));
+    const main = document.querySelector("main")!;
+    await waitFor(() => expect(main).toHaveFocus());
+    act(() => screen.getByTestId("other-field").focus());
+    expect(main).not.toHaveAttribute("tabindex");
+    expect(main).not.toHaveAttribute(FOCUS_FALLBACK_ATTR);
+  });
+
+  it("tier 2 at close: a neighbour the confirm unlocked takes the focus of a trigger that is gone", async () => {
+    function Unlocking() {
+      const [done, setDone] = useState(false);
+      return (
+        <Plain onClose={() => setDone(true)}>
+          {(onOpen) => (
+            <div role="toolbar" aria-label="Tools">
+              <Button variant="outline" size="default" data-testid="prev">
+                Prev
+              </Button>
+              {done ? null : (
+                <Button variant="outline" size="default" onClick={onOpen} data-testid="trigger">
+                  Open
+                </Button>
+              )}
+              <Button variant="outline" size="default" disabled={!done} data-testid="next">
+                Next
+              </Button>
+            </div>
+          )}
+        </Plain>
+      );
+    }
+    render(<Unlocking />);
+    open();
+    fireEvent.click(await screen.findByTestId("cancel"));
+    await waitFor(() => expect(focused()).toBe("next"));
+  });
+
+  it("a trigger a refold swapped for a new node is found again by its test id", async () => {
+    function Refold() {
+      const [generation, setGeneration] = useState(0);
+      return (
+        <Plain onClose={() => setGeneration((n) => n + 1)}>
+          {(onOpen) => (
+            <div role="toolbar" aria-label="Tools">
+              <Button variant="outline" size="default" data-testid="prev">
+                Prev
+              </Button>
+              <Button
+                key={generation}
+                variant="outline"
+                size="default"
+                onClick={onOpen}
+                data-generation={generation}
+                data-testid="trigger"
+              >
+                Open
+              </Button>
+            </div>
+          )}
+        </Plain>
+      );
+    }
+    render(<Refold />);
+    open();
+    fireEvent.click(await screen.findByTestId("cancel"));
+    await waitFor(() => expect(focused()).toBe("trigger"));
+    expect(document.activeElement).toHaveAttribute("data-generation", "1");
+  });
+
+  it("`returnFocus` names the target before the GL-UI-050 order", async () => {
+    render(
+      <Plain returnFocus={() => screen.getByTestId("other-field")}>
+        {(onOpen) => (
+          <Button variant="outline" size="default" onClick={onOpen} data-testid="trigger">
+            Open
+          </Button>
+        )}
+      </Plain>,
+    );
+    open();
+    fireEvent.click(await screen.findByTestId("cancel"));
+    await waitFor(() => expect(focused()).toBe("other-field"));
+  });
+
+  it("an `onCloseAutoFocus` that prevents the default takes over", async () => {
+    render(
+      <Plain
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          screen.getByTestId("other-field").focus();
+        }}
+      >
+        {(onOpen) => (
+          <Button variant="outline" size="default" onClick={onOpen} data-testid="trigger">
+            Open
+          </Button>
+        )}
+      </Plain>,
+    );
+    open();
+    fireEvent.click(await screen.findByTestId("cancel"));
+    await waitFor(() => expect(focused()).toBe("other-field"));
+  });
+
+  it("in a keyboard-grid list the entry wins over a named `returnFocus`", async () => {
+    function Listed() {
+      const [isOpen, setOpen] = useState(false);
+      return (
+        <main>
+          <div data-slot="list-frame">
+            <div data-grid-item="" tabIndex={0} data-testid="entry">
+              Entry
+              <Button
+                variant="destructive"
+                size="icon-xs"
+                onClick={() => setOpen(true)}
+                data-testid="trigger"
+              >
+                ×
+              </Button>
+            </div>
+          </div>
+          <input aria-label="Other field" data-testid="other-field" />
+          <ConfirmDeleteDialog
+            open={isOpen}
+            onOpenChange={setOpen}
+            onConfirm={() => setOpen(false)}
+            description="Gone."
+            returnFocus={() => screen.getByTestId("other-field")}
+            data-testid="confirm-dialog"
+          />
+        </main>
+      );
+    }
+    render(<Listed />);
+    open();
+    fireEvent.click(await screen.findByTestId("confirm-dialog-cancel"));
+    await waitFor(() => expect(focused()).toBe("entry"));
   });
 });

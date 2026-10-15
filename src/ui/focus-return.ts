@@ -66,7 +66,8 @@ function candidates(group: Element): HTMLElement[] {
 type Opener = {
   trigger: HTMLElement;
   group: HTMLElement | null;
-  // The group's controls around the trigger at opening, for a trigger that is gone by the close.
+  // The group's controls around the trigger at opening, locked ones included, for a trigger that is
+  // gone by the close; whether they are usable is decided then (a confirm may unlock one).
   after: HTMLElement[];
   before: HTMLElement[];
   // The list entry and frame the trigger stood in, with the entry's position.
@@ -81,13 +82,16 @@ function triggerOf(active: Element | null): HTMLElement | null {
   const id = menu.getAttribute("aria-labelledby");
   const trigger =
     (id !== null ? document.getElementById(id) : null) ??
-    (menu.id !== "" ? document.querySelector<HTMLElement>(`[aria-controls="${menu.id}"]`) : null);
+    (menu.id !== ""
+      ? document.querySelector<HTMLElement>(`[aria-controls="${CSS.escape(menu.id)}"]`)
+      : null);
   return trigger ?? active;
 }
 
 // The control the person last acted on, by focus or click. A dialog opened from a menu entry finds the
 // focus already on the body (the menu is gone, and hands the focus back to its trigger only later),
-// and a click does not focus a button in every browser (Safari).
+// and a click does not focus a button in every browser (Safari). A click on something that cannot take
+// the focus (a blank spot, a clickable card) forgets it, as the browser drops the focus there too.
 let lastFocus: Element | null = null;
 let tracking = false;
 
@@ -95,12 +99,21 @@ let tracking = false;
 function trackFocus(): void {
   if (tracking || typeof document === "undefined") return;
   tracking = true;
-  const note = (event: Event) => {
-    if (event.target instanceof Element)
-      lastFocus = event.target.closest(CONTROL_SELECTOR) ?? event.target;
-  };
-  document.addEventListener("focusin", note, true);
-  document.addEventListener("click", note, true);
+  document.addEventListener(
+    "focusin",
+    (event) => {
+      if (event.target instanceof Element) lastFocus = event.target;
+    },
+    true,
+  );
+  document.addEventListener(
+    "click",
+    (event) => {
+      if (event.target instanceof Element)
+        lastFocus = event.target.closest(`${CONTROL_SELECTOR}, [tabindex]`);
+    },
+    true,
+  );
 }
 
 /** Notes the opener from the element that has the focus when the dialog opens. */
@@ -115,7 +128,12 @@ function captureOpener(focused: Element | null = document.activeElement): Opener
   // dialog was opened (a key on the entry, a button in it, its ⋯ menu; `GL-UI-050` rev 4).
   const trigger = entryNode && frame ? entryNode : control;
   const group = trigger.closest<HTMLElement>(GROUP_SELECTOR);
-  const around = group === null ? [] : candidates(group).filter((other) => other !== trigger);
+  const around =
+    group === null
+      ? []
+      : [...group.querySelectorAll<HTMLElement>(CONTROL_SELECTOR)].filter(
+          (other) => other !== trigger && !isNavigation(other),
+        );
   return {
     trigger,
     group,
@@ -135,22 +153,21 @@ function captureOpener(focused: Element | null = document.activeElement): Opener
  * usable control stands in.
  */
 function fallbackTarget(group: Element | null, from: Element | null): HTMLElement | null {
-  if (group?.isConnected) {
-    const usable = candidates(group).filter((control) => control !== from);
-    if (from?.isConnected) {
-      const after = usable.find(
-        (control) => from.compareDocumentPosition(control) & Node.DOCUMENT_POSITION_FOLLOWING,
-      );
-      const before = usable.filter(
-        (control) => from.compareDocumentPosition(control) & Node.DOCUMENT_POSITION_PRECEDING,
-      );
-      const target = after ?? before.at(-1);
-      if (target !== undefined) return target;
-    } else if (usable[0] !== undefined) {
-      return usable[0];
-    }
-  }
-  return mainTarget(group ?? from);
+  return groupTarget(group, from) ?? mainTarget(group ?? from);
+}
+
+/** Tier 2: the next usable control of `group` after `from`, then before it; `null` without one. */
+function groupTarget(group: Element | null, from: Element | null): HTMLElement | null {
+  if (!group?.isConnected) return null;
+  const usable = candidates(group).filter((control) => control !== from);
+  if (!from?.isConnected) return usable[0] ?? null;
+  const after = usable.find(
+    (control) => from.compareDocumentPosition(control) & Node.DOCUMENT_POSITION_FOLLOWING,
+  );
+  const before = usable.filter(
+    (control) => from.compareDocumentPosition(control) & Node.DOCUMENT_POSITION_PRECEDING,
+  );
+  return after ?? before.at(-1) ?? null;
 }
 
 /** Tier 3: the app's marked main content, else `main` as a focus target without a tab stop. */
@@ -164,12 +181,35 @@ function mainTarget(near: Element | null): HTMLElement | null {
   if (!main.hasAttribute("tabindex")) {
     main.tabIndex = -1;
     main.setAttribute(FOCUS_FALLBACK_ATTR, "");
+    // Focusable only while it holds the focus: once it loses it, or a press somewhere (a blank spot in
+    // it would focus it again), it is a plain element again and a click there leaves the body focused.
+    const release = () => {
+      main.removeAttribute("tabindex");
+      main.removeAttribute(FOCUS_FALLBACK_ATTR);
+      main.removeEventListener("blur", release);
+      document.removeEventListener("pointerdown", release, true);
+    };
+    main.addEventListener("blur", release);
+    document.addEventListener("pointerdown", release, true);
   }
   return main;
 }
 
-/** Where the focus goes back to on close, in `GL-UI-050`'s order; `null` when nothing qualifies. */
-function returnTarget(opener: Opener): HTMLElement | null {
+/** Focuses `target` and tells whether it took the focus (a node that cannot take it does not). */
+function place(target: HTMLElement | null): boolean {
+  if (target === null) return false;
+  target.focus({ preventScroll: true });
+  return document.activeElement === target;
+}
+
+/**
+ * Returns the focus as `GL-UI-050` says; each tier counts only if its target took the focus, else the
+ * next one is tried. A list entry that is gone hands over to the entry in its place, else the list
+ * frame (`SUI-FEATURE-056`). Without an opener (nothing had the focus) the main content takes it.
+ * Returns whether it placed the focus.
+ */
+function returnFocus(opener: Opener | null): boolean {
+  if (opener === null) return place(mainTarget(null));
   const { group, entry } = opener;
   let { trigger } = opener;
   // A refold may have swapped the trigger for a new node of the same control (`useFoldSteps`).
@@ -177,32 +217,18 @@ function returnTarget(opener: Opener): HTMLElement | null {
   if (!trigger.isConnected && id !== null && group?.isConnected) {
     trigger = group.querySelector<HTMLElement>(`[data-testid="${CSS.escape(id)}"]`) ?? trigger;
   }
-  if (isUsable(trigger)) return trigger;
-  if (trigger.isConnected) return fallbackTarget(group, trigger);
-  if (group?.isConnected) {
+  if (isUsable(trigger) && place(trigger)) return true;
+  if (trigger.isConnected) {
+    if (place(groupTarget(group, trigger))) return true;
+  } else if (group?.isConnected) {
     const after = opener.after.find((control) => isUsable(control));
     const before = opener.before.filter((control) => isUsable(control)).at(-1);
-    return after ?? before ?? fallbackTarget(group, null);
+    if (place(after ?? before ?? groupTarget(group, null))) return true;
+  } else if (entry !== null && entry.frame.isConnected) {
+    focusListEntry(entry.frame, entry.index);
+    if (entry.frame.contains(document.activeElement)) return true;
   }
-  if (entry !== null && entry.frame.isConnected) return null;
-  return mainTarget(null);
-}
-
-/**
- * Returns the focus as `GL-UI-050` says. A list entry that is gone hands over to the entry in its
- * place, else the list frame (`SUI-FEATURE-056`). Returns whether it placed the focus.
- */
-function returnFocus(opener: Opener): boolean {
-  const target = returnTarget(opener);
-  if (target !== null) {
-    target.focus({ preventScroll: true });
-    return true;
-  }
-  if (opener.entry !== null && opener.entry.frame.isConnected) {
-    focusListEntry(opener.entry.frame, opener.entry.index);
-    return true;
-  }
-  return false;
+  return place(mainTarget(group ?? trigger));
 }
 
 export {

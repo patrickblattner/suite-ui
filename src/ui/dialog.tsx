@@ -80,8 +80,9 @@ type DialogContentSizeProps =
 // On close the focus returns as `GL-UI-050` says (`focus-return.ts`): to the trigger (the menu trigger
 // for a dialog opened from a menu), else the next usable control of its group, else the surface's main
 // content; never to a navigation element or the body. A caller that already put the focus somewhere
-// outside the dialog keeps it; `returnFocus` names a trigger of the caller's own, and an
-// `onCloseAutoFocus` that prevents the default takes over completely.
+// outside the dialog keeps it; `returnFocus` names a trigger of the caller's own (not inside a
+// keyboard-grid list, where the entry wins), and an `onCloseAutoFocus` that prevents the default
+// takes over completely.
 function DialogContent({
   className,
   children,
@@ -132,12 +133,15 @@ function DialogContent({
             active !== document.body &&
             active.isConnected &&
             content.current?.contains(active) !== true;
-          const named = kept ? null : returnFocus?.();
-          if (kept) event.preventDefault();
-          else if (named?.isConnected) {
+          if (kept) {
             event.preventDefault();
-            named.focus({ preventScroll: true });
-          } else if (from !== null && restoreFocus(from)) event.preventDefault();
+            return;
+          }
+          // In a list with the keyboard grid the entry wins over a named target (`GL-UI-050` rev 4).
+          const named = from?.entry != null ? null : (returnFocus?.() ?? null);
+          if (named?.isConnected) named.focus({ preventScroll: true });
+          if ((named !== null && document.activeElement === named) || restoreFocus(from))
+            event.preventDefault();
         }}
         {...props}
       >

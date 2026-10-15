@@ -81,9 +81,21 @@ function GlobalSearch({
   const suppressFocusOpen = React.useRef(false);
   const [term, setTerm] = React.useState("");
   const [dialogOpen, setDialogOpen] = React.useState(false);
+  // What had the focus when the dialog opened (the shortcut has no trigger of its own); it gets the
+  // focus back on close (`GL-UI-050`). A chosen hit navigates away and leaves the focus to the page.
+  const previous = React.useRef<HTMLElement | null>(null);
+  const navigating = React.useRef(false);
+
+  const isDialogOpen = React.useRef(false);
 
   const openDialog = React.useCallback((seed?: string) => {
     if (seed !== undefined) setTerm(seed);
+    if (!isDialogOpen.current) {
+      const active = document.activeElement;
+      previous.current = active instanceof HTMLElement && active !== document.body ? active : null;
+      navigating.current = false;
+    }
+    isDialogOpen.current = true;
     setDialogOpen(true);
   }, []);
 
@@ -106,8 +118,24 @@ function GlobalSearch({
   }, [openDialog]);
 
   function closeDialog(): void {
+    isDialogOpen.current = false;
     setDialogOpen(false);
     setTerm("");
+  }
+
+  // Once the dialog has closed: back to what had the focus, else the field, else the rail's button.
+  // The field itself takes the focus without reopening the dialog.
+  function returnFocus(): void {
+    const from = previous.current;
+    previous.current = null;
+    if (navigating.current) return;
+    const usable = (node: HTMLElement | null): node is HTMLElement =>
+      node !== null && node.isConnected && !(node as HTMLButtonElement).disabled;
+    const field = document.querySelector<HTMLElement>("[data-testid=shell-search]");
+    const target = usable(from) ? from : usable(inputRef.current) ? inputRef.current : field;
+    if (target === inputRef.current) suppressFocusOpen.current = true;
+    target?.focus();
+    if (document.activeElement !== target) suppressFocusOpen.current = false;
   }
 
   const shortcut = isMacPlatform() ? "⌘K" : "Ctrl K";
@@ -182,13 +210,14 @@ function GlobalSearch({
         emptyTestId={emptyTestId}
         onTermChange={setTerm}
         onSelect={(hit) => {
+          navigating.current = true;
           closeDialog();
           void navigate(hit.to);
         }}
-        onClose={() => {
-          closeDialog();
-          suppressFocusOpen.current = true;
-          inputRef.current?.focus();
+        onClose={closeDialog}
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          returnFocus();
         }}
       />
     </>
@@ -208,6 +237,7 @@ function SearchDialog({
   onTermChange,
   onSelect,
   onClose,
+  onCloseAutoFocus,
 }: {
   open: boolean;
   term: string;
@@ -218,6 +248,7 @@ function SearchDialog({
   onTermChange: (term: string) => void;
   onSelect: (hit: SearchHit) => void;
   onClose: () => void;
+  onCloseAutoFocus: (event: Event) => void;
 }) {
   const { t, i18n } = useTranslation("suite");
   const [debounced, setDebounced] = React.useState("");
@@ -358,8 +389,8 @@ function SearchDialog({
       <DialogContent
         size="form"
         data-testid="search-dialog"
-        // The shell returns the focus to the sidebar field itself, in `onClose`.
-        onCloseAutoFocus={(event) => event.preventDefault()}
+        // The shell returns the focus itself: the shortcut has no trigger element.
+        onCloseAutoFocus={onCloseAutoFocus}
         onKeyDown={onDialogKeyDown}
       >
         <DialogHeader>

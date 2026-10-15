@@ -39,7 +39,7 @@ type ConfirmDeleteDialogProps = {
   // Extra content between header and footer, such as a list the person must have seen.
   children?: React.ReactNode;
   // Where the focus goes on close, e.g. a trigger the dialog cannot see; `null` or a detached element
-  // leaves it to the dialog's `GL-UI-050` order.
+  // leaves it to the dialog's `GL-UI-050` order. Inside a keyboard-grid list the entry wins.
   returnFocus?: () => HTMLElement | null;
   "data-testid"?: string;
 };

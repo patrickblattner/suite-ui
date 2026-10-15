@@ -10,8 +10,10 @@ Not breaking. New: the `focus-return` module (`@suite/ui/ui/focus-return`, also 
   3. else the surface's main content: the element the app marks with `data-focus-main` (`FOCUS_MAIN_ATTR`, its first field or canvas), else `main`, focusable without a tab stop.
 - A link or a control marked `data-focus-nav` (`FOCUS_NAV_ATTR`) is never a fallback target (tier 2 or 3); the package marks EditorHeader's Back and the preview toolbar's Close. Never the body.
 - In a list with the keyboard grid (`SUI-FEATURE-056`) the entry is the trigger, however the dialog was opened (a key on the entry, a button in it, its ⋯ menu; `GL-UI-050` rev 4): Cancel returns to the entry; a confirmed delete goes to the entry that moves into its place, else the one before (as before).
-- A caller that already put the focus outside the dialog keeps it (the field of a failed save). An `onCloseAutoFocus` that prevents the default still takes over completely (global search).
-- `main` as the last fallback draws no outline: it is a programmatic target without a tab stop, not a control (`GL-UI-013` covers tab stops; same rule as the list frame).
+- A caller that already put the focus outside the dialog keeps it (the field of a failed save). An `onCloseAutoFocus` that prevents the default still takes over completely. A named `returnFocus` goes first, except inside a keyboard-grid list, where the entry wins.
+- Each tier counts only if its target really took the focus; otherwise the next one is tried. A dialog opened with nothing focused (on load, after a click on a blank spot, by a shortcut) returns to the main content.
+- Global search: closing (×, `Esc`) returns the focus once the dialog is gone, to what had it before opening (the shortcut has no trigger), else the sidebar field without reopening, else the rail's search button. Choosing a hit leaves the focus to the new page.
+- `main` as the last fallback draws no outline: it is a programmatic target without a tab stop, not a control (`GL-UI-013` covers tab stops; same rule as the list frame). It is focusable only while it holds the focus.
 - EditorHeader: the Reset confirm and a control that locks under the focus use the shared order (`fallbackTarget`). The Reset confirm no longer needs its own `returnFocus`.
 - Gallery: the preview page's Archive entry (row ⋯ and toolbar ⋯) asks first.
 
