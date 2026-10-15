@@ -248,6 +248,7 @@
   "GL-UI-034": 4,
   "GL-UI-035": 2,
   "GL-UI-040": 3,
+  "GL-UI-050": 2,
   "GL-UX-001": 3,
   "GL-WEB-001": 3,
   "GL-WEB-010": 5,
@@ -412,7 +413,9 @@
   "SUI-FEATURE-075": 2,
   "SUI-FEATURE-076": 7,
   "SUI-FEATURE-080": 2,
-  "SUI-FEATURE-090": 5,
+  "SUI-FEATURE-090": 9,
+  "SUI-FEATURE-100": 2,
+  "SUI-FEATURE-110": 2,
   "SUI-VISION-001": 3,
   "VISION-001": 2
 }
