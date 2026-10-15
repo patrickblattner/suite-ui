@@ -1,6 +1,6 @@
 {
   "name": "@suite/ui",
-  "version": "0.99.0",
+  "version": "0.100.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -31,6 +31,10 @@
     "./shell/*": {
       "types": "./dist/shell/*.d.ts",
       "import": "./dist/shell/*.js"
+    },
+    "./operation-status/provider": {
+      "types": "./dist/operation-status/provider.d.ts",
+      "import": "./dist/operation-status/provider.js"
     },
     "./help/*": {
       "types": "./dist/help/*.d.ts",

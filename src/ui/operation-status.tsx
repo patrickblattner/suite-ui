@@ -2,68 +2,21 @@ import { Loader2Icon } from "lucide-react";
 import * as React from "react";
 
 import { cn } from "../lib/cn.js";
+import { OperationsContext } from "../operation-status/context.js";
+import {
+  type OperationHandle,
+  type OperationStart,
+  type OperationStatusApi,
+  OperationStatusProvider,
+  type OperationUpdate,
+  useOperationStatus,
+} from "../operation-status/provider.js";
 import { Hint } from "./hint.js";
-import { toast } from "./toaster.js";
 import { OverflowTooltip } from "./tooltip.js";
 
-// `progress` is a share from 0 to 1; without it the operation only runs.
-type OperationStart = { scope: string; label: string; progress?: number };
-type OperationUpdate = { label?: string; progress?: number };
-
-type OperationHandle = {
-  update: (patch: OperationUpdate) => void;
-  succeed: (message: string) => void;
-  fail: (message: string) => void;
-};
-
-type Operation = { id: number; scope: string; label: string; progress?: number };
-
-type OperationStatusApi = { start: (operation: OperationStart) => OperationHandle };
-
-const OperationsContext = React.createContext<readonly Operation[] | null>(null);
-const OperationStatusApiContext = React.createContext<OperationStatusApi | null>(null);
-
-// The running operations of the session (`GL-UI-033`), held once beside the `Toaster` and independent of
-// the page on screen: a handle keeps working after the page that started it is gone, and its end is
-// still acknowledged by a toast.
-function OperationStatusProvider({ children }: { children: React.ReactNode }) {
-  const [operations, setOperations] = React.useState<readonly Operation[]>([]);
-  const nextId = React.useRef(0);
-
-  const api = React.useMemo<OperationStatusApi>(() => {
-    const remove = (id: number) => setOperations((prev) => prev.filter((op) => op.id !== id));
-    return {
-      start: ({ scope, label, progress }) => {
-        const id = nextId.current++;
-        setOperations((prev) => [...prev, { id, scope, label, progress }]);
-        return {
-          update: (patch) =>
-            setOperations((prev) => prev.map((op) => (op.id === id ? { ...op, ...patch } : op))),
-          succeed: (message) => {
-            remove(id);
-            toast.success(message);
-          },
-          fail: (message) => {
-            remove(id);
-            toast.error(message);
-          },
-        };
-      },
-    };
-  }, []);
-
-  return (
-    <OperationStatusApiContext.Provider value={api}>
-      <OperationsContext.Provider value={operations}>{children}</OperationsContext.Provider>
-    </OperationStatusApiContext.Provider>
-  );
-}
-
-function useOperationStatus(): OperationStatusApi {
-  const api = React.useContext(OperationStatusApiContext);
-  if (api === null) throw new Error("useOperationStatus needs an OperationStatusProvider");
-  return api;
-}
+// The display of the operation status (`GL-UI-033`); the provider and its context live in their own
+// module (`@suite/ui/operation-status/provider`, `SUI-FEATURE-077`) and are passed on from here
+// unchanged.
 
 // A spinner, or a narrow bar once the progress is known; a non-finite progress counts as unknown. The
 // bar takes its name from the operation's label (`labelledBy`).
