@@ -1783,6 +1783,24 @@ for (const lng of LANGUAGES) {
   }
 }
 
+// `SUI-FEATURE-076` (#139): at 390 px no page of the page switch is wider than the viewport.
+test("no gallery page scrolls horizontally at 390 px", async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/?lng=de");
+  const names = await page.getByTestId("gallery-page").locator("option").allTextContents();
+  expect(names.length).toBeGreaterThan(0);
+  for (const name of names) {
+    await page.goto(`/?page=${name}&lng=de`);
+    await expect(page.getByTestId("gallery-page")).toHaveValue(name);
+    await page.waitForLoadState("networkidle");
+    const overflow = await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    );
+    expect(overflow, `${name} is ${overflow} px wider than the viewport`).toBeLessThanOrEqual(0);
+  }
+});
+
 // `SUI-FEATURE-076`: every building block also at a phone and a laptop width, in de, light and dark.
 const WIDTHS = [
   [390, 844],

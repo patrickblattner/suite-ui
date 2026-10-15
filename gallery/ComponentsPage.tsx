@@ -119,9 +119,9 @@ export function Section({
 
 function Row({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <div className="flex items-center gap-3 py-1">
+    <div className="flex flex-col items-start gap-1 py-1 md:flex-row md:items-center md:gap-3">
       <span className="w-32 shrink-0 text-muted-foreground">{label}</span>
-      <div className="flex flex-wrap items-center gap-3">{children}</div>
+      <div className="flex max-w-full min-w-0 flex-wrap items-center gap-3">{children}</div>
     </div>
   );
 }
@@ -662,7 +662,7 @@ function Choices() {
       </Row>
       {(["default", "sm"] as const).map((size) => (
         <Row key={size} label={`Height · ${size}`}>
-          <div className="flex items-center gap-3" data-testid={`height-row-${size}`}>
+          <div className="flex flex-wrap items-center gap-3" data-testid={`height-row-${size}`}>
             <Input aria-label={`Input ${size}`} size={size} placeholder="Search" className="w-48" />
             <Select defaultValue="weekly">
               <SelectTrigger aria-label={`Select ${size}`} size={size} className="w-48">
@@ -1121,7 +1121,10 @@ function EditorHeaderRow() {
   const [saving, setSaving] = useState(false);
   return (
     <Section id="editor-header" title="EditorHeader">
-      <div className="flex flex-col gap-4 rounded-md border" data-testid="editor-header-saved">
+      <div
+        className="flex flex-col gap-4 overflow-x-auto rounded-md border"
+        data-testid="editor-header-saved"
+      >
         <EditorHeader
           title="Spring newsletter"
           onBack={() => {}}
@@ -1135,7 +1138,10 @@ function EditorHeaderRow() {
           onReset={() => {}}
         />
       </div>
-      <div className="mt-4 flex flex-col gap-4 rounded-md border" data-testid="editor-header-draft">
+      <div
+        className="mt-4 flex flex-col gap-4 overflow-x-auto rounded-md border"
+        data-testid="editor-header-draft"
+      >
         <EditorHeader
           title="Autumn campaign landing page"
           onBack={() => {}}
@@ -1166,7 +1172,7 @@ function EditorHeaderRow() {
         />
       </div>
       <div
-        className="mt-4 flex flex-col gap-4 rounded-md border"
+        className="mt-4 flex flex-col gap-4 overflow-x-auto rounded-md border"
         data-testid="editor-lifecycle-saved"
       >
         <EditorHeader
@@ -1184,7 +1190,7 @@ function EditorHeaderRow() {
         />
       </div>
       <div
-        className="mt-4 flex flex-col gap-4 rounded-md border"
+        className="mt-4 flex flex-col gap-4 overflow-x-auto rounded-md border"
         data-testid="editor-lifecycle-draft"
       >
         <EditorHeader

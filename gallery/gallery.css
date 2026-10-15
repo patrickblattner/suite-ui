@@ -53,6 +53,8 @@ main {
   padding: 4px 16px 4px 0;
   border-bottom: 1px solid var(--border);
   text-align: left;
+  /* Long keys break, so the table fits a narrow viewport. */
+  overflow-wrap: anywhere;
 }
 
 .strings-table th {
