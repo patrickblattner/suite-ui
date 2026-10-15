@@ -1348,15 +1348,23 @@ for (const [viewport, content] of [
   });
 }
 
-test("editor header: a language switch re-folds without a resize", async ({ page }) => {
+// #144: at 900 px the German labels fold the lifecycle headers further than the English ones; the
+// switch re-folds without a resize, and switching back unfolds to exactly the English steps.
+test("editor header: a language switch re-folds without a resize, both ways", async ({ page }) => {
   await page.setViewportSize({ width: 900, height: 900 });
   await page.goto("/?page=components&lng=en");
+  const headers = page.locator("[data-slot=editor-header]");
+  const steps = () =>
+    headers.evaluateAll((nodes) => nodes.map((n) => n.getAttribute("data-shrink")));
   for (const frame of EDITOR_HEADERS) await expectHeaderFits(page, frame);
+  const english = await steps();
   await page.getByTestId("gallery-language").selectOption("de");
   await expect(page.locator("html")).toHaveAttribute("lang", "de");
-  for (const frame of EDITOR_HEADERS) {
-    await expect.poll(() => expectHeaderFits(page, frame).then(() => true)).toBe(true);
-  }
+  await expect.poll(steps).not.toEqual(english);
+  for (const frame of EDITOR_HEADERS) await expectHeaderFits(page, frame);
+  await page.getByTestId("gallery-language").selectOption("en");
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  await expect.poll(steps).toEqual(english);
 });
 
 test("editor header: an icon-only locked next step shows its name above its reason", async ({
