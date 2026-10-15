@@ -5,7 +5,7 @@
 Not breaking. `isUsable` is now exported from `focus-return` (a type guard).
 
 - The `main` fallback (tier 3) stays focusable through a window or tab switch. It now gives up its tab index when another element takes the focus (a capture `focusin` on the document) or on a press, no longer on `blur`, so the focus no longer falls to the body when the window comes back.
-- Tier 2 tries every usable control of the group in turn, after the trigger and then before it, nearest first, before it falls to the main content. Before, it tried only the first.
+- Tier 2 tries every usable control of the group in turn, after the trigger and then before it, nearest first, before it falls to the main content. Before, it tried only the first. The same holds for `useFocusAfterRun` (a Save that locks as its run ends).
 - `GlobalSearch`: on close the focus goes back to what had it, else the field, else the rail's search button. Each counts only if it is usable (not locked, `aria-disabled`, hidden or inert, the shared `isUsable`) and takes the focus; otherwise the next is tried.
 
 ## 0.100.0 — #153, SUI-FEATURE-077 rev 2: OperationStatusProvider as its own module
