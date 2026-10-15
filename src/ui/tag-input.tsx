@@ -48,7 +48,7 @@ function matchSuggestions(suggestions: readonly string[], chosen: readonly strin
 // so a click on Save never loses it. Each added or removed chip is announced politely
 // (`SUI-FEATURE-052`). The field has the input height (`GL-UI-011`) and grows with each row of chips.
 //
-// With `suggestions` (`SUI-FEATURE-100` rev 3) the field is a combobox: typing lists the matching
+// With `suggestions` (`SUI-FEATURE-100` rev 4) the field is a combobox: typing lists the matching
 // existing tags under it. The first one is chosen only if it starts with the text; the arrows move the
 // choice, Enter and Tab take a chosen entry over as a chip, Esc closes the list and keeps the text.
 // With nothing chosen Enter takes the typed text over and Tab leaves; the comma and leaving the field
@@ -66,6 +66,8 @@ function TagInput({
 }: TagInputProps) {
   const { t } = useTranslation("suite");
   const [draft, setDraft] = React.useState("");
+  // The text as of now: a blur in the same tick as a commit must not take the old text over again.
+  const current = React.useRef("");
   const listId = `${React.useId()}-suggestions`;
   const [focused, setFocused] = React.useState(false);
   // Esc closed the list; typing opens it again.
@@ -84,7 +86,7 @@ function TagInput({
   );
   const open = focused && !dismissed && !disabled && matches.length > 0;
   // Only an entry that starts with the text is chosen by default; one that merely contains it ("tur" →
-  // "Kultur") waits for the arrows (`SUI-FEATURE-100` rev 3). -1 is "nothing chosen".
+  // "Kultur") waits for the arrows (`SUI-FEATURE-100` rev 4). -1 is "nothing chosen".
   const startsWith = matches[0]?.toLowerCase().startsWith(typed.trim().toLowerCase()) === true;
   const choice = Math.min(active ?? (startsWith ? 0 : -1), matches.length - 1);
   const [announcement, setAnnouncement] = React.useState("");
@@ -138,6 +140,7 @@ function TagInput({
       );
     }
     setDraft("");
+    current.current = "";
     setActive(null);
   };
 
@@ -207,6 +210,7 @@ function TagInput({
             })}
         onChange={(event) => {
           setDraft(event.target.value);
+          current.current = event.target.value;
           setDismissed(false);
           setActive(null);
           setKeyboard(true);
@@ -215,7 +219,7 @@ function TagInput({
         onBlur={() => {
           setFocused(false);
           setDismissed(false);
-          if (draft.trim() !== "") commit();
+          if (current.current.trim() !== "") commit();
         }}
         onKeyDown={(event) => {
           // An IME is still composing: its Enter or comma belongs to the composition.
@@ -233,10 +237,12 @@ function TagInput({
           } else if ((event.key === "Enter" || event.key === "Tab") && open && choice >= 0) {
             // A chosen entry owns Enter and Tab: it becomes the chip and the field keeps the focus.
             // Without one, Enter takes the typed text over and Tab leaves the field.
+            // No ancestor sees this Tab: a dialog's focus scope would move the focus on regardless.
             event.preventDefault();
+            event.stopPropagation();
             commit(matches[choice]);
-            // An empty field leaves Enter to the form, so it still triggers the primary action.
           } else if ((event.key === "Enter" && draft.trim() !== "") || event.key === ",") {
+            // An empty field leaves Enter to the form, so it still triggers the primary action.
             event.preventDefault();
             commit();
           } else if (event.key === "Backspace" && draft === "") {

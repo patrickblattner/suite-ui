@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "./dialog.js";
 import { TagInput } from "./tag-input.js";
 
 function Controlled({ initial = [] }: { initial?: string[] }) {
@@ -208,6 +209,47 @@ describe("TagInput suggestions", () => {
     expect(tab).toBe(false);
     expect(chips()).toEqual(["Stadt"]);
     expect(field()).toHaveFocus();
+  });
+
+  it("Tab on a chosen entry as the last control of a dialog takes it once and keeps the focus", () => {
+    const onChange = vi.fn();
+    function InDialog() {
+      const [tags, setTags] = useState<string[]>([]);
+      return (
+        <Dialog open>
+          <DialogContent showCloseButton={false}>
+            <DialogTitle>Tags</DialogTitle>
+            <DialogDescription>Pick tags</DialogDescription>
+            <button type="button">First</button>
+            <TagInput
+              value={tags}
+              onChange={(next) => {
+                onChange(next);
+                setTags(next);
+              }}
+              suggestions={["Stadt"]}
+            />
+          </DialogContent>
+        </Dialog>
+      );
+    }
+    render(<InDialog />);
+    focusField();
+    type("sta");
+    fireEvent.keyDown(field(), { key: "Tab" });
+    expect(onChange.mock.calls).toEqual([[["Stadt"]]]);
+    expect(chips()).toEqual(["Stadt"]);
+    expect(field()).toHaveFocus();
+  });
+
+  it("a blur right after a commit takes nothing over again", () => {
+    const onChange = vi.fn();
+    render(<TagInput value={[]} onChange={onChange} suggestions={["Stadt"]} />);
+    focusField();
+    type("sta");
+    fireEvent.keyDown(field(), { key: "Enter" });
+    fireEvent.blur(field());
+    expect(onChange.mock.calls).toEqual([[["Stadt"]]]);
   });
 
   it('AC4: "kul" + comma and leaving the field take the typed text, never a suggestion', () => {
