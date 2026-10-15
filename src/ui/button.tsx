@@ -36,25 +36,28 @@ const buttonVariants = cva(
           "relative size-6 rounded-md after:absolute after:top-1/2 after:left-1/2 after:size-6 after:-translate-x-1/2 after:-translate-y-1/2 [&_svg:not([class*='size-'])]:size-3",
         "icon-sm": "size-8",
         "icon-lg": "size-10",
+        // A text link in a table row, a path or running text (`SUI-FEATURE-006`): no height and no
+        // padding of its own, so the line of text sets its height; only the icon gap of `sm`.
+        inline: "gap-1.5",
       },
     },
   },
 );
 
 type ButtonVariant = NonNullable<VariantProps<typeof buttonVariants>["variant"]>;
-type ButtonSize = NonNullable<VariantProps<typeof buttonVariants>["size"]>;
+// The sizes of a button box. `inline` is not one of them: it exists only together with `variant="link"`.
+type ButtonSize = Exclude<NonNullable<VariantProps<typeof buttonVariants>["size"]>, "inline">;
 
-type ButtonProps = React.ComponentProps<"button"> & {
+type ButtonProps = React.ComponentProps<"button"> &
   // Both are required (`GL-UI-011`): every button names its action colour and its size token.
-  variant: ButtonVariant;
-  size: ButtonSize;
-  asChild?: boolean;
-  // The action is running and must not run twice (`GL-UI-027`): the working state in the full colour
-  // of the variant, and a real lock against a second trigger.
-  busy?: boolean;
-  // Only the working state, without the lock.
-  loading?: boolean;
-};
+  ({ variant: ButtonVariant; size: ButtonSize } | { variant: "link"; size: "inline" }) & {
+    asChild?: boolean;
+    // The action is running and must not run twice (`GL-UI-027`): the working state in the full colour
+    // of the variant, and a real lock against a second trigger.
+    busy?: boolean;
+    // Only the working state, without the lock.
+    loading?: boolean;
+  };
 
 // The rendered lock alone does not hold against a real double-click: the second click of a burst is
 // dispatched before React renders the first one's busy state. A button that declares `busy` therefore

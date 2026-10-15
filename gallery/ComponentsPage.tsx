@@ -172,6 +172,43 @@ function Buttons() {
           <Trash2Icon />
         </Button>
       </Row>
+      {/* `SUI-FEATURE-006`: a text link sized by its line of text, in a table row and in a path. */}
+      <Row label="inline · table row">
+        <Table data-testid="button-inline-table">
+          <TableBody>
+            <TableRow>
+              <TableCell>Spring catalogue</TableCell>
+              <TableCell>
+                <Button variant="link" size="inline" data-testid="button-inline-row">
+                  <EyeIcon />
+                  12 items
+                </Button>
+              </TableCell>
+            </TableRow>
+          </TableBody>
+        </Table>
+      </Row>
+      <Row label="inline · path">
+        <nav aria-label="Path" data-testid="button-inline-path">
+          <ol className="flex items-center gap-1.5 text-sm text-muted-foreground">
+            <li>
+              <Button variant="link" size="inline">
+                Storage
+              </Button>
+            </li>
+            <li aria-hidden="true">/</li>
+            <li>
+              <Button variant="link" size="inline">
+                Media
+              </Button>
+            </li>
+            <li aria-hidden="true">/</li>
+            <li aria-current="page" className="text-foreground">
+              2026
+            </li>
+          </ol>
+        </nav>
+      </Row>
     </Section>
   );
 }

@@ -14,6 +14,15 @@ export const missingProps = [
   <Button key="no-size" variant="success" />,
 ];
 
+// `size="inline"` exists only with `variant="link"` (`SUI-FEATURE-006`).
+export const inlineOnlyAsLink = [
+  <Button key="link" variant="link" size="inline" />,
+  // @ts-expect-error inline needs variant="link"
+  <Button key="ghost" variant="ghost" size="inline" />,
+  // @ts-expect-error inline needs variant="link"
+  <Button key="default" variant="default" size="inline" />,
+];
+
 // An action that switches its own working state on, like a mutation whose pending flag drives the
 // prop.
 function Action({ prop, onRun }: { prop: "busy" | "loading"; onRun: () => void }) {
@@ -34,6 +43,23 @@ function Action({ prop, onRun }: { prop: "busy" | "loading"; onRun: () => void }
 }
 
 describe("Button", () => {
+  it("inline: a text link takes no height and no padding from its size", () => {
+    render(
+      <Button variant="link" size="inline">
+        <PlusIcon />
+        Open
+      </Button>,
+    );
+    const button = screen.getByRole("button", { name: "Open" });
+    expect(button).toHaveAttribute("data-size", "inline");
+    const classes = button.className.split(/\s+/);
+    expect(classes.filter((c) => /^(h|size|min-h)-/.test(c))).toEqual([]);
+    expect(classes.filter((c) => /^(has-\[>svg\]:)?p[xytrbl]?-/.test(c))).toEqual([]);
+    expect(classes).toContain("gap-1.5");
+    expect(classes).toContain("text-sm");
+    expect(classes).toContain("focus-visible:focus-ring");
+  });
+
   it("busy: two clicks fire onClick once", () => {
     const onRun = vi.fn();
     render(<Action prop="busy" onRun={onRun} />);

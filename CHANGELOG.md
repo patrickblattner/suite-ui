@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.89.0 — SUI-FEATURE-006 rev 2 (#130): Button size `inline` for the text link
+
+Not breaking. `ButtonSize` keeps its members; `inline` is typed only beside `variant="link"`.
+
+- `Button`: new size `size="inline"` for a text link in a table row, a path or running text: no height and no padding of its own (its height is the line of text's), the icon gap of `sm`, `text-sm`. The focus ring stays.
+- `size="inline"` with any `variant` other than `"link"` is a type error. Apps replace `variant="link"` with `className="h-auto p-0"`/`"h-auto px-0"` by `size="inline"`.
+
 ## 0.88.1 — SUI-FEATURE-049 rev 6 (#129): tooltips close on every focus change
 
 Not breaking.
