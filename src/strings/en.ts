@@ -132,6 +132,7 @@ export const en = {
   nav: {
     label: "Primary navigation",
     toggleSidebar: "Toggle sidebar",
+    openNavigation: "Open navigation",
     home: "Opens the dashboard.",
     // Tooltip and accessible name of the `‹ <Section>` link: it names the target, not the section.
     backToDashboard: "Back to dashboard",

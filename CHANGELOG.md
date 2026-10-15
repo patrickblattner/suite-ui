@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.95.0 — #147, SUI-FEATURE-110 rev 3: sidebar as an overlay below md
+
+Not breaking. At `md` (48rem) and up the shell and panels look and behave as before. New: `SidebarOverlayTrigger`; `useSidebar()` also returns `isOverlay`, `overlayOpen`, `openOverlay` and `closeOverlay`; the CSS variable `--sidebar-inset`; the string `suite:nav.openNavigation` (de/en/es).
+
+- Below `md` the `AppSidebar` is an overlay. It takes no room beside the content and is closed by default. When open it lies expanded over the content with a scrim, and it is modal: the content behind is `inert` and Tab and Shift+Tab cycle inside it. A dialog it opens (the search) keeps its own Tab and `Esc`.
+- `Esc`, a click beside it (the scrim), a navigation and a press on a link or the home name of the current route close it; the focus returns to the trigger (`GL-UI-050`). When the navigation replaced the page and its head, the trigger of the new head takes it, also on a route that renders later (a transition, a lazy route) or in the closing render (a synchronous router). The first press or key of the person ends that handover, and a page that places the focus itself (`autoFocus`, a focused heading) keeps it. The sidebar's own toggle closes it too, without touching the stored collapse choice.
+- `UserMenu` is a package `Esc` layer: inside the overlay, the first `Esc` closes the open menu only (`GL-UI-007`).
+- The trigger (`SidebarOverlayTrigger`, the panel symbol named "Open navigation", `aria-expanded` and `aria-controls` on the sidebar) stands at the start of every `PageHeader` inside a `SidebarProvider`, below `md` only. A surface without a `PageHeader` places it itself. `EditorHeader` has none: Back leads out of an editor.
+- Below `md`, `useSidebar().isOpen` is always true (the overlay shows the expanded sidebar) and `toggle` closes the overlay.
+- Panels: `EditPanel`, `MediaDetailShell` and the maximized `PreviewFrame` take the full viewport width below `md`. Their left edge is the sidebar width times `--sidebar-inset` (1, and 0 below `md`), so at `md` and up it is the same as before.
+- Gallery: the shell page at 390 px shows the sidebar closed and the trigger in the page head; the strings page lists the new string.
+
 ## 0.94.0 — #146, SUI-FEATURE-100 rev 4: TagInput suggestions
 
 Not breaking. `TagInput` takes an optional `suggestions`; without it the field is unchanged. New string `suite:tags.suggestions` (de/en/es), the name of the suggestion list.

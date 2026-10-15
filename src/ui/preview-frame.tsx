@@ -98,8 +98,8 @@ function PreviewFrame({
     sidebar === null
       ? 0
       : sidebar.isOpen
-        ? "var(--sidebar-width)"
-        : "var(--sidebar-width-collapsed)";
+        ? "calc(var(--sidebar-width) * var(--sidebar-inset))"
+        : "calc(var(--sidebar-width-collapsed) * var(--sidebar-inset))";
 
   const frame = (
     <div

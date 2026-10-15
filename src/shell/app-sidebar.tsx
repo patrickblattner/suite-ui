@@ -1,9 +1,11 @@
 import { ChevronLeftIcon } from "lucide-react";
-import type * as React from "react";
+import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { NavLink, useLocation, useNavigate } from "react-router-dom";
 
 import { cn } from "../lib/cn.js";
+import { useEscapeLayer } from "../lib/escape-layers.js";
+import { useModalOverlay } from "../lib/modal-overlay.js";
 import { Hint, type HintProps } from "../ui/hint.js";
 import {
   allowedModel,
@@ -15,7 +17,7 @@ import {
   type NavSection,
   sectionForPath,
 } from "./nav.js";
-import { SidebarTrigger, useSidebar } from "./sidebar-provider.js";
+import { SIDEBAR_ID, SidebarTrigger, useSidebar } from "./sidebar-provider.js";
 import { type VersionInfo, VersionLine } from "./version-line.js";
 
 type AppSidebarProps = {
@@ -60,9 +62,31 @@ function AppSidebar({
   userMenu,
 }: AppSidebarProps) {
   const { t, i18n } = useTranslation("suite");
-  const { isOpen } = useSidebar();
+  const { isOpen, isOverlay, overlayOpen, closeOverlay } = useSidebar();
   const { pathname } = useLocation();
   const navigate = useNavigate();
+  const [element, setElement] = React.useState<HTMLElement | null>(null);
+
+  const [scrim, setScrim] = React.useState<HTMLElement | null>(null);
+
+  // Below `md` (`SUI-FEATURE-110`): the open overlay is modal. It takes the focus on its first control,
+  // Tab cycles inside it while the content behind is inert, and `Esc`, a click beside it and a
+  // navigation close it, as does a press on a link or the home name that stays on the same route. It
+  // is the sidebar itself, kept in the DOM and moved over the content, not a `Sheet` (`GL-UI-004`): a
+  // Sheet would portal a second copy of the nav, search and user block, and the same `<nav>` that
+  // stands beside the content at `md` and up keeps its state (search text, open section) across the
+  // break.
+  useEscapeLayer(overlayOpen, closeOverlay, element);
+  const trapTab = useModalOverlay(overlayOpen, element, scrim);
+  React.useEffect(() => {
+    if (overlayOpen) element?.querySelector<HTMLElement>("button, a[href], input")?.focus();
+  }, [overlayOpen, element]);
+  const shownPath = React.useRef(pathname);
+  React.useEffect(() => {
+    if (shownPath.current === pathname) return;
+    shownPath.current = pathname;
+    if (overlayOpen) closeOverlay();
+  }, [pathname, overlayOpen, closeOverlay]);
 
   const visible = allowedModel(nav, isAllowed);
   const activeSection = sectionForPath(
@@ -159,100 +183,126 @@ function AppSidebar({
   const helpLabel = t("nav.shared.help");
 
   return (
-    <nav
-      data-testid="app-sidebar"
-      aria-label={t("nav.label")}
-      data-state={isOpen ? "expanded" : "collapsed"}
-      className={cn(
-        "flex h-full shrink-0 flex-col border-r bg-card transition-[width] duration-200",
-        isOpen ? "w-56" : "w-14",
-      )}
-    >
-      {/* Collapsed, the head shows only the toggle; the nav icons carry the identity. */}
-      <div className={cn("flex items-center gap-1 p-2", !isOpen && "justify-center")}>
-        {isOpen && (
-          <Hint text={`${instanceName}: ${t("nav.home")}`}>
-            <button
-              type="button"
-              data-testid="sidebar-instance-name"
-              onClick={() => void navigate(homePath)}
-              className="min-w-0 flex-1 cursor-pointer truncate rounded-md bg-instance-name px-3 py-2 text-left font-medium text-instance-name-foreground outline-none transition-colors hover:bg-instance-name-hover focus-visible:focus-ring"
-            >
-              {instanceName}
-            </button>
-          </Hint>
-        )}
-        <SidebarTrigger />
-      </div>
-
-      {search}
-
-      <div
+    <>
+      {overlayOpen ? (
+        <div
+          ref={setScrim}
+          aria-hidden="true"
+          onClick={closeOverlay}
+          className="fixed inset-0 z-40 bg-black/50 md:hidden"
+          data-testid="sidebar-scrim"
+        />
+      ) : null}
+      <nav
+        ref={setElement}
+        id={SIDEBAR_ID}
+        onKeyDown={trapTab}
+        onClick={(event) => {
+          if (!overlayOpen || !(event.target instanceof Element)) return;
+          const leads = event.target.closest(
+            "a[href], [data-testid=sidebar-instance-name], [data-testid=nav-back]",
+          );
+          if (leads !== null) closeOverlay();
+        }}
+        data-testid="app-sidebar"
+        aria-label={t("nav.label")}
+        data-state={isOpen ? "expanded" : "collapsed"}
+        data-overlay={isOverlay ? (overlayOpen ? "open" : "closed") : undefined}
         className={cn(
-          "relative min-h-0 flex-1 overflow-y-auto px-2 py-2",
-          !isOpen && "flex flex-col items-center [scrollbar-gutter:auto]",
+          "flex h-full shrink-0 flex-col border-r bg-card transition-[width] duration-200",
+          isOpen ? "w-56" : "w-14",
+          // Below `md` the sidebar takes no room beside the content: hidden, or over it while open.
+          overlayOpen
+            ? "max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:z-50 max-md:shadow-lg"
+            : "max-md:hidden",
         )}
       >
-        {activeSection !== undefined ? (
-          <ul className="flex flex-col gap-1" data-testid="nav-section-entries">
-            <li>
-              <Hint text={t("nav.backToDashboard")}>
-                <button
-                  type="button"
-                  data-testid="nav-back"
-                  aria-label={t("nav.backToDashboard")}
-                  onClick={() => void navigate(homePath)}
-                  className={cn(rowClass, "font-medium", !isOpen && "justify-center px-0")}
-                >
-                  <ChevronLeftIcon className="size-4 shrink-0" aria-hidden="true" />
-                  {isOpen && <span className="truncate">{i18n.t(activeSection.labelKey)}</span>}
-                </button>
-              </Hint>
-            </li>
-            {activeSection.entries.map(renderEntry)}
-          </ul>
-        ) : (
-          <>
-            <ul className="flex flex-col gap-1" data-testid="nav-primary">
-              {visible.primary.map((item) =>
-                isNavSection(item) ? renderSection(item) : renderEntry(item),
-              )}
+        {/* Collapsed, the head shows only the toggle; the nav icons carry the identity. */}
+        <div className={cn("flex items-center gap-1 p-2", !isOpen && "justify-center")}>
+          {isOpen && (
+            <Hint text={`${instanceName}: ${t("nav.home")}`}>
+              <button
+                type="button"
+                data-testid="sidebar-instance-name"
+                onClick={() => void navigate(homePath)}
+                className="min-w-0 flex-1 cursor-pointer truncate rounded-md bg-instance-name px-3 py-2 text-left font-medium text-instance-name-foreground outline-none transition-colors hover:bg-instance-name-hover focus-visible:focus-ring"
+              >
+                {instanceName}
+              </button>
+            </Hint>
+          )}
+          <SidebarTrigger />
+        </div>
+
+        {search}
+
+        <div
+          className={cn(
+            "relative min-h-0 flex-1 overflow-y-auto px-2 py-2",
+            !isOpen && "flex flex-col items-center [scrollbar-gutter:auto]",
+          )}
+        >
+          {activeSection !== undefined ? (
+            <ul className="flex flex-col gap-1" data-testid="nav-section-entries">
+              <li>
+                <Hint text={t("nav.backToDashboard")}>
+                  <button
+                    type="button"
+                    data-testid="nav-back"
+                    aria-label={t("nav.backToDashboard")}
+                    onClick={() => void navigate(homePath)}
+                    className={cn(rowClass, "font-medium", !isOpen && "justify-center px-0")}
+                  >
+                    <ChevronLeftIcon className="size-4 shrink-0" aria-hidden="true" />
+                    {isOpen && <span className="truncate">{i18n.t(activeSection.labelKey)}</span>}
+                  </button>
+                </Hint>
+              </li>
+              {activeSection.entries.map(renderEntry)}
             </ul>
-            {(visible.sections.length > 0 || onHelp !== undefined) && (
-              <ul className="mt-3 flex flex-col gap-1 border-t pt-3" data-testid="nav-lower">
-                {visible.sections.map(renderSection)}
-                {onHelp !== undefined && (
-                  <li>
-                    <Hint text={hintFor(helpLabel, "suite:nav.helpHint") ?? helpLabel}>
-                      <button
-                        type="button"
-                        data-testid="help-button"
-                        aria-label={isOpen ? undefined : helpLabel}
-                        onClick={onHelp}
-                        className={cn(rowClass, !isOpen && "justify-center px-0")}
-                      >
-                        <HELP_ICON className="size-4 shrink-0" aria-hidden="true" />
-                        {isOpen && <span className="truncate">{helpLabel}</span>}
-                      </button>
-                    </Hint>
-                  </li>
+          ) : (
+            <>
+              <ul className="flex flex-col gap-1" data-testid="nav-primary">
+                {visible.primary.map((item) =>
+                  isNavSection(item) ? renderSection(item) : renderEntry(item),
                 )}
               </ul>
-            )}
-          </>
-        )}
-      </div>
-
-      {/* Flush with the nav entry text: the list inset, the row inset, the icon and its gap. */}
-      {version !== undefined && isOpen && (
-        <div className="py-2 pr-5 pl-11">
-          <VersionLine info={version.info} />
+              {(visible.sections.length > 0 || onHelp !== undefined) && (
+                <ul className="mt-3 flex flex-col gap-1 border-t pt-3" data-testid="nav-lower">
+                  {visible.sections.map(renderSection)}
+                  {onHelp !== undefined && (
+                    <li>
+                      <Hint text={hintFor(helpLabel, "suite:nav.helpHint") ?? helpLabel}>
+                        <button
+                          type="button"
+                          data-testid="help-button"
+                          aria-label={isOpen ? undefined : helpLabel}
+                          onClick={onHelp}
+                          className={cn(rowClass, !isOpen && "justify-center px-0")}
+                        >
+                          <HELP_ICON className="size-4 shrink-0" aria-hidden="true" />
+                          {isOpen && <span className="truncate">{helpLabel}</span>}
+                        </button>
+                      </Hint>
+                    </li>
+                  )}
+                </ul>
+              )}
+            </>
+          )}
         </div>
-      )}
 
-      {/* The collapsed footer gives the trigger the full rail width. */}
-      <div className={cn("border-t p-2", !isOpen && "px-0")}>{userMenu}</div>
-    </nav>
+        {/* Flush with the nav entry text: the list inset, the row inset, the icon and its gap. */}
+        {version !== undefined && isOpen && (
+          <div className="py-2 pr-5 pl-11">
+            <VersionLine info={version.info} />
+          </div>
+        )}
+
+        {/* The collapsed footer gives the trigger the full rail width. */}
+        <div className={cn("border-t p-2", !isOpen && "px-0")}>{userMenu}</div>
+      </nav>
+    </>
   );
 }
 

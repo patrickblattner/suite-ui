@@ -162,9 +162,13 @@ describe("EditPanel", () => {
         </EditPanel>
       </SidebarProvider>,
     );
-    expect(screen.getByTestId("edit-panel").style.left).toBe("var(--sidebar-width)");
+    expect(screen.getByTestId("edit-panel").style.left).toBe(
+      "calc(var(--sidebar-width) * var(--sidebar-inset))",
+    );
     fireEvent.click(screen.getByTestId("toggle"));
-    expect(screen.getByTestId("edit-panel").style.left).toBe("var(--sidebar-width-collapsed)");
+    expect(screen.getByTestId("edit-panel").style.left).toBe(
+      "calc(var(--sidebar-width-collapsed) * var(--sidebar-inset))",
+    );
   });
 
   it("testIdPrefix replaces the testid stem", () => {
