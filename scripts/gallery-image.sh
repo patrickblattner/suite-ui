@@ -27,7 +27,7 @@ rsync -a \
 rc=0
 docker run --rm --platform linux/amd64 --ipc=host -e CI=1 \
   -v "$STAGE:/work" "$IMAGE" \
-  bash -c 'cp -a /work /build && cd /build && npm ci --no-audit --no-fund >/dev/null &&
+  bash -c 'rc=1; cp -a /work /build && cd /build && npm ci --no-audit --no-fund >/dev/null &&
     { npm run gallery -- "$@"; rc=$?; } ;
     cp -a gallery/__screenshots__/. /work/gallery/__screenshots__/ ;
     rm -rf /work/test-results /work/playwright-report ;

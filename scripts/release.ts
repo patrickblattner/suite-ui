@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 // Tags only from a green local gate run on exactly the tagged content (SUI-FEATURE-076).
 //
-//   npm run gate:record [-- --issue <n>]   # merge gate; on green, record it for HEAD's tree
-//   npm run release:tag                    # tag HEAD as v<version> and push, only with that record
+//   npm run gate:record [-- --issue <n>] [--run <id>]   # merge gate; on green, record it for HEAD's tree
+//   npm run release:tag                    # tag HEAD on `main` as v<version> and push, only with that record
 //   npm run release:tag -- --dry-run       # all checks, no tag, no push
 //
 // `record` writes `.spec-sync/gate-records/<tree hash>.json` only on exit 0 with a clean working tree
-// before and after the run. The record is keyed by the tree, not the commit, so a squash commit
+// before and after the run, and only when exactly the merge profile's phases ran. The record is keyed by the tree, not the commit, so a squash commit
 // with the gated content finds it without a second run. `tag` is the only way to tag; it refuses
-// without a green record for HEAD's tree and on a dirty working tree.
+// without a green record for HEAD's tree, on a dirty working tree and off `main`.
 
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -31,7 +31,27 @@ function recordPath(tree: string): string {
   return join(root, ".spec-sync", "gate-records", `${tree}.json`);
 }
 
+// Only the ledger arguments go through: a second `--profile` would win in the gate and record another
+// profile's run as the merge gate.
+const RECORD_ARGS = ["--issue", "--run"];
+
+function mergePhases(): string[] {
+  const config = JSON.parse(
+    readFileSync(new URL("../spec-sync.config.json", import.meta.url), "utf8"),
+  ) as {
+    gate: { profiles: { merge: string[] } };
+  };
+  return config.gate.profiles.merge;
+}
+
 function record(gateArgs: string[]): void {
+  for (let i = 0; i < gateArgs.length; i += 2) {
+    if (!RECORD_ARGS.includes(gateArgs[i] ?? "") || gateArgs[i + 1] === undefined) {
+      fail(
+        `only ${RECORD_ARGS.map((a) => `${a} <value>`).join(" and ")} go to the gate, not "${gateArgs[i]}"`,
+      );
+    }
+  }
   if (!isClean()) fail("the working tree has uncommitted changes — no record");
   const tree = git("rev-parse", "HEAD^{tree}");
   const commit = git("rev-parse", "HEAD");
@@ -47,24 +67,42 @@ function record(gateArgs: string[]): void {
     fail("the working tree changed during the gate run — no record");
   }
 
-  const { logDir } = JSON.parse(gate.stdout) as { logDir?: string };
+  const { logDir, phases = [] } = JSON.parse(gate.stdout) as {
+    logDir?: string;
+    phases?: { name: string; skipped: boolean; exit: number }[];
+  };
+  const ran = phases.filter((p) => !p.skipped && p.exit === 0).map((p) => p.name);
+  if (ran.join(",") !== mergePhases().join(",")) {
+    fail(`the gate ran ${ran.join(",") || "no phase"}, not the merge profile — no record`);
+  }
   const path = recordPath(tree);
   mkdirSync(dirname(path), { recursive: true });
   const at = new Date().toISOString();
   writeFileSync(
     path,
-    `${JSON.stringify({ tree, commit, profile: "merge", exit, logDir, at }, null, 2)}\n`,
+    `${JSON.stringify({ tree, commit, profile: "merge", phases: ran, exit, logDir, at }, null, 2)}\n`,
   );
   console.error(`release record: green merge gate recorded for tree ${tree} (${commit})`);
 }
 
-function tag(dryRun: boolean): void {
+function tag(args: string[]): void {
+  const unknown = args.filter((a) => a !== "--dry-run");
+  if (unknown.length > 0) fail(`unknown argument ${unknown.join(" ")} — no tag`);
+  const dryRun = args.includes("--dry-run");
   const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as {
     version: string;
   };
   const name = `v${pkg.version}`;
   if (!isClean()) fail(`the working tree has uncommitted changes — ${name} not created`);
+  if (git("rev-parse", "--abbrev-ref", "HEAD") !== "main")
+    fail(`HEAD is not on main — ${name} not created`);
   const commit = git("rev-parse", "HEAD");
+  if (spawnSync("git", ["merge-base", "--is-ancestor", commit, "origin/main"]).status !== 0) {
+    fail(`${commit} is not on origin/main (push main first) — ${name} not created`);
+  }
+  if (spawnSync("git", ["rev-parse", "-q", "--verify", `refs/tags/${name}`]).status === 0) {
+    fail(`${name} exists already — no tag`);
+  }
   const path = recordPath(git("rev-parse", "HEAD^{tree}"));
   if (!existsSync(path)) {
     fail(`no green gate record for ${commit} (run npm run gate:record) — ${name} not created`);
@@ -81,11 +119,14 @@ function tag(dryRun: boolean): void {
     return;
   }
   git("tag", name, commit);
-  git("push", "origin", name);
+  if (spawnSync("git", ["push", "origin", name], { stdio: "inherit" }).status !== 0) {
+    git("tag", "-d", name);
+    fail(`pushing ${name} failed — the local tag is deleted again`);
+  }
   console.log(`release tag: ${name} on ${commit} (gate record ${path})`);
 }
 
 const [mode, ...rest] = process.argv.slice(2);
 if (mode === "record") record(rest);
-else if (mode === "tag") tag(rest.includes("--dry-run"));
-else fail("usage: node scripts/release.ts record [gate args] | tag [--dry-run]");
+else if (mode === "tag") tag(rest);
+else fail("usage: node scripts/release.ts record [--issue <n>] [--run <id>] | tag [--dry-run]");
