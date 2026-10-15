@@ -1,3 +1,10 @@
+import {
+  CircleCheckIcon,
+  CircleXIcon,
+  InfoIcon,
+  type LucideIcon,
+  TriangleAlertIcon,
+} from "lucide-react";
 import type * as React from "react";
 import { useTranslation } from "react-i18next";
 
@@ -48,6 +55,16 @@ type StatusChipProps = Omit<React.ComponentProps<typeof Badge>, "variant" | "chi
     | { tone: Tone; label: string; state?: never }
   );
 
+// Colour is never the only signal (`GL-UI-060`): each tone leads with the symbol its toast carries
+// (`Toaster`); a neutral state has none, so in greyscale it still differs from every toned one.
+const TONE_ICONS = {
+  success: CircleCheckIcon,
+  destructive: CircleXIcon,
+  warn: TriangleAlertIcon,
+  info: InfoIcon,
+  neutral: null,
+} as const satisfies Record<Tone, LucideIcon | null>;
+
 function toneVariant(tone: Tone, emphasis: "soft" | "filled"): BadgeVariant {
   if (tone === "neutral") return "secondary";
   return emphasis === "filled" ? tone : `${tone}-soft`;
@@ -58,15 +75,16 @@ function statusChipVariant(state: StatusChipState, emphasis: "soft" | "filled"):
 }
 
 // A state as a badge: a catalog state brings its tone and its text from the package; a domain state
-// brings the app's tone and label. `detail` only adds context after the text (e.g. "Succeeded ·
-// ‹date›"). Children passed around the type are dropped.
+// brings the app's tone and label. The tone's symbol stands before the text. `detail` only adds
+// context after the text (e.g. "Succeeded · ‹date›"). Children passed around the type are dropped.
 function StatusChip({ state, tone, label, emphasis = "soft", detail, ...props }: StatusChipProps) {
   const { t } = useTranslation("suite");
   delete (props as { children?: unknown }).children;
-  const variant =
-    state === undefined ? toneVariant(tone, emphasis) : statusChipVariant(state, emphasis);
+  const resolved = state === undefined ? tone : STATE_TONES[state];
+  const Icon = TONE_ICONS[resolved];
   return (
-    <Badge data-state={state} variant={variant} {...props}>
+    <Badge data-state={state} variant={toneVariant(resolved, emphasis)} {...props}>
+      {Icon === null ? null : <Icon aria-hidden="true" />}
       {state === undefined ? label : t(`state.${state}`)}
       {detail === undefined || detail === "" ? null : ` · ${detail}`}
     </Badge>

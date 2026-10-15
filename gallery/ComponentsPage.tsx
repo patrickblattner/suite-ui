@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 
 import { DataTableShell } from "../src/list/data-table-shell.js";
 import { PageHeader } from "../src/list/page-header.js";
+import { SettingsField } from "../src/settings/settings-field.js";
 import {
   Accordion,
   AccordionContent,
@@ -584,6 +585,55 @@ function Fields() {
         <TimezoneCombobox value={empty} onValueChange={setEmpty} data-testid="timezone-empty" />
         <TimezoneCombobox value="Europe/Berlin" onValueChange={() => undefined} disabled />
         <TimezoneCombobox value="Europe/Berlin" onValueChange={() => undefined} aria-invalid />
+      </div>
+    </Section>
+  );
+}
+
+// `SUI-FEATURE-078`: one invalid field per kind, the error with its symbol in place of the help text.
+function FieldErrors() {
+  return (
+    <Section id="field-error" title="FieldError · SettingsField error">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3" data-testid="field-errors">
+        <SettingsField label="Input" htmlFor="error-input" help="Help" error="Enter a name.">
+          <Input id="error-input" defaultValue="" />
+        </SettingsField>
+        <SettingsField label="Textarea" htmlFor="error-textarea" error="Enter a description.">
+          <Textarea id="error-textarea" defaultValue="" />
+        </SettingsField>
+        <SettingsField label="Select" htmlFor="error-select" error="Choose an interval.">
+          <Select>
+            <SelectTrigger id="error-select" size="default">
+              <SelectValue placeholder="Interval" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="daily">Daily</SelectItem>
+            </SelectContent>
+          </Select>
+        </SettingsField>
+        <SettingsField
+          label="TimezoneCombobox"
+          htmlFor="error-timezone"
+          error="Choose a time zone."
+        >
+          <TimezoneCombobox id="error-timezone" value="" onValueChange={() => undefined} />
+        </SettingsField>
+        <SettingsField label="Checkbox" htmlFor="error-checkbox" group error="Accept the terms.">
+          <div className="flex items-center gap-2">
+            <Checkbox id="error-checkbox-terms" />
+            <Label htmlFor="error-checkbox-terms">Terms</Label>
+          </div>
+        </SettingsField>
+        <SettingsField label="RadioGroup" htmlFor="error-radio" group error="Choose a mode.">
+          <RadioGroup aria-label="Mode" className="flex gap-4">
+            {["a", "b"].map((value) => (
+              <div key={value} className="flex items-center gap-2">
+                <RadioGroupItem id={`error-radio-${value}`} value={value} />
+                <Label htmlFor={`error-radio-${value}`}>{value}</Label>
+              </div>
+            ))}
+          </RadioGroup>
+        </SettingsField>
       </div>
     </Section>
   );
@@ -1350,6 +1400,7 @@ export function ComponentsPage() {
       <UploadAndTags />
       <Badges />
       <Fields />
+      <FieldErrors />
       <Choices />
       <Sliders />
       <Structure />

@@ -107,8 +107,25 @@ describe.each(shells)("$name list states (SUI-FEATURE-046)", (shell) => {
     expect(error).toHaveTextContent("The media files could not be loaded.");
     expect(error).toHaveClass("text-destructive-text");
     expect(screen.queryByTestId("x-empty")).toBeNull();
+    // GL-UI-060: a hidden error symbol before the text; the empty state has none.
+    const symbol = error.querySelector("[data-slot=list-error] > svg");
+    expect(symbol).toHaveClass("lucide-circle-x");
+    expect(symbol).toHaveAttribute("aria-hidden", "true");
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
     expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it("GL-UI-060: the error without Try again also leads with its symbol, the empty state has none", () => {
+    const { unmount } = shell.render({
+      isPending: false,
+      isEmpty: true,
+      isError: true,
+      error: "Failed.",
+    });
+    expect(screen.getByTestId("x-error").querySelector("svg")).toHaveClass("lucide-circle-x");
+    unmount();
+    shell.render({ isPending: false, isEmpty: true });
+    expect(screen.getByTestId("x-empty").querySelector("svg")).toBeNull();
   });
 
   it("AC2: loading wins over error", () => {

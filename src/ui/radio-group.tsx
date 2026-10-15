@@ -3,13 +3,16 @@ import { CircleIcon } from "lucide-react";
 import { RadioGroup as RadioGroupPrimitive } from "radix-ui";
 
 import { cn } from "../lib/cn.js";
+import { useFieldErrorAttributes } from "./field-error.js";
 
 function RadioGroup({
   className,
   ...props
 }: React.ComponentProps<typeof RadioGroupPrimitive.Root>) {
+  const fieldError = useFieldErrorAttributes();
   return (
     <RadioGroupPrimitive.Root
+      {...fieldError}
       data-slot="radio-group"
       className={cn("grid gap-2", className)}
       {...props}
@@ -17,13 +20,16 @@ function RadioGroup({
   );
 }
 
-// GL-UI-013: the hit area grows to at least 24 × 24 px around the unchanged control.
+// GL-UI-013: the hit area grows to at least 24 × 24 px around the unchanged control. In an invalid
+// field each option carries the red border too (`SUI-FEATURE-078`).
 function RadioGroupItem({
   className,
   ...props
 }: React.ComponentProps<typeof RadioGroupPrimitive.Item>) {
+  const fieldError = useFieldErrorAttributes();
   return (
     <RadioGroupPrimitive.Item
+      {...fieldError}
       data-slot="radio-group-item"
       className={cn(
         "aspect-square size-4 shrink-0 rounded-full relative after:absolute after:top-1/2 after:left-1/2 after:size-full after:min-h-6 after:min-w-6 after:-translate-x-1/2 after:-translate-y-1/2 border border-input text-primary shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive dark:bg-input/30",

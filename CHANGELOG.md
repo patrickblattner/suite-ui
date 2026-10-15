@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.96.0 — #148, GL-UI-060 rev 2 and SUI-FEATURE-078: colour is never the only signal
+
+Not breaking. New: `FieldError` (`@suite/ui/ui/field-error`, also in the barrel) and `SettingsField error`. Without `error` a field is unchanged. No new strings.
+
+- `StatusChip`: each tone shows the symbol its toast carries before the text, soft and filled, catalog and domain states alike: success `CircleCheckIcon`, destructive `CircleXIcon`, warn `TriangleAlertIcon`, info `InfoIcon`. Neutral states have no symbol. The symbol is hidden from screen readers; the text is unchanged.
+- `Toaster`: the success, info, warning and error symbols are hidden from screen readers. Each now carries the variant's name (`suite:status.*`) for screen readers, read before the message. Nothing changes visually.
+- `DataTableShell` and `TileGridShell` (`ListStateContent`): the error state shows `CircleXIcon` before its text, with or without Try again. Empty, filtered and loading are unchanged.
+- `SettingsScaffold` error and the rejected-file message of `UploadStep`: `CircleXIcon` before the text.
+- `FieldError` (`SUI-FEATURE-078`) shows `CircleXIcon` and the text in `--destructive-text`, with `role="alert"` and its own `id`. `SettingsField error="…"` renders it under the control in place of the help text, which returns once `error` is cleared or empty. While the error stands, the package controls inside the field (`Input`, `Textarea`, `SelectTrigger`, `TimezoneCombobox`, `Checkbox`, `RadioGroup` and `RadioGroupItem`) carry `aria-invalid="true"` and `aria-errormessage` on it, also when they mount late or remount. With `group` the group carries them too. A value the control is given explicitly wins, and `TimezoneCombobox` keeps its own `invalid` and error id. The red border stays as an extra signal, now on checkboxes and radio options too. New: `FieldErrorContext` and `useFieldErrorAttributes` (in `field-error`), which a package control reads.
+- The list error state's symbol stands on the first line of a wrapping text, like the other error messages.
+- Checked and unchanged: the EditorHeader state mark (ring vs dot, with the state text for screen readers), `InlineStatus` (its own symbol and name per state), `ColorDotBadge` (the dot always stands beside the tag's name) and links in running text (`HelpMarkdown` links are underlined). The package draws no charts.
+- Gallery: a FieldError section on the components page with one invalid field per kind, in one column below md; the tiles state demos stand in one column below md. New checks (`GL-UI-060`) assert that the states of a surface differ without colour, by symbol, shape mark and text: StatusChip tones, InlineStatus, the editor state mark, list and settings errors against the empty state, field errors and toast variants. The toast page now waits for the success toast element instead of its text, which now appears twice.
+
 ## 0.95.0 — #147, SUI-FEATURE-110 rev 3: sidebar as an overlay below md
 
 Not breaking. At `md` (48rem) and up the shell and panels look and behave as before. New: `SidebarOverlayTrigger`; `useSidebar()` also returns `isOverlay`, `overlayOpen`, `openOverlay` and `closeOverlay`; the CSS variable `--sidebar-inset`; the string `suite:nav.openNavigation` (de/en/es).

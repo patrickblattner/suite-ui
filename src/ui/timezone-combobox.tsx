@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
 import { usePopupPlacement } from "../lib/popup-placement.js";
+import { useFieldErrorAttributes } from "./field-error.js";
 import { Hint } from "./hint.js";
 
 // The IANA zones of the runtime's own Intl database (`GL-UI-030` §Zeitzonen-Feld).
@@ -59,6 +60,9 @@ function TimezoneCombobox({
   "data-testid": testId,
 }: TimezoneComboboxProps) {
   const { t } = useTranslation("suite");
+  // An invalid surrounding field marks the field too; its own `invalid` and error id come first.
+  const fieldError = useFieldErrorAttributes();
+  const isInvalid = invalid || ariaInvalid === true || fieldError["aria-invalid"] === true;
   const generatedId = React.useId();
   const inputId = id ?? generatedId;
   const listId = `${inputId}-listbox`;
@@ -162,9 +166,11 @@ function TimezoneCombobox({
       aria-activedescendant={
         open && matches[active] !== undefined ? `${listId}-${active}` : undefined
       }
-      aria-invalid={invalid || ariaInvalid}
+      aria-invalid={invalid || ariaInvalid || fieldError["aria-invalid"]}
       aria-describedby={ariaDescribedBy}
-      aria-errormessage={invalid || ariaInvalid ? ariaErrorMessage : undefined}
+      aria-errormessage={
+        isInvalid ? (ariaErrorMessage ?? fieldError["aria-errormessage"]) : undefined
+      }
       data-testid={testId}
       disabled={disabled}
       placeholder={t("timezone.placeholder")}

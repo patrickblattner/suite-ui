@@ -4,6 +4,7 @@ import { Select as SelectPrimitive } from "radix-ui";
 
 import { cn } from "../lib/cn.js";
 import { useHighlightInput } from "../lib/highlight-input.js";
+import { useFieldErrorAttributes } from "./field-error.js";
 import { OverflowTooltip } from "./tooltip.js";
 
 // Whether the pointer opened the list: the entry the list highlights on opening then keeps the tint
@@ -60,12 +61,14 @@ function SelectTrigger({
   fieldName?: string;
 }) {
   const opener = React.useContext(SelectOpenerContext);
+  const fieldError = useFieldErrorAttributes();
   const fieldNameId = React.useId();
   // Only non-blank text names the trigger; anything else (also a value bypassing the type) is none, so
   // no empty name overrides `aria-label`.
   const named = typeof fieldName === "string" && fieldName.trim() !== "";
   return (
     <SelectPrimitive.Trigger
+      {...fieldError}
       data-size={size}
       aria-labelledby={named ? fieldNameId : undefined}
       onPointerDown={(event) => {

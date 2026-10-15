@@ -36,7 +36,7 @@ const PAGES: [name: string, ready: (page: Page) => Locator][] = [
   ["select", (page) => page.getByRole("listbox")],
   ["sheet", (page) => page.getByTestId("sheet")],
   ["help", (page) => page.getByTestId("help-version")],
-  ["toast", (page) => page.getByText("Success")],
+  ["toast", (page) => page.locator("[data-sonner-toast][data-type=success]")],
   ["preview", (page) => page.getByTestId("preview-no-device")],
   ["split", (page) => page.getByTestId("split-single-toggle")],
 ];
@@ -317,7 +317,7 @@ test("confirm dialog: Confirm locked until the confirmation word", async ({ page
 test("a shell banner pushes the toast down by exactly its height", async ({ page }) => {
   await page.goto("/?page=toast");
   const toaster = page.locator("[data-sonner-toaster]");
-  await expect(page.getByText("Success")).toBeVisible();
+  await expect(page.locator("[data-sonner-toast][data-type=success]")).toBeVisible();
   const before = await box(toaster);
   await page.evaluate(() =>
     document.documentElement.style.setProperty("--shell-chrome-height", "40px"),
@@ -4805,4 +4805,137 @@ test("canvas: badge moves left at the right edge, truncates when wider than the 
     (el) => getComputedStyle(el).textOverflow === "ellipsis" && el.scrollWidth > el.clientWidth,
   );
   expect(ellipsis).toBe(true);
+});
+
+// `GL-UI-060`: in greyscale every state of a surface still differs. The check reads what survives
+// without colour (the symbol, the shape mark and the text, also the screen-reader-only text) instead
+// of a greyscale screenshot: it names the state that lost its signal, needs no second set of
+// baselines, and does not depend on how far two greys happen to lie apart.
+async function symbolOf(element: Locator): Promise<string> {
+  return element.evaluate((el) => {
+    const mark = el.querySelector("[data-mark]")?.getAttribute("data-mark");
+    if (mark) return `mark:${mark}`;
+    if (el.querySelector("[role=progressbar], [data-testid=operation-spinner]")) return "progress";
+    const svg = el.querySelector("svg");
+    const lucide = [...(svg?.classList ?? [])].find((c) => c.startsWith("lucide-"));
+    return lucide ?? "none";
+  });
+}
+
+test("GL-UI-060: the states of the components page differ without colour", async ({ page }) => {
+  await page.goto("/?page=components&lng=en");
+  await expect(page.getByTestId("section-structure")).toBeVisible();
+
+  // StatusChip, catalog and domain, soft and filled: one symbol per tone, a different one per tone.
+  const byTone = new Map<string, Set<string>>();
+  for (const chip of await page.locator("[data-testid^=status-chip-]").all()) {
+    const tone = ((await chip.getAttribute("data-variant")) ?? "").replace(/-soft$/, "");
+    const symbols = byTone.get(tone) ?? new Set<string>();
+    symbols.add(await symbolOf(chip));
+    byTone.set(tone, symbols);
+  }
+  expect([...byTone.keys()].sort()).toEqual(
+    ["destructive", "info", "secondary", "success", "warn"].sort(),
+  );
+  for (const symbols of byTone.values()) expect(symbols.size).toBe(1);
+  const toneSymbols = [...byTone.values()].map((symbols) => [...symbols][0]);
+  expect(new Set(toneSymbols).size).toBe(toneSymbols.length);
+
+  // InlineStatus: running, done and failed each with their own symbol and their name for screen readers.
+  const inline = new Map<string, string>();
+  for (const status of await page.locator("[data-testid=inline-status][data-state]").all()) {
+    const state = (await status.getAttribute("data-state")) ?? "";
+    await expect(status.locator(".sr-only").first()).not.toBeEmpty();
+    inline.set(state, await symbolOf(status));
+  }
+  expect([...inline.keys()].sort()).toEqual(["done", "failed", "running"]);
+  expect(new Set(inline.values()).size).toBe(3);
+});
+
+test("GL-UI-060: the editor state mark differs by shape and keeps its text", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/?page=components&lng=en");
+  const marks: string[] = [];
+  for (const [id, text] of [
+    ["editor-header-saved", "Saved"],
+    ["editor-header-draft", "Draft · unsaved"],
+  ] as const) {
+    const state = page.getByTestId(id).getByTestId("editor-state");
+    await expect(state).toHaveAttribute("data-compact", "");
+    await expect(state.locator(".sr-only")).toHaveText(text);
+    marks.push(await symbolOf(state));
+  }
+  expect(marks).toEqual(["mark:ring", "mark:dot"]);
+});
+
+test("GL-UI-060: error messages lead with a symbol, the empty state has none", async ({ page }) => {
+  await page.goto("/?page=tiles&lng=en");
+  expect(await symbolOf(page.getByTestId("tiles-error-error"))).toBe("lucide-circle-x");
+  expect(await symbolOf(page.getByTestId("tiles-empty-empty"))).not.toBe("lucide-circle-x");
+
+  // `SUI-FEATURE-078` AC 2: every invalid field kind carries its error symbol and text, not just a border.
+  await page.goto("/?page=components&lng=en");
+  const errors = page.getByTestId("field-errors").locator("[data-slot=field-error]");
+  await expect(errors).toHaveCount(6);
+  for (const error of await errors.all()) {
+    expect(await symbolOf(error)).toBe("lucide-circle-x");
+    const id = (await error.getAttribute("id")) ?? "";
+    // The control, and with a group the group and each of its options.
+    await expect(
+      page.locator(`[aria-errormessage="${id}"][aria-invalid=true]`).first(),
+    ).toBeAttached();
+  }
+
+  await page.goto("/?page=settings&layout=body&state=error&lng=en");
+  expect(await symbolOf(page.getByTestId("settings-error"))).toBe("lucide-circle-x");
+});
+
+test("GL-UI-060: every toast variant has its own symbol and its name", async ({ page }) => {
+  await page.goto("/?page=toast&lng=en");
+  await expect(page.locator("[data-sonner-toast][data-type=success]")).toBeVisible();
+  const symbols = new Map<string, string>();
+  for (const type of ["success", "info", "warning", "error"]) {
+    const item = page.locator(`[data-sonner-toast][data-type=${type}]`);
+    await expect(item.locator("[data-icon] .sr-only")).not.toBeEmpty();
+    symbols.set(type, await symbolOf(item.locator("[data-icon]")));
+  }
+  expect(new Set(symbols.values()).size).toBe(4);
+  expect([...symbols.values()]).not.toContain("none");
+});
+
+test("GL-UI-060: the preview page's state chip carries its tone's symbol", async ({ page }) => {
+  await page.goto("/?page=preview&lng=en");
+  const chips = page.getByTestId("preview-status-chip");
+  await expect(chips.first()).toBeVisible();
+  for (const chip of await chips.all()) {
+    const variant = await chip.getAttribute("data-variant");
+    const symbol = await symbolOf(chip);
+    if (variant === "secondary") expect(symbol).toBe("none");
+    else expect(symbol).not.toBe("none");
+  }
+});
+
+// `GL-UI-060`: at 390 px the error symbol of the tiles demo stays inside its frame, in every language.
+for (const lng of LANGUAGES) {
+  test(`GL-UI-060: the tiles error symbol is visible at 390 px (${lng})`, async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`/?page=tiles&lng=${lng}`);
+    const frame = await box(page.getByTestId("tiles-error"));
+    const symbol = await box(page.getByTestId("tiles-error-error").locator("svg").first());
+    expect(symbol.x).toBeGreaterThanOrEqual(frame.x);
+    expect(symbol.x + symbol.width).toBeLessThanOrEqual(frame.x + frame.width);
+  });
+}
+
+// `SUI-FEATURE-078`: below md the invalid fields stand in one column, none overlaps the next.
+test("GL-UI-060: the FieldError demo does not overlap at 390 px", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/?page=components&lng=en");
+  const fields = page.getByTestId("field-errors").locator("[data-slot=settings-field]");
+  const boxes = await Promise.all((await fields.all()).map((field) => box(field)));
+  expect(boxes).toHaveLength(6);
+  for (const [index, current] of boxes.entries()) {
+    const next = boxes[index + 1];
+    if (next !== undefined) expect(next.y).toBeGreaterThanOrEqual(current.y + current.height);
+  }
 });

@@ -130,6 +130,9 @@ describe("UploadStep", () => {
     expect(onFiles).toHaveBeenCalledWith([image]);
     expect(message).toHaveTextContent("Not taken, file type not allowed: R&D notes.txt");
     expect(message).toBeVisible();
+    // GL-UI-060: a hidden error symbol before the text.
+    expect(message.firstElementChild).toHaveClass("lucide-circle-x");
+    expect(message.firstElementChild).toHaveAttribute("aria-hidden", "true");
     fireEvent.drop(screen.getByTestId("upload-drop"), { dataTransfer: { files: [png("b.png")] } });
     expect(message).toBeEmptyDOMElement();
   });

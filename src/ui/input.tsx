@@ -1,6 +1,7 @@
 import type * as React from "react";
 
 import { cn } from "../lib/cn.js";
+import { useFieldErrorAttributes } from "./field-error.js";
 
 // `size` is the height token shared with `Button` and `SelectTrigger` (`GL-UI-011`); it replaces the
 // native character-width attribute of the same name.
@@ -12,8 +13,10 @@ function Input({
 }: Omit<React.ComponentProps<"input">, "size"> & {
   size?: "sm" | "default";
 }) {
+  const fieldError = useFieldErrorAttributes();
   return (
     <input
+      {...fieldError}
       type={type}
       data-slot="input"
       data-size={size}
