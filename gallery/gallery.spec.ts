@@ -2078,6 +2078,42 @@ test("sidebar overlay: opened from the page head, closed by Esc, a click beside 
   await expect(trigger).toBeFocused();
 });
 
+// `SUI-FEATURE-110`: the open overlay is modal; Tab and Shift+Tab cycle inside it, the content behind
+// is inert.
+test("sidebar overlay: Tab and Shift+Tab stay inside the open overlay", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/?page=shell&route=/dashboard&lng=en");
+  const sidebar = page.getByTestId("app-sidebar");
+  const trigger = page.getByTestId("sidebar-overlay-trigger");
+  await trigger.focus();
+  await page.keyboard.press("Enter");
+  await expect(sidebar).toBeVisible();
+  const inside = () =>
+    page.evaluate(() =>
+      document.querySelector("[data-testid=app-sidebar]")!.contains(document.activeElement),
+    );
+  const first = await page.evaluate(() => document.activeElement?.getAttribute("data-testid"));
+  await page.keyboard.press("Shift+Tab");
+  expect(await inside()).toBe(true);
+  await page.keyboard.press("Tab");
+  expect(await page.evaluate(() => document.activeElement?.getAttribute("data-testid"))).toBe(
+    first,
+  );
+  for (let i = 0; i < 30; i++) {
+    await page.keyboard.press("Tab");
+    expect(await inside(), `Tab ${i + 1} left the overlay`).toBe(true);
+  }
+  expect(
+    await page.getByTestId("page-header").evaluate((node) => node.closest("[inert]") !== null),
+  ).toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(sidebar).toBeHidden();
+  await expect(trigger).toBeFocused();
+  expect(
+    await page.getByTestId("page-header").evaluate((node) => node.closest("[inert]") !== null),
+  ).toBe(false);
+});
+
 // `SUI-FEATURE-110` AC3: at 1440 px the sidebar stands beside the content and the trigger is hidden.
 test("sidebar overlay: at 1440 px the sidebar stands beside the content, no trigger", async ({
   page,

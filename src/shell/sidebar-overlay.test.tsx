@@ -79,6 +79,27 @@ describe("sidebar overlay below md (SUI-FEATURE-110)", () => {
     expect(sidebar()).toContainElement(document.activeElement as HTMLElement);
   });
 
+  it("is modal while open: the content behind is inert and Tab cycles inside it", async () => {
+    narrow(true);
+    render(<Shell />);
+    const content = screen.getByRole("main");
+    openOverlay();
+    expect(content).toHaveAttribute("inert");
+    expect(sidebar()).not.toHaveAttribute("inert");
+    expect(screen.getByTestId("sidebar-scrim")).not.toHaveAttribute("inert");
+    const controls = [...sidebar().querySelectorAll<HTMLElement>("button, a[href]")];
+    const first = controls[0]!;
+    const last = controls.at(-1)!;
+    act(() => last.focus());
+    fireEvent.keyDown(last, { key: "Tab" });
+    expect(first).toHaveFocus();
+    fireEvent.keyDown(first, { key: "Tab", shiftKey: true });
+    expect(last).toHaveFocus();
+    fireEvent.keyDown(last, { key: "Escape" });
+    await waitFor(() => expect(trigger()).toHaveFocus());
+    expect(content).not.toHaveAttribute("inert");
+  });
+
   it("Esc closes it and returns the focus to the trigger", async () => {
     narrow(true);
     render(<Shell />);

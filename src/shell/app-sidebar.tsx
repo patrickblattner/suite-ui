@@ -5,6 +5,7 @@ import { NavLink, useLocation, useNavigate } from "react-router-dom";
 
 import { cn } from "../lib/cn.js";
 import { useEscapeLayer } from "../lib/escape-layers.js";
+import { useModalOverlay } from "../lib/modal-overlay.js";
 import { Hint, type HintProps } from "../ui/hint.js";
 import {
   allowedModel,
@@ -66,9 +67,13 @@ function AppSidebar({
   const navigate = useNavigate();
   const [element, setElement] = React.useState<HTMLElement | null>(null);
 
-  // Below `md` (`SUI-FEATURE-110`): the open overlay takes the focus on its first control and closes
-  // on `Esc`, a click beside it and a navigation.
+  const [scrim, setScrim] = React.useState<HTMLElement | null>(null);
+
+  // Below `md` (`SUI-FEATURE-110`): the open overlay is modal. It takes the focus on its first control,
+  // Tab cycles inside it while the content behind is inert, and `Esc`, a click beside it and a
+  // navigation close it.
   useEscapeLayer(overlayOpen, closeOverlay, element);
+  const trapTab = useModalOverlay(overlayOpen, element, scrim);
   React.useEffect(() => {
     if (overlayOpen) element?.querySelector<HTMLElement>("button, a[href], input")?.focus();
   }, [overlayOpen, element]);
@@ -177,6 +182,7 @@ function AppSidebar({
     <>
       {overlayOpen ? (
         <div
+          ref={setScrim}
           aria-hidden="true"
           onClick={closeOverlay}
           className="fixed inset-0 z-40 bg-black/50 md:hidden"
@@ -186,6 +192,7 @@ function AppSidebar({
       <nav
         ref={setElement}
         id={SIDEBAR_ID}
+        onKeyDown={trapTab}
         data-testid="app-sidebar"
         aria-label={t("nav.label")}
         data-state={isOpen ? "expanded" : "collapsed"}
