@@ -218,16 +218,19 @@ function uniqueIds(describedBy: string | undefined): string | undefined {
 // sits in a span that is the trigger, focusable and the owner of the description. The span stands
 // either way, so toggling `disabled` never remounts it. A control that declares `busy` sits in that
 // span as well: while it runs it is locked, and its hint, still `label`, opens on hover over the span
-// (`SUI-FEATURE-072`).
+// (`SUI-FEATURE-072`). With `named`, a disabled control's bubble shows `label` above `disabledText`,
+// for an icon-only control that would otherwise lose its name to the eye (`SUI-FEATURE-090`).
 function IconButtonTooltip({
   label,
   shortcut,
   disabledText,
+  named = false,
   children,
 }: {
   label: string;
   shortcut?: string | readonly string[] | undefined;
   disabledText?: string | undefined;
+  named?: boolean;
   children: React.ReactElement<{
     disabled?: boolean;
     busy?: boolean;
@@ -274,7 +277,18 @@ function IconButtonTooltip({
             {trigger}
           </TooltipTrigger>
           <TooltipContent>
-            {disabled ? disabledText : label}
+            {disabled && named ? (
+              <>
+                <span className="block">{label}</span>
+                <span className="mt-1 block opacity-90" data-slot="tooltip-hint">
+                  {disabledText}
+                </span>
+              </>
+            ) : disabled ? (
+              disabledText
+            ) : (
+              label
+            )}
             {disabled || variants === undefined ? null : (
               <kbd aria-hidden className="ml-2 opacity-70">
                 {shortcutChip(variants, t("keys.delete"))}

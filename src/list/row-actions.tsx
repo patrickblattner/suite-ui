@@ -2,6 +2,7 @@ import { EllipsisIcon, LinkIcon, PencilIcon, Trash2Icon } from "lucide-react";
 import type * as React from "react";
 import { useTranslation } from "react-i18next";
 
+import { ariaKeyShortcuts, shortcutChip } from "../lib/keyboard.js";
 import { Button } from "../ui/button.js";
 import {
   DropdownMenu,
@@ -32,8 +33,12 @@ type RowAction = {
 // One entry of a row's overflow menu. A `destructive` entry stands last, after a separator, in the
 // destructive colour; a `disabled` entry is muted and cannot be chosen. `hint` is the entry's
 // description hint (`GL-UI-017`); on a disabled entry it names the condition under which it unlocks.
+// `icon` stands before the label, as on the button the entry stands for (`SUI-FEATURE-090`).
 type RowMenuItem = {
   label: string;
+  icon?: React.ReactNode;
+  // The key hint of the action the entry stands for, e.g. Undo's `["Ctrl+Z", "Meta+Z"]`.
+  shortcut?: readonly string[];
   onSelect: () => void;
   destructive?: boolean;
   disabled?: boolean;
@@ -141,32 +146,54 @@ function UsageButton({ usage, size }: { usage: RowUsage; size: "icon-xs" | "icon
 }
 
 // The ⋯ button of a row's overflow menu (`SUI-FEATURE-066`): `outline`, named `label`, opening a
-// `DropdownMenu` with the destructive entries last after a separator.
+// `DropdownMenu` with the destructive entries last after a separator. The `EditorHeader` uses it
+// `ghost`, like its other icon buttons (`SUI-FEATURE-090`).
 function RowActionMenu({
   menu,
   size,
+  variant = "outline",
+  "data-testid": testId = "row-menu",
 }: {
   menu: NonNullable<RowActionSet["menu"]>;
   size: "icon-xs" | "icon-sm";
+  variant?: "outline" | "ghost";
+  "data-testid"?: string;
 }) {
+  const { t } = useTranslation("suite");
   const plain = menu.items.filter((item) => item.destructive !== true);
   const destructive = menu.items.filter((item) => item.destructive === true);
   const entry = (item: RowMenuItem) => {
+    // A locked entry with a hint stays in the arrow keys' path, so its reason reaches the keyboard
+    // too: it is marked `aria-disabled` and ignores the choice instead of being `disabled`.
+    const lockedWithReason = item.disabled === true && item.hint !== undefined;
     const control = (
       <DropdownMenuItem
         key={item.label}
         variant={item.destructive === true ? "destructive" : "default"}
-        disabled={item.disabled === true}
-        onSelect={item.onSelect}
-        // A disabled entry with a hint still takes the pointer, so its hint can open.
+        disabled={item.disabled === true && !lockedWithReason}
+        {...(lockedWithReason ? { "aria-disabled": true, "data-disabled": "" } : {})}
+        aria-keyshortcuts={
+          item.shortcut === undefined ? undefined : ariaKeyShortcuts(item.shortcut)
+        }
+        onSelect={(event) => {
+          if (lockedWithReason) event.preventDefault();
+          else item.onSelect();
+        }}
+        // Its hint opens on the pointer as well.
         className={
-          item.hint === undefined
-            ? undefined
-            : "data-[disabled]:pointer-events-auto data-[disabled]:cursor-not-allowed"
+          lockedWithReason
+            ? "data-[disabled]:pointer-events-auto data-[disabled]:cursor-not-allowed"
+            : undefined
         }
         data-testid={item["data-testid"] ?? "row-menu-item"}
       >
+        {item.icon}
         {item.label}
+        {item.shortcut === undefined ? null : (
+          <kbd aria-hidden className="ml-auto pl-4 text-xs opacity-70">
+            {shortcutChip(item.shortcut, t("keys.delete"))}
+          </kbd>
+        )}
       </DropdownMenuItem>
     );
     return item.hint === undefined ? (
@@ -181,12 +208,12 @@ function RowActionMenu({
     <DropdownMenu>
       <IconButtonTooltip label={menu.label}>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" size={size} data-testid="row-menu">
+          <Button variant={variant} size={size} data-testid={testId}>
             <EllipsisIcon aria-hidden="true" />
           </Button>
         </DropdownMenuTrigger>
       </IconButtonTooltip>
-      <DropdownMenuContent data-testid="row-menu-content">
+      <DropdownMenuContent data-testid={`${testId}-content`}>
         {plain.map(entry)}
         {plain.length > 0 && destructive.length > 0 ? <DropdownMenuSeparator /> : null}
         {destructive.map(entry)}
@@ -326,6 +353,7 @@ function RowActions({
 }
 
 export {
+  RowActionMenu,
   RowActions,
   RowActionsHead,
   useRowActionButtons,

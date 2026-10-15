@@ -394,17 +394,21 @@ describe("PreviewToolbar (GL-UI-008)", () => {
 describe("PreviewToolbar in a narrow column (SUI-FEATURE-067)", () => {
   let available = 900;
   const observers: ResizeObserverCallback[] = [];
+  const watched: Element[] = [];
   const isToolbar = (el: HTMLElement) => el.dataset.testid === "preview-toolbar";
   beforeEach(() => {
     available = 900;
     observers.length = 0;
+    watched.length = 0;
     vi.stubGlobal(
       "ResizeObserver",
       class {
         constructor(callback: ResizeObserverCallback) {
           observers.push(callback);
         }
-        observe() {}
+        observe(target: Element) {
+          watched.push(target);
+        }
         unobserve() {}
         disconnect() {}
       },
@@ -445,6 +449,14 @@ describe("PreviewToolbar in a narrow column (SUI-FEATURE-067)", () => {
       child.getAttribute("role") === "separator" ? "—" : child.textContent,
     );
   };
+
+  // #143: a language switch changes the width of the toolbar's parts, not of the toolbar; the parts
+  // are watched too, so it re-measures.
+  it("watches the toolbar and each of its parts", () => {
+    render(<Preview />);
+    expect(watched).toContain(toolbar());
+    for (const part of toolbar().children) expect(watched).toContain(part);
+  });
 
   it("AC3: wide enough, everything stands in one line as before", () => {
     render(<Preview />);

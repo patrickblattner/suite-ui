@@ -1280,6 +1280,99 @@ test("editor header: Ctrl+Z undoes outside a text field", async ({ page }) => {
   await expect(draft.getByTestId("editor-state")).toHaveText("Draft · unsaved");
 });
 
+// `SUI-FEATURE-090`: at narrow width every control of each editor header lies inside it and the
+// title keeps its first 6 characters and the ellipsis; widened, nothing stays folded.
+const EDITOR_HEADERS = [
+  "editor-header-saved",
+  "editor-header-draft",
+  "editor-lifecycle-saved",
+  "editor-lifecycle-draft",
+] as const;
+
+async function expectHeaderFits(page: Page, frame: string) {
+  const header = page.getByTestId(frame).locator("[data-slot=editor-header]");
+  const fit = await header.evaluate((node) => {
+    const own = node.getBoundingClientRect();
+    const controls = [
+      ...node.querySelectorAll(
+        "[data-testid=editor-back], [data-slot=editor-title], [data-testid=editor-state], [data-testid=editor-menu], [data-testid=editor-next], [data-testid=editor-save]",
+      ),
+    ];
+    const outside = controls
+      .filter((control) => {
+        const box = control.getBoundingClientRect();
+        return box.left < own.left - 0.5 || box.right > own.right + 0.5;
+      })
+      .map((control) => control.getAttribute("data-testid") ?? control.getAttribute("data-slot"));
+    const floor = node.querySelector("[data-slot=editor-title] > span")!.getBoundingClientRect();
+    const title = node.querySelector("[data-slot=editor-title-text]")!.getBoundingClientRect();
+    return {
+      overflow: node.scrollWidth - node.clientWidth,
+      outside,
+      titleShort: floor.width - title.width,
+      shrink: node.getAttribute("data-shrink"),
+    };
+  });
+  expect(fit.outside, `${frame}: controls outside the header`).toEqual([]);
+  expect(fit.overflow, `${frame}: overflow`).toBeLessThanOrEqual(0);
+  expect(fit.titleShort, `${frame}: title below 6 characters and the ellipsis`).toBeLessThanOrEqual(
+    0.5,
+  );
+  return fit.shrink;
+}
+
+for (const [viewport, content] of [
+  [390, 342],
+  [438, 390],
+] as const) {
+  test(`editor header: every control fits a ${content} px header, then unfolds at 1440 px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: viewport, height: 900 });
+    await page.goto("/?page=components&lng=de");
+    for (const frame of EDITOR_HEADERS) {
+      // The demo's frame takes the gallery's content width; the header sits inside its border.
+      const width = await page
+        .getByTestId(frame)
+        .evaluate((node) => node.getBoundingClientRect().width);
+      expect(Math.round(width)).toBe(content);
+      expect(Number(await expectHeaderFits(page, frame))).toBeGreaterThan(0);
+    }
+    await page.setViewportSize({ width: 1440, height: 900 });
+    for (const frame of EDITOR_HEADERS) {
+      await expect(page.getByTestId(frame).locator("[data-slot=editor-header]")).toHaveAttribute(
+        "data-shrink",
+        "0",
+      );
+    }
+  });
+}
+
+test("editor header: a language switch re-folds without a resize", async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 900 });
+  await page.goto("/?page=components&lng=en");
+  for (const frame of EDITOR_HEADERS) await expectHeaderFits(page, frame);
+  await page.getByTestId("gallery-language").selectOption("de");
+  await expect(page.locator("html")).toHaveAttribute("lang", "de");
+  for (const frame of EDITOR_HEADERS) {
+    await expect.poll(() => expectHeaderFits(page, frame).then(() => true)).toBe(true);
+  }
+});
+
+test("editor header: an icon-only locked next step shows its name above its reason", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.goto("/?page=components&lng=de");
+  const next = page.getByTestId("editor-lifecycle-draft").getByTestId("editor-next");
+  await expect(next).toHaveAccessibleName("Submit for review");
+  await expect(next).toHaveText("");
+  await next.locator("..").hover();
+  const bubble = page.locator("[data-slot=tooltip-content]");
+  await expect(bubble).toContainText("Submit for review");
+  await expect(bubble.locator("[data-slot=tooltip-hint]")).toHaveText("Erst speichern");
+});
+
 // `SUI-FEATURE-063`: the media tiles of the tiles page.
 async function mediaTiles(page: Page) {
   await page.goto("/?page=tiles");
