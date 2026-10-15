@@ -40,6 +40,7 @@ function Demo() {
   const [submits, setSubmits] = useState(0);
   const [backs, setBacks] = useState(0);
   const [media, setMedia] = useState<number | null>(null);
+  const [nextOpen, setNextOpen] = useState(false);
   const [shell, setShell] = useState<number | null>(null);
   const [shellName, setShellName] = useState("");
   const [shellSaving, setShellSaving] = useState(false);
@@ -85,6 +86,14 @@ function Demo() {
           }}
         >
           Open media detail shell
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          data-testid="next-panel-trigger"
+          onClick={() => setNextOpen(true)}
+        >
+          Open a next step
         </Button>
         <span data-testid="edit-panel-check-counts">
           submits {submits} · backs {backs}
@@ -149,6 +158,23 @@ function Demo() {
             <Label htmlFor="check-mail">Email</Label>
             <Input id="check-mail" type="email" defaultValue="not-an-email" />
           </div>
+        </div>
+      </EditPanel>
+      {/* SUI-FEATURE-111: a step that only moves on to the review; its button saves nothing. */}
+      <EditPanel
+        open={nextOpen}
+        onOpenChange={setNextOpen}
+        title="Upload media"
+        description="Step 2 of 3: name the files."
+        mode="edit"
+        testIdPrefix="next-panel"
+        submitLabel="Continue to review"
+        submitKind="next"
+        onSubmit={() => setNextOpen(false)}
+      >
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="next-name">File name</Label>
+          <Input id="next-name" defaultValue="team-photo.jpg" />
         </div>
       </EditPanel>
       {/* SUI-FEATURE-051: the media detail pages through the uploaded set. */}

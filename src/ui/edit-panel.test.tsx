@@ -104,6 +104,40 @@ describe("EditPanel", () => {
     expect(icon).toHaveAttribute("aria-hidden", "true");
   });
 
+  // SUI-FEATURE-111 AC1: a step that only moves on claims no save.
+  it('submitKind="next": the text, then an arrow, no SaveIcon; variant and size as Save', () => {
+    const { onSubmit } = renderPanel({ submitKind: "next", submitLabel: "Continue to review" });
+    const submit = screen.getByRole("button", { name: "Continue to review" });
+    expect(submit).toHaveAttribute("data-testid", "edit-panel-submit");
+    expect(submit).toHaveAttribute("data-variant", "success");
+    expect(submit).toHaveAttribute("data-size", "default");
+    expect(submit.querySelector(".lucide-save")).toBeNull();
+    const icons = submit.querySelectorAll("svg");
+    expect(icons).toHaveLength(1);
+    expect(icons[0]).toHaveClass("lucide-arrow-right");
+    expect(icons[0]).toHaveAttribute("aria-hidden", "true");
+    expect(submit.lastElementChild).toBe(icons[0]);
+    fireEvent.click(submit);
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+  });
+
+  it('submitKind="next" locks with submitDisabled and works with busy like Save', () => {
+    renderPanel({ submitKind: "next", submitDisabled: true });
+    expect(screen.getByTestId("edit-panel-submit")).toBeDisabled();
+    cleanup();
+    renderPanel({ submitKind: "next", busy: true });
+    const submit = screen.getByTestId("edit-panel-submit");
+    expect(submit).toBeDisabled();
+    expect(submit).toHaveAttribute("data-busy", "true");
+  });
+
+  it('submitKind="save" is the default', () => {
+    renderPanel({ submitKind: "save" });
+    const submit = screen.getByTestId("edit-panel-submit");
+    expect(submit.firstElementChild).toHaveClass("lucide-save");
+    expect(submit.querySelector(".lucide-arrow-right")).toBeNull();
+  });
+
   it("submit and Enter in a field call onSubmit, Cancel requests the close", () => {
     const { onOpenChange, onSubmit } = renderPanel();
     fireEvent.click(screen.getByTestId("edit-panel-submit"));
