@@ -130,6 +130,49 @@ describe("ConfirmDialog", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
+  it("AC4: confirmDisabled=false keeps the primary action as before (SUI-FEATURE-065 AC3)", () => {
+    const { onConfirm } = renderDialog({
+      confirmDisabled: false,
+      confirmDisabledHint: "Choose a reason first.",
+    });
+    const confirm = screen.getByTestId("confirm-confirm");
+    expect(confirm).toBeEnabled();
+    expect(confirm).toHaveAttribute("data-variant", "default");
+    expect(hintText(confirm)).toBe(required.confirmHint);
+    fireEvent.click(confirm);
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+  });
+
+  it("AC4: returnFocus reaches the dialog: on close the focus goes where it names", async () => {
+    function Page() {
+      const [open, setOpen] = useState(false);
+      return (
+        <>
+          <button type="button" data-testid="trigger" onClick={() => setOpen(true)}>
+            Archive
+          </button>
+          <input aria-label="Other field" data-testid="other-field" />
+          <ConfirmDialog
+            open={open}
+            onOpenChange={setOpen}
+            onConfirm={() => setOpen(false)}
+            returnFocus={() => screen.getByTestId("other-field")}
+            data-testid="confirm"
+            {...required}
+          />
+        </>
+      );
+    }
+    render(<Page />);
+    const trigger = screen.getByTestId("trigger");
+    act(() => trigger.focus());
+    fireEvent.click(trigger);
+    fireEvent.click(await screen.findByTestId("confirm-cancel"));
+    // Dropped, the focus would return to the trigger instead.
+    await waitFor(() => expect(screen.getByTestId("other-field")).toHaveFocus());
+    expect(trigger).not.toHaveFocus();
+  });
+
   it("AC4: on close the focus returns to the trigger (GL-UI-050)", async () => {
     function Page() {
       const [open, setOpen] = useState(false);
