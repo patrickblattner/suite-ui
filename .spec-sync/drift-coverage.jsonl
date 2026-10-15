@@ -337,3 +337,4 @@
 {"ts":"2026-10-15T15:51:39.672Z","key":"GL-UI-050","from":2,"to":3,"disposition":"ticket","ref":"150"}
 {"ts":"2026-10-15T15:51:40.045Z","key":"SUI-FEATURE-120","from":null,"to":2,"disposition":"ticket","ref":"150"}
 {"ts":"2026-10-15T15:51:40.476Z","key":"SUI-FEATURE-090","from":11,"to":12,"disposition":"editorial","ref":"rev 12 records the owner's taste decision #3577: ring stays 8 px / 2 px border, as already built in #144 (v0.92.1); no change"}
+{"ts":"2026-10-15T16:00:46.574Z","key":"GL-UI-050","from":3,"to":4,"disposition":"ticket","ref":"145"}
