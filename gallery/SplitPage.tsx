@@ -180,7 +180,7 @@ export function SplitPage() {
         defaultStop="1/2"
         selected={2}
         minWidths={{ list: 320, preview: 320 }}
-        width="w-[480px]"
+        width="w-[480px] max-w-full"
       />
       <TableWorkspace />
     </Section>

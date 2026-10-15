@@ -60,7 +60,12 @@ const LABELS = {
 const CONTENT_LANGUAGES = ["de", "en", "es"] as const;
 
 // The column widths the narrow toolbar is shown at (`SUI-FEATURE-067` AC 5).
-const NARROW = { 420: "w-[420px]", 600: "w-[600px]", 900: "w-[900px]" } as const;
+// `max-w-full` keeps them inside a narrow viewport.
+const NARROW = {
+  420: "w-[420px] max-w-full",
+  600: "w-[600px] max-w-full",
+  900: "w-[900px] max-w-full",
+} as const;
 
 // One preview toolbar, with its own language and device state.
 function Toolbar({
@@ -174,7 +179,7 @@ function Frame({ initial }: { initial: PreviewDevice }) {
     // A transformed ancestor, as an animated column would be: maximized, the frame still covers the
     // whole content area.
     <div
-      className="w-[480px] [transform:translateZ(0)] rounded-md border p-2"
+      className="w-[480px] max-w-full [transform:translateZ(0)] rounded-md border p-2"
       data-testid={`frame-${initial}`}
     >
       <PreviewFrame
@@ -202,7 +207,7 @@ function UsageFrame({ initial }: { initial: boolean }) {
   const [usage, setUsage] = useState(initial);
   return (
     <div
-      className="w-[480px] rounded-md border p-2"
+      className="w-[480px] max-w-full rounded-md border p-2"
       data-testid={`usage-frame-${initial ? "on" : "off"}`}
     >
       <MemoryRouter>
