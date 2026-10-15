@@ -10,6 +10,8 @@
 // A navigation element (a link, or a control marked with `FOCUS_NAV_ATTR` such as Back) is never a
 // fallback target (2 or 3); it can only be the trigger itself.
 
+import * as React from "react";
+
 import {
   focusListEntry,
   GRID_ITEM_ATTR,
@@ -231,6 +233,42 @@ function returnFocus(opener: Opener | null): boolean {
   return place(mainTarget(group ?? trigger));
 }
 
+/**
+ * `GL-UI-050` §laufende Aktion (`SUI-FEATURE-120`): a button that ran and locks itself as its action
+ * ends (a Save that leaves the form clean) hands the focus on instead of dropping it to `<body>`: to
+ * the next usable control of its group (`FOCUS_GROUP_ATTR`), else to `main` (the surface's main
+ * content), else to the page's main content. A button that ends usable keeps the focus; the hand-on
+ * waits for a lock that comes in a later render. Focus moved elsewhere during the run stays there.
+ */
+function useFocusAfterRun(
+  button: React.RefObject<HTMLButtonElement | null>,
+  running: boolean,
+  locked: boolean,
+  main?: () => HTMLElement | null,
+): void {
+  const ran = React.useRef(false);
+  React.useLayoutEffect(() => {
+    if (running) {
+      ran.current = true;
+      return;
+    }
+    const node = button.current;
+    if (!ran.current || node === null) return;
+    const active = document.activeElement;
+    const held = active === null || active === document.body || active === node;
+    if (!held || !locked) {
+      if (!held || active !== node) ran.current = false;
+      return;
+    }
+    ran.current = false;
+    const group = node.closest(`[${FOCUS_GROUP_ATTR}]`);
+    // Each target counts only if it took the focus; else the next one is tried.
+    if (place(groupTarget(group, node))) return;
+    if (place(main?.() ?? null)) return;
+    place(mainTarget(group ?? node));
+  }, [button, running, locked, main]);
+}
+
 export {
   captureOpener,
   fallbackTarget,
@@ -241,4 +279,5 @@ export {
   type Opener,
   returnFocus,
   trackFocus,
+  useFocusAfterRun,
 };

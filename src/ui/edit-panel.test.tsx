@@ -125,9 +125,11 @@ describe("EditPanel", () => {
     renderPanel({ submitKind: "next", submitDisabled: true });
     expect(screen.getByTestId("edit-panel-submit")).toBeDisabled();
     cleanup();
-    renderPanel({ submitKind: "next", busy: true });
+    const { onSubmit: onBusySubmit } = renderPanel({ submitKind: "next", busy: true });
     const submit = screen.getByTestId("edit-panel-submit");
-    expect(submit).toBeDisabled();
+    expect(submit).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(submit);
+    expect(onBusySubmit).not.toHaveBeenCalled();
     expect(submit).toHaveAttribute("data-busy", "true");
     expect(submit.querySelector("[data-testid=button-loading]")).toHaveClass(
       "lucide-loader-circle",
@@ -165,8 +167,11 @@ describe("EditPanel", () => {
   it("busy: the primary action works and is locked, the panel does not close", () => {
     const { onOpenChange, onSubmit } = renderPanel({ busy: true });
     const submit = screen.getByTestId("edit-panel-submit");
-    expect(submit).toBeDisabled();
+    // SUI-FEATURE-120: aria-disabled and the click guard keep the focus on the running action.
+    expect(submit).toHaveAttribute("aria-disabled", "true");
+    expect(submit).toBeEnabled();
     expect(submit).toHaveAttribute("data-busy", "true");
+    fireEvent.click(submit);
     expect(screen.getByTestId("edit-panel-cancel")).toBeDisabled();
     fireEvent.submit(screen.getByLabelText("Name"));
     fireEvent.keyDown(screen.getByTestId("edit-panel"), { key: "Escape" });

@@ -445,6 +445,9 @@ describe("RowActions busy (SUI-FEATURE-072)", () => {
     const send = screen.getByRole("button", { name: "Send Ada" });
     expect(within(send).getByTestId("button-loading")).toBeInTheDocument();
     expect(send).toHaveAttribute("aria-busy", "true");
+    // SUI-FEATURE-120: locked by aria-disabled and the click guard, never `disabled`.
+    expect(send).toHaveAttribute("aria-disabled", "true");
+    expect(send).toBeEnabled();
     expect(send).toHaveClass("disabled:opacity-100");
     expect(send).toHaveAttribute("aria-keyshortcuts", "Control+Enter");
     fireEvent.click(send);
@@ -466,6 +469,7 @@ describe("RowActions busy (SUI-FEATURE-072)", () => {
       // The browser activates a focused button on Enter/Space with a click; the locked button drops it.
       fireEvent.click(send, { detail: 0 });
       expect(sendAda).not.toHaveBeenCalled();
+      expect(send).toHaveFocus();
       expect(send).toHaveAttribute("aria-keyshortcuts", "Control+Enter");
     },
   );

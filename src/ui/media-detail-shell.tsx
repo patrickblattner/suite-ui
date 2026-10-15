@@ -16,6 +16,8 @@ import { isTextField } from "../lib/keyboard.js";
 import { type RowUsage, useRowActionButtons } from "../list/row-actions.js";
 import { PANEL_SURFACE_CLASS, usePanelGeometry } from "../lib/panel-geometry.js";
 import { Button } from "./button.js";
+import { FIELD_SELECTOR } from "./dialog.js";
+import { useFocusAfterRun } from "./focus-return.js";
 import { useLeaveConfirm } from "./leave-guard.js";
 import { Sheet, SheetTitle } from "./sheet.js";
 import { IconButtonTooltip } from "./tooltip.js";
@@ -114,6 +116,14 @@ function MediaDetailShell({
   const showUsage = usage?.active === true;
   const geometry = usePanelGeometry();
   const returnFocus = React.useRef<HTMLElement | null>(null);
+  // A Save that ends locked (nothing left to save) hands the focus on (`GL-UI-050`,
+  // `SUI-FEATURE-120`): within the footer, else to the first field of the details.
+  const saveButton = React.useRef<HTMLButtonElement>(null);
+  const firstField = React.useCallback(
+    () => saveButton.current?.form?.querySelector<HTMLElement>(FIELD_SELECTOR) ?? null,
+    [],
+  );
+  useFocusAfterRun(saveButton, saving, !dirty, firstField);
   const { guard, dialog } = useLeaveConfirm({
     dirty: open && dirty,
     busy: open && saving,
@@ -303,6 +313,7 @@ function MediaDetailShell({
             </div>
             <div
               data-slot="media-detail-footer"
+              data-focus-group=""
               className="flex shrink-0 flex-row items-center justify-end gap-2 border-t px-6 py-4"
             >
               <Button
@@ -317,6 +328,7 @@ function MediaDetailShell({
                 {t("actions.reset")}
               </Button>
               <Button
+                ref={saveButton}
                 type="submit"
                 variant="success"
                 size="default"

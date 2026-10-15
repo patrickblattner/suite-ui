@@ -33,7 +33,11 @@ function SettingsFooter({
     <SaveResetButtons stem={stem} dirty={dirty} valid={valid} saving={saving} onReset={onReset} />
   );
   return (
-    <div className="flex shrink-0 justify-end gap-2 border-t pt-4" data-testid="settings-footer">
+    <div
+      className="flex shrink-0 justify-end gap-2 border-t pt-4"
+      data-focus-group=""
+      data-testid="settings-footer"
+    >
       {testIdPrefix !== undefined ? (
         <div className="flex gap-2" data-testid={`${testIdPrefix}-actions`}>
           {buttons}

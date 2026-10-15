@@ -100,8 +100,13 @@ describe("ConfirmDeleteDialog", () => {
   });
 
   it("busy locks both buttons and ignores close requests", () => {
-    const { onOpenChange } = renderDialog({ busy: true });
-    expect(screen.getByTestId("confirm-confirm")).toBeDisabled();
+    const { onConfirm, onOpenChange } = renderDialog({ busy: true });
+    // SUI-FEATURE-120: the running confirm keeps focus, locked by aria-disabled and the click guard.
+    const confirm = screen.getByTestId("confirm-confirm");
+    expect(confirm).toHaveAttribute("aria-disabled", "true");
+    expect(confirm).toBeEnabled();
+    fireEvent.click(confirm);
+    expect(onConfirm).not.toHaveBeenCalled();
     expect(screen.getByTestId("confirm-cancel")).toBeDisabled();
     fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
     expect(onOpenChange).not.toHaveBeenCalled();
