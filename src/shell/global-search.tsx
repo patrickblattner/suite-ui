@@ -12,6 +12,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../ui/dialog.js";
+import { isUsable } from "../ui/focus-return.js";
 import { Hint } from "../ui/hint.js";
 import { useSidebar } from "./sidebar-provider.js";
 
@@ -130,16 +131,14 @@ function GlobalSearch({
     const from = previous.current;
     previous.current = null;
     if (navigating.current) return;
-    const usable = (node: HTMLElement | null): node is HTMLElement =>
-      node !== null && node.isConnected && !(node as HTMLButtonElement).disabled;
-    const target = usable(from)
-      ? from
-      : usable(inputRef.current)
-        ? inputRef.current
-        : railRef.current;
-    if (target === inputRef.current) suppressFocusOpen.current = true;
-    target?.focus();
-    if (document.activeElement !== target) suppressFocusOpen.current = false;
+    // The first usable one that takes the focus (`GL-UI-050`), each tried in turn.
+    for (const target of [from, inputRef.current, railRef.current]) {
+      if (!isUsable(target)) continue;
+      if (target === inputRef.current) suppressFocusOpen.current = true;
+      target.focus();
+      if (document.activeElement === target) return;
+      suppressFocusOpen.current = false;
+    }
   }
 
   const shortcut = isMacPlatform() ? "⌘K" : "Ctrl K";

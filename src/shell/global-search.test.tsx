@@ -101,6 +101,37 @@ describe("GlobalSearch", () => {
     );
   });
 
+  // #151: closing goes back to what had the focus only if it is still usable (not hidden, inert,
+  // locked or aria-disabled) and takes the focus; else the field, without reopening the dialog.
+  it.each([
+    ["aria-disabled", (el: HTMLElement) => el.setAttribute("aria-disabled", "true")],
+    ["hidden", (el: HTMLElement) => el.setAttribute("hidden", "")],
+    [
+      "refusing the focus",
+      (el: HTMLElement) => {
+        el.focus = () => {};
+      },
+    ],
+  ] as const)("a previous control that is %s hands the focus to the field", async (_, spoil) => {
+    render(
+      <ShellHarness route="/dashboard">
+        <button type="button" data-testid="earlier">
+          Earlier
+        </button>
+        <GlobalSearch areas={AREAS} search={vi.fn(() => Promise.resolve(RESULT))} />
+      </ShellHarness>,
+    );
+    const earlier = screen.getByTestId("earlier");
+    act(() => earlier.focus());
+    fireEvent.keyDown(document, { key: "k", ctrlKey: true });
+    const dialog = await screen.findByTestId("search-dialog");
+    spoil(earlier);
+    fireEvent.keyDown(within(dialog).getByTestId("search-dialog-input"), { key: "Escape" });
+    await waitFor(() => expect(screen.queryByTestId("search-dialog")).not.toBeInTheDocument());
+    expect(screen.getByTestId("shell-search")).toHaveFocus();
+    expect(screen.queryByTestId("search-dialog")).not.toBeInTheDocument();
+  });
+
   it("opens with the shortcut", async () => {
     renderSearch();
     fireEvent.keyDown(document, { key: "k", ctrlKey: true });
