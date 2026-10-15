@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Prints the pinned Playwright image the gallery screenshots are taken and compared in
-// (SUI-FEATURE-076, GL-TEST-019). This is the one written-out pin: the CI workflow's resolver job
-// and `scripts/gallery-image.sh` both read it from here.
+// (SUI-FEATURE-076, GL-TEST-019). This is the one written-out pin; `scripts/gallery-image.sh`
+// reads it from here.
 //
 // The tag has to match the `@playwright/test` version the lockfile resolves — the browsers in the
 // image belong to that version — so a Playwright bump is a lockfile change and a pin change in the

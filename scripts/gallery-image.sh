@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 # Runs the gallery screenshots in the pinned Playwright image on this machine (SUI-FEATURE-076):
-# the local gate compares against the same Linux baselines as the CI workflow, never against a
-# rendering of the host. Arguments go through to Playwright:
+# the local gate compares against Linux baselines taken in that image, never against a rendering of
+# the host. Arguments go through to Playwright:
 #
 #   npm run gallery:image                               # compare
 #   npm run gallery:image -- --update-snapshots=all     # regenerate the baselines
 #
 # It works on a throwaway copy of the working tree: the checkout's `node_modules` are built for the
-# host, so the container gets its own `npm ci` like the CI job. Only the baselines and the reports
-# come back. `--platform linux/amd64` because the runners are amd64 and a baseline has to be
-# rendered on the architecture it is compared on.
+# host, so the container gets its own `npm ci`. Only the baselines and the reports come back.
+# `--platform linux/amd64` is explicit: the image is multi-arch, and a baseline has to be rendered on
+# the architecture it is compared on, whatever the host is.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

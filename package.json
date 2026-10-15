@@ -76,7 +76,8 @@
     "gallery:image": "scripts/gallery-image.sh",
     "gallery:dev": "vite --config gallery/vite.config.ts",
     "parity": "node dist/parity/cli.js",
-    "release:tag": "node scripts/release-tag.ts"
+    "gate:record": "node scripts/release.ts record",
+    "release:tag": "node scripts/release.ts tag"
   },
   "dependencies": {
     "jiti": "^2.7.0"
