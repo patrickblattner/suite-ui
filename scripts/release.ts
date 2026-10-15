@@ -6,8 +6,11 @@
 //   npm run release:tag -- --dry-run       # all checks, no tag, no push
 //
 // `record` writes `.spec-sync/gate-records/<tree hash>.json` only on exit 0 with a clean working tree
-// before and after the run, and only when exactly the merge profile's phases ran. The record is keyed by the tree, not the commit, so a squash commit
-// with the gated content finds it without a second run. `tag` is the only way to tag; it refuses
+// before and after the run, and only when exactly the merge profile's phases ran. Before the gate it
+// compares every installed version with package-lock.json and runs `npm ls --all`; a difference ends
+// with exit 4 and no record.
+// The record is keyed by the tree, not the commit, so a squash commit with the gated content finds
+// it without a second run. `tag` is the only way to tag; it refuses
 // without a green record for HEAD's tree, on a dirty working tree and off `main`.
 
 import { execFileSync, spawnSync } from "node:child_process";
@@ -31,6 +34,33 @@ function recordPath(tree: string): string {
   return join(root, ".spec-sync", "gate-records", `${tree}.json`);
 }
 
+// Every `packages` entry of package-lock.json against its installed package.json, offline. An optional
+// package that is not installed (a platform build for another machine) does not count. Returns the
+// first differences as `<path> <locked> ≠ <installed>`.
+function lockfileDrift(): string[] {
+  const lock = JSON.parse(readFileSync("package-lock.json", "utf8")) as {
+    packages: Record<string, { version?: string; optional?: boolean; link?: boolean }>;
+  };
+  const drift: string[] = [];
+  for (const [path, entry] of Object.entries(lock.packages)) {
+    if (path === "" || entry.link || entry.version === undefined) continue;
+    const manifest = join(path, "package.json");
+    if (!existsSync(manifest)) {
+      if (!entry.optional) drift.push(`${path} ${entry.version} ≠ missing`);
+    } else {
+      const { version } = JSON.parse(readFileSync(manifest, "utf8")) as { version?: string };
+      if (version !== entry.version) drift.push(`${path} ${entry.version} ≠ ${version}`);
+    }
+    if (drift.length === 5) break;
+  }
+  return drift;
+}
+
+function noRecord(): never {
+  console.error("release record: `npm ci` im Haupt-Checkout — no gate run, no record");
+  process.exit(4);
+}
+
 // Only the ledger arguments go through: a second `--profile` would win in the gate and record another
 // profile's run as the merge gate.
 const RECORD_ARGS = ["--issue", "--run"];
@@ -51,6 +81,22 @@ function record(gateArgs: string[]): void {
         `only ${RECORD_ARGS.map((a) => `${a} <value>`).join(" and ")} go to the gate, not "${gateArgs[i]}"`,
       );
     }
+  }
+  // The installed packages have to be exactly the lockfile's; a stale install gates other code than
+  // HEAD's. Installing is never this script's job: the main checkout is also the owner's working copy.
+  const drift = lockfileDrift();
+  if (drift.length > 0) {
+    console.error(
+      `release record: installed packages differ from package-lock.json: ${drift.join(", ")}`,
+    );
+    noRecord();
+  }
+  // `npm ls` adds what the lockfile comparison does not see: a version outside its declared range.
+  const ls = spawnSync("npm", ["ls", "--all"], { encoding: "utf8" });
+  if (ls.status !== 0) {
+    const first = `${ls.stderr}${ls.stdout}`.split("\n").find((l) => /ERR|missing|invalid/.test(l));
+    console.error(`release record: npm ls reports an error${first ? ` (${first.trim()})` : ""}`);
+    noRecord();
   }
   if (!isClean()) fail("the working tree has uncommitted changes — no record");
   const tree = git("rev-parse", "HEAD^{tree}");
