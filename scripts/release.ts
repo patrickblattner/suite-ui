@@ -3,6 +3,7 @@
 //
 //   npm run gate:record [-- --issue <n>]   # merge gate; on green, record it for HEAD's tree
 //   npm run release:tag                    # tag HEAD as v<version> and push, only with that record
+//   npm run release:tag -- --dry-run       # all checks, no tag, no push
 //
 // `record` writes `.spec-sync/gate-records/<tree hash>.json` only on exit 0 with a clean working tree
 // before and after the run. The record is keyed by the tree, not the commit, so a squash commit
@@ -57,7 +58,7 @@ function record(gateArgs: string[]): void {
   console.error(`release record: green merge gate recorded for tree ${tree} (${commit})`);
 }
 
-function tag(): void {
+function tag(dryRun: boolean): void {
   const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf8")) as {
     version: string;
   };
@@ -73,6 +74,12 @@ function tag(): void {
     fail(`the gate record ${path} is not green — ${name} not created`);
   }
 
+  if (dryRun) {
+    console.log(
+      `release tag: ${name} on ${commit} would be created (gate record ${path}), dry run`,
+    );
+    return;
+  }
   git("tag", name, commit);
   git("push", "origin", name);
   console.log(`release tag: ${name} on ${commit} (gate record ${path})`);
@@ -80,5 +87,5 @@ function tag(): void {
 
 const [mode, ...rest] = process.argv.slice(2);
 if (mode === "record") record(rest);
-else if (mode === "tag") tag();
-else fail("usage: node scripts/release.ts record [gate args] | tag");
+else if (mode === "tag") tag(rest.includes("--dry-run"));
+else fail("usage: node scripts/release.ts record [gate args] | tag [--dry-run]");
