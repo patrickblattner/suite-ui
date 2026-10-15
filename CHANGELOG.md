@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.96.1 — #155, SUI-FEATURE-076 rev 8: the gallery runs natively
+
+Not breaking. Tooling only; the package code is unchanged.
+
+- `npm run gallery:image` (the gate's `gallery` phase) runs the pinned Playwright image natively in the host's architecture (`linux/arm64` on the MacBook) instead of emulating `linux/amd64`. The emulation loaded the host until hooks of other sessions timed out. A full run takes about 1 minute instead of 4.5.
+- All gallery baselines are regenerated once natively in that image (204 of 224 files differ from the amd64 rendering). Baselines are taken and compared on the same machine.
+- The container's dependencies live in the Docker volume `suite-ui-gallery-deps-<arch>`. They are reinstalled only when `package-lock.json` (apart from the package's own version) or the image changes; otherwise a run installs nothing. The install skips scripts, because the gallery runs from the sources.
+- At most one gallery run at a time across all worktrees: a lock in the main checkout's `.spec-sync/gallery.lock`. A second run waits and says whose run it waits for; the lock of a run that has ended is taken over.
+
 ## 0.96.0 — #148, GL-UI-060 rev 2 and SUI-FEATURE-078: colour is never the only signal
 
 Not breaking. New: `FieldError` (`@suite/ui/ui/field-error`, also in the barrel) and `SettingsField error`. Without `error` a field is unchanged. No new strings.
