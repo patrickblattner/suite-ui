@@ -15,6 +15,14 @@ import { shellTexts } from "./shell-labels.js";
 const LANGUAGES = ["de", "en", "es"] as const;
 const THEMES = ["light", "dark"] as const;
 
+// `GL-TEST-019`: a still scene — the browser clock stands at one fixed instant in every test; a
+// re-baseline uses the same instant.
+const T0 = new Date("2026-01-15T09:00:00Z");
+
+test.beforeEach(async ({ page }) => {
+  await page.clock.setFixedTime(T0);
+});
+
 // Every page of the gallery and the element that tells it has rendered.
 const PAGES: [name: string, ready: (page: Page) => Locator][] = [
   ["components", (page) => page.getByTestId("section-structure")],
@@ -1775,6 +1783,32 @@ for (const lng of LANGUAGES) {
   }
 }
 
+// `SUI-FEATURE-076`: every building block also at a phone and a laptop width, in de, light and dark.
+const WIDTHS = [
+  [390, 844],
+  [1440, 900],
+] as const;
+const WIDTH_PAGES: (readonly [name: string, query: string, ready: (page: Page) => Locator])[] = [
+  ["gallery", "", (page) => page.getByTestId("gallery-language")],
+  ["tokens", "page=tokens&", (page) => page.getByTestId("token-warn-text")],
+  ...PAGES.map(([name, ready]) => [name, `page=${name}&`, ready] as const),
+  ["shell", "page=shell&route=/dashboard&", (page) => page.getByTestId("app-sidebar")],
+];
+
+for (const [width, height] of WIDTHS) {
+  for (const theme of THEMES) {
+    for (const [name, query, ready] of WIDTH_PAGES) {
+      test(`${name} de ${theme} at ${width} px`, async ({ page }) => {
+        await page.setViewportSize({ width, height });
+        await page.goto(`/?${query}lng=de&theme=${theme}`);
+        await expect(page.locator("html")).toHaveAttribute("lang", "de");
+        await expect(ready(page)).toBeVisible();
+        await expect(page).toHaveScreenshot(`${name}-de-${theme}-${width}.png`, { fullPage: true });
+      });
+    }
+  }
+}
+
 // AC6 of the shell: every visible text is a `suite` text or one of the app's labels and data.
 for (const lng of LANGUAGES) {
   test(`shell texts come from suite or the app's labels ${lng}`, async ({ page }) => {
@@ -1927,6 +1961,7 @@ test("shell: one character searches nothing, Esc returns to the sidebar field", 
 
 test("shell: the shortcut opens the search from a section route", async ({ page }) => {
   await page.goto("/?page=shell&route=/admin/users");
+  await expect(page.getByTestId("app-sidebar")).toBeVisible();
   await page.keyboard.press("ControlOrMeta+k");
   await expect(page.getByTestId("search-dialog")).toBeVisible();
 });
@@ -3199,7 +3234,9 @@ test("focus ring: the keyboard-highlighted menu entry under forced colors", asyn
   await page.getByTestId("focus-menu").focus();
   await page.keyboard.press("Enter");
   await page.keyboard.press("ArrowDown");
-  await expectForcedOutline(page.getByRole("menu").getByRole("menuitem", { name: "Duplicate" }));
+  const entry = page.getByRole("menu").getByRole("menuitem", { name: "Duplicate" });
+  await expect(entry).toBeFocused();
+  await expectForcedOutline(entry);
 });
 
 // SUI-FEATURE-055 AC3 / GL-UI-013 rev 4: every icon button of the gallery, the close buttons of
