@@ -309,3 +309,5 @@
 {"ts":"2026-10-15T03:17:29.746Z","key":"SUI-FEATURE-006","from":2,"to":3,"disposition":"editorial","ref":"rev 3 aligns Delta wording with AC1 (answer to Q 3507); #130 already built that way"}
 {"ts":"2026-10-15T04:57:42.269Z","key":"SUI-FEATURE-007","from":null,"to":2,"disposition":"ticket","ref":"131"}
 {"ts":"2026-10-15T05:39:31.829Z","key":"SUI-FEATURE-008","from":null,"to":2,"disposition":"ticket","ref":"132"}
+{"ts":"2026-10-15T06:21:27.515Z","key":"PROC-DEV-034","from":5,"to":6,"disposition":"editorial","ref":"unpause-command/harness behavior (stale budget handover); no suite-ui code impact"}
+{"ts":"2026-10-15T06:21:47.379Z","key":"SUI-FEATURE-009","from":null,"to":2,"disposition":"ticket","ref":"133"}
