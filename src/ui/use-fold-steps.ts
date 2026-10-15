@@ -17,15 +17,15 @@ import * as React from "react";
  * settled the focus returns to the control with that id if it was lost; when the bar shows no such
  * control any more, to what `fallback` names.
  */
-// Whether the bar's content is wider than its content box. `scrollWidth` misses content that only
-// reaches into the bar's end padding, so the last part's edge is held against the padding as well.
-function overflows(node: HTMLElement): boolean {
-  if (node.scrollWidth > node.clientWidth) return true;
+// The width the bar's content needs. `scrollWidth` misses content that only reaches into the bar's
+// end padding, so the last part's edge is held against the padding as well.
+function required(node: HTMLElement): number {
   const last = node.lastElementChild;
-  if (last === null) return false;
+  if (last === null) return node.scrollWidth;
   const end =
     node.getBoundingClientRect().right - parseFloat(getComputedStyle(node).paddingRight || "0");
-  return last.getBoundingClientRect().right > end + 0.5;
+  const excess = last.getBoundingClientRect().right - end;
+  return Math.max(node.scrollWidth, excess > 0.5 ? node.clientWidth + Math.ceil(excess) : 0);
 }
 
 function useFoldSteps(
@@ -73,9 +73,10 @@ function useFoldSteps(
     (node: HTMLElement) => {
       const step = current.current;
       let next = step;
-      if (overflows(node)) {
+      const width = required(node);
+      if (width > node.clientWidth) {
         if (step < max.current) {
-          needed.current[step] = node.scrollWidth;
+          needed.current[step] = width;
           next = step + 1;
         }
       } else if (step > 0 && node.clientWidth >= (needed.current[step - 1] ?? 0)) {
