@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.95.0 — #147, SUI-FEATURE-110 rev 3: sidebar as an overlay below md
+
+Not breaking. At `md` (48rem) and up the shell and panels look and behave as before. New: `SidebarOverlayTrigger`; `useSidebar()` also returns `isOverlay`, `overlayOpen`, `openOverlay` and `closeOverlay`; the CSS variable `--sidebar-inset`.
+
+- Below `md` the `AppSidebar` is an overlay. It takes no room beside the content and is closed by default. When open it lies expanded over the content with a scrim, and it is modal: the content behind is `inert` and Tab and Shift+Tab cycle inside it. A dialog it opens (the search) keeps its own Tab and `Esc`.
+- `Esc`, a click beside it (the scrim) and a navigation close it; the focus returns to the trigger (`GL-UI-050`). The sidebar's own toggle closes it too, without touching the stored collapse choice.
+- The trigger (`SidebarOverlayTrigger`, the panel symbol, `aria-expanded` and `aria-controls` on the sidebar) stands at the start of every `PageHeader` inside a `SidebarProvider`, below `md` only. A surface without a `PageHeader` places it itself. `EditorHeader` has none: Back leads out of an editor.
+- Below `md`, `useSidebar().isOpen` is always true (the overlay shows the expanded sidebar) and `toggle` closes the overlay.
+- Panels: `EditPanel`, `MediaDetailShell` and the maximized `PreviewFrame` take the full viewport width below `md`. Their left edge is the sidebar width times `--sidebar-inset` (1, and 0 below `md`), so at `md` and up it is the same as before.
+- Gallery: the shell page at 390 px shows the sidebar closed and the trigger in the page head.
+
 ## 0.94.0 — #146, SUI-FEATURE-100 rev 4: TagInput suggestions
 
 Not breaking. `TagInput` takes an optional `suggestions`; without it the field is unchanged. New string `suite:tags.suggestions` (de/en/es), the name of the suggestion list.
