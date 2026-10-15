@@ -1348,6 +1348,26 @@ for (const [viewport, content] of [
   });
 }
 
+// SUI-FEATURE-090 rev 9 (AC2): at 1000 px the steps fold before the title drops under 18 characters.
+test("editor header: at 1000 px the title keeps 18 characters, folding comes first", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1000, height: 900 });
+  await page.goto("/?page=components&lng=de");
+  for (const frame of EDITOR_HEADERS) {
+    await expectHeaderFits(page, frame);
+    const floor = await page
+      .getByTestId(frame)
+      .locator("[data-slot=editor-title] > span")
+      .textContent();
+    const title = await page
+      .getByTestId(frame)
+      .locator("[data-slot=editor-title-text]")
+      .textContent();
+    expect(floor).toBe((title ?? "").length > 18 ? `${title?.slice(0, 18)}…` : title);
+  }
+});
+
 // #144: at 900 px the German labels fold the lifecycle headers further than the English ones; the
 // switch re-folds without a resize, and switching back unfolds to exactly the English steps.
 test("editor header: a language switch re-folds without a resize, both ways", async ({ page }) => {

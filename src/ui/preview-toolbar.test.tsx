@@ -452,6 +452,27 @@ describe("PreviewToolbar in a narrow column (SUI-FEATURE-067)", () => {
 
   // #143: a language switch changes the width of the toolbar's parts, not of the toolbar; the parts
   // are watched too, so it re-measures.
+  // #144: a new content language refolds the wrapped toolbar from the start; the language select
+  // moves line and is built anew, and the focus goes with it.
+  it("a content language picked while wrapped keeps the focus on the language select", () => {
+    available = 250;
+    const bar = (value: string) => (
+      <PreviewToolbar
+        language={{ value, options: LANGUAGES, onChange: () => {} }}
+        device={{ value: "desktop", onChange: () => {} }}
+        maximize={{ value: false, onChange: () => {} }}
+        actions={ENTRY}
+        onClose={() => {}}
+      />
+    );
+    const { rerender } = render(bar("de"));
+    expect(toolbar()).toHaveAttribute("data-shrink", "3");
+    screen.getByTestId("preview-language").focus();
+    rerender(bar("en"));
+    expect(toolbar()).toHaveAttribute("data-shrink", "3");
+    expect(document.activeElement).toBe(screen.getByTestId("preview-language"));
+  });
+
   it("watches the toolbar and each of its parts", () => {
     render(<Preview />);
     expect(watched).toContain(toolbar());

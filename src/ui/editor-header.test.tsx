@@ -166,8 +166,8 @@ describe("EditorHeader lifecycle", () => {
       node.getAttribute("data-testid"),
     );
     expect(order).toEqual([
-      "editor-preview",
       "editor-menu",
+      "editor-preview",
       "editor-next",
       "editor-lifecycle-separator",
       "editor-undo",
@@ -463,8 +463,8 @@ describe("EditorHeader at narrow width", () => {
   });
 
   it.each([
-    [800, ["Undo", "Redo", "Duplicate"], ["editor-preview", "editor-menu", "editor-next"]],
-    [700, ["Undo", "Redo", "Reset", "Duplicate"], ["editor-preview", "editor-menu", "editor-next"]],
+    [800, ["Undo", "Redo", "Duplicate"], ["editor-menu", "editor-preview", "editor-next"]],
+    [700, ["Undo", "Redo", "Reset", "Duplicate"], ["editor-menu", "editor-preview", "editor-next"]],
     [560, ["Undo", "Redo", "Reset", "Preview", "Duplicate"], ["editor-menu", "editor-next"]],
   ])("at %i px the menu reads %j, in front of the app's entries", (width, menu, lifecycleGroup) => {
     available = width;
@@ -499,7 +499,7 @@ describe("EditorHeader at narrow width", () => {
   it("without a lifecycle Undo/Redo and Reset fold into a ⋯ named More actions", () => {
     available = 300;
     renderHeader({ dirty: true });
-    expect(inline()).toEqual(["editor-menu", "editor-state", "editor-save"]);
+    expect(inline()).toEqual(["editor-state", "editor-menu", "editor-save"]);
     expect(screen.getByTestId("editor-menu")).toHaveAccessibleName("More actions");
     expect(entries()).toEqual(["Undo", "Redo", "Reset"]);
   });
@@ -642,6 +642,123 @@ describe("EditorHeader at narrow width", () => {
     await waitFor(() => expect(observers.flatMap((observer) => observer.released)).toContain(back));
   });
 
+  // An editor whose Undo, Save and Reset really change the draft state.
+  function Editor({ undoable = true, withLifecycle = false }) {
+    const [dirty, setDirty] = useState(true);
+    return (
+      <main>
+        <EditorHeader
+          title="Spring newsletter"
+          onBack={vi.fn()}
+          canUndo={undoable}
+          canRedo={undoable}
+          onUndo={() => setDirty(false)}
+          onRedo={vi.fn()}
+          dirty={dirty}
+          saving={false}
+          onSave={() => setDirty(false)}
+          onReset={() => setDirty(false)}
+          {...(withLifecycle ? { lifecycle: lifecycle() } : {})}
+        />
+      </main>
+    );
+  }
+  const active = () => document.activeElement?.getAttribute("data-testid");
+
+  it("without a lifecycle the ⋯ stands directly left of Save", () => {
+    available = 500;
+    renderHeader({ dirty: true });
+    expect(inline()).toEqual(["editor-state", "editor-reset", "editor-menu", "editor-save"]);
+  });
+
+  it("the ⋯ lists the header tools, a separator, the record's entries, a separator, the destructive", () => {
+    available = 700;
+    renderHeader({
+      lifecycle: {
+        ...lifecycle(),
+        menu: {
+          label: "More",
+          items: [
+            { label: "Archive", onSelect: vi.fn(), destructive: true },
+            { label: "Duplicate", onSelect: vi.fn() },
+          ],
+        },
+      },
+    });
+    const menu = openMenu();
+    expect(
+      [...menu.children].map((child) =>
+        child.getAttribute("role") === "separator"
+          ? "—"
+          : child.textContent?.replace(child.querySelector("kbd")?.textContent ?? "", ""),
+      ),
+    ).toEqual(["Undo", "Redo", "Reset", "—", "Duplicate", "—", "Archive"]);
+  });
+
+  // #144: a refold after a text change swaps the ⋯; the focus stays on it.
+  it("Undo chosen in the folded ⋯ that clears the draft keeps the focus on the ⋯", async () => {
+    stateWidth = (text) => text.length * 8;
+    // Folded twice with the draft, still once when saved: the ⋯ is replaced, not gone.
+    available = 440;
+    render(<Editor />);
+    const undo = within(openMenu()).getByTestId("editor-menu-undo");
+    undo.focus();
+    fireEvent.keyDown(undo, { key: "Enter" });
+    expect(screen.getByTestId("editor-state")).toHaveTextContent("Saved");
+    await waitFor(() => expect(active()).toBe("editor-menu"));
+  });
+
+  it("when the refold takes the ⋯ away, the focus goes to the first usable tool", async () => {
+    stateWidth = (text) => text.length * 8;
+    // Folded once with the draft, unfolded when saved: the ⋯ is gone.
+    available = 540;
+    render(<Editor />);
+    const undo = within(openMenu()).getByTestId("editor-menu-undo");
+    undo.focus();
+    fireEvent.keyDown(undo, { key: "Enter" });
+    expect(screen.queryByTestId("editor-menu")).toBeNull();
+    await waitFor(() => expect(active()).toBe("editor-undo"));
+  });
+
+  it("after Save the focus goes to the next usable control, never to the body", async () => {
+    render(<Editor />);
+    const save = screen.getByTestId("editor-save");
+    save.focus();
+    fireEvent.click(save);
+    expect(save).toBeDisabled();
+    // Nothing usable after Save; Reset before it is locked too, so the nearest before is Redo.
+    await waitFor(() => expect(active()).toBe("editor-redo"));
+  });
+
+  // GL-UI-050: confirmed, Reset locks; the focus goes on in the header, never to Back.
+  it("a confirmed Reset hands the focus to the next usable control, not to Back", async () => {
+    render(<Editor />);
+    const reset = screen.getByTestId("editor-reset");
+    reset.focus();
+    fireEvent.click(reset);
+    fireEvent.click(await screen.findByTestId("editor-reset-confirm-confirm"));
+    await waitFor(() => expect(active()).toBe("editor-redo"));
+  });
+
+  it("folded, a confirmed Reset returns the focus to the ⋯", async () => {
+    available = 300;
+    render(<Editor />);
+    const reset = within(openMenu()).getByRole("menuitem", { name: "Reset" });
+    reset.focus();
+    fireEvent.keyDown(reset, { key: "Enter" });
+    fireEvent.click(await screen.findByTestId("editor-reset-confirm-confirm"));
+    await waitFor(() => expect(active()).toBe("editor-menu"));
+  });
+
+  it("with nothing usable left in the header, the editor's main content takes the focus", async () => {
+    render(<Editor undoable={false} />);
+    fireEvent.click(screen.getByTestId("editor-reset"));
+    fireEvent.click(await screen.findByTestId("editor-reset-confirm-confirm"));
+    const main = document.querySelector("main");
+    await waitFor(() => expect(main).toHaveFocus());
+    expect(main).toHaveAttribute("tabindex", "-1");
+  });
+
   it("Cancel on the Reset confirm returns the focus to Reset", async () => {
     renderHeader({ dirty: true });
     const reset = screen.getByTestId("editor-reset");
@@ -733,27 +850,28 @@ describe("EditorHeader at narrow width", () => {
     expect(described).toBe("Add a title first");
   });
 
-  it("then Back and the next step show their icon only, keeping their names", () => {
-    available = 300;
+  // SUI-FEATURE-090 rev 9 (AC5): with exactly one of the two icon-only, it is Save.
+  it("then Back and Save show their icon only; the next step keeps its text", () => {
+    available = 360;
     renderHeader({ lifecycle: lifecycle({ icon: <EyeIcon aria-hidden="true" /> }) });
     const back = screen.getByTestId("editor-back");
     expect(back).toHaveAccessibleName("Back");
     expect(back).not.toHaveTextContent("Back");
-    const next = screen.getByTestId("editor-next");
-    expect(next).toHaveAccessibleName("Publish");
-    expect(next).not.toHaveTextContent("Publish");
-    expect(next).toHaveAttribute("data-variant", "success");
-    expect(screen.getByTestId("editor-save")).toHaveTextContent("Save");
-  });
-
-  it("Save goes icon-only last, still green and named Save", () => {
-    available = 250;
-    renderHeader({ dirty: true, lifecycle: lifecycle({ icon: <EyeIcon aria-hidden="true" /> }) });
     const save = screen.getByTestId("editor-save");
     expect(save).toHaveAccessibleName("Save");
     expect(save).not.toHaveTextContent("Save");
     expect(save).toHaveAttribute("data-variant", "success");
     expect(save.querySelector("svg.lucide-save")).not.toBeNull();
+    expect(screen.getByTestId("editor-next")).toHaveTextContent("Publish");
+  });
+
+  it("the next step goes icon-only last, still green and named by its label", () => {
+    available = 250;
+    renderHeader({ dirty: true, lifecycle: lifecycle({ icon: <EyeIcon aria-hidden="true" /> }) });
+    const next = screen.getByTestId("editor-next");
+    expect(next).toHaveAccessibleName("Publish");
+    expect(next).not.toHaveTextContent("Publish");
+    expect(next).toHaveAttribute("data-variant", "success");
     expect(document.querySelector("[data-slot=editor-header]")).toHaveAttribute("data-shrink", "7");
   });
 

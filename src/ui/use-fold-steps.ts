@@ -10,10 +10,17 @@ import * as React from "react";
  * control, a font), and once per fold step; never on a render that changes nothing. `content` names
  * what the bar shows (its language, its texts): when it changes, the remembered widths are stale, so
  * the bar starts over from no fold and folds again as far as it needs.
+ *
+ * A step can swap the control that has the focus for another one (a folded button, the ⋯, a control
+ * that moves line). The focused control's `data-testid` is noted before the step, also when the
+ * focus sits in a menu or list the bar's control opened (`aria-controls`), and once the steps have
+ * settled the focus returns to the control with that id if it was lost; when the bar shows no such
+ * control any more, to what `fallback` names.
  */
 function useFoldSteps(
   maxSteps: number,
-  content: string,
+  content = "",
+  fallback?: (bar: HTMLElement) => HTMLElement | null,
 ): {
   attach: (node: HTMLElement | null) => void;
   steps: number;
@@ -24,21 +31,55 @@ function useFoldSteps(
   const current = React.useRef(0);
   const max = React.useRef(maxSteps);
   const needed = React.useRef<number[]>([]);
+  const focused = React.useRef<string | null>(null);
+  const lost = React.useRef(fallback);
+  React.useLayoutEffect(() => {
+    lost.current = fallback;
+  });
 
-  const measure = React.useCallback((node: HTMLElement) => {
-    const step = current.current;
-    let next = step;
-    if (node.scrollWidth > node.clientWidth) {
-      if (step >= max.current) return;
-      needed.current[step] = node.scrollWidth;
-      next = step + 1;
-    } else if (step > 0 && node.clientWidth >= (needed.current[step - 1] ?? 0)) {
-      next = step - 1;
+  const noteFocus = React.useCallback((node: HTMLElement) => {
+    if (focused.current !== null) return;
+    const active = document.activeElement;
+    if (active === null || active === document.body) return;
+    let control = node.contains(active) ? active : null;
+    // In a popup the bar opened: its trigger in the bar names it by `aria-controls`.
+    for (let at: Element | null = active; control === null && at !== null; at = at.parentElement) {
+      if (at.id !== "") control = node.querySelector(`[aria-controls="${at.id}"]`);
     }
-    if (next === step) return;
-    current.current = next;
-    setSteps(next);
+    focused.current = control?.closest("[data-testid]")?.getAttribute("data-testid") ?? null;
   }, []);
+
+  const settle = React.useCallback((node: HTMLElement) => {
+    const id = focused.current;
+    focused.current = null;
+    if (id === null) return;
+    const active = document.activeElement;
+    if (active !== null && active !== document.body && active.isConnected) return;
+    (node.querySelector<HTMLElement>(`[data-testid="${id}"]`) ?? lost.current?.(node))?.focus();
+  }, []);
+
+  const measure = React.useCallback(
+    (node: HTMLElement) => {
+      const step = current.current;
+      let next = step;
+      if (node.scrollWidth > node.clientWidth) {
+        if (step < max.current) {
+          needed.current[step] = node.scrollWidth;
+          next = step + 1;
+        }
+      } else if (step > 0 && node.clientWidth >= (needed.current[step - 1] ?? 0)) {
+        next = step - 1;
+      }
+      if (next === step) {
+        settle(node);
+        return;
+      }
+      noteFocus(node);
+      current.current = next;
+      setSteps(next);
+    },
+    [noteFocus, settle],
+  );
 
   React.useLayoutEffect(() => {
     max.current = maxSteps;
@@ -59,9 +100,10 @@ function useFoldSteps(
       if (root !== null) measure(root);
       return;
     }
+    if (root !== null) noteFocus(root);
     current.current = 0;
     setSteps(0);
-  }, [content, root, measure]);
+  }, [content, root, measure, noteFocus]);
 
   // Once per step: the folded layout may still overflow, or already fit one step back.
   React.useLayoutEffect(() => {

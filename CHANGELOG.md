@@ -1,14 +1,17 @@
 # Changelog
 
-## 0.92.1 — #144, SUI-FEATURE-090 rev 5: EditorHeader and PreviewToolbar fold follow-ups
+## 0.92.1 — #144, SUI-FEATURE-090 rev 9, GL-UI-050: EditorHeader follow-ups
 
-Not breaking.
+Not breaking for the API: `useFoldSteps` takes two new optional arguments, `RowActionMenu` an optional `tools` group, `ConfirmDeleteDialog` an optional `returnFocus`. The EditorHeader's look changes where rev 9 says so.
 
-- `useFoldSteps` takes what the bar shows (language, texts) as a second argument. When it changes, the widths remembered for the old texts are dropped and the bar folds afresh before the paint. A shorter text unfolds again without a resize: after Save ("Saved" is shorter than "Draft · unsaved"), or after switching to a language with shorter labels.
-- `useFoldSteps` stops watching the parts a fold step swaps out.
-- The Reset confirm hands the focus back to Reset while it is usable, else to the ⋯ that Reset was folded into, else to Back; never to the page's body. `ConfirmDeleteDialog` takes `returnFocus` for this.
-- SUI-FEATURE-090 rev 5: the shrunk state differs in shape, not only in colour: "Gespeichert" is a hollow green ring, "Entwurf · ungespeichert" a filled amber dot.
-- Not changed: the ⋯ menu's grouping and label alignment wait for an open owner decision.
+- SUI-FEATURE-090 rev 9 (owner decisions):
+  - Without a lifecycle the ⋯ stands directly left of Save; with one it leads the action group (also at full width).
+  - The ⋯ menu lists the folded header tools, a separator, the lifecycle menu's entries, and destructive entries last after another separator.
+  - Save goes icon-only before `lifecycle.next`.
+  - The title keeps about 18 characters while the steps fold; only after the last step does it shrink further, never below 6.
+  - The shrunk state differs in shape, not only in colour: "Gespeichert" is a hollow green ring, "Entwurf · ungespeichert" a filled amber dot.
+- `useFoldSteps(maxSteps, content?, fallback?)`: when `content` (what the bar shows: language, texts) changes, the remembered widths are dropped and the bar folds afresh before the paint, so a shorter text (after Save, in another language) unfolds again without a resize. A control a step swaps keeps the focus, also from a menu or list the bar opened; a control the step took away hands it to `fallback`. Swapped-out parts are no longer watched.
+- Focus (`GL-UI-050`): the Reset confirm returns the focus to its trigger (Reset, or the ⋯ it was folded into), else to the next usable control of the header after it, then before it, else to the editor's main content; never to Back or the body. A control that locks under the focus (Save after saving, Undo at the history's start) hands it on the same way.
 
 ## 0.92.0 — SUI-FEATURE-090 rev 4 (#141): EditorHeader at narrow width
 

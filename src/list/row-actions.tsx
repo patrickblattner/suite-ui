@@ -152,11 +152,15 @@ function RowActionMenu({
   menu,
   size,
   variant = "outline",
+  tools = [],
   "data-testid": testId = "row-menu",
 }: {
   menu: NonNullable<RowActionSet["menu"]>;
   size: "icon-xs" | "icon-sm";
   variant?: "outline" | "ghost";
+  // A group of its own above `menu.items`, after a separator: the header tools an `EditorHeader`
+  // folded in (`SUI-FEATURE-090`).
+  tools?: readonly RowMenuItem[];
   "data-testid"?: string;
 }) {
   const { t } = useTranslation("suite");
@@ -214,6 +218,10 @@ function RowActionMenu({
         </DropdownMenuTrigger>
       </IconButtonTooltip>
       <DropdownMenuContent data-testid={`${testId}-content`}>
+        {tools.map(entry)}
+        {tools.length > 0 && plain.length + destructive.length > 0 ? (
+          <DropdownMenuSeparator />
+        ) : null}
         {plain.map(entry)}
         {plain.length > 0 && destructive.length > 0 ? <DropdownMenuSeparator /> : null}
         {destructive.map(entry)}
