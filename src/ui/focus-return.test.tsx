@@ -188,6 +188,39 @@ describe("focus return after a dialog (GL-UI-050)", () => {
     await waitFor(() => expect(focused()).toBe("next"));
   });
 
+  // #151: tier 2 tries every candidate before it falls to the main content.
+  it("tier 2: a candidate that refuses the focus hands it to the next one", async () => {
+    render(<Surface before={[{ id: "prev" }]} after={[{ id: "next" }, { id: "last" }]} />);
+    open();
+    screen.getByTestId("next").focus = () => {};
+    fireEvent.click(await screen.findByTestId("confirm"));
+    await waitFor(() => expect(focused()).toBe("last"));
+  });
+
+  it("tier 2: a trigger that is gone tries its neighbours in turn", async () => {
+    render(
+      <Surface
+        before={[{ id: "prev" }]}
+        after={[{ id: "next" }, { id: "last" }]}
+        onConfirm="remove"
+      />,
+    );
+    open();
+    screen.getByTestId("next").focus = () => {};
+    screen.getByTestId("last").focus = () => {};
+    fireEvent.click(await screen.findByTestId("confirm"));
+    await waitFor(() => expect(focused()).toBe("prev"));
+  });
+
+  it("tier 2: a trigger that is gone, with only controls before its place, goes to the nearest", async () => {
+    render(
+      <Surface before={[{ id: "first" }, { id: "middle" }, { id: "prev" }]} onConfirm="remove" />,
+    );
+    open();
+    fireEvent.click(await screen.findByTestId("confirm"));
+    await waitFor(() => expect(focused()).toBe("prev"));
+  });
+
   it("tier 2: with nothing usable after it, the nearest control before it", async () => {
     render(
       <Surface
@@ -346,6 +379,24 @@ describe("focus return after a dialog (GL-UI-050)", () => {
     expect(screen.getByTestId("earlier")).not.toHaveFocus();
   });
 
+  // #151: a window or tab switch blurs `main` but must not take its tab index, or the focus would fall
+  // to the body on the way back.
+  it("main keeps its fallback tab index through a window blur", async () => {
+    render(<Surface before={[{ id: "back", nav: "back" }]} />);
+    open();
+    fireEvent.click(await screen.findByTestId("confirm"));
+    const main = document.querySelector("main")!;
+    await waitFor(() => expect(main).toHaveFocus());
+    act(() => {
+      main.dispatchEvent(new FocusEvent("blur"));
+      main.dispatchEvent(new FocusEvent("focusout", { bubbles: true }));
+    });
+    expect(main).toHaveAttribute("tabindex", "-1");
+    expect(main).toHaveAttribute(FOCUS_FALLBACK_ATTR);
+    act(() => screen.getByTestId("other-field").focus());
+    expect(main).not.toHaveAttribute("tabindex");
+  });
+
   it("main is focusable only while it holds the focus", async () => {
     render(<Surface before={[{ id: "back", nav: "back" }]} />);
     open();
@@ -493,7 +544,15 @@ describe("focus return after a dialog (GL-UI-050)", () => {
 // SUI-FEATURE-120 rev 3 (#150 re-review): a hand-on target that refuses the focus passes it to the
 // next tier: the group's control, then the surface's main content.
 describe("useFocusAfterRun", () => {
-  function Run({ running, locked }: { running: boolean; locked: boolean }) {
+  function Run({
+    running,
+    locked,
+    extra = false,
+  }: {
+    running: boolean;
+    locked: boolean;
+    extra?: boolean;
+  }) {
     const save = useRef<HTMLButtonElement>(null);
     const field = useCallback(() => document.querySelector<HTMLElement>("#field"), []);
     useFocusAfterRun(save, running, locked, field);
@@ -507,6 +566,11 @@ describe("useFocusAfterRun", () => {
           <button type="button" data-testid="next">
             Next
           </button>
+          {extra ? (
+            <button type="button" data-testid="after-next">
+              After next
+            </button>
+          ) : null}
         </div>
       </main>
     );
@@ -520,6 +584,16 @@ describe("useFocusAfterRun", () => {
     rerender(<Run running locked={false} />);
     rerender(<Run running={false} locked />);
     expect(screen.getByLabelText("Field")).toHaveFocus();
+  });
+
+  it("tries every group control in turn before the main content", () => {
+    const { rerender } = render(<Run running={false} locked={false} extra />);
+    screen.getByTestId("next").focus = () => {};
+    const save = screen.getByTestId("save");
+    act(() => save.focus());
+    rerender(<Run running locked={false} extra />);
+    rerender(<Run running={false} locked extra />);
+    expect(screen.getByTestId("after-next")).toHaveFocus();
   });
 
   it("a usable group control takes it first", () => {

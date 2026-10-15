@@ -46,7 +46,7 @@ const CONTROL_SELECTOR = [
 ].join(", ");
 
 /** The element can take the focus and be operated: connected, not locked, not hidden or inert. */
-function isUsable(element: Element | null): boolean {
+function isUsable(element: Element | null): element is HTMLElement {
   if (!(element instanceof HTMLElement) || !element.isConnected) return false;
   if ((element as HTMLButtonElement).disabled === true) return false;
   if (element.getAttribute("aria-disabled") === "true") return false;
@@ -158,18 +158,26 @@ function fallbackTarget(group: Element | null, from: Element | null): HTMLElemen
   return groupTarget(group, from) ?? mainTarget(group ?? from);
 }
 
-/** Tier 2: the next usable control of `group` after `from`, then before it; `null` without one. */
-function groupTarget(group: Element | null, from: Element | null): HTMLElement | null {
-  if (!group?.isConnected) return null;
+/**
+ * Tier 2 in order: the usable controls of `group` after `from` in reading order, then those before it,
+ * the nearest first. Without `from` in the document, all of them in reading order.
+ */
+function groupTargets(group: Element | null, from: Element | null): HTMLElement[] {
+  if (!group?.isConnected) return [];
   const usable = candidates(group).filter((control) => control !== from);
-  if (!from?.isConnected) return usable[0] ?? null;
-  const after = usable.find(
+  if (!from?.isConnected) return usable;
+  const after = usable.filter(
     (control) => from.compareDocumentPosition(control) & Node.DOCUMENT_POSITION_FOLLOWING,
   );
   const before = usable.filter(
     (control) => from.compareDocumentPosition(control) & Node.DOCUMENT_POSITION_PRECEDING,
   );
-  return after ?? before.at(-1) ?? null;
+  return [...after, ...before.reverse()];
+}
+
+/** Tier 2: the first of `groupTargets`; `null` without one. */
+function groupTarget(group: Element | null, from: Element | null): HTMLElement | null {
+  return groupTargets(group, from)[0] ?? null;
 }
 
 /** Tier 3: the app's marked main content, else `main` as a focus target without a tab stop. */
@@ -183,15 +191,20 @@ function mainTarget(near: Element | null): HTMLElement | null {
   if (!main.hasAttribute("tabindex")) {
     main.tabIndex = -1;
     main.setAttribute(FOCUS_FALLBACK_ATTR, "");
-    // Focusable only while it holds the focus: once it loses it, or a press somewhere (a blank spot in
-    // it would focus it again), it is a plain element again and a click there leaves the body focused.
+    // Focusable only while it holds the focus: once another element takes it, or a press somewhere (a
+    // blank spot in it would focus it again), it is a plain element again and a click there leaves the
+    // body focused. Not on `blur`: a window or tab switch blurs it too, and without its tab index the
+    // browser would drop the focus to the body on the way back.
     const release = () => {
       main.removeAttribute("tabindex");
       main.removeAttribute(FOCUS_FALLBACK_ATTR);
-      main.removeEventListener("blur", release);
+      document.removeEventListener("focusin", onFocusIn, true);
       document.removeEventListener("pointerdown", release, true);
     };
-    main.addEventListener("blur", release);
+    const onFocusIn = (event: FocusEvent) => {
+      if (event.target !== main) release();
+    };
+    document.addEventListener("focusin", onFocusIn, true);
     document.addEventListener("pointerdown", release, true);
   }
   return main;
@@ -202,6 +215,11 @@ function place(target: HTMLElement | null): boolean {
   if (target === null) return false;
   target.focus({ preventScroll: true });
   return document.activeElement === target;
+}
+
+/** Places the focus on the first of `targets` that takes it. */
+function placeFirst(targets: readonly HTMLElement[]): boolean {
+  return targets.some((target) => place(target));
 }
 
 /**
@@ -220,12 +238,13 @@ function returnFocus(opener: Opener | null): boolean {
     trigger = group.querySelector<HTMLElement>(`[data-testid="${CSS.escape(id)}"]`) ?? trigger;
   }
   if (isUsable(trigger) && place(trigger)) return true;
+  // Tier 2 tries every candidate in turn before it falls to the main content.
   if (trigger.isConnected) {
-    if (place(groupTarget(group, trigger))) return true;
+    if (placeFirst(groupTargets(group, trigger))) return true;
   } else if (group?.isConnected) {
-    const after = opener.after.find((control) => isUsable(control));
-    const before = opener.before.filter((control) => isUsable(control)).at(-1);
-    if (place(after ?? before ?? groupTarget(group, null))) return true;
+    const after = opener.after.filter((control) => isUsable(control));
+    const before = opener.before.filter((control) => isUsable(control)).reverse();
+    if (placeFirst([...after, ...before, ...groupTargets(group, null)])) return true;
   } else if (entry !== null && entry.frame.isConnected) {
     focusListEntry(entry.frame, entry.index);
     if (entry.frame.contains(document.activeElement)) return true;
@@ -263,7 +282,7 @@ function useFocusAfterRun(
     ran.current = false;
     const group = node.closest(`[${FOCUS_GROUP_ATTR}]`);
     // Each target counts only if it took the focus; else the next one is tried.
-    if (place(groupTarget(group, node))) return;
+    if (placeFirst(groupTargets(group, node))) return;
     if (place(main?.() ?? null)) return;
     place(mainTarget(group ?? node));
   }, [button, running, locked, main]);
@@ -276,6 +295,7 @@ export {
   FOCUS_GROUP_ATTR,
   FOCUS_MAIN_ATTR,
   FOCUS_NAV_ATTR,
+  isUsable,
   type Opener,
   returnFocus,
   trackFocus,
