@@ -1292,7 +1292,13 @@ const EDITOR_HEADERS = [
 async function expectHeaderFits(page: Page, frame: string) {
   const header = page.getByTestId(frame).locator("[data-slot=editor-header]");
   const fit = await header.evaluate((node) => {
-    const own = node.getBoundingClientRect();
+    // The header's content box: its controls never reach into its padding.
+    const box = node.getBoundingClientRect();
+    const style = getComputedStyle(node);
+    const own = {
+      left: box.left + parseFloat(style.paddingLeft),
+      right: box.right - parseFloat(style.paddingRight),
+    };
     const controls = [
       ...node.querySelectorAll(
         "[data-testid=editor-back], [data-slot=editor-title], [data-testid=editor-state], [data-testid=editor-menu], [data-testid=editor-next], [data-testid=editor-save]",
