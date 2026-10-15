@@ -329,3 +329,6 @@
 {"ts":"2026-10-15T14:21:25.135Z","key":"SUI-FEATURE-100","from":null,"to":2,"disposition":"ticket","ref":"146"}
 {"ts":"2026-10-15T14:21:25.529Z","key":"SUI-FEATURE-110","from":null,"to":2,"disposition":"ticket","ref":"147"}
 {"ts":"2026-10-15T14:22:36.247Z","key":"PROC-DEV-070","from":null,"to":2,"disposition":"editorial","ref":"process rule for preparing taste reports (Uma/Dora pass); applied by the worker, no code impact"}
+{"ts":"2026-10-15T14:23:41.300Z","key":"PROC-DEV-070","from":2,"to":3,"disposition":"editorial","ref":"process rule rev 3: taste pass by two independent review agents; applied by the worker, no code impact"}
+{"ts":"2026-10-15T14:24:06.040Z","key":"GL-UI-060","from":null,"to":2,"disposition":"ticket","ref":"148"}
+{"ts":"2026-10-15T14:24:20.971Z","key":"SUI-FEATURE-090","from":9,"to":10,"disposition":"editorial","ref":"rev 10 only fixes the WCAG 1.4.1 reference (GL-UI-014 to GL-UI-060), answer to Q&A #3576; no behaviour change"}
