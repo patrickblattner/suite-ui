@@ -270,6 +270,7 @@ export const es: SuiteStrings = {
     draft: "Borrador · sin guardar",
     resetConfirm: "¿Descartar el borrador y volver al estado guardado?",
     saveFirst: "Guarda primero",
+    more: "Más acciones",
   },
   canvas: {
     fit: "Ajustar",

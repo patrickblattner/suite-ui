@@ -32,8 +32,10 @@ type RowAction = {
 // One entry of a row's overflow menu. A `destructive` entry stands last, after a separator, in the
 // destructive colour; a `disabled` entry is muted and cannot be chosen. `hint` is the entry's
 // description hint (`GL-UI-017`); on a disabled entry it names the condition under which it unlocks.
+// `icon` stands before the label, as on the button the entry stands for (`SUI-FEATURE-090`).
 type RowMenuItem = {
   label: string;
+  icon?: React.ReactNode;
   onSelect: () => void;
   destructive?: boolean;
   disabled?: boolean;
@@ -141,13 +143,18 @@ function UsageButton({ usage, size }: { usage: RowUsage; size: "icon-xs" | "icon
 }
 
 // The ⋯ button of a row's overflow menu (`SUI-FEATURE-066`): `outline`, named `label`, opening a
-// `DropdownMenu` with the destructive entries last after a separator.
+// `DropdownMenu` with the destructive entries last after a separator. The `EditorHeader` uses it
+// `ghost`, like its other icon buttons (`SUI-FEATURE-090`).
 function RowActionMenu({
   menu,
   size,
+  variant = "outline",
+  "data-testid": testId = "row-menu",
 }: {
   menu: NonNullable<RowActionSet["menu"]>;
   size: "icon-xs" | "icon-sm";
+  variant?: "outline" | "ghost";
+  "data-testid"?: string;
 }) {
   const plain = menu.items.filter((item) => item.destructive !== true);
   const destructive = menu.items.filter((item) => item.destructive === true);
@@ -166,6 +173,7 @@ function RowActionMenu({
         }
         data-testid={item["data-testid"] ?? "row-menu-item"}
       >
+        {item.icon}
         {item.label}
       </DropdownMenuItem>
     );
@@ -181,12 +189,12 @@ function RowActionMenu({
     <DropdownMenu>
       <IconButtonTooltip label={menu.label}>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" size={size} data-testid="row-menu">
+          <Button variant={variant} size={size} data-testid={testId}>
             <EllipsisIcon aria-hidden="true" />
           </Button>
         </DropdownMenuTrigger>
       </IconButtonTooltip>
-      <DropdownMenuContent data-testid="row-menu-content">
+      <DropdownMenuContent data-testid={`${testId}-content`}>
         {plain.map(entry)}
         {plain.length > 0 && destructive.length > 0 ? <DropdownMenuSeparator /> : null}
         {destructive.map(entry)}
@@ -326,6 +334,7 @@ function RowActions({
 }
 
 export {
+  RowActionMenu,
   RowActions,
   RowActionsHead,
   useRowActionButtons,

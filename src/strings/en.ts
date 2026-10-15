@@ -284,6 +284,7 @@ export const en = {
     draft: "Draft · unsaved",
     resetConfirm: "Discard the draft and return to the saved state?",
     saveFirst: "Save first",
+    more: "More actions",
   },
   // The canvas of a visual editor (`CanvasOverlay`, `CanvasZoom`).
   canvas: {

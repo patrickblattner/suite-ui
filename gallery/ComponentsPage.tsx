@@ -1,4 +1,4 @@
-import { EllipsisIcon, EyeIcon, PencilIcon, PlusIcon, SendIcon, Trash2Icon } from "lucide-react";
+import { EyeIcon, PencilIcon, PlusIcon, SendIcon, Trash2Icon } from "lucide-react";
 import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -66,7 +66,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "../src/ui/tabs.js";
 import { TagInput } from "../src/ui/tag-input.js";
 import { Textarea } from "../src/ui/textarea.js";
 import { TimezoneCombobox } from "../src/ui/timezone-combobox.js";
-import { IconButtonTooltip } from "../src/ui/tooltip.js";
 import { type UploadItem, UploadStep } from "../src/ui/upload-step.js";
 
 import { CanvasEdgeRow, CanvasRow } from "./CanvasDemo.js";
@@ -1121,10 +1120,7 @@ function EditorHeaderRow() {
   const [saving, setSaving] = useState(false);
   return (
     <Section id="editor-header" title="EditorHeader">
-      <div
-        className="flex flex-col gap-4 overflow-x-auto rounded-md border"
-        data-testid="editor-header-saved"
-      >
+      <div className="flex flex-col gap-4 rounded-md border" data-testid="editor-header-saved">
         <EditorHeader
           title="Spring newsletter"
           onBack={() => {}}
@@ -1138,10 +1134,7 @@ function EditorHeaderRow() {
           onReset={() => {}}
         />
       </div>
-      <div
-        className="mt-4 flex flex-col gap-4 overflow-x-auto rounded-md border"
-        data-testid="editor-header-draft"
-      >
+      <div className="mt-4 flex flex-col gap-4 rounded-md border" data-testid="editor-header-draft">
         <EditorHeader
           title="Autumn campaign landing page"
           onBack={() => {}}
@@ -1172,7 +1165,7 @@ function EditorHeaderRow() {
         />
       </div>
       <div
-        className="mt-4 flex flex-col gap-4 overflow-x-auto rounded-md border"
+        className="mt-4 flex flex-col gap-4 rounded-md border"
         data-testid="editor-lifecycle-saved"
       >
         <EditorHeader
@@ -1190,7 +1183,7 @@ function EditorHeaderRow() {
         />
       </div>
       <div
-        className="mt-4 flex flex-col gap-4 overflow-x-auto rounded-md border"
+        className="mt-4 flex flex-col gap-4 rounded-md border"
         data-testid="editor-lifecycle-draft"
       >
         <EditorHeader
@@ -1214,27 +1207,14 @@ function EditorHeaderRow() {
 // `SUI-FEATURE-069`: Preview, ⋯ and the next step of a record with a lifecycle; saved, the next step is
 // free; with a draft it waits for Save.
 const galleryLifecycle: EditorLifecycle = {
-  preview: (
-    <Button type="button" variant="outline" size="default">
-      <EyeIcon aria-hidden="true" />
-      Preview
-    </Button>
-  ),
-  menu: (
-    <DropdownMenu>
-      <IconButtonTooltip label="More">
-        <DropdownMenuTrigger asChild>
-          <Button type="button" variant="ghost" size="icon-sm">
-            <EllipsisIcon aria-hidden="true" />
-          </Button>
-        </DropdownMenuTrigger>
-      </IconButtonTooltip>
-      <DropdownMenuContent align="end">
-        <DropdownMenuItem>Duplicate</DropdownMenuItem>
-        <DropdownMenuItem>Archive</DropdownMenuItem>
-      </DropdownMenuContent>
-    </DropdownMenu>
-  ),
+  preview: { label: "Preview", icon: <EyeIcon aria-hidden="true" />, onClick: () => {} },
+  menu: {
+    label: "More",
+    items: [
+      { label: "Duplicate", onSelect: () => {} },
+      { label: "Archive", onSelect: () => {} },
+    ],
+  },
   next: { label: "Submit for review", icon: <SendIcon aria-hidden="true" />, onClick: () => {} },
 };
 

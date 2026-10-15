@@ -271,6 +271,7 @@ export const de: SuiteStrings = {
     draft: "Entwurf · ungespeichert",
     resetConfirm: "Entwurf verwerfen und zum gespeicherten Stand zurückkehren?",
     saveFirst: "Erst speichern",
+    more: "Weitere Aktionen",
   },
   canvas: {
     fit: "Einpassen",

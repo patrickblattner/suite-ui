@@ -1,10 +1,10 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import i18n from "i18next";
+import { EyeIcon } from "lucide-react";
 import { useState } from "react";
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-router-dom";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { Button } from "./button.js";
 import {
   EditorHeader,
   type EditorHeaderProps,
@@ -147,24 +147,13 @@ describe("EditorHeader", () => {
   });
 });
 
-// `SUI-FEATURE-069`: the lifecycle slot.
-const lifecycle = (next: Partial<NonNullable<EditorLifecycle["next"]>> = {}): EditorLifecycle => ({
-  preview: (
-    <Button type="button" variant="outline" size="default" data-testid="lifecycle-preview">
-      Preview
-    </Button>
-  ),
-  menu: (
-    <Button
-      type="button"
-      variant="ghost"
-      size="icon-sm"
-      aria-label="More"
-      data-testid="lifecycle-menu"
-    >
-      ⋯
-    </Button>
-  ),
+// `SUI-FEATURE-069`: the lifecycle slot, in the structured form of `SUI-FEATURE-090`.
+const lifecycle = (
+  next: Partial<NonNullable<EditorLifecycle["next"]>> = {},
+  preview: Partial<NonNullable<EditorLifecycle["preview"]>> = {},
+): EditorLifecycle => ({
+  preview: { label: "Preview", icon: <EyeIcon aria-hidden="true" />, onClick: vi.fn(), ...preview },
+  menu: { label: "More", items: [{ label: "Duplicate", onSelect: vi.fn() }] },
   next: { label: "Publish", onClick: vi.fn(), ...next },
 });
 
@@ -177,8 +166,8 @@ describe("EditorHeader lifecycle", () => {
       node.getAttribute("data-testid"),
     );
     expect(order).toEqual([
-      "lifecycle-preview",
-      "lifecycle-menu",
+      "editor-preview",
+      "editor-menu",
       "editor-next",
       "editor-lifecycle-separator",
       "editor-undo",
@@ -369,5 +358,176 @@ describe("useEditorLeaveGuard", () => {
     fireEvent.click(await screen.findByTestId("leave-guard-save"));
     await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/list"));
     expect(save).toHaveBeenCalledTimes(1);
+  });
+});
+
+// `SUI-FEATURE-090`: the header folds what does not fit into its one ⋯. jsdom has no layout, so the
+// header's widths are simulated from what it renders: each control its fixed width, the title its
+// minimum (6 characters and the ellipsis).
+describe("EditorHeader at narrow width", () => {
+  const WIDTHS: Record<string, number> = {
+    "editor-back": 80,
+    "editor-preview": 100,
+    "editor-menu": 32,
+    "editor-next": 160,
+    "editor-lifecycle-separator": 1,
+    "editor-undo": 32,
+    "editor-redo": 32,
+    "editor-reset": 120,
+    "editor-save": 100,
+  };
+  let available = 2000;
+  const isHeader = (el: Element) => el.getAttribute("data-slot") === "editor-header";
+  const natural = (header: Element) =>
+    [...header.querySelectorAll("[data-testid]")].reduce((sum, el) => {
+      const id = el.getAttribute("data-testid") ?? "";
+      if (id === "editor-state") return sum + (el.hasAttribute("data-compact") ? 24 : 100);
+      return sum + (WIDTHS[id] ?? 0);
+    }, 60);
+
+  beforeEach(() => {
+    available = 2000;
+    vi.spyOn(Element.prototype, "clientWidth", "get").mockImplementation(function (this: Element) {
+      return isHeader(this) ? available : 0;
+    });
+    vi.spyOn(Element.prototype, "scrollWidth", "get").mockImplementation(function (this: Element) {
+      return isHeader(this) ? Math.max(available, natural(this)) : 0;
+    });
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const openMenu = () => {
+    const trigger = screen.getByTestId("editor-menu");
+    trigger.focus();
+    fireEvent.keyDown(trigger, { key: "Enter" });
+    return screen.getByRole("menu");
+  };
+  const entries = () =>
+    within(openMenu())
+      .getAllByRole("menuitem")
+      .map((el) => el.textContent);
+  const inline = () =>
+    [...document.querySelectorAll("[data-slot=editor-actions] [data-testid]")].map((el) =>
+      el.getAttribute("data-testid"),
+    );
+
+  it("with room for everything nothing folds; the ⋯ holds only the app's entries", () => {
+    renderHeader({ lifecycle: lifecycle() });
+    expect(document.querySelector("[data-slot=editor-header]")).toHaveAttribute("data-shrink", "0");
+    expect(entries()).toEqual(["Duplicate"]);
+  });
+
+  it.each([
+    [800, ["Undo", "Redo", "Duplicate"], ["editor-preview", "editor-menu", "editor-next"]],
+    [700, ["Undo", "Redo", "Reset", "Duplicate"], ["editor-preview", "editor-menu", "editor-next"]],
+    [560, ["Undo", "Redo", "Reset", "Preview", "Duplicate"], ["editor-menu", "editor-next"]],
+  ])("at %i px the menu reads %j, in front of the app's entries", (width, menu, lifecycleGroup) => {
+    available = width;
+    renderHeader({ lifecycle: lifecycle() });
+    expect(entries()).toEqual(menu);
+    expect(inline().slice(0, lifecycleGroup.length)).toEqual(lifecycleGroup);
+    // One ⋯ only; Save and the next step stay.
+    expect(document.querySelectorAll("[data-testid=editor-menu]")).toHaveLength(1);
+    expect(screen.getByTestId("editor-save")).toBeInTheDocument();
+    expect(screen.getByTestId("editor-next")).toBeInTheDocument();
+  });
+
+  it("last, the state shrinks to its dot and keeps its text", () => {
+    available = 500;
+    renderHeader({ dirty: true, lifecycle: lifecycle() });
+    const state = screen.getByTestId("editor-state");
+    expect(state).toHaveAttribute("data-compact");
+    expect(state).toHaveAttribute("role", "status");
+    expect(state).toHaveTextContent("Draft · unsaved");
+    expect(state.querySelector(".bg-warn")).not.toBeNull();
+    expect(inline()).toEqual([
+      "editor-menu",
+      "editor-next",
+      "editor-lifecycle-separator",
+      "editor-state",
+      "editor-save",
+    ]);
+  });
+
+  it("without a lifecycle Undo/Redo and Reset fold into a ⋯ named More actions", () => {
+    available = 300;
+    renderHeader({ dirty: true });
+    expect(inline()).toEqual(["editor-menu", "editor-state", "editor-save"]);
+    expect(screen.getByTestId("editor-menu")).toHaveAccessibleName("More actions");
+    expect(entries()).toEqual(["Undo", "Redo", "Reset"]);
+  });
+
+  it("steps back once the header is wide enough again", () => {
+    available = 500;
+    const { rerender } = render(
+      <EditorHeader
+        title="Spring newsletter"
+        onBack={vi.fn()}
+        canUndo
+        canRedo
+        onUndo={vi.fn()}
+        onRedo={vi.fn()}
+        dirty={false}
+        saving={false}
+        onSave={vi.fn()}
+        onReset={vi.fn()}
+      />,
+    );
+    expect(screen.getByTestId("editor-menu")).toBeInTheDocument();
+    available = 2000;
+    rerender(
+      <EditorHeader
+        title="Spring newsletter 2"
+        onBack={vi.fn()}
+        canUndo
+        canRedo
+        onUndo={vi.fn()}
+        onRedo={vi.fn()}
+        dirty={false}
+        saving={false}
+        onSave={vi.fn()}
+        onReset={vi.fn()}
+      />,
+    );
+    expect(screen.queryByTestId("editor-menu")).toBeNull();
+    expect(screen.getByTestId("editor-undo")).toBeInTheDocument();
+  });
+
+  it("a folded entry keeps its icon and is chosen by keyboard", async () => {
+    available = 500;
+    const { onUndo } = renderHeader({ lifecycle: lifecycle() });
+    const menu = openMenu();
+    const [undo] = within(menu).getAllByRole("menuitem");
+    expect(undo?.querySelector("svg.lucide-undo-2")).not.toBeNull();
+    fireEvent.keyDown(menu, { key: "ArrowDown" });
+    await waitFor(() => expect(undo).toHaveFocus());
+    fireEvent.keyDown(undo as HTMLElement, { key: "Enter" });
+    expect(onUndo).toHaveBeenCalledTimes(1);
+    expect(screen.queryByRole("menu")).toBeNull();
+  });
+
+  it("folded Reset still asks first", async () => {
+    available = 300;
+    const { onReset } = renderHeader({ dirty: true });
+    const reset = within(openMenu()).getByRole("menuitem", { name: "Reset" });
+    reset.focus();
+    fireEvent.keyDown(reset, { key: "Enter" });
+    expect(onReset).not.toHaveBeenCalled();
+    expect(await screen.findByTestId("editor-reset-confirm")).toBeInTheDocument();
+  });
+
+  it("a locked Preview keeps its reason in the menu", () => {
+    available = 500;
+    renderHeader({ lifecycle: lifecycle({}, { disabledText: "Add a title first" }) });
+    const preview = within(openMenu()).getByRole("menuitem", { name: "Preview" });
+    expect(preview).toHaveAttribute("aria-disabled", "true");
+    expect(preview.querySelector("svg.lucide-eye")).not.toBeNull();
+    const described = (preview.getAttribute("aria-describedby") ?? "")
+      .split(" ")
+      .map((id) => document.getElementById(id)?.textContent)
+      .join(" ");
+    expect(described).toBe("Add a title first");
   });
 });

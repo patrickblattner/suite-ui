@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.92.0 — SUI-FEATURE-090 rev 3 (#141): EditorHeader at narrow width
+
+Breaking for apps that pass `lifecycle.preview` or `lifecycle.menu` (see the migration note). Without a lifecycle, and at any width where everything fits, the header looks as before.
+
+- `EditorHeader` measures its own width. What does not fit folds into its one ⋯ menu, in this order: Undo/Redo, Reset, Preview, then the lifecycle menu's own entries. After that the state text shrinks to its dot. Back, the title, `lifecycle.next` and Save always stay visible. Once the header is wide enough again, it steps back.
+- A folded action keeps its text, icon and lock reason in the menu and is chosen by keyboard. Folded Reset still asks first. There is never more than one ⋯.
+- The title truncates with an ellipsis and shows its full text as a tooltip. It never shrinks below 6 characters plus the ellipsis.
+- The header's ⋯ is the row menu's body (`SUI-FEATURE-066`) with a `ghost icon-sm` trigger, like the header's other icon buttons. Without `lifecycle.menu` it is named by the new string `editor.more`: "Weitere Aktionen" / "More actions" / "Más acciones".
+- The shrunk state is a `size-2` dot, `bg-success` for "Gespeichert" and `bg-warn` for "Entwurf · ungespeichert". Its full text is the tooltip and the screen-reader status text.
+- `RowMenuItem` takes an optional `icon`, shown before the label. `RowActionMenu` is exported.
+- Gallery: the EditorHeader demos lose the sideways scroller from #139.
+
+### Migration
+
+- `lifecycle.preview` is now `{ label, icon?, onClick, disabledText? }` instead of a ReactNode. The package renders the `outline` button.
+- `lifecycle.menu` is now `{ label, items: RowMenuItem[] }` instead of a ReactNode. Drop the app's own ⋯ dropdown; its entries go into `items`.
+
 ## 0.91.4 — SUI-FEATURE-076 rev 7 (#140): gate:record checks the install against the lockfile first
 
 Not breaking. Package API unchanged.
