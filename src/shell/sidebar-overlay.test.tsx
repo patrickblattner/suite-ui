@@ -1,5 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import * as React from "react";
+import { flushSync } from "react-dom";
 import { Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -311,6 +312,228 @@ describe("sidebar overlay below md (SUI-FEATURE-110)", () => {
     setNarrow(false);
     act(() => screen.getByTestId("field").focus());
     fireEvent.click(screen.getByTestId("nav-ideas"));
+    act(() => screen.getByTestId("field").focus());
+    setNarrow(true);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(screen.getByTestId("field")).toHaveFocus();
+  });
+
+  // A tap on plain text leaves the body focused; nothing later moves the focus back to the trigger.
+  async function tapText() {
+    fireEvent.pointerDown(document.body);
+    act(() => (document.activeElement as HTMLElement | null)?.blur());
+    expect(document.activeElement).toBe(document.body);
+    act(() => {
+      document.querySelector("main")!.append(document.createElement("p"));
+    });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+
+  it("a tap on plain text after an Esc close keeps the focus where the tap left it", async () => {
+    narrow(true);
+    render(<Shell />);
+    openOverlay();
+    fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+    await waitFor(() => expect(trigger()).toHaveFocus());
+    await tapText();
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  it("a tap on plain text after a navigation keeps the focus where the tap left it", async () => {
+    narrow(true);
+    render(<Routed />);
+    openOverlay();
+    fireEvent.click(screen.getByTestId("nav-ideas"));
+    await waitFor(() => expect(screen.getByTestId("page-title")).toHaveTextContent("Ideas"));
+    await waitFor(() => expect(trigger()).toHaveFocus());
+    await tapText();
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  it("a press while a lazy page loads cancels the handover to its trigger", async () => {
+    narrow(true);
+    render(<Routed lazyIdeas />);
+    openOverlay();
+    fireEvent.click(screen.getByTestId("nav-ideas"));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    await tapText();
+    await act(async () => {
+      loadIdeas();
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(screen.getByTestId("page-title")).toHaveTextContent("Ideas"));
+    expect(trigger()).not.toHaveFocus();
+  });
+
+  it("the new trigger takes the focus without scrolling", async () => {
+    narrow(true);
+    render(<Routed />);
+    openOverlay();
+    const focus = vi.spyOn(HTMLElement.prototype, "focus");
+    fireEvent.click(screen.getByTestId("nav-ideas"));
+    await waitFor(() => expect(screen.getByTestId("page-title")).toHaveTextContent("Ideas"));
+    await waitFor(() => expect(trigger()).toHaveFocus());
+    const onTrigger = focus.mock.contexts.flatMap((node, i) =>
+      node === trigger() ? [focus.mock.calls[i]] : [],
+    );
+    expect(onTrigger).toEqual([[{ preventScroll: true }]]);
+    focus.mockRestore();
+  });
+
+  // A page that places the focus itself: a field with `autoFocus`, or its heading from an effect.
+  // `autoFocus` applies in the commit that mounts the page; jsdom ignores `inert`, so the page notes
+  // whether anything was still inert then (a browser would refuse the focus).
+  let inertAtMount: boolean | null = null;
+  function FocusingPage({ how }: { how: "autofocus" | "heading" }) {
+    const heading = React.useRef<HTMLHeadingElement>(null);
+    React.useLayoutEffect(() => {
+      inertAtMount = document.querySelector("[inert]") !== null;
+    }, []);
+    React.useEffect(() => {
+      if (how === "heading") heading.current?.focus();
+    }, [how]);
+    return (
+      <div>
+        <PageHeader title="Ideas" subtitle="All ideas" />
+        <h1 ref={heading} tabIndex={-1} data-testid="page-heading">
+          Ideas
+        </h1>
+        {how === "autofocus" ? (
+          <input aria-label="Search" autoFocus data-testid="page-field" />
+        ) : null}
+      </div>
+    );
+  }
+
+  it.each([
+    ["autofocus", "page-field"],
+    ["heading", "page-heading"],
+  ] as const)(
+    "a page that places the focus itself (%s) keeps it after a navigation",
+    async (how, id) => {
+      narrow(true);
+      render(
+        <ShellHarness route="/dashboard">
+          <AppSidebar
+            instanceName="Test instance"
+            nav={TEST_NAV}
+            isAllowed={() => true}
+            userMenu={<div />}
+          />
+          <main>
+            <Routes>
+              <Route path="/dashboard" element={<DashPage />} />
+              <Route path="/ideas" element={<FocusingPage how={how} />} />
+            </Routes>
+          </main>
+        </ShellHarness>,
+      );
+      openOverlay();
+      fireEvent.click(screen.getByTestId("nav-ideas"));
+      await waitFor(() => expect(screen.getByTestId(id)).toHaveFocus());
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(screen.getByTestId(id)).toHaveFocus();
+    },
+  );
+
+  // A router outside React Router: the close and the page change commit in one synchronous render.
+  function SyncRouted({ autoFocus }: { autoFocus: boolean }) {
+    const [page, setPage] = React.useState<"dash" | "ideas">("dash");
+    const { closeOverlay } = useSidebar();
+    return (
+      <>
+        <AppSidebar
+          instanceName="Test instance"
+          nav={TEST_NAV}
+          isAllowed={() => true}
+          userMenu={
+            <button
+              type="button"
+              data-testid="sync-nav"
+              onClick={() =>
+                flushSync(() => {
+                  closeOverlay();
+                  setPage("ideas");
+                })
+              }
+            >
+              Ideas
+            </button>
+          }
+        />
+        <main>
+          {page === "dash" ? (
+            <DashPage />
+          ) : autoFocus ? (
+            <FocusingPage how="autofocus" />
+          ) : (
+            <IdeasPage />
+          )}
+        </main>
+      </>
+    );
+  }
+
+  it("a synchronous navigation hands the focus to the new trigger", async () => {
+    narrow(true);
+    render(
+      <ShellHarness route="/dashboard">
+        <SyncRouted autoFocus={false} />
+      </ShellHarness>,
+    );
+    const old = trigger();
+    openOverlay();
+    fireEvent.click(screen.getByTestId("sync-nav"));
+    expect(screen.getByTestId("page-title")).toHaveTextContent("Ideas");
+    expect(old.isConnected).toBe(false);
+    await waitFor(() => expect(trigger()).toHaveFocus());
+  });
+
+  it("a synchronous navigation to a page with autofocus keeps the page's focus", async () => {
+    narrow(true);
+    render(
+      <ShellHarness route="/dashboard">
+        <SyncRouted autoFocus />
+      </ShellHarness>,
+    );
+    openOverlay();
+    fireEvent.click(screen.getByTestId("sync-nav"));
+    expect(inertAtMount).toBe(false);
+    await waitFor(() => expect(screen.getByTestId("page-field")).toHaveFocus());
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(screen.getByTestId("page-field")).toHaveFocus();
+  });
+
+  it("closeOverlay with the overlay closed leaves the focus alone on a later narrowing", async () => {
+    const setNarrow = switchable();
+    setNarrow(false);
+    function Closer() {
+      const { closeOverlay } = useSidebar();
+      return (
+        <button type="button" data-testid="closer" onClick={closeOverlay}>
+          Close
+        </button>
+      );
+    }
+    render(
+      <ShellHarness route="/dashboard">
+        <AppSidebar
+          instanceName="Test instance"
+          nav={TEST_NAV}
+          isAllowed={() => true}
+          userMenu={<div />}
+        />
+        <main>
+          <DashPage />
+          <input aria-label="Field" data-testid="field" />
+          <Closer />
+        </main>
+      </ShellHarness>,
+    );
+    setNarrow(true);
+    openOverlay();
+    setNarrow(false);
+    fireEvent.click(screen.getByTestId("closer"));
     act(() => screen.getByTestId("field").focus());
     setNarrow(true);
     await new Promise((resolve) => setTimeout(resolve, 20));

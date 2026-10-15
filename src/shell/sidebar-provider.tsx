@@ -4,7 +4,12 @@ import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
 import { Button } from "../ui/button.js";
-import { captureOpener, type Opener, returnFocus } from "../ui/focus-return.js";
+import {
+  captureOpener,
+  FOCUS_FALLBACK_ATTR,
+  type Opener,
+  returnFocus,
+} from "../ui/focus-return.js";
 import { Hint } from "../ui/hint.js";
 
 // Below the package's mobile break (`md`, 48rem) the sidebar is an overlay (`SUI-FEATURE-110`).
@@ -44,6 +49,45 @@ interface SidebarContextValue {
 
 const SidebarContext = React.createContext<SidebarContextValue | null>(null);
 
+// Hands the focus from an overlay trigger that leaves with it (a navigation replaced its page) to the
+// trigger that mounts next, in the head of the new page. Armed only by a trigger that unmounts while
+// it holds the focus, or by a close whose page has no trigger yet; the person's next press or key
+// ends it, and a page that placed the focus itself keeps it.
+interface Handover {
+  arm: () => void;
+  cancel: () => void;
+  leave: (trigger: HTMLElement) => void;
+  arrive: (trigger: HTMLElement) => void;
+}
+
+const HandoverContext = React.createContext<Handover | null>(null);
+
+function createHandover(): Handover {
+  let pending = false;
+  const cancel = () => {
+    pending = false;
+    document.removeEventListener("pointerdown", cancel, true);
+    document.removeEventListener("keydown", cancel, true);
+  };
+  const arm = () => {
+    pending = true;
+    document.addEventListener("pointerdown", cancel, true);
+    document.addEventListener("keydown", cancel, true);
+  };
+  return {
+    arm,
+    cancel,
+    leave: (trigger) => {
+      if (document.activeElement === trigger) arm();
+    },
+    arrive: (trigger) => {
+      if (!pending) return;
+      cancel();
+      if (focusIsFree()) trigger.focus({ preventScroll: true });
+    },
+  };
+}
+
 function readOpen(storageKey: string): boolean {
   try {
     return localStorage.getItem(storageKey) !== "false";
@@ -64,6 +108,8 @@ function SidebarProvider({ storageKey, children }: SidebarProviderProps) {
   // What opened the overlay; it gets the focus back once the overlay is closed.
   const opener = React.useRef<Opener | null>(null);
   const returning = React.useRef(false);
+  const handover = React.useMemo(() => createHandover(), []);
+  React.useEffect(() => handover.cancel, [handover]);
 
   // Back at `md` and up the overlay is gone; the sidebar stands beside the content again.
   const [wasOverlay, setWasOverlay] = React.useState(isOverlay);
@@ -72,52 +118,45 @@ function SidebarProvider({ storageKey, children }: SidebarProviderProps) {
     setOverlayOpen(false);
   }
 
-  const openOverlay = React.useCallback((trigger: HTMLElement) => {
-    opener.current = captureOpener(trigger);
-    returning.current = false;
-    setOverlayOpen(true);
-  }, []);
+  const openOverlay = React.useCallback(
+    (trigger: HTMLElement) => {
+      opener.current = captureOpener(trigger);
+      returning.current = false;
+      handover.cancel();
+      setOverlayOpen(true);
+    },
+    [handover],
+  );
 
   const closeOverlay = React.useCallback(() => {
+    if (!overlayOpen) return;
     returning.current = true;
     setOverlayOpen(false);
-  }, []);
+  }, [overlayOpen]);
 
-  // Once the overlay is gone from the screen, so the focus never lands in it. A navigation may then
-  // replace the page and its head, in this render or a later one (a transition, a lazy route): while
-  // the focus sits on the trigger it was given or on a fallback, or was lost with a removed trigger,
-  // the trigger shown now takes it. Once the person moves it elsewhere, the watch ends.
+  // Once the overlay is gone from the screen, so the focus never lands in it. Its trigger gets it
+  // back; a navigation that replaces the page later hands it on from there (`Handover`). A synchronous
+  // navigation replaced the page in the closing render already: unless the new page placed the focus
+  // itself, its trigger takes it, or the one it mounts later.
   React.useEffect(() => {
     if (overlayOpen || !returning.current) return;
     returning.current = false;
     const from = opener.current;
     opener.current = null;
     if (from === null || !isOverlay) return;
+    if (from.trigger.isConnected) {
+      returnFocus(from);
+      return;
+    }
+    if (!focusIsFree()) return;
     const now = currentTrigger();
-    if (from.trigger.isConnected || now === null) returnFocus(from);
-    else now.focus();
-    let placed = document.activeElement;
-    const follow = () => {
-      const active = document.activeElement;
-      const lost = active === null || active === document.body || !active.isConnected;
-      if (!lost && active !== placed) {
-        observer.disconnect();
-        return;
-      }
-      const next = currentTrigger();
-      if (next !== null && next !== active) {
-        next.focus();
-        placed = next;
-      }
-    };
-    const observer = new MutationObserver(follow);
-    observer.observe(document.body, { childList: true, subtree: true });
-    const stop = setTimeout(() => observer.disconnect(), TRIGGER_WAIT_MS);
-    return () => {
-      observer.disconnect();
-      clearTimeout(stop);
-    };
-  }, [overlayOpen, isOverlay]);
+    if (now !== null) {
+      now.focus({ preventScroll: true });
+      return;
+    }
+    returnFocus(from);
+    handover.arm();
+  }, [overlayOpen, isOverlay, handover]);
 
   const toggle = React.useCallback(() => {
     if (isOverlay) {
@@ -145,7 +184,11 @@ function SidebarProvider({ storageKey, children }: SidebarProviderProps) {
     }),
     [expanded, toggle, isOverlay, overlayOpen, openOverlay, closeOverlay],
   );
-  return <SidebarContext.Provider value={value}>{children}</SidebarContext.Provider>;
+  return (
+    <SidebarContext.Provider value={value}>
+      <HandoverContext.Provider value={handover}>{children}</HandoverContext.Provider>
+    </SidebarContext.Provider>
+  );
 }
 
 function useSidebar(): SidebarContextValue {
@@ -185,10 +228,19 @@ function SidebarTrigger() {
 function SidebarOverlayTrigger({ className }: { className?: string }) {
   const { t } = useTranslation("suite");
   const sidebar = useOptionalSidebar();
+  const handover = React.useContext(HandoverContext);
+  const ref = React.useRef<HTMLButtonElement>(null);
+  React.useLayoutEffect(() => {
+    const node = ref.current;
+    if (handover === null || node === null) return;
+    handover.arrive(node);
+    return () => handover.leave(node);
+  }, [handover]);
   if (sidebar === null) return null;
   return (
     <Hint text={t("nav.openNavigation")}>
       <Button
+        ref={ref}
         variant="ghost"
         size="icon"
         onClick={(event) => sidebar.openOverlay(event.currentTarget)}
@@ -207,8 +259,20 @@ function SidebarOverlayTrigger({ className }: { className?: string }) {
 // The sidebar's element id, named by the overlay trigger's `aria-controls`.
 const SIDEBAR_ID = "suite-app-sidebar";
 
-// How long a closed overlay waits for the trigger of a page that renders later.
-const TRIGGER_WAIT_MS = 5000;
+/**
+ * Whether nothing holds the focus a page placed: the body, a removed node, the main-content fallback,
+ * or the closed overlay.
+ */
+function focusIsFree(): boolean {
+  const active = document.activeElement;
+  return (
+    active === null ||
+    active === document.body ||
+    !active.isConnected ||
+    active.hasAttribute(FOCUS_FALLBACK_ATTR) ||
+    active.closest(`#${SIDEBAR_ID}`) !== null
+  );
+}
 
 /** The overlay trigger shown now, e.g. in the head of the page a navigation led to. */
 function currentTrigger(): HTMLElement | null {

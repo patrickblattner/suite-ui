@@ -158,7 +158,7 @@ function UserMenu({
 }: UserMenuProps) {
   const { t } = useTranslation("suite");
   const [isOpen, setIsOpen] = React.useState(false);
-  const containerRef = React.useRef<HTMLDivElement>(null);
+  const [container, setContainer] = React.useState<HTMLDivElement | null>(null);
   const close = React.useCallback(() => setIsOpen(false), []);
   const sidebar = useOptionalSidebar();
   const collapsed = sidebar?.isOpen === false;
@@ -171,22 +171,17 @@ function UserMenu({
       if (target?.closest("[data-radix-popper-content-wrapper],[data-slot='select-content']")) {
         return;
       }
-      if (containerRef.current && !containerRef.current.contains(target)) setIsOpen(false);
+      if (container && !container.contains(target)) setIsOpen(false);
     }
     document.addEventListener("pointerdown", onPointerDown, true);
     return () => document.removeEventListener("pointerdown", onPointerDown, true);
-  }, [isOpen]);
+  }, [isOpen, container]);
   // `Esc` closes the open menu first, and only the menu (`GL-UI-007`): a package escape layer, inside
   // the sidebar overlay's.
-  const [container, setContainer] = React.useState<HTMLDivElement | null>(null);
   useEscapeLayer(isOpen, close, container);
-  const attach = React.useCallback((node: HTMLDivElement | null) => {
-    containerRef.current = node;
-    setContainer(node);
-  }, []);
 
   return (
-    <div ref={attach} className="relative">
+    <div ref={setContainer} className="relative">
       <Hint text={t("account.menuHint")}>
         <button
           type="button"

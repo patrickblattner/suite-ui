@@ -16,14 +16,15 @@ function tabbables(root: HTMLElement): HTMLElement[] {
  * Makes `element` modal while `active` (the WAI-ARIA dialog pattern): everything outside it is
  * `inert` except `keep` (its scrim), and Tab and Shift+Tab cycle inside it. Pass the returned handler
  * as the element's `onKeyDown`. Nodes that appear later (a portaled menu the element opens) stay
- * usable; whatever was inert before stays inert afterwards.
+ * usable; whatever was inert before stays inert afterwards. The content is usable again within the
+ * commit that closes the element, so a page mounting in that same commit can place its focus.
  */
 function useModalOverlay(
   active: boolean,
   element: HTMLElement | null,
   keep: HTMLElement | null = null,
 ): (event: React.KeyboardEvent) => void {
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     if (!active || element === null) return;
     const made: Element[] = [];
     for (let node: Element = element; node.parentElement !== null; node = node.parentElement) {
