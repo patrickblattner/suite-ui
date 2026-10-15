@@ -6,6 +6,7 @@ import {
   TriangleAlertIcon,
 } from "lucide-react";
 import type * as React from "react";
+import { useTranslation } from "react-i18next";
 import {
   type ExternalToast,
   Toaster as Sonner,
@@ -100,16 +101,31 @@ type ToasterAppProps = Omit<ToasterProps, "position" | "offset" | "mobileOffset"
 
 // `theme` follows the app: pass its resolved theme ("light" or "dark").
 function Toaster({ theme = "light", ...props }: ToasterAppProps) {
+  const { t } = useTranslation("suite");
+  // The symbol shows the variant; its name is read before the message, so the variant does not rest
+  // on colour and symbol alone (`GL-UI-060`).
+  const named = (icon: React.ReactNode, name: string) => (
+    <>
+      {icon}
+      <span className="sr-only">{name}</span>
+    </>
+  );
   return (
     <div onClick={dismissAllOnToastClick}>
       <Sonner
         theme={theme}
         className="toaster group"
         icons={{
-          success: <CircleCheckIcon className="size-4" />,
-          info: <InfoIcon className="size-4" />,
-          warning: <TriangleAlertIcon className="size-4" />,
-          error: <CircleXIcon className="size-4" />,
+          success: named(
+            <CircleCheckIcon aria-hidden="true" className="size-4" />,
+            t("status.success"),
+          ),
+          info: named(<InfoIcon aria-hidden="true" className="size-4" />, t("status.info")),
+          warning: named(
+            <TriangleAlertIcon aria-hidden="true" className="size-4" />,
+            t("status.warning"),
+          ),
+          error: named(<CircleXIcon aria-hidden="true" className="size-4" />, t("status.error")),
           loading: <Loader2Icon className="size-4 animate-spin" />,
         }}
         // The close button, when an app turns it on, gets a 24 px hit area (`GL-UI-013`); `!` because

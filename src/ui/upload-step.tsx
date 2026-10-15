@@ -1,4 +1,4 @@
-import { UploadIcon } from "lucide-react";
+import { CircleXIcon, UploadIcon } from "lucide-react";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 
@@ -145,15 +145,24 @@ function UploadStep({
       )}
       <p
         role="status"
-        className={cn("text-sm text-destructive-text", showsRows ? "empty:-mb-4" : "empty:-mt-4")}
+        className={cn(
+          "flex items-start gap-2 text-sm text-destructive-text",
+          showsRows ? "empty:-mb-4" : "empty:-mt-4",
+        )}
         data-testid="upload-rejected"
       >
-        {rejected.length > 0
-          ? t("upload.rejected", {
-              files: rejected.join(", "),
-              interpolation: { escapeValue: false },
-            })
-          : null}
+        {/* The error symbol before the text, so the message does not rest on its colour (`GL-UI-060`). */}
+        {rejected.length > 0 ? (
+          <>
+            <CircleXIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+            <span>
+              {t("upload.rejected", {
+                files: rejected.join(", "),
+                interpolation: { escapeValue: false },
+              })}
+            </span>
+          </>
+        ) : null}
       </p>
       {showsRows ? (
         <ul

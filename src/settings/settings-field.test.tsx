@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { RadioGroup, RadioGroupItem } from "../ui/radio-group.js";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select.js";
 import { SettingsField } from "./settings-field.js";
 import { SettingsSection } from "./settings-section.js";
 
@@ -56,6 +57,66 @@ describe("SettingsField", () => {
     );
     const group = screen.getByRole("group", { name: "Mode" });
     expect(group).toContainElement(screen.getByRole("radio", { name: "A" }));
+  });
+
+  // SUI-FEATURE-078 AC1–3: icon and text under the field in place of the help text, wired to the input.
+  it("shows the error with its symbol in place of the help text and marks the input", () => {
+    const { rerender } = render(
+      <SettingsField label="Port" htmlFor="port" help="1 to 65535." error="Enter a whole number.">
+        <input id="port" />
+      </SettingsField>,
+    );
+    const input = screen.getByRole("textbox", { name: "Port" });
+    const error = screen.getByRole("alert");
+    expect(error).toHaveAttribute("id", "port-error");
+    expect(error).toHaveTextContent("Enter a whole number.");
+    expect(error).toHaveClass("text-destructive-text");
+    expect(error.firstElementChild).toHaveClass("lucide-circle-x");
+    expect(error.firstElementChild).toHaveAttribute("aria-hidden", "true");
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(input).toHaveAttribute("aria-errormessage", "port-error");
+    expect(screen.queryByText("1 to 65535.")).toBeNull();
+
+    rerender(
+      <SettingsField label="Port" htmlFor="port" help="1 to 65535.">
+        <input id="port" />
+      </SettingsField>,
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByText("1 to 65535.")).toHaveAttribute("id", "port-description");
+    expect(input).not.toHaveAttribute("aria-invalid");
+    expect(input).not.toHaveAttribute("aria-errormessage");
+  });
+
+  it("marks a Select's trigger, the element the label names", () => {
+    render(
+      <SettingsField label="Mode" htmlFor="mode" error="Choose a mode.">
+        <Select>
+          <SelectTrigger id="mode" size="default">
+            <SelectValue placeholder="—" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="a">A</SelectItem>
+          </SelectContent>
+        </Select>
+      </SettingsField>,
+    );
+    const trigger = screen.getByRole("combobox", { name: "Mode" });
+    expect(trigger).toHaveAttribute("aria-invalid", "true");
+    expect(trigger).toHaveAttribute("aria-errormessage", "mode-error");
+  });
+
+  it("with group marks the group", () => {
+    render(
+      <SettingsField label="Mode" htmlFor="mode" group error="Choose a mode.">
+        <RadioGroup>
+          <RadioGroupItem value="a" aria-label="A" />
+        </RadioGroup>
+      </SettingsField>,
+    );
+    const group = screen.getByRole("group", { name: "Mode" });
+    expect(group).toHaveAttribute("aria-invalid", "true");
+    expect(group).toHaveAttribute("aria-errormessage", "mode-error");
   });
 
   it("sets the RadioGroup's options 8 px apart outside a field too", () => {

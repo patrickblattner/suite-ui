@@ -1,7 +1,8 @@
+import { act, render, screen } from "@testing-library/react";
 import { toast as sonnerToast } from "sonner";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { toast, toastDurationFor } from "./toaster.js";
+import { toast, Toaster, toastDurationFor } from "./toaster.js";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -67,4 +68,31 @@ describe("toast", () => {
   it("keeps sonner's dismiss", () => {
     expect(toast.dismiss).toBe(sonnerToast.dismiss);
   });
+});
+
+// GL-UI-060: the variant is shown by its symbol and read by its name before the message.
+describe("Toaster", () => {
+  it.each([
+    ["success", "Success", "lucide-circle-check"],
+    ["error", "Error", "lucide-circle-x"],
+    ["warning", "Warning", "lucide-triangle-alert"],
+    ["info", "Info", "lucide-info"],
+  ] as const)(
+    "%s: a hidden symbol and the name %s for screen readers",
+    async (variant, name, icon) => {
+      render(<Toaster />);
+      act(() => {
+        toast[variant]("File saved");
+      });
+      const message = await screen.findByText("File saved");
+      const item = message.closest("[data-sonner-toast]") as HTMLElement;
+      const slot = item.querySelector("[data-icon]") as HTMLElement;
+      expect(slot.querySelector("svg")).toHaveClass(icon);
+      expect(slot.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+      expect(slot.querySelector(".sr-only")).toHaveTextContent(name);
+      act(() => {
+        toast.dismiss();
+      });
+    },
+  );
 });

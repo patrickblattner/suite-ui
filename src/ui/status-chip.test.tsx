@@ -63,6 +63,33 @@ describe("StatusChip", () => {
     expect(screen.getByTestId("chip")).toHaveAttribute("data-variant", tone);
   });
 
+  // GL-UI-060: colour is never the only signal; each tone leads with its toast symbol, neutral with none.
+  it.each([
+    ["succeeded", "lucide-circle-check"],
+    ["failed", "lucide-circle-x"],
+    ["untested", "lucide-triangle-alert"],
+    ["running", "lucide-info"],
+  ] as const)("%s: a hidden %s symbol before the text, soft and filled", (state, icon) => {
+    render(<StatusChip state={state} data-testid="soft" />);
+    render(<StatusChip state={state} emphasis="filled" data-testid="filled" />);
+    for (const chip of [screen.getByTestId("soft"), screen.getByTestId("filled")]) {
+      const svg = chip.firstElementChild;
+      expect(svg?.tagName.toLowerCase()).toBe("svg");
+      expect(svg).toHaveClass(icon);
+      expect(svg).toHaveAttribute("aria-hidden", "true");
+    }
+  });
+
+  it("a neutral state carries no symbol", () => {
+    render(<StatusChip state="draft" data-testid="chip" />);
+    expect(screen.getByTestId("chip").querySelector("svg")).toBeNull();
+  });
+
+  it("a domain tone carries the same symbol as the catalog tone", () => {
+    render(<StatusChip tone="warn" label="Signature missing" data-testid="chip" />);
+    expect(screen.getByTestId("chip").firstElementChild).toHaveClass("lucide-triangle-alert");
+  });
+
   it("appends the detail after the package text, the tone stays", () => {
     render(<StatusChip state="succeeded" detail="09.10.2026" data-testid="chip" />);
     const chip = screen.getByTestId("chip");

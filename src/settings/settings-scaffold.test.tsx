@@ -386,6 +386,9 @@ describe("SettingsScaffold single column and states (SUI-FEATURE-041)", () => {
     // checked in styles.test.ts.
     expect(error).toHaveClass("text-destructive-text");
     expect(error).not.toHaveClass("text-destructive");
+    // GL-UI-060: a hidden error symbol before the text.
+    expect(error.firstElementChild).toHaveClass("lucide-circle-x");
+    expect(error.firstElementChild).toHaveAttribute("aria-hidden", "true");
     expect(screen.queryByTestId("tab-row")).toBeNull();
     expect(screen.getByTestId("page-title")).toHaveTextContent("General");
     expect(screen.getByTestId("page-subtitle")).toBeInTheDocument();

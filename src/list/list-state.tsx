@@ -1,4 +1,4 @@
-import { PlusIcon } from "lucide-react";
+import { CircleXIcon, PlusIcon } from "lucide-react";
 import type * as React from "react";
 import { useTranslation } from "react-i18next";
 
@@ -45,7 +45,8 @@ function listState({
 }
 
 // The content of the error or empty state; the shell supplies the frame (a table cell, a grid block).
-// Without an action it is the bare text, so a list that sets none of the new props keeps its markup.
+// Without an action the empty state is the bare text, so a list that sets none of the new props keeps
+// its markup.
 function ListStateContent({
   state,
   empty,
@@ -60,10 +61,17 @@ function ListStateContent({
 }: Omit<ListStateProps, "isPending" | "isEmpty" | "isError"> & { state: "error" | "empty" }) {
   const { t } = useTranslation("suite");
   if (state === "error") {
-    if (onRetry === undefined) return error;
+    // The error symbol before the text, so error and empty differ without their colour (`GL-UI-060`).
+    const message = (
+      <span className="inline-flex items-center gap-2" data-slot="list-error">
+        <CircleXIcon aria-hidden="true" className="size-4 shrink-0" />
+        <span>{error}</span>
+      </span>
+    );
+    if (onRetry === undefined) return message;
     return (
       <div className="flex items-center justify-center gap-2">
-        <span>{error}</span>
+        {message}
         <Button
           variant="outline"
           size="sm"
