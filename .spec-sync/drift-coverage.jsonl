@@ -313,3 +313,6 @@
 {"ts":"2026-10-15T06:21:47.379Z","key":"SUI-FEATURE-009","from":null,"to":2,"disposition":"ticket","ref":"133"}
 {"ts":"2026-10-15T06:32:48.648Z","key":"SUI-FEATURE-075","from":null,"to":2,"disposition":"ticket","ref":"134"}
 {"ts":"2026-10-15T07:13:48.388Z","key":"PROC-DEV-061","from":null,"to":2,"disposition":"editorial","ref":"process leaf (worktree unlock before remove); suite-ui has no worktree:unlock script and no read-only worktrees — no code impact"}
+{"ts":"2026-10-15T10:39:40.745Z","key":"CARD-TEST-020","from":null,"to":2,"disposition":"editorial","ref":"audit persona card run on owner demand by the Overmind (/ux-audit), never nightly/gate - no code impact"}
+{"ts":"2026-10-15T10:39:40.745Z","key":"CARD-TEST-021","from":null,"to":2,"disposition":"editorial","ref":"audit persona card run on owner demand by the Overmind (/ux-audit), never nightly/gate - no code impact"}
+{"ts":"2026-10-15T10:40:00.180Z","key":"SUI-FEATURE-076","from":null,"to":2,"disposition":"ticket","ref":"135"}
