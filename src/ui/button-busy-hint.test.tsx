@@ -4,7 +4,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { hintOf } from "../list/test-utils.js";
 import { Button } from "./button.js";
 import { Hint } from "./hint.js";
-import { IconButtonTooltip } from "./tooltip.js";
+import { IconButtonTooltip, Tooltip, TooltipContent, TooltipTrigger } from "./tooltip.js";
 
 afterEach(cleanup);
 
@@ -64,5 +64,24 @@ describe("hints of a running button (as on main)", () => {
     const hint = hintOf(screen.getByRole("button", { name: "Send Ada" }));
     expect(hint.hover1500).toBe("Send Ada");
     expect(hint.focus).toBeNull();
+  });
+
+  // The Button's own guards (#150 re-review): as the trigger of a plain `Tooltip`, the running button
+  // opens no bubble on hover or focus; idle, it does both.
+  it.each([
+    [true, { focus: null, hover1499: null, hover1500: null }],
+    [false, { focus: "Send the run", hover1499: null, hover1500: "Send the run" }],
+  ])("a Tooltip whose trigger is the button (busy %s)", (busy, expected) => {
+    render(
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button variant="outline" size="default" busy={busy}>
+            Send
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Send the run</TooltipContent>
+      </Tooltip>,
+    );
+    expect(hintOf(screen.getByRole("button", { name: "Send" }))).toEqual(expected);
   });
 });

@@ -4993,15 +4993,16 @@ test("busy keeps the focus: Enter, Space, a click and the form's submit start no
   await page.keyboard.press("Space");
   await expect(save).toBeFocused();
   await field.press("Enter");
+  // Back on the running Save, so the hand-on at its end is what moves the focus.
+  await save.focus();
+  await expect(save).toBeFocused();
   // One save of 1.5 s: a second run would turn the button busy again after the first ends.
   await expect(save).not.toHaveAttribute("aria-busy", { timeout: 5000 });
   await page.waitForTimeout(500);
   await expect(save).not.toHaveAttribute("aria-busy");
   // The clean form locks Save: the focus moves on to the page's main content, never to the body.
   await expect(save).toBeDisabled();
-  const focused = await page.evaluate(() => {
-    const active = document.activeElement;
-    return active === null || active === document.body ? "body" : active.tagName.toLowerCase();
-  });
-  expect(focused).not.toBe("body");
+  // The settings page marks no main field, so the page's `main` takes it (GL-UI-050 tier 3).
+  await expect(page.locator("main")).toBeFocused();
+  await expect(page.locator("main")).toHaveAttribute("tabindex", "-1");
 });

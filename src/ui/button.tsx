@@ -69,7 +69,7 @@ const LOCKED_HOVER: Record<ButtonVariant, string> = {
     "aria-disabled:hover:border-border aria-disabled:hover:bg-background aria-disabled:hover:text-inherit dark:aria-disabled:hover:border-input dark:aria-disabled:hover:bg-input/30",
   secondary: "aria-disabled:hover:bg-secondary",
   ghost:
-    "aria-disabled:hover:bg-transparent aria-disabled:hover:text-inherit dark:aria-disabled:hover:bg-transparent",
+    "aria-disabled:hover:bg-transparent aria-disabled:hover:text-inherit dark:aria-disabled:hover:bg-transparent dark:aria-disabled:hover:text-inherit",
   link: "aria-disabled:hover:no-underline",
 };
 
@@ -141,10 +141,12 @@ function Button(props: ButtonProps) {
         rest.onMouseDown?.(event);
       }}
       onPointerMove={(event: React.PointerEvent<HTMLButtonElement>) => {
-        // The button as a trigger of its own (it carries the trigger's `data-state`): its hint stays
-        // closed while it runs, as the disabled button took no pointer events. A wrapping trigger
-        // still sees the move.
-        if (locked && "data-state" in rest) event.preventDefault();
+        // The button as a tooltip trigger of its own (`TooltipTrigger asChild` hands it its
+        // `data-slot`): its hint stays closed while it runs, as the disabled button took no pointer
+        // events. A wrapping trigger and any other trigger (a menu's) still see the move.
+        if (locked && (rest as { "data-slot"?: unknown })["data-slot"] === "tooltip-trigger") {
+          event.preventDefault();
+        }
         rest.onPointerMove?.(event);
       }}
       onFocus={(event: React.FocusEvent<HTMLButtonElement>) => {

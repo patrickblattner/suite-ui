@@ -1,5 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { Button } from "./button.js";
@@ -18,7 +18,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "./dropdown-menu.js";
-import { FOCUS_FALLBACK_ATTR } from "./focus-return.js";
+import { FOCUS_FALLBACK_ATTR, useFocusAfterRun } from "./focus-return.js";
 
 afterEach(cleanup);
 
@@ -487,5 +487,47 @@ describe("focus return after a dialog (GL-UI-050)", () => {
     open();
     fireEvent.click(await screen.findByTestId("confirm-dialog-cancel"));
     await waitFor(() => expect(focused()).toBe("entry"));
+  });
+});
+
+// SUI-FEATURE-120 rev 3 (#150 re-review): a hand-on target that refuses the focus passes it to the
+// next tier: the group's control, then the surface's main content.
+describe("useFocusAfterRun", () => {
+  function Run({ running, locked }: { running: boolean; locked: boolean }) {
+    const save = useRef<HTMLButtonElement>(null);
+    const field = useCallback(() => document.querySelector<HTMLElement>("#field"), []);
+    useFocusAfterRun(save, running, locked, field);
+    return (
+      <main>
+        <input id="field" aria-label="Field" />
+        <div data-focus-group="">
+          <button type="button" ref={save} disabled={locked} data-testid="save">
+            Save
+          </button>
+          <button type="button" data-testid="next">
+            Next
+          </button>
+        </div>
+      </main>
+    );
+  }
+
+  it("a group control that refuses the focus hands it to the main content", () => {
+    const { rerender } = render(<Run running={false} locked={false} />);
+    screen.getByTestId("next").focus = () => {};
+    const save = screen.getByTestId("save");
+    act(() => save.focus());
+    rerender(<Run running locked={false} />);
+    rerender(<Run running={false} locked />);
+    expect(screen.getByLabelText("Field")).toHaveFocus();
+  });
+
+  it("a usable group control takes it first", () => {
+    const { rerender } = render(<Run running={false} locked={false} />);
+    const save = screen.getByTestId("save");
+    act(() => save.focus());
+    rerender(<Run running locked={false} />);
+    rerender(<Run running={false} locked />);
+    expect(screen.getByTestId("next")).toHaveFocus();
   });
 });
