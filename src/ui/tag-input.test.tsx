@@ -315,11 +315,17 @@ describe("TagInput suggestions", () => {
     expect(options()).toEqual(["Stadt"]);
   });
 
-  it("a suggestion listed twice in any letter case shows once", () => {
+  it("a suggestion listed twice in any letter case shows once; the first spelling is taken", () => {
     render(<Suggesting suggestions={["Stadt", "stadt", "STADT", "Stadion"]} />);
     focusField();
     type("sta");
     expect(options()).toEqual(["Stadt", "Stadion"]);
+    enter();
+    expect(chips()).toEqual(["Stadt"]);
+    type("STADION");
+    fireEvent.keyDown(window, { key: "Escape" });
+    enter();
+    expect(chips()).toEqual(["Stadt", "Stadion"]);
   });
 
   it("the arrows keep the chosen entry in view", () => {

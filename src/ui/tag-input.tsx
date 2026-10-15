@@ -105,7 +105,10 @@ function TagInput({
   };
 
   // The suggestions by their lower-case form, for the suggestion's spelling of a typed tag.
-  const spelling = new Map((suggestions ?? []).map((tag) => [tag.toLowerCase(), tag]));
+  // The first of several case variants wins, as in the list.
+  const spelling = new Map(
+    [...(suggestions ?? [])].reverse().map((tag) => [tag.toLowerCase(), tag]),
+  );
 
   // Takes the typed text over; `picked` replaces the text after the last comma.
   const commit = (picked?: string) => {
