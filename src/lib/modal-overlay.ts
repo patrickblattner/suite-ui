@@ -43,15 +43,18 @@ function useModalOverlay(
   return React.useCallback(
     (event: React.KeyboardEvent) => {
       if (!active || element === null || event.key !== "Tab") return;
+      // A portaled layer the element opened (a dialog) reaches this handler through React; its Tab is
+      // its own.
+      if (!(event.target instanceof Node) || !element.contains(event.target)) return;
       const order = tabbables(element);
       const first = order[0];
       const last = order.at(-1);
       if (first === undefined || last === undefined) return;
       const at = document.activeElement;
-      if (event.shiftKey && (at === first || !element.contains(at))) {
+      if (event.shiftKey && at === first) {
         event.preventDefault();
         last.focus();
-      } else if (!event.shiftKey && (at === last || !element.contains(at))) {
+      } else if (!event.shiftKey && at === last) {
         event.preventDefault();
         first.focus();
       }

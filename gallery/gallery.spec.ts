@@ -2088,21 +2088,33 @@ test("sidebar overlay: Tab and Shift+Tab stay inside the open overlay", async ({
   await trigger.focus();
   await page.keyboard.press("Enter");
   await expect(sidebar).toBeVisible();
-  const inside = () =>
-    page.evaluate(() =>
-      document.querySelector("[data-testid=app-sidebar]")!.contains(document.activeElement),
-    );
-  const first = await page.evaluate(() => document.activeElement?.getAttribute("data-testid"));
+  const focused = () =>
+    page.evaluate(() => {
+      const active = document.activeElement;
+      const inside = document.querySelector("[data-testid=app-sidebar]")!.contains(active);
+      return `${inside ? "inside" : "outside"}:${active?.getAttribute("data-testid")}`;
+    });
+  // The overlay opens on its first control; Shift+Tab wraps to its last, Tab back to the first.
+  const first = await focused();
+  expect(first).toMatch(/^inside:/);
   await page.keyboard.press("Shift+Tab");
-  expect(await inside()).toBe(true);
+  const last = await focused();
+  expect(last).toMatch(/^inside:/);
+  expect(last).not.toBe(first);
   await page.keyboard.press("Tab");
-  expect(await page.evaluate(() => document.activeElement?.getAttribute("data-testid"))).toBe(
-    first,
-  );
-  for (let i = 0; i < 30; i++) {
-    await page.keyboard.press("Tab");
-    expect(await inside(), `Tab ${i + 1} left the overlay`).toBe(true);
-  }
+  expect(await focused()).toBe(first);
+  await page.keyboard.press("Shift+Tab");
+  expect(await focused()).toBe(last);
+  // The search dialog the overlay opens keeps its own Tab; its Esc closes only itself.
+  await sidebar.getByTestId("shell-search").focus();
+  const search = page.getByTestId("search-dialog");
+  await expect(search).toBeVisible();
+  await page.keyboard.press("Tab");
+  expect(await search.evaluate((node) => node.contains(document.activeElement))).toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(search).toHaveCount(0);
+  await expect(sidebar.getByTestId("shell-search")).toBeFocused();
+  await expect(sidebar).toBeVisible();
   expect(
     await page.getByTestId("page-header").evaluate((node) => node.closest("[inert]") !== null),
   ).toBe(true);
