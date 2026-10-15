@@ -233,4 +233,24 @@ describe("Hint timing", () => {
     expect(screen.getByRole("tooltip")).toHaveTextContent(/^Saves the draft$/);
     expect(secondLine()).toBeNull();
   });
+
+  // SUI-FEATURE-049 addendum to AC2: the focus landing elsewhere closes a bubble whose trigger takes
+  // no focus.
+  it("closes in the next frame when the focus moves to another field", () => {
+    render(
+      <>
+        <Hint text="The file name">
+          <span className="w-24 truncate">a-very-long-file-name.png</span>
+        </Hint>
+        <Input aria-label="Other" />
+      </>,
+    );
+    hoverFor(screen.getByText("a-very-long-file-name.png"), 1500);
+    expect(screen.getByRole("tooltip")).toBeInTheDocument();
+    act(() => {
+      screen.getByRole("textbox", { name: "Other" }).focus();
+      vi.advanceTimersByTime(16);
+    });
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
 });

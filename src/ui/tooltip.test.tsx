@@ -9,6 +9,7 @@ import { EditPanel } from "./edit-panel.js";
 import { Input } from "./input.js";
 import {
   IconButtonTooltip,
+  OverflowTooltip,
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -334,6 +335,67 @@ describe("tooltip closing", () => {
   it("closes on a focus change", () => {
     const trigger = openTooltip();
     fireEvent.blur(trigger);
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
+  // SUI-FEATURE-049 addendum to AC2: the focus landing anywhere else, also with a trigger that takes
+  // no focus.
+  it("closes in the next frame when the focus moves to another field", () => {
+    render(
+      <>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="truncate">a-very-long-file-name.png</span>
+          </TooltipTrigger>
+          <TooltipContent>a-very-long-file-name.png</TooltipContent>
+        </Tooltip>
+        <Input aria-label="Other" />
+      </>,
+    );
+    expect(openAfter(screen.getByText("a-very-long-file-name.png"), 1500)).toBe(true);
+    act(() => {
+      screen.getByRole("textbox", { name: "Other" }).focus();
+      vi.advanceTimersByTime(16);
+    });
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
+  it("stays open while the focus lands on its own trigger", () => {
+    render(
+      <Tooltip>
+        <TooltipTrigger>Trigger</TooltipTrigger>
+        <TooltipContent>Description</TooltipContent>
+      </Tooltip>,
+    );
+    const trigger = screen.getByText("Trigger");
+    expect(openAfter(trigger, 1500)).toBe(true);
+    act(() => {
+      trigger.focus();
+      vi.advanceTimersByTime(16);
+    });
+    expect(screen.getByRole("tooltip")).toBeInTheDocument();
+  });
+
+  it("closes an OverflowTooltip on a non-focusable clipped text when the focus moves", () => {
+    vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(100);
+    vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return this.classList.contains("truncate") ? 200 : 100;
+    });
+    render(
+      <>
+        <OverflowTooltip>
+          <span className="truncate">a-very-long-file-name.png</span>
+        </OverflowTooltip>
+        <Input aria-label="Other" />
+      </>,
+    );
+    expect(openAfter(screen.getByText("a-very-long-file-name.png"), 1500)).toBe(true);
+    act(() => {
+      screen.getByRole("textbox", { name: "Other" }).focus();
+      vi.advanceTimersByTime(16);
+    });
     expect(screen.queryByRole("tooltip")).toBeNull();
   });
 

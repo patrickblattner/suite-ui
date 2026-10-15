@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.88.1 — SUI-FEATURE-049 rev 6 (#129): tooltips close on every focus change
+
+Not breaking.
+
+- `Tooltip`, `Hint`, `OverflowTooltip`: a bubble opened by hover closes in the next frame as soon as focus lands on any element outside its trigger and its content — also when the trigger is not focusable (e.g. `OverflowTooltip` on a `MediaTile` name). Previously only a blur of the trigger closed it.
+
 ## 0.88.0 — SUI-FEATURE-005 rev 2 (#128): LabelWithHelp and RadioGroup follow the field canon
 
 Not breaking. Two defaults change; apps drop their shims on the pin bump.

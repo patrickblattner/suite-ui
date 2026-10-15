@@ -13,17 +13,29 @@ const TOOLTIP_HINT_DELAY = 1500;
 
 type FixedTiming = "delayDuration" | "skipDelayDuration" | "disableHoverableContent";
 
+// The trigger element of the tooltip under this provider; every package tooltip root sits in a provider
+// of its own. The bubble reads it to tell a focus change from a focus on its own trigger.
+type TriggerNode = {
+  trigger: HTMLElement | null;
+  setTrigger: (node: HTMLElement | null) => void;
+};
+const TriggerNodeContext = React.createContext<TriggerNode | null>(null);
+
 function TooltipProvider(
   props: Omit<React.ComponentProps<typeof TooltipPrimitive.Provider>, FixedTiming>,
 ) {
+  const [trigger, setTrigger] = React.useState<HTMLElement | null>(null);
+  const triggerNode = React.useMemo(() => ({ trigger, setTrigger }), [trigger]);
   return (
-    <TooltipPrimitive.Provider
-      data-slot="tooltip-provider"
-      {...props}
-      delayDuration={TOOLTIP_HINT_DELAY}
-      skipDelayDuration={0}
-      disableHoverableContent
-    />
+    <TriggerNodeContext.Provider value={triggerNode}>
+      <TooltipPrimitive.Provider
+        data-slot="tooltip-provider"
+        {...props}
+        delayDuration={TOOLTIP_HINT_DELAY}
+        skipDelayDuration={0}
+        disableHoverableContent
+      />
+    </TriggerNodeContext.Provider>
   );
 }
 
@@ -35,8 +47,44 @@ function Tooltip(props: Omit<React.ComponentProps<typeof TooltipPrimitive.Root>,
   );
 }
 
-function TooltipTrigger({ ...props }: React.ComponentProps<typeof TooltipPrimitive.Trigger>) {
-  return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />;
+function assignRef<T>(ref: React.Ref<T> | undefined, node: T): void {
+  if (typeof ref === "function") ref(node);
+  else if (ref) ref.current = node;
+}
+
+function TooltipTrigger({ ref, ...props }: React.ComponentProps<typeof TooltipPrimitive.Trigger>) {
+  const setTrigger = React.useContext(TriggerNodeContext)?.setTrigger;
+  const composedRef = React.useCallback(
+    (node: HTMLButtonElement | null) => {
+      setTrigger?.(node);
+      assignRef(ref, node);
+    },
+    [setTrigger, ref],
+  );
+  return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} ref={composedRef} />;
+}
+
+// Radix closes every open bubble on this document event; a bubble opening dispatches it.
+const TOOLTIP_OPEN = "tooltip.open";
+
+// A focus change closes the bubble (`SUI-FEATURE-049` AC2): the focus landing anywhere outside the
+// trigger and the bubble, not only the trigger's blur, which radix alone listens to and which a
+// trigger that takes no focus (a clipped name) never fires. Radix offers no close from the content, so
+// the bubble sends the event radix itself uses to close the others; listening in the capture phase, it
+// runs before a newly focused trigger opens its own bubble. Mounted only while the bubble is open.
+function CloseOnFocusOutside() {
+  const trigger = React.useContext(TriggerNodeContext)?.trigger;
+  React.useEffect(() => {
+    const onFocusIn = (event: FocusEvent) => {
+      if (!(event.target instanceof Element)) return;
+      if (event.target.closest("[data-slot=tooltip-content]") !== null) return;
+      if (trigger?.contains(event.target)) return;
+      document.dispatchEvent(new CustomEvent(TOOLTIP_OPEN));
+    };
+    document.addEventListener("focusin", onFocusIn, { capture: true });
+    return () => document.removeEventListener("focusin", onFocusIn, { capture: true });
+  }, [trigger]);
+  return null;
 }
 
 // The bubble stands to the right of its element, its top edge 4 px above the element's, 8 px apart;
@@ -67,6 +115,7 @@ function TooltipContent({
         {...props}
       >
         {children}
+        <CloseOnFocusOutside />
         <TooltipPrimitive.Arrow className="z-50 size-2.5 translate-y-[calc(-50%_-_2px)] rotate-45 rounded-[2px] bg-primary fill-primary" />
       </TooltipPrimitive.Content>
     </TooltipPrimitive.Portal>
