@@ -1,4 +1,4 @@
-import { ChevronLeftIcon, ChevronRightIcon, SaveIcon } from "lucide-react";
+import { ArrowRightIcon, ChevronLeftIcon, ChevronRightIcon, SaveIcon } from "lucide-react";
 import { Dialog as SheetPrimitive } from "radix-ui";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
@@ -43,6 +43,9 @@ type EditPanelProps = {
   // Cancel locked with it, and the panel ignores every close request until the caller closes it.
   busy?: boolean;
   submitDisabled?: boolean;
+  // What the primary action does (`SUI-FEATURE-111`): `save` (the default) leads with the save symbol;
+  // `next` only moves on to the next step, saves nothing, and so carries an arrow after its text.
+  submitKind?: "save" | "next";
   // With `onBack` the footer carries Back left-aligned (`SUI-FEATURE-035`); it only calls `onBack`.
   onBack?: () => void;
   backDisabled?: boolean;
@@ -75,6 +78,7 @@ function EditPanel({
   dirty = false,
   busy = false,
   submitDisabled = false,
+  submitKind = "save",
   onBack,
   backDisabled = false,
   pager,
@@ -283,8 +287,9 @@ function EditPanel({
                   disabled={submitDisabled}
                   data-testid={`${testIdPrefix}-submit`}
                 >
-                  <SaveIcon aria-hidden="true" />
+                  {submitKind === "save" ? <SaveIcon aria-hidden="true" /> : null}
                   {submitLabel ?? t("actions.save")}
+                  {submitKind === "next" ? <ArrowRightIcon aria-hidden="true" /> : null}
                 </Button>
               )}
             </div>

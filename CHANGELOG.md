@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.97.0 — #149, SUI-FEATURE-111 rev 2: EditPanel next step without the save symbol
+
+Not breaking. New: `EditPanel submitKind?: "save" | "next"`, default `"save"`. Without it the panel is unchanged.
+
+- `submitKind="next"`: the primary action shows no `SaveIcon`; `ArrowRightIcon` (hidden from screen readers) follows its text. Variant, size, `submitDisabled` and `busy` stay as for Save; while busy the spinner leads and the arrow is hidden, as the save symbol is.
+- The `SaveIcon` now stands only on actions that save (`GL-TEST-019`: an icon claims its action).
+- Apps: every panel step that only moves on and saves nothing (e.g. "Continue to review" in the media upload) sets `submitKind="next"`.
+- Gallery: the edit-panel page opens a next step ("Open a next step"); a check asserts the arrow after the text, no save symbol, and the height of Save.
+
 ## 0.96.1 — #155, SUI-FEATURE-076 rev 8: the gallery runs natively
 
 Not breaking. Tooling only; the package code is unchanged.

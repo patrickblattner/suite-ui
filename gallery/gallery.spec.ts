@@ -4939,3 +4939,29 @@ test("GL-UI-060: the FieldError demo does not overlap at 390 px", async ({ page 
     if (next !== undefined) expect(next.y).toBeGreaterThanOrEqual(current.y + current.height);
   }
 });
+
+// `SUI-FEATURE-111`: a step that only moves on carries an arrow after its text and no save symbol,
+// at the size and in the variant of Save.
+test("edit panel: a next step shows its text, then an arrow, never the save symbol", async ({
+  page,
+}) => {
+  await page.goto("/?page=edit-panel&lng=en");
+  await page.getByTestId("next-panel-trigger").click();
+  const next = page.getByTestId("next-panel-submit");
+  await expect(next).toHaveText("Continue to review");
+  await expect(next).toHaveAttribute("data-variant", "success");
+  await expect(next.locator(".lucide-save")).toHaveCount(0);
+  const arrow = next.locator("svg");
+  await expect(arrow).toHaveCount(1);
+  await expect(arrow).toHaveClass(/lucide-arrow-right/);
+  const label = await next.evaluate((el) => {
+    const range = document.createRange();
+    const text = [...el.childNodes].find((node) => node.nodeType === Node.TEXT_NODE)!;
+    range.selectNode(text);
+    return range.getBoundingClientRect().right;
+  });
+  expect((await box(arrow)).x).toBeGreaterThan(label);
+  expect((await box(next)).height).toBe(36);
+  await next.click();
+  await expect(page.getByTestId("next-panel")).toBeHidden();
+});
