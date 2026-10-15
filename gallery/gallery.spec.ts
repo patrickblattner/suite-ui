@@ -4076,6 +4076,33 @@ test("preview toolbar in a narrow column: fold, wrap, Close top right", async ({
   await expect(at(900).getByTestId("preview-toolbar")).toHaveAttribute("data-shrink", "0");
 });
 
+// #144 (`GL-UI-050`): in the wrapped toolbar a content language picked by keyboard or by mouse
+// re-folds the bar, and the focus stays on the language select. Chrome fires `focusout` when the
+// focused option is removed, which jsdom does not, so this needs the real browser.
+test("preview toolbar wrapped: a picked content language keeps the focus on the select", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 420, height: 900 });
+  await page.goto("/?page=preview&lng=en");
+  const full = page.getByTestId("preview-full");
+  await expect(full.getByTestId("preview-toolbar")).toHaveAttribute("data-shrink", "3");
+  const language = full.getByTestId("preview-language");
+
+  await language.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("option", { name: "Deutsch" })).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(page.getByRole("option", { name: "English" })).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(language).toHaveText("English");
+  await expect(language).toBeFocused();
+
+  await language.click();
+  await page.getByRole("option", { name: "Deutsch" }).click();
+  await expect(language).toHaveText("Deutsch");
+  await expect(language).toBeFocused();
+});
+
 // `GL-UI-008` §Gerät heißt Gerät: in a narrow column Desktop is the desktop layout scaled down, never
 // reflowed; Mobile stands at true mobile width; maximize covers the content area at true size, and
 // the same button or `Esc` returns.

@@ -2,7 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import i18n from "i18next";
 import { CopyIcon } from "lucide-react";
 import { useState } from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { RowActions, type RowActionSet } from "../list/row-actions.js";
 import { type PreviewDevice, PreviewToolbar, type PreviewToolbarProps } from "./preview-toolbar.js";
@@ -454,9 +454,22 @@ describe("PreviewToolbar in a narrow column (SUI-FEATURE-067)", () => {
   // is wrapped: the refold builds the select anew in the same update the list closes, and the focus
   // goes back to the new select.
   it("a content language picked while wrapped keeps the focus on the language select", async () => {
-    Element.prototype.scrollIntoView = () => {};
-    Element.prototype.hasPointerCapture = () => false;
-    Element.prototype.releasePointerCapture = () => {};
+    // What radix Select needs from the browser and jsdom lacks; taken back after this test.
+    const shims = {
+      scrollIntoView: () => {},
+      hasPointerCapture: () => false,
+      releasePointerCapture: () => {},
+    };
+    const saved = Object.keys(shims).map(
+      (name) => [name, Object.getOwnPropertyDescriptor(Element.prototype, name)] as const,
+    );
+    Object.assign(Element.prototype, shims);
+    onTestFinished(() => {
+      for (const [name, descriptor] of saved) {
+        if (descriptor === undefined) Reflect.deleteProperty(Element.prototype, name);
+        else Object.defineProperty(Element.prototype, name, descriptor);
+      }
+    });
     available = 250;
     function Host() {
       const [value, setValue] = useState("de");

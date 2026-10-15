@@ -75,11 +75,16 @@ function useFoldSteps(
     const id = focused.current;
     focused.current = null;
     if (id === null) return;
-    const active = document.activeElement;
-    if (active !== null && active !== document.body && active.isConnected) return;
-    const control = node.querySelector<HTMLElement>(`[data-testid="${id}"]`);
-    const takes = control !== null && !(control as HTMLButtonElement).disabled;
-    (takes ? control : lost.current?.(node, control))?.focus();
+    // Once the event that started the steps is done: Enter on a list option would otherwise click the
+    // control the focus returns to, and reopen a select.
+    setTimeout(() => {
+      const active = document.activeElement;
+      if (!node.isConnected || (active !== null && active !== document.body && active.isConnected))
+        return;
+      const control = node.querySelector<HTMLElement>(`[data-testid="${id}"]`);
+      const takes = control !== null && !(control as HTMLButtonElement).disabled;
+      (takes ? control : lost.current?.(node, control))?.focus();
+    });
   }, []);
 
   React.useEffect(() => {
@@ -88,17 +93,22 @@ function useFoldSteps(
       owner.current = event.target instanceof Element ? ownerOf(root, event.target) : null;
     };
     // Leaving for nothing on purpose (a click on the page) forgets the owner; a control that was
-    // removed or locked under the focus keeps it.
+    // removed or locked under the focus keeps it. Chrome fires `focusout` on a focused node it is
+    // about to remove, while the node is still connected, so this is decided once the update that
+    // removes it is done — after the step it starts has read the owner.
     const leave = (event: FocusEvent) => {
       const from = event.target;
-      if (
-        event.relatedTarget === null &&
-        from instanceof Element &&
-        from.isConnected &&
-        !(from as HTMLButtonElement).disabled
-      ) {
-        owner.current = null;
-      }
+      if (event.relatedTarget !== null || !(from instanceof Element)) return;
+      queueMicrotask(() => {
+        const active = document.activeElement;
+        if (
+          (active === null || active === document.body) &&
+          from.isConnected &&
+          !(from as HTMLButtonElement).disabled
+        ) {
+          owner.current = null;
+        }
+      });
     };
     document.addEventListener("focusin", enter);
     document.addEventListener("focusout", leave);
