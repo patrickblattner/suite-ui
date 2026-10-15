@@ -6,8 +6,10 @@
 //   npm run release:tag -- --dry-run       # all checks, no tag, no push
 //
 // `record` writes `.spec-sync/gate-records/<tree hash>.json` only on exit 0 with a clean working tree
-// before and after the run, and only when exactly the merge profile's phases ran. The record is keyed by the tree, not the commit, so a squash commit
-// with the gated content finds it without a second run. `tag` is the only way to tag; it refuses
+// before and after the run, and only when exactly the merge profile's phases ran. Before the gate it
+// checks the install against the lockfile (`npm ls --all`); a mismatch ends with exit 4, no record.
+// The record is keyed by the tree, not the commit, so a squash commit with the gated content finds
+// it without a second run. `tag` is the only way to tag; it refuses
 // without a green record for HEAD's tree, on a dirty working tree and off `main`.
 
 import { execFileSync, spawnSync } from "node:child_process";
@@ -51,6 +53,19 @@ function record(gateArgs: string[]): void {
         `only ${RECORD_ARGS.map((a) => `${a} <value>`).join(" and ")} go to the gate, not "${gateArgs[i]}"`,
       );
     }
+  }
+  // The installed packages have to be the lockfile's; a stale install gates other code than HEAD's.
+  // Installing is never this script's job: the main checkout is also the owner's working copy.
+  const deps = spawnSync("npm", ["ls", "--all"], { encoding: "utf8" });
+  if (deps.status !== 0) {
+    const first = `${deps.stderr}${deps.stdout}`
+      .split("\n")
+      .find((l) => /ERR|missing|invalid/.test(l));
+    console.error(
+      `release record: installed packages differ from the lockfile${first ? ` (${first.trim()})` : ""}`,
+    );
+    console.error("release record: `npm ci` im Haupt-Checkout — no gate run, no record");
+    process.exit(4);
   }
   if (!isClean()) fail("the working tree has uncommitted changes — no record");
   const tree = git("rev-parse", "HEAD^{tree}");

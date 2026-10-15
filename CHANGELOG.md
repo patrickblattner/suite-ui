@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.91.4 — SUI-FEATURE-076 rev 6 (#140): gate:record checks the install first
+
+Not breaking. Package API unchanged.
+
+- `npm run gate:record` checks the installed packages against the lockfile (`npm ls --all`) before the gate. On a mismatch it ends with exit 4 and the hint "`npm ci` im Haupt-Checkout", without a gate run and without a record. It never installs anything itself.
+
 ## 0.91.3 — SUI-FEATURE-076 rev 5 (#135): gallery phase in the pinned Playwright image
 
 Not breaking. Package API unchanged. No CI workflow: the package is built and checked by the local gate.

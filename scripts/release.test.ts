@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { execFileSync, spawnSync } from "node:child_process";
-import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -88,5 +88,25 @@ describe("release:tag", () => {
     expect(run.status).toBe(0);
     expect(run.out).toContain("v9.9.9 on");
     expect(git("tag", "-l")).toBe("");
+  });
+});
+
+// SUI-FEATURE-076 AC4: `gate:record` checks the install against the lockfile before any gate run.
+describe("gate:record", () => {
+  it("exits 4 without a gate run or a record when the install differs from the package", () => {
+    writeFileSync(
+      join(repo, "package.json"),
+      JSON.stringify({ version: "9.9.9", dependencies: { "left-pad": "1.3.0" } }),
+    );
+    git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-am", "dep");
+    const run = spawnSync(process.execPath, ["scripts/release.ts", "record", "--issue", "1"], {
+      cwd: repo,
+      encoding: "utf8",
+    });
+    expect(run.status).toBe(4);
+    expect(run.stderr).toContain("`npm ci` im Haupt-Checkout");
+    expect(existsSync(join(repo, ".spec-sync", "gate-records"))).toBe(false);
+    // Never installs itself.
+    expect(existsSync(join(repo, "node_modules"))).toBe(false);
   });
 });
