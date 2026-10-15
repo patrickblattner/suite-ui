@@ -1030,6 +1030,20 @@ test("tag input: input height, comma and Enter make chips, duplicates dropped", 
   await expect(field.getByTestId("tag-input-chip")).toHaveText(["summer", "a"]);
 });
 
+// `SUI-FEATURE-007` AC2: the × of a `RemovableChip` removes on Enter and on Space.
+test("removable chip: the × removes on Enter and Space", async ({ page }) => {
+  await page.goto("/?page=components");
+  const field = page.getByTestId("tag-input");
+  const chips = field.getByTestId("tag-input-chip");
+  await expect(chips).toHaveText(["summer", "team"]);
+  await field.getByRole("button", { name: "Remove tag summer" }).focus();
+  await page.keyboard.press("Enter");
+  await expect(chips).toHaveText(["team"]);
+  await expect(field.getByRole("button", { name: "Remove tag team" })).toBeFocused();
+  await page.keyboard.press("Space");
+  await expect(chips).toHaveCount(0);
+});
+
 // `SUI-FEATURE-052`: a file outside `accept` is named below the drop zone as a status.
 test("upload step: the rejected file is named below the drop zone", async ({ page }) => {
   await page.goto("/?page=components");

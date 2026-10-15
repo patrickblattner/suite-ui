@@ -30,6 +30,7 @@ export * from "./preview-frame.js";
 export * from "./preview-toolbar.js";
 export * from "./property-panel.js";
 export * from "./radio-group.js";
+export * from "./removable-chip.js";
 export * from "./restore-defaults-button.js";
 export * from "./select.js";
 export * from "./sheet.js";

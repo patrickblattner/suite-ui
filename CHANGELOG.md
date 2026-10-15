@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.90.0 — SUI-FEATURE-007 rev 2 (#131): RemovableChip, a chip with a remove button
+
+Not breaking.
+
+- New building block `RemovableChip` (`label`, `onRemove`, `removeLabel` for the ×'s accessible name, `disabled?`, `testId?` → `-chip`/`-remove`): the `h-6` chip with a round `size-6` × of `TagInput`, keyboard-reachable with the focus ring. Apps replace their own remove chips (`Button size="icon-xs" className="size-4"`) with it; a chip without removal stays `Badge`.
+- `TagInput` renders its chips with `RemovableChip`; look, test ids and behaviour unchanged.
+
 ## 0.89.0 — SUI-FEATURE-006 rev 2 (#130): Button size `inline` for the text link
 
 Not breaking. `ButtonSize` keeps its members; `inline` is typed only beside `variant="link"`.
