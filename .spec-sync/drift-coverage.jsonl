@@ -303,3 +303,4 @@
 {"ts":"2026-10-14T22:14:10.614Z","key":"GL-UI-010","from":5,"to":6,"disposition":"editorial","ref":"rev 6 clarifies field spacing applies in dialogs too; code already conforms (gallery form dialog gap-4/gap-2, DialogBody sets no gap, no gap-3 field rows)"}
 {"ts":"2026-10-14T22:47:04.065Z","key":"SUI-FEATURE-005","from":null,"to":2,"disposition":"ticket","ref":"128"}
 {"ts":"2026-10-15T00:11:12.948Z","key":"SUI-FEATURE-049","from":5,"to":6,"disposition":"ticket","ref":"129"}
+{"ts":"2026-10-15T01:34:09.710Z","key":"SUI-DESIGN-012","from":42,"to":43,"disposition":"editorial","ref":"rev 43 permits migration PRs to add new test files proving a package property; process rule for consumer PRs, no code obligation in suite-ui"}
