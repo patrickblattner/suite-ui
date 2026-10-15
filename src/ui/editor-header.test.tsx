@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import i18n from "i18next";
 import { EyeIcon } from "lucide-react";
 import { useState } from "react";
@@ -389,8 +389,34 @@ describe("EditorHeader at narrow width", () => {
       return sum + (WIDTHS[id] ?? 0);
     }, 60);
 
+  // jsdom has no ResizeObserver: a stand-in that records what it watches and is fired by hand.
+  let observers: { callback: ResizeObserverCallback; targets: Element[]; disconnected: boolean }[];
+  const resize = () =>
+    act(() => {
+      for (const observer of observers)
+        if (!observer.disconnected) observer.callback([], {} as ResizeObserver);
+    });
+
   beforeEach(() => {
     available = 2000;
+    observers = [];
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        entry: (typeof observers)[number];
+        constructor(callback: ResizeObserverCallback) {
+          this.entry = { callback, targets: [], disconnected: false };
+          observers.push(this.entry);
+        }
+        observe(target: Element) {
+          this.entry.targets.push(target);
+        }
+        unobserve() {}
+        disconnect() {
+          this.entry.disconnected = true;
+        }
+      },
+    );
     vi.spyOn(Element.prototype, "clientWidth", "get").mockImplementation(function (this: Element) {
       return isHeader(this) ? available : 0;
     });
@@ -400,6 +426,7 @@ describe("EditorHeader at narrow width", () => {
   });
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   const openMenu = () => {
@@ -408,10 +435,11 @@ describe("EditorHeader at narrow width", () => {
     fireEvent.keyDown(trigger, { key: "Enter" });
     return screen.getByRole("menu");
   };
+  // The label without the entry's key hint.
   const entries = () =>
     within(openMenu())
       .getAllByRole("menuitem")
-      .map((el) => el.textContent);
+      .map((el) => el.textContent?.replace(el.querySelector("kbd")?.textContent ?? "", ""));
   const inline = () =>
     [...document.querySelectorAll("[data-slot=editor-actions] [data-testid]")].map((el) =>
       el.getAttribute("data-testid"),
@@ -463,8 +491,40 @@ describe("EditorHeader at narrow width", () => {
     expect(entries()).toEqual(["Undo", "Redo", "Reset"]);
   });
 
-  it("steps back once the header is wide enough again", () => {
+  it("steps back once the header is wide enough again, on a resize alone", () => {
     available = 500;
+    renderHeader();
+    expect(screen.getByTestId("editor-menu")).toBeInTheDocument();
+    available = 2000;
+    resize();
+    expect(screen.queryByTestId("editor-menu")).toBeNull();
+    expect(screen.getByTestId("editor-undo")).toBeInTheDocument();
+  });
+
+  it("watches the header and its action group, so a language switch re-measures", () => {
+    const { unmount } = render(
+      <EditorHeader
+        title="Spring newsletter"
+        onBack={vi.fn()}
+        canUndo
+        canRedo
+        onUndo={vi.fn()}
+        onRedo={vi.fn()}
+        dirty={false}
+        saving={false}
+        onSave={vi.fn()}
+        onReset={vi.fn()}
+      />,
+    );
+    const watched = observers.flatMap((observer) => observer.targets);
+    expect(watched).toContain(document.querySelector("[data-slot=editor-header]"));
+    expect(watched).toContain(document.querySelector("[data-slot=editor-actions]"));
+    unmount();
+    expect(observers.every((observer) => observer.disconnected)).toBe(true);
+  });
+
+  it("a re-render without a resize does not re-measure", () => {
+    available = 2000;
     const { rerender } = render(
       <EditorHeader
         title="Spring newsletter"
@@ -479,11 +539,11 @@ describe("EditorHeader at narrow width", () => {
         onReset={vi.fn()}
       />,
     );
-    expect(screen.getByTestId("editor-menu")).toBeInTheDocument();
-    available = 2000;
+    // Too narrow now, but nothing resized: no layout read per render, the step stays.
+    available = 500;
     rerender(
       <EditorHeader
-        title="Spring newsletter 2"
+        title="Spring newsletter"
         onBack={vi.fn()}
         canUndo
         canRedo
@@ -495,8 +555,28 @@ describe("EditorHeader at narrow width", () => {
         onReset={vi.fn()}
       />,
     );
-    expect(screen.queryByTestId("editor-menu")).toBeNull();
-    expect(screen.getByTestId("editor-undo")).toBeInTheDocument();
+    expect(document.querySelector("[data-slot=editor-header]")).toHaveAttribute("data-shrink", "0");
+    resize();
+    expect(document.querySelector("[data-slot=editor-header]")).not.toHaveAttribute(
+      "data-shrink",
+      "0",
+    );
+  });
+
+  it("folded Undo and Redo keep their key hint", () => {
+    available = 500;
+    renderHeader();
+    const undo = within(openMenu()).getByTestId("editor-menu-undo");
+    expect(undo).toHaveAttribute("aria-keyshortcuts", "Control+Z Meta+Z");
+    expect(undo.querySelector("kbd")).not.toBeNull();
+  });
+
+  it("an icon-only locked next step keeps its name and describes its reason", () => {
+    available = 250;
+    renderHeader({ dirty: true, lifecycle: lifecycle({ icon: <EyeIcon aria-hidden="true" /> }) });
+    const next = screen.getByTestId("editor-next");
+    expect(next).toHaveAccessibleName("Publish");
+    expect(next.parentElement).toHaveAccessibleDescription("Save first");
   });
 
   it("a folded entry keeps its icon and is chosen by keyboard", async () => {
@@ -520,6 +600,29 @@ describe("EditorHeader at narrow width", () => {
     fireEvent.keyDown(reset, { key: "Enter" });
     expect(onReset).not.toHaveBeenCalled();
     expect(await screen.findByTestId("editor-reset-confirm")).toBeInTheDocument();
+  });
+
+  it("a locked Preview stays in the arrow keys' path and ignores Enter", async () => {
+    available = 500;
+    const onClick = vi.fn();
+    // Dirty, so every entry before Preview is free as well.
+    renderHeader({
+      dirty: true,
+      lifecycle: lifecycle({}, { disabledText: "Add a title first", onClick }),
+    });
+    const menu = openMenu();
+    const items = within(menu).getAllByRole("menuitem");
+    const preview = within(menu).getByRole("menuitem", { name: "Preview" });
+    fireEvent.keyDown(menu, { key: "ArrowDown" });
+    for (const item of items) {
+      if (item === preview) break;
+      await waitFor(() => expect(item).toHaveFocus());
+      fireEvent.keyDown(item, { key: "ArrowDown" });
+    }
+    await waitFor(() => expect(preview).toHaveFocus());
+    fireEvent.keyDown(preview, { key: "Enter" });
+    expect(onClick).not.toHaveBeenCalled();
+    expect(screen.getByRole("menu")).toBeInTheDocument();
   });
 
   it("a locked Preview keeps its reason in the menu", () => {

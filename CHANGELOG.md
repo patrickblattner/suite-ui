@@ -9,7 +9,11 @@ Breaking for apps that pass `lifecycle.preview` or `lifecycle.menu` (see the mig
 - The title truncates with an ellipsis and shows its full text as a tooltip. It never shrinks below 6 characters plus the ellipsis.
 - The header's ⋯ is the row menu's body (`SUI-FEATURE-066`) with a `ghost icon-sm` trigger, like the header's other icon buttons. Without `lifecycle.menu` it is named by the new string `editor.more`: "Weitere Aktionen" / "More actions" / "Más acciones".
 - The shrunk state is a `size-2` dot, `bg-success` for "Gespeichert" and `bg-warn` for "Entwurf · ungespeichert". Its full text is the tooltip and the screen-reader status text.
-- `RowMenuItem` takes an optional `icon`, shown before the label. `RowActionMenu` is exported.
+- The title's floor is measured from its own first 6 characters and the ellipsis, in its own font.
+- Icon-only, a locked next step's bubble shows its name above the reason (`IconButtonTooltip` takes `named` for this).
+- `EditorHeader` and `PreviewToolbar` fold through one hook, `useFoldSteps`. It watches the bar and each of its parts, so a runtime language switch re-folds both (#143); a render that changes no width no longer re-measures.
+- `RowMenuItem` takes an optional `icon`, shown before the label, and an optional `shortcut`, shown as the key hint (folded Undo and Redo keep `Ctrl+Z` / `Ctrl+Y`). `RowActionMenu` is exported.
+- Every overflow menu (row, preview toolbar, editor header): a locked entry with a hint stays in the arrow keys' path, so its reason reaches the keyboard; choosing it does nothing.
 - Gallery: the EditorHeader demos lose the sideways scroller from #139.
 
 ### Migration

@@ -2,6 +2,7 @@ import { EllipsisIcon, LinkIcon, PencilIcon, Trash2Icon } from "lucide-react";
 import type * as React from "react";
 import { useTranslation } from "react-i18next";
 
+import { ariaKeyShortcuts, shortcutChip } from "../lib/keyboard.js";
 import { Button } from "../ui/button.js";
 import {
   DropdownMenu,
@@ -36,6 +37,8 @@ type RowAction = {
 type RowMenuItem = {
   label: string;
   icon?: React.ReactNode;
+  // The key hint of the action the entry stands for, e.g. Undo's `["Ctrl+Z", "Meta+Z"]`.
+  shortcut?: readonly string[];
   onSelect: () => void;
   destructive?: boolean;
   disabled?: boolean;
@@ -156,25 +159,41 @@ function RowActionMenu({
   variant?: "outline" | "ghost";
   "data-testid"?: string;
 }) {
+  const { t } = useTranslation("suite");
   const plain = menu.items.filter((item) => item.destructive !== true);
   const destructive = menu.items.filter((item) => item.destructive === true);
   const entry = (item: RowMenuItem) => {
+    // A locked entry with a hint stays in the arrow keys' path, so its reason reaches the keyboard
+    // too: it is marked `aria-disabled` and ignores the choice instead of being `disabled`.
+    const lockedWithReason = item.disabled === true && item.hint !== undefined;
     const control = (
       <DropdownMenuItem
         key={item.label}
         variant={item.destructive === true ? "destructive" : "default"}
-        disabled={item.disabled === true}
-        onSelect={item.onSelect}
-        // A disabled entry with a hint still takes the pointer, so its hint can open.
+        disabled={item.disabled === true && !lockedWithReason}
+        {...(lockedWithReason ? { "aria-disabled": true, "data-disabled": "" } : {})}
+        aria-keyshortcuts={
+          item.shortcut === undefined ? undefined : ariaKeyShortcuts(item.shortcut)
+        }
+        onSelect={(event) => {
+          if (lockedWithReason) event.preventDefault();
+          else item.onSelect();
+        }}
+        // Its hint opens on the pointer as well.
         className={
-          item.hint === undefined
-            ? undefined
-            : "data-[disabled]:pointer-events-auto data-[disabled]:cursor-not-allowed"
+          lockedWithReason
+            ? "data-[disabled]:pointer-events-auto data-[disabled]:cursor-not-allowed"
+            : undefined
         }
         data-testid={item["data-testid"] ?? "row-menu-item"}
       >
         {item.icon}
         {item.label}
+        {item.shortcut === undefined ? null : (
+          <kbd aria-hidden className="ml-auto pl-4 text-xs opacity-70">
+            {shortcutChip(item.shortcut, t("keys.delete"))}
+          </kbd>
+        )}
       </DropdownMenuItem>
     );
     return item.hint === undefined ? (

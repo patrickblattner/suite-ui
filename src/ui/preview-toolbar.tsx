@@ -9,6 +9,7 @@ import { Button } from "./button.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select.js";
 import { StatusChip, type StatusChipState } from "./status-chip.js";
 import { IconButtonTooltip } from "./tooltip.js";
+import { useFoldSteps } from "./use-fold-steps.js";
 
 type PreviewDevice = "desktop" | "mobile";
 
@@ -136,31 +137,19 @@ function PreviewToolbar({
   // closes the preview (`GL-UI-007`: innermost `Esc` first).
   const [root, setRoot] = React.useState<HTMLDivElement | null>(null);
   useEscapeLayer(maximize?.value === true, () => maximize?.onChange(false), root);
-  // `SUI-FEATURE-067`: the toolbar measures its own width, never the window's. While it overflows
-  // one line it shrinks a step; each step remembers the width it needed, and once the toolbar is that
-  // wide again it steps back. Wrapping is left out when Close would stand alone in the first line.
-  const [shrink, setShrink] = React.useState<Shrink>(0);
-  const needed = React.useRef<number[]>([]);
+  // `SUI-FEATURE-067`: the toolbar folds a step while it overflows one line (`useFoldSteps`).
+  // Wrapping is left out when Close would stand alone in the first line.
   const companion = maximize !== undefined || actions !== undefined;
   const maxShrink: Shrink = companion || device !== undefined ? 3 : 2;
-  // Measured again whenever the content may have changed its width, not only the toolbar's own.
-  React.useLayoutEffect(() => {
-    if (root === null) return;
-    const measure = () => {
-      if (root.scrollWidth > root.clientWidth) {
-        if (shrink >= maxShrink) return;
-        needed.current[shrink] = root.scrollWidth;
-        setShrink((shrink + 1) as Shrink);
-      } else if (shrink > 0 && root.clientWidth >= (needed.current[shrink - 1] ?? 0)) {
-        setShrink((shrink - 1) as Shrink);
-      }
-    };
-    measure();
-    if (typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(measure);
-    observer.observe(root);
-    return () => observer.disconnect();
-  }, [root, shrink, maxShrink, language, status, device, maximize, actions, children]);
+  const { attach, steps } = useFoldSteps(maxShrink);
+  const shrink = steps as Shrink;
+  const setToolbar = React.useCallback(
+    (node: HTMLDivElement | null) => {
+      setRoot(node);
+      attach(node);
+    },
+    [attach],
+  );
   const wrapped = shrink === 3 && maxShrink === 3;
   // Wrapped, the device switch goes into the second line unless Close would be left alone.
   const deviceBelow = wrapped && companion;
@@ -288,7 +277,7 @@ function PreviewToolbar({
   );
   return (
     <div
-      ref={setRoot}
+      ref={setToolbar}
       role="group"
       aria-label={t("preview.label")}
       // One line never shrinks its parts: an overflow shows as one and folds the next step.

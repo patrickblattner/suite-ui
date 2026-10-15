@@ -16,6 +16,7 @@ import {
   TooltipTrigger,
 } from "./tooltip.js";
 import { REDO_SHORTCUT, UNDO_SHORTCUT, useEditShortcuts } from "./use-edit-shortcuts.js";
+import { useFoldSteps } from "./use-fold-steps.js";
 
 type EditorHeaderProps = {
   // The record's title, as the app shows it.
@@ -105,30 +106,23 @@ function EditorHeader({
     ...(lifecycle?.next?.icon !== undefined ? ["next" as const] : []),
     "save",
   ];
-  const [root, setRoot] = React.useState<HTMLElement | null>(null);
-  const [shrink, setShrink] = React.useState(0);
-  const needed = React.useRef<number[]>([]);
-  React.useLayoutEffect(() => {
-    if (root === null) return;
-    const measure = () => {
-      if (root.scrollWidth > root.clientWidth) {
-        if (shrink >= folds.length) return;
-        needed.current[shrink] = root.scrollWidth;
-        setShrink(shrink + 1);
-      } else if (shrink > 0 && root.clientWidth >= (needed.current[shrink - 1] ?? 0)) {
-        setShrink(shrink - 1);
-      }
-    };
-    measure();
-    if (typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(measure);
-    observer.observe(root);
-    return () => observer.disconnect();
-  }, [root, shrink, folds.length, title, dirty, saving, canUndo, canRedo, lifecycle]);
-  const folded = (fold: Fold) => {
-    const step = folds.indexOf(fold);
-    return step !== -1 && step < shrink;
+  const { attach, steps: shrink } = useFoldSteps(folds.length);
+  const folded = (step: Fold) => {
+    const index = folds.indexOf(step);
+    return index !== -1 && index < shrink;
   };
+  // The title's floor: its first 6 characters and the ellipsis, sized by an invisible copy in the
+  // title's own font. A title given as nodes is read back from the rendered text.
+  const titleBox = React.useRef<HTMLDivElement>(null);
+  const [renderedTitle, setRenderedTitle] = React.useState("");
+  React.useLayoutEffect(() => {
+    if (typeof title === "string") return;
+    const text =
+      titleBox.current?.querySelector("[data-slot=editor-title-text]")?.textContent ?? "";
+    setRenderedTitle(text);
+  }, [title]);
+  const titleText = typeof title === "string" ? title : renderedTitle;
+  const titleFloor = titleText.length > 6 ? `${titleText.slice(0, 6)}…` : titleText;
   const stateText = t(dirty ? "editor.draft" : "editor.saved");
 
   const items: RowMenuItem[] = [];
@@ -139,6 +133,7 @@ function EditorHeader({
         icon: <Undo2Icon aria-hidden="true" />,
         onSelect: onUndo,
         disabled: !canUndo,
+        shortcut: UNDO_SHORTCUT,
         "data-testid": "editor-menu-undo",
       },
       {
@@ -146,6 +141,7 @@ function EditorHeader({
         icon: <Redo2Icon aria-hidden="true" />,
         onSelect: onRedo,
         disabled: !canRedo,
+        shortcut: REDO_SHORTCUT,
         "data-testid": "editor-menu-redo",
       },
     );
@@ -183,7 +179,7 @@ function EditorHeader({
 
   return (
     <header
-      ref={setRoot}
+      ref={attach}
       data-slot="editor-header"
       data-shrink={shrink}
       className="flex min-w-0 shrink-0 items-center gap-3 border-b bg-background px-[var(--page-gutter)] py-3"
@@ -214,11 +210,16 @@ function EditorHeader({
           {t("editor.back")}
         </Button>
       )}
-      <OverflowTooltip>
-        <div data-slot="editor-title" className="min-w-[7ch] flex-1 truncate font-medium">
-          {title}
-        </div>
-      </OverflowTooltip>
+      <div ref={titleBox} data-slot="editor-title" className="grid flex-1 font-medium">
+        <span aria-hidden="true" className="invisible col-start-1 row-start-1 whitespace-nowrap">
+          {titleFloor}
+        </span>
+        <OverflowTooltip>
+          <div data-slot="editor-title-text" className="col-start-1 row-start-1 min-w-0 truncate">
+            {title}
+          </div>
+        </OverflowTooltip>
+      </div>
       <div data-slot="editor-actions" className="flex shrink-0 items-center gap-2">
         {lifecycle === undefined ? (
           menu
@@ -405,7 +406,6 @@ function NextStep({
       size={iconOnly ? "icon" : "default"}
       disabled={reason !== undefined}
       {...(busy !== undefined ? { busy } : {})}
-      {...(iconOnly ? { "aria-label": label } : {})}
       onClick={onClick}
       data-testid="editor-next"
     >
@@ -413,14 +413,21 @@ function NextStep({
       {iconOnly ? null : label}
     </Button>
   );
-  if (reason !== undefined) {
+  // Icon-only, the bubble names the step, and while locked its reason below.
+  if (iconOnly) {
     return (
-      <Hint text={reason} disabledText={reason}>
+      <IconButtonTooltip label={label} disabledText={reason} named>
         {button}
-      </Hint>
+      </IconButtonTooltip>
     );
   }
-  return iconOnly ? <IconButtonTooltip label={label}>{button}</IconButtonTooltip> : button;
+  return reason === undefined ? (
+    button
+  ) : (
+    <Hint text={reason} disabledText={reason}>
+      {button}
+    </Hint>
+  );
 }
 
 type EditorLeaveGuardOptions = {
