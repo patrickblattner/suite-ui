@@ -480,8 +480,23 @@ const UPLOAD_RESULT: UploadItem[] = [
   },
 ];
 
+// The existing tags the tag field suggests (`SUI-FEATURE-100`).
+const TAG_SUGGESTIONS = [
+  "Stadt",
+  "Land",
+  "Sport",
+  "Festival",
+  "Kultur",
+  "Musik",
+  "Team",
+  "Theater",
+  "Tanz",
+  "Tourismus",
+  "Technik",
+];
+
 // `SUI-FEATURE-051`: the upload step (choose, loading, result with an error) and the tag field;
-// `SUI-FEATURE-052`: the rejection message.
+// `SUI-FEATURE-052`: the rejection message; `SUI-FEATURE-100`: the tag field's suggestions.
 function UploadAndTags() {
   const [tags, setTags] = useState(["summer", "team"]);
   const [loading, setLoading] = useState(true);
@@ -509,7 +524,13 @@ function UploadAndTags() {
       </div>
       <div className="mt-4 flex max-w-md flex-col gap-2">
         <Label htmlFor="gallery-tags">Tags</Label>
-        <TagInput id="gallery-tags" value={tags} onChange={setTags} placeholder="Add tags" />
+        <TagInput
+          id="gallery-tags"
+          value={tags}
+          onChange={setTags}
+          placeholder="Add tags"
+          suggestions={TAG_SUGGESTIONS}
+        />
       </div>
     </Section>
   );

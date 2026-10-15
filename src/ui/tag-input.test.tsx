@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "./dialog.js";
 import { TagInput } from "./tag-input.js";
 
 function Controlled({ initial = [] }: { initial?: string[] }) {
@@ -169,5 +170,276 @@ describe("TagInput", () => {
     expect(screen.getByTestId("tag-input-announcement")).toBeEmptyDOMElement();
     // The duplicate is dropped and the field cleared, as Enter does; blank text stays as typed.
     expect(field()).toHaveValue("  ");
+  });
+});
+
+// `SUI-FEATURE-100`: suggestions from existing tags.
+describe("TagInput suggestions", () => {
+  function Suggesting({
+    initial = [],
+    suggestions = ["Stadt", "Land"],
+  }: {
+    initial?: string[];
+    suggestions?: string[];
+  }) {
+    const [tags, setTags] = useState(initial);
+    return <TagInput value={tags} onChange={setTags} suggestions={suggestions} />;
+  }
+  const options = () =>
+    screen.queryAllByTestId("tag-input-option").map((option) => option.textContent);
+  const enter = () => fireEvent.keyDown(field(), { key: "Enter" });
+  const focusField = () => act(() => field().focus());
+
+  it('AC1: "sta" + Enter takes the suggestion "Stadt" over', () => {
+    render(<Suggesting />);
+    focusField();
+    type("sta");
+    expect(options()).toEqual(["Stadt"]);
+    enter();
+    expect(chips()).toEqual(["Stadt"]);
+    expect(field()).toHaveValue("");
+    expect(screen.getByTestId("tag-input-announcement")).toHaveTextContent("Tag Stadt added");
+  });
+
+  it('AC1: "sta" + Tab takes "Stadt" over and keeps the focus in the field', () => {
+    render(<Suggesting />);
+    focusField();
+    type("sta");
+    const tab = fireEvent.keyDown(field(), { key: "Tab" });
+    expect(tab).toBe(false);
+    expect(chips()).toEqual(["Stadt"]);
+    expect(field()).toHaveFocus();
+  });
+
+  it("Tab on a chosen entry as the last control of a dialog takes it once and keeps the focus", () => {
+    const onChange = vi.fn();
+    function InDialog() {
+      const [tags, setTags] = useState<string[]>([]);
+      return (
+        <Dialog open>
+          <DialogContent showCloseButton={false}>
+            <DialogTitle>Tags</DialogTitle>
+            <DialogDescription>Pick tags</DialogDescription>
+            <button type="button">First</button>
+            <TagInput
+              value={tags}
+              onChange={(next) => {
+                onChange(next);
+                setTags(next);
+              }}
+              suggestions={["Stadt"]}
+            />
+          </DialogContent>
+        </Dialog>
+      );
+    }
+    render(<InDialog />);
+    focusField();
+    type("sta");
+    fireEvent.keyDown(field(), { key: "Tab" });
+    expect(onChange.mock.calls).toEqual([[["Stadt"]]]);
+    expect(chips()).toEqual(["Stadt"]);
+    expect(field()).toHaveFocus();
+  });
+
+  it("a blur right after a commit takes nothing over again", () => {
+    const onChange = vi.fn();
+    render(<TagInput value={[]} onChange={onChange} suggestions={["Stadt"]} />);
+    focusField();
+    type("sta");
+    fireEvent.keyDown(field(), { key: "Enter" });
+    fireEvent.blur(field());
+    expect(onChange.mock.calls).toEqual([[["Stadt"]]]);
+  });
+
+  it('AC4: "kul" + comma and leaving the field take the typed text, never a suggestion', () => {
+    render(<Suggesting suggestions={["Kultur"]} />);
+    focusField();
+    type("kul");
+    expect(options()).toEqual(["Kultur"]);
+    fireEvent.keyDown(field(), { key: "," });
+    expect(chips()).toEqual(["kul"]);
+    type("kult");
+    fireEvent.blur(field());
+    expect(chips()).toEqual(["kul", "kult"]);
+  });
+
+  it('AC4: "tur" chooses nothing; Enter takes "tur", Tab leaves, the arrows choose "Kultur"', () => {
+    render(<Suggesting suggestions={["Kultur"]} />);
+    focusField();
+    type("tur");
+    expect(options()).toEqual(["Kultur"]);
+    expect(field()).not.toHaveAttribute("aria-activedescendant");
+    expect(screen.getByRole("option", { name: "Kultur" })).toHaveAttribute(
+      "aria-selected",
+      "false",
+    );
+    // Tab is left to the browser: it leaves the field.
+    expect(fireEvent.keyDown(field(), { key: "Tab" })).toBe(true);
+    expect(chips()).toEqual([]);
+    enter();
+    expect(chips()).toEqual(["tur"]);
+    type("tur");
+    fireEvent.keyDown(field(), { key: "ArrowDown" });
+    expect(field()).toHaveAttribute("aria-activedescendant");
+    enter();
+    expect(chips()).toEqual(["tur", "Kultur"]);
+  });
+
+  it('AC2: "neu" without a matching suggestion + Enter takes the typed text over', () => {
+    render(<Suggesting />);
+    focusField();
+    type("neu");
+    expect(screen.queryByRole("listbox")).toBeNull();
+    enter();
+    expect(chips()).toEqual(["neu"]);
+  });
+
+  it('AC3: "STADT" + Enter takes the suggestion\'s spelling, also by comma', () => {
+    render(<Suggesting />);
+    focusField();
+    type("STADT");
+    enter();
+    expect(chips()).toEqual(["Stadt"]);
+    type("LAND");
+    fireEvent.keyDown(field(), { key: "," });
+    expect(chips()).toEqual(["Stadt", "Land"]);
+  });
+
+  it("AC3: leaving the field takes the suggestion's spelling", () => {
+    render(<Suggesting />);
+    focusField();
+    type("land");
+    fireEvent.blur(field());
+    expect(chips()).toEqual(["Land"]);
+  });
+
+  it("AC4: a chosen tag is not listed; starts-with first, then contains, at most eight", () => {
+    render(
+      <Suggesting
+        initial={["Stadt"]}
+        suggestions={[
+          "Stadt",
+          "Hauptstadt",
+          "Stadion",
+          ...Array.from({ length: 10 }, (_, i) => `Sta ${i}`),
+        ]}
+      />,
+    );
+    focusField();
+    type("sta");
+    expect(options()).toEqual([
+      "Stadion",
+      "Sta 0",
+      "Sta 1",
+      "Sta 2",
+      "Sta 3",
+      "Sta 4",
+      "Sta 5",
+      "Sta 6",
+    ]);
+    type("dt");
+    expect(options()).toEqual(["Hauptstadt"]);
+  });
+
+  it("AC4: the arrows move the choice, Enter takes it, Esc closes and keeps the text", () => {
+    render(<Suggesting suggestions={["Stadt", "Stadion", "Land"]} />);
+    focusField();
+    type("sta");
+    const input = field();
+    const listbox = screen.getByRole("listbox");
+    expect(input).toHaveAttribute("role", "combobox");
+    expect(input).toHaveAttribute("aria-expanded", "true");
+    expect(input).toHaveAttribute("aria-controls", listbox.id);
+    const active = () =>
+      document.getElementById(input.getAttribute("aria-activedescendant") ?? "")?.textContent;
+    expect(active()).toBe("Stadt");
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    expect(active()).toBe("Stadion");
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    expect(active()).toBe("Stadion");
+    fireEvent.keyDown(input, { key: "ArrowUp" });
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    expect(screen.getByRole("option", { name: "Stadion" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    fireEvent.keyDown(window, { key: "Escape" });
+    expect(screen.queryByRole("listbox")).toBeNull();
+    expect(input).toHaveAttribute("aria-expanded", "false");
+    expect(input).not.toHaveAttribute("aria-activedescendant");
+    expect(input).toHaveValue("sta");
+    // With the list closed, Enter takes the typed text over.
+    enter();
+    expect(chips()).toEqual(["sta"]);
+    type("la");
+    fireEvent.keyDown(window, { key: "Escape" });
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    expect(options()).toEqual(["Land"]);
+  });
+
+  it("AC4: Esc on the open list does not close a surrounding dialog", () => {
+    const outer = vi.fn();
+    document.addEventListener("keydown", outer, { capture: true });
+    render(<Suggesting />);
+    focusField();
+    type("sta");
+    fireEvent.keyDown(field(), { key: "Escape" });
+    expect(outer).not.toHaveBeenCalled();
+    fireEvent.keyDown(field(), { key: "Escape" });
+    expect(outer).toHaveBeenCalledTimes(1);
+    document.removeEventListener("keydown", outer, { capture: true });
+  });
+
+  it("an Enter that ends an IME composition takes nothing over, the list stays open", () => {
+    render(<Suggesting />);
+    focusField();
+    type("sta");
+    fireEvent.keyDown(field(), { key: "Enter", isComposing: true });
+    fireEvent.keyDown(field(), { key: "Enter", keyCode: 229 });
+    expect(chips()).toEqual([]);
+    expect(options()).toEqual(["Stadt"]);
+  });
+
+  it("a suggestion listed twice in any letter case shows once; the first spelling is taken", () => {
+    render(<Suggesting suggestions={["Stadt", "stadt", "STADT", "Stadion"]} />);
+    focusField();
+    type("sta");
+    expect(options()).toEqual(["Stadt", "Stadion"]);
+    enter();
+    expect(chips()).toEqual(["Stadt"]);
+    type("STADION");
+    fireEvent.keyDown(window, { key: "Escape" });
+    enter();
+    expect(chips()).toEqual(["Stadt", "Stadion"]);
+  });
+
+  it("the arrows keep the chosen entry in view", () => {
+    const scrolled: Element[] = [];
+    Element.prototype.scrollIntoView = function (this: Element) {
+      scrolled.push(this);
+    };
+    render(<Suggesting suggestions={Array.from({ length: 8 }, (_, i) => `Sta ${i}`)} />);
+    focusField();
+    type("sta");
+    for (let i = 0; i < 7; i++) fireEvent.keyDown(field(), { key: "ArrowDown" });
+    expect(scrolled.at(-1)).toHaveTextContent("Sta 7");
+  });
+
+  it("a click on a suggestion takes it over", () => {
+    render(<Suggesting />);
+    focusField();
+    type("an");
+    fireEvent.click(screen.getByRole("option", { name: "Land" }));
+    expect(chips()).toEqual(["Land"]);
+  });
+
+  it("without suggestions the field is no combobox", () => {
+    render(<Controlled />);
+    focusField();
+    type("sta");
+    expect(field()).not.toHaveAttribute("role");
+    expect(field()).not.toHaveAttribute("aria-expanded");
+    expect(screen.queryByRole("listbox")).toBeNull();
   });
 });

@@ -150,6 +150,19 @@ const AXE_PAGES: [
     ],
   ],
   [
+    "components",
+    (page) => page.getByTestId("tag-input"),
+    "",
+    [
+      "with tag suggestions open",
+      async (page) => {
+        await page.getByTestId("tag-input-input").click();
+        await page.getByTestId("tag-input-input").pressSequentially("st");
+        await expect(page.getByTestId("tag-input-options")).toBeVisible();
+      },
+    ],
+  ],
+  [
     "edit-panel",
     (page) => page.getByTestId("media-detail-trigger"),
     "",
@@ -1036,6 +1049,62 @@ test("tag input: input height, comma and Enter make chips, duplicates dropped", 
   await field.getByRole("button", { name: "Remove tag team" }).click();
   await input.press("Backspace");
   await expect(field.getByTestId("tag-input-chip")).toHaveText(["summer", "a"]);
+});
+
+// `SUI-FEATURE-100` rev 4: typing lists the matching existing tags under the field; a starting match is
+// chosen, the arrows choose, Enter and Tab take the choice, Esc closes the list and keeps the text, the
+// comma takes the typed text in the suggestion's spelling.
+test("tag input: suggestions by keyboard", async ({ page }) => {
+  await page.goto("/?page=components&lng=en");
+  const field = page.getByTestId("tag-input");
+  const input = page.getByTestId("tag-input-input");
+  const chips = field.getByTestId("tag-input-chip");
+  const list = page.getByTestId("tag-input-options");
+  await input.click();
+  await input.pressSequentially("t");
+  // Starts with "t" first ("team" is chosen already), then contains it; eight at most.
+  await expect(list.getByRole("option")).toHaveText([
+    "Theater",
+    "Tanz",
+    "Tourismus",
+    "Technik",
+    "Stadt",
+    "Sport",
+    "Festival",
+    "Kultur",
+  ]);
+  await expect(input).toHaveAttribute("aria-expanded", "true");
+  const top = await box(list);
+  const below = await box(field);
+  expect(top.y).toBeGreaterThanOrEqual(below.y + below.height);
+  // The eighth entry lies below the list's cap; the arrows scroll it into view.
+  for (let i = 0; i < 7; i++) await input.press("ArrowDown");
+  const last = list.getByRole("option", { name: "Kultur" });
+  await expect(last).toHaveAttribute("aria-selected", "true");
+  const shown = await box(list);
+  const entry = await box(last);
+  expect(entry.y + entry.height).toBeLessThanOrEqual(shown.y + shown.height + 0.5);
+  await input.press("Enter");
+  await expect(chips).toHaveText(["summer", "team", "Kultur"]);
+  // Only containing the text ("port" in "Sport") chooses nothing: Enter takes the typed text.
+  await input.pressSequentially("port");
+  await expect(list.getByRole("option")).toHaveText(["Sport"]);
+  await expect(input).not.toHaveAttribute("aria-activedescendant");
+  await input.press("Enter");
+  await expect(chips).toHaveText(["summer", "team", "Kultur", "port"]);
+  // A chosen entry is taken by Tab too, and the field keeps the focus.
+  await input.pressSequentially("the");
+  await input.press("Tab");
+  await expect(chips).toHaveText(["summer", "team", "Kultur", "port", "Theater"]);
+  await expect(input).toBeFocused();
+  await input.pressSequentially("mu");
+  await page.keyboard.press("Escape");
+  await expect(list).toBeHidden();
+  await expect(input).toHaveValue("mu");
+  await input.fill("");
+  await input.pressSequentially("SPORT");
+  await page.keyboard.press(",");
+  await expect(chips).toHaveText(["summer", "team", "Kultur", "port", "Theater", "Sport"]);
 });
 
 // `SUI-FEATURE-007` AC2: the × of a `RemovableChip` removes on Enter and on Space.
