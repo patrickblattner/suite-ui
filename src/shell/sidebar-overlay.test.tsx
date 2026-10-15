@@ -100,6 +100,48 @@ describe("sidebar overlay below md (SUI-FEATURE-110)", () => {
     expect(content).not.toHaveAttribute("inert");
   });
 
+  it("leaves nothing inert when the provider unmounts while the overlay is open", () => {
+    narrow(true);
+    const { unmount } = render(
+      <>
+        <Shell />
+        <button type="button" data-testid="outside">
+          Outside
+        </button>
+      </>,
+    );
+    openOverlay();
+    expect(document.querySelector("[inert]")).not.toBeNull();
+    unmount();
+    expect(document.querySelector("[inert]")).toBeNull();
+  });
+
+  it("leaves nothing inert when the window widens to md while the overlay is open", () => {
+    let matches = true;
+    const listeners = new Set<() => void>();
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((query: string) => ({
+        get matches() {
+          return matches;
+        },
+        media: query,
+        addEventListener: (_: string, listener: () => void) => listeners.add(listener),
+        removeEventListener: (_: string, listener: () => void) => listeners.delete(listener),
+      })),
+    );
+    render(<Shell />);
+    openOverlay();
+    expect(screen.getByRole("main")).toHaveAttribute("inert");
+    act(() => {
+      matches = false;
+      for (const listener of listeners) listener();
+    });
+    expect(document.querySelector("[inert]")).toBeNull();
+    expect(sidebar()).not.toHaveAttribute("data-overlay");
+    expect(screen.queryByTestId("sidebar-scrim")).toBeNull();
+  });
+
   it("Esc closes it and returns the focus to the trigger", async () => {
     narrow(true);
     render(<Shell />);
