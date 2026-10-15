@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.91.0 — SUI-FEATURE-008 rev 2 (#132): RowActions test id per action
+
+Not breaking. Without the new props every test id stays as before.
+
+- `RowActions` (and `useRowActionButtons`): new props `editTestId?` and `deleteTestId?` set the `data-testid` of edit and delete; default `row-edit` and `row-delete`. Apps switching to `RowActions` pass their per-row ids through (`tag-edit-<id>`, `tag-delete-<id>` …).
+- `RowMenuItem`: new `"data-testid"?` for an entry of the ⋯ menu; default `row-menu-item`.
+- Variant, size, text and order of the actions unchanged.
+
 ## 0.90.0 — SUI-FEATURE-007 rev 2 (#131): RemovableChip, a chip with a remove button
 
 Not breaking.

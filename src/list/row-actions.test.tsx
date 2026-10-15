@@ -492,6 +492,72 @@ describe("RowActions busy (SUI-FEATURE-072)", () => {
   });
 });
 
+describe("RowActions test ids (SUI-FEATURE-008)", () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("AC1: edit and delete carry the given ids, by default row-edit and row-delete", () => {
+    renderRow({ editTestId: "tag-edit-7", deleteTestId: "tag-delete-7" });
+    expect(screen.getByRole("button", { name: "Edit Ada" })).toHaveAttribute(
+      "data-testid",
+      "tag-edit-7",
+    );
+    expect(screen.getByRole("button", { name: "Delete Ada" })).toHaveAttribute(
+      "data-testid",
+      "tag-delete-7",
+    );
+    expect(screen.queryByTestId("row-edit")).toBeNull();
+    expect(screen.queryByTestId("row-delete")).toBeNull();
+  });
+
+  it("AC1: without the props edit and delete stay row-edit and row-delete", () => {
+    renderRow();
+    expect(screen.getByRole("button", { name: "Edit Ada" })).toHaveAttribute(
+      "data-testid",
+      "row-edit",
+    );
+    expect(screen.getByRole("button", { name: "Delete Ada" })).toHaveAttribute(
+      "data-testid",
+      "row-delete",
+    );
+  });
+
+  it("AC2: a menu entry with a data-testid carries it; without it stays row-menu-item", () => {
+    renderRow({
+      extra: [],
+      menu: {
+        label: "More for Ada",
+        items: [
+          { label: "Duplicate", onSelect: vi.fn(), "data-testid": "tag-duplicate-7" },
+          { label: "Export", onSelect: vi.fn() },
+        ],
+      },
+    });
+    const trigger = screen.getByRole("button", { name: "More for Ada" });
+    trigger.focus();
+    fireEvent.keyDown(trigger, { key: "Enter" });
+    expect(screen.getByRole("menuitem", { name: "Duplicate" })).toHaveAttribute(
+      "data-testid",
+      "tag-duplicate-7",
+    );
+    expect(screen.getByRole("menuitem", { name: "Export" })).toHaveAttribute(
+      "data-testid",
+      "row-menu-item",
+    );
+  });
+});
+
 describe("EmptyCell (SUI-FEATURE-047)", () => {
   afterEach(async () => {
     await i18n.changeLanguage("en");

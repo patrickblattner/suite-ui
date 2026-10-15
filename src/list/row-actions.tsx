@@ -38,6 +38,7 @@ type RowMenuItem = {
   destructive?: boolean;
   disabled?: boolean;
   hint?: string;
+  "data-testid"?: string;
 };
 
 // "Used by" (`SUI-FEATURE-004`): how often the entry is used, and whether the preview area shows the
@@ -57,6 +58,9 @@ type RowActionSet = {
   // Lock edit or delete and name the reason in its hint.
   editDisabledText?: string;
   deleteDisabledText?: string;
+  // The test ids of edit and delete (`SUI-FEATURE-008`), by default `row-edit` and `row-delete`.
+  editTestId?: string;
+  deleteTestId?: string;
   // Further actions behind a ⋯ button after edit and before delete (`SUI-FEATURE-066`). `label`
   // names the button.
   menu?: { label: string; items: readonly RowMenuItem[] };
@@ -160,7 +164,7 @@ function RowActionMenu({
             ? undefined
             : "data-[disabled]:pointer-events-auto data-[disabled]:cursor-not-allowed"
         }
-        data-testid="row-menu-item"
+        data-testid={item["data-testid"] ?? "row-menu-item"}
       >
         {item.label}
       </DropdownMenuItem>
@@ -203,6 +207,8 @@ function useRowActionButtons(
     onDelete,
     editDisabledText,
     deleteDisabledText,
+    editTestId = "row-edit",
+    deleteTestId = "row-delete",
     menu,
     deleteShortcut = false,
   }: RowActionSet,
@@ -231,7 +237,7 @@ function useRowActionButtons(
             icon: PencilIcon,
             onClick: onEdit,
             ...(editDisabledText === undefined ? {} : { disabledText: editDisabledText }),
-            "data-testid": "row-edit",
+            "data-testid": editTestId,
           }}
           rowName={rowName}
           variant="warn"
@@ -248,7 +254,7 @@ function useRowActionButtons(
             onClick: onDelete,
             ...(deleteDisabledText === undefined ? {} : { disabledText: deleteDisabledText }),
             ...(deleteShortcut ? { shortcut: DELETE_SHORTCUT } : {}),
-            "data-testid": "row-delete",
+            "data-testid": deleteTestId,
           }}
           rowName={rowName}
           variant="destructive"
@@ -280,6 +286,8 @@ function RowActions({
   onDelete,
   editDisabledText,
   deleteDisabledText,
+  editTestId,
+  deleteTestId,
   menu,
   deleteShortcut,
   ...cellProps
@@ -292,6 +300,8 @@ function RowActions({
     onDelete,
     editDisabledText,
     deleteDisabledText,
+    editTestId,
+    deleteTestId,
     menu,
     deleteShortcut,
   });
