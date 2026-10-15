@@ -1,13 +1,14 @@
 # Changelog
 
-## 0.92.1 — #144: EditorHeader and PreviewToolbar fold follow-ups
+## 0.92.1 — #144, SUI-FEATURE-090 rev 5: EditorHeader and PreviewToolbar fold follow-ups
 
 Not breaking.
 
 - `useFoldSteps` takes what the bar shows (language, texts) as a second argument. When it changes, the widths remembered for the old texts are dropped and the bar folds afresh before the paint. A shorter text unfolds again without a resize: after Save ("Saved" is shorter than "Draft · unsaved"), or after switching to a language with shorter labels.
 - `useFoldSteps` stops watching the parts a fold step swaps out.
 - The Reset confirm hands the focus back to Reset while it is usable, else to the ⋯ that Reset was folded into, else to Back; never to the page's body. `ConfirmDeleteDialog` takes `returnFocus` for this.
-- Not changed: the state dot's look and the ⋯ menu's grouping and label alignment wait for open owner decisions.
+- SUI-FEATURE-090 rev 5: the shrunk state differs in shape, not only in colour: "Gespeichert" is a hollow green ring, "Entwurf · ungespeichert" a filled amber dot.
+- Not changed: the ⋯ menu's grouping and label alignment wait for an open owner decision.
 
 ## 0.92.0 — SUI-FEATURE-090 rev 4 (#141): EditorHeader at narrow width
 

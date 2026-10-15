@@ -295,9 +295,15 @@ function EditorHeader({
                 className="flex size-6 items-center justify-center rounded-md focus-visible:focus-ring"
                 data-testid="editor-state"
               >
+                {/* Shape and colour both tell the state (WCAG 1.4.1): saved a hollow green ring,
+                    a draft a filled amber dot. */}
                 <span
                   aria-hidden="true"
-                  className={cn("size-2 rounded-full", dirty ? "bg-warn" : "bg-success")}
+                  data-mark={dirty ? "dot" : "ring"}
+                  className={cn(
+                    "size-2 rounded-full",
+                    dirty ? "bg-warn" : "border-2 border-success",
+                  )}
                 />
                 <span className="sr-only">{stateText}</span>
               </span>

@@ -484,7 +484,9 @@ describe("EditorHeader at narrow width", () => {
     expect(state).toHaveAttribute("data-compact");
     expect(state).toHaveAttribute("role", "status");
     expect(state).toHaveTextContent("Draft · unsaved");
-    expect(state.querySelector(".bg-warn")).not.toBeNull();
+    const mark = state.querySelector("[data-mark]");
+    expect(mark).toHaveAttribute("data-mark", "dot");
+    expect(mark).toHaveClass("bg-warn");
     expect(inline()).toEqual([
       "editor-menu",
       "editor-next",
@@ -657,6 +659,19 @@ describe("EditorHeader at narrow width", () => {
     fireEvent.keyDown(reset, { key: "Enter" });
     fireEvent.click(await screen.findByTestId("editor-reset-confirm-cancel"));
     await waitFor(() => expect(screen.getByTestId("editor-menu")).toHaveFocus());
+  });
+
+  // SUI-FEATURE-090 rev 5: the two states differ in shape, not only in colour.
+  it.each([
+    [false, "ring", ["border-2", "border-success"], "bg-success"],
+    [true, "dot", ["bg-warn"], "border-2"],
+  ])("dirty=%s: the shrunk state is a %s", (dirty, shape, has: string[], hasNot: string) => {
+    available = 500;
+    renderHeader({ dirty, lifecycle: lifecycle() });
+    const mark = screen.getByTestId("editor-state").querySelector("[data-mark]");
+    expect(mark).toHaveAttribute("data-mark", shape);
+    expect(mark).toHaveClass("size-2", "rounded-full", ...has);
+    expect(mark).not.toHaveClass(hasNot);
   });
 
   it("a folded entry keeps its icon and is chosen by keyboard", async () => {
