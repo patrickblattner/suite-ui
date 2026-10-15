@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.93.0 — #145, GL-UI-050 rev 2: focus return after every dialog
+## 0.93.0 — #145, GL-UI-050 rev 4: focus return after every dialog
 
 Not breaking. New: the `focus-return` module (`@suite/ui/ui/focus-return`, also in the barrel), `DialogContent` takes an optional `returnFocus`. `ConfirmDeleteDialog.returnFocus` stays and is now passed through to it.
 
@@ -9,7 +9,7 @@ Not breaking. New: the `focus-return` module (`@suite/ui/ui/focus-return`, also 
   2. if it is locked or gone: the next usable control of its group (`role=toolbar`, `role=row`, `tr`, `header`, or anything marked `data-focus-group`) after it, then before it;
   3. else the surface's main content: the element the app marks with `data-focus-main` (`FOCUS_MAIN_ATTR`, its first field or canvas), else `main`, focusable without a tab stop.
 - A link or a control marked `data-focus-nav` (`FOCUS_NAV_ATTR`) is never a fallback target (tier 2 or 3); the package marks EditorHeader's Back and the preview toolbar's Close. Never the body.
-- A list entry, or a control of its own such as its delete button, gets the entry back. If the entry is gone, the entry that moves into its place gets it (`SUI-FEATURE-056`, as before). A dialog opened from a row's ⋯ menu returns to that ⋯.
+- In a list with the keyboard grid (`SUI-FEATURE-056`) the entry is the trigger, however the dialog was opened (a key on the entry, a button in it, its ⋯ menu; `GL-UI-050` rev 4): Cancel returns to the entry; a confirmed delete goes to the entry that moves into its place, else the one before (as before).
 - A caller that already put the focus outside the dialog keeps it (the field of a failed save). An `onCloseAutoFocus` that prevents the default still takes over completely (global search).
 - `main` as the last fallback draws no outline: it is a programmatic target without a tab stop, not a control (`GL-UI-013` covers tab stops; same rule as the list frame).
 - EditorHeader: the Reset confirm and a control that locks under the focus use the shared order (`fallbackTarget`). The Reset confirm no longer needs its own `returnFocus`. A Save that ends without locking (failed) takes back the focus its running state dropped.

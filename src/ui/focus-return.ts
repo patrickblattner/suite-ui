@@ -1,6 +1,7 @@
 // Where the focus goes when a dialog closes (`GL-UI-050`), shared by every dialog of the package
 // through `DialogContent`. The first usable target wins:
-//   1. the trigger, or the menu trigger when the dialog was opened from a menu entry;
+//   1. the trigger, or the menu trigger when the dialog was opened from a menu entry; in a list with
+//      the keyboard grid (`SUI-FEATURE-056`) the list entry, however the dialog was opened;
 //   2. if it is locked or gone: the next usable control of its group (toolbar, header, row) after it in
 //      reading order, then before it; a list entry that is gone hands over to the one in its place
 //      (`SUI-FEATURE-056`);
@@ -110,10 +111,9 @@ function captureOpener(focused: Element | null = document.activeElement): Opener
   if (control === null) return null;
   const entryNode = control.closest<HTMLElement>(`[${GRID_ITEM_ATTR}]`);
   const frame = entryNode?.closest<HTMLElement>(LIST_FRAME_SELECTOR) ?? null;
-  // A list entry, or a control of its own such as its delete button, gets the entry back
-  // (`SUI-FEATURE-056`); a menu the entry opened gets its trigger back (`GL-UI-050`).
-  const fromMenu = active?.closest("[role=menu]") != null;
-  const trigger = entryNode && frame && !fromMenu ? entryNode : control;
+  // In a list with the keyboard grid the entry is the unit: it counts as the trigger, however the
+  // dialog was opened (a key on the entry, a button in it, its ⋯ menu; `GL-UI-050` rev 4).
+  const trigger = entryNode && frame ? entryNode : control;
   const group = trigger.closest<HTMLElement>(GROUP_SELECTOR);
   const around = group === null ? [] : candidates(group).filter((other) => other !== trigger);
   return {

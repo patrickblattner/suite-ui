@@ -112,6 +112,10 @@ function List({
                 rowName={`Row ${id}`}
                 onEdit={() => {}}
                 {...(onDelete === undefined ? {} : { onDelete, deleteShortcut: true })}
+                menu={{
+                  label: `More for Row ${id}`,
+                  items: [{ label: "Archive", onSelect: () => setPending(id), destructive: true }],
+                }}
               />
             </TableRow>
           );
@@ -213,6 +217,25 @@ describe("useRowGrid delete (AC2)", () => {
     act(() => button.focus());
     fireEvent.click(button);
     fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(row(3)).toHaveFocus());
+  });
+
+  // GL-UI-050 rev 4: in the keyboard grid the entry is the trigger, also for its ⋯ menu.
+  it("a dialog from the row's ⋯ menu returns the focus to the row, or the one in its place", async () => {
+    render(<List />);
+    const choose = async (id: number) => {
+      const more = row(id).querySelector<HTMLElement>("[data-testid=row-menu]")!;
+      act(() => more.focus());
+      fireEvent.keyDown(more, { key: "Enter" });
+      const item = await screen.findByRole("menuitem", { name: "Archive" });
+      act(() => item.focus());
+      fireEvent.keyDown(item, { key: "Enter" });
+    };
+    await choose(2);
+    fireEvent.click(await screen.findByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(row(2)).toHaveFocus());
+    await choose(2);
+    fireEvent.click(await screen.findByRole("button", { name: "Delete" }));
     await waitFor(() => expect(row(3)).toHaveFocus());
   });
 
