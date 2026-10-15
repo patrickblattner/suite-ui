@@ -16,6 +16,7 @@ export * from "./dropdown-menu.js";
 export * from "./edit-panel.js";
 export * from "./editor-header.js";
 export * from "./file-facts.js";
+export * from "./focus-return.js";
 export * from "./hint.js";
 export * from "./inline-status.js";
 export * from "./input.js";

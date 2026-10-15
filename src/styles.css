@@ -361,4 +361,9 @@
   [data-slot="list-frame"]:focus {
     outline: none;
   }
+  /* The surface's main content as the last focus target after a dialog (`GL-UI-050`): a programmatic
+     target without a tab stop, not a control (`GL-UI-013`), so no browser outline either. */
+  [data-focus-fallback]:focus {
+    outline: none;
+  }
 }
