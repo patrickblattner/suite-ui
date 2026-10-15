@@ -75,6 +75,7 @@ function GlobalSearch({
   const { isOpen, toggle } = useSidebar();
   const navigate = useNavigate();
   const inputRef = React.useRef<HTMLInputElement>(null);
+  const railRef = React.useRef<HTMLButtonElement>(null);
   // The collapsed rail has no input to focus; it is focused once the expanded field exists.
   const focusPending = React.useRef(false);
   // Esc returns the focus to the field; without this flag that focus would reopen the dialog.
@@ -131,8 +132,11 @@ function GlobalSearch({
     if (navigating.current) return;
     const usable = (node: HTMLElement | null): node is HTMLElement =>
       node !== null && node.isConnected && !(node as HTMLButtonElement).disabled;
-    const field = document.querySelector<HTMLElement>("[data-testid=shell-search]");
-    const target = usable(from) ? from : usable(inputRef.current) ? inputRef.current : field;
+    const target = usable(from)
+      ? from
+      : usable(inputRef.current)
+        ? inputRef.current
+        : railRef.current;
     if (target === inputRef.current) suppressFocusOpen.current = true;
     target?.focus();
     if (document.activeElement !== target) suppressFocusOpen.current = false;
@@ -183,6 +187,7 @@ function GlobalSearch({
     <div className="flex justify-center px-2 pb-2">
       <Hint text={`${t("search.label")}: ${fieldHint}`}>
         <button
+          ref={railRef}
           type="button"
           data-testid="shell-search"
           onClick={() => {
