@@ -129,14 +129,21 @@ describe("EditPanel", () => {
     const submit = screen.getByTestId("edit-panel-submit");
     expect(submit).toBeDisabled();
     expect(submit).toHaveAttribute("data-busy", "true");
+    expect(submit.querySelector("[data-testid=button-loading]")).toHaveClass(
+      "lucide-loader-circle",
+    );
+    expect(submit.firstElementChild).toHaveAttribute("data-testid", "button-loading");
   });
 
-  it('submitKind="save" is the default', () => {
-    renderPanel({ submitKind: "save" });
-    const submit = screen.getByTestId("edit-panel-submit");
-    expect(submit.firstElementChild).toHaveClass("lucide-save");
-    expect(submit.querySelector(".lucide-arrow-right")).toBeNull();
-  });
+  it.each([undefined, "save"] as const)(
+    "submitKind %s: the Save symbol, no arrow",
+    (submitKind) => {
+      renderPanel(submitKind === undefined ? {} : { submitKind });
+      const submit = screen.getByTestId("edit-panel-submit");
+      expect(submit.firstElementChild).toHaveClass("lucide-save");
+      expect(submit.querySelector(".lucide-arrow-right")).toBeNull();
+    },
+  );
 
   it("submit and Enter in a field call onSubmit, Cancel requests the close", () => {
     const { onOpenChange, onSubmit } = renderPanel();
