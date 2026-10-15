@@ -1292,7 +1292,13 @@ const EDITOR_HEADERS = [
 async function expectHeaderFits(page: Page, frame: string) {
   const header = page.getByTestId(frame).locator("[data-slot=editor-header]");
   const fit = await header.evaluate((node) => {
-    const own = node.getBoundingClientRect();
+    // The header's content box: its controls never reach into its padding.
+    const box = node.getBoundingClientRect();
+    const style = getComputedStyle(node);
+    const own = {
+      left: box.left + parseFloat(style.paddingLeft),
+      right: box.right - parseFloat(style.paddingRight),
+    };
     const controls = [
       ...node.querySelectorAll(
         "[data-testid=editor-back], [data-slot=editor-title], [data-testid=editor-state], [data-testid=editor-menu], [data-testid=editor-next], [data-testid=editor-save]",
@@ -1348,15 +1354,43 @@ for (const [viewport, content] of [
   });
 }
 
-test("editor header: a language switch re-folds without a resize", async ({ page }) => {
+// SUI-FEATURE-090 rev 9 (AC2): at 1000 px the steps fold before the title drops under 18 characters.
+test("editor header: at 1000 px the title keeps 18 characters, folding comes first", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1000, height: 900 });
+  await page.goto("/?page=components&lng=de");
+  for (const frame of EDITOR_HEADERS) {
+    await expectHeaderFits(page, frame);
+    const floor = await page
+      .getByTestId(frame)
+      .locator("[data-slot=editor-title] > span")
+      .textContent();
+    const title = await page
+      .getByTestId(frame)
+      .locator("[data-slot=editor-title-text]")
+      .textContent();
+    expect(floor).toBe((title ?? "").length > 18 ? `${title?.slice(0, 18)}…` : title);
+  }
+});
+
+// #144: at 900 px the German labels fold the lifecycle headers further than the English ones; the
+// switch re-folds without a resize, and switching back unfolds to exactly the English steps.
+test("editor header: a language switch re-folds without a resize, both ways", async ({ page }) => {
   await page.setViewportSize({ width: 900, height: 900 });
   await page.goto("/?page=components&lng=en");
+  const headers = page.locator("[data-slot=editor-header]");
+  const steps = () =>
+    headers.evaluateAll((nodes) => nodes.map((n) => n.getAttribute("data-shrink")));
   for (const frame of EDITOR_HEADERS) await expectHeaderFits(page, frame);
+  const english = await steps();
   await page.getByTestId("gallery-language").selectOption("de");
   await expect(page.locator("html")).toHaveAttribute("lang", "de");
-  for (const frame of EDITOR_HEADERS) {
-    await expect.poll(() => expectHeaderFits(page, frame).then(() => true)).toBe(true);
-  }
+  await expect.poll(steps).not.toEqual(english);
+  for (const frame of EDITOR_HEADERS) await expectHeaderFits(page, frame);
+  await page.getByTestId("gallery-language").selectOption("en");
+  await expect(page.locator("html")).toHaveAttribute("lang", "en");
+  await expect.poll(steps).toEqual(english);
 });
 
 test("editor header: an icon-only locked next step shows its name above its reason", async ({
@@ -3996,7 +4030,10 @@ test("row action menu: row and preview header alike, destructive last, keyboard"
     ),
   ).toEqual(["menuitem:Duplicate", "menuitem:Export", "separator:", "menuitem:Archive"]);
   await expect(menu.getByRole("menuitem", { name: "Export" })).toHaveAttribute("data-disabled", "");
+  // Enter opens on the first entry; the locked Export with its reason is in the arrows' path (#141).
+  await expect(menu.getByRole("menuitem", { name: "Duplicate" })).toBeFocused();
   await page.keyboard.press("ArrowDown");
+  await expect(menu.getByRole("menuitem", { name: "Export" })).toBeFocused();
   await page.keyboard.press("ArrowDown");
   await expect(menu.getByRole("menuitem", { name: "Archive" })).toBeFocused();
   await page.keyboard.press("Escape");
@@ -4037,6 +4074,33 @@ test("preview toolbar in a narrow column: fold, wrap, Close top right", async ({
   const language = await box(at(900).getByTestId("preview-language"));
   expect(language.y + language.height).toBeLessThanOrEqual(wide.close.y + wide.close.height + 1);
   await expect(at(900).getByTestId("preview-toolbar")).toHaveAttribute("data-shrink", "0");
+});
+
+// #144 (`GL-UI-050`): in the wrapped toolbar a content language picked by keyboard or by mouse
+// re-folds the bar, and the focus stays on the language select. Chrome fires `focusout` when the
+// focused option is removed, which jsdom does not, so this needs the real browser.
+test("preview toolbar wrapped: a picked content language keeps the focus on the select", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 420, height: 900 });
+  await page.goto("/?page=preview&lng=en");
+  const full = page.getByTestId("preview-full");
+  await expect(full.getByTestId("preview-toolbar")).toHaveAttribute("data-shrink", "3");
+  const language = full.getByTestId("preview-language");
+
+  await language.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("option", { name: "Deutsch" })).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(page.getByRole("option", { name: "English" })).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(language).toHaveText("English");
+  await expect(language).toBeFocused();
+
+  await language.click();
+  await page.getByRole("option", { name: "Deutsch" }).click();
+  await expect(language).toHaveText("Deutsch");
+  await expect(language).toBeFocused();
 });
 
 // `GL-UI-008` §Gerät heißt Gerät: in a narrow column Desktop is the desktop layout scaled down, never

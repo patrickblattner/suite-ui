@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.92.1 — #144, SUI-FEATURE-090 rev 11, GL-UI-050: EditorHeader follow-ups
+
+Not breaking for the API: `useFoldSteps` takes two new optional arguments, `RowActionMenu` an optional `tools` group, `ConfirmDeleteDialog` an optional `returnFocus`. At full width the EditorHeader looks as before.
+
+- SUI-FEATURE-090 rev 11 (owner decisions):
+  - Without a lifecycle the ⋯ stands directly left of Save. With one, the app's ⋯ keeps its place after Preview while nothing is folded; from the first step the one ⋯ leads the action group.
+  - The ⋯ menu lists the folded header tools, a separator, the lifecycle menu's entries, and destructive entries last after another separator.
+  - Save goes icon-only before `lifecycle.next`.
+  - The title keeps about 18 characters while the steps fold; only after the last step does it shrink further, never below 6.
+  - The shrunk state differs in shape, not only in colour: "Gespeichert" is a hollow green ring, "Entwurf · ungespeichert" a filled amber dot.
+- `useFoldSteps(maxSteps, content?, fallback?)`: when `content` (what the bar shows: language, texts) changes, the remembered widths are dropped and the bar folds afresh before the paint, so a shorter text (after Save, in another language) unfolds again without a resize. The bar tracks its control that owns the focus from `focusin` (also through a menu or list it opened), so a step that swaps that control gives the focus back to the new one; a control that the step locked or took away hands it to `fallback`, in `GL-UI-050`'s order from where it stood. Swapped-out parts are no longer watched.
+- Focus (`GL-UI-050`): the Reset confirm returns the focus to its trigger (Reset, or the ⋯ it was folded into), else to the next usable control of the header after it, then before it, else to the editor's main content; never to Back or the body. A control that locks under the focus (Save after saving, Undo at the history's start) hands it on the same way.
+
 ## 0.92.0 — SUI-FEATURE-090 rev 4 (#141): EditorHeader at narrow width
 
 Breaking for apps that pass `lifecycle.preview` or `lifecycle.menu` (see the migration note). Without a lifecycle, and at any width where everything fits, the header looks as before.

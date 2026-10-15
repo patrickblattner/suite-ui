@@ -60,10 +60,39 @@ type EditorLifecycle = {
 };
 
 // What folds when the header does not fit one line (`SUI-FEATURE-090`), in this order: Undo/Redo,
-// Reset and Preview move into the one ⋯ menu, the state text shrinks to its dot, then Back, the next
-// step (if it has an icon) and last Save show their icon only, keeping their name as accessible name
-// and tooltip. Back, the title, the next step and Save always stay.
-type Fold = "undo" | "reset" | "preview" | "state" | "back" | "next" | "save";
+// Reset and Preview move into the one ⋯ menu, the state text shrinks to its mark, then Back, Save and
+// last the next step (if it has an icon) show their icon only, keeping their name as accessible name
+// and tooltip. Until then the title keeps about 18 characters; only the last step lets it shrink to 6.
+// Back, the title, the next step and Save always stay.
+type Fold = "undo" | "reset" | "preview" | "state" | "back" | "save" | "next" | "title";
+
+// The title's floor while folding, and once every fold is spent (`SUI-FEATURE-090`).
+const TITLE_BUDGET = 18;
+const TITLE_FLOOR = 6;
+
+// `GL-UI-050`: where the focus goes when `from` is locked or gone — the next usable control of the
+// header's action group after it in reading order, else the nearest before it; Back never. Without
+// one, the editor's main content: the nearest `main`, focusable without a Tab stop.
+function nextFocusTarget(header: HTMLElement, from: Element | null): HTMLElement | null {
+  const usable = [
+    ...header.querySelectorAll<HTMLButtonElement>("[data-slot=editor-actions] button"),
+  ].filter((control) => !control.disabled);
+  if (from?.isConnected) {
+    const after = usable.find(
+      (control) => from.compareDocumentPosition(control) & Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    const before = usable.filter(
+      (control) => from.compareDocumentPosition(control) & Node.DOCUMENT_POSITION_PRECEDING,
+    );
+    const target = after ?? before.at(-1);
+    if (target !== undefined) return target;
+  } else if (usable[0] !== undefined) {
+    return usable[0];
+  }
+  const main = header.closest("main") ?? document.querySelector("main");
+  if (main !== null && !main.hasAttribute("tabindex")) main.setAttribute("tabindex", "-1");
+  return main;
+}
 
 // The one header of every editor page (`GL-UI-034`, `SUI-FEATURE-064`): Back and the title on the
 // left; on the right Undo, Redo, the state ("Saved" or "Draft · unsaved"), Reset and Save. Reset and
@@ -75,9 +104,12 @@ type Fold = "undo" | "reset" | "preview" | "state" | "back" | "next" | "save";
 //
 // `SUI-FEATURE-090`: the header measures its own width. While it overflows one line it folds a step
 // (`Fold`); each step remembers the width it needed, and once the header is that wide again it steps
-// back. The title truncates with its full text as a tooltip, never below 6 characters and the
-// ellipsis. There is never more than one ⋯: folded actions keep their text, icon and lock there,
-// ahead of the lifecycle menu's own entries.
+// back. The title truncates with its full text as a tooltip. There is never more than one ⋯: with a
+// lifecycle it stands after Preview until the first step and leads the group from then on, without
+// one directly left of Save; folded header tools keep their text, icon and lock there, above the
+// lifecycle menu's own entries after a separator.
+// A control that locks under the focus (Save after saving, Undo at the history's start) and the
+// Reset confirm hand the focus on as `GL-UI-050` says.
 function EditorHeader({
   title,
   onBack,
@@ -91,7 +123,7 @@ function EditorHeader({
   onReset,
   lifecycle,
 }: EditorHeaderProps) {
-  const { t } = useTranslation("suite");
+  const { t, i18n } = useTranslation("suite");
   const [confirming, setConfirming] = React.useState(false);
   useEditShortcuts({
     onUndo: canUndo ? onUndo : undefined,
@@ -103,16 +135,13 @@ function EditorHeader({
     ...(lifecycle?.preview ? ["preview" as const] : []),
     "state",
     "back",
-    ...(lifecycle?.next?.icon !== undefined ? ["next" as const] : []),
     "save",
+    ...(lifecycle?.next?.icon !== undefined ? ["next" as const] : []),
+    "title",
   ];
-  const { attach, steps: shrink } = useFoldSteps(folds.length);
-  const folded = (step: Fold) => {
-    const index = folds.indexOf(step);
-    return index !== -1 && index < shrink;
-  };
-  // The title's floor: its first 6 characters and the ellipsis, sized by an invisible copy in the
-  // title's own font. A title given as nodes is read back from the rendered text.
+  // The title's floor: its first 18 characters and the ellipsis while folding, 6 after the last
+  // step, sized by an invisible copy in the title's own font. A title given as nodes is read back
+  // from the rendered text.
   const titleBox = React.useRef<HTMLDivElement>(null);
   const [renderedTitle, setRenderedTitle] = React.useState("");
   React.useLayoutEffect(() => {
@@ -122,12 +151,73 @@ function EditorHeader({
     setRenderedTitle(text);
   }, [title]);
   const titleText = typeof title === "string" ? title : renderedTitle;
-  const titleFloor = titleText.length > 6 ? `${titleText.slice(0, 6)}…` : titleText;
   const stateText = t(dirty ? "editor.draft" : "editor.saved");
+  // What the header shows: a new language, state text, title floor or lifecycle label folds it
+  // afresh, so a shorter text (after Save, or in another language) unfolds again without a resize.
+  // Only the title's longest floor counts: typing in a live-bound title refolds nothing.
+  const content = [
+    i18n.language,
+    stateText,
+    titleText.slice(0, TITLE_BUDGET),
+    lifecycle?.preview?.label,
+    lifecycle?.next?.label,
+  ].join("\u0000");
+  // A control a refold locked or took away (Save after saving, the ⋯ when its tools unfold) hands the
+  // focus on in `GL-UI-050`'s order from where it stood.
+  const { attach, steps: shrink } = useFoldSteps(folds.length, content, nextFocusTarget);
+  const header = React.useRef<HTMLElement | null>(null);
+  const setHeader = React.useCallback(
+    (node: HTMLElement | null) => {
+      header.current = node;
+      attach(node);
+    },
+    [attach],
+  );
+  const folded = (step: Fold) => {
+    const index = folds.indexOf(step);
+    return index !== -1 && index < shrink;
+  };
+  const floor = folded("title") ? TITLE_FLOOR : TITLE_BUDGET;
+  const titleFloor = titleText.length > floor ? `${titleText.slice(0, floor)}…` : titleText;
 
-  const items: RowMenuItem[] = [];
+  // The Reset confirm's trigger: Reset, or the ⋯ it was folded into (`GL-UI-050` target 1).
+  const [resetOpener, setResetOpener] = React.useState<"editor-reset" | "editor-menu">(
+    "editor-reset",
+  );
+  const openReset = (opener: "editor-reset" | "editor-menu") => {
+    setResetOpener(opener);
+    setConfirming(true);
+  };
+  // A control that locks while it has the focus hands it on; a running Save waits for its result.
+  const saveChosen = React.useRef(false);
+  React.useLayoutEffect(() => {
+    const node = header.current;
+    if (node === null) return;
+    const active = document.activeElement;
+    if (
+      active instanceof HTMLButtonElement &&
+      node.contains(active) &&
+      active.disabled &&
+      !active.hasAttribute("aria-busy")
+    ) {
+      nextFocusTarget(node, active)?.focus();
+      return;
+    }
+    if (!saveChosen.current || saving) return;
+    saveChosen.current = false;
+    const save = node.querySelector<HTMLButtonElement>("[data-testid=editor-save]");
+    if (save?.disabled && (active === null || active === document.body || active === save)) {
+      nextFocusTarget(node, save)?.focus();
+    }
+  }, [dirty, saving, canUndo, canRedo]);
+  const save = () => {
+    saveChosen.current = true;
+    onSave();
+  };
+
+  const tools: RowMenuItem[] = [];
   if (folded("undo")) {
-    items.push(
+    tools.push(
       {
         label: t("editor.undo"),
         icon: <Undo2Icon aria-hidden="true" />,
@@ -147,17 +237,17 @@ function EditorHeader({
     );
   }
   if (folded("reset")) {
-    items.push({
+    tools.push({
       label: t("actions.reset"),
       icon: <RotateCcwIcon aria-hidden="true" />,
-      onSelect: () => setConfirming(true),
+      onSelect: () => openReset("editor-menu"),
       disabled: !dirty || saving,
       "data-testid": "editor-menu-reset",
     });
   }
   const preview = lifecycle?.preview;
   if (preview !== undefined && folded("preview")) {
-    items.push({
+    tools.push({
       label: preview.label,
       ...(preview.icon !== undefined ? { icon: preview.icon } : {}),
       onSelect: preview.onClick,
@@ -166,11 +256,12 @@ function EditorHeader({
       "data-testid": "editor-menu-preview",
     });
   }
-  items.push(...(lifecycle?.menu?.items ?? []));
+  const records = lifecycle?.menu?.items ?? [];
   const menu =
-    items.length > 0 ? (
+    tools.length + records.length > 0 ? (
       <RowActionMenu
-        menu={{ label: lifecycle?.menu?.label ?? t("editor.more"), items }}
+        menu={{ label: lifecycle?.menu?.label ?? t("editor.more"), items: records }}
+        tools={tools}
         size="icon-sm"
         variant="ghost"
         data-testid="editor-menu"
@@ -179,7 +270,7 @@ function EditorHeader({
 
   return (
     <header
-      ref={attach}
+      ref={setHeader}
       data-slot="editor-header"
       data-shrink={shrink}
       className="flex min-w-0 shrink-0 items-center gap-3 border-b bg-background px-[var(--page-gutter)] py-3"
@@ -221,12 +312,13 @@ function EditorHeader({
         </OverflowTooltip>
       </div>
       <div data-slot="editor-actions" className="flex shrink-0 items-center gap-2">
-        {lifecycle === undefined ? (
-          menu
-        ) : (
+        {lifecycle === undefined ? null : (
           <>
+            {/* Unfolded, the app's ⋯ keeps its place after Preview; from the first step the one
+                ⋯ leads the group (`SUI-FEATURE-090` rev 11). */}
+            {shrink > 0 ? menu : null}
             {preview === undefined || folded("preview") ? null : <PreviewButton {...preview} />}
-            {menu}
+            {shrink > 0 ? null : menu}
             {lifecycle.next === undefined ? null : (
               <NextStep {...lifecycle.next} dirty={dirty} iconOnly={folded("next")} />
             )}
@@ -267,7 +359,7 @@ function EditorHeader({
           </>
         )}
         {folded("state") ? (
-          // Shrunk to its dot, the state keeps its text as the tooltip and for screen readers.
+          // Shrunk to its mark, the state keeps its text as the tooltip and for screen readers.
           <Tooltip>
             <TooltipTrigger asChild>
               <span
@@ -278,9 +370,15 @@ function EditorHeader({
                 className="flex size-6 items-center justify-center rounded-md focus-visible:focus-ring"
                 data-testid="editor-state"
               >
+                {/* Shape and colour both tell the state (WCAG 1.4.1): saved a hollow green ring,
+                    a draft a filled amber dot. */}
                 <span
                   aria-hidden="true"
-                  className={cn("size-2 rounded-full", dirty ? "bg-warn" : "bg-success")}
+                  data-mark={dirty ? "dot" : "ring"}
+                  className={cn(
+                    "size-2 rounded-full",
+                    dirty ? "bg-warn" : "border-2 border-success",
+                  )}
                 />
                 <span className="sr-only">{stateText}</span>
               </span>
@@ -304,13 +402,15 @@ function EditorHeader({
             variant="outline"
             size="default"
             disabled={!dirty || saving}
-            onClick={() => setConfirming(true)}
+            onClick={() => openReset("editor-reset")}
             data-testid="editor-reset"
           >
             <RotateCcwIcon aria-hidden="true" />
             {t("actions.reset")}
           </Button>
         )}
+        {/* Without a lifecycle the ⋯ stands directly left of Save. */}
+        {lifecycle === undefined ? menu : null}
         {folded("save") ? (
           <IconButtonTooltip label={t("actions.save")}>
             <Button
@@ -319,7 +419,7 @@ function EditorHeader({
               size="icon"
               disabled={!dirty}
               busy={saving}
-              onClick={onSave}
+              onClick={save}
               data-testid="editor-save"
             >
               <SaveIcon aria-hidden="true" />
@@ -332,7 +432,7 @@ function EditorHeader({
             size="default"
             disabled={!dirty}
             busy={saving}
-            onClick={onSave}
+            onClick={save}
             data-testid="editor-save"
           >
             <SaveIcon aria-hidden="true" />
@@ -351,6 +451,15 @@ function EditorHeader({
         description={t("editor.resetConfirm")}
         confirmLabel={t("actions.reset")}
         confirmHint={t("settings.resetHint")}
+        // `GL-UI-050`: back to the trigger (Reset, or the ⋯ it was folded into) while it is usable,
+        // else to the next usable control of the header, else to the editor's main content.
+        returnFocus={() => {
+          const node = header.current;
+          if (node === null) return null;
+          const trigger = node.querySelector<HTMLElement>(`[data-testid="${resetOpener}"]`);
+          if (trigger instanceof HTMLButtonElement && !trigger.disabled) return trigger;
+          return nextFocusTarget(node, trigger);
+        }}
         data-testid="editor-reset-confirm"
       />
     </header>
