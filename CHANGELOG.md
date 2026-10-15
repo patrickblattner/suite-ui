@@ -1,11 +1,11 @@
 # Changelog
 
-## 0.94.0 — #146, SUI-FEATURE-100 rev 2: TagInput suggestions
+## 0.94.0 — #146, SUI-FEATURE-100 rev 4: TagInput suggestions
 
 Not breaking. `TagInput` takes an optional `suggestions`; without it the field is unchanged. New string `suite:tags.suggestions` (de/en/es), the name of the suggestion list.
 
-- `TagInput suggestions={…}` (`SUI-FEATURE-100`): typing lists the matching existing tags under the field. Tags that start with the typed text come first, then those that contain it, ignoring letter case, at most eight, the first one chosen. Tags already added are left out, and a suggestion listed twice in any letter case shows once.
-- The arrows move the choice and keep it in view, Enter takes it over as a chip, Esc closes the list and keeps the text (and never closes a surrounding dialog). Without a match, Enter takes the typed text over as before. A tag typed in another letter case than a suggestion takes the suggestion's spelling, also by comma or on leaving the field.
+- `TagInput suggestions={…}` (`SUI-FEATURE-100`): typing lists the matching existing tags under the field. Tags that start with the typed text come first, then those that contain it, ignoring letter case, at most eight. The first entry is chosen only if it starts with the text; an entry that merely contains it ("tur" → "Kultur") waits for the arrows. Tags already added are left out, and a suggestion listed twice in any letter case shows once.
+- The arrows move the choice and keep it in view. Enter and Tab take the chosen entry over as a chip, and the field keeps the focus. With nothing chosen, Enter takes the typed text over as before and Tab leaves the field. The comma and leaving the field always take the typed text, never a suggestion in its place. Esc closes the list and keeps the text (and never closes a surrounding dialog). A tag typed in another letter case than a suggestion takes the suggestion's spelling on every way in (Enter, Tab, comma, leaving).
 - Combobox pattern: the field has `role="combobox"` with `aria-expanded`, the list `role="listbox"`, the chosen option is named by `aria-activedescendant`; adding a chip is still announced. Long names wrap inside the list.
 - The list floats like the time zone list: no portal; in a dialog or panel body it grows the body or opens upwards (`GL-UI-027` §Floating Content). Both use the new shared `usePopupPlacement` (`src/lib/popup-placement.ts`); the time zone list behaves as before.
 - Gallery: the tag field of the components page offers suggestions. The strings page lists the new string.

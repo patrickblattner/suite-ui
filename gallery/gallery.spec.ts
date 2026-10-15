@@ -1051,9 +1051,9 @@ test("tag input: input height, comma and Enter make chips, duplicates dropped", 
   await expect(field.getByTestId("tag-input-chip")).toHaveText(["summer", "a"]);
 });
 
-// `SUI-FEATURE-100`: typing lists the matching existing tags under the field; the arrows choose, Enter
-// takes the choice, Esc closes the list and keeps the text, typed text in another case takes the
-// suggestion's spelling.
+// `SUI-FEATURE-100` rev 4: typing lists the matching existing tags under the field; a starting match is
+// chosen, the arrows choose, Enter and Tab take the choice, Esc closes the list and keeps the text, the
+// comma takes the typed text in the suggestion's spelling.
 test("tag input: suggestions by keyboard", async ({ page }) => {
   await page.goto("/?page=components&lng=en");
   const field = page.getByTestId("tag-input");
@@ -1086,6 +1086,17 @@ test("tag input: suggestions by keyboard", async ({ page }) => {
   expect(entry.y + entry.height).toBeLessThanOrEqual(shown.y + shown.height + 0.5);
   await input.press("Enter");
   await expect(chips).toHaveText(["summer", "team", "Kultur"]);
+  // Only containing the text ("port" in "Sport") chooses nothing: Enter takes the typed text.
+  await input.pressSequentially("port");
+  await expect(list.getByRole("option")).toHaveText(["Sport"]);
+  await expect(input).not.toHaveAttribute("aria-activedescendant");
+  await input.press("Enter");
+  await expect(chips).toHaveText(["summer", "team", "Kultur", "port"]);
+  // A chosen entry is taken by Tab too, and the field keeps the focus.
+  await input.pressSequentially("the");
+  await input.press("Tab");
+  await expect(chips).toHaveText(["summer", "team", "Kultur", "port", "Theater"]);
+  await expect(input).toBeFocused();
   await input.pressSequentially("mu");
   await page.keyboard.press("Escape");
   await expect(list).toBeHidden();
@@ -1093,7 +1104,7 @@ test("tag input: suggestions by keyboard", async ({ page }) => {
   await input.fill("");
   await input.pressSequentially("SPORT");
   await page.keyboard.press(",");
-  await expect(chips).toHaveText(["summer", "team", "Kultur", "Sport"]);
+  await expect(chips).toHaveText(["summer", "team", "Kultur", "port", "Theater", "Sport"]);
 });
 
 // `SUI-FEATURE-007` AC2: the × of a `RemovableChip` removes on Enter and on Space.

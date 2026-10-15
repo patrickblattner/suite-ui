@@ -200,6 +200,50 @@ describe("TagInput suggestions", () => {
     expect(screen.getByTestId("tag-input-announcement")).toHaveTextContent("Tag Stadt added");
   });
 
+  it('AC1: "sta" + Tab takes "Stadt" over and keeps the focus in the field', () => {
+    render(<Suggesting />);
+    focusField();
+    type("sta");
+    const tab = fireEvent.keyDown(field(), { key: "Tab" });
+    expect(tab).toBe(false);
+    expect(chips()).toEqual(["Stadt"]);
+    expect(field()).toHaveFocus();
+  });
+
+  it('AC4: "kul" + comma and leaving the field take the typed text, never a suggestion', () => {
+    render(<Suggesting suggestions={["Kultur"]} />);
+    focusField();
+    type("kul");
+    expect(options()).toEqual(["Kultur"]);
+    fireEvent.keyDown(field(), { key: "," });
+    expect(chips()).toEqual(["kul"]);
+    type("kult");
+    fireEvent.blur(field());
+    expect(chips()).toEqual(["kul", "kult"]);
+  });
+
+  it('AC4: "tur" chooses nothing; Enter takes "tur", Tab leaves, the arrows choose "Kultur"', () => {
+    render(<Suggesting suggestions={["Kultur"]} />);
+    focusField();
+    type("tur");
+    expect(options()).toEqual(["Kultur"]);
+    expect(field()).not.toHaveAttribute("aria-activedescendant");
+    expect(screen.getByRole("option", { name: "Kultur" })).toHaveAttribute(
+      "aria-selected",
+      "false",
+    );
+    // Tab is left to the browser: it leaves the field.
+    expect(fireEvent.keyDown(field(), { key: "Tab" })).toBe(true);
+    expect(chips()).toEqual([]);
+    enter();
+    expect(chips()).toEqual(["tur"]);
+    type("tur");
+    fireEvent.keyDown(field(), { key: "ArrowDown" });
+    expect(field()).toHaveAttribute("aria-activedescendant");
+    enter();
+    expect(chips()).toEqual(["tur", "Kultur"]);
+  });
+
   it('AC2: "neu" without a matching suggestion + Enter takes the typed text over', () => {
     render(<Suggesting />);
     focusField();

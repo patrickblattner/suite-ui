@@ -48,11 +48,12 @@ function matchSuggestions(suggestions: readonly string[], chosen: readonly strin
 // so a click on Save never loses it. Each added or removed chip is announced politely
 // (`SUI-FEATURE-052`). The field has the input height (`GL-UI-011`) and grows with each row of chips.
 //
-// With `suggestions` (`SUI-FEATURE-100`) the field is a combobox: typing lists the matching existing
-// tags under it, the first one chosen; the arrows move the choice, Enter takes it over as a chip, Esc
-// closes the list and keeps the text. Without a match Enter takes the typed text over as before; a tag
-// that equals a suggestion but for letter case takes the suggestion's spelling. The list floats like
-// the time zone list (`usePopupPlacement`).
+// With `suggestions` (`SUI-FEATURE-100` rev 3) the field is a combobox: typing lists the matching
+// existing tags under it. The first one is chosen only if it starts with the text; the arrows move the
+// choice, Enter and Tab take a chosen entry over as a chip, Esc closes the list and keeps the text.
+// With nothing chosen Enter takes the typed text over and Tab leaves; the comma and leaving the field
+// always take the typed text. A tag that equals a suggestion but for letter case takes the
+// suggestion's spelling. The list floats like the time zone list (`usePopupPlacement`).
 function TagInput({
   value,
   onChange,
@@ -69,7 +70,8 @@ function TagInput({
   const [focused, setFocused] = React.useState(false);
   // Esc closed the list; typing opens it again.
   const [dismissed, setDismissed] = React.useState(false);
-  const [active, setActive] = React.useState(0);
+  // The entry the arrows chose; `null` until they move, then the default holds.
+  const [active, setActive] = React.useState<number | null>(null);
   // Whether the keyboard placed the highlight: then it carries the inset ring on top of the tint
   // (`GL-UI-013`); a highlight under the mouse keeps the tint alone.
   const [keyboard, setKeyboard] = React.useState(true);
@@ -81,7 +83,10 @@ function TagInput({
     [suggestions, value, typed],
   );
   const open = focused && !dismissed && !disabled && matches.length > 0;
-  const choice = Math.min(active, matches.length - 1);
+  // Only an entry that starts with the text is chosen by default; one that merely contains it ("tur" →
+  // "Kultur") waits for the arrows (`SUI-FEATURE-100` rev 3). -1 is "nothing chosen".
+  const startsWith = matches[0]?.toLowerCase().startsWith(typed.trim().toLowerCase()) === true;
+  const choice = Math.min(active ?? (startsWith ? 0 : -1), matches.length - 1);
   const [announcement, setAnnouncement] = React.useState("");
   const root = React.useRef<HTMLDivElement>(null);
   // The index of a chip removed with ×: once the chips re-render, the focus moves to the chip now in
@@ -133,7 +138,7 @@ function TagInput({
       );
     }
     setDraft("");
-    setActive(0);
+    setActive(null);
   };
 
   // Places the open list; Esc closes the list only, not a surrounding dialog: radix listens on the
@@ -141,7 +146,7 @@ function TagInput({
   usePopupPlacement(open, root, popup, matches.length);
   // The chosen entry stays in view while the arrows move through a list taller than its cap.
   React.useEffect(() => {
-    if (open)
+    if (open && choice >= 0)
       document.getElementById(`${listId}-${choice}`)?.scrollIntoView?.({ block: "nearest" });
   }, [open, choice, listId]);
   React.useEffect(() => {
@@ -198,12 +203,12 @@ function TagInput({
               "aria-expanded": open,
               "aria-controls": listId,
               "aria-autocomplete": "list" as const,
-              "aria-activedescendant": open ? `${listId}-${choice}` : undefined,
+              "aria-activedescendant": open && choice >= 0 ? `${listId}-${choice}` : undefined,
             })}
         onChange={(event) => {
           setDraft(event.target.value);
           setDismissed(false);
-          setActive(0);
+          setActive(null);
           setKeyboard(true);
         }}
         onFocus={() => setFocused(true)}
@@ -223,9 +228,11 @@ function TagInput({
               return;
             }
             const step = event.key === "ArrowDown" ? 1 : -1;
-            setActive(Math.min(Math.max(choice + step, 0), matches.length - 1));
-          } else if (event.key === "Enter" && open) {
-            // An open list owns Enter: it takes the chosen suggestion over.
+            const from = choice < 0 && step < 0 ? matches.length : choice;
+            setActive(Math.min(Math.max(from + step, 0), matches.length - 1));
+          } else if ((event.key === "Enter" || event.key === "Tab") && open && choice >= 0) {
+            // A chosen entry owns Enter and Tab: it becomes the chip and the field keeps the focus.
+            // Without one, Enter takes the typed text over and Tab leaves the field.
             event.preventDefault();
             commit(matches[choice]);
             // An empty field leaves Enter to the form, so it still triggers the primary action.
