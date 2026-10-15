@@ -12,7 +12,7 @@ Not breaking. New: the `focus-return` module (`@suite/ui/ui/focus-return`, also 
 - In a list with the keyboard grid (`SUI-FEATURE-056`) the entry is the trigger, however the dialog was opened (a key on the entry, a button in it, its ⋯ menu; `GL-UI-050` rev 4): Cancel returns to the entry; a confirmed delete goes to the entry that moves into its place, else the one before (as before).
 - A caller that already put the focus outside the dialog keeps it (the field of a failed save). An `onCloseAutoFocus` that prevents the default still takes over completely (global search).
 - `main` as the last fallback draws no outline: it is a programmatic target without a tab stop, not a control (`GL-UI-013` covers tab stops; same rule as the list frame).
-- EditorHeader: the Reset confirm and a control that locks under the focus use the shared order (`fallbackTarget`). The Reset confirm no longer needs its own `returnFocus`. A Save that ends without locking (failed) takes back the focus its running state dropped.
+- EditorHeader: the Reset confirm and a control that locks under the focus use the shared order (`fallbackTarget`). The Reset confirm no longer needs its own `returnFocus`.
 - Gallery: the preview page's Archive entry (row ⋯ and toolbar ⋯) asks first.
 
 ## 0.92.1 — #144, SUI-FEATURE-090 rev 11, GL-UI-050: EditorHeader follow-ups

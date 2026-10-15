@@ -164,8 +164,7 @@ function EditorHeader({
   const floor = folded("title") ? TITLE_FLOOR : TITLE_BUDGET;
   const titleFloor = titleText.length > floor ? `${titleText.slice(0, floor)}…` : titleText;
 
-  // A control that locks while it has the focus hands it on; a running Save waits for its result,
-  // then hands it on if it locked (saved), or takes it back if it did not (failed).
+  // A control that locks while it has the focus hands it on; a running Save waits for its result.
   const saveChosen = React.useRef(false);
   React.useLayoutEffect(() => {
     const node = header.current;
@@ -183,12 +182,8 @@ function EditorHeader({
     if (!saveChosen.current || saving) return;
     saveChosen.current = false;
     const save = node.querySelector<HTMLButtonElement>("[data-testid=editor-save]");
-    const lost = active === null || active === document.body;
-    if (save?.disabled && (lost || active === save)) {
+    if (save?.disabled && (active === null || active === document.body || active === save)) {
       nextFocusTarget(node, save)?.focus();
-    } else if (save !== null && lost) {
-      // A failed Save stays usable: the focus it lost while running comes back to it.
-      save.focus();
     }
   }, [dirty, saving, canUndo, canRedo]);
   const save = () => {
