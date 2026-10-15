@@ -90,13 +90,39 @@ describe("Button", () => {
     expect(button).toBeEnabled();
     expect(button).toHaveAttribute("aria-disabled", "true");
     expect(button).toHaveAttribute("aria-busy", "true");
-    expect(button).toHaveClass("pointer-events-none");
+    expect(button).not.toHaveClass("pointer-events-none");
+    expect(button).toHaveClass("aria-busy:cursor-progress", "aria-disabled:hover:bg-success");
+    // A press does not move the focus away from the running button.
+    expect(fireEvent.mouseDown(button)).toBe(false);
     fireEvent.click(button, { detail: 0 });
     fireEvent.click(button, { detail: 1 });
     button.click();
     expect(onClick).not.toHaveBeenCalled();
     expect(onSubmit).not.toHaveBeenCalled();
     expect(button).toHaveFocus();
+  });
+
+  // Security review #150: the button's guard alone holds against the implicit submit of a plain form
+  // that checks nothing itself (a browser submits on Enter by clicking the default button).
+  it("busy: a plain form without its own guard is not submitted through the button", () => {
+    const submitted = vi.fn();
+    render(
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          submitted();
+        }}
+      >
+        <input aria-label="Name" defaultValue="x" />
+        <Button type="submit" variant="success" size="default" busy>
+          Save
+        </Button>
+      </form>,
+    );
+    const button = screen.getByRole("button", { name: "Save" });
+    button.click();
+    fireEvent.click(button, { detail: 0 });
+    expect(submitted).not.toHaveBeenCalled();
   });
 
   it("busy ends: the button is usable again and still has the focus", () => {

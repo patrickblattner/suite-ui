@@ -99,11 +99,18 @@ function keepClosedOnFocus(event: React.FocusEvent): void {
   event.preventDefault();
 }
 
+// A running button (`busy`) that is the trigger itself took no pointer events while it was `disabled`
+// (`SUI-FEATURE-120`): its hint stays closed on hover until the run ends.
+function keepClosedOnPointer(event: React.PointerEvent): void {
+  event.preventDefault();
+}
+
 type HintChildProps = {
   id?: string;
   "aria-describedby"?: string;
   "aria-label"?: string;
   disabled?: boolean;
+  busy?: boolean;
 };
 
 type HintProps = {
@@ -169,7 +176,13 @@ function Hint({ text, disabledText, children, ...passThrough }: HintProps) {
     <OverflowReportContext.Provider value={setInnerClipped}>
       <TooltipProvider>
         <TooltipPrimitive.Root>
-          <TooltipTrigger asChild onFocus={keepClosedOnFocus}>
+          <TooltipTrigger
+            asChild
+            onFocus={keepClosedOnFocus}
+            onPointerMove={
+              !carried && children.props.busy === true ? keepClosedOnPointer : undefined
+            }
+          >
             <PassThrough {...passThrough} ref={ref}>
               {trigger}
             </PassThrough>

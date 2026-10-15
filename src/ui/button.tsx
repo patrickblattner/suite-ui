@@ -59,11 +59,32 @@ type ButtonProps = React.ComponentProps<"button"> &
     loading?: boolean;
   };
 
-// A running button stays focusable (`GL-UI-050`, `SUI-FEATURE-120`): `busy` locks it with
-// `aria-disabled`, never the `disabled` attribute, which would drop the focus to `<body>` for the run.
-// The lock itself is the click guard: a click, `Enter` and `Space` (both click a button) and the
-// implicit submit of a surrounding form (a click on its submit button) are cancelled, and the button
-// takes no pointer events, so it shows no hover and the hint of a wrapping trigger stays as before.
+// Neutral hover per variant while a run locks the button: it looks as the `disabled` button did.
+const LOCKED_HOVER: Record<ButtonVariant, string> = {
+  default: "aria-disabled:hover:bg-primary",
+  destructive: "aria-disabled:hover:bg-destructive",
+  success: "aria-disabled:hover:bg-success",
+  warn: "aria-disabled:hover:bg-warn",
+  outline:
+    "aria-disabled:hover:border-border aria-disabled:hover:bg-background aria-disabled:hover:text-inherit dark:aria-disabled:hover:border-input dark:aria-disabled:hover:bg-input/30",
+  secondary: "aria-disabled:hover:bg-secondary",
+  ghost:
+    "aria-disabled:hover:bg-transparent aria-disabled:hover:text-inherit dark:aria-disabled:hover:bg-transparent",
+  link: "aria-disabled:hover:no-underline",
+};
+
+/**
+ * A running button stays focusable (`GL-UI-050`, `SUI-FEATURE-120`): `busy` locks it with
+ * `aria-disabled`, never the `disabled` attribute, which would drop the focus to `<body>` for the run.
+ * The lock covers activation: a click, `Enter` and `Space` (both click a button) and the implicit
+ * submit of a surrounding form (a click on its submit button) are cancelled, and a press does not move
+ * the focus. It does not cover an app's own `onKeyDown` on the button, nor an `asChild` trigger or a
+ * wrapping element that acts on its own; those check `busy` themselves.
+ * The look stays as the disabled button's was: full colour, the working sign, no hover tint, the
+ * progress cursor. A hint behaves as before: a tooltip whose trigger is the button itself stays closed
+ * while it runs; a wrapping trigger (the span of `Hint` with `disabledText`, `IconButtonTooltip`) opens
+ * on hover as before; focus opens none.
+ */
 // The rendered lock alone does not hold against a real double-click: the second click of a burst is
 // dispatched before React renders the first one's busy state. A button that declares `busy` therefore
 // also drops every click the browser marks as a repeat (`event.detail > 1`): a double-click is one
@@ -100,9 +121,9 @@ function Button(props: ButtonProps) {
         className,
         working && "[&_svg:not([data-slot=busy])]:hidden",
         // "Runs" and "does not work" never share a look: should a running button also be `disabled`,
-        // the same utility keys as the base class's dimming let tailwind-merge drop it, so the busy
+        // the same utility key as the base class's dimming lets tailwind-merge drop it, so the busy
         // button keeps its full colour.
-        locked && "pointer-events-none disabled:cursor-progress disabled:opacity-100",
+        locked && ["aria-busy:cursor-progress disabled:opacity-100", LOCKED_HOVER[variant]],
       )}
       onClick={(event: React.MouseEvent<HTMLButtonElement>) => {
         if (locked) {
@@ -113,6 +134,24 @@ function Button(props: ButtonProps) {
         onClick?.(event);
       }}
       {...rest}
+      // After the spread, so they wrap the handlers a wrapping trigger merged in.
+      onMouseDown={(event: React.MouseEvent<HTMLButtonElement>) => {
+        // A press on the running button does not move the focus.
+        if (locked) event.preventDefault();
+        rest.onMouseDown?.(event);
+      }}
+      onPointerMove={(event: React.PointerEvent<HTMLButtonElement>) => {
+        // The button as a trigger of its own (it carries the trigger's `data-state`): its hint stays
+        // closed while it runs, as the disabled button took no pointer events. A wrapping trigger
+        // still sees the move.
+        if (locked && "data-state" in rest) event.preventDefault();
+        rest.onPointerMove?.(event);
+      }}
+      onFocus={(event: React.FocusEvent<HTMLButtonElement>) => {
+        // The disabled button took no focus, so focus opens no hint while it runs.
+        if (locked) event.preventDefault();
+        rest.onFocus?.(event);
+      }}
     >
       {asChild ? (
         children

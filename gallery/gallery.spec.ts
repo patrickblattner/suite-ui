@@ -847,6 +847,7 @@ test("settings: a second click during a save has no effect", async ({ page }) =>
   const enabled = await look(save);
   await save.click();
   await expect(save).toHaveAttribute("aria-busy", "true");
+  await expect(save).toBeFocused();
   await expect(save.locator("[data-slot=busy]")).toBeVisible();
   expect(await look(save)).toEqual(enabled);
   await save.click({ force: true });
@@ -4980,18 +4981,18 @@ test("busy keeps the focus: Enter, Space, a click and the form's submit start no
   const save = page.getByTestId("settings-general-save");
   const field = page.getByTestId("settings-field-1");
   await field.fill("changed");
-  await save.focus();
-  await page.keyboard.press("Enter");
+  await save.click();
   await expect(save).toHaveAttribute("aria-busy", "true");
   await expect(save).toHaveAttribute("aria-disabled", "true");
   await expect(save).not.toHaveAttribute("disabled");
+  // A click on the running button keeps the focus on it, with no re-focus in between.
+  await expect(save).toBeFocused();
+  await save.click({ force: true });
   await expect(save).toBeFocused();
   await page.keyboard.press("Enter");
   await page.keyboard.press("Space");
-  await save.click({ force: true });
-  await field.press("Enter");
-  await save.focus();
   await expect(save).toBeFocused();
+  await field.press("Enter");
   // One save of 1.5 s: a second run would turn the button busy again after the first ends.
   await expect(save).not.toHaveAttribute("aria-busy", { timeout: 5000 });
   await page.waitForTimeout(500);

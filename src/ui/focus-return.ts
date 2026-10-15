@@ -262,8 +262,10 @@ function useFocusAfterRun(
     }
     ran.current = false;
     const group = node.closest(`[${FOCUS_GROUP_ATTR}]`);
-    const target = groupTarget(group, node) ?? main?.() ?? mainTarget(group ?? node);
-    target?.focus({ preventScroll: true });
+    // Each target counts only if it took the focus; else the next one is tried.
+    if (place(groupTarget(group, node))) return;
+    if (place(main?.() ?? null)) return;
+    place(mainTarget(group ?? node));
   }, [button, running, locked, main]);
 }
 

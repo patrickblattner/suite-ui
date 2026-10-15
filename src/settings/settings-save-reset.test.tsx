@@ -49,5 +49,6 @@ describe("SaveResetButtons focus", () => {
     rerender(page(false, false));
     expect(save).not.toHaveFocus();
     expect(screen.getByLabelText("Name")).not.toHaveFocus();
+    expect(reset).toHaveFocus();
   });
 });
