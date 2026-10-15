@@ -2126,6 +2126,28 @@ test("sidebar overlay: Tab and Shift+Tab stay inside the open overlay", async ({
   ).toBe(false);
 });
 
+// `GL-UI-007`: inside the open overlay, Esc closes the open user menu first and only it; the next Esc
+// closes the overlay.
+test("sidebar overlay: Esc closes the user menu first, then the overlay", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/?page=shell&route=/dashboard&lng=en");
+  const sidebar = page.getByTestId("app-sidebar");
+  const trigger = page.getByTestId("sidebar-overlay-trigger");
+  await expect(trigger).toHaveAccessibleName("Open navigation");
+  await trigger.focus();
+  await page.keyboard.press("Enter");
+  const menuTrigger = sidebar.getByTestId("user-menu-trigger");
+  await menuTrigger.focus();
+  await page.keyboard.press("Enter");
+  await expect(menuTrigger).toHaveAttribute("aria-expanded", "true");
+  await page.keyboard.press("Escape");
+  await expect(menuTrigger).toHaveAttribute("aria-expanded", "false");
+  await expect(sidebar).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(sidebar).toBeHidden();
+  await expect(trigger).toBeFocused();
+});
+
 // `SUI-FEATURE-110` AC3: at 1440 px the sidebar stands beside the content and the trigger is hidden.
 test("sidebar overlay: at 1440 px the sidebar stands beside the content, no trigger", async ({
   page,

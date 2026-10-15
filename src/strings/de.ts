@@ -125,6 +125,7 @@ export const de: SuiteStrings = {
   nav: {
     label: "Hauptnavigation",
     toggleSidebar: "Seitenleiste ein-/ausklappen",
+    openNavigation: "Navigation öffnen",
     home: "Öffnet das Dashboard.",
     backToDashboard: "Zurück zum Dashboard",
     helpHint: "Öffnet die Hilfe mit Anleitungen zu allen Bereichen.",

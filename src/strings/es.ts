@@ -125,6 +125,7 @@ export const es: SuiteStrings = {
   nav: {
     label: "Navegación principal",
     toggleSidebar: "Mostrar u ocultar la barra lateral",
+    openNavigation: "Abrir navegación",
     home: "Abre el panel.",
     backToDashboard: "Volver al panel",
     helpHint: "Abre la ayuda con guías de todas las áreas.",

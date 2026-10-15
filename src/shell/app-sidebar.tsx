@@ -71,7 +71,11 @@ function AppSidebar({
 
   // Below `md` (`SUI-FEATURE-110`): the open overlay is modal. It takes the focus on its first control,
   // Tab cycles inside it while the content behind is inert, and `Esc`, a click beside it and a
-  // navigation close it.
+  // navigation close it, as does a press on a link or the home name that stays on the same route. It
+  // is the sidebar itself, kept in the DOM and moved over the content, not a `Sheet` (`GL-UI-004`): a
+  // Sheet would portal a second copy of the nav, search and user block, and the same `<nav>` that
+  // stands beside the content at `md` and up keeps its state (search text, open section) across the
+  // break.
   useEscapeLayer(overlayOpen, closeOverlay, element);
   const trapTab = useModalOverlay(overlayOpen, element, scrim);
   React.useEffect(() => {
@@ -81,8 +85,8 @@ function AppSidebar({
   React.useEffect(() => {
     if (shownPath.current === pathname) return;
     shownPath.current = pathname;
-    closeOverlay();
-  }, [pathname, closeOverlay]);
+    if (overlayOpen) closeOverlay();
+  }, [pathname, overlayOpen, closeOverlay]);
 
   const visible = allowedModel(nav, isAllowed);
   const activeSection = sectionForPath(
@@ -193,6 +197,13 @@ function AppSidebar({
         ref={setElement}
         id={SIDEBAR_ID}
         onKeyDown={trapTab}
+        onClick={(event) => {
+          if (!overlayOpen || !(event.target instanceof Element)) return;
+          const leads = event.target.closest(
+            "a[href], [data-testid=sidebar-instance-name], [data-testid=nav-back]",
+          );
+          if (leads !== null) closeOverlay();
+        }}
         data-testid="app-sidebar"
         aria-label={t("nav.label")}
         data-state={isOpen ? "expanded" : "collapsed"}

@@ -8,7 +8,7 @@ import { captureOpener, type Opener, returnFocus } from "../ui/focus-return.js";
 import { Hint } from "../ui/hint.js";
 
 // Below the package's mobile break (`md`, 48rem) the sidebar is an overlay (`SUI-FEATURE-110`).
-const OVERLAY_QUERY = "(max-width: 47.99rem)";
+const OVERLAY_QUERY = "(width < 48rem)";
 
 function subscribeOverlay(onChange: () => void): () => void {
   if (typeof window === "undefined" || typeof window.matchMedia !== "function") return () => {};
@@ -83,13 +83,40 @@ function SidebarProvider({ storageKey, children }: SidebarProviderProps) {
     setOverlayOpen(false);
   }, []);
 
-  // Once the overlay is gone from the screen, so the focus never lands in it.
+  // Once the overlay is gone from the screen, so the focus never lands in it. A navigation may then
+  // replace the page and its head, in this render or a later one (a transition, a lazy route): while
+  // the focus sits on the trigger it was given or on a fallback, or was lost with a removed trigger,
+  // the trigger shown now takes it. Once the person moves it elsewhere, the watch ends.
   React.useEffect(() => {
     if (overlayOpen || !returning.current) return;
     returning.current = false;
     const from = opener.current;
     opener.current = null;
-    if (from !== null && isOverlay) returnFocus(from);
+    if (from === null || !isOverlay) return;
+    const now = currentTrigger();
+    if (from.trigger.isConnected || now === null) returnFocus(from);
+    else now.focus();
+    let placed = document.activeElement;
+    const follow = () => {
+      const active = document.activeElement;
+      const lost = active === null || active === document.body || !active.isConnected;
+      if (!lost && active !== placed) {
+        observer.disconnect();
+        return;
+      }
+      const next = currentTrigger();
+      if (next !== null && next !== active) {
+        next.focus();
+        placed = next;
+      }
+    };
+    const observer = new MutationObserver(follow);
+    observer.observe(document.body, { childList: true, subtree: true });
+    const stop = setTimeout(() => observer.disconnect(), TRIGGER_WAIT_MS);
+    return () => {
+      observer.disconnect();
+      clearTimeout(stop);
+    };
   }, [overlayOpen, isOverlay]);
 
   const toggle = React.useCallback(() => {
@@ -160,12 +187,12 @@ function SidebarOverlayTrigger({ className }: { className?: string }) {
   const sidebar = useOptionalSidebar();
   if (sidebar === null) return null;
   return (
-    <Hint text={t("nav.toggleSidebar")}>
+    <Hint text={t("nav.openNavigation")}>
       <Button
         variant="ghost"
         size="icon"
         onClick={(event) => sidebar.openOverlay(event.currentTarget)}
-        aria-label={t("nav.toggleSidebar")}
+        aria-label={t("nav.openNavigation")}
         aria-expanded={sidebar.overlayOpen}
         aria-controls={SIDEBAR_ID}
         className={cn("shrink-0 md:hidden", className)}
@@ -179,6 +206,18 @@ function SidebarOverlayTrigger({ className }: { className?: string }) {
 
 // The sidebar's element id, named by the overlay trigger's `aria-controls`.
 const SIDEBAR_ID = "suite-app-sidebar";
+
+// How long a closed overlay waits for the trigger of a page that renders later.
+const TRIGGER_WAIT_MS = 5000;
+
+/** The overlay trigger shown now, e.g. in the head of the page a navigation led to. */
+function currentTrigger(): HTMLElement | null {
+  return (
+    [...document.querySelectorAll<HTMLElement>(`[aria-controls="${SIDEBAR_ID}"]`)].find(
+      (node) => typeof node.checkVisibility !== "function" || node.checkVisibility(),
+    ) ?? null
+  );
+}
 
 export {
   SIDEBAR_ID,

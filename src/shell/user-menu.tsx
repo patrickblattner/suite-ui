@@ -13,6 +13,7 @@ import * as React from "react";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
+import { useEscapeLayer } from "../lib/escape-layers.js";
 import { SUITE_LANGUAGES, type SuiteLanguage } from "../strings/types.js";
 import { Hint } from "../ui/hint.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select.js";
@@ -172,19 +173,20 @@ function UserMenu({
       }
       if (containerRef.current && !containerRef.current.contains(target)) setIsOpen(false);
     }
-    function onKey(event: KeyboardEvent): void {
-      if (event.key === "Escape") setIsOpen(false);
-    }
     document.addEventListener("pointerdown", onPointerDown, true);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown, true);
-      document.removeEventListener("keydown", onKey);
-    };
+    return () => document.removeEventListener("pointerdown", onPointerDown, true);
   }, [isOpen]);
+  // `Esc` closes the open menu first, and only the menu (`GL-UI-007`): a package escape layer, inside
+  // the sidebar overlay's.
+  const [container, setContainer] = React.useState<HTMLDivElement | null>(null);
+  useEscapeLayer(isOpen, close, container);
+  const attach = React.useCallback((node: HTMLDivElement | null) => {
+    containerRef.current = node;
+    setContainer(node);
+  }, []);
 
   return (
-    <div ref={containerRef} className="relative">
+    <div ref={attach} className="relative">
       <Hint text={t("account.menuHint")}>
         <button
           type="button"

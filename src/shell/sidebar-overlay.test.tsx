@@ -1,4 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import * as React from "react";
+import { Route, Routes } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PageHeader } from "../list/page-header.js";
@@ -6,6 +8,7 @@ import { EditPanel } from "../ui/edit-panel.js";
 import { AppSidebar } from "./app-sidebar.js";
 import { SidebarOverlayTrigger, useSidebar } from "./sidebar-provider.js";
 import { ShellHarness, TEST_NAV } from "./test-utils.js";
+import { UserMenu } from "./user-menu.js";
 
 // The viewport below `md`: the query of the sidebar overlay matches.
 function narrow(matches: boolean) {
@@ -201,5 +204,172 @@ describe("sidebar overlay below md (SUI-FEATURE-110)", () => {
     narrow(true);
     const { container } = render(<SidebarOverlayTrigger />);
     expect(container).toBeEmptyDOMElement();
+  });
+
+  // A matchMedia whose answer the test flips, firing its change listeners.
+  function switchable() {
+    const state = { narrow: true, listeners: new Set<() => void>() };
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((query: string) => ({
+        get matches() {
+          return state.narrow;
+        },
+        media: query,
+        addEventListener: (_: string, listener: () => void) => state.listeners.add(listener),
+        removeEventListener: (_: string, listener: () => void) => state.listeners.delete(listener),
+      })),
+    );
+    return (narrowNow: boolean) => {
+      state.narrow = narrowNow;
+      act(() => {
+        for (const listener of state.listeners) listener();
+      });
+    };
+  }
+
+  // Each route renders its own page and with it its own PageHeader and trigger; `/ideas` can be lazy.
+  function Routed({ lazyIdeas = false }: { lazyIdeas?: boolean }) {
+    const Ideas = lazyIdeas ? LazyIdeas : IdeasPage;
+    return (
+      <ShellHarness route="/dashboard">
+        <div className="flex">
+          <AppSidebar
+            instanceName="Test instance"
+            nav={TEST_NAV}
+            isAllowed={() => true}
+            userMenu={<div />}
+          />
+          <main>
+            <React.Suspense fallback={<p>Loading</p>}>
+              <Routes>
+                <Route path="/dashboard" element={<DashPage />} />
+                <Route path="/ideas" element={<Ideas />} />
+              </Routes>
+            </React.Suspense>
+            <input aria-label="Field" data-testid="field" />
+          </main>
+        </div>
+      </ShellHarness>
+    );
+  }
+  function DashPage() {
+    return (
+      <section>
+        <PageHeader title="Dashboard" subtitle="Overview" />
+      </section>
+    );
+  }
+  function IdeasPage() {
+    return (
+      <div>
+        <PageHeader title="Ideas" subtitle="All ideas" />
+      </div>
+    );
+  }
+  let loadIdeas: () => void = () => {};
+  const LazyIdeas = React.lazy(
+    () =>
+      new Promise<{ default: React.ComponentType }>((resolve) => {
+        loadIdeas = () => resolve({ default: IdeasPage });
+      }),
+  );
+
+  it("after a navigation to a page with its own head, the new trigger takes the focus", async () => {
+    narrow(true);
+    render(<Routed />);
+    const old = trigger();
+    openOverlay();
+    fireEvent.click(screen.getByTestId("nav-ideas"));
+    await waitFor(() => expect(screen.getByTestId("page-title")).toHaveTextContent("Ideas"));
+    expect(old.isConnected).toBe(false);
+    await waitFor(() => expect(trigger()).toHaveFocus());
+  });
+
+  it("on a lazy route the trigger takes the focus once it mounts", async () => {
+    narrow(true);
+    render(<Routed lazyIdeas />);
+    openOverlay();
+    const old = trigger();
+    fireEvent.click(screen.getByTestId("nav-ideas"));
+    // The navigation waits for the lazy page (a transition keeps the old one or shows the fallback).
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(document.activeElement).not.toBe(document.body);
+    await act(async () => {
+      loadIdeas();
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(screen.getByTestId("page-title")).toHaveTextContent("Ideas"));
+    expect(old.isConnected).toBe(false);
+    await waitFor(() => expect(trigger()).toHaveFocus());
+  });
+
+  it("a stale opener never steals the focus after widening, navigating and narrowing again", async () => {
+    const setNarrow = switchable();
+    render(<Routed />);
+    openOverlay();
+    setNarrow(false);
+    act(() => screen.getByTestId("field").focus());
+    fireEvent.click(screen.getByTestId("nav-ideas"));
+    act(() => screen.getByTestId("field").focus());
+    setNarrow(true);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(screen.getByTestId("field")).toHaveFocus();
+  });
+
+  it("a press on the entry of the current route closes it", async () => {
+    narrow(true);
+    render(<Shell />);
+    openOverlay();
+    fireEvent.click(screen.getByTestId("nav-dashboard"));
+    expect(sidebar()).toHaveAttribute("data-overlay", "closed");
+    await waitFor(() => expect(trigger()).toHaveFocus());
+  });
+
+  it("Esc in the open user menu closes only the menu, a second Esc the overlay", async () => {
+    narrow(true);
+    render(
+      <ShellHarness route="/dashboard">
+        <AppSidebar
+          instanceName="Test instance"
+          nav={TEST_NAV}
+          isAllowed={() => true}
+          userMenu={
+            <UserMenu
+              name="ada"
+              role="Admin"
+              language="en"
+              onLanguageChange={() => {}}
+              appearance="system"
+              onAppearanceChange={() => {}}
+              onProfile={() => {}}
+              onChangePassword={() => {}}
+              onSecurity={() => {}}
+              onLogOut={() => {}}
+            />
+          }
+        />
+        <main>
+          <PageHeader title="Dashboard" subtitle="Overview" />
+        </main>
+      </ShellHarness>,
+    );
+    openOverlay();
+    const menuTrigger = screen.getByTestId("user-menu-trigger");
+    act(() => menuTrigger.focus());
+    fireEvent.click(menuTrigger);
+    expect(menuTrigger).toHaveAttribute("aria-expanded", "true");
+    fireEvent.keyDown(menuTrigger, { key: "Escape" });
+    expect(menuTrigger).toHaveAttribute("aria-expanded", "false");
+    expect(sidebar()).toHaveAttribute("data-overlay", "open");
+    fireEvent.keyDown(menuTrigger, { key: "Escape" });
+    expect(sidebar()).toHaveAttribute("data-overlay", "closed");
+    await waitFor(() => expect(trigger()).toHaveFocus());
+  });
+
+  it("the trigger is named for opening the navigation", () => {
+    narrow(true);
+    render(<Shell />);
+    expect(trigger()).toHaveAccessibleName("Open navigation");
   });
 });
