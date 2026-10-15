@@ -1062,27 +1062,38 @@ test("tag input: suggestions by keyboard", async ({ page }) => {
   const list = page.getByTestId("tag-input-options");
   await input.click();
   await input.pressSequentially("t");
-  // Starts with "t" first ("team" is chosen already), then contains it.
-  await expect(list.getByRole("option")).toHaveText(["Stadt", "Sport", "Festival", "Kultur"]);
+  // Starts with "t" first ("team" is chosen already), then contains it; eight at most.
+  await expect(list.getByRole("option")).toHaveText([
+    "Theater",
+    "Tanz",
+    "Tourismus",
+    "Technik",
+    "Stadt",
+    "Sport",
+    "Festival",
+    "Kultur",
+  ]);
   await expect(input).toHaveAttribute("aria-expanded", "true");
   const top = await box(list);
   const below = await box(field);
   expect(top.y).toBeGreaterThanOrEqual(below.y + below.height);
-  await input.press("ArrowDown");
-  await expect(list.getByRole("option", { name: "Sport" })).toHaveAttribute(
-    "aria-selected",
-    "true",
-  );
+  // The eighth entry lies below the list's cap; the arrows scroll it into view.
+  for (let i = 0; i < 7; i++) await input.press("ArrowDown");
+  const last = list.getByRole("option", { name: "Kultur" });
+  await expect(last).toHaveAttribute("aria-selected", "true");
+  const shown = await box(list);
+  const entry = await box(last);
+  expect(entry.y + entry.height).toBeLessThanOrEqual(shown.y + shown.height + 0.5);
   await input.press("Enter");
-  await expect(chips).toHaveText(["summer", "team", "Sport"]);
+  await expect(chips).toHaveText(["summer", "team", "Kultur"]);
   await input.pressSequentially("mu");
   await page.keyboard.press("Escape");
   await expect(list).toBeHidden();
   await expect(input).toHaveValue("mu");
   await input.fill("");
-  await input.pressSequentially("KULTUR");
+  await input.pressSequentially("SPORT");
   await page.keyboard.press(",");
-  await expect(chips).toHaveText(["summer", "team", "Sport", "Kultur"]);
+  await expect(chips).toHaveText(["summer", "team", "Kultur", "Sport"]);
 });
 
 // `SUI-FEATURE-007` AC2: the × of a `RemovableChip` removes on Enter and on Space.

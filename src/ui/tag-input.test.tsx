@@ -305,6 +305,35 @@ describe("TagInput suggestions", () => {
     document.removeEventListener("keydown", outer, { capture: true });
   });
 
+  it("an Enter that ends an IME composition takes nothing over, the list stays open", () => {
+    render(<Suggesting />);
+    focusField();
+    type("sta");
+    fireEvent.keyDown(field(), { key: "Enter", isComposing: true });
+    fireEvent.keyDown(field(), { key: "Enter", keyCode: 229 });
+    expect(chips()).toEqual([]);
+    expect(options()).toEqual(["Stadt"]);
+  });
+
+  it("a suggestion listed twice in any letter case shows once", () => {
+    render(<Suggesting suggestions={["Stadt", "stadt", "STADT", "Stadion"]} />);
+    focusField();
+    type("sta");
+    expect(options()).toEqual(["Stadt", "Stadion"]);
+  });
+
+  it("the arrows keep the chosen entry in view", () => {
+    const scrolled: Element[] = [];
+    Element.prototype.scrollIntoView = function (this: Element) {
+      scrolled.push(this);
+    };
+    render(<Suggesting suggestions={Array.from({ length: 8 }, (_, i) => `Sta ${i}`)} />);
+    focusField();
+    type("sta");
+    for (let i = 0; i < 7; i++) fireEvent.keyDown(field(), { key: "ArrowDown" });
+    expect(scrolled.at(-1)).toHaveTextContent("Sta 7");
+  });
+
   it("a click on a suggestion takes it over", () => {
     render(<Suggesting />);
     focusField();

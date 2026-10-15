@@ -27,8 +27,14 @@ const MAX_SUGGESTIONS = 8;
 function matchSuggestions(suggestions: readonly string[], chosen: readonly string[], text: string) {
   const needle = text.trim().toLowerCase();
   if (needle === "") return [];
+  // Chosen tags are left out, and a suggestion listed twice in any letter case shows once.
   const taken = new Set(chosen.map((tag) => tag.toLowerCase()));
-  const open = suggestions.filter((tag) => !taken.has(tag.toLowerCase()));
+  const open = suggestions.filter((tag) => {
+    const key = tag.toLowerCase();
+    if (taken.has(key)) return false;
+    taken.add(key);
+    return true;
+  });
   const starts = open.filter((tag) => tag.toLowerCase().startsWith(needle));
   const contains = open.filter(
     (tag) => !tag.toLowerCase().startsWith(needle) && tag.toLowerCase().includes(needle),
@@ -130,6 +136,11 @@ function TagInput({
   // Places the open list; Esc closes the list only, not a surrounding dialog: radix listens on the
   // document in the capture phase, so this listener sits one step earlier, on the window.
   usePopupPlacement(open, root, popup, matches.length);
+  // The chosen entry stays in view while the arrows move through a list taller than its cap.
+  React.useEffect(() => {
+    if (open)
+      document.getElementById(`${listId}-${choice}`)?.scrollIntoView?.({ block: "nearest" });
+  }, [open, choice, listId]);
   React.useEffect(() => {
     if (!open) return;
     const onKeyDown = (event: KeyboardEvent) => {
@@ -254,7 +265,7 @@ function TagInput({
                 }}
                 onClick={() => commit(tag)}
                 className={cn(
-                  "cursor-pointer rounded-sm px-2 py-1.5 text-sm select-none data-active:bg-accent data-active:text-accent-foreground",
+                  "cursor-pointer rounded-sm px-2 py-1.5 text-sm wrap-anywhere select-none data-active:bg-accent data-active:text-accent-foreground",
                   keyboard && "data-active:focus-ring-inset",
                 )}
               >

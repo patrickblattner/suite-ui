@@ -481,7 +481,19 @@ const UPLOAD_RESULT: UploadItem[] = [
 ];
 
 // The existing tags the tag field suggests (`SUI-FEATURE-100`).
-const TAG_SUGGESTIONS = ["Stadt", "Land", "Sport", "Festival", "Kultur", "Musik", "Team"];
+const TAG_SUGGESTIONS = [
+  "Stadt",
+  "Land",
+  "Sport",
+  "Festival",
+  "Kultur",
+  "Musik",
+  "Team",
+  "Theater",
+  "Tanz",
+  "Tourismus",
+  "Technik",
+];
 
 // `SUI-FEATURE-051`: the upload step (choose, loading, result with an error) and the tag field;
 // `SUI-FEATURE-052`: the rejection message; `SUI-FEATURE-100`: the tag field's suggestions.
