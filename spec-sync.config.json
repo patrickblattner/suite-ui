@@ -28,7 +28,7 @@
       },
       {
         "name": "gallery",
-        "cmd": "npm run gallery"
+        "cmd": "npm run gallery:image"
       }
     ]
   },

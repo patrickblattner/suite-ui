@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.91.3 — SUI-FEATURE-076 rev 5 (#135): gallery phase in the pinned Playwright image
+
+Not breaking. Package API unchanged. No CI workflow: the package is built and checked by the local gate.
+
+- The local gate's `gallery` phase runs `npm run gallery:image`: the gallery screenshots from `gallery/gallery.spec.ts` inside the pinned Playwright image via `docker run` (`linux/amd64`). All gallery baselines are regenerated in that image; macOS baselines are gone.
+- The pinned image is written out once, in `scripts/playwright-image.ts`, and refused while it does not match the lockfile's `@playwright/test`.
+- Still scene: fixed browser clock, time zone `Europe/Zurich`, locale `en-US`, `animations: "disabled"`.
+- New screenshots of every gallery page and the shell at 390 and 1440 px, in de, light and dark.
+- `npm run gate:record` runs the merge gate and, on green with a clean tree, records it for HEAD's tree in `.spec-sync/gate-records/`. `npm run release:tag` is the only way to tag: it tags and pushes `v<version>` only with a green record for HEAD's tree.
+
 ## 0.91.2 — SUI-FEATURE-075 rev 2 (#134): Node 24 for development, CI and gate
 
 Not breaking for the package API. Development, build and gate switch from Node 22 to Node 24.

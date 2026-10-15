@@ -13,6 +13,9 @@ export default defineConfig({
     ...devices["Desktop Chrome"],
     baseURL: `http://localhost:${PORT}`,
     viewport: { width: 1920, height: 1080 },
+    // `GL-TEST-019`: a still scene — fixed time zone and locale; the clock is fixed in the spec.
+    timezoneId: "Europe/Zurich",
+    locale: "en-US",
   },
   // Headless Chromium hides scrollbars, yet `scrollbar-gutter: stable` still reserves their width, so
   // a sticky column there sees a reserved gutter without a bar. Tests tagged `@scrollbars` measure
@@ -26,7 +29,7 @@ export default defineConfig({
     },
   ],
   expect: {
-    toHaveScreenshot: { maxDiffPixels: 0 },
+    toHaveScreenshot: { maxDiffPixels: 0, animations: "disabled" },
   },
   webServer: {
     command: `vite --config gallery/vite.config.ts --port ${PORT} --strictPort`,

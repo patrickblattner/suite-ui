@@ -72,7 +72,7 @@ Questions about a design rule go to project `foundation`. Domain questions stay 
 
 - Architect: the Overmind (as for `spec-sync-toolkit`)
 - Build and releases: the `suite-ui` worker under the worker harness
-- Releases are semver tags from a green gate
+- Releases are semver tags from a green gate; `npm run release:tag` is the only way to tag and refuses a commit without a green `npm run gate:record` run on its content
 
 ## License
 
