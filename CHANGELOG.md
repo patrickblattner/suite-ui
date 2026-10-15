@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.100.0 — #153, SUI-FEATURE-077 rev 2: OperationStatusProvider as its own module
+
+Not breaking. New export path: `@suite/ui/operation-status/provider`.
+
+- `OperationStatusProvider`, `useOperationStatus`, their context and the types `OperationHandle`, `OperationStart`, `OperationStatusApi` and `OperationUpdate` live in their own module, which depends on no display building block. An app frame that imports the provider from the new path no longer carries the status slot, indicator and label in its entry bundle.
+- `@suite/ui/ui/operation-status` (and the `ui` barrel) passes on the provider, the hook and the types unchanged, beside `OperationStatusSlot`, `OperationIndicator` and `OperationLabel`, which read the operations from the new module.
+- Apps, optional: the app frame imports `OperationStatusProvider` from `@suite/ui/operation-status/provider`.
+- Package test: a Vite bundle of the provider path carries no slot, indicator or label code; one of the old path carries both.
+
 ## 0.99.0 — #152, GL-UI-070 rev 2 and SUI-FEATURE-079: reversible status changes are never red
 
 Not breaking. New: `ConfirmDialog` (`@suite/ui/ui/confirm-dialog`, also in the barrel) and the strings `suite:confirm.cancelHint` and `suite:confirm.cancelDisabledHint` (de/en/es). `ConfirmDeleteDialog` is unchanged.

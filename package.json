@@ -32,6 +32,10 @@
       "types": "./dist/shell/*.d.ts",
       "import": "./dist/shell/*.js"
     },
+    "./operation-status/provider": {
+      "types": "./dist/operation-status/provider.d.ts",
+      "import": "./dist/operation-status/provider.js"
+    },
     "./help/*": {
       "types": "./dist/help/*.d.ts",
       "import": "./dist/help/*.js"
