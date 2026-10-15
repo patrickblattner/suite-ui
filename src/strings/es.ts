@@ -211,6 +211,10 @@ export const es: SuiteStrings = {
     cancelDisabledHint: "Cerrar vuelve a ser posible en cuanto termine la eliminación.",
     confirmHint: "Borra definitivamente; no se puede deshacer.",
   },
+  confirm: {
+    cancelHint: "Cierra el diálogo sin cambiar nada.",
+    cancelDisabledHint: "Podrás cerrar de nuevo cuando la acción haya terminado.",
+  },
   leaveGuard: {
     title: "¿Guardar los cambios?",
     description: "Esta entrada tiene cambios que aún no se han guardado.",

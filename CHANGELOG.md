@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.99.0 — #152, GL-UI-070 rev 2 and SUI-FEATURE-079: reversible status changes are never red
+
+Not breaking. New: `ConfirmDialog` (`@suite/ui/ui/confirm-dialog`, also in the barrel) and the strings `suite:confirm.cancelHint` and `suite:confirm.cancelDisabledHint` (de/en/es). `ConfirmDeleteDialog` is unchanged.
+
+- `ConfirmDialog` is the confirm before a reversible status change (archive, deactivate, pause, hide). It is built like `ConfirmDeleteDialog`: compact, the primary action on the right, Cancel directly left of it, and the focus returning as `GL-UI-050` says. The primary action is always `default`, never `destructive`. `title`, `description`, `confirmLabel` and `confirmHint` are required and already translated; `confirmHint` names how to undo the action. `busy`, `confirmDisabled` with `confirmDisabledHint`, `children`, `returnFocus` and `data-testid` (with `-cancel` and `-confirm`) work as in `ConfirmDeleteDialog`. Cancel carries the new `confirm.*` hints.
+- Apps: a confirm before archiving, deactivating, pausing or hiding switches from `ConfirmDeleteDialog` (or its own dialog) to `ConfirmDialog`. A reversible entry of a row or ⋯ menu drops `destructive` and carries the icon of its action, never `Trash2Icon`. As a button it is `outline`. Where the undo is one step, its confirmation toast offers it as an action.
+- Audit: the package's red actions are all losses (delete, discard, Reset of unsaved changes, the leave guard's discard). The only reversible action in red was the gallery's Archive.
+- Gallery: on the preview page, Archive is a plain menu entry with `ArchiveIcon`. Its confirm is a `ConfirmDialog` whose hint names the undo, and its toast offers Undo. A red "Discard draft" entry keeps the demo of the destructive group after the separator. The strings page lists the new strings.
+
 ## 0.98.0 — #150, SUI-FEATURE-120 rev 3 and GL-UI-050 rev 5: a running button keeps the focus
 
 Changed for apps: `busy` no longer sets the `disabled` attribute. A running `Button` carries `aria-disabled="true"` and `aria-busy="true"` and stays focusable. App tests that check `disabled` (`toBeDisabled`) on a running button switch to `aria-disabled` plus the trigger guard. In Playwright, `toBeDisabled()` also counts `aria-disabled`, while `not.toHaveAttribute("disabled")` tells the two apart. New: `useFocusAfterRun` in `focus-return`.

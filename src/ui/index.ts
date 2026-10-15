@@ -8,6 +8,7 @@ export * from "./checkbox.js";
 export * from "./code.js";
 export * from "./color-dot-badge.js";
 export * from "./confirm-delete-dialog.js";
+export * from "./confirm-dialog.js";
 export * from "./crop-editor.js";
 export * from "./cropped-image.js";
 export * from "./dialog.js";

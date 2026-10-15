@@ -89,7 +89,7 @@ const PAGE_CONTENT: Record<Exclude<Page, "strings">, (theme: Theme) => ReactNode
   "edit-panel": () => <EditPanelPage />,
   help: () => <HelpPage />,
   toast: (theme) => <ToastPage theme={theme} />,
-  preview: () => <PreviewPage />,
+  preview: (theme) => <PreviewPage theme={theme} />,
   split: () => <SplitPage />,
 };
 
