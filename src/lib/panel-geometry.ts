@@ -8,15 +8,16 @@ const PANEL_SURFACE_CLASS =
 
 // Edges and width belong to the package (`GL-UI-027`): set inline after the caller's style, they win
 // over every width or inset class and style of the call site. The left edge sits at the current
-// sidebar width, so the navigation stays visible and operable.
+// sidebar width, so the navigation stays visible and operable; below `md`, where the sidebar is an
+// overlay, at 0 (`--sidebar-inset`, `SUI-FEATURE-110`).
 function usePanelGeometry(): React.CSSProperties {
   const sidebar = useOptionalSidebar();
   const left =
     sidebar === null
       ? 0
       : sidebar.isOpen
-        ? "var(--sidebar-width)"
-        : "var(--sidebar-width-collapsed)";
+        ? "calc(var(--sidebar-width) * var(--sidebar-inset))"
+        : "calc(var(--sidebar-width-collapsed) * var(--sidebar-inset))";
   return {
     top: 0,
     right: 0,

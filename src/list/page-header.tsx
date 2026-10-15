@@ -1,6 +1,8 @@
 import { PlusIcon, UploadIcon } from "lucide-react";
 import type * as React from "react";
 
+import { cn } from "../lib/cn.js";
+import { SidebarOverlayTrigger, useOptionalSidebar } from "../shell/sidebar-provider.js";
 import { Button } from "../ui/button.js";
 import { Hint } from "../ui/hint.js";
 import { OperationStatusSlot } from "../ui/operation-status.js";
@@ -92,7 +94,9 @@ function addActions(add: NonNullable<PageHeaderProps["add"]>) {
 // The title row of every page (`GL-UI-026`): an `h1` and a one-line subtitle on the left, the page's
 // action on the right of the same row — the `+ Add` (or a pair of adds) on a list page, the lifecycle next step on a
 // detail page, never two at once: `primaryAction`/`secondaryAction` before `action` before `add`. The
-// `mb-2` on top of the page column's `gap-4` gives the head its 24 px to the first content.
+// `mb-2` on top of the page column's `gap-4` gives the head its 24 px to the first content. Below `md`
+// inside a `SidebarProvider` the head starts with the trigger of the sidebar overlay
+// (`SUI-FEATURE-110`); the title block keeps to it while the actions stay right.
 function PageHeader({
   title,
   subtitle,
@@ -102,6 +106,8 @@ function PageHeader({
   secondaryAction,
   operationScope,
 }: PageHeaderProps) {
+  // Below `md` the title block keeps to the overlay trigger, the actions stay right.
+  const besideTrigger = useOptionalSidebar() !== null ? "max-md:mr-auto" : undefined;
   const actions =
     primaryAction !== undefined || secondaryAction !== undefined ? (
       <div className="flex shrink-0 items-center gap-2">
@@ -125,7 +131,13 @@ function PageHeader({
   if (operationScope !== undefined) {
     return (
       <div className="mb-2 flex items-start justify-between gap-4" data-testid="page-header">
-        <div className="grid min-w-min shrink-[100000] grid-cols-[minmax(auto,1fr)]">
+        <SidebarOverlayTrigger />
+        <div
+          className={cn(
+            "grid min-w-min shrink-[100000] grid-cols-[minmax(auto,1fr)]",
+            besideTrigger,
+          )}
+        >
           <h1
             className="justify-self-start text-xl font-semibold tracking-tight whitespace-nowrap"
             data-testid="page-title"
@@ -146,7 +158,8 @@ function PageHeader({
 
   return (
     <div className="mb-2 flex items-start justify-between gap-4" data-testid="page-header">
-      <div className="min-w-0">
+      <SidebarOverlayTrigger />
+      <div className={cn("min-w-0", besideTrigger)}>
         <h1 className="text-xl font-semibold tracking-tight" data-testid="page-title">
           {title}
         </h1>

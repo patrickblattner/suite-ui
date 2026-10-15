@@ -183,10 +183,10 @@ describe("MediaDetailShell", () => {
     );
     const edit = screen.getByTestId("edit-panel");
     expect(panel().getAttribute("style")).toBe(edit.getAttribute("style"));
-    expect(panel().style.left).toBe("var(--sidebar-width)");
+    expect(panel().style.left).toBe("calc(var(--sidebar-width) * var(--sidebar-inset))");
     expect(panel().className).toBe(edit.className);
     fireEvent.click(screen.getByTestId("toggle"));
-    expect(panel().style.left).toBe("var(--sidebar-width-collapsed)");
+    expect(panel().style.left).toBe("calc(var(--sidebar-width-collapsed) * var(--sidebar-inset))");
     expect(panel().getAttribute("style")).toBe(edit.getAttribute("style"));
   });
 

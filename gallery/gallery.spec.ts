@@ -2006,7 +2006,8 @@ const WIDTH_PAGES: (readonly [name: string, query: string, ready: (page: Page) =
   ["gallery", "", (page) => page.getByTestId("gallery-language")],
   ["tokens", "page=tokens&", (page) => page.getByTestId("token-warn-text")],
   ...PAGES.map(([name, ready]) => [name, `page=${name}&`, ready] as const),
-  ["shell", "page=shell&route=/dashboard&", (page) => page.getByTestId("app-sidebar")],
+  // Below `md` the sidebar is a closed overlay (`SUI-FEATURE-110`), so the frame tells it has rendered.
+  ["shell", "page=shell&route=/dashboard&", (page) => page.getByTestId("page-title")],
 ];
 
 for (const [width, height] of WIDTHS) {
@@ -2022,6 +2023,71 @@ for (const [width, height] of WIDTHS) {
     }
   }
 }
+
+// `SUI-FEATURE-110` AC1: at 390 × 844 the sidebar is an overlay, so a panel takes the full width.
+for (const [name, trigger, panel] of [
+  ["EditPanel", "media-panel-trigger", "media-panel"],
+  ["MediaDetailShell", "media-detail-trigger", "media-detail"],
+] as const) {
+  test(`sidebar overlay: at 390 px the ${name} spans the viewport`, async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/?page=edit-panel&lng=en");
+    await expect(page.getByTestId("app-sidebar")).toBeHidden();
+    await page.getByTestId(trigger).click();
+    const surface = await box(page.getByTestId(panel));
+    expect(surface.x).toBe(0);
+    expect(surface.x + surface.width).toBe(390);
+  });
+}
+
+// `SUI-FEATURE-110` AC2: the trigger at the start of the page head opens the sidebar over the content;
+// Esc, a click beside it and a navigation close it, and the focus returns to the trigger.
+test("sidebar overlay: opened from the page head, closed by Esc, a click beside it and a navigation", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/?page=shell&route=/dashboard&lng=en");
+  const sidebar = page.getByTestId("app-sidebar");
+  const trigger = page.getByTestId("sidebar-overlay-trigger");
+  const open = async () => {
+    await trigger.focus();
+    await page.keyboard.press("Enter");
+    await expect(sidebar).toBeVisible();
+    expect((await box(sidebar)).x).toBe(0);
+    await expect(trigger).toHaveAttribute("aria-expanded", "true");
+  };
+  await expect(sidebar).toBeHidden();
+  // The content does not move aside: the page head starts at the left gutter.
+  const head = await box(page.getByTestId("page-header"));
+  expect(head.x).toBeLessThan(40);
+
+  await open();
+  await page.keyboard.press("Escape");
+  await expect(sidebar).toBeHidden();
+  await expect(trigger).toBeFocused();
+
+  await open();
+  await page.mouse.click(370, 600);
+  await expect(sidebar).toBeHidden();
+  await expect(trigger).toBeFocused();
+
+  await open();
+  await sidebar.getByTestId("nav-ideas").click();
+  await expect(sidebar).toBeHidden();
+  await expect(page.getByTestId("page-title")).toHaveText(/Ide/);
+  await expect(trigger).toBeFocused();
+});
+
+// `SUI-FEATURE-110` AC3: at 1440 px the sidebar stands beside the content and the trigger is hidden.
+test("sidebar overlay: at 1440 px the sidebar stands beside the content, no trigger", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/?page=shell&route=/dashboard&lng=en");
+  await expect(page.getByTestId("app-sidebar")).toBeVisible();
+  await expect(page.getByTestId("sidebar-overlay-trigger")).toBeHidden();
+  expect((await box(page.getByTestId("page-header"))).x).toBeGreaterThan(200);
+});
 
 // AC6 of the shell: every visible text is a `suite` text or one of the app's labels and data.
 for (const lng of LANGUAGES) {

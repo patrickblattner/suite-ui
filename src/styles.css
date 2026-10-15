@@ -25,6 +25,9 @@
   --page-header-height: 3.75rem;
   --sidebar-width: 14rem;
   --sidebar-width-collapsed: 3.5rem;
+  /* How much of the sidebar width a panel or maximized preview leaves free on its left: all of it
+     beside the sidebar, none below `md`, where the sidebar is an overlay (`SUI-FEATURE-110`). */
+  --sidebar-inset: 1;
   /* The tight gap that keeps the pager's chevrons and "Page X / Y" one compact cluster. */
   --pager-gap: 0.25rem;
 
@@ -140,6 +143,12 @@
   --marker-magenta-foreground: oklch(0.21 0.006 285.9);
   --marker-yellow: oklch(0.93 0.11 100);
   --marker-yellow-foreground: oklch(0.21 0.006 285.9);
+}
+
+@media (width < 48rem) {
+  :root {
+    --sidebar-inset: 0;
+  }
 }
 
 /* Dark is the deliberately high-contrast palette. */
