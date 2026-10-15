@@ -594,7 +594,7 @@ function Fields() {
 function FieldErrors() {
   return (
     <Section id="field-error" title="FieldError · SettingsField error">
-      <div className="grid grid-cols-3 gap-4" data-testid="field-errors">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3" data-testid="field-errors">
         <SettingsField label="Input" htmlFor="error-input" help="Help" error="Enter a name.">
           <Input id="error-input" defaultValue="" />
         </SettingsField>

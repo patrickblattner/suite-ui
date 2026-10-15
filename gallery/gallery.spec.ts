@@ -4880,7 +4880,10 @@ test("GL-UI-060: error messages lead with a symbol, the empty state has none", a
   for (const error of await errors.all()) {
     expect(await symbolOf(error)).toBe("lucide-circle-x");
     const id = (await error.getAttribute("id")) ?? "";
-    await expect(page.locator(`[aria-errormessage="${id}"][aria-invalid=true]`)).toHaveCount(1);
+    // The control, and with a group the group and each of its options.
+    await expect(
+      page.locator(`[aria-errormessage="${id}"][aria-invalid=true]`).first(),
+    ).toBeAttached();
   }
 
   await page.goto("/?page=settings&layout=body&state=error&lng=en");
@@ -4909,5 +4912,30 @@ test("GL-UI-060: the preview page's state chip carries its tone's symbol", async
     const symbol = await symbolOf(chip);
     if (variant === "secondary") expect(symbol).toBe("none");
     else expect(symbol).not.toBe("none");
+  }
+});
+
+// `GL-UI-060`: at 390 px the error symbol of the tiles demo stays inside its frame, in every language.
+for (const lng of LANGUAGES) {
+  test(`GL-UI-060: the tiles error symbol is visible at 390 px (${lng})`, async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`/?page=tiles&lng=${lng}`);
+    const frame = await box(page.getByTestId("tiles-error"));
+    const symbol = await box(page.getByTestId("tiles-error-error").locator("svg").first());
+    expect(symbol.x).toBeGreaterThanOrEqual(frame.x);
+    expect(symbol.x + symbol.width).toBeLessThanOrEqual(frame.x + frame.width);
+  });
+}
+
+// `SUI-FEATURE-078`: below md the invalid fields stand in one column, none overlaps the next.
+test("GL-UI-060: the FieldError demo does not overlap at 390 px", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/?page=components&lng=en");
+  const fields = page.getByTestId("field-errors").locator("[data-slot=settings-field]");
+  const boxes = await Promise.all((await fields.all()).map((field) => box(field)));
+  expect(boxes).toHaveLength(6);
+  for (const [index, current] of boxes.entries()) {
+    const next = boxes[index + 1];
+    if (next !== undefined) expect(next.y).toBeGreaterThanOrEqual(current.y + current.height);
   }
 });

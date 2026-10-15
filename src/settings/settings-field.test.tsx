@@ -1,7 +1,11 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { useState } from "react";
 import { describe, expect, it } from "vitest";
 
+import { Checkbox } from "../ui/checkbox.js";
+import { Input } from "../ui/input.js";
 import { RadioGroup, RadioGroupItem } from "../ui/radio-group.js";
+import { TimezoneCombobox } from "../ui/timezone-combobox.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select.js";
 import { SettingsField } from "./settings-field.js";
 import { SettingsSection } from "./settings-section.js";
@@ -63,7 +67,7 @@ describe("SettingsField", () => {
   it("shows the error with its symbol in place of the help text and marks the input", () => {
     const { rerender } = render(
       <SettingsField label="Port" htmlFor="port" help="1 to 65535." error="Enter a whole number.">
-        <input id="port" />
+        <Input id="port" />
       </SettingsField>,
     );
     const input = screen.getByRole("textbox", { name: "Port" });
@@ -79,7 +83,7 @@ describe("SettingsField", () => {
 
     rerender(
       <SettingsField label="Port" htmlFor="port" help="1 to 65535.">
-        <input id="port" />
+        <Input id="port" />
       </SettingsField>,
     );
     expect(screen.queryByRole("alert")).toBeNull();
@@ -106,17 +110,101 @@ describe("SettingsField", () => {
     expect(trigger).toHaveAttribute("aria-errormessage", "mode-error");
   });
 
-  it("with group marks the group", () => {
+  it("with group marks the group and every option, so each carries the red border", () => {
     render(
-      <SettingsField label="Mode" htmlFor="mode" group error="Choose a mode.">
-        <RadioGroup>
-          <RadioGroupItem value="a" aria-label="A" />
-        </RadioGroup>
-      </SettingsField>,
+      <>
+        <SettingsField label="Mode" htmlFor="mode" group error="Choose a mode.">
+          <RadioGroup aria-label="Modes">
+            <RadioGroupItem value="a" aria-label="A" />
+          </RadioGroup>
+        </SettingsField>
+        <SettingsField label="Terms" htmlFor="terms" group error="Accept the terms.">
+          <Checkbox aria-label="Accept" />
+        </SettingsField>
+      </>,
     );
     const group = screen.getByRole("group", { name: "Mode" });
     expect(group).toHaveAttribute("aria-invalid", "true");
     expect(group).toHaveAttribute("aria-errormessage", "mode-error");
+    for (const control of [
+      screen.getByRole("radiogroup", { name: "Modes" }),
+      screen.getByRole("radio", { name: "A" }),
+    ]) {
+      expect(control).toHaveAttribute("aria-invalid", "true");
+      expect(control).toHaveAttribute("aria-errormessage", "mode-error");
+    }
+    const radio = screen.getByRole("radio", { name: "A" });
+    const checkbox = screen.getByRole("checkbox", { name: "Accept" });
+    expect(radio).toHaveClass("aria-invalid:border-destructive");
+    expect(checkbox).toHaveClass("aria-invalid:border-destructive");
+    expect(checkbox).toHaveAttribute("aria-invalid", "true");
+    expect(checkbox).toHaveAttribute("aria-errormessage", "terms-error");
+  });
+
+  it("marks a control that remounts while the error stands", () => {
+    function Remounting() {
+      const [round, setRound] = useState(0);
+      return (
+        <>
+          <button type="button" onClick={() => setRound((n) => n + 1)}>
+            Remount
+          </button>
+          <Input key={round} id="port" data-testid={`port-${round}`} />
+        </>
+      );
+    }
+    render(
+      <SettingsField label="Port" htmlFor="port" error="Enter a whole number.">
+        <Remounting />
+      </SettingsField>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Remount" }));
+    const input = screen.getByTestId("port-1");
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(input).toHaveAttribute("aria-errormessage", "port-error");
+  });
+
+  it("an empty error is no error", () => {
+    render(
+      <SettingsField label="Port" htmlFor="port" help="1 to 65535." error="">
+        <Input id="port" />
+      </SettingsField>,
+    );
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(screen.getByText("1 to 65535.")).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Port" })).not.toHaveAttribute("aria-invalid");
+  });
+
+  it("keeps the time zone field's own invalid state and error id, during and after the field error", () => {
+    const view = (error?: string) => (
+      <SettingsField label="Zone" htmlFor="zone" error={error}>
+        <TimezoneCombobox
+          id="zone"
+          value=""
+          onValueChange={() => undefined}
+          invalid
+          aria-errormessage="zone-own"
+        />
+      </SettingsField>
+    );
+    const { rerender } = render(view("Choose a time zone."));
+    const field = screen.getByRole("combobox", { name: "Zone" });
+    expect(field).toHaveAttribute("aria-invalid", "true");
+    expect(field).toHaveAttribute("aria-errormessage", "zone-own");
+    rerender(view());
+    expect(field).toHaveAttribute("aria-invalid", "true");
+    expect(field).toHaveAttribute("aria-errormessage", "zone-own");
+  });
+
+  it("marks the time zone field from the field error alone", () => {
+    render(
+      <SettingsField label="Zone" htmlFor="zone" error="Choose a time zone.">
+        <TimezoneCombobox id="zone" value="" onValueChange={() => undefined} />
+      </SettingsField>,
+    );
+    const field = screen.getByRole("combobox", { name: "Zone" });
+    expect(field).toHaveAttribute("aria-invalid", "true");
+    expect(field).toHaveAttribute("aria-errormessage", "zone-error");
   });
 
   it("sets the RadioGroup's options 8 px apart outside a field too", () => {

@@ -171,7 +171,7 @@ export function TilesPage() {
           ))}
         </TileGridShell>
       </section>
-      <div className="grid grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
         {STATES.map(([name, state]) => (
           <section key={name} className="flex h-64 flex-col gap-2" data-testid={`tiles-${name}`}>
             <h3 className="text-sm text-muted-foreground">{name}</h3>

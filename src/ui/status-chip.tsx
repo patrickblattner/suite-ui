@@ -75,8 +75,8 @@ function statusChipVariant(state: StatusChipState, emphasis: "soft" | "filled"):
 }
 
 // A state as a badge: a catalog state brings its tone and its text from the package; a domain state
-// brings the app's tone and label. The tone's symbol stands before the text. `detail` only adds context after the text (e.g. "Succeeded ·
-// ‹date›"). Children passed around the type are dropped.
+// brings the app's tone and label. The tone's symbol stands before the text. `detail` only adds
+// context after the text (e.g. "Succeeded · ‹date›"). Children passed around the type are dropped.
 function StatusChip({ state, tone, label, emphasis = "soft", detail, ...props }: StatusChipProps) {
   const { t } = useTranslation("suite");
   delete (props as { children?: unknown }).children;

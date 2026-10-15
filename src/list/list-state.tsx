@@ -63,8 +63,8 @@ function ListStateContent({
   if (state === "error") {
     // The error symbol before the text, so error and empty differ without their colour (`GL-UI-060`).
     const message = (
-      <span className="inline-flex items-center gap-2" data-slot="list-error">
-        <CircleXIcon aria-hidden="true" className="size-4 shrink-0" />
+      <span className="inline-flex items-start gap-2" data-slot="list-error">
+        <CircleXIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
         <span>{error}</span>
       </span>
     );

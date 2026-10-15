@@ -1,5 +1,5 @@
 import { CircleXIcon } from "lucide-react";
-import type * as React from "react";
+import * as React from "react";
 
 import { cn } from "../lib/cn.js";
 
@@ -26,4 +26,16 @@ function FieldError({ id, className, children, ...props }: FieldErrorProps) {
   );
 }
 
-export { FieldError, type FieldErrorProps };
+// The error of the surrounding field (`SettingsField error`): the id of its `FieldError`, or null.
+const FieldErrorContext = React.createContext<string | null>(null);
+
+// What a package control inside an invalid field carries: `aria-invalid` (and with it the red border)
+// and `aria-errormessage` on the field's error. Spread before the control's own props, so an explicit
+// value at the call site wins. Read on every render, so a control that mounts late or remounts while
+// the error stands is marked too.
+function useFieldErrorAttributes(): { "aria-invalid"?: true; "aria-errormessage"?: string } {
+  const errorId = React.useContext(FieldErrorContext);
+  return errorId === null ? {} : { "aria-invalid": true, "aria-errormessage": errorId };
+}
+
+export { FieldError, FieldErrorContext, type FieldErrorProps, useFieldErrorAttributes };
