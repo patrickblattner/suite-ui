@@ -45,6 +45,9 @@ type ConfirmDeleteDialogProps = {
   confirmDisabledHint?: string;
   // Extra content between header and footer, such as a list the person must have seen.
   children?: React.ReactNode;
+  // Where the focus goes on close when the dialog was not opened from a list entry, e.g. the button
+  // that opened it; `null` or a detached element leaves it to the dialog.
+  returnFocus?: () => HTMLElement | null;
   "data-testid"?: string;
 };
 
@@ -64,6 +67,7 @@ function ConfirmDeleteDialog({
   confirmDisabled = false,
   confirmDisabledHint,
   children,
+  returnFocus,
   "data-testid": testId,
 }: ConfirmDeleteDialogProps) {
   const { t } = useTranslation("suite");
@@ -91,7 +95,14 @@ function ConfirmDeleteDialog({
         onCloseAutoFocus={(event) => {
           const from = opener.current;
           opener.current = null;
-          if (from === null) return;
+          if (from === null) {
+            const target = returnFocus?.();
+            if (target?.isConnected) {
+              event.preventDefault();
+              target.focus();
+            }
+            return;
+          }
           if (from.entry.isConnected) {
             event.preventDefault();
             from.entry.focus();

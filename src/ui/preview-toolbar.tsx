@@ -132,7 +132,7 @@ function PreviewToolbar({
   onClose,
   children,
 }: PreviewToolbarProps) {
-  const { t } = useTranslation("suite");
+  const { t, i18n } = useTranslation("suite");
   // The maximized view is an `Esc` layer above the open preview: the first `Esc` leaves it, the next
   // closes the preview (`GL-UI-007`: innermost `Esc` first).
   const [root, setRoot] = React.useState<HTMLDivElement | null>(null);
@@ -141,7 +141,11 @@ function PreviewToolbar({
   // Wrapping is left out when Close would stand alone in the first line.
   const companion = maximize !== undefined || actions !== undefined;
   const maxShrink: Shrink = companion || device !== undefined ? 3 : 2;
-  const { attach, steps } = useFoldSteps(maxShrink);
+  // A new language or status text folds the toolbar afresh, so shorter texts unfold it again.
+  const { attach, steps } = useFoldSteps(
+    maxShrink,
+    [i18n.language, status ?? "", language?.value ?? ""].join("\u0000"),
+  );
   const shrink = steps as Shrink;
   const setToolbar = React.useCallback(
     (node: HTMLDivElement | null) => {

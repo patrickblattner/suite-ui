@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.92.1 — #144: EditorHeader and PreviewToolbar fold follow-ups
+
+Not breaking.
+
+- `useFoldSteps` takes what the bar shows (language, texts) as a second argument. When it changes, the widths remembered for the old texts are dropped and the bar folds afresh before the paint. A shorter text unfolds again without a resize: after Save ("Saved" is shorter than "Draft · unsaved"), or after switching to a language with shorter labels.
+- `useFoldSteps` stops watching the parts a fold step swaps out.
+- The Reset confirm hands the focus back to Reset while it is usable, else to the ⋯ that Reset was folded into, else to Back; never to the page's body. `ConfirmDeleteDialog` takes `returnFocus` for this.
+- Not changed: the state dot's look and the ⋯ menu's grouping and label alignment wait for open owner decisions.
+
 ## 0.92.0 — SUI-FEATURE-090 rev 4 (#141): EditorHeader at narrow width
 
 Breaking for apps that pass `lifecycle.preview` or `lifecycle.menu` (see the migration note). Without a lifecycle, and at any width where everything fits, the header looks as before.

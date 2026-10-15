@@ -377,11 +377,14 @@ describe("EditorHeader at narrow width", () => {
     "editor-save": 100,
   };
   let available = 2000;
+  // The state text's width: fixed by default, by its length where a test needs texts to differ.
+  let stateWidth: (text: string) => number = () => 100;
   const isHeader = (el: Element) => el.getAttribute("data-slot") === "editor-header";
   const natural = (header: Element) =>
     [...header.querySelectorAll("[data-testid]")].reduce((sum, el) => {
       const id = el.getAttribute("data-testid") ?? "";
-      if (id === "editor-state") return sum + (el.hasAttribute("data-compact") ? 24 : 100);
+      if (id === "editor-state")
+        return sum + (el.hasAttribute("data-compact") ? 24 : stateWidth(el.textContent ?? ""));
       // Icon-only (steps 5 to 7).
       const size = el.getAttribute("data-size");
       if (size === "icon-sm" && id === "editor-back") return sum + 32;
@@ -390,7 +393,12 @@ describe("EditorHeader at narrow width", () => {
     }, 60);
 
   // jsdom has no ResizeObserver: a stand-in that records what it watches and is fired by hand.
-  let observers: { callback: ResizeObserverCallback; targets: Element[]; disconnected: boolean }[];
+  let observers: {
+    callback: ResizeObserverCallback;
+    targets: Element[];
+    released: Element[];
+    disconnected: boolean;
+  }[];
   const resize = () =>
     act(() => {
       for (const observer of observers)
@@ -399,19 +407,22 @@ describe("EditorHeader at narrow width", () => {
 
   beforeEach(() => {
     available = 2000;
+    stateWidth = () => 100;
     observers = [];
     vi.stubGlobal(
       "ResizeObserver",
       class {
         entry: (typeof observers)[number];
         constructor(callback: ResizeObserverCallback) {
-          this.entry = { callback, targets: [], disconnected: false };
+          this.entry = { callback, targets: [], released: [], disconnected: false };
           observers.push(this.entry);
         }
         observe(target: Element) {
           this.entry.targets.push(target);
         }
-        unobserve() {}
+        unobserve(target: Element) {
+          this.entry.released.push(target);
+        }
         disconnect() {
           this.entry.disconnected = true;
         }
@@ -577,6 +588,75 @@ describe("EditorHeader at narrow width", () => {
     const next = screen.getByTestId("editor-next");
     expect(next).toHaveAccessibleName("Publish");
     expect(next.parentElement).toHaveAccessibleDescription("Save first");
+  });
+
+  // #144: the widths remembered for the draft's longer state text do not keep the header folded.
+  it("after Save the shorter state text unfolds the step again, without a resize", () => {
+    stateWidth = (text) => text.length * 8;
+    // Undo/Redo fit with "Saved" (40 px), not with "Draft · unsaved" (120 px).
+    available = 540;
+    const header = (dirty: boolean) => (
+      <EditorHeader
+        title="Spring newsletter"
+        onBack={vi.fn()}
+        canUndo
+        canRedo
+        onUndo={vi.fn()}
+        onRedo={vi.fn()}
+        dirty={dirty}
+        saving={false}
+        onSave={vi.fn()}
+        onReset={vi.fn()}
+      />
+    );
+    const { rerender } = render(header(true));
+    const bar = document.querySelector("[data-slot=editor-header]");
+    expect(bar).not.toHaveAttribute("data-shrink", "0");
+    rerender(header(false));
+    expect(bar).toHaveAttribute("data-shrink", "0");
+    rerender(header(true));
+    expect(bar).not.toHaveAttribute("data-shrink", "0");
+  });
+
+  it("a language with shorter texts unfolds again, without a resize", async () => {
+    stateWidth = (text) => text.length * 8;
+    available = 500;
+    await act(() => i18n.changeLanguage("de"));
+    renderHeader();
+    const bar = document.querySelector("[data-slot=editor-header]");
+    // "Gespeichert" (88 px) does not fit beside Undo/Redo here; "Saved" (40 px) does.
+    expect(bar).not.toHaveAttribute("data-shrink", "0");
+    await act(() => i18n.changeLanguage("en"));
+    expect(bar).toHaveAttribute("data-shrink", "0");
+  });
+
+  it("lets go of the parts a fold step swaps out", async () => {
+    available = 2000;
+    renderHeader();
+    const back = screen.getByTestId("editor-back");
+    available = 250;
+    resize();
+    await waitFor(() => expect(screen.getByTestId("editor-back")).not.toBe(back));
+    await waitFor(() => expect(observers.flatMap((observer) => observer.released)).toContain(back));
+  });
+
+  it("Cancel on the Reset confirm returns the focus to Reset", async () => {
+    renderHeader({ dirty: true });
+    const reset = screen.getByTestId("editor-reset");
+    reset.focus();
+    fireEvent.click(reset);
+    fireEvent.click(await screen.findByTestId("editor-reset-confirm-cancel"));
+    await waitFor(() => expect(reset).toHaveFocus());
+  });
+
+  it("folded, Cancel on the Reset confirm returns the focus to the ⋯", async () => {
+    available = 300;
+    renderHeader({ dirty: true });
+    const reset = within(openMenu()).getByRole("menuitem", { name: "Reset" });
+    reset.focus();
+    fireEvent.keyDown(reset, { key: "Enter" });
+    fireEvent.click(await screen.findByTestId("editor-reset-confirm-cancel"));
+    await waitFor(() => expect(screen.getByTestId("editor-menu")).toHaveFocus());
   });
 
   it("a folded entry keeps its icon and is chosen by keyboard", async () => {

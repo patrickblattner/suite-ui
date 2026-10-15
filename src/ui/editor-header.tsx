@@ -91,7 +91,7 @@ function EditorHeader({
   onReset,
   lifecycle,
 }: EditorHeaderProps) {
-  const { t } = useTranslation("suite");
+  const { t, i18n } = useTranslation("suite");
   const [confirming, setConfirming] = React.useState(false);
   useEditShortcuts({
     onUndo: canUndo ? onUndo : undefined,
@@ -106,11 +106,6 @@ function EditorHeader({
     ...(lifecycle?.next?.icon !== undefined ? ["next" as const] : []),
     "save",
   ];
-  const { attach, steps: shrink } = useFoldSteps(folds.length);
-  const folded = (step: Fold) => {
-    const index = folds.indexOf(step);
-    return index !== -1 && index < shrink;
-  };
   // The title's floor: its first 6 characters and the ellipsis, sized by an invisible copy in the
   // title's own font. A title given as nodes is read back from the rendered text.
   const titleBox = React.useRef<HTMLDivElement>(null);
@@ -124,6 +119,28 @@ function EditorHeader({
   const titleText = typeof title === "string" ? title : renderedTitle;
   const titleFloor = titleText.length > 6 ? `${titleText.slice(0, 6)}…` : titleText;
   const stateText = t(dirty ? "editor.draft" : "editor.saved");
+  // What the header shows: a new language, state text, title or lifecycle label folds it afresh, so
+  // a shorter text (after Save, or in another language) unfolds again without a resize.
+  const content = [
+    i18n.language,
+    stateText,
+    titleText,
+    lifecycle?.preview?.label,
+    lifecycle?.next?.label,
+  ].join("\u0000");
+  const { attach, steps: shrink } = useFoldSteps(folds.length, content);
+  const header = React.useRef<HTMLElement | null>(null);
+  const setHeader = React.useCallback(
+    (node: HTMLElement | null) => {
+      header.current = node;
+      attach(node);
+    },
+    [attach],
+  );
+  const folded = (step: Fold) => {
+    const index = folds.indexOf(step);
+    return index !== -1 && index < shrink;
+  };
 
   const items: RowMenuItem[] = [];
   if (folded("undo")) {
@@ -179,7 +196,7 @@ function EditorHeader({
 
   return (
     <header
-      ref={attach}
+      ref={setHeader}
       data-slot="editor-header"
       data-shrink={shrink}
       className="flex min-w-0 shrink-0 items-center gap-3 border-b bg-background px-[var(--page-gutter)] py-3"
@@ -351,6 +368,19 @@ function EditorHeader({
         description={t("editor.resetConfirm")}
         confirmLabel={t("actions.reset")}
         confirmHint={t("settings.resetHint")}
+        // Back to Reset while it is usable, else to the ⋯ it was folded into, else to Back: never to
+        // the page's body.
+        returnFocus={() => {
+          const reset = header.current?.querySelector<HTMLButtonElement>(
+            "[data-testid=editor-reset]",
+          );
+          if (reset && !reset.disabled) return reset;
+          return (
+            header.current?.querySelector<HTMLElement>("[data-testid=editor-menu]") ??
+            header.current?.querySelector<HTMLElement>("[data-testid=editor-back]") ??
+            null
+          );
+        }}
         data-testid="editor-reset-confirm"
       />
     </header>
