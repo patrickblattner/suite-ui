@@ -53,11 +53,11 @@ type LeaveConfirmDialogProps = {
 };
 
 // The compact "Save changes?" dialog (`GL-UI-007`): Cancel, Discard and Save as the primary action on
-// the right. It opens with the focus on Save, so `Enter` saves; `Esc` is Cancel.
+// the right. It opens with the focus on Save, so `Enter` saves; `Esc` is Cancel. When the surface stays,
+// the focus returns as every dialog's does (`GL-UI-050`), unless the call site already focused a field
+// (the error of a failed save).
 function LeaveConfirmDialog({ open, onCancel, onDiscard, onSave }: LeaveConfirmDialogProps) {
   const { t } = useTranslation("suite");
-  // What had the focus when the dialog opened; it gets it back when the surface stays.
-  const opener = React.useRef<HTMLElement | null>(null);
   const save = React.useRef<HTMLButtonElement>(null);
   // The opening focus on Save shows its ring even when a pointer opened the dialog, where the browser
   // would not match `:focus-visible` for a focus set by script; it ends with the first blur.
@@ -73,19 +73,9 @@ function LeaveConfirmDialog({ open, onCancel, onDiscard, onSave }: LeaveConfirmD
         showCloseButton={false}
         data-testid="leave-guard"
         onOpenAutoFocus={(event) => {
-          opener.current =
-            document.activeElement instanceof HTMLElement ? document.activeElement : null;
           event.preventDefault();
           save.current?.focus();
           setOpeningFocus(true);
-        }}
-        onCloseAutoFocus={(event) => {
-          event.preventDefault();
-          const from = opener.current;
-          opener.current = null;
-          // A call site that already focused a field (the error of a failed save) keeps it.
-          const lost = document.activeElement === null || document.activeElement === document.body;
-          if (lost && from?.isConnected === true) from.focus({ preventScroll: true });
         }}
         onKeyDown={(event) => {
           if (event.key !== "Enter" || event.repeat) return;

@@ -272,6 +272,8 @@ function PreviewToolbar({
           size="icon-sm"
           className={cn(rightStart === "close" && "ml-auto")}
           onClick={onClose}
+          // Closes the preview: never where the focus lands after a dialog (`GL-UI-050`).
+          data-focus-nav=""
           data-testid="preview-close"
         >
           <XIcon aria-hidden="true" />
@@ -284,6 +286,7 @@ function PreviewToolbar({
       ref={setToolbar}
       role="group"
       aria-label={t("preview.label")}
+      data-focus-group=""
       // One line never shrinks its parts: an overflow shows as one and folds the next step.
       className={wrapped ? "flex flex-col gap-2" : "flex items-center gap-2 [&>*]:shrink-0"}
       data-shrink={shrink}

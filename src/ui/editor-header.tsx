@@ -6,6 +6,7 @@ import { type RowMenuItem, RowActionMenu } from "../list/row-actions.js";
 import { cn } from "../lib/cn.js";
 import { Button } from "./button.js";
 import { ConfirmDeleteDialog } from "./confirm-delete-dialog.js";
+import { fallbackTarget } from "./focus-return.js";
 import { Hint } from "./hint.js";
 import { type LeaveSave, useLeaveGuard } from "./leave-guard.js";
 import {
@@ -72,26 +73,9 @@ const TITLE_FLOOR = 6;
 
 // `GL-UI-050`: where the focus goes when `from` is locked or gone — the next usable control of the
 // header's action group after it in reading order, else the nearest before it; Back never. Without
-// one, the editor's main content: the nearest `main`, focusable without a Tab stop.
+// one, the editor's main content.
 function nextFocusTarget(header: HTMLElement, from: Element | null): HTMLElement | null {
-  const usable = [
-    ...header.querySelectorAll<HTMLButtonElement>("[data-slot=editor-actions] button"),
-  ].filter((control) => !control.disabled);
-  if (from?.isConnected) {
-    const after = usable.find(
-      (control) => from.compareDocumentPosition(control) & Node.DOCUMENT_POSITION_FOLLOWING,
-    );
-    const before = usable.filter(
-      (control) => from.compareDocumentPosition(control) & Node.DOCUMENT_POSITION_PRECEDING,
-    );
-    const target = after ?? before.at(-1);
-    if (target !== undefined) return target;
-  } else if (usable[0] !== undefined) {
-    return usable[0];
-  }
-  const main = header.closest("main") ?? document.querySelector("main");
-  if (main !== null && !main.hasAttribute("tabindex")) main.setAttribute("tabindex", "-1");
-  return main;
+  return fallbackTarget(header.querySelector("[data-slot=editor-actions]"), from);
 }
 
 // The one header of every editor page (`GL-UI-034`, `SUI-FEATURE-064`): Back and the title on the
@@ -180,15 +164,8 @@ function EditorHeader({
   const floor = folded("title") ? TITLE_FLOOR : TITLE_BUDGET;
   const titleFloor = titleText.length > floor ? `${titleText.slice(0, floor)}…` : titleText;
 
-  // The Reset confirm's trigger: Reset, or the ⋯ it was folded into (`GL-UI-050` target 1).
-  const [resetOpener, setResetOpener] = React.useState<"editor-reset" | "editor-menu">(
-    "editor-reset",
-  );
-  const openReset = (opener: "editor-reset" | "editor-menu") => {
-    setResetOpener(opener);
-    setConfirming(true);
-  };
-  // A control that locks while it has the focus hands it on; a running Save waits for its result.
+  // A control that locks while it has the focus hands it on; a running Save waits for its result,
+  // then hands it on if it locked (saved), or takes it back if it did not (failed).
   const saveChosen = React.useRef(false);
   React.useLayoutEffect(() => {
     const node = header.current;
@@ -206,8 +183,12 @@ function EditorHeader({
     if (!saveChosen.current || saving) return;
     saveChosen.current = false;
     const save = node.querySelector<HTMLButtonElement>("[data-testid=editor-save]");
-    if (save?.disabled && (active === null || active === document.body || active === save)) {
+    const lost = active === null || active === document.body;
+    if (save?.disabled && (lost || active === save)) {
       nextFocusTarget(node, save)?.focus();
+    } else if (save !== null && lost) {
+      // A failed Save stays usable: the focus it lost while running comes back to it.
+      save.focus();
     }
   }, [dirty, saving, canUndo, canRedo]);
   const save = () => {
@@ -240,7 +221,7 @@ function EditorHeader({
     tools.push({
       label: t("actions.reset"),
       icon: <RotateCcwIcon aria-hidden="true" />,
-      onSelect: () => openReset("editor-menu"),
+      onSelect: () => setConfirming(true),
       disabled: !dirty || saving,
       "data-testid": "editor-menu-reset",
     });
@@ -283,6 +264,7 @@ function EditorHeader({
             size="icon-sm"
             className="shrink-0"
             onClick={onBack}
+            data-focus-nav=""
             data-testid="editor-back"
           >
             <ArrowLeftIcon aria-hidden="true" />
@@ -295,6 +277,7 @@ function EditorHeader({
           size="sm"
           className="shrink-0"
           onClick={onBack}
+          data-focus-nav=""
           data-testid="editor-back"
         >
           <ArrowLeftIcon aria-hidden="true" />
@@ -311,7 +294,11 @@ function EditorHeader({
           </div>
         </OverflowTooltip>
       </div>
-      <div data-slot="editor-actions" className="flex shrink-0 items-center gap-2">
+      <div
+        data-slot="editor-actions"
+        data-focus-group=""
+        className="flex shrink-0 items-center gap-2"
+      >
         {lifecycle === undefined ? null : (
           <>
             {/* Unfolded, the app's ⋯ keeps its place after Preview; from the first step the one
@@ -402,7 +389,7 @@ function EditorHeader({
             variant="outline"
             size="default"
             disabled={!dirty || saving}
-            onClick={() => openReset("editor-reset")}
+            onClick={() => setConfirming(true)}
             data-testid="editor-reset"
           >
             <RotateCcwIcon aria-hidden="true" />
@@ -451,15 +438,6 @@ function EditorHeader({
         description={t("editor.resetConfirm")}
         confirmLabel={t("actions.reset")}
         confirmHint={t("settings.resetHint")}
-        // `GL-UI-050`: back to the trigger (Reset, or the ⋯ it was folded into) while it is usable,
-        // else to the next usable control of the header, else to the editor's main content.
-        returnFocus={() => {
-          const node = header.current;
-          if (node === null) return null;
-          const trigger = node.querySelector<HTMLElement>(`[data-testid="${resetOpener}"]`);
-          if (trigger instanceof HTMLButtonElement && !trigger.disabled) return trigger;
-          return nextFocusTarget(node, trigger);
-        }}
         data-testid="editor-reset-confirm"
       />
     </header>

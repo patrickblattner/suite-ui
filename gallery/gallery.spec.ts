@@ -4040,6 +4040,56 @@ test("row action menu: row and preview header alike, destructive last, keyboard"
   await expect(menu).toBeHidden();
 });
 
+// `GL-UI-050` (#145): a dialog chosen from a menu hands the focus back to the menu's ⋯ on Cancel,
+// Esc and confirm, in a row and in a toolbar alike; never to the body.
+test("focus return: a dialog from the row menu and the toolbar menu ends on the ⋯", async ({
+  page,
+}) => {
+  await page.goto("/?page=preview&lng=en");
+  const block = page.getByTestId("preview-row-menu");
+  const dialog = page.getByTestId("archive-confirm");
+  for (const scope of ["row-menu-actions", "preview-actions"]) {
+    const trigger = block.getByTestId(scope).getByTestId("row-menu");
+    for (const close of ["Cancel", "Escape", "Archive"]) {
+      await trigger.focus();
+      await page.keyboard.press("Enter");
+      await page.getByRole("menu").getByRole("menuitem", { name: "Archive" }).focus();
+      await page.keyboard.press("Enter");
+      await expect(dialog).toBeVisible();
+      if (close === "Escape") await page.keyboard.press("Escape");
+      else await dialog.getByRole("button", { name: close }).click();
+      await expect(dialog).toBeHidden();
+      await expect(trigger, `${scope} · ${close}`).toBeFocused();
+    }
+  }
+});
+
+// `GL-UI-050` (#145): the EditorHeader's Reset confirm. Cancel returns to Reset; confirmed, Reset,
+// Save, Undo and Redo lock, so the focus goes to the main content, without an outline and never to
+// Back.
+test("focus return: the Reset confirm ends on Reset, or on the main content when all locks", async ({
+  page,
+}) => {
+  await page.goto("/?page=components&lng=en");
+  const draft = page.getByTestId("editor-header-draft");
+  const reset = draft.getByTestId("editor-reset");
+  const dialog = page.getByTestId("editor-reset-confirm");
+  await reset.focus();
+  await page.keyboard.press("Enter");
+  await dialog.getByTestId("editor-reset-confirm-cancel").click();
+  await expect(dialog).toBeHidden();
+  await expect(reset).toBeFocused();
+  await page.keyboard.press("Enter");
+  await dialog.getByTestId("editor-reset-confirm-confirm").click();
+  await expect(dialog).toBeHidden();
+  const main = page.locator("main");
+  await expect(main).toBeFocused();
+  await expect(draft.getByTestId("editor-back")).not.toBeFocused();
+  expect(
+    await main.evaluate((node) => [node.tabIndex, getComputedStyle(node).outlineStyle]),
+  ).toEqual([-1, "none"]);
+});
+
 // `SUI-FEATURE-067` AC 1-3, 5: the full toolbar at 420, 600 and 900 px. Close stands top right in
 // each; at 420 the actions are folded into ⋯ and language and status stand in the second line; at
 // 600 the actions are at most partly folded; at 900 everything stands in one line.

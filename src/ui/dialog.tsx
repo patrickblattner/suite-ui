@@ -1,11 +1,17 @@
 import { cva } from "class-variance-authority";
 import { XIcon } from "lucide-react";
 import { Dialog as DialogPrimitive } from "radix-ui";
-import type * as React from "react";
+import * as React from "react";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
 import { Button } from "./button.js";
+import {
+  captureOpener,
+  type Opener,
+  returnFocus as restoreFocus,
+  trackFocus,
+} from "./focus-return.js";
 
 // The height cap of a form dialog as a number, for anything that has to compute how far the dialog
 // can still grow (an open panel drives the height while the dialog is below the cap).
@@ -70,6 +76,12 @@ type DialogContentSizeProps =
 // `mode` decides the opening focus (`GL-UI-027` §Tastatur): only `add` focuses the first field. In
 // `edit` and without a mode the dialog itself takes the focus, so no field is focused and the first
 // keystroke never overwrites a loaded value.
+//
+// On close the focus returns as `GL-UI-050` says (`focus-return.ts`): to the trigger (the menu trigger
+// for a dialog opened from a menu), else the next usable control of its group, else the surface's main
+// content; never to a navigation element or the body. A caller that already put the focus somewhere
+// outside the dialog keeps it; `returnFocus` names a trigger of the caller's own, and an
+// `onCloseAutoFocus` that prevents the default takes over completely.
 function DialogContent({
   className,
   children,
@@ -77,12 +89,19 @@ function DialogContent({
   size,
   mode,
   onOpenAutoFocus,
+  onCloseAutoFocus,
+  returnFocus,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> &
   DialogContentSizeProps & {
     showCloseButton?: boolean;
+    // The element the focus returns to on close, when it is connected; else `GL-UI-050`'s order.
+    returnFocus?: () => HTMLElement | null;
   }) {
   const { t } = useTranslation("suite");
+  trackFocus();
+  const opener = React.useRef<Opener | null>(null);
+  const content = React.useRef<HTMLElement | null>(null);
   return (
     <DialogPortal>
       <DialogOverlay />
@@ -92,12 +111,33 @@ function DialogContent({
         data-mode={mode}
         className={cn(dialogContentVariants({ size }), className)}
         onOpenAutoFocus={(event) => {
+          // Still before the dialog takes the focus: the active element is what opened it.
+          opener.current = captureOpener();
+          content.current = event.currentTarget as HTMLElement;
           onOpenAutoFocus?.(event);
           if (event.defaultPrevented) return;
           event.preventDefault();
-          const content = event.currentTarget as HTMLElement;
-          const field = mode === "add" ? content.querySelector<HTMLElement>(FIELD_SELECTOR) : null;
-          (field ?? content).focus();
+          const node = event.currentTarget as HTMLElement;
+          const field = mode === "add" ? node.querySelector<HTMLElement>(FIELD_SELECTOR) : null;
+          (field ?? node).focus();
+        }}
+        onCloseAutoFocus={(event) => {
+          onCloseAutoFocus?.(event);
+          const from = opener.current;
+          opener.current = null;
+          if (event.defaultPrevented) return;
+          const active = document.activeElement;
+          const kept =
+            active instanceof HTMLElement &&
+            active !== document.body &&
+            active.isConnected &&
+            content.current?.contains(active) !== true;
+          const named = kept ? null : returnFocus?.();
+          if (kept) event.preventDefault();
+          else if (named?.isConnected) {
+            event.preventDefault();
+            named.focus({ preventScroll: true });
+          } else if (from !== null && restoreFocus(from)) event.preventDefault();
         }}
         {...props}
       >

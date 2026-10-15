@@ -781,6 +781,42 @@ describe("EditorHeader at narrow width", () => {
     },
   );
 
+  // #145: a failed Save stays usable and takes back the focus its running state dropped.
+  it("after a failed Save the focus returns to Save", async () => {
+    let fail = () => {};
+    function Failing() {
+      const [saving, setSaving] = useState(false);
+      useEffect(() => {
+        fail = () => setSaving(false);
+      });
+      return (
+        <main>
+          <EditorHeader
+            title="Spring newsletter"
+            onBack={vi.fn()}
+            canUndo
+            canRedo={false}
+            onUndo={vi.fn()}
+            onRedo={vi.fn()}
+            dirty
+            saving={saving}
+            onSave={() => setSaving(true)}
+            onReset={vi.fn()}
+          />
+        </main>
+      );
+    }
+    render(<Failing />);
+    const save = screen.getByTestId("editor-save");
+    save.focus();
+    fireEvent.click(save);
+    // The running Save is locked; the browser drops the focus to the body.
+    expect(save).toBeDisabled();
+    act(() => save.blur());
+    act(() => fail());
+    await waitFor(() => expect(save).toHaveFocus());
+  });
+
   it("after Save the focus goes to the next usable control, never to the body", async () => {
     render(<Editor />);
     const save = screen.getByTestId("editor-save");
