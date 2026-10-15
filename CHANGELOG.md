@@ -1,10 +1,10 @@
 # Changelog
 
-## 0.92.0 — SUI-FEATURE-090 rev 3 (#141): EditorHeader at narrow width
+## 0.92.0 — SUI-FEATURE-090 rev 4 (#141): EditorHeader at narrow width
 
 Breaking for apps that pass `lifecycle.preview` or `lifecycle.menu` (see the migration note). Without a lifecycle, and at any width where everything fits, the header looks as before.
 
-- `EditorHeader` measures its own width. What does not fit folds into its one ⋯ menu, in this order: Undo/Redo, Reset, Preview, then the lifecycle menu's own entries. After that the state text shrinks to its dot. Back, the title, `lifecycle.next` and Save always stay visible. Once the header is wide enough again, it steps back.
+- `EditorHeader` measures its own width. What does not fit folds into its one ⋯ menu, in this order: Undo/Redo, Reset, Preview, then the lifecycle menu's own entries. After that the state text shrinks to its dot, then Back, `lifecycle.next` (if it has an icon) and last Save show their icon only, keeping their name as accessible name and tooltip. Back, the title, `lifecycle.next` and Save always stay visible. Once the header is wide enough again, it steps back.
 - A folded action keeps its text, icon and lock reason in the menu and is chosen by keyboard. Folded Reset still asks first. There is never more than one ⋯.
 - The title truncates with an ellipsis and shows its full text as a tooltip. It never shrinks below 6 characters plus the ellipsis.
 - The header's ⋯ is the row menu's body (`SUI-FEATURE-066`) with a `ghost icon-sm` trigger, like the header's other icon buttons. Without `lifecycle.menu` it is named by the new string `editor.more`: "Weitere Aktionen" / "More actions" / "Más acciones".

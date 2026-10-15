@@ -382,6 +382,10 @@ describe("EditorHeader at narrow width", () => {
     [...header.querySelectorAll("[data-testid]")].reduce((sum, el) => {
       const id = el.getAttribute("data-testid") ?? "";
       if (id === "editor-state") return sum + (el.hasAttribute("data-compact") ? 24 : 100);
+      // Icon-only (steps 5 to 7).
+      const size = el.getAttribute("data-size");
+      if (size === "icon-sm" && id === "editor-back") return sum + 32;
+      if (size === "icon") return sum + 36;
       return sum + (WIDTHS[id] ?? 0);
     }, 60);
 
@@ -529,5 +533,35 @@ describe("EditorHeader at narrow width", () => {
       .map((id) => document.getElementById(id)?.textContent)
       .join(" ");
     expect(described).toBe("Add a title first");
+  });
+
+  it("then Back and the next step show their icon only, keeping their names", () => {
+    available = 300;
+    renderHeader({ lifecycle: lifecycle({ icon: <EyeIcon aria-hidden="true" /> }) });
+    const back = screen.getByTestId("editor-back");
+    expect(back).toHaveAccessibleName("Back");
+    expect(back).not.toHaveTextContent("Back");
+    const next = screen.getByTestId("editor-next");
+    expect(next).toHaveAccessibleName("Publish");
+    expect(next).not.toHaveTextContent("Publish");
+    expect(next).toHaveAttribute("data-variant", "success");
+    expect(screen.getByTestId("editor-save")).toHaveTextContent("Save");
+  });
+
+  it("Save goes icon-only last, still green and named Save", () => {
+    available = 250;
+    renderHeader({ dirty: true, lifecycle: lifecycle({ icon: <EyeIcon aria-hidden="true" /> }) });
+    const save = screen.getByTestId("editor-save");
+    expect(save).toHaveAccessibleName("Save");
+    expect(save).not.toHaveTextContent("Save");
+    expect(save).toHaveAttribute("data-variant", "success");
+    expect(save.querySelector("svg.lucide-save")).not.toBeNull();
+    expect(document.querySelector("[data-slot=editor-header]")).toHaveAttribute("data-shrink", "7");
+  });
+
+  it("a next step without an icon keeps its text", () => {
+    available = 250;
+    renderHeader({ lifecycle: lifecycle() });
+    expect(screen.getByTestId("editor-next")).toHaveTextContent("Publish");
   });
 });

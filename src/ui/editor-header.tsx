@@ -59,9 +59,10 @@ type EditorLifecycle = {
 };
 
 // What folds when the header does not fit one line (`SUI-FEATURE-090`), in this order: Undo/Redo,
-// Reset and Preview move into the one ⋯ menu, then the state text shrinks to its dot. Back, the title,
-// the next step and Save always stay.
-type Fold = "undo" | "reset" | "preview" | "state";
+// Reset and Preview move into the one ⋯ menu, the state text shrinks to its dot, then Back, the next
+// step (if it has an icon) and last Save show their icon only, keeping their name as accessible name
+// and tooltip. Back, the title, the next step and Save always stay.
+type Fold = "undo" | "reset" | "preview" | "state" | "back" | "next" | "save";
 
 // The one header of every editor page (`GL-UI-034`, `SUI-FEATURE-064`): Back and the title on the
 // left; on the right Undo, Redo, the state ("Saved" or "Draft · unsaved"), Reset and Save. Reset and
@@ -100,6 +101,9 @@ function EditorHeader({
     "reset",
     ...(lifecycle?.preview ? ["preview" as const] : []),
     "state",
+    "back",
+    ...(lifecycle?.next?.icon !== undefined ? ["next" as const] : []),
+    "save",
   ];
   const [root, setRoot] = React.useState<HTMLElement | null>(null);
   const [shrink, setShrink] = React.useState(0);
@@ -121,7 +125,10 @@ function EditorHeader({
     observer.observe(root);
     return () => observer.disconnect();
   }, [root, shrink, folds.length, title, dirty, saving, canUndo, canRedo, lifecycle]);
-  const folded = (fold: Fold) => folds.indexOf(fold) < Math.min(shrink, folds.length);
+  const folded = (fold: Fold) => {
+    const step = folds.indexOf(fold);
+    return step !== -1 && step < shrink;
+  };
   const stateText = t(dirty ? "editor.draft" : "editor.saved");
 
   const items: RowMenuItem[] = [];
@@ -181,17 +188,32 @@ function EditorHeader({
       data-shrink={shrink}
       className="flex min-w-0 shrink-0 items-center gap-3 border-b bg-background px-[var(--page-gutter)] py-3"
     >
-      <Button
-        type="button"
-        variant="ghost"
-        size="sm"
-        className="shrink-0"
-        onClick={onBack}
-        data-testid="editor-back"
-      >
-        <ArrowLeftIcon aria-hidden="true" />
-        {t("editor.back")}
-      </Button>
+      {folded("back") ? (
+        <IconButtonTooltip label={t("editor.back")}>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            className="shrink-0"
+            onClick={onBack}
+            data-testid="editor-back"
+          >
+            <ArrowLeftIcon aria-hidden="true" />
+          </Button>
+        </IconButtonTooltip>
+      ) : (
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="shrink-0"
+          onClick={onBack}
+          data-testid="editor-back"
+        >
+          <ArrowLeftIcon aria-hidden="true" />
+          {t("editor.back")}
+        </Button>
+      )}
       <OverflowTooltip>
         <div data-slot="editor-title" className="min-w-[7ch] flex-1 truncate font-medium">
           {title}
@@ -204,7 +226,9 @@ function EditorHeader({
           <>
             {preview === undefined || folded("preview") ? null : <PreviewButton {...preview} />}
             {menu}
-            {lifecycle.next === undefined ? null : <NextStep {...lifecycle.next} dirty={dirty} />}
+            {lifecycle.next === undefined ? null : (
+              <NextStep {...lifecycle.next} dirty={dirty} iconOnly={folded("next")} />
+            )}
             {/* Full bar height: the stretch reaches through the header's vertical padding. */}
             <div
               aria-hidden="true"
@@ -286,18 +310,34 @@ function EditorHeader({
             {t("actions.reset")}
           </Button>
         )}
-        <Button
-          type="button"
-          variant="success"
-          size="default"
-          disabled={!dirty}
-          busy={saving}
-          onClick={onSave}
-          data-testid="editor-save"
-        >
-          <SaveIcon aria-hidden="true" />
-          {t("actions.save")}
-        </Button>
+        {folded("save") ? (
+          <IconButtonTooltip label={t("actions.save")}>
+            <Button
+              type="button"
+              variant="success"
+              size="icon"
+              disabled={!dirty}
+              busy={saving}
+              onClick={onSave}
+              data-testid="editor-save"
+            >
+              <SaveIcon aria-hidden="true" />
+            </Button>
+          </IconButtonTooltip>
+        ) : (
+          <Button
+            type="button"
+            variant="success"
+            size="default"
+            disabled={!dirty}
+            busy={saving}
+            onClick={onSave}
+            data-testid="editor-save"
+          >
+            <SaveIcon aria-hidden="true" />
+            {t("actions.save")}
+          </Button>
+        )}
       </div>
       <ConfirmDeleteDialog
         open={confirming}
@@ -346,7 +386,7 @@ function PreviewButton({
 }
 
 // The lifecycle's next step: locked while the draft is unsaved ("Save first") or while the app names
-// a reason of its own.
+// a reason of its own. `iconOnly` (`SUI-FEATURE-090`) keeps the label as its name and tooltip.
 function NextStep({
   label,
   icon,
@@ -354,30 +394,33 @@ function NextStep({
   busy,
   disabledText,
   dirty,
-}: NonNullable<EditorLifecycle["next"]> & { dirty: boolean }) {
+  iconOnly,
+}: NonNullable<EditorLifecycle["next"]> & { dirty: boolean; iconOnly: boolean }) {
   const { t } = useTranslation("suite");
   const reason = disabledText ?? (dirty ? t("editor.saveFirst") : undefined);
   const button = (
     <Button
       type="button"
       variant="success"
-      size="default"
+      size={iconOnly ? "icon" : "default"}
       disabled={reason !== undefined}
       {...(busy !== undefined ? { busy } : {})}
+      {...(iconOnly ? { "aria-label": label } : {})}
       onClick={onClick}
       data-testid="editor-next"
     >
       {icon}
-      {label}
+      {iconOnly ? null : label}
     </Button>
   );
-  return reason === undefined ? (
-    button
-  ) : (
-    <Hint text={reason} disabledText={reason}>
-      {button}
-    </Hint>
-  );
+  if (reason !== undefined) {
+    return (
+      <Hint text={reason} disabledText={reason}>
+        {button}
+      </Hint>
+    );
+  }
+  return iconOnly ? <IconButtonTooltip label={label}>{button}</IconButtonTooltip> : button;
 }
 
 type EditorLeaveGuardOptions = {
