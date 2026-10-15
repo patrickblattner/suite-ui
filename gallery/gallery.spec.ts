@@ -4004,7 +4004,10 @@ test("row action menu: row and preview header alike, destructive last, keyboard"
     ),
   ).toEqual(["menuitem:Duplicate", "menuitem:Export", "separator:", "menuitem:Archive"]);
   await expect(menu.getByRole("menuitem", { name: "Export" })).toHaveAttribute("data-disabled", "");
+  // Enter opens on the first entry; the locked Export with its reason is in the arrows' path (#141).
+  await expect(menu.getByRole("menuitem", { name: "Duplicate" })).toBeFocused();
   await page.keyboard.press("ArrowDown");
+  await expect(menu.getByRole("menuitem", { name: "Export" })).toBeFocused();
   await page.keyboard.press("ArrowDown");
   await expect(menu.getByRole("menuitem", { name: "Archive" })).toBeFocused();
   await page.keyboard.press("Escape");
