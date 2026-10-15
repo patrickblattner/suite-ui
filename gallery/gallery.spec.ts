@@ -4269,8 +4269,22 @@ test("row action menu: row and preview header alike, destructive last, keyboard"
     await menu.evaluate((el) =>
       [...el.children].map((child) => child.getAttribute("role") + ":" + child.textContent),
     ),
-  ).toEqual(["menuitem:Duplicate", "menuitem:Export", "separator:", "menuitem:Archive"]);
+  ).toEqual([
+    "menuitem:Duplicate",
+    "menuitem:Export",
+    "menuitem:Archive",
+    "separator:",
+    "menuitem:Discard draft",
+  ]);
   await expect(menu.getByRole("menuitem", { name: "Export" })).toHaveAttribute("data-disabled", "");
+  // `GL-UI-070`: Archive is reversible, so it stands in the plain group, not red, with its own icon.
+  const archive = menu.getByRole("menuitem", { name: "Archive" });
+  await expect(archive).toHaveAttribute("data-variant", "default");
+  await expect(archive.locator("svg")).toHaveClass(/lucide-archive/);
+  await expect(menu.getByRole("menuitem", { name: "Discard draft" })).toHaveAttribute(
+    "data-variant",
+    "destructive",
+  );
   // Enter opens on the first entry; the locked Export with its reason is in the arrows' path (#141).
   await expect(menu.getByRole("menuitem", { name: "Duplicate" })).toBeFocused();
   await page.keyboard.press("ArrowDown");
@@ -5005,4 +5019,28 @@ test("busy keeps the focus: Enter, Space, a click and the form's submit start no
   // The settings page marks no main field, so the page's `main` takes it (GL-UI-050 tier 3).
   await expect(page.locator("main")).toBeFocused();
   await expect(page.locator("main")).toHaveAttribute("tabindex", "-1");
+});
+
+// `GL-UI-070`, `SUI-FEATURE-079`: archiving is reversible. Its confirm's primary action is `default`
+// with a hint that names the undo, and the confirmation toast offers Undo.
+test("archive: a default confirm that names the undo, and a toast with Undo", async ({ page }) => {
+  await page.goto("/?page=preview&lng=en");
+  const trigger = page
+    .getByTestId("preview-row-menu")
+    .getByTestId("row-menu-actions")
+    .getByTestId("row-menu");
+  await trigger.click();
+  await page.getByRole("menu").getByRole("menuitem", { name: "Archive" }).click();
+  const dialog = page.getByTestId("archive-confirm");
+  const confirm = dialog.getByTestId("archive-confirm-confirm");
+  await expect(confirm).toHaveAttribute("data-variant", "default");
+  await expect(dialog.locator("[data-variant=destructive]")).toHaveCount(0);
+  await expect(confirm).toHaveAccessibleDescription("Restore it from the archive at any time.");
+  await confirm.click();
+  const toastItem = page.locator("[data-sonner-toast]").filter({ hasText: "Home archived." });
+  await expect(toastItem).toBeVisible();
+  await toastItem.getByRole("button", { name: "Undo" }).click();
+  await expect(
+    page.locator("[data-sonner-toast]").filter({ hasText: "Home restored." }),
+  ).toBeVisible();
 });

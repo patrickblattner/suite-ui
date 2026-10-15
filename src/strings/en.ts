@@ -220,6 +220,10 @@ export const en = {
     cancelDisabledHint: "Closing becomes possible again once the deletion has finished.",
     confirmHint: "Deletes for good; this cannot be undone.",
   },
+  confirm: {
+    cancelHint: "Closes the dialog without changing anything.",
+    cancelDisabledHint: "Closing becomes possible again once the action has finished.",
+  },
   leaveGuard: {
     title: "Save changes?",
     description: "This entry has changes that are not saved yet.",

@@ -1,13 +1,14 @@
-import { CopyIcon } from "lucide-react";
+import { ArchiveIcon, CopyIcon, XIcon } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { MemoryRouter } from "react-router-dom";
 
 import { RowActions, type RowActionSet } from "../src/list/row-actions.js";
-import { ConfirmDeleteDialog } from "../src/ui/confirm-delete-dialog.js";
+import { ConfirmDialog } from "../src/ui/confirm-dialog.js";
 import { PreviewFrame } from "../src/ui/preview-frame.js";
 import { type PreviewDevice, PreviewToolbar } from "../src/ui/preview-toolbar.js";
 import { Table, TableBody, TableCell, TableRow } from "../src/ui/table.js";
+import { toast, Toaster } from "../src/ui/toaster.js";
 import { UsageTable } from "../src/ui/usage-table.js";
 import { Section } from "./ComponentsPage.js";
 
@@ -23,6 +24,10 @@ const LABELS = {
     archive: "Archive",
     archiveTitle: "Archive Home?",
     archiveText: "The page leaves the site; it stays in the archive.",
+    archiveHint: "Restore it from the archive at any time.",
+    discard: "Discard draft",
+    archived: "Home archived.",
+    restored: "Home restored.",
     post: "Post",
     page: "Page",
     news: "Spring newsletter",
@@ -39,6 +44,10 @@ const LABELS = {
     archive: "Archivieren",
     archiveTitle: "Startseite archivieren?",
     archiveText: "Die Seite verlässt die Website; sie bleibt im Archiv.",
+    archiveHint: "Jederzeit aus dem Archiv wiederherstellbar.",
+    discard: "Entwurf verwerfen",
+    archived: "Startseite archiviert.",
+    restored: "Startseite wiederhergestellt.",
     post: "Beitrag",
     page: "Seite",
     news: "Frühlings-Newsletter",
@@ -55,6 +64,10 @@ const LABELS = {
     archive: "Archivar",
     archiveTitle: "¿Archivar Inicio?",
     archiveText: "La página sale del sitio; queda en el archivo.",
+    archiveHint: "Restáurala desde el archivo cuando quieras.",
+    discard: "Descartar borrador",
+    archived: "Inicio archivado.",
+    restored: "Inicio restaurado.",
     post: "Entrada",
     page: "Página",
     news: "Boletín de primavera",
@@ -125,13 +138,20 @@ function Toolbar({
 }
 
 // `SUI-FEATURE-066`: a row with edit and an overflow menu, and the preview header of the same row
-// showing the same group. The menu holds a plain, a locked and a destructive entry; the plain and the
-// locked one carry a hint (`SUI-FEATURE-066` rev 3). Archive asks first; on close the focus returns to
-// the ⋯ it was chosen from, in the row or in the toolbar (`GL-UI-050`).
+// showing the same group. The menu holds a plain, a locked, a reversible and a destructive entry; the plain and the
+// locked one carry a hint (`SUI-FEATURE-066` rev 3). Archive is reversible (`GL-UI-070`): a plain entry
+// with its own icon, never red; it asks first in a `ConfirmDialog` whose hint names the undo, and its
+// toast offers Undo. On close the focus returns to the ⋯ it was chosen from (`GL-UI-050`).
 function RowWithMenu() {
-  const { i18n } = useTranslation("suite");
+  const { t, i18n } = useTranslation("suite");
   const labels = LABELS[i18n.language as keyof typeof LABELS] ?? LABELS.en;
   const [archiving, setArchiving] = useState(false);
+  const archive = () => {
+    setArchiving(false);
+    toast.success(labels.archived, {
+      action: { label: t("editor.undo"), onClick: () => toast.success(labels.restored) },
+    });
+  };
   const actions: RowActionSet = {
     rowName: labels.entry,
     onEdit: () => {},
@@ -140,7 +160,18 @@ function RowWithMenu() {
       items: [
         { label: labels.duplicate, onSelect: () => {}, hint: labels.duplicateHint },
         { label: labels.export, onSelect: () => {}, disabled: true, hint: labels.exportHint },
-        { label: labels.archive, onSelect: () => setArchiving(true), destructive: true },
+        {
+          label: labels.archive,
+          icon: <ArchiveIcon aria-hidden="true" />,
+          onSelect: () => setArchiving(true),
+        },
+        // A loss is red and stands last, after a separator.
+        {
+          label: labels.discard,
+          icon: <XIcon aria-hidden="true" />,
+          onSelect: () => {},
+          destructive: true,
+        },
       ],
     },
   };
@@ -157,13 +188,14 @@ function RowWithMenu() {
       <div className="mt-2">
         <PreviewToolbar actions={actions} onClose={() => {}} />
       </div>
-      <ConfirmDeleteDialog
+      <ConfirmDialog
         open={archiving}
         onOpenChange={setArchiving}
-        onConfirm={() => setArchiving(false)}
+        onConfirm={archive}
         title={labels.archiveTitle}
         description={labels.archiveText}
         confirmLabel={labels.archive}
+        confirmHint={labels.archiveHint}
         data-testid="archive-confirm"
       />
     </div>
@@ -270,7 +302,7 @@ function UsageFrame({ initial }: { initial: boolean }) {
 
 // `GL-UI-008`: the preview toolbar full, with a single language, without status, without device and
 // without a selected entry.
-export function PreviewPage() {
+export function PreviewPage({ theme }: { theme: "light" | "dark" }) {
   return (
     <Section id="preview-toolbar" title="PreviewToolbar">
       <div data-testid="preview-full">
@@ -306,6 +338,7 @@ export function PreviewPage() {
         <UsageFrame initial={false} />
         <UsageFrame initial />
       </div>
+      <Toaster theme={theme} />
     </Section>
   );
 }

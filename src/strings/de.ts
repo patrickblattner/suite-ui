@@ -212,6 +212,10 @@ export const de: SuiteStrings = {
     cancelDisabledHint: "Schließen geht wieder, sobald das Löschen abgeschlossen ist.",
     confirmHint: "Löscht endgültig; das lässt sich nicht rückgängig machen.",
   },
+  confirm: {
+    cancelHint: "Schließt den Dialog, ohne etwas zu ändern.",
+    cancelDisabledHint: "Schließen geht wieder, sobald die Aktion abgeschlossen ist.",
+  },
   leaveGuard: {
     title: "Änderungen speichern?",
     description: "Dieser Eintrag hat Änderungen, die noch nicht gespeichert sind.",
