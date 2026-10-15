@@ -875,6 +875,23 @@ describe("EditorHeader at narrow width", () => {
     expect(document.querySelector("[data-slot=editor-header]")).toHaveAttribute("data-shrink", "7");
   });
 
+  // SUI-FEATURE-090 rev 9: the title keeps about 18 characters while the steps fold; only after the
+  // last step does its floor drop to 6.
+  it.each([
+    [2000, "0", "Autumn campaign la…"],
+    [250, "7", "Autumn campaign la…"],
+    [150, "8", "Autumn…"],
+  ])("at %i px (step %s) the title's floor is %j", (width, step, floor) => {
+    available = width;
+    renderHeader({
+      title: "Autumn campaign landing page",
+      lifecycle: lifecycle({ icon: <EyeIcon aria-hidden="true" /> }),
+    });
+    const header = document.querySelector("[data-slot=editor-header]");
+    expect(header).toHaveAttribute("data-shrink", step);
+    expect(header?.querySelector("[data-slot=editor-title] > span")).toHaveTextContent(floor);
+  });
+
   it("a next step without an icon keeps its text", () => {
     available = 250;
     renderHeader({ lifecycle: lifecycle() });
