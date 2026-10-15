@@ -104,9 +104,10 @@ function nextFocusTarget(header: HTMLElement, from: Element | null): HTMLElement
 //
 // `SUI-FEATURE-090`: the header measures its own width. While it overflows one line it folds a step
 // (`Fold`); each step remembers the width it needed, and once the header is that wide again it steps
-// back. The title truncates with its full text as a tooltip. There is never more than one ⋯: it
-// leads the action group with a lifecycle, else stands directly left of Save; folded header tools
-// keep their text, icon and lock there, above the lifecycle menu's own entries after a separator.
+// back. The title truncates with its full text as a tooltip. There is never more than one ⋯: with a
+// lifecycle it stands after Preview until the first step and leads the group from then on, without
+// one directly left of Save; folded header tools keep their text, icon and lock there, above the
+// lifecycle menu's own entries after a separator.
 // A control that locks under the focus (Save after saving, Undo at the history's start) and the
 // Reset confirm hand the focus on as `GL-UI-050` says.
 function EditorHeader({
@@ -161,10 +162,9 @@ function EditorHeader({
     lifecycle?.preview?.label,
     lifecycle?.next?.label,
   ].join("\u0000");
-  // A control a refold took away (the ⋯ when its tools unfold) hands the focus on (`GL-UI-050`).
-  const { attach, steps: shrink } = useFoldSteps(folds.length, content, (bar) =>
-    nextFocusTarget(bar, null),
-  );
+  // A control a refold locked or took away (Save after saving, the ⋯ when its tools unfold) hands the
+  // focus on in `GL-UI-050`'s order from where it stood.
+  const { attach, steps: shrink } = useFoldSteps(folds.length, content, nextFocusTarget);
   const header = React.useRef<HTMLElement | null>(null);
   const setHeader = React.useCallback(
     (node: HTMLElement | null) => {
@@ -314,8 +314,11 @@ function EditorHeader({
       <div data-slot="editor-actions" className="flex shrink-0 items-center gap-2">
         {lifecycle === undefined ? null : (
           <>
-            {menu}
+            {/* Unfolded, the app's ⋯ keeps its place after Preview; from the first step the one
+                ⋯ leads the group (`SUI-FEATURE-090` rev 11). */}
+            {shrink > 0 ? menu : null}
             {preview === undefined || folded("preview") ? null : <PreviewButton {...preview} />}
+            {shrink > 0 ? null : menu}
             {lifecycle.next === undefined ? null : (
               <NextStep {...lifecycle.next} dirty={dirty} iconOnly={folded("next")} />
             )}

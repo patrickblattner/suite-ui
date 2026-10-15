@@ -166,8 +166,8 @@ describe("EditorHeader lifecycle", () => {
       node.getAttribute("data-testid"),
     );
     expect(order).toEqual([
-      "editor-menu",
       "editor-preview",
+      "editor-menu",
       "editor-next",
       "editor-lifecycle-separator",
       "editor-undo",
@@ -665,6 +665,21 @@ describe("EditorHeader at narrow width", () => {
   }
   const active = () => document.activeElement?.getAttribute("data-testid");
 
+  // SUI-FEATURE-090 rev 11: unfolded, the app's ⋯ keeps its place after Preview (1440/1920 equal);
+  // from step 1 the one ⋯ leads the group.
+  it.each([
+    [2000, "0", ["editor-preview", "editor-menu", "editor-next"]],
+    [800, "1", ["editor-menu", "editor-preview", "editor-next"]],
+  ])("with a lifecycle at %i px (step %s) the group reads %j", (width, step, group) => {
+    available = width;
+    renderHeader({ lifecycle: lifecycle() });
+    expect(document.querySelector("[data-slot=editor-header]")).toHaveAttribute(
+      "data-shrink",
+      step,
+    );
+    expect(inline().slice(0, 3)).toEqual(group);
+  });
+
   it("without a lifecycle the ⋯ stands directly left of Save", () => {
     available = 500;
     renderHeader({ dirty: true });
@@ -719,6 +734,49 @@ describe("EditorHeader at narrow width", () => {
     expect(screen.queryByTestId("editor-menu")).toBeNull();
     await waitFor(() => expect(active()).toBe("editor-undo"));
   });
+
+  // #144 re-review: at the icon-only Save width a running save ends with Save locked; the focus goes
+  // on to the nearest usable control before it, never to the body.
+  it.each([true, false])(
+    "after a running Save at icon-only width the focus goes on (canUndo=%s)",
+    async (undoable) => {
+      available = 200;
+      let finish = () => {};
+      function Saving() {
+        const [dirty, setDirty] = useState(true);
+        const [saving, setSaving] = useState(false);
+        finish = () => {
+          setSaving(false);
+          setDirty(false);
+        };
+        return (
+          <main>
+            <EditorHeader
+              title="Spring newsletter"
+              onBack={vi.fn()}
+              canUndo={undoable}
+              canRedo={false}
+              onUndo={vi.fn()}
+              onRedo={vi.fn()}
+              dirty={dirty}
+              saving={saving}
+              onSave={() => setSaving(true)}
+              onReset={vi.fn()}
+            />
+          </main>
+        );
+      }
+      render(<Saving />);
+      const save = screen.getByTestId("editor-save");
+      expect(save).toHaveAttribute("data-size", "icon");
+      save.focus();
+      fireEvent.click(save);
+      act(() => finish());
+      await waitFor(() => expect(document.activeElement).not.toBe(document.body));
+      expect(active()).toBe("editor-menu");
+      expect(active()).not.toBe("editor-back");
+    },
+  );
 
   it("after Save the focus goes to the next usable control, never to the body", async () => {
     render(<Editor />);

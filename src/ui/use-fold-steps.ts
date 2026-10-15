@@ -1,5 +1,16 @@
 import * as React from "react";
 
+// The width the bar's content needs. `scrollWidth` misses content that only reaches into the bar's
+// end padding, so the last part's edge is held against the padding as well.
+function required(node: HTMLElement): number {
+  const last = node.lastElementChild;
+  if (last === null) return node.scrollWidth;
+  const end =
+    node.getBoundingClientRect().right - parseFloat(getComputedStyle(node).paddingRight || "0");
+  const excess = last.getBoundingClientRect().right - end;
+  return Math.max(node.scrollWidth, excess > 0.5 ? node.clientWidth + Math.ceil(excess) : 0);
+}
+
 /**
  * How many fold steps a one-line bar needs (`SUI-FEATURE-067`, `SUI-FEATURE-090`). The bar measures
  * its own width, never the window's: while its content overflows it folds one step more; each step
@@ -12,26 +23,16 @@ import * as React from "react";
  * the bar starts over from no fold and folds again as far as it needs.
  *
  * A step can swap the control that has the focus for another one (a folded button, the ⋯, a control
- * that moves line). The focused control's `data-testid` is noted before the step, also when the
- * focus sits in a menu or list the bar's control opened (`aria-controls`), and once the steps have
- * settled the focus returns to the control with that id if it was lost; when the bar shows no such
- * control any more, to what `fallback` names.
+ * that moves line). The bar keeps track of its control that owns the focus — the focused control, or
+ * the one whose menu or list (`aria-controls`) holds it — from `focusin`, so it is known even when
+ * the focus is gone by the time a step starts (a list that closes in the same update). Once the steps
+ * have settled and the focus was lost, it returns to that control if it can take it; otherwise
+ * `fallback` gets the control (locked) or `null` (gone) and names the target.
  */
-// The width the bar's content needs. `scrollWidth` misses content that only reaches into the bar's
-// end padding, so the last part's edge is held against the padding as well.
-function required(node: HTMLElement): number {
-  const last = node.lastElementChild;
-  if (last === null) return node.scrollWidth;
-  const end =
-    node.getBoundingClientRect().right - parseFloat(getComputedStyle(node).paddingRight || "0");
-  const excess = last.getBoundingClientRect().right - end;
-  return Math.max(node.scrollWidth, excess > 0.5 ? node.clientWidth + Math.ceil(excess) : 0);
-}
-
 function useFoldSteps(
   maxSteps: number,
   content = "",
-  fallback?: (bar: HTMLElement) => HTMLElement | null,
+  fallback?: (bar: HTMLElement, from: HTMLElement | null) => HTMLElement | null,
 ): {
   attach: (node: HTMLElement | null) => void;
   steps: number;
@@ -48,17 +49,27 @@ function useFoldSteps(
     lost.current = fallback;
   });
 
-  const noteFocus = React.useCallback((node: HTMLElement) => {
-    if (focused.current !== null) return;
-    const active = document.activeElement;
-    if (active === null || active === document.body) return;
-    let control = node.contains(active) ? active : null;
+  // The bar's control that owns the focus, kept from `focusin`; `focused` is the one noted for a step.
+  const owner = React.useRef<string | null>(null);
+
+  const ownerOf = React.useCallback((node: HTMLElement, target: Element): string | null => {
+    let control = node.contains(target) ? target : null;
     // In a popup the bar opened: its trigger in the bar names it by `aria-controls`.
-    for (let at: Element | null = active; control === null && at !== null; at = at.parentElement) {
+    for (let at: Element | null = target; control === null && at !== null; at = at.parentElement) {
       if (at.id !== "") control = node.querySelector(`[aria-controls="${at.id}"]`);
     }
-    focused.current = control?.closest("[data-testid]")?.getAttribute("data-testid") ?? null;
+    return control?.closest("[data-testid]")?.getAttribute("data-testid") ?? null;
   }, []);
+
+  const noteFocus = React.useCallback(
+    (node: HTMLElement) => {
+      if (focused.current !== null) return;
+      const active = document.activeElement;
+      const lostAlready = active === null || active === document.body || !active.isConnected;
+      focused.current = lostAlready ? owner.current : ownerOf(node, active);
+    },
+    [ownerOf],
+  );
 
   const settle = React.useCallback((node: HTMLElement) => {
     const id = focused.current;
@@ -66,8 +77,36 @@ function useFoldSteps(
     if (id === null) return;
     const active = document.activeElement;
     if (active !== null && active !== document.body && active.isConnected) return;
-    (node.querySelector<HTMLElement>(`[data-testid="${id}"]`) ?? lost.current?.(node))?.focus();
+    const control = node.querySelector<HTMLElement>(`[data-testid="${id}"]`);
+    const takes = control !== null && !(control as HTMLButtonElement).disabled;
+    (takes ? control : lost.current?.(node, control))?.focus();
   }, []);
+
+  React.useEffect(() => {
+    if (root === null) return;
+    const enter = (event: FocusEvent) => {
+      owner.current = event.target instanceof Element ? ownerOf(root, event.target) : null;
+    };
+    // Leaving for nothing on purpose (a click on the page) forgets the owner; a control that was
+    // removed or locked under the focus keeps it.
+    const leave = (event: FocusEvent) => {
+      const from = event.target;
+      if (
+        event.relatedTarget === null &&
+        from instanceof Element &&
+        from.isConnected &&
+        !(from as HTMLButtonElement).disabled
+      ) {
+        owner.current = null;
+      }
+    };
+    document.addEventListener("focusin", enter);
+    document.addEventListener("focusout", leave);
+    return () => {
+      document.removeEventListener("focusin", enter);
+      document.removeEventListener("focusout", leave);
+    };
+  }, [root, ownerOf]);
 
   const measure = React.useCallback(
     (node: HTMLElement) => {

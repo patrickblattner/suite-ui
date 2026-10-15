@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import i18n from "i18next";
 import { CopyIcon } from "lucide-react";
 import { useState } from "react";
@@ -450,29 +450,45 @@ describe("PreviewToolbar in a narrow column (SUI-FEATURE-067)", () => {
     );
   };
 
-  // #143: a language switch changes the width of the toolbar's parts, not of the toolbar; the parts
-  // are watched too, so it re-measures.
-  // #144: a new content language refolds the wrapped toolbar from the start; the language select
-  // moves line and is built anew, and the focus goes with it.
-  it("a content language picked while wrapped keeps the focus on the language select", () => {
+  // #144: a content language picked through the select's own list, by keyboard, while the toolbar
+  // is wrapped: the refold builds the select anew in the same update the list closes, and the focus
+  // goes back to the new select.
+  it("a content language picked while wrapped keeps the focus on the language select", async () => {
+    Element.prototype.scrollIntoView = () => {};
+    Element.prototype.hasPointerCapture = () => false;
+    Element.prototype.releasePointerCapture = () => {};
     available = 250;
-    const bar = (value: string) => (
-      <PreviewToolbar
-        language={{ value, options: LANGUAGES, onChange: () => {} }}
-        device={{ value: "desktop", onChange: () => {} }}
-        maximize={{ value: false, onChange: () => {} }}
-        actions={ENTRY}
-        onClose={() => {}}
-      />
+    function Host() {
+      const [value, setValue] = useState("de");
+      return (
+        <PreviewToolbar
+          language={{ value, options: LANGUAGES, onChange: setValue }}
+          device={{ value: "desktop", onChange: () => {} }}
+          maximize={{ value: false, onChange: () => {} }}
+          actions={ENTRY}
+          onClose={() => {}}
+        />
+      );
+    }
+    render(<Host />);
+    expect(toolbar()).toHaveAttribute("data-shrink", "3");
+    const trigger = screen.getByTestId("preview-language");
+    trigger.focus();
+    fireEvent.keyDown(trigger, { key: "Enter" });
+    const option = await screen.findByRole("option", { name: "English" });
+    option.focus();
+    fireEvent.keyDown(option, { key: "Enter" });
+    await waitFor(() =>
+      expect(screen.getByTestId("preview-language")).toHaveTextContent("English"),
     );
-    const { rerender } = render(bar("de"));
+    await waitFor(() =>
+      expect(document.activeElement).toBe(screen.getByTestId("preview-language")),
+    );
     expect(toolbar()).toHaveAttribute("data-shrink", "3");
-    screen.getByTestId("preview-language").focus();
-    rerender(bar("en"));
-    expect(toolbar()).toHaveAttribute("data-shrink", "3");
-    expect(document.activeElement).toBe(screen.getByTestId("preview-language"));
   });
 
+  // #143: a language switch changes the width of the toolbar's parts, not of the toolbar; the parts
+  // are watched too, so it re-measures.
   it("watches the toolbar and each of its parts", () => {
     render(<Preview />);
     expect(watched).toContain(toolbar());
