@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import i18n from "i18next";
 import { EyeIcon } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -745,10 +745,13 @@ describe("EditorHeader at narrow width", () => {
       function Saving() {
         const [dirty, setDirty] = useState(true);
         const [saving, setSaving] = useState(false);
-        finish = () => {
-          setSaving(false);
-          setDirty(false);
-        };
+        // The test ends the running save from outside.
+        useEffect(() => {
+          finish = () => {
+            setSaving(false);
+            setDirty(false);
+          };
+        });
         return (
           <main>
             <EditorHeader
