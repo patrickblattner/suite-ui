@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.91.2 — SUI-FEATURE-075 rev 2 (#134): Node 24 for development, CI and gate
+
+Not breaking for the package API. Development, build and gate switch from Node 22 to Node 24.
+
+- `engines.node` `>=22` → `>=24.15`; new `.nvmrc` names major 24.
+- `package-lock.json` regenerated with npm 11; `npm audit` reports 0 vulnerabilities.
+- No code change needed for APIs removed in Node 24; gallery baselines unchanged.
+
 ## 0.91.1 — SUI-FEATURE-009 rev 2 (#133): npm audit without findings
 
 Not breaking. Runtime dependencies and the package API unchanged; only dev dependencies move. `npm audit` reports 0 vulnerabilities (all severities, dev dependencies included).
