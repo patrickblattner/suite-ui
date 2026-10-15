@@ -62,7 +62,15 @@ describe("@suite/ui/operation-status/provider", () => {
     });
   });
 
-  it("AC1: the provider alone carries no slot, indicator or label code", async () => {
+  it("passes on only the provider and the hook; the context stays internal", async () => {
+    const mod = (await import(`${root}dist/operation-status/provider.js`)) as object;
+    expect(Object.keys(mod).sort()).toEqual(["OperationStatusProvider", "useOperationStatus"]);
+    expect(
+      Object.keys(pkg.exports).filter((path) => path.startsWith("./operation-status")),
+    ).toEqual(["./operation-status/provider"]);
+  });
+
+  it("AC2: the provider alone carries no slot, indicator or label code", async () => {
     const code = await entryCode(
       "provider",
       [
@@ -75,7 +83,7 @@ describe("@suite/ui/operation-status/provider", () => {
     for (const marker of DISPLAY) expect(code).not.toContain(marker);
   });
 
-  it("AC2: the old path still passes on the provider together with the display", async () => {
+  it("AC3: the old path still passes on the provider together with the display", async () => {
     const code = await entryCode(
       "old-path",
       [

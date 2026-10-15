@@ -4,7 +4,7 @@
 
 Not breaking. New export path: `@suite/ui/operation-status/provider`.
 
-- `OperationStatusProvider`, `useOperationStatus`, their context and the types `OperationHandle`, `OperationStart`, `OperationStatusApi` and `OperationUpdate` live in their own module, which depends on no display building block. An app frame that imports the provider from the new path no longer carries the status slot, indicator and label in its entry bundle.
+- `OperationStatusProvider`, `useOperationStatus` and the types `OperationHandle`, `OperationStart`, `OperationStatusApi` and `OperationUpdate` live in their own module, which depends on no display building block. The context they share with the display stays internal (`src/operation-status/context.ts`, on no package path). An app frame that imports the provider from the new path no longer carries the status slot, indicator and label in its entry bundle.
 - `@suite/ui/ui/operation-status` (and the `ui` barrel) passes on the provider, the hook and the types unchanged, beside `OperationStatusSlot`, `OperationIndicator` and `OperationLabel`, which read the operations from the new module.
 - Apps, optional: the app frame imports `OperationStatusProvider` from `@suite/ui/operation-status/provider`.
 - Package test: a Vite bundle of the provider path carries no slot, indicator or label code; one of the old path carries both.

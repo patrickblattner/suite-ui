@@ -1,6 +1,7 @@
 import * as React from "react";
 
 import { toast } from "../ui/toaster.js";
+import { type Operation, OperationsContext } from "./context.js";
 
 // The provider part of the operation status (`GL-UI-033`, `SUI-FEATURE-077`): the app frame mounts it,
 // so it sits in every app's entry bundle. It depends on no display building block; the status slot,
@@ -16,11 +17,8 @@ type OperationHandle = {
   fail: (message: string) => void;
 };
 
-type Operation = { id: number; scope: string; label: string; progress?: number };
-
 type OperationStatusApi = { start: (operation: OperationStart) => OperationHandle };
 
-const OperationsContext = React.createContext<readonly Operation[] | null>(null);
 const OperationStatusApiContext = React.createContext<OperationStatusApi | null>(null);
 
 // The running operations of the session (`GL-UI-033`), held once beside the `Toaster` and independent of
@@ -66,8 +64,6 @@ function useOperationStatus(): OperationStatusApi {
 }
 
 export {
-  type Operation,
-  OperationsContext,
   OperationStatusProvider,
   useOperationStatus,
   type OperationHandle,
