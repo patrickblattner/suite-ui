@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.91.1 — SUI-FEATURE-009 rev 2 (#133): npm audit without findings
+
+Not breaking. Runtime dependencies and the package API unchanged; only dev dependencies move. `npm audit` reports 0 vulnerabilities (all severities, dev dependencies included).
+
+- `vitest` 3.2 → 5.0.4 (closes `tinypool` prototype pollution to RCE and the `@vitest/mocker` path traversal).
+- `tsup` 8.5 → 9.0.0, which brings `esbuild` 0.27 → 0.28.2 (also used by `vite`; closes the dev-server file read).
+- `spec-sync-toolkit` v0.23.1 → v0.24.0, which brings `simple-git` 3.36 → 4.0.2 and `@simple-git/argv-parser` 2.x (closes the unsafe-operation guard bypasses).
+- No package replaced or removed.
+
 ## 0.91.0 — SUI-FEATURE-008 rev 2 (#132): RowActions test id per action
 
 Not breaking. Without the new props every test id stays as before.
