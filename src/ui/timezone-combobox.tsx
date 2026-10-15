@@ -3,6 +3,7 @@ import * as React from "react";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
+import { usePopupPlacement } from "../lib/popup-placement.js";
 import { Hint } from "./hint.js";
 
 // The IANA zones of the runtime's own Intl database (`GL-UI-030` §Zeitzonen-Feld).
@@ -35,23 +36,6 @@ type TimezoneComboboxProps = {
   // Also names the open list `<id>-options` and each option `<id>-option`.
   "data-testid"?: string;
 };
-
-// The gap between the field and the list (`mt-1`/`mb-1`).
-const LIST_GAP = 4;
-
-// The nearest ancestor that clips the list: a scroll surface such as a dialog or panel body.
-function clippingAncestor(element: HTMLElement): HTMLElement | null {
-  for (let node = element.parentElement; node !== null; node = node.parentElement) {
-    if (getComputedStyle(node).overflowY !== "visible") return node;
-  }
-  return null;
-}
-
-function visibleBounds(clip: HTMLElement | null): { top: number; bottom: number } {
-  if (clip === null) return { top: 0, bottom: window.innerHeight };
-  const top = clip.getBoundingClientRect().top + clip.clientTop;
-  return { top, bottom: top + clip.clientHeight };
-}
 
 // A searchable choice over every IANA time zone. The value is always one of the offered zones: typing
 // only filters, and text without a pick is discarded when the field closes, so free text never becomes
@@ -136,31 +120,7 @@ function TimezoneCombobox({
   }, [open, close]);
 
   // Places the open list before it paints; again when filtering changes its height.
-  React.useLayoutEffect(() => {
-    const anchor = anchorRef.current;
-    const popup = popupRef.current;
-    if (!open || anchor === null || popup === null) return;
-    const clip = clippingAncestor(anchor);
-    const padding = clip?.style.paddingBottom ?? "";
-    const needed = popup.offsetHeight + LIST_GAP;
-    const spaceBelow = () => visibleBounds(clip).bottom - anchor.getBoundingClientRect().bottom;
-    let below = spaceBelow();
-    if (below < needed && clip !== null) {
-      // Padding at the end of the body adds height without moving anything in it.
-      const current = parseFloat(getComputedStyle(clip).paddingBottom) || 0;
-      clip.style.paddingBottom = `${Math.ceil(current + needed - below)}px`;
-      below = spaceBelow();
-      if (below < needed) {
-        clip.style.paddingBottom = padding;
-        below = spaceBelow();
-      }
-    }
-    const above = anchor.getBoundingClientRect().top - visibleBounds(clip).top;
-    popup.dataset.side = below >= needed || below >= above ? "bottom" : "top";
-    return () => {
-      if (clip !== null) clip.style.paddingBottom = padding;
-    };
-  }, [open, matches.length]);
+  usePopupPlacement(open, anchorRef, popupRef, matches.length);
 
   React.useEffect(() => {
     if (!open) return;

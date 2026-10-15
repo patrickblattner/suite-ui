@@ -301,6 +301,7 @@ export const es: SuiteStrings = {
     added: "Etiqueta {{tag}} añadida",
     addedMany: "Etiquetas {{tags}} añadidas",
     removed: "Etiqueta {{tag}} quitada",
+    suggestions: "Etiquetas existentes",
   },
   pager: {
     previous: "Anterior",

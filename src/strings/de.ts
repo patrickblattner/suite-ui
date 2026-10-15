@@ -302,6 +302,7 @@ export const de: SuiteStrings = {
     added: "Tag {{tag}} hinzugefügt",
     addedMany: "Tags {{tags}} hinzugefügt",
     removed: "Tag {{tag}} entfernt",
+    suggestions: "Vorhandene Tags",
   },
   pager: {
     previous: "Vorheriges",
