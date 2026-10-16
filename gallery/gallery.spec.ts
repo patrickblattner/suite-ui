@@ -137,6 +137,31 @@ const AXE_PAGES: [
   ["tokens", (page) => page.getByTestId("token-warn-text")],
   ["keys", (page) => page.getByTestId("keys-row").first()],
   ["shell", (page) => page.getByTestId("app-sidebar")],
+  // #173: the open user menu, with every entry usable and with the unavailable ones.
+  [
+    "shell",
+    (page) => page.getByTestId("app-sidebar"),
+    "",
+    [
+      "with the user menu open",
+      async (page) => {
+        await page.getByTestId("user-menu-trigger").click();
+        await expect(page.getByTestId("user-menu-content")).toBeVisible();
+      },
+    ],
+  ],
+  [
+    "shell",
+    (page) => page.getByTestId("app-sidebar"),
+    "&unavailable=1",
+    [
+      "with the user menu open",
+      async (page) => {
+        await page.getByTestId("user-menu-trigger").click();
+        await expect(page.getByTestId("user-menu-content")).toBeVisible();
+      },
+    ],
+  ],
   ["inset", (page) => page.getByTestId("inset-row").first()],
   ["edit-panel", (page) => page.getByTestId("media-panel-trigger")],
   [
@@ -2610,6 +2635,45 @@ test("shell: unavailable Profile, Change password and Security keep their places
   await expect(menu).toBeVisible();
 });
 
+// #173: the open user menu by keyboard. Tab reaches every entry, the unavailable ones included, and
+// they read as unavailable; ↑/↓ step between the entries, Enter on an unavailable one does nothing.
+test("shell: the user menu by keyboard, unavailable entries included", async ({ page }) => {
+  await page.goto("/?page=shell&unavailable=1&lng=en");
+  const trigger = page.getByTestId("user-menu-trigger");
+  await trigger.focus();
+  await page.keyboard.press("Enter");
+  const menu = page.getByTestId("user-menu-content");
+  await expect(menu).toBeVisible();
+  await page.keyboard.press("Tab");
+  const profile = menu.getByTestId("user-menu-profile");
+  await expect(profile).toBeFocused();
+  await expect(profile).toHaveAttribute("aria-disabled", "true");
+  await page.keyboard.press("Enter");
+  await expect(menu).toBeVisible();
+  await page.keyboard.press("ArrowDown");
+  const language = menu.getByTestId("language-switcher");
+  await expect(language).toBeFocused();
+  // The closed language trigger passes ↓ on, its list stays closed; of the appearance options only
+  // the active one is a stop.
+  await page.keyboard.press("ArrowDown");
+  await expect(language).toHaveAttribute("aria-expanded", "false");
+  await expect(menu.locator("[data-testid^=theme-option-][aria-checked=true]")).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  const password = menu.getByTestId("user-menu-change-password");
+  await expect(password).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(menu.getByTestId("user-menu-security")).toBeFocused();
+  await page.keyboard.press("ArrowDown");
+  await expect(menu.getByTestId("user-menu-notifications")).toBeFocused();
+  await page.keyboard.press("End");
+  await expect(menu.getByTestId("user-menu-logout")).toBeFocused();
+  await page.keyboard.press("Home");
+  await expect(profile).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(menu).toBeHidden();
+  await expect(trigger).toBeFocused();
+});
+
 test("shell: one character searches nothing, Esc returns to the sidebar field", async ({
   page,
 }) => {
@@ -2870,7 +2934,7 @@ for (const lng of LANGUAGES) {
     const frame = await box(panel);
     expect(frame.width).toBeGreaterThanOrEqual(224);
     const entries = panel.locator(
-      "[role=menuitem], [data-testid=language-switcher], [data-testid^=theme-option-]",
+      "[data-testid^=user-menu-]:is(button), [data-testid=language-switcher], [data-testid^=theme-option-]",
     );
     expect(await entries.count()).toBeGreaterThan(0);
     for (const entry of await entries.all()) {

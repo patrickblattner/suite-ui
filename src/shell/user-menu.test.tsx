@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import i18n from "i18next";
 import { BellIcon } from "lucide-react";
+import { createPortal } from "react-dom";
 import { describe, expect, it, vi } from "vitest";
 
 import { userMenuOrderViolations } from "../testing/index.js";
@@ -174,7 +175,7 @@ describe("UserMenu", () => {
       "user-menu-logout",
     ]);
     const entry = screen.getByTestId("user-menu-security");
-    expect(entry).toHaveAttribute("role", "menuitem");
+    expect(entry.tagName).toBe("BUTTON");
     expect(entry).toHaveAttribute("aria-disabled", "true");
     expect(entry).toHaveTextContent("Security");
     expect(entry).toHaveTextContent("Not available yet");
@@ -191,6 +192,133 @@ describe("UserMenu", () => {
     expect(screen.getByTestId("user-menu-security")).not.toHaveAttribute("aria-disabled");
     fireEvent.click(screen.getByTestId("user-menu-security"));
     expect(props.onSecurity).toHaveBeenCalledTimes(1);
+  });
+
+  // #173: a disclosure panel, not an ARIA menu; every entry is reachable by keyboard.
+  it("the panel is a labelled group the trigger controls; no menu roles", () => {
+    renderMenu();
+    const trigger = screen.getByTestId("user-menu-trigger");
+    expect(trigger).not.toHaveAttribute("aria-haspopup");
+    expect(trigger).not.toHaveAttribute("aria-controls");
+    fireEvent.click(trigger);
+    const panel = screen.getByTestId("user-menu-content");
+    expect(panel).toHaveAttribute("role", "group");
+    expect(panel).toHaveAccessibleName("Account menu");
+    expect(trigger).toHaveAttribute("aria-controls", panel.id);
+    expect(document.querySelector("[role=menu], [role=menuitem]")).toBeNull();
+  });
+
+  it("unavailable and locked entries are focusable buttons, announced as disabled", () => {
+    renderMenu({
+      profileUnavailable: true,
+      changePasswordLocked: true,
+      securityUnavailable: true,
+    });
+    fireEvent.click(screen.getByTestId("user-menu-trigger"));
+    for (const id of [
+      "user-menu-profile",
+      "user-menu-change-password-locked",
+      "user-menu-security",
+    ]) {
+      const entry = screen.getByTestId(id);
+      expect(entry.tagName).toBe("BUTTON");
+      expect(entry).not.toBeDisabled();
+      expect(entry).toHaveAttribute("aria-disabled", "true");
+      entry.focus();
+      expect(entry).toHaveFocus();
+    }
+  });
+
+  it("↑/↓ move between the stops, wrapping; Home/End jump to the first/last", () => {
+    renderMenu({ securityUnavailable: true });
+    fireEvent.click(screen.getByTestId("user-menu-trigger"));
+    const profile = screen.getByTestId("user-menu-profile");
+    profile.focus();
+    fireEvent.keyDown(profile, { key: "ArrowDown" });
+    expect(screen.getByTestId("language-switcher")).toHaveFocus();
+    // Of the appearance options only the active one is a stop.
+    const appearance = screen.getByTestId("theme-option-system");
+    appearance.focus();
+    fireEvent.keyDown(appearance, { key: "ArrowUp" });
+    expect(screen.getByTestId("language-switcher")).toHaveFocus();
+    appearance.focus();
+    fireEvent.keyDown(appearance, { key: "ArrowDown" });
+    const password = screen.getByTestId("user-menu-change-password");
+    expect(password).toHaveFocus();
+    fireEvent.keyDown(password, { key: "ArrowDown" });
+    expect(screen.getByTestId("user-menu-security")).toHaveFocus();
+    fireEvent.keyDown(screen.getByTestId("user-menu-security"), { key: "ArrowDown" });
+    expect(screen.getByTestId("user-menu-notifications")).toHaveFocus();
+    fireEvent.keyDown(screen.getByTestId("user-menu-notifications"), { key: "End" });
+    const logout = screen.getByTestId("user-menu-logout");
+    expect(logout).toHaveFocus();
+    fireEvent.keyDown(logout, { key: "ArrowDown" });
+    expect(profile).toHaveFocus();
+    fireEvent.keyDown(profile, { key: "ArrowUp" });
+    expect(logout).toHaveFocus();
+    fireEvent.keyDown(logout, { key: "Home" });
+    expect(profile).toHaveFocus();
+  });
+
+  it("the closed language trigger is a stop: ↑/↓ move on and leave its list closed", () => {
+    renderMenu();
+    fireEvent.click(screen.getByTestId("user-menu-trigger"));
+    const language = screen.getByTestId("language-switcher");
+    language.focus();
+    fireEvent.keyDown(language, { key: "ArrowDown" });
+    expect(screen.getByTestId("theme-option-system")).toHaveFocus();
+    expect(language).toHaveAttribute("aria-expanded", "false");
+    language.focus();
+    fireEvent.keyDown(language, { key: "ArrowUp" });
+    expect(screen.getByTestId("user-menu-profile")).toHaveFocus();
+    expect(language).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("listbox")).toBeNull();
+  });
+
+  it("from an inactive appearance option ↓/↑ go to the stop after/before it", () => {
+    renderMenu({ appearance: "system" });
+    fireEvent.click(screen.getByTestId("user-menu-trigger"));
+    const light = screen.getByTestId("theme-option-light");
+    light.focus();
+    fireEvent.keyDown(light, { key: "ArrowDown" });
+    expect(screen.getByTestId("user-menu-change-password")).toHaveFocus();
+    light.focus();
+    fireEvent.keyDown(light, { key: "ArrowUp" });
+    expect(screen.getByTestId("theme-option-system")).toHaveFocus();
+    const dark = screen.getByTestId("theme-option-dark");
+    dark.focus();
+    fireEvent.keyDown(dark, { key: "ArrowUp" });
+    expect(screen.getByTestId("theme-option-system")).toHaveFocus();
+  });
+
+  it("keys from a portal outside the panel's DOM are not the panel's", () => {
+    function Portalled() {
+      return createPortal(
+        <button type="button" data-testid="portalled">
+          outside
+        </button>,
+        document.body,
+      );
+    }
+    render(
+      <UserMenu
+        name="ada"
+        language="en"
+        onLanguageChange={vi.fn()}
+        appearance="system"
+        onAppearanceChange={vi.fn()}
+        onProfile={vi.fn()}
+        onSecurity={vi.fn()}
+        onLogOut={vi.fn()}
+      >
+        <Portalled />
+      </UserMenu>,
+    );
+    fireEvent.click(screen.getByTestId("user-menu-trigger"));
+    const outside = screen.getByTestId("portalled");
+    outside.focus();
+    fireEvent.keyDown(outside, { key: "ArrowDown" });
+    expect(outside).toHaveFocus();
   });
 
   it("shows the unavailable Change password entry even without onChangePassword", () => {
@@ -225,11 +353,13 @@ describe("UserMenu", () => {
     }
   });
 
-  it("closes on Escape", () => {
+  it("closes on Escape, the focus back on the trigger", () => {
     renderMenu();
     fireEvent.click(screen.getByTestId("user-menu-trigger"));
+    screen.getByTestId("user-menu-logout").focus();
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByTestId("user-menu-content")).not.toBeInTheDocument();
+    expect(screen.getByTestId("user-menu-trigger")).toHaveFocus();
   });
 });
 

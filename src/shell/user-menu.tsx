@@ -62,7 +62,6 @@ function UserMenuItem({
     <Hint text={hint} disabledText={disabledHint}>
       <button
         type="button"
-        role="menuitem"
         data-testid={testId}
         disabled={disabled}
         onClick={() => {
@@ -78,6 +77,11 @@ function UserMenuItem({
   );
 }
 
+// A notice in an entry's place: focusable, so the keyboard reaches it, announced as unavailable
+// (`aria-disabled`), and it triggers nothing.
+const noticeClass =
+  "flex items-start gap-2 rounded-sm px-2 py-1.5 text-left text-sm text-muted-foreground outline-none focus-visible:focus-ring-inset";
+
 // An entry the app does not offer yet: it keeps its place, is `aria-disabled` and triggers nothing.
 function UnavailableItem({
   testId,
@@ -86,19 +90,84 @@ function UnavailableItem({
 }: Pick<UserMenuItemProps, "testId" | "icon" | "label">) {
   const { t } = useTranslation("suite");
   return (
-    <div
-      role="menuitem"
+    <button
+      type="button"
       aria-disabled="true"
       data-testid={testId}
-      className="flex w-full items-start gap-2 rounded-sm px-2 py-1.5 text-left text-sm text-muted-foreground"
+      className={cn(noticeClass, "w-full")}
     >
       <Icon className="size-4 shrink-0 translate-y-0.5" aria-hidden="true" />
       <span className="grid">
         <span>{label}</span>
         <span className="text-xs">{t("account.notAvailable")}</span>
       </span>
-    </div>
+    </button>
   );
+}
+
+// The panel's stops for the arrow keys, in document order (`SUI-FEATURE-082`): the entries, the
+// language trigger and the active appearance option.
+const STOPS = 'button:not(:disabled):not([role="radio"][aria-checked="false"]), [tabindex="0"]';
+
+const MOVE_KEYS = ["ArrowUp", "ArrowDown", "Home", "End"];
+
+function isMoveKey(event: React.KeyboardEvent): boolean {
+  return MOVE_KEYS.includes(event.key) && !event.altKey && !event.ctrlKey && !event.metaKey;
+}
+
+// Moves the focus from `from` to the next/previous stop of `panel` (↓/↑, wrapping) or to the
+// first/last (Home/End). From an element that is no stop (an inactive appearance option) ↓/↑ go to
+// the stop after/before it in document order.
+function moveFocus(panel: HTMLElement, from: Element, key: string): void {
+  const stops = [...panel.querySelectorAll<HTMLElement>(STOPS)];
+  if (stops.length === 0) return;
+  const last = stops.length - 1;
+  const at = stops.indexOf(from as HTMLElement);
+  let next: number;
+  if (key === "Home") next = 0;
+  else if (key === "End") next = last;
+  else if (at !== -1)
+    next = key === "ArrowDown" ? (at + 1) % stops.length : (at || stops.length) - 1;
+  else if (key === "ArrowDown") {
+    next = stops.findIndex(
+      (stop) => from.compareDocumentPosition(stop) & Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    if (next === -1) next = 0;
+  } else {
+    next = last;
+    while (
+      next >= 0 &&
+      !(from.compareDocumentPosition(stops[next]!) & Node.DOCUMENT_POSITION_PRECEDING)
+    ) {
+      next--;
+    }
+    if (next === -1) next = last;
+  }
+  stops[next]!.focus();
+}
+
+// ↑/↓, Home and End between the panel's stops. Keys from outside the panel's DOM (the language list,
+// portalled to the body) and keys a control already handled are not the panel's.
+function onPanelKeyDown(event: React.KeyboardEvent<HTMLElement>): void {
+  if (event.defaultPrevented || !isMoveKey(event)) return;
+  const target = event.target as Element;
+  if (!event.currentTarget.contains(target)) return;
+  event.preventDefault();
+  moveFocus(event.currentTarget, target, event.key);
+}
+
+// The closed language trigger is a stop like the others: its ↑/↓ move on instead of opening the
+// list, which opens on Enter, Space and Alt+↓. Taken in the capture phase, before the trigger's own
+// handler sees them.
+function onPanelKeyDownCapture(event: React.KeyboardEvent<HTMLElement>): void {
+  if (!isMoveKey(event)) return;
+  const target = event.target as Element;
+  if (target.getAttribute("role") !== "combobox") return;
+  if (target.getAttribute("aria-expanded") === "true") return;
+  if (!event.currentTarget.contains(target)) return;
+  event.preventDefault();
+  event.stopPropagation();
+  moveFocus(event.currentTarget, target, event.key);
 }
 
 function Separator() {
@@ -164,6 +233,7 @@ function UserMenu({
   const [isOpen, setIsOpen] = React.useState(false);
   const [container, setContainer] = React.useState<HTMLDivElement | null>(null);
   const close = React.useCallback(() => setIsOpen(false), []);
+  const panelId = React.useId();
   const sidebar = useOptionalSidebar();
   const collapsed = sidebar?.isOpen === false;
 
@@ -181,17 +251,23 @@ function UserMenu({
     return () => document.removeEventListener("pointerdown", onPointerDown, true);
   }, [isOpen, container]);
   // `Esc` closes the open menu first, and only the menu (`GL-UI-007`): a package escape layer, inside
-  // the sidebar overlay's.
-  useEscapeLayer(isOpen, close, container);
+  // the sidebar overlay's. It hands the focus back to the trigger (`SUI-FEATURE-082`).
+  const trigger = React.useRef<HTMLButtonElement>(null);
+  const escape = React.useCallback(() => {
+    setIsOpen(false);
+    trigger.current?.focus();
+  }, []);
+  useEscapeLayer(isOpen, escape, container);
 
   return (
     <div ref={setContainer} className="relative">
       <Hint text={t("account.menuHint")}>
         <button
+          ref={trigger}
           type="button"
           onClick={() => setIsOpen((open) => !open)}
-          aria-haspopup="menu"
           aria-expanded={isOpen}
+          aria-controls={isOpen ? panelId : undefined}
           data-testid="user-menu-trigger"
           aria-label={collapsed ? name : undefined}
           className={cn(
@@ -234,10 +310,15 @@ function UserMenu({
 
       {isOpen && (
         <CloseMenuContext.Provider value={close}>
+          {/* A disclosure panel, not an ARIA menu: it holds a select and a radio group, which a menu
+              may not. Every entry is a Tab stop, the unavailable ones included; ↑/↓ move between them. */}
           <div
-            role="menu"
+            id={panelId}
+            role="group"
             aria-label={t("account.menu")}
             data-testid="user-menu-content"
+            onKeyDown={onPanelKeyDown}
+            onKeyDownCapture={onPanelKeyDownCapture}
             className={cn(
               "absolute bottom-full left-0 z-50 mb-1 w-max overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md",
               collapsed ? "min-w-56" : "min-w-full",
@@ -330,16 +411,16 @@ function UserMenu({
             </div>
             <Separator />
             {changePasswordLocked ? (
-              <div
-                role="menuitem"
+              <button
+                type="button"
                 aria-disabled="true"
                 data-testid="user-menu-change-password-locked"
                 // The notice wraps at the panel width instead of setting it.
-                className="flex w-0 min-w-full items-start gap-2 rounded-sm px-2 py-1.5 text-left text-sm text-muted-foreground"
+                className={cn(noticeClass, "w-0 min-w-full")}
               >
                 <KeyIcon className="size-4 shrink-0 translate-y-0.5" aria-hidden="true" />
                 <span>{t("account.changePasswordLocked")}</span>
-              </div>
+              </button>
             ) : changePasswordUnavailable ? (
               <UnavailableItem
                 testId="user-menu-change-password"
