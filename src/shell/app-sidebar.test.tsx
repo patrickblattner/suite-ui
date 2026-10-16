@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { CalendarIcon, FileTextIcon, ListIcon, NewspaperIcon } from "lucide-react";
 import i18n from "i18next";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AppSidebar } from "./app-sidebar.js";
 import type { NavModel } from "./nav.js";
@@ -284,24 +284,131 @@ describe("AppSidebar version line", () => {
     expect(line).not.toHaveClass("truncate");
   });
 
-  it("keyboard focus shows version, commit and build date as tooltip", async () => {
-    // jsdom has no ResizeObserver; the open tooltip's popper measures its arrow with one.
-    vi.stubGlobal(
-      "ResizeObserver",
-      class {
-        observe() {}
-        unobserve() {}
-        disconnect() {}
-      },
-    );
-    renderVersion({ version: null, commit: "abc1234", buildDate: "2026-10-01" });
-    const line = screen.getByTestId("version-line");
-    act(() => line.focus());
-    expect(line).toHaveFocus();
-    const tooltip = await screen.findByTestId("version-tooltip");
-    expect(tooltip).toHaveTextContent("No release (untagged build)");
-    expect(tooltip).toHaveTextContent("abc1234");
-    expect(tooltip).toHaveTextContent("2026-10-01");
+  describe("the version info", () => {
+    beforeEach(() => {
+      // jsdom has no ResizeObserver; the open popover's popper measures with one.
+      vi.stubGlobal(
+        "ResizeObserver",
+        class {
+          observe() {}
+          unobserve() {}
+          disconnect() {}
+        },
+      );
+    });
+
+    const wait = (ms: number) => act(() => new Promise((resolve) => setTimeout(resolve, ms)));
+
+    it("the line is a button with the accessible name Version; loading or unknown is no button", () => {
+      const { unmount } = renderVersion({
+        version: "1.2.3",
+        commit: "abc1234",
+        buildDate: "2026-10-01",
+      });
+      expect(screen.getByRole("button", { name: "Version" })).toBe(
+        screen.getByTestId("version-line"),
+      );
+      unmount();
+      renderVersion(null);
+      expect(screen.queryByRole("button", { name: "Version" })).not.toBeInTheDocument();
+    });
+
+    it("keyboard focus shows version, commit and build date; Esc closes it, focus stays", async () => {
+      renderVersion({ version: null, commit: "abc1234", buildDate: "2026-10-01" });
+      const line = screen.getByTestId("version-line");
+      act(() => line.focus());
+      const panel = await screen.findByTestId("version-info");
+      expect(panel).toHaveTextContent("No release (untagged build)");
+      expect(panel).toHaveTextContent("abc1234");
+      expect(panel).toHaveTextContent("2026-10-01");
+      expect(line).toHaveFocus();
+      fireEvent.keyDown(document.activeElement!, { key: "Escape" });
+      expect(screen.queryByTestId("version-info")).not.toBeInTheDocument();
+      expect(line).toHaveFocus();
+    });
+
+    it("hover shows the info; the pointer can move onto it without it disappearing", async () => {
+      renderVersion({ version: "1.2.3", commit: "abc1234", buildDate: "2026-10-01" });
+      const line = screen.getByTestId("version-line");
+      fireEvent.pointerOver(line, { pointerType: "mouse" });
+      const panel = await screen.findByTestId("version-info");
+      fireEvent.pointerOut(line, { pointerType: "mouse", relatedTarget: panel });
+      fireEvent.pointerOver(panel, { pointerType: "mouse", relatedTarget: line });
+      await wait(400);
+      expect(screen.getByTestId("version-info")).toBeInTheDocument();
+      fireEvent.pointerOut(panel, { pointerType: "mouse", relatedTarget: document.body });
+      await wait(400);
+      expect(screen.queryByTestId("version-info")).not.toBeInTheDocument();
+    });
+
+    it("as a button: pointer cursor, a hover signal and a 24 px hit area that keeps the layout", () => {
+      renderVersion({ version: "1.2.3", commit: "abc1234", buildDate: "2026-10-01" });
+      const line = screen.getByTestId("version-line");
+      expect(line).toHaveClass("cursor-pointer", "hover:text-foreground", "h-4");
+      expect(line).toHaveClass("relative", "min-w-6", "after:absolute", "after:-inset-y-1");
+    });
+
+    it("while open, the line is described by the info, and the info carries a name", async () => {
+      renderVersion({ version: "1.2.3", commit: "abc1234", buildDate: "2026-10-01" });
+      const line = screen.getByTestId("version-line");
+      expect(line).not.toHaveAttribute("aria-describedby");
+      act(() => line.focus());
+      const panel = await screen.findByTestId("version-info");
+      expect(panel).toHaveAttribute("aria-label", "Version");
+      expect(line).toHaveAccessibleDescription(/1\.2\.3.*abc1234.*2026-10-01/);
+    });
+
+    it("the pointer leaving does not close info that focus opened", async () => {
+      renderVersion({ version: "1.2.3", commit: "abc1234", buildDate: "2026-10-01" });
+      const line = screen.getByTestId("version-line");
+      act(() => line.focus());
+      await screen.findByTestId("version-info");
+      fireEvent.pointerOver(line, { pointerType: "mouse" });
+      fireEvent.pointerOut(line, { pointerType: "mouse", relatedTarget: document.body });
+      await wait(400);
+      expect(screen.getByTestId("version-info")).toBeInTheDocument();
+    });
+
+    it("focus moving from the line into the info keeps it; focus leaving both closes it", async () => {
+      renderVersion({ version: "1.2.3", commit: "abc1234", buildDate: "2026-10-01" });
+      const line = screen.getByTestId("version-line");
+      act(() => line.focus());
+      const panel = await screen.findByTestId("version-info");
+      fireEvent.blur(line, { relatedTarget: panel });
+      expect(screen.getByTestId("version-info")).toBeInTheDocument();
+      fireEvent.blur(panel, { relatedTarget: document.body });
+      expect(screen.queryByTestId("version-info")).not.toBeInTheDocument();
+    });
+
+    it("hover info closes with Esc", async () => {
+      renderVersion({ version: "1.2.3", commit: "abc1234", buildDate: "2026-10-01" });
+      fireEvent.pointerOver(screen.getByTestId("version-line"), { pointerType: "mouse" });
+      await screen.findByTestId("version-info");
+      fireEvent.keyDown(document.body, { key: "Escape" });
+      expect(screen.queryByTestId("version-info")).not.toBeInTheDocument();
+    });
+
+    it("click (tap, Enter) opens the info as a popover that stays until closed", async () => {
+      renderVersion({ version: "1.2.3", commit: "abc1234", buildDate: "2026-10-01" });
+      const line = screen.getByTestId("version-line");
+      // A tap: a touch pointer opens nothing on hover, the click opens it.
+      fireEvent.pointerOver(line, { pointerType: "touch" });
+      expect(screen.queryByTestId("version-info")).not.toBeInTheDocument();
+      fireEvent.click(line);
+      const panel = await screen.findByTestId("version-info");
+      expect(panel).toHaveAttribute("data-mode", "pinned");
+      expect(line).toHaveAttribute("aria-expanded", "true");
+      fireEvent.pointerOut(line, { pointerType: "mouse", relatedTarget: document.body });
+      act(() => line.blur());
+      await wait(400);
+      expect(screen.getByTestId("version-info")).toBeInTheDocument();
+      fireEvent.click(line);
+      expect(screen.queryByTestId("version-info")).not.toBeInTheDocument();
+      fireEvent.click(line);
+      await screen.findByTestId("version-info");
+      fireEvent.keyDown(document.body, { key: "Escape" });
+      expect(screen.queryByTestId("version-info")).not.toBeInTheDocument();
+    });
   });
 
   it("collapsed, the line is not rendered", () => {

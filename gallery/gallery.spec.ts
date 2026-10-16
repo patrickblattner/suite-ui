@@ -2186,7 +2186,7 @@ for (const lng of LANGUAGES) {
     await check();
     await page.keyboard.press("Escape");
     await page.getByTestId("version-line").focus();
-    await expect(page.getByTestId("version-tooltip")).toBeVisible();
+    await expect(page.getByTestId("version-info")).toBeVisible();
     await check();
     await page.keyboard.press("Escape");
     await page.getByTestId("nav-section-settings").click();
@@ -2266,12 +2266,56 @@ for (const lng of LANGUAGES) {
     expect(geometry.gap).toBeGreaterThanOrEqual(0);
     expect(geometry.gap).toBeLessThanOrEqual(8);
     await page.getByTestId("version-line").hover();
-    await expect(page.getByTestId("version-tooltip")).toContainText("a1b2c3d");
+    await expect(page.getByTestId("version-info")).toContainText("a1b2c3d");
     await page.getByTestId("sidebar-trigger").click();
     await expect(page.getByTestId("app-sidebar")).toHaveAttribute("data-state", "collapsed");
     await expect(page.getByTestId("version-line")).toHaveCount(0);
   });
 }
+
+// `GL-UI-020` §Versionszeile: the line is a button named "Version"; the hover info lets the pointer
+// onto it and closes with `Esc`; click and `Enter` open it as a popover that stays until closed.
+test("shell: the version info stays under the pointer, closes with Esc, opens by click and Enter", async ({
+  page,
+}) => {
+  await page.goto("/?page=shell&route=/dashboard");
+  const line = page.getByRole("button", { name: "Version", exact: true });
+  const info = page.getByTestId("version-info");
+  await expect(line).toHaveText("0.6.0");
+  // `GL-UI-013`: the corners of a 24 × 24 px box around the centre still hit the line.
+  const corners = await line.evaluate((el) => {
+    const box = el.getBoundingClientRect();
+    const [x, y] = [box.left + box.width / 2, box.top + box.height / 2];
+    return [-11.5, 11.5].flatMap((dx) =>
+      [-11.5, 11.5].map((dy) => el.contains(document.elementFromPoint(x + dx, y + dy))),
+    );
+  });
+  expect(corners).toEqual([true, true, true, true]);
+  const color = () => line.evaluate((el) => getComputedStyle(el).color);
+  const resting = await color();
+  await line.hover();
+  await expect.poll(color).not.toBe(resting);
+  await expect(line).toHaveCSS("cursor", "pointer");
+  await expect(info).toBeVisible();
+  await info.hover();
+  await page.waitForTimeout(500);
+  await expect(info).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(info).toHaveCount(0);
+  await page.mouse.move(1900, 1060);
+  await line.click();
+  await expect(info).toHaveAttribute("data-mode", "pinned");
+  await page.mouse.move(1900, 1060);
+  await page.waitForTimeout(500);
+  await expect(info).toBeVisible();
+  await line.click();
+  await expect(info).toHaveCount(0);
+  await page.keyboard.press("Enter");
+  await expect(info).toHaveAttribute("data-mode", "pinned");
+  await page.keyboard.press("Escape");
+  await expect(info).toHaveCount(0);
+  await expect(line).toBeFocused();
+});
 
 test("shell: user menu order, the app entry before Log out", async ({ page }) => {
   await page.goto("/?page=shell");
