@@ -198,11 +198,13 @@ export const es: SuiteStrings = {
   },
   version: {
     title: "Versión",
+    name: "Versión {{text}}",
     version: "Versión",
     noRelease: "Sin versión publicada (compilación sin etiqueta)",
     commit: "Commit",
     buildDate: "Fecha de compilación",
     unknown: "desconocida",
+    unknownValue: "desconocido",
   },
   confirmDelete: {
     title: "Confirmar eliminación",

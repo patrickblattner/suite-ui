@@ -299,7 +299,7 @@ describe("AppSidebar version line", () => {
 
     const wait = (ms: number) => act(() => new Promise((resolve) => setTimeout(resolve, ms)));
 
-    it("the line is a button with the accessible name Version plus its text; loading or unknown is no button", () => {
+    it("the line is a button with the accessible name Version plus its text; loading or unreadable (null) is no button", () => {
       const { unmount } = renderVersion({
         version: "1.2.3",
         commit: "abc1234",
@@ -310,8 +310,23 @@ describe("AppSidebar version line", () => {
       // The visible text is part of the name (WCAG 2.5.3).
       expect(line.getAttribute("aria-label")).toContain(line.textContent);
       unmount();
+      const commit = renderVersion({ version: null, commit: "a1b2c3d", buildDate: "2026-10-01" });
+      expect(screen.getByRole("button", { name: "Version a1b2c3d" })).toBeInTheDocument();
+      commit.unmount();
       renderVersion(null);
       expect(screen.queryByRole("button", { name: /^Version/ })).not.toBeInTheDocument();
+    });
+
+    it("without version and commit the line is named Version unknown and the info has no empty cell", async () => {
+      renderVersion({ version: null, commit: "", buildDate: "" });
+      const line = screen.getByRole("button", { name: "Version unknown" });
+      expect(line).toHaveTextContent(/^unknown$/);
+      act(() => line.focus());
+      const panel = await screen.findByTestId("version-info");
+      // Line and info agree: no "No release" when the commit is missing too.
+      expect(panel).toHaveTextContent("Versionunknown");
+      expect(panel).not.toHaveTextContent("No release");
+      for (const cell of panel.querySelectorAll("dd")) expect(cell).not.toBeEmptyDOMElement();
     });
 
     it("keyboard focus shows version, commit and build date; Esc closes it, focus stays", async () => {
@@ -349,14 +364,34 @@ describe("AppSidebar version line", () => {
       expect(line).toHaveClass("relative", "min-w-6", "after:absolute", "after:-inset-y-1");
     });
 
-    it("while open, the line is described by the info, and the info carries a name", async () => {
+    it("while open, the line is described by commit and build date only, and the info carries a name", async () => {
       renderVersion({ version: "1.2.3", commit: "abc1234", buildDate: "2026-10-01" });
       const line = screen.getByTestId("version-line");
       expect(line).not.toHaveAttribute("aria-describedby");
       act(() => line.focus());
       const panel = await screen.findByTestId("version-info");
       expect(panel).toHaveAttribute("aria-label", "Version");
-      expect(line).toHaveAccessibleDescription(/1\.2\.3.*abc1234.*2026-10-01/);
+      // The name already says the version; the description does not repeat it.
+      expect(line).toHaveAccessibleDescription("Commit abc1234 Build date 2026-10-01");
+    });
+
+    it("without a release the line shows the commit and is described by the version and build rows", async () => {
+      renderVersion({ version: null, commit: "a1b2c3d", buildDate: "2026-10-01" });
+      const line = screen.getByRole("button", { name: "Version a1b2c3d" });
+      act(() => line.focus());
+      await screen.findByTestId("version-info");
+      expect(line).toHaveAccessibleDescription(
+        "Version No release (untagged build) Build date 2026-10-01",
+      );
+    });
+
+    it("in Spanish the missing commit and build date read desconocido", async () => {
+      await i18n.changeLanguage("es");
+      renderVersion({ version: null, commit: "", buildDate: "" });
+      const line = screen.getByRole("button", { name: "Versión desconocida" });
+      act(() => line.focus());
+      const panel = await screen.findByTestId("version-info");
+      expect(panel).toHaveTextContent("Commitdesconocido");
     });
 
     it("the pointer leaving does not close info that focus opened", async () => {

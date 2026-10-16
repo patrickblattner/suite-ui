@@ -31,11 +31,11 @@ const BUTTON_CLASS =
 // The version line of the sidebar (`GL-UI-020` §Versionszeile): one line directly above the user
 // block, flush with the nav entry text, in the smallest text step and muted. It shows the release
 // number, without a release the short commit, exactly as the app delivers it (a dev string like
-// `v0.4.2+12 · a1b2c3d*` passes through). The line is a button named "Version" plus its text: hover and keyboard
-// focus show version, commit and build date, the pointer can move onto the info, `Esc` closes it;
-// click, tap and `Enter` open the same info as a popover that stays until closed. The info is the
-// line's own display, not a `GL-UI-016` hint tooltip. The app loads the data; the package has no
-// API client.
+// `v0.4.2+12 · a1b2c3d*` passes through). The line is a button named "Version" plus its text:
+// hover and keyboard focus show version, commit and build date, the pointer can move onto the info,
+// `Esc` closes it; click, tap and `Enter` open the same info as a popover that stays until closed.
+// The info is the line's own display, not a `GL-UI-016` hint tooltip. The app loads the data; the
+// package has no API client.
 function VersionLine({ info }: VersionLineProps) {
   const { t } = useTranslation("suite");
   // Hover and focus each hold the info open on their own (WCAG 1.4.13); pinned stays until closed.
@@ -62,6 +62,10 @@ function VersionLine({ info }: VersionLineProps) {
   }
 
   const open = pinned || hovered || focused;
+  // Without a release the line shows the commit, so the version row describes it instead.
+  const described = [info.version === null ? "version" : "commit", "build"]
+    .map((row) => `${infoId}-${row}-term ${infoId}-${row}`)
+    .join(" ");
   const close = () => {
     clearTimeout(closeTimer.current);
     setHovered(false);
@@ -93,8 +97,9 @@ function VersionLine({ info }: VersionLineProps) {
         type="button"
         data-testid="version-line"
         // The name starts with the visible text's label and contains the text itself (WCAG 2.5.3).
-        aria-label={`${t("version.title")} ${text}`}
-        aria-describedby={open ? infoId : undefined}
+        aria-label={t("version.name", { text, interpolation: { escapeValue: false } })}
+        // The name already carries the shown text; the description adds only the other two rows.
+        aria-describedby={open ? described : undefined}
         className={cn(LINE_CLASS, BUTTON_CLASS)}
         onPointerEnter={enter}
         onPointerLeave={leave}
@@ -124,13 +129,15 @@ function VersionLine({ info }: VersionLineProps) {
         onPointerLeave={leave}
         onBlur={blur}
       >
-        <dl id={infoId} className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
-          <dt>{t("version.version")}</dt>
-          <dd>{info.version ?? t("version.noRelease")}</dd>
-          <dt>{t("version.commit")}</dt>
-          <dd>{info.commit}</dd>
-          <dt>{t("version.buildDate")}</dt>
-          <dd>{info.buildDate}</dd>
+        <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5">
+          <dt id={`${infoId}-version-term`}>{t("version.version")}</dt>
+          <dd id={`${infoId}-version`}>
+            {info.version ?? (info.commit ? t("version.noRelease") : t("version.unknown"))}
+          </dd>
+          <dt id={`${infoId}-commit-term`}>{t("version.commit")}</dt>
+          <dd id={`${infoId}-commit`}>{info.commit || t("version.unknownValue")}</dd>
+          <dt id={`${infoId}-build-term`}>{t("version.buildDate")}</dt>
+          <dd id={`${infoId}-build`}>{info.buildDate || t("version.unknownValue")}</dd>
         </dl>
       </PopoverContent>
     </Popover>

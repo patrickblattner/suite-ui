@@ -199,11 +199,13 @@ export const de: SuiteStrings = {
   },
   version: {
     title: "Version",
+    name: "Version {{text}}",
     version: "Version",
     noRelease: "Kein Release (Stand ohne Tag)",
     commit: "Commit",
     buildDate: "Build-Datum",
     unknown: "unbekannt",
+    unknownValue: "unbekannt",
   },
   confirmDelete: {
     title: "Löschen bestätigen",

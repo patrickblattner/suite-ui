@@ -207,11 +207,13 @@ export const en = {
   },
   version: {
     title: "Version",
+    name: "Version {{text}}",
     version: "Version",
     noRelease: "No release (untagged build)",
     commit: "Commit",
     buildDate: "Build date",
     unknown: "unknown",
+    unknownValue: "unknown",
   },
   confirmDelete: {
     title: "Confirm deletion",

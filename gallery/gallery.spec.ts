@@ -2273,8 +2273,9 @@ for (const lng of LANGUAGES) {
   });
 }
 
-// `GL-UI-020` §Versionszeile: the line is a button named "Version" plus its text; the hover info lets the pointer
-// onto it and closes with `Esc`; click and `Enter` open it as a popover that stays until closed.
+// `GL-UI-020` §Versionszeile: the line is a button named "Version" plus its text; the hover info
+// lets the pointer onto it and closes with `Esc`; click and `Enter` open it as a popover that stays
+// until closed.
 test("shell: the version info stays under the pointer, closes with Esc, opens by click and Enter", async ({
   page,
 }) => {
