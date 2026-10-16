@@ -2,7 +2,10 @@ import {
   CheckIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  EyeOffIcon,
   FileIcon,
+  FileXIcon,
+  Link2OffIcon,
   RotateCcwIcon,
   SaveIcon,
   XIcon,
@@ -22,7 +25,11 @@ import { useLeaveConfirm } from "./leave-guard.js";
 import { Sheet, SheetTitle } from "./sheet.js";
 import { IconButtonTooltip } from "./tooltip.js";
 
-type MediaDetailKind = "image" | "video" | "audio" | "pdf" | "other";
+type MediaDetailKind = "image" | "video" | "audio" | "pdf" | "text" | "other";
+
+// Why no preview can show (`SUI-FEATURE-140`): no object linked, the object missing from storage, or
+// a type without a preview.
+type MediaPreviewState = "missingRef" | "missingBytes" | "noRenderer";
 
 type MediaDetailShellProps = {
   open?: boolean;
@@ -33,7 +40,15 @@ type MediaDetailShellProps = {
   onNext: () => void;
   onClose: () => void;
   kind: MediaDetailKind;
-  src: string;
+  // The medium's address; a text medium passes its content as `text` instead.
+  src?: string;
+  // `kind="text"`: the content, shown as it is or, with `format="json"`, indented when it parses.
+  text?: string;
+  format?: "plain" | "json";
+  // Given, replaces the preview by `kind` with a quiet state; `previewDetail` stands muted below its
+  // sentence (the file name or type, say).
+  previewState?: MediaPreviewState;
+  previewDetail?: string;
   // The text alternative of the preview: `alt` of an image, the name of a video, audio or PDF frame.
   alt?: string;
   // Unsaved changes against the loaded state: Reset and Save unlock, and paging or closing asks first.
@@ -61,7 +76,103 @@ type MediaDetailShellProps = {
 const OWN_ARROWS =
   'video, audio, iframe, select, [role="slider"], [role="combobox"], [role="listbox"], [role="option"], [role="radio"], [role="tab"], [role="menuitem"]';
 
-function MediaPreview({ kind, src, alt }: { kind: MediaDetailKind; src: string; alt: string }) {
+// At most this much of a text medium shows (`SUI-FEATURE-140`), in UTF-8 bytes.
+const TEXT_LIMIT = 200 * 1024;
+
+// The shown text: valid JSON indented with `format="json"` (invalid stays as it is), then cut to the
+// first `TEXT_LIMIT` bytes.
+function textPreview(text: string, format: "plain" | "json") {
+  let shown = text;
+  if (format === "json") {
+    try {
+      shown = JSON.stringify(JSON.parse(text), null, 2);
+    } catch {
+      // Invalid JSON falls back to plain text, silently.
+    }
+  }
+  const bytes = new TextEncoder().encode(shown);
+  if (bytes.length <= TEXT_LIMIT) return { shown, truncated: false };
+  // A cut through a multi-byte character leaves a replacement character at the end; drop it.
+  const cut = new TextDecoder().decode(bytes.subarray(0, TEXT_LIMIT)).replace(/\uFFFD$/, "");
+  return { shown: cut, truncated: true };
+}
+
+function TextPreview({
+  text,
+  format,
+  alt,
+}: {
+  text: string;
+  format: "plain" | "json";
+  alt: string;
+}) {
+  const { t } = useTranslation("suite");
+  const { shown, truncated } = React.useMemo(() => textPreview(text, format), [text, format]);
+  return (
+    <div className="flex size-full flex-col">
+      {/* Its own scroll region, reachable by keyboard. */}
+      <pre
+        tabIndex={0}
+        aria-label={alt || undefined}
+        data-testid="media-detail-text"
+        className="min-h-0 flex-1 overflow-auto p-4 font-mono text-sm whitespace-pre-wrap [overflow-wrap:anywhere] outline-none focus-visible:focus-ring rounded-md"
+      >
+        {shown}
+      </pre>
+      {truncated && (
+        <p
+          className="shrink-0 border-t px-4 py-2 text-sm text-muted-foreground"
+          data-testid="media-detail-truncated"
+        >
+          {t("media.truncated")}
+        </p>
+      )}
+    </div>
+  );
+}
+
+const STATE_ICONS = {
+  missingRef: Link2OffIcon,
+  missingBytes: FileXIcon,
+  noRenderer: EyeOffIcon,
+} as const;
+
+function PreviewState({ state, detail }: { state: MediaPreviewState; detail?: string }) {
+  const { t } = useTranslation("suite");
+  const Icon = STATE_ICONS[state];
+  return (
+    <div
+      className="flex flex-col items-center gap-2 p-6 text-center"
+      data-testid="media-detail-state"
+      data-state={state}
+    >
+      <Icon aria-hidden="true" className="size-12 text-muted-foreground" />
+      <p className="text-sm">{t(`media.${state}`)}</p>
+      {detail !== undefined && detail !== "" && (
+        <p
+          className="text-sm text-muted-foreground [overflow-wrap:anywhere]"
+          data-testid="media-detail-state-detail"
+        >
+          {detail}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function MediaPreview({
+  kind,
+  src,
+  text,
+  format,
+  alt,
+}: {
+  kind: MediaDetailKind;
+  src: string;
+  text: string;
+  format: "plain" | "json";
+  alt: string;
+}) {
   switch (kind) {
     case "image":
       return <img src={src} alt={alt} className="size-full object-contain" />;
@@ -78,6 +189,8 @@ function MediaPreview({ kind, src, alt }: { kind: MediaDetailKind; src: string; 
       return <audio src={src} controls aria-label={alt || undefined} className="w-full px-6" />;
     case "pdf":
       return <iframe src={src} title={alt || src} className="size-full border-0 bg-background" />;
+    case "text":
+      return <TextPreview text={text} format={format} alt={alt} />;
     case "other":
       return <FileIcon aria-hidden="true" className="size-16 text-muted-foreground" />;
   }
@@ -89,7 +202,9 @@ const SLOTS = ["facts", "fields", "suggest", "actions"] as const;
 // `EditPanel`, never nested in one. Preview left with its head (position, ‹, ›, close, the optional
 // pick), details right in a fixed slot order; below the package's `panel-split` width the preview
 // stacks on top. The footer carries Reset and Save as the dirty-state pair (`GL-UI-027`). ← and →
-// page, `Esc` closes; with unsaved changes both ask first (`GL-UI-007`).
+// page, `Esc` closes; with unsaved changes both ask first (`GL-UI-007`). A `previewState` takes the
+// preview's place with icon and sentence; a text medium shows in a monospace scroll region
+// (`SUI-FEATURE-140`).
 function MediaDetailShell({
   open = true,
   position,
@@ -98,7 +213,11 @@ function MediaDetailShell({
   onNext,
   onClose,
   kind,
-  src,
+  src = "",
+  text = "",
+  format = "plain",
+  previewState,
+  previewDetail,
   alt = "",
   dirty,
   saving,
@@ -281,10 +400,15 @@ function MediaDetailShell({
                     data-slot="media-detail-preview"
                     data-testid="media-detail-preview"
                     data-kind={kind}
+                    data-state={previewState}
                     hidden={showUsage}
                     className="flex h-[45vh] shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted @panel-split:h-auto @panel-split:min-h-0 @panel-split:flex-1"
                   >
-                    <MediaPreview kind={kind} src={src} alt={alt} />
+                    {previewState !== undefined ? (
+                      <PreviewState state={previewState} detail={previewDetail} />
+                    ) : (
+                      <MediaPreview kind={kind} src={src} text={text} format={format} alt={alt} />
+                    )}
                   </div>
                   {showUsage ? (
                     <div
@@ -398,6 +522,7 @@ function MediaUsageList({ items }: MediaUsageListProps) {
 
 export {
   type MediaDetailKind,
+  type MediaPreviewState,
   MediaDetailShell,
   type MediaDetailShellProps,
   type MediaUsage,

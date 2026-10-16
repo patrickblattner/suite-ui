@@ -8,7 +8,11 @@ import { EditPanel } from "../src/ui/edit-panel.js";
 import { Input } from "../src/ui/input.js";
 import { FileFacts } from "../src/ui/file-facts.js";
 import { Label } from "../src/ui/label.js";
-import { MediaDetailShell } from "../src/ui/media-detail-shell.js";
+import {
+  type MediaDetailKind,
+  MediaDetailShell,
+  type MediaPreviewState,
+} from "../src/ui/media-detail-shell.js";
 import { UsageTable } from "../src/ui/usage-table.js";
 import { ShellPage } from "./ShellPage.js";
 
@@ -27,6 +31,38 @@ const SHELL_MEDIA = [
   { kind: "video", name: "intro.mp4", src: "data:video/mp4;base64," },
   { kind: "pdf", name: "brochure.pdf", src: "data:application/pdf;base64," },
 ] as const;
+const JSON_TEXT = JSON.stringify({
+  locale: "de-CH",
+  channels: [{ id: 1, name: "Newsletter", active: true }],
+});
+// The preview states and the text preview (`SUI-FEATURE-140`): plain text, JSON indented, and the
+// three states with the app's line below the sentence.
+const STATE_MEDIA: readonly ShellMedium[] = [
+  {
+    kind: "text",
+    name: "release-notes.txt",
+    text: "Release notes\n\nThe media library now shows text files and tells why a preview is missing.",
+  },
+  { kind: "text", name: "settings.json", text: JSON_TEXT, format: "json" },
+  { kind: "image", name: "hero-banner.jpg", state: "missingRef" },
+  { kind: "pdf", name: "brochure-2024.pdf", state: "missingBytes" },
+  {
+    kind: "other",
+    name: "archive.zip",
+    state: "noRenderer",
+    detail: "archive.zip · application/zip",
+  },
+];
+const SHELL_SETS = { media: SHELL_MEDIA, states: STATE_MEDIA } as const;
+type ShellMedium = {
+  kind: MediaDetailKind;
+  name: string;
+  src?: string;
+  text?: string;
+  format?: "plain" | "json";
+  state?: MediaPreviewState;
+  detail?: string;
+};
 const FIELDS = Array.from({ length: 24 }, (_, index) => `Field ${index + 1}`);
 
 // A long list whose rows open the edit panel, inside the shell frame (`SUI-FEATURE-030`). The panel
@@ -45,8 +81,14 @@ function Demo() {
   const [shellName, setShellName] = useState("");
   const [shellSaving, setShellSaving] = useState(false);
   const [shellUsage, setShellUsage] = useState(false);
-  const [savedNames, setSavedNames] = useState<string[]>(SHELL_MEDIA.map(({ name }) => name));
-  const shellMedium = shell === null ? undefined : SHELL_MEDIA[shell];
+  const [shellSet, setShellSet] = useState<keyof typeof SHELL_SETS>("media");
+  const [allSavedNames, setAllSavedNames] = useState({
+    media: SHELL_MEDIA.map(({ name }) => name),
+    states: STATE_MEDIA.map(({ name }) => name),
+  });
+  const shellMedia: readonly ShellMedium[] = SHELL_SETS[shellSet];
+  const savedNames = allSavedNames[shellSet];
+  const shellMedium = shell === null ? undefined : shellMedia[shell];
 
   if (pathname !== start) {
     return (
@@ -81,11 +123,24 @@ function Demo() {
           size="sm"
           data-testid="media-detail-trigger"
           onClick={() => {
+            setShellSet("media");
             setShell(0);
-            setShellName(savedNames[0]!);
+            setShellName(allSavedNames.media[0]!);
           }}
         >
           Open media detail shell
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          data-testid="media-states-trigger"
+          onClick={() => {
+            setShellSet("states");
+            setShell(0);
+            setShellName(allSavedNames.states[0]!);
+          }}
+        >
+          Open media preview states
         </Button>
         <Button
           variant="outline"
@@ -211,7 +266,7 @@ function Demo() {
       {shellMedium !== undefined && shell !== null && (
         <MediaDetailShell
           position={shell + 1}
-          total={SHELL_MEDIA.length}
+          total={shellMedia.length}
           onPrev={() => {
             setShell(shell - 1);
             setShellName(savedNames[shell - 1]!);
@@ -223,6 +278,10 @@ function Demo() {
           onClose={() => setShell(null)}
           kind={shellMedium.kind}
           src={shellMedium.src}
+          text={shellMedium.text}
+          format={shellMedium.format}
+          previewState={shellMedium.state}
+          previewDetail={shellMedium.detail}
           alt={savedNames[shell]}
           dirty={shellName !== savedNames[shell]}
           saving={shellSaving}
@@ -231,14 +290,25 @@ function Demo() {
             return new Promise<boolean>((resolve) =>
               setTimeout(() => {
                 setShellSaving(false);
-                setSavedNames((names) => names.map((name, i) => (i === shell ? shellName : name)));
+                setAllSavedNames((all) => ({
+                  ...all,
+                  [shellSet]: all[shellSet].map((name, i) => (i === shell ? shellName : name)),
+                }));
                 resolve(true);
               }, 1500),
             );
           }}
           onReset={() => setShellName(savedNames[shell]!)}
           pickAction={() => setShell(null)}
-          facts={<FileFacts kind={shellMedium.kind === "pdf" ? "other" : shellMedium.kind} />}
+          facts={
+            <FileFacts
+              kind={
+                shellMedium.kind === "pdf" || shellMedium.kind === "text"
+                  ? "other"
+                  : shellMedium.kind
+              }
+            />
+          }
           fields={
             <div className="flex flex-col gap-2">
               <Label htmlFor="shell-name">Name</Label>

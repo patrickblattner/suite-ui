@@ -330,6 +330,123 @@ describe("MediaDetailShell", () => {
   });
 });
 
+describe("MediaDetailShell: preview states and text (SUI-FEATURE-140)", () => {
+  // AC 1
+  it.each([
+    ["de", "missingRef", "Kein Objekt verknüpft."],
+    ["en", "missingRef", "No object linked."],
+    ["es", "missingRef", "Ningún objeto vinculado."],
+    ["de", "missingBytes", "Datei fehlt im Speicher."],
+    ["en", "missingBytes", "File missing from storage."],
+    ["es", "missingBytes", "Archivo ausente del almacenamiento."],
+    ["de", "noRenderer", "Für diesen Typ gibt es keine Vorschau."],
+    ["en", "noRenderer", "No preview for this type."],
+    ["es", "noRenderer", "No hay vista previa para este tipo."],
+  ] as const)("%s %s: icon and sentence replace the preview", async (lng, state, sentence) => {
+    await i18n.changeLanguage(lng);
+    renderShell({ previewState: state });
+    const preview = screen.getByTestId("media-detail-preview");
+    expect(preview).toHaveAttribute("data-state", state);
+    expect(preview.querySelector("img")).toBeNull();
+    const shown = within(preview).getByTestId("media-detail-state");
+    expect(shown.querySelector("svg[aria-hidden=true]")).not.toBeNull();
+    expect(shown).toHaveTextContent(sentence);
+    expect(within(preview).queryByTestId("media-detail-state-detail")).toBeNull();
+  });
+
+  it("previewDetail stands muted below the sentence", () => {
+    renderShell({ previewState: "missingBytes", previewDetail: "team-photo.jpg" });
+    const detail = screen.getByTestId("media-detail-state-detail");
+    expect(detail).toHaveTextContent("team-photo.jpg");
+    expect(detail).toHaveClass("text-muted-foreground");
+  });
+
+  it("with a state, head, paging, details and footer keep working", () => {
+    const { onNext, onPrev, onClose, onSave, onReset } = renderShell({
+      previewState: "noRenderer",
+      dirty: true,
+    });
+    expect(screen.getByTestId("media-detail-position")).toHaveTextContent("3 of 65");
+    fireEvent.click(screen.getByTestId("media-detail-next"));
+    expect(onNext).not.toHaveBeenCalled(); // dirty: the guard asks first
+    cleanup();
+    const clean = renderShell({ previewState: "noRenderer" });
+    fireEvent.keyDown(panel(), { key: "ArrowRight" });
+    expect(clean.onNext).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByTestId("media-detail-previous"));
+    expect(clean.onPrev).toHaveBeenCalledTimes(1);
+    expect(screen.getByLabelText("Name")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("media-detail-close"));
+    expect(clean.onClose).toHaveBeenCalledTimes(1);
+    cleanup();
+    renderShell({ previewState: "missingRef", dirty: true, onSave, onReset });
+    fireEvent.click(screen.getByTestId("media-detail-reset"));
+    expect(onReset).toHaveBeenCalledTimes(1);
+    fireEvent.click(screen.getByTestId("media-detail-save"));
+    expect(onSave).toHaveBeenCalledTimes(1);
+    expect(onPrev).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  // AC 2
+  it("kind text: monospace, its own scroll, wrapping on", () => {
+    renderShell({ kind: "text", text: "line one\nline two" });
+    const text = screen.getByTestId("media-detail-text");
+    expect(text.tagName).toBe("PRE");
+    expect(text.textContent).toBe("line one\nline two");
+    expect(text).toHaveClass("font-mono", "overflow-auto", "whitespace-pre-wrap");
+    expect(text).toHaveAttribute("tabindex", "0");
+    expect(screen.queryByTestId("media-detail-truncated")).toBeNull();
+  });
+
+  it('format="json" indents valid JSON', () => {
+    renderShell({ kind: "text", format: "json", text: '{"a":1,"b":[true]}' });
+    expect(screen.getByTestId("media-detail-text").textContent).toBe(
+      '{\n  "a": 1,\n  "b": [\n    true\n  ]\n}',
+    );
+  });
+
+  it('format="json" leaves invalid JSON as plain text, silently', () => {
+    renderShell({ kind: "text", format: "json", text: '{"a":1,' });
+    expect(screen.getByTestId("media-detail-text").textContent).toBe('{"a":1,');
+  });
+
+  it("plain text stays as it is, JSON included", () => {
+    renderShell({ kind: "text", text: '{"a":1}' });
+    expect(screen.getByTestId("media-detail-text").textContent).toBe('{"a":1}');
+  });
+
+  it.each([
+    ["de", "Gekürzt — nur der Anfang wird gezeigt."],
+    ["en", "Truncated — only the beginning is shown."],
+    ["es", "Truncado: solo se muestra el inicio."],
+  ])("%s: over 200 KB shows the first 200 KB and the muted note", async (lng, note) => {
+    await i18n.changeLanguage(lng);
+    renderShell({ kind: "text", text: "x".repeat(200 * 1024 + 10) });
+    expect(screen.getByTestId("media-detail-text").textContent).toHaveLength(200 * 1024);
+    const truncated = screen.getByTestId("media-detail-truncated");
+    expect(truncated).toHaveTextContent(note);
+    expect(truncated).toHaveClass("text-muted-foreground");
+  });
+
+  it("exactly 200 KB is not truncated; a cut never splits a character", () => {
+    renderShell({ kind: "text", text: "x".repeat(200 * 1024) });
+    expect(screen.queryByTestId("media-detail-truncated")).toBeNull();
+    cleanup();
+    // "é" is two bytes: one byte of "x" puts the limit in the middle of a character.
+    renderShell({ kind: "text", text: "x" + "é".repeat(200 * 1024) });
+    const shown = screen.getByTestId("media-detail-text").textContent;
+    expect(shown.endsWith("é")).toBe(true);
+    expect(new TextEncoder().encode(shown).length).toBe(200 * 1024 - 1);
+  });
+
+  it("a state wins over the text preview", () => {
+    renderShell({ kind: "text", text: "hello", previewState: "missingBytes" });
+    expect(screen.queryByTestId("media-detail-text")).toBeNull();
+    expect(screen.getByTestId("media-detail-state")).toBeInTheDocument();
+  });
+});
+
 describe("MediaUsageList", () => {
   // AC 5
   it.each([
