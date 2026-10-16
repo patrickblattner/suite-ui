@@ -175,6 +175,7 @@ export const en = {
     logOut: "Log out",
     logOutHint: "Signs out and returns to the sign-in page.",
     notAvailable: "Not available yet",
+    requiresRole: "Requires a role.",
   },
   // Each language under its own name, the same in every interface language.
   language: {

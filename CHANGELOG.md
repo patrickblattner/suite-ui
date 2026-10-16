@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.106.0 — #176, SUI-FEATURE-081 rev 3: UserMenu unavailableReason
+
+Not breaking. `UserMenu` takes `unavailableReason` (`"notYet" | "noRole"`, default `"notYet"`); new type export `UnavailableReason`. New string `account.requiresRole` (de/en/es).
+
+- It applies to every unavailable entry (`profileUnavailable`, `changePasswordUnavailable`, `securityUnavailable`): `"notYet"` keeps "Not available yet", `"noRole"` shows "Requires a role." The entries stay focusable with `aria-disabled` and trigger nothing.
+
 ## 0.105.0 — #173, SUI-FEATURE-082: UserMenu as a disclosure panel, keyboard model
 
 The ARIA contract of the open panel changes: it is no longer an ARIA menu, since it holds a select and a radio group, which a menu may not (axe `aria-required-children`). Props are unchanged; no visual change.

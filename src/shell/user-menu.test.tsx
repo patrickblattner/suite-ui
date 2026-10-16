@@ -321,6 +321,50 @@ describe("UserMenu", () => {
     expect(outside).toHaveFocus();
   });
 
+  it.each([
+    ["de", "Erfordert eine Rolle."],
+    ["en", "Requires a role."],
+    ["es", "Requiere un rol."],
+  ])(
+    'SUI-FEATURE-081: unavailableReason="noRole" names the missing role (%s)',
+    async (lng, text) => {
+      await i18n.changeLanguage(lng);
+      try {
+        const props = renderMenu({
+          profileUnavailable: true,
+          changePasswordUnavailable: true,
+          securityUnavailable: true,
+          unavailableReason: "noRole",
+        });
+        fireEvent.click(screen.getByTestId("user-menu-trigger"));
+        for (const id of ["user-menu-profile", "user-menu-change-password", "user-menu-security"]) {
+          const entry = screen.getByTestId(id);
+          expect(entry).toHaveTextContent(text);
+          expect(entry).toHaveAttribute("aria-disabled", "true");
+          fireEvent.click(entry);
+        }
+        expect(props.onProfile).not.toHaveBeenCalled();
+        expect(props.onChangePassword).not.toHaveBeenCalled();
+        expect(props.onSecurity).not.toHaveBeenCalled();
+      } finally {
+        await act(() => i18n.changeLanguage("en"));
+      }
+    },
+  );
+
+  it("without unavailableReason the unavailable entries read Not available yet", () => {
+    renderMenu({
+      profileUnavailable: true,
+      changePasswordUnavailable: true,
+      securityUnavailable: true,
+    });
+    fireEvent.click(screen.getByTestId("user-menu-trigger"));
+    for (const id of ["user-menu-profile", "user-menu-change-password", "user-menu-security"]) {
+      expect(screen.getByTestId(id)).toHaveTextContent("Not available yet");
+      expect(screen.getByTestId(id)).not.toHaveTextContent("Requires a role.");
+    }
+  });
+
   it("shows the unavailable Change password entry even without onChangePassword", () => {
     renderMenu({ onChangePassword: undefined, changePasswordUnavailable: true });
     fireEvent.click(screen.getByTestId("user-menu-trigger"));

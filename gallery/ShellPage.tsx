@@ -180,6 +180,8 @@ export function ShellPage({ content }: { content?: ReactNode } = {}) {
   // `?unavailable=1`: the surface without access (`SUI-FEATURE-081`), Profile, Change password and
   // Security as unavailable entries.
   const unavailable = params.get("unavailable") === "1";
+  // `&reason=noRole`: their reason is the missing role instead of "not available yet".
+  const reason = params.get("reason") === "noRole" ? "noRole" : "notYet";
 
   return (
     <MemoryRouter initialEntries={[route]}>
@@ -206,6 +208,7 @@ export function ShellPage({ content }: { content?: ReactNode } = {}) {
                 changePasswordUnavailable={unavailable}
                 onSecurity={() => {}}
                 securityUnavailable={unavailable}
+                unavailableReason={reason}
                 onLogOut={() => {}}
               >
                 <UserMenuItem

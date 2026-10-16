@@ -162,6 +162,18 @@ const AXE_PAGES: [
       },
     ],
   ],
+  [
+    "shell",
+    (page) => page.getByTestId("app-sidebar"),
+    "&unavailable=1&reason=noRole",
+    [
+      "with the user menu open",
+      async (page) => {
+        await page.getByTestId("user-menu-trigger").click();
+        await expect(page.getByTestId("user-menu-content")).toBeVisible();
+      },
+    ],
+  ],
   ["inset", (page) => page.getByTestId("inset-row").first()],
   ["edit-panel", (page) => page.getByTestId("media-panel-trigger")],
   [
@@ -2633,6 +2645,19 @@ test("shell: unavailable Profile, Change password and Security keep their places
   // A usable entry closes the menu when selected; the unavailable one leaves it open.
   await menu.getByTestId("user-menu-security").click({ force: true });
   await expect(menu).toBeVisible();
+});
+
+// `SUI-FEATURE-081` rev 3: with `reason=noRole` the same three entries name the missing role.
+test("shell: unavailable entries name the missing role", async ({ page }) => {
+  await page.goto("/?page=shell&unavailable=1&reason=noRole&lng=en");
+  await page.getByTestId("user-menu-trigger").click();
+  const menu = page.getByTestId("user-menu-content");
+  for (const id of ["user-menu-profile", "user-menu-change-password", "user-menu-security"]) {
+    const entry = menu.getByTestId(id);
+    await expect(entry).toHaveAttribute("aria-disabled", "true");
+    await expect(entry).toContainText("Requires a role.");
+    await expect(entry).not.toContainText("Not available yet");
+  }
 });
 
 // #173: the open user menu by keyboard. Tab reaches every entry, the unavailable ones included, and

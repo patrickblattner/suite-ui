@@ -167,6 +167,7 @@ export const es: SuiteStrings = {
     logOut: "Cerrar sesión",
     logOutHint: "Cierra la sesión y vuelve al inicio de sesión.",
     notAvailable: "Aún no disponible",
+    requiresRole: "Requiere un rol.",
   },
   language: {
     en: "English",

@@ -168,6 +168,7 @@ export const de: SuiteStrings = {
     logOut: "Abmelden",
     logOutHint: "Meldet ab und kehrt zur Anmeldung zurück.",
     notAvailable: "Noch nicht verfügbar",
+    requiresRole: "Erfordert eine Rolle.",
   },
   language: {
     en: "English",

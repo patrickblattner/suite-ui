@@ -82,12 +82,23 @@ function UserMenuItem({
 const noticeClass =
   "flex items-start gap-2 rounded-sm px-2 py-1.5 text-left text-sm text-muted-foreground outline-none focus-visible:focus-ring-inset";
 
-// An entry the app does not offer yet: it keeps its place, is `aria-disabled` and triggers nothing.
+// Why the unavailable entries cannot be used (`SUI-FEATURE-081`): not offered yet, or the session has
+// no role.
+type UnavailableReason = "notYet" | "noRole";
+
+const REASON_KEYS = {
+  notYet: "account.notAvailable",
+  noRole: "account.requiresRole",
+} as const;
+
+// An entry that cannot be used here: it keeps its place, is `aria-disabled`, names its reason and
+// triggers nothing.
 function UnavailableItem({
   testId,
   icon: Icon,
   label,
-}: Pick<UserMenuItemProps, "testId" | "icon" | "label">) {
+  reason,
+}: Pick<UserMenuItemProps, "testId" | "icon" | "label"> & { reason: UnavailableReason }) {
   const { t } = useTranslation("suite");
   return (
     <button
@@ -99,7 +110,7 @@ function UnavailableItem({
       <Icon className="size-4 shrink-0 translate-y-0.5" aria-hidden="true" />
       <span className="grid">
         <span>{label}</span>
-        <span className="text-xs">{t("account.notAvailable")}</span>
+        <span className="text-xs">{t(REASON_KEYS[reason])}</span>
       </span>
     </button>
   );
@@ -199,6 +210,9 @@ type UserMenuProps = {
   // Security / MFA is not reachable here (a session without a role): the entry stays in its place as a
   // non-interactive notice.
   securityUnavailable?: boolean;
+  // Why the unavailable entries above cannot be used: "notYet" (the app does not offer them yet) or
+  // "noRole" (the session has no role). Applies to all of them.
+  unavailableReason?: UnavailableReason;
   onLogOut: () => void;
   // The app's own entries (`UserMenuItem`), placed between Security / MFA and Log out.
   children?: React.ReactNode;
@@ -226,6 +240,7 @@ function UserMenu({
   changePasswordUnavailable = false,
   onSecurity,
   securityUnavailable = false,
+  unavailableReason = "notYet",
   onLogOut,
   children,
 }: UserMenuProps) {
@@ -329,6 +344,7 @@ function UserMenu({
                 testId="user-menu-profile"
                 icon={UserIcon}
                 label={t("account.profile")}
+                reason={unavailableReason}
               />
             ) : (
               <UserMenuItem
@@ -426,6 +442,7 @@ function UserMenu({
                 testId="user-menu-change-password"
                 icon={KeyIcon}
                 label={t("account.changePassword")}
+                reason={unavailableReason}
               />
             ) : (
               onChangePassword !== undefined && (
@@ -443,6 +460,7 @@ function UserMenu({
                 testId="user-menu-security"
                 icon={ShieldIcon}
                 label={t("account.security")}
+                reason={unavailableReason}
               />
             ) : (
               <UserMenuItem
@@ -469,4 +487,10 @@ function UserMenu({
   );
 }
 
-export { UserMenu, UserMenuItem, type UserMenuItemProps, type UserMenuProps };
+export {
+  type UnavailableReason,
+  UserMenu,
+  UserMenuItem,
+  type UserMenuItemProps,
+  type UserMenuProps,
+};
