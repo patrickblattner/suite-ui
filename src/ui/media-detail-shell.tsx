@@ -101,6 +101,8 @@ function indentJson(json: string) {
   let depth = 0;
   const newline = () => "\n" + "  ".repeat(depth);
   for (let i = 0; i < json.length; i++) {
+    // Past the limit the rest is cut anyway: deep nesting never grows the work beyond it.
+    if (out.length > TEXT_LIMIT) break;
     const char = json[i]!;
     if (char === " " || char === "\t" || char === "\n" || char === "\r") continue;
     if (char === '"') {
@@ -156,7 +158,8 @@ function TextPreview({
 }) {
   const { t } = useTranslation("suite");
   const { shown, truncated } = React.useMemo(() => textPreview(text, format), [text, format]);
-  if (text === "") {
+  // Whitespace only counts as empty.
+  if (text.trim() === "") {
     return (
       <p
         className="p-6 text-center text-sm text-muted-foreground"
@@ -288,8 +291,8 @@ const SLOTS = ["facts", "fields", "suggest", "actions"] as const;
 // pick), details right in a fixed slot order; below the package's `panel-split` width the preview
 // stacks on top. The footer carries Reset and Save as the dirty-state pair (`GL-UI-027`). ← and →
 // page, `Esc` closes; with unsaved changes both ask first (`GL-UI-007`). A `previewState` takes the
-// preview's place with icon and sentence, and without a file locks the pick; a text medium shows in its own scroll region, in the base family
-// (`SUI-FEATURE-140`).
+// preview's place with icon and sentence, and without a file locks the pick; a text medium shows in
+// its own scroll region, in the base family (`SUI-FEATURE-140`).
 function MediaDetailShell({
   open = true,
   position,
@@ -321,6 +324,7 @@ function MediaDetailShell({
   const geometry = usePanelGeometry();
   const returnFocus = React.useRef<HTMLElement | null>(null);
   const preview = React.useRef<HTMLDivElement>(null);
+  const pickSlot = React.useRef<HTMLSpanElement>(null);
   // A Save that ends locked (nothing left to save) hands the focus on (`GL-UI-050`,
   // `SUI-FEATURE-120`): within the footer, else to the first field of the details.
   const saveButton = React.useRef<HTMLButtonElement>(null);
@@ -398,9 +402,13 @@ function MediaDetailShell({
             if (isTextField(target) || target?.closest(OWN_ARROWS)) return;
             event.preventDefault();
             // The preview's content changes with the page and may take the focus with it (the text
-            // region): the focus moves to the panel, where the arrows keep paging.
+            // region), as does the pick when its lock flips: the focus moves to the panel, where the
+            // arrows keep paging.
             const pages = event.key === "ArrowLeft" ? !first : !last;
-            if (pages && target !== null && preview.current?.contains(target)) {
+            const replaced = [preview.current, pickSlot.current].some((slot) =>
+              target === null ? false : slot?.contains(target),
+            );
+            if (pages && replaced) {
               event.currentTarget.focus();
             }
             if (event.key === "ArrowLeft") previous();
@@ -463,10 +471,14 @@ function MediaDetailShell({
                     <div className="ms-auto flex items-center gap-2">
                       {usageButton}
                       {pickAction !== undefined && (
-                        <PickButton
-                          onClick={pickAction}
-                          locked={previewState === "missingRef" || previewState === "missingBytes"}
-                        />
+                        <span ref={pickSlot} className="contents">
+                          <PickButton
+                            onClick={pickAction}
+                            locked={
+                              previewState === "missingRef" || previewState === "missingBytes"
+                            }
+                          />
+                        </span>
                       )}
                       <IconButtonTooltip label={t("actions.close")}>
                         <Button

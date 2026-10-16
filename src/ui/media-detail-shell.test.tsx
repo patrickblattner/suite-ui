@@ -1,5 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import i18n from "i18next";
+import * as React from "react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -434,6 +435,11 @@ describe("MediaDetailShell: preview states and text (SUI-FEATURE-140)", () => {
       await i18n.changeLanguage(lng);
       renderShell({ kind: "text", text: "" });
       expect(screen.queryByTestId("media-detail-text")).toBeNull();
+      expect(screen.getByTestId("media-detail-empty-text")).toHaveTextContent(hint);
+      cleanup();
+      // Whitespace only counts as empty.
+      renderShell({ kind: "text", text: " \n\t\n " });
+      expect(screen.queryByTestId("media-detail-text")).toBeNull();
       const empty = screen.getByTestId("media-detail-empty-text");
       expect(empty).toHaveTextContent(hint);
       expect(empty).toHaveClass("text-muted-foreground");
@@ -524,6 +530,21 @@ describe("MediaDetailShell: preview states and text (SUI-FEATURE-140)", () => {
     expect(screen.getByTestId("media-detail-truncated")).toBeInTheDocument();
   });
 
+  it("deeply nested JSON stops indenting at the limit, the shown beginning unchanged", () => {
+    const depth = 5000;
+    renderShell({
+      kind: "text",
+      format: "json",
+      text: "[".repeat(depth) + "]".repeat(depth),
+    });
+    let expected = "";
+    for (let level = 1; expected.length < 200 * 1024; level++) {
+      expected += "[\n" + "  ".repeat(level);
+    }
+    expect(screen.getByTestId("media-detail-text").textContent).toBe(expected.slice(0, 200 * 1024));
+    expect(screen.getByTestId("media-detail-truncated")).toBeInTheDocument();
+  });
+
   it("JSON that indenting grows past 200 KB is cut after indenting", () => {
     const json = JSON.stringify(Array.from({ length: 30000 }, (_, i) => i));
     expect(json.length).toBeLessThan(200 * 1024);
@@ -541,6 +562,46 @@ describe("MediaDetailShell: preview states and text (SUI-FEATURE-140)", () => {
     fireEvent.keyDown(text, { key: "ArrowRight" });
     expect(onNext).toHaveBeenCalledTimes(1);
     expect(panel()).toHaveFocus();
+  });
+
+  it("paging across the pick's lock, either way, keeps the focus in the panel", () => {
+    // Position 1 has a file, position 2 has none: the pick flips between usable and locked.
+    function Pager() {
+      const [position, setPosition] = React.useState(1);
+      return (
+        <MediaDetailShell
+          position={position}
+          total={3}
+          kind="image"
+          src="data:,"
+          previewState={position === 2 ? "missingBytes" : undefined}
+          dirty={false}
+          saving={false}
+          onPrev={() => setPosition((n) => n - 1)}
+          onNext={() => setPosition((n) => n + 1)}
+          onClose={() => {}}
+          onSave={() => {}}
+          onReset={() => {}}
+          pickAction={() => {}}
+        />
+      );
+    }
+    render(<Pager />);
+    const pick = () => screen.getByTestId("media-detail-pick");
+    pick().focus();
+    fireEvent.keyDown(pick(), { key: "ArrowRight" });
+    expect(screen.getByTestId("media-detail-position")).toHaveTextContent("2 of 3");
+    expect(pick()).toBeDisabled();
+    expect(panel()).toHaveFocus();
+    // Locked, the wrapper holds the focus; from there back to the usable pick.
+    const wrapper = pick().parentElement!;
+    wrapper.focus();
+    fireEvent.keyDown(wrapper, { key: "ArrowLeft" });
+    expect(screen.getByTestId("media-detail-position")).toHaveTextContent("1 of 3");
+    expect(pick()).toBeEnabled();
+    expect(panel()).toHaveFocus();
+    fireEvent.keyDown(panel(), { key: "ArrowRight" });
+    expect(screen.getByTestId("media-detail-position")).toHaveTextContent("2 of 3");
   });
 
   it("a new position starts the text region fresh", () => {

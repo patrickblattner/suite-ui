@@ -1445,6 +1445,21 @@ test("media detail shell: text in both formats, the three preview states and an 
   await expect(position).toHaveText("6 of 6");
   await expect(preview.getByTestId("media-detail-empty-text")).toHaveText("The file is empty.");
   await expect(pick).toBeEnabled();
+  // Paging from the pick across its lock, either way, keeps the focus in the panel.
+  await page.keyboard.press("ArrowLeft");
+  await expect(position).toHaveText("5 of 6");
+  await pick.focus();
+  await page.keyboard.press("ArrowLeft");
+  await expect(position).toHaveText("4 of 6");
+  await expect(pick).toBeDisabled();
+  await expect(shell).toBeFocused();
+  await pick.locator("..").focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(position).toHaveText("5 of 6");
+  await expect(pick).toBeEnabled();
+  await expect(shell).toBeFocused();
+  await page.keyboard.press("ArrowRight");
+  await expect(position).toHaveText("6 of 6");
   await page.keyboard.press("Escape");
   await expect(shell).toBeHidden();
 });
