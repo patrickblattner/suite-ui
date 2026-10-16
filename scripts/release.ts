@@ -6,8 +6,9 @@
 //   npm run release:tag -- --dry-run       # all checks, no tag, no push
 //
 // After the push, `tag` runs the Codex review of the range from the previous tag
-// (`spec-sync review tag <prev>..<new>`, PROC-DEV-003). Its verdict never undoes the tag: exit 1 (critical
-// or high findings open) is reported for follow-up tickets, exit 2 (Codex unavailable) is one log line.
+// (`spec-sync review tag <prev>..<new>`, PROC-DEV-003). Its verdict never undoes the tag; the log line comes
+// from `outcome` of its JSON on stdout: clean, findings, skipped (Codex down or at its limit — logged,
+// no Claude fallback), already reviewed or an empty range. Exit 2 is unprovable and is rerun by hand.
 //
 // `record` writes `.spec-sync/gate-records/<tree hash>.json` only on exit 0 with a clean working tree
 // before and after the run, and only when exactly the merge profile's phases ran. Before the gate it
@@ -106,10 +107,14 @@ function record(gateArgs: string[]): void {
   const tree = git("rev-parse", "HEAD^{tree}");
   const commit = git("rev-parse", "HEAD");
 
-  const gate = spawnSync("npx", ["spec-sync", "gate", "--profile", "merge", ...gateArgs], {
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "inherit"],
-  });
+  const gate = spawnSync(
+    "npx",
+    ["--no-install", "spec-sync", "gate", "--profile", "merge", ...gateArgs],
+    {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "inherit"],
+    },
+  );
   process.stdout.write(gate.stdout);
   const exit = gate.status ?? 1;
   if (exit !== 0) process.exit(exit);
@@ -187,18 +192,37 @@ function review(previous: string, name: string): void {
     return;
   }
   const range = `${previous}..${name}`;
-  const run = spawnSync("npx", ["spec-sync", "review", "tag", range], { stdio: "inherit" });
-  if (run.status === 0) console.error(`release tag: Codex review ${range} clean`);
-  else if (run.status === 1)
-    console.error(
-      `release tag: Codex review ${range} has critical/high findings open — ${name} stays`,
+  const run = spawnSync("npx", ["--no-install", "spec-sync", "review", "tag", range], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "inherit"],
+  });
+  process.stdout.write(run.stdout ?? "");
+  const log = (what: string) => console.error(`release tag: Codex review ${range} ${what}`);
+  if (run.status === null)
+    return log(`did not run (${run.error?.message ?? "no exit code"}) — ${name} stays`);
+  if (run.status === 2) return log(`unprovable (exit 2), rerun npx spec-sync review tag ${range}`);
+  // The toolkit's envelope is flat: outcome, class and error sit next to command, ok, exit and notes.
+  let result: { notes?: string[]; outcome?: string; class?: string; error?: string } = {};
+  try {
+    result = JSON.parse(run.stdout) as typeof result;
+  } catch {
+    // no JSON on stdout: the outcome stays unreadable
+  }
+  const { outcome, error } = result;
+  const note = result.notes?.[0] ?? "";
+  if (run.status === 1 && outcome === "findings")
+    log(`has critical/high findings open — ${name} stays`);
+  else if (run.status !== 0 || outcome === undefined)
+    log(
+      `ended with exit ${run.status}, outcome ${outcome ?? "unreadable"}${error ? ` (${error})` : ""} — ${name} stays`,
     );
-  else if (run.status === 2)
-    console.error(`release tag: Codex review ${range} unavailable (exit 2)`);
-  else
-    console.error(
-      `release tag: Codex review ${range} ended with exit ${run.status} — ${name} stays`,
-    );
+  else if (outcome === "clean") log("clean");
+  else if (outcome === "findings") log("has findings below high — follow-up tickets");
+  else if (outcome === "skipped")
+    log(`skipped — ${result.class ?? ""} (logged, no Claude fallback; rerun to review ${name})`);
+  else if (outcome === "already-reviewed") log(`already reviewed — ${note}`);
+  else if (outcome === "not-triaged") log("is empty — no Codex call");
+  else log(`ended with outcome ${outcome} — ${name} stays`);
 }
 
 const [mode, ...rest] = process.argv.slice(2);

@@ -101,14 +101,49 @@ describe("release:tag", () => {
 });
 
 // PROC-DEV-003: after the push, `tag` runs the Codex review of the range from the previous tag; its
-// exit never undoes the tag. A fake `npx` on PATH records its arguments and exits with a given code.
+// exit never undoes the tag. A fake `npx` on PATH records its arguments, prints the given toolkit JSON and
+// exits with the given code; the log line follows the envelope's top-level `outcome`.
 describe("release:tag review", () => {
-  const tagWithReview = (exit: number) => {
+  // Verbatim stdout of `npx --no-install spec-sync review tag v0.100.1..v0.100.1 --dry-run` (toolkit v0.26.0).
+  const realEmptyRange = `{
+  "command": "review",
+  "ok": true,
+  "exit": 0,
+  "durationMs": 761,
+  "notes": [
+    "v0.100.1..v0.100.1 is empty — no Codex call, no issue"
+  ],
+  "mode": "tag",
+  "range": "v0.100.1..v0.100.1",
+  "title": "Codex review v0.100.1",
+  "outcome": "not-triaged"
+}`;
+
+  const tagWithReview = (
+    exit: number,
+    outcome?: string,
+    note = "",
+    extra: { class?: string; error?: string } = {},
+    raw?: string,
+  ) => {
     const bin = join(repo, ".bin");
     mkdirSync(bin);
+    const json =
+      raw ??
+      (outcome === undefined
+        ? ""
+        : JSON.stringify({
+            command: "review",
+            ok: exit === 0,
+            exit,
+            notes: [note],
+            outcome,
+            ...extra,
+          }));
+    writeFileSync(join(repo, "npx-out"), json);
     writeFileSync(
       join(bin, "npx"),
-      `#!/bin/sh\necho "$@" > "${join(repo, "npx-args")}"\nexit ${exit}\n`,
+      `#!/bin/sh\necho "$@" > "${join(repo, "npx-args")}"\ncat "${join(repo, "npx-out")}"\nexit ${exit}\n`,
     );
     chmodSync(join(bin, "npx"), 0o755);
     const origin = join(repo, ".origin.git");
@@ -122,13 +157,13 @@ describe("release:tag review", () => {
     const args = existsSync(join(repo, "npx-args"))
       ? readFileSync(join(repo, "npx-args"), "utf8").trim()
       : "";
-    return { status: run.status, out: run.stdout + run.stderr, args };
+    return { status: run.status, out: run.stdout + run.stderr, err: run.stderr, args };
   };
 
   beforeEach(() => {
     writeFileSync(
       join(repo, ".gitignore"),
-      ".spec-sync/\nnode_modules/\n.bin/\n.origin.git/\nnpx-args\n",
+      ".spec-sync/\nnode_modules/\n.bin/\n.origin.git/\nnpx-args\nnpx-out\n",
     );
     git("tag", "v9.9.8");
     git("add", ".");
@@ -137,24 +172,113 @@ describe("release:tag review", () => {
     writeRecord({ profile: "merge", exit: 0 });
   });
 
-  it("reviews the range from the previous tag", () => {
-    const run = tagWithReview(0);
+  it("reviews the range from the previous tag without installing", () => {
+    const run = tagWithReview(0, "clean");
     expect(run.status).toBe(0);
-    expect(run.args).toBe("spec-sync review tag v9.9.8..v9.9.9");
-    expect(run.out).toContain("Codex review v9.9.8..v9.9.9 clean");
+    expect(run.args).toBe("--no-install spec-sync review tag v9.9.8..v9.9.9");
+    expect(run.err).toContain("Codex review v9.9.8..v9.9.9 clean");
   });
 
   it("keeps the tag on open critical/high findings", () => {
-    const run = tagWithReview(1);
+    const run = tagWithReview(1, "findings");
     expect(run.status).toBe(0);
-    expect(run.out).toContain("critical/high findings open — v9.9.9 stays");
+    expect(run.err).toContain("critical/high findings open — v9.9.9 stays");
     expect(git("tag", "-l", "v9.9.9")).toBe("v9.9.9");
   });
 
-  it("logs an unavailable Codex and keeps the tag", () => {
+  it("reports non-blocking findings, not clean", () => {
+    const run = tagWithReview(0, "findings");
+    expect(run.err).toContain("has findings below high");
+    expect(run.err).not.toContain("clean");
+  });
+
+  it("logs a skipped Codex run as skipped, not clean, and keeps the tag", () => {
+    const run = tagWithReview(0, "skipped", "skipped — limit: usage", { class: "limit" });
+    expect(run.status).toBe(0);
+    expect(run.err).toContain(
+      "Codex review v9.9.8..v9.9.9 skipped — limit (logged, no Claude fallback",
+    );
+    expect(run.err).not.toContain("clean");
+    expect(git("tag", "-l", "v9.9.9")).toBe("v9.9.9");
+  });
+
+  it("logs an already reviewed tag", () => {
+    const run = tagWithReview(0, "already-reviewed", "tag v9.9.9 already reviewed in #7");
+    expect(run.err).toContain("already reviewed — tag v9.9.9 already reviewed in #7");
+    expect(run.err).not.toContain("clean");
+  });
+
+  it("logs an empty range", () => {
+    const run = tagWithReview(0, "not-triaged", "v9.9.8..v9.9.9 is empty");
+    expect(run.err).toContain("Codex review v9.9.8..v9.9.9 is empty — no Codex call");
+    expect(run.err).not.toContain("clean");
+  });
+
+  it("reads the real toolkit envelope of an empty range", () => {
+    const run = tagWithReview(0, undefined, "", {}, realEmptyRange);
+    expect(run.err).toContain("Codex review v9.9.8..v9.9.9 is empty — no Codex call");
+  });
+
+  it("logs a non-findings exit 1 with its error, not as findings", () => {
+    const run = tagWithReview(
+      1,
+      undefined,
+      "",
+      {},
+      JSON.stringify({
+        command: "review",
+        ok: false,
+        exit: 1,
+        notes: [],
+        error: "gh issue create failed",
+      }),
+    );
+    expect(run.status).toBe(0);
+    expect(run.err).toContain(
+      "ended with exit 1, outcome unreadable (gh issue create failed) — v9.9.9 stays",
+    );
+    expect(run.err).not.toContain("critical/high");
+  });
+
+  it("logs the error of a precondition exit", () => {
+    const run = tagWithReview(
+      4,
+      undefined,
+      "",
+      {},
+      JSON.stringify({
+        command: "review",
+        ok: false,
+        exit: 4,
+        notes: [],
+        error: "no review config",
+      }),
+    );
+    expect(run.err).toContain(
+      "ended with exit 4, outcome unreadable (no review config) — v9.9.9 stays",
+    );
+    expect(git("tag", "-l", "v9.9.9")).toBe("v9.9.9");
+  });
+
+  it("logs exit 2 as unprovable and keeps the tag", () => {
     const run = tagWithReview(2);
     expect(run.status).toBe(0);
-    expect(run.out).toContain("unavailable (exit 2)");
+    expect(run.err).toContain("unprovable (exit 2), rerun npx spec-sync review tag v9.9.8..v9.9.9");
+    expect(git("tag", "-l", "v9.9.9")).toBe("v9.9.9");
+  });
+
+  it("never reads exit 0 without JSON as clean", () => {
+    const run = tagWithReview(0);
+    expect(run.err).toContain("outcome unreadable — v9.9.9 stays");
+    expect(run.err).not.toContain("clean");
+  });
+
+  it("runs no review without a previous tag", () => {
+    git("tag", "-d", "v9.9.8");
+    const run = tagWithReview(0, "clean");
+    expect(run.status).toBe(0);
+    expect(run.err).toContain("no previous tag before v9.9.9 — no Codex review");
+    expect(run.args).toBe("");
     expect(git("tag", "-l", "v9.9.9")).toBe("v9.9.9");
   });
 });
