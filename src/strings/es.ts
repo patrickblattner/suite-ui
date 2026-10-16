@@ -250,6 +250,10 @@ export const es: SuiteStrings = {
     unused: "sin usar",
     uploadedAt: "Subido",
     uploadedBy: "Subido por",
+    missingRef: "Ningún objeto vinculado.",
+    missingBytes: "Archivo ausente del almacenamiento.",
+    noRenderer: "No hay vista previa para este tipo.",
+    truncated: "Truncado: solo se muestra el inicio.",
   },
   usage: {
     action: "Usado por ({{count}})",

@@ -192,6 +192,32 @@ const AXE_PAGES: [
       },
     ],
   ],
+  [
+    "edit-panel",
+    (page) => page.getByTestId("media-states-trigger"),
+    "",
+    [
+      "with the text preview",
+      async (page) => {
+        await page.getByTestId("media-states-trigger").click();
+        await expect(page.getByTestId("media-detail-text")).toBeVisible();
+      },
+    ],
+  ],
+  [
+    "edit-panel",
+    (page) => page.getByTestId("media-states-trigger"),
+    "",
+    [
+      "with a preview state",
+      async (page) => {
+        await page.getByTestId("media-states-trigger").click();
+        await page.getByTestId("media-detail-previous").focus();
+        for (let i = 0; i < 4; i++) await page.keyboard.press("ArrowRight");
+        await expect(page.getByTestId("media-detail-state-detail")).toBeVisible();
+      },
+    ],
+  ],
   ...PAGES,
   ["list", (page) => page.getByTestId("list-tabs"), "&slots=tabs"],
   [
@@ -1318,6 +1344,53 @@ test("media detail shell: image, video and PDF, paged by the head and the arrow 
   await expect(preview.locator("iframe")).toBeVisible();
   await page.keyboard.press("ArrowLeft");
   await expect(shell.getByTestId("media-detail-position")).toHaveText("2 of 3");
+  await page.keyboard.press("Escape");
+  await expect(shell).toBeHidden();
+});
+
+// `SUI-FEATURE-140` rev 3: plain text, JSON indented, then the three preview states; paging and the
+// details stay in place, and paging from the focused text region keeps working.
+test("media detail shell: text in both formats and the three preview states", async ({ page }) => {
+  await page.goto("/?page=edit-panel&lng=en");
+  await page.getByTestId("media-states-trigger").click();
+  const shell = page.getByTestId("media-detail");
+  const preview = shell.getByTestId("media-detail-preview");
+  const position = shell.getByTestId("media-detail-position");
+  const text = preview.getByTestId("media-detail-text");
+  await expect(position).toHaveText("1 of 5");
+  await expect(text).toContainText("Release notes");
+  expect(await text.evaluate((el) => getComputedStyle(el).whiteSpace)).toBe("pre-wrap");
+  expect(await text.evaluate((el) => getComputedStyle(el).overflowY)).toBe("auto");
+  expect(await text.evaluate((el) => getComputedStyle(el).tabSize)).toBe("2");
+  // The base family, never monospace (`GL-UI-010`).
+  expect(await text.evaluate((el) => getComputedStyle(el).fontFamily)).toBe(
+    await page.evaluate(() => getComputedStyle(document.body).fontFamily),
+  );
+  // Scrolled down and focused, the region pages with →: the next text starts at its top, and the
+  // focus stays in the panel, where the arrows keep paging past the text.
+  await text.evaluate((el) => el.scrollTo({ top: el.scrollHeight }));
+  expect(await text.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+  await text.focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(position).toHaveText("2 of 5");
+  await expect(text).toContainText('"locale": "de-CH",');
+  expect(await text.evaluate((el) => el.scrollTop)).toBe(0);
+  await expect(shell).toBeFocused();
+  for (const [n, state, sentence, detail] of [
+    [3, "missingRef", "No object linked.", null],
+    [4, "missingBytes", "File missing from storage.", null],
+    [5, "noRenderer", "No preview for this type.", "archive.zip · application/zip"],
+  ] as const) {
+    await page.keyboard.press("ArrowRight");
+    await expect(position).toHaveText(`${n} of 5`);
+    await expect(preview).toHaveAttribute("data-state", state);
+    await expect(preview.getByTestId("media-detail-state")).toContainText(sentence);
+    if (detail !== null) {
+      await expect(preview.getByTestId("media-detail-state-detail")).toHaveText(detail);
+    }
+    await expect(shell.getByLabel("Name")).toBeVisible();
+    await expect(shell.getByTestId("media-detail-save")).toBeVisible();
+  }
   await page.keyboard.press("Escape");
   await expect(shell).toBeHidden();
 });

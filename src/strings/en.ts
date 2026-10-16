@@ -261,6 +261,10 @@ export const en = {
     unused: "not used",
     uploadedAt: "Uploaded",
     uploadedBy: "Uploaded by",
+    missingRef: "No object linked.",
+    missingBytes: "File missing from storage.",
+    noRenderer: "No preview for this type.",
+    truncated: "Truncated — only the beginning is shown.",
   },
   // "Used by": the action that switches a preview to its usages, and the `UsageTable`.
   usage: {
