@@ -161,6 +161,38 @@ describe("UserMenu", () => {
     expect(screen.getByTestId("user-menu-content")).toBeInTheDocument();
   });
 
+  it("SUI-FEATURE-081: shows unavailable Security in place; click and Enter never call onSecurity", () => {
+    const props = renderMenu({ securityUnavailable: true });
+    fireEvent.click(screen.getByTestId("user-menu-trigger"));
+    expect(menuTestIds()).toEqual([
+      "user-menu-profile",
+      "user-menu-language",
+      "user-menu-appearance",
+      "user-menu-change-password",
+      "user-menu-security",
+      "user-menu-notifications",
+      "user-menu-logout",
+    ]);
+    const entry = screen.getByTestId("user-menu-security");
+    expect(entry).toHaveAttribute("role", "menuitem");
+    expect(entry).toHaveAttribute("aria-disabled", "true");
+    expect(entry).toHaveTextContent("Security");
+    expect(entry).toHaveTextContent("Not available yet");
+    expect(entry.querySelector("svg.lucide-shield")).not.toBeNull();
+    fireEvent.click(entry);
+    fireEvent.keyDown(entry, { key: "Enter" });
+    expect(props.onSecurity).not.toHaveBeenCalled();
+    expect(screen.getByTestId("user-menu-content")).toBeInTheDocument();
+  });
+
+  it("without securityUnavailable, Security calls onSecurity", () => {
+    const props = renderMenu();
+    fireEvent.click(screen.getByTestId("user-menu-trigger"));
+    expect(screen.getByTestId("user-menu-security")).not.toHaveAttribute("aria-disabled");
+    fireEvent.click(screen.getByTestId("user-menu-security"));
+    expect(props.onSecurity).toHaveBeenCalledTimes(1);
+  });
+
   it("shows the unavailable Change password entry even without onChangePassword", () => {
     renderMenu({ onChangePassword: undefined, changePasswordUnavailable: true });
     fireEvent.click(screen.getByTestId("user-menu-trigger"));

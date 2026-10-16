@@ -127,6 +127,9 @@ type UserMenuProps = {
   // notice. `changePasswordLocked` takes precedence; this one over leaving the entry out.
   changePasswordUnavailable?: boolean;
   onSecurity: () => void;
+  // Security / MFA is not reachable here (a session without a role): the entry stays in its place as a
+  // non-interactive notice.
+  securityUnavailable?: boolean;
   onLogOut: () => void;
   // The app's own entries (`UserMenuItem`), placed between Security / MFA and Log out.
   children?: React.ReactNode;
@@ -153,6 +156,7 @@ function UserMenu({
   changePasswordLocked = false,
   changePasswordUnavailable = false,
   onSecurity,
+  securityUnavailable = false,
   onLogOut,
   children,
 }: UserMenuProps) {
@@ -353,13 +357,21 @@ function UserMenu({
                 />
               )
             )}
-            <UserMenuItem
-              testId="user-menu-security"
-              icon={ShieldIcon}
-              label={t("account.security")}
-              hint={t("account.securityHint")}
-              onSelect={onSecurity}
-            />
+            {securityUnavailable ? (
+              <UnavailableItem
+                testId="user-menu-security"
+                icon={ShieldIcon}
+                label={t("account.security")}
+              />
+            ) : (
+              <UserMenuItem
+                testId="user-menu-security"
+                icon={ShieldIcon}
+                label={t("account.security")}
+                hint={t("account.securityHint")}
+                onSelect={onSecurity}
+              />
+            )}
             {children}
             <Separator />
             <UserMenuItem
