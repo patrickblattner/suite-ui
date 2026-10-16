@@ -392,3 +392,8 @@
 {"ts":"2026-10-16T15:03:12.870Z","key":"SUI-FEATURE-084","from":null,"to":2,"disposition":"ticket","ref":"181"}
 {"ts":"2026-10-16T20:09:31.087Z","key":"SUI-FEATURE-084","from":2,"to":3,"disposition":"ticket","ref":"181"}
 {"ts":"2026-10-16T20:09:44.390Z","key":"SUI-FEATURE-085","from":null,"to":2,"disposition":"ticket","ref":"182"}
+{"ts":"2026-10-16T22:10:59.600Z","key":"GL-UI-050","from":5,"to":6,"disposition":"ticket","ref":"186"}
+{"ts":"2026-10-16T22:10:59.600Z","key":"SUI-FEATURE-120","from":4,"to":5,"disposition":"ticket","ref":"186"}
+{"ts":"2026-10-16T22:11:18.867Z","key":"SUI-FEATURE-057","from":2,"to":3,"disposition":"ticket","ref":"187"}
+{"ts":"2026-10-16T22:11:35.551Z","key":"SUI-FEATURE-082","from":4,"to":5,"disposition":"ticket","ref":"188"}
+{"ts":"2026-10-16T22:11:48.383Z","key":"SUI-FEATURE-084","from":3,"to":4,"disposition":"editorial","ref":"rev 4 names role=group with aria-labelledby on the visible name — already built that way in #181 (a758a18, media-tile.tsx:72/141); answer to Q&A #3702"}
