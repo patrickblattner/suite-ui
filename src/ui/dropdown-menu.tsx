@@ -1,8 +1,17 @@
+import { ChevronRightIcon } from "lucide-react";
 import type * as React from "react";
 import { DropdownMenu as DropdownMenuPrimitive } from "radix-ui";
 
 import { cn } from "../lib/cn.js";
 import { useHighlightInput } from "../lib/highlight-input.js";
+
+// Shared by the menu and its submenu (`SUI-FEATURE-130`): a submenu looks like the menu, its trigger
+// like an entry.
+const CONTENT_CLASS =
+  "z-50 min-w-40 origin-(--radix-dropdown-menu-content-transform-origin) overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2";
+
+const ITEM_CLASS =
+  "relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[highlighted]:data-[input=keyboard]:focus-ring-inset data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0";
 
 // The content is portalled to the body, so a menu opened from inside an `overflow-hidden` surface is
 // never clipped.
@@ -29,10 +38,7 @@ function DropdownMenuContent({
         data-slot="dropdown-menu-content"
         align={align}
         sideOffset={sideOffset}
-        className={cn(
-          "z-50 min-w-40 origin-(--radix-dropdown-menu-content-transform-origin) overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2",
-          className,
-        )}
+        className={cn(CONTENT_CLASS, className)}
         {...props}
       />
     </DropdownMenuPrimitive.Portal>
@@ -58,7 +64,7 @@ function DropdownMenuItem({
       data-variant={variant}
       {...highlight}
       className={cn(
-        "relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[highlighted]:data-[input=keyboard]:focus-ring-inset data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0",
+        ITEM_CLASS,
         variant === "destructive" &&
           "text-destructive-text focus:bg-destructive/10 focus:text-destructive-text [&_svg]:text-destructive-text",
         className,
@@ -102,6 +108,54 @@ function DropdownMenuSeparator({
   );
 }
 
+// Submenu (`SUI-FEATURE-130`): keyboard, focus and placement stay radix's own. The trigger looks
+// like an item and keeps the tint while its submenu is open; in RTL the chevron points left, and
+// radix opens the content toward the reading side.
+function DropdownMenuSub({ ...props }: React.ComponentProps<typeof DropdownMenuPrimitive.Sub>) {
+  return <DropdownMenuPrimitive.Sub data-slot="dropdown-menu-sub" {...props} />;
+}
+
+function DropdownMenuSubTrigger({
+  className,
+  children,
+  onPointerMove,
+  onPointerLeave,
+  onBlur,
+  ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.SubTrigger>) {
+  const highlight = useHighlightInput({ onPointerMove, onPointerLeave, onBlur });
+  return (
+    <DropdownMenuPrimitive.SubTrigger
+      data-slot="dropdown-menu-sub-trigger"
+      {...highlight}
+      className={cn(
+        ITEM_CLASS,
+        "data-[state=open]:bg-accent data-[state=open]:text-accent-foreground",
+        className,
+      )}
+      {...props}
+    >
+      {children}
+      <ChevronRightIcon aria-hidden className="ms-auto rtl:rotate-180" />
+    </DropdownMenuPrimitive.SubTrigger>
+  );
+}
+
+function DropdownMenuSubContent({
+  className,
+  ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.SubContent>) {
+  return (
+    <DropdownMenuPrimitive.Portal>
+      <DropdownMenuPrimitive.SubContent
+        data-slot="dropdown-menu-sub-content"
+        className={cn(CONTENT_CLASS, className)}
+        {...props}
+      />
+    </DropdownMenuPrimitive.Portal>
+  );
+}
+
 export {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -110,4 +164,7 @@ export {
   DropdownMenuLabel,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
 };

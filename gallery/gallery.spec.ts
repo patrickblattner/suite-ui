@@ -123,13 +123,15 @@ for (const lng of LANGUAGES) {
 // `GL-UX-001`: axe with the WCAG 2.2 AA tag set on every gallery page, light and dark, at the
 // configured 1920×1080 desktop viewport.
 const WCAG_TAGS = ["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"];
-// Each entry: the page, the element that tells it has rendered, an optional variant query and an
-// optional step (its title, then the action) before the scan.
+// Each entry: the page, the element that tells it has rendered, an optional variant query, an
+// optional step (its title, then the action) before the scan, and whether a modal overlay then hides
+// the page under `aria-hidden`.
 const AXE_PAGES: [
   name: string,
   ready: (page: Page) => Locator,
   query?: string,
   step?: [title: string, act: (page: Page) => Promise<void>],
+  hidesPage?: boolean,
 ][] = [
   ["strings", (page) => page.locator("#strings-heading")],
   ["tokens", (page) => page.getByTestId("token-warn-text")],
@@ -161,6 +163,22 @@ const AXE_PAGES: [
         await expect(page.getByTestId("tag-input-options")).toBeVisible();
       },
     ],
+  ],
+  [
+    "components",
+    (page) => page.getByTestId("focus-menu"),
+    "",
+    [
+      "with the submenu open",
+      async (page) => {
+        await page.getByTestId("focus-menu").focus();
+        await page.keyboard.press("Enter");
+        await page.getByTestId("focus-menu-sub").focus();
+        await page.keyboard.press("ArrowRight");
+        await expect(page.getByRole("menuitem", { name: "Archive" })).toBeFocused();
+      },
+    ],
+    true,
   ],
   [
     "edit-panel",
@@ -203,7 +221,7 @@ test("axe covers every gallery page", async ({ page }) => {
 });
 
 for (const theme of THEMES) {
-  for (const [name, ready, query = "", step] of AXE_PAGES) {
+  for (const [name, ready, query = "", step, hidesPage = false] of AXE_PAGES) {
     const title = `${name}${query}${step === undefined ? "" : ` ${step[0]}`}`;
     test(`axe wcag 2.2 aa: ${title} ${theme}`, async ({ page }) => {
       await page.goto(`/?page=${name}${query}&lng=en&theme=${theme}`);
@@ -225,8 +243,8 @@ for (const theme of THEMES) {
       const axe = new AxeBuilder({ page }).withTags(WCAG_TAGS);
       // The open Select traps focus like a modal but is no dialog, so axe misses that the page under
       // its `aria-hidden` is unreachable and flags the page's controls there. The closed variant scans
-      // with the rule on.
-      if (name === "select" && query === "") axe.disableRules(["aria-hidden-focus"]);
+      // with the rule on. The open modal menu with its submenu hides the page the same way.
+      if ((name === "select" && query === "") || hidesPage) axe.disableRules(["aria-hidden-focus"]);
       const { violations } = await axe.analyze();
       expect(
         violations.map(({ id, nodes }) => ({ id, targets: nodes.map((node) => node.target) })),
@@ -3754,6 +3772,37 @@ test("focus ring: the keyboard-highlighted menu entry under forced colors", asyn
   const entry = page.getByRole("menu").getByRole("menuitem", { name: "Duplicate" });
   await expect(entry).toBeFocused();
   await expectForcedOutline(entry);
+});
+
+// SUI-FEATURE-130: the submenu opens beside its trigger by ArrowRight, the trigger keeps the tint
+// while it is open, ArrowLeft closes it with the focus back on the trigger, and Esc closes the menu
+// with the focus back on the menu button.
+test("dropdown submenu: keyboard opens and closes it beside its trigger", async ({ page }) => {
+  await page.goto("/?page=components&lng=en");
+  const button = page.getByTestId("focus-menu");
+  await button.focus();
+  await page.keyboard.press("Enter");
+  const subTrigger = page.getByTestId("focus-menu-sub");
+  await subTrigger.focus();
+  await page.keyboard.press("ArrowRight");
+  const archive = page.getByRole("menuitem", { name: "Archive" });
+  await expect(archive).toBeFocused();
+  await expect(subTrigger).toHaveAttribute("data-state", "open");
+  await expect
+    .poll(() => subTrigger.evaluate((el) => getComputedStyle(el).backgroundColor))
+    .toBe(await utilityColor(page, "bg-accent", "backgroundColor"));
+  const sub = page.locator("[data-slot=dropdown-menu-sub-content]");
+  await expect(sub).toHaveAttribute("data-side", "right");
+  const [trigger, content] = [await box(subTrigger), await box(sub)];
+  expect(content.x).toBeGreaterThanOrEqual(trigger.x + trigger.width - 8);
+  await page.keyboard.press("ArrowLeft");
+  await expect(sub).toHaveCount(0);
+  await expect(subTrigger).toBeFocused();
+  await page.keyboard.press("ArrowRight");
+  await expect(archive).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("menu")).toHaveCount(0);
+  await expect(button).toBeFocused();
 });
 
 // SUI-FEATURE-055 AC3 / GL-UI-013 rev 4: every icon button of the gallery, the close buttons of

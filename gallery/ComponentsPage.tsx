@@ -30,6 +30,9 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "../src/ui/dropdown-menu.js";
 import { ImagePlacementButtons } from "../src/ui/crop-editor.js";
@@ -1359,6 +1362,15 @@ function FocusRing() {
             <DropdownMenuContent align="start">
               <DropdownMenuItem>Edit</DropdownMenuItem>
               <DropdownMenuItem>Duplicate</DropdownMenuItem>
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger data-testid="focus-menu-sub">
+                  Move to
+                </DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  <DropdownMenuItem>Archive</DropdownMenuItem>
+                  <DropdownMenuItem>Trash</DropdownMenuItem>
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
             </DropdownMenuContent>
           </DropdownMenu>
           <Card interactive tabIndex={0} className="focus-ring">

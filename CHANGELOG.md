@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.101.0 — #165, SUI-FEATURE-130 rev 3: DropdownMenu submenu
+
+Not breaking. New exports from `@suite/ui/ui/dropdown-menu`: `DropdownMenuSub`, `DropdownMenuSubTrigger`, `DropdownMenuSubContent`.
+
+- Thin wrappers around the Radix submenu parts, with no logic of their own. The sub-trigger looks like a menu item, carries a trailing chevron (mirrored in RTL) and stays highlighted while its submenu is open; the submenu content looks like the menu content and opens beside its trigger.
+- Keyboard and focus come from Radix: Arrow right opens the submenu, Arrow left closes it with focus back on the sub-trigger, Esc closes the whole menu with focus back on the menu button.
+
 ## 0.100.1 — #151, focus-return follow-ups from the #145 re-review (GL-UI-050)
 
 Not breaking. `isUsable` is now exported from `focus-return` (a type guard).
