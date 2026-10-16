@@ -6,6 +6,7 @@ Not breaking. New strings `media.pickUnavailable`, `media.emptyText`; `media.mis
 
 - In `previewState` `"missingRef"` and `"missingBytes"` the head's pick (`pickAction`) is locked, with the reason "Can't be chosen without a file." as its tooltip and, on keyboard focus, its description. In `"noRenderer"` picking stays possible.
 - `kind="text"` with an empty `text` shows "The file is empty." instead of an empty region.
+- `format="json"` now changes only the whitespace between tokens: number literals and strings show as the file has them (before, `9007199254740993` showed as `9007199254740992` and `1e400` as `null`).
 
 ## 0.102.0 — #166, SUI-FEATURE-140 rev 3: MediaDetailShell preview states and text preview
 

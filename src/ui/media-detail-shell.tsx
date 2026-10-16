@@ -92,6 +92,42 @@ function cutText(text: string) {
   return new TextDecoder().decode(bytes.subarray(0, TEXT_LIMIT)).replace(/\uFFFD$/, "");
 }
 
+// Valid JSON indented by two spaces, in the layout of `JSON.stringify(value, null, 2)`, but changing
+// only the whitespace between tokens: strings and number literals stay as the file has them (a
+// round-trip through `JSON.parse` would turn 9007199254740993 into 9007199254740992 and 1e400 into
+// null).
+function indentJson(json: string) {
+  let out = "";
+  let depth = 0;
+  const newline = () => "\n" + "  ".repeat(depth);
+  for (let i = 0; i < json.length; i++) {
+    const char = json[i]!;
+    if (char === " " || char === "\t" || char === "\n" || char === "\r") continue;
+    if (char === '"') {
+      let end = i + 1;
+      while (json[end] !== '"') end += json[end] === "\\" ? 2 : 1;
+      out += json.slice(i, end + 1);
+      i = end;
+    } else if (char === "{" || char === "[") {
+      const close = char === "{" ? "}" : "]";
+      const next = json.slice(i + 1).search(/\S/);
+      if (json[i + 1 + next] === close) {
+        out += char + close;
+        i += 1 + next;
+      } else {
+        depth++;
+        out += char + newline();
+      }
+    } else if (char === "}" || char === "]") {
+      depth--;
+      out += newline() + char;
+    } else if (char === ",") out += "," + newline();
+    else if (char === ":") out += ": ";
+    else out += char;
+  }
+  return out;
+}
+
 // The shown text: past `TEXT_LIMIT` bytes only the beginning, as it is; otherwise valid JSON indented
 // with `format="json"` (invalid stays as it is), cut again should the indenting grow it past the limit.
 function textPreview(text: string, format: "plain" | "json") {
@@ -100,7 +136,8 @@ function textPreview(text: string, format: "plain" | "json") {
   if (format === "plain") return { shown: text, truncated: false };
   let shown = text;
   try {
-    shown = JSON.stringify(JSON.parse(text), null, 2);
+    JSON.parse(text);
+    shown = indentJson(text);
   } catch {
     // Invalid JSON falls back to plain text, silently.
   }

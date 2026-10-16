@@ -464,6 +464,25 @@ describe("MediaDetailShell: preview states and text (SUI-FEATURE-140)", () => {
     );
   });
 
+  it('format="json" changes only whitespace: number literals stay as the file has them', () => {
+    renderShell({
+      kind: "text",
+      format: "json",
+      text: '{"big":9007199254740993,"huge":1e400,"zero":-0.0,"price":1.50}',
+    });
+    expect(screen.getByTestId("media-detail-text").textContent).toBe(
+      '{\n  "big": 9007199254740993,\n  "huge": 1e400,\n  "zero": -0.0,\n  "price": 1.50\n}',
+    );
+  });
+
+  it('format="json" leaves strings alone: brackets, commas, colons and escapes inside them', () => {
+    const text = '{ "a" : "[x, {y}: z]",\n\t"b\\"c" : [ ], "d": {} , "e": " \\\\" }';
+    renderShell({ kind: "text", format: "json", text });
+    expect(screen.getByTestId("media-detail-text").textContent).toBe(
+      '{\n  "a": "[x, {y}: z]",\n  "b\\"c": [],\n  "d": {},\n  "e": " \\\\"\n}',
+    );
+  });
+
   it('format="json" leaves invalid JSON as plain text, silently', () => {
     renderShell({ kind: "text", format: "json", text: '{"a":1,' });
     expect(screen.getByTestId("media-detail-text").textContent).toBe('{"a":1,');
