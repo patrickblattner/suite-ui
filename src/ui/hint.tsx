@@ -4,6 +4,7 @@ import { createPortal } from "react-dom";
 
 import { cn } from "../lib/cn.js";
 import { helpIdFor } from "./label-with-help.js";
+import { usePressKeepsClosed } from "./press-keeps-closed.js";
 import {
   OverflowReportContext,
   TooltipContent,
@@ -146,11 +147,8 @@ function Hint({ text, disabledText, children, ...passThrough }: HintProps) {
   const ref = React.useMemo(() => composeRefs(ownRef, overflow.ref), [ownRef, overflow.ref]);
   const [innerClipped, setInnerClipped] = React.useState("");
   const fullText = overflow.isOverflowing && overflow.text !== "" ? overflow.text : innerClipped;
-  // A press closes the hint and keeps it closed until the pointer leaves (`GL-UI-016`). Radix closes
-  // only an open bubble on pointerdown; the open timer a hover started keeps running, and would open
-  // the bubble during a press held past the delay (a slider thumb held or dragged, #187).
-  const [open, setOpen] = React.useState(false);
-  const pressed = React.useRef(false);
+  // A press keeps the bubble closed until the pointer leaves (a slider thumb held or dragged, #187).
+  const press = usePressKeepsClosed();
   const clipped = fullText !== "";
 
   const disabled = children.props.disabled === true;
@@ -186,21 +184,11 @@ function Hint({ text, disabledText, children, ...passThrough }: HintProps) {
   return (
     <OverflowReportContext.Provider value={setInnerClipped}>
       <TooltipProvider>
-        <TooltipPrimitive.Root
-          open={open}
-          onOpenChange={(next) => {
-            if (!next || !pressed.current) setOpen(next);
-          }}
-        >
+        <TooltipPrimitive.Root {...press.root}>
           <TooltipTrigger
             asChild
             onFocus={keepClosedOnFocus}
-            onPointerDown={() => {
-              pressed.current = true;
-            }}
-            onPointerLeave={() => {
-              pressed.current = false;
-            }}
+            {...press.trigger}
             onPointerMove={
               !carried && children.props.busy === true ? keepClosedOnPointer : undefined
             }

@@ -72,6 +72,37 @@ describe("IconButtonTooltip", () => {
     expect(openAfter(span, 1500)).toBe(true);
     expect(screen.getByRole("tooltip")).toHaveTextContent("Stop the run to delete it.");
   });
+
+  // GL-UI-016 (#190): a press closes the hint and keeps it closed. Radix closes only an open bubble on
+  // pointerdown, so the open timer a hover started must not open it while the press is held.
+  it.each([
+    ["usable", <Button key="b" variant="ghost" size="icon" />, undefined],
+    [
+      "locked with aria-disabled",
+      <Button key="b" variant="ghost" size="icon" aria-disabled />,
+      "Stop the run to delete it.",
+    ],
+  ])(
+    "%s: a press during the hint delay keeps the bubble closed until the pointer leaves",
+    (_, control, disabledText) => {
+      render(
+        <IconButtonTooltip label="Delete the run" disabledText={disabledText}>
+          {control}
+        </IconButtonTooltip>,
+      );
+      const button = screen.getByRole("button", { name: "Delete the run" });
+      expect(openAfter(button, 500)).toBe(false);
+      fireEvent.pointerDown(button, { pointerType: "mouse" });
+      act(() => {
+        vi.advanceTimersByTime(2000);
+      });
+      expect(screen.queryByRole("tooltip")).toBeNull();
+      // Left and hovered again, the hint opens as before.
+      fireEvent.pointerLeave(button, { pointerType: "mouse" });
+      expect(openAfter(button, 1500)).toBe(true);
+      expect(screen.getByRole("tooltip")).toHaveTextContent(disabledText ?? "Delete the run");
+    },
+  );
 });
 
 // SUI-FEATURE-074: the bubble opens on hover only, never on focus, in every state.
@@ -303,6 +334,162 @@ describe("tooltip delays", () => {
       vi.advanceTimersByTime(1);
     });
     expect(screen.getByRole("tooltip")).toHaveTextContent("Description");
+  });
+});
+
+// GL-UI-016 (#190): a press closes the bubble and keeps it closed until the pointer leaves, also
+// while it is held past the hint delay.
+describe("tooltip held press", () => {
+  it("a Tooltip stays closed during a held press", () => {
+    render(
+      <Tooltip>
+        <TooltipTrigger>Trigger</TooltipTrigger>
+        <TooltipContent>Description</TooltipContent>
+      </Tooltip>,
+    );
+    const trigger = screen.getByText("Trigger");
+    expect(openAfter(trigger, 500)).toBe(false);
+    fireEvent.pointerDown(trigger, { pointerType: "mouse" });
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    // Left and hovered again, the bubble opens as before.
+    fireEvent.pointerLeave(trigger, { pointerType: "mouse" });
+    expect(openAfter(trigger, 1500)).toBe(true);
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Description");
+  });
+
+  it("a controlled Tooltip stays as the app sets it", () => {
+    render(
+      <Tooltip open>
+        <TooltipTrigger>Trigger</TooltipTrigger>
+        <TooltipContent>Description</TooltipContent>
+      </Tooltip>,
+    );
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Description");
+  });
+
+  it("an uncontrolled Tooltip keeps defaultOpen", () => {
+    render(
+      <Tooltip defaultOpen>
+        <TooltipTrigger>Trigger</TooltipTrigger>
+        <TooltipContent>Description</TooltipContent>
+      </Tooltip>,
+    );
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Description");
+  });
+
+  // The app's onOpenChange does not hear the open a press suppresses; on main the controlled bubble
+  // opened because the app set what radix reported.
+  it("a controlled Tooltip: the app's onOpenChange hears no open during a held press", () => {
+    const changes: boolean[] = [];
+    function Controlled() {
+      const [open, setOpen] = useState(false);
+      return (
+        <Tooltip
+          open={open}
+          onOpenChange={(next) => {
+            changes.push(next);
+            setOpen(next);
+          }}
+        >
+          <TooltipTrigger>Trigger</TooltipTrigger>
+          <TooltipContent>Description</TooltipContent>
+        </Tooltip>
+      );
+    }
+    render(<Controlled />);
+    const trigger = screen.getByText("Trigger");
+    expect(openAfter(trigger, 500)).toBe(false);
+    fireEvent.pointerDown(trigger, { pointerType: "mouse" });
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    expect(changes).not.toContain(true);
+  });
+
+  it("an uncontrolled Tooltip still reports its open changes to the app", () => {
+    const onOpenChange = vi.fn();
+    render(
+      <Tooltip onOpenChange={onOpenChange}>
+        <TooltipTrigger>Trigger</TooltipTrigger>
+        <TooltipContent>Description</TooltipContent>
+      </Tooltip>,
+    );
+    expect(openAfter(screen.getByText("Trigger"), 1500)).toBe(true);
+    expect(onOpenChange).toHaveBeenCalledWith(true);
+  });
+
+  it("the app's own onPointerDown and onPointerLeave on TooltipTrigger still run", () => {
+    const onPointerDown = vi.fn();
+    const onPointerLeave = vi.fn();
+    render(
+      <Tooltip>
+        <TooltipTrigger onPointerDown={onPointerDown} onPointerLeave={onPointerLeave}>
+          Trigger
+        </TooltipTrigger>
+        <TooltipContent>Description</TooltipContent>
+      </Tooltip>,
+    );
+    const trigger = screen.getByText("Trigger");
+    fireEvent.pointerDown(trigger, { pointerType: "mouse" });
+    fireEvent.pointerLeave(trigger, { pointerType: "mouse" });
+    expect(onPointerDown).toHaveBeenCalledOnce();
+    expect(onPointerLeave).toHaveBeenCalledOnce();
+  });
+
+  // #190 ux: a trigger that focuses itself on pointerdown (the SplitWorkspace divider) — radix opens on
+  // that focus at once, before its own pointerdown runs; the press must already count.
+  it("a trigger that focuses itself on pointerdown opens no bubble during the press", () => {
+    render(
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <div
+            tabIndex={0}
+            role="separator"
+            aria-label="Divider"
+            onPointerDown={(event) => {
+              event.preventDefault();
+              event.currentTarget.focus();
+            }}
+          />
+        </TooltipTrigger>
+        <TooltipContent>Drag to resize</TooltipContent>
+      </Tooltip>,
+    );
+    const divider = screen.getByRole("separator", { name: "Divider" });
+    fireEvent.pointerDown(divider, { pointerType: "mouse" });
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
+  it("an OverflowTooltip stays closed during a held press", () => {
+    vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(100);
+    vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return this.classList.contains("truncate") ? 200 : 100;
+    });
+    render(
+      <OverflowTooltip>
+        <span className="truncate">a-very-long-file-name.png</span>
+      </OverflowTooltip>,
+    );
+    const text = screen.getByText("a-very-long-file-name.png");
+    expect(openAfter(text, 500)).toBe(false);
+    fireEvent.pointerDown(text, { pointerType: "mouse" });
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    // Left and hovered again, the bubble opens as before.
+    fireEvent.pointerLeave(text, { pointerType: "mouse" });
+    expect(openAfter(text, 1500)).toBe(true);
+    expect(screen.getByRole("tooltip")).toHaveTextContent("a-very-long-file-name.png");
   });
 });
 

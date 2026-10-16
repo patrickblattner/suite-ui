@@ -49,6 +49,21 @@ describe("LabelWithHelp", () => {
     expect(screen.getByRole("tooltip")).toHaveTextContent("The name shown in lists");
   });
 
+  // GL-UI-016 (#190): a press (a click on the label focuses its field) keeps the help closed until the
+  // pointer leaves, also while it is held past the hint delay.
+  it("stays closed during a held press on the text", () => {
+    const { text } = renderLabel();
+    expect(hover(text, 500)).toBe(false);
+    fireEvent.pointerDown(text, { pointerType: "mouse" });
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    // Left and hovered again, the bubble opens as before.
+    fireEvent.pointerLeave(text, { pointerType: "mouse" });
+    expect(hover(text, 1500)).toBe(true);
+  });
+
   it("opens nothing on a hover beside the text", () => {
     const { label, text } = renderLabel();
     expect(text).not.toBe(label);

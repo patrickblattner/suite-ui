@@ -3,6 +3,7 @@ import type * as React from "react";
 import { createPortal } from "react-dom";
 
 import { cn } from "../lib/cn.js";
+import { usePressKeepsClosed } from "./press-keeps-closed.js";
 import { TooltipContent, TooltipProvider, TooltipTrigger } from "./tooltip.js";
 
 function helpIdFor(htmlFor: string): string {
@@ -34,6 +35,9 @@ function LabelWithHelp({
   className?: string;
   children: React.ReactNode;
 }) {
+  // A press (a click on the label focuses its field) keeps the help closed until the pointer leaves
+  // (`GL-UI-016`, #190).
+  const press = usePressKeepsClosed();
   return (
     <>
       <label
@@ -43,8 +47,8 @@ function LabelWithHelp({
         className={cn("block text-sm font-medium text-foreground", className)}
       >
         <TooltipProvider>
-          <TooltipPrimitive.Root>
-            <TooltipTrigger asChild onFocus={keepClosedOnFocus}>
+          <TooltipPrimitive.Root {...press.root}>
+            <TooltipTrigger asChild onFocus={keepClosedOnFocus} {...press.trigger}>
               <span>{children}</span>
             </TooltipTrigger>
             <TooltipContent>{help}</TooltipContent>

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.112.1 — #190: hint bubbles stay closed during a held press
+
+Fix, not breaking (`GL-UI-016`: a hint closes on click). An icon button's bubble no longer opens during a press held past the hint delay, for example on a pagination arrow. A press keeps it closed until the pointer leaves, and hovering again opens it as before. The cause was the same as in `Hint` (0.112.0): Radix closes only an open bubble on pointerdown, while the open timer started by the hover keeps running. Every package hint bubble now has the same fix through one shared internal hook: `Hint`, `IconButtonTooltip`, `OverflowTooltip`, the help of `LabelWithHelp`, and the plain `Tooltip`. Its `TooltipTrigger` gets the handlers from the `Tooltip`. A `Tooltip` whose `open` the app sets stays as the app sets it. `disabledText` and the `aria-disabled` behaviour are unchanged.
+
 ## 0.112.0 — #187, SUI-FEATURE-057 rev 3: the slider's thumb takes `ref`, `id` and `aria-describedby`
 
 Not breaking. `Slider` takes `id`, `aria-describedby` and `ref` (a React 19 prop). All three land on the thumb (`role="slider"`), next to `aria-label` and `aria-labelledby`, as on the native `<input type="range">` the slider replaces. `ref.current` is the thumb. Props that a wrapping trigger merges in, such as a `Hint`'s handlers, also go to the thumb. `className` and `data-testid` stay on the wrapper. So a `Hint` can wrap the slider directly, and its description reaches the thumb.

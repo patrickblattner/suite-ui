@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
 import { ariaKeyShortcuts, shortcutChip } from "../lib/keyboard.js";
+import { usePressKeepsClosed } from "./press-keeps-closed.js";
 
 // One tooltip behaviour (`GL-UI-016`/`GL-UI-017`): every tooltip, the overflow tooltip included, opens
 // after the one hint delay and closes at once — on pointer leave, click, focus change, scroll and `Esc`;
@@ -39,10 +40,35 @@ function TooltipProvider(
   );
 }
 
-function Tooltip(props: Omit<React.ComponentProps<typeof TooltipPrimitive.Root>, FixedTiming>) {
+// The press handlers of a `Tooltip`, which renders no trigger of its own: its `TooltipTrigger` takes
+// them from here.
+type PressHandlers = ReturnType<typeof usePressKeepsClosed>["trigger"];
+const PressContext = React.createContext<PressHandlers | null>(null);
+
+// A press keeps the bubble closed until the pointer leaves (`GL-UI-016`, #190). An app that sets `open`
+// keeps the bubble as it sets it; `defaultOpen` seeds it otherwise.
+function Tooltip({
+  open,
+  defaultOpen,
+  onOpenChange,
+  ...props
+}: Omit<React.ComponentProps<typeof TooltipPrimitive.Root>, FixedTiming>) {
+  const press = usePressKeepsClosed(defaultOpen ?? false);
+  const controlled = open !== undefined;
   return (
     <TooltipProvider>
-      <TooltipPrimitive.Root data-slot="tooltip" {...props} />
+      <PressContext.Provider value={press.trigger}>
+        <TooltipPrimitive.Root
+          data-slot="tooltip"
+          {...props}
+          open={controlled ? open : press.root.open}
+          onOpenChange={(next) => {
+            if (!press.allows(next)) return;
+            if (!controlled) press.root.onOpenChange(next);
+            onOpenChange?.(next);
+          }}
+        />
+      </PressContext.Provider>
     </TooltipProvider>
   );
 }
@@ -52,8 +78,14 @@ function assignRef<T>(ref: React.Ref<T> | undefined, node: T): void {
   else if (ref) ref.current = node;
 }
 
-function TooltipTrigger({ ref, ...props }: React.ComponentProps<typeof TooltipPrimitive.Trigger>) {
+function TooltipTrigger({
+  ref,
+  onPointerDownCapture,
+  onPointerLeave,
+  ...props
+}: React.ComponentProps<typeof TooltipPrimitive.Trigger>) {
   const setTrigger = React.useContext(TriggerNodeContext)?.setTrigger;
+  const press = React.useContext(PressContext);
   const composedRef = React.useCallback(
     (node: HTMLButtonElement | null) => {
       setTrigger?.(node);
@@ -61,7 +93,21 @@ function TooltipTrigger({ ref, ...props }: React.ComponentProps<typeof TooltipPr
     },
     [setTrigger, ref],
   );
-  return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} ref={composedRef} />;
+  return (
+    <TooltipPrimitive.Trigger
+      data-slot="tooltip-trigger"
+      {...props}
+      onPointerDownCapture={(event) => {
+        press?.onPointerDownCapture();
+        onPointerDownCapture?.(event);
+      }}
+      onPointerLeave={(event) => {
+        press?.onPointerLeave();
+        onPointerLeave?.(event);
+      }}
+      ref={composedRef}
+    />
+  );
 }
 
 // Radix closes every open bubble on this document event; a bubble opening dispatches it.
@@ -176,6 +222,8 @@ function OverflowTooltip({
   const child = React.cloneElement(children, { ref });
   const full = text ?? measured;
   const clipped = isOverflowing ? full : "";
+  // A press keeps the bubble closed until the pointer leaves (#190).
+  const press = usePressKeepsClosed();
 
   React.useLayoutEffect(() => {
     if (report === null) return;
@@ -187,8 +235,10 @@ function OverflowTooltip({
 
   return (
     <TooltipProvider>
-      <TooltipPrimitive.Root>
-        <TooltipTrigger asChild>{child}</TooltipTrigger>
+      <TooltipPrimitive.Root {...press.root}>
+        <TooltipTrigger asChild {...press.trigger}>
+          {child}
+        </TooltipTrigger>
         <TooltipContent>{full}</TooltipContent>
       </TooltipPrimitive.Root>
     </TooltipProvider>
@@ -246,6 +296,8 @@ function IconButtonTooltip({
 }) {
   const { t } = useTranslation("suite");
   const id = React.useId();
+  // A press keeps the bubble closed until the pointer leaves (#190).
+  const press = usePressKeepsClosed();
   const variants =
     shortcut === undefined ? undefined : typeof shortcut === "string" ? [shortcut] : shortcut;
   const ownLabel = children.props["aria-label"];
@@ -284,8 +336,8 @@ function IconButtonTooltip({
   return (
     <>
       <TooltipProvider>
-        <TooltipPrimitive.Root>
-          <TooltipTrigger asChild onFocus={keepClosedOnFocus}>
+        <TooltipPrimitive.Root {...press.root}>
+          <TooltipTrigger asChild onFocus={keepClosedOnFocus} {...press.trigger}>
             {trigger}
           </TooltipTrigger>
           <TooltipContent>
