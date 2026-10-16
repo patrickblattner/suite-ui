@@ -18,7 +18,11 @@ import { Link } from "react-router-dom";
 import { cn } from "../lib/cn.js";
 import { isTextField } from "../lib/keyboard.js";
 import { type RowUsage, useRowActionButtons } from "../list/row-actions.js";
-import { PANEL_SURFACE_CLASS, usePanelGeometry } from "../lib/panel-geometry.js";
+import {
+  LOCKED_CHEVRON_CLASS,
+  PANEL_SURFACE_CLASS,
+  usePanelGeometry,
+} from "../lib/panel-geometry.js";
 import { Button } from "./button.js";
 import { Hint } from "./hint.js";
 import { useLeaveConfirm } from "./leave-guard.js";
@@ -256,11 +260,6 @@ function MediaPreview({
       return <FileIcon aria-hidden="true" className="size-16 text-muted-foreground" />;
   }
 }
-
-// A locked pager chevron stays focusable (`aria-disabled`); its locked look is the half-tone icon,
-// not element opacity, which would dim its focus ring below 3:1 (WCAG 1.4.11, #184).
-const LOCKED_CHEVRON_CLASS =
-  "aria-disabled:cursor-not-allowed aria-disabled:text-foreground/50 aria-disabled:hover:bg-transparent aria-disabled:hover:text-foreground/50 dark:aria-disabled:hover:bg-transparent dark:aria-disabled:hover:text-foreground/50";
 
 // "Choose this media item": an entry without a file is not choosable, locked with its reason
 // (`SUI-FEATURE-140`).

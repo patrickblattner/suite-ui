@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.110.2 — #185: EditPanel pager chevrons keep a full-contrast focus ring
+
+Fix, not breaking (WCAG 1.4.11, GL-UI-013). The locked ‹/› chevrons of the `EditPanel` pager no longer dim with element `opacity-50`, which also dimmed their focus ring below 3:1; they take the same locked look as `MediaDetailShell`'s since 0.110.1: a half-tone icon, no hover tint (in dark mode too), the element opaque. The shared class now lives beside `PANEL_SURFACE_CLASS` in `lib/panel-geometry`.
+
 ## 0.110.1 — #184: locked Save and pager chevrons keep a full-contrast focus ring
 
 Fix, not breaking (WCAG 1.4.11). In `MediaDetailShell` the locked Save (nothing to save) and the locked ‹/› chevrons at the ends no longer dim with element `opacity-50`, which also dimmed their focus ring to about 1.85:1. Save shows its locked look by half-tone fill and text, the chevrons by a half-tone icon without hover tint; the element stays opaque, so the ring keeps full contrast. A running Save (busy) stays at full colour. Changed baselines: `media-detail-de-dark.png`, `media-detail-en-dark.png` and `media-detail-es-dark.png`, 3 pixels each in the Save icon, as the gallery compares them (Playwright's default colour threshold 0.2, no pixel allowance). The light `media-detail` baselines are unchanged: there the Save label's new slight tint stays below that threshold.

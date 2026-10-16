@@ -1858,6 +1858,38 @@ test("media detail shell: a hovered locked chevron stays half-tone in dark mode"
   await expect(previous).toHaveCSS("color", before);
 });
 
+// #185 (WCAG 1.4.11): the EditPanel pager's locked chevron keeps focusable and opaque, its focus ring
+// the same as on the unlocked one; hovered in dark mode it keeps its half-tone icon.
+test("edit panel: a locked chevron keeps the full focus ring and no dark hover", async ({
+  page,
+}) => {
+  await page.goto("/?page=edit-panel&theme=dark");
+  await page.getByTestId("media-panel-trigger").click();
+  const previous = page.getByTestId("media-panel-previous");
+  const next = page.getByTestId("media-panel-next");
+  await expect(previous).toHaveAttribute("aria-disabled", "true");
+  const ring = (locator: typeof previous) =>
+    locator.evaluate((node) => {
+      let opacity = 1;
+      for (let el: Element | null = node; el; el = el.parentElement)
+        opacity *= Number(getComputedStyle(el).opacity);
+      return { opacity, shadow: getComputedStyle(node).boxShadow };
+    });
+  await next.focus();
+  await page.keyboard.press("Shift+Tab");
+  await expect(previous).toBeFocused();
+  const locked = await ring(previous);
+  await page.keyboard.press("Tab");
+  await expect(next).toBeFocused();
+  const unlocked = await ring(next);
+  expect(locked.opacity).toBe(1);
+  expect(locked.shadow).not.toBe("none");
+  expect(locked.shadow).toBe(unlocked.shadow);
+  const before = await previous.evaluate((node) => getComputedStyle(node).color);
+  await previous.hover();
+  await expect(previous).toHaveCSS("color", before);
+});
+
 // `SUI-FEATURE-061` AC 2: the pair follows the dirty state, Save carries the working state.
 test("media detail shell: Reset and Save follow the dirty state", async ({ page }) => {
   const shell = await openMediaDetail(page);

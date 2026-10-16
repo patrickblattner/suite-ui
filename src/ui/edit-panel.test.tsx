@@ -325,6 +325,21 @@ describe("EditPanel", () => {
     await waitFor(() => expect(trigger).toHaveFocus());
   });
 
+  // #185: a locked chevron dims its icon, not the element, so its focus ring keeps its contrast;
+  // no hover tint, in dark mode too.
+  it("pager: a locked chevron is half-tone, never element opacity", () => {
+    renderPanel({
+      pager: { position: "1/3", onPrevious: vi.fn(), onNext: vi.fn(), previousDisabled: true },
+    });
+    const previous = screen.getByTestId("edit-panel-previous");
+    expect(previous).toHaveClass(
+      "aria-disabled:text-foreground/50",
+      "aria-disabled:hover:text-foreground/50",
+      "dark:aria-disabled:hover:text-foreground/50",
+    );
+    expect(previous).not.toHaveClass("aria-disabled:opacity-50");
+  });
+
   // SUI-FEATURE-051: paging through a set of records.
   it("pager: ‹ and › left of the title call their callbacks and lock per flag", () => {
     const onPrevious = vi.fn();
