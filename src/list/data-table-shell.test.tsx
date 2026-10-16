@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 import { TableCell, TableHead, TableRow } from "../ui/table.js";
 import { Tabs, TabsList, TabsTrigger } from "../ui/tabs.js";
 import type { ListTabs } from "./list-tabs.js";
+import { useRowGrid } from "./use-row-grid.js";
 import {
   DataTableShell,
   type DataTableShellProps,
@@ -180,7 +181,7 @@ describe("DataTableShell", () => {
   });
 
   // The v0.23.0 frame: without scrollRef and isError the markup is the same as before.
-  it("keeps the v0.23.0 markup without scrollRef and isError", () => {
+  it("keeps the v0.23.0 markup of an unnamed empty list without scrollRef and isError", () => {
     const { container: before } = renderShell({ isEmpty: true });
     const { container: after } = renderShell({ isEmpty: true, isError: false });
     expect(after.innerHTML).toBe(before.innerHTML);
@@ -260,7 +261,7 @@ describe("DataTableShell", () => {
       tableProps: { role: "grid", tabIndex: 0 },
     });
     const region = screen.getByRole("region", { name: "System log" });
-    expect(region).not.toHaveAttribute("tabindex");
+    expect(region).toHaveAttribute("tabindex", "-1");
     expect(region).not.toHaveClass("focus-visible:focus-ring");
     const stops = [...container.querySelectorAll("[tabindex]")].filter(
       (el) => (el as HTMLElement).tabIndex >= 0,
@@ -383,9 +384,9 @@ describe("DataTableShell", () => {
       expect(screen.getByTestId("row")).toBeVisible();
     });
 
-    it("under a grid leaves the grid the one tab stop", () => {
+    it("under a grid with rows takes the panel out of the tab order", () => {
       renderShell({ tabs: { list: LIST, value: "all" }, tableProps: { role: "grid" } });
-      expect(screen.getByRole("tabpanel")).not.toHaveAttribute("tabindex");
+      expect(screen.getByRole("tabpanel")).toHaveAttribute("tabindex", "-1");
     });
 
     it("keeps the list when the value matches no tab of the Tabs", () => {
@@ -423,5 +424,113 @@ describe("DataTableShell", () => {
     const scroller = screen.getByRole("region", { name: "Events" });
     expect(scroller).toBe(screen.getByTestId("data-table-scroll"));
     expect(scroller).not.toHaveAttribute("aria-labelledby");
+  });
+
+  // `#162`, `SUI-FEATURE-046` AC 8 (Q#3643, Q#3645, Q#3646): each list has exactly one tab stop and
+  // never an unnamed one, in a tab panel and free (named by `scrollLabel`).
+  describe("one tab stop per list", () => {
+    const LIST = (
+      <TabsList>
+        <TabsTrigger value="all">All</TabsTrigger>
+      </TabsList>
+    );
+
+    type GridListProps = Partial<
+      Pick<
+        DataTableShellProps,
+        "isPending" | "isEmpty" | "isError" | "onAdd" | "filtered" | "onResetFilter" | "onRetry"
+      >
+    > & { inPanel: boolean };
+
+    function GridList({ inPanel, ...state }: GridListProps) {
+      const { gridProps, rowProps } = useRowGrid();
+      const shell = (
+        <DataTableShell
+          head={<TableHead>Name</TableHead>}
+          columnCount={1}
+          isPending={false}
+          isEmpty={false}
+          error="Liste konnte nicht geladen werden."
+          loadingRowTestId="rows-loading"
+          emptyTestId="rows-empty"
+          {...(inPanel ? { tabs: { list: LIST, value: "all" } } : { scrollLabel: "Events" })}
+          tableProps={gridProps}
+          {...state}
+        >
+          {["a", "b"].map((name) => (
+            <TableRow key={name} data-testid="row" {...rowProps()}>
+              <TableCell>{name}</TableCell>
+            </TableRow>
+          ))}
+        </DataTableShell>
+      );
+      return inPanel ? <Tabs value="all">{shell}</Tabs> : shell;
+    }
+
+    // The elements Tab reaches inside the frame, the scroller included.
+    function frameStops() {
+      const scroller = screen.getByTestId("data-table-scroll");
+      return [scroller, ...scroller.querySelectorAll<HTMLElement>("[tabindex], button")].filter(
+        (el) => el.tabIndex >= 0,
+      );
+    }
+
+    // [case, props, the one stop: the scroller or the focusable inside it]
+    const CASES: [string, Omit<GridListProps, "inPanel">, "scroller" | (() => HTMLElement)][] = [
+      ["loading", { isPending: true }, "scroller"],
+      ["empty", { isEmpty: true }, "scroller"],
+      [
+        "empty with onAdd",
+        { isEmpty: true, onAdd: { label: "Add", onClick: () => {} } },
+        () => screen.getByTestId("rows-empty-add"),
+      ],
+      [
+        "filtered with reset",
+        { isEmpty: true, filtered: true, onResetFilter: () => {} },
+        () => screen.getByTestId("rows-empty-reset-filter"),
+      ],
+      ["error", { isError: true }, "scroller"],
+      [
+        "error with onRetry",
+        { isError: true, onRetry: () => {} },
+        () => screen.getByTestId("list-error-retry"),
+      ],
+      ["grid rows", {}, () => screen.getAllByTestId("row")[0]!],
+    ];
+
+    describe.each([
+      ["in a tab panel", true],
+      ["free", false],
+    ])("%s", (_, inPanel) => {
+      it.each(CASES)("%s", (_case, state, stop) => {
+        render(<GridList inPanel={inPanel} {...state} />);
+        const scroller = screen.getByTestId("data-table-scroll");
+        if (stop === "scroller") {
+          expect(scroller).toHaveAttribute("tabindex", "0");
+          expect(scroller).toHaveAccessibleName(inPanel ? "All" : "Events");
+          expect(frameStops()).toEqual([scroller]);
+        } else {
+          // Named but no stop: `-1`, which in a panel also suppresses Radix's `0`.
+          expect(scroller).toHaveAttribute("tabindex", "-1");
+          expect(frameStops()).toEqual([stop()]);
+        }
+      });
+    });
+
+    // Q#3649: the named scroller is the stop while loading and drops out once grid rows arrive; with
+    // `-1` it stays focusable, so a focus on it is not lost to the body.
+    it.each([
+      ["in a tab panel", true],
+      ["free", false],
+    ])("%s, loading → grid rows keeps the focus", (_, inPanel) => {
+      const { rerender } = render(<GridList inPanel={inPanel} isPending />);
+      const scroller = screen.getByTestId("data-table-scroll");
+      scroller.focus();
+      expect(document.activeElement).toBe(scroller);
+      rerender(<GridList inPanel={inPanel} />);
+      expect(scroller).toHaveAttribute("tabindex", "-1");
+      expect(document.activeElement).toBe(scroller);
+      expect(frameStops()).toEqual([screen.getAllByTestId("row")[0]]);
+    });
   });
 });

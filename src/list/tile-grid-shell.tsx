@@ -2,7 +2,7 @@ import type * as React from "react";
 
 import { Skeleton } from "../ui/skeleton.js";
 import { GutterRow } from "./list-gutter.js";
-import { listState, ListStateContent, type ListStateProps } from "./list-state.js";
+import { listState, ListStateContent, type ListStateProps, scrollTabIndex } from "./list-state.js";
 import { ListTabPanel, type ListTabs } from "./list-tabs.js";
 import type { RowGrid } from "./use-row-grid.js";
 
@@ -19,7 +19,8 @@ type TileGridShellProps = {
   // Ref object or callback on the scroller, so the app can restore the scroll position on return.
   scrollRef?: React.Ref<HTMLDivElement>;
   // The view switch above the grid and its active value, as on `DataTableShell`: the scroller is then
-  // the active tab's panel, and a tab stop unless `gridProps` makes the tiles the keyboard grid.
+  // the active tab's panel, and a tab stop while it holds nothing focusable (keyboard tiles, a state
+  // button). Without tabs the scroller has no name and is never a stop (`SUI-FEATURE-046`).
   tabs?: ListTabs;
   // The `FilterBar`, between the view switch and the grid.
   toolbar?: React.ReactNode;
@@ -52,7 +53,13 @@ function TileGridShell({
   const state = listState({ isPending, isError, isEmpty });
   // Stripped at runtime too: a caller spreading the whole `gridProps` must not give tiles a grid role.
   const containerProps = gridProps === undefined ? {} : { ...gridProps, role: undefined };
-  const focusable = tabs !== undefined && gridProps === undefined;
+  const tabIndex = scrollTabIndex({
+    state,
+    named: tabs !== undefined,
+    keyboardItems: gridProps !== undefined,
+    ...stateProps,
+  });
+  const focusable = tabIndex === 0;
   return (
     <div
       className="flex min-h-0 flex-1 flex-col gap-4"
@@ -68,7 +75,7 @@ function TileGridShell({
           }
           data-testid={scrollTestId}
           ref={scrollRef}
-          tabIndex={focusable ? 0 : undefined}
+          {...(tabIndex !== undefined && { tabIndex })}
         >
           {state === "pending" ? (
             <div className={GRID_CLASS}>

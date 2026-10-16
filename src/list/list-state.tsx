@@ -44,6 +44,37 @@ function listState({
   return "items";
 }
 
+// The scroller's `tabIndex` (`SUI-FEATURE-046` Q#3646): a tab stop exactly when it has a name and
+// nothing focusable inside (grid entries or a state button), so each list has one stop and never an
+// unnamed one. A named scroller that is no stop carries `-1`: it suppresses Radix's `0` and keeps a
+// focus it already has across a state change (Q#3649); an unnamed one carries no attribute.
+function scrollTabIndex({
+  state,
+  named,
+  keyboardItems,
+  empty,
+  onAdd,
+  filtered = false,
+  onResetFilter,
+  onRetry,
+}: Pick<ListStateProps, "empty" | "onAdd" | "filtered" | "onResetFilter" | "onRetry"> & {
+  state: ListState;
+  named: boolean;
+  keyboardItems: boolean;
+}): 0 | -1 | undefined {
+  // The same conditions `ListStateContent` renders its buttons under.
+  const containsFocusable =
+    state === "items"
+      ? keyboardItems
+      : state === "error"
+        ? onRetry !== undefined
+        : state === "empty" &&
+          empty === undefined &&
+          (filtered ? onResetFilter !== undefined : onAdd !== undefined);
+  if (!named) return undefined;
+  return containsFocusable ? -1 : 0;
+}
+
 // The content of the error or empty state; the shell supplies the frame (a table cell, a grid block).
 // Without an action the empty state is the bare text, so a list that sets none of the new props keeps
 // its markup.
@@ -125,4 +156,4 @@ function ListStateContent({
   );
 }
 
-export { listState, ListStateContent, type ListState, type ListStateProps };
+export { listState, ListStateContent, type ListState, type ListStateProps, scrollTabIndex };

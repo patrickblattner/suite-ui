@@ -3,7 +3,7 @@ import * as React from "react";
 import { Skeleton } from "../ui/skeleton.js";
 import { Table, TableBody, TableCell, TableHeader, TableRow } from "../ui/table.js";
 import { type GutterInset, GutterRow } from "./list-gutter.js";
-import { listState, ListStateContent, type ListStateProps } from "./list-state.js";
+import { listState, ListStateContent, type ListStateProps, scrollTabIndex } from "./list-state.js";
 import { ListTabPanel, type ListTabs } from "./list-tabs.js";
 import { useOverflowXMarker } from "./use-overflow-x-marker.js";
 import { useStickyActionsMarker } from "./use-sticky-actions-marker.js";
@@ -53,11 +53,11 @@ type DataTableShellProps = {
   // Ref object or callback on the scroller, so the app can restore the scroll position on return.
   scrollRef?: React.Ref<HTMLDivElement>;
   // The translated name of the content, e.g. "System log" (`SUI-FEATURE-053`). Set, the scroller is a
-  // labelled region reachable by Tab, so a read table without focusable rows scrolls by keyboard.
-  // Under `tableProps.role="grid"` the grid is the tab stop and the scroller only gets role and name.
+  // labelled region, and a tab stop while it holds nothing focusable, so a read table scrolls by
+  // keyboard; grid rows or a state button are the stop instead (`SUI-FEATURE-046`).
   scrollLabel?: string;
   // The view switch above the table: its `TabsList` and the active value (`ListTabs`). The scroller is
-  // then the active tab's panel, named by its tab, and a tab stop unless the table is a grid.
+  // then the active tab's panel, named by its tab, and a tab stop under the same rule as a label.
   tabs?: ListTabs;
   // The `FilterBar`, between the view switch and the table.
   toolbar?: React.ReactNode;
@@ -107,10 +107,15 @@ function DataTableShell({
   const forwardedTableProps: React.ComponentProps<typeof Table> = { ...tableProps };
   delete forwardedTableProps.className;
   delete forwardedTableProps.style;
-  // An empty label counts as unset (`SUI-FEATURE-054`): no tab stop, no region without a name.
+  // An empty label counts as unset (`SUI-FEATURE-054`): no region without a name.
   const label = scrollLabel === "" ? undefined : scrollLabel;
-  // A tab panel is a tab stop like a labelled scroller; under a grid the grid is the one stop.
-  const focusable = (label !== undefined || tabs !== undefined) && tableProps?.role !== "grid";
+  const tabIndex = scrollTabIndex({
+    state,
+    named: label !== undefined || tabs !== undefined,
+    keyboardItems: tableProps?.role === "grid",
+    ...stateProps,
+  });
+  const focusable = tabIndex === 0;
   const scrollClass = `${SCROLL_CLASS}${SCROLL_INSET_CLASS[inset]}`;
   // The scroller as state, for the sticky-actions marker; the app's `scrollRef` gets it too.
   const [scroller, setScroller] = React.useState<HTMLDivElement | null>(null);
@@ -137,11 +142,10 @@ function DataTableShell({
           data-testid={scrollTestId}
           ref={scrollerRef}
           // As a tab panel the scroller keeps the panel's role and its name from the tab
-          // (`aria-labelledby` would beat `aria-label` anyway), so neither key overrides them; `tabIndex`
-          // always overrides the panel's own, so a grid stays the one tab stop.
+          // (`aria-labelledby` would beat `aria-label` anyway), so neither key overrides them.
           {...(label !== undefined &&
             tabs === undefined && { role: "region", "aria-label": label })}
-          tabIndex={focusable ? 0 : undefined}
+          {...(tabIndex !== undefined && { tabIndex })}
         >
           <Table {...forwardedTableProps}>
             <TableHeader className={STICKY_HEADER_CLASS} data-testid={headerTestId}>
