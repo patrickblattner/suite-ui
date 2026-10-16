@@ -79,22 +79,31 @@ const OWN_ARROWS =
 // At most this much of a text medium shows (`SUI-FEATURE-140`), in UTF-8 bytes.
 const TEXT_LIMIT = 200 * 1024;
 
-// The shown text: valid JSON indented with `format="json"` (invalid stays as it is), then cut to the
-// first `TEXT_LIMIT` bytes.
+// The first `TEXT_LIMIT` bytes of `text`. A cut through a multi-byte character leaves a replacement
+// character at the end; it is dropped.
+function cutText(text: string) {
+  // A character is at least one byte: the first `TEXT_LIMIT` characters hold the cut, and nothing
+  // past them is ever encoded.
+  const head = text.slice(0, TEXT_LIMIT);
+  const bytes = new TextEncoder().encode(head);
+  if (bytes.length <= TEXT_LIMIT && head.length === text.length) return null;
+  return new TextDecoder().decode(bytes.subarray(0, TEXT_LIMIT)).replace(/\uFFFD$/, "");
+}
+
+// The shown text: past `TEXT_LIMIT` bytes only the beginning, as it is; otherwise valid JSON indented
+// with `format="json"` (invalid stays as it is), cut again should the indenting grow it past the limit.
 function textPreview(text: string, format: "plain" | "json") {
+  const cut = cutText(text);
+  if (cut !== null) return { shown: cut, truncated: true };
+  if (format === "plain") return { shown: text, truncated: false };
   let shown = text;
-  if (format === "json") {
-    try {
-      shown = JSON.stringify(JSON.parse(text), null, 2);
-    } catch {
-      // Invalid JSON falls back to plain text, silently.
-    }
+  try {
+    shown = JSON.stringify(JSON.parse(text), null, 2);
+  } catch {
+    // Invalid JSON falls back to plain text, silently.
   }
-  const bytes = new TextEncoder().encode(shown);
-  if (bytes.length <= TEXT_LIMIT) return { shown, truncated: false };
-  // A cut through a multi-byte character leaves a replacement character at the end; drop it.
-  const cut = new TextDecoder().decode(bytes.subarray(0, TEXT_LIMIT)).replace(/\uFFFD$/, "");
-  return { shown: cut, truncated: true };
+  const grown = cutText(shown);
+  return grown === null ? { shown, truncated: false } : { shown: grown, truncated: true };
 }
 
 function TextPreview({
@@ -112,10 +121,11 @@ function TextPreview({
     <div className="flex size-full flex-col">
       {/* Its own scroll region, reachable by keyboard. */}
       <pre
+        role="region"
         tabIndex={0}
         aria-label={alt || undefined}
         data-testid="media-detail-text"
-        className="min-h-0 flex-1 overflow-auto p-4 [font-family:inherit] text-sm whitespace-pre-wrap [tab-size:2] [overflow-wrap:anywhere] outline-none focus-visible:focus-ring rounded-md"
+        className="min-h-0 flex-1 overflow-auto p-4 [font-family:inherit] text-sm whitespace-pre-wrap [tab-size:2] wrap-anywhere outline-none focus-visible:focus-ring-inset rounded-md"
       >
         {shown}
       </pre>
@@ -150,7 +160,7 @@ function PreviewState({ state, detail }: { state: MediaPreviewState; detail?: st
       <p className="text-sm">{t(`media.${state}`)}</p>
       {detail !== undefined && detail !== "" && (
         <p
-          className="text-sm text-muted-foreground [overflow-wrap:anywhere]"
+          className="text-sm text-muted-foreground wrap-anywhere"
           data-testid="media-detail-state-detail"
         >
           {detail}
@@ -235,6 +245,7 @@ function MediaDetailShell({
   const showUsage = usage?.active === true;
   const geometry = usePanelGeometry();
   const returnFocus = React.useRef<HTMLElement | null>(null);
+  const preview = React.useRef<HTMLDivElement>(null);
   // A Save that ends locked (nothing left to save) hands the focus on (`GL-UI-050`,
   // `SUI-FEATURE-120`): within the footer, else to the first field of the details.
   const saveButton = React.useRef<HTMLButtonElement>(null);
@@ -311,6 +322,12 @@ function MediaDetailShell({
             const target = event.target instanceof Element ? event.target : null;
             if (isTextField(target) || target?.closest(OWN_ARROWS)) return;
             event.preventDefault();
+            // The preview's content changes with the page and may take the focus with it (the text
+            // region): the focus moves to the panel, where the arrows keep paging.
+            const pages = event.key === "ArrowLeft" ? !first : !last;
+            if (pages && target !== null && preview.current?.contains(target)) {
+              event.currentTarget.focus();
+            }
             if (event.key === "ArrowLeft") previous();
             else next();
           }}
@@ -397,6 +414,7 @@ function MediaDetailShell({
                     </div>
                   </div>
                   <div
+                    ref={preview}
                     data-slot="media-detail-preview"
                     data-testid="media-detail-preview"
                     data-kind={kind}
@@ -407,7 +425,15 @@ function MediaDetailShell({
                     {previewState !== undefined ? (
                       <PreviewState state={previewState} detail={previewDetail} />
                     ) : (
-                      <MediaPreview kind={kind} src={src} text={text} format={format} alt={alt} />
+                      // Keyed by the position: a new medium starts fresh, its scroll at the top.
+                      <MediaPreview
+                        key={position}
+                        kind={kind}
+                        src={src}
+                        text={text}
+                        format={format}
+                        alt={alt}
+                      />
                     )}
                   </div>
                   {showUsage ? (

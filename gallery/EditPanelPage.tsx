@@ -33,7 +33,12 @@ const SHELL_MEDIA = [
 ] as const;
 const JSON_TEXT = JSON.stringify({
   locale: "de-CH",
-  channels: [{ id: 1, name: "Newsletter", active: true }],
+  // Long enough to scroll, so a kept scroll offset would show.
+  channels: Array.from({ length: 40 }, (_, i) => ({
+    id: i + 1,
+    name: `Channel ${i + 1}`,
+    active: i % 2 === 0,
+  })),
 });
 // The preview states and the text preview (`SUI-FEATURE-140`): plain text, JSON indented, and the
 // three states with the app's line below the sentence.
@@ -41,7 +46,16 @@ const STATE_MEDIA: readonly ShellMedium[] = [
   {
     kind: "text",
     name: "release-notes.txt",
-    text: "Release notes\n\nThe media library now shows text files and tells why a preview is missing.",
+    // Long enough to scroll its region.
+    text: [
+      "Release notes",
+      "",
+      ...Array.from(
+        { length: 80 },
+        (_, i) =>
+          `${i + 1}.\tThe media library shows text files and tells why a preview is missing.`,
+      ),
+    ].join("\n"),
   },
   { kind: "text", name: "settings.json", text: JSON_TEXT, format: "json" },
   { kind: "image", name: "hero-banner.jpg", state: "missingRef" },

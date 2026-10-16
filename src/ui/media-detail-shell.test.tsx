@@ -402,6 +402,7 @@ describe("MediaDetailShell: preview states and text (SUI-FEATURE-140)", () => {
     );
     expect(text).not.toHaveClass("font-mono");
     expect(text).toHaveAttribute("tabindex", "0");
+    expect(screen.getByRole("region", { name: "team-photo.jpg" })).toBe(text);
     expect(screen.queryByTestId("media-detail-truncated")).toBeNull();
   });
 
@@ -444,6 +445,50 @@ describe("MediaDetailShell: preview states and text (SUI-FEATURE-140)", () => {
     const shown = screen.getByTestId("media-detail-text").textContent;
     expect(shown.endsWith("é")).toBe(true);
     expect(new TextEncoder().encode(shown).length).toBe(200 * 1024 - 1);
+  });
+
+  it("JSON past 200 KB shows its beginning as it is, never indented", () => {
+    const json = JSON.stringify(Array.from({ length: 30000 }, (_, i) => ({ i })));
+    renderShell({ kind: "text", format: "json", text: json });
+    expect(screen.getByTestId("media-detail-text").textContent).toBe(json.slice(0, 200 * 1024));
+    expect(screen.getByTestId("media-detail-truncated")).toBeInTheDocument();
+  });
+
+  it("JSON that indenting grows past 200 KB is cut after indenting", () => {
+    const json = JSON.stringify(Array.from({ length: 30000 }, (_, i) => i));
+    expect(json.length).toBeLessThan(200 * 1024);
+    renderShell({ kind: "text", format: "json", text: json });
+    const shown = screen.getByTestId("media-detail-text").textContent;
+    expect(shown.startsWith("[\n  0,\n  1,")).toBe(true);
+    expect(shown).toHaveLength(200 * 1024);
+    expect(screen.getByTestId("media-detail-truncated")).toBeInTheDocument();
+  });
+
+  it("an arrow that pages from inside the text region moves the focus to the panel", () => {
+    const { onNext } = renderShell({ kind: "text", text: "hello" });
+    const text = screen.getByTestId("media-detail-text");
+    text.focus();
+    fireEvent.keyDown(text, { key: "ArrowRight" });
+    expect(onNext).toHaveBeenCalledTimes(1);
+    expect(panel()).toHaveFocus();
+  });
+
+  it("a new position starts the text region fresh", () => {
+    const props = {
+      onPrev: vi.fn(),
+      onNext: vi.fn(),
+      onClose: vi.fn(),
+      onSave: vi.fn(),
+      onReset: vi.fn(),
+      total: 2,
+      kind: "text",
+      dirty: false,
+      saving: false,
+    } as const;
+    const { rerender } = render(<MediaDetailShell {...props} position={1} text="one" />);
+    const first = screen.getByTestId("media-detail-text");
+    rerender(<MediaDetailShell {...props} position={2} text="two" />);
+    expect(screen.getByTestId("media-detail-text")).not.toBe(first);
   });
 
   it("a state wins over the text preview", () => {

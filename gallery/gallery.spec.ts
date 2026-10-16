@@ -1349,7 +1349,7 @@ test("media detail shell: image, video and PDF, paged by the head and the arrow 
 });
 
 // `SUI-FEATURE-140` rev 3: plain text, JSON indented, then the three preview states; paging and the
-// details stay in place.
+// details stay in place, and paging from the focused text region keeps working.
 test("media detail shell: text in both formats and the three preview states", async ({ page }) => {
   await page.goto("/?page=edit-panel&lng=en");
   await page.getByTestId("media-states-trigger").click();
@@ -1366,9 +1366,16 @@ test("media detail shell: text in both formats and the three preview states", as
   expect(await text.evaluate((el) => getComputedStyle(el).fontFamily)).toBe(
     await page.evaluate(() => getComputedStyle(document.body).fontFamily),
   );
-  await shell.getByTestId("media-detail-next").click();
+  // Scrolled down and focused, the region pages with →: the next text starts at its top, and the
+  // focus stays in the panel, where the arrows keep paging past the text.
+  await text.evaluate((el) => el.scrollTo({ top: el.scrollHeight }));
+  expect(await text.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+  await text.focus();
+  await page.keyboard.press("ArrowRight");
   await expect(position).toHaveText("2 of 5");
   await expect(text).toContainText('"locale": "de-CH",');
+  expect(await text.evaluate((el) => el.scrollTop)).toBe(0);
+  await expect(shell).toBeFocused();
   for (const [n, state, sentence, detail] of [
     [3, "missingRef", "No object linked.", null],
     [4, "missingBytes", "File missing from storage.", null],
