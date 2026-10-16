@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.110.3 — #189: locked Save label back to the old locked look
+
+Fix, not breaking (SUI-FEATURE-085 §Delta 2, GL-UI-050: the locked look stays the same). Since 0.110.1 the locked Save's label in `MediaDetailShell` was half-tone against its own half-tone fill, so in dark mode it read less locked than the disabled Reset beside it. The label colour is now `--success-foreground` mixed 50 % with `--background`, the colour element opacity composited it to before. The half-tone fill and the full-contrast focus ring from 0.110.1 stay. Baselines `media-detail-de-dark.png`, `media-detail-en-dark.png` and `media-detail-es-dark.png` are back to their pre-0.110.1 pixels.
+
 ## 0.110.2 — #185: EditPanel pager chevrons keep a full-contrast focus ring
 
 Fix, not breaking (WCAG 1.4.11, GL-UI-013). The locked ‹/› chevrons of the `EditPanel` pager no longer dim with element `opacity-50`, which also dimmed their focus ring below 3:1; they take the same locked look as `MediaDetailShell`'s since 0.110.1: a half-tone icon, no hover tint (in dark mode too), the element opaque. The shared class now lives beside `PANEL_SURFACE_CLASS` in `lib/panel-geometry`.

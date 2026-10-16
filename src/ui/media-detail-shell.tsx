@@ -565,10 +565,11 @@ function MediaDetailShell({
                 {...(dirty ? {} : { "aria-disabled": true })}
                 busy={saving}
                 className={cn(
-                  // Half-tone fill and text, not element opacity, which would dim the focus ring.
+                  // Half-tone fill, not element opacity, which would dim the focus ring. The label is
+                  // mixed with the panel background, as element opacity composited it (#189).
                   !dirty &&
                     !saving &&
-                    "cursor-not-allowed bg-success/50 text-success-foreground/50 hover:bg-success/50",
+                    "cursor-not-allowed bg-success/50 text-[color-mix(in_srgb,var(--success-foreground)_50%,var(--background))] hover:bg-success/50",
                 )}
                 data-testid="media-detail-save"
               >

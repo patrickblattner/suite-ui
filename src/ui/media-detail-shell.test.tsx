@@ -102,12 +102,15 @@ describe("MediaDetailShell", () => {
     );
   });
 
+  const LOCKED_SAVE_LABEL =
+    "text-[color-mix(in_srgb,var(--success-foreground)_50%,var(--background))]";
+
   it("a running Save stays at full colour, without the half-tone classes", () => {
     renderShell({ dirty: false, saving: true });
     const save = screen.getByTestId("media-detail-save");
     expect(save).toHaveAttribute("data-busy", "true");
     expect(save).not.toHaveClass("bg-success/50");
-    expect(save).not.toHaveClass("text-success-foreground/50");
+    expect(save).not.toHaveClass(LOCKED_SAVE_LABEL);
   });
 
   it("arrows in a text field belong to the field", () => {
@@ -148,7 +151,8 @@ describe("MediaDetailShell", () => {
     const save = screen.getByTestId("media-detail-save");
     expect(save).toBeEnabled();
     expect(save).toHaveAttribute("aria-disabled", "true");
-    expect(save).toHaveClass("bg-success/50", "text-success-foreground/50", "cursor-not-allowed");
+    // #189: the label is mixed with the background, so it looks as under element opacity.
+    expect(save).toHaveClass("bg-success/50", LOCKED_SAVE_LABEL, "cursor-not-allowed");
     expect(save).not.toHaveClass("opacity-50");
     fireEvent.click(save);
     fireEvent.submit(screen.getByLabelText("Name"));
