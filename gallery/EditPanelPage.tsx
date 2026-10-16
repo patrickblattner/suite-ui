@@ -40,8 +40,8 @@ const JSON_TEXT = JSON.stringify({
     active: i % 2 === 0,
   })),
 });
-// The preview states and the text preview (`SUI-FEATURE-140`): plain text, JSON indented, and the
-// three states with the app's line below the sentence.
+// The preview states and the text preview (`SUI-FEATURE-140`): plain text, JSON indented, the three
+// states with the app's line below the sentence (the pick locked without a file), and an empty text.
 const STATE_MEDIA: readonly ShellMedium[] = [
   {
     kind: "text",
@@ -66,6 +66,7 @@ const STATE_MEDIA: readonly ShellMedium[] = [
     state: "noRenderer",
     detail: "archive.zip · application/zip",
   },
+  { kind: "text", name: "empty.txt", text: "" },
 ];
 const SHELL_SETS = { media: SHELL_MEDIA, states: STATE_MEDIA } as const;
 type ShellMedium = {

@@ -1,5 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import i18n from "i18next";
+import * as React from "react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -333,12 +334,20 @@ describe("MediaDetailShell", () => {
 describe("MediaDetailShell: preview states and text (SUI-FEATURE-140)", () => {
   // AC 1
   it.each([
-    ["de", "missingRef", "Kein Objekt verknüpft."],
-    ["en", "missingRef", "No object linked."],
-    ["es", "missingRef", "Ningún objeto vinculado."],
-    ["de", "missingBytes", "Datei fehlt im Speicher."],
-    ["en", "missingBytes", "File missing from storage."],
-    ["es", "missingBytes", "Archivo ausente del almacenamiento."],
+    ["de", "missingRef", "Diesem Eintrag ist keine Datei zugeordnet."],
+    ["en", "missingRef", "No file is attached to this entry."],
+    ["es", "missingRef", "Esta entrada no tiene ningún archivo."],
+    [
+      "de",
+      "missingBytes",
+      "Die Datei ist nicht mehr vorhanden. Lade sie neu hoch oder entferne den Eintrag.",
+    ],
+    ["en", "missingBytes", "The file is no longer available. Upload it again or remove the entry."],
+    [
+      "es",
+      "missingBytes",
+      "El archivo ya no está disponible. Súbelo de nuevo o elimina la entrada.",
+    ],
     ["de", "noRenderer", "Für diesen Typ gibt es keine Vorschau."],
     ["en", "noRenderer", "No preview for this type."],
     ["es", "noRenderer", "No hay vista previa para este tipo."],
@@ -388,7 +397,55 @@ describe("MediaDetailShell: preview states and text (SUI-FEATURE-140)", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["de", "missingRef", "Ohne Datei nicht wählbar."],
+    ["en", "missingRef", "Can't be chosen without a file."],
+    ["es", "missingBytes", "No se puede elegir sin archivo."],
+  ] as const)("%s %s: the pick is locked and names its reason", async (lng, state, reason) => {
+    await i18n.changeLanguage(lng);
+    const pick = vi.fn();
+    renderShell({ previewState: state, pickAction: pick });
+    const button = screen.getByTestId("media-detail-pick");
+    expect(button).toBeDisabled();
+    fireEvent.click(button);
+    expect(pick).not.toHaveBeenCalled();
+    // The wrapper takes the focus and carries the reason as its description.
+    const wrapper = button.parentElement!;
+    expect(wrapper).toHaveAttribute("tabindex", "0");
+    expect(wrapper).toHaveAccessibleDescription(reason);
+  });
+
+  it("noRenderer: the pick stays usable", () => {
+    const pick = vi.fn();
+    renderShell({ previewState: "noRenderer", pickAction: pick });
+    const button = screen.getByTestId("media-detail-pick");
+    expect(button).toBeEnabled();
+    fireEvent.click(button);
+    expect(pick).toHaveBeenCalledTimes(1);
+  });
+
   // AC 2
+  it.each([
+    ["de", "Die Datei ist leer."],
+    ["en", "The file is empty."],
+    ["es", "El archivo está vacío."],
+  ] as const)(
+    "%s: an empty text shows the empty hint instead of an empty region",
+    async (lng, hint) => {
+      await i18n.changeLanguage(lng);
+      renderShell({ kind: "text", text: "" });
+      expect(screen.queryByTestId("media-detail-text")).toBeNull();
+      expect(screen.getByTestId("media-detail-empty-text")).toHaveTextContent(hint);
+      cleanup();
+      // Whitespace only counts as empty.
+      renderShell({ kind: "text", text: " \n\t\n " });
+      expect(screen.queryByTestId("media-detail-text")).toBeNull();
+      const empty = screen.getByTestId("media-detail-empty-text");
+      expect(empty).toHaveTextContent(hint);
+      expect(empty).toHaveClass("text-muted-foreground");
+    },
+  );
+
   it("kind text: base family (never font-mono), its own scroll, wrapping on, tab size 2", () => {
     renderShell({ kind: "text", text: "line one\nline two" });
     const text = screen.getByTestId("media-detail-text");
@@ -410,6 +467,25 @@ describe("MediaDetailShell: preview states and text (SUI-FEATURE-140)", () => {
     renderShell({ kind: "text", format: "json", text: '{"a":1,"b":[true]}' });
     expect(screen.getByTestId("media-detail-text").textContent).toBe(
       '{\n  "a": 1,\n  "b": [\n    true\n  ]\n}',
+    );
+  });
+
+  it('format="json" changes only whitespace: number literals stay as the file has them', () => {
+    renderShell({
+      kind: "text",
+      format: "json",
+      text: '{"big":9007199254740993,"huge":1e400,"zero":-0.0,"price":1.50}',
+    });
+    expect(screen.getByTestId("media-detail-text").textContent).toBe(
+      '{\n  "big": 9007199254740993,\n  "huge": 1e400,\n  "zero": -0.0,\n  "price": 1.50\n}',
+    );
+  });
+
+  it('format="json" leaves strings alone: brackets, commas, colons and escapes inside them', () => {
+    const text = '{ "a" : "[x, {y}: z]",\n\t"b\\"c" : [ ], "d": {} , "e": " \\\\" }';
+    renderShell({ kind: "text", format: "json", text });
+    expect(screen.getByTestId("media-detail-text").textContent).toBe(
+      '{\n  "a": "[x, {y}: z]",\n  "b\\"c": [],\n  "d": {},\n  "e": " \\\\"\n}',
     );
   });
 
@@ -454,6 +530,21 @@ describe("MediaDetailShell: preview states and text (SUI-FEATURE-140)", () => {
     expect(screen.getByTestId("media-detail-truncated")).toBeInTheDocument();
   });
 
+  it("deeply nested JSON stops indenting at the limit, the shown beginning unchanged", () => {
+    const depth = 5000;
+    renderShell({
+      kind: "text",
+      format: "json",
+      text: "[".repeat(depth) + "]".repeat(depth),
+    });
+    let expected = "";
+    for (let level = 1; expected.length < 200 * 1024; level++) {
+      expected += "[\n" + "  ".repeat(level);
+    }
+    expect(screen.getByTestId("media-detail-text").textContent).toBe(expected.slice(0, 200 * 1024));
+    expect(screen.getByTestId("media-detail-truncated")).toBeInTheDocument();
+  });
+
   it("JSON that indenting grows past 200 KB is cut after indenting", () => {
     const json = JSON.stringify(Array.from({ length: 30000 }, (_, i) => i));
     expect(json.length).toBeLessThan(200 * 1024);
@@ -471,6 +562,46 @@ describe("MediaDetailShell: preview states and text (SUI-FEATURE-140)", () => {
     fireEvent.keyDown(text, { key: "ArrowRight" });
     expect(onNext).toHaveBeenCalledTimes(1);
     expect(panel()).toHaveFocus();
+  });
+
+  it("paging across the pick's lock, either way, keeps the focus in the panel", () => {
+    // Position 1 has a file, position 2 has none: the pick flips between usable and locked.
+    function Pager() {
+      const [position, setPosition] = React.useState(1);
+      return (
+        <MediaDetailShell
+          position={position}
+          total={3}
+          kind="image"
+          src="data:,"
+          previewState={position === 2 ? "missingBytes" : undefined}
+          dirty={false}
+          saving={false}
+          onPrev={() => setPosition((n) => n - 1)}
+          onNext={() => setPosition((n) => n + 1)}
+          onClose={() => {}}
+          onSave={() => {}}
+          onReset={() => {}}
+          pickAction={() => {}}
+        />
+      );
+    }
+    render(<Pager />);
+    const pick = () => screen.getByTestId("media-detail-pick");
+    pick().focus();
+    fireEvent.keyDown(pick(), { key: "ArrowRight" });
+    expect(screen.getByTestId("media-detail-position")).toHaveTextContent("2 of 3");
+    expect(pick()).toBeDisabled();
+    expect(panel()).toHaveFocus();
+    // Locked, the wrapper holds the focus; from there back to the usable pick.
+    const wrapper = pick().parentElement!;
+    wrapper.focus();
+    fireEvent.keyDown(wrapper, { key: "ArrowLeft" });
+    expect(screen.getByTestId("media-detail-position")).toHaveTextContent("1 of 3");
+    expect(pick()).toBeEnabled();
+    expect(panel()).toHaveFocus();
+    fireEvent.keyDown(panel(), { key: "ArrowRight" });
+    expect(screen.getByTestId("media-detail-position")).toHaveTextContent("2 of 3");
   });
 
   it("a new position starts the text region fresh", () => {

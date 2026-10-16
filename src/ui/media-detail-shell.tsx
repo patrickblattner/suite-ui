@@ -21,6 +21,7 @@ import { PANEL_SURFACE_CLASS, usePanelGeometry } from "../lib/panel-geometry.js"
 import { Button } from "./button.js";
 import { FIELD_SELECTOR } from "./dialog.js";
 import { useFocusAfterRun } from "./focus-return.js";
+import { Hint } from "./hint.js";
 import { useLeaveConfirm } from "./leave-guard.js";
 import { Sheet, SheetTitle } from "./sheet.js";
 import { IconButtonTooltip } from "./tooltip.js";
@@ -60,7 +61,8 @@ type MediaDetailShellProps = {
   onSave: () => unknown;
   // Brings back the last saved state, without asking.
   onReset: () => void;
-  // Given, the head carries "Choose this media item" (the picker).
+  // Given, the head carries "Choose this media item" (the picker); locked while `previewState` says
+  // the entry has no file.
   pickAction?: () => void;
   // The right column, top to bottom below "Details".
   facts?: React.ReactNode;
@@ -90,6 +92,44 @@ function cutText(text: string) {
   return new TextDecoder().decode(bytes.subarray(0, TEXT_LIMIT)).replace(/\uFFFD$/, "");
 }
 
+// Valid JSON indented by two spaces, in the layout of `JSON.stringify(value, null, 2)`, but changing
+// only the whitespace between tokens: strings and number literals stay as the file has them (a
+// round-trip through `JSON.parse` would turn 9007199254740993 into 9007199254740992 and 1e400 into
+// null).
+function indentJson(json: string) {
+  let out = "";
+  let depth = 0;
+  const newline = () => "\n" + "  ".repeat(depth);
+  for (let i = 0; i < json.length; i++) {
+    // Past the limit the rest is cut anyway: deep nesting never grows the work beyond it.
+    if (out.length > TEXT_LIMIT) break;
+    const char = json[i]!;
+    if (char === " " || char === "\t" || char === "\n" || char === "\r") continue;
+    if (char === '"') {
+      let end = i + 1;
+      while (json[end] !== '"') end += json[end] === "\\" ? 2 : 1;
+      out += json.slice(i, end + 1);
+      i = end;
+    } else if (char === "{" || char === "[") {
+      const close = char === "{" ? "}" : "]";
+      const next = json.slice(i + 1).search(/\S/);
+      if (json[i + 1 + next] === close) {
+        out += char + close;
+        i += 1 + next;
+      } else {
+        depth++;
+        out += char + newline();
+      }
+    } else if (char === "}" || char === "]") {
+      depth--;
+      out += newline() + char;
+    } else if (char === ",") out += "," + newline();
+    else if (char === ":") out += ": ";
+    else out += char;
+  }
+  return out;
+}
+
 // The shown text: past `TEXT_LIMIT` bytes only the beginning, as it is; otherwise valid JSON indented
 // with `format="json"` (invalid stays as it is), cut again should the indenting grow it past the limit.
 function textPreview(text: string, format: "plain" | "json") {
@@ -98,7 +138,8 @@ function textPreview(text: string, format: "plain" | "json") {
   if (format === "plain") return { shown: text, truncated: false };
   let shown = text;
   try {
-    shown = JSON.stringify(JSON.parse(text), null, 2);
+    JSON.parse(text);
+    shown = indentJson(text);
   } catch {
     // Invalid JSON falls back to plain text, silently.
   }
@@ -117,6 +158,17 @@ function TextPreview({
 }) {
   const { t } = useTranslation("suite");
   const { shown, truncated } = React.useMemo(() => textPreview(text, format), [text, format]);
+  // Whitespace only counts as empty.
+  if (text.trim() === "") {
+    return (
+      <p
+        className="p-6 text-center text-sm text-muted-foreground"
+        data-testid="media-detail-empty-text"
+      >
+        {t("media.emptyText")}
+      </p>
+    );
+  }
   return (
     <div className="flex size-full flex-col">
       {/* Its own scroll region, reachable by keyboard. */}
@@ -206,6 +258,32 @@ function MediaPreview({
   }
 }
 
+// "Choose this media item": an entry without a file is not choosable, locked with its reason
+// (`SUI-FEATURE-140`).
+function PickButton({ onClick, locked }: { onClick: () => void; locked: boolean }) {
+  const { t } = useTranslation("suite");
+  const button = (
+    <Button
+      type="button"
+      variant="default"
+      size="sm"
+      disabled={locked}
+      onClick={onClick}
+      data-testid="media-detail-pick"
+    >
+      <CheckIcon aria-hidden="true" />
+      {t("media.pick")}
+    </Button>
+  );
+  if (!locked) return button;
+  const reason = t("media.pickUnavailable");
+  return (
+    <Hint text={reason} disabledText={reason}>
+      {button}
+    </Hint>
+  );
+}
+
 const SLOTS = ["facts", "fields", "suggest", "actions"] as const;
 
 // The media detail view (`GL-UI-002`, `SUI-FEATURE-061`): its own panel surface with the geometry of
@@ -213,8 +291,8 @@ const SLOTS = ["facts", "fields", "suggest", "actions"] as const;
 // pick), details right in a fixed slot order; below the package's `panel-split` width the preview
 // stacks on top. The footer carries Reset and Save as the dirty-state pair (`GL-UI-027`). ← and →
 // page, `Esc` closes; with unsaved changes both ask first (`GL-UI-007`). A `previewState` takes the
-// preview's place with icon and sentence; a text medium shows in its own scroll region, in the base family
-// (`SUI-FEATURE-140`).
+// preview's place with icon and sentence, and without a file locks the pick; a text medium shows in
+// its own scroll region, in the base family (`SUI-FEATURE-140`).
 function MediaDetailShell({
   open = true,
   position,
@@ -246,6 +324,7 @@ function MediaDetailShell({
   const geometry = usePanelGeometry();
   const returnFocus = React.useRef<HTMLElement | null>(null);
   const preview = React.useRef<HTMLDivElement>(null);
+  const pickSlot = React.useRef<HTMLSpanElement>(null);
   // A Save that ends locked (nothing left to save) hands the focus on (`GL-UI-050`,
   // `SUI-FEATURE-120`): within the footer, else to the first field of the details.
   const saveButton = React.useRef<HTMLButtonElement>(null);
@@ -323,9 +402,13 @@ function MediaDetailShell({
             if (isTextField(target) || target?.closest(OWN_ARROWS)) return;
             event.preventDefault();
             // The preview's content changes with the page and may take the focus with it (the text
-            // region): the focus moves to the panel, where the arrows keep paging.
+            // region), as does the pick when its lock flips: the focus moves to the panel, where the
+            // arrows keep paging.
             const pages = event.key === "ArrowLeft" ? !first : !last;
-            if (pages && target !== null && preview.current?.contains(target)) {
+            const replaced = [preview.current, pickSlot.current].some((slot) =>
+              target === null ? false : slot?.contains(target),
+            );
+            if (pages && replaced) {
               event.currentTarget.focus();
             }
             if (event.key === "ArrowLeft") previous();
@@ -388,16 +471,14 @@ function MediaDetailShell({
                     <div className="ms-auto flex items-center gap-2">
                       {usageButton}
                       {pickAction !== undefined && (
-                        <Button
-                          type="button"
-                          variant="default"
-                          size="sm"
-                          onClick={pickAction}
-                          data-testid="media-detail-pick"
-                        >
-                          <CheckIcon aria-hidden="true" />
-                          {t("media.pick")}
-                        </Button>
+                        <span ref={pickSlot} className="contents">
+                          <PickButton
+                            onClick={pickAction}
+                            locked={
+                              previewState === "missingRef" || previewState === "missingBytes"
+                            }
+                          />
+                        </span>
                       )}
                       <IconButtonTooltip label={t("actions.close")}>
                         <Button

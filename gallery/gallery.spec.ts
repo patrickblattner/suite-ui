@@ -218,6 +218,34 @@ const AXE_PAGES: [
       },
     ],
   ],
+  [
+    "edit-panel",
+    (page) => page.getByTestId("media-states-trigger"),
+    "",
+    [
+      "with the pick locked",
+      async (page) => {
+        await page.getByTestId("media-states-trigger").click();
+        await page.getByTestId("media-detail-previous").focus();
+        for (let i = 0; i < 2; i++) await page.keyboard.press("ArrowRight");
+        await expect(page.getByTestId("media-detail-pick")).toBeDisabled();
+      },
+    ],
+  ],
+  [
+    "edit-panel",
+    (page) => page.getByTestId("media-states-trigger"),
+    "",
+    [
+      "with an empty text",
+      async (page) => {
+        await page.getByTestId("media-states-trigger").click();
+        await page.getByTestId("media-detail-previous").focus();
+        for (let i = 0; i < 5; i++) await page.keyboard.press("ArrowRight");
+        await expect(page.getByTestId("media-detail-empty-text")).toBeVisible();
+      },
+    ],
+  ],
   ...PAGES,
   ["list", (page) => page.getByTestId("list-tabs"), "&slots=tabs"],
   [
@@ -1348,16 +1376,19 @@ test("media detail shell: image, video and PDF, paged by the head and the arrow 
   await expect(shell).toBeHidden();
 });
 
-// `SUI-FEATURE-140` rev 3: plain text, JSON indented, then the three preview states; paging and the
-// details stay in place, and paging from the focused text region keeps working.
-test("media detail shell: text in both formats and the three preview states", async ({ page }) => {
+// `SUI-FEATURE-140` rev 4: plain text, JSON indented, the three preview states, then an empty text;
+// paging and the details stay in place, paging from the focused text region keeps working, and the
+// pick is locked with its reason exactly while the entry has no file.
+test("media detail shell: text in both formats, the three preview states and an empty text", async ({
+  page,
+}) => {
   await page.goto("/?page=edit-panel&lng=en");
   await page.getByTestId("media-states-trigger").click();
   const shell = page.getByTestId("media-detail");
   const preview = shell.getByTestId("media-detail-preview");
   const position = shell.getByTestId("media-detail-position");
   const text = preview.getByTestId("media-detail-text");
-  await expect(position).toHaveText("1 of 5");
+  await expect(position).toHaveText("1 of 6");
   await expect(text).toContainText("Release notes");
   expect(await text.evaluate((el) => getComputedStyle(el).whiteSpace)).toBe("pre-wrap");
   expect(await text.evaluate((el) => getComputedStyle(el).overflowY)).toBe("auto");
@@ -1372,25 +1403,63 @@ test("media detail shell: text in both formats and the three preview states", as
   expect(await text.evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
   await text.focus();
   await page.keyboard.press("ArrowRight");
-  await expect(position).toHaveText("2 of 5");
+  await expect(position).toHaveText("2 of 6");
   await expect(text).toContainText('"locale": "de-CH",');
   expect(await text.evaluate((el) => el.scrollTop)).toBe(0);
   await expect(shell).toBeFocused();
-  for (const [n, state, sentence, detail] of [
-    [3, "missingRef", "No object linked.", null],
-    [4, "missingBytes", "File missing from storage.", null],
-    [5, "noRenderer", "No preview for this type.", "archive.zip · application/zip"],
+  const pick = shell.getByTestId("media-detail-pick");
+  await expect(pick).toBeEnabled();
+  for (const [n, state, sentence, detail, locked] of [
+    [3, "missingRef", "No file is attached to this entry.", null, true],
+    [
+      4,
+      "missingBytes",
+      "The file is no longer available. Upload it again or remove the entry.",
+      null,
+      true,
+    ],
+    [5, "noRenderer", "No preview for this type.", "archive.zip · application/zip", false],
   ] as const) {
     await page.keyboard.press("ArrowRight");
-    await expect(position).toHaveText(`${n} of 5`);
+    await expect(position).toHaveText(`${n} of 6`);
     await expect(preview).toHaveAttribute("data-state", state);
     await expect(preview.getByTestId("media-detail-state")).toContainText(sentence);
     if (detail !== null) {
       await expect(preview.getByTestId("media-detail-state-detail")).toHaveText(detail);
     }
+    if (locked) {
+      await expect(pick).toBeDisabled();
+      await pick.locator("..").hover();
+      await expect(page.getByRole("tooltip")).toHaveText("Can't be chosen without a file.");
+      await expect(pick.locator("..")).toHaveAccessibleDescription(
+        "Can't be chosen without a file.",
+      );
+      await page.mouse.move(0, 0);
+    } else {
+      await expect(pick).toBeEnabled();
+    }
     await expect(shell.getByLabel("Name")).toBeVisible();
     await expect(shell.getByTestId("media-detail-save")).toBeVisible();
   }
+  await page.keyboard.press("ArrowRight");
+  await expect(position).toHaveText("6 of 6");
+  await expect(preview.getByTestId("media-detail-empty-text")).toHaveText("The file is empty.");
+  await expect(pick).toBeEnabled();
+  // Paging from the pick across its lock, either way, keeps the focus in the panel.
+  await page.keyboard.press("ArrowLeft");
+  await expect(position).toHaveText("5 of 6");
+  await pick.focus();
+  await page.keyboard.press("ArrowLeft");
+  await expect(position).toHaveText("4 of 6");
+  await expect(pick).toBeDisabled();
+  await expect(shell).toBeFocused();
+  await pick.locator("..").focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(position).toHaveText("5 of 6");
+  await expect(pick).toBeEnabled();
+  await expect(shell).toBeFocused();
+  await page.keyboard.press("ArrowRight");
+  await expect(position).toHaveText("6 of 6");
   await page.keyboard.press("Escape");
   await expect(shell).toBeHidden();
 });
