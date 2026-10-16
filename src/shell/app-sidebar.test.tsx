@@ -299,18 +299,19 @@ describe("AppSidebar version line", () => {
 
     const wait = (ms: number) => act(() => new Promise((resolve) => setTimeout(resolve, ms)));
 
-    it("the line is a button with the accessible name Version; loading or unknown is no button", () => {
+    it("the line is a button with the accessible name Version plus its text; loading or unknown is no button", () => {
       const { unmount } = renderVersion({
         version: "1.2.3",
         commit: "abc1234",
         buildDate: "2026-10-01",
       });
-      expect(screen.getByRole("button", { name: "Version" })).toBe(
-        screen.getByTestId("version-line"),
-      );
+      const line = screen.getByTestId("version-line");
+      expect(screen.getByRole("button", { name: "Version 1.2.3" })).toBe(line);
+      // The visible text is part of the name (WCAG 2.5.3).
+      expect(line.getAttribute("aria-label")).toContain(line.textContent);
       unmount();
       renderVersion(null);
-      expect(screen.queryByRole("button", { name: "Version" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("button", { name: /^Version/ })).not.toBeInTheDocument();
     });
 
     it("keyboard focus shows version, commit and build date; Esc closes it, focus stays", async () => {

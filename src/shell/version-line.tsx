@@ -31,7 +31,7 @@ const BUTTON_CLASS =
 // The version line of the sidebar (`GL-UI-020` §Versionszeile): one line directly above the user
 // block, flush with the nav entry text, in the smallest text step and muted. It shows the release
 // number, without a release the short commit, exactly as the app delivers it (a dev string like
-// `v0.4.2+12 · a1b2c3d*` passes through). The line is a button named "Version": hover and keyboard
+// `v0.4.2+12 · a1b2c3d*` passes through). The line is a button named "Version" plus its text: hover and keyboard
 // focus show version, commit and build date, the pointer can move onto the info, `Esc` closes it;
 // click, tap and `Enter` open the same info as a popover that stays until closed. The info is the
 // line's own display, not a `GL-UI-016` hint tooltip. The app loads the data; the package has no
@@ -92,7 +92,8 @@ function VersionLine({ info }: VersionLineProps) {
         ref={triggerRef}
         type="button"
         data-testid="version-line"
-        aria-label={t("version.title")}
+        // The name starts with the visible text's label and contains the text itself (WCAG 2.5.3).
+        aria-label={`${t("version.title")} ${text}`}
         aria-describedby={open ? infoId : undefined}
         className={cn(LINE_CLASS, BUTTON_CLASS)}
         onPointerEnter={enter}

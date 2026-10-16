@@ -2273,13 +2273,13 @@ for (const lng of LANGUAGES) {
   });
 }
 
-// `GL-UI-020` §Versionszeile: the line is a button named "Version"; the hover info lets the pointer
+// `GL-UI-020` §Versionszeile: the line is a button named "Version" plus its text; the hover info lets the pointer
 // onto it and closes with `Esc`; click and `Enter` open it as a popover that stays until closed.
 test("shell: the version info stays under the pointer, closes with Esc, opens by click and Enter", async ({
   page,
 }) => {
   await page.goto("/?page=shell&route=/dashboard");
-  const line = page.getByRole("button", { name: "Version", exact: true });
+  const line = page.getByRole("button", { name: "Version 0.6.0", exact: true });
   const info = page.getByTestId("version-info");
   await expect(line).toHaveText("0.6.0");
   // `GL-UI-013`: the corners of a 24 × 24 px box around the centre still hit the line.
