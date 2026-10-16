@@ -1,5 +1,5 @@
-import { Redo2Icon, Undo2Icon } from "lucide-react";
-import { useState } from "react";
+import { Redo2Icon, Trash2Icon, Undo2Icon } from "lucide-react";
+import { useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { DataTableShell } from "../src/list/data-table-shell.js";
@@ -10,9 +10,15 @@ import { TileGridShell } from "../src/list/tile-grid-shell.js";
 import { useRowGrid } from "../src/list/use-row-grid.js";
 import { Button } from "../src/ui/button.js";
 import { ConfirmDeleteDialog } from "../src/ui/confirm-delete-dialog.js";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "../src/ui/dialog.js";
 import { TableCell, TableHead, TableRow } from "../src/ui/table.js";
 import { IconButtonTooltip } from "../src/ui/tooltip.js";
-import { REDO_SHORTCUT, UNDO_SHORTCUT, useEditShortcuts } from "../src/ui/use-edit-shortcuts.js";
+import {
+  DELETE_SHORTCUT,
+  REDO_SHORTCUT,
+  UNDO_SHORTCUT,
+  useEditShortcuts,
+} from "../src/ui/use-edit-shortcuts.js";
 
 // App-side labels: what the list holds comes from the app, not from `suite`.
 const LABELS = {
@@ -22,6 +28,11 @@ const LABELS = {
     redo: "Redo",
     objects: "entries",
     deleteText: "Gone for good.",
+    media: "Media",
+    mediaOpen: "Open media",
+    mediaText: "Choose an item; Delete removes it.",
+    mediaPick: "Possible once an item is selected",
+    mediaEmpty: "No media left.",
   },
   de: {
     name: "Name",
@@ -29,6 +40,11 @@ const LABELS = {
     redo: "Wiederherstellen",
     objects: "Einträge",
     deleteText: "Endgültig weg.",
+    media: "Medien",
+    mediaOpen: "Medien öffnen",
+    mediaText: "Wähle einen Eintrag; Entf entfernt ihn.",
+    mediaPick: "Möglich, sobald ein Eintrag gewählt ist",
+    mediaEmpty: "Keine Medien mehr.",
   },
   es: {
     name: "Nombre",
@@ -36,6 +52,11 @@ const LABELS = {
     redo: "Rehacer",
     objects: "entradas",
     deleteText: "Eliminado para siempre.",
+    media: "Medios",
+    mediaOpen: "Abrir medios",
+    mediaText: "Elige un elemento; Supr lo elimina.",
+    mediaPick: "Posible en cuanto se elija un elemento",
+    mediaEmpty: "No quedan medios.",
   },
 } as const;
 
@@ -46,6 +67,120 @@ const TILE_PAGE_SIZE = 4;
 
 function pageOf<T>(items: readonly T[], page: number, size: number): T[] {
   return items.slice((page - 1) * size, page * size);
+}
+
+const MEDIA = ["photo.jpg", "clip.mp4", "notes.txt"];
+
+// The stronger pressed look of the package's toggles (`row-actions.tsx`), so the selection reads.
+const pressedClass =
+  "aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:border-primary aria-pressed:hover:bg-primary aria-pressed:hover:text-primary-foreground dark:aria-pressed:border-primary dark:aria-pressed:bg-primary dark:aria-pressed:hover:bg-primary";
+
+// A dialog with its own selection (`SUI-FEATURE-083`): Delete/Backspace inside it run the same
+// delete as its button, through the confirmation; the page behind keeps its own keys. After a
+// delete the neighbour is selected and focused, so the focus stays in the dialog.
+function MediaDialog({ labels }: { labels: (typeof LABELS)[keyof typeof LABELS] }) {
+  const { t } = useTranslation("suite");
+  const scope = useRef<HTMLDivElement>(null);
+  const [open, setOpen] = useState(false);
+  const [items, setItems] = useState(MEDIA);
+  const [selected, setSelected] = useState<string | null>(MEDIA[0]!);
+  const [pending, setPending] = useState<string | null>(null);
+  // How often a delete was asked for; the gallery test reads it to see that no key asks twice.
+  const [requests, setRequests] = useState(0);
+  // Set by a confirmed delete: the item that takes the focus on close, `null` when none is left.
+  const focusAfterDelete = useRef<string | null | undefined>(undefined);
+  const remove = () => {
+    if (selected === null) return;
+    setRequests((count) => count + 1);
+    setPending(selected);
+  };
+  useEditShortcuts({ onDelete: selected === null ? undefined : remove, scope });
+  return (
+    <section
+      className="flex items-center gap-2"
+      data-testid="keys-dialog"
+      data-delete-requests={requests}
+    >
+      <Button
+        variant="outline"
+        size="default"
+        onClick={() => setOpen(true)}
+        data-testid="keys-dialog-trigger"
+      >
+        {labels.mediaOpen}
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent ref={scope} data-testid="keys-dialog-content">
+          <DialogTitle>{labels.media}</DialogTitle>
+          <DialogDescription>{labels.mediaText}</DialogDescription>
+          <div className="flex flex-wrap items-center gap-2">
+            {items.length === 0 && (
+              <p className="text-sm text-muted-foreground" data-testid="keys-dialog-empty">
+                {labels.mediaEmpty}
+              </p>
+            )}
+            {items.map((name) => (
+              <Button
+                key={name}
+                variant="outline"
+                size="sm"
+                aria-pressed={name === selected}
+                className={pressedClass}
+                onClick={() => setSelected(name)}
+                data-item={name}
+                data-testid="keys-dialog-item"
+              >
+                {name}
+              </Button>
+            ))}
+            <IconButtonTooltip
+              label={t("actions.delete")}
+              shortcut={DELETE_SHORTCUT}
+              disabledText={labels.mediaPick}
+            >
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                disabled={selected === null}
+                onClick={remove}
+                data-testid="keys-dialog-delete"
+              >
+                <Trash2Icon />
+              </Button>
+            </IconButtonTooltip>
+          </div>
+        </DialogContent>
+      </Dialog>
+      <ConfirmDeleteDialog
+        open={pending !== null}
+        onOpenChange={(next) => {
+          if (!next) setPending(null);
+        }}
+        onConfirm={() => {
+          const at = items.indexOf(pending ?? "");
+          const rest = items.filter((name) => name !== pending);
+          const next = rest[Math.min(at, rest.length - 1)] ?? null;
+          focusAfterDelete.current = next;
+          setItems(rest);
+          setSelected(next);
+          setPending(null);
+        }}
+        returnFocus={() => {
+          const next = focusAfterDelete.current;
+          if (next === undefined) return null;
+          focusAfterDelete.current = undefined;
+          const item =
+            next === null
+              ? null
+              : scope.current?.querySelector<HTMLElement>(`[data-item="${CSS.escape(next)}"]`);
+          return item ?? scope.current;
+        }}
+        object={pending ?? ""}
+        description={labels.deleteText}
+        data-testid="keys-dialog-confirm"
+      />
+    </section>
+  );
 }
 
 // The keyboard of `GL-UI-006` (`SUI-FEATURE-056`): a paged table whose rows move with ↑/↓, open with
@@ -88,6 +223,7 @@ export function KeysPage() {
           {opened}
         </output>
       </section>
+      <MediaDialog labels={labels} />
       <section className="flex h-[36rem] flex-col" data-testid="keys-table">
         <DataTableShell
           head={

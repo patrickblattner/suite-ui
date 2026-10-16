@@ -1,6 +1,8 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import * as React from "react";
 import { describe, expect, it, vi } from "vitest";
 
+import { ConfirmDeleteDialog } from "./confirm-delete-dialog.js";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "./dialog.js";
 import { Input } from "./input.js";
 import { useEditShortcuts } from "./use-edit-shortcuts.js";
@@ -106,5 +108,81 @@ describe("useEditShortcuts", () => {
     expect(press(document.body, { key: "y", ctrlKey: true })).toBe(true);
     expect(press(document.body, { key: "Delete" })).toBe(true);
     expect(press(document.body, { key: "z", ctrlKey: true })).toBe(false);
+  });
+});
+
+// SUI-FEATURE-083: bound to a surface with `scope`, also inside a modal dialog.
+function ScopedDialog({ onDelete }: { onDelete: () => void }) {
+  const scope = React.useRef<HTMLDivElement>(null);
+  const [confirming, setConfirming] = React.useState(false);
+  useEditShortcuts({
+    onDelete: () => {
+      onDelete();
+      setConfirming(true);
+    },
+    scope,
+  });
+  return (
+    <>
+      <button type="button" data-testid="behind">
+        Behind
+      </button>
+      <Dialog open>
+        <DialogContent ref={scope}>
+          <DialogTitle>Media</DialogTitle>
+          <DialogDescription>A dialog with a selection</DialogDescription>
+          <button type="button" aria-pressed="true" data-testid="selected">
+            photo.jpg
+          </button>
+          <Input aria-label="Name" data-testid="dialog-field" />
+        </DialogContent>
+      </Dialog>
+      <ConfirmDeleteDialog
+        open={confirming}
+        onOpenChange={setConfirming}
+        onConfirm={() => setConfirming(false)}
+        object="photo.jpg"
+        description="Gone for good."
+        data-testid="confirm"
+      />
+    </>
+  );
+}
+
+describe("useEditShortcuts with scope (SUI-FEATURE-083)", () => {
+  it.each(["Delete", "Backspace"])("%s inside the dialog content calls onDelete", (key) => {
+    const onDelete = vi.fn();
+    render(<ScopedDialog onDelete={onDelete} />);
+    press(screen.getByTestId("selected"), { key });
+    expect(onDelete).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("confirm")).toBeInTheDocument();
+  });
+
+  it("the same binding does nothing on the page behind the dialog", () => {
+    const onDelete = vi.fn();
+    render(<ScopedDialog onDelete={onDelete} />);
+    press(screen.getByTestId("behind"), { key: "Delete" });
+    press(document.body, { key: "Backspace" });
+    expect(onDelete).not.toHaveBeenCalled();
+  });
+
+  it("with the delete confirmation open above, no second onDelete", () => {
+    const onDelete = vi.fn();
+    render(<ScopedDialog onDelete={onDelete} />);
+    press(screen.getByTestId("selected"), { key: "Backspace" });
+    const confirm = screen.getByTestId("confirm");
+    for (const button of confirm.querySelectorAll("button")) {
+      press(button, { key: "Delete" });
+      press(button, { key: "Backspace" });
+    }
+    press(confirm, { key: "Delete" });
+    expect(onDelete).toHaveBeenCalledTimes(1);
+  });
+
+  it("in the dialog's text field Delete stays text input", () => {
+    const onDelete = vi.fn();
+    render(<ScopedDialog onDelete={onDelete} />);
+    expect(press(screen.getByTestId("dialog-field"), { key: "Delete" })).toBe(true);
+    expect(onDelete).not.toHaveBeenCalled();
   });
 });

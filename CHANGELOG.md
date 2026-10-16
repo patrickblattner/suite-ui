@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.108.0 — #180, SUI-FEATURE-083 rev 2: useEditShortcuts scope
+
+Not breaking. `useEditShortcuts` takes `scope` (`RefObject<HTMLElement | null>`).
+
+- With `scope`, the shortcuts answer only keys whose target lies inside that element, also inside a modal dialog: a dialog with its own selection binds Delete/Backspace to its content. A dialog opened above it (the delete confirmation) lies outside and triggers nothing. Text fields keep their keys as before.
+- Without `scope`, nothing changes: page shortcuts, at rest while a modal dialog is open.
+
 ## 0.107.0 — #179, SUI-FEATURE-082 rev 4: UserMenu ↓ from the trigger, close on focus leave, app toggles
 
 Not breaking for apps that already follow 0.105.0. `UserMenuItem` takes `pressed` (sets `aria-pressed`); no visual change.

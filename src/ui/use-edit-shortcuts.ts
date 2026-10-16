@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { type RefObject, useEffect, useRef } from "react";
 
 import { isInDialog, isTextField } from "../lib/keyboard.js";
 
@@ -12,13 +12,17 @@ type EditShortcuts = {
   onUndo?: (() => void) | undefined;
   onRedo?: (() => void) | undefined;
   onDelete?: (() => void) | undefined;
+  // Binds the keys to this element instead of the page (`SUI-FEATURE-083`): only keys whose target
+  // lies inside it count, also inside a modal dialog. A dialog opened above it (the delete
+  // confirmation) lies outside.
+  scope?: RefObject<HTMLElement | null> | undefined;
 };
 
 /**
  * Page shortcuts of a surface with its own history or selection (editor bar, designer, canvas): undo,
  * redo and delete call the same handlers as the surface's buttons. Inactive in text, number and date
  * fields, `textarea`, `contenteditable` and while a modal dialog is open; a missing handler binds no
- * keys.
+ * keys. With `scope` the keys belong to that element alone, a dialog's content say.
  */
 function useEditShortcuts(handlers: EditShortcuts): void {
   const latest = useRef(handlers);
@@ -30,8 +34,9 @@ function useEditShortcuts(handlers: EditShortcuts): void {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.defaultPrevented || event.altKey) return;
       const target = event.target instanceof Element ? event.target : null;
-      if (isTextField(target) || isInDialog(target)) return;
-      const { onUndo, onRedo, onDelete } = latest.current;
+      const { onUndo, onRedo, onDelete, scope } = latest.current;
+      if (isTextField(target)) return;
+      if (scope === undefined ? isInDialog(target) : !scope.current?.contains(target)) return;
       const key = event.key.toLowerCase();
       const command = event.ctrlKey || event.metaKey;
       const handler =

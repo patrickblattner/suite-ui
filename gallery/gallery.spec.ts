@@ -136,6 +136,19 @@ const AXE_PAGES: [
   ["strings", (page) => page.locator("#strings-heading")],
   ["tokens", (page) => page.getByTestId("token-warn-text")],
   ["keys", (page) => page.getByTestId("keys-row").first()],
+  [
+    "keys",
+    (page) => page.getByTestId("keys-row").first(),
+    "",
+    [
+      "with the media dialog",
+      async (page) => {
+        await page.getByTestId("keys-dialog-trigger").click();
+        await expect(page.getByTestId("keys-dialog-content")).toBeVisible();
+      },
+    ],
+    true,
+  ],
   ["shell", (page) => page.getByTestId("app-sidebar")],
   // #173: the open user menu, with every entry usable and with the unavailable ones.
   [
@@ -4285,6 +4298,53 @@ test("keyboard: Tab enters the table at one row, ↓/↑ move, Enter opens", asy
   // The next Tab leaves the rows: it reaches the actions of the active row, not the next row.
   await page.keyboard.press("Tab");
   await expect(rows.nth(9).getByTestId("row-edit")).toBeFocused();
+});
+
+// `SUI-FEATURE-083`: a dialog with its own selection binds Delete with `scope`. Inside it the key
+// asks for the delete once; the confirmation above it takes no second request; confirming removes
+// the item and the focus stays in the dialog, on the neighbour that is now selected.
+test("keyboard: Delete in a dialog with its own selection, through the confirmation", async ({
+  page,
+}) => {
+  await page.goto("/?page=keys&lng=en");
+  const rows = page.getByTestId("keys-row");
+  const rowCount = await rows.count();
+  const section = page.getByTestId("keys-dialog");
+  await page.getByTestId("keys-dialog-trigger").click();
+  const dialog = page.getByTestId("keys-dialog-content");
+  const items = dialog.getByTestId("keys-dialog-item");
+  await expect(items).toHaveCount(3);
+  await items.nth(1).click();
+  await expect(items.nth(1)).toHaveAttribute("aria-pressed", "true");
+  await page.keyboard.press("Delete");
+  const confirm = page.getByTestId("keys-dialog-confirm");
+  await expect(confirm).toBeVisible();
+  await expect(confirm).toContainText("clip.mp4");
+  await expect(section).toHaveAttribute("data-delete-requests", "1");
+  await page.keyboard.press("Backspace");
+  await page.keyboard.press("Delete");
+  await expect(section).toHaveAttribute("data-delete-requests", "1");
+  await confirm.getByRole("button", { name: "Delete" }).click();
+  await expect(confirm).toHaveCount(0);
+  await expect(items).toHaveCount(2);
+  await expect(dialog).not.toContainText("clip.mp4");
+  // The focus stays in the dialog, on the neighbour now selected.
+  const neighbour = dialog.locator('[data-item="notes.txt"]');
+  await expect(neighbour).toBeFocused();
+  await expect(neighbour).toHaveAttribute("aria-pressed", "true");
+  // The table behind keeps all its rows.
+  await expect(rows).toHaveCount(rowCount);
+  // With the last item gone the dialog itself takes the focus; the empty state says so.
+  for (const name of ["notes.txt", "photo.jpg"]) {
+    await expect(dialog.locator(`[data-item="${name}"]`)).toBeFocused();
+    await page.keyboard.press("Delete");
+    await expect(confirm).toContainText(name);
+    await confirm.getByRole("button", { name: "Delete" }).click();
+    await expect(confirm).toHaveCount(0);
+  }
+  await expect(dialog.getByTestId("keys-dialog-empty")).toBeVisible();
+  await expect(dialog).toBeFocused();
+  await expect(dialog.getByTestId("keys-dialog-delete")).toBeDisabled();
 });
 
 test("keyboard: Delete and Backspace open the confirm dialog, Cancel keeps the row", async ({
