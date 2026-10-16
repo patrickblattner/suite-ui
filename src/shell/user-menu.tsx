@@ -42,6 +42,10 @@ type UserMenuItemProps = {
   onSelect: () => void;
   // Keeps the menu open after the action (a toggle whose result the user should see).
   keepOpen?: boolean;
+  // Makes the entry a toggle: a button with `aria-pressed`, never a `menuitemcheckbox`
+  // (`SUI-FEATURE-082`). Its label stays fixed ("Notifications"); a label that switches with the state
+  // ("Enable/Disable notifications") reads wrong next to `aria-pressed`.
+  pressed?: boolean;
   disabled?: boolean;
   disabledHint?: string;
 };
@@ -54,6 +58,7 @@ function UserMenuItem({
   hint,
   onSelect,
   keepOpen = false,
+  pressed,
   disabled,
   disabledHint,
 }: UserMenuItemProps) {
@@ -63,6 +68,7 @@ function UserMenuItem({
       <button
         type="button"
         data-testid={testId}
+        aria-pressed={pressed}
         disabled={disabled}
         onClick={() => {
           if (!keepOpen) close();
@@ -214,7 +220,8 @@ type UserMenuProps = {
   // "noRole" (the session has no role). Applies to all of them.
   unavailableReason?: UnavailableReason;
   onLogOut: () => void;
-  // The app's own entries (`UserMenuItem`), placed between Security / MFA and Log out.
+  // The app's own entries (`UserMenuItem`), placed between Security / MFA and Log out. Plain buttons
+  // like the fixed entries, a toggle with `pressed` (`aria-pressed`); never `menuitem*` roles.
   children?: React.ReactNode;
 };
 
@@ -273,6 +280,27 @@ function UserMenu({
     trigger.current?.focus();
   }, []);
   useEscapeLayer(isOpen, escape, container);
+  const panel = React.useRef<HTMLDivElement>(null);
+
+  // The panel closes when the focus leaves it (`SUI-FEATURE-082`): Tab past Log out, Shift-Tab back
+  // to the trigger or beyond. A focus that lands in the panel's React tree stays, the language list
+  // portalled to the body included: the panel's `onFocus` marks it before the event bubbles to the
+  // document. A focus that goes nowhere (a click on no control) is left to the pointer check above.
+  // The handshake needs the panel's `onFocus` to see every focus inside it: a child that stops the
+  // focus event's propagation leaves the mark unset.
+  const focusInPanel = React.useRef(false);
+  React.useEffect(() => {
+    if (!isOpen) return;
+    function onFocusIn(): void {
+      if (focusInPanel.current) focusInPanel.current = false;
+      else setIsOpen(false);
+    }
+    document.addEventListener("focusin", onFocusIn);
+    return () => document.removeEventListener("focusin", onFocusIn);
+  }, [isOpen]);
+  // Tab past the page's last stop moves the focus out of the document, with no `focusin` to see:
+  // a blur to nowhere right after a Tab in the panel closes it too.
+  const tabbing = React.useRef(false);
 
   return (
     <div ref={setContainer} className="relative">
@@ -280,7 +308,21 @@ function UserMenu({
         <button
           ref={trigger}
           type="button"
-          onClick={() => setIsOpen((open) => !open)}
+          // While open, a press on the trigger keeps the focus where it is, so leaving the panel for
+          // the trigger does not close it before the click toggles; the click then closes it.
+          onMouseDown={(event) => {
+            if (isOpen) event.preventDefault();
+          }}
+          onClick={() => {
+            setIsOpen((open) => !open);
+            trigger.current?.focus();
+          }}
+          // ↓ on the trigger of the open panel goes to its first entry.
+          onKeyDown={(event) => {
+            if (!isOpen || event.key !== "ArrowDown" || !isMoveKey(event) || !panel.current) return;
+            event.preventDefault();
+            moveFocus(panel.current, event.currentTarget, "Home");
+          }}
           aria-expanded={isOpen}
           aria-controls={isOpen ? panelId : undefined}
           data-testid="user-menu-trigger"
@@ -328,11 +370,26 @@ function UserMenu({
           {/* A disclosure panel, not an ARIA menu: it holds a select and a radio group, which a menu
               may not. Every entry is a Tab stop, the unavailable ones included; ↑/↓ move between them. */}
           <div
+            ref={panel}
             id={panelId}
+            onFocus={() => {
+              focusInPanel.current = true;
+            }}
             role="group"
             aria-label={t("account.menu")}
             data-testid="user-menu-content"
-            onKeyDown={onPanelKeyDown}
+            onKeyDown={(event) => {
+              if (event.key === "Tab" && !event.altKey && !event.ctrlKey && !event.metaKey) {
+                tabbing.current = true;
+                setTimeout(() => {
+                  tabbing.current = false;
+                });
+              }
+              onPanelKeyDown(event);
+            }}
+            onBlur={(event) => {
+              if (event.relatedTarget === null && tabbing.current) setIsOpen(false);
+            }}
             onKeyDownCapture={onPanelKeyDownCapture}
             className={cn(
               "absolute bottom-full left-0 z-50 mb-1 w-max overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md",

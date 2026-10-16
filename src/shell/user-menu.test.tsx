@@ -397,6 +397,152 @@ describe("UserMenu", () => {
     }
   });
 
+  it("SUI-FEATURE-082 rev 4: ↓ on the trigger of the open panel focuses the first entry", () => {
+    renderMenu();
+    const trigger = screen.getByTestId("user-menu-trigger");
+    trigger.focus();
+    fireEvent.keyDown(trigger, { key: "ArrowDown" });
+    expect(screen.queryByTestId("user-menu-content")).not.toBeInTheDocument();
+    fireEvent.click(trigger);
+    fireEvent.keyDown(trigger, { key: "ArrowDown" });
+    expect(screen.getByTestId("user-menu-profile")).toHaveFocus();
+  });
+
+  describe("closes when the focus leaves the panel", () => {
+    function renderWithNeighbour() {
+      render(
+        <>
+          <UserMenu
+            name="ada"
+            language="en"
+            onLanguageChange={vi.fn()}
+            appearance="system"
+            onAppearanceChange={vi.fn()}
+            onProfile={vi.fn()}
+            onSecurity={vi.fn()}
+            onLogOut={vi.fn()}
+          />
+          <button type="button" data-testid="neighbour">
+            next
+          </button>
+        </>,
+      );
+      fireEvent.click(screen.getByTestId("user-menu-trigger"));
+    }
+    const isOpen = () => screen.queryByTestId("user-menu-content") !== null;
+
+    it("past Log out", () => {
+      renderWithNeighbour();
+      screen.getByTestId("user-menu-logout").focus();
+      act(() => screen.getByTestId("neighbour").focus());
+      expect(isOpen()).toBe(false);
+    });
+
+    it("back to the trigger", () => {
+      renderWithNeighbour();
+      screen.getByTestId("user-menu-profile").focus();
+      act(() => screen.getByTestId("user-menu-trigger").focus());
+      expect(isOpen()).toBe(false);
+    });
+
+    it("from the trigger to outside", () => {
+      renderWithNeighbour();
+      screen.getByTestId("user-menu-trigger").focus();
+      act(() => screen.getByTestId("neighbour").focus());
+      expect(isOpen()).toBe(false);
+    });
+
+    it("past Log out out of the document, but not to nowhere without a Tab", () => {
+      renderWithNeighbour();
+      const logout = screen.getByTestId("user-menu-logout");
+      logout.focus();
+      act(() => logout.blur());
+      expect(isOpen()).toBe(true);
+      logout.focus();
+      fireEvent.keyDown(logout, { key: "Tab" });
+      act(() => logout.blur());
+      expect(isOpen()).toBe(false);
+    });
+
+    it("but not between its entries, nor from the trigger into it", () => {
+      renderWithNeighbour();
+      screen.getByTestId("user-menu-trigger").focus();
+      act(() => screen.getByTestId("user-menu-profile").focus());
+      act(() => screen.getByTestId("user-menu-logout").focus());
+      expect(isOpen()).toBe(true);
+    });
+
+    it("a press on the trigger with the focus in the panel closes it", () => {
+      renderWithNeighbour();
+      screen.getByTestId("user-menu-logout").focus();
+      const trigger = screen.getByTestId("user-menu-trigger");
+      fireEvent.mouseDown(trigger);
+      fireEvent.click(trigger);
+      expect(isOpen()).toBe(false);
+      expect(trigger).toHaveFocus();
+    });
+  });
+
+  it("the focus in a portalled part of the panel keeps it open", () => {
+    function Portalled() {
+      return createPortal(
+        <button type="button" data-testid="portalled">
+          list
+        </button>,
+        document.body,
+      );
+    }
+    render(
+      <UserMenu
+        name="ada"
+        language="en"
+        onLanguageChange={vi.fn()}
+        appearance="system"
+        onAppearanceChange={vi.fn()}
+        onProfile={vi.fn()}
+        onSecurity={vi.fn()}
+        onLogOut={vi.fn()}
+      >
+        <Portalled />
+      </UserMenu>,
+    );
+    fireEvent.click(screen.getByTestId("user-menu-trigger"));
+    screen.getByTestId("user-menu-profile").focus();
+    act(() => screen.getByTestId("portalled").focus());
+    expect(screen.getByTestId("user-menu-content")).toBeInTheDocument();
+  });
+
+  it("an app toggle is a button with aria-pressed, no menu role", () => {
+    render(
+      <UserMenu
+        name="ada"
+        language="en"
+        onLanguageChange={vi.fn()}
+        appearance="system"
+        onAppearanceChange={vi.fn()}
+        onProfile={vi.fn()}
+        onSecurity={vi.fn()}
+        onLogOut={vi.fn()}
+      >
+        <UserMenuItem
+          testId="user-menu-notifications"
+          icon={BellIcon}
+          label="Notifications"
+          hint="Turns notifications on or off."
+          keepOpen
+          pressed
+          onSelect={() => {}}
+        />
+      </UserMenu>,
+    );
+    fireEvent.click(screen.getByTestId("user-menu-trigger"));
+    const toggle = screen.getByTestId("user-menu-notifications");
+    expect(toggle.tagName).toBe("BUTTON");
+    expect(toggle).toHaveAttribute("aria-pressed", "true");
+    expect(toggle).not.toHaveAttribute("role");
+    expect(screen.getByTestId("user-menu-profile")).not.toHaveAttribute("aria-pressed");
+  });
+
   it("closes on Escape, the focus back on the trigger", () => {
     renderMenu();
     fireEvent.click(screen.getByTestId("user-menu-trigger"));

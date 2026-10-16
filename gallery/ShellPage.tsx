@@ -175,6 +175,7 @@ function Content() {
 export function ShellPage({ content }: { content?: ReactNode } = {}) {
   const { t, i18n: instance } = useTranslation();
   const [appearance, setAppearance] = useState<Appearance>("system");
+  const [notifications, setNotifications] = useState(false);
   const params = new URLSearchParams(window.location.search);
   const route = params.get("route") ?? "/dashboard";
   // `?unavailable=1`: the surface without access (`SUI-FEATURE-081`), Profile, Change password and
@@ -211,13 +212,16 @@ export function ShellPage({ content }: { content?: ReactNode } = {}) {
                 unavailableReason={reason}
                 onLogOut={() => {}}
               >
+                {/* An app's own toggle: a plain entry with `pressed`, never a `menuitemcheckbox`
+                    (`SUI-FEATURE-082`). */}
                 <UserMenuItem
                   testId="user-menu-notifications"
                   icon={BellIcon}
                   label={t("notifications")}
                   hint={t("notificationsHint")}
                   keepOpen
-                  onSelect={() => {}}
+                  pressed={notifications}
+                  onSelect={() => setNotifications((on) => !on)}
                 />
               </UserMenu>
             }

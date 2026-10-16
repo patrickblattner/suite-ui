@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.107.0 — #179, SUI-FEATURE-082 rev 4: UserMenu ↓ from the trigger, close on focus leave, app toggles
+
+Not breaking for apps that already follow 0.105.0. `UserMenuItem` takes `pressed` (sets `aria-pressed`); no visual change.
+
+**Migration:** an app toggle in the user menu (e.g. a notifications switch) is a `UserMenuItem` with `pressed` and `keepOpen`, never `role="menuitemcheckbox"`; E2E tests find the panel as a group and its entries as buttons or by `data-testid`, not by `menu`/`menuitem` roles. A `pressed` toggle keeps a fixed label ("Notifications"): a label that switches with the state ("Enable/Disable notifications") reads wrong next to `aria-pressed` in a screen reader.
+
+- ↓ on the trigger of the open panel focuses the first entry.
+- The panel closes when the focus leaves it: Tab past Log out (also out of the document), Shift-Tab back to the trigger or beyond, a click beside it. The open language list counts as the panel, though portalled: opening it and picking a language keep the panel open. A press on the trigger while the focus is in the panel closes it, the focus on the trigger.
+
 ## 0.106.0 — #176, SUI-FEATURE-081 rev 3: UserMenu unavailableReason
 
 Not breaking. `UserMenu` takes `unavailableReason` (`"notYet" | "noRole"`, default `"notYet"`); new type export `UnavailableReason`. New string `account.requiresRole` (de/en/es).

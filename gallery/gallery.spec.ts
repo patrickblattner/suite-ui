@@ -2660,6 +2660,46 @@ test("shell: unavailable entries name the missing role", async ({ page }) => {
   }
 });
 
+// `SUI-FEATURE-082` rev 4: ↓ from the open trigger enters the panel; the panel closes when the focus
+// leaves it, but not while the language list is open or a language is picked; the app's toggle reads
+// as pressed.
+test("shell: the user menu closes when the focus leaves it", async ({ page }) => {
+  await page.goto("/?page=shell&lng=en");
+  const trigger = page.getByTestId("user-menu-trigger");
+  const menu = page.getByTestId("user-menu-content");
+  await trigger.focus();
+  await page.keyboard.press("Enter");
+  await expect(menu).toBeVisible();
+  await page.keyboard.press("ArrowDown");
+  await expect(menu.getByTestId("user-menu-profile")).toBeFocused();
+  // Shift-Tab before the first entry.
+  await page.keyboard.press("Shift+Tab");
+  await expect(menu).toBeHidden();
+
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("End");
+  await expect(menu.getByTestId("user-menu-logout")).toBeFocused();
+  // Tab after Log out.
+  await page.keyboard.press("Tab");
+  await expect(menu).toBeHidden();
+
+  await trigger.click();
+  const toggle = menu.getByTestId("user-menu-notifications");
+  await expect(toggle).toHaveAttribute("aria-pressed", "false");
+  await toggle.click();
+  await expect(toggle).toHaveAttribute("aria-pressed", "true");
+  await menu.getByTestId("language-switcher").click();
+  await expect(page.getByTestId("language-option-es")).toBeVisible();
+  await expect(menu).toBeVisible();
+  await page.getByTestId("language-option-es").click();
+  await expect(menu.getByTestId("language-switcher")).toContainText("Español");
+  await expect(menu).toBeVisible();
+  // A click beside it.
+  await page.getByTestId("shell-frame").click({ position: { x: 600, y: 20 } });
+  await expect(menu).toBeHidden();
+});
+
 // #173: the open user menu by keyboard. Tab reaches every entry, the unavailable ones included, and
 // they read as unavailable; ↑/↓ step between the entries, Enter on an unavailable one does nothing.
 test("shell: the user menu by keyboard, unavailable entries included", async ({ page }) => {
