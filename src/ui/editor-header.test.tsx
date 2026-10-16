@@ -88,7 +88,8 @@ describe("EditorHeader", () => {
     renderHeader();
     expect(screen.getByTestId("editor-state")).toHaveTextContent(saved);
     expect(screen.getByTestId("editor-reset")).toBeDisabled();
-    expect(screen.getByTestId("editor-save")).toBeDisabled();
+    // SUI-FEATURE-120 rev 5: Save locks itself with `aria-disabled` and its trigger lock.
+    expect(screen.getByTestId("editor-save")).toHaveAttribute("aria-disabled", "true");
     cleanup();
     renderHeader({ dirty: true });
     expect(screen.getByTestId("editor-state")).toHaveTextContent(draft);
@@ -213,13 +214,15 @@ describe("EditorHeader lifecycle", () => {
     expect(next).toBeEnabled();
     fireEvent.click(next);
     expect(onClick).toHaveBeenCalledTimes(1);
-    expect(screen.getByTestId("editor-save")).toBeDisabled();
+    expect(screen.getByTestId("editor-save")).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByTestId("editor-reset")).toBeDisabled();
     for (const dirty of [false, true]) {
       cleanup();
       renderHeader({ dirty, lifecycle: lifecycle() });
       const green = [...document.querySelectorAll("button[data-variant=success]")].filter(
-        (button) => !(button as HTMLButtonElement).disabled,
+        (button) =>
+          !(button as HTMLButtonElement).disabled &&
+          button.getAttribute("aria-disabled") !== "true",
       );
       expect(green).toHaveLength(1);
     }
@@ -643,7 +646,7 @@ describe("EditorHeader at narrow width", () => {
   });
 
   // An editor whose Undo, Save and Reset really change the draft state.
-  function Editor({ undoable = true, withLifecycle = false }) {
+  function Editor({ undoable = true, withLifecycle = false, onSave = (): void => {} }) {
     const [dirty, setDirty] = useState(true);
     return (
       <main>
@@ -656,7 +659,10 @@ describe("EditorHeader at narrow width", () => {
           onRedo={vi.fn()}
           dirty={dirty}
           saving={false}
-          onSave={() => setDirty(false)}
+          onSave={() => {
+            onSave();
+            setDirty(false);
+          }}
           onReset={() => setDirty(false)}
           {...(withLifecycle ? { lifecycle: lifecycle() } : {})}
         />
@@ -735,10 +741,10 @@ describe("EditorHeader at narrow width", () => {
     await waitFor(() => expect(active()).toBe("editor-undo"));
   });
 
-  // #144 re-review: at the icon-only Save width a running save ends with Save locked; the focus goes
-  // on to the nearest usable control before it, never to the body.
+  // #144 re-review, SUI-FEATURE-120 rev 5: at the icon-only Save width a running save ends with Save
+  // locked by `aria-disabled`; the focus stays on it.
   it.each([true, false])(
-    "after a running Save at icon-only width the focus goes on (canUndo=%s)",
+    "after a running Save at icon-only width the focus stays on Save (canUndo=%s)",
     async (undoable) => {
       available = 200;
       let finish = () => {};
@@ -775,20 +781,44 @@ describe("EditorHeader at narrow width", () => {
       save.focus();
       fireEvent.click(save);
       act(() => finish());
-      await waitFor(() => expect(document.activeElement).not.toBe(document.body));
-      expect(active()).toBe("editor-menu");
-      expect(active()).not.toBe("editor-back");
+      await waitFor(() => expect(active()).toBe("editor-save"));
+      expect(screen.getByTestId("editor-save")).toHaveAttribute("aria-disabled", "true");
     },
   );
 
-  it("after Save the focus goes to the next usable control, never to the body", async () => {
+  // SUI-FEATURE-120 rev 5 AC1/AC2: Save locks itself, keeps the focus and triggers nothing.
+  it("after Save the focus stays on the locked Save, which triggers nothing", () => {
+    const onSave = vi.fn();
+    render(<Editor onSave={onSave} />);
+    const save = screen.getByTestId("editor-save");
+    save.focus();
+    fireEvent.click(save);
+    expect(onSave).toHaveBeenCalledTimes(1);
+    expect(save).toHaveAttribute("aria-disabled", "true");
+    expect(save).toBeEnabled();
+    expect(save).toHaveFocus();
+    // Enter and Space reach a button as a click, so the click covers the keys too.
+    fireEvent.click(save);
+    expect(onSave).toHaveBeenCalledTimes(1);
+  });
+
+  // Q&A #3709, GL-UI-017: the locked Save says what it does and when it frees; its name stays "Save".
+  it.each([
+    [2000, "full width"],
+    [200, "icon-only"],
+  ])("a locked Save at %spx (%s) describes when it frees", (width) => {
+    available = width;
     render(<Editor />);
     const save = screen.getByTestId("editor-save");
     save.focus();
     fireEvent.click(save);
-    expect(save).toBeDisabled();
-    // Nothing usable after Save; Reset before it is locked too, so the nearest before is Redo.
-    await waitFor(() => expect(active()).toBe("editor-redo"));
+    // A refold may have swapped the node of Save.
+    const locked = screen.getByTestId("editor-save");
+    expect(locked).toHaveAttribute("aria-disabled", "true");
+    expect(locked).toHaveAccessibleName("Save");
+    expect(locked).toHaveAccessibleDescription(
+      "Saves the draft — available once you have changed something.",
+    );
   });
 
   // GL-UI-050: confirmed, Reset locks; the focus goes on in the header, never to Back.

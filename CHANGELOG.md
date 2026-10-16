@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.111.0 — #186, GL-UI-050 rev 6, SUI-FEATURE-120 rev 5: a self-locking Save keeps the focus
+
+Not breaking for the API; no new props. Behaviour changes that app tests may see.
+
+**Migration:**
+
+- Save in `SettingsFooter`/`SettingsActionRow`, in `EditorHeader` and the style Save of `DrawerRail`, while there is nothing to save (clean form or draft, including right after a save), is locked with `aria-disabled="true"` plus a trigger lock, no longer with `disabled`. Click, Enter, Space and the form's submit trigger nothing. App tests that check `toBeDisabled()` on a clean or just-saved Save check `aria-disabled="true"` instead. A running Save (`busy`) was already `aria-disabled` since `SUI-FEATURE-120`. Locks that have a reason stay `disabled`: an invalid entry, or a settings page that is loading or failed to load.
+- After a successful save, the focus stays on Save. It no longer moves on to the next control of the row or header, or to the page's main content. App tests that expect the focus on a neighbour after saving expect it on Save. `EditorHeader` no longer hands the focus on after a save. A refold that swaps Save between icon and text returns the focus to Save.
+
+Look unchanged: the locked Save has the look of the disabled one (half-tone fill, label mixed with the background, as in `MediaDetailShell` since 0.110.3). The element stays opaque, so its focus ring keeps full contrast.
+
+Hints (Q&A #3709, GL-UI-017): every self-locking Save says what it does and when it becomes available. Its accessible description, reached via `aria-describedby`, is that hint, and its name stays "Save". New keys `editor.saveHint`, `editor.saveCleanHint`, `media.saveHint`, `media.saveCleanHint`, `canvas.styleSaveHint` and `canvas.styleSaveCleanHint` in de/en/es. The locked hints `settings.saveDisabledHint`, `settings.saveInvalidHint` and `settings.resetDisabledHint` now follow the same form: what the button does, then when it becomes available. `Hint` and `IconButtonTooltip` show `disabledText` for a control locked with `aria-disabled` too; such a control carries the description itself.
+
+On unlocking, the Save fill now fades from half-tone to full colour through the button's colour transition. `MediaDetailShell` has done this since 0.110.1. Changed baselines: only the strings table, `gallery-{de,en,es}-{light,dark}.png` and `gallery-de-{light,dark}-{390,1440}.png`, for the six new keys and the three reworded settings hints. The settings, editor and media-detail baselines are unchanged.
+
 ## 0.110.3 — #189: locked Save label back to the old locked look
 
 Fix, not breaking (SUI-FEATURE-085 §Delta 2, GL-UI-050: the locked look stays the same). Since 0.110.1 the locked Save's label in `MediaDetailShell` was half-tone against its own half-tone fill, so in dark mode it read less locked than the disabled Reset beside it. The label colour is now `--success-foreground` mixed 50 % with `--background`, the colour element opacity composited it to before. The half-tone fill and the full-contrast focus ring from 0.110.1 stay. Baselines `media-detail-de-dark.png`, `media-detail-en-dark.png` and `media-detail-es-dark.png` are back to their pre-0.110.1 pixels.

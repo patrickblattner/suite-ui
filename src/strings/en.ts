@@ -235,10 +235,12 @@ export const en = {
   settings: {
     active: "Active",
     saveHint: "Saves the changes on this page.",
-    saveDisabledHint: "Saving becomes possible once you have changed something here.",
-    saveInvalidHint: "Saving becomes possible once every entry here is valid.",
+    saveDisabledHint:
+      "Saves the changes on this page — available once you have changed something here.",
+    saveInvalidHint: "Saves the changes on this page — available once every entry here is valid.",
     resetHint: "Discards the unsaved changes on this page.",
-    resetDisabledHint: "Resetting becomes possible once you have changed something here.",
+    resetDisabledHint:
+      "Discards the unsaved changes on this page — available once you have changed something here.",
   },
   timezone: {
     placeholder: "Search time zone…",
@@ -268,6 +270,9 @@ export const en = {
     truncated: "Truncated — only the beginning is shown.",
     pickUnavailable: "Can't be chosen without a file.",
     emptyText: "The file is empty.",
+    saveHint: "Saves the changes to this media item.",
+    saveCleanHint:
+      "Saves the changes to this media item — available once you have changed something.",
   },
   // "Used by": the action that switches a preview to its usages, and the `UsageTable`.
   usage: {
@@ -298,6 +303,8 @@ export const en = {
     draft: "Draft · unsaved",
     resetConfirm: "Discard the draft and return to the saved state?",
     saveFirst: "Save first",
+    saveHint: "Saves the draft.",
+    saveCleanHint: "Saves the draft — available once you have changed something.",
     more: "More actions",
   },
   // The canvas of a visual editor (`CanvasOverlay`, `CanvasZoom`).
@@ -318,6 +325,8 @@ export const en = {
       document: "Document",
     },
     styleSave: "Save style",
+    styleSaveHint: "Saves this style.",
+    styleSaveCleanHint: "Saves this style — available once you have changed something.",
     styleScope: "Applies to everything that uses this brand kit",
   },
   upload: {

@@ -3,6 +3,7 @@ import i18n from "i18next";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { LOCKED_SAVE_CLASS } from "../lib/locked-save.js";
 import { type DrawerId, DrawerRail, type DrawerRailProps } from "./drawer-rail.js";
 
 beforeEach(() => {
@@ -126,16 +127,30 @@ describe("DrawerRail (SUI-FEATURE-071)", () => {
     expect(onSave).toHaveBeenCalledTimes(1);
   });
 
+  // SUI-FEATURE-120 rev 5, GL-UI-050 rev 6: clean, the style Save locks itself with `aria-disabled`,
+  // keeps the focus and calls nothing; Q&A #3709: it says what it does and when it frees.
   it("the style save is locked while clean and works while saving; other drawers have no footer", () => {
+    const onSave = vi.fn();
     const { rerender } = render(
       <DrawerRail
         items={ITEMS}
         open="style"
         onOpen={() => {}}
-        styleSave={{ onSave: () => {}, dirty: false }}
+        styleSave={{ onSave, dirty: false }}
       />,
     );
-    expect(screen.getByTestId("drawer-style-save")).toBeDisabled();
+    const save = screen.getByTestId("drawer-style-save");
+    expect(save).toBeEnabled();
+    expect(save).toHaveAttribute("aria-disabled", "true");
+    expect(save).toHaveClass(LOCKED_SAVE_CLASS);
+    expect(save).toHaveAccessibleName("Save style");
+    expect(save).toHaveAccessibleDescription(
+      "Saves this style — available once you have changed something.",
+    );
+    save.focus();
+    fireEvent.click(save);
+    expect(onSave).not.toHaveBeenCalled();
+    expect(save).toHaveFocus();
     rerender(
       <DrawerRail
         items={ITEMS}

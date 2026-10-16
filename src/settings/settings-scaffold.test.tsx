@@ -65,15 +65,20 @@ describe("SettingsScaffold", () => {
     expect(screen.getByTestId("page-subtitle")).toHaveTextContent("The name of this instance.");
   });
 
-  it("orders Reset (destructive) before Save (success), both disabled while unchanged", () => {
-    render(<GeneralPage save={() => Promise.resolve()} />);
+  // SUI-FEATURE-120 rev 5: a clean form locks Save with `aria-disabled` and its trigger lock, so it keeps
+  // the focus after a save; Reset stays `disabled`.
+  it("orders Reset (destructive) before Save (success), both locked while unchanged", () => {
+    const run = vi.fn(() => Promise.resolve());
+    render(<GeneralPage save={run} />);
     const save = screen.getByTestId("settings-general-save");
     const reset = screen.getByTestId("settings-general-reset");
     expect(save).toHaveAttribute("data-variant", "success");
     expect(reset).toHaveAttribute("data-variant", "destructive");
     expect(save).toHaveAttribute("type", "submit");
     expect(reset.compareDocumentPosition(save) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(save).toBeDisabled();
+    expect(save).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(save);
+    expect(run).not.toHaveBeenCalled();
     expect(reset).toBeDisabled();
   });
 
@@ -84,11 +89,11 @@ describe("SettingsScaffold", () => {
     expect(screen.getByTestId("settings-general-reset")).toBeEnabled();
     fireEvent.click(screen.getByTestId("settings-general-reset"));
     expect(screen.getByTestId("settings-name")).toHaveValue("Studio");
-    expect(screen.getByTestId("settings-general-save")).toBeDisabled();
+    expect(screen.getByTestId("settings-general-save")).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByTestId("settings-general-reset")).toBeDisabled();
   });
 
-  it("saves once while a save runs, in the working state, and is disabled again afterwards", async () => {
+  it("saves once while a save runs, in the working state, and is locked again afterwards", async () => {
     const run = deferred();
     const save = vi.fn(() => run.promise);
     render(<GeneralPage save={save} />);
@@ -111,7 +116,10 @@ describe("SettingsScaffold", () => {
       await run.promise;
     });
     expect(button).not.toHaveAttribute("aria-busy");
-    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(button, { detail: 1 });
+    fireEvent.submit(screen.getByTestId("settings-general-form"));
+    expect(save).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId("settings-general-reset")).toBeDisabled();
   });
 

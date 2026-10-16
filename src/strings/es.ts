@@ -226,10 +226,12 @@ export const es: SuiteStrings = {
   settings: {
     active: "Activo",
     saveHint: "Guarda los cambios de esta página.",
-    saveDisabledHint: "Se puede guardar en cuanto cambies algo aquí.",
-    saveInvalidHint: "Se puede guardar en cuanto todos los datos de aquí sean válidos.",
+    saveDisabledHint: "Guarda los cambios de esta página — disponible en cuanto cambies algo aquí.",
+    saveInvalidHint:
+      "Guarda los cambios de esta página — disponible en cuanto todos los datos de aquí sean válidos.",
     resetHint: "Descarta los cambios sin guardar de esta página.",
-    resetDisabledHint: "Se puede restablecer en cuanto cambies algo aquí.",
+    resetDisabledHint:
+      "Descarta los cambios sin guardar de esta página — disponible en cuanto cambies algo aquí.",
   },
   timezone: {
     placeholder: "Buscar zona horaria…",
@@ -257,6 +259,8 @@ export const es: SuiteStrings = {
     truncated: "Truncado: solo se muestra el inicio.",
     pickUnavailable: "No se puede elegir sin archivo.",
     emptyText: "El archivo está vacío.",
+    saveHint: "Guarda los cambios de este medio.",
+    saveCleanHint: "Guarda los cambios de este medio — disponible en cuanto cambies algo.",
   },
   usage: {
     action: "Usado por ({{count}})",
@@ -284,6 +288,8 @@ export const es: SuiteStrings = {
     draft: "Borrador · sin guardar",
     resetConfirm: "¿Descartar el borrador y volver al estado guardado?",
     saveFirst: "Guarda primero",
+    saveHint: "Guarda el borrador.",
+    saveCleanHint: "Guarda el borrador — disponible en cuanto cambies algo.",
     more: "Más acciones",
   },
   canvas: {
@@ -303,6 +309,8 @@ export const es: SuiteStrings = {
       document: "Documento",
     },
     styleSave: "Guardar estilo",
+    styleSaveHint: "Guarda este estilo.",
+    styleSaveCleanHint: "Guarda este estilo — disponible en cuanto cambies algo.",
     styleScope: "Se aplica a todo lo que usa este kit de marca",
   },
   upload: {

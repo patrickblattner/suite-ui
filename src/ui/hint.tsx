@@ -109,6 +109,7 @@ type HintChildProps = {
   id?: string;
   "aria-describedby"?: string;
   "aria-label"?: string;
+  "aria-disabled"?: boolean | "true" | "false";
   disabled?: boolean;
   busy?: boolean;
 };
@@ -116,8 +117,8 @@ type HintChildProps = {
 type HintProps = {
   // The description: for a button what happens next, for a field the value it takes.
   text: string;
-  // Shown instead of `text` while the wrapped control is disabled: the condition under which it
-  // becomes usable.
+  // Shown instead of `text` while the wrapped control is disabled, or locked with `aria-disabled` (a
+  // Save that locked itself, `SUI-FEATURE-120`): the condition under which it becomes usable.
   disabledText?: string | undefined;
   children: React.ReactElement<HintChildProps>;
 } & Omit<React.HTMLAttributes<HTMLElement>, "children"> & { ref?: React.Ref<HTMLElement> };
@@ -128,7 +129,9 @@ type HintProps = {
 //
 // A disabled control takes no pointer events, so with `disabledText` the control sits in a span that
 // is the tooltip trigger and, while the control is disabled, focusable and the owner of the
-// description. The span stands either way, so toggling `disabled` never remounts the control.
+// description. A control locked with `aria-disabled` (a Save that locked itself, `SUI-FEATURE-120`)
+// keeps the focus and owns the description itself; only its text is `disabledText`. The span stands
+// either way, so toggling the lock never remounts the control.
 //
 // Extra props (handlers, ref, class) pass through to the control, so a wrapping `OverflowTooltip` keeps
 // working.
@@ -146,7 +149,10 @@ function Hint({ text, disabledText, children, ...passThrough }: HintProps) {
   const clipped = fullText !== "";
 
   const disabled = children.props.disabled === true;
-  const shown = disabled && disabledText !== undefined ? disabledText : text;
+  // A control locked with `aria-disabled` keeps the focus and pointer events, so it owns its
+  // description itself; only its text is the locked one.
+  const ariaLocked = [true, "true"].includes(children.props["aria-disabled"] ?? false);
+  const shown = (disabled || ariaLocked) && disabledText !== undefined ? disabledText : text;
   const describes = children.props["aria-label"] !== shown;
   const carried = disabledText !== undefined;
 

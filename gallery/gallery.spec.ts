@@ -927,35 +927,43 @@ async function look(locator: Locator) {
   });
 }
 
-// `GL-UI-027`: disabled while unchanged, in the dimmed colour of the action; active after a change;
-// disabled again after a reset and after a save.
+// A Save's fill at full colour, no alpha: its colour transition after unlocking has ended.
+const FULL_FILL = /^okl(ab|ch)\([^/]*\)$/;
+
+// `GL-UI-027`: locked while unchanged, in the dimmed colour of the action; active after a change;
+// locked again after a reset and after a save. `SUI-FEATURE-120` rev 5: Save locks itself with
+// `aria-disabled`, focusable and opaque, its fill half-tone (#184); after a save the focus stays on it.
 test("settings: the pair follows the dirty state", async ({ page }) => {
   await page.goto("/?page=settings");
   const save = page.getByTestId("settings-general-save");
   const reset = page.getByTestId("settings-general-reset");
   const field = page.getByTestId("settings-field-1");
-  await expect(save).toBeDisabled();
+  await expect(save).toHaveAttribute("aria-disabled", "true");
+  await expect(save).not.toHaveAttribute("disabled");
   await expect(reset).toBeDisabled();
   const [dimSave, dimReset] = await Promise.all([look(save), look(reset)]);
 
   await field.fill("changed");
-  await expect(save).toBeEnabled();
+  await expect(save).not.toHaveAttribute("aria-disabled");
   await expect(reset).toBeEnabled();
+  // The fill fades from half-tone to full colour (the button's colour transition).
+  await expect(save).toHaveCSS("background-color", FULL_FILL);
   const [fullSave, fullReset] = await Promise.all([look(save), look(reset)]);
-  expect(dimSave.background).toBe(fullSave.background);
+  expect(dimSave.background).not.toBe(fullSave.background);
+  expect(dimSave.opacity).toBe(1);
   expect(dimReset.background).toBe(fullReset.background);
-  expect(dimSave.opacity).toBeLessThan(fullSave.opacity);
   expect(dimReset.opacity).toBeLessThan(fullReset.opacity);
 
   await reset.click();
   await expect(field).toHaveValue("1");
-  await expect(save).toBeDisabled();
+  await expect(save).toHaveAttribute("aria-disabled", "true");
   await expect(reset).toBeDisabled();
 
   await field.fill("changed");
   await save.click();
   await expect(save).not.toHaveAttribute("aria-busy");
-  await expect(save).toBeDisabled();
+  await expect(save).toHaveAttribute("aria-disabled", "true");
+  await expect(save).toBeFocused();
   await expect(reset).toBeDisabled();
   await expect(field).toHaveValue("changed");
 });
@@ -966,6 +974,7 @@ test("settings: a second click during a save has no effect", async ({ page }) =>
   await page.goto("/?page=settings");
   const save = page.getByTestId("settings-general-save");
   await page.getByTestId("settings-field-1").fill("changed");
+  await expect(save).toHaveCSS("background-color", FULL_FILL);
   const enabled = await look(save);
   await save.click();
   await expect(save).toHaveAttribute("aria-busy", "true");
@@ -979,7 +988,7 @@ test("settings: a second click during a save has no effect", async ({ page }) =>
   await expect(save).not.toHaveAttribute("aria-busy", { timeout: 5000 });
   await page.waitForTimeout(500);
   await expect(save).not.toHaveAttribute("aria-busy");
-  await expect(save).toBeDisabled();
+  await expect(save).toHaveAttribute("aria-disabled", "true");
 });
 
 // `SUI-FEATURE-021`: a busy button swaps its leading icon for the working sign in place; one icon
@@ -1521,7 +1530,7 @@ test("editor header: both states, the order, Reset asks first", async ({ page })
   const draft = page.getByTestId("editor-header-draft");
   await expect(saved.getByTestId("editor-state")).toHaveText("Saved");
   await expect(saved.getByTestId("editor-reset")).toBeDisabled();
-  await expect(saved.getByTestId("editor-save")).toBeDisabled();
+  await expect(saved.getByTestId("editor-save")).toHaveAttribute("aria-disabled", "true");
   await expect(draft.getByTestId("editor-state")).toHaveText("Draft · unsaved");
   const order = await draft
     .locator("[data-slot=editor-actions] [data-testid]")
@@ -3570,13 +3579,15 @@ test("settings action row: like the footer, right-aligned at the foot of the blo
         style.height,
       ];
     });
-  const same = async () => {
-    for (const kind of ["save", "reset"]) {
-      expect(await look(page.getByTestId(`secret-${kind}`))).toEqual(
-        await look(page.getByTestId(`settings-general-${kind}`)),
-      );
-    }
-  };
+  // Retried while a Save's fill fades between its locked half-tone and full colour.
+  const same = () =>
+    expect(async () => {
+      for (const kind of ["save", "reset"]) {
+        expect(await look(page.getByTestId(`secret-${kind}`))).toEqual(
+          await look(page.getByTestId(`settings-general-${kind}`)),
+        );
+      }
+    }).toPass();
   await same();
   await page.getByTestId("secret-value").fill("changed");
   await page.getByTestId("settings-field-1").fill("changed");
@@ -5712,18 +5723,26 @@ test("busy keeps the focus: Enter, Space, a click and the form's submit start no
   await page.keyboard.press("Space");
   await expect(save).toBeFocused();
   await field.press("Enter");
-  // Back on the running Save, so the hand-on at its end is what moves the focus.
+  // Back on the running Save, which keeps the focus as it locks itself at the end.
   await save.focus();
   await expect(save).toBeFocused();
   // One save of 1.5 s: a second run would turn the button busy again after the first ends.
   await expect(save).not.toHaveAttribute("aria-busy", { timeout: 5000 });
   await page.waitForTimeout(500);
   await expect(save).not.toHaveAttribute("aria-busy");
-  // The clean form locks Save: the focus moves on to the page's main content, never to the body.
-  await expect(save).toBeDisabled();
-  // The settings page marks no main field, so the page's `main` takes it (GL-UI-050 tier 3).
-  await expect(page.locator("main")).toBeFocused();
-  await expect(page.locator("main")).toHaveAttribute("tabindex", "-1");
+  // SUI-FEATURE-120 rev 5: the clean form locks Save with `aria-disabled`; the focus stays on it, and
+  // Enter, Space, a click and the form's submit start nothing.
+  await expect(save).toHaveAttribute("aria-disabled", "true");
+  await expect(save).not.toHaveAttribute("disabled");
+  await expect(save).toBeFocused();
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Space");
+  // `force`: Playwright waits for an `aria-disabled` button to become enabled.
+  await save.click({ force: true });
+  await field.press("Enter");
+  await page.waitForTimeout(500);
+  await expect(save).not.toHaveAttribute("aria-busy");
+  await expect(save).toHaveAttribute("aria-disabled", "true");
 });
 
 // `GL-UI-070`, `SUI-FEATURE-079`: archiving is reversible. Its confirm's primary action is `default`

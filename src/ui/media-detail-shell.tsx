@@ -17,6 +17,7 @@ import { Link } from "react-router-dom";
 
 import { cn } from "../lib/cn.js";
 import { isTextField } from "../lib/keyboard.js";
+import { LOCKED_SAVE_CLASS } from "../lib/locked-save.js";
 import { type RowUsage, useRowActionButtons } from "../list/row-actions.js";
 import {
   LOCKED_CHEVRON_CLASS,
@@ -558,24 +559,20 @@ function MediaDetailShell({
               {/* Locked with `aria-disabled`, not `disabled`, when there is nothing to save: it keeps
                   the focus after a save (`SUI-FEATURE-085`) and looks locked by half-tone colours;
                   the form's submit saves only while dirty. */}
-              <Button
-                type="submit"
-                variant="success"
-                size="default"
-                {...(dirty ? {} : { "aria-disabled": true })}
-                busy={saving}
-                className={cn(
-                  // Half-tone fill, not element opacity, which would dim the focus ring. The label is
-                  // mixed with the panel background, as element opacity composited it (#189).
-                  !dirty &&
-                    !saving &&
-                    "cursor-not-allowed bg-success/50 text-[color-mix(in_srgb,var(--success-foreground)_50%,var(--background))] hover:bg-success/50",
-                )}
-                data-testid="media-detail-save"
-              >
-                <SaveIcon aria-hidden="true" />
-                {t("actions.save")}
-              </Button>
+              <Hint text={t("media.saveHint")} disabledText={t("media.saveCleanHint")}>
+                <Button
+                  type="submit"
+                  variant="success"
+                  size="default"
+                  {...(dirty ? {} : { "aria-disabled": true })}
+                  busy={saving}
+                  className={cn(!dirty && !saving && LOCKED_SAVE_CLASS)}
+                  data-testid="media-detail-save"
+                >
+                  <SaveIcon aria-hidden="true" />
+                  {t("actions.save")}
+                </Button>
+              </Hint>
             </div>
           </form>
         </SheetPrimitive.Content>

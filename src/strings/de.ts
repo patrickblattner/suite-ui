@@ -227,10 +227,13 @@ export const de: SuiteStrings = {
   settings: {
     active: "Aktiv",
     saveHint: "Speichert die Änderungen auf dieser Seite.",
-    saveDisabledHint: "Speichern geht, sobald du hier etwas geändert hast.",
-    saveInvalidHint: "Speichern geht, sobald alle Angaben hier gültig sind.",
+    saveDisabledHint:
+      "Speichert die Änderungen auf dieser Seite — verfügbar, sobald du hier etwas geändert hast.",
+    saveInvalidHint:
+      "Speichert die Änderungen auf dieser Seite — verfügbar, sobald alle Angaben hier gültig sind.",
     resetHint: "Verwirft die ungespeicherten Änderungen auf dieser Seite.",
-    resetDisabledHint: "Zurücksetzen geht, sobald du hier etwas geändert hast.",
+    resetDisabledHint:
+      "Verwirft die ungespeicherten Änderungen auf dieser Seite — verfügbar, sobald du hier etwas geändert hast.",
   },
   timezone: {
     placeholder: "Zeitzone suchen…",
@@ -259,6 +262,9 @@ export const de: SuiteStrings = {
     truncated: "Gekürzt — nur der Anfang wird gezeigt.",
     pickUnavailable: "Ohne Datei nicht wählbar.",
     emptyText: "Die Datei ist leer.",
+    saveHint: "Speichert die Änderungen an diesem Medium.",
+    saveCleanHint:
+      "Speichert die Änderungen an diesem Medium — verfügbar, sobald du etwas geändert hast.",
   },
   usage: {
     action: "Verwendet von ({{count}})",
@@ -286,6 +292,8 @@ export const de: SuiteStrings = {
     draft: "Entwurf · ungespeichert",
     resetConfirm: "Entwurf verwerfen und zum gespeicherten Stand zurückkehren?",
     saveFirst: "Erst speichern",
+    saveHint: "Speichert den Entwurf.",
+    saveCleanHint: "Speichert den Entwurf — verfügbar, sobald du etwas geändert hast.",
     more: "Weitere Aktionen",
   },
   canvas: {
@@ -305,6 +313,8 @@ export const de: SuiteStrings = {
       document: "Dokument",
     },
     styleSave: "Stil speichern",
+    styleSaveHint: "Speichert diesen Stil.",
+    styleSaveCleanHint: "Speichert diesen Stil — verfügbar, sobald du etwas geändert hast.",
     styleScope: "Gilt für alles, was dieses Brand-Kit nutzt",
   },
   upload: {

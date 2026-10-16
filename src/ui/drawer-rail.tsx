@@ -2,8 +2,11 @@ import { FileTextIcon, LayersIcon, PaletteIcon, PlusIcon, SaveIcon } from "lucid
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 
+import { cn } from "../lib/cn.js";
 import { useEscapeLayer } from "../lib/escape-layers.js";
+import { LOCKED_SAVE_CLASS } from "../lib/locked-save.js";
 import { Button } from "./button.js";
+import { Hint } from "./hint.js";
 import { IconButtonTooltip } from "./tooltip.js";
 
 type DrawerId = "add" | "layers" | "style" | "document";
@@ -39,6 +42,9 @@ function DrawerRail({ items, open, onOpen, styleSave }: DrawerRailProps) {
     items.filter((item) => item.id === drawer.id).map((item) => ({ ...item, icon: drawer.icon })),
   );
   const current = ordered.find((item) => item.id === open);
+  // The style Save locks itself while nothing differs, with `aria-disabled` and a trigger lock, so it
+  // keeps the focus after saving (`GL-UI-050`, `SUI-FEATURE-120`).
+  const styleClean = styleSave !== undefined && !styleSave.dirty && styleSave.saving !== true;
   useEscapeLayer(
     current !== undefined,
     () => {
@@ -96,18 +102,21 @@ function DrawerRail({ items, open, onOpen, styleSave }: DrawerRailProps) {
           <div className="min-h-0 flex-1 overflow-y-auto p-4">{current.content}</div>
           {current.id === "style" && styleSave !== undefined ? (
             <div className="flex flex-col gap-2 border-t p-4" data-testid="drawer-style-footer">
-              <Button
-                type="button"
-                variant="success"
-                size="default"
-                disabled={!styleSave.dirty}
-                {...(styleSave.saving !== undefined ? { busy: styleSave.saving } : {})}
-                onClick={styleSave.onSave}
-                data-testid="drawer-style-save"
-              >
-                <SaveIcon aria-hidden="true" />
-                {t("canvas.styleSave")}
-              </Button>
+              <Hint text={t("canvas.styleSaveHint")} disabledText={t("canvas.styleSaveCleanHint")}>
+                <Button
+                  type="button"
+                  variant="success"
+                  size="default"
+                  {...(styleClean ? { "aria-disabled": true } : {})}
+                  {...(styleSave.saving !== undefined ? { busy: styleSave.saving } : {})}
+                  className={cn(styleClean && LOCKED_SAVE_CLASS)}
+                  onClick={styleClean ? undefined : styleSave.onSave}
+                  data-testid="drawer-style-save"
+                >
+                  <SaveIcon aria-hidden="true" />
+                  {t("canvas.styleSave")}
+                </Button>
+              </Hint>
               <p className="text-xs text-muted-foreground" data-testid="drawer-style-scope">
                 {t("canvas.styleScope")}
               </p>

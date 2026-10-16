@@ -159,6 +159,16 @@ describe("MediaDetailShell", () => {
     expect(onSave).not.toHaveBeenCalled();
   });
 
+  // Q&A #3709, GL-UI-017: the locked Save says what it does and when it frees; its name stays "Save".
+  it("the locked Save describes when it frees", () => {
+    renderShell();
+    const save = screen.getByTestId("media-detail-save");
+    expect(save).toHaveAccessibleName("Save");
+    expect(save).toHaveAccessibleDescription(
+      "Saves the changes to this media item — available once you have changed something.",
+    );
+  });
+
   it("dirty: Reset calls onReset directly, Save and Enter call onSave", () => {
     const { onReset, onSave } = renderShell({ dirty: true });
     fireEvent.click(screen.getByTestId("media-detail-reset"));

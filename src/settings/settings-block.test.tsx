@@ -168,4 +168,20 @@ describe("SettingsActionRow", () => {
     expect(onSave).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId("mail-save")).toHaveAttribute("type", "button");
   });
+
+  // SUI-FEATURE-120 rev 5 AC2: a clean entry locks Save with `aria-disabled`, focusable, and its click
+  // calls nothing (the `onSave` path, a plain button).
+  it("a clean entry's Save is aria-disabled and its click calls nothing", () => {
+    const onSave = vi.fn();
+    render(
+      <SettingsActionRow dirty={false} onSave={onSave} onReset={() => {}} testIdPrefix="mail" />,
+    );
+    const save = screen.getByTestId("mail-save");
+    expect(save).toBeEnabled();
+    expect(save).toHaveAttribute("aria-disabled", "true");
+    save.focus();
+    fireEvent.click(save);
+    expect(onSave).not.toHaveBeenCalled();
+    expect(save).toHaveFocus();
+  });
 });

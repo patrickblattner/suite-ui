@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import { type RowMenuItem, RowActionMenu } from "../list/row-actions.js";
 import { cn } from "../lib/cn.js";
+import { LOCKED_SAVE_CLASS } from "../lib/locked-save.js";
 import { Button } from "./button.js";
 import { ConfirmDeleteDialog } from "./confirm-delete-dialog.js";
 import { fallbackTarget } from "./focus-return.js";
@@ -92,8 +93,9 @@ function nextFocusTarget(header: HTMLElement, from: Element | null): HTMLElement
 // lifecycle it stands after Preview until the first step and leads the group from then on, without
 // one directly left of Save; folded header tools keep their text, icon and lock there, above the
 // lifecycle menu's own entries after a separator.
-// A control that locks under the focus (Save after saving, Undo at the history's start) and the
-// Reset confirm hand the focus on as `GL-UI-050` says.
+// A control that locks under the focus (Undo at the history's start) and the Reset confirm hand the
+// focus on as `GL-UI-050` says. Save locks itself with `aria-disabled` and a trigger lock while nothing
+// differs, so it keeps the focus after saving (`SUI-FEATURE-120`).
 function EditorHeader({
   title,
   onBack,
@@ -146,8 +148,8 @@ function EditorHeader({
     lifecycle?.preview?.label,
     lifecycle?.next?.label,
   ].join("\u0000");
-  // A control a refold locked or took away (Save after saving, the ⋯ when its tools unfold) hands the
-  // focus on in `GL-UI-050`'s order from where it stood.
+  // A control a refold locked or took away (the ⋯ when its tools unfold) hands the focus on in
+  // `GL-UI-050`'s order from where it stood; a Save swapped between icon and text takes it back.
   const { attach, steps: shrink } = useFoldSteps(folds.length, content, nextFocusTarget);
   const header = React.useRef<HTMLElement | null>(null);
   const setHeader = React.useCallback(
@@ -164,8 +166,7 @@ function EditorHeader({
   const floor = folded("title") ? TITLE_FLOOR : TITLE_BUDGET;
   const titleFloor = titleText.length > floor ? `${titleText.slice(0, floor)}…` : titleText;
 
-  // A control that locks while it has the focus hands it on; a running Save waits for its result.
-  const saveChosen = React.useRef(false);
+  // A control that locks while it has the focus hands it on.
   React.useLayoutEffect(() => {
     const node = header.current;
     if (node === null) return;
@@ -177,18 +178,13 @@ function EditorHeader({
       !active.hasAttribute("aria-busy")
     ) {
       nextFocusTarget(node, active)?.focus();
-      return;
-    }
-    if (!saveChosen.current || saving) return;
-    saveChosen.current = false;
-    const save = node.querySelector<HTMLButtonElement>("[data-testid=editor-save]");
-    if (save?.disabled && (active === null || active === document.body || active === save)) {
-      nextFocusTarget(node, save)?.focus();
     }
   }, [dirty, saving, canUndo, canRedo]);
-  const save = () => {
-    saveChosen.current = true;
-    onSave();
+  const clean = !dirty && !saving;
+  const saveLock = {
+    ...(clean ? { "aria-disabled": true } : {}),
+    className: cn(clean && LOCKED_SAVE_CLASS),
+    onClick: clean ? undefined : onSave,
   };
 
   const tools: RowMenuItem[] = [];
@@ -394,32 +390,36 @@ function EditorHeader({
         {/* Without a lifecycle the ⋯ stands directly left of Save. */}
         {lifecycle === undefined ? menu : null}
         {folded("save") ? (
-          <IconButtonTooltip label={t("actions.save")}>
+          <IconButtonTooltip
+            label={t("actions.save")}
+            disabledText={t("editor.saveCleanHint")}
+            named
+          >
             <Button
               type="button"
               variant="success"
               size="icon"
-              disabled={!dirty}
               busy={saving}
-              onClick={save}
+              {...saveLock}
               data-testid="editor-save"
             >
               <SaveIcon aria-hidden="true" />
             </Button>
           </IconButtonTooltip>
         ) : (
-          <Button
-            type="button"
-            variant="success"
-            size="default"
-            disabled={!dirty}
-            busy={saving}
-            onClick={save}
-            data-testid="editor-save"
-          >
-            <SaveIcon aria-hidden="true" />
-            {t("actions.save")}
-          </Button>
+          <Hint text={t("editor.saveHint")} disabledText={t("editor.saveCleanHint")}>
+            <Button
+              type="button"
+              variant="success"
+              size="default"
+              busy={saving}
+              {...saveLock}
+              data-testid="editor-save"
+            >
+              <SaveIcon aria-hidden="true" />
+              {t("actions.save")}
+            </Button>
+          </Hint>
         )}
       </div>
       <ConfirmDeleteDialog
