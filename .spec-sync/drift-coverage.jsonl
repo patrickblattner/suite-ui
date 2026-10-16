@@ -352,3 +352,8 @@
 {"ts":"2026-10-16T03:24:30.419Z","key":"GL-UI-020","from":9,"to":11,"disposition":"ticket","ref":"156"}
 {"ts":"2026-10-16T03:42:32.287Z","key":"GL-UI-020","from":11,"to":12,"disposition":"ticket","ref":"157"}
 {"ts":"2026-10-16T06:50:32.954Z","key":"GL-UI-019","from":7,"to":8,"disposition":"ticket","ref":"154"}
+{"ts":"2026-10-16T07:43:35.972Z","key":"PROC-DEV-002","from":3,"to":4,"disposition":"ticket","ref":"159"}
+{"ts":"2026-10-16T07:43:35.972Z","key":"PROC-DEV-003","from":null,"to":2,"disposition":"ticket","ref":"159"}
+{"ts":"2026-10-16T07:43:36.345Z","key":"CARD-TEST-020","from":2,"to":3,"disposition":"editorial","ref":"Overmind /ux-audit card: Stufe 0/2/3 cadence and model assignment; no suite-ui code"}
+{"ts":"2026-10-16T07:43:36.735Z","key":"CARD-TEST-021","from":2,"to":3,"disposition":"editorial","ref":"Overmind /ux-audit card: Codex Astra at night/week; no suite-ui code"}
+{"ts":"2026-10-16T07:43:37.138Z","key":"PROC-REL-003","from":2,"to":4,"disposition":"editorial","ref":"harness weekly window reuses .spec-sync/night-window mechanics the worker already honours; no suite-ui code"}
