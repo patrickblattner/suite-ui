@@ -1,8 +1,11 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import i18n from "i18next";
+import * as React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ConfirmDeleteDialog } from "./confirm-delete-dialog.js";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "./dialog.js";
+import { Sheet, SheetContent, SheetDescription, SheetTitle } from "./sheet.js";
 
 afterEach(async () => {
   await i18n.changeLanguage("en");
@@ -157,5 +160,154 @@ describe("ConfirmDeleteDialog", () => {
     // @ts-expect-error -- cancelLabel was removed (SUI-FEATURE-080)
     renderDialog({ cancelLabel: "Keep" });
     expect(screen.getByTestId("confirm-cancel")).toHaveTextContent("Cancel");
+  });
+});
+
+// SUI-FEATURE-085 AC1: a confirmation opened programmatically (a Delete key, no `DialogTrigger`).
+function Surface({
+  inDialog,
+  initial,
+  inSheet = false,
+}: {
+  inDialog: boolean;
+  initial: string[];
+  inSheet?: boolean;
+}) {
+  const [items, setItems] = React.useState(initial);
+  const [pending, setPending] = React.useState<string | null>(null);
+  const list = (
+    <div data-testid="list">
+      {items.map((name) => (
+        <button
+          key={name}
+          type="button"
+          data-testid={`item-${name}`}
+          onKeyDown={(event) => {
+            if (event.key === "Delete") setPending(name);
+          }}
+        >
+          {name}
+        </button>
+      ))}
+    </div>
+  );
+  return (
+    <>
+      {inSheet ? (
+        <>
+          <main>
+            <button type="button">behind</button>
+          </main>
+          <Sheet open modal={false}>
+            <SheetContent data-testid="outer">
+              <SheetTitle>Media</SheetTitle>
+              <SheetDescription>A sheet with a selection</SheetDescription>
+              {list}
+            </SheetContent>
+          </Sheet>
+        </>
+      ) : inDialog ? (
+        <>
+          <main>
+            <button type="button">behind</button>
+          </main>
+          <Dialog open>
+            <DialogContent data-testid="outer">
+              <DialogTitle>Media</DialogTitle>
+              <DialogDescription>A dialog with a selection</DialogDescription>
+              {list}
+            </DialogContent>
+          </Dialog>
+        </>
+      ) : (
+        list
+      )}
+      <ConfirmDeleteDialog
+        open={pending !== null}
+        onOpenChange={(open) => {
+          if (!open) setPending(null);
+        }}
+        onConfirm={() => {
+          setItems((all) => all.filter((name) => name !== pending));
+          setPending(null);
+        }}
+        object={pending ?? ""}
+        description="Gone."
+        data-testid="confirm"
+      />
+    </>
+  );
+}
+
+describe("ConfirmDeleteDialog focus after closing (SUI-FEATURE-085)", () => {
+  const ask = (name: string) => {
+    const item = screen.getByTestId(`item-${name}`);
+    item.focus();
+    fireEvent.keyDown(item, { key: "Delete" });
+    return item;
+  };
+
+  it("Cancel and Esc return the focus to the element focused at opening", async () => {
+    render(<Surface inDialog={false} initial={["a", "b"]} />);
+    const item = ask("b");
+    fireEvent.click(await screen.findByTestId("confirm-cancel"));
+    await waitFor(() => expect(item).toHaveFocus());
+    ask("b");
+    fireEvent.keyDown(await screen.findByTestId("confirm"), { key: "Escape" });
+    await waitFor(() => expect(screen.queryByTestId("confirm")).toBeNull());
+    await waitFor(() => expect(item).toHaveFocus());
+  });
+
+  it("deleted inside a dialog: the focus stays in that dialog, not on main behind it", async () => {
+    render(<Surface inDialog initial={["a", "b", "c"]} />);
+    ask("b");
+    fireEvent.click(await screen.findByTestId("confirm-confirm"));
+    await waitFor(() => expect(screen.queryByTestId("item-b")).toBeNull());
+    await waitFor(() => expect(screen.getByTestId("outer")).toHaveFocus());
+    expect(document.querySelector("main")!.contains(document.activeElement)).toBe(false);
+  });
+
+  it("the last item deleted inside a dialog: the dialog takes the focus, never the body", async () => {
+    render(<Surface inDialog initial={["a"]} />);
+    ask("a");
+    fireEvent.click(await screen.findByTestId("confirm-confirm"));
+    await waitFor(() => expect(screen.queryByTestId("item-a")).toBeNull());
+    await waitFor(() => expect(screen.getByTestId("outer")).toHaveFocus());
+  });
+
+  it("deleted inside a non-modal sheet: the focus stays in the sheet, not on main", async () => {
+    render(<Surface inDialog={false} inSheet initial={["a", "b"]} />);
+    ask("b");
+    fireEvent.click(await screen.findByTestId("confirm-confirm"));
+    await waitFor(() => expect(screen.queryByTestId("item-b")).toBeNull());
+    await waitFor(() => expect(screen.getByTestId("outer")).toHaveFocus());
+    expect(document.querySelector("main")!.contains(document.activeElement)).toBe(false);
+  });
+
+  it("an unrelated open non-modal dialog does not win over the opening container", async () => {
+    render(
+      <>
+        <Sheet open modal={false}>
+          <SheetContent data-testid="elsewhere">
+            <SheetTitle>Elsewhere</SheetTitle>
+            <SheetDescription>Open, unrelated</SheetDescription>
+          </SheetContent>
+        </Sheet>
+        <Surface inDialog={false} initial={["a"]} />
+      </>,
+    );
+    ask("a");
+    fireEvent.click(await screen.findByTestId("confirm-confirm"));
+    await waitFor(() => expect(screen.queryByTestId("item-a")).toBeNull());
+    await waitFor(() => expect(screen.getByTestId("list")).toHaveFocus());
+  });
+
+  it("on a page without main or group: the opening container, never the body", async () => {
+    render(<Surface inDialog={false} initial={["a"]} />);
+    ask("a");
+    fireEvent.click(await screen.findByTestId("confirm-confirm"));
+    await waitFor(() => expect(screen.queryByTestId("item-a")).toBeNull());
+    await waitFor(() => expect(screen.getByTestId("list")).toHaveFocus());
+    expect(screen.getByTestId("list")).toHaveAttribute("tabindex", "-1");
   });
 });

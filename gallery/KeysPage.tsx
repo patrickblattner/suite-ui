@@ -88,7 +88,8 @@ function MediaDialog({ labels }: { labels: (typeof LABELS)[keyof typeof LABELS] 
   const [pending, setPending] = useState<string | null>(null);
   // How often a delete was asked for; the gallery test reads it to see that no key asks twice.
   const [requests, setRequests] = useState(0);
-  // Set by a confirmed delete: the item that takes the focus on close, `null` when none is left.
+  // Set by a confirmed delete: the item that takes the focus on close, `null` when none is left;
+  // then the package puts it on the dialog, the surface still open (`SUI-FEATURE-085`).
   const focusAfterDelete = useRef<string | null | undefined>(undefined);
   const remove = () => {
     if (selected === null) return;
@@ -170,11 +171,10 @@ function MediaDialog({ labels }: { labels: (typeof LABELS)[keyof typeof LABELS] 
           const next = focusAfterDelete.current;
           if (next === undefined) return null;
           focusAfterDelete.current = undefined;
-          const item =
-            next === null
-              ? null
-              : scope.current?.querySelector<HTMLElement>(`[data-item="${CSS.escape(next)}"]`);
-          return item ?? scope.current;
+          return next === null
+            ? null
+            : (scope.current?.querySelector<HTMLElement>(`[data-item="${CSS.escape(next)}"]`) ??
+                null);
         }}
         object={pending ?? ""}
         description={labels.deleteText}

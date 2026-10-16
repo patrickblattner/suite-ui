@@ -15,12 +15,11 @@ import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
+import { cn } from "../lib/cn.js";
 import { isTextField } from "../lib/keyboard.js";
 import { type RowUsage, useRowActionButtons } from "../list/row-actions.js";
 import { PANEL_SURFACE_CLASS, usePanelGeometry } from "../lib/panel-geometry.js";
 import { Button } from "./button.js";
-import { FIELD_SELECTOR } from "./dialog.js";
-import { useFocusAfterRun } from "./focus-return.js";
 import { Hint } from "./hint.js";
 import { useLeaveConfirm } from "./leave-guard.js";
 import { Sheet, SheetTitle } from "./sheet.js";
@@ -325,14 +324,6 @@ function MediaDetailShell({
   const returnFocus = React.useRef<HTMLElement | null>(null);
   const preview = React.useRef<HTMLDivElement>(null);
   const pickSlot = React.useRef<HTMLSpanElement>(null);
-  // A Save that ends locked (nothing left to save) hands the focus on (`GL-UI-050`,
-  // `SUI-FEATURE-120`): within the footer, else to the first field of the details.
-  const saveButton = React.useRef<HTMLButtonElement>(null);
-  const firstField = React.useCallback(
-    () => saveButton.current?.form?.querySelector<HTMLElement>(FIELD_SELECTOR) ?? null,
-    [],
-  );
-  useFocusAfterRun(saveButton, saving, !dirty, firstField);
   const { guard, dialog } = useLeaveConfirm({
     dirty: open && dirty,
     busy: open && saving,
@@ -473,7 +464,9 @@ function MediaDetailShell({
                       {pickAction !== undefined && (
                         <span ref={pickSlot} className="contents">
                           <PickButton
-                            onClick={pickAction}
+                            // Picking leaves the medium: with unsaved changes the guard asks
+                            // first, as paging and closing do (`GL-UI-007`, `SUI-FEATURE-085`).
+                            onClick={() => guard(pickAction)}
                             locked={
                               previewState === "missingRef" || previewState === "missingBytes"
                             }
@@ -558,13 +551,18 @@ function MediaDetailShell({
                 <RotateCcwIcon aria-hidden="true" />
                 {t("actions.reset")}
               </Button>
+              {/* Locked with `aria-disabled`, not `disabled`, when there is nothing to save: it keeps
+                  the focus after a save (`SUI-FEATURE-085`) and looks as the disabled button did;
+                  the form's submit saves only while dirty. */}
               <Button
-                ref={saveButton}
                 type="submit"
                 variant="success"
                 size="default"
-                disabled={!dirty}
+                {...(dirty ? {} : { "aria-disabled": true })}
                 busy={saving}
+                className={cn(
+                  !dirty && !saving && "cursor-not-allowed opacity-50 hover:bg-success",
+                )}
                 data-testid="media-detail-save"
               >
                 <SaveIcon aria-hidden="true" />

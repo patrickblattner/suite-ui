@@ -120,11 +120,15 @@ describe("MediaDetailShell", () => {
     expect(onSave).toHaveBeenCalledTimes(1);
   });
 
-  // AC 2
+  // AC 2; SUI-FEATURE-085: Save is locked with aria-disabled, focusable, and triggers nothing.
   it("Reset and Save are locked while not dirty", () => {
     const { onSave } = renderShell();
     expect(screen.getByTestId("media-detail-reset")).toBeDisabled();
-    expect(screen.getByTestId("media-detail-save")).toBeDisabled();
+    const save = screen.getByTestId("media-detail-save");
+    expect(save).toBeEnabled();
+    expect(save).toHaveAttribute("aria-disabled", "true");
+    expect(save).toHaveClass("opacity-50", "cursor-not-allowed");
+    fireEvent.click(save);
     fireEvent.submit(screen.getByLabelText("Name"));
     expect(onSave).not.toHaveBeenCalled();
   });
@@ -153,8 +157,9 @@ describe("MediaDetailShell", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
-  // SUI-FEATURE-120 rev 3 AC1: Save keeps the focus while it runs; locked at the end, it hands it on.
-  it("a save that ends with nothing to save hands the focus to the first field, never the body", () => {
+  // SUI-FEATURE-120 rev 3 AC1, SUI-FEATURE-085 AC2: Save keeps the focus while it runs and after it,
+  // locked with aria-disabled.
+  it("a save that ends with nothing to save keeps the focus on Save, aria-disabled", () => {
     const shell = (dirty: boolean, saving: boolean) => (
       <MediaDetailShell
         position={3}
@@ -178,8 +183,8 @@ describe("MediaDetailShell", () => {
     rerender(shell(true, true));
     expect(save).toHaveFocus();
     rerender(shell(false, false));
-    expect(save).toBeDisabled();
-    expect(screen.getByLabelText("Name")).toHaveFocus();
+    expect(save).toHaveAttribute("aria-disabled", "true");
+    expect(save).toHaveFocus();
   });
 
   it("footer: Reset directly before Save, right-aligned, no Cancel", () => {
@@ -238,6 +243,26 @@ describe("MediaDetailShell", () => {
     const head = panel().querySelector("[data-slot=media-detail-head]")!;
     fireEvent.click(within(head as HTMLElement).getByText("Choose this media item"));
     expect(pick).toHaveBeenCalledTimes(1);
+  });
+
+  // SUI-FEATURE-085 AC3: picking runs through the same guard as paging and closing.
+  it("with dirty, picking asks first; Cancel keeps, Discard picks; clean it picks at once", async () => {
+    const pick = vi.fn();
+    renderShell({ dirty: true, pickAction: pick });
+    fireEvent.click(screen.getByTestId("media-detail-pick"));
+    expect(pick).not.toHaveBeenCalled();
+    fireEvent.click(await screen.findByTestId("leave-guard-cancel"));
+    expect(pick).not.toHaveBeenCalled();
+    await waitFor(() => expect(screen.queryByTestId("leave-guard")).toBeNull());
+    fireEvent.click(screen.getByTestId("media-detail-pick"));
+    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+    expect(pick).toHaveBeenCalledTimes(1);
+    cleanup();
+    const clean = vi.fn();
+    renderShell({ pickAction: clean });
+    fireEvent.click(screen.getByTestId("media-detail-pick"));
+    expect(clean).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("leave-guard")).toBeNull();
   });
 
   it("without pickAction the head has no pick button", () => {

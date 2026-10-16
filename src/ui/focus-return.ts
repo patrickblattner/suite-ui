@@ -6,7 +6,11 @@
 //      reading order, then before it; a list entry that is gone hands over to the one in its place
 //      (`SUI-FEATURE-056`);
 //   3. else the surface's main content: what the app marked with `FOCUS_MAIN_ATTR` (its first field or
-//      canvas), else the `main` element, focusable without a tab stop.
+//      canvas), else the `main` element, focusable without a tab stop. Behind a modal dialog that is
+//      still open (a confirm closed inside a dialog) the surface is that dialog instead: its marked
+//      content, else the dialog itself (`SUI-FEATURE-085`);
+//   4. else the container the dialog was opened from, its nearest ancestor still in the document, so
+//      the focus never falls to `<body>`.
 // A navigation element (a link, or a control marked with `FOCUS_NAV_ATTR` such as Back) is never a
 // fallback target (2 or 3); it can only be the trigger itself.
 
@@ -30,6 +34,9 @@ const FOCUS_GROUP_ATTR = "data-focus-group";
 
 // Set on the `main` element the package made focusable as the last fallback; it draws no outline.
 const FOCUS_FALLBACK_ATTR = "data-focus-fallback";
+
+// Open dialogs; a modal one hides everything else from assistive technology (`aria-hidden`).
+const OPEN_DIALOG_SELECTOR = "[role=dialog][data-state=open], [role=alertdialog][data-state=open]";
 
 const GROUP_SELECTOR = `[${FOCUS_GROUP_ATTR}], [role=toolbar], [role=row], tr, header`;
 
@@ -74,6 +81,10 @@ type Opener = {
   before: HTMLElement[];
   // The list entry and frame the trigger stood in, with the entry's position.
   entry: { frame: HTMLElement; index: number } | null;
+  // The trigger's ancestors at opening, nearest first, for tier 4.
+  containers: HTMLElement[];
+  // The open dialog or sheet the trigger stood in: its surface for tier 3.
+  surface: HTMLElement | null;
 };
 
 /** The control that opened a dialog: the active element, or the trigger of the menu it is an entry of. */
@@ -146,7 +157,33 @@ function captureOpener(focused: Element | null = document.activeElement): Opener
       (control) => trigger.compareDocumentPosition(control) & Node.DOCUMENT_POSITION_PRECEDING,
     ),
     entry: entryNode && frame ? { frame, index: listEntries(frame).indexOf(entryNode) } : null,
+    containers: ancestors(trigger),
+    surface: trigger.closest<HTMLElement>(OPEN_DIALOG_SELECTOR),
   };
+}
+
+function ancestors(element: HTMLElement): HTMLElement[] {
+  const chain: HTMLElement[] = [];
+  for (let node = element.parentElement; node && node !== document.body; node = node.parentElement)
+    chain.push(node);
+  return chain;
+}
+
+function behindModal(element: Element): boolean {
+  return element.closest('[aria-hidden="true"]') !== null;
+}
+
+/**
+ * The open modal dialog in front, the one no modal hides: the surface while it is open. Only a modal
+ * one counts (it hid the rest of the page, `data-aria-hidden`); an open popover or non-modal sheet
+ * elsewhere is no surface of the opener.
+ */
+function frontDialog(): HTMLElement | null {
+  if (document.querySelector("[data-aria-hidden]") === null) return null;
+  const open = [...document.querySelectorAll<HTMLElement>(OPEN_DIALOG_SELECTOR)].filter(
+    (dialog) => !behindModal(dialog),
+  );
+  return open.at(-1) ?? null;
 }
 
 /**
@@ -180,41 +217,71 @@ function groupTarget(group: Element | null, from: Element | null): HTMLElement |
   return groupTargets(group, from)[0] ?? null;
 }
 
-/** Tier 3: the app's marked main content, else `main` as a focus target without a tab stop. */
-function mainTarget(near: Element | null): HTMLElement | null {
-  const main = (near?.isConnected ? near.closest("main") : null) ?? document.querySelector("main");
+/**
+ * Tier 3: the app's marked main content, else `main` as a focus target without a tab stop. Inside
+ * an open dialog or sheet (`surface`, or the one `near` stands in) that surface stands in for `main`,
+ * and so does the modal dialog in front while it hides `main`: its marked content, else itself.
+ */
+function mainTarget(near: Element | null, surface: HTMLElement | null = null): HTMLElement | null {
+  const own =
+    (surface?.isConnected === true && surface.matches(OPEN_DIALOG_SELECTOR) ? surface : null) ??
+    (near?.isConnected ? near.closest<HTMLElement>(OPEN_DIALOG_SELECTOR) : null);
+  let main: Element | null =
+    own ?? (near?.isConnected ? near.closest("main") : null) ?? document.querySelector("main");
+  if (main === null || behindModal(main)) main = frontDialog();
   const marked = [...(main ?? document).querySelectorAll(`[${FOCUS_MAIN_ATTR}]`)].find(
-    (element): element is HTMLElement => isUsable(element) && !isNavigation(element),
+    (element): element is HTMLElement =>
+      isUsable(element) && !isNavigation(element) && !behindModal(element),
   );
   if (marked !== undefined) return marked;
   if (!(main instanceof HTMLElement)) return null;
-  if (!main.hasAttribute("tabindex")) {
-    main.tabIndex = -1;
-    main.setAttribute(FOCUS_FALLBACK_ATTR, "");
+  return focusableFallback(main);
+}
+
+/**
+ * Makes `element` a focus target without a tab stop, for as long as it holds the focus; an element
+ * focusable already (a dialog's content) stays as it is.
+ */
+function focusableFallback(target: HTMLElement): HTMLElement {
+  if (!target.hasAttribute("tabindex")) {
+    target.tabIndex = -1;
+    target.setAttribute(FOCUS_FALLBACK_ATTR, "");
     // Focusable only while it holds the focus: once another element takes it, or a press somewhere (a
     // blank spot in it would focus it again), it is a plain element again and a click there leaves the
     // body focused. Not on `blur`: a window or tab switch blurs it too, and without its tab index the
     // browser would drop the focus to the body on the way back.
     const release = () => {
-      main.removeAttribute("tabindex");
-      main.removeAttribute(FOCUS_FALLBACK_ATTR);
+      target.removeAttribute("tabindex");
+      target.removeAttribute(FOCUS_FALLBACK_ATTR);
       document.removeEventListener("focusin", onFocusIn, true);
       document.removeEventListener("pointerdown", release, true);
     };
     const onFocusIn = (event: FocusEvent) => {
-      if (event.target !== main) release();
+      if (event.target !== target) release();
     };
     document.addEventListener("focusin", onFocusIn, true);
     document.addEventListener("pointerdown", release, true);
   }
-  return main;
+  return target;
 }
 
 /** Focuses `target` and tells whether it took the focus (a node that cannot take it does not). */
 function place(target: HTMLElement | null): boolean {
   if (target === null) return false;
   target.focus({ preventScroll: true });
-  return document.activeElement === target;
+  if (document.activeElement !== target) return false;
+  // A dialog closing over another one (a confirm inside a dialog) returns the focus while radix still
+  // pauses the outer dialog's focus trap: the trap misses this focus and keeps the element focused
+  // before the confirm opened, by now perhaps deleted, so Shift+Tab could leave the open dialog.
+  // Once the confirm is gone and the trap runs again, the focus is set anew so the trap notes it.
+  if (target.closest(OPEN_DIALOG_SELECTOR) !== null) {
+    setTimeout(() => {
+      if (document.activeElement !== target || !target.isConnected) return;
+      target.blur();
+      target.focus({ preventScroll: true });
+    });
+  }
+  return true;
 }
 
 /** Places the focus on the first of `targets` that takes it. */
@@ -249,7 +316,16 @@ function returnFocus(opener: Opener | null): boolean {
     focusListEntry(entry.frame, entry.index);
     if (entry.frame.contains(document.activeElement)) return true;
   }
-  return place(mainTarget(group ?? trigger));
+  if (place(mainTarget(group ?? trigger, opener.surface))) return true;
+  // Tier 4: the container the dialog was opened from, the nearest that takes the focus; never
+  // `<body>`.
+  return opener.containers.some(
+    (node) =>
+      node.isConnected &&
+      !behindModal(node) &&
+      node.closest("[hidden], [inert]") === null &&
+      place(focusableFallback(node)),
+  );
 }
 
 /**

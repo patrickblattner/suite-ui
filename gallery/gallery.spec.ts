@@ -1817,21 +1817,27 @@ test("media detail shell: Reset and Save follow the dirty state", async ({ page 
   const reset = shell.getByTestId("media-detail-reset");
   const save = shell.getByTestId("media-detail-save");
   await expect(reset).toBeDisabled();
-  await expect(save).toBeDisabled();
+  // SUI-FEATURE-085: Save is locked with aria-disabled, focusable, at half opacity as before.
+  await expect(save).toHaveAttribute("aria-disabled", "true");
+  await expect(save).toHaveCSS("opacity", "0.5");
   await shell.getByLabel("Name").fill("renamed.jpg");
   await expect(reset).toBeEnabled();
+  await expect(save).not.toHaveAttribute("aria-disabled");
   await reset.click();
   await expect(shell.getByLabel("Name")).toHaveValue("team-photo.jpg");
-  await expect(save).toBeDisabled();
+  await expect(save).toHaveAttribute("aria-disabled", "true");
   await shell.getByLabel("Name").fill("renamed.jpg");
   await save.click();
   await expect(save).toHaveAttribute("data-busy", "true");
   await expect(save).toHaveCSS("opacity", "1");
   await expect(save).toBeFocused();
-  await expect(save).toBeDisabled({ timeout: 5000 });
+  await expect(save).not.toHaveAttribute("data-busy", "true", { timeout: 5000 });
+  await expect(save).toHaveAttribute("aria-disabled", "true");
+  // SUI-FEATURE-085 AC2: after the save the focus stays on Save, which triggers nothing now.
+  await expect(save).toBeFocused();
+  await page.keyboard.press("Enter");
   await expect(save).not.toHaveAttribute("data-busy");
-  // SUI-FEATURE-120: locked at the end, Save hands the focus to the first field.
-  await expect(shell.getByLabel("Name")).toBeFocused();
+  await expect(save).toBeFocused();
 });
 
 // `SUI-FEATURE-061` AC 4: side by side from `panel-split`, the preview stacked on top below it.
@@ -4345,6 +4351,16 @@ test("keyboard: Delete in a dialog with its own selection, through the confirmat
   await expect(dialog.getByTestId("keys-dialog-empty")).toBeVisible();
   await expect(dialog).toBeFocused();
   await expect(dialog.getByTestId("keys-dialog-delete")).toBeDisabled();
+  // `SUI-FEATURE-085`: Tab and Shift+Tab stay in the dialog, the surface still open.
+  for (const key of ["Shift+Tab", "Shift+Tab", "Shift+Tab", "Shift+Tab"]) {
+    await page.keyboard.press(key);
+    expect(await dialog.evaluate((node) => node.contains(document.activeElement))).toBe(true);
+  }
+  await dialog.focus();
+  for (let step = 0; step < 3; step++) {
+    await page.keyboard.press("Tab");
+    expect(await dialog.evaluate((node) => node.contains(document.activeElement))).toBe(true);
+  }
 });
 
 // #183: at 360px neither side of the disabled trash has room for the full bubble; it narrows to the

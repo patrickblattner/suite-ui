@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.110.0 — #182, SUI-FEATURE-085 rev 2: focus after the delete dialog and Save, guarded pick
+
+Not breaking; no new props.
+
+**Migration:** Cockpit drops its workaround that put the focus back on the delete button itself after the confirmation closed: the package now returns it. Apps that tested `media-detail-save` with `toBeDisabled()` check `aria-disabled="true"` instead.
+
+- Dialog close focus (`ConfirmDeleteDialog` and every package dialog): opened programmatically, Cancel and Esc return the focus to the element focused at opening. When that element is gone after the delete, the focus goes to its neighbour as before, else to the surface's main content; behind a modal dialog that is still open (a confirm inside a dialog) that surface is the dialog, not `main` behind it. Without main content the container the dialog was opened from takes it, so the focus never falls to `<body>` and the next Tab stays in the surface.
+- `MediaDetailShell`: Save with nothing to save is locked with `aria-disabled` instead of `disabled`, same look; it stays focusable, and after a successful save the focus stays on it (it no longer moves to the first field).
+- `MediaDetailShell`: "Choose this media item" (`pickAction`) runs through the same unsaved-changes guard as paging and closing; without changes it picks at once.
+
 ## 0.109.0 — #181, SUI-FEATURE-084 rev 3: MediaTile as a grid entry, delete by key, optional onOpen
 
 Not breaking for existing callers: a tile with `onOpen` and no `rowProps` renders and behaves as before. New props `onDelete` and `rowProps`; `onOpen` becomes optional.
