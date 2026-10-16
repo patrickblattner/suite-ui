@@ -175,7 +175,11 @@ function Content() {
 export function ShellPage({ content }: { content?: ReactNode } = {}) {
   const { t, i18n: instance } = useTranslation();
   const [appearance, setAppearance] = useState<Appearance>("system");
-  const route = new URLSearchParams(window.location.search).get("route") ?? "/dashboard";
+  const params = new URLSearchParams(window.location.search);
+  const route = params.get("route") ?? "/dashboard";
+  // `?unavailable=1`: the surface without access (`SUI-FEATURE-081`), Profile, Change password and
+  // Security as unavailable entries.
+  const unavailable = params.get("unavailable") === "1";
 
   return (
     <MemoryRouter initialEntries={[route]}>
@@ -197,8 +201,11 @@ export function ShellPage({ content }: { content?: ReactNode } = {}) {
                 appearance={appearance}
                 onAppearanceChange={setAppearance}
                 onProfile={() => {}}
+                profileUnavailable={unavailable}
                 onChangePassword={() => {}}
+                changePasswordUnavailable={unavailable}
                 onSecurity={() => {}}
+                securityUnavailable={unavailable}
                 onLogOut={() => {}}
               >
                 <UserMenuItem

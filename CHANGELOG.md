@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.104.0 — #170, SUI-FEATURE-081 rev 2: UserMenu securityUnavailable
+
+Not breaking. `UserMenu` takes `securityUnavailable` (default `false`).
+
+- Set, Security / MFA keeps its place as the same non-interactive notice as an unavailable Profile or Change password: shield icon, "Security", "Not available yet", `aria-disabled`; `onSecurity` is never called. No new strings.
+
 ## 0.103.0 — #169, SUI-FEATURE-140 rev 4: MediaDetailShell locked pick and empty text
 
 Not breaking. New strings `media.pickUnavailable`, `media.emptyText`; `media.missingRef` and `media.missingBytes` reworded, `missingBytes` now names the next step (de/en/es).

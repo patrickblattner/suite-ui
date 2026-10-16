@@ -2586,6 +2586,30 @@ test("shell: user menu order, the app entry before Log out", async ({ page }) =>
   expect(userMenuOrderViolations(ids as string[])).toEqual([]);
 });
 
+// `SUI-FEATURE-081`: on the surface without access, Security stands as an unavailable entry beside
+// Profile and Change password, in its place, and selecting it does nothing.
+test("shell: unavailable Profile, Change password and Security keep their places", async ({
+  page,
+}) => {
+  await page.goto("/?page=shell&unavailable=1&lng=en");
+  await page.getByTestId("user-menu-trigger").click();
+  const menu = page.getByTestId("user-menu-content");
+  const ids = await menu.evaluate((el) =>
+    [...el.querySelectorAll("[data-testid^='user-menu-']")].map((item) =>
+      item.getAttribute("data-testid"),
+    ),
+  );
+  expect(userMenuOrderViolations(ids as string[])).toEqual([]);
+  for (const id of ["user-menu-profile", "user-menu-change-password", "user-menu-security"]) {
+    const entry = menu.getByTestId(id);
+    await expect(entry).toHaveAttribute("aria-disabled", "true");
+    await expect(entry).toContainText("Not available yet");
+  }
+  // A usable entry closes the menu when selected; the unavailable one leaves it open.
+  await menu.getByTestId("user-menu-security").click({ force: true });
+  await expect(menu).toBeVisible();
+});
+
 test("shell: one character searches nothing, Esc returns to the sidebar field", async ({
   page,
 }) => {
