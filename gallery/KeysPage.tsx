@@ -11,6 +11,7 @@ import { useRowGrid } from "../src/list/use-row-grid.js";
 import { Button } from "../src/ui/button.js";
 import { ConfirmDeleteDialog } from "../src/ui/confirm-delete-dialog.js";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "../src/ui/dialog.js";
+import { MediaTile } from "../src/ui/media-tile.js";
 import { TableCell, TableHead, TableRow } from "../src/ui/table.js";
 import { IconButtonTooltip } from "../src/ui/tooltip.js";
 import {
@@ -183,6 +184,77 @@ function MediaDialog({ labels }: { labels: (typeof LABELS)[keyof typeof LABELS] 
   );
 }
 
+// `SUI-FEATURE-084`: media tiles as entries of one keyboard grid. A tile with open and delete, one
+// with only delete (focusable, no button), one with no action (not reachable), and one more with
+// both. ↑/↓ move between the reachable ones, Enter opens, Delete/Backspace go through the
+// confirmation.
+const MEDIA_TILES: { name: string; kind: "pdf" | "video"; open: boolean; remove: boolean }[] = [
+  { name: "poster.pdf", kind: "pdf", open: true, remove: true },
+  { name: "teaser.mp4", kind: "video", open: false, remove: true },
+  { name: "rules.pdf", kind: "pdf", open: false, remove: false },
+  { name: "flyer.pdf", kind: "pdf", open: true, remove: true },
+];
+
+function MediaTiles({ labels }: { labels: (typeof LABELS)[keyof typeof LABELS] }) {
+  const grid = useRowGrid();
+  const [tiles, setTiles] = useState(MEDIA_TILES);
+  const [opened, setOpened] = useState("");
+  const [pending, setPending] = useState<string | null>(null);
+  // How often a delete was asked for; the gallery test reads it to see one key asks once.
+  const [requests, setRequests] = useState(0);
+  return (
+    <section
+      className="flex h-96 flex-col gap-2"
+      data-testid="keys-media"
+      data-delete-requests={requests}
+    >
+      <output className="text-sm text-muted-foreground" data-testid="keys-media-opened">
+        {opened}
+      </output>
+      <TileGridShell
+        isPending={false}
+        isEmpty={tiles.length === 0}
+        loadingTestId="keys-media-loading"
+        emptyTestId="keys-media-empty"
+        gridProps={grid.gridProps}
+      >
+        {tiles.map(({ name, kind, open, remove }) => (
+          <MediaTile
+            key={name}
+            kind={kind}
+            name={name}
+            extension={name.split(".").pop()}
+            tags={[]}
+            rowProps={grid.rowProps}
+            onOpen={open ? () => setOpened(name) : undefined}
+            onDelete={
+              remove
+                ? () => {
+                    setRequests((count) => count + 1);
+                    setPending(name);
+                  }
+                : undefined
+            }
+          />
+        ))}
+      </TileGridShell>
+      <ConfirmDeleteDialog
+        open={pending !== null}
+        onOpenChange={(next) => {
+          if (!next) setPending(null);
+        }}
+        onConfirm={() => {
+          setTiles((all) => all.filter((tile) => tile.name !== pending));
+          setPending(null);
+        }}
+        object={pending ?? ""}
+        description={labels.deleteText}
+        data-testid="keys-media-confirm"
+      />
+    </section>
+  );
+}
+
 // The keyboard of `GL-UI-006` (`SUI-FEATURE-056`): a paged table whose rows move with ↑/↓, open with
 // Enter and delete with Delete/Backspace through the confirm dialog, paged tiles, and an editor bar
 // whose undo/redo answer Ctrl/Cmd+Z and Ctrl/Cmd+Y. ←/→ page the list the focus is in.
@@ -301,6 +373,7 @@ export function KeysPage() {
           ))}
         </TileGridShell>
       </section>
+      <MediaTiles labels={labels} />
       <ConfirmDeleteDialog
         open={pending !== null}
         onOpenChange={(open) => {

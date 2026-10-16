@@ -4373,6 +4373,54 @@ test("tooltip: at 360px the bubble stays inside the viewport", async ({ page }) 
   expect(box!.x + box!.width).toBeLessThanOrEqual(360);
 });
 
+// `SUI-FEATURE-084`: media tiles as grid entries. ↓/↑ walk the tiles with an action and skip the one
+// without; Delete on a tile asks once through the confirmation; Enter opens; the tile without an
+// action is no button, no tab stop and does not react to hover.
+test("keyboard: media tiles as grid entries, delete by key, a tile without action", async ({
+  page,
+}) => {
+  await page.goto("/?page=keys&lng=en");
+  const section = page.getByTestId("keys-media");
+  const tile = (name: string) => section.getByTestId("media-tile").filter({ hasText: name });
+  await expect(section.getByTestId("media-tile")).toHaveCount(4);
+  const bare = tile("rules.pdf");
+  await expect(bare).toHaveAttribute("role", "group");
+  await expect(bare).not.toHaveAttribute("tabindex");
+  await expect(bare.getByRole("button")).toHaveCount(0);
+  const border = await bare.evaluate((node) => getComputedStyle(node).borderColor);
+  await bare.hover();
+  await expect(bare).toHaveCSS("border-color", border);
+  await expect(bare).toHaveCSS("cursor", "auto");
+  const deleteOnly = tile("teaser.mp4");
+  await expect(deleteOnly).toHaveAttribute("role", "group");
+
+  await tile("poster.pdf").focus();
+  await page.keyboard.press("ArrowDown");
+  await expect(deleteOnly).toBeFocused();
+  // The inset focus ring shows over the preview too.
+  await expect(deleteOnly.locator("[data-slot=media-tile-focus]")).toBeVisible();
+  await page.keyboard.press("ArrowDown");
+  await expect(tile("flyer.pdf")).toBeFocused();
+  await page.keyboard.press("ArrowUp");
+  await expect(deleteOnly).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("keys-media-opened")).toHaveText("");
+  await page.keyboard.press("Delete");
+  const confirm = page.getByTestId("keys-media-confirm");
+  await expect(confirm).toContainText("teaser.mp4");
+  await expect(section).toHaveAttribute("data-delete-requests", "1");
+  await page.keyboard.press("Backspace");
+  await page.keyboard.press("Delete");
+  await expect(section).toHaveAttribute("data-delete-requests", "1");
+  await confirm.getByRole("button", { name: "Delete" }).click();
+  await expect(confirm).toHaveCount(0);
+  await expect(section.getByTestId("media-tile")).toHaveCount(3);
+  // The focus goes to the entry now in its place.
+  await expect(tile("flyer.pdf")).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("keys-media-opened")).toHaveText("flyer.pdf");
+});
+
 test("keyboard: Delete and Backspace open the confirm dialog, Cancel keeps the row", async ({
   page,
 }) => {

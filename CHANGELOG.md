@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.109.0 — #181, SUI-FEATURE-084 rev 3: MediaTile as a grid entry, delete by key, optional onOpen
+
+Not breaking for existing callers: a tile with `onOpen` and no `rowProps` renders and behaves as before. New props `onDelete` and `rowProps`; `onOpen` becomes optional.
+
+**Migration:** in a `TileGridShell` with `gridProps={grid.gridProps}`, pass `rowProps={grid.rowProps}` to each `MediaTile` (the tile calls it itself; do not spread `rowProps()` on it), `onDelete` only where the role may delete (the same handler as the visible delete action, with its confirmation), and `onOpen` only where the role may open/edit.
+
+- In the grid: ↑/↓/Home/End move between the tiles, one tab stop; Enter/Space open through the tile's own button; Delete/Backspace call the focused tile's `onDelete` once. Without `onDelete` the keys do nothing.
+- Without `onOpen` the tile is no button but a labelled group: no pointer, no hover, nothing to open. With only `onDelete` it stays a focusable grid entry so Delete reaches it; without both it is not focusable and the arrows skip it.
+- The picker (`selected`) is unchanged. No visual change.
+
 ## 0.108.1 — #183: tooltip stays inside a narrow viewport
 
 Fix, not breaking. Where neither side of its element has room for the full bubble (e.g. at 360px), the tooltip of `TooltipContent` / `IconButtonTooltip` / `Hint` narrows to the room left on its side and wraps, instead of overflowing the viewport. Placement is unchanged: to the right, flipped to the left, never above or below.
