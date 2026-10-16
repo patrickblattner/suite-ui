@@ -109,26 +109,65 @@ function UnavailableItem({
 // language trigger and the active appearance option.
 const STOPS = 'button:not(:disabled):not([role="radio"][aria-checked="false"]), [tabindex="0"]';
 
-// ↑/↓ move to the previous/next stop of the panel, Home/End to the first/last; the language trigger
-// keeps its own arrows (they open its list).
-function moveFocus(event: React.KeyboardEvent<HTMLElement>): void {
-  const keys = ["ArrowUp", "ArrowDown", "Home", "End"];
-  if (!keys.includes(event.key) || event.altKey || event.ctrlKey || event.metaKey) return;
-  const target = event.target instanceof HTMLElement ? event.target : null;
-  if (target?.closest('[role="combobox"]')) return;
-  const stops = [...event.currentTarget.querySelectorAll<HTMLElement>(STOPS)];
+const MOVE_KEYS = ["ArrowUp", "ArrowDown", "Home", "End"];
+
+function isMoveKey(event: React.KeyboardEvent): boolean {
+  return MOVE_KEYS.includes(event.key) && !event.altKey && !event.ctrlKey && !event.metaKey;
+}
+
+// Moves the focus from `from` to the next/previous stop of `panel` (↓/↑, wrapping) or to the
+// first/last (Home/End). From an element that is no stop (an inactive appearance option) ↓/↑ go to
+// the stop after/before it in document order.
+function moveFocus(panel: HTMLElement, from: Element, key: string): void {
+  const stops = [...panel.querySelectorAll<HTMLElement>(STOPS)];
   if (stops.length === 0) return;
-  const at = target === null ? -1 : stops.findIndex((stop) => stop === target);
-  const next =
-    event.key === "Home"
-      ? 0
-      : event.key === "End"
-        ? stops.length - 1
-        : event.key === "ArrowDown"
-          ? (at + 1) % stops.length
-          : (at - 1 + stops.length) % stops.length;
-  event.preventDefault();
+  const last = stops.length - 1;
+  const at = stops.indexOf(from as HTMLElement);
+  let next: number;
+  if (key === "Home") next = 0;
+  else if (key === "End") next = last;
+  else if (at !== -1)
+    next = key === "ArrowDown" ? (at + 1) % stops.length : (at || stops.length) - 1;
+  else if (key === "ArrowDown") {
+    next = stops.findIndex(
+      (stop) => from.compareDocumentPosition(stop) & Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    if (next === -1) next = 0;
+  } else {
+    next = last;
+    while (
+      next >= 0 &&
+      !(from.compareDocumentPosition(stops[next]!) & Node.DOCUMENT_POSITION_PRECEDING)
+    ) {
+      next--;
+    }
+    if (next === -1) next = last;
+  }
   stops[next]!.focus();
+}
+
+// ↑/↓, Home and End between the panel's stops. Keys from outside the panel's DOM (the language list,
+// portalled to the body) and keys a control already handled are not the panel's.
+function onPanelKeyDown(event: React.KeyboardEvent<HTMLElement>): void {
+  if (event.defaultPrevented || !isMoveKey(event)) return;
+  const target = event.target as Element;
+  if (!event.currentTarget.contains(target)) return;
+  event.preventDefault();
+  moveFocus(event.currentTarget, target, event.key);
+}
+
+// The closed language trigger is a stop like the others: its ↑/↓ move on instead of opening the
+// list, which opens on Enter, Space and Alt+↓. Taken in the capture phase, before the trigger's own
+// handler sees them.
+function onPanelKeyDownCapture(event: React.KeyboardEvent<HTMLElement>): void {
+  if (!isMoveKey(event)) return;
+  const target = event.target as Element;
+  if (target.getAttribute("role") !== "combobox") return;
+  if (target.getAttribute("aria-expanded") === "true") return;
+  if (!event.currentTarget.contains(target)) return;
+  event.preventDefault();
+  event.stopPropagation();
+  moveFocus(event.currentTarget, target, event.key);
 }
 
 function Separator() {
@@ -278,7 +317,8 @@ function UserMenu({
             role="group"
             aria-label={t("account.menu")}
             data-testid="user-menu-content"
-            onKeyDown={moveFocus}
+            onKeyDown={onPanelKeyDown}
+            onKeyDownCapture={onPanelKeyDownCapture}
             className={cn(
               "absolute bottom-full left-0 z-50 mb-1 w-max overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md",
               collapsed ? "min-w-56" : "min-w-full",

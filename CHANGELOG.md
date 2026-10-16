@@ -1,12 +1,14 @@
 # Changelog
 
-## 0.104.1 — #173, SUI-FEATURE-082: UserMenu as a disclosure panel, keyboard model
+## 0.105.0 — #173, SUI-FEATURE-082: UserMenu as a disclosure panel, keyboard model
 
-Not breaking for the API. The open panel is no longer an ARIA menu: it holds a select and a radio group, which a menu may not (axe `aria-required-children`). No visual change.
+The ARIA contract of the open panel changes: it is no longer an ARIA menu, since it holds a select and a radio group, which a menu may not (axe `aria-required-children`). Props are unchanged; no visual change.
+
+**Migration:** remove `role="menu"`, `menuitem`, `menuitemcheckbox` and `menuitemradio` from the children passed to `UserMenu` (inside a group they violate axe `aria-required-parent`); use `UserMenuItem` or a plain button. Select the entries by their `data-testid`, not by a menu role.
 
 - The panel is a group labelled "Account menu"; the trigger carries `aria-expanded` and, while open, `aria-controls` (no more `aria-haspopup="menu"`). Entries are plain buttons without `role="menuitem"`; a test or app that found them by that role finds them by `data-testid`.
 - Unavailable and locked entries (`profileUnavailable`, `changePasswordUnavailable`, `securityUnavailable`, `changePasswordLocked`) are focusable buttons with `aria-disabled="true"`: Tab reaches them, they trigger nothing.
-- ↑/↓ move between the entries, the language trigger and the active appearance option, wrapping; Home/End jump to the first/last. `Esc` closes and returns the focus to the trigger.
+- ↑/↓ move between the entries, the language trigger and the active appearance option, wrapping; from an inactive appearance option they go to the stop after/before it. Home/End jump to the first/last. On the closed language trigger ↑/↓ move on as well; its list opens on Enter, Space and Alt+↓. `Esc` closes and returns the focus to the trigger.
 
 ## 0.104.0 — #170, SUI-FEATURE-081 rev 2: UserMenu securityUnavailable
 

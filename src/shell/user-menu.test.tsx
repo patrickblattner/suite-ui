@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import i18n from "i18next";
 import { BellIcon } from "lucide-react";
+import { createPortal } from "react-dom";
 import { describe, expect, it, vi } from "vitest";
 
 import { userMenuOrderViolations } from "../testing/index.js";
@@ -235,8 +236,7 @@ describe("UserMenu", () => {
     profile.focus();
     fireEvent.keyDown(profile, { key: "ArrowDown" });
     expect(screen.getByTestId("language-switcher")).toHaveFocus();
-    // Of the appearance options only the active one is a stop; the language trigger keeps its own
-    // arrows.
+    // Of the appearance options only the active one is a stop.
     const appearance = screen.getByTestId("theme-option-system");
     appearance.focus();
     fireEvent.keyDown(appearance, { key: "ArrowUp" });
@@ -258,6 +258,67 @@ describe("UserMenu", () => {
     expect(logout).toHaveFocus();
     fireEvent.keyDown(logout, { key: "Home" });
     expect(profile).toHaveFocus();
+  });
+
+  it("the closed language trigger is a stop: ↑/↓ move on and leave its list closed", () => {
+    renderMenu();
+    fireEvent.click(screen.getByTestId("user-menu-trigger"));
+    const language = screen.getByTestId("language-switcher");
+    language.focus();
+    fireEvent.keyDown(language, { key: "ArrowDown" });
+    expect(screen.getByTestId("theme-option-system")).toHaveFocus();
+    expect(language).toHaveAttribute("aria-expanded", "false");
+    language.focus();
+    fireEvent.keyDown(language, { key: "ArrowUp" });
+    expect(screen.getByTestId("user-menu-profile")).toHaveFocus();
+    expect(language).toHaveAttribute("aria-expanded", "false");
+    expect(screen.queryByRole("listbox")).toBeNull();
+  });
+
+  it("from an inactive appearance option ↓/↑ go to the stop after/before it", () => {
+    renderMenu({ appearance: "system" });
+    fireEvent.click(screen.getByTestId("user-menu-trigger"));
+    const light = screen.getByTestId("theme-option-light");
+    light.focus();
+    fireEvent.keyDown(light, { key: "ArrowDown" });
+    expect(screen.getByTestId("user-menu-change-password")).toHaveFocus();
+    light.focus();
+    fireEvent.keyDown(light, { key: "ArrowUp" });
+    expect(screen.getByTestId("theme-option-system")).toHaveFocus();
+    const dark = screen.getByTestId("theme-option-dark");
+    dark.focus();
+    fireEvent.keyDown(dark, { key: "ArrowUp" });
+    expect(screen.getByTestId("theme-option-system")).toHaveFocus();
+  });
+
+  it("keys from a portal outside the panel's DOM are not the panel's", () => {
+    function Portalled() {
+      return createPortal(
+        <button type="button" data-testid="portalled">
+          outside
+        </button>,
+        document.body,
+      );
+    }
+    render(
+      <UserMenu
+        name="ada"
+        language="en"
+        onLanguageChange={vi.fn()}
+        appearance="system"
+        onAppearanceChange={vi.fn()}
+        onProfile={vi.fn()}
+        onSecurity={vi.fn()}
+        onLogOut={vi.fn()}
+      >
+        <Portalled />
+      </UserMenu>,
+    );
+    fireEvent.click(screen.getByTestId("user-menu-trigger"));
+    const outside = screen.getByTestId("portalled");
+    outside.focus();
+    fireEvent.keyDown(outside, { key: "ArrowDown" });
+    expect(outside).toHaveFocus();
   });
 
   it("shows the unavailable Change password entry even without onChangePassword", () => {

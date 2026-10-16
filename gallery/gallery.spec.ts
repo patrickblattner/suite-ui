@@ -2651,9 +2651,13 @@ test("shell: the user menu by keyboard, unavailable entries included", async ({ 
   await page.keyboard.press("Enter");
   await expect(menu).toBeVisible();
   await page.keyboard.press("ArrowDown");
-  await expect(menu.getByTestId("language-switcher")).toBeFocused();
-  // Of the appearance options only the active one is a stop.
-  await menu.locator("[data-testid^=theme-option-][aria-checked=true]").focus();
+  const language = menu.getByTestId("language-switcher");
+  await expect(language).toBeFocused();
+  // The closed language trigger passes ↓ on, its list stays closed; of the appearance options only
+  // the active one is a stop.
+  await page.keyboard.press("ArrowDown");
+  await expect(language).toHaveAttribute("aria-expanded", "false");
+  await expect(menu.locator("[data-testid^=theme-option-][aria-checked=true]")).toBeFocused();
   await page.keyboard.press("ArrowDown");
   const password = menu.getByTestId("user-menu-change-password");
   await expect(password).toBeFocused();
