@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.108.1 — #183: tooltip stays inside a narrow viewport
+
+Fix, not breaking. Where neither side of its element has room for the full bubble (e.g. at 360px), the tooltip of `TooltipContent` / `IconButtonTooltip` / `Hint` narrows to the room left on its side and wraps, instead of overflowing the viewport. Placement is unchanged: to the right, flipped to the left, never above or below.
+
 ## 0.108.0 — #180, SUI-FEATURE-083 rev 2: useEditShortcuts scope
 
 Not breaking. `useEditShortcuts` takes `scope` (`RefObject<HTMLElement | null>`).

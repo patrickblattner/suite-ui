@@ -89,7 +89,9 @@ function CloseOnFocusOutside() {
 
 // The bubble stands to the right of its element, its top edge 4 px above the element's, 8 px apart;
 // without room on the right it flips to the left with the same offsets, never above or below, so it
-// covers neither the element nor the neighbour rows. Apps set no placement of their own.
+// covers neither the element nor the neighbour rows. Where neither side has room for its full width
+// (a narrow viewport), it narrows to the room left on its side and wraps, staying inside the viewport
+// (#183). Apps set no placement of their own.
 function TooltipContent({
   className,
   collisionPadding = 8,
@@ -109,7 +111,7 @@ function TooltipContent({
         alignOffset={-4}
         collisionPadding={collisionPadding}
         className={cn(
-          "z-50 max-w-xs origin-(--radix-tooltip-content-transform-origin) rounded-md bg-primary px-3 py-1.5 text-xs text-balance text-primary-foreground",
+          "z-50 max-w-[min(var(--container-xs),var(--radix-tooltip-content-available-width,var(--container-xs)))] origin-(--radix-tooltip-content-transform-origin) rounded-md bg-primary px-3 py-1.5 text-xs text-balance text-primary-foreground",
           className,
         )}
         {...props}

@@ -4347,6 +4347,32 @@ test("keyboard: Delete in a dialog with its own selection, through the confirmat
   await expect(dialog.getByTestId("keys-dialog-delete")).toBeDisabled();
 });
 
+// #183: at 360px neither side of the disabled trash has room for the full bubble; it narrows to the
+// room on its side and stays inside the viewport, its reason readable.
+test("tooltip: at 360px the bubble stays inside the viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 800 });
+  await page.goto("/?page=keys&lng=es");
+  await page.getByTestId("keys-dialog-trigger").click();
+  const dialog = page.getByTestId("keys-dialog-content");
+  const confirm = page.getByTestId("keys-dialog-confirm");
+  for (let left = 3; left > 0; left--) {
+    await dialog.getByTestId("keys-dialog-delete").click();
+    await confirm.getByRole("button", { name: "Eliminar" }).click();
+    await expect(confirm).toHaveCount(0);
+  }
+  await expect(dialog.getByTestId("keys-dialog-empty")).toBeVisible();
+  await dialog.getByTestId("keys-dialog-delete").locator("..").hover();
+  const bubble = page.locator("[data-slot=tooltip-content]");
+  await expect(bubble).toContainText("Posible en cuanto se elija un elemento");
+  await page.waitForFunction(() =>
+    document.getAnimations().every((animation) => animation.playState !== "running"),
+  );
+  const box = await bubble.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.x).toBeGreaterThanOrEqual(0);
+  expect(box!.x + box!.width).toBeLessThanOrEqual(360);
+});
+
 test("keyboard: Delete and Backspace open the confirm dialog, Cancel keeps the row", async ({
   page,
 }) => {
