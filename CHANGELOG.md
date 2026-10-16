@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.110.1 — #184: locked Save and pager chevrons keep a full-contrast focus ring
+
+Fix, not breaking (WCAG 1.4.11). In `MediaDetailShell` the locked Save (nothing to save) and the locked ‹/› chevrons at the ends no longer dim with element `opacity-50`, which also dimmed their focus ring to about 1.85:1. Save shows its locked look by half-tone fill and text, the chevrons by a half-tone icon without hover tint; the element stays opaque, so the ring keeps full contrast. A running Save (busy) stays at full colour. Changed baselines: `media-detail-de-dark.png`, `media-detail-en-dark.png` and `media-detail-es-dark.png`, 3 pixels each in the Save icon, as the gallery compares them (Playwright's default colour threshold 0.2, no pixel allowance). The light `media-detail` baselines are unchanged: there the Save label's new slight tint stays below that threshold.
+
 ## 0.110.0 — #182, SUI-FEATURE-085 rev 2: focus after the delete dialog and Save, guarded pick
 
 Not breaking; no new props.

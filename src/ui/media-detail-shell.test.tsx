@@ -89,6 +89,27 @@ describe("MediaDetailShell", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
+  // #184: the locked chevron dims its icon, not the element, so its focus ring keeps its contrast.
+  it("a locked chevron is half-tone, never element opacity", () => {
+    renderShell({ position: 1, total: 2 });
+    const previous = screen.getByTestId("media-detail-previous");
+    expect(previous).toHaveClass("aria-disabled:text-foreground/50");
+    expect(previous).not.toHaveClass("aria-disabled:opacity-50");
+    // The ghost variant's dark hover colour must not bring the full icon back.
+    expect(previous).toHaveClass(
+      "aria-disabled:hover:text-foreground/50",
+      "dark:aria-disabled:hover:text-foreground/50",
+    );
+  });
+
+  it("a running Save stays at full colour, without the half-tone classes", () => {
+    renderShell({ dirty: false, saving: true });
+    const save = screen.getByTestId("media-detail-save");
+    expect(save).toHaveAttribute("data-busy", "true");
+    expect(save).not.toHaveClass("bg-success/50");
+    expect(save).not.toHaveClass("text-success-foreground/50");
+  });
+
   it("arrows in a text field belong to the field", () => {
     const { onPrev, onNext } = renderShell();
     fireEvent.keyDown(screen.getByLabelText("Name"), { key: "ArrowRight" });
@@ -127,7 +148,8 @@ describe("MediaDetailShell", () => {
     const save = screen.getByTestId("media-detail-save");
     expect(save).toBeEnabled();
     expect(save).toHaveAttribute("aria-disabled", "true");
-    expect(save).toHaveClass("opacity-50", "cursor-not-allowed");
+    expect(save).toHaveClass("bg-success/50", "text-success-foreground/50", "cursor-not-allowed");
+    expect(save).not.toHaveClass("opacity-50");
     fireEvent.click(save);
     fireEvent.submit(screen.getByLabelText("Name"));
     expect(onSave).not.toHaveBeenCalled();

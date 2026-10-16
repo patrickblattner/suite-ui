@@ -257,6 +257,11 @@ function MediaPreview({
   }
 }
 
+// A locked pager chevron stays focusable (`aria-disabled`); its locked look is the half-tone icon,
+// not element opacity, which would dim its focus ring below 3:1 (WCAG 1.4.11, #184).
+const LOCKED_CHEVRON_CLASS =
+  "aria-disabled:cursor-not-allowed aria-disabled:text-foreground/50 aria-disabled:hover:bg-transparent aria-disabled:hover:text-foreground/50 dark:aria-disabled:hover:bg-transparent dark:aria-disabled:hover:text-foreground/50";
+
 // "Choose this media item": an entry without a file is not choosable, locked with its reason
 // (`SUI-FEATURE-140`).
 function PickButton({ onClick, locked }: { onClick: () => void; locked: boolean }) {
@@ -431,7 +436,7 @@ function MediaDetailShell({
                         variant="ghost"
                         size="icon-sm"
                         aria-disabled={first || undefined}
-                        className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+                        className={LOCKED_CHEVRON_CLASS}
                         onClick={previous}
                         data-testid="media-detail-previous"
                       >
@@ -444,7 +449,7 @@ function MediaDetailShell({
                         variant="ghost"
                         size="icon-sm"
                         aria-disabled={last || undefined}
-                        className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+                        className={LOCKED_CHEVRON_CLASS}
                         onClick={next}
                         data-testid="media-detail-next"
                       >
@@ -552,7 +557,7 @@ function MediaDetailShell({
                 {t("actions.reset")}
               </Button>
               {/* Locked with `aria-disabled`, not `disabled`, when there is nothing to save: it keeps
-                  the focus after a save (`SUI-FEATURE-085`) and looks as the disabled button did;
+                  the focus after a save (`SUI-FEATURE-085`) and looks locked by half-tone colours;
                   the form's submit saves only while dirty. */}
               <Button
                 type="submit"
@@ -561,7 +566,10 @@ function MediaDetailShell({
                 {...(dirty ? {} : { "aria-disabled": true })}
                 busy={saving}
                 className={cn(
-                  !dirty && !saving && "cursor-not-allowed opacity-50 hover:bg-success",
+                  // Half-tone fill and text, not element opacity, which would dim the focus ring.
+                  !dirty &&
+                    !saving &&
+                    "cursor-not-allowed bg-success/50 text-success-foreground/50 hover:bg-success/50",
                 )}
                 data-testid="media-detail-save"
               >

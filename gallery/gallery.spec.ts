@@ -1811,15 +1811,63 @@ test("media detail shell: Used by switches the preview column to the usages", as
   await expect(shell.getByRole("button", { name: "Used by (0)" })).toBeDisabled();
 });
 
+// #184 (WCAG 1.4.11): a locked Save and a locked chevron keep focusable and opaque; their focus ring
+// is the same as on an unlocked button, at full contrast, not dimmed by element opacity.
+test("media detail shell: locked Save and chevron keep the full focus ring", async ({ page }) => {
+  const shell = await openMediaDetail(page);
+  const ring = (locator: ReturnType<Page["getByTestId"]>) =>
+    locator.evaluate((node) => {
+      let opacity = 1;
+      for (let el: Element | null = node; el; el = el.parentElement)
+        opacity *= Number(getComputedStyle(el).opacity);
+      return { opacity, shadow: getComputedStyle(node).boxShadow };
+    });
+  const previous = shell.getByTestId("media-detail-previous");
+  const next = shell.getByTestId("media-detail-next");
+  const save = shell.getByTestId("media-detail-save");
+  await expect(previous).toHaveAttribute("aria-disabled", "true");
+  await expect(save).toHaveAttribute("aria-disabled", "true");
+  await next.focus();
+  await page.keyboard.press("Shift+Tab");
+  await expect(previous).toBeFocused();
+  const locked = await ring(previous);
+  await page.keyboard.press("Tab");
+  await expect(next).toBeFocused();
+  const unlocked = await ring(next);
+  expect(locked.opacity).toBe(1);
+  expect(locked.shadow).not.toBe("none");
+  expect(locked.shadow).toBe(unlocked.shadow);
+  await save.focus();
+  await page.keyboard.press("Shift+Tab");
+  await page.keyboard.press("Tab");
+  await expect(save).toBeFocused();
+  const lockedSave = await ring(save);
+  expect(lockedSave.opacity).toBe(1);
+  expect(lockedSave.shadow).not.toBe("none");
+});
+
+// #184: in dark mode too, hovering a locked chevron keeps its half-tone icon.
+test("media detail shell: a hovered locked chevron stays half-tone in dark mode", async ({
+  page,
+}) => {
+  const shell = await openMediaDetail(page, "&theme=dark");
+  const previous = shell.getByTestId("media-detail-previous");
+  await expect(previous).toHaveAttribute("aria-disabled", "true");
+  const before = await previous.evaluate((node) => getComputedStyle(node).color);
+  await previous.hover();
+  await expect(previous).toHaveCSS("color", before);
+});
+
 // `SUI-FEATURE-061` AC 2: the pair follows the dirty state, Save carries the working state.
 test("media detail shell: Reset and Save follow the dirty state", async ({ page }) => {
   const shell = await openMediaDetail(page);
   const reset = shell.getByTestId("media-detail-reset");
   const save = shell.getByTestId("media-detail-save");
   await expect(reset).toBeDisabled();
-  // SUI-FEATURE-085: Save is locked with aria-disabled, focusable, at half opacity as before.
+  // SUI-FEATURE-085: Save is locked with aria-disabled and focusable. #184: in half-tone colours, the
+  // element stays opaque so its focus ring keeps full contrast.
   await expect(save).toHaveAttribute("aria-disabled", "true");
-  await expect(save).toHaveCSS("opacity", "0.5");
+  await expect(save).toHaveCSS("opacity", "1");
   await shell.getByLabel("Name").fill("renamed.jpg");
   await expect(reset).toBeEnabled();
   await expect(save).not.toHaveAttribute("aria-disabled");
