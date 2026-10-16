@@ -21,6 +21,7 @@ import { PANEL_SURFACE_CLASS, usePanelGeometry } from "../lib/panel-geometry.js"
 import { Button } from "./button.js";
 import { FIELD_SELECTOR } from "./dialog.js";
 import { useFocusAfterRun } from "./focus-return.js";
+import { Hint } from "./hint.js";
 import { useLeaveConfirm } from "./leave-guard.js";
 import { Sheet, SheetTitle } from "./sheet.js";
 import { IconButtonTooltip } from "./tooltip.js";
@@ -60,7 +61,8 @@ type MediaDetailShellProps = {
   onSave: () => unknown;
   // Brings back the last saved state, without asking.
   onReset: () => void;
-  // Given, the head carries "Choose this media item" (the picker).
+  // Given, the head carries "Choose this media item" (the picker); locked while `previewState` says
+  // the entry has no file.
   pickAction?: () => void;
   // The right column, top to bottom below "Details".
   facts?: React.ReactNode;
@@ -117,6 +119,16 @@ function TextPreview({
 }) {
   const { t } = useTranslation("suite");
   const { shown, truncated } = React.useMemo(() => textPreview(text, format), [text, format]);
+  if (text === "") {
+    return (
+      <p
+        className="p-6 text-center text-sm text-muted-foreground"
+        data-testid="media-detail-empty-text"
+      >
+        {t("media.emptyText")}
+      </p>
+    );
+  }
   return (
     <div className="flex size-full flex-col">
       {/* Its own scroll region, reachable by keyboard. */}
@@ -206,6 +218,32 @@ function MediaPreview({
   }
 }
 
+// "Choose this media item": an entry without a file is not choosable, locked with its reason
+// (`SUI-FEATURE-140`).
+function PickButton({ onClick, locked }: { onClick: () => void; locked: boolean }) {
+  const { t } = useTranslation("suite");
+  const button = (
+    <Button
+      type="button"
+      variant="default"
+      size="sm"
+      disabled={locked}
+      onClick={onClick}
+      data-testid="media-detail-pick"
+    >
+      <CheckIcon aria-hidden="true" />
+      {t("media.pick")}
+    </Button>
+  );
+  if (!locked) return button;
+  const reason = t("media.pickUnavailable");
+  return (
+    <Hint text={reason} disabledText={reason}>
+      {button}
+    </Hint>
+  );
+}
+
 const SLOTS = ["facts", "fields", "suggest", "actions"] as const;
 
 // The media detail view (`GL-UI-002`, `SUI-FEATURE-061`): its own panel surface with the geometry of
@@ -213,7 +251,7 @@ const SLOTS = ["facts", "fields", "suggest", "actions"] as const;
 // pick), details right in a fixed slot order; below the package's `panel-split` width the preview
 // stacks on top. The footer carries Reset and Save as the dirty-state pair (`GL-UI-027`). ← and →
 // page, `Esc` closes; with unsaved changes both ask first (`GL-UI-007`). A `previewState` takes the
-// preview's place with icon and sentence; a text medium shows in its own scroll region, in the base family
+// preview's place with icon and sentence, and without a file locks the pick; a text medium shows in its own scroll region, in the base family
 // (`SUI-FEATURE-140`).
 function MediaDetailShell({
   open = true,
@@ -388,16 +426,10 @@ function MediaDetailShell({
                     <div className="ms-auto flex items-center gap-2">
                       {usageButton}
                       {pickAction !== undefined && (
-                        <Button
-                          type="button"
-                          variant="default"
-                          size="sm"
+                        <PickButton
                           onClick={pickAction}
-                          data-testid="media-detail-pick"
-                        >
-                          <CheckIcon aria-hidden="true" />
-                          {t("media.pick")}
-                        </Button>
+                          locked={previewState === "missingRef" || previewState === "missingBytes"}
+                        />
                       )}
                       <IconButtonTooltip label={t("actions.close")}>
                         <Button

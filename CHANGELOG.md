@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.103.0 — #169, SUI-FEATURE-140 rev 4: MediaDetailShell locked pick and empty text
+
+Not breaking. New strings `media.pickUnavailable`, `media.emptyText`; `media.missingRef` and `media.missingBytes` reworded, `missingBytes` now names the next step (de/en/es).
+
+- In `previewState` `"missingRef"` and `"missingBytes"` the head's pick (`pickAction`) is locked, with the reason "Can't be chosen without a file." as its tooltip and, on keyboard focus, its description. In `"noRenderer"` picking stays possible.
+- `kind="text"` with an empty `text` shows "The file is empty." instead of an empty region.
+
 ## 0.102.0 — #166, SUI-FEATURE-140 rev 3: MediaDetailShell preview states and text preview
 
 Not breaking. `MediaDetailShell` takes `previewState`, `previewDetail`, `text` and `format`; `src` is now optional; `MediaDetailKind` gains `"text"`. New type export `MediaPreviewState`. New strings `media.missingRef`, `media.missingBytes`, `media.noRenderer`, `media.truncated` (de/en/es).

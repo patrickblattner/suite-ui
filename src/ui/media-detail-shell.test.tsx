@@ -333,12 +333,20 @@ describe("MediaDetailShell", () => {
 describe("MediaDetailShell: preview states and text (SUI-FEATURE-140)", () => {
   // AC 1
   it.each([
-    ["de", "missingRef", "Kein Objekt verknüpft."],
-    ["en", "missingRef", "No object linked."],
-    ["es", "missingRef", "Ningún objeto vinculado."],
-    ["de", "missingBytes", "Datei fehlt im Speicher."],
-    ["en", "missingBytes", "File missing from storage."],
-    ["es", "missingBytes", "Archivo ausente del almacenamiento."],
+    ["de", "missingRef", "Diesem Eintrag ist keine Datei zugeordnet."],
+    ["en", "missingRef", "No file is attached to this entry."],
+    ["es", "missingRef", "Esta entrada no tiene ningún archivo."],
+    [
+      "de",
+      "missingBytes",
+      "Die Datei ist nicht mehr vorhanden. Lade sie neu hoch oder entferne den Eintrag.",
+    ],
+    ["en", "missingBytes", "The file is no longer available. Upload it again or remove the entry."],
+    [
+      "es",
+      "missingBytes",
+      "El archivo ya no está disponible. Súbelo de nuevo o elimina la entrada.",
+    ],
     ["de", "noRenderer", "Für diesen Typ gibt es keine Vorschau."],
     ["en", "noRenderer", "No preview for this type."],
     ["es", "noRenderer", "No hay vista previa para este tipo."],
@@ -388,7 +396,50 @@ describe("MediaDetailShell: preview states and text (SUI-FEATURE-140)", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["de", "missingRef", "Ohne Datei nicht wählbar."],
+    ["en", "missingRef", "Can't be chosen without a file."],
+    ["es", "missingBytes", "No se puede elegir sin archivo."],
+  ] as const)("%s %s: the pick is locked and names its reason", async (lng, state, reason) => {
+    await i18n.changeLanguage(lng);
+    const pick = vi.fn();
+    renderShell({ previewState: state, pickAction: pick });
+    const button = screen.getByTestId("media-detail-pick");
+    expect(button).toBeDisabled();
+    fireEvent.click(button);
+    expect(pick).not.toHaveBeenCalled();
+    // The wrapper takes the focus and carries the reason as its description.
+    const wrapper = button.parentElement!;
+    expect(wrapper).toHaveAttribute("tabindex", "0");
+    expect(wrapper).toHaveAccessibleDescription(reason);
+  });
+
+  it("noRenderer: the pick stays usable", () => {
+    const pick = vi.fn();
+    renderShell({ previewState: "noRenderer", pickAction: pick });
+    const button = screen.getByTestId("media-detail-pick");
+    expect(button).toBeEnabled();
+    fireEvent.click(button);
+    expect(pick).toHaveBeenCalledTimes(1);
+  });
+
   // AC 2
+  it.each([
+    ["de", "Die Datei ist leer."],
+    ["en", "The file is empty."],
+    ["es", "El archivo está vacío."],
+  ] as const)(
+    "%s: an empty text shows the empty hint instead of an empty region",
+    async (lng, hint) => {
+      await i18n.changeLanguage(lng);
+      renderShell({ kind: "text", text: "" });
+      expect(screen.queryByTestId("media-detail-text")).toBeNull();
+      const empty = screen.getByTestId("media-detail-empty-text");
+      expect(empty).toHaveTextContent(hint);
+      expect(empty).toHaveClass("text-muted-foreground");
+    },
+  );
+
   it("kind text: base family (never font-mono), its own scroll, wrapping on, tab size 2", () => {
     renderShell({ kind: "text", text: "line one\nline two" });
     const text = screen.getByTestId("media-detail-text");

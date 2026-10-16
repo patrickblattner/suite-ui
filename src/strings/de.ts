@@ -251,10 +251,13 @@ export const de: SuiteStrings = {
     unused: "nicht verwendet",
     uploadedAt: "Hochgeladen",
     uploadedBy: "Hochgeladen von",
-    missingRef: "Kein Objekt verknüpft.",
-    missingBytes: "Datei fehlt im Speicher.",
+    missingRef: "Diesem Eintrag ist keine Datei zugeordnet.",
+    missingBytes:
+      "Die Datei ist nicht mehr vorhanden. Lade sie neu hoch oder entferne den Eintrag.",
     noRenderer: "Für diesen Typ gibt es keine Vorschau.",
     truncated: "Gekürzt — nur der Anfang wird gezeigt.",
+    pickUnavailable: "Ohne Datei nicht wählbar.",
+    emptyText: "Die Datei ist leer.",
   },
   usage: {
     action: "Verwendet von ({{count}})",
