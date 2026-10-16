@@ -40,6 +40,7 @@
       "src/*.{ts,tsx,css}",
       "gallery/**",
       "test/**",
+      "scripts/**",
       "package.json",
       "package-lock.json",
       "tsconfig.json",
@@ -48,13 +49,27 @@
       "eslint.config.js",
       "spec-sync.config.json"
     ],
-    "security": ["package.json", "package-lock.json", "src/help/help-markdown.tsx"],
+    "security": [
+      "package.json",
+      "package-lock.json",
+      "src/help/help-markdown.tsx",
+      "src/shell/nav.ts",
+      "src/shell/app-sidebar.tsx",
+      "scripts/release.ts"
+    ],
     "ui": ["src/!(strings)/**/!(*.test).tsx", "src/*.css", "gallery/**"],
     "ux": ["src/!(strings)/**/!(*.test).tsx", "gallery/**"]
   },
   "review": {
     "riskGlobs": {
-      "security": ["package.json", "package-lock.json", "src/help/help-markdown.tsx"]
+      "security": [
+        "package.json",
+        "package-lock.json",
+        "src/help/help-markdown.tsx",
+        "src/shell/nav.ts",
+        "src/shell/app-sidebar.tsx",
+        "scripts/release.ts"
+      ]
     },
     "textGlobs": ["src/strings/*"]
   },
