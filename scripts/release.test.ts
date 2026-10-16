@@ -1,6 +1,15 @@
 // @vitest-environment node
 import { execFileSync, spawnSync } from "node:child_process";
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  copyFileSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -88,6 +97,65 @@ describe("release:tag", () => {
     expect(run.status).toBe(0);
     expect(run.out).toContain("v9.9.9 on");
     expect(git("tag", "-l")).toBe("");
+  });
+});
+
+// PROC-DEV-003: after the push, `tag` runs the Codex review of the range from the previous tag; its
+// exit never undoes the tag. A fake `npx` on PATH records its arguments and exits with a given code.
+describe("release:tag review", () => {
+  const tagWithReview = (exit: number) => {
+    const bin = join(repo, ".bin");
+    mkdirSync(bin);
+    writeFileSync(
+      join(bin, "npx"),
+      `#!/bin/sh\necho "$@" > "${join(repo, "npx-args")}"\nexit ${exit}\n`,
+    );
+    chmodSync(join(bin, "npx"), 0o755);
+    const origin = join(repo, ".origin.git");
+    execFileSync("git", ["init", "-q", "--bare", origin]);
+    git("remote", "add", "origin", origin);
+    const run = spawnSync(process.execPath, ["scripts/release.ts", "tag"], {
+      cwd: repo,
+      encoding: "utf8",
+      env: { ...process.env, PATH: `${bin}:${process.env.PATH}` },
+    });
+    const args = existsSync(join(repo, "npx-args"))
+      ? readFileSync(join(repo, "npx-args"), "utf8").trim()
+      : "";
+    return { status: run.status, out: run.stdout + run.stderr, args };
+  };
+
+  beforeEach(() => {
+    writeFileSync(
+      join(repo, ".gitignore"),
+      ".spec-sync/\nnode_modules/\n.bin/\n.origin.git/\nnpx-args\n",
+    );
+    git("tag", "v9.9.8");
+    git("add", ".");
+    git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "next");
+    git("update-ref", "refs/remotes/origin/main", "HEAD");
+    writeRecord({ profile: "merge", exit: 0 });
+  });
+
+  it("reviews the range from the previous tag", () => {
+    const run = tagWithReview(0);
+    expect(run.status).toBe(0);
+    expect(run.args).toBe("spec-sync review tag v9.9.8..v9.9.9");
+    expect(run.out).toContain("Codex review v9.9.8..v9.9.9 clean");
+  });
+
+  it("keeps the tag on open critical/high findings", () => {
+    const run = tagWithReview(1);
+    expect(run.status).toBe(0);
+    expect(run.out).toContain("critical/high findings open — v9.9.9 stays");
+    expect(git("tag", "-l", "v9.9.9")).toBe("v9.9.9");
+  });
+
+  it("logs an unavailable Codex and keeps the tag", () => {
+    const run = tagWithReview(2);
+    expect(run.status).toBe(0);
+    expect(run.out).toContain("unavailable (exit 2)");
+    expect(git("tag", "-l", "v9.9.9")).toBe("v9.9.9");
   });
 });
 

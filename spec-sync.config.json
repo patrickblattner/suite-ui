@@ -52,6 +52,12 @@
     "ui": ["src/!(strings)/**/!(*.test).tsx", "src/*.css", "gallery/**"],
     "ux": ["src/!(strings)/**/!(*.test).tsx", "gallery/**"]
   },
+  "review": {
+    "riskGlobs": {
+      "security": ["package.json", "package-lock.json", "src/help/help-markdown.tsx"]
+    },
+    "textGlobs": ["src/strings/*"]
+  },
   "labels": {
     "build": "spec-sync",
     "audit": "auto-audit",

@@ -5,6 +5,10 @@
 //   npm run release:tag                    # tag HEAD on `main` as v<version> and push, only with that record
 //   npm run release:tag -- --dry-run       # all checks, no tag, no push
 //
+// After the push, `tag` runs the Codex review of the range from the previous tag
+// (`spec-sync review tag <prev>..<new>`, PROC-DEV-003). Its verdict never undoes the tag: exit 1 (critical
+// or high findings open) is reported for follow-up tickets, exit 2 (Codex unavailable) is one log line.
+//
 // `record` writes `.spec-sync/gate-records/<tree hash>.json` only on exit 0 with a clean working tree
 // before and after the run, and only when exactly the merge profile's phases ran. Before the gate it
 // compares every installed version with package-lock.json and runs `npm ls --all`; a difference ends
@@ -149,6 +153,10 @@ function tag(args: string[]): void {
   if (spawnSync("git", ["rev-parse", "-q", "--verify", `refs/tags/${name}`]).status === 0) {
     fail(`${name} exists already — no tag`);
   }
+  const describe = spawnSync("git", ["describe", "--tags", "--abbrev=0", "--match", "v*", commit], {
+    encoding: "utf8",
+  });
+  const previous = describe.status === 0 ? describe.stdout.trim() : "";
   const path = recordPath(git("rev-parse", "HEAD^{tree}"));
   if (!existsSync(path)) {
     fail(`no green gate record for ${commit} (run npm run gate:record) — ${name} not created`);
@@ -170,6 +178,27 @@ function tag(args: string[]): void {
     fail(`pushing ${name} failed — the local tag is deleted again`);
   }
   console.log(`release tag: ${name} on ${commit} (gate record ${path})`);
+  review(previous, name);
+}
+
+function review(previous: string, name: string): void {
+  if (previous === "") {
+    console.error(`release tag: no previous tag before ${name} — no Codex review`);
+    return;
+  }
+  const range = `${previous}..${name}`;
+  const run = spawnSync("npx", ["spec-sync", "review", "tag", range], { stdio: "inherit" });
+  if (run.status === 0) console.error(`release tag: Codex review ${range} clean`);
+  else if (run.status === 1)
+    console.error(
+      `release tag: Codex review ${range} has critical/high findings open — ${name} stays`,
+    );
+  else if (run.status === 2)
+    console.error(`release tag: Codex review ${range} unavailable (exit 2)`);
+  else
+    console.error(
+      `release tag: Codex review ${range} ended with exit ${run.status} — ${name} stays`,
+    );
 }
 
 const [mode, ...rest] = process.argv.slice(2);
