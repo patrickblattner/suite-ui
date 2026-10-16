@@ -1348,7 +1348,7 @@ test("media detail shell: image, video and PDF, paged by the head and the arrow 
   await expect(shell).toBeHidden();
 });
 
-// `SUI-FEATURE-140`: plain text, JSON indented, then the three preview states; paging and the
+// `SUI-FEATURE-140` rev 3: plain text, JSON indented, then the three preview states; paging and the
 // details stay in place.
 test("media detail shell: text in both formats and the three preview states", async ({ page }) => {
   await page.goto("/?page=edit-panel&lng=en");
@@ -1361,6 +1361,11 @@ test("media detail shell: text in both formats and the three preview states", as
   await expect(text).toContainText("Release notes");
   expect(await text.evaluate((el) => getComputedStyle(el).whiteSpace)).toBe("pre-wrap");
   expect(await text.evaluate((el) => getComputedStyle(el).overflowY)).toBe("auto");
+  expect(await text.evaluate((el) => getComputedStyle(el).tabSize)).toBe("2");
+  // The base family, never monospace (`GL-UI-010`).
+  expect(await text.evaluate((el) => getComputedStyle(el).fontFamily)).toBe(
+    await page.evaluate(() => getComputedStyle(document.body).fontFamily),
+  );
   await shell.getByTestId("media-detail-next").click();
   await expect(position).toHaveText("2 of 5");
   await expect(text).toContainText('"locale": "de-CH",');

@@ -115,7 +115,7 @@ function TextPreview({
         tabIndex={0}
         aria-label={alt || undefined}
         data-testid="media-detail-text"
-        className="min-h-0 flex-1 overflow-auto p-4 font-mono text-sm whitespace-pre-wrap [overflow-wrap:anywhere] outline-none focus-visible:focus-ring rounded-md"
+        className="min-h-0 flex-1 overflow-auto p-4 [font-family:inherit] text-sm whitespace-pre-wrap [tab-size:2] [overflow-wrap:anywhere] outline-none focus-visible:focus-ring rounded-md"
       >
         {shown}
       </pre>
@@ -203,7 +203,7 @@ const SLOTS = ["facts", "fields", "suggest", "actions"] as const;
 // pick), details right in a fixed slot order; below the package's `panel-split` width the preview
 // stacks on top. The footer carries Reset and Save as the dirty-state pair (`GL-UI-027`). ← and →
 // page, `Esc` closes; with unsaved changes both ask first (`GL-UI-007`). A `previewState` takes the
-// preview's place with icon and sentence; a text medium shows in a monospace scroll region
+// preview's place with icon and sentence; a text medium shows in its own scroll region, in the base family
 // (`SUI-FEATURE-140`).
 function MediaDetailShell({
   open = true,

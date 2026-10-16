@@ -389,12 +389,18 @@ describe("MediaDetailShell: preview states and text (SUI-FEATURE-140)", () => {
   });
 
   // AC 2
-  it("kind text: monospace, its own scroll, wrapping on", () => {
+  it("kind text: base family (never font-mono), its own scroll, wrapping on, tab size 2", () => {
     renderShell({ kind: "text", text: "line one\nline two" });
     const text = screen.getByTestId("media-detail-text");
     expect(text.tagName).toBe("PRE");
     expect(text.textContent).toBe("line one\nline two");
-    expect(text).toHaveClass("font-mono", "overflow-auto", "whitespace-pre-wrap");
+    expect(text).toHaveClass(
+      "[font-family:inherit]",
+      "overflow-auto",
+      "whitespace-pre-wrap",
+      "[tab-size:2]",
+    );
+    expect(text).not.toHaveClass("font-mono");
     expect(text).toHaveAttribute("tabindex", "0");
     expect(screen.queryByTestId("media-detail-truncated")).toBeNull();
   });

@@ -1,11 +1,11 @@
 # Changelog
 
-## 0.102.0 — #166, SUI-FEATURE-140 rev 2: MediaDetailShell preview states and text preview
+## 0.102.0 — #166, SUI-FEATURE-140 rev 3: MediaDetailShell preview states and text preview
 
 Not breaking. `MediaDetailShell` takes `previewState`, `previewDetail`, `text` and `format`; `src` is now optional; `MediaDetailKind` gains `"text"`. New type export `MediaPreviewState`. New strings `media.missingRef`, `media.missingBytes`, `media.noRenderer`, `media.truncated` (de/en/es).
 
 - `previewState` (`"missingRef" | "missingBytes" | "noRenderer"`) replaces the preview by `kind` with an icon, one sentence and, muted below it, the optional `previewDetail`. Head, paging, details and footer keep working.
-- `kind="text"` shows `text` in a monospace scroll region with wrapping; `format="json"` indents valid JSON, invalid JSON stays plain. Past 200 KB (UTF-8) only the beginning shows, with a muted note.
+- `kind="text"` shows `text` in its own scroll region in the base family (never monospace, `GL-UI-010`), whitespace kept, wrapping on, tab size 2; `format="json"` indents valid JSON, invalid JSON stays plain. Past 200 KB (UTF-8) only the beginning shows, with a muted note.
 
 ## 0.101.0 — #165, SUI-FEATURE-130 rev 3: DropdownMenu submenu
 
