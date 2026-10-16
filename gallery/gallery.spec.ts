@@ -2223,6 +2223,92 @@ test("shell: a deep link opens the section; the mark stays without the pointer",
   await expect(active).toHaveAttribute("aria-current", "page");
 });
 
+// `GL-UI-019` §Aktiver Eintrag / §Abnahme, `GL-UI-060`: the active entry carries the tint class itself
+// (not the hover class that shares its substring) and a 3 px bar at the sidebar's left edge, at the
+// entry's height — the same in every mode, clear of the icon, with normal weight and stroke.
+async function activeMark(page: Page, testId: string) {
+  const row = page.getByTestId(testId);
+  await expect(row).toHaveAttribute("aria-current", "page");
+  const classes = ((await row.getAttribute("class")) ?? "").split(/\s+/);
+  expect(classes).toContain("aria-[current=page]:bg-accent");
+  const bar = row.locator("[data-slot=nav-active-bar]");
+  await expect(bar).toBeVisible();
+  const [rowBox, barBox, iconBox, sidebarBox] = await Promise.all([
+    box(row),
+    box(bar),
+    box(row.locator("svg").first()),
+    box(page.getByTestId("app-sidebar")),
+  ]);
+  const style = await row.evaluate((el) => {
+    const own = getComputedStyle(el);
+    return {
+      bar: getComputedStyle(el.querySelector("[data-slot=nav-active-bar]")!).backgroundColor,
+      background: own.backgroundColor,
+      weight: own.fontWeight,
+      stroke: getComputedStyle(el.querySelector("svg")!).strokeWidth,
+    };
+  });
+  expect(style.background).toBe(await utilityColor(page, "bg-accent", "backgroundColor"));
+  expect(style.weight).toBe("400");
+  expect(barBox.width).toBe(3);
+  expect(barBox.x).toBe(sidebarBox.x);
+  expect(barBox.y).toBeGreaterThanOrEqual(rowBox.y);
+  expect(barBox.y + barBox.height).toBeLessThanOrEqual(rowBox.y + rowBox.height);
+  expect(barBox.y - rowBox.y).toBe(rowBox.y + rowBox.height - (barBox.y + barBox.height));
+  expect(barBox.x + barBox.width).toBeLessThan(iconBox.x);
+  const sidebarBackground = await page
+    .getByTestId("app-sidebar")
+    .evaluate((el) => getComputedStyle(el).backgroundColor);
+  expect(await contrastOf(page, style.bar, sidebarBackground)).toBeGreaterThanOrEqual(3);
+  return { width: barBox.width, height: barBox.height, bar: style.bar, stroke: style.stroke };
+}
+
+for (const theme of THEMES) {
+  test(`shell: the active entry carries its tint and the bar in every mode ${theme}`, async ({
+    page,
+  }) => {
+    await page.goto(`/?page=shell&route=/dashboard&lng=en&theme=${theme}`);
+    await page.mouse.move(1900, 1060);
+    const label = page.getByTestId("nav-dashboard").locator("span.truncate");
+    const textWidth = (await box(label)).width;
+    const expanded = await activeMark(page, "nav-dashboard");
+    const plainStroke = await page
+      .getByTestId("nav-ideas")
+      .evaluate((el) => getComputedStyle(el.querySelector("svg")!).strokeWidth);
+    expect(expanded.stroke).toBe(plainStroke);
+    // The text keeps its width: the same label inactive measures the same.
+    await page.getByTestId("nav-ideas").click();
+    await page.mouse.move(1900, 1060);
+    expect((await box(label)).width).toBe(textWidth);
+    await page.getByTestId("nav-dashboard").click();
+
+    await page.getByTestId("sidebar-trigger").click();
+    await expect(page.getByTestId("app-sidebar")).toHaveAttribute("data-state", "collapsed");
+    // The rail narrows over 200 ms; measure once it has settled at 3.5rem.
+    await expect.poll(async () => (await box(page.getByTestId("app-sidebar"))).width).toBe(56);
+    await page.mouse.move(1900, 1060);
+    expect(await activeMark(page, "nav-dashboard")).toEqual(expanded);
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByTestId("sidebar-overlay-trigger").click();
+    await expect(page.getByTestId("app-sidebar")).toBeVisible();
+    expect(await activeMark(page, "nav-dashboard")).toEqual(expanded);
+  });
+}
+
+// `GL-UI-060`: in forced colours row and sidebar both render Canvas; the bar keeps the signal.
+test("shell: the active entry's bar stays visible in forced colours", async ({ page }) => {
+  await page.emulateMedia({ forcedColors: "active" });
+  await page.goto("/?page=shell&route=/dashboard&lng=en");
+  const bar = page.getByTestId("nav-dashboard").locator("[data-slot=nav-active-bar]");
+  await expect(bar).toBeVisible();
+  const barColor = await bar.evaluate((el) => getComputedStyle(el).backgroundColor);
+  const sidebarColor = await page
+    .getByTestId("app-sidebar")
+    .evaluate((el) => getComputedStyle(el).backgroundColor);
+  expect(barColor).not.toBe(sidebarColor);
+});
+
 test("shell: ‹ Settings leads to the dashboard and restores the primary nav", async ({ page }) => {
   await page.goto("/?page=shell&route=/settings/ai");
   const back = page.getByTestId("nav-back");

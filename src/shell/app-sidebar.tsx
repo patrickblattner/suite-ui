@@ -125,9 +125,22 @@ function AppSidebar({
             className={cn(
               rowClass,
               "aria-[current=page]:bg-accent aria-[current=page]:text-accent-foreground",
+              // Not positioned: the bar below takes the nav's scroll area (`relative`, spanning the
+              // sidebar) as its frame.
+              "group static",
               !isOpen && "justify-center px-0",
             )}
           >
+            {/* The non-colour signal of the active entry (`GL-UI-019`, `GL-UI-060`): a 3 px bar at the
+                sidebar's left edge, centred on the entry, the same in every mode. Out of the flow, so it
+                never touches the icon or the text width. It has no `top`, so it stays at its static
+                position, which the row's `items-center` centres vertically. In forced colours it takes
+                `CanvasText`, since row, bar and sidebar would otherwise all render `Canvas`. */}
+            <span
+              aria-hidden="true"
+              data-slot="nav-active-bar"
+              className="absolute left-0 hidden h-5 w-[3px] rounded-r-full bg-foreground group-aria-[current=page]:block forced-colors:bg-[CanvasText]"
+            />
             <span className="relative inline-flex shrink-0">
               <Icon className="size-4" aria-hidden="true" />
               {count > 0 && !isOpen && (
@@ -236,6 +249,7 @@ function AppSidebar({
 
         {search}
 
+        {/* `relative`: the frame of the active entry's bar, which sits at its left edge. */}
         <div
           className={cn(
             "relative min-h-0 flex-1 overflow-y-auto px-2 py-2",
