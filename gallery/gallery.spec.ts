@@ -2769,8 +2769,8 @@ test("shell: unavailable entries name the missing role", async ({ page }) => {
 });
 
 // `SUI-FEATURE-082` rev 4: ↓ from the open trigger enters the panel; the panel closes when the focus
-// leaves it, but not while the language list is open or a language is picked; the app's toggle reads
-// as pressed.
+// leaves it, but not while the language list is open or a language is picked; rev 5: the app's
+// toggle switches its label.
 test("shell: the user menu closes when the focus leaves it", async ({ page }) => {
   await page.goto("/?page=shell&lng=en");
   const trigger = page.getByTestId("user-menu-trigger");
@@ -2793,10 +2793,14 @@ test("shell: the user menu closes when the focus leaves it", async ({ page }) =>
   await expect(menu).toBeHidden();
 
   await trigger.click();
+  // SUI-FEATURE-082 rev 5 AC5: the toggle's label names the next action and switches on a click; no
+  // pressed or checked state.
   const toggle = menu.getByTestId("user-menu-notifications");
-  await expect(toggle).toHaveAttribute("aria-pressed", "false");
+  await expect(toggle).toHaveAccessibleName("Turn notifications on");
   await toggle.click();
-  await expect(toggle).toHaveAttribute("aria-pressed", "true");
+  await expect(toggle).toHaveAccessibleName("Turn notifications off");
+  await expect(toggle).not.toHaveAttribute("aria-pressed");
+  await expect(toggle).not.toHaveAttribute("aria-checked");
   await menu.getByTestId("language-switcher").click();
   await expect(page.getByTestId("language-option-es")).toBeVisible();
   await expect(menu).toBeVisible();

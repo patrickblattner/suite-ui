@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.113.0 — #188, SUI-FEATURE-082 rev 5/6: user-menu toggles switch their label, `UserMenuItem` drops `pressed`
+
+Breaking for apps that pass `pressed`. No visual change to the package.
+
+**Migration:**
+
+- `UserMenuItem` no longer takes `pressed` (added in 0.107.0, #179). An app toggle in the user menu is a plain entry whose label names the next action, such as "Turn notifications on" or "Turn notifications off". The app passes the matching `label` for the current state and keeps `keepOpen`.
+- There is no `aria-pressed` and no `aria-checked` on such a toggle: with a switching label, a separate state would be announced twice and could contradict the label.
+- Cockpit keeps its switching text and drops `role="menuitemcheckbox"` and `aria-checked` from its notifications toggle. Community checks its own entries the same way.
+- E2E tests that checked `aria-pressed` or `aria-checked` on such a toggle check its label instead.
+
+The gallery's Notifications entry now switches between "Turn notifications on" and "… off". Changed baselines (SUI-FEATURE-082 rev 6 AC 6, Q&A #3717): `shell-menu-{de,en,es}-{light,dark}.png`. Only the text of that gallery entry changes; in German the open panel is wider for "Benachrichtigungen einschalten". The package's panel, entries and states look unchanged.
+
 ## 0.112.1 — #190: hint bubbles stay closed during a held press
 
 Fix, not breaking (`GL-UI-016`: a hint closes on click). An icon button's bubble no longer opens during a press held past the hint delay, for example on a pagination arrow. A press keeps it closed until the pointer leaves, and hovering again opens it as before. The cause was the same as in `Hint` (0.112.0): Radix closes only an open bubble on pointerdown, while the open timer started by the hover keeps running. Every package hint bubble now has the same fix through one shared internal hook: `Hint`, `IconButtonTooltip`, `OverflowTooltip`, the help of `LabelWithHelp`, and the plain `Tooltip`. Its `TooltipTrigger` gets the handlers from the `Tooltip`. A `Tooltip` whose `open` the app sets stays as the app sets it. `disabledText` and the `aria-disabled` behaviour are unchanged.
@@ -74,9 +87,9 @@ Not breaking. `useEditShortcuts` takes `scope` (`RefObject<HTMLElement | null>`)
 
 ## 0.107.0 — #179, SUI-FEATURE-082 rev 4: UserMenu ↓ from the trigger, close on focus leave, app toggles
 
-Not breaking for apps that already follow 0.105.0. `UserMenuItem` takes `pressed` (sets `aria-pressed`); no visual change.
+Not breaking for apps that already follow 0.105.0. No visual change. _Superseded by 0.113.0: `UserMenuItem`'s `pressed` was removed there, and a toggle switches its label._
 
-**Migration:** an app toggle in the user menu (e.g. a notifications switch) is a `UserMenuItem` with `pressed` and `keepOpen`, never `role="menuitemcheckbox"`; E2E tests find the panel as a group and its entries as buttons or by `data-testid`, not by `menu`/`menuitem` roles. A `pressed` toggle keeps a fixed label ("Notifications"): a label that switches with the state ("Enable/Disable notifications") reads wrong next to `aria-pressed` in a screen reader.
+**Migration:** an app toggle in the user menu (e.g. a notifications switch) is a `UserMenuItem` with `keepOpen`, never `role="menuitemcheckbox"`. Its label and state follow 0.113.0. E2E tests find the panel as a group and its entries as buttons or by `data-testid`, not by `menu`/`menuitem` roles.
 
 - ↓ on the trigger of the open panel focuses the first entry.
 - The panel closes when the focus leaves it: Tab past Log out (also out of the document), Shift-Tab back to the trigger or beyond, a click beside it. The open language list counts as the panel, though portalled: opening it and picking a language keep the panel open. A press on the trigger while the focus is in the panel closes it, the focus on the trigger.

@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import i18n from "i18next";
 import { BellIcon } from "lucide-react";
+import { useState } from "react";
 import { createPortal } from "react-dom";
 import { describe, expect, it, vi } from "vitest";
 
@@ -512,7 +513,22 @@ describe("UserMenu", () => {
     expect(screen.getByTestId("user-menu-content")).toBeInTheDocument();
   });
 
-  it("an app toggle is a button with aria-pressed, no menu role", () => {
+  // SUI-FEATURE-082 rev 5: an app toggle is a plain button whose label names the next action; no
+  // pressed or checked state beside it.
+  it("an app toggle is a button with a switching label, no pressed or checked state", () => {
+    function Toggle() {
+      const [on, setOn] = useState(false);
+      return (
+        <UserMenuItem
+          testId="user-menu-notifications"
+          icon={BellIcon}
+          label={on ? "Turn notifications off" : "Turn notifications on"}
+          hint="Turns notifications on or off."
+          keepOpen
+          onSelect={() => setOn((value) => !value)}
+        />
+      );
+    }
     render(
       <UserMenu
         name="ada"
@@ -524,23 +540,18 @@ describe("UserMenu", () => {
         onSecurity={vi.fn()}
         onLogOut={vi.fn()}
       >
-        <UserMenuItem
-          testId="user-menu-notifications"
-          icon={BellIcon}
-          label="Notifications"
-          hint="Turns notifications on or off."
-          keepOpen
-          pressed
-          onSelect={() => {}}
-        />
+        <Toggle />
       </UserMenu>,
     );
     fireEvent.click(screen.getByTestId("user-menu-trigger"));
     const toggle = screen.getByTestId("user-menu-notifications");
     expect(toggle.tagName).toBe("BUTTON");
-    expect(toggle).toHaveAttribute("aria-pressed", "true");
-    expect(toggle).not.toHaveAttribute("role");
-    expect(screen.getByTestId("user-menu-profile")).not.toHaveAttribute("aria-pressed");
+    expect(toggle).toHaveAccessibleName("Turn notifications on");
+    fireEvent.click(toggle);
+    expect(screen.getByTestId("user-menu-content")).toBeInTheDocument();
+    expect(toggle).toHaveAccessibleName("Turn notifications off");
+    for (const attribute of ["role", "aria-pressed", "aria-checked"])
+      expect(toggle).not.toHaveAttribute(attribute);
   });
 
   it("closes on Escape, the focus back on the trigger", () => {

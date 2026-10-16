@@ -42,10 +42,6 @@ type UserMenuItemProps = {
   onSelect: () => void;
   // Keeps the menu open after the action (a toggle whose result the user should see).
   keepOpen?: boolean;
-  // Makes the entry a toggle: a button with `aria-pressed`, never a `menuitemcheckbox`
-  // (`SUI-FEATURE-082`). Its label stays fixed ("Notifications"); a label that switches with the state
-  // ("Enable/Disable notifications") reads wrong next to `aria-pressed`.
-  pressed?: boolean;
   disabled?: boolean;
   disabledHint?: string;
 };
@@ -58,7 +54,6 @@ function UserMenuItem({
   hint,
   onSelect,
   keepOpen = false,
-  pressed,
   disabled,
   disabledHint,
 }: UserMenuItemProps) {
@@ -68,7 +63,6 @@ function UserMenuItem({
       <button
         type="button"
         data-testid={testId}
-        aria-pressed={pressed}
         disabled={disabled}
         onClick={() => {
           if (!keepOpen) close();
@@ -221,7 +215,9 @@ type UserMenuProps = {
   unavailableReason?: UnavailableReason;
   onLogOut: () => void;
   // The app's own entries (`UserMenuItem`), placed between Security / MFA and Log out. Plain buttons
-  // like the fixed entries, a toggle with `pressed` (`aria-pressed`); never `menuitem*` roles.
+  // like the fixed entries, never `menuitem*` roles. A toggle is a plain entry whose label names the
+  // next action ("Turn notifications on" / "… off"), with no `aria-pressed` or `aria-checked`
+  // (`SUI-FEATURE-082` rev 5).
   children?: React.ReactNode;
 };
 

@@ -13,7 +13,8 @@ export const SHELL_LABELS = {
     page: { subtitle: "A page of the gallery shell." },
     areas: { content: "Content", events: "Events" },
     role: "Administrator",
-    notifications: "Notifications",
+    notificationsOn: "Turn notifications on",
+    notificationsOff: "Turn notifications off",
     notificationsHint: "Turns browser notifications on or off.",
   },
   de: {
@@ -28,7 +29,8 @@ export const SHELL_LABELS = {
     page: { subtitle: "Eine Seite der Galerie-Shell." },
     areas: { content: "Inhalte", events: "Events" },
     role: "Administrator",
-    notifications: "Benachrichtigungen",
+    notificationsOn: "Benachrichtigungen einschalten",
+    notificationsOff: "Benachrichtigungen ausschalten",
     notificationsHint: "Schaltet Browser-Benachrichtigungen ein oder aus.",
   },
   es: {
@@ -43,7 +45,8 @@ export const SHELL_LABELS = {
     page: { subtitle: "Una página de la shell de la galería." },
     areas: { content: "Contenidos", events: "Eventos" },
     role: "Administrador",
-    notifications: "Notificaciones",
+    notificationsOn: "Activar notificaciones",
+    notificationsOff: "Desactivar notificaciones",
     notificationsHint: "Activa o desactiva las notificaciones del navegador.",
   },
 } as const;

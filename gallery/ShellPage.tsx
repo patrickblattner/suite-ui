@@ -212,15 +212,14 @@ export function ShellPage({ content }: { content?: ReactNode } = {}) {
                 unavailableReason={reason}
                 onLogOut={() => {}}
               >
-                {/* An app's own toggle: a plain entry with `pressed`, never a `menuitemcheckbox`
-                    (`SUI-FEATURE-082`). */}
+                {/* An app's own toggle: a plain entry whose label names the next action, no
+                    `aria-pressed`/`aria-checked`, never a `menuitemcheckbox` (`SUI-FEATURE-082` rev 5). */}
                 <UserMenuItem
                   testId="user-menu-notifications"
                   icon={BellIcon}
-                  label={t("notifications")}
+                  label={t(notifications ? "notificationsOff" : "notificationsOn")}
                   hint={t("notificationsHint")}
                   keepOpen
-                  pressed={notifications}
                   onSelect={() => setNotifications((on) => !on)}
                 />
               </UserMenu>
