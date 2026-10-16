@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.112.0 — #187, SUI-FEATURE-057 rev 3: the slider's thumb takes `ref`, `id` and `aria-describedby`
+
+Not breaking. `Slider` takes `id`, `aria-describedby` and `ref` (a React 19 prop). All three land on the thumb (`role="slider"`), next to `aria-label` and `aria-labelledby`, as on the native `<input type="range">` the slider replaces. `ref.current` is the thumb. Props that a wrapping trigger merges in, such as a `Hint`'s handlers, also go to the thumb. `className` and `data-testid` stay on the wrapper. So a `Hint` can wrap the slider directly, and its description reaches the thumb.
+
+`Hint`: a press now keeps the bubble closed until the pointer leaves (`GL-UI-016`). Before, a press held past the hint delay still opened it, because the open timer started by the hover kept running (for example a slider thumb held or dragged).
+
+The gallery's Slider section gains a "With hint" row. Changed baselines: `components-{de,en,es}-{light,dark}.png` and `components-de-{light,dark}-{390,1440}.png`, each 40 px taller for that row.
+
+**Migration:** Community moves its slider hint off the element that wraps the slider and onto the slider itself: `<Hint text=…><Slider … /></Hint>`.
+
 ## 0.111.0 — #186, GL-UI-050 rev 6, SUI-FEATURE-120 rev 5: a self-locking Save keeps the focus
 
 Not breaking for the API; no new props. Behaviour changes that app tests may see.

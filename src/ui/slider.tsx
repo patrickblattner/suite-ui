@@ -1,4 +1,5 @@
 import { Slider as SliderPrimitive } from "radix-ui";
+import type * as React from "react";
 
 import { cn } from "../lib/cn.js";
 
@@ -9,9 +10,13 @@ type SliderProps = {
   max?: number;
   step?: number;
   disabled?: boolean;
-  // The name sits on the thumb, the element with `role="slider"`.
+  // Name, description, id and ref sit on the thumb, the element with `role="slider"`, as on the native
+  // `<input type="range">` it replaces (`SUI-FEATURE-057` rev 3), so a `Hint` can wrap the slider.
   "aria-label"?: string;
   "aria-labelledby"?: string;
+  "aria-describedby"?: string;
+  id?: string;
+  ref?: React.Ref<HTMLSpanElement>;
   // The spoken value per position, such as the name of a step; without it the number is read.
   getAriaValueText?: (value: number) => string;
   className?: string;
@@ -22,6 +27,8 @@ type SliderProps = {
 // `primary`, the package's focus ring on the thumb and a 24 × 24 px hit area around it (`GL-UI-013`).
 // The row is `h-8`, the height of `Input size="sm"` (`GL-UI-011`), so both centres line up side by
 // side. The thumb keeps its arrows: `TablePagination` leaves `role="slider"` alone (`GL-UI-006`).
+// Props a wrapping trigger merges in (a `Hint`'s handlers) go to the thumb as well; `className` and
+// `data-testid` stay on the wrapper.
 function Slider({
   value,
   onValueChange,
@@ -34,6 +41,7 @@ function Slider({
   getAriaValueText,
   className,
   "data-testid": testId,
+  ...thumb
 }: SliderProps) {
   return (
     <SliderPrimitive.Root
@@ -59,6 +67,9 @@ function Slider({
         <SliderPrimitive.Range data-slot="slider-range" className="absolute h-full bg-primary" />
       </SliderPrimitive.Track>
       <SliderPrimitive.Thumb
+        // A `Hint`'s focus handler calls preventDefault, which skips Radix's own thumb focus handler; that
+        // only picks the active thumb, so it matters only with more than one thumb.
+        {...thumb}
         data-slot="slider-thumb"
         aria-label={ariaLabel}
         aria-labelledby={ariaLabelledBy}

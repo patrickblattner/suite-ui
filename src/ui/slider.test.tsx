@@ -1,9 +1,10 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { useState } from "react";
+import { createRef, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { DataTableShell } from "../list/data-table-shell.js";
 import { TablePagination } from "../list/table-pagination.js";
+import { Hint } from "./hint.js";
 import { Slider } from "./slider.js";
 import { TableCell, TableHead, TableRow } from "./table.js";
 
@@ -28,6 +29,43 @@ afterEach(() => {
 const thumb = () => screen.getByRole("slider");
 
 describe("Slider", () => {
+  // SUI-FEATURE-057 rev 3 AC6: id, description and ref sit on the thumb; the test id stays on the
+  // wrapper.
+  it("AC6: id, aria-describedby and ref reach the thumb", () => {
+    const ref = createRef<HTMLSpanElement>();
+    render(
+      <>
+        <span id="w-hint">Width of the image in percent.</span>
+        <Slider
+          value={50}
+          onValueChange={() => {}}
+          id="w"
+          aria-describedby="w-hint"
+          ref={ref}
+          aria-label="Width"
+          data-testid="width"
+        />
+      </>,
+    );
+    expect(thumb()).toHaveAttribute("id", "w");
+    expect(thumb()).toHaveAttribute("aria-describedby", "w-hint");
+    expect(thumb()).toHaveAccessibleDescription("Width of the image in percent.");
+    expect(ref.current).toBe(thumb());
+    expect(screen.getByTestId("width")).not.toBe(thumb());
+    expect(screen.getByTestId("width")).toContainElement(thumb());
+  });
+
+  it("AC6: a Hint directly around the slider describes the thumb", () => {
+    render(
+      <Hint text="Sets the image width in percent.">
+        <Slider value={50} onValueChange={() => {}} aria-label="Width" data-testid="width" />
+      </Hint>,
+    );
+    expect(thumb()).toHaveAccessibleName("Width");
+    expect(thumb()).toHaveAccessibleDescription("Sets the image width in percent.");
+    expect(screen.getByTestId("width")).not.toHaveAttribute("aria-describedby");
+  });
+
   it("AC1: the thumb is the slider with value, bounds and name", () => {
     render(
       <Slider value={50} onValueChange={() => {}} min={1} max={100} step={1} aria-label="Breite" />,

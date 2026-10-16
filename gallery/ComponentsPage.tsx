@@ -757,9 +757,11 @@ function Choices() {
 
 const TILE_SIZES = ["small", "medium", "large"] as const;
 
-// `SUI-FEATURE-057`: alone, beside a number field holding the same value, and in three named steps.
+// `SUI-FEATURE-057`: alone, beside a number field holding the same value, in three named steps, and
+// (rev 3) with a `Hint` directly around it, whose description lands on the thumb.
 function Sliders() {
   const [width, setWidth] = useState(50);
+  const [hinted, setHinted] = useState(60);
   const [linked, setLinked] = useState(40);
   const [size, setSize] = useState(1);
   return (
@@ -817,6 +819,19 @@ function Sliders() {
           data-testid="slider-steps"
         />
         <span className="text-muted-foreground">{TILE_SIZES[size]}</span>
+      </Row>
+      <Row label="With hint">
+        <Hint text="Sets how wide the image shows, in percent of the column.">
+          <Slider
+            value={hinted}
+            onValueChange={setHinted}
+            min={1}
+            max={100}
+            aria-label="Hinted width"
+            className="w-48"
+            data-testid="slider-hint"
+          />
+        </Hint>
       </Row>
     </Section>
   );

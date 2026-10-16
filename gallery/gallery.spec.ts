@@ -4665,6 +4665,34 @@ test("slider: keys move the value, the number field follows, centres line up", a
   );
 });
 
+// `SUI-FEATURE-057` rev 3 AC6: a `Hint` directly around the slider describes its thumb, whose name
+// stays its own.
+test("slider: a Hint around it describes the thumb", async ({ page }) => {
+  await page.goto("/?page=components&lng=en");
+  const thumb = page.getByTestId("slider-hint").getByRole("slider");
+  await expect(thumb).toHaveAccessibleName("Hinted width");
+  await expect(thumb).toHaveAccessibleDescription(
+    "Sets how wide the image shows, in percent of the column.",
+  );
+  await expect(page.getByTestId("slider-hint")).not.toHaveAttribute("aria-describedby");
+});
+
+// `GL-UI-016`: a press closes the hint and keeps it closed. A press held on the thumb past the hint
+// delay, and a drag after it, open no bubble.
+test("slider: a press held on the thumb past the hint delay opens no hint", async ({ page }) => {
+  await page.goto("/?page=components&lng=en");
+  const thumb = page.getByTestId("slider-hint").getByRole("slider");
+  const at = await box(thumb);
+  await page.mouse.move(at.x + at.width / 2, at.y + at.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(2000);
+  await expect(page.locator("[data-slot=tooltip-content]")).toHaveCount(0);
+  await page.mouse.move(at.x + at.width / 2 + 20, at.y + at.height / 2, { steps: 5 });
+  await page.waitForTimeout(2000);
+  await expect(page.locator("[data-slot=tooltip-content]")).toHaveCount(0);
+  await page.mouse.up();
+});
+
 // `SUI-FEATURE-059`: the box of a scroller's content area, inside its border and left of its bar.
 function scrollerBox(scroller: Locator) {
   return scroller.evaluate((el) => {

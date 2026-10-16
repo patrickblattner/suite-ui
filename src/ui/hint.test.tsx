@@ -198,6 +198,29 @@ describe("Hint timing", () => {
     expect(secondLine()).toHaveTextContent(/^Saves the draft$/);
   });
 
+  // GL-UI-016 (#187): a press closes the hint and keeps it closed. Radix closes only an open bubble on
+  // pointerdown, so the open timer a hover started must not open it while the press is held.
+  it("a press during the hint delay keeps the bubble closed until the pointer leaves", () => {
+    render(
+      <Hint text="Saves the draft">
+        <Button variant="success" size="default">
+          Save
+        </Button>
+      </Hint>,
+    );
+    const button = screen.getByRole("button", { name: "Save" });
+    hoverFor(button, 500);
+    fireEvent.pointerDown(button, { pointerType: "mouse" });
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    // Left and hovered again, the hint opens as before.
+    fireEvent.pointerLeave(button, { pointerType: "mouse" });
+    hoverFor(button, 1500);
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Saves the draft");
+  });
+
   // Step 35 unchanged: keyboard focus keeps the bubble closed, the text arrives as the description.
   it("keyboard focus: the bubble stays closed, the description is the control's describedby", () => {
     render(
