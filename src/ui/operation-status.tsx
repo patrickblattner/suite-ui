@@ -115,7 +115,12 @@ function OperationStatusSlot({ scope }: { scope: string }) {
     <div
       ref={setNode}
       className={cn(
-        "-ml-4 flex h-9 min-w-0 grow items-center overflow-clip",
+        // Below 390 px the slot leads row two of the head (`SUI-FEATURE-051` rev 7): it adds no row
+        // gap there to cancel, and it holds the compact width of a progress indicator, idle or
+        // running, so the actions beside it wrap by width alone; 4 px at each end keep the
+        // indicator's focus ring inside its clip. Its room as basis and minimum come as inline
+        // styles, hence `!`.
+        "-ml-4 flex h-9 min-w-0 grow items-center overflow-clip max-[390px]:ml-0 max-[390px]:w-14 max-[390px]:flex-none max-[390px]:pl-1 max-[390px]:basis-auto! max-[390px]:min-w-0!",
         newest === undefined ? "flex-none" : "pr-1",
       )}
       style={
@@ -130,7 +135,7 @@ function OperationStatusSlot({ scope }: { scope: string }) {
         {newest?.label}
       </span>
       {newest === undefined ? null : compact ? (
-        <div className="ml-auto flex items-center gap-2 pl-4">
+        <div className="ml-auto flex items-center gap-2 pl-4 max-[390px]:pl-0">
           <Hint text={newest.label}>
             <span
               role="img"

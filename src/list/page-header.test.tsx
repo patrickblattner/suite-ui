@@ -90,7 +90,9 @@ describe("PageHeader", () => {
       />,
     );
     const add = screen.getByRole("button", { name: "Add event" });
-    expect(add.parentElement).toBe(screen.getByTestId("page-header"));
+    // Its row (`SUI-FEATURE-051` rev 7) is `contents` from 390 px on, so the add lays out in the head.
+    expect(add.parentElement).toHaveAttribute("data-slot", "page-header-actions");
+    expect(add.parentElement?.parentElement).toBe(screen.getByTestId("page-header"));
     expect(add).toHaveAttribute("data-size", "default");
     expect(screen.queryByTestId("page-add-group")).toBeNull();
     expect(screen.queryByTestId("page-add-secondary")).toBeNull();
@@ -271,10 +273,13 @@ describe("PageHeader", () => {
     expect(screen.getByTestId("page-subtitle").outerHTML).toBe(
       '<p class="mt-1 text-sm text-muted-foreground" data-testid="page-subtitle">Every event.</p>',
     );
-    expect(title.parentElement).toHaveAttribute("class", "min-w-0");
+    expect(title.parentElement).toHaveAttribute(
+      "class",
+      "min-w-0 max-[390px]:grow max-[390px]:basis-0",
+    );
     expect(screen.getByTestId("page-header")).toHaveAttribute(
       "class",
-      "mb-2 flex items-start justify-between gap-4",
+      "mb-2 flex items-start justify-between gap-4 max-[390px]:flex-wrap",
     );
   });
 

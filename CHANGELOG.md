@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.124.0 — #222, SUI-FEATURE-051 rev 7 (Q&A #3842, #3849, #3850): `PageHeader` reflows at 320 px
+
+Not breaking in the API. Below 390 px of window width (a 1280 px desktop at 400 % zoom, WCAG 1.4.10 Reflow, `GL-UX-001`), the first row of the `PageHeader` belongs to the title, and the actions stand on a second row, right-aligned. With a status slot, row two holds the slot's compact width on its left, reserved while idle as well, and the actions beside it wrap their buttons within their column when they do not fit side by side. The reserved width is the same idle and running, so the head keeps one height idle, running and with progress, and the title stays whole. This is a CSS rule on the window width; nothing is measured. Before, a head with a status slot and two actions reached up to 40 px past its box at 320 px. Below `md` the title block keeps to the sidebar overlay trigger on the first row, whatever the subtitle's length (`SUI-FEATURE-110`). From 390 px on nothing changes, including the existing overflow at 390 px: a running slot's head can reach up to 23 px past its box with several operations and progress. Markup: the actions now sit in a `[data-slot=page-header-actions]` wrapper, and with a status slot both sit in a `[data-slot=page-header-status-row]` wrapper; both are `display: contents` from 390 px on. **Migration:** none in code. An app unit test that expects a single add's parent to be `page-header` finds the wrapper in between. Baselines: none changed.
+
+Minor, not patch: the actions wrapper changes the DOM app tests can see.
+
 ## 0.123.4 — #221, GL-UX-001 (Q&A #3837): `EditorHeader` reflows at 320 px
 
 Not breaking. At 320 px (a 1280 px desktop at 400 % zoom, WCAG 1.4.10 Reflow), `EditorHeader` with every fold step spent (`SUI-FEATURE-090`) was still up to 10 px wider than its space, so Save reached past the edge and the page scrolled sideways. Now, once every step is spent and the header still does not fit, the action group wraps onto its own line, right-aligned. Back and the title stay on the first line. Where the header fits, nothing changes: 390, 1440 and 1920 px look as before. **Migration:** none. Baselines: none changed.

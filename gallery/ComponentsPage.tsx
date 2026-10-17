@@ -324,6 +324,11 @@ function StatusFrame({
   );
 }
 
+// `?statusTitle=long` (#222, `SUI-FEATURE-051` rev 7): the toggle heads carry a long title and two
+// actions, and Run steps idle → running → progress → done, so the 320 px reflow can be measured in
+// every state; the captures keep the short title and the one action.
+const LONG_STATUS = new URLSearchParams(window.location.search).get("statusTitle") === "long";
+
 // The toggle starts and ends one operation, so the head can be measured before and after; its text
 // stays the same, so the actions keep their width.
 function StatusToggle({
@@ -335,34 +340,49 @@ function StatusToggle({
 }) {
   const { start } = useOperationStatus();
   const handle = useRef<OperationHandle | null>(null);
+  const progressed = useRef(false);
   const [running, setRunning] = useState(false);
   const toggle = () => {
     if (handle.current === null) {
       handle.current = start({ scope: "toggle", label });
+    } else if (LONG_STATUS && !progressed.current) {
+      handle.current.update({ progress: 0.6 });
+      progressed.current = true;
     } else {
       handle.current.succeed("Website updated");
       handle.current = null;
+      progressed.current = false;
     }
     setRunning(handle.current !== null);
   };
+  const run = (
+    <Button
+      variant="outline"
+      size="default"
+      onClick={toggle}
+      aria-pressed={running}
+      data-testid="status-toggle"
+    >
+      Run
+    </Button>
+  );
   return (
     <>
-      <PageHeader
-        title="Brand kit"
-        subtitle={subtitle}
-        operationScope="toggle"
-        action={
-          <Button
-            variant="outline"
-            size="default"
-            onClick={toggle}
-            aria-pressed={running}
-            data-testid="status-toggle"
-          >
-            Run
-          </Button>
-        }
-      />
+      {LONG_STATUS ? (
+        <PageHeader
+          title="Website-Einstellungen"
+          subtitle={subtitle}
+          operationScope="toggle"
+          secondaryAction={run}
+          primaryAction={
+            <Button variant="success" size="default">
+              Publish
+            </Button>
+          }
+        />
+      ) : (
+        <PageHeader title="Brand kit" subtitle={subtitle} operationScope="toggle" action={run} />
+      )}
       <Input aria-label="First field" data-testid="status-below" />
     </>
   );

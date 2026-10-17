@@ -1153,8 +1153,8 @@ test("status slot: start and end move nothing below the head", async ({ page }) 
 
 // `SUI-FEATURE-051`: a running slot takes its room from the long subtitle, which truncates on one line;
 // the title stays whole and the head keeps its height. Too narrow for the label, the slot keeps the
-// spinner and carries the label as its hint.
-for (const width of [1024, 390]) {
+// spinner and carries the label as its hint. Rev 5 (#222): at 320 px too, with the actions on row two.
+for (const width of [1024, 390, 320]) {
   test(`status slot: a long subtitle gives way, the head keeps its height at ${width} px`, async ({
     page,
   }) => {
@@ -1188,6 +1188,141 @@ for (const width of [1024, 390]) {
     }
   });
 }
+
+// #222 (`SUI-FEATURE-051` rev 7, AC 7; `GL-UX-001`): below 390 px the action group stands on row two,
+// idle, running and with progress. Nothing reaches past the head, and the title stays whole.
+for (const frame of ["status-frame-toggle", "status-frame-running", "status-frame-progress"]) {
+  test(`page header: at 320 px the actions take row two, ${frame}`, async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 900 });
+    await page.goto("/?page=components&lng=de");
+    const head = page.getByTestId(frame).getByTestId("page-header");
+    await expect(head).toBeVisible();
+    const fit = await head.evaluate((node) => {
+      const own = node.getBoundingClientRect();
+      const title = node.querySelector("[data-testid=page-title]")!;
+      const block = title.parentElement!.getBoundingClientRect();
+      // The actions' own box: their wrapper in the status row is `contents`.
+      const actions = node
+        .querySelector("[data-slot=page-header-actions] > *")!
+        .getBoundingClientRect();
+      const slot = node
+        .querySelector("[data-testid=page-operation-status]")!
+        .getBoundingClientRect();
+      return {
+        overflow: node.scrollWidth - node.clientWidth,
+        outside: [...node.querySelectorAll("*")].filter((el) => {
+          const box = el.getBoundingClientRect();
+          // A screen-reader-only text is a 1 px box; it counts for nothing here.
+          return box.width > 1 && (box.left < own.left - 0.5 || box.right > own.right + 0.5);
+        }).length,
+        titleCut: title.scrollWidth - title.clientWidth,
+        rowTwo: actions.top >= block.bottom,
+        // Rev 7: the slot shares row two, left of the actions.
+        slotRowTwo: slot.top >= block.bottom && slot.right <= actions.left + 0.5,
+      };
+    });
+    expect(fit).toEqual({ overflow: 0, outside: 0, titleCut: 0, rowTwo: true, slotRowTwo: true });
+  });
+}
+
+// #222 (`SUI-FEATURE-051` rev 7, AC 7): a long title fills the first row at 320 px; row two holds the
+// slot's compact width, idle or not, beside two actions. Idle, running and with progress the head
+// keeps one height, the title stays whole and nothing reaches past the head.
+test("page header: at 320 px a long title keeps one head height, idle, running and progress", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.goto("/?page=components&lng=de&statusTitle=long");
+  const frame = page.getByTestId("status-frame-toggle");
+  const head = frame.getByTestId("page-header");
+  await expect(frame.getByTestId("page-title")).toHaveText("Website-Einstellungen");
+  const layout = () =>
+    head.evaluate((node) => {
+      const own = node.getBoundingClientRect();
+      const title = node.querySelector("[data-testid=page-title]")!;
+      return {
+        height: own.height,
+        overflow: node.scrollWidth - node.clientWidth,
+        // A screen-reader-only text is a 1 px box; it counts for nothing here.
+        outside: [...node.querySelectorAll("*")].filter((el) => {
+          const box = el.getBoundingClientRect();
+          return box.width > 1 && (box.left < own.left - 0.5 || box.right > own.right + 0.5);
+        }).length,
+        titleCut: title.scrollWidth - title.clientWidth,
+      };
+    });
+  const idle = await layout();
+  expect(idle).toMatchObject({ overflow: 0, outside: 0, titleCut: 0 });
+  const toggle = frame.getByTestId("status-toggle");
+  await toggle.click();
+  await expect(frame.getByTestId("operation-spinner")).toBeVisible();
+  expect(await layout()).toEqual(idle);
+  await toggle.click();
+  await expect(frame.getByTestId("operation-progress")).toBeVisible();
+  expect(await layout()).toEqual(idle);
+});
+
+// #222 (`SUI-FEATURE-051` rev 7, `GL-UI-013`): at 320 px the compact progress indicator, reached by
+// keyboard, shows its 3 px ring whole inside the slot's clip.
+test("page header: at 320 px the compact indicator's focus ring is not clipped", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.goto("/?page=components&lng=de&statusTitle=long");
+  const frame = page.getByTestId("status-frame-toggle");
+  const toggle = frame.getByTestId("status-toggle");
+  await toggle.click();
+  await toggle.click();
+  await expect(frame.getByTestId("operation-progress")).toBeVisible();
+  // The indicator stands right before the actions in the tab order.
+  await toggle.focus();
+  await page.keyboard.press("Shift+Tab");
+  const indicator = frame.getByTestId("page-operation-status").getByRole("img");
+  await expect(indicator).toBeFocused();
+  expect(await indicator.evaluate((el) => el.matches(":focus-visible"))).toBe(true);
+  const ring = await box(indicator);
+  const slot = await box(frame.getByTestId("page-operation-status"));
+  expect(ring.x - 3).toBeGreaterThanOrEqual(slot.x);
+  expect(ring.x + ring.width + 3).toBeLessThanOrEqual(slot.x + slot.width);
+});
+
+// #222 (`SUI-FEATURE-110`): below 390 px the head may wrap, yet a head without actions stays one row:
+// the overlay trigger and the title share it, whatever the subtitle's length.
+for (const name of ["shell", "edit-panel"]) {
+  test(`page header: at 320 px the overlay trigger and the title share a row, ${name}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 320, height: 900 });
+    await page.goto(`/?page=${name}&lng=de`);
+    const head = page.getByTestId("page-header").first();
+    const trigger = await box(head.getByTestId("sidebar-overlay-trigger"));
+    const title = await box(head.getByTestId("page-title"));
+    expect(title.y).toBe(trigger.y);
+    expect(title.x).toBeGreaterThanOrEqual(trigger.x + trigger.width);
+  });
+}
+
+// #222 (`SUI-FEATURE-051` rev 7): a list head without a status slot also puts its add on row two at
+// 320 px, with nothing past the head.
+test("page header: at 320 px a list head puts its add on row two", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.goto("/?page=list&lng=de");
+  const head = page.getByTestId("page-header");
+  const fit = await head.evaluate((node) => {
+    const own = node.getBoundingClientRect();
+    const block = node.querySelector("[data-testid=page-title]")!.parentElement!;
+    const actions = node.querySelector("[data-slot=page-header-actions]")!.getBoundingClientRect();
+    return {
+      overflow: node.scrollWidth - node.clientWidth,
+      outside: [...node.querySelectorAll("*")].filter((el) => {
+        const box = el.getBoundingClientRect();
+        return box.width > 0 && (box.left < own.left - 0.5 || box.right > own.right + 0.5);
+      }).length,
+      rowTwo: actions.top >= block.getBoundingClientRect().bottom,
+    };
+  });
+  expect(fit).toEqual({ overflow: 0, outside: 0, rowTwo: true });
+});
 
 // The compact slot follows the row's width: widened again, it shows the label once more.
 test("status slot: compact at 390 px returns to the label when the window widens", async ({
