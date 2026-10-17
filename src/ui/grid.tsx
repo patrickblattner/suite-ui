@@ -282,15 +282,17 @@ function GridOverlay({ definition, box, zoom = 1, mitten = false }: GridOverlayP
   const lines = gridLines(definition, box, { mitten });
   const width = box.width * zoom;
   const height = box.height * zoom;
-  // Each line on the pixel's centre, so it is one sharp pixel at any zoom.
-  const at = (position: number) => Math.round(position * zoom) + 0.5;
+  // Each line on a pixel's centre, so it is one sharp pixel at any zoom; a line on the far edge takes
+  // the last pixel inside.
+  const at = (position: number, length: number) =>
+    Math.min(Math.round(position * zoom), Math.ceil(length) - 1) + 0.5;
   const draw = (className: string, strokeWidth: number) => (
     <g className={className} strokeWidth={strokeWidth}>
       {lines.x.map((x) => (
-        <line key={`x${x}`} x1={at(x)} x2={at(x)} y1={0} y2={height} />
+        <line key={`x${x}`} x1={at(x, width)} x2={at(x, width)} y1={0} y2={height} />
       ))}
       {lines.y.map((y) => (
-        <line key={`y${y}`} x1={0} x2={width} y1={at(y)} y2={at(y)} />
+        <line key={`y${y}`} x1={0} x2={width} y1={at(y, height)} y2={at(y, height)} />
       ))}
     </g>
   );
@@ -304,7 +306,7 @@ function GridOverlay({ definition, box, zoom = 1, mitten = false }: GridOverlayP
       data-slot="grid-overlay"
       data-testid="grid-overlay"
     >
-      {draw("stroke-background", 3)}
+      {draw("stroke-background opacity-50", 3)}
       {draw("stroke-ring", 1)}
     </svg>
   );

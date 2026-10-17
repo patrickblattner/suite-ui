@@ -320,7 +320,7 @@ export const es: SuiteStrings = {
     schritt: "Cuadrada",
     spalten: "Columnas",
     step: "Paso",
-    anzahl: "Columnas",
+    anzahl: "Número de columnas",
     abstand: "Medianil",
     rand: "Margen",
     zeilenschritt: "Paso de fila",

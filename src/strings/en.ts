@@ -337,7 +337,7 @@ export const en = {
     schritt: "Square",
     spalten: "Columns",
     step: "Step",
-    anzahl: "Columns",
+    anzahl: "Number of columns",
     abstand: "Gutter",
     rand: "Margin",
     zeilenschritt: "Row step",

@@ -56,7 +56,7 @@ describe("GridFields (SUI-FEATURE-087)", () => {
     expect(screen.getByRole("group", { name: "Grid" })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "Grid type" })).toHaveTextContent("Columns");
     for (const [name, value] of [
-      ["Columns", 12],
+      ["Number of columns", 12],
       ["Gutter", 24],
       ["Margin", 0],
     ] as const) {
@@ -65,8 +65,14 @@ describe("GridFields (SUI-FEATURE-087)", () => {
       expect(input).toHaveAccessibleDescription("px");
     }
     expect(screen.getByRole("spinbutton", { name: "Row step" })).toHaveValue(null);
-    expect(screen.getByRole("spinbutton", { name: "Columns" })).toHaveAttribute("min", "1");
-    expect(screen.getByRole("spinbutton", { name: "Columns" })).toHaveAttribute("max", "24");
+    expect(screen.getByRole("spinbutton", { name: "Number of columns" })).toHaveAttribute(
+      "min",
+      "1",
+    );
+    expect(screen.getByRole("spinbutton", { name: "Number of columns" })).toHaveAttribute(
+      "max",
+      "24",
+    );
   });
 
   it("square: only the step", () => {
@@ -79,7 +85,7 @@ describe("GridFields (SUI-FEATURE-087)", () => {
   it.each(["0", "-2", "25"])("count %s is rejected and names the bound", (text) => {
     const onChange = vi.fn();
     render(<Fields onChange={onChange} />);
-    const count = screen.getByRole("spinbutton", { name: "Columns" });
+    const count = screen.getByRole("spinbutton", { name: "Number of columns" });
     fireEvent.change(count, { target: { value: text } });
     expect(onChange).not.toHaveBeenCalled();
     expect(count).toHaveAttribute("aria-invalid", "true");
@@ -131,8 +137,8 @@ describe("GridFields (SUI-FEATURE-087)", () => {
   });
 
   it.each([
-    ["de", ["Rasterart", "Spalten", "Spaltenabstand", "Rand", "Zeilenschritt"]],
-    ["es", ["Tipo de cuadrícula", "Columnas", "Medianil", "Margen", "Paso de fila"]],
+    ["de", ["Rasterart", "Anzahl Spalten", "Spaltenabstand", "Rand", "Zeilenschritt"]],
+    ["es", ["Tipo de cuadrícula", "Número de columnas", "Medianil", "Margen", "Paso de fila"]],
   ])("%s labels", async (lng, labels) => {
     await i18n.changeLanguage(lng);
     render(<Fields />);

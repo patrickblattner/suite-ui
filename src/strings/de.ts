@@ -324,7 +324,7 @@ export const de: SuiteStrings = {
     schritt: "Quadratisch",
     spalten: "Spalten",
     step: "Schrittweite",
-    anzahl: "Spalten",
+    anzahl: "Anzahl Spalten",
     abstand: "Spaltenabstand",
     rand: "Rand",
     zeilenschritt: "Zeilenschritt",

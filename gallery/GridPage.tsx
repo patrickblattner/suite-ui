@@ -11,7 +11,7 @@ const OVERLAY: GridDefinition = {
   anzahl: 6,
   abstand: 12,
   rand: 12,
-  zeilenschritt: 8,
+  zeilenschritt: 24,
 };
 
 function Caption({ children }: { children: string }) {
@@ -44,7 +44,7 @@ export function GridPage() {
       >
         Clicked {clicks}
       </button>
-      <GridOverlay definition={OVERLAY} box={BOX} mitten />
+      <GridOverlay definition={OVERLAY} box={BOX} />
     </div>
   );
   return (
