@@ -4544,7 +4544,7 @@ async function settledBox(locator: Locator) {
     .poll(() =>
       locator.evaluate((el) => {
         for (let node: Element | null = el; node; node = node.parentElement)
-          if (node.getAnimations().some((a) => ["running", "pending"].includes(a.playState)))
+          if (node.getAnimations().some((a) => !["finished", "idle"].includes(a.playState)))
             return false;
         return true;
       }),
