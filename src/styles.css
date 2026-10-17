@@ -38,9 +38,12 @@
   --app-bar-height: 0rem;
   --shell-chrome-height: 0rem;
   --page-inset-top: 1.5rem;
+  /* The gap below the title row; a full-screen editor's offset (`useEditorShellToastOffset`) adds
+     the same gap below its header. */
+  --toast-gap: 0.5rem;
   --toast-offset-top: calc(
     var(--app-bar-height) + var(--shell-chrome-height) + var(--page-inset-top) +
-      var(--page-header-height) + 0.5rem
+      var(--page-header-height) + var(--toast-gap)
   );
 
   /* Tooltip delay (`GL-UI-016`/`GL-UI-017`): every tooltip, the overflow tooltip included, opens after

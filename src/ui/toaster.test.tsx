@@ -1,8 +1,9 @@
 import { act, render, screen } from "@testing-library/react";
+import * as React from "react";
 import { toast as sonnerToast } from "sonner";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { toast, Toaster, toastDurationFor } from "./toaster.js";
+import { toast, Toaster, toastDurationFor, useEditorShellToastOffset } from "./toaster.js";
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -95,4 +96,138 @@ describe("Toaster", () => {
       });
     },
   );
+});
+
+describe("useEditorShellToastOffset", () => {
+  // The header's bottom edge as the test sets it, the observer callback the hook registers and the
+  // elements it observes.
+  let bottom = 0;
+  let resized: (() => void) | undefined;
+  let observed: Element[] = [];
+
+  function Shell({ loading = false }: { loading?: boolean }) {
+    const header = React.useRef<HTMLDivElement>(null);
+    useEditorShellToastOffset(header);
+    // Like an editor page that returns early while its record loads.
+    if (loading) return <p>Loading</p>;
+    return (
+      <main>
+        <div ref={header} data-testid="editor-shell-header" />
+        <div data-testid="editor-shell-canvas" />
+      </main>
+    );
+  }
+
+  function stub() {
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(
+      () => ({ bottom }) as DOMRect,
+    );
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(callback: () => void) {
+          resized = callback;
+        }
+        observe(node: Element) {
+          observed.push(node);
+        }
+        disconnect() {
+          resized = undefined;
+          observed = [];
+        }
+      },
+    );
+  }
+
+  function renderShell() {
+    stub();
+    return render(<Shell />);
+  }
+
+  const offset = () => document.documentElement.style.getPropertyValue("--toast-offset-top");
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    window.scrollY = 0;
+    document.documentElement.style.removeProperty("--toast-offset-top");
+  });
+
+  it("starts the toast column below the header's bottom edge plus the shell's gap", () => {
+    bottom = 61;
+    renderShell();
+    expect(offset()).toBe("calc(61px + var(--toast-gap))");
+  });
+
+  it("measures the document-relative edge, whatever the window's scroll", () => {
+    bottom = 21;
+    window.scrollY = 40;
+    renderShell();
+    expect(offset()).toBe("calc(61px + var(--toast-gap))");
+  });
+
+  it("moves the offset with the header when it grows", () => {
+    bottom = 61;
+    renderShell();
+    bottom = 109;
+    act(() => resized?.());
+    expect(offset()).toBe("calc(109px + var(--toast-gap))");
+  });
+
+  it("measures again when the header moves: its parent, the body or the window resize", () => {
+    bottom = 61;
+    renderShell();
+    const header = screen.getByTestId("editor-shell-header");
+    expect(observed).toEqual([header, header.parentElement, document.body]);
+    bottom = 181;
+    act(() => {
+      window.dispatchEvent(new Event("resize"));
+    });
+    expect(offset()).toBe("calc(181px + var(--toast-gap))");
+  });
+
+  it("measures again, once per frame, when the body's tree changes", async () => {
+    bottom = 61;
+    renderShell();
+    const frames = vi.spyOn(window, "requestAnimationFrame");
+    bottom = 201;
+    const band = document.createElement("div");
+    document.body.prepend(band);
+    band.hidden = true;
+    await vi.waitFor(() => expect(offset()).toBe("calc(201px + var(--toast-gap))"));
+    expect(frames).toHaveBeenCalledTimes(1);
+    band.remove();
+  });
+
+  it("schedules no frame for a change after the header, such as the canvas", async () => {
+    bottom = 61;
+    renderShell();
+    const frames = vi.spyOn(window, "requestAnimationFrame");
+    const canvas = screen.getByTestId("editor-shell-canvas");
+    canvas.append(document.createElement("span"));
+    canvas.hidden = true;
+    await new Promise((done) => setTimeout(done, 0));
+    expect(frames).not.toHaveBeenCalled();
+  });
+
+  it("picks up a header that renders only after loading", () => {
+    bottom = 61;
+    stub();
+    const { rerender } = render(<Shell loading />);
+    expect(offset()).toBe("");
+    rerender(<Shell />);
+    expect(offset()).toBe("calc(61px + var(--toast-gap))");
+  });
+
+  it("restores the app shell's default once unmounted", async () => {
+    bottom = 61;
+    const { unmount } = renderShell();
+    unmount();
+    expect(offset()).toBe("");
+    expect(resized).toBeUndefined();
+    bottom = 200;
+    window.dispatchEvent(new Event("resize"));
+    document.body.append(document.createElement("div"));
+    await new Promise((done) => requestAnimationFrame(done));
+    expect(offset()).toBe("");
+  });
 });

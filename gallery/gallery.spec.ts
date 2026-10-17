@@ -189,6 +189,8 @@ const AXE_PAGES: [
   ],
   ["inset", (page) => page.getByTestId("inset-row").first()],
   ["edit-panel", (page) => page.getByTestId("media-panel-trigger")],
+  ["editor-shell", (page) => page.getByTestId("editor-save")],
+  ["editor-shell", (page) => page.getByTestId("editor-save"), "&layout=screen"],
   [
     "components",
     (page) => page.getByTestId("section-crop"),
@@ -445,6 +447,120 @@ test("a shell banner pushes the toast down by exactly its height", async ({ page
     document.documentElement.style.setProperty("--shell-chrome-height", "40px"),
   );
   await expect.poll(async () => (await box(toaster)).y - before.y).toBeCloseTo(40, 0);
+});
+
+// `GL-UI-028`, `SUI-FEATURE-086`: in a full-screen editor the toast after Save, the one that names
+// it, starts below the editor header and covers none of its controls, also once the header grows (a
+// header that wraps does) and once a band above moves it down; a plain page without the hook keeps
+// the app shell's offset.
+test("full-screen editor: the toast after Save covers no editor header control", async ({
+  page,
+}) => {
+  await page.goto("/?page=editor-shell");
+  const header = page.locator("[data-slot=editor-header]");
+  const controls = header.locator("button:visible, [role=status]");
+  const covered = async () => {
+    const toastBox = await box(page.locator("[data-sonner-toast]").first());
+    const boxes = await Promise.all((await controls.all()).map(box));
+    return boxes.filter(
+      (control) =>
+        control.x < toastBox.x + toastBox.width &&
+        toastBox.x < control.x + control.width &&
+        control.y < toastBox.y + toastBox.height &&
+        toastBox.y < control.y + control.height,
+    ).length;
+  };
+  const below = async () =>
+    (await box(page.locator("[data-sonner-toast]").first())).y -
+    (await box(header)).y -
+    (await box(header)).height;
+
+  await page.getByTestId("editor-save").click();
+  const saved = page.locator("[data-sonner-toast][data-type=success]");
+  await expect(saved).toBeVisible();
+  await expect(saved.getByRole("button", { name: "Undo" })).toBeVisible();
+  expect(await controls.count()).toBeGreaterThanOrEqual(5);
+  await expect.poll(below).toBeGreaterThanOrEqual(0);
+  await expect.poll(covered).toBe(0);
+
+  await header.evaluate((el) => {
+    el.style.paddingBottom = "4rem";
+  });
+  await expect.poll(below).toBeGreaterThanOrEqual(0);
+  await expect.poll(covered).toBe(0);
+
+  // A band inserted above the editor after mount (a status banner) moves the header down unresized.
+  await page.getByTestId("editor-shell").evaluate((el) => {
+    const band = document.createElement("div");
+    band.style.height = "140px";
+    el.before(band);
+  });
+  await expect.poll(below).toBeGreaterThanOrEqual(0);
+  await expect.poll(covered).toBe(0);
+});
+
+// The likeliest full-screen layout: a full-height column whose canvas shrinks when a band is
+// inserted above the header, so the body, the header's parent and the header keep their sizes.
+test("full-screen editor: a band above a full-height editor keeps the toast off the header", async ({
+  page,
+}) => {
+  await page.goto("/?page=editor-shell&layout=screen");
+  const shell = page.getByTestId("editor-shell");
+  const header = page.locator("[data-slot=editor-header]");
+  const canvas = page.getByTestId("editor-shell-canvas");
+  await expect(page.getByTestId("editor-save")).toBeVisible();
+  const sizes = () =>
+    Promise.all(
+      [page.locator("body"), shell, header].map(async (el) => {
+        const { width, height } = await box(el);
+        return [width, height];
+      }),
+    );
+  const before = await sizes();
+  const canvasBefore = (await box(canvas)).height;
+
+  await shell.evaluate((el) => {
+    const band = document.createElement("div");
+    band.style.height = "140px";
+    band.style.flexShrink = "0";
+    el.prepend(band);
+  });
+  await expect.poll(async () => canvasBefore - (await box(canvas)).height).toBeCloseTo(140, 0);
+  expect(await sizes()).toEqual(before);
+
+  await page.getByTestId("editor-save").click();
+  const saved = page.locator("[data-sonner-toast][data-type=success]");
+  await expect(saved).toBeVisible();
+  const controls = header.locator("button:visible, [role=status]");
+  const covered = async () => {
+    const toastBox = await box(saved);
+    const boxes = await Promise.all((await controls.all()).map(box));
+    return boxes.filter(
+      (control) =>
+        control.x < toastBox.x + toastBox.width &&
+        toastBox.x < control.x + control.width &&
+        control.y < toastBox.y + toastBox.height &&
+        toastBox.y < control.y + control.height,
+    ).length;
+  };
+  const headerBox = await box(header);
+  await expect
+    .poll(async () => (await box(saved)).y - headerBox.y - headerBox.height)
+    .toBeGreaterThanOrEqual(0);
+  await expect.poll(covered).toBe(0);
+});
+
+test("full-screen editor: leaving the editor restores the app shell's toast offset", async ({
+  page,
+}) => {
+  await page.goto("/?page=editor-shell");
+  await expect(page.getByTestId("editor-save")).toBeVisible();
+  const root = () =>
+    page.evaluate(() => document.documentElement.style.getPropertyValue("--toast-offset-top"));
+  await expect.poll(root).toMatch(/^calc\(\d+(\.\d+)?px \+ var\(--toast-gap\)\)$/);
+  await page.getByTestId("gallery-page").selectOption("toast");
+  await expect(page.locator("[data-sonner-toast][data-type=success]")).toBeVisible();
+  await expect.poll(root).toBe("");
 });
 
 test("the open time zone list grows the dialog", async ({ page }) => {

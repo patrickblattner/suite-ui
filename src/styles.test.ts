@@ -190,16 +190,17 @@ describe("styles.css tokens", () => {
     },
   );
 
-  it("carries the shell offsets, the tooltip delay and the checker size of the seed", () => {
+  it("carries the shell offsets, the toast gap, the tooltip delay and the checker size of the seed", () => {
     expect(Object.fromEntries(root)).toMatchObject({
       "app-bar-height": "0rem",
       "shell-chrome-height": "0rem",
       "page-inset-top": "1.5rem",
+      "toast-gap": "0.5rem",
       "tooltip-hint-delay": "1500ms",
       "checker-size": "12px",
     });
     expect(root.get("toast-offset-top")?.replace(/\s+/g, " ")).toBe(
-      "calc( var(--app-bar-height) + var(--shell-chrome-height) + var(--page-inset-top) + var(--page-header-height) + 0.5rem )",
+      "calc( var(--app-bar-height) + var(--shell-chrome-height) + var(--page-inset-top) + var(--page-header-height) + var(--toast-gap) )",
     );
   });
 

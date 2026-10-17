@@ -8,6 +8,7 @@ import { initReactI18next, useTranslation } from "react-i18next";
 
 import { registerSuiteStrings, suiteStrings, type SuiteLanguage } from "../src/strings/index.js";
 import { ComponentsPage } from "./ComponentsPage.js";
+import { EditorShellPage } from "./EditorShellPage.js";
 import { EditPanelPage } from "./EditPanelPage.js";
 import { HelpPage } from "./HelpPage.js";
 import { InsetPage } from "./InsetPage.js";
@@ -49,6 +50,7 @@ const PAGES = [
   "sheet",
   "inset",
   "edit-panel",
+  "editor-shell",
   "help",
   "toast",
   "preview",
@@ -87,6 +89,7 @@ const PAGE_CONTENT: Record<Exclude<Page, "strings">, (theme: Theme) => ReactNode
   sheet: () => <SheetPage />,
   inset: () => <InsetPage />,
   "edit-panel": () => <EditPanelPage />,
+  "editor-shell": (theme) => <EditorShellPage theme={theme} />,
   help: () => <HelpPage />,
   toast: (theme) => <ToastPage theme={theme} />,
   preview: (theme) => <PreviewPage theme={theme} />,

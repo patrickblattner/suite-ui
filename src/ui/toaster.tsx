@@ -5,7 +5,7 @@ import {
   Loader2Icon,
   TriangleAlertIcon,
 } from "lucide-react";
-import type * as React from "react";
+import * as React from "react";
 import { useTranslation } from "react-i18next";
 import {
   type ExternalToast,
@@ -88,6 +88,88 @@ export const TOAST_VARIANT_CLASSNAMES = {
 export const TOAST_POSITION = "top-right" as const;
 export const TOAST_OFFSET = { top: "var(--toast-offset-top)" } as const;
 
+/**
+ * The toast offset of a full-screen editor (`GL-UI-028`, `SUI-FEATURE-086`): a full-screen editor
+ * is its own shell, so while it is mounted the toast column starts below its `EditorHeader`. The
+ * hook measures the header's bottom edge and sets `--toast-offset-top` on the document root to that
+ * edge plus the shell's `--toast-gap` (styles.css). It measures again whenever the header resizes
+ * (a header that wraps grows), the header's parent or the body resizes (a band inserted above moves
+ * the header down), the window resizes, and, once per animation frame, after a change to the
+ * body's tree or to a `class`, `style` or `hidden` in it before the header in document order: in a
+ * full-height editor a band inserted above the header shrinks only the canvas, so no size the
+ * observers watch changes. Changes after the header (the canvas, the toasts) cannot move it and
+ * are ignored; an unchanged value is not written again. Unmounted, the app shell's default applies
+ * again.
+ * Call it once in the full-screen editor route with a ref to the element that wraps the
+ * `EditorHeader`; the header itself measures nothing. A wrapper that renders only later (after a
+ * loading state) is picked up when the calling component re-renders with it mounted.
+ * The hook is meant for exactly one mounted editor shell at a time (`SUI-FEATURE-086`).
+ *
+ * The edge is document-relative (`bottom + scrollY`): the toast stack is `position: fixed`, and the
+ * header of a full-screen editor rests at the top of the document while its canvas scrolls. A
+ * viewport-relative edge taken while the window happens to be scrolled would lift the stack into
+ * the header once the window scrolls back; the document-relative edge clears the header in its
+ * resting place whatever the scroll at measuring time. This holds for a header in normal flow; a
+ * sticky or fixed header would be measured too low by the scroll term.
+ */
+function useEditorShellToastOffset(headerRef: React.RefObject<HTMLElement | null>): void {
+  const [header, setHeader] = React.useState<HTMLElement | null>(null);
+  // No dependency array: the ref's element is checked after every render of the calling component,
+  // which is how a late-mounted header is found; `[headerRef, header]` would miss it, since the ref
+  // object never changes. The guarded setState bails out once the element is current.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  React.useLayoutEffect(() => {
+    if (headerRef.current !== header) setHeader(headerRef.current);
+  });
+  React.useLayoutEffect(() => {
+    if (header === null) return;
+    const root = document.documentElement.style;
+    let last = "";
+    const apply = () => {
+      const bottom = header.getBoundingClientRect().bottom + window.scrollY;
+      const value = `calc(${String(bottom)}px + var(--toast-gap))`;
+      if (value === last) return;
+      last = value;
+      root.setProperty("--toast-offset-top", value);
+    };
+    apply();
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(apply);
+    for (const node of [header, header.parentElement, document.body]) {
+      if (node !== null) observer?.observe(node);
+    }
+    window.addEventListener("resize", apply);
+    let frame: number | null = null;
+    const mutations =
+      typeof MutationObserver === "undefined"
+        ? null
+        : new MutationObserver((records) => {
+            if (frame !== null) return;
+            const before = records.some(
+              (record) =>
+                !(header.compareDocumentPosition(record.target) & Node.DOCUMENT_POSITION_FOLLOWING),
+            );
+            if (!before) return;
+            frame = requestAnimationFrame(() => {
+              frame = null;
+              apply();
+            });
+          });
+    mutations?.observe(document.body, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["class", "style", "hidden"],
+    });
+    return () => {
+      observer?.disconnect();
+      mutations?.disconnect();
+      if (frame !== null) cancelAnimationFrame(frame);
+      window.removeEventListener("resize", apply);
+      root.removeProperty("--toast-offset-top");
+    };
+  }, [header]);
+}
+
 // A click on any toast dismisses all visible toasts; clicks on a toast's own buttons keep their
 // behaviour. Sonner drops unknown props on its list, so the handler sits on a wrapper.
 function dismissAllOnToastClick(event: React.MouseEvent<HTMLElement>): void {
@@ -163,4 +245,5 @@ export {
   TOAST_DURATION_MAX_MS,
   TOAST_DURATION_PER_WORD_MS,
   type ToastVariant,
+  useEditorShellToastOffset,
 };

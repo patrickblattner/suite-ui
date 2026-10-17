@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.115.0 — #192, GL-UI-028 rev 4 / SUI-FEATURE-086: toast offset below the editor header in a full-screen editor
+
+Not breaking. New export `useEditorShellToastOffset(headerRef)` from `@suite/ui/ui/toaster`. A full-screen editor (`GL-UI-040` point 7) is its own shell. While the hook is mounted, it measures the document-relative bottom edge (`bottom + scrollY`) of the element that wraps the `EditorHeader`, and sets `--toast-offset-top` on the document root to that edge plus the new `--toast-gap` (0.5rem). The app shell's `--toast-offset-top` uses the same `--toast-gap`, so the two gaps can't drift apart. The hook measures again when the header resizes (a header that wraps grows), when its parent or the body resizes (a band inserted above moves the header down), and when the window resizes. A MutationObserver on the body (its tree, and `class`, `style` and `hidden`) also triggers a measurement, at most one per animation frame. It catches a full-height editor where a band above the header only shrinks the canvas. A wrapper that renders only after a loading state is picked up on the render that mounts it. On unmount the hook removes the value, and the app shell's default from `styles.css` applies again. The hook is meant for one mounted editor shell at a time. `EditorHeader` is unchanged: it takes no new prop and measures nothing.
+
+**Migration:**
+
+- Every full-screen editor route calls the hook exactly once. Wrap the `EditorHeader` in an element, pass that element's ref to the hook, and write no pixel value of your own: `const header = useRef<HTMLDivElement>(null); useEditorShellToastOffset(header); … <div ref={header}><EditorHeader … /></div>`.
+- Community: its full-screen editor route calls the hook, and the local workaround from `COM-GL-039` rev 3 goes away.
+- Cockpit: every full-screen editor route under `GL-UI-040` point 7 calls the hook.
+- Editors that keep the app shell (inside `AppLayout`) do not call it. Their offset stays the app shell's default.
+
+The gallery gains an `editor-shell` page: a full-screen editor whose Save shows a success toast with Undo. `&layout=screen` shows the same editor full height. Both are covered by axe, and neither has a screenshot. Baselines: none changed.
+
 ## 0.114.0 — #191, SUI-FEATURE-057 rev 4: a slider's hint opens over the whole slider, beside the track's end
 
 Not breaking. A `Hint` around a `Slider` now opens its bubble on a hover anywhere over the slider, track and thumb, after the one hint delay. The bubble stands to the right of the track's end, so it covers neither the track nor the thumb (`GL-UI-016` §Lage). Before, it opened only over the thumb and stood beside it, over the track.
