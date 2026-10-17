@@ -80,10 +80,10 @@ function addButton(add: PageHeaderAdd, secondary: boolean) {
   );
 }
 
-// A group of actions. Below 390 px (`SUI-FEATURE-051` rev 7) it may shrink to its column on row two
+// A group of actions. Below 640 px (`SUI-FEATURE-051` rev 8) it may shrink to its column on row two
 // and wraps its buttons, right-aligned, when they do not fit side by side.
 const ACTION_GROUP =
-  "flex shrink-0 items-center gap-2 max-[390px]:min-w-0 max-[390px]:shrink max-[390px]:flex-wrap max-[390px]:justify-end";
+  "flex shrink-0 items-center gap-2 max-sm:min-w-0 max-sm:shrink max-sm:flex-wrap max-sm:justify-end";
 
 function addActions(add: NonNullable<PageHeaderProps["add"]>) {
   if (!Array.isArray(add)) return addButton(add as PageHeaderAdd, false);
@@ -128,13 +128,13 @@ function PageHeader({
     ) : add !== undefined ? (
       addActions(add)
     ) : null;
-  // Below 390 px of window width (Reflow, `GL-UX-001`; `SUI-FEATURE-051` rev 7) the action group
-  // always stands on a second row, right-aligned, whether an operation runs or not. From 390 px on
+  // Below 640 px of window width (Reflow, `GL-UX-001`; `SUI-FEATURE-051` rev 8) the action group
+  // always stands on a second row, right-aligned, whether an operation runs or not. From 640 px on
   // the wrapper is `contents` and the row is as before.
   const actionRow =
     actions === null ? null : (
       <div
-        className="contents max-[390px]:flex max-[390px]:basis-full max-[390px]:justify-end"
+        className="contents max-sm:flex max-sm:basis-full max-sm:justify-end"
         data-slot="page-header-actions"
       >
         {actions}
@@ -148,7 +148,7 @@ function PageHeader({
   if (operationScope !== undefined) {
     return (
       <div
-        className="mb-2 flex items-start justify-between gap-4 max-[390px]:flex-wrap"
+        className="mb-2 flex items-start justify-between gap-4 max-sm:flex-wrap"
         data-testid="page-header"
       >
         <SidebarOverlayTrigger />
@@ -156,7 +156,7 @@ function PageHeader({
             breaking its line at the subtitle's width. */}
         <div
           className={cn(
-            "grid min-w-min shrink-[100000] grid-cols-[minmax(auto,1fr)] max-[390px]:grow max-[390px]:basis-0",
+            "grid min-w-min shrink-[100000] grid-cols-[minmax(auto,1fr)] max-sm:grow max-sm:basis-0",
             besideTrigger,
           )}
         >
@@ -172,17 +172,17 @@ function PageHeader({
             </p>
           </OverflowTooltip>
         </div>
-        {/* Below 390 px the slot and the actions share row two, the slot left of them, idle or
-            running (`SUI-FEATURE-051` rev 7); the first row is the title's. From 390 px on both
+        {/* Below 640 px the slot and the actions share row two, the slot left of them, idle or
+            running (`SUI-FEATURE-051` rev 8); the first row is the title's. From 640 px on both
             wrappers are `contents` and the row is as before. */}
         <div
-          className="contents max-[390px]:flex max-[390px]:min-w-0 max-[390px]:basis-full max-[390px]:items-start max-[390px]:gap-4"
+          className="contents max-sm:flex max-sm:min-w-0 max-sm:basis-full max-sm:items-start max-sm:gap-4"
           data-slot="page-header-status-row"
         >
           <OperationStatusSlot scope={operationScope} />
           {actions === null ? null : (
             <div
-              className="contents max-[390px]:flex max-[390px]:min-w-0 max-[390px]:flex-1 max-[390px]:justify-end"
+              className="contents max-sm:flex max-sm:min-w-0 max-sm:flex-1 max-sm:justify-end"
               data-slot="page-header-actions"
             >
               {actions}
@@ -195,13 +195,13 @@ function PageHeader({
 
   return (
     <div
-      className="mb-2 flex items-start justify-between gap-4 max-[390px]:flex-wrap"
+      className="mb-2 flex items-start justify-between gap-4 max-sm:flex-wrap"
       data-testid="page-header"
     >
       <SidebarOverlayTrigger />
       {/* Wrapping, the block takes the rest of the first row instead of breaking its line at the
           subtitle's width, so it keeps to the overlay trigger (`SUI-FEATURE-110`). */}
-      <div className={cn("min-w-0 max-[390px]:grow max-[390px]:basis-0", besideTrigger)}>
+      <div className={cn("min-w-0 max-sm:grow max-sm:basis-0", besideTrigger)}>
         <h1 className="text-xl font-semibold tracking-tight" data-testid="page-title">
           {title}
         </h1>

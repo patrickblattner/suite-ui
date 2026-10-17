@@ -1189,11 +1189,19 @@ for (const width of [1024, 390, 320]) {
   });
 }
 
-// #222 (`SUI-FEATURE-051` rev 7, AC 7; `GL-UX-001`): below 390 px the action group stands on row two,
-// idle, running and with progress. Nothing reaches past the head, and the title stays whole.
-for (const frame of ["status-frame-toggle", "status-frame-running", "status-frame-progress"]) {
-  test(`page header: at 320 px the actions take row two, ${frame}`, async ({ page }) => {
-    await page.setViewportSize({ width: 320, height: 900 });
+// #222, #226 (`SUI-FEATURE-051` rev 8, AC 7; `GL-UX-001`): below 640 px the action group stands on
+// row two, idle, running, with progress and with "+n". Nothing reaches past the head, and the title
+// stays whole.
+for (const [width, frame] of [320, 390].flatMap((width) =>
+  [
+    "status-frame-toggle",
+    "status-frame-running",
+    "status-frame-progress",
+    "status-frame-multiple",
+  ].map((frame) => [width, frame] as const),
+)) {
+  test(`page header: at ${width} px the actions take row two, ${frame}`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
     await page.goto("/?page=components&lng=de");
     const head = page.getByTestId(frame).getByTestId("page-header");
     await expect(head).toBeVisible();
@@ -1225,44 +1233,66 @@ for (const frame of ["status-frame-toggle", "status-frame-running", "status-fram
   });
 }
 
-// #222 (`SUI-FEATURE-051` rev 7, AC 7): a long title fills the first row at 320 px; row two holds the
-// slot's compact width, idle or not, beside two actions. Idle, running and with progress the head
-// keeps one height, the title stays whole and nothing reaches past the head.
-test("page header: at 320 px a long title keeps one head height, idle, running and progress", async ({
-  page,
-}) => {
-  await page.setViewportSize({ width: 320, height: 900 });
+// #222, #226 (`SUI-FEATURE-051` rev 8, AC 7): a long title fills the first row at 320 and 390 px; row
+// two holds the slot's compact width, idle or not, beside two actions. Idle, running, with progress
+// and with "+n" the head keeps one height, the title stays whole and nothing reaches past the head.
+for (const width of [320, 390]) {
+  test(`page header: at ${width} px a long title keeps one head height, idle, running, progress and +n`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/?page=components&lng=de&statusTitle=long");
+    const frame = page.getByTestId("status-frame-toggle");
+    const head = frame.getByTestId("page-header");
+    await expect(frame.getByTestId("page-title")).toHaveText("Website-Einstellungen");
+    const layout = () =>
+      head.evaluate((node) => {
+        const own = node.getBoundingClientRect();
+        const title = node.querySelector("[data-testid=page-title]")!;
+        return {
+          height: own.height,
+          overflow: node.scrollWidth - node.clientWidth,
+          // A screen-reader-only text is a 1 px box; it counts for nothing here.
+          outside: [...node.querySelectorAll("*")].filter((el) => {
+            const box = el.getBoundingClientRect();
+            return box.width > 1 && (box.left < own.left - 0.5 || box.right > own.right + 0.5);
+          }).length,
+          titleCut: title.scrollWidth - title.clientWidth,
+        };
+      });
+    const idle = await layout();
+    expect(idle).toMatchObject({ overflow: 0, outside: 0, titleCut: 0 });
+    const toggle = frame.getByTestId("status-toggle");
+    await toggle.click();
+    await expect(frame.getByTestId("operation-spinner")).toBeVisible();
+    expect(await layout()).toEqual(idle);
+    await toggle.click();
+    await expect(frame.getByTestId("operation-progress")).toBeVisible();
+    expect(await layout()).toEqual(idle);
+    // Rev 8: a second operation; compact, "+1" stands in the indicator's name, not beside it.
+    await toggle.click();
+    const slot = frame.getByTestId("page-operation-status");
+    await expect(slot.getByRole("img", { name: "Uploading images +1" })).toBeVisible();
+    await expect(slot.getByTestId("page-operation-more")).toHaveCount(0);
+    expect(await layout()).toEqual(idle);
+  });
+}
+
+// #226 (`SUI-FEATURE-051` rev 8): with a second operation the compact indicator's hint names the
+// label and "+1".
+test("page header: at 390 px the compact indicator's hint carries +n", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 900 });
   await page.goto("/?page=components&lng=de&statusTitle=long");
   const frame = page.getByTestId("status-frame-toggle");
-  const head = frame.getByTestId("page-header");
-  await expect(frame.getByTestId("page-title")).toHaveText("Website-Einstellungen");
-  const layout = () =>
-    head.evaluate((node) => {
-      const own = node.getBoundingClientRect();
-      const title = node.querySelector("[data-testid=page-title]")!;
-      return {
-        height: own.height,
-        overflow: node.scrollWidth - node.clientWidth,
-        // A screen-reader-only text is a 1 px box; it counts for nothing here.
-        outside: [...node.querySelectorAll("*")].filter((el) => {
-          const box = el.getBoundingClientRect();
-          return box.width > 1 && (box.left < own.left - 0.5 || box.right > own.right + 0.5);
-        }).length,
-        titleCut: title.scrollWidth - title.clientWidth,
-      };
-    });
-  const idle = await layout();
-  expect(idle).toMatchObject({ overflow: 0, outside: 0, titleCut: 0 });
   const toggle = frame.getByTestId("status-toggle");
-  await toggle.click();
-  await expect(frame.getByTestId("operation-spinner")).toBeVisible();
-  expect(await layout()).toEqual(idle);
-  await toggle.click();
-  await expect(frame.getByTestId("operation-progress")).toBeVisible();
-  expect(await layout()).toEqual(idle);
+  for (let step = 0; step < 3; step++) await toggle.click();
+  const indicator = frame.getByTestId("page-operation-status").getByRole("img");
+  await expect(indicator).toHaveAccessibleName("Uploading images +1");
+  await indicator.hover();
+  await expect(page.locator("[data-slot=tooltip-content]")).toHaveText("Uploading images +1");
 });
 
-// #222 (`SUI-FEATURE-051` rev 7, `GL-UI-013`): at 320 px the compact progress indicator, reached by
+// #222 (`SUI-FEATURE-051` rev 8, `GL-UI-013`): at 320 px the compact progress indicator, reached by
 // keyboard, shows its 3 px ring whole inside the slot's clip.
 test("page header: at 320 px the compact indicator's focus ring is not clipped", async ({
   page,
@@ -1286,7 +1316,7 @@ test("page header: at 320 px the compact indicator's focus ring is not clipped",
   expect(ring.x + ring.width + 3).toBeLessThanOrEqual(slot.x + slot.width);
 });
 
-// #222 (`SUI-FEATURE-110`): below 390 px the head may wrap, yet a head without actions stays one row:
+// #222 (`SUI-FEATURE-110`): below 640 px the head may wrap, yet a head without actions stays one row:
 // the overlay trigger and the title share it, whatever the subtitle's length.
 for (const name of ["shell", "edit-panel"]) {
   test(`page header: at 320 px the overlay trigger and the title share a row, ${name}`, async ({
@@ -1302,7 +1332,7 @@ for (const name of ["shell", "edit-panel"]) {
   });
 }
 
-// #222 (`SUI-FEATURE-051` rev 7): a list head without a status slot also puts its add on row two at
+// #222 (`SUI-FEATURE-051` rev 8): a list head without a status slot also puts its add on row two at
 // 320 px, with nothing past the head.
 test("page header: at 320 px a list head puts its add on row two", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 900 });

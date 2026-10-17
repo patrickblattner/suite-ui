@@ -70,8 +70,8 @@ function OperationLabel({ id, label }: { id?: string; label: string }) {
 // The status slot of the page head for one `scope`: the newest operation, the count of the others as
 // "+n" (`GL-UI-033`). Running, the slot claims the indicator plus `10rem` for the label before the
 // subtitle keeps any width (`SUI-FEATURE-051`): its basis is that room, and the head's title block
-// shrinks first, down to the title. Below that room the label moves into the indicator's hint, so the
-// slot never disappears. It grows into the row's free space with its content right-aligned; its
+// shrinks first, down to the title. Below that room the label and "+n" move into the indicator's hint
+// and accessible name ("label +n", `SUI-FEATURE-051` rev 8), so the slot never disappears. It grows into the row's free space with its content right-aligned; its
 // negative margin cancels the row gap it adds; while nothing runs it takes no width. The slot itself is
 // no live region (`GL-UI-033`, `SUI-FEATURE-052`): inside it a screen-reader-only status, present before
 // its content, holds exactly the newest label, so compact and full read the same and only once. The
@@ -104,6 +104,8 @@ function OperationStatusSlot({ scope }: { scope: string }) {
     return () => observer.disconnect();
   }, [node, newest, basis]);
 
+  // The name of the compact indicator: the label, and "+n" beside it.
+  const named = (label: string) => (inScope.length < 2 ? label : `${label} +${inScope.length - 1}`);
   const more =
     inScope.length > 1 ? (
       <span className="shrink-0 text-sm text-muted-foreground" data-testid="page-operation-more">
@@ -115,12 +117,12 @@ function OperationStatusSlot({ scope }: { scope: string }) {
     <div
       ref={setNode}
       className={cn(
-        // Below 390 px the slot leads row two of the head (`SUI-FEATURE-051` rev 7): it adds no row
+        // Below 640 px the slot leads row two of the head (`SUI-FEATURE-051` rev 8): it adds no row
         // gap there to cancel, and it holds the compact width of a progress indicator, idle or
         // running, so the actions beside it wrap by width alone; 4 px at each end keep the
         // indicator's focus ring inside its clip. Its room as basis and minimum come as inline
         // styles, hence `!`.
-        "-ml-4 flex h-9 min-w-0 grow items-center overflow-clip max-[390px]:ml-0 max-[390px]:w-14 max-[390px]:flex-none max-[390px]:pl-1 max-[390px]:basis-auto! max-[390px]:min-w-0!",
+        "-ml-4 flex h-9 min-w-0 grow items-center overflow-clip max-sm:ml-0 max-sm:w-14 max-sm:flex-none max-sm:pl-1 max-sm:basis-auto! max-sm:min-w-0!",
         newest === undefined ? "flex-none" : "pr-1",
       )}
       style={
@@ -135,18 +137,19 @@ function OperationStatusSlot({ scope }: { scope: string }) {
         {newest?.label}
       </span>
       {newest === undefined ? null : compact ? (
-        <div className="ml-auto flex items-center gap-2 pl-4 max-[390px]:pl-0">
-          <Hint text={newest.label}>
+        // Compact, "+n" stands in the hint and the name beside the label, not beside the indicator,
+        // so the slot keeps its fixed compact width (`SUI-FEATURE-051` rev 8).
+        <div className="ml-auto flex items-center gap-2 pl-4 max-sm:pl-0">
+          <Hint text={named(newest.label)}>
             <span
               role="img"
-              aria-label={newest.label}
+              aria-label={named(newest.label)}
               tabIndex={0}
               className="relative inline-flex rounded-full outline-none after:absolute after:top-1/2 after:left-1/2 after:size-6 after:-translate-x-1/2 after:-translate-y-1/2 focus-visible:focus-ring"
             >
               <OperationIndicator progress={newest.progress} />
             </span>
           </Hint>
-          {more}
         </div>
       ) : (
         <div className="ml-auto flex min-w-0 items-center gap-2 pl-4">

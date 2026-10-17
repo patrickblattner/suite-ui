@@ -324,9 +324,10 @@ function StatusFrame({
   );
 }
 
-// `?statusTitle=long` (#222, `SUI-FEATURE-051` rev 7): the toggle heads carry a long title and two
-// actions, and Run steps idle → running → progress → done, so the 320 px reflow can be measured in
-// every state; the captures keep the short title and the one action.
+// `?statusTitle=long` (#222, #226, `SUI-FEATURE-051` rev 8): the toggle heads carry a long title and
+// two actions, and Run steps idle → running → progress → a second operation with progress ("+1") →
+// done, so the narrow reflow can be measured in every state; the captures keep the short title and the
+// one action.
 const LONG_STATUS = new URLSearchParams(window.location.search).get("statusTitle") === "long";
 
 // The toggle starts and ends one operation, so the head can be measured before and after; its text
@@ -340,6 +341,7 @@ function StatusToggle({
 }) {
   const { start } = useOperationStatus();
   const handle = useRef<OperationHandle | null>(null);
+  const second = useRef<OperationHandle | null>(null);
   const progressed = useRef(false);
   const [running, setRunning] = useState(false);
   const toggle = () => {
@@ -348,7 +350,11 @@ function StatusToggle({
     } else if (LONG_STATUS && !progressed.current) {
       handle.current.update({ progress: 0.6 });
       progressed.current = true;
+    } else if (LONG_STATUS && second.current === null) {
+      second.current = start({ scope: "toggle", label: "Uploading images", progress: 0.3 });
     } else {
+      second.current?.succeed("Images uploaded");
+      second.current = null;
       handle.current.succeed("Website updated");
       handle.current = null;
       progressed.current = false;

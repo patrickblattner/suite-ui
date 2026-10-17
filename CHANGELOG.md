@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.125.0 — #226, SUI-FEATURE-051 rev 8 (Q&A #3852): `PageHeader` two rows below 640 px, "+n" in the compact hint
+
+Behaviour changes that app tests may see.
+
+- The two-row `PageHeader` now starts below 640 px of window width (Tailwind `sm`) instead of below 390 px. The title has row one; row two holds the status slot's reserved compact width on the left and the actions beside it, which wrap within their column. It is still a CSS rule on the window width, and an operation changes nothing. So at 390 px too, the head keeps one height idle, running, with progress and with several operations, and nothing reaches past it. That ends the overflow of up to 23 px a running slot's head had at 390 px. From 640 px on nothing changes.
+- The compact status slot no longer draws "+n" beside its indicator. "+n" moves into the hint and the indicator's accessible name, after the label ("Uploading images +1"). The slot keeps its fixed compact width. The full slot still shows "+n" beside the label.
+
+**Migration:** none in code. App tests at a viewport below 640 px that expect the actions beside the title see them on row two. A test that looks for `page-operation-more` beside a compact indicator finds "+n" in the indicator's name instead. Baselines: `components-de-light-390`, `components-de-dark-390`, `list-de-light-390` and `list-de-dark-390` (the actions on row two); 1440 and 1920 px are unchanged.
+
+Minor, not patch: the visible "+n" moves and the 390 px layout changes, which app tests can see.
+
 ## 0.124.1 — #223, SUI-FEATURE-071 rev 4 (Q&A #3845): the open `DrawerRail` drawer is never clipped
 
 Not breaking. The open drawer is 300 px wide but never wider than the room its container leaves beside the 48 px rail. It still narrows the canvas and never covers it. Before, below about 350 px of editor width (320 px window, a 1280 px desktop at 400 % zoom, WCAG 1.4.10 Reflow, `GL-UX-001`), the drawer ran past the editor frame and its fields were cut off: by 77 px at 320 px, by 6 px at 390 px. The rule follows the container, not the window. From 1440 px the drawer is 300 px as before. Gallery: the CanvasEdgeRow demo frames stack when the row is too narrow, so the components page no longer scrolls sideways at 320 px. **Migration:** none. Baselines: `components-de-light-390` and `components-de-dark-390`, where the open style drawer now ends at the editor frame instead of 6 px past it; 1440 and 1920 px are unchanged.

@@ -126,6 +126,30 @@ describe("useOperationStatus and the PageHeader status slot", () => {
     expect(screen.getByTestId("page-operation-live")).toHaveTextContent(/^Second$/);
   });
 
+  // SUI-FEATURE-051 rev 8: compact, "+n" moves into the hint and the name beside the label.
+  it("carries +1 in the compact indicator's name instead of beside it", () => {
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
+    vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(40);
+    document.documentElement.style.fontSize = "16px";
+    const { api } = setup("brand-kit");
+    act(() => {
+      api().start({ scope: "brand-kit", label: "First" });
+      api().start({ scope: "brand-kit", label: "Second", progress: 0.5 });
+    });
+    const slot = screen.getByTestId("page-operation-status");
+    expect(slot).toHaveAttribute("data-compact", "");
+    expect(screen.queryByTestId("page-operation-more")).toBeNull();
+    expect(within(slot).getByRole("img", { name: "Second +1" })).toBeInTheDocument();
+    // The status still holds the label alone (`SUI-FEATURE-052`).
+    expect(within(slot).getByRole("status").textContent).toBe("Second");
+  });
+
   it("shows nothing for another scope and renders no slot without a scope", () => {
     const { api } = setup("brand-kit");
     act(() => {
