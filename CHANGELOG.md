@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.117.0 — #197, SUI-FEATURE-087: alignment grid for visual editors
+## 0.117.0 — #197, SUI-FEATURE-087 rev 3: alignment grid for visual editors
 
 Not breaking. New modules `@suite/ui/ui/grid-core` and `@suite/ui/ui/grid`, so a DOM editor and a canvas editor snap alike (`GL-UI-040`). The app owns and stores the grid; the package stores nothing.
 

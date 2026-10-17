@@ -214,7 +214,13 @@ describe("GridToggle (SUI-FEATURE-087)", () => {
       expect(button).toBeDisabled();
       expect(button).toHaveAttribute("aria-pressed", "false");
       expect(button.parentElement).toHaveAccessibleDescription("Set a grid in the brand kit");
-      if (mode === "getrennt") expect(screen.getByTestId("grid-toggle-menu")).toBeDisabled();
+      if (mode === "getrennt") {
+        // Rev 3: both parts locked, both carry the app's hint.
+        const menu = screen.getByTestId("grid-toggle-menu");
+        expect(menu).toBeDisabled();
+        expect(menu).toHaveAccessibleName("Grid options");
+        expect(menu.parentElement).toHaveAccessibleDescription("Set a grid in the brand kit");
+      }
     },
   );
 
