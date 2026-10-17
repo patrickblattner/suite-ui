@@ -1,5 +1,41 @@
 /* Gallery chrome only, on the package tokens from `src/styles.css`. The font stands in for the
    one an app declares. */
+
+/* The package ships no font, so the gallery checks in a substitute with real cuts 400/500/600/700:
+   a weight change shows in the baselines instead of falling onto one synthesized cut
+   (SUI-FEATURE-076). Inter, latin subset, from @fontsource/inter 5.3.0; license in `fonts/OFL.txt`. */
+@font-face {
+  font-family: "Gallery Inter";
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+  src: url("./fonts/inter-latin-400-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Gallery Inter";
+  font-style: normal;
+  font-weight: 500;
+  font-display: block;
+  src: url("./fonts/inter-latin-500-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Gallery Inter";
+  font-style: normal;
+  font-weight: 600;
+  font-display: block;
+  src: url("./fonts/inter-latin-600-normal.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Gallery Inter";
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+  src: url("./fonts/inter-latin-700-normal.woff2") format("woff2");
+}
+
 :root {
   color-scheme: light;
 }
@@ -17,7 +53,7 @@
 
 body {
   margin: 0;
-  font-family: system-ui, sans-serif;
+  font-family: "Gallery Inter", sans-serif;
 }
 
 /* The gallery's own top bar only: a bare `header` would also hit the package's EditorHeader, and
@@ -28,14 +64,9 @@ body {
   align-items: center;
   padding: 16px 24px;
   border-bottom: 1px solid var(--border);
-}
-
-/* Below the phone width of the captures (390 px) the pickers wrap, so the chrome itself never forces a
-   horizontal scroll at 320 px (WCAG 1.4.10, #92); from 390 px on the bar stays as captured. */
-@media (max-width: 389px) {
-  #root > header {
-    flex-wrap: wrap;
-  }
+  /* The pickers wrap wherever the bar is too narrow, so the chrome itself never forces a horizontal
+     scroll (WCAG 1.4.10, #92); in the substitute font that happens from about 393 px down (#217). */
+  flex-wrap: wrap;
 }
 
 #root > header h1 {

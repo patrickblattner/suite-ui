@@ -206,6 +206,13 @@ function Gallery() {
   );
 }
 
+// The substitute font (gallery.css) is loaded before the first render, so a component that measures
+// text on mount sees the final glyphs (`GL-TEST-019`: a still scene). CanvasOverlay's badge does not yet
+// re-measure after a font swap; that is #218. A cut that fails to load leaves the fallback font, never a
+// blank gallery.
+await Promise.allSettled(
+  [400, 500, 600, 700].map((weight) => document.fonts.load(`${weight} 1em "Gallery Inter"`)),
+);
 createRoot(document.getElementById("root") as HTMLElement).render(
   <StrictMode>
     <Gallery />
