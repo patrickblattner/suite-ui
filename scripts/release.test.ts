@@ -69,18 +69,58 @@ describe("release:tag", () => {
 
   it("refuses a record with a non-zero exit", () => {
     writeRecord({ profile: "merge", exit: 1 });
-    expect(tag("--dry-run").out).toContain("is not green");
+    const run = tag("--dry-run");
+    expect(run.status).toBe(1);
+    expect(run.out).toContain("is not green");
   });
 
   it("refuses a record of another profile", () => {
     writeRecord({ profile: "local", exit: 0 });
-    expect(tag("--dry-run").out).toContain("is not green");
+    const run = tag("--dry-run");
+    expect(run.status).toBe(1);
+    expect(run.out).toContain("is not green");
   });
 
   it("refuses off main", () => {
     writeRecord({ profile: "merge", exit: 0 });
     git("checkout", "-q", "-b", "ticket/1");
-    expect(tag("--dry-run").out).toContain("HEAD is not on main");
+    const run = tag("--dry-run");
+    expect(run.status).toBe(1);
+    expect(run.out).toContain("HEAD is not on main");
+  });
+
+  // #138: a commit that is not on origin/main yet (main not pushed) gets no tag.
+  it("refuses a commit that is not on origin/main", () => {
+    writeFileSync(join(repo, "next.txt"), "x");
+    git("add", ".");
+    git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "unpushed");
+    writeRecord({ profile: "merge", exit: 0 });
+    const run = tag("--dry-run");
+    expect(run.status).toBe(1);
+    expect(run.out).toContain(`${git("rev-parse", "HEAD")} is not on origin/main`);
+    expect(git("tag", "-l")).toBe("");
+  });
+
+  // #138: an existing tag of the version is never moved or created twice.
+  it("refuses when the version's tag exists already", () => {
+    writeRecord({ profile: "merge", exit: 0 });
+    git("tag", "v9.9.9");
+    const before = git("rev-parse", "refs/tags/v9.9.9");
+    const run = tag("--dry-run");
+    expect(run.status).toBe(1);
+    expect(run.out).toContain("v9.9.9 exists already — no tag");
+    expect(git("rev-parse", "refs/tags/v9.9.9")).toBe(before);
+  });
+
+  // #138: a push that fails takes the local tag back. The remote is a path that does not exist, so
+  // nothing leaves the machine.
+  it("deletes the local tag again when the push fails", () => {
+    writeRecord({ profile: "merge", exit: 0 });
+    git("remote", "add", "origin", join(repo, ".no-such-remote.git"));
+    const run = tag();
+    expect(run.status).toBe(1);
+    expect(run.out).toContain("pushing v9.9.9 failed — the local tag is deleted again");
+    expect(git("tag", "-l")).toBe("");
   });
 
   it("refuses an unknown argument and creates no tag", () => {
@@ -323,6 +363,21 @@ describe("gate:record", () => {
     });
     return { status: run.status, err: run.stderr };
   };
+
+  // #138: only the ledger arguments go to the gate; a second `--profile` would record another
+  // profile's run as the merge gate. Refused before anything else runs.
+  it("refuses --profile local with exit 1 and records nothing", () => {
+    const run = spawnSync(
+      process.execPath,
+      ["scripts/release.ts", "record", "--profile", "local"],
+      { cwd: repo, encoding: "utf8" },
+    );
+    expect(run.status).toBe(1);
+    expect(run.stderr).toContain(
+      'only --issue <value> and --run <value> go to the gate, not "--profile"',
+    );
+    expect(existsSync(join(repo, ".spec-sync", "gate-records"))).toBe(false);
+  });
 
   it("exits 4 on an in-range version that differs from the lockfile", () => {
     setup("^1.0.0", "1.2.0", "1.3.0");
