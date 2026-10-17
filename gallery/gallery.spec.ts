@@ -3141,12 +3141,16 @@ test("filter bar: the search keeps 320 px with three filters at 1100 px", async 
 });
 
 // Reflow (WCAG 1.4.10): at 320 px the search never forces a horizontal scroll; its 20rem lower bound
-// gives way to the row's width. The gallery's own header (page, language and theme pickers) is wider
-// than 320 px, so the check is on the list's content surface and on every FilterBar element rather
-// than on the document.
+// gives way to the row's width. The gallery's header wraps (#92), so the whole document is checked,
+// the list's content surface and every FilterBar element as well.
 test("filter bar: no horizontal scroll at 320 px", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 800 });
   await page.goto("/?page=list&filters=node");
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+    ),
+  ).toBeLessThanOrEqual(0);
   const bar = page.getByTestId("filterbar");
   const search = await box(page.getByTestId("filter-haystack"));
   expect(search.width).toBeLessThanOrEqual((await box(bar)).width + 0.5);
@@ -6141,3 +6145,26 @@ test("settings action row: Cancel without a change, Save submits the form", asyn
   await expect(cancel).toBeFocused();
   await expect(page.getByTestId("replace-replace")).toBeEnabled();
 });
+
+// #92 (WCAG 1.4.10): the gallery's top bar wraps at 320 px; neither it nor the document scrolls
+// horizontally, in every language.
+for (const lng of LANGUAGES) {
+  test(`gallery top bar fits 320 px ${lng}`, async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 800 });
+    await page.goto(`/?lng=${lng}`);
+    await expect(page.getByTestId("gallery-language")).toHaveValue(lng);
+    const header = page.locator("body > #root > header");
+    expect(await header.evaluate((el) => el.scrollWidth - el.clientWidth)).toBeLessThanOrEqual(0);
+    const overflowing = await header.evaluate((el) =>
+      [el, ...el.querySelectorAll("*")]
+        .filter((node) => node.getBoundingClientRect().right > window.innerWidth + 0.5)
+        .map((node) => node.getAttribute("data-testid") ?? node.tagName),
+    );
+    expect(overflowing).toEqual([]);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      ),
+    ).toBeLessThanOrEqual(0);
+  });
+}
