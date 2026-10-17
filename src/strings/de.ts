@@ -261,7 +261,7 @@ export const de: SuiteStrings = {
     missingRef: "Diesem Eintrag ist keine Datei zugeordnet.",
     missingBytes:
       "Die Datei ist nicht mehr vorhanden. Lade sie neu hoch oder entferne den Eintrag.",
-    noRenderer: "Für diesen Typ gibt es keine Vorschau.",
+    noRenderer: "Für diese Datei gibt es keine Vorschau.",
     truncated: "Gekürzt — nur der Anfang wird gezeigt.",
     pickUnavailable: "Ohne Datei nicht wählbar.",
     emptyText: "Die Datei ist leer.",

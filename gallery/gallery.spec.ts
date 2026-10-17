@@ -1597,7 +1597,13 @@ test("media detail shell: text in both formats, the three preview states and an 
       null,
       true,
     ],
-    [5, "noRenderer", "No preview for this type.", "archive.zip · application/zip", false],
+    [
+      5,
+      "noRenderer",
+      "No preview available for this file.",
+      "archive.zip · application/zip",
+      false,
+    ],
   ] as const) {
     await page.keyboard.press("ArrowRight");
     await expect(position).toHaveText(`${n} of 6`);
