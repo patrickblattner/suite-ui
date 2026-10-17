@@ -17,6 +17,9 @@ const RAW: Record<string, string> = {
     "",
     "![The dashboard with its cards]()",
     "",
+    // A second-level heading in the package's own type (#211).
+    "## Cards",
+    "",
     "| Card | Shows |",
     "|---|---|",
     "| Ideas | Open ideas |",

@@ -50,7 +50,7 @@ export function GridPage() {
   return (
     <div className="flex flex-col gap-8" data-testid="grid-page">
       <section className="flex flex-col gap-2">
-        <h2 className="text-base font-semibold">GridFields</h2>
+        <h2 className="text-lg leading-normal font-medium">GridFields</h2>
         <div className="flex flex-wrap gap-6">
           <div className="w-full max-w-85 rounded-md border p-4" data-testid="grid-fields-panel">
             <GridFields value={definition} onChange={setDefinition} allowNone />
@@ -61,7 +61,7 @@ export function GridPage() {
         </div>
       </section>
       <section className="flex flex-col gap-2">
-        <h2 className="text-base font-semibold">GridToggle</h2>
+        <h2 className="text-lg leading-normal font-medium">GridToggle</h2>
         <div className="flex flex-wrap items-start gap-8">
           <div className="flex flex-col gap-2" data-testid="grid-toggle-coupled">
             <Caption>gekoppelt</Caption>
@@ -96,7 +96,7 @@ export function GridPage() {
         </div>
       </section>
       <section className="flex flex-col gap-2">
-        <h2 className="text-base font-semibold">GridOverlay</h2>
+        <h2 className="text-lg leading-normal font-medium">GridOverlay</h2>
         <div className="flex flex-wrap gap-6">
           {overlay("bg-background border", "grid-overlay-light")}
           {overlay("bg-foreground", "grid-overlay-dark")}
