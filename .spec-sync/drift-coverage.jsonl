@@ -427,3 +427,4 @@
 {"ts":"2026-10-17T18:20:30.940Z","key":"SUI-FEATURE-051","from":4,"to":5,"disposition":"ticket","ref":"222"}
 {"ts":"2026-10-17T18:24:17.673Z","key":"SUI-FEATURE-071","from":3,"to":4,"disposition":"ticket","ref":"223"}
 {"ts":"2026-10-17T18:24:18.992Z","key":"GL-UI-035","from":3,"to":4,"disposition":"editorial","ref":"rev 4 placeholder focus/zoom applies to editors with their own toolbar (Template-Studio); no SUI leaf asks the package for it; Q&A #3846 asks whether one should"}
+{"ts":"2026-10-17T18:35:28.947Z","key":"SUI-FEATURE-051","from":5,"to":6,"disposition":"ticket","ref":"222"}
