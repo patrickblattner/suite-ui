@@ -6318,3 +6318,25 @@ test("shell: the appearance options are one radiogroup stop, ←/→ choose", as
   await expect(checked()).toBeFocused();
   expect(await checked().getAttribute("data-testid")).toBe(order[1]);
 });
+
+// #204 (`SUI-FEATURE-067`): the gallery shows EditorHeader as apps get it. The gallery's own chrome
+// rules reach only its top bar, so the header keeps its own padding, `py-3` and the page gutter.
+test("editor header: its own padding, not the gallery top bar's", async ({ page }) => {
+  await page.goto("/?page=editor-shell&lng=en");
+  const header = page.locator("[data-slot=editor-header]").first();
+  await expect(header).toBeVisible();
+  const gutter = await page.evaluate(() => {
+    const probe = document.createElement("div");
+    probe.style.paddingLeft = "var(--page-gutter)";
+    document.body.append(probe);
+    const value = getComputedStyle(probe).paddingLeft;
+    probe.remove();
+    return value;
+  });
+  await expect(header).toHaveCSS("padding-top", "12px");
+  await expect(header).toHaveCSS("padding-bottom", "12px");
+  await expect(header).toHaveCSS("padding-left", gutter);
+  await expect(header).toHaveCSS("padding-right", gutter);
+  // The gallery's own top bar keeps its chrome.
+  await expect(page.locator("#root > header")).toHaveCSS("padding", "16px 24px");
+});
