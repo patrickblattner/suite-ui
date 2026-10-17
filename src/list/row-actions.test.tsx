@@ -562,6 +562,48 @@ describe("RowActions test ids (SUI-FEATURE-008)", () => {
   });
 });
 
+// #195: inside a form an action acts on its row and never submits the form.
+describe("RowActions inside a form", () => {
+  it("Used by, an extra action, edit and delete are type=button: one call, no submit", () => {
+    const onSubmit = vi.fn((event: React.FormEvent) => event.preventDefault());
+    const onEdit = vi.fn();
+    const onDelete = vi.fn();
+    const onCopy = vi.fn();
+    const onToggle = vi.fn();
+    render(
+      <form onSubmit={onSubmit}>
+        <Table>
+          <TableBody>
+            <TableRow>
+              <RowActions
+                rowName="Ada"
+                usage={{ count: 3, active: false, onToggle }}
+                extra={[
+                  { label: "Copy", icon: CopyIcon, onClick: onCopy, "data-testid": "row-copy" },
+                ]}
+                onEdit={onEdit}
+                onDelete={onDelete}
+              />
+            </TableRow>
+          </TableBody>
+        </Table>
+      </form>,
+    );
+    for (const [testId, handler] of [
+      ["row-usage", onToggle],
+      ["row-copy", onCopy],
+      ["row-edit", onEdit],
+      ["row-delete", onDelete],
+    ] as const) {
+      const button = screen.getByTestId(testId);
+      expect(button).toHaveAttribute("type", "button");
+      fireEvent.click(button);
+      expect(handler).toHaveBeenCalledOnce();
+    }
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+});
+
 describe("EmptyCell (SUI-FEATURE-047)", () => {
   afterEach(async () => {
     await i18n.changeLanguage("en");

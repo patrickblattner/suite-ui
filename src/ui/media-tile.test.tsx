@@ -398,3 +398,23 @@ describe("MediaTile delete button and the focus after the confirmation", () => {
     await waitFor(() => expect(screen.getByTestId("t-c")).toHaveFocus());
   });
 });
+
+// #195: the corner delete inside a form calls `onDelete` once and never submits the form.
+describe("MediaTile delete button inside a form", () => {
+  it("is type=button: one onDelete, no submit, no open", () => {
+    const onSubmit = vi.fn((event: React.FormEvent) => event.preventDefault());
+    const onDelete = vi.fn();
+    const onOpen = vi.fn();
+    render(
+      <form onSubmit={onSubmit}>
+        <MediaTile kind="pdf" name="a.pdf" tags={[]} onOpen={onOpen} onDelete={onDelete} />
+      </form>,
+    );
+    const button = screen.getByTestId("media-tile-delete");
+    expect(button).toHaveAttribute("type", "button");
+    fireEvent.click(button);
+    expect(onDelete).toHaveBeenCalledOnce();
+    expect(onOpen).not.toHaveBeenCalled();
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+});

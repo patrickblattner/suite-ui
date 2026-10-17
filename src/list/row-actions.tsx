@@ -98,7 +98,9 @@ function RowActionButton({
       disabledText={action.disabledText}
       shortcut={action.shortcut}
     >
+      {/* Never `submit`: a row inside a form acts on its row, not on the form. */}
       <Button
+        type="button"
         variant={variant}
         size={size}
         disabled={locked}
@@ -124,6 +126,7 @@ function UsageButton({ usage, size }: { usage: RowUsage; size: "icon-xs" | "icon
       disabledText={unused ? t("usage.none") : undefined}
     >
       <Button
+        type="button"
         variant="outline"
         size={size}
         disabled={unused}

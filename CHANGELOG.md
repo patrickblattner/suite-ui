@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.116.1 — #195: `RowActions` buttons no longer submit a surrounding form
+
+Not breaking. The action buttons of `RowActions` ("Used by", the extra actions, edit and delete) now render `type="button"`. So does the `MediaTile` corner delete button, which is the same element. Before, they had no `type`, so a click inside a `<form>` submitted the form while the action ran. **Migration:** none. Baselines: none changed.
+
 ## 0.116.0 — #193, SUI-FEATURE-084 rev 5: an always-visible delete button on `MediaTile`
 
 Not breaking. A `MediaTile` with `onDelete` now shows a delete button in its top-right corner, always visible: no hover or focus reveal, no ⋯ menu. It is the same element as the delete action of `RowActions` (filled `destructive`, `icon-xs`, 24 × 24 px). Its name and hint read "Delete ‹name›". In a keyboard grid (`rowProps`) it shows the Delete chip, because the tile binds the same handler to Delete/Backspace. A click calls `onDelete` once, so the app's confirmation runs, and does not open the tile. Without `onDelete` there is no button, and the tile renders as before.
