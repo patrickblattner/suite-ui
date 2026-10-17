@@ -6071,3 +6071,73 @@ test("grid overlay: the pointer passes through to the content", async ({ page })
     await expect(target).not.toHaveText(before ?? "");
   }
 });
+
+// SUI-FEATURE-088 rev 3 AC3: with two immediate buttons, in a settings block at 1920 px they stand
+// left and the pair right in one line; in a 360 px block the immediate buttons stand above left, the
+// pair below right. No text is cut, in every language.
+for (const lng of LANGUAGES) {
+  test(`settings action row: leading left, pair right ${lng}`, async ({ page }) => {
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    const ids = ["replace-replace", "replace-remove", "replace-cancel", "replace-save"];
+    for (const width of [null, 360]) {
+      await page.goto(
+        `/?page=settings&layout=action-row${width === null ? "" : `&width=${width}`}&lng=${lng}`,
+      );
+      const row = page.locator("[data-slot=settings-action-row]");
+      const rowBox = await box(row);
+      const [replace, remove, cancel, save] = await Promise.all(
+        ids.map((id) => box(page.getByTestId(id))),
+      );
+      expect(Math.abs(replace!.x - rowBox.x)).toBeLessThanOrEqual(1);
+      expect(Math.abs(save!.x + save!.width - (rowBox.x + rowBox.width))).toBeLessThanOrEqual(1);
+      expect(Math.abs(remove!.y - replace!.y)).toBeLessThanOrEqual(1);
+      expect(Math.abs(save!.y - cancel!.y)).toBeLessThanOrEqual(1);
+      expect(await row.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+      for (const id of ids) {
+        expect(
+          await page.getByTestId(id).evaluate((node) => node.scrollWidth <= node.clientWidth),
+          `${id} is cut`,
+        ).toBe(true);
+      }
+      if (width === null) {
+        // Wide: one line, every button the same height (rev 4, `GL-UI-011`).
+        for (const b of [remove!, cancel!, save!]) {
+          expect(Math.abs(b.y - replace!.y)).toBeLessThanOrEqual(1);
+          expect(b.height).toBe(replace!.height);
+        }
+      } else {
+        expect((await box(page.locator("[data-slot=settings-block]"))).width).toBe(width);
+        // Narrow: the pair below the immediate buttons.
+        expect(cancel!.y).toBeGreaterThanOrEqual(replace!.y + replace!.height);
+      }
+    }
+  });
+}
+
+// SUI-FEATURE-088 AC1 and §3: replacing a stored secret, Cancel is usable at once and Save locked;
+// Save submits the block's form, the same path as Enter in the field, and the form checks the change
+// itself, so Enter in an empty field submits nothing. After a cancel, Cancel locks and keeps the focus.
+test("settings action row: Cancel without a change, Save submits the form", async ({ page }) => {
+  await page.goto("/?page=settings&layout=action-row&lng=de");
+  const form = page.getByTestId("replace-form");
+  const cancel = page.getByTestId("replace-cancel");
+  await expect(cancel).toHaveText("Abbrechen");
+  await expect(cancel).not.toHaveAttribute("aria-disabled");
+  await expect(page.getByTestId("replace-save")).toHaveAttribute("aria-disabled", "true");
+  await expect(page.getByTestId("replace-reset")).toHaveCount(0);
+  await expect(page.getByTestId("replace-value")).toHaveAttribute("type", "password");
+  await expect(page.getByTestId("replace-replace")).toBeDisabled();
+  await page.getByTestId("replace-value").press("Enter");
+  await expect(form).toHaveAttribute("data-submits", "0");
+  await page.getByTestId("replace-value").fill("secret");
+  await page.getByTestId("replace-save").click();
+  await expect(form).toHaveAttribute("data-submits", "1");
+  await page.getByTestId("replace-value").fill("again");
+  await page.getByTestId("replace-value").press("Enter");
+  await expect(form).toHaveAttribute("data-submits", "2");
+  await cancel.click();
+  await expect(page.getByTestId("replace-value")).toHaveCount(0);
+  await expect(cancel).toHaveAttribute("aria-disabled", "true");
+  await expect(cancel).toBeFocused();
+  await expect(page.getByTestId("replace-replace")).toBeEnabled();
+});

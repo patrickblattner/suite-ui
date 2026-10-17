@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.118.0 — #199, SUI-FEATURE-088 rev 4: `SettingsActionRow` with Cancel and immediate buttons on the left
+
+Not breaking. Without the new props, the row renders exactly as before.
+
+- `onCancel` + `cancelable` in place of `onReset`: the left button reads "Cancel" (de "Abbrechen", es "Cancelar"), `outline`, with testid `<testIdPrefix>-cancel`. It is usable while `cancelable` is set, also without `dirty`. Not cancelable, it locks itself like a clean Save (`aria-disabled` and a click guard), so the focus stays on it after a cancel (`GL-UI-050`): an open sub-form (replacing a stored secret) is itself the change. The app's handler decides what Cancel discards and closes. Save is unchanged. Passing `onCancel` together with `onReset` is a type error, and so is `onCancel` without `cancelable`.
+- `leading`: buttons that act at once stand left in the same row, and the pair stays right. Build them with `SettingsActionButton`, newly exported from `@suite/ui/settings/secret-card-header`. It is the secret card's own button, `outline`, now at the pair's height by default (`size="default"`, one row one height, rev 4); the secret card head keeps `size="sm"`. With `disabledText` it is locked and shows the reason as its tooltip, and a running one locks the same way. Where the block is too narrow for both groups (a 360 px block, Q&A #3770), the row wraps: the immediate buttons above on the left, and the pair below on the right. No text is cut. A `leading` of `null` or `false` renders the row as before.
+- `onSave` stays a plain button. Inside a form, call `form.requestSubmit()` in it, so Enter in a field and the button take the same path. Enter submits past Save's lock, so the form's `onSubmit` must check `dirty` and `valid` itself.
+- New texts: `settings.cancelHint` and `settings.cancelDisabledHint` in de/en/es.
+
+**Migration:**
+
+- Cockpit: the two app-owned rows from `CPT-FEATURE-UI-120` switch to the package row, with `onCancel`/`cancelable` and the immediate buttons as `leading`.
+- Community: replacing the inbound key uses the row with `onCancel`.
+
+The gallery gains `?page=settings&layout=action-row` (`&width=360` narrows the block): a block with its own form, Replace and Remove on the left, and Cancel and Save on the right. Save calls `form.requestSubmit()`, the form ignores a submit without a change, and Replace is locked while its sub-form is open. Baselines: only the `gallery-*` strings table changed, by the two new keys. The row's own captures are unchanged.
+
 ## 0.117.0 — #197, SUI-FEATURE-087 rev 3: alignment grid for visual editors
 
 Not breaking. New modules `@suite/ui/ui/grid-core` and `@suite/ui/ui/grid`, so a DOM editor and a canvas editor snap alike (`GL-UI-040`). The app owns and stores the grid; the package stores nothing.

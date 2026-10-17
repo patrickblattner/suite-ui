@@ -8,16 +8,27 @@ import { Button } from "../ui/button.js";
 import { useFocusAfterRun } from "../ui/focus-return.js";
 import { Hint } from "../ui/hint.js";
 
+// The left button: Reset, or Cancel (`outline`) in its place, usable while `cancelable`, also without
+// a change (`SUI-FEATURE-088`).
+type SaveResetLeft =
+  | { onReset: () => void; cancel?: undefined }
+  | { onReset?: undefined; cancel: { onCancel: () => void; cancelable: boolean } };
+
 type SaveResetButtonsProps = {
-  // The stem of the button testids: `<stem>-reset` and `<stem>-save`.
+  // The stem of the button testids: `<stem>-reset` (or `-cancel`) and `<stem>-save`.
   stem: string;
   dirty: boolean;
   valid: boolean;
   saving: boolean;
-  onReset: () => void;
   // Given, Save is a plain button that calls it; otherwise Save is the submit button of its form.
   onSave?: (() => void) | undefined;
-};
+} & SaveResetLeft;
+
+// A Cancel that is not cancelable locks itself like a clean Save (`GL-UI-050`): `aria-disabled` with a
+// trigger lock, so the focus stays on it after a cancel; the label mixed with the background, in the
+// look the disabled button had.
+const LOCKED_CANCEL_CLASS =
+  "cursor-not-allowed text-[color-mix(in_srgb,var(--foreground)_50%,var(--background))]";
 
 // Reset (`destructive`) and Save (`success`), each with its fixed decorative icon before the label,
 // shared by `SettingsFooter` and `SettingsActionRow` so both carry the same variants, sizes, icons,
@@ -27,26 +38,52 @@ type SaveResetButtonsProps = {
 // the form is clean, so it keeps the focus after a save (`GL-UI-050`, `SUI-FEATURE-120`). Locked with a
 // reason (an invalid entry, a page that did not load) it is `disabled` and hands the focus on: within
 // the row, else to the page's main content.
-function SaveResetButtons({ stem, dirty, valid, saving, onReset, onSave }: SaveResetButtonsProps) {
+function SaveResetButtons({
+  stem,
+  dirty,
+  valid,
+  saving,
+  onReset,
+  cancel,
+  onSave,
+}: SaveResetButtonsProps) {
   const { t } = useTranslation("suite");
   const save = React.useRef<HTMLButtonElement>(null);
   const clean = !dirty && valid && !saving;
   useFocusAfterRun(save, saving, !valid);
   return (
     <>
-      <Hint text={t("settings.resetHint")} disabledText={t("settings.resetDisabledHint")}>
-        <Button
-          type="button"
-          variant="destructive"
-          size="default"
-          disabled={!dirty}
-          onClick={onReset}
-          data-testid={`${stem}-reset`}
-        >
-          <RotateCcwIcon aria-hidden="true" />
-          {t("actions.reset")}
-        </Button>
-      </Hint>
+      {cancel !== undefined ? (
+        <Hint text={t("settings.cancelHint")} disabledText={t("settings.cancelDisabledHint")}>
+          <Button
+            type="button"
+            variant="outline"
+            size="default"
+            {...(cancel.cancelable ? {} : { "aria-disabled": true })}
+            className={cn(!cancel.cancelable && LOCKED_CANCEL_CLASS)}
+            onClick={() => {
+              if (cancel.cancelable) cancel.onCancel();
+            }}
+            data-testid={`${stem}-cancel`}
+          >
+            {t("actions.cancel")}
+          </Button>
+        </Hint>
+      ) : (
+        <Hint text={t("settings.resetHint")} disabledText={t("settings.resetDisabledHint")}>
+          <Button
+            type="button"
+            variant="destructive"
+            size="default"
+            disabled={!dirty}
+            onClick={onReset}
+            data-testid={`${stem}-reset`}
+          >
+            <RotateCcwIcon aria-hidden="true" />
+            {t("actions.reset")}
+          </Button>
+        </Hint>
+      )}
       <Hint
         text={t("settings.saveHint")}
         disabledText={t(dirty ? "settings.saveInvalidHint" : "settings.saveDisabledHint")}

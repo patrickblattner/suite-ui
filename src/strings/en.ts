@@ -241,6 +241,10 @@ export const en = {
     resetHint: "Discards the unsaved changes on this page.",
     resetDisabledHint:
       "Discards the unsaved changes on this page — available once you have changed something here.",
+
+    // The Cancel of an entry's `SettingsActionRow` (`SUI-FEATURE-088`).
+    cancelHint: "Discards what is open here and closes it.",
+    cancelDisabledHint: "Discards what is open here — available once something is open.",
   },
   timezone: {
     placeholder: "Search time zone…",
