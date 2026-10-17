@@ -1050,6 +1050,7 @@ const FULL_FILL = /^okl(ab|ch)\([^/]*\)$/;
 // `GL-UI-027`: locked while unchanged, in the dimmed colour of the action; active after a change;
 // locked again after a reset and after a save. `SUI-FEATURE-120` rev 5: Save locks itself with
 // `aria-disabled`, focusable and opaque, its fill half-tone (#184); after a save the focus stays on it.
+// #201: Reset locks the same way, and after a reset the focus stays on it.
 test("settings: the pair follows the dirty state", async ({ page }) => {
   await page.goto("/?page=settings");
   const save = page.getByTestId("settings-general-save");
@@ -1057,31 +1058,33 @@ test("settings: the pair follows the dirty state", async ({ page }) => {
   const field = page.getByTestId("settings-field-1");
   await expect(save).toHaveAttribute("aria-disabled", "true");
   await expect(save).not.toHaveAttribute("disabled");
-  await expect(reset).toBeDisabled();
+  await expect(reset).toHaveAttribute("aria-disabled", "true");
+  await expect(reset).not.toHaveAttribute("disabled");
   const [dimSave, dimReset] = await Promise.all([look(save), look(reset)]);
 
   await field.fill("changed");
   await expect(save).not.toHaveAttribute("aria-disabled");
-  await expect(reset).toBeEnabled();
+  await expect(reset).not.toHaveAttribute("aria-disabled");
   // The fill fades from half-tone to full colour (the button's colour transition).
   await expect(save).toHaveCSS("background-color", FULL_FILL);
   const [fullSave, fullReset] = await Promise.all([look(save), look(reset)]);
   expect(dimSave.background).not.toBe(fullSave.background);
   expect(dimSave.opacity).toBe(1);
-  expect(dimReset.background).toBe(fullReset.background);
-  expect(dimReset.opacity).toBeLessThan(fullReset.opacity);
+  expect(dimReset.background).not.toBe(fullReset.background);
+  expect(dimReset.opacity).toBe(1);
 
   await reset.click();
   await expect(field).toHaveValue("1");
   await expect(save).toHaveAttribute("aria-disabled", "true");
-  await expect(reset).toBeDisabled();
+  await expect(reset).toHaveAttribute("aria-disabled", "true");
+  await expect(reset).toBeFocused();
 
   await field.fill("changed");
   await save.click();
   await expect(save).not.toHaveAttribute("aria-busy");
   await expect(save).toHaveAttribute("aria-disabled", "true");
   await expect(save).toBeFocused();
-  await expect(reset).toBeDisabled();
+  await expect(reset).toHaveAttribute("aria-disabled", "true");
   await expect(field).toHaveValue("changed");
 });
 
