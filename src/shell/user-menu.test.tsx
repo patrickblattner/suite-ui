@@ -261,6 +261,45 @@ describe("UserMenu", () => {
     expect(profile).toHaveFocus();
   });
 
+  // #177: the appearance options are one radiogroup with a roving tabindex.
+  it("appearance: one Tab stop, ←/→ choose the next/previous option, wrapping", () => {
+    function Menu() {
+      const [appearance, setAppearance] = useState<"system" | "light" | "dark">("system");
+      return (
+        <UserMenu
+          name="ada"
+          role="Admin"
+          language="en"
+          onLanguageChange={() => {}}
+          appearance={appearance}
+          onAppearanceChange={setAppearance}
+          onProfile={() => {}}
+          onChangePassword={() => {}}
+          onSecurity={() => {}}
+          onLogOut={() => {}}
+        />
+      );
+    }
+    render(<Menu />);
+    fireEvent.click(screen.getByTestId("user-menu-trigger"));
+    const option = (mode: string) => screen.getByTestId(`theme-option-${mode}`);
+    const tabIndexes = () => ["system", "light", "dark"].map((mode) => option(mode).tabIndex);
+    expect(tabIndexes()).toEqual([0, -1, -1]);
+    option("system").focus();
+    fireEvent.keyDown(option("system"), { key: "ArrowRight" });
+    expect(option("light")).toHaveAttribute("aria-checked", "true");
+    expect(option("light")).toHaveFocus();
+    expect(tabIndexes()).toEqual([-1, 0, -1]);
+    fireEvent.keyDown(option("light"), { key: "ArrowRight" });
+    fireEvent.keyDown(option("dark"), { key: "ArrowRight" });
+    expect(option("system")).toHaveAttribute("aria-checked", "true");
+    expect(option("system")).toHaveFocus();
+    fireEvent.keyDown(option("system"), { key: "ArrowLeft" });
+    expect(option("dark")).toHaveAttribute("aria-checked", "true");
+    expect(option("dark")).toHaveFocus();
+    expect(tabIndexes()).toEqual([-1, -1, 0]);
+  });
+
   it("the closed language trigger is a stop: ↑/↓ move on and leave its list closed", () => {
     renderMenu();
     fireEvent.click(screen.getByTestId("user-menu-trigger"));

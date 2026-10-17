@@ -258,6 +258,18 @@ function UserMenu({
   const panelId = React.useId();
   const sidebar = useOptionalSidebar();
   const collapsed = sidebar?.isOpen === false;
+  // The appearance options are one radiogroup with a roving tabindex (`GL-UX-001`, #177): ←/→ choose
+  // the next/previous option, wrapping, and the focus follows the choice. ↑/↓ stay the panel's moves
+  // between its stops (`SUI-FEATURE-082`).
+  const onAppearanceKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    const step = { ArrowRight: 1, ArrowLeft: -1 }[event.key];
+    if (step === undefined || event.altKey || event.ctrlKey || event.metaKey) return;
+    event.preventDefault();
+    const at = APPEARANCES.findIndex(({ mode }) => mode === appearance);
+    const index = (at + step + APPEARANCES.length) % APPEARANCES.length;
+    onAppearanceChange(APPEARANCES[index]!.mode);
+    event.currentTarget.querySelectorAll<HTMLElement>('[role="radio"]')[index]?.focus();
+  };
 
   React.useEffect(() => {
     if (!isOpen) return;
@@ -450,6 +462,7 @@ function UserMenu({
                 aria-label={t("account.appearance")}
                 data-testid="theme-toggle"
                 className="grid grid-cols-3 gap-1 rounded-md bg-muted p-0.5"
+                onKeyDown={onAppearanceKeyDown}
               >
                 {APPEARANCES.map(({ mode, icon: Icon }) => {
                   const active = appearance === mode;
@@ -465,6 +478,7 @@ function UserMenu({
                         type="button"
                         role="radio"
                         aria-checked={active}
+                        tabIndex={active ? 0 : -1}
                         onClick={() => onAppearanceChange(mode)}
                         data-testid={`theme-option-${mode}`}
                         className={cn(
