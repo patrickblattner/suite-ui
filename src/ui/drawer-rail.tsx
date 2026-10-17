@@ -30,17 +30,18 @@ type DrawerRailProps = {
   styleSave?: { onSave: () => void; dirty: boolean; saving?: boolean };
 };
 
-// Below 640 px, in an editor row that also holds the property panel (`SUI-FEATURE-071` rev 6), the
-// row wraps and the panel takes its share of the height below (`--property-panel-share`, set in
-// `styles.css`). The rail takes the rest above; it starts from its 48 px column, with no content
-// minimum, so the canvas stays beside it on the first line, then grows into the free room up to its
-// own width — 48 px closed, 348 px open — and the canvas keeps the rest, at worst none (Q&A #3857).
+// In an editor frame narrower than 1024 px that also holds the property panel (`SUI-FEATURE-071`
+// rev 7, the container `editor`), the row wraps and the panel takes its share of the height below
+// (`--property-panel-share`, set in `styles.css`). The rail takes the rest above; it starts from its
+// 48 px column, with no content minimum, so the canvas stays beside it on the first line, then grows
+// into the free room up to its own width — 48 px closed, 348 px open — and the canvas keeps the rest,
+// at worst none (Q&A #3857).
 const BESIDE_PANEL = cn(
-  "max-sm:[:has(>[data-slot=property-panel])>&]:h-[calc(100%-var(--property-panel-share))]",
-  "max-sm:[:has(>[data-slot=property-panel])>&]:basis-12",
-  "max-sm:[:has(>[data-slot=property-panel])>&]:grow-[100000]",
-  "max-sm:[:has(>[data-slot=property-panel])>&]:max-w-max",
-  "max-sm:[:has(>[data-slot=property-panel])>&]:min-w-0",
+  "@max-editor-split/editor:[:has(>[data-slot=property-panel])>&]:h-[calc(100%-var(--property-panel-share))]",
+  "@max-editor-split/editor:[:has(>[data-slot=property-panel])>&]:basis-12",
+  "@max-editor-split/editor:[:has(>[data-slot=property-panel])>&]:grow-[100000]",
+  "@max-editor-split/editor:[:has(>[data-slot=property-panel])>&]:max-w-max",
+  "@max-editor-split/editor:[:has(>[data-slot=property-panel])>&]:min-w-0",
 );
 
 // The drawers of a visual editor (`GL-UI-040`, `SUI-FEATURE-071`): a narrow rail on the left with Add ·

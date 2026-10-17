@@ -6075,10 +6075,11 @@ for (const width of [320, 390, 1440]) {
   });
 }
 
-// #228 (`SUI-FEATURE-071` rev 6, AC 5; `GL-UX-001`): below 640 px the property panel stands under the
-// canvas at full width, so at 320 and 390 px the drawer and the panel lie whole inside the editor frame;
-// from 1440 px the panel is the 340 px column on the right, the drawer 300 px.
-for (const width of [320, 390, 1440]) {
+// #228, #232 (`SUI-FEATURE-071` rev 7, AC 5; `GL-UX-001`): in an editor frame narrower than 1024 px
+// the property panel stands under the canvas at full width, so at 320, 390 and 700 px the drawer and the
+// panel lie whole inside the editor frame; from 1440 px the panel is the 340 px column on the right,
+// the drawer 300 px.
+for (const width of [320, 390, 700, 1440]) {
   test(`canvas editor: drawer and property panel lie inside the frame at ${width} px`, async ({
     page,
   }) => {
@@ -6148,6 +6149,146 @@ for (const lng of ["de", "es"]) {
         .map((tab) => tab.textContent);
     });
     expect(outside).toEqual([]);
+  });
+}
+
+// #232 (`SUI-FEATURE-071` rev 7): the switch follows the frame's width alone, so opening or closing a
+// drawer never re-flows the panel; just above 1024 px of frame it stays the 340 px column either way.
+test("canvas editor: a drawer never re-flows the property panel", async ({ page }) => {
+  await page.setViewportSize({ width: 1100, height: 900 });
+  await page.goto("/?page=components&lng=de");
+  const editor = page.getByTestId("canvas-editor");
+  expect((await box(editor)).width).toBeGreaterThanOrEqual(1024);
+  const panel = editor.getByTestId("property-panel");
+  const canvas = editor.getByTestId("canvas-editor-canvas");
+  await expect(editor.getByTestId("drawer")).toHaveAttribute("data-drawer-open", "style");
+  // The panel's box within the frame; a click may scroll the page.
+  const inFrame = async () => {
+    const [own, frame] = [await box(panel), await box(editor)];
+    return { x: own.x - frame.x, y: own.y - frame.y, width: own.width, height: own.height };
+  };
+  const open = await inFrame();
+  expect(open.width).toBe(340);
+  expect((await box(panel)).y).toBe((await box(canvas)).y);
+  await editor.getByTestId("drawer-style").click();
+  await expect(editor.getByTestId("drawer")).toHaveCount(0);
+  expect(await inFrame()).toEqual(open);
+});
+
+// #232 (`SUI-FEATURE-071` rev 7): at 1440 px the panel stays the 340 px column beside the canvas, inside
+// the frame — when an app wraps it in an element of its own (the package's editor rules leave that
+// wrapper alone), and when the canvas is sized by content wider than the frame.
+for (const variant of ["wrapped-panel", "wide-canvas"]) {
+  test(`canvas editor: at 1440 px the panel stays beside the canvas, ${variant}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(`/?page=components&lng=de&editor=${variant}`);
+    const editor = page.getByTestId("canvas-editor");
+    const panel = editor.getByTestId("property-panel");
+    await expect(panel).toBeVisible();
+    const layout = await editor.evaluate((node) => {
+      const frame = node.getBoundingClientRect();
+      const right = frame.left + node.clientLeft + node.clientWidth;
+      const own = node.querySelector("[data-testid=property-panel]")!.getBoundingClientRect();
+      const canvas = node
+        .querySelector("[data-testid=canvas-editor-canvas]")!
+        .getBoundingClientRect();
+      const wrapper = node.querySelector("[data-testid=panel-wrapper]");
+      return {
+        width: own.width,
+        beside: Math.abs(own.top - canvas.top) < 0.5,
+        inside: own.right <= right + 0.5,
+        wrapperContainer: wrapper === null ? "none" : getComputedStyle(wrapper).containerType,
+      };
+    });
+    expect(layout).toEqual({
+      width: 340,
+      beside: true,
+      inside: true,
+      wrapperContainer: variant === "wrapped-panel" ? "normal" : "none",
+    });
+    if (variant === "wide-canvas") {
+      // Just above the threshold, closing and opening a drawer leaves the panel where it is: on the
+      // first line, beside the canvas, the same box within the frame.
+      await editor.evaluate((node) => {
+        (node as HTMLElement).style.width = "1052px";
+      });
+      const inFrame = () =>
+        editor.evaluate((node) => {
+          const frame = node.getBoundingClientRect();
+          const own = node.querySelector("[data-testid=property-panel]")!.getBoundingClientRect();
+          const canvas = node
+            .querySelector("[data-testid=canvas-editor-canvas]")!
+            .getBoundingClientRect();
+          return {
+            x: own.left - frame.left,
+            y: own.top - frame.top,
+            width: own.width,
+            beside: Math.abs(own.top - canvas.top) < 0.5,
+          };
+        });
+      const open = await inFrame();
+      expect(open).toMatchObject({ width: 340, beside: true });
+      await editor.getByTestId("drawer-style").click();
+      await expect(editor.getByTestId("drawer")).toHaveCount(0);
+      expect(await inFrame()).toEqual(open);
+      await editor.getByTestId("drawer-style").click();
+      await expect(editor.getByTestId("drawer")).toHaveCount(1);
+      expect(await inFrame()).toEqual(open);
+    }
+  });
+}
+
+// #232: the package sizes only the canvas; a fixed aside the app puts between canvas and panel keeps
+// its 300 px at 1440 px, and the panel stays the 340 px column beside it.
+test("canvas editor: at 1440 px a fixed aside keeps its width beside the panel", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/?page=components&lng=de&editor=extra-aside");
+  const editor = page.getByTestId("canvas-editor");
+  const aside = await box(editor.getByTestId("editor-extra-aside"));
+  const panel = await box(editor.getByTestId("property-panel"));
+  expect(aside.width).toBe(300);
+  expect(panel.width).toBe(340);
+  expect(panel.y).toBe(aside.y);
+});
+
+// #232: under 1024 px a row gap the app sets does not push the two halves past the editor; the panel
+// lies whole inside the row at 700 px.
+test("canvas editor: at 700 px a row with gap-4 keeps the panel inside", async ({ page }) => {
+  await page.setViewportSize({ width: 700, height: 900 });
+  await page.goto("/?page=components&lng=de&editor=gap");
+  const editor = page.getByTestId("canvas-editor");
+  const frame = await box(editor);
+  const panel = await box(editor.getByTestId("property-panel"));
+  const canvas = await box(editor.getByTestId("canvas-editor-canvas"));
+  expect(panel.y).toBeGreaterThanOrEqual(canvas.y + canvas.height - 0.5);
+  expect(panel.y + panel.height).toBeLessThanOrEqual(frame.y + frame.height + 0.5);
+});
+
+// #232 (`SUI-FEATURE-071` rev 7): the switch sits at 1024 px of the editor row's content box — a row of
+// exactly 1024 px keeps the panel beside the canvas, 1023 px stacks it.
+for (const [frameWidth, beside] of [
+  [1024, true],
+  [1023, false],
+] as const) {
+  test(`canvas editor: a ${frameWidth} px frame ${beside ? "keeps the panel beside" : "stacks the panel under"} the canvas`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/?page=components&lng=de");
+    const editor = page.getByTestId("canvas-editor");
+    await expect(editor.getByTestId("property-panel")).toBeVisible();
+    await editor.evaluate((node, width) => {
+      (node as HTMLElement).style.width = `${width}px`;
+    }, frameWidth);
+    expect(Math.round((await box(editor)).width)).toBe(frameWidth);
+    const panel = await box(editor.getByTestId("property-panel"));
+    const canvas = await box(editor.getByTestId("canvas-editor-canvas"));
+    expect(Math.abs(panel.y - canvas.y) < 0.5).toBe(beside);
+    expect(panel.width).toBe(beside ? 340 : frameWidth);
   });
 }
 

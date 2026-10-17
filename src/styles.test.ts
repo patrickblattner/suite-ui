@@ -215,10 +215,16 @@ describe("styles.css tokens", () => {
     expect(css).not.toMatch(/--font-|font-family|@fontsource/);
   });
 
-  it("defines the one panel-split width of the preview layout as a container breakpoint", () => {
+  it("defines the package's two layout widths as container breakpoints", () => {
     // `GL-UI-027` §Panel mit Vorschau: the package sets the width; `@panel-split:` reads it.
+    // `SUI-FEATURE-071` rev 7 (#232): `editor-split` is the editor row's content width below which the
+    // property panel stacks.
     const matches = [...css.matchAll(/--container-([a-z0-9-]+):\s*([^;]+);/g)];
-    expect(matches.map(([, name, value]) => [name, value])).toEqual([["panel-split", "48rem"]]);
-    expect(css).toMatch(/@theme \{\s*--container-panel-split: 48rem;\s*\}/);
+    expect(matches.map(([, name, value]) => [name, value])).toEqual([
+      ["panel-split", "48rem"],
+      ["editor-split", "64rem"],
+    ]);
+    expect(css).toMatch(/@theme \{\s*--container-panel-split: 48rem;/);
+    expect(css).toContain("@container editor (width < theme(--container-editor-split))");
   });
 });

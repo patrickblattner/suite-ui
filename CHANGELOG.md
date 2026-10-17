@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.127.0 — #232, SUI-FEATURE-071 rev 7 (Q&A #3861): `PropertyPanel` stacks by the editor frame's width
+
+Behaviour changes that app tests may see. The `PropertyPanel` now stands under the canvas at full width whenever the editor frame is narrower than 1024 px, decided by a container query on the frame instead of the 640 px window rule of 0.125.1. So at 700 px, or in any frame narrower than 1024 px, nothing of the drawer or the panel lies outside the frame any more. The split stays half and half (`--property-panel-share`), the panel's head stays and only its body scrolls. From a 1024 px frame on, the panel is the 340 px column on the right and the drawer 300 px, as before. Opening or closing a drawer never re-flows the panel: the switch follows the frame alone. The threshold is defined once, as the container size `--container-editor-split: 64rem` (`@max-editor-split/editor:`). It is measured on the content box of the editor row, the only width a container query can read: a row of exactly 1024 px stays side by side and 1023 px stacks, and a border or padding on the row itself does not count.
+
+The editor row is now the flex row that holds the `DrawerRail` and the `PropertyPanel` as direct children; a row with only one of them, or a panel wrapped in another element, is left alone. That row is the container `editor` (`container-type: inline-size`, set by `styles.css`), and it always wraps. The package now sizes the canvas too: the element right after the rail takes the rest of the row from nothing (`flex: 1 1 0%; min-width: 0`). So from a 1024 px frame a row of rail, canvas and panel always fits one line, whatever the canvas holds, and below it the canvas stays beside the rail. Any other child of the row, such as a fixed aside, keeps the size the app gives it; below 1024 px it is only capped at the upper half in height. The row has no row gap (`row-gap: 0`), so below 1024 px its two halves fill the editor exactly. Both rules are unlayered and override the app's own utilities there.
+
+**Migration:** none in code for the suite apps. Their editor frames measure about 1134–1168 px at a 1440 px window (sidebar 224 px, page gutter 2 × 24 px), so the panel stays on the right there. Check three points:
+
+- The editor row must take its width from its parent (a block or a stretched flex item), never from its content: as a size container its own content no longer widens it.
+- App tests at a viewport between 640 and about 1100 px that expect the panel beside the canvas see it under the canvas.
+- An extra in-flow sibling in the editor row (an app's own aside or tool strip beside rail, canvas and panel) is not supported yet: below 1024 px it takes a line of its own, and from 1024 px it can push the panel onto a second line, out of a clipping frame. How the editor row holds one is open with the architect (Q&A #3874).
+
+Of the 0.125.1 conditions one remains: rail and panel are direct children of one flex row, and the canvas is the element right after the rail. The canvas no longer needs `min-w-0`, because the package sizes it; an app's `flex-*`/`min-w-*` on the canvas and a `gap-y`/`gap` row gap on the row are overridden there (a column gap stays). Baselines: none changed.
+
+Minor, not patch: the panel's position changes in frames between 640 and 1024 px, and the editor row becomes a size container, which app layouts and tests can see.
+
 ## 0.126.0 — #230, SUI-FEATURE-051 rev 9 (Q&A #3859): "+n" visible in the compact status slot
 
 Behaviour changes that app tests may see.

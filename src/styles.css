@@ -247,6 +247,11 @@
    the `@panel-split:` container variant. */
 @theme {
   --container-panel-split: 48rem;
+  /* The editor frame below which the property panel stands under the canvas (`SUI-FEATURE-071` rev 7):
+     1024 px, measured as the content box of the editor row, the only width a container query can read
+     (a border or padding on the row itself does not count). A row of exactly 1024 px stays side by side,
+     1023 px stacks. */
+  --container-editor-split: 64rem;
 }
 
 /* Maps the tokens into Tailwind's theme, so utilities like `bg-success` or `text-warn-text`
@@ -378,21 +383,45 @@
   [data-focus-fallback]:focus {
     outline: none;
   }
-  /* Below 640 px the property panel stands under the canvas at full width (`SUI-FEATURE-071` rev 6,
-     Reflow `GL-UX-001`): the editor row that holds it wraps. It works only when the drawer rail, the
-     canvas and the panel are direct children of one flex row (`:has(> …)`); a panel wrapped in another
-     element gets none of this. `--property-panel-share` is the one place of the split: the panel takes
-     that share of the row's height, and each other child is capped at the rest, so a canvas squeezed
-     narrow (it needs `min-w-0`) cannot push the panel out of the editor. A `dialog` or `[popover]` child
-     is left alone; any other out-of-flow child of the row (an absolute overlay) is capped too. */
-  @media (width < 40rem) {
-    :where(:has(> [data-slot="property-panel"])) {
-      --property-panel-share: 50%;
-      flex-wrap: wrap;
-    }
-    :where(:has(> [data-slot="property-panel"]))
+  /* Whenever the editor frame — the content box of the editor row — is narrower than 1024 px the
+     property panel stands under the canvas at full width (`SUI-FEATURE-071` rev 7, Q&A #3861, Reflow
+     `GL-UX-001`). The editor row is the flex
+     row that holds the drawer rail and the property panel as direct children (`:has(> …)`); a row
+     that holds only one of them, or a panel wrapped in another element, gets none of this. That row
+     is the container `editor` (inline size), so the switch follows the frame, not the window, and an
+     opened drawer never re-flows the panel; the row takes its width from its parent, never from its
+     content. It always wraps: from 1024 px rail, canvas and panel fit one line (the canvas is sized
+     below), under it the panel takes a line of its own. `--property-panel-share` is the one place of
+     the split: the panel takes that share of the row's height, and each other child (a fixed aside too)
+     is capped at the rest in height, so nothing on the first line pushes the panel out of the editor.
+     A `dialog` or `[popover]` child is left alone; any other out-of-flow child of the row (an absolute
+     overlay) is capped too. */
+  :where(:has(> [data-slot="drawer-rail"]):has(> [data-slot="property-panel"])) {
+    container: editor / inline-size;
+    --property-panel-share: 50%;
+    flex-wrap: wrap;
+  }
+  @container editor (width < theme(--container-editor-split)) {
+    :where(:has(> [data-slot="drawer-rail"]):has(> [data-slot="property-panel"]))
       > :where(:not([data-slot="property-panel"], dialog, [popover])) {
       max-height: calc(100% - var(--property-panel-share));
     }
   }
+}
+
+/* The editor row and its canvas (#232), unlayered on purpose: these override the app's own utilities.
+   The row has no row gap: with rail, canvas and panel it has no second line from 1024 px, and under
+   1024 px its two lines are exactly the two shares of its height, which a gap would push past it. The
+   canvas — the element right after the drawer rail — takes the rest of the row from nothing, so content
+   of any width never pushes the panel onto a second line from 1024 px on, and under 1024 px it stays
+   beside the rail. Any other child of the row (a fixed aside) keeps the size the app gives it; such a
+   child is not supported yet and can still wrap the row (Q&A #3874). */
+:where(:has(> [data-slot="drawer-rail"]):has(> [data-slot="property-panel"])) {
+  row-gap: 0;
+}
+:where(:has(> [data-slot="drawer-rail"]):has(> [data-slot="property-panel"]))
+  > :where([data-slot="drawer-rail"])
+  + :where(:not([data-slot="property-panel"], dialog, [popover])) {
+  flex: 1 1 0%;
+  min-width: 0;
 }
