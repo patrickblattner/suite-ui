@@ -6166,5 +6166,11 @@ for (const lng of LANGUAGES) {
         () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
       ),
     ).toBeLessThanOrEqual(0);
+    // The wrap rule is scoped to the gallery's own header; the package's EditorHeader stays nowrap.
+    await page.goto(`/?page=editor-shell&lng=${lng}`);
+    await expect(page.locator("[data-slot=editor-header]").first()).toHaveCSS(
+      "flex-wrap",
+      "nowrap",
+    );
   });
 }
