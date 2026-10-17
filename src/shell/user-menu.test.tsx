@@ -409,6 +409,36 @@ describe("UserMenu", () => {
     expect(screen.getByTestId("user-menu-profile")).toHaveFocus();
   });
 
+  it("#172: a locked entry's carrier span takes the inset ring of the entries", () => {
+    render(
+      <UserMenu
+        name="ada"
+        language="en"
+        onLanguageChange={vi.fn()}
+        appearance="system"
+        onAppearanceChange={vi.fn()}
+        onProfile={vi.fn()}
+        onSecurity={vi.fn()}
+        onLogOut={vi.fn()}
+      >
+        <UserMenuItem
+          testId="user-menu-notifications"
+          icon={BellIcon}
+          label="Notifications"
+          hint="Turns notifications on or off."
+          onSelect={() => {}}
+          disabled
+          disabledHint="Not available yet."
+        />
+      </UserMenu>,
+    );
+    fireEvent.click(screen.getByTestId("user-menu-trigger"));
+    const carrier = screen.getByTestId("user-menu-notifications").parentElement as HTMLElement;
+    expect(carrier).toHaveAttribute("tabindex", "0");
+    expect(carrier).toHaveClass("rounded-sm", "focus-visible:focus-ring-inset");
+    expect(carrier).not.toHaveClass("rounded-md", "focus-visible:focus-ring");
+  });
+
   describe("closes when the focus leaves the panel", () => {
     function renderWithNeighbour() {
       render(

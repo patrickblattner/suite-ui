@@ -59,7 +59,11 @@ function UserMenuItem({
 }: UserMenuItemProps) {
   const close = React.useContext(CloseMenuContext);
   return (
-    <Hint text={hint} disabledText={disabledHint}>
+    <Hint
+      text={hint}
+      disabledText={disabledHint}
+      carrierClassName="rounded-sm focus-visible:focus-ring-inset"
+    >
       <button
         type="button"
         data-testid={testId}

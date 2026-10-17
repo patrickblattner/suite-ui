@@ -132,6 +132,9 @@ type HintProps = {
   // Shown instead of `text` while the wrapped control is disabled, or locked with `aria-disabled` (a
   // Save that locked itself, `SUI-FEATURE-120`): the condition under which it becomes usable.
   disabledText?: string | undefined;
+  // The radius and ring of the span that carries a locked control, in place of `rounded-md` and the
+  // outset ring: an entry inside a menu panel takes its own inset ring (`GL-UI-013`, #172).
+  carrierClassName?: string | undefined;
   children: React.ReactElement<HintChildProps>;
 } & Omit<React.HTMLAttributes<HTMLElement>, "children"> & { ref?: React.Ref<HTMLElement> };
 
@@ -151,7 +154,7 @@ type HintProps = {
 // A control whose own text is clipped (it carries `truncate`) gets both in one bubble (`GL-UI-016`): the
 // full text on top, the description below. So does a clipped `OverflowTooltip` inside it (the value of
 // a select trigger), which then opens no bubble of its own: one element, one tooltip.
-function Hint({ text, disabledText, children, ...passThrough }: HintProps) {
+function Hint({ text, disabledText, carrierClassName, children, ...passThrough }: HintProps) {
   const id = React.useId();
   const overflow = useIsOverflowing();
   const ownRef = passThrough.ref;
@@ -184,7 +187,12 @@ function Hint({ text, disabledText, children, ...passThrough }: HintProps) {
     trigger = (
       <span
         tabIndex={disabled ? 0 : undefined}
-        className="inline-grid"
+        // Focusable while it carries a locked control: the package ring, never the browser outline
+        // (`GL-UI-013`, #172).
+        className={cn(
+          "inline-grid outline-none",
+          carrierClassName ?? "rounded-md focus-visible:focus-ring",
+        )}
         aria-describedby={describes && disabled ? id : undefined}
       >
         {trigger}
