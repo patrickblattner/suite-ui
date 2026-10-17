@@ -340,6 +340,7 @@ export const de: SuiteStrings = {
     options: "Rasteroptionen",
     guides: "Hilfslinien",
     snap: "Einrasten",
+    snapOn: "Einrasten ist an",
   },
   upload: {
     drop: "Dateien hier ablegen",

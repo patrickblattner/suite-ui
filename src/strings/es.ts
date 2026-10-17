@@ -325,7 +325,7 @@ export const es: SuiteStrings = {
     spalten: "Columnas",
     step: "Paso",
     anzahl: "Número de columnas",
-    abstand: "Medianil",
+    abstand: "Separación",
     rand: "Margen",
     zeilenschritt: "Paso de fila (opcional)",
     unit: "px",
@@ -337,6 +337,7 @@ export const es: SuiteStrings = {
     options: "Opciones de cuadrícula",
     guides: "Guías",
     snap: "Ajustar",
+    snapOn: "Ajuste activado",
   },
   upload: {
     drop: "Suelta los archivos aquí",

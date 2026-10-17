@@ -3,6 +3,7 @@ import i18n from "i18next";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
 import {
   GridFields,
   type GridFieldsProps,
@@ -182,7 +183,13 @@ describe("GridFields (SUI-FEATURE-087)", () => {
     ["de", ["Rasterart", "Anzahl Spalten", "Spaltenabstand", "Rand", "Zeilenschritt (optional)"]],
     [
       "es",
-      ["Tipo de cuadrícula", "Número de columnas", "Medianil", "Margen", "Paso de fila (opcional)"],
+      [
+        "Tipo de cuadrícula",
+        "Número de columnas",
+        "Separación",
+        "Margen",
+        "Paso de fila (opcional)",
+      ],
     ],
   ])("%s labels", async (lng, labels) => {
     await i18n.changeLanguage(lng);
@@ -281,6 +288,60 @@ describe("GridToggle (SUI-FEATURE-087)", () => {
   });
 });
 
+describe("GridToggle rev 6 (SUI-FEATURE-087)", () => {
+  it("separate is one joined split button; the arrow segment carries a dot while snap is on", () => {
+    render(<Toggle mode="getrennt" />);
+    const main = screen.getByTestId("grid-toggle-button");
+    const menu = screen.getByTestId("grid-toggle-menu");
+    expect(screen.getByTestId("grid-toggle")).not.toHaveClass("gap-1");
+    expect(main).toHaveClass("rounded-r-none");
+    expect(menu).toHaveClass("-ml-px", "rounded-l-none", "w-6");
+    expect(screen.queryByTestId("grid-toggle-snap-dot")).toBeNull();
+    fireEvent.pointerDown(menu, { button: 0, ctrlKey: false, pointerType: "mouse" });
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Snap" }));
+    expect(screen.getByTestId("grid-toggle-snap-dot")).toHaveClass("bg-primary");
+    expect(screen.getByTestId("grid-toggle-snap-dot")).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("the arrow segment is described as snap on only while snapping is on", () => {
+    render(<Toggle mode="getrennt" />);
+    const menu = screen.getByTestId("grid-toggle-menu");
+    expect(menu).toHaveAccessibleName("Grid options");
+    expect(menu).not.toHaveAccessibleDescription("Snap is on");
+    fireEvent.pointerDown(menu, { button: 0, ctrlKey: false, pointerType: "mouse" });
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Snap" }));
+    expect(menu).toHaveAccessibleName("Grid options");
+    expect(menu).toHaveAccessibleDescription("Snap is on");
+  });
+
+  it("coupled is one button, no arrow segment, no dot", () => {
+    render(<Toggle mode="gekoppelt" />);
+    expect(screen.getByTestId("grid-toggle-button")).not.toHaveClass("rounded-r-none");
+    expect(screen.queryByTestId("grid-toggle-snap-dot")).toBeNull();
+  });
+
+  it("the pressed fill is the one shared with the RowActions toggle", () => {
+    render(<Toggle mode="gekoppelt" />);
+    const classes = screen.getByTestId("grid-toggle-button").className.split(" ");
+    for (const token of PRESSED_FILL_CLASS.split(" ")) expect(classes).toContain(token);
+  });
+});
+
+describe("GridFields on Field (SUI-FEATURE-087 rev 6)", () => {
+  it("every field is the package's Field: label above with its id, the error from FieldError", () => {
+    render(<Fields />);
+    const fields = screen.getByTestId("grid-fields").querySelectorAll(":scope > [data-slot=field]");
+    expect(fields).toHaveLength(5);
+    const count = screen.getByRole("spinbutton", { name: "Number of columns" });
+    expect(document.getElementById(`${count.id}-label`)).toHaveTextContent("Number of columns");
+    fireEvent.change(count, { target: { value: "0" } });
+    fireEvent.blur(count);
+    const error = screen.getByTestId("grid-anzahl-error");
+    expect(error).toHaveAttribute("data-slot", "field-error");
+    expect(error.id).toBe(`${count.id}-error`);
+  });
+});
+
 describe("GridOverlay (SUI-FEATURE-087)", () => {
   // AC 5
   it("draws the grid lines unscaled, takes no pointer events and is hidden from assistive tech", () => {
@@ -294,7 +355,9 @@ describe("GridOverlay (SUI-FEATURE-087)", () => {
     expect(overlay).toHaveClass("pointer-events-none");
     expect(overlay).toHaveAttribute("aria-hidden", "true");
     const [halo, line] = overlay.querySelectorAll("g");
-    expect(halo).toHaveClass("stroke-background");
+    expect(halo).toHaveClass("stroke-background", "opacity-50");
+    // Rev 6: a 2 px halo at 50 %.
+    expect(halo).toHaveAttribute("stroke-width", "2");
     expect(line).toHaveClass("stroke-ring");
     expect(line).toHaveAttribute("stroke-width", "1");
     // 24 column edges and 11 rows (0 … 80 every 8).

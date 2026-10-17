@@ -2,7 +2,9 @@ import { EllipsisIcon, LinkIcon, PencilIcon, Trash2Icon } from "lucide-react";
 import type * as React from "react";
 import { useTranslation } from "react-i18next";
 
+import { cn } from "../lib/cn.js";
 import { ariaKeyShortcuts, shortcutChip } from "../lib/keyboard.js";
+import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
 import { Button } from "../ui/button.js";
 import {
   DropdownMenu,
@@ -131,7 +133,7 @@ function UsageButton({ usage, size }: { usage: RowUsage; size: "icon-xs" | "icon
         size={size}
         disabled={unused}
         aria-pressed={usage.active}
-        className="relative aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:border-primary aria-pressed:hover:bg-primary aria-pressed:hover:text-primary-foreground dark:aria-pressed:border-primary dark:aria-pressed:bg-primary dark:aria-pressed:hover:bg-primary"
+        className={cn("relative", PRESSED_FILL_CLASS)}
         onClick={usage.onToggle}
         data-testid="row-usage"
       >

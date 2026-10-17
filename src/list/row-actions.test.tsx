@@ -3,6 +3,7 @@ import i18n from "i18next";
 import { CopyIcon, DownloadIcon } from "lucide-react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
 import { Table, TableBody, TableHeader, TableRow } from "../ui/table.js";
 import { EmptyCell } from "./empty-cell.js";
 import { RowActions, RowActionsHead, type RowActionsProps } from "./row-actions.js";
@@ -363,6 +364,13 @@ describe("RowActions Used by (SUI-FEATURE-004)", () => {
     expect(hintOf(buttons[0]!).hover1500).toBe("Verwendet von (3)");
     fireEvent.click(buttons[0]!);
     expect(onToggle).toHaveBeenCalledTimes(1);
+  });
+
+  // SUI-FEATURE-087 rev 6: the pressed fill is one value in the package, shared with GridToggle.
+  it("the usage toggle's pressed fill is the shared PRESSED_FILL_CLASS", () => {
+    renderRow({ usage: { count: 2, active: true, onToggle: () => {} } });
+    const classes = screen.getByTestId("row-usage").className.split(" ");
+    for (const token of PRESSED_FILL_CLASS.split(" ")) expect(classes).toContain(token);
   });
 
   it("AC2: without a use the button is locked and its hint says so", async () => {

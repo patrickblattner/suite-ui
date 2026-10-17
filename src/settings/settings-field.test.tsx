@@ -23,6 +23,15 @@ describe("SettingsField", () => {
     expect(input.compareDocumentPosition(help) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
+  it("keeps data-slot settings-field on its root", () => {
+    const { container } = render(
+      <SettingsField label="Name" htmlFor="name">
+        <input id="name" />
+      </SettingsField>,
+    );
+    expect(container.firstElementChild).toHaveAttribute("data-slot", "settings-field");
+  });
+
   it("carries the hint on the label as its hidden description", () => {
     render(
       <SettingsField label="Name" htmlFor="name" hint="The name of this instance.">

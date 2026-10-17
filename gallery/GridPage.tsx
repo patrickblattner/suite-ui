@@ -83,6 +83,16 @@ export function GridPage() {
               unavailableText="Set a grid in the brand kit"
             />
           </div>
+          <div className="flex flex-col gap-2" data-testid="grid-toggle-separate-pressed">
+            <Caption>getrennt, pressed</Caption>
+            <GridToggle
+              mode="getrennt"
+              value={{ hilfslinien: true, einrasten: false }}
+              onChange={() => {}}
+              definition={definition}
+              unavailableText="Set a grid in the brand kit"
+            />
+          </div>
           <div className="flex flex-col gap-2" data-testid="grid-toggle-locked">
             <Caption>no definition</Caption>
             <GridToggle
