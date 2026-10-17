@@ -1,0 +1,319 @@
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import i18n from "i18next";
+import { useState } from "react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import {
+  GridFields,
+  type GridFieldsProps,
+  GridOverlay,
+  GridToggle,
+  type GridToggleValue,
+} from "./grid.js";
+import type { GridDefinition } from "./grid-core.js";
+
+beforeEach(() => {
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    },
+  );
+});
+
+afterEach(async () => {
+  cleanup();
+  vi.restoreAllMocks();
+  vi.unstubAllGlobals();
+  await i18n.changeLanguage("en");
+});
+
+const COLUMNS: GridDefinition = { art: "spalten", anzahl: 12, abstand: 24, rand: 0 };
+
+function Fields({
+  initial = COLUMNS,
+  onChange = () => {},
+  ...props
+}: Partial<Omit<GridFieldsProps, "value">> & { initial?: GridDefinition | null }) {
+  const [value, setValue] = useState(initial);
+  return (
+    <GridFields
+      {...props}
+      value={value}
+      onChange={(next) => {
+        setValue(next);
+        onChange(next);
+      }}
+    />
+  );
+}
+
+describe("GridFields (SUI-FEATURE-087)", () => {
+  it("columns: type, count, gutter, margin and row step, labels above, px on the lengths", () => {
+    render(<Fields />);
+    expect(screen.getByRole("group", { name: "Grid" })).toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Grid type" })).toHaveTextContent("Columns");
+    for (const [name, value] of [
+      ["Gutter", 24],
+      ["Margin", 0],
+    ] as const) {
+      const input = screen.getByRole("spinbutton", { name });
+      expect(input).toHaveValue(value);
+      expect(input).toHaveAccessibleDescription("px");
+    }
+    // The count is no length: no unit.
+    const count = screen.getByRole("spinbutton", { name: "Number of columns" });
+    expect(count).toHaveValue(12);
+    expect(count).not.toHaveAttribute("aria-describedby");
+    expect(screen.getByTestId("grid-fields").querySelectorAll("[id$='-unit']")).toHaveLength(3);
+    const rowStep = screen.getByRole("spinbutton", { name: "Row step (optional)" });
+    expect(rowStep).toHaveValue(null);
+    expect(rowStep).toHaveAccessibleDescription("px");
+    expect(screen.getByRole("spinbutton", { name: "Number of columns" })).toHaveAttribute(
+      "min",
+      "1",
+    );
+    expect(screen.getByRole("spinbutton", { name: "Number of columns" })).toHaveAttribute(
+      "max",
+      "24",
+    );
+  });
+
+  it("square: only the step", () => {
+    render(<Fields initial={{ art: "schritt", schritt: 10 }} />);
+    expect(screen.getAllByRole("spinbutton")).toHaveLength(1);
+    expect(screen.getByRole("spinbutton", { name: "Step" })).toHaveValue(10);
+  });
+
+  // AC 3
+  it.each(["0", "-2", "25"])("count %s is rejected and names the bound", (text) => {
+    const onChange = vi.fn();
+    render(<Fields onChange={onChange} />);
+    const count = screen.getByRole("spinbutton", { name: "Number of columns" });
+    fireEvent.change(count, { target: { value: text } });
+    expect(onChange).not.toHaveBeenCalled();
+    // While typing, no error yet; leaving the field shows it.
+    expect(count).not.toHaveAttribute("aria-invalid");
+    expect(screen.queryByTestId("grid-anzahl-error")).toBeNull();
+    fireEvent.blur(count);
+    expect(count).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByTestId("grid-anzahl-error")).toHaveTextContent("From 1 to 24");
+    expect(count).toHaveAttribute("aria-errormessage", screen.getByTestId("grid-anzahl-error").id);
+    // Fixed, it is taken and the error goes.
+    fireEvent.change(count, { target: { value: "6" } });
+    expect(onChange).toHaveBeenLastCalledWith({ ...COLUMNS, anzahl: 6 });
+    expect(screen.queryByTestId("grid-anzahl-error")).toBeNull();
+    expect(count).not.toHaveAttribute("aria-invalid");
+  });
+
+  it("a negative gutter names its lower bound, a fraction asks for whole pixels", async () => {
+    await i18n.changeLanguage("de");
+    const onChange = vi.fn();
+    render(<Fields onChange={onChange} />);
+    const gap = screen.getByRole("spinbutton", { name: "Spaltenabstand" });
+    fireEvent.change(gap, { target: { value: "-1" } });
+    fireEvent.blur(gap);
+    expect(screen.getByTestId("grid-abstand-error")).toHaveTextContent("Mindestens 0 px");
+    const margin = screen.getByRole("spinbutton", { name: "Rand" });
+    fireEvent.change(margin, { target: { value: "2.5" } });
+    fireEvent.blur(margin);
+    expect(screen.getByTestId("grid-rand-error")).toHaveTextContent("Nur ganze Pixel");
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("the row step may be emptied again", () => {
+    const onChange = vi.fn();
+    render(<Fields initial={{ ...COLUMNS, zeilenschritt: 8 }} onChange={onChange} />);
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Row step (optional)" }), {
+      target: { value: "" },
+    });
+    expect(onChange).toHaveBeenLastCalledWith(COLUMNS);
+  });
+
+  it("switching the type and back restores that type's last definition", () => {
+    // jsdom lacks what the select's list calls on open.
+    Element.prototype.hasPointerCapture = () => false;
+    Element.prototype.scrollIntoView = () => {};
+    const onChange = vi.fn();
+    render(<Fields initial={{ ...COLUMNS, anzahl: 6, zeilenschritt: 8 }} onChange={onChange} />);
+    const choose = (name: string) => {
+      fireEvent.keyDown(screen.getByRole("combobox", { name: "Grid type" }), { key: "Enter" });
+      fireEvent.click(screen.getByRole("option", { name }));
+    };
+    choose("Square");
+    expect(onChange).toHaveBeenLastCalledWith({ art: "schritt", schritt: 8 });
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Step" }), { target: { value: "12" } });
+    choose("Columns");
+    expect(onChange).toHaveBeenLastCalledWith({ ...COLUMNS, anzahl: 6, zeilenschritt: 8 });
+    choose("Square");
+    expect(onChange).toHaveBeenLastCalledWith({ art: "schritt", schritt: 12 });
+  });
+
+  it("a value from outside replaces an invalid entry", () => {
+    const { rerender } = render(<GridFields value={COLUMNS} onChange={() => {}} />);
+    const count = screen.getByRole("spinbutton", { name: "Number of columns" });
+    fireEvent.change(count, { target: { value: "0" } });
+    fireEvent.blur(count);
+    expect(screen.getByTestId("grid-anzahl-error")).toBeInTheDocument();
+    // Undo, or another document.
+    rerender(<GridFields value={{ ...COLUMNS, anzahl: 4 }} onChange={() => {}} />);
+    expect(screen.queryByTestId("grid-anzahl-error")).toBeNull();
+    expect(count).toHaveValue(4);
+    expect(count).not.toHaveAttribute("aria-invalid");
+  });
+
+  it("hides the fields the app does not lead", () => {
+    render(<Fields hidden={["art", "rand", "zeilenschritt"]} />);
+    expect(screen.queryByRole("combobox")).toBeNull();
+    expect(
+      screen.getAllByRole("spinbutton").map((input) => input.getAttribute("data-testid")),
+    ).toEqual(["grid-anzahl", "grid-abstand"]);
+  });
+
+  it("without a grid: only the type, set to No grid", () => {
+    render(<Fields initial={null} allowNone />);
+    expect(screen.getByRole("combobox", { name: "Grid type" })).toHaveTextContent("No grid");
+    expect(screen.queryByRole("spinbutton")).toBeNull();
+  });
+
+  it.each([
+    ["de", ["Rasterart", "Anzahl Spalten", "Spaltenabstand", "Rand", "Zeilenschritt (optional)"]],
+    [
+      "es",
+      ["Tipo de cuadrícula", "Número de columnas", "Medianil", "Margen", "Paso de fila (opcional)"],
+    ],
+  ])("%s labels", async (lng, labels) => {
+    await i18n.changeLanguage(lng);
+    render(<Fields />);
+    for (const label of labels)
+      expect(screen.getByText(label, { selector: "label" })).toBeInTheDocument();
+  });
+});
+
+function Toggle({
+  mode,
+  definition = COLUMNS,
+  onChange = () => {},
+}: {
+  mode: "gekoppelt" | "getrennt";
+  definition?: GridDefinition | null;
+  onChange?: (value: GridToggleValue) => void;
+}) {
+  const [value, setValue] = useState<GridToggleValue>({ hilfslinien: false, einrasten: false });
+  return (
+    <GridToggle
+      mode={mode}
+      value={value}
+      onChange={(next) => {
+        setValue(next);
+        onChange(next);
+      }}
+      definition={definition}
+      unavailableText="Set a grid in the brand kit"
+    />
+  );
+}
+
+describe("GridToggle (SUI-FEATURE-087)", () => {
+  // AC 4
+  it("coupled: one toggle shows the grid and snaps to it", () => {
+    const onChange = vi.fn();
+    render(<Toggle mode="gekoppelt" onChange={onChange} />);
+    const button = screen.getByRole("button", { name: "Grid" });
+    expect(button).toHaveAttribute("aria-pressed", "false");
+    expect(button).toHaveAccessibleDescription("Shows the grid and snaps to it.");
+    expect(screen.getByRole("button", { name: "Grid" })).toBeInTheDocument();
+    fireEvent.click(button);
+    expect(onChange).toHaveBeenLastCalledWith({ hilfslinien: true, einrasten: true });
+    expect(button).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(button);
+    expect(onChange).toHaveBeenLastCalledWith({ hilfslinien: false, einrasten: false });
+    expect(screen.queryByTestId("grid-toggle-menu")).toBeNull();
+  });
+
+  it("separate: the button shows the lines, the menu switches lines and snapping each", () => {
+    const onChange = vi.fn();
+    render(<Toggle mode="getrennt" onChange={onChange} />);
+    const button = screen.getByRole("button", { name: "Grid" });
+    fireEvent.click(button);
+    expect(onChange).toHaveBeenLastCalledWith({ hilfslinien: true, einrasten: false });
+    expect(button).toHaveAttribute("aria-pressed", "true");
+    const menu = screen.getByRole("button", { name: "Grid options" });
+    fireEvent.pointerDown(menu, { button: 0, ctrlKey: false, pointerType: "mouse" });
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Snap" }));
+    expect(onChange).toHaveBeenLastCalledWith({ hilfslinien: true, einrasten: true });
+    // The menu stays open for the next switch.
+    const guides = screen.getByRole("menuitemcheckbox", { name: "Guides" });
+    expect(guides).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(guides);
+    expect(onChange).toHaveBeenLastCalledWith({ hilfslinien: false, einrasten: true });
+    expect(button).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it.each(["gekoppelt", "getrennt"] as const)(
+    "%s without a definition: locked, the hint names where the grid is set",
+    (mode) => {
+      render(<Toggle mode={mode} definition={null} />);
+      const button = screen.getByRole("button", { name: "Grid" });
+      expect(button).toBeDisabled();
+      expect(button).toHaveAttribute("aria-pressed", "false");
+      expect(button.parentElement).toHaveAccessibleDescription("Set a grid in the brand kit");
+      if (mode === "getrennt") {
+        // Rev 3: both parts locked, both carry the app's hint.
+        const menu = screen.getByTestId("grid-toggle-menu");
+        expect(menu).toBeDisabled();
+        expect(menu).toHaveAccessibleName("Grid options");
+        expect(menu.parentElement).toHaveAccessibleDescription("Set a grid in the brand kit");
+      }
+    },
+  );
+
+  it.each([
+    ["de", "Raster", "Rasteroptionen"],
+    ["es", "Cuadrícula", "Opciones de cuadrícula"],
+  ])("%s", async (lng, label, options) => {
+    await i18n.changeLanguage(lng);
+    render(<Toggle mode="getrennt" />);
+    expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: options })).toBeInTheDocument();
+  });
+});
+
+describe("GridOverlay (SUI-FEATURE-087)", () => {
+  // AC 5
+  it("draws the grid lines unscaled, takes no pointer events and is hidden from assistive tech", () => {
+    render(
+      <GridOverlay
+        definition={{ ...COLUMNS, zeilenschritt: 8 }}
+        box={{ width: 1200, height: 80 }}
+      />,
+    );
+    const overlay = screen.getByTestId("grid-overlay");
+    expect(overlay).toHaveClass("pointer-events-none");
+    expect(overlay).toHaveAttribute("aria-hidden", "true");
+    const [halo, line] = overlay.querySelectorAll("g");
+    expect(halo).toHaveClass("stroke-background");
+    expect(line).toHaveClass("stroke-ring");
+    expect(line).toHaveAttribute("stroke-width", "1");
+    // 24 column edges and 11 rows (0 … 80 every 8).
+    expect(line!.querySelectorAll("line")).toHaveLength(24 + 11);
+  });
+
+  it("at a zoom the lines move with it but stay one pixel", () => {
+    render(
+      <GridOverlay definition={COLUMNS} box={{ width: 1200, height: 80 }} zoom={0.5} mitten />,
+    );
+    const overlay = screen.getByTestId("grid-overlay");
+    expect(overlay).toHaveAttribute("width", "600");
+    expect(overlay).toHaveAttribute("height", "40");
+    const lines = [...overlay.querySelectorAll("g")[1]!.querySelectorAll("line")];
+    expect(lines).toHaveLength(36);
+    expect(lines.map((line) => line.getAttribute("x1")).slice(0, 3)).toEqual([
+      "0.5",
+      "20.5",
+      "39.5",
+    ]);
+  });
+});

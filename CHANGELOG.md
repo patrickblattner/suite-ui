@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.117.0 — #197, SUI-FEATURE-087 rev 3: alignment grid for visual editors
+
+Not breaking. New modules `@suite/ui/ui/grid-core` and `@suite/ui/ui/grid`, so a DOM editor and a canvas editor snap alike (`GL-UI-040`). The app owns and stores the grid; the package stores nothing.
+
+- `GridDefinition`: `{ art: "schritt", schritt }` or `{ art: "spalten", anzahl (1–24), abstand, rand, zeilenschritt? }`, integer px of the app's reference frame; no grid is `null`.
+- `gridLines(def, box, { mitten })` (pure, no DOM): `{ x, y }`. For columns, both edges of every column (the outer ones are the margin), with `mitten` the centres too, and a horizontal line every `zeilenschritt`. For a step, a square grid.
+- `pickSnap({ anker, kandidaten, toleranz, umgehen })` (pure, one axis): the nearest candidate (`{ wert, quelle: "element" | "flaeche" | "raster" }`) within the tolerance wins. At equal distance an element or area beats the grid. `umgehen` (Alt/Option) snaps nothing. Returns `{ versatz, kandidat }` or `null`.
+- `GridFields`: the type, then the step or count, gutter, margin and the optional row step. Labels are above their fields, values are in px. An entry out of bounds, or not a whole number, is not taken, and the field names its bound. `allowNone` offers "No grid"; `hidden` leaves out the fields the app does not lead.
+- `GridToggle`: an icon-and-label toggle with `aria-pressed`, filled while on. `mode="gekoppelt"` shows the grid and snaps to it together. `mode="getrennt"` adds a menu beside the button with "Guides" and "Snap" as separate switches; the button itself switches the guides. Without a definition it is locked, and the app's `unavailableText` says where the grid is set. It holds a tool state: no undo, no review.
+- `GridOverlay`: the lines over a DOM canvas, unscaled (1 px at any `zoom`), translucent in `--ring` on a `--background` halo. It takes no pointer events and is hidden in print. Never render it in a preview or an export.
+- `DropdownMenuCheckboxItem` in `@suite/ui/ui/dropdown-menu`: an entry with `aria-checked` that keeps the menu open.
+
+**Migration:**
+
+- Community: take the grid from the kit, use `GridToggle mode="getrennt"` and `GridOverlay` from the package, and snap with `pickSnap`. The local grid of off · 5 · 10 · 20 % goes away with the pin change.
+- Cockpit: take the grid from the scene, use `GridToggle mode="gekoppelt"` in the View band, and draw your own Konva lines from `gridLines`. The locked part becomes available with the pin change.
+
+The gallery gains a `grid` page: the fields in a 340 px panel, the three toggle states, and the overlay over light and dark content. Baselines: new `grid-*` set (en/de/es, light/dark, plus de 390/1440). The `gallery-*` strings table changed by the new `grid.*` keys.
+
 ## 0.116.1 — #195: `RowActions` buttons no longer submit a surrounding form
 
 Not breaking. The action buttons of `RowActions` ("Used by", the extra actions, edit and delete) now render `type="button"`. So does the `MediaTile` corner delete button, which is the same element. Before, they had no `type`, so a click inside a `<form>` submitted the form while the action ran. **Migration:** none. Baselines: none changed.

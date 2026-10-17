@@ -10,6 +10,7 @@ import { registerSuiteStrings, suiteStrings, type SuiteLanguage } from "../src/s
 import { ComponentsPage } from "./ComponentsPage.js";
 import { EditorShellPage } from "./EditorShellPage.js";
 import { EditPanelPage } from "./EditPanelPage.js";
+import { GridPage } from "./GridPage.js";
 import { HelpPage } from "./HelpPage.js";
 import { InsetPage } from "./InsetPage.js";
 import { KeysPage } from "./KeysPage.js";
@@ -51,6 +52,7 @@ const PAGES = [
   "inset",
   "edit-panel",
   "editor-shell",
+  "grid",
   "help",
   "toast",
   "preview",
@@ -90,6 +92,7 @@ const PAGE_CONTENT: Record<Exclude<Page, "strings">, (theme: Theme) => ReactNode
   inset: () => <InsetPage />,
   "edit-panel": () => <EditPanelPage />,
   "editor-shell": (theme) => <EditorShellPage theme={theme} />,
+  grid: () => <GridPage />,
   help: () => <HelpPage />,
   toast: (theme) => <ToastPage theme={theme} />,
   preview: (theme) => <PreviewPage theme={theme} />,
