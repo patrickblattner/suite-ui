@@ -33,7 +33,7 @@ function renderShell(props: Partial<MediaDetailShellProps> = {}) {
       position={3}
       total={65}
       kind="image"
-      src="data:,"
+      src="/media/team-photo.jpg"
       alt="team-photo.jpg"
       dirty={false}
       saving={false}
@@ -202,7 +202,7 @@ describe("MediaDetailShell", () => {
         position={3}
         total={65}
         kind="image"
-        src="data:,"
+        src="/media/team-photo.jpg"
         alt="team-photo.jpg"
         dirty={dirty}
         saving={saving}
@@ -245,7 +245,7 @@ describe("MediaDetailShell", () => {
           position={1}
           total={1}
           kind="other"
-          src="data:,"
+          src="/media/team-photo.jpg"
           dirty={false}
           saving={false}
           onPrev={() => {}}
@@ -635,7 +635,7 @@ describe("MediaDetailShell: preview states and text (SUI-FEATURE-140)", () => {
           position={position}
           total={3}
           kind="image"
-          src="data:,"
+          src="/media/team-photo.jpg"
           previewState={position === 2 ? "missingBytes" : undefined}
           dirty={false}
           saving={false}
@@ -749,7 +749,7 @@ describe("MediaDetailShell: props keyed on kind (#167)", () => {
       <MediaDetailShell key="audio" {...base} kind="audio" />,
       // @ts-expect-error a PDF needs its src
       <MediaDetailShell key="pdf" {...base} kind="pdf" />,
-      <MediaDetailShell key="image-src" {...base} kind="image" src="data:," />,
+      <MediaDetailShell key="image-src" {...base} kind="image" src="/media/team-photo.jpg" />,
       <MediaDetailShell key="missing" {...base} kind="image" previewState="missingRef" />,
       <MediaDetailShell key="text" {...base} kind="text" text="hello" />,
       <MediaDetailShell key="other" {...base} kind="other" />,
@@ -773,15 +773,87 @@ describe("MediaDetailShell: props keyed on kind (#167)", () => {
     ["video", "video"],
     ["audio", "audio"],
     ["pdf", "iframe"],
-  ] as const)('a %s without src renders no src attribute, never src=""', (kind, tag) => {
-    // A caller past the types: the element carries no `src` at all. React drops an empty `src` from
-    // the DOM itself but warns about it, so the warning tells an empty string was passed.
-    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+  ] as const)('a %s without src renders noRenderer, never an element with src=""', (kind, tag) => {
+    // A caller past the types gets the `noRenderer` state (`SUI-FEATURE-089`), so no element can
+    // carry `src=""`.
     render(<MediaDetailShell {...base} kind={kind} src={undefined as unknown as string} />);
-    const element = screen.getByTestId("media-detail-preview").querySelector(tag);
-    expect(element).not.toBeNull();
-    expect(element).not.toHaveAttribute("src");
-    expect(error.mock.calls.flat().join(" ")).not.toContain("empty string");
-    error.mockRestore();
+    const preview = screen.getByTestId("media-detail-preview");
+    expect(preview.querySelector(tag)).toBeNull();
+    expect(preview.querySelector("[src]")).toBeNull();
+    expect(preview).toHaveAttribute("data-state", "noRenderer");
+  });
+});
+
+describe("MediaDetailShell: allowed source schemes (SUI-FEATURE-089)", () => {
+  const base = {
+    position: 1,
+    total: 1,
+    onPrev: () => {},
+    onNext: () => {},
+    onClose: () => {},
+    onSave: () => {},
+    onReset: () => {},
+    dirty: false,
+    saving: false,
+  };
+  const TAGS = [
+    ["image", "img"],
+    ["video", "video"],
+    ["audio", "audio"],
+    ["pdf", "iframe"],
+  ] as const;
+
+  // AC 1: a scheme the preview may not load renders no element with it and shows `noRenderer`.
+  describe.each(TAGS)("%s", (kind, tag) => {
+    it.each([
+      "javascript:alert(1)",
+      " JavaScript:alert(1)",
+      "java\tscript:alert(1)",
+      "data:image/svg+xml,<svg/>",
+      "file:///etc/passwd",
+      "",
+      "\u0001",
+      "\u0000\u001f \u0001",
+    ])("src %j loads nothing and shows noRenderer", (src) => {
+      render(<MediaDetailShell {...base} kind={kind} src={src} />);
+      const preview = screen.getByTestId("media-detail-preview");
+      expect(preview.querySelector(tag)).toBeNull();
+      expect(preview.querySelector("[src]")).toBeNull();
+      expect(preview).toHaveAttribute("data-state", "noRenderer");
+      expect(screen.getByTestId("media-detail-state")).toHaveTextContent(
+        "No preview for this type.",
+      );
+    });
+
+    // AC 2: https, http, blob and relative URLs load as before.
+    it.each([
+      "https://media.example.org/team-photo.jpg",
+      "http://localhost:3001/media/1",
+      "blob:https://app.example.org/5f0c2a1e",
+      "/media/team-photo.jpg",
+      "media/team-photo.jpg",
+      "//media.example.org/team-photo.jpg",
+    ])("src %j loads", (src) => {
+      render(<MediaDetailShell {...base} kind={kind} src={src} />);
+      const preview = screen.getByTestId("media-detail-preview");
+      expect(preview.querySelector(tag)).toHaveAttribute("src", src);
+      expect(preview).not.toHaveAttribute("data-state");
+    });
+  });
+
+  it("an app's own previewState wins over the scheme check", () => {
+    render(<MediaDetailShell {...base} kind="image" src="data:," previewState="missingBytes" />);
+    expect(screen.getByTestId("media-detail-preview")).toHaveAttribute(
+      "data-state",
+      "missingBytes",
+    );
+  });
+
+  // AC 3: the PDF frame sends no referrer and carries no sandbox (Chromium's viewer refuses one).
+  it("the PDF frame carries referrerpolicy=no-referrer and no sandbox", () => {
+    render(<MediaDetailShell {...base} kind="pdf" src="/media/brochure.pdf" />);
+    const frame = screen.getByTestId("media-detail-preview").querySelector("iframe");
+    expect(frame).toHaveAttribute("referrerpolicy", "no-referrer");
+    expect(frame).not.toHaveAttribute("sandbox");
   });
 });

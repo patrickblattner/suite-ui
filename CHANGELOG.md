@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.120.0 — #168, SUI-FEATURE-089 rev 2: `MediaDetailShell` loads only https, http, blob and relative sources
+
+Breaking for apps that pass a `data:` URL (or any other scheme) as the `src` of an image, video, audio or PDF: that preview now shows `noRenderer` instead of the file. Nothing changes for `https:`, `http:`, `blob:` and relative URLs.
+
+- An image, video, audio or PDF loads its `src` only with `https:`, `http:` or `blob:`. A relative URL counts as the page's own origin. Every other scheme loads nothing: `javascript:`, `data:`, `file:` and so on, also with spaces or control characters around or inside the scheme. No element with that `src` is rendered, and the preview shows the `noRenderer` state. An app's own `previewState` still wins. An empty `src` counts as unloadable too. The package checks the scheme, not the origin: the app passes only URLs of its own media store.
+- A `src` made only of control characters and spaces counts as empty, and a file kind without `src` and without `previewState` (possible only around the types) shows `noRenderer` too.
+- The PDF frame now carries `referrerpolicy="no-referrer"`. It deliberately has no `sandbox`, because Chromium's built-in PDF viewer refuses a sandboxed frame and the preview would stay empty.
+
+**Migration:** pass the medium's address from the app's media store (an `https:`/`http:` URL, or relative to the app). A preview built in the browser goes in as a `blob:` URL (`URL.createObjectURL`) instead of a `data:` URL. Cockpit (`MediaDetail.tsx`, `/api/media/<id>`) and Community (`MediaDetailPanel.tsx`, `/media/<storageKey>`) pass relative store URLs and keep their previews. Their shell tests use no `data:` sources.
+
+The gallery's media detail stand-ins are now `blob:` URLs. Baselines: none changed.
+
 ## 0.119.2 — #177, SUI-FEATURE-082 rev 7 / GL-UX-001: the user menu's appearance options are one radiogroup stop
 
 Not breaking. In the open user menu, the appearance options (System · Light · Dark) follow the WAI-ARIA radiogroup pattern. They are one Tab stop: the checked option has `tabindex="0"`, the others `-1`. ←/→ choose the next or previous option, wrap at the ends, and move the focus with the choice. ↑/↓, Home and End stay the panel's moves between its stops (`SUI-FEATURE-082` rev 7). Q&A #3791 is answered and confirms this: ←/→ choose with wrap, ↑/↓, Home and End stay the panel's moves. **Migration:** none. Baselines: none changed.
