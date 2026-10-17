@@ -20,9 +20,10 @@ type GridBox = { width: number; height: number };
 // The positions of the vertical lines (`x`) and the horizontal ones (`y`), ascending, each once.
 type GridLines = { x: number[]; y: number[] };
 
-// Every multiple of `step` from 0 to `length`.
+// Every multiple of `step` from 0 to `length`; none for a step that is not a positive number.
 function every(step: number, length: number): number[] {
   const lines: number[] = [];
+  if (!Number.isFinite(step) || step <= 0) return lines;
   for (let position = 0; position <= length; position += step) lines.push(position);
   return lines;
 }
@@ -42,7 +43,11 @@ function gridLines(
   if (def.art === "schritt") {
     return { x: every(def.schritt, box.width), y: every(def.schritt, box.height) };
   }
-  const width = (box.width - 2 * def.rand - (def.anzahl - 1) * def.abstand) / def.anzahl;
+  // Margin and gutters wider than the box leave the columns no width, never a negative one.
+  const width = Math.max(
+    0,
+    (box.width - 2 * def.rand - (def.anzahl - 1) * def.abstand) / def.anzahl,
+  );
   const x: number[] = [];
   for (let column = 0; column < def.anzahl; column += 1) {
     const left = def.rand + column * (width + def.abstand);
@@ -50,7 +55,8 @@ function gridLines(
     if (mitten) x.push(left + width / 2);
   }
   return {
-    x: ascendingOnce(x),
+    // Lines past the box's edge stand on it.
+    x: ascendingOnce(x.map((position) => Math.min(Math.max(position, 0), box.width))),
     y: def.zeilenschritt === undefined ? [] : every(def.zeilenschritt, box.height),
   };
 }

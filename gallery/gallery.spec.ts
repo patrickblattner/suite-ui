@@ -6020,6 +6020,9 @@ test("grid fields: count 0 is rejected with its bound", async ({ page }) => {
   await page.goto("/?page=grid&lng=de");
   const count = page.getByTestId("grid-fields-panel").getByTestId("grid-anzahl");
   await count.fill("0");
+  // While typing, no error; leaving the field shows it.
+  await expect(count).not.toHaveAttribute("aria-invalid");
+  await count.blur();
   await expect(count).toHaveAttribute("aria-invalid", "true");
   await expect(page.getByTestId("grid-anzahl-error")).toHaveText("Von 1 bis 24");
   await count.fill("6");

@@ -38,7 +38,10 @@ const BOUNDS: Record<GridNumberField, { min: number; max?: number }> = {
   zeilenschritt: { min: 1 },
 };
 
-// The definition a type starts from when the person switches to it.
+// The number fields measured in px; the column count is a plain number.
+const IN_PX: readonly GridNumberField[] = ["schritt", "abstand", "rand", "zeilenschritt"];
+
+// The definition a type starts from the first time the person switches to it.
 const START: Record<GridDefinition["art"], GridDefinition> = {
   schritt: { art: "schritt", schritt: 8 },
   spalten: { art: "spalten", anzahl: 12, abstand: 24, rand: 0 },
@@ -55,14 +58,37 @@ type GridFieldsProps = {
 };
 
 // The field group "Grid" (`SUI-FEATURE-087`): the type, then the step or the columns, gutter, margin
-// and the optional row step, each label above its field (`GL-UI-010`), every number in px with its unit.
+// and the optional row step, each label above its field (`GL-UI-010`), every length in px with its unit.
 // The app places it where the value lives. Out of bounds or not a whole number, an entry is not taken:
-// the field says its bound and keeps the text until it is fixed.
+// the field keeps the text until it is fixed, and says its bound once the person leaves it. Switching
+// the type and back restores that type's last definition.
 function GridFields({ value, onChange, allowNone = false, hidden = [] }: GridFieldsProps) {
   const { t } = useTranslation("suite");
   const id = React.useId();
   // The texts of the fields whose entry is invalid; every other field shows the value.
   const [drafts, setDrafts] = React.useState<Partial<Record<GridNumberField, string>>>({});
+  // The invalid fields the person has left: only they show their error.
+  const [left, setLeft] = React.useState<readonly GridNumberField[]>([]);
+  // The last definition of each type, to come back to.
+  const [last, setLast] = React.useState<Partial<Record<GridDefinition["art"], GridDefinition>>>(
+    value === null ? {} : { [value.art]: value },
+  );
+  // The value of the last render, and the last one this group sent.
+  const [seen, setSeen] = React.useState(value);
+  const [sent, setSent] = React.useState(value);
+  if (value !== seen) {
+    setSeen(value);
+    if (value !== null) setLast((current) => ({ ...current, [value.art]: value }));
+    // A value from outside (undo, another document) replaces what is being typed.
+    if (JSON.stringify(value) !== JSON.stringify(sent)) {
+      setDrafts({});
+      setLeft([]);
+    }
+  }
+  const send = (next: GridDefinition | null) => {
+    setSent(next);
+    onChange(next);
+  };
 
   const error = (field: GridNumberField, text: string): string | null => {
     const { min, max } = BOUNDS[field];
@@ -89,10 +115,11 @@ function GridFields({ value, onChange, allowNone = false, hidden = [] }: GridFie
       delete rest[field];
       return rest;
     });
+    setLeft((current) => current.filter((other) => other !== field));
     const next: Partial<Record<GridNumberField, number>> = { ...value };
     if (text.trim() === "") delete next[field];
     else next[field] = Number(text);
-    onChange(next as GridDefinition);
+    send(next as GridDefinition);
   };
 
   const fields: GridNumberField[] =
@@ -118,7 +145,9 @@ function GridFields({ value, onChange, allowNone = false, hidden = [] }: GridFie
             value={value?.art ?? "none"}
             onValueChange={(art) => {
               setDrafts({});
-              onChange(art === "none" ? null : START[art as GridDefinition["art"]]);
+              setLeft([]);
+              const type = art as GridDefinition["art"];
+              send(art === "none" ? null : (last[type] ?? START[type]));
             }}
           >
             <SelectTrigger
@@ -143,7 +172,9 @@ function GridFields({ value, onChange, allowNone = false, hidden = [] }: GridFie
           const fieldId = `${id}-${field}`;
           const current = (value as Partial<Record<GridNumberField, number>> | null)?.[field];
           const text = drafts[field] ?? (current === undefined ? "" : String(current));
-          const message = drafts[field] === undefined ? null : error(field, drafts[field]);
+          const draft = drafts[field];
+          const message = draft === undefined || !left.includes(field) ? null : error(field, draft);
+          const unit = IN_PX.includes(field);
           return (
             <div key={field} className="flex flex-col gap-2">
               <Label htmlFor={fieldId} className="whitespace-nowrap">
@@ -159,18 +190,24 @@ function GridFields({ value, onChange, allowNone = false, hidden = [] }: GridFie
                   max={BOUNDS[field].max}
                   value={text}
                   onChange={(event) => setNumber(field, event.target.value)}
-                  aria-describedby={`${fieldId}-unit`}
+                  onBlur={() => {
+                    if (draft !== undefined && !left.includes(field))
+                      setLeft((current) => [...current, field]);
+                  }}
+                  aria-describedby={unit ? `${fieldId}-unit` : undefined}
                   aria-invalid={message === null ? undefined : true}
                   aria-errormessage={message === null ? undefined : `${fieldId}-error`}
-                  className="pr-9"
+                  className={unit ? "pr-9" : undefined}
                   data-testid={`grid-${field}`}
                 />
-                <span
-                  id={`${fieldId}-unit`}
-                  className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground"
-                >
-                  {t("grid.unit")}
-                </span>
+                {unit ? (
+                  <span
+                    id={`${fieldId}-unit`}
+                    className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground"
+                  >
+                    {t("grid.unit")}
+                  </span>
+                ) : null}
               </div>
               {message === null ? null : (
                 <FieldError id={`${fieldId}-error`} data-testid={`grid-${field}-error`}>

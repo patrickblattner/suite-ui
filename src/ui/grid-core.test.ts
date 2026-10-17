@@ -32,6 +32,20 @@ describe("gridLines (SUI-FEATURE-087)", () => {
     expect(x).toEqual([40, 590, 610, 1160]);
   });
 
+  it.each([0, -1, Number.NaN])("a step of %s draws no lines and ends", (step) => {
+    expect(gridLines({ art: "schritt", schritt: step }, BOX)).toEqual({ x: [], y: [] });
+    expect(gridLines({ ...COLUMNS, zeilenschritt: step }, BOX).y).toEqual([]);
+  });
+
+  it("margin and gutters wider than the box: columns of no width, lines in order inside the box", () => {
+    const { x } = gridLines(
+      { art: "spalten", anzahl: 4, abstand: 40, rand: 30 },
+      { width: 100, height: 10 },
+    );
+    expect(x).toEqual([30, 70, 100]);
+    expect([...x].sort((a, b) => a - b)).toEqual(x);
+  });
+
   it("schritt: a square grid", () => {
     expect(gridLines({ art: "schritt", schritt: 20 }, { width: 60, height: 40 })).toEqual({
       x: [0, 20, 40, 60],
