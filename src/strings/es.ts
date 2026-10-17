@@ -232,6 +232,10 @@ export const es: SuiteStrings = {
     resetHint: "Descarta los cambios sin guardar de esta página.",
     resetDisabledHint:
       "Descarta los cambios sin guardar de esta página — disponible en cuanto cambies algo aquí.",
+
+    cancelHint: "Descarta lo que está abierto aquí y lo cierra.",
+    cancelDisabledHint:
+      "Descarta lo que está abierto aquí — disponible en cuanto algo esté abierto o cambiado.",
   },
   timezone: {
     placeholder: "Buscar zona horaria…",

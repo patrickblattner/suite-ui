@@ -25,7 +25,10 @@ type SecretCardHeaderProps = {
   test?: SecretCardAction & { onTest: () => void; busy?: boolean };
 };
 
-function ActionButton({
+// A button that acts at once, in the package style (`outline`, `sm`): the secret card's Replace, Remove
+// and Test, and the `leading` buttons of a `SettingsActionRow` (`SUI-FEATURE-088`). Given
+// `disabledText`, it is locked and shows the reason as its tooltip; a running one locks this way too.
+function SettingsActionButton({
   label,
   disabledText,
   onClick,
@@ -91,7 +94,7 @@ function SecretCardHeader({
         {testChip}
         {stateChip}
         {replace !== undefined ? (
-          <ActionButton
+          <SettingsActionButton
             label={t("actions.replace")}
             disabledText={replace.disabledText}
             onClick={replace.onReplace}
@@ -99,7 +102,7 @@ function SecretCardHeader({
           />
         ) : null}
         {remove !== undefined ? (
-          <ActionButton
+          <SettingsActionButton
             label={t("actions.remove")}
             disabledText={remove.disabledText}
             onClick={remove.onRemove}
@@ -108,7 +111,7 @@ function SecretCardHeader({
         ) : null}
       </div>
       {test !== undefined ? (
-        <ActionButton
+        <SettingsActionButton
           label={t("actions.testConnection")}
           disabledText={test.disabledText}
           onClick={test.onTest}
@@ -120,4 +123,4 @@ function SecretCardHeader({
   );
 }
 
-export { SecretCardHeader, type SecretCardHeaderProps };
+export { SecretCardHeader, type SecretCardHeaderProps, SettingsActionButton };

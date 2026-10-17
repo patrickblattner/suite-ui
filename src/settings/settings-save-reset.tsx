@@ -15,6 +15,9 @@ type SaveResetButtonsProps = {
   valid: boolean;
   saving: boolean;
   onReset: () => void;
+  // Given, Cancel (`outline`) stands in place of Reset: usable while `cancelable`, also without a
+  // change (`SUI-FEATURE-088`).
+  cancel?: { onCancel: () => void; cancelable: boolean } | undefined;
   // Given, Save is a plain button that calls it; otherwise Save is the submit button of its form.
   onSave?: (() => void) | undefined;
 };
@@ -27,26 +30,49 @@ type SaveResetButtonsProps = {
 // the form is clean, so it keeps the focus after a save (`GL-UI-050`, `SUI-FEATURE-120`). Locked with a
 // reason (an invalid entry, a page that did not load) it is `disabled` and hands the focus on: within
 // the row, else to the page's main content.
-function SaveResetButtons({ stem, dirty, valid, saving, onReset, onSave }: SaveResetButtonsProps) {
+function SaveResetButtons({
+  stem,
+  dirty,
+  valid,
+  saving,
+  onReset,
+  cancel,
+  onSave,
+}: SaveResetButtonsProps) {
   const { t } = useTranslation("suite");
   const save = React.useRef<HTMLButtonElement>(null);
   const clean = !dirty && valid && !saving;
   useFocusAfterRun(save, saving, !valid);
   return (
     <>
-      <Hint text={t("settings.resetHint")} disabledText={t("settings.resetDisabledHint")}>
-        <Button
-          type="button"
-          variant="destructive"
-          size="default"
-          disabled={!dirty}
-          onClick={onReset}
-          data-testid={`${stem}-reset`}
-        >
-          <RotateCcwIcon aria-hidden="true" />
-          {t("actions.reset")}
-        </Button>
-      </Hint>
+      {cancel !== undefined ? (
+        <Hint text={t("settings.cancelHint")} disabledText={t("settings.cancelDisabledHint")}>
+          <Button
+            type="button"
+            variant="outline"
+            size="default"
+            disabled={!cancel.cancelable}
+            onClick={cancel.onCancel}
+            data-testid={`${stem}-cancel`}
+          >
+            {t("actions.cancel")}
+          </Button>
+        </Hint>
+      ) : (
+        <Hint text={t("settings.resetHint")} disabledText={t("settings.resetDisabledHint")}>
+          <Button
+            type="button"
+            variant="destructive"
+            size="default"
+            disabled={!dirty}
+            onClick={onReset}
+            data-testid={`${stem}-reset`}
+          >
+            <RotateCcwIcon aria-hidden="true" />
+            {t("actions.reset")}
+          </Button>
+        </Hint>
+      )}
       <Hint
         text={t("settings.saveHint")}
         disabledText={t(dirty ? "settings.saveInvalidHint" : "settings.saveDisabledHint")}

@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { SecretCardHeader } from "./secret-card-header.js";
+import { SecretCardHeader, SettingsActionButton } from "./secret-card-header.js";
 import { SettingsActionRow } from "./settings-action-row.js";
 import { SettingsBlock } from "./settings-block.js";
 import { SettingsFooter } from "./settings-footer.js";
@@ -183,5 +183,95 @@ describe("SettingsActionRow", () => {
     fireEvent.click(save);
     expect(onSave).not.toHaveBeenCalled();
     expect(save).toHaveFocus();
+  });
+
+  // SUI-FEATURE-088 AC1: Cancel in place of Reset, usable while cancelable, also without a change.
+  it("with onCancel and cancelable but no change: Cancel usable, Save locked", () => {
+    const onCancel = vi.fn();
+    render(
+      <SettingsActionRow
+        dirty={false}
+        onSave={() => {}}
+        onCancel={onCancel}
+        cancelable
+        testIdPrefix="secret"
+      />,
+    );
+    expect(screen.queryByTestId("secret-reset")).toBeNull();
+    const cancel = screen.getByTestId("secret-cancel");
+    expect(cancel).toHaveTextContent("Cancel");
+    expect(cancel).toBeEnabled();
+    expect(cancel).toHaveAttribute("data-variant", "outline");
+    fireEvent.click(cancel);
+    expect(onCancel).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("secret-save")).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("not cancelable: Cancel locked", () => {
+    render(
+      <SettingsActionRow
+        dirty={false}
+        onSave={() => {}}
+        onCancel={() => {}}
+        cancelable={false}
+        testIdPrefix="secret"
+      />,
+    );
+    expect(screen.getByTestId("secret-cancel")).toBeDisabled();
+  });
+
+  // SUI-FEATURE-088 AC2: Cancel replaces Reset, never both.
+  it("onCancel and onReset together are a type error", () => {
+    const base = { dirty: false, onSave: () => {}, testIdPrefix: "x" };
+    const rows = [
+      // @ts-expect-error onCancel and onReset together
+      <SettingsActionRow key="both" {...base} onReset={() => {}} onCancel={() => {}} cancelable />,
+      // @ts-expect-error onCancel needs cancelable
+      <SettingsActionRow key="no-cancelable" {...base} onCancel={() => {}} />,
+      // @ts-expect-error one of onReset or onCancel
+      <SettingsActionRow key="neither" {...base} />,
+    ];
+    expect(rows).toHaveLength(3);
+  });
+
+  // SUI-FEATURE-088: the buttons that act at once stand left, the pair right, in one row.
+  it("leading: the immediate buttons left, the pair right", () => {
+    const onReplace = vi.fn();
+    const { container } = render(
+      <SettingsActionRow
+        dirty={false}
+        onSave={() => {}}
+        onCancel={() => {}}
+        cancelable
+        testIdPrefix="app"
+        leading={
+          <>
+            <SettingsActionButton
+              label="Replace"
+              disabledText={undefined}
+              onClick={onReplace}
+              testId="app-replace"
+            />
+            <SettingsActionButton
+              label="Remove"
+              disabledText="Removing…"
+              onClick={() => {}}
+              testId="app-remove"
+            />
+          </>
+        }
+      />,
+    );
+    const row = container.firstElementChild as HTMLElement;
+    expect(row).toHaveClass("flex", "justify-between");
+    const [leading, pair] = [...row.children] as HTMLElement[];
+    expect(within(leading!).getByTestId("app-replace")).toHaveAttribute("data-size", "sm");
+    expect(within(leading!).getByTestId("app-remove")).toBeDisabled();
+    expect([...pair!.querySelectorAll("button")].map((button) => button.dataset.testid)).toEqual([
+      "app-cancel",
+      "app-save",
+    ]);
+    fireEvent.click(screen.getByTestId("app-replace"));
+    expect(onReplace).toHaveBeenCalledTimes(1);
   });
 });

@@ -6071,3 +6071,55 @@ test("grid overlay: the pointer passes through to the content", async ({ page })
     await expect(target).not.toHaveText(before ?? "");
   }
 });
+
+// SUI-FEATURE-088 AC3: with two immediate buttons, they stand left and the pair right, in one line
+// wherever the four fit. In a 340 px block they do not (Q&A #3770/#3771): the immediate buttons stay
+// left, the pair wraps below, right-aligned, and nothing overlaps or overflows.
+for (const lng of LANGUAGES) {
+  test(`settings action row: leading left, pair right ${lng}`, async ({ page }) => {
+    const ids = ["replace-replace", "replace-remove", "replace-cancel", "replace-save"];
+    for (const width of [null, 340]) {
+      await page.goto(
+        `/?page=settings&layout=action-row${width === null ? "" : `&width=${width}`}&lng=${lng}`,
+      );
+      const row = page.locator("[data-slot=settings-action-row]");
+      const rowBox = await box(row);
+      const [replace, remove, cancel, save] = await Promise.all(
+        ids.map((id) => box(page.getByTestId(id))),
+      );
+      expect(Math.abs(replace!.x - rowBox.x)).toBeLessThanOrEqual(1);
+      expect(Math.abs(save!.x + save!.width - (rowBox.x + rowBox.width))).toBeLessThanOrEqual(1);
+      expect(Math.abs(remove!.y - replace!.y)).toBeLessThanOrEqual(1);
+      expect(Math.abs(save!.y - cancel!.y)).toBeLessThanOrEqual(1);
+      expect(await row.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+      if (width === null) {
+        // Wide: one line, the buttons centred on it (the immediate ones are `sm`).
+        const middle = (b: { y: number; height: number }) => b.y + b.height / 2;
+        expect(Math.abs(middle(cancel!) - middle(replace!))).toBeLessThanOrEqual(1);
+      } else {
+        // Narrow: the pair below the immediate buttons.
+        expect(cancel!.y).toBeGreaterThanOrEqual(replace!.y + replace!.height);
+      }
+    }
+  });
+}
+
+// SUI-FEATURE-088 AC1 and §3: replacing a stored secret, Cancel is usable at once and Save locked;
+// Save submits the block's form, the same path as Enter in the field.
+test("settings action row: Cancel without a change, Save submits the form", async ({ page }) => {
+  await page.goto("/?page=settings&layout=action-row&lng=de");
+  const form = page.getByTestId("replace-form");
+  await expect(page.getByTestId("replace-cancel")).toHaveText("Abbrechen");
+  await expect(page.getByTestId("replace-cancel")).toBeEnabled();
+  await expect(page.getByTestId("replace-save")).toHaveAttribute("aria-disabled", "true");
+  await expect(page.getByTestId("replace-reset")).toHaveCount(0);
+  await page.getByTestId("replace-value").fill("secret");
+  await page.getByTestId("replace-save").click();
+  await expect(form).toHaveAttribute("data-submits", "1");
+  await page.getByTestId("replace-value").fill("again");
+  await page.getByTestId("replace-value").press("Enter");
+  await expect(form).toHaveAttribute("data-submits", "2");
+  await page.getByTestId("replace-cancel").click();
+  await expect(page.getByTestId("replace-value")).toHaveCount(0);
+  await expect(page.getByTestId("replace-cancel")).toBeDisabled();
+});
