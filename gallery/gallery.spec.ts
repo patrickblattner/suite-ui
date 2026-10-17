@@ -5961,6 +5961,44 @@ test("canvas editor: panel 340 px, drawer narrows the canvas", async ({ page }) 
   expect((await box(canvas)).width).toBe(withDrawer.width + 300);
 });
 
+// #223 (`SUI-FEATURE-071` rev 4, AC 5; `GL-UX-001`): the open drawer is 300 px wide but never wider
+// than the room beside the rail, so at 320 and 390 px nothing of it is clipped by the editor frame;
+// from 1440 px it is 300 px. At 320 px the page does not scroll sideways either.
+for (const width of [320, 390, 1440]) {
+  test(`canvas editor: the open drawer fits the frame at ${width} px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/?page=components&lng=de");
+    const editor = page.getByTestId("canvas-editor");
+    const drawer = editor.getByTestId("drawer");
+    await expect(drawer).toHaveAttribute("data-drawer-open", "style");
+    const fit = await editor.evaluate((node) => {
+      // The frame's inner edge: it clips at its padding box, inside its 1 px border.
+      const right = node.getBoundingClientRect().right - node.clientLeft;
+      const open = node.querySelector("[data-testid=drawer]")!;
+      const rail = node.querySelector("[data-slot=drawer-rail] > div")!.getBoundingClientRect();
+      return {
+        drawer: open.getBoundingClientRect().width,
+        rail: rail.width,
+        clipped: [open, ...open.querySelectorAll("*")].filter((el) => {
+          const box = el.getBoundingClientRect();
+          return box.width > 0 && box.right > right + 0.5;
+        }).length,
+      };
+    });
+    expect(fit.rail).toBe(48);
+    expect(fit.clipped).toBe(0);
+    if (width === 1440) expect(fit.drawer).toBe(300);
+    else expect(fit.drawer).toBeLessThan(300);
+    if (width === 320) {
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        ),
+      ).toBeLessThanOrEqual(0);
+    }
+  });
+}
+
 // `SUI-FEATURE-070` rev 3, AC 9 and AC 3: a selection at the top edge shows its name badge inside,
 // unclipped; on a narrow selection the action bar moves below instead of covering the badge.
 test("canvas: badge inside at the top edge, bar yields to the badge", async ({ page }) => {

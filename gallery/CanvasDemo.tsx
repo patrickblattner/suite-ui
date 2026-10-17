@@ -155,7 +155,8 @@ export function CanvasRow() {
 }
 
 // `SUI-FEATURE-070` rev 4: two narrow frames with a selection at the right edge. In the first the name
-// badge moves left; in the second it is wider than the frame and ends in "…".
+// badge moves left; in the second it is wider than the frame and ends in "…". Narrower than both, the
+// frames stack (#223).
 export function CanvasEdgeRow() {
   const frame = (name: string, testid: string) => (
     <div className="relative h-24 w-40 rounded-md bg-muted" data-testid={testid}>
@@ -163,7 +164,7 @@ export function CanvasEdgeRow() {
     </div>
   );
   return (
-    <div className="flex gap-4" data-testid="canvas-edges">
+    <div className="flex flex-wrap gap-4" data-testid="canvas-edges">
       {frame("Button", "canvas-edge-right")}
       {frame("Speakers of the season and all venues", "canvas-edge-wide")}
     </div>

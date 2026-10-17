@@ -31,7 +31,8 @@ type DrawerRailProps = {
 };
 
 // The drawers of a visual editor (`GL-UI-040`, `SUI-FEATURE-071`): a narrow rail on the left with Add ·
-// Layers · Style · Document, in that order. A click opens the drawer beside the rail, 300 px wide; it
+// Layers · Style · Document, in that order. A click opens the drawer beside the rail, 300 px wide but
+// never wider than the room its container leaves beside the rail (`SUI-FEATURE-071` rev 4, #223); it
 // takes its width from the canvas instead of covering it. A second click or `Esc` closes it (innermost
 // `Esc` first, `GL-UI-007`), and the focus returns to its button. The open drawer's button is pressed.
 function DrawerRail({ items, open, onOpen, styleSave }: DrawerRailProps) {
@@ -57,10 +58,10 @@ function DrawerRail({ items, open, onOpen, styleSave }: DrawerRailProps) {
     <div
       ref={setNode}
       data-slot="drawer-rail"
-      className="flex h-full shrink-0"
+      className="flex h-full max-w-full shrink-0"
       data-testid="drawer-rail"
     >
-      <div className="flex w-12 flex-col items-center gap-1 border-r border-border py-2">
+      <div className="flex w-12 shrink-0 flex-col items-center gap-1 border-r border-border py-2">
         {ordered.map(({ id: drawer, icon: Icon, badge }) => (
           <IconButtonTooltip key={drawer} label={t(`canvas.drawer.${drawer}`)}>
             <Button
@@ -92,7 +93,7 @@ function DrawerRail({ items, open, onOpen, styleSave }: DrawerRailProps) {
         <section
           id={`${id}-drawer`}
           aria-labelledby={`${id}-title`}
-          className="flex w-[300px] flex-col border-r border-border bg-background"
+          className="flex w-[300px] min-w-0 flex-col border-r border-border bg-background"
           data-testid="drawer"
           data-drawer-open={current.id}
         >
