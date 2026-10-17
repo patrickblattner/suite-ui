@@ -6362,3 +6362,14 @@ test("package headings: DrawerRail title and HelpMarkdown h2 keep their own type
   await page.goto("/?page=strings&lng=en");
   await expect(page.locator("#strings-heading")).toHaveCSS("font-size", "18px");
 });
+
+// #212 (`SUI-FEATURE-038`): the gallery's content padding reaches only its own `main`; the help
+// drawer's content keeps its own `px-8 py-6`, as apps get it.
+test("help drawer: its content keeps its own padding", async ({ page }) => {
+  await page.goto("/?page=help&lng=en");
+  const content = page.getByTestId("help-content");
+  await expect(content).toBeVisible();
+  await expect(content).toHaveCSS("padding", "24px 32px");
+  // The gallery's own content area keeps its padding.
+  await expect(page.locator("#root > main")).toHaveCSS("padding", "24px");
+});
