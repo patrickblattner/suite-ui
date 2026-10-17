@@ -6370,7 +6370,7 @@ test("package headings: DrawerRail title and HelpMarkdown h2 keep their own type
 });
 
 // #212 (`SUI-FEATURE-038`): the gallery's content padding reaches only its own `main`; the help
-// drawer's content keeps its own `px-8 py-6`, as apps get it.
+// drawer's content keeps its own padding, `px-8 py-6` from `sm` (#213: `px-4` below), as apps get it.
 test("help drawer: its content keeps its own padding", async ({ page }) => {
   await page.goto("/?page=help&lng=en");
   const content = page.getByTestId("help-content");
@@ -6395,6 +6395,8 @@ for (const width of [320, 390]) {
         locator.evaluate((el) => el.scrollWidth - el.clientWidth);
       expect(await overflow(drawer)).toBeLessThanOrEqual(0);
       expect(await overflow(content)).toBeLessThanOrEqual(0);
+      // The column that actually scrolls below `sm`.
+      expect(await overflow(page.getByTestId("help-columns"))).toBeLessThanOrEqual(0);
       expect(
         await page.evaluate(
           () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
@@ -6416,3 +6418,41 @@ for (const width of [320, 390]) {
     });
   }
 }
+
+// #213 review: below `sm` the search stays on top while the column scrolls (`SUI-FEATURE-038`
+// "Suchfeld (sticky)"), and picking a page takes the reader to it: the content comes into view and
+// takes the focus.
+test("help drawer at 320 px: the search stays, a picked page comes into view with the focus", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  await page.goto("/?page=help&lng=en");
+  const columns = page.getByTestId("help-columns");
+  const search = page.getByTestId("help-search");
+  const content = page.getByTestId("help-content");
+  await expect(search).toBeInViewport();
+  await columns.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+  await expect(content.locator("table")).toBeInViewport();
+  await expect(search).toBeInViewport();
+  const searchBox = await box(search);
+  expect(searchBox.y).toBeLessThan(160);
+
+  await columns.evaluate((el) => el.scrollTo(0, 0));
+  await page.getByTestId("help-link-ideas").click();
+  await expect(content.locator("h1")).toHaveText("Ideas");
+  await expect(content).toBeFocused();
+  await expect(content).toBeInViewport();
+  // The content starts below the sticky search, not under it.
+  expect((await box(content)).y).toBeGreaterThanOrEqual(searchBox.y + searchBox.height);
+});
+
+// #213 review: from `sm` up a picked page shows beside the list; the focus stays on the link.
+test("help drawer at 1440 px: picking a page keeps the focus on its link", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/?page=help&lng=en");
+  const link = page.getByTestId("help-link-ideas");
+  await link.click();
+  await expect(page.getByTestId("help-content").locator("h1")).toHaveText("Ideas");
+  await expect(link).toBeFocused();
+  await expect(page.getByTestId("help-search-bar")).toHaveCount(0);
+});
