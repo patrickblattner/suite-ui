@@ -6319,7 +6319,7 @@ test("shell: the appearance options are one radiogroup stop, ←/→ choose", as
   expect(await checked().getAttribute("data-testid")).toBe(order[1]);
 });
 
-// #204 (`SUI-FEATURE-067`): the gallery shows EditorHeader as apps get it. The gallery's own chrome
+// #204 (`SUI-FEATURE-064`/`-069`): the gallery shows EditorHeader as apps get it. The gallery's own chrome
 // rules reach only its top bar, so the header keeps its own padding, `py-3` and the page gutter.
 test("editor header: its own padding, not the gallery top bar's", async ({ page }) => {
   await page.goto("/?page=editor-shell&lng=en");
@@ -6339,4 +6339,26 @@ test("editor header: its own padding, not the gallery top bar's", async ({ page 
   await expect(header).toHaveCSS("padding-right", gutter);
   // The gallery's own top bar keeps its chrome.
   await expect(page.locator("#root > header")).toHaveCSS("padding", "16px 24px");
+});
+
+// #211 (`SUI-FEATURE-064`/`-069`): the gallery's section rule reaches only its own headings; a package
+// heading keeps its own size and weight, as apps get it.
+test("package headings: DrawerRail title and HelpMarkdown h2 keep their own type", async ({
+  page,
+}) => {
+  await page.goto("/?page=components&lng=en");
+  const drawerTitle = page.getByTestId("canvas-editor").getByTestId("drawer").locator("h2").first();
+  await expect(drawerTitle).toBeVisible();
+  // `text-sm font-medium`
+  await expect(drawerTitle).toHaveCSS("font-size", "14px");
+  await expect(drawerTitle).toHaveCSS("font-weight", "500");
+  await page.goto("/?page=help&lng=en");
+  const helpHeading = page.getByTestId("help-content").locator("h2").first();
+  await expect(helpHeading).toBeVisible();
+  // `text-xl font-semibold`
+  await expect(helpHeading).toHaveCSS("font-size", "20px");
+  await expect(helpHeading).toHaveCSS("font-weight", "600");
+  // The gallery's own section heading keeps the gallery rule.
+  await page.goto("/?page=strings&lng=en");
+  await expect(page.locator("#strings-heading")).toHaveCSS("font-size", "18px");
 });

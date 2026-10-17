@@ -72,8 +72,9 @@ main {
   font-weight: 500;
 }
 
-/* Unlayered, so it beats the utilities of a package heading; the SettingsSection title keeps its own. */
-h2:not([data-slot="settings-section-title"]) {
+/* The gallery's own section headings only (`main > section > h2`). A package heading (DrawerRail
+   title, HelpMarkdown, SettingsSection) keeps its own size and weight, as apps get it (#211). */
+#root > main > section > h2 {
   font-size: 1.125rem;
   font-weight: 500;
 }
