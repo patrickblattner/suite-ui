@@ -66,7 +66,7 @@ describe("SettingsScaffold", () => {
   });
 
   // SUI-FEATURE-120 rev 5: a clean form locks Save with `aria-disabled` and its trigger lock, so it keeps
-  // the focus after a save; Reset stays `disabled`.
+  // the focus after a save; Reset locks the same way (`GL-UI-050`, #201).
   it("orders Reset (destructive) before Save (success), both locked while unchanged", () => {
     const run = vi.fn(() => Promise.resolve());
     render(<GeneralPage save={run} />);
@@ -79,18 +79,19 @@ describe("SettingsScaffold", () => {
     expect(save).toHaveAttribute("aria-disabled", "true");
     fireEvent.click(save);
     expect(run).not.toHaveBeenCalled();
-    expect(reset).toBeDisabled();
+    // #201: Reset locks itself with aria-disabled like Save, focusable.
+    expect(reset).toHaveAttribute("aria-disabled", "true");
   });
 
   it("enables both after a change and disables both again after a reset", () => {
     render(<GeneralPage save={() => Promise.resolve()} />);
     fireEvent.change(screen.getByTestId("settings-name"), { target: { value: "Studio 2" } });
     expect(screen.getByTestId("settings-general-save")).toBeEnabled();
-    expect(screen.getByTestId("settings-general-reset")).toBeEnabled();
+    expect(screen.getByTestId("settings-general-reset")).not.toHaveAttribute("aria-disabled");
     fireEvent.click(screen.getByTestId("settings-general-reset"));
     expect(screen.getByTestId("settings-name")).toHaveValue("Studio");
     expect(screen.getByTestId("settings-general-save")).toHaveAttribute("aria-disabled", "true");
-    expect(screen.getByTestId("settings-general-reset")).toBeDisabled();
+    expect(screen.getByTestId("settings-general-reset")).toHaveAttribute("aria-disabled", "true");
   });
 
   it("saves once while a save runs, in the working state, and is locked again afterwards", async () => {
@@ -120,7 +121,7 @@ describe("SettingsScaffold", () => {
     fireEvent.click(button, { detail: 1 });
     fireEvent.submit(screen.getByTestId("settings-general-form"));
     expect(save).toHaveBeenCalledTimes(1);
-    expect(screen.getByTestId("settings-general-reset")).toBeDisabled();
+    expect(screen.getByTestId("settings-general-reset")).toHaveAttribute("aria-disabled", "true");
   });
 
   it("does not save an unchanged form on Enter", () => {

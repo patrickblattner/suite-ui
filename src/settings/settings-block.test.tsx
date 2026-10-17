@@ -208,6 +208,52 @@ describe("SettingsActionRow", () => {
     expect(screen.getByTestId("secret-save")).toHaveAttribute("aria-disabled", "true");
   });
 
+  // #201 (GL-UI-050): Reset resets and locks itself; the focus stays on it.
+  it("the focus stays on Reset after a reset, and a locked Reset calls nothing", () => {
+    const onReset = vi.fn();
+    function Row() {
+      const [dirty, setDirty] = useState(true);
+      return (
+        <SettingsActionRow
+          dirty={dirty}
+          onSave={() => {}}
+          onReset={() => {
+            onReset();
+            setDirty(false);
+          }}
+          testIdPrefix="mail"
+        />
+      );
+    }
+    render(<Row />);
+    const reset = screen.getByTestId("mail-reset");
+    reset.focus();
+    fireEvent.click(reset);
+    expect(onReset).toHaveBeenCalledTimes(1);
+    expect(document.activeElement).toBe(reset);
+    expect(reset).toHaveAttribute("aria-disabled", "true");
+    expect(reset).toBeEnabled();
+    fireEvent.click(reset);
+    expect(onReset).toHaveBeenCalledTimes(1);
+  });
+
+  // SUI-FEATURE-088 rev 5: Cancel shows no icon; Reset keeps its icon.
+  it("the Cancel variant renders no icon, Reset keeps its icon", () => {
+    const { unmount } = render(
+      <SettingsActionRow
+        dirty={false}
+        onSave={() => {}}
+        onCancel={() => {}}
+        cancelable
+        testIdPrefix="secret"
+      />,
+    );
+    expect(screen.getByTestId("secret-cancel").querySelector("svg")).toBeNull();
+    unmount();
+    render(<SettingsActionRow dirty onSave={() => {}} onReset={() => {}} testIdPrefix="mail" />);
+    expect(screen.getByTestId("mail-reset").querySelector("svg.lucide-rotate-ccw")).not.toBeNull();
+  });
+
   it("not cancelable: Cancel locked with aria-disabled, its click calls nothing", () => {
     const onCancel = vi.fn();
     render(

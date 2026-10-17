@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.121.0 — #201, GL-UI-050: Reset keeps the focus after a reset
+
+Not breaking for the API; no new props. Behaviour changes that app tests may see. Reset in `SettingsActionRow` and `SettingsFooter` (the shared pair, `SUI-FEATURE-043`) now locks itself like Save and Cancel. While the entry is clean it carries `aria-disabled="true"` with a click guard instead of native `disabled`, so the focus stays on it after a reset instead of dropping to the body. The locked look is the one the disabled button had: a half-tone fill and the label mixed with the background, with the element opaque so its focus ring keeps full contrast. The locked Reset keeps its reset-disabled hint as its accessible description. **Migration:** Playwright `toBeDisabled()`/`toBeEnabled()` on Reset keep passing, because they count `aria-disabled`. A jest-dom `toBeDisabled()` on a clean Reset in a unit test switches to `toHaveAttribute("aria-disabled", "true")`. An E2E check that compares Reset's opacity or background may change. Affected: Cockpit 5 unit lines and 2 E2E look lines, Community 5 unit lines. Baselines: none changed.
+
 ## 0.120.0 — #168, SUI-FEATURE-089 rev 2: `MediaDetailShell` loads only https, http, blob and relative sources
 
 Breaking for apps that pass a `data:` URL (or any other scheme) as the `src` of an image, video, audio or PDF: that preview now shows `noRenderer` instead of the file. Nothing changes for `https:`, `http:`, `blob:` and relative URLs.

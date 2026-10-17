@@ -30,6 +30,12 @@ type SaveResetButtonsProps = {
 const LOCKED_CANCEL_CLASS =
   "cursor-not-allowed text-[color-mix(in_srgb,var(--foreground)_50%,var(--background))]";
 
+// Reset locks the same way once the entry is clean again (`GL-UI-050`, #201), so the focus stays on it
+// after a reset: the fill half-tone and the label mixed with the background, as the disabled button's
+// element opacity composited them.
+const LOCKED_RESET_CLASS =
+  "cursor-not-allowed bg-destructive/50 text-[color-mix(in_srgb,var(--destructive-foreground)_50%,var(--background))] hover:bg-destructive/50";
+
 // Reset (`destructive`) and Save (`success`), each with its fixed decorative icon before the label,
 // shared by `SettingsFooter` and `SettingsActionRow` so both carry the same variants, sizes, icons,
 // texts, lock logic and working state (`GL-UI-026`, `GL-UI-027`). Without a change both are locked in
@@ -75,8 +81,11 @@ function SaveResetButtons({
             type="button"
             variant="destructive"
             size="default"
-            disabled={!dirty}
-            onClick={onReset}
+            {...(dirty ? {} : { "aria-disabled": true })}
+            className={cn(!dirty && LOCKED_RESET_CLASS)}
+            onClick={() => {
+              if (dirty) onReset();
+            }}
             data-testid={`${stem}-reset`}
           >
             <RotateCcwIcon aria-hidden="true" />
