@@ -39,6 +39,7 @@ const PAGES: [name: string, ready: (page: Page) => Locator][] = [
   ["toast", (page) => page.locator("[data-sonner-toast][data-type=success]")],
   ["preview", (page) => page.getByTestId("preview-no-device")],
   ["split", (page) => page.getByTestId("split-single-toggle")],
+  ["grid", (page) => page.getByTestId("grid-overlay-dark")],
 ];
 
 for (const lng of LANGUAGES) {
@@ -5993,4 +5994,77 @@ test("archive: a default confirm that names the undo, and a toast with Undo", as
   await expect(
     page.locator("[data-sonner-toast]").filter({ hasText: "Home restored." }),
   ).toBeVisible();
+});
+
+// `SUI-FEATURE-087` AC 3: in a 340 px panel every label of the grid fields stays on one line and
+// inside the panel, in every language; a count of 0 is not taken and names the bound.
+for (const lng of LANGUAGES) {
+  test(`grid fields: labels on one line at 340 px ${lng}`, async ({ page }) => {
+    await page.goto(`/?page=grid&lng=${lng}`);
+    const panel = page.getByTestId("grid-fields-panel");
+    expect((await box(panel)).width).toBe(340);
+    const labels = panel.locator("label");
+    await expect(labels).toHaveCount(5);
+    for (const label of await labels.all()) {
+      const text = await label.textContent();
+      expect((await box(label)).height, `${text} wraps`).toBeLessThanOrEqual(20);
+      expect(
+        await label.evaluate((node) => node.scrollWidth <= node.clientWidth),
+        `${text} overflows`,
+      ).toBe(true);
+    }
+  });
+}
+
+test("grid fields: count 0 is rejected with its bound", async ({ page }) => {
+  await page.goto("/?page=grid&lng=de");
+  const count = page.getByTestId("grid-fields-panel").getByTestId("grid-anzahl");
+  await count.fill("0");
+  await expect(count).toHaveAttribute("aria-invalid", "true");
+  await expect(page.getByTestId("grid-anzahl-error")).toHaveText("Von 1 bis 24");
+  await count.fill("6");
+  await expect(page.getByTestId("grid-anzahl-error")).toHaveCount(0);
+});
+
+// `SUI-FEATURE-087` AC 4: coupled and separate, locked without a definition.
+test("grid toggle: coupled, separate with its menu, locked without a definition", async ({
+  page,
+}) => {
+  await page.goto("/?page=grid&lng=en");
+  const coupled = page.getByTestId("grid-toggle-coupled").getByTestId("grid-toggle-button");
+  await expect(coupled).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByTestId("grid-toggle-coupled").getByTestId("grid-toggle-menu")).toHaveCount(
+    0,
+  );
+  const separate = page.getByTestId("grid-toggle-separate");
+  await expect(separate.getByTestId("grid-toggle-button")).toHaveAttribute("aria-pressed", "false");
+  await separate.getByTestId("grid-toggle-menu").click();
+  await expect(page.getByRole("menuitemcheckbox", { name: "Guides" })).toHaveAttribute(
+    "aria-checked",
+    "false",
+  );
+  await page.getByRole("menuitemcheckbox", { name: "Guides" }).click();
+  await expect(separate.getByTestId("grid-toggle-button")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByRole("menuitemcheckbox", { name: "Snap" })).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
+  await page.keyboard.press("Escape");
+  const locked = page.getByTestId("grid-toggle-locked");
+  await expect(locked.getByTestId("grid-toggle-button")).toBeDisabled();
+  await expect(locked.getByTestId("grid-toggle-menu")).toBeDisabled();
+});
+
+// `SUI-FEATURE-087` AC 5: the overlay lies over the content, and the pointer reaches what is beneath.
+test("grid overlay: the pointer passes through to the content", async ({ page }) => {
+  await page.goto("/?page=grid&lng=en");
+  for (const id of ["grid-overlay-light", "grid-overlay-dark"]) {
+    const frame = page.getByTestId(id);
+    await expect(frame.getByTestId("grid-overlay")).toBeVisible();
+    await expect(frame.getByTestId("grid-overlay")).toHaveCSS("pointer-events", "none");
+    const target = frame.getByTestId(`${id}-target`);
+    const before = await target.textContent();
+    await target.click();
+    await expect(target).not.toHaveText(before ?? "");
+  }
 });

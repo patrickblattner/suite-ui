@@ -1,4 +1,4 @@
-import { ChevronRightIcon } from "lucide-react";
+import { CheckIcon, ChevronRightIcon } from "lucide-react";
 import type * as React from "react";
 import { DropdownMenu as DropdownMenuPrimitive } from "radix-ui";
 
@@ -71,6 +71,39 @@ function DropdownMenuItem({
       )}
       {...props}
     />
+  );
+}
+
+// An entry that switches on and off (`SUI-FEATURE-087`): `aria-checked`, the check before the text
+// while on. The menu stays open, so several switches can be set in a row.
+function DropdownMenuCheckboxItem({
+  className,
+  children,
+  onPointerMove,
+  onPointerLeave,
+  onBlur,
+  onSelect,
+  ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.CheckboxItem>) {
+  const highlight = useHighlightInput({ onPointerMove, onPointerLeave, onBlur });
+  return (
+    <DropdownMenuPrimitive.CheckboxItem
+      data-slot="dropdown-menu-checkbox-item"
+      {...highlight}
+      className={cn(ITEM_CLASS, "pl-8", className)}
+      onSelect={(event) => {
+        event.preventDefault();
+        onSelect?.(event);
+      }}
+      {...props}
+    >
+      <span className="pointer-events-none absolute left-2 flex size-4 items-center justify-center">
+        <DropdownMenuPrimitive.ItemIndicator>
+          <CheckIcon aria-hidden="true" />
+        </DropdownMenuPrimitive.ItemIndicator>
+      </span>
+      {children}
+    </DropdownMenuPrimitive.CheckboxItem>
   );
 }
 
@@ -163,6 +196,7 @@ export {
   DropdownMenuGroup,
   DropdownMenuLabel,
   DropdownMenuItem,
+  DropdownMenuCheckboxItem,
   DropdownMenuSeparator,
   DropdownMenuSub,
   DropdownMenuSubTrigger,
