@@ -239,6 +239,8 @@ function GridToggle({ mode, value, onChange, definition, unavailableText }: Grid
   const { t } = useTranslation("suite");
   const locked = definition === null;
   const pressed = !locked && value.hilfslinien;
+  const snapOn = !locked && value.einrasten;
+  const snapOnId = React.useId();
   return (
     <div className="flex items-center" data-testid="grid-toggle">
       <Hint
@@ -254,7 +256,7 @@ function GridToggle({ mode, value, onChange, definition, unavailableText }: Grid
           className={cn(
             PRESSED_FILL_CLASS,
             // Separate: the main part of one joined split button.
-            mode === "getrennt" && "rounded-r-none focus-visible:z-10",
+            mode === "getrennt" && "rounded-r-none hover:z-10 focus-visible:z-10",
           )}
           onClick={() =>
             onChange(
@@ -277,13 +279,20 @@ function GridToggle({ mode, value, onChange, definition, unavailableText }: Grid
                 type="button"
                 variant="outline"
                 size="icon-sm"
-                // The narrow arrow segment of the joined button; its left border is the main part's.
-                className="relative -ml-px w-6 rounded-l-none focus-visible:z-10"
+                // The narrow arrow segment of the joined button; its left border is the main part's. The
+                // invisible `after` widens its hit area to 32 px without changing its look.
+                className="relative -ml-px w-6 rounded-l-none after:absolute after:inset-y-0 after:-inset-x-1 focus-visible:z-10"
+                aria-describedby={snapOn ? snapOnId : undefined}
                 data-testid="grid-toggle-menu"
               >
                 <ChevronDownIcon aria-hidden="true" />
                 {/* Snapping is on: a primary dot, so it never runs unseen while the lines are off. */}
-                {!locked && value.einrasten ? (
+                {snapOn ? (
+                  <span id={snapOnId} className="sr-only">
+                    {t("grid.snapOn")}
+                  </span>
+                ) : null}
+                {snapOn ? (
                   <span
                     aria-hidden="true"
                     className="absolute top-1 right-1 size-1.5 rounded-full bg-primary"

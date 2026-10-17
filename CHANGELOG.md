@@ -6,12 +6,12 @@ Not breaking in the API. The look of `GridToggle` and `GridOverlay` changes, and
 
 - New export `Field` from `@suite/ui/ui/field`: the neutral field building block. It puts the label above the control, the help or error text under it, `aria-invalid` and `aria-errormessage` on the package controls inside, and gives the label the id `${htmlFor}-label`. `SettingsField` and `GridFields` are both built on it, with no visible change to `SettingsField`.
 - `GridFields`: the Spanish label for the gutter reads "Separación" instead of "Medianil".
-- `GridToggle`: pressed is the primary fill, now one shared value with the RowActions "Used by" toggle. The package's other toggles keep their look. In `mode="getrennt"` it is one joined split button: one frame, with a narrow arrow segment for "Grid options". While snapping is on, the arrow segment carries a primary dot, so snapping never runs unseen while the lines are off.
+- `GridToggle`: pressed is the primary fill, now one shared value with the RowActions "Used by" toggle. The package's other toggles keep their look. In `mode="getrennt"` it is one joined split button: one frame, with a narrow arrow segment for "Grid options". While snapping is on, the arrow segment carries a primary dot, so snapping never runs unseen while the lines are off. Screen readers hear it too: while snapping is on, the arrow segment is described as "Snap is on" (new string `grid.snapOn`), and its hit area is 32 px wide.
 - `GridOverlay`: the halo behind each line is 2 px at 50 % (was 3 px).
 
 **Migration:** none in code. App tests that look for the Spanish "Medianil" read "Separación". Community (separate mode) and Cockpit (coupled mode) get the new look with the pin change.
 
-Baselines: the `grid-*` set (en/de/es, light/dark, plus de 390/1440), and `gallery-es-*` (the strings table, through the Spanish label). All others are unchanged, RowActions included.
+Baselines: the `grid-*` set (en/de/es, light/dark, plus de 390/1440; the gallery gains a pressed `getrennt` sample), and the full-page `gallery-*` set (en/de/es, light/dark, de 390/1440: the strings table and the new sample). All others are unchanged, RowActions included.
 
 ## 0.121.0 — #201, GL-UI-050: Reset keeps the focus after a reset
 

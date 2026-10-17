@@ -18,7 +18,7 @@ type FieldProps = Omit<React.ComponentProps<"div">, "children"> & {
   error?: string | undefined;
   labelClassName?: string | undefined;
   // The props of the element around the control (width, `role="group"`, …).
-  control?: React.ComponentProps<"div"> & { "data-slot"?: string };
+  control?: Omit<React.ComponentProps<"div">, "children"> & { "data-slot"?: string };
   // The class of the help or error text.
   messageClassName?: string | undefined;
   // The `data-testid` of the error text.

@@ -3,6 +3,7 @@ import i18n from "i18next";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
 import {
   GridFields,
   type GridFieldsProps,
@@ -10,7 +11,6 @@ import {
   GridToggle,
   type GridToggleValue,
 } from "./grid.js";
-import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
 import type { GridDefinition } from "./grid-core.js";
 
 beforeEach(() => {
@@ -301,6 +301,17 @@ describe("GridToggle rev 6 (SUI-FEATURE-087)", () => {
     fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Snap" }));
     expect(screen.getByTestId("grid-toggle-snap-dot")).toHaveClass("bg-primary");
     expect(screen.getByTestId("grid-toggle-snap-dot")).toHaveAttribute("aria-hidden", "true");
+  });
+
+  it("the arrow segment is described as snap on only while snapping is on", () => {
+    render(<Toggle mode="getrennt" />);
+    const menu = screen.getByTestId("grid-toggle-menu");
+    expect(menu).toHaveAccessibleName("Grid options");
+    expect(menu).not.toHaveAccessibleDescription("Snap is on");
+    fireEvent.pointerDown(menu, { button: 0, ctrlKey: false, pointerType: "mouse" });
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Snap" }));
+    expect(menu).toHaveAccessibleName("Grid options");
+    expect(menu).toHaveAccessibleDescription("Snap is on");
   });
 
   it("coupled is one button, no arrow segment, no dot", () => {

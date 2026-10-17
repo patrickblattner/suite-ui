@@ -337,6 +337,7 @@ export const es: SuiteStrings = {
     options: "Opciones de cuadrícula",
     guides: "Guías",
     snap: "Ajustar",
+    snapOn: "Ajuste activado",
   },
   upload: {
     drop: "Suelta los archivos aquí",

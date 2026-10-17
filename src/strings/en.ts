@@ -354,6 +354,7 @@ export const en = {
     options: "Grid options",
     guides: "Guides",
     snap: "Snap",
+    snapOn: "Snap is on",
   },
   upload: {
     drop: "Drop files here",
