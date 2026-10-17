@@ -28,6 +28,14 @@ header {
   border-bottom: 1px solid var(--border);
 }
 
+/* Below the phone width of the captures (390 px) the pickers wrap, so the chrome itself never forces a
+   horizontal scroll at 320 px (WCAG 1.4.10, #92); from 390 px on the bar stays as captured. */
+@media (max-width: 389px) {
+  #root > header {
+    flex-wrap: wrap;
+  }
+}
+
 header h1 {
   margin: 0 auto 0 0;
   font-size: 18px;
