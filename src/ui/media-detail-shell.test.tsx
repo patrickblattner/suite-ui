@@ -773,16 +773,14 @@ describe("MediaDetailShell: props keyed on kind (#167)", () => {
     ["video", "video"],
     ["audio", "audio"],
     ["pdf", "iframe"],
-  ] as const)('a %s without src renders no src attribute, never src=""', (kind, tag) => {
-    // A caller past the types: the element carries no `src` at all. React drops an empty `src` from
-    // the DOM itself but warns about it, so the warning tells an empty string was passed.
-    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+  ] as const)('a %s without src renders noRenderer, never an element with src=""', (kind, tag) => {
+    // A caller past the types gets the `noRenderer` state (`SUI-FEATURE-089`), so no element can
+    // carry `src=""`.
     render(<MediaDetailShell {...base} kind={kind} src={undefined as unknown as string} />);
-    const element = screen.getByTestId("media-detail-preview").querySelector(tag);
-    expect(element).not.toBeNull();
-    expect(element).not.toHaveAttribute("src");
-    expect(error.mock.calls.flat().join(" ")).not.toContain("empty string");
-    error.mockRestore();
+    const preview = screen.getByTestId("media-detail-preview");
+    expect(preview.querySelector(tag)).toBeNull();
+    expect(preview.querySelector("[src]")).toBeNull();
+    expect(preview).toHaveAttribute("data-state", "noRenderer");
   });
 });
 
@@ -814,6 +812,8 @@ describe("MediaDetailShell: allowed source schemes (SUI-FEATURE-089)", () => {
       "data:image/svg+xml,<svg/>",
       "file:///etc/passwd",
       "",
+      "\u0001",
+      "\u0000\u001f \u0001",
     ])("src %j loads nothing and shows noRenderer", (src) => {
       render(<MediaDetailShell {...base} kind={kind} src={src} />);
       const preview = screen.getByTestId("media-detail-preview");

@@ -240,7 +240,9 @@ function PreviewState({ state, detail }: { state: MediaPreviewState; detail?: st
 const LOADABLE_SCHEMES = new Set(["https:", "http:", "blob:"]);
 
 function loadable(src: string): boolean {
-  if (src.trim() === "") return false;
+  // The URL parser strips C0 controls and space from both ends; a src of only those is empty.
+  // eslint-disable-next-line no-control-regex
+  if (src.replace(/^[\u0000- ]+|[\u0000- ]+$/g, "") === "") return false;
   try {
     return LOADABLE_SCHEMES.has(new URL(src, "https://relative.invalid/").protocol);
   } catch {
@@ -359,11 +361,7 @@ function MediaDetailShell({
   // An image, video, audio or PDF whose `src` has a scheme it may not load shows `noRenderer` instead
   // (`SUI-FEATURE-089`).
   const refused =
-    givenState === undefined &&
-    kind !== "text" &&
-    kind !== "other" &&
-    src !== undefined &&
-    !loadable(src);
+    givenState === undefined && kind !== "text" && kind !== "other" && !loadable(src ?? "");
   const previewState = refused ? "noRenderer" : givenState;
   const geometry = usePanelGeometry();
   const returnFocus = React.useRef<HTMLElement | null>(null);
