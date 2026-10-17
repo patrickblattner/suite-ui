@@ -425,3 +425,5 @@
 {"ts":"2026-10-17T17:14:45.142Z","key":"GL-WEB-002","from":null,"to":2,"disposition":"editorial","ref":"suite-ui has no shadcn CLI / components.json / components/ui; package owns its building blocks with translated strings (SUI-DESIGN-010) — rule targets app repos installing via CLI"}
 {"ts":"2026-10-17T17:50:23.201Z","key":"GL-UI-035","from":2,"to":3,"disposition":"editorial","ref":"rev 3 narrows which app image places must offer crop/flip (self-drawn only; foreign renderers and brand-kit holders excluded); suite-ui ships the building blocks and has no image places of its own — no package change"}
 {"ts":"2026-10-17T18:20:30.940Z","key":"SUI-FEATURE-051","from":4,"to":5,"disposition":"ticket","ref":"222"}
+{"ts":"2026-10-17T18:24:17.673Z","key":"SUI-FEATURE-071","from":3,"to":4,"disposition":"ticket","ref":"223"}
+{"ts":"2026-10-17T18:24:18.992Z","key":"GL-UI-035","from":3,"to":4,"disposition":"editorial","ref":"rev 4 placeholder focus/zoom applies to editors with their own toolbar (Template-Studio); no SUI leaf asks the package for it; Q&A #3846 asks whether one should"}
