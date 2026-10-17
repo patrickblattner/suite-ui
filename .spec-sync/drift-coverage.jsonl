@@ -419,3 +419,7 @@
 {"ts":"2026-10-17T13:24:05.114Z","key":"PROC-DEV-031","from":18,"to":19,"disposition":"editorial","ref":"harness/console-hub process rule (owner remote input); no code impact in suite-ui"}
 {"ts":"2026-10-17T14:06:13.192Z","key":"SUI-FEATURE-089","from":2,"to":3,"disposition":"ticket","ref":"210"}
 {"ts":"2026-10-17T14:06:13.564Z","key":"PROC-REL-004","from":null,"to":2,"disposition":"editorial","ref":"console-hub runner exception; suite-ui has no GitHub workflows, no code impact"}
+{"ts":"2026-10-17T17:14:43.957Z","key":"SUI-FEATURE-076","from":8,"to":9,"disposition":"ticket","ref":"217"}
+{"ts":"2026-10-17T17:14:44.332Z","key":"PROC-DEV-031","from":19,"to":20,"disposition":"editorial","ref":"harness/console-hub remote-input rule (keystroke pass-through); no code in suite-ui"}
+{"ts":"2026-10-17T17:14:44.737Z","key":"PROC-REL-020","from":4,"to":5,"disposition":"editorial","ref":"repo settings check: vulnerability-alerts 204, automated-security-fixes enabled — already satisfied, no code impact"}
+{"ts":"2026-10-17T17:14:45.142Z","key":"GL-WEB-002","from":null,"to":2,"disposition":"editorial","ref":"suite-ui has no shadcn CLI / components.json / components/ui; package owns its building blocks with translated strings (SUI-DESIGN-010) — rule targets app repos installing via CLI"}
