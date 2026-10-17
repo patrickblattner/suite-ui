@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.119.0 — #167, SUI-FEATURE-140: `MediaDetailShell` needs `src` for the kinds that show a file
+
+Breaking for callers that pass `kind="image" | "video" | "audio" | "pdf"` with no `src` and no `previewState`: that no longer compiles. Nothing changes at runtime for a correct caller, and there is no visual change.
+
+- The props are now keyed on `kind` with the new exported type `MediaDetailSource` (and `MediaDetailFileKind`). An image, video, audio or PDF needs its `src`, unless a `previewState` stands in for the preview: a `missingRef` entry has no file, so it has no address. `kind="text"` and `kind="other"` stay as they were, with an optional `src`.
+- No `src=""` is ever passed: without `src`, the element carries no `src` at all. Before, the shell defaulted `src` to `""`, which React warns about and which would make a browser fetch the page again.
+
+**Migration:** pass `src` for every image, video, audio or PDF that has a file, or set `previewState` for one that has none. A caller that builds the props from a loosely typed record maps it onto `MediaDetailSource` first, as the gallery's `sourceOf` does. A caller that holds `kind` as the wide `MediaDetailKind` compiles as long as its `src` is a `string`; one whose `src` is `string | undefined` passes a `previewState` or narrows `kind` first. Cockpit (`MediaDetail.tsx`) and Community (`MediaDetailPanel.tsx`) pass the wide kind with a string `src`, so both compile as they are. Cockpit's `src ?? ""` for an entry without a file can become a `previewState` in its own time.
+
+Baselines: none changed.
+
 ## 0.118.0 — #199, SUI-FEATURE-088 rev 4: `SettingsActionRow` with Cancel and immediate buttons on the left
 
 Not breaking. Without the new props, the row renders exactly as before.

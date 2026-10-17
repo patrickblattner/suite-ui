@@ -8,6 +8,7 @@ import { SidebarProvider, useSidebar } from "../shell/sidebar-provider.js";
 import { EditPanel } from "./edit-panel.js";
 import { Input } from "./input.js";
 import {
+  type MediaDetailKind,
   MediaDetailShell,
   type MediaDetailShellProps,
   MediaUsageList,
@@ -722,5 +723,65 @@ describe("MediaUsageList", () => {
     expect(screen.getByText("DE · Published")).toHaveClass("text-muted-foreground");
     expect(screen.getByRole("link", { name: "Landing" })).toHaveAttribute("href", "/pages/2");
     expect(screen.queryByTestId("media-usage-empty")).toBeNull();
+  });
+});
+
+describe("MediaDetailShell: props keyed on kind (#167)", () => {
+  const base = {
+    position: 1,
+    total: 1,
+    onPrev: () => {},
+    onNext: () => {},
+    onClose: () => {},
+    onSave: () => {},
+    onReset: () => {},
+    dirty: false,
+    saving: false,
+  };
+
+  it("an image, video, audio or PDF without src is a type error, unless a state stands in", () => {
+    const shells = [
+      // @ts-expect-error an image needs its src
+      <MediaDetailShell key="image" {...base} kind="image" />,
+      // @ts-expect-error a video needs its src
+      <MediaDetailShell key="video" {...base} kind="video" />,
+      // @ts-expect-error an audio needs its src
+      <MediaDetailShell key="audio" {...base} kind="audio" />,
+      // @ts-expect-error a PDF needs its src
+      <MediaDetailShell key="pdf" {...base} kind="pdf" />,
+      <MediaDetailShell key="image-src" {...base} kind="image" src="data:," />,
+      <MediaDetailShell key="missing" {...base} kind="image" previewState="missingRef" />,
+      <MediaDetailShell key="text" {...base} kind="text" text="hello" />,
+      <MediaDetailShell key="other" {...base} kind="other" />,
+    ];
+    expect(shells).toHaveLength(8);
+  });
+
+  it("a caller holding the wide kind compiles with a string src, not with a possibly missing one", () => {
+    const kind = "image" as MediaDetailKind;
+    const src = undefined as string | undefined;
+    const shells = [
+      <MediaDetailShell key="wide" {...base} kind={kind} src="x" />,
+      // @ts-expect-error a possibly missing src needs a previewState or a narrowed kind
+      <MediaDetailShell key="wide-undefined" {...base} kind={kind} src={src} />,
+    ];
+    expect(shells).toHaveLength(2);
+  });
+
+  it.each([
+    ["image", "img"],
+    ["video", "video"],
+    ["audio", "audio"],
+    ["pdf", "iframe"],
+  ] as const)('a %s without src renders no src attribute, never src=""', (kind, tag) => {
+    // A caller past the types: the element carries no `src` at all. React drops an empty `src` from
+    // the DOM itself but warns about it, so the warning tells an empty string was passed.
+    const error = vi.spyOn(console, "error").mockImplementation(() => {});
+    render(<MediaDetailShell {...base} kind={kind} src={undefined as unknown as string} />);
+    const element = screen.getByTestId("media-detail-preview").querySelector(tag);
+    expect(element).not.toBeNull();
+    expect(element).not.toHaveAttribute("src");
+    expect(error.mock.calls.flat().join(" ")).not.toContain("empty string");
+    error.mockRestore();
   });
 });

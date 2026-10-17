@@ -11,6 +11,7 @@ import { Label } from "../src/ui/label.js";
 import {
   type MediaDetailKind,
   MediaDetailShell,
+  type MediaDetailSource,
   type MediaPreviewState,
 } from "../src/ui/media-detail-shell.js";
 import { UsageTable } from "../src/ui/usage-table.js";
@@ -40,6 +41,27 @@ const JSON_TEXT = JSON.stringify({
     active: i % 2 === 0,
   })),
 });
+type ShellMedium = {
+  kind: MediaDetailKind;
+  name: string;
+  src?: string;
+  text?: string;
+  format?: "plain" | "json";
+  state?: MediaPreviewState;
+  detail?: string;
+};
+
+// The shell's source props of a medium (#167): its kind with its address, or the state that stands
+// in for the preview.
+function sourceOf({ kind, src, state }: ShellMedium): MediaDetailSource {
+  const address = src === undefined ? {} : { src };
+  const stand = state === undefined ? {} : { previewState: state };
+  if (kind === "text" || kind === "other") return { kind, ...address, ...stand };
+  if (state !== undefined) return { kind, ...address, previewState: state };
+  if (src === undefined) throw new Error(`a ${kind} medium needs its src`);
+  return { kind, src };
+}
+
 // The preview states and the text preview (`SUI-FEATURE-140`): plain text, JSON indented, the three
 // states with the app's line below the sentence (the pick locked without a file), and an empty text.
 const STATE_MEDIA: readonly ShellMedium[] = [
@@ -69,15 +91,6 @@ const STATE_MEDIA: readonly ShellMedium[] = [
   { kind: "text", name: "empty.txt", text: "" },
 ];
 const SHELL_SETS = { media: SHELL_MEDIA, states: STATE_MEDIA } as const;
-type ShellMedium = {
-  kind: MediaDetailKind;
-  name: string;
-  src?: string;
-  text?: string;
-  format?: "plain" | "json";
-  state?: MediaPreviewState;
-  detail?: string;
-};
 const FIELDS = Array.from({ length: 24 }, (_, index) => `Field ${index + 1}`);
 
 // A long list whose rows open the edit panel, inside the shell frame (`SUI-FEATURE-030`). The panel
@@ -291,11 +304,9 @@ function Demo() {
             setShellName(savedNames[shell + 1]!);
           }}
           onClose={() => setShell(null)}
-          kind={shellMedium.kind}
-          src={shellMedium.src}
+          {...sourceOf(shellMedium)}
           text={shellMedium.text}
           format={shellMedium.format}
-          previewState={shellMedium.state}
           previewDetail={shellMedium.detail}
           alt={savedNames[shell]}
           dirty={shellName !== savedNames[shell]}
