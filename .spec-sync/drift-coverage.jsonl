@@ -407,3 +407,6 @@
 {"ts":"2026-10-17T08:35:59.308Z","key":"PROC-REL-003","from":4,"to":5,"disposition":"editorial","ref":"harness weekly-window details; no suite-ui code impact"}
 {"ts":"2026-10-17T09:12:45.606Z","key":"GL-TEST-002","from":null,"to":3,"disposition":"editorial","ref":"applies to apps with a surface on stage1; suite-ui is a component library without a deployed surface (gallery is a local dev harness only), no screenshot-routes.json owed"}
 {"ts":"2026-10-17T11:20:53.681Z","key":"SUI-FEATURE-087","from":null,"to":2,"disposition":"ticket","ref":"197"}
+{"ts":"2026-10-17T11:36:51.730Z","key":"SUI-FEATURE-087","from":2,"to":3,"disposition":"ticket","ref":"197"}
+{"ts":"2026-10-17T11:50:52.295Z","key":"SUI-FEATURE-088","from":null,"to":2,"disposition":"ticket","ref":"199"}
+{"ts":"2026-10-17T11:50:52.670Z","key":"PROC-DEV-010","from":3,"to":4,"disposition":"editorial","ref":"worker-loop process rule (control labels, follow-up tickets, guardian question); no code impact, applied in this run"}
