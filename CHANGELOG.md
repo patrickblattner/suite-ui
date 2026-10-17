@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.123.1 — #213, GL-UX-001 / SUI-FEATURE-038: the help drawer reflows at narrow widths
+
+Not breaking. Below `sm` (640 px), the `HelpDrawer` stacks its navigation (search, pages, version) above the content, and the drawer scrolls as one column. The content padding narrows to `px-4`. At 320 and 390 px, neither the drawer nor the document scrolls sideways, headings are no longer cut off, and the text wraps across the drawer's width instead of one word per line. From `sm` on, the layout is unchanged: the 256 px navigation stays beside the content, which keeps `px-8`. **Migration:** none. Baselines: `help-de-light-390` and `help-de-dark-390` changed; the wide help captures are unchanged.
+
 ## 0.123.0 — #210, SUI-FEATURE-089 rev 3: a neutral `noRenderer` text
 
 Behaviour changes that app tests may see. `media.noRenderer` now speaks of the file, not its type, because a refused source scheme (`SUI-FEATURE-089`) shows it too: "Für diese Datei gibt es keine Vorschau." / "No preview available for this file." / "No hay vista previa para este archivo." **Migration:** app tests that match the old sentence ("No preview for this type.") match the new one. Baselines: the `gallery-*` strings table only.
