@@ -325,7 +325,7 @@ export const es: SuiteStrings = {
     spalten: "Columnas",
     step: "Paso",
     anzahl: "Número de columnas",
-    abstand: "Medianil",
+    abstand: "Separación",
     rand: "Margen",
     zeilenschritt: "Paso de fila (opcional)",
     unit: "px",

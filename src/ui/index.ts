@@ -16,6 +16,7 @@ export * from "./drawer-rail.js";
 export * from "./dropdown-menu.js";
 export * from "./edit-panel.js";
 export * from "./editor-header.js";
+export * from "./field.js";
 export * from "./field-error.js";
 export * from "./file-facts.js";
 export * from "./focus-return.js";

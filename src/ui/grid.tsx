@@ -2,6 +2,8 @@ import { ChevronDownIcon, Grid3x3Icon } from "lucide-react";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 
+import { cn } from "../lib/cn.js";
+import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
 import { Button } from "./button.js";
 import {
   DropdownMenu,
@@ -9,7 +11,7 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "./dropdown-menu.js";
-import { FieldError } from "./field-error.js";
+import { Field } from "./field.js";
 import {
   GRID_COLUMNS_MAX,
   GRID_COLUMNS_MIN,
@@ -19,7 +21,6 @@ import {
 } from "./grid-core.js";
 import { Hint } from "./hint.js";
 import { Input } from "./input.js";
-import { Label } from "./label.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select.js";
 import { IconButtonTooltip } from "./tooltip.js";
 
@@ -137,10 +138,7 @@ function GridFields({ value, onChange, allowNone = false, hidden = [] }: GridFie
       data-testid="grid-fields"
     >
       {hidden.includes("art") ? null : (
-        <div className="flex flex-col gap-2">
-          <Label htmlFor={`${id}-art`} className="whitespace-nowrap">
-            {t("grid.art")}
-          </Label>
+        <Field label={t("grid.art")} htmlFor={`${id}-art`} labelClassName="whitespace-nowrap">
           <Select
             value={value?.art ?? "none"}
             onValueChange={(art) => {
@@ -164,7 +162,7 @@ function GridFields({ value, onChange, allowNone = false, hidden = [] }: GridFie
               <SelectItem value="spalten">{t("grid.spalten")}</SelectItem>
             </SelectContent>
           </Select>
-        </div>
+        </Field>
       )}
       {fields
         .filter((field) => !hidden.includes(field))
@@ -176,45 +174,41 @@ function GridFields({ value, onChange, allowNone = false, hidden = [] }: GridFie
           const message = draft === undefined || !left.includes(field) ? null : error(field, draft);
           const unit = IN_PX.includes(field);
           return (
-            <div key={field} className="flex flex-col gap-2">
-              <Label htmlFor={fieldId} className="whitespace-nowrap">
-                {t(field === "schritt" ? "grid.step" : `grid.${field}`)}
-              </Label>
-              <div className="relative">
-                <Input
-                  id={fieldId}
-                  type="number"
-                  inputMode="numeric"
-                  step={1}
-                  min={BOUNDS[field].min}
-                  max={BOUNDS[field].max}
-                  value={text}
-                  onChange={(event) => setNumber(field, event.target.value)}
-                  onBlur={() => {
-                    if (draft !== undefined && !left.includes(field))
-                      setLeft((current) => [...current, field]);
-                  }}
-                  aria-describedby={unit ? `${fieldId}-unit` : undefined}
-                  aria-invalid={message === null ? undefined : true}
-                  aria-errormessage={message === null ? undefined : `${fieldId}-error`}
-                  className={unit ? "pr-9" : undefined}
-                  data-testid={`grid-${field}`}
-                />
-                {unit ? (
-                  <span
-                    id={`${fieldId}-unit`}
-                    className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground"
-                  >
-                    {t("grid.unit")}
-                  </span>
-                ) : null}
-              </div>
-              {message === null ? null : (
-                <FieldError id={`${fieldId}-error`} data-testid={`grid-${field}-error`}>
-                  {message}
-                </FieldError>
-              )}
-            </div>
+            <Field
+              key={field}
+              label={t(field === "schritt" ? "grid.step" : `grid.${field}`)}
+              htmlFor={fieldId}
+              error={message ?? undefined}
+              errorTestId={`grid-${field}-error`}
+              labelClassName="whitespace-nowrap"
+              control={{ className: "relative" }}
+            >
+              <Input
+                id={fieldId}
+                type="number"
+                inputMode="numeric"
+                step={1}
+                min={BOUNDS[field].min}
+                max={BOUNDS[field].max}
+                value={text}
+                onChange={(event) => setNumber(field, event.target.value)}
+                onBlur={() => {
+                  if (draft !== undefined && !left.includes(field))
+                    setLeft((current) => [...current, field]);
+                }}
+                aria-describedby={unit ? `${fieldId}-unit` : undefined}
+                className={unit ? "pr-9" : undefined}
+                data-testid={`grid-${field}`}
+              />
+              {unit ? (
+                <span
+                  id={`${fieldId}-unit`}
+                  className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground"
+                >
+                  {t("grid.unit")}
+                </span>
+              ) : null}
+            </Field>
           );
         })}
     </div>
@@ -237,15 +231,16 @@ type GridToggleProps = {
   unavailableText: string;
 };
 
-// The toolbar toggle of the grid (`SUI-FEATURE-087`): icon and label, `aria-pressed`, filled while on
-// like the toolbar's other toggles. Without a definition it is locked and its hint names where the grid
-// is set.
+// The toolbar toggle of the grid (`SUI-FEATURE-087` rev 6): icon and label, `aria-pressed`, the primary
+// fill while on (`PRESSED_FILL_CLASS`, shared with the RowActions toggle). Separate, it is one joined
+// split button with a narrow arrow segment, which carries a primary dot while snapping is on. Without a
+// definition it is locked and its hint names where the grid is set.
 function GridToggle({ mode, value, onChange, definition, unavailableText }: GridToggleProps) {
   const { t } = useTranslation("suite");
   const locked = definition === null;
   const pressed = !locked && value.hilfslinien;
   return (
-    <div className="flex items-center gap-1" data-testid="grid-toggle">
+    <div className="flex items-center" data-testid="grid-toggle">
       <Hint
         text={t(mode === "gekoppelt" ? "grid.coupledHint" : "grid.guidesHint")}
         disabledText={unavailableText}
@@ -256,7 +251,11 @@ function GridToggle({ mode, value, onChange, definition, unavailableText }: Grid
           size="sm"
           aria-pressed={pressed}
           disabled={locked}
-          className="aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground aria-pressed:hover:border-primary aria-pressed:hover:bg-primary aria-pressed:hover:text-primary-foreground dark:aria-pressed:border-primary dark:aria-pressed:bg-primary dark:aria-pressed:hover:bg-primary"
+          className={cn(
+            PRESSED_FILL_CLASS,
+            // Separate: the main part of one joined split button.
+            mode === "getrennt" && "rounded-r-none focus-visible:z-10",
+          )}
           onClick={() =>
             onChange(
               mode === "gekoppelt"
@@ -274,8 +273,23 @@ function GridToggle({ mode, value, onChange, definition, unavailableText }: Grid
         <DropdownMenu>
           <IconButtonTooltip label={t("grid.options")} disabledText={unavailableText} named>
             <DropdownMenuTrigger asChild disabled={locked}>
-              <Button type="button" variant="outline" size="icon-sm" data-testid="grid-toggle-menu">
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-sm"
+                // The narrow arrow segment of the joined button; its left border is the main part's.
+                className="relative -ml-px w-6 rounded-l-none focus-visible:z-10"
+                data-testid="grid-toggle-menu"
+              >
                 <ChevronDownIcon aria-hidden="true" />
+                {/* Snapping is on: a primary dot, so it never runs unseen while the lines are off. */}
+                {!locked && value.einrasten ? (
+                  <span
+                    aria-hidden="true"
+                    className="absolute top-1 right-1 size-1.5 rounded-full bg-primary"
+                    data-testid="grid-toggle-snap-dot"
+                  />
+                ) : null}
               </Button>
             </DropdownMenuTrigger>
           </IconButtonTooltip>
@@ -312,7 +326,7 @@ type GridOverlayProps = {
 };
 
 // The grid over a DOM canvas (`SUI-FEATURE-087`): the lines of `gridLines`, translucent and unscaled,
-// in `--ring` on a `--background` halo, so they stand out on light and dark content. Render it like
+// in `--ring` on a 2 px `--background` halo at 50 %, so they stand out on light and dark content. Render it like
 // `CanvasOverlay` inside the canvas frame, never in a preview or an export; it takes no pointer events.
 // A canvas that draws itself (Konva) uses `gridLines` with its own lines instead.
 function GridOverlay({ definition, box, zoom = 1, mitten = false }: GridOverlayProps) {
@@ -343,7 +357,7 @@ function GridOverlay({ definition, box, zoom = 1, mitten = false }: GridOverlayP
       data-slot="grid-overlay"
       data-testid="grid-overlay"
     >
-      {draw("stroke-background opacity-50", 3)}
+      {draw("stroke-background opacity-50", 2)}
       {draw("stroke-ring", 1)}
     </svg>
   );

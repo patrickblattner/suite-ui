@@ -1,9 +1,7 @@
 import type * as React from "react";
 
 import { cn } from "../lib/cn.js";
-import { FieldError, FieldErrorContext } from "../ui/field-error.js";
-import { Label } from "../ui/label.js";
-import { LabelWithHelp } from "../ui/label-with-help.js";
+import { Field } from "../ui/field.js";
 
 type SettingsFieldProps = {
   label: string;
@@ -29,7 +27,7 @@ type SettingsFieldProps = {
 // 36rem too. With `group` the options stand in a named group 8 px apart, as in a package RadioGroup.
 // With `error` the package controls inside (Input, Textarea, a Select's trigger, TimezoneCombobox,
 // Checkbox, RadioGroup and its options) and, with `group`, the group carry `aria-invalid` and
-// `aria-errormessage` on the `FieldError` that replaces the help text.
+// `aria-errormessage` on the `FieldError` that replaces the help text. Built on the package's `Field`.
 function SettingsField({
   label,
   htmlFor,
@@ -40,55 +38,36 @@ function SettingsField({
   group = false,
   children,
 }: SettingsFieldProps) {
-  const labelId = `${htmlFor}-label`;
-  const errorId = `${htmlFor}-error`;
-  // An empty text is no error.
   const invalid = error !== undefined && error !== "";
   return (
-    <div className="flex flex-col gap-2" data-slot="settings-field">
-      {hint !== undefined ? (
-        <LabelWithHelp id={labelId} htmlFor={htmlFor} help={hint} className="max-w-xl leading-none">
-          {label}
-        </LabelWithHelp>
-      ) : (
-        <Label id={labelId} htmlFor={htmlFor} className="max-w-xl">
-          {label}
-        </Label>
-      )}
-      {group ? (
-        <div
-          id={htmlFor}
-          role="group"
-          aria-labelledby={labelId}
-          aria-invalid={invalid ? true : undefined}
-          aria-errormessage={invalid ? errorId : undefined}
-          className="flex w-full max-w-xl flex-col gap-2"
-          data-slot="settings-field-group"
-        >
-          <FieldErrorContext.Provider value={invalid ? errorId : null}>
-            {children}
-          </FieldErrorContext.Provider>
-        </div>
-      ) : (
-        <div
-          className={cn("w-full *:w-full", size === "short" ? "max-w-48" : "max-w-xl")}
-          data-slot="settings-field-control"
-        >
-          <FieldErrorContext.Provider value={invalid ? errorId : null}>
-            {children}
-          </FieldErrorContext.Provider>
-        </div>
-      )}
-      {invalid ? (
-        <FieldError id={errorId} className="max-w-xl">
-          {error}
-        </FieldError>
-      ) : help !== undefined ? (
-        <p id={`${htmlFor}-description`} className="max-w-xl text-sm text-muted-foreground">
-          {help}
-        </p>
-      ) : null}
-    </div>
+    <Field
+      label={label}
+      htmlFor={htmlFor}
+      hint={hint}
+      help={help}
+      error={error}
+      labelClassName="max-w-xl"
+      messageClassName="max-w-xl"
+      data-slot="settings-field"
+      control={
+        group
+          ? {
+              id: htmlFor,
+              role: "group",
+              "aria-labelledby": `${htmlFor}-label`,
+              "aria-invalid": invalid ? true : undefined,
+              "aria-errormessage": invalid ? `${htmlFor}-error` : undefined,
+              className: "flex w-full max-w-xl flex-col gap-2",
+              "data-slot": "settings-field-group",
+            }
+          : {
+              className: cn("w-full *:w-full", size === "short" ? "max-w-48" : "max-w-xl"),
+              "data-slot": "settings-field-control",
+            }
+      }
+    >
+      {children}
+    </Field>
   );
 }
 
