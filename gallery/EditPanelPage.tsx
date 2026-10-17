@@ -20,17 +20,19 @@ import { ShellPage } from "./ShellPage.js";
 const ROWS = Array.from({ length: 60 }, (_, index) => `Channel ${index + 1}`);
 const MEDIA = ["team-photo.jpg", "logo.svg", "brochure.pdf"];
 // A landscape stand-in picture per medium, so the preview shows how an image fills its column.
-const PICTURE = `data:image/svg+xml,${encodeURIComponent(
+const PICTURE_SVG =
   '<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="800" viewBox="0 0 1200 800">' +
-    '<rect width="1200" height="800" fill="#8a94a6"/><circle cx="380" cy="300" r="140" fill="#d8dce3"/>' +
-    '<path d="M0 800 L420 420 L700 640 L900 480 L1200 760 L1200 800 Z" fill="#5b6475"/></svg>',
-)}`;
+  '<rect width="1200" height="800" fill="#8a94a6"/><circle cx="380" cy="300" r="140" fill="#d8dce3"/>' +
+  '<path d="M0 800 L420 420 L700 640 L900 480 L1200 760 L1200 800 Z" fill="#5b6475"/></svg>';
+const PICTURE = `data:image/svg+xml,${encodeURIComponent(PICTURE_SVG)}`;
+// The shell loads only https, http and blob URLs (`SUI-FEATURE-089`): its stand-ins are blobs.
+const blobOf = (body: string, type: string) => URL.createObjectURL(new Blob([body], { type }));
 // The media detail shell pages through one image, one video and one PDF (`SUI-FEATURE-061`). The
 // video and the PDF are stand-ins without bytes worth playing: the frame and the control bar show.
 const SHELL_MEDIA = [
-  { kind: "image", name: "team-photo.jpg", src: PICTURE },
-  { kind: "video", name: "intro.mp4", src: "data:video/mp4;base64," },
-  { kind: "pdf", name: "brochure.pdf", src: "data:application/pdf;base64," },
+  { kind: "image", name: "team-photo.jpg", src: blobOf(PICTURE_SVG, "image/svg+xml") },
+  { kind: "video", name: "intro.mp4", src: blobOf("", "video/mp4") },
+  { kind: "pdf", name: "brochure.pdf", src: blobOf("", "application/pdf") },
 ] as const;
 const JSON_TEXT = JSON.stringify({
   locale: "de-CH",
