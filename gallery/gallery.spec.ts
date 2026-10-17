@@ -1985,14 +1985,21 @@ test("media detail shell: locked Save and chevron keep the full focus ring", asy
   const previous = shell.getByTestId("media-detail-previous");
   const next = shell.getByTestId("media-detail-next");
   const save = shell.getByTestId("media-detail-save");
+  const color = await utilityColor(page, "bg-ring", "backgroundColor");
+  const settled = (locator: typeof previous) =>
+    expect.poll(() => boxShadowOf(locator)).toContain(`${color} 0px 0px 0px 3px`);
   await expect(previous).toHaveAttribute("aria-disabled", "true");
   await expect(save).toHaveAttribute("aria-disabled", "true");
   await next.focus();
   await page.keyboard.press("Shift+Tab");
   await expect(previous).toBeFocused();
+  // The components transition `box-shadow`, so the ring reaches its end value after a moment; read
+  // it only once settled, else two rings in flight compare equal at width 0 (#74).
+  await settled(previous);
   const locked = await ring(previous);
   await page.keyboard.press("Tab");
   await expect(next).toBeFocused();
+  await settled(next);
   const unlocked = await ring(next);
   expect(locked.opacity).toBe(1);
   expect(locked.shadow).not.toBe("none");
@@ -2001,6 +2008,7 @@ test("media detail shell: locked Save and chevron keep the full focus ring", asy
   await page.keyboard.press("Shift+Tab");
   await page.keyboard.press("Tab");
   await expect(save).toBeFocused();
+  await settled(save);
   const lockedSave = await ring(save);
   expect(lockedSave.opacity).toBe(1);
   expect(lockedSave.shadow).not.toBe("none");
@@ -2035,12 +2043,19 @@ test("edit panel: a locked chevron keeps the full focus ring and no dark hover",
         opacity *= Number(getComputedStyle(el).opacity);
       return { opacity, shadow: getComputedStyle(node).boxShadow };
     });
+  const color = await utilityColor(page, "bg-ring", "backgroundColor");
+  const settled = (locator: typeof previous) =>
+    expect.poll(() => boxShadowOf(locator)).toContain(`${color} 0px 0px 0px 3px`);
   await next.focus();
   await page.keyboard.press("Shift+Tab");
   await expect(previous).toBeFocused();
+  // The components transition `box-shadow`, so the ring reaches its end value after a moment; read
+  // it only once settled, else two rings in flight compare equal at width 0 (#74).
+  await settled(previous);
   const locked = await ring(previous);
   await page.keyboard.press("Tab");
   await expect(next).toBeFocused();
+  await settled(next);
   const unlocked = await ring(next);
   expect(locked.opacity).toBe(1);
   expect(locked.shadow).not.toBe("none");
@@ -4267,6 +4282,8 @@ test("focus ring: the time zone list rings the keyboard entry, not the hovered o
 
 // Under forced colors the shadow ring is gone; the outline the ring rule sets carries the highlight.
 async function expectForcedOutline(element: Locator) {
+  // Web-first: the entry's highlight render may land a moment after its focus (#74).
+  await expect(element).toHaveCSS("outline-style", "solid");
   const style = await element.evaluate((el) => {
     const { outlineStyle, outlineWidth, outlineColor } = getComputedStyle(el);
     return { outlineStyle, outlineWidth, outlineColor };
