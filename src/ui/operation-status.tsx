@@ -111,7 +111,9 @@ function OperationStatusSlot({ scope }: { scope: string }) {
 
   // The name of the compact indicator: the label, and the others as `suite:status.more` (rev 9).
   const named = (label: string) =>
-    inScope.length < 2 ? label : `${label}, ${t("status.more", { n: inScope.length - 1 })}`;
+    inScope.length < 2
+      ? label
+      : `${label}, ${t("status.more", { count: inScope.length - 1, n: inScope.length - 1 })}`;
   // "+n" beside the label or the compact indicator. Compact, the indicator's name already says it.
   const more = (hidden: boolean) =>
     inScope.length > 1 ? (
@@ -128,12 +130,12 @@ function OperationStatusSlot({ scope }: { scope: string }) {
     <div
       ref={setNode}
       className={cn(
-        // Below 640 px the slot leads row two of the head (`SUI-FEATURE-051` rev 9): it adds no row
+        // In a head narrower than 640 px the slot leads row two (`SUI-FEATURE-051` rev 11): it adds no row
         // gap there to cancel, and it holds the compact width of a progress indicator and "+n", idle
         // or running, so the actions beside it wrap by width alone; 4 px at each end keep the
         // indicator's focus ring inside its clip. Its room as basis and minimum come as inline
         // styles, hence `!`.
-        "-ml-4 flex h-9 min-w-0 grow items-center overflow-clip max-sm:ml-0 max-sm:w-22 max-sm:flex-none max-sm:pl-1 max-sm:basis-auto! max-sm:min-w-0!",
+        "-ml-4 flex h-9 min-w-0 grow items-center overflow-clip @max-head-split/page-head:ml-0 @max-head-split/page-head:w-22 @max-head-split/page-head:flex-none @max-head-split/page-head:pl-1 @max-head-split/page-head:basis-auto! @max-head-split/page-head:min-w-0!",
         newest === undefined ? "flex-none" : "pr-1",
       )}
       style={
@@ -150,7 +152,7 @@ function OperationStatusSlot({ scope }: { scope: string }) {
       {newest === undefined ? null : compact ? (
         // Compact, "+n" stays visible beside the indicator; the hint holds the label alone and the
         // indicator's name adds the others as `suite:status.more` (`SUI-FEATURE-051` rev 9).
-        <div className="ml-auto flex items-center gap-2 pl-4 max-sm:pl-0">
+        <div className="ml-auto flex items-center gap-2 pl-4 @max-head-split/page-head:pl-0">
           <Hint text={newest.label} describe={false}>
             <span
               role="img"

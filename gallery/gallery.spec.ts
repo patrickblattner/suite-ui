@@ -1037,6 +1037,27 @@ test("list area: switching the view keeps frame, tab row and FilterBar in place"
   expect(await Promise.all(parts.map((part) => box(page.getByTestId(part))))).toEqual(before);
 });
 
+// #234: the head's block `page-head` carries inline-size containment; without `w-full` it collapses to
+// 0 px in a flex row that does not grow it (community BookingsPage). Here the head moves into such a row.
+test("page head: in a flex row next to a sibling it keeps its width and one row", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/?page=list");
+  const block = page.locator("[data-slot=page-head]");
+  await block.evaluate((el) => {
+    const row = document.createElement("div");
+    row.className = "flex";
+    el.replaceWith(row);
+    row.append(el, Object.assign(document.createElement("span"), { textContent: "Sibling" }));
+  });
+  expect((await box(block)).width).toBeGreaterThan(0);
+  // One row: the add action starts above the title's bottom edge.
+  const title = await box(page.getByTestId("page-title"));
+  const actions = await box(page.locator("[data-slot=page-header-actions] button"));
+  expect(actions.y).toBeLessThan(title.y + title.height);
+});
+
 async function look(locator: Locator) {
   return locator.evaluate((el) => {
     const style = getComputedStyle(el);
@@ -1273,7 +1294,7 @@ for (const width of [320, 390]) {
     // slot, and the indicator's name says `suite:status.more`.
     await toggle.click();
     const slot = frame.getByTestId("page-operation-status");
-    await expect(slot.getByRole("img", { name: "Uploading images, 1 weitere" })).toBeVisible();
+    await expect(slot.getByRole("img", { name: "Uploading images, 1 weiterer" })).toBeVisible();
     const more = slot.getByTestId("page-operation-more");
     await expect(more).toHaveText("+1");
     const moreBox = await box(more);
@@ -1295,23 +1316,25 @@ test("page header: at 390 px the compact hint holds the label, +n stands beside 
   for (let step = 0; step < 3; step++) await toggle.click();
   const slot = frame.getByTestId("page-operation-status");
   const indicator = slot.getByRole("img");
-  await expect(indicator).toHaveAccessibleName("Uploading images, 1 weitere");
+  await expect(indicator).toHaveAccessibleName("Uploading images, 1 weiterer");
   await expect(slot.getByTestId("page-operation-more")).toBeVisible();
   await indicator.hover();
   await expect(page.locator("[data-slot=tooltip-content]")).toHaveText("Uploading images");
 });
 
-// #230 (`SUI-FEATURE-051` rev 9): from 640 px the slot stays on the first row; in a head crowded down
-// to the slot's minimum at 700 px, that minimum keeps "+1" whole beside a spinner and a progress bar.
-for (const [kind, query] of [
-  ["progress", ""],
-  ["spinner", "&statusMore=spinner"],
+// #230, #234 (`SUI-FEATURE-051` rev 11): from 640 px of head the slot stays on the first row; in a head
+// crowded down to the slot's minimum, still 640 px or wider, that minimum keeps "+1" and "+10" whole
+// beside a spinner and a progress bar.
+for (const [kind, query, more] of [
+  ["progress", "", "+1"],
+  ["spinner", "&statusMore=spinner", "+1"],
+  ["progress", "&statusMore=ten", "+10"],
 ] as const) {
-  test(`page header: at 700 px a compact slot keeps +n whole beside its ${kind}`, async ({
+  test(`page header: in a crowded head a compact slot keeps ${more} whole beside its ${kind}`, async ({
     page,
   }) => {
-    await page.setViewportSize({ width: 700, height: 900 });
-    await page.goto(`/?page=components&lng=de&statusTitle=long${query}`);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(`/?page=components&lng=de&statusTitle=crowded${query}`);
     const frame = page.getByTestId("status-frame-toggle");
     const toggle = frame.getByTestId("status-toggle");
     for (let step = 0; step < 3; step++) await toggle.click();
@@ -1326,15 +1349,69 @@ for (const [kind, query] of [
       const frame = node.getBoundingClientRect().width - head.getBoundingClientRect().width;
       (node as HTMLElement).style.width = `${Math.ceil(title + actions + 32 + frame)}px`;
     });
+    expect((await box(frame.getByTestId("page-header"))).width).toBeGreaterThanOrEqual(640);
     const slot = frame.getByTestId("page-operation-status");
     await expect(slot).toHaveAttribute("data-compact", "");
     await expect(slot.getByTestId(`operation-${kind}`)).toBeVisible();
-    const more = slot.getByTestId("page-operation-more");
-    await expect(more).toHaveText("+1");
-    const moreBox = await box(more);
+    const moreBadge = slot.getByTestId("page-operation-more");
+    await expect(moreBadge).toHaveText(more);
+    const moreBox = await box(moreBadge);
     const slotBox = await box(slot);
     expect(moreBox.x).toBeGreaterThanOrEqual(slotBox.x);
     expect(moreBox.x + moreBox.width).toBeLessThanOrEqual(slotBox.x + slotBox.width);
+  });
+}
+
+// #234 (`SUI-FEATURE-051` rev 11, AC 7): the two-row switch follows the head's own width at any window
+// width. At a 1440 px window, heads of 320, 390 and 480 px with a long title keep one height idle,
+// running, with progress and with "+10"; nothing reaches past the head, the title stays whole and
+// "+10" lies whole inside its slot.
+for (const headWidth of [320, 390, 480]) {
+  test(`page header: a ${headWidth} px head keeps one height through every state with +10`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/?page=components&lng=de&statusTitle=long&statusMore=ten");
+    const frame = page.getByTestId("status-frame-toggle");
+    const head = frame.getByTestId("page-header");
+    await expect(head).toBeVisible();
+    // The frame's padding and border around the head: 2 × 16 + 2 × 1 px.
+    await frame.evaluate((node, width) => {
+      (node as HTMLElement).style.width = `${width + 34}px`;
+    }, headWidth);
+    expect(Math.round((await box(head)).width)).toBe(headWidth);
+    const layout = () =>
+      head.evaluate((node) => {
+        const own = node.getBoundingClientRect();
+        const title = node.querySelector("[data-testid=page-title]")!;
+        return {
+          height: own.height,
+          overflow: node.scrollWidth - node.clientWidth,
+          // A screen-reader-only text is a 1 px box; it counts for nothing here.
+          outside: [...node.querySelectorAll("*")].filter((el) => {
+            const box = el.getBoundingClientRect();
+            return box.width > 1 && (box.left < own.left - 0.5 || box.right > own.right + 0.5);
+          }).length,
+          titleCut: title.scrollWidth - title.clientWidth,
+        };
+      });
+    const idle = await layout();
+    expect(idle).toMatchObject({ overflow: 0, outside: 0, titleCut: 0 });
+    const toggle = frame.getByTestId("status-toggle");
+    await toggle.click();
+    await expect(frame.getByTestId("operation-spinner")).toBeVisible();
+    expect(await layout()).toEqual(idle);
+    await toggle.click();
+    await expect(frame.getByTestId("operation-progress")).toBeVisible();
+    expect(await layout()).toEqual(idle);
+    await toggle.click();
+    const slot = frame.getByTestId("page-operation-status");
+    const moreBadge = slot.getByTestId("page-operation-more");
+    await expect(moreBadge).toHaveText("+10");
+    const moreBox = await box(moreBadge);
+    const slotBox = await box(slot);
+    expect(moreBox.x + moreBox.width).toBeLessThanOrEqual(slotBox.x + slotBox.width);
+    expect(await layout()).toEqual(idle);
   });
 }
 
@@ -2685,9 +2762,12 @@ test("settings: left column at half width, form directly under the subtitle", as
   const area = await contentArea(page);
   const left = await box(page.getByTestId("settings-column-left"));
   expect(Math.abs(left.width / area.width - 0.5)).toBeLessThanOrEqual(0.01);
+  // The head's container (`page-head`, #234) stands in the page column; the form follows it.
   const next = await page
     .getByTestId("page-header")
-    .evaluate((el) => el.nextElementSibling?.getAttribute("data-testid"));
+    .evaluate((el) =>
+      el.closest("[data-slot=page-head]")?.nextElementSibling?.getAttribute("data-testid"),
+    );
   expect(next).toBe("settings-general-form");
   const first = await page
     .getByTestId("settings-general-form")

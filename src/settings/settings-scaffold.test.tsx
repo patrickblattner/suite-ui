@@ -54,8 +54,9 @@ function deferred() {
 describe("SettingsScaffold", () => {
   it("puts the form directly under the header and starts it with the body", () => {
     render(<GeneralPage save={() => Promise.resolve()} />);
-    const header = screen.getByTestId("page-header");
-    expect(header.nextElementSibling).toBe(screen.getByTestId("settings-general-form"));
+    // The head sits in its container `page-head` (`SUI-FEATURE-051` rev 11); the form follows it.
+    const head = screen.getByTestId("page-header").closest("[data-slot=page-head]");
+    expect(head?.nextElementSibling).toBe(screen.getByTestId("settings-general-form"));
     expect(screen.getByTestId("settings-general-form").firstElementChild).toBe(
       screen.getByTestId("settings-body"),
     );

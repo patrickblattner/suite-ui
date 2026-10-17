@@ -80,10 +80,10 @@ function addButton(add: PageHeaderAdd, secondary: boolean) {
   );
 }
 
-// A group of actions. Below 640 px (`SUI-FEATURE-051` rev 8) it may shrink to its column on row two
+// A group of actions. In a head narrower than 640 px (`SUI-FEATURE-051` rev 11) it may shrink to its column on row two
 // and wraps its buttons, right-aligned, when they do not fit side by side.
 const ACTION_GROUP =
-  "flex shrink-0 items-center gap-2 max-sm:min-w-0 max-sm:shrink max-sm:flex-wrap max-sm:justify-end";
+  "flex shrink-0 items-center gap-2 @max-head-split/page-head:min-w-0 @max-head-split/page-head:shrink @max-head-split/page-head:flex-wrap @max-head-split/page-head:justify-end";
 
 function addActions(add: NonNullable<PageHeaderProps["add"]>) {
   if (!Array.isArray(add)) return addButton(add as PageHeaderAdd, false);
@@ -92,6 +92,18 @@ function addActions(add: NonNullable<PageHeaderProps["add"]>) {
     <div className={ACTION_GROUP} data-testid="page-add-group">
       {addButton(second, true)}
       {addButton(first, false)}
+    </div>
+  );
+}
+
+// The head's container (`SUI-FEATURE-051` rev 11, #234): the two-row switch follows the head's own
+// width, at any window width, through the container `page-head` (`--container-head-split`). The head
+// row cannot query itself, so this block around it is the container; as a block it takes its width
+// from its parent, never from its content. It carries the head's 8 px to the first content.
+function PageHead({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="@container/page-head mb-2 w-full" data-slot="page-head">
+      {children}
     </div>
   );
 }
@@ -128,13 +140,13 @@ function PageHeader({
     ) : add !== undefined ? (
       addActions(add)
     ) : null;
-  // Below 640 px of window width (Reflow, `GL-UX-001`; `SUI-FEATURE-051` rev 8) the action group
-  // always stands on a second row, right-aligned, whether an operation runs or not. From 640 px on
+  // In a head narrower than 640 px (Reflow, `GL-UX-001`; `SUI-FEATURE-051` rev 11) the action group
+  // always stands on a second row, right-aligned, whether an operation runs or not. From 640 px of head on
   // the wrapper is `contents` and the row is as before.
   const actionRow =
     actions === null ? null : (
       <div
-        className="contents max-sm:flex max-sm:basis-full max-sm:justify-end"
+        className="contents @max-head-split/page-head:flex @max-head-split/page-head:basis-full @max-head-split/page-head:justify-end"
         data-slot="page-header-actions"
       >
         {actions}
@@ -147,70 +159,82 @@ function PageHeader({
   // block's minimum, while the clipped subtitle adds nothing to it.
   if (operationScope !== undefined) {
     return (
-      <div
-        className="mb-2 flex items-start justify-between gap-4 max-sm:flex-wrap"
-        data-testid="page-header"
-      >
-        <SidebarOverlayTrigger />
-        {/* Wrapping, the block takes the rest of the first row beside the overlay trigger instead of
+      <PageHead>
+        <div
+          className="flex items-start justify-between gap-4 @max-head-split/page-head:flex-wrap"
+          data-testid="page-header"
+        >
+          <SidebarOverlayTrigger />
+          {/* Wrapping, the block takes the rest of the first row beside the overlay trigger instead of
             breaking its line at the subtitle's width. */}
-        <div
-          className={cn(
-            "grid min-w-min shrink-[100000] grid-cols-[minmax(auto,1fr)] max-sm:grow max-sm:basis-0",
-            besideTrigger,
-          )}
-        >
-          <h1
-            className="justify-self-start text-xl font-semibold tracking-tight whitespace-nowrap"
-            data-testid="page-title"
+          <div
+            className={cn(
+              "grid min-w-min shrink-[100000] grid-cols-[minmax(auto,1fr)] @max-head-split/page-head:grow @max-head-split/page-head:basis-0",
+              besideTrigger,
+            )}
           >
-            {title}
-          </h1>
-          <OverflowTooltip>
-            <p className="mt-1 truncate text-sm text-muted-foreground" data-testid="page-subtitle">
-              {subtitle}
-            </p>
-          </OverflowTooltip>
-        </div>
-        {/* Below 640 px the slot and the actions share row two, the slot left of them, idle or
-            running (`SUI-FEATURE-051` rev 8); the first row is the title's. From 640 px on both
-            wrappers are `contents` and the row is as before. */}
-        <div
-          className="contents max-sm:flex max-sm:min-w-0 max-sm:basis-full max-sm:items-start max-sm:gap-4"
-          data-slot="page-header-status-row"
-        >
-          <OperationStatusSlot scope={operationScope} />
-          {actions === null ? null : (
-            <div
-              className="contents max-sm:flex max-sm:min-w-0 max-sm:flex-1 max-sm:justify-end"
-              data-slot="page-header-actions"
+            <h1
+              className="justify-self-start text-xl font-semibold tracking-tight whitespace-nowrap"
+              data-testid="page-title"
             >
-              {actions}
-            </div>
-          )}
+              {title}
+            </h1>
+            <OverflowTooltip>
+              <p
+                className="mt-1 truncate text-sm text-muted-foreground"
+                data-testid="page-subtitle"
+              >
+                {subtitle}
+              </p>
+            </OverflowTooltip>
+          </div>
+          {/* In a head narrower than 640 px the slot and the actions share row two, the slot left of
+            them, idle or running (`SUI-FEATURE-051` rev 11); the first row is the title's. From
+            640 px of head on both wrappers are `contents` and the row is as before. */}
+          <div
+            className="contents @max-head-split/page-head:flex @max-head-split/page-head:min-w-0 @max-head-split/page-head:basis-full @max-head-split/page-head:items-start @max-head-split/page-head:gap-4"
+            data-slot="page-header-status-row"
+          >
+            <OperationStatusSlot scope={operationScope} />
+            {actions === null ? null : (
+              <div
+                className="contents @max-head-split/page-head:flex @max-head-split/page-head:min-w-0 @max-head-split/page-head:flex-1 @max-head-split/page-head:justify-end"
+                data-slot="page-header-actions"
+              >
+                {actions}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      </PageHead>
     );
   }
 
   return (
-    <div
-      className="mb-2 flex items-start justify-between gap-4 max-sm:flex-wrap"
-      data-testid="page-header"
-    >
-      <SidebarOverlayTrigger />
-      {/* Wrapping, the block takes the rest of the first row instead of breaking its line at the
+    <PageHead>
+      <div
+        className="flex items-start justify-between gap-4 @max-head-split/page-head:flex-wrap"
+        data-testid="page-header"
+      >
+        <SidebarOverlayTrigger />
+        {/* Wrapping, the block takes the rest of the first row instead of breaking its line at the
           subtitle's width, so it keeps to the overlay trigger (`SUI-FEATURE-110`). */}
-      <div className={cn("min-w-0 max-sm:grow max-sm:basis-0", besideTrigger)}>
-        <h1 className="text-xl font-semibold tracking-tight" data-testid="page-title">
-          {title}
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground" data-testid="page-subtitle">
-          {subtitle}
-        </p>
+        <div
+          className={cn(
+            "min-w-0 @max-head-split/page-head:grow @max-head-split/page-head:basis-0",
+            besideTrigger,
+          )}
+        >
+          <h1 className="text-xl font-semibold tracking-tight" data-testid="page-title">
+            {title}
+          </h1>
+          <p className="mt-1 text-sm text-muted-foreground" data-testid="page-subtitle">
+            {subtitle}
+          </p>
+        </div>
+        {actionRow}
       </div>
-      {actionRow}
-    </div>
+    </PageHead>
   );
 }
 

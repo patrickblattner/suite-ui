@@ -252,6 +252,9 @@
      (a border or padding on the row itself does not count). A row of exactly 1024 px stays side by side,
      1023 px stacks. */
   --container-editor-split: 64rem;
+  /* The page head below which its actions (and status slot) take a second row (`SUI-FEATURE-051`
+     rev 11): 640 px of the head's own width, measured on the content box of its container `page-head`. */
+  --container-head-split: 40rem;
 }
 
 /* Maps the tokens into Tailwind's theme, so utilities like `bg-success` or `text-warn-text`

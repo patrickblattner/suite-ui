@@ -27,7 +27,8 @@ export const es: SuiteStrings = {
     done: "Listo",
     failed: "Fallido",
     recovered: "Recuperado",
-    more: "{{n}} más",
+    more_one: "{{n}} más",
+    more_other: "{{n}} más",
   },
   state: {
     succeeded: "Correcto",

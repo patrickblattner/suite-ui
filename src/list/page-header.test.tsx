@@ -273,11 +273,18 @@ describe("PageHeader", () => {
     expect(screen.getByTestId("page-subtitle").outerHTML).toBe(
       '<p class="mt-1 text-sm text-muted-foreground" data-testid="page-subtitle">Every event.</p>',
     );
-    expect(title.parentElement).toHaveAttribute("class", "min-w-0 max-sm:grow max-sm:basis-0");
-    expect(screen.getByTestId("page-header")).toHaveAttribute(
+    expect(title.parentElement).toHaveAttribute(
       "class",
-      "mb-2 flex items-start justify-between gap-4 max-sm:flex-wrap",
+      "min-w-0 @max-head-split/page-head:grow @max-head-split/page-head:basis-0",
     );
+    const head = screen.getByTestId("page-header");
+    expect(head).toHaveAttribute(
+      "class",
+      "flex items-start justify-between gap-4 @max-head-split/page-head:flex-wrap",
+    );
+    // `SUI-FEATURE-051` rev 11: the head sits in its container `page-head`, which carries its margin.
+    expect(head.parentElement).toHaveAttribute("data-slot", "page-head");
+    expect(head.parentElement).toHaveAttribute("class", "@container/page-head mb-2 w-full");
   });
 
   it("shows UploadIcon instead of PlusIcon for kind upload, otherwise the same", () => {

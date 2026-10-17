@@ -170,6 +170,18 @@ describe("suite state texts", () => {
   });
 });
 
+// SUI-FEATURE-051 rev 11 (#234): the others of the page's operations, as a plural pair.
+describe("suite status.more plural", () => {
+  it.each([
+    ["de", "1 weiterer", "{{n}} weitere"],
+    ["en", "{{n}} more", "{{n}} more"],
+    ["es", "{{n}} más", "{{n}} más"],
+  ] as const)("%s", (lng, one, other) => {
+    const { status } = suiteStrings[lng];
+    expect([status.more_one, status.more_other]).toEqual([one, other]);
+  });
+});
+
 // SUI-FEATURE-047 AC8 and the view switch's name.
 describe("suite row texts", () => {
   it.each([

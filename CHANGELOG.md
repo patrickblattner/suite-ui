@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.128.0 — #234, SUI-FEATURE-051 rev 11 (Q&A #3862, #3863): the `PageHeader` reflows by its own width; `status.more` gets a plural
+
+Behaviour changes that app tests may see.
+
+- The two-row `PageHeader` now follows the head's own width, at any window width. It switches whenever the head is narrower than 640 px, through a container query, instead of the 640 px window rule of 0.125.0. The title has row one; row two holds the status slot's reserved compact width and the actions, which wrap within their column.
+- The head now sits in a new block, `[data-slot=page-head]`, which is the container `page-head` and carries the head's `mb-2`. As a block it takes its width from its parent. The 640 px threshold is defined once, as the container size `--container-head-split: 40rem` (`@max-head-split/page-head:`).
+- At head widths of 320, 390 and 480 px, with a long title and "+10", the head keeps one height idle, running, with progress and with several operations. Nothing reaches past it and the title stays whole. "+10" stays whole in the compact slot under and over 640 px.
+- `suite:status.more` is a plural pair now: `status.more_one` / `status.more_other`, chosen by i18next's `count`. German says "1 weiterer" / "{{n}} weitere". English and Spanish keep one text for both: "{{n}} more", "{{n}} más". So the German compact indicator's name with one other reads "<label>, 1 weiterer".
+
+**Migration:** the head now sits in a full-width block wrapper (`data-slot="page-head"`, `w-full`); a head placed in a flex row takes the row's width. Check two points:
+
+- App tests that expected `page-header`'s parent to be the page column, or its next sibling to be the content after the head, find the `page-head` block in between: `page-header` is its only child, and the content follows the block.
+- App tests that read the German compact indicator's name with one other operation read "1 weiterer" instead of "1 weitere".
+
+Apps that override `suite:status.more` provide `more_one` and `more_other` instead. The suite apps' page heads measure about 1153–1168 px at a 1440 px window (sidebar 224 px, page gutter 2 × 24 px), so they stay on one row there.
+
+Baselines: the strings table, which gains the plural pair: `gallery-{de,en,es}-{light,dark}` and `gallery-de-{light,dark}-{390,1440}`. All other 390, 1440 and 1920 px captures are unchanged.
+
+Minor, not patch: the head gains a wrapping element, the switch follows the head instead of the window, and a string key becomes a plural pair, all of which app tests can see.
+
 ## 0.127.0 — #232, SUI-FEATURE-071 rev 7 (Q&A #3861): `PropertyPanel` stacks by the editor frame's width
 
 Behaviour changes that app tests may see. The `PropertyPanel` now stands under the canvas at full width whenever the editor frame is narrower than 1024 px, decided by a container query on the frame instead of the 640 px window rule of 0.125.1. So at 700 px, or in any frame narrower than 1024 px, nothing of the drawer or the panel lies outside the frame any more. The split stays half and half (`--property-panel-share`), the panel's head stays and only its body scrolls. From a 1024 px frame on, the panel is the 340 px column on the right and the drawer 300 px, as before. Opening or closing a drawer never re-flows the panel: the switch follows the frame alone. The threshold is defined once, as the container size `--container-editor-split: 64rem` (`@max-editor-split/editor:`). It is measured on the content box of the editor row, the only width a container query can read: a row of exactly 1024 px stays side by side and 1023 px stacks, and a border or padding on the row itself does not count.

@@ -158,9 +158,33 @@ describe("useOperationStatus and the PageHeader status slot", () => {
     // The status still holds the label alone (`SUI-FEATURE-052`).
     expect(within(slot).getByRole("status").textContent).toBe("Second");
     await act(() => i18n.changeLanguage("de"));
-    expect(within(slot).getByRole("img", { name: "Second, 1 weitere" })).toBeInTheDocument();
+    // German has a singular form (`SUI-FEATURE-051` rev 11).
+    expect(within(slot).getByRole("img", { name: "Second, 1 weiterer" })).toBeInTheDocument();
     await act(() => i18n.changeLanguage("es"));
     expect(within(slot).getByRole("img", { name: "Second, 1 más" })).toBeInTheDocument();
+  });
+
+  // SUI-FEATURE-051 rev 11: German counts "1 weiterer" but "2 weitere".
+  it("names two others in the plural", async () => {
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        disconnect() {}
+      },
+    );
+    vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(40);
+    document.documentElement.style.fontSize = "16px";
+    await i18n.changeLanguage("de");
+    const { api } = setup("brand-kit");
+    act(() => {
+      api().start({ scope: "brand-kit", label: "First" });
+      api().start({ scope: "brand-kit", label: "Second" });
+      api().start({ scope: "brand-kit", label: "Third" });
+    });
+    const slot = screen.getByTestId("page-operation-status");
+    expect(within(slot).getByRole("img", { name: "Third, 2 weitere" })).toBeInTheDocument();
+    expect(screen.getByTestId("page-operation-more")).toHaveTextContent("+2");
   });
 
   it("shows nothing for another scope and renders no slot without a scope", () => {

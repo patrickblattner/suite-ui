@@ -328,10 +328,18 @@ function StatusFrame({
 // two actions, and Run steps idle → running → progress → a second operation with progress ("+1") →
 // done, so the narrow reflow can be measured in every state; the captures keep the short title and the
 // one action.
-const LONG_STATUS = new URLSearchParams(window.location.search).get("statusTitle") === "long";
+const STATUS_TITLE = new URLSearchParams(window.location.search).get("statusTitle");
+const LONG_STATUS = STATUS_TITLE === "long" || STATUS_TITLE === "crowded";
+// `?statusTitle=crowded` (#234): a title long enough that a crowded head stays 640 px or wider.
+const LONG_TITLE =
+  STATUS_TITLE === "crowded"
+    ? "Website-Einstellungen für alle Standorte und Sprachen"
+    : "Website-Einstellungen";
 // `&statusMore=spinner` (#230): the second operation runs without progress, so "+1" stands beside a
 // spinner instead of a progress bar.
 const SPINNER_MORE = new URLSearchParams(window.location.search).get("statusMore") === "spinner";
+// `&statusMore=ten` (#234): the step adds ten operations instead of one, so the slot shows "+10".
+const TEN_MORE = new URLSearchParams(window.location.search).get("statusMore") === "ten";
 
 // The toggle starts and ends one operation, so the head can be measured before and after; its text
 // stays the same, so the actions keep their width.
@@ -344,7 +352,7 @@ function StatusToggle({
 }) {
   const { start } = useOperationStatus();
   const handle = useRef<OperationHandle | null>(null);
-  const second = useRef<OperationHandle | null>(null);
+  const others = useRef<OperationHandle[]>([]);
   const progressed = useRef(false);
   const [running, setRunning] = useState(false);
   const toggle = () => {
@@ -353,15 +361,20 @@ function StatusToggle({
     } else if (LONG_STATUS && !progressed.current) {
       handle.current.update({ progress: 0.6 });
       progressed.current = true;
-    } else if (LONG_STATUS && second.current === null) {
-      second.current = start({
-        scope: "toggle",
-        label: "Uploading images",
-        ...(SPINNER_MORE ? {} : { progress: 0.3 }),
-      });
+    } else if (LONG_STATUS && others.current.length === 0) {
+      for (let index = TEN_MORE ? 9 : 0; index > 0; index--) {
+        others.current.push(start({ scope: "toggle", label: `Exporting list ${index}` }));
+      }
+      others.current.push(
+        start({
+          scope: "toggle",
+          label: "Uploading images",
+          ...(SPINNER_MORE ? {} : { progress: 0.3 }),
+        }),
+      );
     } else {
-      second.current?.succeed("Images uploaded");
-      second.current = null;
+      for (const other of others.current) other.succeed("Images uploaded");
+      others.current = [];
       handle.current.succeed("Website updated");
       handle.current = null;
       progressed.current = false;
@@ -383,7 +396,7 @@ function StatusToggle({
     <>
       {LONG_STATUS ? (
         <PageHeader
-          title="Website-Einstellungen"
+          title={LONG_TITLE}
           subtitle={subtitle}
           operationScope="toggle"
           secondaryAction={run}
