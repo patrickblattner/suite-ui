@@ -28,6 +28,7 @@ const LABELS = {
     status: "Status",
     tabs: ["Provider", "Areas", "Prompts"],
     error: "The settings could not be loaded.",
+    replaceOpen: "Finish or cancel the replacement first.",
   },
   de: {
     title: "Allgemein",
@@ -36,6 +37,7 @@ const LABELS = {
     status: "Status",
     tabs: ["Anbieter", "Bereiche", "Prompts"],
     error: "Die Einstellungen konnten nicht geladen werden.",
+    replaceOpen: "Erst das Ersetzen abschließen oder abbrechen.",
   },
   es: {
     title: "General",
@@ -44,6 +46,7 @@ const LABELS = {
     status: "Estado",
     tabs: ["Proveedor", "Áreas", "Prompts"],
     error: "No se pudieron cargar los ajustes.",
+    replaceOpen: "Termina o cancela primero el reemplazo.",
   },
 } as const;
 
@@ -68,7 +71,7 @@ const FIELD_LAYOUT = PARAMS.get("layout") === "fields";
 // reason, and a SettingsActionRow at its foot, after one field of the page form (`SUI-FEATURE-043`).
 const BLOCK_LAYOUT = PARAMS.get("layout") === "blocks";
 // `?layout=action-row` shows a SettingsActionRow with Cancel and two immediate buttons on the left, in a
-// block of its own form whose Save calls `form.requestSubmit()` (`SUI-FEATURE-088`); `&width=340`
+// block of its own form whose Save calls `form.requestSubmit()` (`SUI-FEATURE-088`); `&width=360`
 // narrows the block.
 const ACTION_ROW_LAYOUT = PARAMS.get("layout") === "action-row";
 const ACTION_ROW_WIDTH = Number(PARAMS.get("width")) || null;
@@ -112,11 +115,10 @@ export function SettingsPage() {
 
   if (ACTION_ROW_LAYOUT) {
     return (
-      <div
-        className="p-6"
-        style={ACTION_ROW_WIDTH === null ? undefined : { width: ACTION_ROW_WIDTH }}
-      >
-        <ReplaceBlock labels={labels} />
+      <div className="p-6">
+        <div style={ACTION_ROW_WIDTH === null ? undefined : { width: ACTION_ROW_WIDTH }}>
+          <ReplaceBlock labels={labels} />
+        </div>
       </div>
     );
   }
@@ -335,6 +337,8 @@ function ReplaceBlock({ labels }: { labels: (typeof LABELS)[keyof typeof LABELS]
         className="flex flex-col gap-4"
         onSubmit={(event) => {
           event.preventDefault();
+          // Enter submits past Save's lock: the form checks the change itself.
+          if (value === "") return;
           setSubmits((count) => count + 1);
           setValue("");
         }}
@@ -343,6 +347,7 @@ function ReplaceBlock({ labels }: { labels: (typeof LABELS)[keyof typeof LABELS]
       >
         {open ? (
           <Input
+            type="password"
             aria-label={labels.field}
             data-testid="replace-value"
             value={value}
@@ -361,7 +366,7 @@ function ReplaceBlock({ labels }: { labels: (typeof LABELS)[keyof typeof LABELS]
             <>
               <SettingsActionButton
                 label={t("actions.replace")}
-                disabledText={undefined}
+                disabledText={open ? labels.replaceOpen : undefined}
                 onClick={() => setOpen(true)}
                 testId="replace-replace"
               />

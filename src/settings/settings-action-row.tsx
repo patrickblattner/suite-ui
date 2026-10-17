@@ -10,7 +10,8 @@ type SettingsActionRowBase = {
   // A save is running: Save carries the working state and is locked against a second trigger.
   saving?: boolean;
   // Save is a plain button. In a form, call `form.requestSubmit()` in it, so Enter in a field and the
-  // button take the same path (`SUI-FEATURE-088`).
+  // button take the same path (`SUI-FEATURE-088`). Enter submits past Save's lock, so the form's
+  // `onSubmit` checks `dirty` and `valid` itself.
   onSave: () => void;
   // Buttons that act at once (e.g. Replace, Remove), left-aligned in the same row, the pair stays
   // right; build them with `SettingsActionButton` (`SUI-FEATURE-088`).
@@ -39,7 +40,7 @@ function SettingsActionRow({
   onSave,
   leading,
   testIdPrefix,
-  ...left
+  ...leftButton
 }: SettingsActionRowProps) {
   const pair = (
     <SaveResetButtons
@@ -47,16 +48,14 @@ function SettingsActionRow({
       dirty={dirty}
       valid={valid}
       saving={saving}
-      onReset={left.onReset ?? (() => {})}
-      cancel={
-        left.onCancel === undefined
-          ? undefined
-          : { onCancel: left.onCancel, cancelable: left.cancelable }
-      }
+      {...(leftButton.onCancel === undefined
+        ? { onReset: leftButton.onReset }
+        : { cancel: { onCancel: leftButton.onCancel, cancelable: leftButton.cancelable } })}
       onSave={onSave}
     />
   );
-  if (leading === undefined) {
+  // Nothing to lead with (also `null` or `false`): the row as before, without an empty group.
+  if (leading === undefined || leading === null || leading === false) {
     return (
       <div className="flex justify-end gap-2" data-focus-group="" data-slot="settings-action-row">
         {pair}

@@ -8,19 +8,27 @@ import { Button } from "../ui/button.js";
 import { useFocusAfterRun } from "../ui/focus-return.js";
 import { Hint } from "../ui/hint.js";
 
+// The left button: Reset, or Cancel (`outline`) in its place, usable while `cancelable`, also without
+// a change (`SUI-FEATURE-088`).
+type SaveResetLeft =
+  | { onReset: () => void; cancel?: undefined }
+  | { onReset?: undefined; cancel: { onCancel: () => void; cancelable: boolean } };
+
 type SaveResetButtonsProps = {
-  // The stem of the button testids: `<stem>-reset` and `<stem>-save`.
+  // The stem of the button testids: `<stem>-reset` (or `-cancel`) and `<stem>-save`.
   stem: string;
   dirty: boolean;
   valid: boolean;
   saving: boolean;
-  onReset: () => void;
-  // Given, Cancel (`outline`) stands in place of Reset: usable while `cancelable`, also without a
-  // change (`SUI-FEATURE-088`).
-  cancel?: { onCancel: () => void; cancelable: boolean } | undefined;
   // Given, Save is a plain button that calls it; otherwise Save is the submit button of its form.
   onSave?: (() => void) | undefined;
-};
+} & SaveResetLeft;
+
+// A Cancel that is not cancelable locks itself like a clean Save (`GL-UI-050`): `aria-disabled` with a
+// trigger lock, so the focus stays on it after a cancel; the label mixed with the background, in the
+// look the disabled button had.
+const LOCKED_CANCEL_CLASS =
+  "cursor-not-allowed text-[color-mix(in_srgb,var(--foreground)_50%,var(--background))]";
 
 // Reset (`destructive`) and Save (`success`), each with its fixed decorative icon before the label,
 // shared by `SettingsFooter` and `SettingsActionRow` so both carry the same variants, sizes, icons,
@@ -51,8 +59,11 @@ function SaveResetButtons({
             type="button"
             variant="outline"
             size="default"
-            disabled={!cancel.cancelable}
-            onClick={cancel.onCancel}
+            {...(cancel.cancelable ? {} : { "aria-disabled": true })}
+            className={cn(!cancel.cancelable && LOCKED_CANCEL_CLASS)}
+            onClick={() => {
+              if (cancel.cancelable) cancel.onCancel();
+            }}
             data-testid={`${stem}-cancel`}
           >
             {t("actions.cancel")}

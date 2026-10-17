@@ -236,8 +236,7 @@ export const de: SuiteStrings = {
       "Verwirft die ungespeicherten Änderungen auf dieser Seite — verfügbar, sobald du hier etwas geändert hast.",
 
     cancelHint: "Verwirft, was hier offen ist, und schließt es.",
-    cancelDisabledHint:
-      "Verwirft, was hier offen ist — verfügbar, sobald hier etwas offen oder geändert ist.",
+    cancelDisabledHint: "Verwirft, was hier offen ist — verfügbar, sobald hier etwas offen ist.",
   },
   timezone: {
     placeholder: "Zeitzone suchen…",

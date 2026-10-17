@@ -244,7 +244,7 @@ export const en = {
 
     // The Cancel of an entry's `SettingsActionRow` (`SUI-FEATURE-088`).
     cancelHint: "Discards what is open here and closes it.",
-    cancelDisabledHint: "Discards what is open here — available once something is open or changed.",
+    cancelDisabledHint: "Discards what is open here — available once something is open.",
   },
   timezone: {
     placeholder: "Search time zone…",

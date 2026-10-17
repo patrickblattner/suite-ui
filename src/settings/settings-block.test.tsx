@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { SecretCardHeader, SettingsActionButton } from "./secret-card-header.js";
@@ -207,17 +208,58 @@ describe("SettingsActionRow", () => {
     expect(screen.getByTestId("secret-save")).toHaveAttribute("aria-disabled", "true");
   });
 
-  it("not cancelable: Cancel locked", () => {
+  it("not cancelable: Cancel locked with aria-disabled, its click calls nothing", () => {
+    const onCancel = vi.fn();
     render(
       <SettingsActionRow
         dirty={false}
         onSave={() => {}}
-        onCancel={() => {}}
+        onCancel={onCancel}
         cancelable={false}
         testIdPrefix="secret"
       />,
     );
-    expect(screen.getByTestId("secret-cancel")).toBeDisabled();
+    const cancel = screen.getByTestId("secret-cancel");
+    expect(cancel).toBeEnabled();
+    expect(cancel).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(cancel);
+    expect(onCancel).not.toHaveBeenCalled();
+  });
+
+  // GL-UI-050: Cancel closes what is open and locks itself; the focus stays on it.
+  it("the focus stays on Cancel after a cancel", () => {
+    function Row() {
+      const [open, setOpen] = useState(true);
+      return (
+        <SettingsActionRow
+          dirty={false}
+          onSave={() => {}}
+          onCancel={() => setOpen(false)}
+          cancelable={open}
+          testIdPrefix="secret"
+        />
+      );
+    }
+    render(<Row />);
+    const cancel = screen.getByTestId("secret-cancel");
+    cancel.focus();
+    fireEvent.click(cancel);
+    expect(cancel).toHaveAttribute("aria-disabled", "true");
+    expect(cancel).toHaveFocus();
+  });
+
+  it.each([null, false])("leading %s renders no leading group", (leading) => {
+    const { container } = render(
+      <SettingsActionRow
+        dirty={false}
+        onSave={() => {}}
+        onReset={() => {}}
+        leading={leading}
+        testIdPrefix="mail"
+      />,
+    );
+    expect(container.querySelector("[data-slot=settings-action-row-leading]")).toBeNull();
+    expect(container.firstElementChild).toHaveClass("flex", "justify-end");
   });
 
   // SUI-FEATURE-088 AC2: Cancel replaces Reset, never both.

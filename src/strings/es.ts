@@ -235,7 +235,7 @@ export const es: SuiteStrings = {
 
     cancelHint: "Descarta lo que está abierto aquí y lo cierra.",
     cancelDisabledHint:
-      "Descarta lo que está abierto aquí — disponible en cuanto algo esté abierto o cambiado.",
+      "Descarta lo que está abierto aquí — disponible en cuanto algo esté abierto.",
   },
   timezone: {
     placeholder: "Buscar zona horaria…",
