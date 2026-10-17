@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.122.1 — #210, SUI-FEATURE-089 rev 3: a neutral `noRenderer` text
+
+Not breaking. `media.noRenderer` now speaks of the file, not its type, because a refused source scheme (`SUI-FEATURE-089`) shows it too: "Für diese Datei gibt es keine Vorschau." / "No preview available for this file." / "No hay vista previa para este archivo." **Migration:** app tests that match the old sentence ("No preview for this type.") match the new one. Baselines: the `gallery-*` strings table only.
+
 ## 0.122.0 — #202, SUI-FEATURE-087 rev 6: the alignment grid after the taste decisions (Q&A #3773–#3777)
 
 Not breaking in the API. The look of `GridToggle` and `GridOverlay` changes, and one Spanish label changes.
