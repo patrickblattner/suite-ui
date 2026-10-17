@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.129.0 — #235, GL-UI-007 rev 4 (Q&A #3865, #3870, #3872): the leave guard holds browser back and forward under `BrowserRouter`
+
+Bug fixes plus one new export. Three defects of the leave guard (`useLeaveGuard`, `useLeaveConfirm`, and through it `EditPanel`, `MediaDetailShell` and the editor's guard) are fixed together.
+
+- **New: `installLeaveGuard()`** from `@suite/ui/ui/leave-guard`. It installs the guard's `popstate` listener once; further calls do nothing.
+- **Browser back and forward are held under `BrowserRouter`** (no data router), once the app calls `installLeaveGuard()` in its entry, before the router renders. The guard used to listen only once a hold existed, after the router. On the window, listeners run in the order they were added, whatever `capture` says, and React commits the route change between two listeners. So the router left the page before the guard was asked. The installed listener comes before the router's and hands each `popstate` to the holds active at that moment, so a hold created later, on a lazy route too, is held. With a draft, back or forward asks once, and the address stays until Leave/Discard; Abbrechen keeps page and address.
+- **A released step back no longer asks again.** After Discard or Save in the dialog, the `popstate` of the `navigate(-1)` / `navigate(n)` that passed every hold passes too. Before, it re-opened the dialog when the page stayed mounted across the step, for example a panel opened by a query parameter. A released step that never arrives, such as a `go` past the end of the history, no longer lets a later back slip through.
+- **`Esc` while the dialog asks is Abbrechen, always.** In `MediaDetailShell` and `EditPanel` an `Esc` that reached the panel before the dialog had taken the key re-opened the dialog, in 2 of 3 runs in the reported e2e. Now such an `Esc` closes the dialog as Abbrechen and the panel keeps its draft; the gallery checks are stable over 10 runs.
+
+**Migration:** every app with `BrowserRouter` calls `installLeaveGuard()` once in its entry, before the router renders:
+
+```ts
+import { installLeaveGuard } from "@suite/ui/ui/leave-guard";
+
+installLeaveGuard();
+createRoot(root).render(<App />);
+```
+
+Without it, the first hold installs the listener after the router's, and browser back and forward with a draft are not held; in development, that first hold logs one `console.warn` naming `installLeaveGuard()`, under browser-history routers only (`BrowserRouter`), never under `MemoryRouter`. In-app route changes (links, the navigation, `navigate()`) are held either way. This applies to both suite apps:
+
+- Community: the guard parts only load with a lazy route.
+- Cockpit: static imports are not enough either, because nothing installs the listener at import any more; the call is explicit, so no bundler can drop it.
+
+Apps can then drop their workarounds for browser back with a draft (Community: the history-state workaround of COM-FEATURE-003 rev 3). A data router (`createBrowserRouter`) needs nothing. Baselines: none changed.
+
+Minor, not patch: a new export, and apps must call it to get browser back and forward held.
+
 ## 0.128.0 — #234, SUI-FEATURE-051 rev 11 (Q&A #3862, #3863): the `PageHeader` reflows by its own width; `status.more` gets a plural
 
 Behaviour changes that app tests may see.

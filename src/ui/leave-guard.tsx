@@ -151,19 +151,59 @@ function historyIndex(state: unknown): number | null {
   return typeof idx === "number" ? idx : null;
 }
 
+// Browser back and forward pass the navigator: the router hears them as `popstate` on the window,
+// whose listeners run in the order they were added, whatever `capture` says — and React commits the
+// route change between two listeners, so a later one comes too late (#235). The guard therefore
+// listens once, before the router mounts, and hands each `popstate` to the holds active at that
+// moment; a hold created after the router mounted is held the same way.
+const popHandlers = new Set<(event: PopStateEvent) => void>();
+let installed = false;
+
+/**
+ * Installs the leave guard's `popstate` listener on the window, so a dirty page or panel holds browser
+ * back and forward under `BrowserRouter` (`GL-UI-007`). Call it once in the app's entry, before the
+ * router renders; it must come before the router's own listener. Further calls do nothing. Without
+ * it the first hold installs the listener, too late to hold back and forward when the router mounted
+ * first; in-app route changes are held either way.
+ */
+function installLeaveGuard(): void {
+  if (installed || typeof window === "undefined") return;
+  installed = true;
+  window.addEventListener("popstate", (event) => {
+    for (const handle of [...popHandlers]) {
+      handle(event);
+      if (event.cancelBubble) return;
+    }
+  });
+}
+
 // Wraps the navigator once for all holds: push, replace and go run through every active hold,
-// innermost first, and only reach the router once each lets them pass. Browser back and forward
-// pass the navigator, so a `popstate` is taken before the router sees it (a capture listener on the
-// window runs first), the address is put back, and the held step is replayed on leave.
+// innermost first, and only reach the router once each lets them pass. A browser back or forward is
+// taken before the router sees it (see `popHandlers`), the address is put back, and the held step is
+// replayed on leave. The `popstate` of a step that already passed every hold (a replayed one, or a
+// `go` the holds let through) passes again without asking (#235).
 function wrapNavigator(navigator: RouterNavigator): NavigatorHolds {
+  // A memory history (`MemoryRouter`, tests) has no browser history to hold: no warning there.
+  const memory = "index" in navigator;
+  if (!installed && !memory && process.env.NODE_ENV !== "production") {
+    console.warn(
+      "@suite/ui leave guard: installLeaveGuard() was not called before the router rendered, so " +
+        "browser back and forward are not held. Call installLeaveGuard() once in the app's entry.",
+    );
+  }
+  installLeaveGuard();
   const holds: Hold[] = [];
+  let passTo: number | null = null;
   const through = (leave: () => void, stay?: () => void) => runHolds([...holds], leave, stay);
   const push = navigator.push.bind(navigator);
   const replace = navigator.replace.bind(navigator);
   const go = navigator.go.bind(navigator);
   let index = historyIndex(window.history.state);
+  // A push or replace starts afresh: a passed step that never arrived (a `go` past the end of the
+  // history fires no `popstate`) must not let a later step through.
   const settle = () => {
     index = historyIndex(window.history.state);
+    passTo = null;
   };
   navigator.push = (...args) =>
     through(() => {
@@ -175,11 +215,18 @@ function wrapNavigator(navigator: RouterNavigator): NavigatorHolds {
       replace(...args);
       settle();
     });
-  navigator.go = (delta) => through(() => go(delta));
-
-  // `skip` counts the pops that put the address back, `pass` the replayed ones.
+  // `skip` counts the pops that put the address back; `passTo` is the entry a step that already
+  // passed every hold lands on, so its own `popstate` passes too.
   let skip = 0;
-  let pass = 0;
+  const passing = (delta: number) => {
+    passTo = index === null ? null : index + delta;
+  };
+  navigator.go = (delta) =>
+    through(() => {
+      passing(delta);
+      go(delta);
+    });
+
   const onPopState = (event: PopStateEvent) => {
     if (skip > 0) {
       skip -= 1;
@@ -187,8 +234,8 @@ function wrapNavigator(navigator: RouterNavigator): NavigatorHolds {
       return;
     }
     const to = historyIndex(event.state);
-    if (pass > 0 || to === null || index === null || to === index) {
-      pass = Math.max(0, pass - 1);
+    if (to === null || index === null || to === index || to === passTo) {
+      passTo = null;
       index = to;
       return;
     }
@@ -197,14 +244,14 @@ function wrapNavigator(navigator: RouterNavigator): NavigatorHolds {
     skip += 1;
     window.history.go(-delta);
     through(() => {
-      pass += 1;
+      passing(delta);
       window.history.go(delta);
     });
   };
-  window.addEventListener("popstate", onPopState, { capture: true });
+  popHandlers.add(onPopState);
 
   const restore = () => {
-    window.removeEventListener("popstate", onPopState, { capture: true });
+    popHandlers.delete(onPopState);
     navigator.push = push;
     navigator.replace = replace;
     navigator.go = go;
@@ -291,6 +338,13 @@ type LeaveConfirmOptions = {
 // passes the hold.
 function useLeaveConfirm({ dirty, busy, onSave, onDiscard }: LeaveConfirmOptions) {
   const [pending, setPending] = React.useState<PendingLeave | null>(null);
+  // The open dialog's held leave, for a way out that arrives while it asks; set with the state, so a
+  // key pressed before the dialog has rendered already sees it.
+  const asking = React.useRef<PendingLeave | null>(null);
+  const ask = (next: PendingLeave | null) => {
+    asking.current = next;
+    setPending(next);
+  };
   const latest = React.useRef({ dirty, busy, onSave, onDiscard });
   React.useEffect(() => {
     latest.current = { dirty, busy, onSave, onDiscard };
@@ -303,12 +357,26 @@ function useLeaveConfirm({ dirty, busy, onSave, onDiscard }: LeaveConfirmOptions
     } else if (latest.current.busy) {
       next.stay?.();
     } else if (latest.current.dirty) {
-      setPending(next);
+      ask(next);
     } else {
       next.leave();
     }
   }, []);
-  const guard = React.useCallback((leave: () => void) => hold({ leave }), [hold]);
+  // While the dialog asks, a surface's own way out (its `Esc` reaching the panel before the dialog
+  // took the key, Q&A #3872) is Abbrechen, as the dialog's own `Esc` is: it closes the dialog and
+  // never opens it again (`GL-UI-007`).
+  const guard = React.useCallback(
+    (leave: () => void) => {
+      const open = asking.current;
+      if (open === null) {
+        hold({ leave });
+        return;
+      }
+      open.stay?.();
+      ask(null);
+    },
+    [hold],
+  );
   const release = (next: PendingLeave) => {
     releasing.current = true;
     try {
@@ -352,7 +420,7 @@ function useLeaveConfirm({ dirty, busy, onSave, onDiscard }: LeaveConfirmOptions
     () => shared?.holds[0] === routerHold,
   );
 
-  const close = () => setPending(null);
+  const close = () => ask(null);
   const dialog = (
     <>
       {shared !== undefined && ownsBlocker && <DataRouterBlocker entry={shared} />}
@@ -425,4 +493,11 @@ function useLeaveGuard({ dirty, busy = false, onLeave, onSave, onDiscard }: Leav
   return { guard, dialog };
 }
 
-export { isDirty, type LeaveGuardOptions, type LeaveSave, useLeaveConfirm, useLeaveGuard };
+export {
+  installLeaveGuard,
+  isDirty,
+  type LeaveGuardOptions,
+  type LeaveSave,
+  useLeaveConfirm,
+  useLeaveGuard,
+};

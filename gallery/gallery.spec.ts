@@ -2292,6 +2292,175 @@ test("leave guard: the dialog opens on Save with its ring; Esc stays, Enter save
   await expect(page.getByTestId("media-detail").getByLabel("Name")).toHaveValue("renamed.jpg");
 });
 
+// #235 (`GL-UI-007` rev 4): the leave guard under a real `BrowserRouter` (`?harness=leave-guard`).
+async function openHarnessItem(page: Page) {
+  await page.goto("/?harness=leave-guard");
+  await expect(page.getByTestId("harness-list")).toBeVisible();
+  await page.getByTestId("harness-open").click();
+  await expect(page.getByTestId("harness-item")).toBeVisible();
+}
+
+const pathOf = (page: Page) => new URL(page.url()).pathname;
+
+// The dialog must not come (back) on its own: it stays hidden for a moment.
+async function expectNoDialog(page: Page) {
+  await page.waitForTimeout(300);
+  await expect(page.getByTestId("leave-guard")).toHaveCount(0);
+}
+
+test("leave guard (BrowserRouter): browser back with a draft asks once and holds the address", async ({
+  page,
+}) => {
+  await openHarnessItem(page);
+  await page.getByTestId("harness-value").fill("draft");
+  await page.goBack();
+  await expect(page.getByTestId("leave-guard")).toBeVisible();
+  expect(pathOf(page)).toBe("/item");
+  await page.getByTestId("leave-guard-cancel").click();
+  await expectNoDialog(page);
+  expect(pathOf(page)).toBe("/item");
+  await expect(page.getByTestId("harness-value")).toHaveValue("draft");
+
+  await page.goBack();
+  await expect(page.getByTestId("leave-guard")).toBeVisible();
+  await page.getByTestId("leave-guard-discard").click();
+  await expect(page.getByTestId("harness-list")).toBeVisible();
+  expect(pathOf(page)).toBe("/");
+  await expectNoDialog(page);
+});
+
+// #235: the guard holds browser back only when the app's entry installed it before the router
+// rendered. Left out (`&install=none`, as when the guard only arrives with a lazy route), the router's
+// listener comes first and back leaves the draft: the harness above holds back because its entry
+// calls `installLeaveGuard()`.
+test("leave guard (BrowserRouter): without installLeaveGuard() in the entry, back is not held", async ({
+  page,
+}) => {
+  await page.goto("/?harness=leave-guard&install=none");
+  await page.getByTestId("harness-open").click();
+  await expect(page.getByTestId("harness-item")).toBeVisible();
+  await page.getByTestId("harness-value").fill("draft");
+  await page.goBack();
+  await expect(page.getByTestId("harness-list")).toBeVisible();
+  await expectNoDialog(page);
+});
+
+test("leave guard (BrowserRouter): browser forward with a draft asks once and holds the address", async ({
+  page,
+}) => {
+  await openHarnessItem(page);
+  await page.goBack();
+  await expect(page.getByTestId("harness-list")).toBeVisible();
+  await page.getByTestId("harness-value").fill("draft");
+  await page.goForward();
+  await expect(page.getByTestId("leave-guard")).toBeVisible();
+  expect(pathOf(page)).toBe("/");
+  await page.getByTestId("leave-guard-cancel").click();
+  await expectNoDialog(page);
+  expect(pathOf(page)).toBe("/");
+
+  await page.goForward();
+  await page.getByTestId("leave-guard-discard").click();
+  await expect(page.getByTestId("harness-item")).toBeVisible();
+  expect(pathOf(page)).toBe("/item");
+});
+
+test("leave guard (BrowserRouter): navigate(-1) leaves a clean form without asking", async ({
+  page,
+}) => {
+  await openHarnessItem(page);
+  await page.getByTestId("harness-history-back").click();
+  await expect(page.getByTestId("harness-list")).toBeVisible();
+  await expectNoDialog(page);
+});
+
+test("leave guard (BrowserRouter): navigate(-1) with a draft asks exactly once", async ({
+  page,
+}) => {
+  await openHarnessItem(page);
+  await page.getByTestId("harness-value").fill("draft");
+  await page.getByTestId("harness-history-back").click();
+  await expect(page.getByTestId("leave-guard")).toBeVisible();
+  expect(pathOf(page)).toBe("/item");
+  await page.getByTestId("leave-guard-discard").click();
+  await expect(page.getByTestId("harness-list")).toBeVisible();
+  await expectNoDialog(page);
+});
+
+for (const choice of ["discard", "save"] as const) {
+  test(`leave guard (BrowserRouter): navigate(-1) released by ${choice} leaves without asking again`, async ({
+    page,
+  }) => {
+    await openHarnessItem(page);
+    await page.getByTestId("harness-value").fill("draft");
+    await page.getByTestId("harness-history-back").click();
+    await expect(page.getByTestId("leave-guard")).toBeVisible();
+    await page.getByTestId(`leave-guard-${choice}`).click();
+    await expect(page.getByTestId("harness-list")).toBeVisible();
+    expect(pathOf(page)).toBe("/");
+    await expectNoDialog(page);
+  });
+}
+
+// The released step back stays on the same route, so the form and its hold stay mounted when the
+// step's own `popstate` arrives (the media panel opened by a query parameter).
+for (const choice of ["discard", "save"] as const) {
+  test(`leave guard (BrowserRouter): navigate(-1) on the same route, released by ${choice}, asks once`, async ({
+    page,
+  }) => {
+    await page.goto("/?harness=leave-guard");
+    await page.getByTestId("harness-open-here").click();
+    await expect(page).toHaveURL(/panel=1/);
+    await page.getByTestId("harness-value").fill("draft");
+    await page.getByTestId("harness-history-back").click();
+    await expect(page.getByTestId("leave-guard")).toBeVisible();
+    await page.getByTestId(`leave-guard-${choice}`).click();
+    await expect(page).not.toHaveURL(/panel=1/);
+    await expectNoDialog(page);
+  });
+}
+
+test("leave guard (BrowserRouter): a guarded Back with a draft leaves after Discard, asking once", async ({
+  page,
+}) => {
+  await openHarnessItem(page);
+  await page.getByTestId("harness-value").fill("draft");
+  await page.getByTestId("harness-back").click();
+  await expect(page.getByTestId("leave-guard")).toBeVisible();
+  await page.getByTestId("leave-guard-discard").click();
+  await expect(page.getByTestId("harness-list")).toBeVisible();
+  await expectNoDialog(page);
+});
+
+// #235 (Q&A #3872, `GL-UI-007`): in the media panel `Esc` opens the leave dialog, and the next `Esc`
+// is Abbrechen: only the dialog closes, it does not come back, and the panel keeps its draft.
+// The second `Esc` right after the first, before the dialog has taken the key: still Abbrechen.
+test("leave guard: in the media panel two quick Esc open and cancel the dialog", async ({
+  page,
+}) => {
+  const shell = await openMediaDetail(page);
+  await shell.getByLabel("Name").fill("renamed.jpg");
+  await page.keyboard.press("Escape");
+  await page.keyboard.press("Escape");
+  await expectNoDialog(page);
+  await expect(shell).toBeVisible();
+  await expect(shell.getByLabel("Name")).toHaveValue("renamed.jpg");
+});
+
+test("leave guard: in the media panel a second Esc cancels the dialog for good", async ({
+  page,
+}) => {
+  const shell = await openMediaDetail(page);
+  await shell.getByLabel("Name").fill("renamed.jpg");
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("leave-guard")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("leave-guard")).toHaveCount(0);
+  await expectNoDialog(page);
+  await expect(shell).toBeVisible();
+  await expect(shell.getByLabel("Name")).toHaveValue("renamed.jpg");
+});
+
 // `SUI-FEATURE-061` AC 3: one surface geometry for the shell and the edit panel.
 test("media detail shell: the same box as the edit panel", async ({ page }) => {
   await page.goto("/?page=edit-panel");

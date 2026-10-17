@@ -7,6 +7,7 @@ import { createRoot } from "react-dom/client";
 import { initReactI18next, useTranslation } from "react-i18next";
 
 import { registerSuiteStrings, suiteStrings, type SuiteLanguage } from "../src/strings/index.js";
+import { installLeaveGuard } from "../src/ui/leave-guard.js";
 import { ComponentsPage } from "./ComponentsPage.js";
 import { EditorShellPage } from "./EditorShellPage.js";
 import { EditPanelPage } from "./EditPanelPage.js";
@@ -14,6 +15,7 @@ import { GridPage } from "./GridPage.js";
 import { HelpPage } from "./HelpPage.js";
 import { InsetPage } from "./InsetPage.js";
 import { KeysPage } from "./KeysPage.js";
+import { LeaveGuardHarness } from "./LeaveGuardHarness.js";
 import { ListPage } from "./ListPage.js";
 import {
   ConfirmPage,
@@ -213,8 +215,10 @@ function Gallery() {
 await Promise.allSettled(
   [400, 500, 600, 700].map((weight) => document.fonts.load(`${weight} 1em "Gallery Inter"`)),
 );
+// The leave guard's harness installs the guard as an app's entry does, before its router renders;
+// `&install=none` leaves that out, as when the guard only arrives with a lazy route (#235).
+const harness = params.get("harness") === "leave-guard";
+if (harness && params.get("install") !== "none") installLeaveGuard();
 createRoot(document.getElementById("root") as HTMLElement).render(
-  <StrictMode>
-    <Gallery />
-  </StrictMode>,
+  <StrictMode>{harness ? <LeaveGuardHarness /> : <Gallery />}</StrictMode>,
 );

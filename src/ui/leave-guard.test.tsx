@@ -17,10 +17,12 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import { Dialog, DialogContent, DialogTitle } from "./dialog.js";
 import { EditPanel, type EditPanelProps } from "./edit-panel.js";
 import { Input } from "./input.js";
-import { isDirty, useLeaveGuard } from "./leave-guard.js";
+import { installLeaveGuard, isDirty, useLeaveGuard } from "./leave-guard.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select.js";
 
 beforeAll(() => {
+  // As an app's entry does, before any router renders (#235).
+  installLeaveGuard();
   // What radix Select needs from the browser and jsdom lacks.
   Element.prototype.hasPointerCapture = () => false;
   Element.prototype.releasePointerCapture = () => {};
@@ -799,6 +801,65 @@ describe("browser back and forward under BrowserRouter (GL-UI-007 rev 2)", () =>
     await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/list"));
     expect(window.location.pathname).toBe("/list");
     expect(screen.queryByTestId("leave-guard")).toBeNull();
+  });
+
+  // #235: installed in the entry (`beforeAll`), the first hold does not warn.
+  it("does not warn about installLeaveGuard() once it was called", () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    onDirtyDetail();
+    expect(
+      warn.mock.calls.filter((call) => String(call[0]).includes("installLeaveGuard()")),
+    ).toHaveLength(0);
+    warn.mockRestore();
+  });
+
+  // #235: a released `go` past the end of the history fires no `popstate`; the push after it starts
+  // afresh, so a later back to that entry still asks instead of slipping through.
+  it("a released go that never arrives does not let a later back through", async () => {
+    function Steps() {
+      const navigate = useNavigate();
+      return (
+        <>
+          <button type="button" data-testid="step-forward" onClick={() => void navigate(1)}>
+            Forward
+          </button>
+          <button type="button" data-testid="to-a" onClick={() => void navigate({ search: "?a" })}>
+            A
+          </button>
+          <button type="button" data-testid="to-b" onClick={() => void navigate({ search: "?b" })}>
+            B
+          </button>
+        </>
+      );
+    }
+    window.history.replaceState(null, "", "/detail");
+    render(
+      <BrowserRouter>
+        <Steps />
+        <Routes>
+          <Route path="/detail" element={<DetailPage />} />
+        </Routes>
+      </BrowserRouter>,
+    );
+    edit();
+    const discard = async () => {
+      fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+      await waitFor(() => expect(screen.queryByTestId("leave-guard")).toBeNull());
+    };
+    // Forward from the last entry: released, but nothing to go to.
+    fireEvent.click(screen.getByTestId("step-forward"));
+    await discard();
+    // Two pushes, each released; the draft stays.
+    fireEvent.click(screen.getByTestId("to-a"));
+    await discard();
+    await waitFor(() => expect(window.location.search).toBe("?a"));
+    fireEvent.click(screen.getByTestId("to-b"));
+    await discard();
+    await waitFor(() => expect(window.location.search).toBe("?b"));
+    // Back to "?a": it asks.
+    act(() => window.history.back());
+    await screen.findByTestId("leave-guard");
+    await waitFor(() => expect(window.location.search).toBe("?b"));
   });
 
   it("Forward asks the same; Save lands at the target", async () => {
