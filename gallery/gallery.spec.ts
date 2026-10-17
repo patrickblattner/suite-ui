@@ -4537,6 +4537,22 @@ test("target size: hint triggers hit at 24 × 24 px and move no neighbour", asyn
   expect(await layout()).toEqual(before);
 });
 
+// The box of a control once it and its ancestors have stopped moving. An in-flight transform maps the
+// box through float math: a toast sliding in measured its 24 px close button 23.999996 px high (#142).
+async function settledBox(locator: Locator) {
+  await expect
+    .poll(() =>
+      locator.evaluate((el) => {
+        for (let node: Element | null = el; node; node = node.parentElement)
+          if (node.getAnimations().some((a) => ["running", "pending"].includes(a.playState)))
+            return false;
+        return true;
+      }),
+    )
+    .toBe(true);
+  return locator.boundingBox();
+}
+
 test("target size: the close buttons of dialog, panel and toast", async ({ page }) => {
   for (const [name, close] of [
     ["dialog", (p: Page) => p.getByTestId("form-dialog").getByRole("button", { name: "Close" })],
@@ -4544,7 +4560,13 @@ test("target size: the close buttons of dialog, panel and toast", async ({ page 
     ["toast", (p: Page) => p.locator("[data-close-button]").first()],
   ] as const) {
     await page.goto(`/?page=${name}&lng=en`);
-    const box = await close(page).boundingBox();
+    // A toast starts its slide-in only once mounted; before that nothing runs yet.
+    if (name === "toast")
+      await expect(page.locator("[data-sonner-toast]").first()).toHaveAttribute(
+        "data-mounted",
+        "true",
+      );
+    const box = await settledBox(close(page));
     expect(box?.width, name).toBeGreaterThanOrEqual(24);
     expect(box?.height, name).toBeGreaterThanOrEqual(24);
     const icon = await close(page).locator("svg").boundingBox();
