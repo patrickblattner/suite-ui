@@ -17,6 +17,7 @@
 import * as React from "react";
 
 import {
+  ENTRY_FRAME_ATTR,
   focusListEntry,
   GRID_ITEM_ATTR,
   LIST_FRAME_SELECTOR,
@@ -135,7 +136,11 @@ function captureOpener(focused: Element | null = document.activeElement): Opener
   const active = lost ? lastFocus : focused;
   const control = triggerOf(active);
   if (control === null) return null;
-  const entryNode = control.closest<HTMLElement>(`[${GRID_ITEM_ATTR}]`);
+  // A control beside its entry, in the entry's frame, finds it there.
+  const entryNode =
+    control.closest<HTMLElement>(`[${GRID_ITEM_ATTR}]`) ??
+    control.closest(`[${ENTRY_FRAME_ATTR}]`)?.querySelector<HTMLElement>(`[${GRID_ITEM_ATTR}]`) ??
+    null;
   const frame = entryNode?.closest<HTMLElement>(LIST_FRAME_SELECTOR) ?? null;
   // In a list with the keyboard grid the entry is the unit: it counts as the trigger, however the
   // dialog was opened (a key on the entry, a button in it, its ⋯ menu; `GL-UI-050` rev 4).

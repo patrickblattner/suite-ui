@@ -1876,6 +1876,40 @@ test("media tile: Tab reaches the tile with the focus ring, Enter and click open
   );
 });
 
+// `SUI-FEATURE-084` rev 5: a tile with `onDelete` shows its delete button in the top-right corner
+// without hover or focus, light and dark, on an image and an icon tile; a click asks to delete once
+// and opens nothing. A tile without `onDelete` has none.
+for (const theme of ["light", "dark"]) {
+  test(`media tile: the delete button is always visible, ${theme}`, async ({ page }) => {
+    await page.goto(`/?page=tiles&lng=en&theme=${theme}`);
+    const grid = page.getByTestId("media-tiles");
+    await expect(grid.getByTestId("media-tile")).toHaveCount(6);
+    // Only the two tiles with `onDelete` carry one.
+    await expect(grid.getByTestId("media-tile-delete")).toHaveCount(2);
+    for (const [index, name] of [
+      [0, "team-photo.jpg"],
+      [1, "intro.mp4"],
+    ] as const) {
+      const tile = grid.getByTestId("media-tile").nth(index);
+      const button = grid.getByRole("button", { name: `Delete ${name}` });
+      await expect(button).toBeVisible();
+      await expect(button).toHaveCSS("opacity", "1");
+      const [tileBox, buttonBox] = [await box(tile), await box(button)];
+      expect(buttonBox.width).toBe(24);
+      expect(buttonBox.height).toBe(24);
+      // In the top-right corner, over the preview.
+      expect(tileBox.x + tileBox.width - (buttonBox.x + buttonBox.width)).toBeCloseTo(8, 0);
+      expect(buttonBox.y - tileBox.y).toBeCloseTo(8, 0);
+      // Filled destructive, not the tile's own colour.
+      const fill = await button.evaluate((node) => getComputedStyle(node).backgroundColor);
+      expect(fill).not.toBe("rgba(0, 0, 0, 0)");
+      await button.click();
+      await expect(grid).toHaveAttribute("data-deleted", name);
+      await expect(grid.getByTestId("media-tiles-opened")).toHaveText("–");
+    }
+  });
+}
+
 // `GL-UI-007` rev 3: a mouse-triggered leave opens the guard with the focus on Save and its ring
 // visible; Enter saves and carries out the held close, Esc stays.
 test("leave guard: the dialog opens on Save with its ring; Esc stays, Enter saves and leaves", async ({

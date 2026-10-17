@@ -1,8 +1,11 @@
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { hintOf } from "../list/test-utils.js";
 import { TileGridShell } from "../list/tile-grid-shell.js";
 import { useRowGrid } from "../list/use-row-grid.js";
+import { ConfirmDeleteDialog } from "./confirm-delete-dialog.js";
 import { MediaTile, type MediaTileProps } from "./media-tile.js";
 
 afterEach(() => {
@@ -274,5 +277,124 @@ describe("MediaTile in a keyboard grid (SUI-FEATURE-084)", () => {
     expect(tile).not.toHaveAttribute("aria-pressed");
     expect(tile).not.toHaveAttribute("data-selected");
     expect(tile.querySelector("[data-slot=media-tile-selection]")).toBeNull();
+  });
+});
+
+describe("MediaTile delete button (SUI-FEATURE-084 rev 5)", () => {
+  const deleteButton = () => screen.queryByTestId("media-tile-delete");
+
+  // AC 5
+  it.each([
+    ["an image", { kind: "image" as const, src: "hero.jpg" }],
+    ["an icon", { kind: "pdf" as const, src: undefined, extension: "pdf" }],
+  ])("on %s tile it stands in the corner, always shown, filled destructive icon-xs", (_, kind) => {
+    const { tile } = renderTile({ ...kind, onDelete: vi.fn() });
+    const button = deleteButton()!;
+    expect(button.tagName).toBe("BUTTON");
+    // Its own hit target beside the tile, not nested in the open button.
+    expect(tile.contains(button)).toBe(false);
+    const corner = button.closest<HTMLElement>("[data-slot=media-tile-actions]")!;
+    expect(corner).toHaveClass("absolute", "top-2", "right-2");
+    expect(corner.parentElement).toBe(tile.parentElement);
+    // No reveal on hover or focus: neither the button nor its corner is hidden at rest.
+    for (const node of [button, corner]) {
+      expect(node.className).not.toMatch(/opacity-0|invisible|hidden|group-hover|group-focus/);
+    }
+    expect(button).toHaveClass("bg-destructive", "size-6");
+  });
+
+  it("is named and hinted Delete ‹name›", () => {
+    renderTile({ onDelete: vi.fn() });
+    expect(deleteButton()).toHaveAccessibleName("Delete hero.jpg");
+    expect(hintOf(deleteButton()!).hover1500).toBe("Delete hero.jpg");
+  });
+
+  it("a click calls onDelete once and does not open the tile", () => {
+    const onDelete = vi.fn();
+    const { onOpen } = renderTile({ onDelete });
+    fireEvent.click(deleteButton()!);
+    expect(onDelete).toHaveBeenCalledOnce();
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it("without onDelete there is no button and no frame", () => {
+    const { tile } = renderTile();
+    expect(deleteButton()).toBeNull();
+    expect(tile.closest("[data-slot=media-tile-frame]")).toBeNull();
+  });
+
+  it("in a grid it shows the Delete chip and is no grid entry", () => {
+    const onDelete = vi.fn();
+    render(<GridTiles tiles={[{ name: "a", onOpen: vi.fn(), onDelete }]} />);
+    const button = deleteButton()!;
+    expect(button).toHaveAttribute("aria-keyshortcuts");
+    expect(button).not.toHaveAttribute("data-grid-item");
+    expect(screen.getAllByTestId("media-tile")).toHaveLength(1);
+  });
+});
+
+// GL-UI-050 rev 4: the corner button acts for its tile, so the tile is the unit the focus returns to.
+describe("MediaTile delete button and the focus after the confirmation", () => {
+  function Deletable() {
+    const { gridProps, rowProps } = useRowGrid();
+    const [names, setNames] = useState(["a", "b", "c"]);
+    const [pending, setPending] = useState<string | null>(null);
+    return (
+      <main>
+        <TileGridShell
+          isPending={false}
+          isEmpty={false}
+          loadingTestId="tiles-loading"
+          emptyTestId="tiles-empty"
+          gridProps={gridProps}
+        >
+          {names.map((name) => (
+            <MediaTile
+              key={name}
+              kind="pdf"
+              name={name}
+              tags={[]}
+              rowProps={rowProps}
+              onOpen={vi.fn()}
+              onDelete={() => setPending(name)}
+              data-testid={`t-${name}`}
+            />
+          ))}
+        </TileGridShell>
+        <ConfirmDeleteDialog
+          open={pending !== null}
+          onOpenChange={(open) => {
+            if (!open) setPending(null);
+          }}
+          onConfirm={() => {
+            setNames((all) => all.filter((name) => name !== pending));
+            setPending(null);
+          }}
+          description="Gone."
+          data-testid="confirm"
+        />
+      </main>
+    );
+  }
+
+  function deleteB() {
+    const button = screen.getByTestId("t-b-delete");
+    act(() => button.focus());
+    fireEvent.click(button);
+  }
+
+  it("Cancel returns the focus to the tile, not to the button", async () => {
+    render(<Deletable />);
+    deleteB();
+    fireEvent.click(await screen.findByTestId("confirm-cancel"));
+    await waitFor(() => expect(screen.getByTestId("t-b")).toHaveFocus());
+  });
+
+  it("confirm puts the focus on the tile now in its place", async () => {
+    render(<Deletable />);
+    deleteB();
+    fireEvent.click(await screen.findByTestId("confirm-confirm"));
+    await waitFor(() => expect(screen.queryByTestId("t-b")).toBeNull());
+    await waitFor(() => expect(screen.getByTestId("t-c")).toHaveFocus());
   });
 });

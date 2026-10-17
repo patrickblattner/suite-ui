@@ -73,6 +73,9 @@ const MEDIA: Omit<MediaTileProps, "onOpen">[] = [
   { kind: "image", src: PICTURE, name: "bare.jpg", tags: [], selected: true },
 ];
 
+// `SUI-FEATURE-084` rev 5: an image and an icon tile carry the always-visible delete button.
+const DELETABLE = new Set(["team-photo.jpg", "intro.mp4"]);
+
 type State = Pick<ListStateProps, "isPending" | "isEmpty" | "isError" | "filtered">;
 
 // The four list states plus a filled grid, each in its own fixed-height tile frame (`SUI-FEATURE-046`).
@@ -101,6 +104,8 @@ export function TilesPage() {
   const [sort, setSort] = useSort();
   const [view, setView] = useListView("gallery-media-view");
   const [opened, setOpened] = useState("–");
+  // The tile whose delete was asked for last; the gallery test reads it.
+  const [deleted, setDeleted] = useState("");
   const states = {
     emptyObjects: labels.objects,
     onAdd: { label: labels.add, onClick: () => {} },
@@ -155,7 +160,11 @@ export function TilesPage() {
           }}
         />
       </section>
-      <section className="flex h-[22rem] flex-col gap-2" data-testid="media-tiles">
+      <section
+        className="flex h-[22rem] flex-col gap-2"
+        data-testid="media-tiles"
+        data-deleted={deleted}
+      >
         <h3 className="text-sm text-muted-foreground">
           MediaTile · opened: <span data-testid="media-tiles-opened">{opened}</span>
         </h3>
@@ -167,7 +176,12 @@ export function TilesPage() {
           scrollTestId="media-tiles-scroll"
         >
           {MEDIA.map((medium) => (
-            <MediaTile key={medium.name} {...medium} onOpen={() => setOpened(medium.name)} />
+            <MediaTile
+              key={medium.name}
+              {...medium}
+              onOpen={() => setOpened(medium.name)}
+              onDelete={DELETABLE.has(medium.name) ? () => setDeleted(medium.name) : undefined}
+            />
           ))}
         </TileGridShell>
       </section>

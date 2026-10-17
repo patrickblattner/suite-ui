@@ -5,6 +5,12 @@
 /** Marks every entry of a list; the arrows find their entries by it. */
 const GRID_ITEM_ATTR = "data-grid-item";
 
+/**
+ * Marks the frame around an entry and a control beside it (a `MediaTile` with its corner delete): a
+ * control in it acts for that entry, as if it sat inside it.
+ */
+const ENTRY_FRAME_ATTR = "data-grid-entry-frame";
+
 /** The frame of a list (`DataTableShell`, `TileGridShell`), focusable as the fallback target. */
 const LIST_FRAME_SELECTOR = "[data-slot=list-frame]";
 
@@ -27,4 +33,11 @@ function focusListEntry(frame: HTMLElement, index: number): void {
   else target.focus();
 }
 
-export { focusListEntry, focusListFrame, GRID_ITEM_ATTR, LIST_FRAME_SELECTOR, listEntries };
+export {
+  ENTRY_FRAME_ATTR,
+  focusListEntry,
+  focusListFrame,
+  GRID_ITEM_ATTR,
+  LIST_FRAME_SELECTOR,
+  listEntries,
+};

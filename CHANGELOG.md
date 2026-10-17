@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.116.0 — #193, SUI-FEATURE-084 rev 5: an always-visible delete button on `MediaTile`
+
+Not breaking. A `MediaTile` with `onDelete` now shows a delete button in its top-right corner, always visible: no hover or focus reveal, no ⋯ menu. It is the same element as the delete action of `RowActions` (filled `destructive`, `icon-xs`, 24 × 24 px). Its name and hint read "Delete ‹name›". In a keyboard grid (`rowProps`) it shows the Delete chip, because the tile binds the same handler to Delete/Backspace. A click calls `onDelete` once, so the app's confirmation runs, and does not open the tile. Without `onDelete` there is no button, and the tile renders as before.
+
+- How: with `onDelete`, the tile and the button stand side by side in a frame (`data-slot="media-tile-frame"`), with the button positioned over the tile's corner. That keeps the button its own hit target and never nests it in the open button (`GL-UI-013`). The tile keeps its `data-testid`; the button's test id is the tile's plus `-delete` (by default `media-tile-delete`).
+- Focus after the confirmation (`GL-UI-050` rev 4): the frame carries the new marker `data-grid-entry-frame` (`ENTRY_FRAME_ATTR` in `lib/list-focus`). A dialog opened from a control in such a frame takes the frame's grid entry as its trigger, the same as a button inside a table row. So Cancel returns the focus to the tile, and a confirmed delete moves it to the tile now in that place, the same as with the Delete key.
+
+**Migration:** none in code. Community: the media library's tile view passes `onDelete` where the role may delete, and the button appears on its own. Cockpit: passes `onDelete` only with the right to delete, with the next package update.
+
+The gallery's tiles page gives `team-photo.jpg` (image) and `intro.mp4` (icon) an `onDelete`. Baselines: the `tiles-*` set (en/de/es, light/dark, plus de 390/1440) changed, by the two delete buttons only.
+
 ## 0.115.0 — #192, GL-UI-028 rev 4 / SUI-FEATURE-086: toast offset below the editor header in a full-screen editor
 
 Not breaking. New export `useEditorShellToastOffset(headerRef)` from `@suite/ui/ui/toaster`. A full-screen editor (`GL-UI-040` point 7) is its own shell. While the hook is mounted, it measures the document-relative bottom edge (`bottom + scrollY`) of the element that wraps the `EditorHeader`, and sets `--toast-offset-top` on the document root to that edge plus the new `--toast-gap` (0.5rem). The app shell's `--toast-offset-top` uses the same `--toast-gap`, so the two gaps can't drift apart. The hook measures again when the header resizes (a header that wraps grows), when its parent or the body resizes (a band inserted above moves the header down), and when the window resizes. A MutationObserver on the body (its tree, and `class`, `style` and `hidden`) also triggers a measurement, at most one per animation frame. It catches a full-height editor where a band above the header only shrinks the canvas. A wrapper that renders only after a loading state is picked up on the render that mounts it. On unmount the hook removes the value, and the app shell's default from `styles.css` applies again. The hook is meant for one mounted editor shell at a time. `EditorHeader` is unchanged: it takes no new prop and measures nothing.
