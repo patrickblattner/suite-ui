@@ -206,10 +206,10 @@ function Gallery() {
   );
 }
 
-// The substitute font (gallery.css) is loaded before the first render, so a component that measures
-// text on mount sees the final glyphs (`GL-TEST-019`: a still scene). CanvasOverlay's badge does not yet
-// re-measure after a font swap; that is #218. A cut that fails to load leaves the fallback font, never a
-// blank gallery.
+// The substitute font (gallery.css) is loaded before the first render, so every capture shows the final
+// layout (`GL-TEST-019`: a still scene). Kept on purpose: CanvasOverlay re-measures after a font swap
+// (#218), but a popper placed before the swap — the open Select at 390 px — stays 1 px off. A cut that
+// fails to load leaves the fallback font, never a blank gallery.
 await Promise.allSettled(
   [400, 500, 600, 700].map((weight) => document.fonts.load(`${weight} 1em "Gallery Inter"`)),
 );

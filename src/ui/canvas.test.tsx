@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import i18n from "i18next";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -253,6 +253,30 @@ describe("CanvasOverlay (SUI-FEATURE-070)", () => {
       </div>,
     );
     expect(badge).toHaveStyle({ left: "-2px" });
+  });
+
+  // #218: a web font that loads after mount widens the badge; it is measured again and moves left.
+  it("a badge that grows after mount moves further left and stays within the frame", () => {
+    const observers: (() => void)[] = [];
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(callback: () => void) {
+          observers.push(callback);
+        }
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    mockSizes({ overlay: 500 });
+    renderOverlay({ selected: { rect: rect(470, 100, 30, 40), name: "Hero" } });
+    const badge = screen.getByTestId("canvas-name");
+    expect(badge).toHaveStyle({ left: "-32px" });
+    // The font swaps in: the badge is 80 wide now and ends at 500 from 420.
+    mockSizes({ overlay: 500, text: 80 });
+    act(() => observers.forEach((callback) => callback()));
+    expect(badge).toHaveStyle({ left: "-52px" });
   });
 
   // AC 9 (rev 4)

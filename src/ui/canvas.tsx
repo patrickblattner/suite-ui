@@ -62,18 +62,28 @@ function CanvasOverlay({
     badge: { width: 0, height: 0 },
   });
   // The sizes of the overlay, the bar and the name badge decide their sides; they are measured
-  // whenever the selection or its actions change, and again once the badge's width is capped.
+  // whenever the selection or its actions change, again once the badge's width is capped, and
+  // whenever one of them resizes — a web font that loads after mount widens the badge (#218).
   React.useLayoutEffect(() => {
     const measure = (node: HTMLElement | null) => ({
       width: node?.offsetWidth ?? 0,
       height: node?.offsetHeight ?? 0,
     });
-    const next = {
-      overlay: measure(node),
-      bar: measure(barRef.current),
-      badge: measure(badgeRef.current),
+    const update = () => {
+      const next = {
+        overlay: measure(node),
+        bar: measure(barRef.current),
+        badge: measure(badgeRef.current),
+      };
+      setSize((current) => (JSON.stringify(current) === JSON.stringify(next) ? current : next));
     };
-    setSize((current) => (JSON.stringify(current) === JSON.stringify(next) ? current : next));
+    update();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(update);
+    for (const element of [node, barRef.current, badgeRef.current]) {
+      if (element !== null) observer.observe(element);
+    }
+    return () => observer.disconnect();
   }, [node, selected, actions, size.overlay.width]);
   // The badge stands above the selection, its left edge on the frame's outer edge; without room up to
   // the overlay's edge it moves inside the top left corner. Past the right edge it moves left, and

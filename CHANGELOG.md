@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.123.3 — #218: the canvas name badge re-measures after a font swap
+
+Not breaking. `CanvasOverlay` measures the overlay, the action bar and the name badge again whenever one of them resizes (a `ResizeObserver`), not only when it mounts or the selection changes. Before, a web font that loaded after mount made the badge wider than it was measured, and at the right edge it stuck out past the frame (2 px in the gallery with Inter). Now it moves left and stays inside the frame. The gallery keeps waiting for its substitute font before the first render, on purpose, so the captures are deterministic: a popper placed before the font swap (the open Select at 390 px) would stay 1 px off. **Migration:** none. Baselines: none changed.
+
 ## 0.123.2 — #217, SUI-FEATURE-076 rev 9: native gallery runs and a substitute font in the gallery
 
 Not breaking. Gallery only, the package ships no font. The gallery phase runs natively in the arm64 Playwright image, without amd64 emulation. The gallery loads a checked-in OFL substitute font, Inter with real cuts 400/500/600/700, only from `gallery.css`, so a font-weight change now shows in the baselines. The gallery waits for the font before its first render; that `CanvasOverlay`'s name badge does not re-measure after a font swap is #218. The gallery's own header bar wraps where it is too narrow. **Migration:** none. Baselines: all re-recorded once with the substitute font.
