@@ -6406,7 +6406,7 @@ for (const width of [320, 390]) {
       expect(main.y).toBeGreaterThanOrEqual(nav.y + nav.height - 1);
       expect(main.width).toBeGreaterThanOrEqual(width - 2);
       for (const heading of await content.locator("h1, h2").all()) {
-        expect(await overflow(heading), await heading.textContent()).toBeLessThanOrEqual(0);
+        expect(await overflow(heading), (await heading.textContent()) ?? "").toBeLessThanOrEqual(0);
         const at = await box(heading);
         expect(at.x + at.width).toBeLessThanOrEqual(width);
       }
