@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.123.2 — #217, SUI-FEATURE-076 rev 9: native gallery runs and a substitute font in the gallery
+
+Not breaking. Gallery only, the package ships no font. The gallery phase runs natively in the arm64 Playwright image, without amd64 emulation. The gallery loads a checked-in OFL substitute font, Inter with real cuts 400/500/600/700, only from `gallery.css`, so a font-weight change now shows in the baselines. The gallery waits for the font before its first render; that `CanvasOverlay`'s name badge does not re-measure after a font swap is #218. The gallery's own header bar wraps where it is too narrow. **Migration:** none. Baselines: all re-recorded once with the substitute font.
+
 ## 0.123.1 — #213, GL-UX-001 / SUI-FEATURE-038: the help drawer reflows at narrow widths
 
 Not breaking. Below `sm` (640 px), the `HelpDrawer` stacks its navigation (search, pages, version) above the content, and the drawer scrolls as one column. The content padding narrows to `px-4`. At 320 and 390 px, neither the drawer nor the document scrolls sideways, headings are no longer cut off, and the text wraps across the drawer's width instead of one word per line. From `sm` on, the layout is unchanged: the 256 px navigation stays beside the content, which keeps `px-8`. Below `sm`, the search stays on top as a sticky bar while the column scrolls (`SUI-FEATURE-038`). This is CSS only: the navigation column becomes `display: contents`, so the search is one element in one place at any width and keeps its focus, caret and query when the width crosses `sm`. Picking a page there moves the focus to the content and scrolls it into view below the bar; from `sm` up, the focus stays on the link as before. **Migration:** none. Baselines: `help-de-light-390` and `help-de-dark-390` changed; the wide help captures are unchanged.
