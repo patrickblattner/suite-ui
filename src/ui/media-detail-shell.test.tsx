@@ -8,6 +8,7 @@ import { SidebarProvider, useSidebar } from "../shell/sidebar-provider.js";
 import { EditPanel } from "./edit-panel.js";
 import { Input } from "./input.js";
 import {
+  type MediaDetailKind,
   MediaDetailShell,
   type MediaDetailShellProps,
   MediaUsageList,
@@ -754,6 +755,17 @@ describe("MediaDetailShell: props keyed on kind (#167)", () => {
       <MediaDetailShell key="other" {...base} kind="other" />,
     ];
     expect(shells).toHaveLength(8);
+  });
+
+  it("a caller holding the wide kind compiles with a string src, not with a possibly missing one", () => {
+    const kind = "image" as MediaDetailKind;
+    const src = undefined as string | undefined;
+    const shells = [
+      <MediaDetailShell key="wide" {...base} kind={kind} src="x" />,
+      // @ts-expect-error a possibly missing src needs a previewState or a narrowed kind
+      <MediaDetailShell key="wide-undefined" {...base} kind={kind} src={src} />,
+    ];
+    expect(shells).toHaveLength(2);
   });
 
   it.each([

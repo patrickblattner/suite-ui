@@ -41,9 +41,10 @@ type MediaDetailFileKind = "image" | "video" | "audio" | "pdf";
 
 // What the preview shows, keyed on `kind` (#167): an image, video, audio or PDF needs its address,
 // unless a `previewState` stands in for the preview (a `missingRef` entry has none). A text medium
-// passes its content as `text`; `other` shows the file icon.
+// passes its content as `text`; `other` shows the file icon. Any kind takes a string `src`, so a
+// caller holding the wide `MediaDetailKind` compiles without narrowing.
 type MediaDetailSource =
-  | { kind: MediaDetailFileKind; src: string; previewState?: MediaPreviewState }
+  | { kind: MediaDetailKind; src: string; previewState?: MediaPreviewState }
   | { kind: MediaDetailFileKind; src?: string; previewState: MediaPreviewState }
   | { kind: "text" | "other"; src?: string; previewState?: MediaPreviewState };
 
