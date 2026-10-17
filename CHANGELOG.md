@@ -1,8 +1,8 @@
 # Changelog
 
-## 0.119.2 — #177, SUI-FEATURE-015 / GL-UX-001: the user menu's appearance options are one radiogroup stop
+## 0.119.2 — #177, SUI-FEATURE-082 rev 7 / GL-UX-001: the user menu's appearance options are one radiogroup stop
 
-Not breaking. In the open user menu, the appearance options (System · Light · Dark) follow the WAI-ARIA radiogroup pattern. They are one Tab stop: the checked option has `tabindex="0"`, the others `-1`. ←/→ choose the next or previous option, wrap at the ends, and move the focus with the choice. ↑/↓, Home and End stay the panel's moves between its stops (`SUI-FEATURE-082`); Q&A #3791 asks whether ↑/↓ should change the choice inside the group too. **Migration:** none. Baselines: none changed.
+Not breaking. In the open user menu, the appearance options (System · Light · Dark) follow the WAI-ARIA radiogroup pattern. They are one Tab stop: the checked option has `tabindex="0"`, the others `-1`. ←/→ choose the next or previous option, wrap at the ends, and move the focus with the choice. ↑/↓, Home and End stay the panel's moves between its stops (`SUI-FEATURE-082` rev 7). Q&A #3791 is answered and confirms this: ←/→ choose with wrap, ↑/↓, Home and End stay the panel's moves. **Migration:** none. Baselines: none changed.
 
 ## 0.119.1 — #172, GL-UI-013: the focusable span around a locked control shows the package focus ring
 
