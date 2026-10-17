@@ -36,7 +36,18 @@ type MediaDetailKind = "image" | "video" | "audio" | "pdf" | "text" | "other";
 // a type without a preview.
 type MediaPreviewState = "missingRef" | "missingBytes" | "noRenderer";
 
-type MediaDetailShellProps = {
+// The kinds whose preview shows the file at an address.
+type MediaDetailFileKind = "image" | "video" | "audio" | "pdf";
+
+// What the preview shows, keyed on `kind` (#167): an image, video, audio or PDF needs its address,
+// unless a `previewState` stands in for the preview (a `missingRef` entry has none). A text medium
+// passes its content as `text`; `other` shows the file icon.
+type MediaDetailSource =
+  | { kind: MediaDetailFileKind; src: string; previewState?: MediaPreviewState }
+  | { kind: MediaDetailFileKind; src?: string; previewState: MediaPreviewState }
+  | { kind: "text" | "other"; src?: string; previewState?: MediaPreviewState };
+
+type MediaDetailShellProps = MediaDetailSource & {
   open?: boolean;
   // 1-based position of the medium in the set the view pages through, and the set's size.
   position: number;
@@ -44,15 +55,11 @@ type MediaDetailShellProps = {
   onPrev: () => void;
   onNext: () => void;
   onClose: () => void;
-  kind: MediaDetailKind;
-  // The medium's address; a text medium passes its content as `text` instead.
-  src?: string;
   // `kind="text"`: the content, shown as it is or, with `format="json"`, indented when it parses.
   text?: string;
   format?: "plain" | "json";
-  // Given, replaces the preview by `kind` with a quiet state; `previewDetail` stands muted below its
-  // sentence (the file name or type, say).
-  previewState?: MediaPreviewState;
+  // With `previewState` (see `MediaDetailSource`), which replaces the preview by `kind` with a quiet
+  // state: the app's line muted below its sentence (the file name or type, say).
   previewDetail?: string;
   // The text alternative of the preview: `alt` of an image, the name of a video, audio or PDF frame.
   alt?: string;
@@ -234,7 +241,8 @@ function MediaPreview({
   alt,
 }: {
   kind: MediaDetailKind;
-  src: string;
+  // Absent, no `src` is rendered at all, never `src=""`.
+  src: string | undefined;
   text: string;
   format: "plain" | "json";
   alt: string;
@@ -254,7 +262,13 @@ function MediaPreview({
     case "audio":
       return <audio src={src} controls aria-label={alt || undefined} className="w-full px-6" />;
     case "pdf":
-      return <iframe src={src} title={alt || src} className="size-full border-0 bg-background" />;
+      return (
+        <iframe
+          src={src}
+          title={alt || src || undefined}
+          className="size-full border-0 bg-background"
+        />
+      );
     case "text":
       return <TextPreview text={text} format={format} alt={alt} />;
     case "other":
@@ -305,7 +319,7 @@ function MediaDetailShell({
   onNext,
   onClose,
   kind,
-  src = "",
+  src,
   text = "",
   format = "plain",
   previewState,
@@ -631,7 +645,9 @@ function MediaUsageList({ items }: MediaUsageListProps) {
 }
 
 export {
+  type MediaDetailFileKind,
   type MediaDetailKind,
+  type MediaDetailSource,
   type MediaPreviewState,
   MediaDetailShell,
   type MediaDetailShellProps,
