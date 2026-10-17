@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.122.0 — #202, SUI-FEATURE-087 rev 6: the alignment grid after the taste decisions (Q&A #3773–#3777)
+
+Not breaking in the API. The look of `GridToggle` and `GridOverlay` changes, and one Spanish label changes.
+
+- New export `Field` from `@suite/ui/ui/field`: the neutral field building block. It puts the label above the control, the help or error text under it, `aria-invalid` and `aria-errormessage` on the package controls inside, and gives the label the id `${htmlFor}-label`. `SettingsField` and `GridFields` are both built on it, with no visible change to `SettingsField`.
+- `GridFields`: the Spanish label for the gutter reads "Separación" instead of "Medianil".
+- `GridToggle`: pressed is the primary fill, now one shared value with the RowActions "Used by" toggle. The package's other toggles keep their look. In `mode="getrennt"` it is one joined split button: one frame, with a narrow arrow segment for "Grid options". While snapping is on, the arrow segment carries a primary dot, so snapping never runs unseen while the lines are off.
+- `GridOverlay`: the halo behind each line is 2 px at 50 % (was 3 px).
+
+**Migration:** none in code. App tests that look for the Spanish "Medianil" read "Separación". Community (separate mode) and Cockpit (coupled mode) get the new look with the pin change.
+
+Baselines: the `grid-*` set (en/de/es, light/dark, plus de 390/1440), and `gallery-es-*` (the strings table, through the Spanish label). All others are unchanged, RowActions included.
+
 ## 0.121.0 — #201, GL-UI-050: Reset keeps the focus after a reset
 
 Not breaking for the API; no new props. Behaviour changes that app tests may see. Reset in `SettingsActionRow` and `SettingsFooter` (the shared pair, `SUI-FEATURE-043`) now locks itself like Save and Cancel. While the entry is clean it carries `aria-disabled="true"` with a click guard instead of native `disabled`, so the focus stays on it after a reset instead of dropping to the body. The locked look is the one the disabled button had: a half-tone fill and the label mixed with the background, with the element opaque so its focus ring keeps full contrast. The locked Reset keeps its reset-disabled hint as its accessible description. **Migration:** Playwright `toBeDisabled()`/`toBeEnabled()` on Reset keep passing, because they count `aria-disabled`. A jest-dom `toBeDisabled()` on a clean Reset in a unit test switches to `toHaveAttribute("aria-disabled", "true")`. An E2E check that compares Reset's opacity or background may change. Affected: Cockpit 5 unit lines and 2 E2E look lines, Community 5 unit lines. Baselines: none changed.
