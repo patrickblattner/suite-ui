@@ -6029,6 +6029,82 @@ for (const width of [320, 390, 1440]) {
   });
 }
 
+// #228 (`SUI-FEATURE-071` rev 6, AC 5; `GL-UX-001`): below 640 px the property panel stands under the
+// canvas at full width, so at 320 and 390 px the drawer and the panel lie whole inside the editor frame;
+// from 1440 px the panel is the 340 px column on the right, the drawer 300 px.
+for (const width of [320, 390, 1440]) {
+  test(`canvas editor: drawer and property panel lie inside the frame at ${width} px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/?page=components&lng=de");
+    const editor = page.getByTestId("canvas-editor");
+    await expect(editor.getByTestId("drawer")).toHaveAttribute("data-drawer-open", "style");
+    const layout = await editor.evaluate((node) => {
+      // The frame clips at its padding box, inside its 1 px border.
+      const frame = node.getBoundingClientRect();
+      const inner = {
+        left: frame.left + node.clientLeft,
+        top: frame.top + node.clientTop,
+        right: frame.left + node.clientLeft + node.clientWidth,
+        bottom: frame.top + node.clientTop + node.clientHeight,
+      };
+      const inside = (el: Element) => {
+        const box = el.getBoundingClientRect();
+        return (
+          box.left >= inner.left - 0.5 &&
+          box.top >= inner.top - 0.5 &&
+          box.right <= inner.right + 0.5 &&
+          box.bottom <= inner.bottom + 0.5
+        );
+      };
+      const panel = node.querySelector("[data-testid=property-panel]")!;
+      const drawer = node.querySelector("[data-testid=drawer]")!;
+      const canvas = node
+        .querySelector("[data-testid=canvas-editor-canvas]")!
+        .getBoundingClientRect();
+      const box = panel.getBoundingClientRect();
+      return {
+        panelInside:
+          inside(panel) && inside(panel.querySelector("[data-testid=property-panel-head]")!),
+        drawerInside: inside(drawer),
+        panelWidth: box.width,
+        innerWidth: inner.right - inner.left,
+        under: box.top >= canvas.bottom - 0.5,
+        drawerWidth: drawer.getBoundingClientRect().width,
+      };
+    });
+    expect(layout.panelInside).toBe(true);
+    expect(layout.drawerInside).toBe(true);
+    if (width === 1440) {
+      expect(layout).toMatchObject({ panelWidth: 340, drawerWidth: 300, under: false });
+    } else {
+      expect(layout.under).toBe(true);
+      expect(layout.panelWidth).toBe(layout.innerWidth);
+    }
+  });
+}
+
+// #228: under the canvas at 320 px the panel's three tabs fit their list, in the longest languages too.
+for (const lng of ["de", "es"]) {
+  test(`property panel: at 320 px every tab lies inside its list, ${lng}`, async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 900 });
+    await page.goto(`/?page=components&lng=${lng}`);
+    const list = page.getByTestId("property-panel").locator("[data-slot=tabs-list]");
+    await expect(list.locator("[data-slot=tabs-trigger]")).toHaveCount(3);
+    const outside = await list.evaluate((node) => {
+      const own = node.getBoundingClientRect();
+      return [...node.querySelectorAll("[data-slot=tabs-trigger]")]
+        .filter((tab) => {
+          const box = tab.getBoundingClientRect();
+          return box.left < own.left - 0.5 || box.right > own.right + 0.5;
+        })
+        .map((tab) => tab.textContent);
+    });
+    expect(outside).toEqual([]);
+  });
+}
+
 // `SUI-FEATURE-070` rev 3, AC 9 and AC 3: a selection at the top edge shows its name badge inside,
 // unclipped; on a narrow selection the action bar moves below instead of covering the badge.
 test("canvas: badge inside at the top edge, bar yields to the badge", async ({ page }) => {

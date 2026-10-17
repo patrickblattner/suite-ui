@@ -19,15 +19,19 @@ type PropertyPanelProps = {
 };
 
 // The properties of the canvas selection (`GL-UI-040`, `SUI-FEATURE-071`): a fixed column on the
-// right, 340 px wide and as high as the editor area. The head holds the path and the tabs in the fixed
-// order Content · Layout · Background; only the body scrolls.
+// right, 340 px wide and as high as the editor area. Below 640 px it stands under the canvas at full
+// width and takes its share of the editor's height (`SUI-FEATURE-071` rev 6): `styles.css` wraps the
+// row that holds it, sets `--property-panel-share` and caps every other child of that row at the rest,
+// except a `dialog` or `[popover]` child; an absolute overlay in the row is capped too. The canvas
+// child needs `min-w-0`. The head holds the path and the tabs in the fixed order Content · Layout ·
+// Background, narrower padded below 640 px so all three fit 320 px; only the body scrolls.
 function PropertyPanel({ path, tabs, activeTab, onTab }: PropertyPanelProps) {
   const { t } = useTranslation("suite");
   const ordered = TAB_ORDER.flatMap((id) => tabs.filter((tab) => tab.id === id));
   return (
     <div
       data-slot="property-panel"
-      className="flex h-full w-[340px] shrink-0 flex-col border-l border-border bg-background"
+      className="flex h-full w-[340px] shrink-0 flex-col border-l border-border bg-background max-sm:h-(--property-panel-share) max-sm:min-w-0 max-sm:basis-full max-sm:border-t max-sm:border-l-0"
       data-testid="property-panel"
     >
       <Tabs
@@ -61,7 +65,12 @@ function PropertyPanel({ path, tabs, activeTab, onTab }: PropertyPanelProps) {
           </ol>
           <TabsList className="w-full">
             {ordered.map(({ id }) => (
-              <TabsTrigger key={id} value={id} data-testid={`property-tab-${id}`}>
+              <TabsTrigger
+                key={id}
+                value={id}
+                className="max-sm:px-1.5"
+                data-testid={`property-tab-${id}`}
+              >
                 {t(`canvas.tab.${id}`)}
               </TabsTrigger>
             ))}

@@ -30,6 +30,19 @@ type DrawerRailProps = {
   styleSave?: { onSave: () => void; dirty: boolean; saving?: boolean };
 };
 
+// Below 640 px, in an editor row that also holds the property panel (`SUI-FEATURE-071` rev 6), the
+// row wraps and the panel takes its share of the height below (`--property-panel-share`, set in
+// `styles.css`). The rail takes the rest above; it starts from its 48 px column, with no content
+// minimum, so the canvas stays beside it on the first line, then grows into the free room up to its
+// own width — 48 px closed, 348 px open — and the canvas keeps the rest, at worst none (Q&A #3857).
+const BESIDE_PANEL = cn(
+  "max-sm:[:has(>[data-slot=property-panel])>&]:h-[calc(100%-var(--property-panel-share))]",
+  "max-sm:[:has(>[data-slot=property-panel])>&]:basis-12",
+  "max-sm:[:has(>[data-slot=property-panel])>&]:grow-[100000]",
+  "max-sm:[:has(>[data-slot=property-panel])>&]:max-w-max",
+  "max-sm:[:has(>[data-slot=property-panel])>&]:min-w-0",
+);
+
 // The drawers of a visual editor (`GL-UI-040`, `SUI-FEATURE-071`): a narrow rail on the left with Add ·
 // Layers · Style · Document, in that order. A click opens the drawer beside the rail, 300 px wide but
 // never wider than the room its container leaves beside the rail (`SUI-FEATURE-071` rev 4, #223); it
@@ -58,7 +71,7 @@ function DrawerRail({ items, open, onOpen, styleSave }: DrawerRailProps) {
     <div
       ref={setNode}
       data-slot="drawer-rail"
-      className="flex h-full max-w-full shrink-0"
+      className={cn("flex h-full max-w-full shrink-0", BESIDE_PANEL)}
       data-testid="drawer-rail"
     >
       <div className="flex w-12 shrink-0 flex-col items-center gap-1 border-r border-border py-2">
