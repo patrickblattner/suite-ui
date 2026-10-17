@@ -1,5 +1,5 @@
 import { SearchIcon } from "lucide-react";
-import { useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
@@ -28,24 +28,6 @@ type HelpDrawerProps = {
   version?: { info: VersionInfo | undefined };
 };
 
-// Below `sm` (40rem) the drawer stacks its columns (#213).
-const NARROW_QUERY = "(width < 40rem)";
-
-function subscribeNarrow(onChange: () => void): () => void {
-  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return () => {};
-  const query = window.matchMedia(NARROW_QUERY);
-  query.addEventListener("change", onChange);
-  return () => query.removeEventListener("change", onChange);
-}
-
-function narrowSnapshot(): boolean {
-  return (
-    typeof window !== "undefined" &&
-    typeof window.matchMedia === "function" &&
-    window.matchMedia(NARROW_QUERY).matches
-  );
-}
-
 // The help drawer (`GL-UI-021`, `SUI-FEATURE-038`): a full-width sheet over the content (never a
 // narrow right sheet) so the embedded 75 % screenshots stay readable, with a search field and the
 // category-grouped page list on the left and the GFM render of the selected page on the wide right.
@@ -55,8 +37,8 @@ function HelpDrawer({ open, onOpenChange, pages, categories, version }: HelpDraw
 
   const [query, setQuery] = useState("");
   const [activeId, setActiveId] = useState<string>(pages[0]?.id ?? "");
-  const narrow = useSyncExternalStore(subscribeNarrow, narrowSnapshot, () => false);
   const content = useRef<HTMLElement>(null);
+  const aside = useRef<HTMLElement>(null);
 
   const categoryOf = useMemo(() => {
     const known = new Set(categories.map((c) => c.id));
@@ -80,26 +62,6 @@ function HelpDrawer({ open, onOpenChange, pages, categories, version }: HelpDraw
   // the page set no longer has falls back to the first page.
   const active = pages.find((p) => p.id === activeId) ?? pages[0];
 
-  const search = (
-    <div className="relative">
-      <SearchIcon
-        className="pointer-events-none absolute top-1/2 left-2 size-4 -translate-y-1/2 text-muted-foreground"
-        aria-hidden="true"
-      />
-      <Hint text={t("help.searchHint")}>
-        <Input
-          type="search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder={t("help.searchPlaceholder")}
-          aria-label={t("help.searchPlaceholder")}
-          className="pl-8"
-          data-testid="help-search"
-        />
-      </Hint>
-    </div>
-  );
-
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
@@ -118,17 +80,35 @@ function HelpDrawer({ open, onOpenChange, pages, categories, version }: HelpDraw
           className="flex min-h-0 flex-1 flex-col overflow-y-auto sm:flex-row sm:overflow-visible"
           data-testid="help-columns"
         >
-          {/* Below `sm` the search stays on top while the column scrolls (`SUI-FEATURE-038`). */}
-          {narrow ? (
+          {/* Below `sm` the aside is `contents`: its parts join the scrolling column, so the search
+              stays on top while it scrolls (`SUI-FEATURE-038`), one element in one place at any
+              width (no remount when the width crosses `sm`). */}
+          <aside
+            ref={aside}
+            className="flex shrink-0 flex-col border-b max-sm:contents sm:w-64 sm:border-r sm:border-b-0"
+          >
             <div
-              className="sticky top-0 z-10 shrink-0 border-b bg-background p-3"
+              className="border-b p-3 max-sm:sticky max-sm:top-0 max-sm:z-10 max-sm:bg-background"
               data-testid="help-search-bar"
             >
-              {search}
+              <div className="relative">
+                <SearchIcon
+                  className="pointer-events-none absolute top-1/2 left-2 size-4 -translate-y-1/2 text-muted-foreground"
+                  aria-hidden="true"
+                />
+                <Hint text={t("help.searchHint")}>
+                  <Input
+                    type="search"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder={t("help.searchPlaceholder")}
+                    aria-label={t("help.searchPlaceholder")}
+                    className="pl-8"
+                    data-testid="help-search"
+                  />
+                </Hint>
+              </div>
             </div>
-          ) : null}
-          <aside className="flex shrink-0 flex-col border-b sm:w-64 sm:border-r sm:border-b-0">
-            {narrow ? null : <div className="border-b p-3">{search}</div>}
 
             <nav className="p-2 text-sm sm:flex-1 sm:overflow-y-auto" aria-label={t("help.title")}>
               {filtered.length === 0 ? (
@@ -156,7 +136,10 @@ function HelpDrawer({ open, onOpenChange, pages, categories, version }: HelpDraw
                                 onClick={() => {
                                   setActiveId(page.id);
                                   // Stacked, the page shows below the list: go there with it.
-                                  if (narrow) {
+                                  if (
+                                    aside.current &&
+                                    getComputedStyle(aside.current).display === "contents"
+                                  ) {
                                     content.current?.focus({ preventScroll: true });
                                     content.current?.scrollIntoView({ block: "start" });
                                   }
@@ -213,7 +196,7 @@ function HelpDrawer({ open, onOpenChange, pages, categories, version }: HelpDraw
           <main
             ref={content}
             tabIndex={-1}
-            className="px-4 py-6 outline-none max-sm:scroll-mt-16 sm:flex-1 sm:overflow-y-auto sm:px-8"
+            className="px-4 py-6 outline-none max-sm:scroll-mt-16 max-sm:border-t sm:flex-1 sm:overflow-y-auto sm:px-8"
             data-testid="help-content"
           >
             {active ? (

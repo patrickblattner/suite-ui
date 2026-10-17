@@ -6403,7 +6403,8 @@ for (const width of [320, 390]) {
         ),
       ).toBeLessThanOrEqual(0);
       // Stacked: the navigation stands above the content, and the content has the drawer's width.
-      const nav = await box(drawer.locator("aside"));
+      // Below `sm` the aside is `contents` and has no box of its own: its navigation is measured.
+      const nav = await box(drawer.locator("nav"));
       const main = await box(content);
       expect(main.y).toBeGreaterThanOrEqual(nav.y + nav.height - 1);
       expect(main.width).toBeGreaterThanOrEqual(width - 2);
@@ -6429,21 +6430,48 @@ test("help drawer at 320 px: the search stays, a picked page comes into view wit
   await page.goto("/?page=help&lng=en");
   const columns = page.getByTestId("help-columns");
   const search = page.getByTestId("help-search");
+  const bar = page.getByTestId("help-search-bar");
   const content = page.getByTestId("help-content");
   await expect(search).toBeInViewport();
   await columns.evaluate((el) => el.scrollTo(0, el.scrollHeight));
   await expect(content.locator("table")).toBeInViewport();
   await expect(search).toBeInViewport();
-  const searchBox = await box(search);
-  expect(searchBox.y).toBeLessThan(160);
+  // The sticky bar, with its padding and border, is what the content must clear.
+  const barBox = await box(bar);
+  expect(barBox.y).toBeLessThan(160);
 
   await columns.evaluate((el) => el.scrollTo(0, 0));
   await page.getByTestId("help-link-ideas").click();
   await expect(content.locator("h1")).toHaveText("Ideas");
   await expect(content).toBeFocused();
   await expect(content).toBeInViewport();
-  // The content starts below the sticky search, not under it.
-  expect((await box(content)).y).toBeGreaterThanOrEqual(searchBox.y + searchBox.height);
+  // The content starts below the sticky bar, not under it.
+  expect((await box(content)).y).toBeGreaterThanOrEqual(barBox.y + barBox.height - 1);
+});
+
+// #213 review: the search is one element in one place at any width, so a rotation across `sm` while
+// typing keeps the focus, the caret and the query.
+test("help drawer: resizing across sm keeps the search's focus, caret and query", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/?page=help&lng=en");
+  const search = page.getByTestId("help-search");
+  await search.click();
+  await page.keyboard.type("dash");
+  await page.keyboard.press("ArrowLeft");
+  const before = await search.evaluate((el: HTMLInputElement) => el.selectionStart);
+  expect(before).toBe(3);
+  await page.setViewportSize({ width: 320, height: 640 });
+  await expect(page.getByTestId("help-search-bar")).toHaveCSS("position", "sticky");
+  await expect(search).toBeFocused();
+  await expect(search).toHaveValue("dash");
+  expect(await search.evaluate((el: HTMLInputElement) => el.selectionStart)).toBe(before);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect(page.getByTestId("help-search-bar")).toHaveCSS("position", "static");
+  await expect(search).toBeFocused();
+  await expect(search).toHaveValue("dash");
+  expect(await search.evaluate((el: HTMLInputElement) => el.selectionStart)).toBe(before);
 });
 
 // #213 review: from `sm` up a picked page shows beside the list; the focus stays on the link.
@@ -6454,5 +6482,5 @@ test("help drawer at 1440 px: picking a page keeps the focus on its link", async
   await link.click();
   await expect(page.getByTestId("help-content").locator("h1")).toHaveText("Ideas");
   await expect(link).toBeFocused();
-  await expect(page.getByTestId("help-search-bar")).toHaveCount(0);
+  await expect(page.getByTestId("help-search-bar")).toHaveCSS("position", "static");
 });
