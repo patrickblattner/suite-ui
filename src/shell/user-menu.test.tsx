@@ -417,6 +417,8 @@ describe("UserMenu", () => {
         onLanguageChange={vi.fn()}
         appearance="system"
         onAppearanceChange={vi.fn()}
+        onProfile={vi.fn()}
+        onSecurity={vi.fn()}
         onLogOut={vi.fn()}
       >
         <UserMenuItem
