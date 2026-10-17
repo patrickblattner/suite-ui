@@ -424,3 +424,4 @@
 {"ts":"2026-10-17T17:14:44.737Z","key":"PROC-REL-020","from":4,"to":5,"disposition":"editorial","ref":"repo settings check: vulnerability-alerts 204, automated-security-fixes enabled — already satisfied, no code impact"}
 {"ts":"2026-10-17T17:14:45.142Z","key":"GL-WEB-002","from":null,"to":2,"disposition":"editorial","ref":"suite-ui has no shadcn CLI / components.json / components/ui; package owns its building blocks with translated strings (SUI-DESIGN-010) — rule targets app repos installing via CLI"}
 {"ts":"2026-10-17T17:50:23.201Z","key":"GL-UI-035","from":2,"to":3,"disposition":"editorial","ref":"rev 3 narrows which app image places must offer crop/flip (self-drawn only; foreign renderers and brand-kit holders excluded); suite-ui ships the building blocks and has no image places of its own — no package change"}
+{"ts":"2026-10-17T18:20:30.940Z","key":"SUI-FEATURE-051","from":4,"to":5,"disposition":"ticket","ref":"222"}
