@@ -241,7 +241,7 @@ const LOADABLE_SCHEMES = new Set(["https:", "http:", "blob:"]);
 
 function loadable(src: string): boolean {
   // The URL parser strips C0 controls and space from both ends; a src of only those is empty.
-  // eslint-disable-next-line no-control-regex
+  // eslint-disable-next-line no-control-regex -- strips the C0 controls the WHATWG URL parser strips (SUI-FEATURE-089)
   if (src.replace(/^[\u0000- ]+|[\u0000- ]+$/g, "") === "") return false;
   try {
     return LOADABLE_SCHEMES.has(new URL(src, "https://relative.invalid/").protocol);
