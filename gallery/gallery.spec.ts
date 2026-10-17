@@ -6253,6 +6253,13 @@ for (const forced of [false, true]) {
     await page.getByTestId("keys-dialog-trigger").click();
     const dialog = page.getByTestId("keys-dialog-content");
     const remove = dialog.getByTestId("keys-dialog-delete");
+    // Delete locks once nothing is left to select.
+    const confirm = page.getByTestId("keys-dialog-confirm");
+    for (let left = 3; left > 0; left--) {
+      await remove.click();
+      await confirm.getByRole("button", { name: "Delete" }).click();
+      await expect(confirm).toHaveCount(0);
+    }
     await expect(remove).toBeDisabled();
     const carrier = remove.locator("..");
     await expect(carrier).toHaveAttribute("tabindex", "0");
