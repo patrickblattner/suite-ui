@@ -50,7 +50,9 @@ body {
   padding: 2px 4px;
 }
 
-main {
+/* The gallery's own content area only: a bare `main` would also pad the package's HelpDrawer content,
+   and unlayered it would beat the package's own utilities (#212). */
+#root > main {
   padding: 24px;
 }
 
@@ -87,7 +89,7 @@ main {
   height: 100dvh;
 }
 
-main.frame {
+#root > main.frame {
   display: flex;
   flex: 1;
   flex-direction: column;
