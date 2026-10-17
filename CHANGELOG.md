@@ -1,11 +1,11 @@
 # Changelog
 
-## 0.118.0 — #199, SUI-FEATURE-088 rev 3: `SettingsActionRow` with Cancel and immediate buttons on the left
+## 0.118.0 — #199, SUI-FEATURE-088 rev 4: `SettingsActionRow` with Cancel and immediate buttons on the left
 
 Not breaking. Without the new props, the row renders exactly as before.
 
 - `onCancel` + `cancelable` in place of `onReset`: the left button reads "Cancel" (de "Abbrechen", es "Cancelar"), `outline`, with testid `<testIdPrefix>-cancel`. It is usable while `cancelable` is set, also without `dirty`. Not cancelable, it locks itself like a clean Save (`aria-disabled` and a click guard), so the focus stays on it after a cancel (`GL-UI-050`): an open sub-form (replacing a stored secret) is itself the change. The app's handler decides what Cancel discards and closes. Save is unchanged. Passing `onCancel` together with `onReset` is a type error, and so is `onCancel` without `cancelable`.
-- `leading`: buttons that act at once stand left in the same row, and the pair stays right. Build them with `SettingsActionButton`, newly exported from `@suite/ui/settings/secret-card-header`. It is the secret card's own button (`outline`, `sm`); with `disabledText` it is locked and shows the reason as its tooltip, and a running one locks the same way. Where the block is too narrow for both groups (a 360 px block, Q&A #3770), the row wraps: the immediate buttons above on the left, and the pair below on the right. No text is cut. A `leading` of `null` or `false` renders the row as before.
+- `leading`: buttons that act at once stand left in the same row, and the pair stays right. Build them with `SettingsActionButton`, newly exported from `@suite/ui/settings/secret-card-header`. It is the secret card's own button, `outline`, now at the pair's height by default (`size="default"`, one row one height, rev 4); the secret card head keeps `size="sm"`. With `disabledText` it is locked and shows the reason as its tooltip, and a running one locks the same way. Where the block is too narrow for both groups (a 360 px block, Q&A #3770), the row wraps: the immediate buttons above on the left, and the pair below on the right. No text is cut. A `leading` of `null` or `false` renders the row as before.
 - `onSave` stays a plain button. Inside a form, call `form.requestSubmit()` in it, so Enter in a field and the button take the same path. Enter submits past Save's lock, so the form's `onSubmit` must check `dirty` and `valid` itself.
 - New texts: `settings.cancelHint` and `settings.cancelDisabledHint` in de/en/es.
 

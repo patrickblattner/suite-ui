@@ -307,7 +307,8 @@ describe("SettingsActionRow", () => {
     const row = container.firstElementChild as HTMLElement;
     expect(row).toHaveClass("flex", "justify-between");
     const [leading, pair] = [...row.children] as HTMLElement[];
-    expect(within(leading!).getByTestId("app-replace")).toHaveAttribute("data-size", "sm");
+    // SUI-FEATURE-088 rev 4: the pair's height, one row one height.
+    expect(within(leading!).getByTestId("app-replace")).toHaveAttribute("data-size", "default");
     expect(within(leading!).getByTestId("app-remove")).toBeDisabled();
     expect([...pair!.querySelectorAll("button")].map((button) => button.dataset.testid)).toEqual([
       "app-cancel",

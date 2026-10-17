@@ -6100,9 +6100,11 @@ for (const lng of LANGUAGES) {
         ).toBe(true);
       }
       if (width === null) {
-        // Wide: one line, the buttons centred on it (the immediate ones are `sm`).
-        const middle = (b: { y: number; height: number }) => b.y + b.height / 2;
-        expect(Math.abs(middle(cancel!) - middle(replace!))).toBeLessThanOrEqual(1);
+        // Wide: one line, every button the same height (rev 4, `GL-UI-011`).
+        for (const b of [remove!, cancel!, save!]) {
+          expect(Math.abs(b.y - replace!.y)).toBeLessThanOrEqual(1);
+          expect(b.height).toBe(replace!.height);
+        }
       } else {
         expect((await box(page.locator("[data-slot=settings-block]"))).width).toBe(width);
         // Narrow: the pair below the immediate buttons.

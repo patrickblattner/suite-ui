@@ -25,8 +25,9 @@ type SecretCardHeaderProps = {
   test?: SecretCardAction & { onTest: () => void; busy?: boolean };
 };
 
-// A button that acts at once, in the package style (`outline`, `sm`): the secret card's Replace, Remove
-// and Test, and the `leading` buttons of a `SettingsActionRow` (`SUI-FEATURE-088`). Given
+// A button that acts at once, `outline`: the `leading` buttons of a `SettingsActionRow` at the height of
+// its pair (`default`, one row one height, `SUI-FEATURE-088` rev 4), and the secret card's Replace,
+// Remove and Test at `sm` in its head. Given
 // `disabledText`, it is locked and shows the reason as its tooltip; a running one locks this way too.
 function SettingsActionButton({
   label,
@@ -34,18 +35,20 @@ function SettingsActionButton({
   onClick,
   busy,
   testId,
+  size = "default",
 }: {
   label: string;
   disabledText: string | undefined;
   onClick: () => void;
   busy?: boolean | undefined;
   testId: string;
+  size?: "sm" | "default";
 }) {
   const button = (
     <Button
       type="button"
       variant="outline"
-      size="sm"
+      size={size}
       disabled={disabledText !== undefined}
       onClick={onClick}
       data-testid={testId}
@@ -95,6 +98,7 @@ function SecretCardHeader({
         {stateChip}
         {replace !== undefined ? (
           <SettingsActionButton
+            size="sm"
             label={t("actions.replace")}
             disabledText={replace.disabledText}
             onClick={replace.onReplace}
@@ -103,6 +107,7 @@ function SecretCardHeader({
         ) : null}
         {remove !== undefined ? (
           <SettingsActionButton
+            size="sm"
             label={t("actions.remove")}
             disabledText={remove.disabledText}
             onClick={remove.onRemove}
@@ -112,6 +117,7 @@ function SecretCardHeader({
       </div>
       {test !== undefined ? (
         <SettingsActionButton
+          size="sm"
           label={t("actions.testConnection")}
           disabledText={test.disabledText}
           onClick={test.onTest}
