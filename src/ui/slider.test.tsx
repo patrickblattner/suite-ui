@@ -10,8 +10,14 @@ import { TableCell, TableHead, TableRow } from "./table.js";
 
 // SUI-FEATURE-057 AC1–4.
 
-// jsdom has no ResizeObserver; the Radix thumb measures itself with one.
+// jsdom has no ResizeObserver; the Radix thumb measures itself with one. Nor pointer capture, which
+// the Radix slider takes on a press and checks on every pointer move.
 beforeEach(() => {
+  Object.assign(HTMLElement.prototype, {
+    setPointerCapture: () => {},
+    releasePointerCapture: () => {},
+    hasPointerCapture: () => false,
+  });
   vi.stubGlobal(
     "ResizeObserver",
     class {
@@ -64,6 +70,112 @@ describe("Slider", () => {
     expect(thumb()).toHaveAccessibleName("Width");
     expect(thumb()).toHaveAccessibleDescription("Sets the image width in percent.");
     expect(screen.getByTestId("width")).not.toHaveAttribute("aria-describedby");
+  });
+
+  // SUI-FEATURE-057 rev 4 AC7: the whole slider is the hover trigger; focus and description stay on
+  // the thumb, and focus opens no bubble.
+  it("AC7: a Hint opens on a hover over the track, not on focus", () => {
+    vi.useFakeTimers();
+    try {
+      const ref = createRef<HTMLSpanElement>();
+      render(
+        <Hint text="Sets the image width in percent.">
+          <Slider
+            value={50}
+            onValueChange={() => {}}
+            aria-label="Width"
+            ref={ref}
+            data-testid="width"
+          />
+        </Hint>,
+      );
+      expect(ref.current).toBe(thumb());
+      act(() => {
+        thumb().focus();
+        vi.advanceTimersByTime(2000);
+      });
+      expect(screen.queryByRole("tooltip")).toBeNull();
+      const track = screen.getByTestId("width").querySelector("[data-slot=slider-track]")!;
+      fireEvent.pointerMove(track, { pointerType: "mouse" });
+      act(() => {
+        vi.advanceTimersByTime(1500);
+      });
+      expect(screen.getByRole("tooltip")).toHaveTextContent("Sets the image width in percent.");
+      expect(thumb()).toHaveAccessibleDescription("Sets the image width in percent.");
+      expect(screen.getByTestId("width")).not.toHaveAttribute("aria-describedby");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // As a disabled Button under a Hint without `disabledText`: no bubble on hover (the browser sends a
+  // disabled control no pointer events), the description still on the control.
+  it("AC7: a disabled slider opens no hover hint and keeps its description", () => {
+    vi.useFakeTimers();
+    try {
+      render(
+        <Hint text="Sets the image width in percent.">
+          <Slider
+            value={50}
+            onValueChange={() => {}}
+            disabled
+            aria-label="Width"
+            data-testid="width"
+          />
+        </Hint>,
+      );
+      const track = screen.getByTestId("width").querySelector("[data-slot=slider-track]")!;
+      fireEvent.pointerMove(screen.getByTestId("width"), { pointerType: "mouse" });
+      fireEvent.pointerMove(track, { pointerType: "mouse" });
+      act(() => {
+        vi.advanceTimersByTime(2000);
+      });
+      expect(screen.queryByRole("tooltip")).toBeNull();
+      expect(thumb()).toHaveAccessibleDescription("Sets the image width in percent.");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // A triggerRef of the caller's own still receives the wrapper beside the Hint's.
+  it("AC7: a caller's own triggerRef still gets the wrapper under a Hint", () => {
+    const own = createRef<HTMLSpanElement>();
+    render(
+      <Hint text="Sets the image width in percent.">
+        <Slider
+          value={50}
+          onValueChange={() => {}}
+          aria-label="Width"
+          triggerRef={own}
+          data-testid="width"
+        />
+      </Hint>,
+    );
+    expect(own.current).toBe(screen.getByTestId("width"));
+  });
+
+  // #190 on the new trigger: a press on the track during the delay keeps the bubble closed.
+  it("AC7: a held press on the track opens no bubble", () => {
+    vi.useFakeTimers();
+    try {
+      render(
+        <Hint text="Sets the image width in percent.">
+          <Slider value={50} onValueChange={() => {}} aria-label="Width" data-testid="width" />
+        </Hint>,
+      );
+      const track = screen.getByTestId("width").querySelector("[data-slot=slider-track]")!;
+      fireEvent.pointerMove(track, { pointerType: "mouse" });
+      act(() => {
+        vi.advanceTimersByTime(500);
+      });
+      fireEvent.pointerDown(track, { pointerType: "mouse" });
+      act(() => {
+        vi.advanceTimersByTime(2000);
+      });
+      expect(screen.queryByRole("tooltip")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("AC1: the thumb is the slider with value, bounds and name", () => {

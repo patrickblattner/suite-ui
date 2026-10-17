@@ -4686,6 +4686,8 @@ test("slider: a Hint around it describes the thumb", async ({ page }) => {
 test("slider: a press held on the thumb past the hint delay opens no hint", async ({ page }) => {
   await page.goto("/?page=components&lng=en");
   const thumb = page.getByTestId("slider-hint").getByRole("slider");
+  // The mouse reaches only what is in the viewport.
+  await thumb.scrollIntoViewIfNeeded();
   const at = await box(thumb);
   await page.mouse.move(at.x + at.width / 2, at.y + at.height / 2);
   await page.mouse.down();
@@ -4694,6 +4696,48 @@ test("slider: a press held on the thumb past the hint delay opens no hint", asyn
   await page.mouse.move(at.x + at.width / 2 + 20, at.y + at.height / 2, { steps: 5 });
   await page.waitForTimeout(2000);
   await expect(page.locator("[data-slot=tooltip-content]")).toHaveCount(0);
+  await page.mouse.up();
+});
+
+// `SUI-FEATURE-057` rev 4 AC7: a hover over the track far from the thumb opens the hint after the
+// delay, beside the end of the track, covering neither track nor thumb; the thumb's description stays;
+// a press held on the track and a drag open nothing (#190).
+test("slider: the hint opens over the whole slider, beside the track's end", async ({ page }) => {
+  await page.goto("/?page=components&lng=en");
+  const slider = page.getByTestId("slider-hint");
+  const thumb = slider.getByRole("slider");
+  const bubble = page.locator("[data-slot=tooltip-content]");
+  const description = "Sets how wide the image shows, in percent of the column.";
+  // The mouse reaches only what is in the viewport.
+  await slider.scrollIntoViewIfNeeded();
+  const track = await box(slider.locator("[data-slot=slider-track]"));
+  const knob = await box(thumb);
+  // Far left of the track; the thumb stands at 60 %.
+  const far = { x: track.x + track.width * 0.05, y: track.y + track.height / 2 };
+  expect(knob.x - far.x).toBeGreaterThan(track.width / 3);
+  await page.mouse.move(far.x, far.y);
+  await page.waitForTimeout(1000);
+  await expect(bubble).toHaveCount(0);
+  await expect(bubble).toBeVisible({ timeout: 2000 });
+  await expect(bubble).toHaveText(description);
+  const tip = await box(bubble);
+  const wrapper = await box(slider);
+  expect(tip.x).toBeGreaterThanOrEqual(wrapper.x + wrapper.width);
+  expect(tip.x).toBeGreaterThanOrEqual(track.x + track.width);
+  expect(tip.x).toBeGreaterThanOrEqual(knob.x + knob.width);
+  await expect(thumb).toHaveAccessibleDescription(description);
+  await page.mouse.move(0, 0);
+  await expect(bubble).toHaveCount(0);
+
+  // Held press on the track, then a drag: no bubble.
+  await page.mouse.move(far.x, far.y);
+  await page.waitForTimeout(500);
+  await page.mouse.down();
+  await page.waitForTimeout(2000);
+  await expect(bubble).toHaveCount(0);
+  await page.mouse.move(far.x + track.width * 0.3, far.y, { steps: 10 });
+  await page.waitForTimeout(2000);
+  await expect(bubble).toHaveCount(0);
   await page.mouse.up();
 });
 

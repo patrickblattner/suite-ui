@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.114.0 — #191, SUI-FEATURE-057 rev 4: a slider's hint opens over the whole slider, beside the track's end
+
+Not breaking. A `Hint` around a `Slider` now opens its bubble on a hover anywhere over the slider, track and thumb, after the one hint delay. The bubble stands to the right of the track's end, so it covers neither the track nor the thumb (`GL-UI-016` §Lage). Before, it opened only over the thumb and stood beside it, over the track.
+
+- The description (`aria-describedby`), the focus, `id` and `ref` stay on the thumb, as in 0.112.0. Focus opens no bubble.
+- A press held on the slider, or a drag, keeps the bubble closed until the pointer leaves, as since 0.112.1.
+- How: `Slider` declares `Slider.hintTriggerRef = "triggerRef"`. `Hint` passes its trigger's ref there, together with the pointer handlers, which land on the wrapper; the control's own `ref` stays its own.
+
+**Migration:** none. Community moves its slider hint onto the slider, as noted in 0.112.0. Its hover behaviour over the whole slider stays the same as with the hint on its wrapping element.
+
+Baselines: none changed. The gallery test for a held press on the thumb (0.112.0) now scrolls the slider into view first, so the mouse actually reaches it.
+
 ## 0.113.0 — #188, SUI-FEATURE-082 rev 5/6: user-menu toggles switch their label, `UserMenuItem` drops `pressed`
 
 Breaking for apps that pass `pressed`. No visual change to the package.

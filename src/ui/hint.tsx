@@ -31,6 +31,9 @@ function composeRefs<T>(...refs: (React.Ref<T> | undefined)[]): React.RefCallbac
 //   which turns the function into its source text and loses the active classes.
 // - The trigger's `data-slot` ("tooltip-trigger") and `data-state` ("closed", "delayed-open") are
 //   dropped, so a tab, select trigger, button or switch keeps its own slot and state.
+// A control whose hover area is wider than its focus target names a prop for the trigger's ref on its
+// component (`hintTriggerRef`, the `Slider`, `SUI-FEATURE-057` rev 4): the trigger's ref, which places
+// the bubble, goes there, and the control's own `ref` stays its own.
 const PassThrough = React.forwardRef<HTMLElement, AnyProps>(function PassThrough(
   { children, ...slotProps },
   ref,
@@ -63,7 +66,15 @@ const PassThrough = React.forwardRef<HTMLElement, AnyProps>(function PassThrough
     typeof ownClass === "function"
       ? (state: unknown) => cn(slotClass, (ownClass as (state: unknown) => string)(state))
       : cn(slotClass, ownClass as string | undefined) || undefined;
-  merged.ref = composeRefs(ref, own.ref as React.Ref<HTMLElement> | undefined);
+  const triggerRefProp = (child.type as { hintTriggerRef?: string }).hintTriggerRef;
+  if (triggerRefProp === undefined) {
+    merged.ref = composeRefs(ref, own.ref as React.Ref<HTMLElement> | undefined);
+  } else {
+    merged[triggerRefProp] = composeRefs(
+      ref,
+      own[triggerRefProp] as React.Ref<HTMLElement> | undefined,
+    );
+  }
   return React.cloneElement(child, merged);
 });
 

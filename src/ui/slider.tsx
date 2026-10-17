@@ -17,6 +17,15 @@ type SliderProps = {
   "aria-describedby"?: string;
   id?: string;
   ref?: React.Ref<HTMLSpanElement>;
+  // The hover trigger of a wrapping `Hint` is the whole slider (`SUI-FEATURE-057` rev 4): its ref and
+  // pointer handlers sit on the wrapper, so the bubble opens over track and thumb and stands beside
+  // the end of the track. `Hint` passes the ref here (`Slider.hintTriggerRef`).
+  triggerRef?: React.Ref<HTMLSpanElement>;
+  onPointerMove?: React.PointerEventHandler<HTMLSpanElement>;
+  onPointerLeave?: React.PointerEventHandler<HTMLSpanElement>;
+  onPointerDown?: React.PointerEventHandler<HTMLSpanElement>;
+  onPointerDownCapture?: React.PointerEventHandler<HTMLSpanElement>;
+  onClick?: React.MouseEventHandler<HTMLSpanElement>;
   // The spoken value per position, such as the name of a step; without it the number is read.
   getAriaValueText?: (value: number) => string;
   className?: string;
@@ -27,8 +36,9 @@ type SliderProps = {
 // `primary`, the package's focus ring on the thumb and a 24 × 24 px hit area around it (`GL-UI-013`).
 // The row is `h-8`, the height of `Input size="sm"` (`GL-UI-011`), so both centres line up side by
 // side. The thumb keeps its arrows: `TablePagination` leaves `role="slider"` alone (`GL-UI-006`).
-// Props a wrapping trigger merges in (a `Hint`'s handlers) go to the thumb as well; `className` and
-// `data-testid` stay on the wrapper.
+// A wrapping `Hint` hovers over the whole slider: its ref and pointer handlers go to the wrapper, its
+// focus handlers and description to the thumb, so focus opens no bubble (`SUI-FEATURE-074`) and the
+// description stays on the thumb (rev 3). `className` and `data-testid` stay on the wrapper.
 function Slider({
   value,
   onValueChange,
@@ -41,6 +51,12 @@ function Slider({
   getAriaValueText,
   className,
   "data-testid": testId,
+  triggerRef,
+  onPointerMove,
+  onPointerLeave,
+  onPointerDown,
+  onPointerDownCapture,
+  onClick,
   ...thumb
 }: SliderProps) {
   return (
@@ -59,6 +75,12 @@ function Slider({
         className,
       )}
       data-testid={testId}
+      ref={triggerRef}
+      // Disabled, the slider opens no hover hint, like any disabled control the browser sends no pointer
+      // events to; the description stays on the thumb.
+      {...(disabled === true
+        ? {}
+        : { onPointerMove, onPointerLeave, onPointerDown, onPointerDownCapture, onClick })}
     >
       <SliderPrimitive.Track
         data-slot="slider-track"
@@ -79,5 +101,8 @@ function Slider({
     </SliderPrimitive.Root>
   );
 }
+
+// `Hint` sends its trigger's ref to `triggerRef`, not to `ref`, which stays the thumb's.
+Slider.hintTriggerRef = "triggerRef";
 
 export { Slider, type SliderProps };
