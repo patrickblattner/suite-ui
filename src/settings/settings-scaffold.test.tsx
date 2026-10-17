@@ -66,7 +66,7 @@ describe("SettingsScaffold", () => {
   });
 
   // SUI-FEATURE-120 rev 5: a clean form locks Save with `aria-disabled` and its trigger lock, so it keeps
-  // the focus after a save; Reset stays `disabled`.
+  // the focus after a save; Reset locks the same way (`GL-UI-050`, #201).
   it("orders Reset (destructive) before Save (success), both locked while unchanged", () => {
     const run = vi.fn(() => Promise.resolve());
     render(<GeneralPage save={run} />);

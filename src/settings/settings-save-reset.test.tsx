@@ -51,6 +51,15 @@ describe("SaveResetButtons focus", () => {
     );
   });
 
+  // GL-UI-017, #201: the locked Reset says what it does and when it frees; its name stays "Reset".
+  it("a Reset locked by a clean form describes what it does and when it frees", () => {
+    render(page(false, false));
+    const reset = screen.getByRole("button", { name: "Reset" });
+    expect(reset).toHaveAccessibleDescription(
+      "Discards the unsaved changes on this page — available once you have changed something here.",
+    );
+  });
+
   // A lock with a reason (an invalid entry) stays `disabled` and hands the focus on.
   it("a save that ends with an invalid entry locks Save and hands the focus on", () => {
     const { rerender } = render(page(true, false));
