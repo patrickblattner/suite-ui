@@ -6271,3 +6271,47 @@ for (const forced of [false, true]) {
     await expectCarrierRing(page, carrier, forced);
   });
 }
+
+// #177 (`GL-UX-001`): the appearance options of the open user menu are one Tab stop, the checked one;
+// ←/→ choose the next/previous option and wrap, the focus following the choice.
+test("shell: the appearance options are one radiogroup stop, ←/→ choose", async ({ page }) => {
+  await page.goto("/?page=shell&lng=en");
+  await page.getByTestId("user-menu-trigger").click();
+  const menu = page.getByTestId("user-menu-content");
+  const options = menu.locator("[data-testid^=theme-option-]");
+  await expect(options).toHaveCount(3);
+  const checked = () => menu.locator("[data-testid^=theme-option-][aria-checked=true]");
+  const start = await checked().getAttribute("data-testid");
+  await menu.getByTestId("language-switcher").focus();
+  await page.keyboard.press("Tab");
+  await expect(checked()).toBeFocused();
+  expect(
+    await options.evaluateAll((els) =>
+      els.map((el) => [el.getAttribute("aria-checked"), (el as HTMLElement).tabIndex]),
+    ),
+  ).toEqual(
+    await options.evaluateAll((els) =>
+      els.map((el) => [
+        el.getAttribute("aria-checked"),
+        el.getAttribute("aria-checked") === "true" ? 0 : -1,
+      ]),
+    ),
+  );
+  // One Tab leaves the group.
+  await page.keyboard.press("Tab");
+  await expect(menu.locator("[data-testid^=theme-option-]:focus")).toHaveCount(0);
+  await page.keyboard.press("Shift+Tab");
+  await expect(checked()).toBeFocused();
+  const order: (string | null)[] = [];
+  for (let i = 0; i < 3; i++) {
+    await page.keyboard.press("ArrowRight");
+    await expect(checked()).toBeFocused();
+    order.push(await checked().getAttribute("data-testid"));
+  }
+  // Three steps right come back to the start: the choice wraps.
+  expect(order.at(-1)).toBe(start);
+  expect(new Set(order).size).toBe(3);
+  await page.keyboard.press("ArrowLeft");
+  await expect(checked()).toBeFocused();
+  expect(await checked().getAttribute("data-testid")).toBe(order[1]);
+});

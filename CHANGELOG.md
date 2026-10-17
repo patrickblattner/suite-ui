@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.119.2 — #177, SUI-FEATURE-082 rev 7 / GL-UX-001: the user menu's appearance options are one radiogroup stop
+
+Not breaking. In the open user menu, the appearance options (System · Light · Dark) follow the WAI-ARIA radiogroup pattern. They are one Tab stop: the checked option has `tabindex="0"`, the others `-1`. ←/→ choose the next or previous option, wrap at the ends, and move the focus with the choice. ↑/↓, Home and End stay the panel's moves between its stops (`SUI-FEATURE-082` rev 7). Q&A #3791 is answered and confirms this: ←/→ choose with wrap, ↑/↓, Home and End stay the panel's moves. **Migration:** none. Baselines: none changed.
+
 ## 0.119.1 — #172, GL-UI-013: the focusable span around a locked control shows the package focus ring
 
 Not breaking. `Hint` (with `disabledText`) and `IconButtonTooltip` wrap a disabled control in a span that takes the focus in its place. That span now shows the package focus ring (`focus-visible:focus-ring`: 3 px `--ring`, and under forced colors the outline the ring rule sets) with `rounded-md`, instead of the browser's default outline. `Hint` takes a new optional `carrierClassName` that sets the span's radius and ring in place of `rounded-md` and the outset ring; a locked `UserMenuItem` passes `rounded-sm focus-visible:focus-ring-inset`, so its span shows the same inset ring as an enabled entry. **Migration:** none. Baselines: none changed, because no capture holds a focused carrier.
