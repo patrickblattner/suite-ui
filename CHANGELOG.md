@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.123.4 — #221, GL-UX-001 (Q&A #3837): `EditorHeader` reflows at 320 px
+
+Not breaking. At 320 px (a 1280 px desktop at 400 % zoom, WCAG 1.4.10 Reflow), `EditorHeader` with every fold step spent (`SUI-FEATURE-090`) was still up to 10 px wider than its space, so Save reached past the edge and the page scrolled sideways. Now, once every step is spent and the header still does not fit, the action group wraps onto its own line, right-aligned. Back and the title stay on the first line. Where the header fits, nothing changes: 390, 1440 and 1920 px look as before. **Migration:** none. Baselines: none changed.
+
 ## 0.123.3 — #218: the canvas name badge re-measures after a font swap
 
 Not breaking. `CanvasOverlay` measures the overlay, the action bar and the name badge again whenever one of them resizes (a `ResizeObserver`), not only when it mounts or the selection changes. Before, a web font that loaded after mount made the badge wider than it was measured, and at the right edge it stuck out past the frame (2 px in the gallery with Inter). Now it moves left and stays inside the frame. The gallery keeps waiting for its substitute font before the first render, on purpose, so the captures are deterministic: a popper placed before the font swap (the open Select at 390 px) would stay 1 px off. **Migration:** none. Baselines: none changed.

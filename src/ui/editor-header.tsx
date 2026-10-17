@@ -165,6 +165,26 @@ function EditorHeader({
   };
   const floor = folded("title") ? TITLE_FLOOR : TITLE_BUDGET;
   const titleFloor = titleText.length > floor ? `${titleText.slice(0, floor)}…` : titleText;
+  // With every step spent the header may wrap (#221); whether the actions actually stand on a line of
+  // their own is read from the layout, and again whenever the header resizes.
+  const spent = shrink === folds.length;
+  const [wrapped, setWrapped] = React.useState(false);
+  React.useLayoutEffect(() => {
+    const node = header.current;
+    const actions = node?.querySelector("[data-slot=editor-actions]");
+    if (!spent || !node || !actions || !titleBox.current) {
+      setWrapped(false);
+      return;
+    }
+    const title = titleBox.current;
+    const measure = () =>
+      setWrapped(actions.getBoundingClientRect().top >= title.getBoundingClientRect().bottom);
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [spent]);
 
   // A control that locks while it has the focus hands it on.
   React.useLayoutEffect(() => {
@@ -245,7 +265,12 @@ function EditorHeader({
       ref={setHeader}
       data-slot="editor-header"
       data-shrink={shrink}
-      className="flex min-w-0 shrink-0 items-center gap-3 border-b bg-background px-[var(--page-gutter)] py-3"
+      className={cn(
+        "flex min-w-0 shrink-0 items-center gap-3 border-b bg-background px-[var(--page-gutter)] py-3",
+        // Every step spent and still too narrow (320 px, WCAG 1.4.10 Reflow; #221): the action group
+        // wraps onto its own line, right-aligned. Where the header fits, wrapping changes nothing.
+        spent && "flex-wrap",
+      )}
     >
       {folded("back") ? (
         <IconButtonTooltip label={t("editor.back")}>
@@ -288,7 +313,7 @@ function EditorHeader({
       <div
         data-slot="editor-actions"
         data-focus-group=""
-        className="flex shrink-0 items-center gap-2"
+        className="ml-auto flex shrink-0 items-center gap-2"
       >
         {lifecycle === undefined ? null : (
           <>
@@ -300,10 +325,11 @@ function EditorHeader({
             {lifecycle.next === undefined ? null : (
               <NextStep {...lifecycle.next} dirty={dirty} iconOnly={folded("next")} />
             )}
-            {/* Full bar height: the stretch reaches through the header's vertical padding. */}
+            {/* Full bar height: the stretch reaches through the header's vertical padding; wrapped,
+                it spans the action row and the bottom padding only. */}
             <div
               aria-hidden="true"
-              className="-my-3 w-px self-stretch bg-border"
+              className={cn("w-px self-stretch bg-border", wrapped ? "-mb-3" : "-my-3")}
               data-testid="editor-lifecycle-separator"
             />
           </>

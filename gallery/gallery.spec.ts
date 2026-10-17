@@ -1742,7 +1742,9 @@ async function expectHeaderFits(page: Page, frame: string) {
   return fit.shrink;
 }
 
+// #221 (`GL-UX-001`, WCAG 1.4.10 Reflow): every header also fits at 320 px.
 for (const [viewport, content] of [
+  [320, 272],
   [390, 342],
   [438, 390],
 ] as const) {
@@ -1766,6 +1768,65 @@ for (const [viewport, content] of [
         "0",
       );
     }
+  });
+}
+
+// #221: at 320 px every step is spent (6 without a lifecycle, 8 with one) and the header may wrap; the
+// actions stand on their own line where the first line has no room, and the lifecycle separator then
+// spans only the action row.
+test("editor header: at 320 px every step is spent and the actions wrap where needed", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 320, height: 900 });
+  await page.goto("/?page=components&lng=de");
+  for (const [frame, steps, wraps] of [
+    ["editor-header-saved", "6", false],
+    ["editor-header-draft", "6", true],
+    ["editor-lifecycle-saved", "8", true],
+    ["editor-lifecycle-draft", "8", true],
+  ] as const) {
+    const header = page.getByTestId(frame).locator("[data-slot=editor-header]");
+    await expect(header).toHaveAttribute("data-shrink", steps);
+    await expect(header).toHaveCSS("flex-wrap", "wrap");
+    const layout = await header.evaluate((node) => {
+      const actions = node.querySelector("[data-slot=editor-actions]")!.getBoundingClientRect();
+      const title = node.querySelector("[data-slot=editor-title]")!.getBoundingClientRect();
+      const separator = node
+        .querySelector("[data-testid=editor-lifecycle-separator]")
+        ?.getBoundingClientRect();
+      return {
+        wrapped: actions.top >= title.bottom,
+        separatorAbove: separator === undefined ? 0 : actions.top - separator.top,
+      };
+    });
+    expect(layout.wrapped, `${frame}: actions on their own line`).toBe(wraps);
+    expect(layout.separatorAbove, `${frame}: separator above the action row`).toBeLessThanOrEqual(
+      0.5,
+    );
+  }
+});
+
+// #221 (`GL-UX-001`, WCAG 1.4.10 Reflow): the editor page at 320 px (1280 px at 400 %) never scrolls
+// sideways, and no control of its header reaches past the viewport.
+for (const lng of LANGUAGES) {
+  test(`editor header: the editor page reflows at 320 px ${lng}`, async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 800 });
+    await page.goto(`/?page=editor-shell&lng=${lng}`);
+    const header = page.locator("[data-slot=editor-header]");
+    await expect(header.getByTestId("editor-save")).toBeVisible();
+    const widest = await header.evaluate((node) =>
+      Math.max(
+        ...[...node.querySelectorAll("button, [role=status]")].map(
+          (control) => control.getBoundingClientRect().right,
+        ),
+      ),
+    );
+    expect(widest).toBeLessThanOrEqual(320);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      ),
+    ).toBeLessThanOrEqual(0);
   });
 }
 
@@ -6215,6 +6276,8 @@ for (const lng of LANGUAGES) {
       ),
     ).toBeLessThanOrEqual(0);
     // The wrap rule is scoped to the gallery's own header; the package's EditorHeader stays nowrap.
+    // Measured unfolded: with every step spent (320 px) it wraps on its own (#221).
+    await page.setViewportSize({ width: 1440, height: 800 });
     await page.goto(`/?page=editor-shell&lng=${lng}`);
     await expect(page.locator("[data-slot=editor-header]").first()).toHaveCSS(
       "flex-wrap",
