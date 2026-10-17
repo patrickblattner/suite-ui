@@ -72,8 +72,10 @@ function HelpDrawer({ open, onOpenChange, pages, categories, version }: HelpDraw
           <SheetDescription className="sr-only">{t("help.searchPlaceholder")}</SheetDescription>
         </SheetHeader>
 
-        <div className="flex min-h-0 flex-1 flex-row">
-          <aside className="flex w-64 shrink-0 flex-col border-r">
+        {/* Below `sm` the aside stacks above the content and the drawer scrolls as one column, so
+            neither is squeezed (`GL-UX-001`, WCAG 1.4.10, #213). From `sm` on, side by side. */}
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto sm:flex-row sm:overflow-visible">
+          <aside className="flex shrink-0 flex-col border-b sm:w-64 sm:border-r sm:border-b-0">
             <div className="border-b p-3">
               <div className="relative">
                 <SearchIcon
@@ -94,7 +96,7 @@ function HelpDrawer({ open, onOpenChange, pages, categories, version }: HelpDraw
               </div>
             </div>
 
-            <nav className="flex-1 overflow-y-auto p-2 text-sm" aria-label={t("help.title")}>
+            <nav className="p-2 text-sm sm:flex-1 sm:overflow-y-auto" aria-label={t("help.title")}>
               {filtered.length === 0 ? (
                 <p
                   className="px-2 py-2 text-xs text-muted-foreground"
@@ -167,7 +169,10 @@ function HelpDrawer({ open, onOpenChange, pages, categories, version }: HelpDraw
             )}
           </aside>
 
-          <main className="flex-1 overflow-y-auto px-8 py-6" data-testid="help-content">
+          <main
+            className="px-4 py-6 sm:flex-1 sm:overflow-y-auto sm:px-8"
+            data-testid="help-content"
+          >
             {active ? (
               <HelpMarkdown body={active.body} />
             ) : (

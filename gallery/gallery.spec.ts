@@ -6379,3 +6379,40 @@ test("help drawer: its content keeps its own padding", async ({ page }) => {
   // The gallery's own content area keeps its padding.
   await expect(page.locator("#root > main")).toHaveCSS("padding", "24px");
 });
+
+// #213 (`GL-UX-001`, WCAG 1.4.10; `SUI-FEATURE-038`): at 320 and 390 px the help drawer stacks its
+// navigation above the content. Neither the drawer nor the document scrolls sideways, no heading is
+// cut, and the text wraps across the content width rather than a word per line.
+for (const width of [320, 390]) {
+  for (const lng of LANGUAGES) {
+    test(`help drawer reflows at ${width} px ${lng}`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 800 });
+      await page.goto(`/?page=help&lng=${lng}`);
+      const drawer = page.getByTestId("help-drawer");
+      const content = page.getByTestId("help-content");
+      await expect(content.locator("h1")).toBeVisible();
+      const overflow = (locator: Locator) =>
+        locator.evaluate((el) => el.scrollWidth - el.clientWidth);
+      expect(await overflow(drawer)).toBeLessThanOrEqual(0);
+      expect(await overflow(content)).toBeLessThanOrEqual(0);
+      expect(
+        await page.evaluate(
+          () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+        ),
+      ).toBeLessThanOrEqual(0);
+      // Stacked: the navigation stands above the content, and the content has the drawer's width.
+      const nav = await box(drawer.locator("aside"));
+      const main = await box(content);
+      expect(main.y).toBeGreaterThanOrEqual(nav.y + nav.height - 1);
+      expect(main.width).toBeGreaterThanOrEqual(width - 2);
+      for (const heading of await content.locator("h1, h2").all()) {
+        expect(await overflow(heading), await heading.textContent()).toBeLessThanOrEqual(0);
+        const at = await box(heading);
+        expect(at.x + at.width).toBeLessThanOrEqual(width);
+      }
+      // Normal wrapping: the first paragraph's text box spans most of the content box.
+      const paragraph = await box(content.locator("p").first());
+      expect(paragraph.width).toBeGreaterThan(main.width / 2);
+    });
+  }
+}
