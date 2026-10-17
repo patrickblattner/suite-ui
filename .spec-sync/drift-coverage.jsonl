@@ -417,3 +417,5 @@
 {"ts":"2026-10-17T13:23:34.383Z","key":"SUI-FEATURE-088","from":4,"to":5,"disposition":"ticket","ref":"201"}
 {"ts":"2026-10-17T13:23:46.520Z","key":"SUI-FEATURE-089","from":null,"to":2,"disposition":"ticket","ref":"168"}
 {"ts":"2026-10-17T13:24:05.114Z","key":"PROC-DEV-031","from":18,"to":19,"disposition":"editorial","ref":"harness/console-hub process rule (owner remote input); no code impact in suite-ui"}
+{"ts":"2026-10-17T14:06:13.192Z","key":"SUI-FEATURE-089","from":2,"to":3,"disposition":"ticket","ref":"210"}
+{"ts":"2026-10-17T14:06:13.564Z","key":"PROC-REL-004","from":null,"to":2,"disposition":"editorial","ref":"console-hub runner exception; suite-ui has no GitHub workflows, no code impact"}
