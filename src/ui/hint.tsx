@@ -184,7 +184,9 @@ function Hint({ text, disabledText, children, ...passThrough }: HintProps) {
     trigger = (
       <span
         tabIndex={disabled ? 0 : undefined}
-        className="inline-grid"
+        // Focusable while it carries a locked control: the package ring, never the browser outline
+        // (`GL-UI-013`, #172).
+        className="inline-grid rounded-md outline-none focus-visible:focus-ring"
         aria-describedby={describes && disabled ? id : undefined}
       >
         {trigger}
