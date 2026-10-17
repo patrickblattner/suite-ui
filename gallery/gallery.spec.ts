@@ -6214,8 +6214,21 @@ for (const lng of LANGUAGES) {
   });
 }
 
-// #172 (`GL-UI-013`): the focusable span a Hint wraps around a locked control shows the package ring,
-// 3 px `--ring`, and under forced colors the outline the ring rule sets; never the browser outline.
+// #172 (`GL-UI-013`): the focusable span a Hint or an IconButtonTooltip wraps around a locked control
+// shows the package ring, 3 px `--ring`, and under forced colors the outline the ring rule sets; never
+// the browser outline.
+async function expectCarrierRing(page: Page, carrier: Locator, forced: boolean) {
+  if (forced) {
+    await expectForcedOutline(carrier);
+  } else {
+    const ring = await utilityColor(page, "bg-ring", "backgroundColor");
+    // Waits for the settled ring, as every focus-ring test here does (#74).
+    await expect.poll(() => boxShadowOf(carrier)).toContain(`${ring} 0px 0px 0px 3px`);
+    await expect(carrier).toHaveCSS("outline-style", "solid");
+    await expect(carrier).toHaveCSS("outline-color", "rgba(0, 0, 0, 0)");
+  }
+}
+
 for (const forced of [false, true]) {
   test(`focus ring: a Hint carrier span${forced ? " under forced colors" : ""}`, async ({
     page,
@@ -6229,14 +6242,25 @@ for (const forced of [false, true]) {
     await page.getByTestId("secret-replace").focus();
     await page.keyboard.press("Tab");
     await expect(carrier).toBeFocused();
-    if (forced) {
-      await expectForcedOutline(carrier);
-    } else {
-      const ring = await utilityColor(page, "bg-ring", "backgroundColor");
-      // Waits for the settled ring, as every focus-ring test here does (#74).
-      await expect.poll(() => boxShadowOf(carrier)).toContain(`${ring} 0px 0px 0px 3px`);
-      await expect(carrier).toHaveCSS("outline-style", "solid");
-      await expect(carrier).toHaveCSS("outline-color", "rgba(0, 0, 0, 0)");
-    }
+    await expectCarrierRing(page, carrier, forced);
+  });
+
+  test(`focus ring: an IconButtonTooltip carrier span${forced ? " under forced colors" : ""}`, async ({
+    page,
+  }) => {
+    if (forced) await page.emulateMedia({ forcedColors: "active" });
+    await page.goto("/?page=keys&lng=en");
+    await page.getByTestId("keys-dialog-trigger").click();
+    const dialog = page.getByTestId("keys-dialog-content");
+    const remove = dialog.getByTestId("keys-dialog-delete");
+    await expect(remove).toBeDisabled();
+    const carrier = remove.locator("..");
+    await expect(carrier).toHaveAttribute("tabindex", "0");
+    await carrier.focus();
+    // A keyboard focus, so `:focus-visible` holds.
+    await page.keyboard.press("Shift+Tab");
+    await page.keyboard.press("Tab");
+    await expect(carrier).toBeFocused();
+    await expectCarrierRing(page, carrier, forced);
   });
 }

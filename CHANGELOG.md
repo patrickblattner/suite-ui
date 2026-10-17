@@ -2,7 +2,7 @@
 
 ## 0.119.1 — #172, GL-UI-013: the focusable span around a locked control shows the package focus ring
 
-Not breaking. `Hint` (with `disabledText`) and `IconButtonTooltip` wrap a disabled control in a span that takes the focus in its place. That span now shows the package focus ring (`focus-visible:focus-ring`: 3 px `--ring`, and under forced colors the outline the ring rule sets) with `rounded-md`, instead of the browser's default outline. **Migration:** none. Baselines: none changed, because no capture holds a focused carrier.
+Not breaking. `Hint` (with `disabledText`) and `IconButtonTooltip` wrap a disabled control in a span that takes the focus in its place. That span now shows the package focus ring (`focus-visible:focus-ring`: 3 px `--ring`, and under forced colors the outline the ring rule sets) with `rounded-md`, instead of the browser's default outline. `Hint` takes a new optional `carrierClassName` that sets the span's radius and ring in place of `rounded-md` and the outset ring; a locked `UserMenuItem` passes `rounded-sm focus-visible:focus-ring-inset`, so its span shows the same inset ring as an enabled entry. **Migration:** none. Baselines: none changed, because no capture holds a focused carrier.
 
 ## 0.119.0 — #167, SUI-FEATURE-140: `MediaDetailShell` needs `src` for the kinds that show a file
 
