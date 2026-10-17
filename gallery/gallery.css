@@ -20,7 +20,9 @@ body {
   font-family: system-ui, sans-serif;
 }
 
-header {
+/* The gallery's own top bar only: a bare `header` would also hit the package's EditorHeader, and
+   unlayered it would beat the package's own utilities (#204). */
+#root > header {
   display: flex;
   gap: 16px;
   align-items: center;
@@ -36,13 +38,13 @@ header {
   }
 }
 
-header h1 {
+#root > header h1 {
   margin: 0 auto 0 0;
   font-size: 18px;
   font-weight: 600;
 }
 
-header select {
+#root > header select {
   border: 1px solid var(--input);
   border-radius: calc(var(--radius) - 2px);
   padding: 2px 4px;
