@@ -1269,28 +1269,74 @@ for (const width of [320, 390]) {
     await toggle.click();
     await expect(frame.getByTestId("operation-progress")).toBeVisible();
     expect(await layout()).toEqual(idle);
-    // Rev 8: a second operation; compact, "+1" stands in the indicator's name, not beside it.
+    // Rev 9: a second operation; compact, "+1" stays visible beside the indicator, whole inside the
+    // slot, and the indicator's name says `suite:status.more`.
     await toggle.click();
     const slot = frame.getByTestId("page-operation-status");
-    await expect(slot.getByRole("img", { name: "Uploading images +1" })).toBeVisible();
-    await expect(slot.getByTestId("page-operation-more")).toHaveCount(0);
+    await expect(slot.getByRole("img", { name: "Uploading images, 1 weitere" })).toBeVisible();
+    const more = slot.getByTestId("page-operation-more");
+    await expect(more).toHaveText("+1");
+    const moreBox = await box(more);
+    const slotBox = await box(slot);
+    expect(moreBox.x + moreBox.width).toBeLessThanOrEqual(slotBox.x + slotBox.width);
     expect(await layout()).toEqual(idle);
   });
 }
 
-// #226 (`SUI-FEATURE-051` rev 8): with a second operation the compact indicator's hint names the
-// label and "+1".
-test("page header: at 390 px the compact indicator's hint carries +n", async ({ page }) => {
+// #226, #230 (`SUI-FEATURE-051` rev 9): with a second operation the compact indicator's hint holds the
+// label alone; "+1" stands beside it and its name adds `suite:status.more`.
+test("page header: at 390 px the compact hint holds the label, +n stands beside it", async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 390, height: 900 });
   await page.goto("/?page=components&lng=de&statusTitle=long");
   const frame = page.getByTestId("status-frame-toggle");
   const toggle = frame.getByTestId("status-toggle");
   for (let step = 0; step < 3; step++) await toggle.click();
-  const indicator = frame.getByTestId("page-operation-status").getByRole("img");
-  await expect(indicator).toHaveAccessibleName("Uploading images +1");
+  const slot = frame.getByTestId("page-operation-status");
+  const indicator = slot.getByRole("img");
+  await expect(indicator).toHaveAccessibleName("Uploading images, 1 weitere");
+  await expect(slot.getByTestId("page-operation-more")).toBeVisible();
   await indicator.hover();
-  await expect(page.locator("[data-slot=tooltip-content]")).toHaveText("Uploading images +1");
+  await expect(page.locator("[data-slot=tooltip-content]")).toHaveText("Uploading images");
 });
+
+// #230 (`SUI-FEATURE-051` rev 9): from 640 px the slot stays on the first row; in a head crowded down
+// to the slot's minimum at 700 px, that minimum keeps "+1" whole beside a spinner and a progress bar.
+for (const [kind, query] of [
+  ["progress", ""],
+  ["spinner", "&statusMore=spinner"],
+] as const) {
+  test(`page header: at 700 px a compact slot keeps +n whole beside its ${kind}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 700, height: 900 });
+    await page.goto(`/?page=components&lng=de&statusTitle=long${query}`);
+    const frame = page.getByTestId("status-frame-toggle");
+    const toggle = frame.getByTestId("status-toggle");
+    for (let step = 0; step < 3; step++) await toggle.click();
+    // Crowd the head: the frame leaves the slot no free room beside the title and the actions, so the
+    // slot stands at its minimum width.
+    await frame.evaluate((node) => {
+      const head = node.querySelector("[data-testid=page-header]")!;
+      const title = head.querySelector("[data-testid=page-title]")!.getBoundingClientRect().width;
+      const actions = head
+        .querySelector("[data-slot=page-header-actions] > *")!
+        .getBoundingClientRect().width;
+      const frame = node.getBoundingClientRect().width - head.getBoundingClientRect().width;
+      (node as HTMLElement).style.width = `${Math.ceil(title + actions + 32 + frame)}px`;
+    });
+    const slot = frame.getByTestId("page-operation-status");
+    await expect(slot).toHaveAttribute("data-compact", "");
+    await expect(slot.getByTestId(`operation-${kind}`)).toBeVisible();
+    const more = slot.getByTestId("page-operation-more");
+    await expect(more).toHaveText("+1");
+    const moreBox = await box(more);
+    const slotBox = await box(slot);
+    expect(moreBox.x).toBeGreaterThanOrEqual(slotBox.x);
+    expect(moreBox.x + moreBox.width).toBeLessThanOrEqual(slotBox.x + slotBox.width);
+  });
+}
 
 // #222 (`SUI-FEATURE-051` rev 8, `GL-UI-013`): at 320 px the compact progress indicator, reached by
 // keyboard, shows its 3 px ring whole inside the slot's clip.

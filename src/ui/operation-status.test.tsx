@@ -1,4 +1,5 @@
 import { act, render, screen, within } from "@testing-library/react";
+import i18n from "i18next";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { PageHeader } from "../list/page-header.js";
@@ -10,10 +11,11 @@ import {
 } from "./operation-status.js";
 import { toast } from "./toaster.js";
 
-afterEach(() => {
+afterEach(async () => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
   document.documentElement.style.fontSize = "";
+  await i18n.changeLanguage("en");
 });
 
 // Renders the provider with a head of `scope` (or none) and hands back the hook's api.
@@ -126,8 +128,9 @@ describe("useOperationStatus and the PageHeader status slot", () => {
     expect(screen.getByTestId("page-operation-live")).toHaveTextContent(/^Second$/);
   });
 
-  // SUI-FEATURE-051 rev 8: compact, "+n" moves into the hint and the name beside the label.
-  it("carries +1 in the compact indicator's name instead of beside it", () => {
+  // SUI-FEATURE-051 rev 9: compact, "+n" stays visible beside the indicator; its name adds
+  // `suite:status.more`, in every language.
+  it("shows +1 beside the compact indicator and names the others as status.more", async () => {
     vi.stubGlobal(
       "ResizeObserver",
       class {
@@ -144,10 +147,20 @@ describe("useOperationStatus and the PageHeader status slot", () => {
     });
     const slot = screen.getByTestId("page-operation-status");
     expect(slot).toHaveAttribute("data-compact", "");
-    expect(screen.queryByTestId("page-operation-more")).toBeNull();
-    expect(within(slot).getByRole("img", { name: "Second +1" })).toBeInTheDocument();
+    const more = screen.getByTestId("page-operation-more");
+    expect(more).toHaveTextContent("+1");
+    // The name says it already; the glyph is not read twice.
+    expect(more).toHaveAttribute("aria-hidden", "true");
+    const indicator = within(slot).getByRole("img", { name: "Second, 1 more" });
+    // The name says the label already; no description reads it a second time (`SUI-FEATURE-052`).
+    expect(indicator).toHaveAccessibleDescription("");
+    expect(indicator).not.toHaveAttribute("aria-describedby");
     // The status still holds the label alone (`SUI-FEATURE-052`).
     expect(within(slot).getByRole("status").textContent).toBe("Second");
+    await act(() => i18n.changeLanguage("de"));
+    expect(within(slot).getByRole("img", { name: "Second, 1 weitere" })).toBeInTheDocument();
+    await act(() => i18n.changeLanguage("es"));
+    expect(within(slot).getByRole("img", { name: "Second, 1 más" })).toBeInTheDocument();
   });
 
   it("shows nothing for another scope and renders no slot without a scope", () => {

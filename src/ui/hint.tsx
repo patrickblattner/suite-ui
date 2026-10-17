@@ -135,6 +135,10 @@ type HintProps = {
   // The radius and ring of the span that carries a locked control, in place of `rounded-md` and the
   // outset ring: an entry inside a menu panel takes its own inset ring (`GL-UI-013`, #172).
   carrierClassName?: string | undefined;
+  // `false`: the control's own name already says the text, with more beside it (the compact status
+  // indicator's "label, n more", `SUI-FEATURE-051` rev 9), so it gets no `aria-describedby` either;
+  // the label is read once (`SUI-FEATURE-052`).
+  describe?: boolean | undefined;
   children: React.ReactElement<HintChildProps>;
 } & Omit<React.HTMLAttributes<HTMLElement>, "children"> & { ref?: React.Ref<HTMLElement> };
 
@@ -154,7 +158,14 @@ type HintProps = {
 // A control whose own text is clipped (it carries `truncate`) gets both in one bubble (`GL-UI-016`): the
 // full text on top, the description below. So does a clipped `OverflowTooltip` inside it (the value of
 // a select trigger), which then opens no bubble of its own: one element, one tooltip.
-function Hint({ text, disabledText, carrierClassName, children, ...passThrough }: HintProps) {
+function Hint({
+  text,
+  disabledText,
+  carrierClassName,
+  describe = true,
+  children,
+  ...passThrough
+}: HintProps) {
   const id = React.useId();
   const overflow = useIsOverflowing();
   const ownRef = passThrough.ref;
@@ -170,7 +181,7 @@ function Hint({ text, disabledText, carrierClassName, children, ...passThrough }
   // description itself; only its text is the locked one.
   const ariaLocked = [true, "true"].includes(children.props["aria-disabled"] ?? false);
   const shown = (disabled || ariaLocked) && disabledText !== undefined ? disabledText : text;
-  const describes = children.props["aria-label"] !== shown;
+  const describes = describe && children.props["aria-label"] !== shown;
   const carried = disabledText !== undefined;
 
   let trigger: React.ReactElement =

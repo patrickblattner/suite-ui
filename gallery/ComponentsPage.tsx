@@ -329,6 +329,9 @@ function StatusFrame({
 // done, so the narrow reflow can be measured in every state; the captures keep the short title and the
 // one action.
 const LONG_STATUS = new URLSearchParams(window.location.search).get("statusTitle") === "long";
+// `&statusMore=spinner` (#230): the second operation runs without progress, so "+1" stands beside a
+// spinner instead of a progress bar.
+const SPINNER_MORE = new URLSearchParams(window.location.search).get("statusMore") === "spinner";
 
 // The toggle starts and ends one operation, so the head can be measured before and after; its text
 // stays the same, so the actions keep their width.
@@ -351,7 +354,11 @@ function StatusToggle({
       handle.current.update({ progress: 0.6 });
       progressed.current = true;
     } else if (LONG_STATUS && second.current === null) {
-      second.current = start({ scope: "toggle", label: "Uploading images", progress: 0.3 });
+      second.current = start({
+        scope: "toggle",
+        label: "Uploading images",
+        ...(SPINNER_MORE ? {} : { progress: 0.3 }),
+      });
     } else {
       second.current?.succeed("Images uploaded");
       second.current = null;

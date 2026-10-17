@@ -27,6 +27,7 @@ export const de: SuiteStrings = {
     done: "Fertig",
     failed: "Fehlgeschlagen",
     recovered: "Wiederhergestellt",
+    more: "{{n}} weitere",
   },
   state: {
     succeeded: "Erfolgreich",

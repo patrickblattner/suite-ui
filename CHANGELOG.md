@@ -1,8 +1,26 @@
 # Changelog
 
+## 0.126.0 — #230, SUI-FEATURE-051 rev 9 (Q&A #3859): "+n" visible in the compact status slot
+
+Behaviour changes that app tests may see.
+
+- The compact status slot shows "+n" beside its indicator again, at every width. Only the label goes into the hint (it still stays closed on focus).
+- The indicator's accessible name now names the others with the new string `suite:status.more`: "Uploading images, 1 more" / "…, 1 weitere" / "…, 1 más", instead of "Uploading images +1". The visible glyph stays "+n" and is hidden from screen readers in the compact form, since the name says it.
+- Below 640 px, the slot's reserved compact width on row two now fits a progress indicator and "+n" (5.5rem instead of 3.5rem), reserved while idle too. So the head keeps one height idle, running, with progress and with "+n" visible, and nothing reaches past it at 320 and 390 px.
+- The full slot is unchanged.
+
+**Migration:** none in code. App tests that read the compact indicator's name as "<label> +n" read "<label>, n more" (in the app's language). Tests that expect no `page-operation-more` beside a compact indicator find it again. Tests that expect the hint to read "<label> +n" read the label alone. Apps that register the package strings get `suite:status.more` with them. Baselines:
+
+- `components-de-light-390` and `components-de-dark-390`: the wider reserved slot, and "+1" visible in the several-operations sample.
+- The strings table, which gains the `status.more` row: `gallery-{de,en,es}-{light,dark}` and `gallery-de-{light,dark}-{390,1440}`.
+
+All other 1440 and 1920 px captures are unchanged.
+
+Minor, not patch: the compact indicator's accessible name and the visible "+n" change, which app tests can see.
+
 ## 0.125.1 — #228, SUI-FEATURE-071 rev 6 (Q&A #3856, #3857, #3860): `PropertyPanel` under the canvas below 640 px
 
-Not breaking; the DOM and its order are unchanged. Below 640 px of window width (Tailwind `sm`; Reflow, `GL-UX-001`), the `PropertyPanel` stands under the canvas at full width instead of as a 340 px column on the right, where it lay entirely outside the editor frame at 320 and 390 px. It is a CSS rule on the window width. `styles.css` lets the editor row that holds the panel wrap and sets the split in one place, `--property-panel-share` (50 %). The panel takes the lower half, with its head in place and only its body scrolling; its three tabs take narrower padding below 640 px so they fit 320 px in every language. `styles.css` caps each other child of that row at the upper half, so the `DrawerRail` with its open drawer and the canvas share it. The drawer keeps its width up to what the row leaves, and the canvas keeps the rest, at worst none while a drawer is open (Q&A #3857). From 640 px on nothing changes: a 340 px panel on the right and a 300 px drawer. **Migration:** none in most editors; check three points below 640 px. The editor row that holds the panel needs a definite height, as before, so the halves resolve. The rail, the canvas and the panel must be direct children of one flex row, since the rule finds the row by its panel child. The canvas child needs `min-w-0`, or a squeezed canvas pushes the panel out of the editor. Every direct child of that row except the panel, a `dialog` and a `[popover]` is capped at the upper half, so an absolutely positioned overlay placed directly in the row covers only that half; put it in the canvas instead. Baselines: `components-de-light-390` and `components-de-dark-390`, where the panel now stands under the canvas; 1440 and 1920 px are unchanged.
+Not breaking; the DOM and its order are unchanged. Below 640 px of window width (Tailwind `sm`; Reflow, `GL-UX-001`), the `PropertyPanel` stands under the canvas at full width instead of as a 340 px column on the right, where it lay entirely outside the editor frame at 320 and 390 px. It is a CSS rule on the window width. `styles.css` lets the editor row that holds the panel wrap and sets the split in one place, `--property-panel-share` (50 %). The panel takes the lower half, with its head in place and only its body scrolling; its three tabs take narrower padding below 640 px so they fit 320 px in every language. `styles.css` caps each other child of that row at the upper half, so the `DrawerRail` with its open drawer and the canvas share it. The drawer keeps its width up to what the row leaves, and the canvas keeps the rest, at worst none while a drawer is open (Q&A #3857). From 640 px on nothing changes: a 340 px panel on the right and a 300 px drawer. **Migration:** none in most editors; check three points below 640 px. The editor row that holds the panel needs a definite height, as before, so the halves resolve. The `DrawerRail`, the canvas and the `PropertyPanel` must be direct children of one flex row, since the rule finds the row by its panel child (`:has(> …)`); if the panel is wrapped in another element, nothing of this applies below 640 px. The canvas child needs `min-w-0`, or a squeezed canvas pushes the panel out of the editor. Every direct child of that row except the panel, a `dialog` and a `[popover]` is capped at the upper half, so an absolutely positioned overlay placed directly in the row covers only that half; put it in the canvas instead. Baselines: `components-de-light-390` and `components-de-dark-390`, where the panel now stands under the canvas; 1440 and 1920 px are unchanged.
 
 ## 0.125.0 — #226, SUI-FEATURE-051 rev 8 (Q&A #3852): `PageHeader` two rows below 640 px, "+n" in the compact hint
 

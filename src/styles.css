@@ -379,11 +379,12 @@
     outline: none;
   }
   /* Below 640 px the property panel stands under the canvas at full width (`SUI-FEATURE-071` rev 6,
-     Reflow `GL-UX-001`): the editor row that holds it wraps. `--property-panel-share` is the one place
-     of the split: the panel takes that share of the row's height, and each other child is capped at the
-     rest, so a canvas squeezed narrow (it needs `min-w-0`) cannot push the panel out of the editor. A
-     `dialog` or `[popover]` child is left alone; any other out-of-flow child of the row (an absolute
-     overlay) is capped too. */
+     Reflow `GL-UX-001`): the editor row that holds it wraps. It works only when the drawer rail, the
+     canvas and the panel are direct children of one flex row (`:has(> …)`); a panel wrapped in another
+     element gets none of this. `--property-panel-share` is the one place of the split: the panel takes
+     that share of the row's height, and each other child is capped at the rest, so a canvas squeezed
+     narrow (it needs `min-w-0`) cannot push the panel out of the editor. A `dialog` or `[popover]` child
+     is left alone; any other out-of-flow child of the row (an absolute overlay) is capped too. */
   @media (width < 40rem) {
     :where(:has(> [data-slot="property-panel"])) {
       --property-panel-share: 50%;

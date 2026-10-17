@@ -28,6 +28,8 @@ export const en = {
     done: "Done",
     failed: "Failed",
     recovered: "Recovered",
+    // The others of the page's operations, in the compact status slot's name (`SUI-FEATURE-051`).
+    more: "{{n}} more",
   },
   // The text of each `StatusChip` state, in sentence case.
   state: {
