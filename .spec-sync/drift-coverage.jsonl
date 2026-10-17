@@ -410,3 +410,6 @@
 {"ts":"2026-10-17T11:36:51.730Z","key":"SUI-FEATURE-087","from":2,"to":3,"disposition":"ticket","ref":"197"}
 {"ts":"2026-10-17T11:50:52.295Z","key":"SUI-FEATURE-088","from":null,"to":2,"disposition":"ticket","ref":"199"}
 {"ts":"2026-10-17T11:50:52.670Z","key":"PROC-DEV-010","from":3,"to":4,"disposition":"editorial","ref":"worker-loop process rule (control labels, follow-up tickets, guardian question); no code impact, applied in this run"}
+{"ts":"2026-10-17T12:02:23.226Z","key":"SUI-FEATURE-088","from":2,"to":3,"disposition":"ticket","ref":"199"}
+{"ts":"2026-10-17T12:16:24.756Z","key":"SUI-FEATURE-087","from":3,"to":6,"disposition":"ticket","ref":"202"}
+{"ts":"2026-10-17T12:16:25.149Z","key":"SUI-FEATURE-088","from":2,"to":4,"disposition":"ticket","ref":"199"}
