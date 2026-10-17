@@ -270,7 +270,7 @@ export const en = {
     uploadedBy: "Uploaded by",
     missingRef: "No file is attached to this entry.",
     missingBytes: "The file is no longer available. Upload it again or remove the entry.",
-    noRenderer: "No preview for this type.",
+    noRenderer: "No preview available for this file.",
     truncated: "Truncated — only the beginning is shown.",
     pickUnavailable: "Can't be chosen without a file.",
     emptyText: "The file is empty.",

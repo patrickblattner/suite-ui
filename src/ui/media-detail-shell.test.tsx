@@ -410,9 +410,9 @@ describe("MediaDetailShell: preview states and text (SUI-FEATURE-140)", () => {
       "missingBytes",
       "El archivo ya no está disponible. Súbelo de nuevo o elimina la entrada.",
     ],
-    ["de", "noRenderer", "Für diesen Typ gibt es keine Vorschau."],
-    ["en", "noRenderer", "No preview for this type."],
-    ["es", "noRenderer", "No hay vista previa para este tipo."],
+    ["de", "noRenderer", "Für diese Datei gibt es keine Vorschau."],
+    ["en", "noRenderer", "No preview available for this file."],
+    ["es", "noRenderer", "No hay vista previa para este archivo."],
   ] as const)("%s %s: icon and sentence replace the preview", async (lng, state, sentence) => {
     await i18n.changeLanguage(lng);
     renderShell({ previewState: state });
@@ -821,7 +821,7 @@ describe("MediaDetailShell: allowed source schemes (SUI-FEATURE-089)", () => {
       expect(preview.querySelector("[src]")).toBeNull();
       expect(preview).toHaveAttribute("data-state", "noRenderer");
       expect(screen.getByTestId("media-detail-state")).toHaveTextContent(
-        "No preview for this type.",
+        "No preview available for this file.",
       );
     });
 

@@ -259,7 +259,7 @@ export const es: SuiteStrings = {
     uploadedBy: "Subido por",
     missingRef: "Esta entrada no tiene ningún archivo.",
     missingBytes: "El archivo ya no está disponible. Súbelo de nuevo o elimina la entrada.",
-    noRenderer: "No hay vista previa para este tipo.",
+    noRenderer: "No hay vista previa para este archivo.",
     truncated: "Truncado: solo se muestra el inicio.",
     pickUnavailable: "No se puede elegir sin archivo.",
     emptyText: "El archivo está vacío.",
