@@ -448,3 +448,6 @@
 {"ts":"2026-10-18T08:57:50.519Z","key":"GL-UI-016","from":4,"to":5,"disposition":"ticket","ref":"259"}
 {"ts":"2026-10-18T08:57:50.931Z","key":"PROC-DEV-010","from":4,"to":5,"disposition":"ticket","ref":"260"}
 {"ts":"2026-10-18T08:58:36.052Z","key":"SUI-PROC-001","from":null,"to":2,"disposition":"ticket","ref":"261"}
+{"ts":"2026-10-18T09:26:19.346Z","key":"GL-UI-016","from":5,"to":6,"disposition":"ticket","ref":"259"}
+{"ts":"2026-10-18T09:26:42.930Z","key":"SUI-FEATURE-049","from":6,"to":7,"disposition":"ticket","ref":"259"}
+{"ts":"2026-10-18T09:26:43.648Z","key":"PROC-DEV-047","from":6,"to":7,"disposition":"editorial","ref":"process rule for status: deferred in the worker loop; no code impact, already reflected in CLAUDE.md (32e6ba5)"}
