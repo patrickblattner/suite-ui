@@ -439,3 +439,4 @@
 {"ts":"2026-10-18T04:37:38.233Z","key":"PROC-REL-024","from":3,"to":4,"disposition":"editorial","ref":"rev4 adds libc/collation reindex step for data images; binds stage-infra pin changes, suite-ui ships no data image or Postgres"}
 {"ts":"2026-10-18T07:17:02.541Z","key":"PROC-011","from":11,"to":12,"disposition":"editorial","ref":"process rule clarification (byte-identical commit is no targeted fix), no code impact"}
 {"ts":"2026-10-18T07:17:21.645Z","key":"SUI-FEATURE-091","from":null,"to":2,"disposition":"ticket","ref":"249"}
+{"ts":"2026-10-18T07:33:37.017Z","key":"SUI-FEATURE-091","from":2,"to":3,"disposition":"ticket","ref":"251"}
