@@ -3566,7 +3566,8 @@ test("shell: one character searches nothing, Esc returns to the sidebar field", 
 });
 
 // `GL-UI-050` (#145): the search dialog closed by its × hands the focus back to the sidebar field
-// without reopening; opened by the shortcut, Esc returns it to the control that had it.
+// without reopening; opened by the shortcut from a nav link, Esc returns it to the field too, never
+// to the link (`GL-UI-031`, #240).
 test("shell: closing the search returns the focus, by × and after the shortcut", async ({
   page,
 }) => {
@@ -3591,8 +3592,10 @@ test("shell: closing the search returns the focus, by × and after the shortcut"
   await expect(dialog).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(dialog).toHaveCount(0);
-  await expect(link).toBeFocused();
-  expect(await page.evaluate(() => document.activeElement === document.body)).toBe(false);
+  await expect(field).toBeFocused();
+  await expect(link).not.toBeFocused();
+  await page.waitForTimeout(300);
+  await expect(dialog).toHaveCount(0);
 });
 
 test("shell: the shortcut opens the search from a section route", async ({ page }) => {

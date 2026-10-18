@@ -101,36 +101,42 @@ describe("GlobalSearch", () => {
     );
   });
 
-  // #151: closing goes back to what had the focus only if it is still usable (not hidden, inert,
-  // locked or aria-disabled) and takes the focus; else the field, without reopening the dialog.
+  // #240: the search's trigger is always its sidebar field (`GL-UI-031`), also when the shortcut
+  // opened it from a nav link; closing never goes back to what had the focus before.
   it.each([
-    ["aria-disabled", (el: HTMLElement) => el.setAttribute("aria-disabled", "true")],
-    ["hidden", (el: HTMLElement) => el.setAttribute("hidden", "")],
     [
-      "refusing the focus",
-      (el: HTMLElement) => {
-        el.focus = () => {};
+      "Esc",
+      (dialog: HTMLElement) => {
+        fireEvent.keyDown(within(dialog).getByTestId("search-dialog-input"), { key: "Escape" });
       },
     ],
-  ] as const)("a previous control that is %s hands the focus to the field", async (_, spoil) => {
-    render(
-      <ShellHarness route="/dashboard">
-        <button type="button" data-testid="earlier">
-          Earlier
-        </button>
-        <GlobalSearch areas={AREAS} search={vi.fn(() => Promise.resolve(RESULT))} />
-      </ShellHarness>,
-    );
-    const earlier = screen.getByTestId("earlier");
-    act(() => earlier.focus());
-    fireEvent.keyDown(document, { key: "k", ctrlKey: true });
-    const dialog = await screen.findByTestId("search-dialog");
-    spoil(earlier);
-    fireEvent.keyDown(within(dialog).getByTestId("search-dialog-input"), { key: "Escape" });
-    await waitFor(() => expect(screen.queryByTestId("search-dialog")).not.toBeInTheDocument());
-    expect(screen.getByTestId("shell-search")).toHaveFocus();
-    expect(screen.queryByTestId("search-dialog")).not.toBeInTheDocument();
-  });
+    [
+      "the close control",
+      (dialog: HTMLElement) => {
+        fireEvent.click(within(dialog).getByRole("button", { name: /close/i }));
+      },
+    ],
+  ] as const)(
+    "the shortcut from a nav link, then %s, returns the focus to the field",
+    async (_, close) => {
+      render(
+        <ShellHarness route="/dashboard">
+          <a href="/events" data-testid="nav-link">
+            Events
+          </a>
+          <GlobalSearch areas={AREAS} search={vi.fn(() => Promise.resolve(RESULT))} />
+        </ShellHarness>,
+      );
+      act(() => screen.getByTestId("nav-link").focus());
+      fireEvent.keyDown(document, { key: "k", ctrlKey: true });
+      const dialog = await screen.findByTestId("search-dialog");
+      close(dialog);
+      await waitFor(() => expect(screen.queryByTestId("search-dialog")).not.toBeInTheDocument());
+      expect(screen.getByTestId("shell-search")).toHaveFocus();
+      expect(screen.queryByTestId("search-dialog")).not.toBeInTheDocument();
+      expect(screen.getByTestId("location")).toHaveTextContent("/dashboard");
+    },
+  );
 
   it("opens with the shortcut", async () => {
     renderSearch();

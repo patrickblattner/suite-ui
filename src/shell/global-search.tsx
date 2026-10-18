@@ -83,20 +83,14 @@ function GlobalSearch({
   const suppressFocusOpen = React.useRef(false);
   const [term, setTerm] = React.useState("");
   const [dialogOpen, setDialogOpen] = React.useState(false);
-  // What had the focus when the dialog opened (the shortcut has no trigger of its own); it gets the
-  // focus back on close (`GL-UI-050`). A chosen hit navigates away and leaves the focus to the page.
-  const previous = React.useRef<HTMLElement | null>(null);
+  // A chosen hit navigates away and leaves the focus to the page.
   const navigating = React.useRef(false);
 
   const isDialogOpen = React.useRef(false);
 
   const openDialog = React.useCallback((seed?: string) => {
     if (seed !== undefined) setTerm(seed);
-    if (!isDialogOpen.current) {
-      const active = document.activeElement;
-      previous.current = active instanceof HTMLElement && active !== document.body ? active : null;
-      navigating.current = false;
-    }
+    if (!isDialogOpen.current) navigating.current = false;
     isDialogOpen.current = true;
     setDialogOpen(true);
   }, []);
@@ -125,14 +119,13 @@ function GlobalSearch({
     setTerm("");
   }
 
-  // Once the dialog has closed: back to what had the focus, else the field, else the rail's button.
-  // The field itself takes the focus without reopening the dialog.
+  // Once the dialog has closed: back to the field, else the rail's button. The search's trigger is
+  // always its sidebar field, also when the shortcut opened it (`GL-UI-031`, #240), never what had
+  // the focus before. The field itself takes the focus without reopening the dialog.
   function returnFocus(): void {
-    const from = previous.current;
-    previous.current = null;
     if (navigating.current) return;
     // The first usable one that takes the focus (`GL-UI-050`), each tried in turn.
-    for (const target of [from, inputRef.current, railRef.current]) {
+    for (const target of [inputRef.current, railRef.current]) {
       if (!isUsable(target)) continue;
       if (target === inputRef.current) suppressFocusOpen.current = true;
       target.focus();
