@@ -1,3 +1,4 @@
+import { InfoIcon } from "lucide-react";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 
@@ -180,31 +181,43 @@ function CreateAndSelectDialog<T extends ComboboxOption = ComboboxOption>({
             </DialogHeader>
             <DialogBody className="flex flex-col gap-4">
               {children({ name: "name", defaultValue: initialName })}
-              {duplicate !== null ? (
-                <div
-                  role="status"
-                  className="flex flex-wrap items-center gap-2 text-sm"
-                  data-testid={`${testId}-duplicate`}
-                >
-                  <span>
-                    {t("createAndSelect.duplicate", {
-                      name: duplicate.label,
-                      interpolation: { escapeValue: false },
-                    })}
-                  </span>
-                  <Hint text={t("createAndSelect.selectExistingHint")}>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => select(duplicate)}
-                      data-testid={`${testId}-select-existing`}
-                    >
-                      {t("createAndSelect.selectExisting")}
-                    </Button>
-                  </Hint>
-                </div>
-              ) : null}
+              {/* A status, neither error nor warning (`SUI-FEATURE-093` rev 4): muted, with an info
+                  icon, the button beside it. The live region stands while the dialog is open and
+                  only fills on a duplicate, so screen readers announce it; empty, it takes no place
+                  in the column. */}
+              <div
+                role="status"
+                aria-live="polite"
+                className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground empty:absolute"
+                data-testid={`${testId}-duplicate`}
+              >
+                {duplicate !== null ? (
+                  <>
+                    <InfoIcon
+                      aria-hidden="true"
+                      data-slot="status-icon"
+                      className="size-4 shrink-0"
+                    />
+                    <span>
+                      {t("createAndSelect.duplicate", {
+                        name: duplicate.label,
+                        interpolation: { escapeValue: false },
+                      })}
+                    </span>
+                    <Hint text={t("createAndSelect.selectExistingHint")}>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => select(duplicate)}
+                        data-testid={`${testId}-select-existing`}
+                      >
+                        {t("createAndSelect.selectExisting")}
+                      </Button>
+                    </Hint>
+                  </>
+                ) : null}
+              </div>
             </DialogBody>
             <DialogFooter>
               <Hint

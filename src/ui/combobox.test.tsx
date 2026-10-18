@@ -57,7 +57,7 @@ describe("Combobox", () => {
     const input = screen.getByRole("combobox");
     fireEvent.change(input, { target: { value: " Neu " } });
     const entry = screen.getByTestId("contact-create");
-    expect(entry).toHaveTextContent("Create Neu …");
+    expect(entry).toHaveTextContent("“Neu” create …");
     expect(screen.getAllByRole("option").at(-1)).toBe(entry);
     fireEvent.click(entry);
     expect(onCreateRequest).toHaveBeenCalledWith("Neu");
@@ -144,7 +144,7 @@ describe("Combobox", () => {
   it("shows the term as typed, & and ' included", () => {
     render(<Field onCreateRequest={() => undefined} />);
     fireEvent.change(screen.getByRole("combobox"), { target: { value: "Tom & Jerry's" } });
-    expect(screen.getByTestId("contact-create")).toHaveTextContent("Create Tom & Jerry's …");
+    expect(screen.getByTestId("contact-create")).toHaveTextContent("“Tom & Jerry's” create …");
   });
 
   it("hands the picked option over with its value, a found one too", async () => {
@@ -165,6 +165,33 @@ describe("Combobox", () => {
     });
     fireEvent.click(screen.getByRole("option", { name: "Grace Hopper" }));
     expect(onValueChange).toHaveBeenCalledWith("9", { value: "9", label: "Grace Hopper" });
+  });
+
+  // SUI-FEATURE-093 rev 4 AC5 (#272): a term that names a listed entry exactly offers no create entry.
+  it("an exact match, in any letter case, hides the create entry", () => {
+    render(<Field onCreateRequest={() => undefined} />);
+    const input = screen.getByRole("combobox");
+    fireEvent.change(input, { target: { value: "ada lovelace" } });
+    expect(screen.getByRole("option", { name: "Ada Lovelace" })).toBeInTheDocument();
+    expect(screen.queryByTestId("contact-create")).toBeNull();
+    fireEvent.change(input, { target: { value: "ada love" } });
+    expect(screen.getByTestId("contact-create")).toBeInTheDocument();
+  });
+
+  it("an exact match among the search's answer hides the create entry", async () => {
+    let answer: (result: ComboboxOption[]) => void = () => undefined;
+    render(
+      <Field
+        onSearch={() => new Promise((resolve) => (answer = resolve))}
+        onCreateRequest={() => undefined}
+      />,
+    );
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "Grace Hopper " } });
+    await act(async () => {
+      answer([{ value: "9", label: "Grace Hopper" }]);
+      await Promise.resolve();
+    });
+    expect(screen.queryByTestId("contact-create")).toBeNull();
   });
 
   it("with onSearch only the answer to the latest text counts", async () => {

@@ -7865,7 +7865,7 @@ async function openCreateDialog(page: Page, term: string) {
   return { picker, dialog, panel: page.getByTestId("contact-panel") };
 }
 
-test("create and select: Neu anlegen … opens the dialog over the dimmed panel with Neu in the name", async ({
+test("create and select: “Neu” create … opens the dialog over the dimmed panel with Neu in the name", async ({
   page,
 }) => {
   const { dialog, panel } = await openCreateDialog(page, "Neu");
@@ -7900,7 +7900,9 @@ test("create and select: working state, then the picker shows the new contact an
 test("create and select: a duplicate offers the existing contact, Select this one picks it", async ({
   page,
 }) => {
-  const { picker, dialog } = await openCreateDialog(page, "ada lovelace");
+  // An exact term offers no create entry: a part of the name, then the whole name in the dialog.
+  const { picker, dialog } = await openCreateDialog(page, "ada l");
+  await page.getByTestId("contact-create-name").fill("ada lovelace");
   await dialog.getByTestId("contact-create-submit").click();
   const line = dialog.getByTestId("contact-create-duplicate");
   await expect(line).toContainText("Ada Lovelace already exists");
@@ -7942,7 +7944,7 @@ test("create and select: the picker's server search shows Searching …, then No
   const status = page.getByTestId("contact-picker-status");
   await expect(status).toHaveText("Searching …");
   await expect(status).toHaveText("Nothing found");
-  await expect(page.getByTestId("contact-picker-create")).toHaveText("Create zzz …");
+  await expect(page.getByTestId("contact-picker-create")).toHaveText("“zzz” create …");
 });
 
 for (const [lng, submit] of [
@@ -7956,7 +7958,7 @@ for (const [lng, submit] of [
     await picker.click();
     await picker.fill("Neu");
     const entry = page.getByTestId("contact-picker-create");
-    await expect(entry).toHaveText(lng === "de" ? "Neu anlegen …" : "Crear Neu …");
+    await expect(entry).toHaveText(lng === "de" ? "„Neu“ anlegen …" : "«Neu» crear …");
     await entry.click();
     await expect(page.getByTestId("contact-create-submit")).toHaveText(submit);
   });
@@ -7987,3 +7989,42 @@ for (const width of [1440, 1920]) {
     });
   }
 }
+
+// SUI-FEATURE-093 rev 4 (#272): the duplicate line is a status; an exact term offers no create entry.
+test("create and select: the duplicate line is a muted status with an info icon", async ({
+  page,
+}) => {
+  const { dialog } = await openCreateDialog(page, "ada l");
+  await page.getByTestId("contact-create-name").fill("Ada Lovelace");
+  await dialog.getByTestId("contact-create-submit").click();
+  const line = dialog.getByTestId("contact-create-duplicate");
+  await expect(line).toHaveAttribute("role", "status");
+  await expect(line.locator("svg[data-slot=status-icon]")).toBeVisible();
+  const [text, muted] = await Promise.all([
+    line
+      .locator("span")
+      .first()
+      .evaluate((node) => getComputedStyle(node).color),
+    page.evaluate(() => {
+      const probe = document.createElement("span");
+      probe.className = "text-muted-foreground";
+      document.body.append(probe);
+      const color = getComputedStyle(probe).color;
+      probe.remove();
+      return color;
+    }),
+  ]);
+  expect(text).toBe(muted);
+});
+
+test("create and select: “ada lovelace” with Ada Lovelace listed offers no create entry", async ({
+  page,
+}) => {
+  await page.goto("/?page=edit-panel&lng=en");
+  await page.getByTestId("contact-panel-trigger").click();
+  const picker = page.getByTestId("contact-picker");
+  await picker.click();
+  await picker.fill("ada lovelace");
+  await expect(page.getByTestId("contact-picker-option")).toHaveText(["Ada Lovelace"]);
+  await expect(page.getByTestId("contact-picker-create")).toHaveCount(0);
+});

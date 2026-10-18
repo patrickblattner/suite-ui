@@ -259,7 +259,7 @@ export const de: SuiteStrings = {
     placeholder: "Suchen …",
     loading: "Wird gesucht …",
     empty: "Nichts gefunden",
-    create: "{{term}} anlegen …",
+    create: "„{{term}}“ anlegen …",
   },
   createAndSelect: {
     submit: "Anlegen und wählen",

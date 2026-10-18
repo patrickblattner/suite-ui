@@ -26,8 +26,9 @@ type ComboboxProps = {
   // Server search: the typed text's matches. While it runs the list says so; with no match it says
   // that. Without it the options are filtered here.
   onSearch?: (term: string) => Promise<readonly ComboboxOption[]>;
-  // With it the list ends in "⟨term⟩ anlegen …", which hands the typed text over: the call site opens
-  // its `CreateAndSelectDialog` (`SUI-FEATURE-093`).
+  // With it the list ends in the create entry, the term in the language's quotes (de „⟨term⟩“
+  // anlegen …), which hands the typed text over: the call site opens its `CreateAndSelectDialog`
+  // (`SUI-FEATURE-093` rev 4). A term that names a listed entry exactly, in any letter case, gets none.
   onCreateRequest?: (term: string) => void;
   placeholder?: string;
   id?: string;
@@ -105,8 +106,10 @@ function Combobox({
     onSearch === undefined ? filterOptions(options, query) : term === "" ? options : (found ?? []);
   const loading = onSearch !== undefined && term !== "" && found === null;
   // Not while the search runs: the entry would stand alone, and Enter would create a record the
-  // answer is about to offer.
-  const create = onCreateRequest !== undefined && term !== "" && !loading;
+  // answer is about to offer. Nor for a term that names a listed entry exactly, in any letter case
+  // (`SUI-FEATURE-093` rev 4).
+  const listed = matches.some((option) => option.label.toLowerCase() === term.toLowerCase());
+  const create = onCreateRequest !== undefined && term !== "" && !loading && !listed;
   const count = matches.length + (create ? 1 : 0);
   const label =
     options.find((option) => option.value === value)?.label ??

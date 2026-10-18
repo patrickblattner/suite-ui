@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.133.3 — #272, SUI-FEATURE-093 rev 4 (owner's taste decisions, Q&A #3983, #3984): duplicate line as a status, quoted create entry, no entry for an exact match
+
+Fix, not breaking. Three refinements of the 0.133.0 building blocks. The `CreateAndSelectDialog`'s "⟨name⟩ already exists" line is a status, neither error nor warning: muted text with a small info icon, `role="status"`, the "Select this one" button beside it. The `Combobox` create entry puts the term in the language's typographic quotes. And a term that names a listed entry exactly, in any letter case, shows no create entry: "ada lovelace" with "Ada Lovelace" listed offers only that entry, for a local filter and for a server search's answer alike.
+
+**Migration:** changed package texts — `combobox.create`: en "Create {{term}} …" → "“{{term}}” create …", de "{{term}} anlegen …" → "„{{term}}“ anlegen …", es "Crear {{term}} …" → "«{{term}}» crear …". The duplicate line's text (`createAndSelect.duplicate`) is unchanged; it is now muted with an info icon (`data-slot="status-icon"`). A call site that relied on the create entry for a term equal to a listed label no longer gets it; the listed entry is the pick. No prop, export or testid changed. Baselines: 10 `gallery-*.png` (strings table: de, en, es in light and dark, de also at 1440 and 390 px).
+
 ## 0.133.2 — #271, SUI-FEATURE-093 rev 4 (Codex review #270): a named Combobox counts as input and carries no value while disabled
 
 Fix, not breaking. In a `CreateAndSelectDialog`, a pick in a `Combobox` whose value lives in a child component of the call site did not count as input, so Cancel and `Esc` closed without asking "Discard changes?". A named `Combobox` now announces each new value from its hidden input, as typing would, so the dialog hears it wherever the value's state lives. And a disabled named `Combobox` no longer submits its value: its hidden input is disabled with it, as a disabled field is.

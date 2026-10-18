@@ -257,7 +257,7 @@ export const es: SuiteStrings = {
     placeholder: "Buscar …",
     loading: "Buscando …",
     empty: "No se encontró nada",
-    create: "Crear {{term}} …",
+    create: "«{{term}}» crear …",
   },
   createAndSelect: {
     submit: "Crear y seleccionar",

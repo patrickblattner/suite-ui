@@ -106,10 +106,31 @@ describe("CreateAndSelectDialog", () => {
     expect(screen.getByTestId("create-and-select-duplicate")).toHaveTextContent(
       "Neu already exists",
     );
+    // A status, neither error nor warning (SUI-FEATURE-093 rev 4 AC3): muted, with an info icon.
+    const line = screen.getByTestId("create-and-select-duplicate");
+    expect(line).toHaveAttribute("role", "status");
+    expect(line).toHaveClass("text-muted-foreground");
+    expect(line.querySelector("svg[data-slot=status-icon]")).not.toBeNull();
     expect(screen.getByRole("dialog")).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("create-and-select-select-existing"));
     expect(onSelect).toHaveBeenCalledWith(existing);
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  // SUI-FEATURE-093 rev 4 AC3 (#272): the live region stands before the duplicate, so it is announced.
+  it("the duplicate status region stands while open and fills on a duplicate", async () => {
+    const existing = { value: "3", label: "Neu" };
+    render(<Harness onCreate={() => Promise.resolve({ duplicate: existing })} />);
+    openDialog();
+    const region = screen.getByTestId("create-and-select-duplicate");
+    expect(region).toHaveAttribute("role", "status");
+    expect(region).toBeEmptyDOMElement();
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("create-and-select-submit"));
+      await Promise.resolve();
+    });
+    expect(screen.getByTestId("create-and-select-duplicate")).toBe(region);
+    expect(region).toHaveTextContent("Neu already exists");
   });
 
   it("a failed onCreate keeps the dialog open and unlocks it", async () => {

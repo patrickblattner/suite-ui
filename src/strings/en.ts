@@ -268,7 +268,7 @@ export const en = {
     placeholder: "Search …",
     loading: "Searching …",
     empty: "Nothing found",
-    create: "Create {{term}} …",
+    create: "“{{term}}” create …",
   },
   createAndSelect: {
     submit: "Create and select",
