@@ -15,8 +15,8 @@
 - **Worklogs:** `worklogs/` (working notes, not a ticket store)
 
 ## Labels
-- **Status:** `status: backlog`, `status: todo`, `status: in-progress`, `status: done`
+- **Status:** `status: backlog`, `status: todo`, `status: in-progress`, `status: deferred` (owner only, never blocked), `status: done`
 - **Type:** `type: bug`, `type: feature`, `type: enhancement`, `type: refactor`, `type: security`, `type: testing`, `type: audit`, `type: docs`, `type: chore`
 - **Area:** `area: frontend`
 - **Priority:** `priority: critical`, `priority: high`, `priority: medium`, `priority: low`
-- **Workflow:** `spec-sync`, `auto-audit`, `test-failure`, `owner-hold`
+- **Workflow:** `spec-sync`, `auto-audit`, `test-failure`, `owner-hold`, `status: deferred`

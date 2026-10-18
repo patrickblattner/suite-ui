@@ -39,6 +39,7 @@ only an export mirror and is never read. There are **no spec files** in this rep
   (`PROC-DEV-010`); status lives in `status:` labels.
 - **`owner-hold` = hands off** (`PROC-DEV-010`, `PROC-DEV-047`): beats everything, including
   `auto-audit` and `type: bug`; only the owner sets and removes it.
+- **`status: deferred` = owner-deferred** (`PROC-DEV-010` rev 5): planned but not to be built now. Never touch it, never report it as blocked or as an orphan; only the owner sets and removes it. `owner-hold` counts as blocked, `status: deferred` never does.
 - **Operations:** the worker session runs under the **worker-harness** (`~/projects/worker-harness`,
   tmux `suite-ui`, command `/spec-sync`); the harness renews it at boundaries
   (`PROC-DEV-031`). Owner actions are commands: `/pause` · `/unpause` · `/handover`
