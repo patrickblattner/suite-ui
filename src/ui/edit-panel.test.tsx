@@ -154,7 +154,7 @@ describe("EditPanel", () => {
     [
       "en",
       "Apply",
-      "Applies the entries to the form; they are kept once you save the page.",
+      "Applies the entries to the form; they are only saved when you save the page.",
       "Closes the panel without applying; asks first if there are changes not applied yet.",
       "Goes back one step without applying; asks first if there are changes not applied yet.",
     ],
@@ -168,7 +168,7 @@ describe("EditPanel", () => {
     [
       "es",
       "Aplicar",
-      "Aplica los datos al formulario; se guardan al guardar la página.",
+      "Aplica los datos al formulario; solo se guardan al guardar la página.",
       "Cierra el panel sin aplicar; antes pregunta si hay cambios sin aplicar.",
       "Vuelve un paso atrás sin aplicar; antes pregunta si hay cambios sin aplicar.",
     ],

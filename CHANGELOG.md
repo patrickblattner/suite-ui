@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.134.4 — #282, SUI-FEATURE-094 rev 9 (Q&A #4008): the English and Spanish apply hints say the entries are only saved with the page
+
+Fix, not breaking. The hint of an `EditPanel` with `submitKind="apply"` now says in English and Spanish that the entries are saved only when the page is saved: "Applies the entries to the form; they are only saved when you save the page." / "Aplica los datos al formulario; solo se guardan al guardar la página." The German hint is unchanged.
+
+**Migration:** none. Only the package text `editPanel.applyHint` changed (en, es); no prop, export or testid changed. Baselines: 4 `gallery-*.png` (strings table: en and es in light and dark).
+
 ## 0.134.3 — #280, GL-UI-007 (Codex review v0.134.1): a confirmed leave goes on while an older route change still loads
 
 Fix, not breaking. Under a data router, a route change held while an earlier one was still loading (a slow loader, the page made dirty meanwhile) did nothing when the user confirmed it with Discard or Save, and the earlier change won once its loader finished. The confirmed leave now takes that change's place and lands at its target. A late answer is still dropped when a route change started after the held one is loading, or when the user left meanwhile (0.134.1).

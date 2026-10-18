@@ -7307,7 +7307,7 @@ for (const [lng, label, hint, cancelHint] of [
   [
     "en",
     "Apply",
-    "Applies the entries to the form; they are kept once you save the page.",
+    "Applies the entries to the form; they are only saved when you save the page.",
     "Closes the panel without applying; asks first if there are changes not applied yet.",
   ],
   [
@@ -7319,7 +7319,7 @@ for (const [lng, label, hint, cancelHint] of [
   [
     "es",
     "Aplicar",
-    "Aplica los datos al formulario; se guardan al guardar la página.",
+    "Aplica los datos al formulario; solo se guardan al guardar la página.",
     "Cierra el panel sin aplicar; antes pregunta si hay cambios sin aplicar.",
   ],
 ] as const) {
