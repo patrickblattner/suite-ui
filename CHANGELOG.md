@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.131.0 — #256, SUI-FEATURE-092 rev 2, GL-UI-007 rev 5: leave prompt without a save target asks "Discard changes?"
+
+Feature, not breaking. A dirty surface without a save target no longer offers a Save that does nothing. Its leave prompt is titled "Discard changes?" and shows only Cancel and Discard (destructive). The focus opens on Cancel with its ring, and `Enter` and `Esc` both stay, so only Discard carries out the held way out (Esc, Cancel/Close, Back, Previous/Next, a navigation click, browser back and forward). It applies to `EditPanel` without `onSubmit` and to `useLeaveGuard` without `onSave`; `onSave` is now optional there and in `useLeaveConfirm`. With `onSubmit` or `onSave` the prompt is unchanged: three buttons, opening on Save. New strings `leaveGuard.discardTitle` and `leaveGuard.discardDescription` in de, en and es. The gallery's edit-panel page gets a panel without a save target (`note-panel`).
+
+**Migration:** a detail or editor page without a save target leaves `onSave` out of `useLeaveGuard` (do not pass a handler that does nothing); its prompt then asks "Discard changes?". A decision or other action stays with its own button and never runs through the prompt. `useEditorLeaveGuard` still requires `onSave`. An `EditPanel` without `onSubmit` gets the new variant on its own. Baselines: 10 `gallery-*.png` (strings table).
+
 ## 0.130.2 — #254, SUI-FEATURE-091 rev 4 (Q&A #3925): EditPanel busy hint uses ConfirmDialog's wording
 
 Text fix, not breaking. While `busy`, every `EditPanel` footer button now shows the neutral hint in `ConfirmDialog`'s wording: "An action is running; available again once it has finished." (de "Eine Aktion läuft; wieder verfügbar, sobald sie abgeschlossen ist.", es "Hay una acción en curso; vuelve a estar disponible cuando haya terminado."), the same for `submitKind` `save` and `next`. Texts in de, en and es.

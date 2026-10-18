@@ -242,6 +242,8 @@ export const en = {
     title: "Save changes?",
     description: "This entry has changes that are not saved yet.",
     discard: "Discard",
+    discardTitle: "Discard changes?",
+    discardDescription: "This entry has changes that will be lost.",
   },
   settings: {
     active: "Active",

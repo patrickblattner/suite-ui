@@ -49,19 +49,28 @@ type LeaveConfirmDialogProps = {
   open: boolean;
   onCancel: () => void;
   onDiscard: () => void;
-  onSave: () => void;
+  // Without it the surface has no save target: the dialog asks "Discard changes?" instead.
+  onSave?: (() => void) | undefined;
 };
 
 // The compact "Save changes?" dialog (`GL-UI-007`): Cancel, Discard and Save as the primary action on
-// the right. It opens with the focus on Save, so `Enter` saves; `Esc` is Cancel. When the surface stays,
-// the focus returns as every dialog's does (`GL-UI-050`), unless the call site already focused a field
-// (the error of a failed save).
+// the right. It opens with the focus on Save, so `Enter` saves; `Esc` is Cancel. Without a save target
+// it is "Discard changes?" with only Cancel and Discard, opening on Cancel, so `Enter` and `Esc` both
+// stay (`SUI-FEATURE-092`). When the surface stays, the focus returns as every dialog's does
+// (`GL-UI-050`), unless the call site already focused a field (the error of a failed save).
 function LeaveConfirmDialog({ open, onCancel, onDiscard, onSave }: LeaveConfirmDialogProps) {
   const { t } = useTranslation("suite");
   const save = React.useRef<HTMLButtonElement>(null);
-  // The opening focus on Save shows its ring even when a pointer opened the dialog, where the browser
-  // would not match `:focus-visible` for a focus set by script; it ends with the first blur.
+  const cancel = React.useRef<HTMLButtonElement>(null);
+  // The opening focus shows its ring even when a pointer opened the dialog, where the browser would
+  // not match `:focus-visible` for a focus set by script; it ends with the first blur.
   const [openingFocus, setOpeningFocus] = React.useState(false);
+  const discardOnly = onSave === undefined;
+  const opening = {
+    onBlur: () => setOpeningFocus(false),
+    "data-opening-focus": openingFocus || undefined,
+    className: "data-[opening-focus]:focus:focus-ring",
+  };
   return (
     <Dialog
       open={open}
@@ -74,26 +83,32 @@ function LeaveConfirmDialog({ open, onCancel, onDiscard, onSave }: LeaveConfirmD
         data-testid="leave-guard"
         onOpenAutoFocus={(event) => {
           event.preventDefault();
-          save.current?.focus();
+          (discardOnly ? cancel : save).current?.focus();
           setOpeningFocus(true);
         }}
         onKeyDown={(event) => {
           if (event.key !== "Enter" || event.repeat) return;
           if (event.target instanceof HTMLButtonElement) return;
           event.preventDefault();
-          onSave();
+          (onSave ?? onCancel)();
         }}
       >
         <DialogHeader>
-          <DialogTitle>{t("leaveGuard.title")}</DialogTitle>
-          <DialogDescription>{t("leaveGuard.description")}</DialogDescription>
+          <DialogTitle>
+            {discardOnly ? t("leaveGuard.discardTitle") : t("leaveGuard.title")}
+          </DialogTitle>
+          <DialogDescription>
+            {discardOnly ? t("leaveGuard.discardDescription") : t("leaveGuard.description")}
+          </DialogDescription>
         </DialogHeader>
         <DialogFooter>
           <Button
             type="button"
             variant="outline"
             size="default"
+            ref={cancel}
             onClick={onCancel}
+            {...(discardOnly ? opening : {})}
             data-testid="leave-guard-cancel"
           >
             {t("actions.cancel")}
@@ -107,20 +122,20 @@ function LeaveConfirmDialog({ open, onCancel, onDiscard, onSave }: LeaveConfirmD
           >
             {t("leaveGuard.discard")}
           </Button>
-          <Button
-            type="button"
-            variant="success"
-            size="default"
-            ref={save}
-            onClick={onSave}
-            onBlur={() => setOpeningFocus(false)}
-            data-opening-focus={openingFocus || undefined}
-            className="data-[opening-focus]:focus:focus-ring"
-            data-testid="leave-guard-save"
-          >
-            <SaveIcon aria-hidden="true" />
-            {t("actions.save")}
-          </Button>
+          {!discardOnly && (
+            <Button
+              type="button"
+              variant="success"
+              size="default"
+              ref={save}
+              onClick={onSave}
+              {...opening}
+              data-testid="leave-guard-save"
+            >
+              <SaveIcon aria-hidden="true" />
+              {t("actions.save")}
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
@@ -327,7 +342,8 @@ function DataRouterBlocker({ entry }: { entry: RouterHolds }) {
 type LeaveConfirmOptions = {
   dirty: boolean;
   busy: boolean;
-  onSave: LeaveSave;
+  // Without it the surface has no save target: the dialog only offers Cancel and Discard.
+  onSave?: LeaveSave | undefined;
   // Discard runs it before the held leave goes on (an editor resets its draft, `GL-UI-034`).
   onDiscard?: (() => void) | undefined;
 };
@@ -436,16 +452,20 @@ function useLeaveConfirm({ dirty, busy, onSave, onDiscard }: LeaveConfirmOptions
           latest.current.onDiscard?.();
           release(pending);
         }}
-        onSave={() => {
-          close();
-          if (pending === null) return;
-          void Promise.resolve()
-            .then(() => latest.current.onSave())
-            .then(
-              (saved) => (saved === true ? release(pending) : pending.stay?.()),
-              () => pending.stay?.(),
-            );
-        }}
+        onSave={
+          onSave === undefined
+            ? undefined
+            : () => {
+                close();
+                if (pending === null) return;
+                void Promise.resolve()
+                  .then(() => latest.current.onSave?.())
+                  .then(
+                    (saved) => (saved === true ? release(pending) : pending.stay?.()),
+                    () => pending.stay?.(),
+                  );
+              }
+        }
       />
     </>
   );
@@ -459,15 +479,17 @@ type LeaveGuardOptions = {
   busy?: boolean;
   // Back to the list (the same page, filters, sort and focused row are the app's route state).
   onLeave: () => void;
-  onSave: LeaveSave;
+  // Leave it out where the page has no save target (`SUI-FEATURE-092`): the dialog then asks
+  // "Discard changes?" with only Cancel and Discard.
+  onSave?: LeaveSave | undefined;
   // Discard runs it before the held leave goes on.
   onDiscard?: (() => void) | undefined;
 };
 
 /**
  * The leave guard of a detail or editor page (`GL-UI-007`): `Esc` leaves via `onLeave`, unsaved
- * changes ask "Save changes?" first, and every in-app route change, browser back and forward
- * included, is held the same way. Wrap the
+ * changes ask "Save changes?" first ("Discard changes?" without `onSave`), and every in-app route
+ * change, browser back and forward included, is held the same way. Wrap the
  * page's own ways out (Back, Previous/Next) in `guard`, and render `dialog`. `Esc` that an open
  * select, menu, tooltip or dialog takes, or that an editor uses itself (it stops the propagation or
  * prevents the default), does not leave.

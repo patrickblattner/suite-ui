@@ -2292,6 +2292,32 @@ test("leave guard: the dialog opens on Save with its ring; Esc stays, Enter save
   await expect(page.getByTestId("media-detail").getByLabel("Name")).toHaveValue("renamed.jpg");
 });
 
+// SUI-FEATURE-092 AC1–2: an EditPanel without `onSubmit` asks "Discard changes?" with only Cancel and
+// Discard, opening on Cancel with its ring; Enter only closes the dialog, Discard closes the panel. With
+// a save target the dialog stays as in the test above.
+test("leave guard without a save target: Discard changes? on Cancel; Enter stays", async ({
+  page,
+}) => {
+  await page.goto("/?page=edit-panel&lng=en");
+  await page.getByTestId("note-panel-trigger").click();
+  const panel = page.getByTestId("note-panel");
+  await panel.getByLabel("Comment").fill("Needs a second look.");
+  await page.keyboard.press("Escape");
+  const dialog = page.getByTestId("leave-guard");
+  await expect(dialog.getByRole("heading")).toHaveText("Discard changes?");
+  await expect(dialog.getByRole("button")).toHaveText(["Cancel", "Discard"]);
+  const cancel = page.getByTestId("leave-guard-cancel");
+  await expect(cancel).toBeFocused();
+  await expect(cancel).not.toHaveCSS("box-shadow", "none");
+  await page.keyboard.press("Enter");
+  await expect(dialog).toBeHidden();
+  await expect(panel.getByLabel("Comment")).toHaveValue("Needs a second look.");
+
+  await page.keyboard.press("Escape");
+  await page.getByTestId("leave-guard-discard").click();
+  await expect(panel).toBeHidden();
+});
+
 // #235 (`GL-UI-007` rev 4): the leave guard under a real `BrowserRouter` (`?harness=leave-guard`).
 async function openHarnessItem(page: Page) {
   await page.goto("/?harness=leave-guard");

@@ -9,6 +9,7 @@ import { EditPanel } from "../src/ui/edit-panel.js";
 import { Input } from "../src/ui/input.js";
 import { FileFacts } from "../src/ui/file-facts.js";
 import { Label } from "../src/ui/label.js";
+import { Textarea } from "../src/ui/textarea.js";
 import {
   type MediaDetailKind,
   MediaDetailShell,
@@ -118,6 +119,8 @@ function Demo() {
   const [media, setMedia] = useState<number | null>(null);
   const [nextOpen, setNextOpen] = useState(false);
   const [viewOpen, setViewOpen] = useState(false);
+  const [noteOpen, setNoteOpen] = useState(false);
+  const [note, setNote] = useState("");
   const [shell, setShell] = useState<number | null>(null);
   const [shellName, setShellName] = useState("");
   const [shellSaving, setShellSaving] = useState(false);
@@ -198,6 +201,17 @@ function Demo() {
           onClick={() => setViewOpen(true)}
         >
           Open read-only
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          data-testid="note-panel-trigger"
+          onClick={() => {
+            setNote("");
+            setNoteOpen(true);
+          }}
+        >
+          Open without save target
         </Button>
         <span data-testid="edit-panel-check-counts">
           submits {submits} · backs {backs}
@@ -291,6 +305,24 @@ function Demo() {
         testIdPrefix="view-panel"
       >
         <p className="text-sm">Created on 3 March, 12 posts.</p>
+      </EditPanel>
+      {/* SUI-FEATURE-092: an unsent comment has no save target; leaving it asks to discard. */}
+      <EditPanel
+        open={noteOpen}
+        onOpenChange={setNoteOpen}
+        title="Triage"
+        mode="edit"
+        testIdPrefix="note-panel"
+        dirty={note !== ""}
+      >
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="note-comment">Comment</Label>
+          <Textarea
+            id="note-comment"
+            value={note}
+            onChange={(event) => setNote(event.target.value)}
+          />
+        </div>
       </EditPanel>
       {/* SUI-FEATURE-051: the media detail pages through the uploaded set. */}
       <EditPanel

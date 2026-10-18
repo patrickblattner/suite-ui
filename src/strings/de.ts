@@ -234,6 +234,8 @@ export const de: SuiteStrings = {
     title: "Änderungen speichern?",
     description: "Dieser Eintrag hat Änderungen, die noch nicht gespeichert sind.",
     discard: "Verwerfen",
+    discardTitle: "Änderungen verwerfen?",
+    discardDescription: "Dieser Eintrag hat Änderungen, die verloren gehen.",
   },
   settings: {
     active: "Aktiv",

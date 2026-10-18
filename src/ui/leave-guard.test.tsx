@@ -341,7 +341,8 @@ function DetailPage({
   busy = false,
   children,
 }: {
-  save?: () => unknown;
+  // `null`: the page has no save target and leaves `onSave` out (SUI-FEATURE-092).
+  save?: (() => unknown) | null;
   busy?: boolean;
   children?: ReactNode;
 }) {
@@ -351,7 +352,7 @@ function DetailPage({
     dirty: isDirty("Main", name),
     busy,
     onLeave: () => void navigate("/list"),
-    onSave: save,
+    onSave: save ?? undefined,
   });
   return (
     <>
@@ -972,5 +973,186 @@ describe("several guards under one data router (GL-UI-007)", () => {
     await act(() => new Promise((resolve) => setTimeout(resolve, 20)));
     expect(router.state.location.pathname).toBe("/detail");
     expect(screen.queryByTestId("leave-guard")).toBeNull();
+  });
+});
+
+// SUI-FEATURE-092 (GL-UI-007 rev 5 "Ohne Speicher-Ziel"): a dirty surface without a save target asks
+// "Discard changes?" with only Cancel and Discard, opening on Cancel.
+describe("leave prompt without a save target (SUI-FEATURE-092)", () => {
+  function expectDiscardOnly() {
+    const dialog = screen.getByTestId("leave-guard");
+    expect(dialog).toHaveTextContent("Discard changes?");
+    expect(dialog).toHaveTextContent("This entry has changes that will be lost.");
+    expect([...dialog.querySelectorAll("button")].map((b) => b.dataset.testid)).toEqual([
+      "leave-guard-cancel",
+      "leave-guard-discard",
+    ]);
+    expect(screen.getByTestId("leave-guard-discard")).toHaveAttribute(
+      "data-variant",
+      "destructive",
+    );
+  }
+
+  // Acceptance 1
+  it("EditPanel without onSubmit: dirty Esc asks on Cancel; Enter and Esc keep the change", async () => {
+    render(<ListWithPanel onSubmit={undefined} />);
+    openRow();
+    edit();
+    escape(screen.getByLabelText("Name"));
+    expectDiscardOnly();
+    const cancel = screen.getByTestId("leave-guard-cancel");
+    await waitFor(() => expect(cancel).toHaveFocus());
+    expect(cancel).toHaveAttribute("data-opening-focus", "true");
+    expect(cancel).toHaveClass("data-[opening-focus]:focus:focus-ring");
+
+    fireEvent.keyDown(screen.getByTestId("leave-guard"), { key: "Enter" });
+    await waitFor(() => expect(screen.queryByTestId("leave-guard")).toBeNull());
+    expect(screen.getByTestId("edit-panel")).toBeInTheDocument();
+    expect(screen.getByLabelText("Name")).toHaveValue("Changed");
+
+    escape(screen.getByLabelText("Name"));
+    escape(screen.getByTestId("leave-guard"));
+    await waitFor(() => expect(screen.queryByTestId("leave-guard")).toBeNull());
+    expect(screen.getByLabelText("Name")).toHaveValue("Changed");
+  });
+
+  // Acceptance 2
+  it("EditPanel without onSubmit: Discard closes, or carries out the held Next and navigation", async () => {
+    const onNext = vi.fn();
+    function App() {
+      const { pathname } = useLocation();
+      return (
+        <>
+          <Link to="/other" data-testid="nav">
+            Other
+          </Link>
+          <span data-testid="path">{pathname}</span>
+          <ListWithPanel
+            onSubmit={undefined}
+            pager={{ position: "1/3", onPrevious: () => {}, onNext }}
+          />
+        </>
+      );
+    }
+    render(
+      <MemoryRouter initialEntries={["/list"]}>
+        <App />
+      </MemoryRouter>,
+    );
+    openRow();
+    edit();
+    fireEvent.click(screen.getByTestId("edit-panel-next"));
+    expectDiscardOnly();
+    fireEvent.click(screen.getByTestId("leave-guard-discard"));
+    expect(onNext).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByTestId("nav"));
+    expectDiscardOnly();
+    expect(screen.getByTestId("path")).toHaveTextContent("/list");
+    fireEvent.click(screen.getByTestId("leave-guard-discard"));
+    await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/other"));
+  });
+
+  it("EditPanel without onSubmit: Discard after Esc closes the panel", async () => {
+    render(<ListWithPanel onSubmit={undefined} />);
+    openRow();
+    edit();
+    escape();
+    fireEvent.click(screen.getByTestId("leave-guard-discard"));
+    await waitFor(() => expect(screen.queryByTestId("edit-panel")).toBeNull());
+  });
+
+  // Acceptance 3
+  it("EditPanel with onSubmit: still three buttons, opening on Save", async () => {
+    render(<ListWithPanel />);
+    openRow();
+    edit();
+    escape();
+    const dialog = screen.getByTestId("leave-guard");
+    expect(dialog).toHaveTextContent("Save changes?");
+    expect([...dialog.querySelectorAll("button")].map((b) => b.dataset.testid)).toEqual([
+      "leave-guard-cancel",
+      "leave-guard-discard",
+      "leave-guard-save",
+    ]);
+    await waitFor(() => expect(screen.getByTestId("leave-guard-save")).toHaveFocus());
+  });
+
+  // Acceptance 4: the guard expresses "no save handler" by leaving `onSave` out.
+  it("useLeaveGuard without onSave: Esc, Back and a route change ask Discard only", async () => {
+    render(
+      <MemoryRouter initialEntries={["/list", "/detail"]} initialIndex={1}>
+        <Where />
+        <Routes>
+          <Route path="/detail" element={<DetailPage save={null} />} />
+          <Route path="*" element={null} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    edit();
+    escape(screen.getByLabelText("Name"));
+    expectDiscardOnly();
+    await waitFor(() => expect(screen.getByTestId("leave-guard-cancel")).toHaveFocus());
+    fireEvent.keyDown(screen.getByTestId("leave-guard"), { key: "Enter" });
+    await waitFor(() => expect(screen.queryByTestId("leave-guard")).toBeNull());
+    expect(screen.getByTestId("path")).toHaveTextContent("/detail");
+
+    fireEvent.click(screen.getByTestId("back"));
+    expectDiscardOnly();
+    fireEvent.click(screen.getByTestId("leave-guard-cancel"));
+    await waitFor(() => expect(screen.queryByTestId("leave-guard")).toBeNull());
+
+    fireEvent.click(screen.getByTestId("go"));
+    expectDiscardOnly();
+    fireEvent.click(screen.getByTestId("leave-guard-discard"));
+    await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/elsewhere"));
+  });
+
+  it("useLeaveGuard without onSave: browser back asks Discard only and lands at the target", async () => {
+    window.history.replaceState(null, "", "/list");
+    function App() {
+      const navigate = useNavigate();
+      return (
+        <>
+          <Where />
+          <button type="button" data-testid="open" onClick={() => void navigate("/detail")}>
+            Open
+          </button>
+          <Routes>
+            <Route path="/detail" element={<DetailPage save={null} />} />
+            <Route path="*" element={null} />
+          </Routes>
+        </>
+      );
+    }
+    render(
+      <BrowserRouter>
+        <App />
+      </BrowserRouter>,
+    );
+    fireEvent.click(screen.getByTestId("open"));
+    edit();
+    act(() => window.history.back());
+    await screen.findByTestId("leave-guard");
+    expectDiscardOnly();
+    fireEvent.click(screen.getByTestId("leave-guard-discard"));
+    await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/list"));
+    expect(window.location.pathname).toBe("/list");
+  });
+
+  // Acceptance 5
+  it.each([
+    ["de", "Änderungen verwerfen?", "Abbrechen", "Verwerfen"],
+    ["es", "¿Descartar los cambios?", "Cancelar", "Descartar"],
+  ])("texts from the package strings in %s", async (lng, title, cancel, discard) => {
+    await i18n.changeLanguage(lng);
+    render(<ListWithPanel onSubmit={undefined} />);
+    openRow();
+    edit();
+    escape();
+    const dialog = screen.getByTestId("leave-guard");
+    expect(dialog).toHaveTextContent(title);
+    expect(screen.getByTestId("leave-guard-cancel")).toHaveTextContent(cancel);
+    expect(screen.getByTestId("leave-guard-discard")).toHaveTextContent(discard);
   });
 });

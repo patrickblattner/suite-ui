@@ -232,6 +232,8 @@ export const es: SuiteStrings = {
     title: "¿Guardar los cambios?",
     description: "Esta entrada tiene cambios que aún no se han guardado.",
     discard: "Descartar",
+    discardTitle: "¿Descartar los cambios?",
+    discardDescription: "Esta entrada tiene cambios que se perderán.",
   },
   settings: {
     active: "Activo",

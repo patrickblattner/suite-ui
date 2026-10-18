@@ -36,13 +36,14 @@ type EditPanelProps = {
   // stacks on top. An `img` or `video` as the direct child fills the frame and keeps its ratio; any
   // other preview (post, page, template) takes the frame's width and scrolls inside it when taller.
   preview?: React.ReactNode;
-  // Without `onSubmit` the panel only shows a record: the footer carries Close alone.
+  // Without `onSubmit` the panel has no save target: the footer carries Close alone.
   submitLabel?: string;
   // Returning `true` (or a promise of it) reports a successful save: Save in the leave dialog then
   // carries out the held leave (Back, Previous/Next, a route change). Otherwise the call site closes
   // the panel on success as for a plain submit.
   onSubmit?: () => unknown;
-  // Unsaved changes against the loaded state (`GL-UI-007`): every way out asks "Save changes?" first.
+  // Unsaved changes against the loaded state (`GL-UI-007`): every way out asks "Save changes?" first
+  // ("Discard changes?" without `onSubmit`, `SUI-FEATURE-092`).
   dirty?: boolean;
   // The primary action is running (`GL-UI-027`): working state and lock on the primary action,
   // Cancel locked with it, and the panel ignores every close request until the caller closes it.
@@ -112,7 +113,8 @@ function EditPanel({
   const { guard, dialog } = useLeaveConfirm({
     dirty: open && dirty,
     busy: open && busy,
-    onSave: () => (submitDisabled ? false : onSubmit?.()),
+    // Without `onSubmit` the panel has no save target: the dialog asks "Discard changes?".
+    onSave: onSubmit === undefined ? undefined : () => (submitDisabled ? false : onSubmit()),
   });
   // The `Esc` the panel gets as the top-most layer: an open select, menu, tooltip or dialog takes it
   // first. It leaves only once it has bubbled to the document, so an editor's own `Esc` meaning
