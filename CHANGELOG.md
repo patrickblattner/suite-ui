@@ -2,7 +2,7 @@
 
 ## 0.129.4 — #244, GL-UI-050: closing the search opened over a modal keeps the focus in that modal
 
-Bug fix, not breaking. Since 0.129.2 (#240), closing the `GlobalSearch` dialog always sent the focus to the sidebar search field. That also happened when the shortcut opened it from a control inside a modal dialog that is still open, so the focus landed behind that modal. Now `Esc` or the × gives the focus back to the control in the modal that had it, through `GL-UI-050`'s order inside that modal. The desktop and narrow-screen focus return from #240 is unchanged. The gallery's shell page gets `?modal=1`, a modal dialog to open the search over.
+Bug fix, not breaking. Since 0.129.2 (#240), closing the `GlobalSearch` dialog always sent the focus to the sidebar search field. That also happened when the shortcut opened it from a control inside a modal dialog that is still open, so the focus landed behind that modal. Now `Esc` or the × gives the focus back to the control in the modal that had it, through `GL-UI-050`'s order inside that modal. This applies only to a modal dialog that is in front: a non-modal sheet such as `EditPanel` or `MediaDetailShell` hides nothing, so closing the search from there still focuses the sidebar field. The desktop and narrow-screen focus return from #240 is unchanged. The gallery's shell page gets `?modal=1`, a modal dialog to open the search over.
 
 **Migration:** none. Baselines: none changed.
 
