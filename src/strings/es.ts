@@ -228,7 +228,7 @@ export const es: SuiteStrings = {
     closeHint: "Cierra el panel; antes pregunta si hay cambios.",
     saveHint: "Guarda los datos.",
     nextHint: "Pasa al paso siguiente.",
-    applyHint: "Aplica los datos al formulario; se guardan allí.",
+    applyHint: "Aplica los datos al formulario; se guardan al guardar la página.",
     applyCancelHint: "Cierra el panel sin aplicar; antes pregunta si hay cambios sin aplicar.",
     applyBackHint: "Vuelve un paso atrás sin aplicar; antes pregunta si hay cambios sin aplicar.",
     nextCancelHint: "Cierra el panel; antes pregunta si hay cambios.",

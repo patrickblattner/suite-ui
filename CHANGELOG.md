@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.134.2 — #279, SUI-FEATURE-094 rev 8: the apply hint says when the entries are saved
+
+Fix, not breaking. The hint of an `EditPanel` with `submitKind="apply"` no longer says the entries "are saved there", which read as if they were saved on their own. It now says they are kept only once the page is saved: "Applies the entries to the form; they are kept once you save the page." / „Übernimmt die Eingaben ins Formular; gespeichert wird erst mit dem Speichern der Seite." / "Aplica los datos al formulario; se guardan al guardar la página."
+
+**Migration:** none. Only the package text `editPanel.applyHint` changed (de, en, es); no prop, export or testid changed. Baselines: 10 `gallery-*.png` (strings table: de, en, es in light and dark, de also at 1440 and 390 px).
+
 ## 0.134.1 — #277, #278, GL-UI-007, SUI-FEATURE-094 rev 7 (reviews #276, #277, Codex #278): a route change held while its guard unmounts keeps its form data, no longer doubles the basename, and never reloads the page
 
 Fix, not breaking. Under a data router, a route change held while the guard that blocked it unmounts (an apply panel that closes, 0.134.0) was started anew by the guard as a fresh navigation, and that lost parts of it. The shared blocker is now owned by the router, not by a guard: it stays registered while a change is blocked, and the change goes on through react-router's own `proceed` once the remaining guards let it pass. So a held `<Form method="post">` (or any submission) runs its action with its `formData`, wherever the form is rendered; before, it was re-issued as a GET without its data. Under a router `basename` the change lands at its target, not under the basename twice (`/app/app/other`). A held browser back or forward goes on by its own step, never as `history.go(0)`, which reloaded the page. An apply panel whose `onSubmit` settles only after the panel unmounted (an async apply) still hands the held change on to the page, which asks "Save changes?"; before, the change was lost. A late apply resumes its change only while that change is still the one held, under a data router as under `BrowserRouter` or `MemoryRouter`: if the user left meanwhile, or a newer route change is waiting or still loading, the late answer is dropped. The guard's host no longer renders on router updates that do not concern it (revalidations, fetchers).

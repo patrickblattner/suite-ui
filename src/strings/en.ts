@@ -238,7 +238,7 @@ export const en = {
     closeHint: "Closes the panel; asks first if there are changes.",
     saveHint: "Saves the entries.",
     nextHint: "Goes on to the next step.",
-    applyHint: "Applies the entries to the form; they are saved there.",
+    applyHint: "Applies the entries to the form; they are kept once you save the page.",
     applyCancelHint:
       "Closes the panel without applying; asks first if there are changes not applied yet.",
     applyBackHint:

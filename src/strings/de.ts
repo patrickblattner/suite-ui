@@ -230,7 +230,8 @@ export const de: SuiteStrings = {
     closeHint: "Schließt das Panel; Änderungen werden vorher abgefragt.",
     saveHint: "Speichert die Eingaben.",
     nextHint: "Geht zum nächsten Schritt.",
-    applyHint: "Übernimmt die Eingaben ins Formular; gespeichert wird dort.",
+    applyHint:
+      "Übernimmt die Eingaben ins Formular; gespeichert wird erst mit dem Speichern der Seite.",
     applyCancelHint:
       "Schließt das Panel, ohne zu übernehmen; nicht übernommene Änderungen werden vorher abgefragt.",
     applyBackHint:

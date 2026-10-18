@@ -7307,19 +7307,19 @@ for (const [lng, label, hint, cancelHint] of [
   [
     "en",
     "Apply",
-    "Applies the entries to the form; they are saved there.",
+    "Applies the entries to the form; they are kept once you save the page.",
     "Closes the panel without applying; asks first if there are changes not applied yet.",
   ],
   [
     "de",
     "Übernehmen",
-    "Übernimmt die Eingaben ins Formular; gespeichert wird dort.",
+    "Übernimmt die Eingaben ins Formular; gespeichert wird erst mit dem Speichern der Seite.",
     "Schließt das Panel, ohne zu übernehmen; nicht übernommene Änderungen werden vorher abgefragt.",
   ],
   [
     "es",
     "Aplicar",
-    "Aplica los datos al formulario; se guardan allí.",
+    "Aplica los datos al formulario; se guardan al guardar la página.",
     "Cierra el panel sin aplicar; antes pregunta si hay cambios sin aplicar.",
   ],
 ] as const) {
