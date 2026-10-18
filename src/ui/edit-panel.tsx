@@ -11,6 +11,7 @@ import {
 } from "../lib/panel-geometry.js";
 import { Button } from "./button.js";
 import { FIELD_SELECTOR } from "./dialog.js";
+import { Hint } from "./hint.js";
 import { useLeaveConfirm } from "./leave-guard.js";
 import { Sheet, SheetDescription, SheetTitle } from "./sheet.js";
 import { IconButtonTooltip } from "./tooltip.js";
@@ -47,6 +48,12 @@ type EditPanelProps = {
   // Cancel locked with it, and the panel ignores every close request until the caller closes it.
   busy?: boolean;
   submitDisabled?: boolean;
+  // Already translated hints of the footer (`SUI-FEATURE-091`): `submitHint`/`backHint` replace the
+  // package's, the `…DisabledHint` names the condition that unlocks `submitDisabled`/`backDisabled`.
+  submitHint?: string;
+  submitDisabledHint?: string;
+  backHint?: string;
+  backDisabledHint?: string;
   // What the primary action does (`SUI-FEATURE-111`): `save` (the default) leads with the save symbol;
   // `next` only moves on to the next step, saves nothing, and so carries an arrow after its text.
   submitKind?: "save" | "next";
@@ -82,6 +89,10 @@ function EditPanel({
   dirty = false,
   busy = false,
   submitDisabled = false,
+  submitHint,
+  submitDisabledHint,
+  backHint,
+  backDisabledHint,
   submitKind = "save",
   onBack,
   backDisabled = false,
@@ -92,6 +103,8 @@ function EditPanel({
   style,
 }: EditPanelProps) {
   const { t } = useTranslation("suite");
+  const submitText =
+    submitHint ?? (submitKind === "save" ? t("editPanel.saveHint") : t("editPanel.nextHint"));
   const returnFocus = React.useRef<HTMLElement | null>(null);
   const { guard, dialog } = useLeaveConfirm({
     dirty: open && dirty,
@@ -259,42 +272,66 @@ function EditPanel({
               data-slot="edit-panel-footer"
               className="flex shrink-0 flex-row items-center justify-end gap-2 border-t px-6 py-4"
             >
+              {/* Every footer button in the package `Hint` (`SUI-FEATURE-091`). The locked text is
+                  always set, so the carrying span stands and a lock never remounts the button; the span
+                  takes Back's `mr-auto` as well, it is the footer's flex item. */}
               {onBack !== undefined && (
+                <Hint
+                  className="mr-auto"
+                  text={backHint ?? t("editPanel.backHint")}
+                  disabledText={
+                    busy
+                      ? t("editPanel.busyHint")
+                      : (backDisabledHint ?? backHint ?? t("editPanel.backHint"))
+                  }
+                >
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="default"
+                    className="mr-auto"
+                    disabled={busy || backDisabled}
+                    onClick={() => guard(onBack)}
+                    data-testid={`${testIdPrefix}-back`}
+                  >
+                    {t("actions.back")}
+                  </Button>
+                </Hint>
+              )}
+              <Hint
+                text={onSubmit === undefined ? t("editPanel.closeHint") : t("editPanel.cancelHint")}
+                disabledText={t("editPanel.busyHint")}
+              >
                 <Button
                   type="button"
                   variant="outline"
                   size="default"
-                  className="mr-auto"
-                  disabled={busy || backDisabled}
-                  onClick={() => guard(onBack)}
-                  data-testid={`${testIdPrefix}-back`}
+                  disabled={busy}
+                  onClick={() => guard(() => onOpenChange(false))}
+                  data-testid={`${testIdPrefix}-cancel`}
                 >
-                  {t("actions.back")}
+                  {onSubmit === undefined ? t("actions.close") : t("actions.cancel")}
                 </Button>
-              )}
-              <Button
-                type="button"
-                variant="outline"
-                size="default"
-                disabled={busy}
-                onClick={() => guard(() => onOpenChange(false))}
-                data-testid={`${testIdPrefix}-cancel`}
-              >
-                {onSubmit === undefined ? t("actions.close") : t("actions.cancel")}
-              </Button>
+              </Hint>
               {onSubmit !== undefined && (
-                <Button
-                  type="submit"
-                  variant="success"
-                  size="default"
-                  busy={busy}
-                  disabled={submitDisabled}
-                  data-testid={`${testIdPrefix}-submit`}
+                <Hint
+                  // A running Save locks itself inside `Button` (`aria-disabled`), unseen by `Hint`.
+                  text={busy ? t("editPanel.busyHint") : submitText}
+                  disabledText={busy ? t("editPanel.busyHint") : (submitDisabledHint ?? submitText)}
                 >
-                  {submitKind === "save" ? <SaveIcon aria-hidden="true" /> : null}
-                  {submitLabel ?? t("actions.save")}
-                  {submitKind === "next" ? <ArrowRightIcon aria-hidden="true" /> : null}
-                </Button>
+                  <Button
+                    type="submit"
+                    variant="success"
+                    size="default"
+                    busy={busy}
+                    disabled={submitDisabled}
+                    data-testid={`${testIdPrefix}-submit`}
+                  >
+                    {submitKind === "save" ? <SaveIcon aria-hidden="true" /> : null}
+                    {submitLabel ?? t("actions.save")}
+                    {submitKind === "next" ? <ArrowRightIcon aria-hidden="true" /> : null}
+                  </Button>
+                </Hint>
               )}
             </div>
           </form>

@@ -107,6 +107,7 @@ function Demo() {
   const [backs, setBacks] = useState(0);
   const [media, setMedia] = useState<number | null>(null);
   const [nextOpen, setNextOpen] = useState(false);
+  const [viewOpen, setViewOpen] = useState(false);
   const [shell, setShell] = useState<number | null>(null);
   const [shellName, setShellName] = useState("");
   const [shellSaving, setShellSaving] = useState(false);
@@ -179,6 +180,14 @@ function Demo() {
           onClick={() => setNextOpen(true)}
         >
           Open a next step
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          data-testid="view-panel-trigger"
+          onClick={() => setViewOpen(true)}
+        >
+          Open read-only
         </Button>
         <span data-testid="edit-panel-check-counts">
           submits {submits} · backs {backs}
@@ -261,6 +270,16 @@ function Demo() {
           <Label htmlFor="next-name">File name</Label>
           <Input id="next-name" defaultValue="team-photo.jpg" />
         </div>
+      </EditPanel>
+      {/* SUI-FEATURE-091: without onSubmit the panel only shows a record; its footer is Close. */}
+      <EditPanel
+        open={viewOpen}
+        onOpenChange={setViewOpen}
+        title="Main channel"
+        mode="edit"
+        testIdPrefix="view-panel"
+      >
+        <p className="text-sm">Created on 3 March, 12 posts.</p>
       </EditPanel>
       {/* SUI-FEATURE-051: the media detail pages through the uploaded set. */}
       <EditPanel

@@ -290,6 +290,126 @@ describe("EditPanel", () => {
     expect(screen.getByTestId("channel-panel-back")).toBeInTheDocument();
   });
 
+  // SUI-FEATURE-091: the footer buttons carry description hints (GL-UI-017).
+  describe("footer hints", () => {
+    // The carrying span owns the description while its button is `disabled`.
+    function hintOf(testId: string) {
+      const button = screen.getByTestId(testId);
+      const owner = button.hasAttribute("aria-describedby") ? button : button.parentElement;
+      const ids = owner?.getAttribute("aria-describedby")?.split(" ") ?? [];
+      return ids.map((id) => document.getElementById(id)?.textContent ?? "").join(" ");
+    }
+
+    it.each([
+      [
+        "en",
+        "Goes back one step; your entries are kept.",
+        "Closes the panel without saving.",
+        "Closes the panel.",
+        "Saves the entries and closes the panel.",
+        "Goes on to the next step.",
+        "Saving is in progress; available again once it has finished.",
+      ],
+      [
+        "de",
+        "Geht einen Schritt zurück, die Eingaben bleiben erhalten.",
+        "Schließt das Panel, ohne zu speichern.",
+        "Schließt das Panel.",
+        "Speichert die Eingaben und schließt das Panel.",
+        "Geht zum nächsten Schritt.",
+        "Es wird gerade gespeichert; wieder verfügbar, sobald das abgeschlossen ist.",
+      ],
+      [
+        "es",
+        "Vuelve un paso atrás; tus datos se conservan.",
+        "Cierra el panel sin guardar.",
+        "Cierra el panel.",
+        "Guarda los datos y cierra el panel.",
+        "Pasa al paso siguiente.",
+        "Se está guardando; vuelve a estar disponible cuando termine.",
+      ],
+    ])(
+      "AC1/AC4/AC5 %s: the package hints of Back, Cancel, Close, save, next and busy",
+      async (lng, back, cancel, close, save, next, busyText) => {
+        await i18n.changeLanguage(lng);
+        renderPanel({ onBack: () => {} });
+        expect(hintOf("edit-panel-back")).toBe(back);
+        expect(hintOf("edit-panel-cancel")).toBe(cancel);
+        expect(hintOf("edit-panel-submit")).toBe(save);
+        cleanup();
+        renderPanel({ submitKind: "next" });
+        expect(hintOf("edit-panel-submit")).toBe(next);
+        cleanup();
+        renderPanel({ onSubmit: undefined });
+        expect(hintOf("edit-panel-cancel")).toBe(close);
+        cleanup();
+        renderPanel({ onBack: () => {}, busy: true, submitHint: "x", backDisabledHint: "y" });
+        for (const id of ["edit-panel-back", "edit-panel-cancel", "edit-panel-submit"]) {
+          expect(hintOf(id)).toBe(busyText);
+        }
+      },
+    );
+
+    it("AC1: the hint is the description, never the accessible name", () => {
+      renderPanel({ onBack: () => {} });
+      expect(screen.getByTestId("edit-panel-back")).toHaveAccessibleName("Back");
+      expect(screen.getByTestId("edit-panel-back")).toHaveAccessibleDescription(
+        "Goes back one step; your entries are kept.",
+      );
+      expect(screen.getByTestId("edit-panel-cancel")).toHaveAccessibleName("Cancel");
+      expect(screen.getByTestId("edit-panel-submit")).toHaveAccessibleName("Save");
+      expect(screen.getByTestId("edit-panel-submit")).toHaveAccessibleDescription(
+        "Saves the entries and closes the panel.",
+      );
+    });
+
+    it("AC2: submitHint and backHint replace the package hints", () => {
+      renderPanel({
+        onBack: () => {},
+        submitLabel: "Publish",
+        submitHint: "Publishes the post now.",
+        backHint: "Back to the media pick.",
+      });
+      expect(hintOf("edit-panel-submit")).toBe("Publishes the post now.");
+      expect(hintOf("edit-panel-back")).toBe("Back to the media pick.");
+      expect(hintOf("edit-panel-cancel")).toBe("Closes the panel without saving.");
+    });
+
+    it("AC3: a locked primary action and Back show their disabled hints", () => {
+      renderPanel({
+        onBack: () => {},
+        submitDisabled: true,
+        submitDisabledHint: "Available once a name is set.",
+        backDisabled: true,
+        backDisabledHint: "Available once the upload has finished.",
+      });
+      expect(screen.getByTestId("edit-panel-submit")).toBeDisabled();
+      expect(hintOf("edit-panel-submit")).toBe("Available once a name is set.");
+      expect(hintOf("edit-panel-back")).toBe("Available once the upload has finished.");
+    });
+
+    it("AC3: locked without a disabled hint, the normal hint stands", () => {
+      renderPanel({ onBack: () => {}, submitDisabled: true, backDisabled: true });
+      expect(hintOf("edit-panel-submit")).toBe("Saves the entries and closes the panel.");
+      expect(hintOf("edit-panel-back")).toBe("Goes back one step; your entries are kept.");
+    });
+
+    it("AC6: order, testids and button classes stay, each button in its hint shell", () => {
+      renderPanel({ onBack: () => {} });
+      const footer = screen
+        .getByTestId("edit-panel")
+        .querySelector("[data-slot=edit-panel-footer]");
+      const shells = [...(footer?.children ?? [])];
+      expect(shells.map((shell) => shell.tagName)).toEqual(["SPAN", "SPAN", "SPAN"]);
+      expect(shells.map((shell) => shell.firstElementChild?.getAttribute("data-testid"))).toEqual([
+        "edit-panel-back",
+        "edit-panel-cancel",
+        "edit-panel-submit",
+      ]);
+      expect(shells[0]).toHaveClass("mr-auto");
+    });
+  });
+
   // SUI-FEATURE-035 AC5
   it("without onBack the footer markup and classes are as before", () => {
     renderPanel();

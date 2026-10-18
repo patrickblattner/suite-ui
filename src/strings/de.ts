@@ -221,6 +221,14 @@ export const de: SuiteStrings = {
     cancelHint: "Schließt den Dialog, ohne etwas zu ändern.",
     cancelDisabledHint: "Schließen geht wieder, sobald die Aktion abgeschlossen ist.",
   },
+  editPanel: {
+    backHint: "Geht einen Schritt zurück, die Eingaben bleiben erhalten.",
+    cancelHint: "Schließt das Panel, ohne zu speichern.",
+    closeHint: "Schließt das Panel.",
+    saveHint: "Speichert die Eingaben und schließt das Panel.",
+    nextHint: "Geht zum nächsten Schritt.",
+    busyHint: "Es wird gerade gespeichert; wieder verfügbar, sobald das abgeschlossen ist.",
+  },
   leaveGuard: {
     title: "Änderungen speichern?",
     description: "Dieser Eintrag hat Änderungen, die noch nicht gespeichert sind.",

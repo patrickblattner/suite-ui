@@ -4653,6 +4653,38 @@ test("list view shell: the view swaps under the keyboard, the FilterBar is not r
   await expect(media.getByTestId("filterbar")).toHaveAttribute("data-probe", "kept");
 });
 
+// SUI-FEATURE-091 AC1: every EditPanel footer button shows the package hint after the hint delay;
+// the text is the button's description, its name stays the label.
+for (const [trigger, prefix, ids] of [
+  ["edit-panel-check-trigger", "check-panel", ["back", "cancel", "submit"]],
+  ["next-panel-trigger", "next-panel", ["submit"]],
+  ["view-panel-trigger", "view-panel", ["cancel"]],
+] as const) {
+  test(`edit panel footer hints: ${prefix}`, async ({ page }) => {
+    await page.goto("/?page=edit-panel&lng=en");
+    await page.getByTestId(trigger).click();
+    const hints = {
+      "check-panel-back": ["Back", "Goes back one step; your entries are kept."],
+      "check-panel-cancel": ["Cancel", "Closes the panel without saving."],
+      "check-panel-submit": ["Save", "Saves the entries and closes the panel."],
+      "next-panel-submit": ["Continue to review", "Goes on to the next step."],
+      "view-panel-cancel": ["Close", "Closes the panel."],
+    } as Record<string, [string, string]>;
+    for (const id of ids) {
+      const [name, hint] = hints[`${prefix}-${id}`]!;
+      const button = page.getByTestId(`${prefix}-${id}`);
+      await expect(button).toHaveAccessibleName(name);
+      await expect(button).toHaveAccessibleDescription(hint);
+      await button.hover();
+      await page.waitForTimeout(1000);
+      await expect(page.getByRole("tooltip")).toHaveCount(0);
+      await expect(page.getByRole("tooltip")).toHaveText(hint);
+      await page.mouse.move(0, 0);
+      await expect(page.getByRole("tooltip")).toHaveCount(0);
+    }
+  });
+}
+
 // SUI-FEATURE-049 AC1–AC4: the tooltip waits for the hint delay, stands to the right of its element
 // with its top edge 4 px above the element's, covers neither the element nor the rows above and below,
 // and closes at once when the pointer leaves.

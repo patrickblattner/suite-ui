@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.130.0 — #249, SUI-FEATURE-091 rev 2: EditPanel footer buttons carry description hints
+
+Feature, not breaking. The `EditPanel` footer buttons (Back, Cancel/Close, primary action for `submitKind` `save` and `next`) now show a description hint per `GL-UI-017` after `--tooltip-hint-delay`, through the package `Hint`, the same way as `ConfirmDialog`. The hint is the button's `aria-describedby`; its accessible name stays the label. While `busy`, all footer buttons show one "saving in progress" hint. New optional props `submitHint`, `submitDisabledHint`, `backHint` and `backDisabledHint` take already-translated texts: `submitHint`/`backHint` replace the package text, and the `…DisabledHint` props show while `submitDisabled`/`backDisabled` locks the button. Package texts are in de, en and es under the new `editPanel.*` string group. The gallery gets a read-only panel with only Close (`view-panel`).
+
+**Migration:** none required. An app that sets `submitDisabled` or `backDisabled` passes the matching `…DisabledHint` with its unlock condition; an app that sets its own `submitLabel` passes a matching `submitHint`. Baselines: 10 `gallery-*.png` (longer strings table).
+
 ## 0.129.5 — #247, GL-UI-031 rev 4 (Q&A #3898): in the collapsed rail the search icon opens the dialog directly
 
 Bug fix, not breaking. In the collapsed sidebar rail, a click on the `GlobalSearch` icon expanded the sidebar, and the expanded field's focus then opened the dialog. Now the click opens the search dialog directly and the rail stays collapsed, as with the shortcut. `Esc` or the × gives the focus back to the rail's search icon. The expanded field, the closed overlay below `md` (#240) and the search opened over a modal (#244) keep their focus paths.

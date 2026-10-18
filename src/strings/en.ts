@@ -230,6 +230,14 @@ export const en = {
     cancelHint: "Closes the dialog without changing anything.",
     cancelDisabledHint: "Closing becomes possible again once the action has finished.",
   },
+  editPanel: {
+    backHint: "Goes back one step; your entries are kept.",
+    cancelHint: "Closes the panel without saving.",
+    closeHint: "Closes the panel.",
+    saveHint: "Saves the entries and closes the panel.",
+    nextHint: "Goes on to the next step.",
+    busyHint: "Saving is in progress; available again once it has finished.",
+  },
   leaveGuard: {
     title: "Save changes?",
     description: "This entry has changes that are not saved yet.",
