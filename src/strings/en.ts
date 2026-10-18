@@ -236,7 +236,7 @@ export const en = {
     closeHint: "Closes the panel.",
     saveHint: "Saves the entries.",
     nextHint: "Goes on to the next step.",
-    busyHint: "Work is in progress; available again once it has finished.",
+    busyHint: "An action is running; available again once it has finished.",
   },
   leaveGuard: {
     title: "Save changes?",

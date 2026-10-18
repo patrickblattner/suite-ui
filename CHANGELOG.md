@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.130.2 — #254, SUI-FEATURE-091 rev 4 (Q&A #3925): EditPanel busy hint uses ConfirmDialog's wording
+
+Text fix, not breaking. While `busy`, every `EditPanel` footer button now shows the neutral hint in `ConfirmDialog`'s wording: "An action is running; available again once it has finished." (de "Eine Aktion läuft; wieder verfügbar, sobald sie abgeschlossen ist.", es "Hay una acción en curso; vuelve a estar disponible cuando haya terminado."), the same for `submitKind` `save` and `next`. Texts in de, en and es.
+
+**Migration:** none. Baselines: 10 `gallery-*.png` (strings table).
+
 ## 0.130.1 — #251, SUI-FEATURE-091 rev 3 (Q&A #3920): EditPanel footer hints say only what the package does
 
 Text fix, not breaking. The `editPanel.*` hints from 0.130.0 (#249) now state only what the package itself does. Back goes one step back and Cancel closes without saving, and both say that unsaved changes are asked about first. The `save` hint is now "Saves the entries", with no claim about closing, since the package never closes on submit. While `busy`, every footer button shows one neutral "work in progress" hint for both `save` and `next`, never "saving". Close and `next` are unchanged. Texts in de, en and es.

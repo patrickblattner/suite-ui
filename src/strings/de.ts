@@ -228,7 +228,7 @@ export const de: SuiteStrings = {
     closeHint: "Schließt das Panel.",
     saveHint: "Speichert die Eingaben.",
     nextHint: "Geht zum nächsten Schritt.",
-    busyHint: "Es wird gerade gearbeitet; wieder verfügbar, sobald das abgeschlossen ist.",
+    busyHint: "Eine Aktion läuft; wieder verfügbar, sobald sie abgeschlossen ist.",
   },
   leaveGuard: {
     title: "Änderungen speichern?",

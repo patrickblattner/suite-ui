@@ -4697,6 +4697,30 @@ test("edit panel footer hints: the default panel's Save says it closes", async (
   await expect(submit).toHaveAccessibleDescription("Saves the entries and closes the panel.");
 });
 
+test("edit panel footer hints: the media panel's Save says it closes", async ({ page }) => {
+  await page.goto("/?page=edit-panel&lng=en");
+  await page.getByTestId("media-panel-trigger").click();
+  await expect(page.getByTestId("media-panel-submit")).toHaveAccessibleDescription(
+    "Saves the entries and closes the panel.",
+  );
+});
+
+// SUI-FEATURE-091 rev 4 AC5: while busy, the footer buttons show ConfirmDialog's "action" wording.
+for (const [lng, busyText] of [
+  ["en", "An action is running; available again once it has finished."],
+  ["de", "Eine Aktion läuft; wieder verfügbar, sobald sie abgeschlossen ist."],
+  ["es", "Hay una acción en curso; vuelve a estar disponible cuando haya terminado."],
+] as const) {
+  test(`edit panel footer hints: busy shows the neutral action text (${lng})`, async ({ page }) => {
+    await page.goto(`/?page=edit-panel&lng=${lng}`);
+    await page.getByTestId("edit-panel-trigger-1").click();
+    const submit = page.getByTestId("edit-panel-submit");
+    await submit.click();
+    await expect(submit).toHaveAttribute("data-busy", "true");
+    await expect(submit).toHaveAccessibleDescription(busyText);
+  });
+}
+
 // SUI-FEATURE-049 AC1–AC4: the tooltip waits for the hint delay, stands to the right of its element
 // with its top edge 4 px above the element's, covers neither the element nor the rows above and below,
 // and closes at once when the pointer leaves.

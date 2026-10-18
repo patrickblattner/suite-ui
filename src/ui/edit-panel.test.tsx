@@ -308,7 +308,7 @@ describe("EditPanel", () => {
         "Closes the panel.",
         "Saves the entries.",
         "Goes on to the next step.",
-        "Work is in progress; available again once it has finished.",
+        "An action is running; available again once it has finished.",
       ],
       [
         "de",
@@ -317,7 +317,7 @@ describe("EditPanel", () => {
         "Schließt das Panel.",
         "Speichert die Eingaben.",
         "Geht zum nächsten Schritt.",
-        "Es wird gerade gearbeitet; wieder verfügbar, sobald das abgeschlossen ist.",
+        "Eine Aktion läuft; wieder verfügbar, sobald sie abgeschlossen ist.",
       ],
       [
         "es",
@@ -326,7 +326,7 @@ describe("EditPanel", () => {
         "Cierra el panel.",
         "Guarda los datos.",
         "Pasa al paso siguiente.",
-        "Hay una operación en curso; vuelve a estar disponible cuando termine.",
+        "Hay una acción en curso; vuelve a estar disponible cuando haya terminado.",
       ],
     ])(
       "AC1/AC2/AC5/AC6 %s: the package hints of Back, Cancel, Close, save, next and busy",

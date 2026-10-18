@@ -226,7 +226,7 @@ export const es: SuiteStrings = {
     closeHint: "Cierra el panel.",
     saveHint: "Guarda los datos.",
     nextHint: "Pasa al paso siguiente.",
-    busyHint: "Hay una operación en curso; vuelve a estar disponible cuando termine.",
+    busyHint: "Hay una acción en curso; vuelve a estar disponible cuando haya terminado.",
   },
   leaveGuard: {
     title: "¿Guardar los cambios?",
