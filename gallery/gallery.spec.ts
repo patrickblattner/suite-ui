@@ -4688,6 +4688,15 @@ for (const [trigger, prefix, ids] of [
   });
 }
 
+// SUI-FEATURE-091 rev 3: a call site that closes the panel after saving passes a `submitHint` saying so.
+test("edit panel footer hints: the default panel's Save says it closes", async ({ page }) => {
+  await page.goto("/?page=edit-panel&lng=en");
+  await page.getByTestId("edit-panel-trigger-1").click();
+  const submit = page.getByTestId("edit-panel-submit");
+  await expect(submit).toHaveAccessibleName("Save");
+  await expect(submit).toHaveAccessibleDescription("Saves the entries and closes the panel.");
+});
+
 // SUI-FEATURE-049 AC1–AC4: the tooltip waits for the hint delay, stands to the right of its element
 // with its top edge 4 px above the element's, covers neither the element nor the rows above and below,
 // and closes at once when the pointer leaves.

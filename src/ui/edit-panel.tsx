@@ -59,7 +59,8 @@ type EditPanelProps = {
   // What the primary action does (`SUI-FEATURE-111`): `save` (the default) leads with the save symbol;
   // `next` only moves on to the next step, saves nothing, and so carries an arrow after its text.
   submitKind?: "save" | "next";
-  // With `onBack` the footer carries Back left-aligned (`SUI-FEATURE-035`); it only calls `onBack`.
+  // With `onBack` the footer carries Back left-aligned (`SUI-FEATURE-035`); it goes through the
+  // unsaved-changes guard, then calls `onBack`.
   onBack?: () => void;
   backDisabled?: boolean;
   // With `pager` the header carries ‹ and › left of the title, the position beside them. A locked

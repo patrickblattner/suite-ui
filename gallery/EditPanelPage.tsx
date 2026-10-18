@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router-dom";
 
 import { PageHeader } from "../src/list/page-header.js";
@@ -93,11 +94,20 @@ const STATE_MEDIA: readonly ShellMedium[] = [
   { kind: "text", name: "empty.txt", text: "" },
 ];
 const SHELL_SETS = { media: SHELL_MEDIA, states: STATE_MEDIA } as const;
+// App-side hint: the two panels below close after saving, which the package `save` hint does not say
+// (`SUI-FEATURE-091`).
+const LABELS = {
+  en: { saveCloseHint: "Saves the entries and closes the panel." },
+  de: { saveCloseHint: "Speichert die Eingaben und schließt das Panel." },
+  es: { saveCloseHint: "Guarda los datos y cierra el panel." },
+};
 const FIELDS = Array.from({ length: 24 }, (_, index) => `Field ${index + 1}`);
 
 // A long list whose rows open the edit panel, inside the shell frame (`SUI-FEATURE-030`). The panel
 // lives in the routed page as in an app: a navigation away unmounts both. Save works for 1.5 s.
 function Demo() {
+  const { i18n } = useTranslation("suite");
+  const labels = LABELS[i18n.language as keyof typeof LABELS] ?? LABELS.en;
   const { pathname } = useLocation();
   const [start] = useState(pathname);
   const [row, setRow] = useState<string | null>(null);
@@ -215,6 +225,7 @@ function Demo() {
         description="An edit panel over the whole content area."
         mode="edit"
         submitLabel="Save"
+        submitHint={labels.saveCloseHint}
         busy={busy}
         onSubmit={() => {
           setBusy(true);
@@ -299,6 +310,7 @@ function Demo() {
               }
             : undefined
         }
+        submitHint={labels.saveCloseHint}
         onSubmit={() => setMedia(null)}
         preview={
           media !== null ? (
