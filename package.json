@@ -1,6 +1,6 @@
 {
   "name": "@suite/ui",
-  "version": "0.134.8",
+  "version": "0.135.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -31,6 +31,10 @@
     "./shell/*": {
       "types": "./dist/shell/*.d.ts",
       "import": "./dist/shell/*.js"
+    },
+    "./slides/*": {
+      "types": "./dist/slides/*.d.ts",
+      "import": "./dist/slides/*.js"
     },
     "./operation-status/provider": {
       "types": "./dist/operation-status/provider.d.ts",
@@ -84,7 +88,8 @@
     "release:tag": "node scripts/release.ts tag"
   },
   "dependencies": {
-    "jiti": "^2.7.0"
+    "jiti": "^2.7.0",
+    "zod": "^4.6.6"
   },
   "peerDependencies": {
     "class-variance-authority": "^0.7",

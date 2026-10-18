@@ -28,6 +28,7 @@ import {
 } from "./OverlayPages.js";
 import { PreviewPage } from "./PreviewPage.js";
 import { SettingsPage } from "./SettingsPage.js";
+import { SlidesPage } from "./SlidesPage.js";
 import { registerShellLabels, ShellPage } from "./ShellPage.js";
 import { SplitPage } from "./SplitPage.js";
 import { TilesPage } from "./TilesPage.js";
@@ -59,6 +60,7 @@ const PAGES = [
   "toast",
   "preview",
   "split",
+  "slides",
 ] as const;
 type Page = (typeof PAGES)[number];
 
@@ -99,6 +101,7 @@ const PAGE_CONTENT: Record<Exclude<Page, "strings">, (theme: Theme) => ReactNode
   toast: (theme) => <ToastPage theme={theme} />,
   preview: (theme) => <PreviewPage theme={theme} />,
   split: () => <SplitPage />,
+  slides: () => <SlidesPage />,
 };
 
 function keysOf(tree: object, prefix = ""): string[] {

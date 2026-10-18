@@ -7,11 +7,11 @@ import type { GridDefinition } from "../src/ui/grid-core.js";
 const BOX = { width: 300, height: 120 };
 
 const OVERLAY: GridDefinition = {
-  art: "spalten",
-  anzahl: 6,
-  abstand: 12,
-  rand: 12,
-  zeilenschritt: 24,
+  kind: "columns",
+  count: 6,
+  gap: 12,
+  margin: 12,
+  rowStep: 24,
 };
 
 function Caption({ children }: { children: string }) {
@@ -22,16 +22,16 @@ function Caption({ children }: { children: string }) {
 // locked, and the overlay over light and dark content with a button beneath that the pointer reaches.
 export function GridPage() {
   const [definition, setDefinition] = useState<GridDefinition | null>({
-    art: "spalten",
-    anzahl: 12,
-    abstand: 24,
-    rand: 0,
-    zeilenschritt: 8,
+    kind: "columns",
+    count: 12,
+    gap: 24,
+    margin: 0,
+    rowStep: 8,
   });
-  const [coupled, setCoupled] = useState<GridToggleValue>({ hilfslinien: true, einrasten: true });
+  const [coupled, setCoupled] = useState<GridToggleValue>({ guides: true, snap: true });
   const [separate, setSeparate] = useState<GridToggleValue>({
-    hilfslinien: false,
-    einrasten: true,
+    guides: false,
+    snap: true,
   });
   const [clicks, setClicks] = useState(0);
   const overlay = (tone: string, testid: string) => (
@@ -56,7 +56,7 @@ export function GridPage() {
             <GridFields value={definition} onChange={setDefinition} allowNone />
           </div>
           <div className="w-full max-w-85 rounded-md border p-4" data-testid="grid-fields-square">
-            <GridFields value={{ art: "schritt", schritt: 10 }} onChange={() => {}} />
+            <GridFields value={{ kind: "step", step: 10 }} onChange={() => {}} />
           </div>
         </div>
       </section>
@@ -87,7 +87,7 @@ export function GridPage() {
             <Caption>getrennt, pressed</Caption>
             <GridToggle
               mode="getrennt"
-              value={{ hilfslinien: true, einrasten: false }}
+              value={{ guides: true, snap: false }}
               onChange={() => {}}
               definition={definition}
               unavailableText="Set a grid in the brand kit"
@@ -97,7 +97,7 @@ export function GridPage() {
             <Caption>no definition</Caption>
             <GridToggle
               mode="getrennt"
-              value={{ hilfslinien: false, einrasten: false }}
+              value={{ guides: false, snap: false }}
               onChange={() => {}}
               definition={null}
               unavailableText="Set a grid in the brand kit"

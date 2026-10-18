@@ -11,6 +11,7 @@ import {
   userMenuOrderViolations,
 } from "../src/testing/index.js";
 import { shellTexts } from "./shell-labels.js";
+import { SLIDE_EXAMPLES } from "./slide-examples.js";
 
 const LANGUAGES = ["de", "en", "es"] as const;
 const THEMES = ["light", "dark"] as const;
@@ -136,6 +137,7 @@ const AXE_PAGES: [
 ][] = [
   ["strings", (page) => page.locator("#strings-heading")],
   ["tokens", (page) => page.getByTestId("token-warn-text")],
+  ["slides", (page) => page.getByTestId("slide-examples")],
   ["keys", (page) => page.getByTestId("keys-row").first()],
   [
     "keys",
@@ -7503,15 +7505,15 @@ for (const lng of LANGUAGES) {
 
 test("grid fields: count 0 is rejected with its bound", async ({ page }) => {
   await page.goto("/?page=grid&lng=de");
-  const count = page.getByTestId("grid-fields-panel").getByTestId("grid-anzahl");
+  const count = page.getByTestId("grid-fields-panel").getByTestId("grid-count");
   await count.fill("0");
   // While typing, no error; leaving the field shows it.
   await expect(count).not.toHaveAttribute("aria-invalid");
   await count.blur();
   await expect(count).toHaveAttribute("aria-invalid", "true");
-  await expect(page.getByTestId("grid-anzahl-error")).toHaveText("Von 1 bis 24");
+  await expect(page.getByTestId("grid-count-error")).toHaveText("Von 1 bis 24");
   await count.fill("6");
-  await expect(page.getByTestId("grid-anzahl-error")).toHaveCount(0);
+  await expect(page.getByTestId("grid-count-error")).toHaveCount(0);
 });
 
 // `SUI-FEATURE-087` AC 4: coupled and separate, locked without a definition.
@@ -8141,4 +8143,18 @@ test("create and select: “ada lovelace” with Ada Lovelace listed offers no c
   await picker.fill("ada lovelace");
   await expect(page.getByTestId("contact-picker-option")).toHaveText(["Ada Lovelace"]);
   await expect(page.getByTestId("contact-picker-create")).toHaveCount(0);
+});
+
+// SUI-DESIGN-002 §Abnahme 1 and 2: every example document validates in the browser; the invalid one
+// names its error.
+test("slide documents: every example validates, the invalid one names its error", async ({
+  page,
+}) => {
+  await page.goto("/?page=slides&lng=en");
+  const rows = page.getByTestId("slide-example");
+  await expect(rows).toHaveCount(SLIDE_EXAMPLES.length + 1);
+  await expect(rows.and(page.locator("[data-valid=true]"))).toHaveCount(SLIDE_EXAMPLES.length);
+  await expect(rows.and(page.locator("[data-valid=false]"))).toHaveText(
+    /SlideDocumentError: .*pages\[0\]\.elements\[0\]\.opacity/,
+  );
 });

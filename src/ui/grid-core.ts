@@ -8,11 +8,11 @@ const GRID_COLUMNS_MIN = 1;
 const GRID_COLUMNS_MAX = 24;
 
 type GridDefinition =
-  // A square grid, a line every `schritt` px both ways.
-  | { art: "schritt"; schritt: number }
-  // `anzahl` columns with `abstand` between them and `rand` on both sides; `zeilenschritt` adds a
+  // A square grid, a line every `step` px both ways.
+  | { kind: "step"; step: number }
+  // `count` columns with `gap` between them and `margin` on both sides; `rowStep` adds a
   // horizontal line every that many px.
-  | { art: "spalten"; anzahl: number; abstand: number; rand: number; zeilenschritt?: number };
+  | { kind: "columns"; count: number; gap: number; margin: number; rowStep?: number };
 
 // The box the grid lies over, in reference px.
 type GridBox = { width: number; height: number };
@@ -32,71 +32,68 @@ function ascendingOnce(values: number[]): number[] {
   return [...new Set(values)].sort((a, b) => a - b);
 }
 
-// The lines of a grid over a box. `spalten`: both edges of every column, the outer ones being the
-// margin; with `mitten` each column's centre too; horizontally every `zeilenschritt`. `schritt`: a
+// The lines of a grid over a box. `columns`: both edges of every column, the outer ones being the
+// margin; with `centers` each column's centre too; horizontally every `rowStep`. `step`: a
 // square grid.
 function gridLines(
   def: GridDefinition,
   box: GridBox,
-  { mitten = false }: { mitten?: boolean } = {},
+  { centers = false }: { centers?: boolean } = {},
 ): GridLines {
-  if (def.art === "schritt") {
-    return { x: every(def.schritt, box.width), y: every(def.schritt, box.height) };
+  if (def.kind === "step") {
+    return { x: every(def.step, box.width), y: every(def.step, box.height) };
   }
   // Margin and gutters wider than the box leave the columns no width, never a negative one.
-  const width = Math.max(
-    0,
-    (box.width - 2 * def.rand - (def.anzahl - 1) * def.abstand) / def.anzahl,
-  );
+  const width = Math.max(0, (box.width - 2 * def.margin - (def.count - 1) * def.gap) / def.count);
   const x: number[] = [];
-  for (let column = 0; column < def.anzahl; column += 1) {
-    const left = def.rand + column * (width + def.abstand);
+  for (let column = 0; column < def.count; column += 1) {
+    const left = def.margin + column * (width + def.gap);
     x.push(left, left + width);
-    if (mitten) x.push(left + width / 2);
+    if (centers) x.push(left + width / 2);
   }
   return {
     // Lines past the box's edge stand on it.
     x: ascendingOnce(x.map((position) => Math.min(Math.max(position, 0), box.width))),
-    y: def.zeilenschritt === undefined ? [] : every(def.zeilenschritt, box.height),
+    y: def.rowStep === undefined ? [] : every(def.rowStep, box.height),
   };
 }
 
 // Where a snap line comes from. The app supplies the element and area candidates; the grid's come
 // from `gridLines`.
-type SnapSource = "element" | "flaeche" | "raster";
+type SnapSource = "element" | "area" | "grid";
 
-type SnapCandidate = { wert: number; quelle: SnapSource };
+type SnapCandidate = { value: number; source: SnapSource };
 
 // The hit: the offset that moves the anchor onto the candidate, and the candidate for the guide line.
-type SnapHit = { versatz: number; kandidat: SnapCandidate };
+type SnapHit = { offset: number; candidate: SnapCandidate };
 
-// The snap of one axis. `anker` are the moving points (dragging: both edges and the centre; resizing:
-// the dragged edge). The nearest candidate within `toleranz` wins; at equal distance an element or
-// area beats the grid. `umgehen` (Alt/Option held) snaps nothing. Without a hit: `null`.
+// The snap of one axis. `anchors` are the moving points (dragging: both edges and the centre; resizing:
+// the dragged edge). The nearest candidate within `tolerance` wins; at equal distance an element or
+// area beats the grid. `bypass` (Alt/Option held) snaps nothing. Without a hit: `null`.
 function pickSnap({
-  anker,
-  kandidaten,
-  toleranz,
-  umgehen = false,
+  anchors,
+  candidates,
+  tolerance,
+  bypass = false,
 }: {
-  anker: readonly number[];
-  kandidaten: readonly SnapCandidate[];
-  toleranz: number;
-  umgehen?: boolean;
+  anchors: readonly number[];
+  candidates: readonly SnapCandidate[];
+  tolerance: number;
+  bypass?: boolean;
 }): SnapHit | null {
-  if (umgehen) return null;
+  if (bypass) return null;
   let best: SnapHit | null = null;
-  for (const point of anker) {
-    for (const kandidat of kandidaten) {
-      const versatz = kandidat.wert - point;
-      const distance = Math.abs(versatz);
-      if (distance > toleranz) continue;
-      const bestDistance = best === null ? Infinity : Math.abs(best.versatz);
+  for (const point of anchors) {
+    for (const candidate of candidates) {
+      const offset = candidate.value - point;
+      const distance = Math.abs(offset);
+      if (distance > tolerance) continue;
+      const bestDistance = best === null ? Infinity : Math.abs(best.offset);
       const beatsGrid =
         distance === bestDistance &&
-        best?.kandidat.quelle === "raster" &&
-        kandidat.quelle !== "raster";
-      if (distance < bestDistance || beatsGrid) best = { versatz, kandidat };
+        best?.candidate.source === "grid" &&
+        candidate.source !== "grid";
+      if (distance < bestDistance || beatsGrid) best = { offset, candidate };
     }
   }
   return best;

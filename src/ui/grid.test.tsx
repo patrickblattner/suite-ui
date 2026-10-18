@@ -31,7 +31,7 @@ afterEach(async () => {
   await i18n.changeLanguage("en");
 });
 
-const COLUMNS: GridDefinition = { art: "spalten", anzahl: 12, abstand: 24, rand: 0 };
+const COLUMNS: GridDefinition = { kind: "columns", count: 12, gap: 24, margin: 0 };
 
 function Fields({
   initial = COLUMNS,
@@ -83,7 +83,7 @@ describe("GridFields (SUI-FEATURE-087)", () => {
   });
 
   it("square: only the step", () => {
-    render(<Fields initial={{ art: "schritt", schritt: 10 }} />);
+    render(<Fields initial={{ kind: "step", step: 10 }} />);
     expect(screen.getAllByRole("spinbutton")).toHaveLength(1);
     expect(screen.getByRole("spinbutton", { name: "Step" })).toHaveValue(10);
   });
@@ -97,15 +97,15 @@ describe("GridFields (SUI-FEATURE-087)", () => {
     expect(onChange).not.toHaveBeenCalled();
     // While typing, no error yet; leaving the field shows it.
     expect(count).not.toHaveAttribute("aria-invalid");
-    expect(screen.queryByTestId("grid-anzahl-error")).toBeNull();
+    expect(screen.queryByTestId("grid-count-error")).toBeNull();
     fireEvent.blur(count);
     expect(count).toHaveAttribute("aria-invalid", "true");
-    expect(screen.getByTestId("grid-anzahl-error")).toHaveTextContent("From 1 to 24");
-    expect(count).toHaveAttribute("aria-errormessage", screen.getByTestId("grid-anzahl-error").id);
+    expect(screen.getByTestId("grid-count-error")).toHaveTextContent("From 1 to 24");
+    expect(count).toHaveAttribute("aria-errormessage", screen.getByTestId("grid-count-error").id);
     // Fixed, it is taken and the error goes.
     fireEvent.change(count, { target: { value: "6" } });
-    expect(onChange).toHaveBeenLastCalledWith({ ...COLUMNS, anzahl: 6 });
-    expect(screen.queryByTestId("grid-anzahl-error")).toBeNull();
+    expect(onChange).toHaveBeenLastCalledWith({ ...COLUMNS, count: 6 });
+    expect(screen.queryByTestId("grid-count-error")).toBeNull();
     expect(count).not.toHaveAttribute("aria-invalid");
   });
 
@@ -116,17 +116,17 @@ describe("GridFields (SUI-FEATURE-087)", () => {
     const gap = screen.getByRole("spinbutton", { name: "Spaltenabstand" });
     fireEvent.change(gap, { target: { value: "-1" } });
     fireEvent.blur(gap);
-    expect(screen.getByTestId("grid-abstand-error")).toHaveTextContent("Mindestens 0 px");
+    expect(screen.getByTestId("grid-gap-error")).toHaveTextContent("Mindestens 0 px");
     const margin = screen.getByRole("spinbutton", { name: "Rand" });
     fireEvent.change(margin, { target: { value: "2.5" } });
     fireEvent.blur(margin);
-    expect(screen.getByTestId("grid-rand-error")).toHaveTextContent("Nur ganze Pixel");
+    expect(screen.getByTestId("grid-margin-error")).toHaveTextContent("Nur ganze Pixel");
     expect(onChange).not.toHaveBeenCalled();
   });
 
   it("the row step may be emptied again", () => {
     const onChange = vi.fn();
-    render(<Fields initial={{ ...COLUMNS, zeilenschritt: 8 }} onChange={onChange} />);
+    render(<Fields initial={{ ...COLUMNS, rowStep: 8 }} onChange={onChange} />);
     fireEvent.change(screen.getByRole("spinbutton", { name: "Row step (optional)" }), {
       target: { value: "" },
     });
@@ -138,18 +138,18 @@ describe("GridFields (SUI-FEATURE-087)", () => {
     Element.prototype.hasPointerCapture = () => false;
     Element.prototype.scrollIntoView = () => {};
     const onChange = vi.fn();
-    render(<Fields initial={{ ...COLUMNS, anzahl: 6, zeilenschritt: 8 }} onChange={onChange} />);
+    render(<Fields initial={{ ...COLUMNS, count: 6, rowStep: 8 }} onChange={onChange} />);
     const choose = (name: string) => {
       fireEvent.keyDown(screen.getByRole("combobox", { name: "Grid type" }), { key: "Enter" });
       fireEvent.click(screen.getByRole("option", { name }));
     };
     choose("Square");
-    expect(onChange).toHaveBeenLastCalledWith({ art: "schritt", schritt: 8 });
+    expect(onChange).toHaveBeenLastCalledWith({ kind: "step", step: 8 });
     fireEvent.change(screen.getByRole("spinbutton", { name: "Step" }), { target: { value: "12" } });
     choose("Columns");
-    expect(onChange).toHaveBeenLastCalledWith({ ...COLUMNS, anzahl: 6, zeilenschritt: 8 });
+    expect(onChange).toHaveBeenLastCalledWith({ ...COLUMNS, count: 6, rowStep: 8 });
     choose("Square");
-    expect(onChange).toHaveBeenLastCalledWith({ art: "schritt", schritt: 12 });
+    expect(onChange).toHaveBeenLastCalledWith({ kind: "step", step: 12 });
   });
 
   it("a value from outside replaces an invalid entry", () => {
@@ -157,20 +157,20 @@ describe("GridFields (SUI-FEATURE-087)", () => {
     const count = screen.getByRole("spinbutton", { name: "Number of columns" });
     fireEvent.change(count, { target: { value: "0" } });
     fireEvent.blur(count);
-    expect(screen.getByTestId("grid-anzahl-error")).toBeInTheDocument();
+    expect(screen.getByTestId("grid-count-error")).toBeInTheDocument();
     // Undo, or another document.
-    rerender(<GridFields value={{ ...COLUMNS, anzahl: 4 }} onChange={() => {}} />);
-    expect(screen.queryByTestId("grid-anzahl-error")).toBeNull();
+    rerender(<GridFields value={{ ...COLUMNS, count: 4 }} onChange={() => {}} />);
+    expect(screen.queryByTestId("grid-count-error")).toBeNull();
     expect(count).toHaveValue(4);
     expect(count).not.toHaveAttribute("aria-invalid");
   });
 
   it("hides the fields the app does not lead", () => {
-    render(<Fields hidden={["art", "rand", "zeilenschritt"]} />);
+    render(<Fields hidden={["kind", "margin", "rowStep"]} />);
     expect(screen.queryByRole("combobox")).toBeNull();
     expect(
       screen.getAllByRole("spinbutton").map((input) => input.getAttribute("data-testid")),
-    ).toEqual(["grid-anzahl", "grid-abstand"]);
+    ).toEqual(["grid-count", "grid-gap"]);
   });
 
   it("without a grid: only the type, set to No grid", () => {
@@ -208,7 +208,7 @@ function Toggle({
   definition?: GridDefinition | null;
   onChange?: (value: GridToggleValue) => void;
 }) {
-  const [value, setValue] = useState<GridToggleValue>({ hilfslinien: false, einrasten: false });
+  const [value, setValue] = useState<GridToggleValue>({ guides: false, snap: false });
   return (
     <GridToggle
       mode={mode}
@@ -233,10 +233,10 @@ describe("GridToggle (SUI-FEATURE-087)", () => {
     expect(button).toHaveAccessibleDescription("Shows the grid and snaps to it.");
     expect(screen.getByRole("button", { name: "Grid" })).toBeInTheDocument();
     fireEvent.click(button);
-    expect(onChange).toHaveBeenLastCalledWith({ hilfslinien: true, einrasten: true });
+    expect(onChange).toHaveBeenLastCalledWith({ guides: true, snap: true });
     expect(button).toHaveAttribute("aria-pressed", "true");
     fireEvent.click(button);
-    expect(onChange).toHaveBeenLastCalledWith({ hilfslinien: false, einrasten: false });
+    expect(onChange).toHaveBeenLastCalledWith({ guides: false, snap: false });
     expect(screen.queryByTestId("grid-toggle-menu")).toBeNull();
   });
 
@@ -245,17 +245,17 @@ describe("GridToggle (SUI-FEATURE-087)", () => {
     render(<Toggle mode="getrennt" onChange={onChange} />);
     const button = screen.getByRole("button", { name: "Grid" });
     fireEvent.click(button);
-    expect(onChange).toHaveBeenLastCalledWith({ hilfslinien: true, einrasten: false });
+    expect(onChange).toHaveBeenLastCalledWith({ guides: true, snap: false });
     expect(button).toHaveAttribute("aria-pressed", "true");
     const menu = screen.getByRole("button", { name: "Grid options" });
     fireEvent.pointerDown(menu, { button: 0, ctrlKey: false, pointerType: "mouse" });
     fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Snap" }));
-    expect(onChange).toHaveBeenLastCalledWith({ hilfslinien: true, einrasten: true });
+    expect(onChange).toHaveBeenLastCalledWith({ guides: true, snap: true });
     // The menu stays open for the next switch.
     const guides = screen.getByRole("menuitemcheckbox", { name: "Guides" });
     expect(guides).toHaveAttribute("aria-checked", "true");
     fireEvent.click(guides);
-    expect(onChange).toHaveBeenLastCalledWith({ hilfslinien: false, einrasten: true });
+    expect(onChange).toHaveBeenLastCalledWith({ guides: false, snap: true });
     expect(button).toHaveAttribute("aria-pressed", "false");
   });
 
@@ -336,7 +336,7 @@ describe("GridFields on Field (SUI-FEATURE-087 rev 6)", () => {
     expect(document.getElementById(`${count.id}-label`)).toHaveTextContent("Number of columns");
     fireEvent.change(count, { target: { value: "0" } });
     fireEvent.blur(count);
-    const error = screen.getByTestId("grid-anzahl-error");
+    const error = screen.getByTestId("grid-count-error");
     expect(error).toHaveAttribute("data-slot", "field-error");
     expect(error.id).toBe(`${count.id}-error`);
   });
@@ -346,10 +346,7 @@ describe("GridOverlay (SUI-FEATURE-087)", () => {
   // AC 5
   it("draws the grid lines unscaled, takes no pointer events and is hidden from assistive tech", () => {
     render(
-      <GridOverlay
-        definition={{ ...COLUMNS, zeilenschritt: 8 }}
-        box={{ width: 1200, height: 80 }}
-      />,
+      <GridOverlay definition={{ ...COLUMNS, rowStep: 8 }} box={{ width: 1200, height: 80 }} />,
     );
     const overlay = screen.getByTestId("grid-overlay");
     expect(overlay).toHaveClass("pointer-events-none");
@@ -366,7 +363,7 @@ describe("GridOverlay (SUI-FEATURE-087)", () => {
 
   it("at a zoom the lines move with it but stay one pixel", () => {
     render(
-      <GridOverlay definition={COLUMNS} box={{ width: 1200, height: 80 }} zoom={0.5} mitten />,
+      <GridOverlay definition={COLUMNS} box={{ width: 1200, height: 80 }} zoom={0.5} centers />,
     );
     const overlay = screen.getByTestId("grid-overlay");
     expect(overlay).toHaveAttribute("width", "600");

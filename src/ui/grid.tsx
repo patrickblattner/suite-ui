@@ -25,27 +25,27 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { IconButtonTooltip } from "./tooltip.js";
 
 // The number fields of a grid definition, in the order they stand.
-type GridNumberField = "schritt" | "anzahl" | "abstand" | "rand" | "zeilenschritt";
+type GridNumberField = "step" | "count" | "gap" | "margin" | "rowStep";
 
 // A field of `GridFields` the app can leave out.
-type GridField = "art" | GridNumberField;
+type GridField = "kind" | GridNumberField;
 
-// Each number field's bounds; `zeilenschritt` may also stay empty (no horizontal lines).
+// Each number field's bounds; `rowStep` may also stay empty (no horizontal lines).
 const BOUNDS: Record<GridNumberField, { min: number; max?: number }> = {
-  schritt: { min: 1 },
-  anzahl: { min: GRID_COLUMNS_MIN, max: GRID_COLUMNS_MAX },
-  abstand: { min: 0 },
-  rand: { min: 0 },
-  zeilenschritt: { min: 1 },
+  step: { min: 1 },
+  count: { min: GRID_COLUMNS_MIN, max: GRID_COLUMNS_MAX },
+  gap: { min: 0 },
+  margin: { min: 0 },
+  rowStep: { min: 1 },
 };
 
 // The number fields measured in px; the column count is a plain number.
-const IN_PX: readonly GridNumberField[] = ["schritt", "abstand", "rand", "zeilenschritt"];
+const IN_PX: readonly GridNumberField[] = ["step", "gap", "margin", "rowStep"];
 
 // The definition a type starts from the first time the person switches to it.
-const START: Record<GridDefinition["art"], GridDefinition> = {
-  schritt: { art: "schritt", schritt: 8 },
-  spalten: { art: "spalten", anzahl: 12, abstand: 24, rand: 0 },
+const START: Record<GridDefinition["kind"], GridDefinition> = {
+  step: { kind: "step", step: 8 },
+  columns: { kind: "columns", count: 12, gap: 24, margin: 0 },
 };
 
 type GridFieldsProps = {
@@ -71,15 +71,15 @@ function GridFields({ value, onChange, allowNone = false, hidden = [] }: GridFie
   // The invalid fields the person has left: only they show their error.
   const [left, setLeft] = React.useState<readonly GridNumberField[]>([]);
   // The last definition of each type, to come back to.
-  const [last, setLast] = React.useState<Partial<Record<GridDefinition["art"], GridDefinition>>>(
-    value === null ? {} : { [value.art]: value },
+  const [last, setLast] = React.useState<Partial<Record<GridDefinition["kind"], GridDefinition>>>(
+    value === null ? {} : { [value.kind]: value },
   );
   // The value of the last render, and the last one this group sent.
   const [seen, setSeen] = React.useState(value);
   const [sent, setSent] = React.useState(value);
   if (value !== seen) {
     setSeen(value);
-    if (value !== null) setLast((current) => ({ ...current, [value.art]: value }));
+    if (value !== null) setLast((current) => ({ ...current, [value.kind]: value }));
     // A value from outside (undo, another document) replaces what is being typed.
     if (JSON.stringify(value) !== JSON.stringify(sent)) {
       setDrafts({});
@@ -93,7 +93,7 @@ function GridFields({ value, onChange, allowNone = false, hidden = [] }: GridFie
 
   const error = (field: GridNumberField, text: string): string | null => {
     const { min, max } = BOUNDS[field];
-    if (field === "zeilenschritt" && text.trim() === "") return null;
+    if (field === "rowStep" && text.trim() === "") return null;
     const number = Number(text);
     const outside =
       text.trim() === "" ||
@@ -124,11 +124,7 @@ function GridFields({ value, onChange, allowNone = false, hidden = [] }: GridFie
   };
 
   const fields: GridNumberField[] =
-    value === null
-      ? []
-      : value.art === "schritt"
-        ? ["schritt"]
-        : ["anzahl", "abstand", "rand", "zeilenschritt"];
+    value === null ? [] : value.kind === "step" ? ["step"] : ["count", "gap", "margin", "rowStep"];
 
   return (
     <div
@@ -137,29 +133,29 @@ function GridFields({ value, onChange, allowNone = false, hidden = [] }: GridFie
       className="flex flex-col gap-4"
       data-testid="grid-fields"
     >
-      {hidden.includes("art") ? null : (
-        <Field label={t("grid.art")} htmlFor={`${id}-art`} labelClassName="whitespace-nowrap">
+      {hidden.includes("kind") ? null : (
+        <Field label={t("grid.kind")} htmlFor={`${id}-kind`} labelClassName="whitespace-nowrap">
           <Select
-            value={value?.art ?? "none"}
-            onValueChange={(art) => {
+            value={value?.kind ?? "none"}
+            onValueChange={(kind) => {
               setDrafts({});
               setLeft([]);
-              const type = art as GridDefinition["art"];
-              send(art === "none" ? null : (last[type] ?? START[type]));
+              const type = kind as GridDefinition["kind"];
+              send(kind === "none" ? null : (last[type] ?? START[type]));
             }}
           >
             <SelectTrigger
-              id={`${id}-art`}
-              fieldName={t("grid.art")}
+              id={`${id}-kind`}
+              fieldName={t("grid.kind")}
               className="w-full"
-              data-testid="grid-art"
+              data-testid="grid-kind"
             >
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
               {allowNone ? <SelectItem value="none">{t("grid.none")}</SelectItem> : null}
-              <SelectItem value="schritt">{t("grid.schritt")}</SelectItem>
-              <SelectItem value="spalten">{t("grid.spalten")}</SelectItem>
+              <SelectItem value="step">{t("grid.kindStep")}</SelectItem>
+              <SelectItem value="columns">{t("grid.kindColumns")}</SelectItem>
             </SelectContent>
           </Select>
         </Field>
@@ -176,7 +172,7 @@ function GridFields({ value, onChange, allowNone = false, hidden = [] }: GridFie
           return (
             <Field
               key={field}
-              label={t(field === "schritt" ? "grid.step" : `grid.${field}`)}
+              label={t(`grid.${field}`)}
               htmlFor={fieldId}
               error={message ?? undefined}
               errorTestId={`grid-${field}-error`}
@@ -217,7 +213,7 @@ function GridFields({ value, onChange, allowNone = false, hidden = [] }: GridFie
 
 // What the person has switched on: the grid lines and the snapping. A tool state of the person, never
 // part of the document: no undo, no review.
-type GridToggleValue = { hilfslinien: boolean; einrasten: boolean };
+type GridToggleValue = { guides: boolean; snap: boolean };
 
 type GridToggleProps = {
   // `gekoppelt`: showing the grid is snapping to it. `getrennt`: the button shows the lines, the menu
@@ -238,8 +234,8 @@ type GridToggleProps = {
 function GridToggle({ mode, value, onChange, definition, unavailableText }: GridToggleProps) {
   const { t } = useTranslation("suite");
   const locked = definition === null;
-  const pressed = !locked && value.hilfslinien;
-  const snapOn = !locked && value.einrasten;
+  const pressed = !locked && value.guides;
+  const snapOn = !locked && value.snap;
   const snapOnId = React.useId();
   return (
     <div className="flex items-center" data-tooltip-row="" data-testid="grid-toggle">
@@ -261,8 +257,8 @@ function GridToggle({ mode, value, onChange, definition, unavailableText }: Grid
           onClick={() =>
             onChange(
               mode === "gekoppelt"
-                ? { hilfslinien: !value.hilfslinien, einrasten: !value.hilfslinien }
-                : { ...value, hilfslinien: !value.hilfslinien },
+                ? { guides: !value.guides, snap: !value.guides }
+                : { ...value, guides: !value.guides },
             )
           }
           data-testid="grid-toggle-button"
@@ -304,15 +300,15 @@ function GridToggle({ mode, value, onChange, definition, unavailableText }: Grid
           </IconButtonTooltip>
           <DropdownMenuContent data-testid="grid-toggle-menu-content">
             <DropdownMenuCheckboxItem
-              checked={value.hilfslinien}
-              onCheckedChange={(hilfslinien) => onChange({ ...value, hilfslinien })}
+              checked={value.guides}
+              onCheckedChange={(guides) => onChange({ ...value, guides })}
               data-testid="grid-toggle-guides"
             >
               {t("grid.guides")}
             </DropdownMenuCheckboxItem>
             <DropdownMenuCheckboxItem
-              checked={value.einrasten}
-              onCheckedChange={(einrasten) => onChange({ ...value, einrasten })}
+              checked={value.snap}
+              onCheckedChange={(snap) => onChange({ ...value, snap })}
               data-testid="grid-toggle-snap"
             >
               {t("grid.snap")}
@@ -331,15 +327,15 @@ type GridOverlayProps = {
   // The canvas zoom, 1 = 100 %: the lines move with it but stay 1 px.
   zoom?: number;
   // The column centres as well.
-  mitten?: boolean;
+  centers?: boolean;
 };
 
 // The grid over a DOM canvas (`SUI-FEATURE-087`): the lines of `gridLines`, translucent and unscaled,
 // in `--ring` on a 2 px `--background` halo at 50 %, so they stand out on light and dark content. Render it like
 // `CanvasOverlay` inside the canvas frame, never in a preview or an export; it takes no pointer events.
 // A canvas that draws itself (Konva) uses `gridLines` with its own lines instead.
-function GridOverlay({ definition, box, zoom = 1, mitten = false }: GridOverlayProps) {
-  const lines = gridLines(definition, box, { mitten });
+function GridOverlay({ definition, box, zoom = 1, centers = false }: GridOverlayProps) {
+  const lines = gridLines(definition, box, { centers });
   const width = box.width * zoom;
   const height = box.height * zoom;
   // Each line on a pixel's centre, so it is one sharp pixel at any zoom; a line on the far edge takes
