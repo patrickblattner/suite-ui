@@ -40,7 +40,12 @@ type EditPanelProps = {
   submitLabel?: string;
   // Returning `true` (or a promise of it) reports a successful save: Save in the leave dialog (Apply
   // for `submitKind="apply"`) then carries out the held leave (Back, Previous/Next, a route change).
-  // Otherwise the call site closes the panel on success as for a plain submit.
+  // Otherwise the call site closes the panel on success as for a plain submit. A promise keeps the
+  // panel working until it settles (`GL-UI-027`), from its own submit and from the leave dialog, which
+  // stays open meanwhile; a leave the user starts meanwhile waits for it and goes on only when it
+  // resolves `true` (`SUI-FEATURE-150`). Close the panel in the step that settles the promise (its
+  // last `.then`, or after the last `await`): a close that renders before the promise settles drops
+  // the held leave, and the result counts for nothing.
   onSubmit?: () => unknown;
   // Unsaved changes against the loaded state (`GL-UI-007`): every way out asks "Save changes?" first
   // ("Apply changes?" for `submitKind="apply"`, `SUI-FEATURE-094`; "Discard changes?" without
@@ -94,7 +99,7 @@ function EditPanel({
   submitLabel,
   onSubmit,
   dirty = false,
-  busy = false,
+  busy: busyProp = false,
   submitDisabled = false,
   submitHint,
   submitDisabledHint,
@@ -123,9 +128,10 @@ function EditPanel({
     next: t("editPanel.nextCancelHint"),
   }[submitKind];
   const returnFocus = React.useRef<HTMLElement | null>(null);
-  const { guard, dialog } = useLeaveConfirm({
+  const { guard, dialog, working, run } = useLeaveConfirm({
     dirty: open && dirty,
-    busy: open && busy,
+    busy: open && busyProp,
+    open,
     // Without `onSubmit` the panel has no save target, and a next step saves nothing and never runs
     // from the dialog (`SUI-FEATURE-094`): the dialog asks "Discard changes?".
     onSave:
@@ -134,6 +140,7 @@ function EditPanel({
         : () => (submitDisabled ? false : onSubmit()),
     applies: submitKind === "apply",
   });
+  const busy = busyProp || working;
   // The `Esc` the panel gets as the top-most layer: an open select, menu, tooltip or dialog takes it
   // first. It leaves only once it has bubbled to the document, so an editor's own `Esc` meaning
   // (stopping its propagation) keeps the panel open.
@@ -257,8 +264,8 @@ function EditPanel({
               // React bubbles a submit through the portal: an outer `<form>` the panel stands in
               // must never submit along (`SUI-FEATURE-094`).
               event.stopPropagation();
-              if (busy || submitDisabled) return;
-              void onSubmit?.();
+              if (busy || submitDisabled || onSubmit === undefined) return;
+              run(onSubmit);
             }}
           >
             {preview === undefined ? (

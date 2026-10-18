@@ -9,11 +9,15 @@ import {
   Link,
   MemoryRouter,
   Outlet,
+  redirect,
   Route,
   RouterProvider,
   Routes,
+  type RouteObject,
   useLocation,
   useNavigate,
+  useNavigation,
+  useSubmit,
 } from "react-router-dom";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -403,11 +407,14 @@ describe("EditPanel leave guard (GL-UI-007)", () => {
 function DetailPage({
   save = () => true,
   busy = false,
+  discard = false,
   children,
 }: {
   // `null`: the page has no save target and leaves `onSave` out (SUI-FEATURE-092).
   save?: (() => unknown) | null;
   busy?: boolean;
+  // Discard resets the draft, so the page is clean afterwards.
+  discard?: boolean;
   children?: ReactNode;
 }) {
   const navigate = useNavigate();
@@ -417,6 +424,7 @@ function DetailPage({
     busy,
     onLeave: () => void navigate("/list"),
     onSave: save ?? undefined,
+    onDiscard: discard ? () => setName("Main") : undefined,
   });
   return (
     <>
@@ -562,6 +570,58 @@ describe("EditPanel leave guard: focus, keys and routes (GL-UI-007)", () => {
     expect(screen.queryByTestId("leave-guard")).toBeNull();
   });
 
+  // SUI-FEATURE-150 for every submitKind: a save panel whose save is still running, clean or not,
+  // holds a navigation click and lets it go once the save succeeded.
+  it.each(["data router", "navigator router"])(
+    "clean save panel (%s): a navigation click during a slow save waits, then lands",
+    async (kind) => {
+      const saved = deferredResult();
+      const page = <Routed open save={() => saved.promise} />;
+      if (kind === "data router") {
+        const router = createMemoryRouter(
+          [
+            { path: "/list", element: page },
+            { path: "*", element: <Where /> },
+          ],
+          { initialEntries: ["/list"] },
+        );
+        render(<RouterProvider router={router} />);
+      } else {
+        render(<MemoryRouter initialEntries={["/list"]}>{page}</MemoryRouter>);
+      }
+      fireEvent.click(screen.getByTestId("edit-panel-submit"));
+      expect(screen.getByTestId("edit-panel-submit")).toHaveAttribute("aria-busy", "true");
+      fireEvent.click(screen.getByTestId("nav"));
+      await act(() => new Promise((done) => window.setTimeout(done, 30)));
+      expect(screen.getByTestId("path")).toHaveTextContent("/list");
+      expect(screen.queryByTestId("leave-guard")).toBeNull();
+      await settleAndWait(() => saved.settle(true));
+      await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/other"));
+    },
+  );
+
+  // SUI-FEATURE-150 AC1 for `submitKind="save"`: Save in the dialog works until the save settles; no
+  // way out of the panel closes the dialog meanwhile, and `Enter` does not save twice.
+  it("save panel: a slow Save in the dialog keeps it open and working; the held Next follows", async () => {
+    const saved = deferredResult();
+    const save = vi.fn(() => saved.promise);
+    const onNext = vi.fn();
+    render(<ListWithPanel save={save} pager={{ position: "1/3", onPrevious: () => {}, onNext }} />);
+    openRow();
+    edit();
+    fireEvent.click(screen.getByTestId("edit-panel-next"));
+    fireEvent.click(screen.getByTestId("leave-guard-save"));
+    expectDialogWorking();
+    fireEvent.keyDown(screen.getByTestId("leave-guard"), { key: "Enter" });
+    fireEvent.click(screen.getByTestId("edit-panel-previous"));
+    expectDialogWorking();
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(onNext).not.toHaveBeenCalled();
+    await settleAndWait(() => saved.settle(true));
+    expect(screen.queryByTestId("leave-guard")).toBeNull();
+    expect(onNext).toHaveBeenCalledTimes(1);
+  });
+
   it("a closed panel holds no route change, even with a dirty flag", () => {
     render(
       <MemoryRouter initialEntries={["/list"]}>
@@ -611,13 +671,17 @@ describe("EditPanel leave guard: focus, keys and routes (GL-UI-007)", () => {
 // SUI-FEATURE-094 AC5: a glossary panel over a page with a page Save; Apply on a route leave hands
 // the leave on to the page, which is dirty by then and asks first.
 // `unmount`: the call site renders the panel only while open, so the apply unmounts it.
-// `late`: the apply settles only once its promise does (an async `onSubmit`).
+// `late`: the apply settles only once its promise does (an async `onSubmit`), while the call site
+// closes the panel at once. `slow`: an async apply as it should be (#283): the call site applies and
+// closes the panel only once it succeeded; `false` fails it.
 function GlossaryPage({
   unmount = false,
   late,
+  slow,
 }: {
   unmount?: boolean;
   late?: () => Promise<unknown>;
+  slow?: () => Promise<boolean>;
 }) {
   const [open, setOpen] = useState(false);
   const [term, setTerm] = useState("");
@@ -651,9 +715,13 @@ function GlossaryPage({
           submitKind="apply"
           dirty={term !== ""}
           onSubmit={() => {
-            setTerms((list) => [...list, term]);
-            setTerm("");
-            setOpen(false);
+            const done = () => {
+              setTerms((list) => [...list, term]);
+              setTerm("");
+              setOpen(false);
+            };
+            if (slow !== undefined) return slow().then((ok) => ok && (done(), true));
+            done();
             return late === undefined ? true : late().then(() => true);
           }}
         >
@@ -675,8 +743,16 @@ function GoB() {
   );
 }
 
-// A panel whose late apply leaves the page clean: nothing holds while it settles.
-function CleanLatePage({ late }: { late: () => Promise<unknown> }) {
+// A panel whose apply leaves the page clean: nothing holds once the panel closed. `late`: the call
+// site closes the panel at once and the apply settles afterwards; `slow`: it closes the panel once
+// the apply succeeded.
+function CleanLatePage({
+  late,
+  slow,
+}: {
+  late?: () => Promise<unknown>;
+  slow?: () => Promise<boolean>;
+}) {
   const [open, setOpen] = useState(false);
   const [term, setTerm] = useState("");
   return (
@@ -696,9 +772,13 @@ function CleanLatePage({ late }: { late: () => Promise<unknown> }) {
           submitKind="apply"
           dirty={term !== ""}
           onSubmit={() => {
-            setTerm("");
-            setOpen(false);
-            return late().then(() => true);
+            const done = () => {
+              setTerm("");
+              setOpen(false);
+            };
+            if (slow !== undefined) return slow().then((ok) => ok && (done(), true));
+            done();
+            return late === undefined ? true : late().then(() => true);
           }}
         >
           <Input aria-label="Name" value={term} onChange={(event) => setTerm(event.target.value)} />
@@ -714,6 +794,31 @@ function deferred() {
     settle = done;
   });
   return { promise, settle };
+}
+
+// #283: a result the test decides, or a failure.
+function deferredResult() {
+  let settle: (ok: boolean) => void = () => {};
+  let fail: (error: Error) => void = () => {};
+  const promise = new Promise<boolean>((done, failed) => {
+    settle = done;
+    fail = failed;
+  });
+  return { promise, settle, fail };
+}
+
+// The apply panel works (GL-UI-027): its Apply busy, Cancel locked with it.
+function expectApplyWorking() {
+  expect(screen.getByTestId("edit-panel-submit")).toHaveAttribute("aria-busy", "true");
+  expect(screen.getByTestId("edit-panel-cancel")).toBeDisabled();
+}
+
+// SUI-FEATURE-150: the leave dialog works until its Save or Apply settles: open, Save busy, Cancel and
+// Discard locked.
+function expectDialogWorking() {
+  expect(screen.getByTestId("leave-guard-save")).toHaveAttribute("aria-busy", "true");
+  expect(screen.getByTestId("leave-guard-cancel")).toBeDisabled();
+  expect(screen.getByTestId("leave-guard-discard")).toBeDisabled();
 }
 
 const settleAndWait = (settle: () => void) =>
@@ -975,32 +1080,384 @@ describe("Apply on a route leave (SUI-FEATURE-094 AC5)", () => {
     },
   );
 
-  // #278 CX2: an apply that settles after the panel unmounted still hands the leave on to the page.
+  // SUI-FEATURE-150 AC1 (#283; was #278 CX2, a late apply resumed after the panel closed): Apply in
+  // the dialog keeps the dialog open with a working Apply until the slow apply settles, the panel
+  // working with it; nothing closes either meanwhile. On success the page asks before the route goes.
   it.each([false, true])(
-    "a late apply still hands the leave on to the page (panel unmounted: %s)",
+    "AC1: a slow Apply keeps the dialog open and working until it settles, then the page asks (panel unmounted: %s)",
     async (unmount) => {
+      const applied = deferredResult();
       const router = createMemoryRouter(
         [
           {
             path: "/list",
-            element: (
-              <GlossaryPage
-                unmount={unmount}
-                late={() => new Promise((done) => window.setTimeout(done, 20))}
-              />
-            ),
+            element: <GlossaryPage unmount={unmount} slow={() => applied.promise} />,
           },
           { path: "*", element: <Where /> },
         ],
         { initialEntries: ["/list"] },
       );
       render(<RouterProvider router={router} />);
-      await applyAndAnswer(() => fireEvent.click(screen.getByTestId("nav")));
+      fireEvent.click(screen.getByTestId("row"));
+      edit();
+      fireEvent.click(screen.getByTestId("nav"));
+      fireEvent.click(screen.getByTestId("leave-guard-save"));
+      expectDialogWorking();
+      expectApplyWorking();
+      escape(screen.getByTestId("leave-guard-save"));
+      escape(screen.getByLabelText("Name"));
+      await act(() => new Promise((done) => window.setTimeout(done, 30)));
+      expectDialogWorking();
+      expect(screen.getByTestId("edit-panel")).toBeInTheDocument();
+      expect(router.state.location.pathname).toBe("/list");
+      await settleAndWait(() => applied.settle(true));
+      expect(screen.queryByTestId("edit-panel")).toBeNull();
+      await waitFor(() =>
+        expect(within(screen.getByTestId("leave-guard")).getByRole("heading")).toHaveTextContent(
+          "Save changes?",
+        ),
+      );
+      expect(router.state.location.pathname).toBe("/list");
+      fireEvent.click(screen.getByTestId("leave-guard-save"));
       await waitFor(() => expect(router.state.location.pathname).toBe("/other"));
+      await act(() => new Promise((done) => window.setTimeout(done, 30)));
+      expect(screen.queryByTestId("leave-guard")).toBeNull();
     },
   );
 
-  // Review #277: a late apply resumes its change only while that change is still the one held.
+  // SUI-FEATURE-150 AC1: on a page that stays clean the held change lands at its target.
+  it.each(["data router", "navigator router"])(
+    "AC1 (%s): a slow Apply that succeeds on a clean page lands at the target",
+    async (kind) => {
+      const applied = deferredResult();
+      const routes = [
+        { path: "/list", element: <CleanLatePage slow={() => applied.promise} /> },
+        { path: "*", element: <Where /> },
+      ];
+      if (kind === "data router") {
+        render(
+          <RouterProvider router={createMemoryRouter(routes, { initialEntries: ["/list"] })} />,
+        );
+      } else {
+        render(
+          <MemoryRouter initialEntries={["/list"]}>
+            <Routes>
+              {routes.map((route) => (
+                <Route key={route.path} path={route.path} element={route.element} />
+              ))}
+            </Routes>
+          </MemoryRouter>,
+        );
+      }
+      fireEvent.click(screen.getByTestId("row"));
+      edit();
+      fireEvent.click(screen.getByTestId("nav"));
+      fireEvent.click(screen.getByTestId("leave-guard-save"));
+      expectDialogWorking();
+      expect(screen.getByTestId("path")).toHaveTextContent("/list");
+      await settleAndWait(() => applied.settle(true));
+      await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/other"));
+      expect(screen.queryByTestId("leave-guard")).toBeNull();
+    },
+  );
+
+  // #283, SUI-FEATURE-150 §Keine späte Rückfrage: a panel the call site closed before its apply
+  // settled closes its dialog with it and hands no leave on afterwards.
+  it.each([false, true])(
+    "an apply that settles after its panel closed asks nothing and stays (panel unmounted: %s)",
+    async (unmount) => {
+      const applied = deferred();
+      const router = createMemoryRouter(
+        [
+          {
+            path: "/list",
+            element: <GlossaryPage unmount={unmount} late={() => applied.promise} />,
+          },
+          { path: "*", element: <Where /> },
+        ],
+        { initialEntries: ["/list"] },
+      );
+      render(<RouterProvider router={router} />);
+      fireEvent.click(screen.getByTestId("row"));
+      edit();
+      fireEvent.click(screen.getByTestId("nav"));
+      fireEvent.click(screen.getByTestId("leave-guard-save"));
+      await waitFor(() =>
+        expect(screen.queryByRole("heading", { name: "Term" })).not.toBeInTheDocument(),
+      );
+      await settleAndWait(applied.settle);
+      await act(() => new Promise((done) => window.setTimeout(done, 100)));
+      expect(screen.queryByTestId("leave-guard")).toBeNull();
+      expect(router.state.location.pathname).toBe("/list");
+    },
+  );
+
+  // An apply dropped with its closed panel that settles only once the panel works on a newer apply
+  // decides nothing for that one: a click held meanwhile waits for the newer apply's own result.
+  it("a dropped apply that settles late does not decide for a newer one", async () => {
+    const first = deferred();
+    const second = deferredResult();
+    function TwiceApplied() {
+      const [open, setOpen] = useState(false);
+      const [term, setTerm] = useState("");
+      const [applies, setApplies] = useState(0);
+      return (
+        <>
+          <Where />
+          <Link to="/other" data-testid="nav">
+            Other
+          </Link>
+          <button type="button" data-testid="row" onClick={() => setOpen(true)} />
+          <EditPanel
+            open={open}
+            onOpenChange={setOpen}
+            title="Term"
+            submitKind="apply"
+            dirty={term !== ""}
+            onSubmit={() => {
+              setApplies(applies + 1);
+              if (applies === 0) {
+                setOpen(false);
+                return first.promise.then(() => true);
+              }
+              return second.promise.then((ok) => ok && (setOpen(false), true));
+            }}
+          >
+            <Input
+              aria-label="Name"
+              value={term}
+              onChange={(event) => setTerm(event.target.value)}
+            />
+          </EditPanel>
+        </>
+      );
+    }
+    render(
+      <MemoryRouter initialEntries={["/list"]}>
+        <Routes>
+          <Route path="/list" element={<TwiceApplied />} />
+          <Route path="*" element={<Where />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByTestId("row"));
+    edit();
+    fireEvent.click(screen.getByTestId("edit-panel-submit"));
+    await waitFor(() =>
+      expect(screen.queryByRole("heading", { name: "Term" })).not.toBeInTheDocument(),
+    );
+    fireEvent.click(screen.getByTestId("row"));
+    fireEvent.click(screen.getByTestId("edit-panel-submit"));
+    expectApplyWorking();
+    fireEvent.click(screen.getByTestId("nav"));
+    await settleAndWait(first.settle);
+    expect(screen.getByTestId("path")).toHaveTextContent("/list");
+    expectApplyWorking();
+    await settleAndWait(() => second.settle(true));
+    await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/other"));
+  });
+
+  // SUI-FEATURE-150 AC1: a slow apply that fails closes the dialog only with its result, keeps the
+  // panel open and unlocked with its entries, and drops the held leave.
+  it.each(["false", "rejection"])(
+    "AC1: a slow apply that fails (%s) keeps the panel open and drops the held leave",
+    async (failure) => {
+      const applied = deferredResult();
+      const router = createMemoryRouter(
+        [
+          { path: "/list", element: <GlossaryPage slow={() => applied.promise} /> },
+          { path: "*", element: <Where /> },
+        ],
+        { initialEntries: ["/list"] },
+      );
+      render(<RouterProvider router={router} />);
+      fireEvent.click(screen.getByTestId("row"));
+      edit();
+      fireEvent.click(screen.getByTestId("nav"));
+      fireEvent.click(screen.getByTestId("leave-guard-save"));
+      expectDialogWorking();
+      expectApplyWorking();
+      await settleAndWait(() =>
+        failure === "false" ? applied.settle(false) : applied.fail(new Error("offline")),
+      );
+      expect(screen.getByTestId("edit-panel-submit")).not.toHaveAttribute("aria-busy");
+      expect(screen.getByTestId("edit-panel-cancel")).toBeEnabled();
+      expect(screen.getByLabelText("Name")).toHaveValue("Changed");
+      expect(screen.queryByTestId("leave-guard")).toBeNull();
+      expect(router.state.location.pathname).toBe("/list");
+      await act(() => new Promise((done) => window.setTimeout(done, 30)));
+      expect(router.state.location.pathname).toBe("/list");
+    },
+  );
+
+  // #283: the panel's own Apply works the same way: working until the apply settles.
+  it("a slow apply from the panel's own button keeps it working until it settles", async () => {
+    const applied = deferredResult();
+    render(
+      <MemoryRouter initialEntries={["/list"]}>
+        <GlossaryPage slow={() => applied.promise} />
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByTestId("row"));
+    edit();
+    fireEvent.click(screen.getByTestId("edit-panel-submit"));
+    await waitFor(expectApplyWorking);
+    escape(screen.getByLabelText("Name"));
+    expect(screen.queryByTestId("leave-guard")).toBeNull();
+    fireEvent.click(screen.getByTestId("edit-panel-cancel"));
+    expect(screen.getByRole("heading", { name: "Term" })).toBeInTheDocument();
+    await settleAndWait(() => applied.settle(true));
+    expect(screen.queryByRole("heading", { name: "Term" })).not.toBeInTheDocument();
+    expect(screen.queryByTestId("leave-guard")).toBeNull();
+  });
+
+  function renderAtList(kind: string, page: ReactNode) {
+    const routes = [
+      { path: "/list", element: page },
+      { path: "*", element: <Where /> },
+    ];
+    if (kind === "data router") {
+      const router = createMemoryRouter(routes, { initialEntries: ["/list"] });
+      render(<RouterProvider router={router} />);
+      return router;
+    }
+    render(
+      <MemoryRouter initialEntries={["/list"]}>
+        <Routes>
+          {routes.map((route) => (
+            <Route key={route.path} path={route.path} element={route.element} />
+          ))}
+        </Routes>
+      </MemoryRouter>,
+    );
+    return null;
+  }
+
+  // SUI-FEATURE-150 AC3: a click in the navigation while the panel's own slow Apply works is held,
+  // without a sign of its own; the panel closes only with the result, and the page around, dirty by
+  // then, asks in the same move before the route goes. No question comes after that.
+  it.each(["data router", "navigator router"])(
+    "AC3 (%s): a navigation click during a slow Apply waits; the page asks once the panel closed",
+    async (kind) => {
+      const applied = deferredResult();
+      renderAtList(kind, <GlossaryPage slow={() => applied.promise} />);
+      fireEvent.click(screen.getByTestId("row"));
+      edit();
+      fireEvent.click(screen.getByTestId("edit-panel-submit"));
+      expectApplyWorking();
+      fireEvent.click(screen.getByTestId("nav"));
+      await act(() => new Promise((done) => window.setTimeout(done, 30)));
+      expect(screen.queryByTestId("leave-guard")).toBeNull();
+      expect(screen.getByRole("heading", { name: "Term" })).toBeInTheDocument();
+      expect(screen.getByTestId("path")).toHaveTextContent("/list");
+      await settleAndWait(() => applied.settle(true));
+      expect(screen.queryByRole("heading", { name: "Term" })).not.toBeInTheDocument();
+      await waitFor(() =>
+        expect(within(screen.getByTestId("leave-guard")).getByRole("heading")).toHaveTextContent(
+          "Save changes?",
+        ),
+      );
+      expect(screen.getByTestId("path")).toHaveTextContent("/list");
+      fireEvent.click(screen.getByTestId("leave-guard-save"));
+      await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/other"));
+      await act(() => new Promise((done) => window.setTimeout(done, 30)));
+      expect(screen.queryByTestId("leave-guard")).toBeNull();
+    },
+  );
+
+  it.each(["data router", "navigator router"])(
+    "AC3 (%s): a navigation click during a slow Apply on a clean page lands at the target",
+    async (kind) => {
+      const applied = deferredResult();
+      renderAtList(kind, <CleanLatePage slow={() => applied.promise} />);
+      fireEvent.click(screen.getByTestId("row"));
+      edit();
+      fireEvent.click(screen.getByTestId("edit-panel-submit"));
+      fireEvent.click(screen.getByTestId("nav"));
+      expect(screen.getByTestId("path")).toHaveTextContent("/list");
+      await settleAndWait(() => applied.settle(true));
+      await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/other"));
+      expect(screen.queryByTestId("leave-guard")).toBeNull();
+    },
+  );
+
+  it.each(["data router", "navigator router"])(
+    "AC3 (%s): a slow Apply that fails keeps the panel and drops the navigation click",
+    async (kind) => {
+      const applied = deferredResult();
+      renderAtList(kind, <GlossaryPage slow={() => applied.promise} />);
+      fireEvent.click(screen.getByTestId("row"));
+      edit();
+      fireEvent.click(screen.getByTestId("edit-panel-submit"));
+      fireEvent.click(screen.getByTestId("nav"));
+      await settleAndWait(() => applied.settle(false));
+      await act(() => new Promise((done) => window.setTimeout(done, 30)));
+      expect(screen.getByRole("heading", { name: "Term" })).toBeInTheDocument();
+      expect(screen.getByTestId("edit-panel-submit")).not.toHaveAttribute("aria-busy");
+      expect(screen.getByTestId("path")).toHaveTextContent("/list");
+      expect(screen.queryByTestId("leave-guard")).toBeNull();
+    },
+  );
+
+  // SUI-FEATURE-150: of two clicks while the apply works, the later one is the way that goes on.
+  it("AC3: the latest navigation click during a slow Apply is the one that goes on", async () => {
+    const applied = deferredResult();
+    const router = renderAtList("data router", <GlossaryPage slow={() => applied.promise} />);
+    fireEvent.click(screen.getByTestId("row"));
+    edit();
+    fireEvent.click(screen.getByTestId("edit-panel-submit"));
+    fireEvent.click(screen.getByTestId("nav"));
+    fireEvent.click(screen.getByTestId("nav-replace"));
+    await settleAndWait(() => applied.settle(true));
+    fireEvent.click(await screen.findByTestId("leave-guard-save"));
+    await waitFor(() => expect(router?.state.location.pathname).toBe("/other"));
+    expect(router?.state.historyAction).toBe("REPLACE");
+    expect(router?.state.location.state).toEqual({ from: "list" });
+  });
+
+  // Review #283 (H1): between a successful apply and its resumed change, nothing holds on a clean
+  // page; a newer change that starts loading then takes the held one's place, though the held one is
+  // still the blocked one. Only the request count tells them apart: the resumed change is dropped.
+  it("a newer change that starts before the resumed one goes on; the resumed one is dropped", async () => {
+    const applied = deferredResult();
+    const loaded = deferred();
+    const router = createMemoryRouter(
+      [
+        { path: "/list", element: <CleanLatePage slow={() => applied.promise} /> },
+        { path: "/b", loader: () => loaded.promise.then(() => null), element: <Where /> },
+        { path: "*", element: <Where /> },
+      ],
+      { initialEntries: ["/list"] },
+    );
+    render(<RouterProvider router={router} />);
+    fireEvent.click(screen.getByTestId("row"));
+    edit();
+    fireEvent.click(screen.getByTestId("nav"));
+    fireEvent.click(screen.getByTestId("leave-guard-save"));
+    vi.useFakeTimers({ toFake: ["setTimeout"] });
+    try {
+      await act(async () => {
+        applied.settle(true);
+        await Promise.resolve();
+      });
+      expect(screen.queryByTestId("edit-panel")).toBeNull();
+      act(() => {
+        void router.navigate("/b");
+      });
+      expect(router.state.navigation.state).toBe("loading");
+      act(() => {
+        vi.runAllTimers();
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+    await settleAndWait(loaded.settle);
+    expect(router.state.location.pathname).toBe("/b");
+  });
+
+  // Review #277, as of #283: the call site closes the panel at once while its apply settles later
+  // (`late`). The held change goes with the panel; a change the user then starts on the page goes
+  // on undisturbed when the apply settles.
   async function applyLate(unmount: boolean) {
     let settle = () => {};
     const applied = new Promise<void>((done) => {
@@ -1030,7 +1487,7 @@ describe("Apply on a route leave (SUI-FEATURE-094 AC5)", () => {
   }
 
   it.each([false, true])(
-    "a late apply after the user left does not go to the old target (panel unmounted: %s)",
+    "a panel closed before its apply settled drops the held change; the user's later leave lands (panel unmounted: %s)",
     async (unmount) => {
       const { router, settle } = await applyLate(unmount);
       fireEvent.click(screen.getByTestId("leave-guard-discard"));
@@ -1044,7 +1501,7 @@ describe("Apply on a route leave (SUI-FEATURE-094 AC5)", () => {
   );
 
   it.each([false, true])(
-    "a late apply with a newer change pending lets the newer one win (panel unmounted: %s)",
+    "a panel closed before its apply settled drops the held change; the page's question for a newer change stands (panel unmounted: %s)",
     async (unmount) => {
       const { router, settle } = await applyLate(unmount);
       await act(() => {
@@ -1058,8 +1515,9 @@ describe("Apply on a route leave (SUI-FEATURE-094 AC5)", () => {
     },
   );
 
-  // Review #277 (N1): under a navigator router too, a late apply drops a change the user left.
-  it("navigator router: a late apply after the user left does not go to the old target", async () => {
+  // Review #277 (N1), as of #283: under a navigator router too, a panel closed before its apply
+  // settled drops the held change, and the user's later leave lands.
+  it("navigator router: a panel closed before its apply settled drops the held change; the user's later leave lands", async () => {
     const applied = deferred();
     render(
       <MemoryRouter initialEntries={["/list"]}>
@@ -1082,9 +1540,10 @@ describe("Apply on a route leave (SUI-FEATURE-094 AC5)", () => {
     expect(screen.getByTestId("path")).toHaveTextContent("/b");
   });
 
-  // Review #277 (fix round): the apply leaves the page clean, so nothing holds while the user leaves.
+  // Review #277 (fix round), as of #283: the apply leaves the page clean, so nothing holds while the
+  // user leaves; the held change went with the panel the call site closed before the apply settled.
   it.each(["MemoryRouter", "BrowserRouter"])(
-    "%s: a late apply that leaves the page clean does not go to the old target after a free leave",
+    "%s: a panel closed before its apply settled drops the held change; a free leave lands",
     async (name) => {
       window.history.replaceState(null, "", "/list");
       const applied = deferred();
@@ -1116,8 +1575,10 @@ describe("Apply on a route leave (SUI-FEATURE-094 AC5)", () => {
     },
   );
 
-  // Review #277 (N2): a newer change still loading takes the place of the held one.
-  it("a late apply while a newer change is still loading lets the newer one win", async () => {
+  // Review #277 (N2), as of #283: the held change went with the panel the call site closed before
+  // the apply settled; a newer change still loading is not cut off when it settles. (That a newer
+  // change takes the place of one still held: "a newer change that starts before the resumed one".)
+  it("a panel closed before its apply settled drops the held change; a newer change still loading lands", async () => {
     const applied = deferred();
     const loaded = deferred();
     const router = createMemoryRouter(
@@ -1337,6 +1798,43 @@ describe("data router: the shared blocker passes on (review #276)", () => {
       await stillHeld(router, "other", "/other");
     },
   );
+
+  // Review #283 r3 (L): once no guard holds, the router's `navigate` is its own again, the very one,
+  // after any number of guarded pages; one wrapped in after the guard's stays.
+  function guardedRouter() {
+    const router = createMemoryRouter(
+      [
+        { path: "/detail", element: <DetailPage /> },
+        { path: "*", element: <Where /> },
+      ],
+      { initialEntries: ["/list"] },
+    );
+    render(<RouterProvider router={router} />);
+    return router;
+  }
+  // eslint-disable-next-line @typescript-eslint/unbound-method -- compared, never called
+  const navigateOf = (router: ReturnType<typeof createMemoryRouter>) => router.navigate;
+
+  it("the router's own navigate is back once no guard holds", async () => {
+    const router = guardedRouter();
+    const own = navigateOf(router);
+    for (let visit = 0; visit < 2; visit += 1) {
+      await act(() => router.navigate("/detail"));
+      expect(navigateOf(router)).not.toBe(own);
+      await act(() => router.navigate("/list"));
+      expect(navigateOf(router)).toBe(own);
+    }
+  });
+
+  it("a navigate wrapped in after the guard's stays once no guard holds", async () => {
+    const router = guardedRouter();
+    await act(() => router.navigate("/detail"));
+    const wrapped = router.navigate.bind(router);
+    router.navigate = wrapped;
+    await act(() => router.navigate("/list"));
+    expect(screen.getByTestId("path")).toHaveTextContent("/list");
+    expect(navigateOf(router)).toBe(wrapped);
+  });
 });
 
 describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
@@ -1430,11 +1928,86 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
     input.focus();
     escape(input);
     fireEvent.click(screen.getByTestId("leave-guard-save"));
-    await waitFor(() => expect(save).toHaveBeenCalled());
-    await act(() => Promise.resolve());
+    // SUI-FEATURE-150: the dialog closes only with the result.
+    expectDialogWorking();
+    await waitFor(() => expect(screen.queryByTestId("leave-guard")).toBeNull());
+    expect(save).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId("path")).toHaveTextContent("/detail");
+    await waitFor(() => expect(input).toHaveFocus());
+  });
+
+  // SUI-FEATURE-150 AC1 on a detail page: Save in the dialog keeps it open and working until the save
+  // settles; no way out closes it meanwhile; on success the held leave lands at its target.
+  it("AC1: a slow Save keeps the dialog open and working, then lands at the target", async () => {
+    const saved = deferredResult();
+    const save = vi.fn(() => saved.promise);
+    renderPage(save);
+    edit();
+    fireEvent.click(screen.getByTestId("go"));
+    fireEvent.click(screen.getByTestId("leave-guard-save"));
+    expectDialogWorking();
+    escape(screen.getByTestId("leave-guard-save"));
+    fireEvent.keyDown(screen.getByTestId("leave-guard"), { key: "Enter" });
+    escape(screen.getByLabelText("Name"));
+    fireEvent.click(screen.getByTestId("back"));
+    await act(() => new Promise((done) => window.setTimeout(done, 30)));
+    expectDialogWorking();
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("path")).toHaveTextContent("/detail");
+    await settleAndWait(() => saved.settle(true));
+    await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/elsewhere"));
     expect(screen.queryByTestId("leave-guard")).toBeNull();
-    expect(input).toHaveFocus();
+  });
+
+  // SUI-FEATURE-150 AC1: a save that fails closes the dialog; the field the call site focused for its
+  // error keeps the focus, even though the dialog's focus trap held it while the save ran.
+  it("AC1: a slow Save that fails closes the dialog and leaves the focus at the field", async () => {
+    const saved = deferredResult();
+    renderPage(() =>
+      saved.promise.then((ok) => {
+        if (!ok) screen.getByLabelText("Name").focus();
+        return ok;
+      }),
+    );
+    edit();
+    const go = screen.getByTestId("go");
+    go.focus();
+    fireEvent.click(go);
+    fireEvent.click(screen.getByTestId("leave-guard-save"));
+    await settleAndWait(() => saved.settle(false));
+    expect(screen.queryByTestId("leave-guard")).toBeNull();
+    expect(screen.getByTestId("path")).toHaveTextContent("/detail");
+    await waitFor(() => expect(screen.getByLabelText("Name")).toHaveFocus());
+  });
+
+  // SUI-FEATURE-150 §Keine späte Rückfrage: a page that unmounts while its dialog's Save works hands
+  // no leave on when the save succeeds afterwards.
+  it("a page unmounted while its Save works drops the held leave", async () => {
+    const saved = deferredResult();
+    function Toggle() {
+      const [shown, setShown] = useState(true);
+      return (
+        <>
+          <button type="button" data-testid="hide" onClick={() => setShown(false)} />
+          {shown && <DetailPage save={() => saved.promise} />}
+        </>
+      );
+    }
+    render(
+      <MemoryRouter initialEntries={["/list", "/detail"]} initialIndex={1}>
+        <Where />
+        <Routes>
+          <Route path="/detail" element={<Toggle />} />
+          <Route path="*" element={null} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    edit();
+    fireEvent.click(screen.getByTestId("go"));
+    fireEvent.click(screen.getByTestId("leave-guard-save"));
+    fireEvent.click(screen.getByTestId("hide"));
+    await settleAndWait(() => saved.settle(true));
+    expect(screen.getByTestId("path")).toHaveTextContent("/detail");
   });
 
   it("an open select takes the Esc; the next one leaves", async () => {
@@ -1554,6 +2127,892 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
     },
   );
 
+  // #283 (L2 of the #280 review): the older change's redirect is still that change, not a newer one.
+  it("under a data router a leave confirmed while an older change redirects lands at its target", async () => {
+    const loaded = deferred();
+    const redirected = deferred();
+    const router = createMemoryRouter(
+      [
+        {
+          path: "/detail",
+          element: (
+            <>
+              <Where />
+              <DetailPage />
+            </>
+          ),
+        },
+        { path: "/slow", loader: () => loaded.promise.then(() => redirect("/redirected")) },
+        {
+          path: "/redirected",
+          loader: () => redirected.promise.then(() => null),
+          element: <Where />,
+        },
+        { path: "*", element: <Where /> },
+      ],
+      { initialEntries: ["/list", "/detail"], initialIndex: 1 },
+    );
+    render(<RouterProvider router={router} />);
+    act(() => {
+      void router.navigate("/slow");
+    });
+    await waitFor(() => expect(router.state.navigation.state).toBe("loading"));
+    edit();
+    fireEvent.click(screen.getByTestId("go"));
+    await screen.findByTestId("leave-guard");
+    await settleAndWait(loaded.settle);
+    expect(router.state.navigation.location?.pathname).toBe("/redirected");
+    fireEvent.click(screen.getByTestId("leave-guard-discard"));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/elsewhere"));
+    await settleAndWait(redirected.settle);
+    expect(router.state.location.pathname).toBe("/elsewhere");
+  });
+
+  // SUI-FEATURE-150 AC2 (#283; was L1 of the #280 review, where the confirmed leave was dropped): a
+  // form submission of the router still running is never cut off, and the leave the user confirmed
+  // meanwhile is not lost either: it waits for the submission and then lands at the chosen target.
+  function submittingRouter(
+    action: (args: { request: Request }) => unknown,
+    {
+      page = <DetailPage />,
+      routes = [],
+      basename,
+      submits = true,
+    }: { page?: ReactNode; routes?: RouteObject[]; basename?: string; submits?: boolean } = {},
+  ) {
+    const base = basename ?? "";
+    const router = createMemoryRouter(
+      [
+        {
+          path: "/detail",
+          action,
+          errorElement: <span data-testid="route-error" />,
+          element: (
+            <>
+              <Where />
+              {page}
+            </>
+          ),
+        },
+        ...routes,
+        { path: "*", element: <Where /> },
+      ],
+      {
+        initialEntries: [`${base}/list`, `${base}/detail`],
+        initialIndex: 1,
+        ...(basename === undefined ? {} : { basename }),
+      },
+    );
+    render(<RouterProvider router={router} />);
+    if (submits) {
+      act(() => {
+        void router.navigate("/detail", { formMethod: "post", formData: new FormData() });
+      });
+    }
+    return router;
+  }
+
+  // The submission's action, its request (to see it is not cut off) and its end.
+  function submission(outcome: () => unknown = () => null) {
+    const acted = deferred();
+    const seen: { signal?: AbortSignal } = {};
+    const action = ({ request }: { request: Request }) => {
+      seen.signal = request.signal;
+      return acted.promise.then(outcome);
+    };
+    return { action, seen, settle: acted.settle };
+  }
+
+  const pause = () => act(() => new Promise((done) => window.setTimeout(done, 30)));
+
+  it.each([
+    ["discard", "redirects"],
+    ["discard", "returns nothing"],
+    ["save", "redirects"],
+    ["save", "returns nothing"],
+  ])(
+    "AC2: %s during a submission that %s waits for it, then lands at the chosen target",
+    async (answer, outcome) => {
+      const { action, seen, settle } = submission(() =>
+        outcome === "redirects" ? redirect("/posted") : null,
+      );
+      const router = submittingRouter(action);
+      await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+      edit();
+      fireEvent.click(screen.getByTestId("go"));
+      fireEvent.click(await screen.findByTestId(`leave-guard-${answer}`));
+      await pause();
+      expect(seen.signal?.aborted).toBe(false);
+      expect(router.state.navigation.state).toBe("submitting");
+      expect(router.state.location.pathname).toBe("/detail");
+      expect(screen.queryByTestId("leave-guard")).toBeNull();
+      await settleAndWait(settle);
+      await waitFor(() => expect(router.state.location.pathname).toBe("/elsewhere"));
+      expect(router.state.historyAction).toBe("PUSH");
+      // The page confirmed the leave already: it does not ask again, though still dirty.
+      expect(screen.queryByTestId("leave-guard")).toBeNull();
+    },
+  );
+
+  // "Failed": the router ends the submission with a route error, or the action answers with data
+  // instead of redirecting (a validation error, by react-router's convention). The user stays where
+  // that answer shows.
+  it.each(["throws", "returns data"])(
+    "AC2: a submission that fails (%s) drops the confirmed leave; the page stays with its error",
+    async (outcome) => {
+      const { action, settle } = submission(() => {
+        if (outcome === "throws") throw new Error("offline");
+        return { error: "Name taken" };
+      });
+      const router = submittingRouter(action);
+      await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+      edit();
+      fireEvent.click(screen.getByTestId("go"));
+      fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+      await settleAndWait(settle);
+      await pause();
+      expect(router.state.navigation.state).toBe("idle");
+      expect(router.state.location.pathname).toBe("/detail");
+      if (outcome === "throws") expect(screen.getByTestId("route-error")).toBeInTheDocument();
+      else expect(Object.values(router.state.actionData ?? {})).toEqual([{ error: "Name taken" }]);
+    },
+  );
+
+  it("AC2: Cancel during a submission resets the held change; the submission lands", async () => {
+    const { action, settle } = submission(() => redirect("/posted"));
+    const router = submittingRouter(action);
+    await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+    edit();
+    fireEvent.click(screen.getByTestId("go"));
+    fireEvent.click(await screen.findByTestId("leave-guard-cancel"));
+    await waitFor(() => expect(screen.queryByTestId("leave-guard")).toBeNull());
+    expect([...router.state.blockers.values()].map((blocker) => blocker.state)).toEqual([
+      "unblocked",
+    ]);
+    await settleAndWait(settle);
+    await waitFor(() => expect(router.state.location.pathname).toBe("/posted"));
+    await pause();
+    expect(router.state.location.pathname).toBe("/posted");
+  });
+
+  // A leave confirmed while the submission's revalidation still loads waits as well: only then is
+  // the submission's answer known.
+  it("AC2: a leave confirmed while the submission's revalidation loads waits for it", async () => {
+    const loaded = deferred();
+    let acted = false;
+    const router = createMemoryRouter(
+      [
+        {
+          path: "/detail",
+          action: () => {
+            acted = true;
+            return null;
+          },
+          loader: () => (acted ? loaded.promise.then(() => null) : null),
+          element: (
+            <>
+              <Where />
+              <DetailPage />
+            </>
+          ),
+        },
+        { path: "*", element: <Where /> },
+      ],
+      { initialEntries: ["/list", "/detail"], initialIndex: 1 },
+    );
+    render(<RouterProvider router={router} />);
+    await waitFor(() => expect(router.state.initialized).toBe(true));
+    act(() => {
+      void router.navigate("/detail", { formMethod: "post", formData: new FormData() });
+    });
+    await waitFor(() => expect(router.state.navigation.state).toBe("loading"));
+    edit();
+    fireEvent.click(screen.getByTestId("go"));
+    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+    await pause();
+    expect(router.state.navigation.state).toBe("loading");
+    expect(router.state.location.pathname).toBe("/detail");
+    await settleAndWait(loaded.settle);
+    await waitFor(() => expect(router.state.location.pathname).toBe("/elsewhere"));
+  });
+
+  // SUI-FEATURE-150: a page busy with its own submission holds a navigation click without asking;
+  // the click goes on once the submission succeeded, through the page's guard as it is then.
+  it("AC2: a busy page holds a navigation click during its submission, then asks as it is then", async () => {
+    function SubmittingDetail() {
+      return <DetailPage busy={useNavigation().state !== "idle"} />;
+    }
+    const { action, seen, settle } = submission();
+    const router = submittingRouter(action, { page: <SubmittingDetail /> });
+    await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+    edit();
+    fireEvent.click(screen.getByTestId("go"));
+    await pause();
+    expect(screen.queryByTestId("leave-guard")).toBeNull();
+    expect(seen.signal?.aborted).toBe(false);
+    expect(router.state.location.pathname).toBe("/detail");
+    await settleAndWait(settle);
+    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/elsewhere"));
+  });
+
+  // SUI-FEATURE-150 rev 4 AC2: on a clean page the guard holds a route change during a submission
+  // silently: no dialog; it lands at the chosen target once the submission succeeded, and is dropped
+  // when it failed.
+  it.each([
+    ["redirects", "/elsewhere"],
+    ["returns nothing", "/elsewhere"],
+    ["throws", "/detail"],
+    ["returns data", "/detail"],
+  ])(
+    "AC2: a clean page holds a route change during a submission that %s, without a dialog",
+    async (outcome, landing) => {
+      const { action, seen, settle } = submission(() => {
+        if (outcome === "throws") throw new Error("offline");
+        if (outcome === "returns data") return { error: "Name taken" };
+        return outcome === "redirects" ? redirect("/posted") : null;
+      });
+      const router = submittingRouter(action);
+      await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+      fireEvent.click(screen.getByTestId("go"));
+      await pause();
+      expect(screen.queryByTestId("leave-guard")).toBeNull();
+      expect(seen.signal?.aborted).toBe(false);
+      expect(router.state.navigation.state).toBe("submitting");
+      expect(router.state.location.pathname).toBe("/detail");
+      await settleAndWait(settle);
+      await waitFor(() => expect(router.state.location.pathname).toBe(landing));
+      await pause();
+      expect(router.state.location.pathname).toBe(landing);
+      expect(screen.queryByTestId("leave-guard")).toBeNull();
+    },
+  );
+
+  // SUI-FEATURE-150: while a confirmed leave waits, a newer change takes its place and waits too; it
+  // never cuts the submission off.
+  it("AC2: a newer change while a leave waits takes its place without cutting the submission off", async () => {
+    const { action, seen, settle } = submission(() => redirect("/posted"));
+    const router = submittingRouter(action, { page: <DetailPage discard /> });
+    await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+    edit();
+    fireEvent.click(screen.getByTestId("go"));
+    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+    await waitFor(() => expect(screen.getByLabelText("Name")).toHaveValue("Main"));
+    act(() => {
+      void router.navigate("/b");
+    });
+    await pause();
+    expect(seen.signal?.aborted).toBe(false);
+    expect(router.state.location.pathname).toBe("/detail");
+    expect(screen.queryByTestId("leave-guard")).toBeNull();
+    await settleAndWait(settle);
+    await waitFor(() => expect(router.state.location.pathname).toBe("/b"));
+  });
+
+  // A change that starts between the submission's end and the waiting leave's start anew takes its
+  // place: the waiting leave is dropped and does not cut it off.
+  it("AC2: a change that starts once the submission ended takes the waiting leave's place", async () => {
+    const loaded = deferred();
+    const { action, settle } = submission();
+    const router = submittingRouter(action, {
+      page: <DetailPage discard />,
+      routes: [{ path: "/b", loader: () => loaded.promise.then(() => null), element: <Where /> }],
+    });
+    await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+    edit();
+    fireEvent.click(screen.getByTestId("go"));
+    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+    vi.useFakeTimers({ toFake: ["setTimeout"] });
+    try {
+      await act(async () => {
+        settle();
+        await Promise.resolve();
+      });
+      await act(async () => {
+        for (let turn = 0; turn < 10; turn += 1) await Promise.resolve();
+      });
+      expect(router.state.navigation.state).toBe("idle");
+      act(() => {
+        void router.navigate("/b");
+      });
+      expect(router.state.navigation.state).toBe("loading");
+      act(() => {
+        vi.runAllTimers();
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+    await settleAndWait(loaded.settle);
+    expect(router.state.location.pathname).toBe("/b");
+  });
+
+  // The page that confirmed is gone before the submission ends: no guard renders the end, the leave
+  // still goes on.
+  it("AC2: the leave goes on when the page that confirmed it is gone before the submission ends", async () => {
+    function Toggle() {
+      const [shown, setShown] = useState(true);
+      return (
+        <>
+          <button type="button" data-testid="hide" onClick={() => setShown(false)} />
+          {shown && <DetailPage />}
+        </>
+      );
+    }
+    const { action, settle } = submission();
+    const router = submittingRouter(action, { page: <Toggle /> });
+    await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+    edit();
+    fireEvent.click(screen.getByTestId("go"));
+    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+    fireEvent.click(screen.getByTestId("hide"));
+    await settleAndWait(settle);
+    await waitFor(() => expect(router.state.location.pathname).toBe("/elsewhere"));
+  });
+
+  // Review #283 r2 (L): with no guard mounted, a change while a leave waits still waits; it never
+  // cuts the submission off, and it lands once the submission succeeded.
+  it("AC2: a waiting change blocks newer ones when no guard is mounted", async () => {
+    function Toggle() {
+      const [shown, setShown] = useState(true);
+      return (
+        <>
+          <button type="button" data-testid="hide" onClick={() => setShown(false)} />
+          {shown && <DetailPage />}
+        </>
+      );
+    }
+    const { action, seen, settle } = submission();
+    const router = submittingRouter(action, { page: <Toggle /> });
+    await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+    edit();
+    fireEvent.click(screen.getByTestId("go"));
+    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+    fireEvent.click(screen.getByTestId("hide"));
+    act(() => {
+      void router.navigate("/b");
+    });
+    await pause();
+    expect(seen.signal?.aborted).toBe(false);
+    expect(router.state.location.pathname).toBe("/detail");
+    await settleAndWait(settle);
+    await waitFor(() => expect(router.state.location.pathname).toBe("/b"));
+  });
+
+  // Review #283 r2 (L): a GET form navigation is no submission; a clean page lets a change pass then,
+  // and react-router lets it take the GET's place.
+  it("a GET form navigation is no submission: a route change during it passes", async () => {
+    const searched = deferred();
+    const router = createMemoryRouter(
+      [
+        {
+          path: "/detail",
+          element: (
+            <>
+              <Where />
+              <DetailPage />
+            </>
+          ),
+        },
+        { path: "/search", loader: () => searched.promise.then(() => null), element: <Where /> },
+        { path: "*", element: <Where /> },
+      ],
+      { initialEntries: ["/list", "/detail"], initialIndex: 1 },
+    );
+    render(<RouterProvider router={router} />);
+    act(() => {
+      void router.navigate("/search", { formMethod: "get", formData: new FormData() });
+    });
+    await waitFor(() => expect(router.state.navigation.state).toBe("loading"));
+    expect(router.state.navigation.formMethod).toBe("GET");
+    fireEvent.click(screen.getByTestId("go"));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/elsewhere"));
+    expect(screen.queryByTestId("leave-guard")).toBeNull();
+  });
+
+  // Review #283 r2 (L): a memory router keeps no history in the window's; a browser step held during
+  // a submission goes by its own step when the submission replaced the entry the app stands on, and
+  // is dropped when it pushed, as the step would then miss its entry.
+  it.each([
+    ["replaced", () => null, "/list"],
+    ["pushed", () => redirect("/posted"), "/posted"],
+  ])(
+    "AC2: memory router: a browser step held during a submission that %s",
+    async (_how, outcome, landing) => {
+      const { action, settle } = submission(outcome);
+      const router = submittingRouter(action);
+      await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+      edit();
+      act(() => {
+        void router.navigate(-1);
+      });
+      fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+      await settleAndWait(settle);
+      await waitFor(() => expect(router.state.location.pathname).toBe(landing));
+      await pause();
+      expect(router.state.location.pathname).toBe(landing);
+      if (landing === "/list") expect(router.state.historyAction).toBe("POP");
+    },
+  );
+
+  // #277's guarantees on the start anew after a submission: a post keeps its method and data, a
+  // replace stays a replace with its state, the basename is not doubled.
+  it("AC2: a held post started anew after the submission keeps its data", async () => {
+    const posted: unknown[] = [];
+    const { action, settle } = submission();
+    const router = submittingRouter(action, {
+      page: (
+        <DetailPage>
+          <Form method="post" action="/other">
+            <input type="hidden" name="term" value="Main" />
+            <button type="submit" data-testid="nav-post">
+              Post
+            </button>
+          </Form>
+        </DetailPage>
+      ),
+      routes: [
+        {
+          path: "/other",
+          action: async ({ request }) => {
+            posted.push((await request.formData()).get("term"));
+            return redirect("/done");
+          },
+        },
+      ],
+    });
+    await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+    edit();
+    fireEvent.click(screen.getByTestId("nav-post"));
+    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+    await settleAndWait(settle);
+    await waitFor(() => expect(router.state.location.pathname).toBe("/done"));
+    expect(posted).toEqual(["Main"]);
+  });
+
+  // Review #283 r2 (M), rev 6: a second submit of the running form, the same action and method, is
+  // answered by that submission: it is dropped, without a dialog, so the action runs once. A `<Form>`
+  // renders again once the submission runs, so its submit shows its method.
+  it.each([false, true])(
+    "AC2: a second submit with the running submission's action and method is dropped; the action runs once (page dirty: %s)",
+    async (dirty) => {
+      let calls = 0;
+      const acted = deferred();
+      const router = submittingRouter(
+        () => {
+          calls += 1;
+          return calls === 1 ? acted.promise.then(() => redirect("/posted")) : redirect("/again");
+        },
+        {
+          page: (
+            <DetailPage>
+              <Form method="post">
+                <button type="submit" data-testid="own-save">
+                  Save
+                </button>
+              </Form>
+            </DetailPage>
+          ),
+        },
+      );
+      await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+      if (dirty) edit();
+      fireEvent.click(screen.getByTestId("own-save"));
+      await pause();
+      expect(screen.queryByTestId("leave-guard")).toBeNull();
+      await settleAndWait(acted.settle);
+      await waitFor(() => expect(router.state.location.pathname).toBe("/posted"));
+      await pause();
+      expect({ calls, at: router.state.location.pathname }).toEqual({ calls: 1, at: "/posted" });
+    },
+  );
+
+  // The submission's action noting each request's method: the first waits for the test and
+  // redirects, a later one redirects at once.
+  function countedAction() {
+    const methods: string[] = [];
+    const acted = deferred();
+    const action = ({ request }: { request: Request }) => {
+      methods.push(request.method);
+      return methods.length === 1
+        ? acted.promise.then(() => redirect("/posted"))
+        : redirect("/again");
+    };
+    return { action, methods, settle: acted.settle };
+  }
+
+  const post = (
+    router: ReturnType<typeof createMemoryRouter>,
+    opts: { formMethod?: "post" | "delete"; body?: unknown } = {},
+  ) =>
+    act(() => {
+      void router.navigate("/detail", {
+        formMethod: opts.formMethod ?? "post",
+        ...(opts.body === undefined
+          ? { formData: new FormData() }
+          : { body: opts.body, formEncType: "application/json" as const }),
+      });
+    });
+
+  // Review #283 r3 (M): the dropped submit is no way, so it does not take the place of a link held
+  // meanwhile, nor of a leave confirmed with Discard: that one still lands at its target.
+  it.each([false, true])(
+    "AC2: a dropped second submit keeps the held way; it lands at the chosen target (page dirty: %s)",
+    async (dirty) => {
+      const { action, methods, settle } = countedAction();
+      const router = submittingRouter(action);
+      await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+      if (dirty) edit();
+      fireEvent.click(screen.getByTestId("go"));
+      if (dirty) fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+      await pause();
+      post(router);
+      await pause();
+      await settleAndWait(settle);
+      await waitFor(() => expect(router.state.location.pathname).toBe("/elsewhere"));
+      await pause();
+      expect({ methods, at: router.state.location.pathname }).toEqual({
+        methods: ["POST"],
+        at: "/elsewhere",
+      });
+    },
+  );
+
+  // Review #283 r3 (M), AC2: a form with another method on the same route (Delete next to Save) is
+  // a way: it is held and goes on once the submission succeeded.
+  it("AC2: a submit with another method to the running action is held and goes on", async () => {
+    const { action, methods, settle } = countedAction();
+    const router = submittingRouter(action);
+    await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+    post(router, { formMethod: "delete" });
+    await pause();
+    await settleAndWait(settle);
+    await waitFor(() => expect(router.state.location.pathname).toBe("/again"));
+    expect(methods).toEqual(["POST", "DELETE"]);
+  });
+
+  // Review #283 r3 (L): a submission with a body instead of form data is a submission as well.
+  it("AC2: a second submit with a body to the running action and method is dropped", async () => {
+    const { action, methods, settle } = countedAction();
+    const router = submittingRouter(action, { submits: false });
+    post(router, { body: { name: "Main" } });
+    await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+    post(router, { body: { name: "Main" } });
+    await pause();
+    await settleAndWait(settle);
+    await waitFor(() => expect(router.state.location.pathname).toBe("/posted"));
+    await pause();
+    expect({ methods, at: router.state.location.pathname }).toEqual({
+      methods: ["POST"],
+      at: "/posted",
+    });
+  });
+
+  // A form that keeps the `submit` of its first render, before any guard took over the router's
+  // `navigate`: its submissions come without their method. The same form is then the same form
+  // element; when that is unknown for either, the submit is a way (rev 6, Q&A #4028).
+  function StaleForm({ id }: { id: string }) {
+    const submit = useSubmit();
+    const [first] = useState(() => submit);
+    return (
+      <form
+        action="/detail"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void first(event.currentTarget, { method: "post" });
+        }}
+      >
+        <button type="submit" data-testid={id}>
+          {id}
+        </button>
+      </form>
+    );
+  }
+  // The same, from a click without a form: no submit event tells where it comes from.
+  function StaleSubmit() {
+    const submit = useSubmit();
+    const [first] = useState(() => submit);
+    return (
+      <button
+        type="button"
+        data-testid="stale-submit"
+        onClick={() => void first(new FormData(), { method: "post", action: "/detail" })}
+      >
+        Submit
+      </button>
+    );
+  }
+  const staleForms = (
+    <DetailPage>
+      <StaleForm id="stale-save" />
+      <StaleForm id="stale-publish" />
+      <StaleSubmit />
+    </DetailPage>
+  );
+
+  it("AC2: a second submit of the running form, its method unseen, is dropped", async () => {
+    const { action, methods, settle } = countedAction();
+    const router = submittingRouter(action, { page: staleForms, submits: false });
+    fireEvent.click(screen.getByTestId("stale-save"));
+    await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+    fireEvent.click(screen.getByTestId("stale-save"));
+    await pause();
+    await settleAndWait(settle);
+    await waitFor(() => expect(router.state.location.pathname).toBe("/posted"));
+    await pause();
+    expect({ methods, at: router.state.location.pathname }).toEqual({
+      methods: ["POST"],
+      at: "/posted",
+    });
+  });
+
+  // The form's submit event is over with its task: a later submit without one is not that form's.
+  it("AC2: a submit without a form after the running form's, its method unseen, is held and goes on", async () => {
+    const { action, methods, settle } = countedAction();
+    const router = submittingRouter(action, { page: staleForms, submits: false });
+    fireEvent.click(screen.getByTestId("stale-save"));
+    await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+    fireEvent.click(screen.getByTestId("stale-submit"));
+    await pause();
+    await settleAndWait(settle);
+    await waitFor(() => expect(router.state.location.pathname).toBe("/again"));
+    expect(methods).toEqual(["POST", "POST"]);
+  });
+
+  it.each([
+    ["another form", true, "stale-publish"],
+    ["a form, the running submission's own unknown", false, "stale-publish"],
+    ["no form, the running submission's own unknown", false, "stale-submit"],
+  ])(
+    "AC2: a submit to the running action from %s, its method unseen, is held and goes on",
+    async (_, fromForm, second) => {
+      const { action, methods, settle } = countedAction();
+      const router = submittingRouter(action, { page: staleForms, submits: !fromForm });
+      if (fromForm) fireEvent.click(screen.getByTestId("stale-save"));
+      await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+      fireEvent.click(screen.getByTestId(second));
+      await pause();
+      await settleAndWait(settle);
+      await waitFor(() => expect(router.state.location.pathname).toBe("/again"));
+      expect(methods).toEqual(["POST", "POST"]);
+    },
+  );
+
+  // Review #283 r3 (L): a held link goes on with the options it came with.
+  it("AC2: a held link goes on with its scroll and view-transition options", async () => {
+    const { action, settle } = submission(() => redirect("/posted"));
+    const router = submittingRouter(action);
+    await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+    const landed: { preventScrollReset: boolean; viewTransition: boolean }[] = [];
+    router.subscribe((state, { viewTransitionOpts }) => {
+      if (state.navigation.state === "idle") {
+        landed.push({
+          preventScrollReset: state.preventScrollReset,
+          viewTransition: viewTransitionOpts !== undefined,
+        });
+      }
+    });
+    act(() => {
+      void router.navigate("/elsewhere", { preventScrollReset: true, viewTransition: true });
+    });
+    await settleAndWait(settle);
+    await waitFor(() => expect(router.state.location.pathname).toBe("/elsewhere"));
+    expect(landed.at(-1)).toEqual({ preventScrollReset: true, viewTransition: true });
+  });
+
+  // A link to the page the submission posts to submits nothing: it is no second submit and waits.
+  it("AC2: a link to the running submission's action is held and goes on, not dropped", async () => {
+    const { action, settle } = submission();
+    const router = submittingRouter(action);
+    await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+    act(() => {
+      void router.navigate("/detail");
+    });
+    await settleAndWait(settle);
+    await waitFor(() => expect(router.state.historyAction).toBe("PUSH"));
+    expect(router.state.location.pathname).toBe("/detail");
+  });
+
+  // Review #283 r2 (L): a held link goes to the target it was resolved to, not resolved anew against
+  // the record the submission redirected to.
+  it("AC2: a relative link held across a redirecting submission lands at its own target", async () => {
+    const acted = deferred();
+    const router = createMemoryRouter(
+      [
+        {
+          path: "/items/:id",
+          action: () => acted.promise.then(() => redirect("/items/9")),
+          element: (
+            <>
+              <Where />
+              <DetailPage>
+                <Link to="edit" data-testid="edit-link">
+                  Edit
+                </Link>
+              </DetailPage>
+            </>
+          ),
+        },
+        { path: "*", element: <Where /> },
+      ],
+      { initialEntries: ["/items/5"] },
+    );
+    render(<RouterProvider router={router} />);
+    act(() => {
+      void router.navigate("/items/5", { formMethod: "post", formData: new FormData() });
+    });
+    await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+    edit();
+    fireEvent.click(screen.getByTestId("edit-link"));
+    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+    await settleAndWait(acted.settle);
+    await waitFor(() => expect(router.state.location.pathname).toBe("/items/5/edit"));
+    expect(router.state.historyAction).toBe("PUSH");
+  });
+
+  it("AC2: a held replace started anew after the submission stays a replace with its state", async () => {
+    const { action, settle } = submission();
+    const router = submittingRouter(action);
+    await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+    edit();
+    act(() => {
+      void router.navigate("/elsewhere", { replace: true, state: { from: "detail" } });
+    });
+    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+    await settleAndWait(settle);
+    await waitFor(() => expect(router.state.location.pathname).toBe("/elsewhere"));
+    expect(router.state.historyAction).toBe("REPLACE");
+    expect(router.state.location.state).toEqual({ from: "detail" });
+  });
+
+  it("AC2: under a basename the change started anew lands at its target once", async () => {
+    const { action, settle } = submission();
+    const router = submittingRouter(action, { basename: "/app" });
+    await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+    edit();
+    fireEvent.click(screen.getByTestId("go"));
+    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+    await settleAndWait(settle);
+    await waitFor(() => expect(router.state.location.pathname).toBe("/app/elsewhere"));
+    expect(screen.getByTestId("path")).toHaveTextContent("/elsewhere");
+  });
+
+  // A browser step held during a submission stays a step: to the entry it targeted, counted from where
+  // the submission left the history; never `go(0)`, which would reload.
+  function browserSubmission(outcome: () => unknown, start = "/start") {
+    window.history.replaceState(null, "", start);
+    const { action, settle } = submission(outcome);
+    const router = createBrowserRouter([
+      {
+        path: "/detail",
+        action,
+        element: (
+          <>
+            <Where />
+            <DetailPage />
+          </>
+        ),
+      },
+      { path: "*", element: <Where /> },
+    ]);
+    render(<RouterProvider router={router} />);
+    return { router, settle };
+  }
+
+  // The first entry carries no key of the router's: its location's key is "default".
+  it("AC2: browser back held during a submission that pushed goes back to its entry", async () => {
+    const { router, settle } = browserSubmission(() => redirect("/posted"), "/list");
+    await act(() => router.navigate("/detail"));
+    act(() => {
+      void router.navigate("/detail", { formMethod: "post", formData: new FormData() });
+    });
+    await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+    edit();
+    act(() => window.history.back());
+    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+    // The pop that puts the address back arrives first.
+    await pause();
+    const go = vi.spyOn(window.history, "go");
+    await settleAndWait(settle);
+    await waitFor(() => expect(router.state.location.pathname).toBe("/list"));
+    expect(router.state.historyAction).toBe("POP");
+    expect(go).toHaveBeenCalledWith(-2);
+    go.mockRestore();
+    router.dispose();
+  });
+
+  // Review #283 r3 (L): a browser step submits nothing, also to an entry at the action's path.
+  it("AC2: a browser step to an entry at the running action's path is held, not dropped", async () => {
+    // The index the browser router keeps in the window's history state.
+    const index = () => (window.history.state as { idx: number }).idx;
+    const { router, settle } = browserSubmission(() => null);
+    await act(() => router.navigate("/detail"));
+    await act(() => router.navigate("/a"));
+    await act(() => router.navigate("/detail"));
+    const at = index();
+    act(() => {
+      void router.navigate("/detail", { formMethod: "post", formData: new FormData() });
+    });
+    await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+    act(() => window.history.go(-2));
+    await pause();
+    await settleAndWait(settle);
+    await waitFor(() => expect(index()).toBe(at - 2));
+    expect(router.state.location.pathname).toBe("/detail");
+    router.dispose();
+  });
+
+  it("AC2: browser forward held during a submission whose push dropped its entry goes nowhere", async () => {
+    const { router, settle } = browserSubmission(() => redirect("/posted"));
+    await act(() => router.navigate("/detail"));
+    await act(() => router.navigate("/next"));
+    act(() => window.history.back());
+    await waitFor(() => expect(router.state.location.pathname).toBe("/detail"));
+    act(() => {
+      void router.navigate("/detail", { formMethod: "post", formData: new FormData() });
+    });
+    await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+    edit();
+    act(() => window.history.forward());
+    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+    await pause();
+    const go = vi.spyOn(window.history, "go");
+    await settleAndWait(settle);
+    await waitFor(() => expect(router.state.location.pathname).toBe("/posted"));
+    await pause();
+    expect(router.state.location.pathname).toBe("/posted");
+    expect(go).not.toHaveBeenCalled();
+    go.mockRestore();
+    router.dispose();
+  });
+
+  // Review #283 r2 (M): a browser step started anew that never arrives (its entry went with the
+  // submission's push) leaves no pass behind: a later change still asks the page that confirmed.
+  it("AC2: a lost browser step does not let a later change pass the page that confirmed it", async () => {
+    const { router, settle } = browserSubmission(() => redirect("/detail?saved"));
+    await act(() => router.navigate("/detail"));
+    await act(() => router.navigate("/a"));
+    await act(() => router.navigate("/b"));
+    act(() => window.history.go(-2));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/detail"));
+    act(() => {
+      void router.navigate("/detail", { formMethod: "post", formData: new FormData() });
+    });
+    await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+    edit();
+    act(() => window.history.go(2));
+    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+    await pause();
+    await settleAndWait(settle);
+    await waitFor(() => expect(router.state.location.search).toBe("?saved"));
+    await pause();
+    expect(screen.getByLabelText("Name")).toHaveValue("Changed");
+    fireEvent.click(screen.getByTestId("go"));
+    await pause();
+    expect(router.state.location.pathname).toBe("/detail");
+    expect(screen.getByTestId("leave-guard")).toBeInTheDocument();
+    router.dispose();
+  });
+
   it("under a data router a confirmed Esc leaves at once, and browser back is held", async () => {
     const router = createMemoryRouter(
       [
@@ -1637,11 +3096,13 @@ describe("browser back held by a panel under BrowserRouter (review #277)", () =>
     },
   );
 
-  it("apply panel: a late Apply still hands the Back on to the page", async () => {
-    await backFromPanel(
-      <GlossaryPage unmount late={() => new Promise((done) => window.setTimeout(done, 20))} />,
-      "Apply changes?",
-    );
+  // #283 (was: a late Apply after the panel closed still hands the Back on).
+  it("apply panel: a slow Apply keeps the panel working, then hands the Back on to the page", async () => {
+    const applied = deferredResult();
+    await backFromPanel(<GlossaryPage unmount slow={() => applied.promise} />, "Apply changes?");
+    await waitFor(expectApplyWorking);
+    expect(window.location.pathname).toBe("/list");
+    await settleAndWait(() => applied.settle(true));
     await waitFor(() =>
       expect(within(screen.getByTestId("leave-guard")).getByRole("heading")).toHaveTextContent(
         "Save changes?",
@@ -1658,8 +3119,9 @@ describe("browser back held by a panel under BrowserRouter (review #277)", () =>
   });
 });
 
-// Review #277 (R3-2): a change held on another navigator leaves a late apply's change alone.
-it("a route change on a second router does not drop a late apply's held change", async () => {
+// Review #277 (R3-2): a change held on another navigator leaves a slow apply's change alone (#283:
+// the panel works until the apply settles, it no longer closes before).
+it("a route change on a second router does not drop a slow apply's held change", async () => {
   function GoX() {
     const navigate = useNavigate();
     return (
@@ -1672,12 +3134,12 @@ it("a route change on a second router does not drop a late apply's held change",
     const { dialog } = useLeaveGuard({ dirty: false, busy: true, onLeave: () => {} });
     return dialog;
   }
-  const applied = deferred();
+  const applied = deferredResult();
   render(
     <>
       <MemoryRouter initialEntries={["/list"]}>
         <Routes>
-          <Route path="/list" element={<GlossaryPage late={() => applied.promise} />} />
+          <Route path="/list" element={<GlossaryPage slow={() => applied.promise} />} />
           <Route path="*" element={<Where />} />
         </Routes>
       </MemoryRouter>
@@ -1692,7 +3154,7 @@ it("a route change on a second router does not drop a late apply's held change",
   fireEvent.click(screen.getByTestId("nav"));
   fireEvent.click(screen.getByTestId("leave-guard-save"));
   fireEvent.click(screen.getByTestId("go-x"));
-  await settleAndWait(applied.settle);
+  await settleAndWait(() => applied.settle(true));
   await waitFor(() =>
     expect(within(screen.getByTestId("leave-guard")).getByRole("heading")).toHaveTextContent(
       "Save changes?",
