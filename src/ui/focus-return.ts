@@ -376,6 +376,7 @@ export {
   FOCUS_GROUP_ATTR,
   FOCUS_MAIN_ATTR,
   FOCUS_NAV_ATTR,
+  isNavigation,
   isUsable,
   type Opener,
   returnFocus,

@@ -12,9 +12,15 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../ui/dialog.js";
-import { isUsable } from "../ui/focus-return.js";
+import {
+  captureOpener,
+  isNavigation,
+  isUsable,
+  type Opener,
+  returnFocus as restoreFocus,
+} from "../ui/focus-return.js";
 import { Hint } from "../ui/hint.js";
-import { useSidebar } from "./sidebar-provider.js";
+import { SIDEBAR_ID, useSidebar } from "./sidebar-provider.js";
 
 /** One area the search covers; `labelKey` resolves in the app's i18next like a nav label. */
 export interface SearchArea {
@@ -85,12 +91,17 @@ function GlobalSearch({
   const [dialogOpen, setDialogOpen] = React.useState(false);
   // A chosen hit navigates away and leaves the focus to the page.
   const navigating = React.useRef(false);
+  // What had the focus when the dialog opened: only the last resort when the field is hidden.
+  const opener = React.useRef<Opener | null>(null);
 
   const isDialogOpen = React.useRef(false);
 
   const openDialog = React.useCallback((seed?: string) => {
     if (seed !== undefined) setTerm(seed);
-    if (!isDialogOpen.current) navigating.current = false;
+    if (!isDialogOpen.current) {
+      opener.current = captureOpener();
+      navigating.current = false;
+    }
     isDialogOpen.current = true;
     setDialogOpen(true);
   }, []);
@@ -120,11 +131,15 @@ function GlobalSearch({
   }
 
   // Once the dialog has closed: back to the field, else the rail's button. The search's trigger is
-  // always its sidebar field, also when the shortcut opened it (`GL-UI-031`, #240), never what had
-  // the focus before. The field itself takes the focus without reopening the dialog.
+  // always its sidebar field, also when the shortcut opened it (`GL-UI-031`, #240). The field itself
+  // takes the focus without reopening the dialog. With both hidden (the closed overlay below `md`):
+  // what had the focus at opening unless it navigates, else the overlay trigger, else `GL-UI-050`'s
+  // order without the trigger; never a navigation element, never `<body>`.
   function returnFocus(): void {
+    const from = opener.current;
+    opener.current = null;
     if (navigating.current) return;
-    // The first usable one that takes the focus (`GL-UI-050`), each tried in turn.
+    // The first usable one that takes the focus, each tried in turn.
     for (const target of [inputRef.current, railRef.current]) {
       if (!isUsable(target)) continue;
       if (target === inputRef.current) suppressFocusOpen.current = true;
@@ -132,6 +147,17 @@ function GlobalSearch({
       if (document.activeElement === target) return;
       suppressFocusOpen.current = false;
     }
+    const kept = from !== null && !isNavigation(from.trigger) ? from : null;
+    if (kept !== null && isUsable(kept.trigger)) {
+      kept.trigger.focus();
+      if (document.activeElement === kept.trigger) return;
+    }
+    const trigger = [
+      ...document.querySelectorAll<HTMLElement>(`[aria-controls="${SIDEBAR_ID}"]`),
+    ].find(isUsable);
+    trigger?.focus();
+    if (trigger !== undefined && document.activeElement === trigger) return;
+    restoreFocus(kept);
   }
 
   const shortcut = isMacPlatform() ? "⌘K" : "Ctrl K";
