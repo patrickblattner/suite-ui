@@ -221,12 +221,12 @@ export const es: SuiteStrings = {
     cancelDisabledHint: "Podrás cerrar de nuevo cuando la acción haya terminado.",
   },
   editPanel: {
-    backHint: "Vuelve un paso atrás; tus datos se conservan.",
-    cancelHint: "Cierra el panel sin guardar.",
+    backHint: "Vuelve un paso atrás; antes pregunta si hay cambios sin guardar.",
+    cancelHint: "Cierra el panel sin guardar; antes pregunta si hay cambios sin guardar.",
     closeHint: "Cierra el panel.",
-    saveHint: "Guarda los datos y cierra el panel.",
+    saveHint: "Guarda los datos.",
     nextHint: "Pasa al paso siguiente.",
-    busyHint: "Se está guardando; vuelve a estar disponible cuando termine.",
+    busyHint: "Hay una operación en curso; vuelve a estar disponible cuando termine.",
   },
   leaveGuard: {
     title: "¿Guardar los cambios?",

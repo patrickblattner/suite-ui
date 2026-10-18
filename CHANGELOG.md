@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.130.1 — #251, SUI-FEATURE-091 rev 3 (Q&A #3920): EditPanel footer hints say only what the package does
+
+Text fix, not breaking. The `editPanel.*` hints from 0.130.0 (#249) now state only what the package itself does. Back goes one step back and Cancel closes without saving, and both say that unsaved changes are asked about first. The `save` hint is now "Saves the entries", with no claim about closing, since the package never closes on submit. While `busy`, every footer button shows one neutral "work in progress" hint for both `save` and `next`, never "saving". Close and `next` are unchanged. Texts in de, en and es.
+
+**Migration:** a call site that closes the panel after saving passes a `submitHint` saying so. Baselines: 10 `gallery-*.png` (strings table).
+
 ## 0.130.0 — #249, SUI-FEATURE-091 rev 2: EditPanel footer buttons carry description hints
 
 Feature, not breaking. The `EditPanel` footer buttons (Back, Cancel/Close, primary action for `submitKind` `save` and `next`) now show a description hint per `GL-UI-017` after `--tooltip-hint-delay`, through the package `Hint`, the same way as `ConfirmDialog`. The hint is the button's `aria-describedby`; its accessible name stays the label. While `busy`, all footer buttons show one "saving in progress" hint. New optional props `submitHint`, `submitDisabledHint`, `backHint` and `backDisabledHint` take already-translated texts: `submitHint`/`backHint` replace the package text, and the `…DisabledHint` props show while `submitDisabled`/`backDisabled` locks the button. Package texts are in de, en and es under the new `editPanel.*` string group. The gallery gets a read-only panel with only Close (`view-panel`).

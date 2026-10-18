@@ -222,12 +222,13 @@ export const de: SuiteStrings = {
     cancelDisabledHint: "Schließen geht wieder, sobald die Aktion abgeschlossen ist.",
   },
   editPanel: {
-    backHint: "Geht einen Schritt zurück, die Eingaben bleiben erhalten.",
-    cancelHint: "Schließt das Panel, ohne zu speichern.",
+    backHint: "Geht einen Schritt zurück; ungespeicherte Änderungen werden vorher abgefragt.",
+    cancelHint:
+      "Schließt das Panel, ohne zu speichern; ungespeicherte Änderungen werden vorher abgefragt.",
     closeHint: "Schließt das Panel.",
-    saveHint: "Speichert die Eingaben und schließt das Panel.",
+    saveHint: "Speichert die Eingaben.",
     nextHint: "Geht zum nächsten Schritt.",
-    busyHint: "Es wird gerade gespeichert; wieder verfügbar, sobald das abgeschlossen ist.",
+    busyHint: "Es wird gerade gearbeitet; wieder verfügbar, sobald das abgeschlossen ist.",
   },
   leaveGuard: {
     title: "Änderungen speichern?",

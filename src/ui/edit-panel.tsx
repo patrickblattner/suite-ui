@@ -50,6 +50,8 @@ type EditPanelProps = {
   submitDisabled?: boolean;
   // Already translated hints of the footer (`SUI-FEATURE-091`): `submitHint`/`backHint` replace the
   // package's, the `…DisabledHint` names the condition that unlocks `submitDisabled`/`backDisabled`.
+  // The package `save` hint says nothing about closing: a call site that closes the panel after
+  // saving, or sets a `submitLabel` of its own meaning, passes a `submitHint` saying so.
   submitHint?: string;
   submitDisabledHint?: string;
   backHint?: string;

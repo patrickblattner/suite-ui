@@ -4664,9 +4664,12 @@ for (const [trigger, prefix, ids] of [
     await page.goto("/?page=edit-panel&lng=en");
     await page.getByTestId(trigger).click();
     const hints = {
-      "check-panel-back": ["Back", "Goes back one step; your entries are kept."],
-      "check-panel-cancel": ["Cancel", "Closes the panel without saving."],
-      "check-panel-submit": ["Save", "Saves the entries and closes the panel."],
+      "check-panel-back": ["Back", "Goes back one step; asks first if there are unsaved changes."],
+      "check-panel-cancel": [
+        "Cancel",
+        "Closes the panel without saving; asks first if there are unsaved changes.",
+      ],
+      "check-panel-submit": ["Save", "Saves the entries."],
       "next-panel-submit": ["Continue to review", "Goes on to the next step."],
       "view-panel-cancel": ["Close", "Closes the panel."],
     } as Record<string, [string, string]>;

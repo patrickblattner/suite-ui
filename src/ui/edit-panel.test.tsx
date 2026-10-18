@@ -303,33 +303,33 @@ describe("EditPanel", () => {
     it.each([
       [
         "en",
-        "Goes back one step; your entries are kept.",
-        "Closes the panel without saving.",
+        "Goes back one step; asks first if there are unsaved changes.",
+        "Closes the panel without saving; asks first if there are unsaved changes.",
         "Closes the panel.",
-        "Saves the entries and closes the panel.",
+        "Saves the entries.",
         "Goes on to the next step.",
-        "Saving is in progress; available again once it has finished.",
+        "Work is in progress; available again once it has finished.",
       ],
       [
         "de",
-        "Geht einen Schritt zurück, die Eingaben bleiben erhalten.",
-        "Schließt das Panel, ohne zu speichern.",
+        "Geht einen Schritt zurück; ungespeicherte Änderungen werden vorher abgefragt.",
+        "Schließt das Panel, ohne zu speichern; ungespeicherte Änderungen werden vorher abgefragt.",
         "Schließt das Panel.",
-        "Speichert die Eingaben und schließt das Panel.",
+        "Speichert die Eingaben.",
         "Geht zum nächsten Schritt.",
-        "Es wird gerade gespeichert; wieder verfügbar, sobald das abgeschlossen ist.",
+        "Es wird gerade gearbeitet; wieder verfügbar, sobald das abgeschlossen ist.",
       ],
       [
         "es",
-        "Vuelve un paso atrás; tus datos se conservan.",
-        "Cierra el panel sin guardar.",
+        "Vuelve un paso atrás; antes pregunta si hay cambios sin guardar.",
+        "Cierra el panel sin guardar; antes pregunta si hay cambios sin guardar.",
         "Cierra el panel.",
-        "Guarda los datos y cierra el panel.",
+        "Guarda los datos.",
         "Pasa al paso siguiente.",
-        "Se está guardando; vuelve a estar disponible cuando termine.",
+        "Hay una operación en curso; vuelve a estar disponible cuando termine.",
       ],
     ])(
-      "AC1/AC4/AC5 %s: the package hints of Back, Cancel, Close, save, next and busy",
+      "AC1/AC2/AC5/AC6 %s: the package hints of Back, Cancel, Close, save, next and busy",
       async (lng, back, cancel, close, save, next, busyText) => {
         await i18n.changeLanguage(lng);
         renderPanel({ onBack: () => {} });
@@ -347,6 +347,11 @@ describe("EditPanel", () => {
         for (const id of ["edit-panel-back", "edit-panel-cancel", "edit-panel-submit"]) {
           expect(hintOf(id)).toBe(busyText);
         }
+        cleanup();
+        renderPanel({ submitKind: "next", busy: true });
+        for (const id of ["edit-panel-cancel", "edit-panel-submit"]) {
+          expect(hintOf(id)).toBe(busyText);
+        }
       },
     );
 
@@ -354,16 +359,16 @@ describe("EditPanel", () => {
       renderPanel({ onBack: () => {} });
       expect(screen.getByTestId("edit-panel-back")).toHaveAccessibleName("Back");
       expect(screen.getByTestId("edit-panel-back")).toHaveAccessibleDescription(
-        "Goes back one step; your entries are kept.",
+        "Goes back one step; asks first if there are unsaved changes.",
       );
       expect(screen.getByTestId("edit-panel-cancel")).toHaveAccessibleName("Cancel");
       expect(screen.getByTestId("edit-panel-submit")).toHaveAccessibleName("Save");
       expect(screen.getByTestId("edit-panel-submit")).toHaveAccessibleDescription(
-        "Saves the entries and closes the panel.",
+        "Saves the entries.",
       );
     });
 
-    it("AC2: submitHint and backHint replace the package hints", () => {
+    it("AC3: submitHint and backHint replace the package hints", () => {
       renderPanel({
         onBack: () => {},
         submitLabel: "Publish",
@@ -372,10 +377,12 @@ describe("EditPanel", () => {
       });
       expect(hintOf("edit-panel-submit")).toBe("Publishes the post now.");
       expect(hintOf("edit-panel-back")).toBe("Back to the media pick.");
-      expect(hintOf("edit-panel-cancel")).toBe("Closes the panel without saving.");
+      expect(hintOf("edit-panel-cancel")).toBe(
+        "Closes the panel without saving; asks first if there are unsaved changes.",
+      );
     });
 
-    it("AC3: a locked primary action and Back show their disabled hints", () => {
+    it("AC4: a locked primary action and Back show their disabled hints", () => {
       renderPanel({
         onBack: () => {},
         submitDisabled: true,
@@ -388,13 +395,15 @@ describe("EditPanel", () => {
       expect(hintOf("edit-panel-back")).toBe("Available once the upload has finished.");
     });
 
-    it("AC3: locked without a disabled hint, the normal hint stands", () => {
+    it("AC4: locked without a disabled hint, the normal hint stands", () => {
       renderPanel({ onBack: () => {}, submitDisabled: true, backDisabled: true });
-      expect(hintOf("edit-panel-submit")).toBe("Saves the entries and closes the panel.");
-      expect(hintOf("edit-panel-back")).toBe("Goes back one step; your entries are kept.");
+      expect(hintOf("edit-panel-submit")).toBe("Saves the entries.");
+      expect(hintOf("edit-panel-back")).toBe(
+        "Goes back one step; asks first if there are unsaved changes.",
+      );
     });
 
-    it("AC6: order, testids and button classes stay, each button in its hint shell", () => {
+    it("AC7: order, testids and button classes stay, each button in its hint shell", () => {
       renderPanel({ onBack: () => {} });
       const footer = screen
         .getByTestId("edit-panel")
