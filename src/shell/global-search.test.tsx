@@ -1,8 +1,10 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { FileTextIcon } from "lucide-react";
+import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { GlobalSearch, type SearchResult } from "./global-search.js";
+import { SIDEBAR_ID } from "./sidebar-provider.js";
 import { ShellHarness } from "./test-utils.js";
 
 const AREAS = [
@@ -137,6 +139,72 @@ describe("GlobalSearch", () => {
       expect(screen.getByTestId("location")).toHaveTextContent("/dashboard");
     },
   );
+
+  // #242: below `md` the closed overlay hides the field (here a hidden sidebar). Opened by the
+  // shortcut from a link in the page content, Esc never goes back to that link (`GL-UI-050`): the
+  // overlay trigger if there is one, else the main content; never `<body>`.
+  it.each([
+    ["no overlay trigger", "main", false],
+    ["an overlay trigger", "overlay-trigger", true],
+  ] as const)(
+    "the shortcut from a content link with the field hidden and %s focuses %s on Esc",
+    async (_, target, withTrigger) => {
+      render(
+        <ShellHarness route="/dashboard">
+          {withTrigger && (
+            <button type="button" aria-controls={SIDEBAR_ID} data-testid="overlay-trigger">
+              Menu
+            </button>
+          )}
+          <div hidden>
+            <GlobalSearch areas={AREAS} search={vi.fn(() => Promise.resolve(RESULT))} />
+          </div>
+          <main data-testid="main">
+            <a href="/events" data-testid="content-link">
+              Events
+            </a>
+          </main>
+        </ShellHarness>,
+      );
+      act(() => screen.getByTestId("content-link").focus());
+      fireEvent.keyDown(document, { key: "k", ctrlKey: true });
+      const dialog = await screen.findByTestId("search-dialog");
+      fireEvent.keyDown(within(dialog).getByTestId("search-dialog-input"), { key: "Escape" });
+      await waitFor(() => expect(screen.queryByTestId("search-dialog")).not.toBeInTheDocument());
+      await waitFor(() => expect(screen.getByTestId(target)).toHaveFocus());
+      expect(screen.getByTestId("content-link")).not.toHaveFocus();
+      expect(document.activeElement).not.toBe(document.body);
+    },
+  );
+
+  // #242: unmounting the search with the dialog open returns no focus: the field and the rail are
+  // gone, and whatever the app focused meanwhile keeps it.
+  it("unmounting with the dialog open leaves the focus where the app put it", async () => {
+    const page = (search: ReactNode) => (
+      <ShellHarness route="/dashboard">
+        <button type="button" data-testid="earlier">
+          Earlier
+        </button>
+        <button type="button" data-testid="elsewhere">
+          Elsewhere
+        </button>
+        {search}
+      </ShellHarness>
+    );
+    const { rerender } = render(
+      page(<GlobalSearch areas={AREAS} search={vi.fn(() => Promise.resolve(RESULT))} />),
+    );
+    act(() => screen.getByTestId("earlier").focus());
+    fireEvent.keyDown(document, { key: "k", ctrlKey: true });
+    await screen.findByTestId("search-dialog");
+    await waitFor(() => expect(screen.getByTestId("search-dialog-input")).toHaveFocus());
+    rerender(page(null));
+    act(() => screen.getByTestId("elsewhere").focus());
+    // Past the dialog's deferred close-focus, which would hand the focus back to `earlier`.
+    await settle();
+    await waitFor(() => expect(screen.getByTestId("elsewhere")).toHaveFocus());
+    expect(screen.getByTestId("earlier")).not.toHaveFocus();
+  });
 
   it("opens with the shortcut", async () => {
     renderSearch();
