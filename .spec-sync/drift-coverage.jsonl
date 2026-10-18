@@ -454,3 +454,5 @@
 {"ts":"2026-10-18T09:47:16.749Z","key":"GL-UI-016","from":6,"to":7,"disposition":"ticket","ref":"259"}
 {"ts":"2026-10-18T09:48:35.178Z","key":"GL-UI-016","from":7,"to":8,"disposition":"ticket","ref":"259"}
 {"ts":"2026-10-18T10:06:38.946Z","key":"GL-UI-016","from":8,"to":9,"disposition":"ticket","ref":"259"}
+{"ts":"2026-10-18T10:09:33.695Z","key":"GL-UI-016","from":9,"to":10,"disposition":"ticket","ref":"259"}
+{"ts":"2026-10-18T10:09:59.728Z","key":"GL-UI-036","from":null,"to":2,"disposition":"editorial","ref":"no picker with create-new exists in @suite/ui; the rule applies at app call sites; package building block asked as a non-blocking architect question"}
