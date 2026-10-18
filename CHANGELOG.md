@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.135.3 — #301, #302, SUI-FEATURE-150 rev 6, SUI-FEATURE-172 rev 3: a guarded Back confirmed during a submission waits for it
+
+Fix, not breaking.
+
+- **A way out wrapped in `guard` (a Back) that the leave question let go during a router submission no longer cuts that submission off.** Under a data router its route change now waits for the running submission like any held change: after a success it lands at its target, without asking the page again, and a Discard's `onDiscard` runs then (`SUI-FEATURE-172`); after a failure the change is dropped, `onDiscard` never runs, and the draft and the error stay (before: the route changed at once, aborting the submission). The same holds for Save in the question, and for a Back that is a browser step (`guard(() => navigate(-1))`), whose step the router sees only later. A guarded way that changes no route still goes at once, with its reset (a panel closing during a foreign submission: Q&A #4058 is open).
+- **While a page's Discard holds a waiting change, a further guarded way of that page asks nothing** (Back again, `Esc`): it takes the waiting change's place, as a navigation click does (`SUI-FEATURE-172`; before: "Save changes?" opened again, and its Cancel kept nothing).
+- **A newer change that took the waiting one's Discards over and is then cancelled drops them** (Codex review v0.135.2, CX1, #302). Before, they stayed with the waiting change, so a third change passed the page silently and reset the input made after that Cancel. Now that third change asks the page again, and only its own answer counts. A third change that displaces the newer one while its question is still open takes the Discards on, so the page is not asked again.
+- A browser step back to the first history entry carries its pass and the deferred resets like any other step; the gap noted in #287 was not one (the cause was the page gone after a redirect, fixed in 0.135.2). Tests pin it now.
+
+**Migration:** none required. Baselines: none.
+
 ## 0.135.2 — #287, SUI-FEATURE-172 rev 3, SUI-FEATURE-150 rev 6, GL-UI-007 (Q&A #4051, #4053): Discard during a running submission resets the draft only when the way goes
 
 Fix, not breaking.

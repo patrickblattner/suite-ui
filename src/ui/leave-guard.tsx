@@ -430,6 +430,9 @@ type RouterHold = {
   hold: Hold;
   blocks: (own: boolean) => boolean;
   owns: (form: EventTarget | null) => boolean;
+  // While the surface lets a way out of its own go (a `guard` it confirmed), the route change that
+  // way starts, with the reset of its Discard; taken once by the change it starts.
+  released: () => { discard: (() => void) | undefined } | null;
 };
 type BlockerStep = Parameters<BlockerFunction>[0];
 // A blocked route change: its count among the changes asked, the blocked state that carries it on
@@ -451,6 +454,10 @@ type BlockedChange = {
   source: { form: EventTarget | null; submitter: HTMLElement | null };
   // The resets of the Discards that confirmed it before, run once it goes.
   discards?: Discards | undefined;
+  // The holds it passes without asking: the ones that confirmed it before.
+  passing?: Set<Hold> | undefined;
+  // The waiting change whose Discards it took over, when it replaced one.
+  replaced?: WaitingChange | undefined;
 };
 // The deferred reset of each surface that confirmed a change with Discard (`SUI-FEATURE-172`): one per
 // surface, its latest answer, run once the change goes.
@@ -499,6 +506,9 @@ type RouterHolds = {
   // The holds whose own Save the change the blocker let go last is: while that submission runs, a
   // way out passes them to wait for it, and asks them again once it succeeded (`SUI-FEATURE-170`).
   saving: Set<Hold>;
+  // The ways out let go by a surface (`RouterHold.released`) that went as a browser step during a
+  // submission (`navigate(-1)`), until the step arrives: under a browser router it comes later.
+  stepping: Map<Hold, (() => void) | undefined> | null;
   // The change the blocker's `proceed` let go last, until it runs; and the blocker's question,
   // registered anew once that change runs as a submission.
   proceeded: BlockedChange | null;
@@ -531,6 +541,7 @@ function routerEntry(router: DataRouter): RouterHolds {
       submitted: null,
       waiting: null,
       restarting: null,
+      stepping: null,
       saving: new Set(),
       proceeded: null,
       question: (step) => collectBlocking(router, created, step),
@@ -563,7 +574,14 @@ function holdRouter(router: DataRouter, hold: RouterHold): () => void {
     const own = router.navigate;
     const navigate = own.bind(router);
     const guarded = (to: To | null | number, opts?: RouterNavigateOptions) => {
-      if (typeof to === "number") return navigate(to);
+      if (typeof to === "number") {
+        // A surface's way out let go as a browser step waits for the submission as well.
+        if (submitting(router)) {
+          const ways = takeReleased(entry);
+          if (ways.size > 0) entry.stepping = ways;
+        }
+        return navigate(to);
+      }
       entry.calling = { opts };
       try {
         return navigate(to, opts);
@@ -679,15 +697,29 @@ function collectBlocking(
         ));
   // A newer change while a confirmed one still waits takes its place: it passes the surfaces that
   // confirmed Discard without asking again and takes their deferred resets along
-  // (`SUI-FEATURE-172`).
+  // (`SUI-FEATURE-172`). Should the newer one be cancelled, they are gone with it (`runBlocked`), and
+  // a later change asks those surfaces again; one that displaces it unanswered takes them on.
   const replaced = restarting === null ? entry.waiting : null;
-  const discards =
+  let discards =
     restarting?.discards ?? (replaced === null ? undefined : new Map(replaced.discards));
-  const passing = restarting?.passing ?? new Set(replaced?.discards.keys());
+  const passing = new Set(restarting?.passing ?? replaced?.discards.keys());
+  // A route change that a surface's own confirmed way out starts during a submission (a Back wrapped
+  // in `guard`) waits for it as well, never cutting it off: it passes that surface, which confirmed
+  // it already, and takes its Discard along (`SUI-FEATURE-150`, `SUI-FEATURE-172`).
+  const released = submitting(router) ? takeReleased(entry) : new Map<Hold, undefined>();
+  if (historyAction === NavigationType.Pop && entry.stepping !== null) {
+    for (const [hold, discard] of entry.stepping) released.set(hold, discard);
+    entry.stepping = null;
+  }
+  for (const [hold, discard] of released) {
+    passing.add(hold);
+    if (discard !== undefined) (discards ??= new Map()).set(hold, discard);
+  }
   entry.blocking = blockingNow(entry, owners).filter((hold) => !passing.has(hold));
   const carrier = restarting?.carrier ?? null;
   const blocks =
     entry.blocking.length > 0 ||
+    released.size > 0 ||
     (entry.waiting !== null && !entry.waiting.ended) ||
     carrier !== null;
   if (blocks) {
@@ -702,6 +734,8 @@ function collectBlocking(
       owners,
       source: restarting?.source ?? { form: entry.submitting, submitter: entry.submitter },
       discards,
+      passing,
+      replaced: replaced ?? undefined,
     };
   } else {
     entry.submitted = entry.submitting;
@@ -754,6 +788,16 @@ function blockingNow(entry: RouterHolds, owners: ReadonlySet<Hold>): Hold[] {
   return entry.holds.filter((hold) => hold.blocks(owners.has(hold.hold))).map((hold) => hold.hold);
 }
 
+// The ways out the surfaces let go now, with the resets of their Discards; each is taken once.
+function takeReleased(entry: RouterHolds): Map<Hold, (() => void) | undefined> {
+  const released = new Map<Hold, (() => void) | undefined>();
+  for (const hold of entry.holds) {
+    const way = hold.released();
+    if (way !== null) released.set(hold.hold, way.discard);
+  }
+  return released;
+}
+
 // Runs the resets of the Discards that confirmed a change, once each, as it goes.
 function runAll(discards: Discards | undefined) {
   const resets = [...(discards?.values() ?? [])];
@@ -785,7 +829,7 @@ function runBlocked(router: DataRouter, entry: RouterHolds) {
   // A form submission of the router still running is never cut off, as its data may be lost
   // (`SUI-FEATURE-150`): the confirmed change waits until it has ended, then starts anew.
   const discards: Discards = new Map(blocked.discards);
-  const confirmed = new Set<Hold>(discards.keys());
+  const confirmed = new Set<Hold>([...discards.keys(), ...(blocked.passing ?? [])]);
   const proceed = () => {
     if (!current()) return;
     if (submitting(router)) {
@@ -797,7 +841,11 @@ function runBlocked(router: DataRouter, entry: RouterHolds) {
     }
   };
   const reset = () => {
-    if (current()) blocker.reset();
+    if (!current()) return;
+    blocker.reset();
+    // Cancelled, the change takes the Discards it took over along: they no longer count for a later
+    // change (Codex v0.135.2 CX1, #302).
+    blocked.replaced?.discards.clear();
   };
   // While a surface's own Save runs, a way out asks it nothing: it waits for the Save, and the
   // surface is asked again, as it is then, once the Save succeeded (`SUI-FEATURE-170`).
@@ -1035,6 +1083,8 @@ function useLeaveConfirm({
     latest.current = { dirty, busy, onSave, onDiscard };
   });
   const releasing = React.useRef(false);
+  // The way out `release` lets go now, until the route change it starts takes it.
+  const letGo = React.useRef<{ discard: (() => void) | undefined } | null>(null);
   // The running work's token, and the way out that waits for its result; the latest way replaces an
   // older one (a newer route change has taken the older one's place already).
   const work = React.useRef<object | null>(null);
@@ -1043,6 +1093,8 @@ function useLeaveConfirm({
 
   // Whether the router runs this surface's own Save now; set once its router hold is.
   const savingNow = React.useRef<() => boolean>(() => false);
+  // Whether a change this surface confirmed with Discard waits now under a data router.
+  const discardWaits = React.useRef<() => boolean>(() => false);
   const hold = React.useCallback((next: PendingLeave) => {
     if (releasing.current) {
       next.leave();
@@ -1055,6 +1107,10 @@ function useLeaveConfirm({
     } else if (savingNow.current()) {
       // The surface's own Save runs: the way out asks nothing, it goes to the router, which holds it
       // until the Save ended and asks this surface again then (`SUI-FEATURE-170`).
+      next.leave();
+    } else if (discardWaits.current()) {
+      // Its Discard holds while a change waits: a further way out asks nothing, it takes that
+      // change's place (`SUI-FEATURE-172`).
       next.leave();
     } else if (latest.current.dirty) {
       ask(next);
@@ -1083,16 +1139,22 @@ function useLeaveConfirm({
   // submission succeeded (after a redirect the surface may be gone by then); one dropped meanwhile
   // (the submission failed) leaves the draft as it is (`SUI-FEATURE-172`).
   const release = (next: PendingLeave, discard?: () => void) => {
-    // A route change a data router holds during a submission takes the reset along; any other way
-    // goes at once.
-    const later = next.confirm !== undefined && next.afterSubmission === true;
+    // A route change a data router holds during a submission takes the reset along, and so does the
+    // one a confirmed `guard` way starts then (`RouterHold.released`); any other way goes at once.
+    const own = next.confirm === undefined && router !== undefined && submitting(router);
+    const later = own || (next.confirm !== undefined && next.afterSubmission === true);
     if (!later) discard?.();
     releasing.current = true;
+    letGo.current = own ? { discard } : null;
     try {
       next.confirm?.(later ? discard : undefined);
       next.leave();
     } finally {
       releasing.current = false;
+      // No route change took it (the way only closed a panel): its reset goes with it now.
+      const left = letGo.current;
+      letGo.current = null;
+      left?.discard?.();
     }
   };
   // A route change held by a surface that only applies (`SUI-FEATURE-094`): the applied values make
@@ -1201,6 +1263,11 @@ function useLeaveConfirm({
                 work.current !== null ||
                 submitting(router)),
             owns: (form) => marking.current || (form !== null && form === saveForm.current),
+            released: () => {
+              const way = letGo.current;
+              letGo.current = null;
+              return way;
+            },
           },
     [hold, router],
   );
@@ -1208,9 +1275,12 @@ function useLeaveConfirm({
     if (router === undefined || routerHold === undefined) return;
     const entry = routerEntry(router);
     savingNow.current = () => submitting(router) && entry.saving.has(routerHold.hold);
+    discardWaits.current = () =>
+      entry.waiting !== null && !entry.waiting.ended && entry.waiting.discards.has(routerHold.hold);
     const unhold = holdRouter(router, routerHold);
     return () => {
       savingNow.current = () => false;
+      discardWaits.current = () => false;
       unhold();
     };
   }, [router, routerHold]);

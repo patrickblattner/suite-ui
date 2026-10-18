@@ -2317,6 +2317,13 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
         <button type="button" data-testid="go" onClick={() => void navigate("/elsewhere")}>
           Go
         </button>
+        <button type="button" data-testid="step" onClick={() => guard(() => void navigate(-1))}>
+          Step back
+        </button>
+        {/* A guarded way that changes no route (a panel of the page closing). */}
+        <button type="button" data-testid="close" onClick={() => guard(() => {})}>
+          Close
+        </button>
         {dialog}
       </>
     );
@@ -2597,6 +2604,180 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
     await waitFor(() => expect(router.state.location.pathname).toBe("/elsewhere"));
     expect(onDiscard).toHaveBeenCalledTimes(1);
   });
+
+  // #301, SUI-FEATURE-150 §Laufendes Absenden: a Back wrapped in `guard()`, confirmed during a foreign
+  // submission, waits for it and never cuts it off; after a success it lands (Discard resets the
+  // draft then, `SUI-FEATURE-172`), after a failure it is dropped and the draft and error stay.
+  it.each([
+    ["discard", "returns nothing", true],
+    ["discard", "redirects", true],
+    ["save", "returns nothing", true],
+    ["discard", "throws", false],
+    ["discard", "returns data", false],
+  ])(
+    "#301: a guarded Back confirmed (%s) during a submission that %s waits for it",
+    async (answer, outcome, ok) => {
+      const { action, seen, settle } = submission(() => {
+        if (outcome === "throws") throw new Error("offline");
+        if (outcome === "returns data") return { error: "Name taken" };
+        return outcome === "redirects" ? redirect("/posted") : null;
+      });
+      const onDiscard = vi.fn();
+      const router = submittingRouter(action, { page: <SpyPage onDiscard={onDiscard} /> });
+      await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+      edit();
+      fireEvent.click(screen.getByTestId("back"));
+      fireEvent.click(await screen.findByTestId(`leave-guard-${answer}`));
+      await pause();
+      expect(seen.signal?.aborted).toBe(false);
+      expect(router.state.navigation.state).toBe("submitting");
+      expect(router.state.location.pathname).toBe("/detail");
+      expect(onDiscard).not.toHaveBeenCalled();
+      await settleAndWait(settle);
+      await pause();
+      if (ok) {
+        await waitFor(() => expect(router.state.location.pathname).toBe("/list"));
+        expect(onDiscard).toHaveBeenCalledTimes(answer === "discard" ? 1 : 0);
+        expect(screen.queryByTestId("leave-guard")).toBeNull();
+      } else {
+        expect(router.state.location.pathname).toBe("/detail");
+        expect(onDiscard).not.toHaveBeenCalled();
+        if (outcome === "throws") expect(screen.getByTestId("route-error")).toBeInTheDocument();
+        else expect(screen.getByLabelText("Name")).toHaveValue("Changed");
+      }
+    },
+  );
+
+  // #301: a guarded way that starts no route change goes at once during a submission, and so does
+  // the reset of its Discard.
+  it("#301: a guarded way without a route change resets its Discard at once during a submission", async () => {
+    const { action, settle } = submission(() => null);
+    const onDiscard = vi.fn();
+    const router = submittingRouter(action, { page: <SpyPage onDiscard={onDiscard} /> });
+    await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+    edit();
+    fireEvent.click(screen.getByTestId("close"));
+    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+    await waitFor(() => expect(onDiscard).toHaveBeenCalledTimes(1));
+    expect(screen.getByLabelText("Name")).toHaveValue("Main");
+    expect(router.state.navigation.state).toBe("submitting");
+    await settleAndWait(settle);
+    expect(router.state.location.pathname).toBe("/detail");
+    expect(onDiscard).toHaveBeenCalledTimes(1);
+  });
+
+  // Codex v0.135.2 CX1 (#302): a newer change takes the waiting one's Discards over once. When it is
+  // cancelled, they are gone with it: a third change asks the page again and never resets the input
+  // made after that Cancel by an answer given for the first change.
+  it("#302: a replacing change that is cancelled drops the Discards it took over", async () => {
+    const { action, settle } = submission(() => null);
+    const first = vi.fn();
+    const second = vi.fn();
+    const router = submittingRouter(action, {
+      page: (
+        <SpyPage onDiscard={first}>
+          <SpyPage onDiscard={second} label="Other" />
+        </SpyPage>
+      ),
+    });
+    await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+    edit();
+    fireEvent.click(screen.getAllByTestId("go")[0]!);
+    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+    await waitFor(() => expect(screen.queryByTestId("leave-guard")).toBeNull());
+    // The second change passes the page's Discard; the other guard, changed now, asks: Cancel.
+    fireEvent.change(screen.getByLabelText("Other"), { target: { value: "Changed" } });
+    act(() => {
+      void router.navigate("/b");
+    });
+    fireEvent.click(await screen.findByTestId("leave-guard-cancel"));
+    await waitFor(() => expect(screen.queryByTestId("leave-guard")).toBeNull());
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "After Cancel" } });
+    // A third change: both guards ask again, each answered by itself.
+    act(() => {
+      void router.navigate("/c");
+    });
+    let asked = 0;
+    for (; asked < 3; asked += 1) {
+      const dialog = await screen.findByTestId("leave-guard").catch(() => null);
+      if (dialog === null) break;
+      fireEvent.click(within(dialog).getByTestId("leave-guard-discard"));
+      await pause();
+    }
+    expect(asked).toBe(2);
+    await settleAndWait(settle);
+    await waitFor(() => expect(router.state.location.pathname).toBe("/c"));
+    expect(first).toHaveBeenCalledTimes(1);
+    expect(first).toHaveBeenCalledWith("After Cancel");
+    expect(second).toHaveBeenCalledTimes(1);
+  });
+
+  // Review #301 (code M1): a third change that displaces the second while its question is still open
+  // takes the page's Discard on, as the second did: only the other guard is asked.
+  it("#302: a change displacing an unanswered replacement keeps the Discards it took over", async () => {
+    const { action, settle } = submission(() => null);
+    const first = vi.fn();
+    const second = vi.fn();
+    const router = submittingRouter(action, {
+      page: (
+        <SpyPage onDiscard={first}>
+          <SpyPage onDiscard={second} label="Other" />
+        </SpyPage>
+      ),
+    });
+    await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+    edit();
+    fireEvent.click(screen.getAllByTestId("go")[0]!);
+    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+    await waitFor(() => expect(screen.queryByTestId("leave-guard")).toBeNull());
+    fireEvent.change(screen.getByLabelText("Other"), { target: { value: "Changed" } });
+    act(() => {
+      void router.navigate("/b");
+    });
+    await screen.findByTestId("leave-guard");
+    act(() => {
+      void router.navigate("/c");
+    });
+    await pause();
+    let asked = 0;
+    for (; asked < 3; asked += 1) {
+      const dialogs = screen.queryAllByTestId("leave-guard");
+      if (dialogs.length === 0) break;
+      fireEvent.click(within(dialogs[0]!).getByTestId("leave-guard-discard"));
+      await pause();
+    }
+    expect(asked).toBe(1);
+    await settleAndWait(settle);
+    await waitFor(() => expect(router.state.location.pathname).toBe("/c"));
+    expect(first).toHaveBeenCalledTimes(1);
+    expect(second).toHaveBeenCalledTimes(1);
+  });
+
+  // Review #301 (ux): once its Discard holds a waiting change, a further guarded way of the page
+  // (Back again, Esc) asks nothing: it takes that change's place, without a dialog whose Cancel could
+  // not keep anything.
+  it.each(["back", "escape"])(
+    "#301: after Back and Discard during a submission, %s asks nothing and the reset runs once",
+    async (again) => {
+      const { action, settle } = submission(() => null);
+      const onDiscard = vi.fn();
+      const router = submittingRouter(action, { page: <SpyPage onDiscard={onDiscard} /> });
+      await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+      edit();
+      fireEvent.click(screen.getByTestId("back"));
+      fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+      await waitFor(() => expect(screen.queryByTestId("leave-guard")).toBeNull());
+      if (again === "back") fireEvent.click(screen.getByTestId("back"));
+      else escape(screen.getByLabelText("Name"));
+      await pause();
+      expect(screen.queryByTestId("leave-guard")).toBeNull();
+      expect(router.state.location.pathname).toBe("/detail");
+      expect(onDiscard).not.toHaveBeenCalled();
+      await settleAndWait(settle);
+      await waitFor(() => expect(router.state.location.pathname).toBe("/list"));
+      expect(onDiscard).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it.each(["throws", "returns data"])(
     "#287 AC1: Discard during a submission that fails (%s) keeps the draft",
@@ -3496,29 +3677,79 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
   });
 
   // #287: a browser step held during a submission resets a Discarded draft once, as it goes.
-  it("#287: browser back held during a submission resets the draft once as it goes", async () => {
-    const onDiscard = vi.fn();
-    const { router, settle } = browserSubmission(
-      () => redirect("/posted"),
-      "/start",
-      <SpyPage onDiscard={onDiscard} />,
-    );
-    await act(() => router.navigate("/list"));
-    await act(() => router.navigate("/detail"));
-    act(() => {
-      void router.navigate("/detail", { formMethod: "post", formData: new FormData() });
-    });
-    await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
-    edit();
-    act(() => window.history.back());
-    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
-    await pause();
-    expect(onDiscard).not.toHaveBeenCalled();
-    await settleAndWait(settle);
-    await waitFor(() => expect(router.state.location.pathname).toBe("/list"));
-    expect(onDiscard).toHaveBeenCalledTimes(1);
-    router.dispose();
-  });
+  // #301: also back to the first history entry (its location's key is "default"), and with the page
+  // still standing after the submission (it returned nothing), where the step passes its guard.
+  it.each([
+    ["a later entry", "redirects", false],
+    ["a later entry", "returns nothing", false],
+    ["the first entry", "redirects", true],
+    ["the first entry", "returns nothing", true],
+  ])(
+    "#287: browser back to %s held during a submission that %s resets the draft once as it goes",
+    async (_entry, result, first) => {
+      const onDiscard = vi.fn();
+      const { router, settle } = browserSubmission(
+        () => (result === "redirects" ? redirect("/posted") : null),
+        first ? "/list" : "/start",
+        <SpyPage onDiscard={onDiscard} />,
+      );
+      if (!first) await act(() => router.navigate("/list"));
+      await act(() => router.navigate("/detail"));
+      act(() => {
+        void router.navigate("/detail", { formMethod: "post", formData: new FormData() });
+      });
+      await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+      edit();
+      act(() => window.history.back());
+      fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+      await pause();
+      expect(onDiscard).not.toHaveBeenCalled();
+      await settleAndWait(settle);
+      await waitFor(() => expect(router.state.location.pathname).toBe("/list"));
+      expect(onDiscard).toHaveBeenCalledTimes(1);
+      router.dispose();
+    },
+  );
+
+  // Review #301 (code M2): a guarded Back that is a browser step (`navigate(-1)`, its pop arriving
+  // later) waits for the submission like any other: the reset runs only once it goes.
+  it.each([
+    ["succeeds", true],
+    ["fails", false],
+  ])(
+    "#301: a guarded browser-step Back with Discard during a submission that %s",
+    async (_how, ok) => {
+      const onDiscard = vi.fn();
+      const { router, settle } = browserSubmission(
+        () => (ok ? null : { error: "Name taken" }),
+        "/start",
+        <SpyPage onDiscard={onDiscard} />,
+      );
+      await act(() => router.navigate("/list"));
+      await act(() => router.navigate("/detail"));
+      act(() => {
+        void router.navigate("/detail", { formMethod: "post", formData: new FormData() });
+      });
+      await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+      edit();
+      fireEvent.click(screen.getByTestId("step"));
+      fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+      await pause();
+      expect(onDiscard).not.toHaveBeenCalled();
+      expect(router.state.navigation.state).toBe("submitting");
+      await settleAndWait(settle);
+      await pause();
+      if (ok) {
+        await waitFor(() => expect(router.state.location.pathname).toBe("/list"));
+        expect(onDiscard).toHaveBeenCalledTimes(1);
+      } else {
+        expect(router.state.location.pathname).toBe("/detail");
+        expect(onDiscard).not.toHaveBeenCalled();
+        expect(screen.getByLabelText("Name")).toHaveValue("Changed");
+      }
+      router.dispose();
+    },
+  );
 
   // Review #283 r3 (L): a browser step submits nothing, also to an entry at the action's path.
   it("AC2: a browser step to an entry at the running action's path is held, not dropped", async () => {
