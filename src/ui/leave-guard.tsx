@@ -507,8 +507,12 @@ type RouterHolds = {
   // way out passes them to wait for it, and asks them again once it succeeded (`SUI-FEATURE-170`).
   saving: Set<Hold>;
   // The ways out let go by a surface (`RouterHold.released`) that went as a browser step during a
-  // submission (`navigate(-1)`), until the step arrives: under a browser router it comes later.
-  stepping: Map<Hold, (() => void) | undefined> | null;
+  // submission (`navigate(-1)`), until the step arrives: under a browser router it comes later, maybe
+  // after the submission ended. They count only for a step to the entry it targets, and never past
+  // the next change asked: a step that never arrives (`go(-1)` at the first entry fires no
+  // `popstate`) leaves no pass. Where that entry is not known (a memory router), they last no
+  // longer than the submission.
+  stepping: { ways: Map<Hold, (() => void) | undefined>; index: number | null } | null;
   // The change the blocker's `proceed` let go last, until it runs; and the blocker's question,
   // registered anew once that change runs as a submission.
   proceeded: BlockedChange | null;
@@ -578,7 +582,8 @@ function holdRouter(router: DataRouter, hold: RouterHold): () => void {
         // A surface's way out let go as a browser step waits for the submission as well.
         if (submitting(router)) {
           const ways = takeReleased(entry);
-          if (ways.size > 0) entry.stepping = ways;
+          const at = windowIndex(router.state.location);
+          if (ways.size > 0) entry.stepping = { ways, index: at === null ? null : at + to };
         }
         return navigate(to);
       }
@@ -609,6 +614,7 @@ function holdRouter(router: DataRouter, hold: RouterHold): () => void {
       if (router.state.navigation.state === "idle") {
         entry.saving = new Set();
         entry.displaced = null;
+        if (entry.stepping?.index === null) entry.stepping = null;
       }
       // react-router asks no blocker while one proceeds (#289): a submission that went on through
       // the blocker would run unguarded until it ended. Once it runs (a router with `getContext`
@@ -707,9 +713,14 @@ function collectBlocking(
   // in `guard`) waits for it as well, never cutting it off: it passes that surface, which confirmed
   // it already, and takes its Discard along (`SUI-FEATURE-150`, `SUI-FEATURE-172`).
   const released = submitting(router) ? takeReleased(entry) : new Map<Hold, undefined>();
-  if (historyAction === NavigationType.Pop && entry.stepping !== null) {
-    for (const [hold, discard] of entry.stepping) released.set(hold, discard);
-    entry.stepping = null;
+  const stepping = entry.stepping;
+  entry.stepping = null;
+  if (
+    historyAction === NavigationType.Pop &&
+    stepping !== null &&
+    (stepping.index === null || stepping.index === index)
+  ) {
+    for (const [hold, discard] of stepping.ways) released.set(hold, discard);
   }
   for (const [hold, discard] of released) {
     passing.add(hold);

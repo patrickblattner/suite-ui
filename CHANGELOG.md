@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.135.4 — #303, SUI-FEATURE-172 rev 4, SUI-FEATURE-150 rev 6, GL-UI-007: a browser step that never arrives leaves no pass
+
+Fix, not breaking.
+
+- **A guarded Back that is a browser step (`guard(() => navigate(-1))`), let go with Discard during a router submission, no longer leaves its pass behind when the step never arrives** (Codex review v0.135.3, CX1; e.g. `go(-1)` at the tab's first entry fires no `popstate`). Before, the pass and the deferred `onDiscard` waited for the next browser step, which then left the changed page without asking and reset its draft. Now they count only for a step to the entry the Back targeted, and never past the next route change: any other change asks the page as usual, and the draft stays, since the way never went. A step whose `popstate` comes only after the submission ended still passes the page once, without a second question. Under a memory router, where the target entry is not known, they last as long as the submission.
+
+**Migration:** none required. Baselines: none.
+
 ## 0.135.3 — #301, #302, SUI-FEATURE-150 rev 6, SUI-FEATURE-172 rev 3: a guarded Back confirmed during a submission waits for it
 
 Fix, not breaking.

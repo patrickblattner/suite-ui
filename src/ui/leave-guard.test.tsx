@@ -3628,6 +3628,27 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
     expect(screen.getByTestId("path")).toHaveTextContent("/elsewhere");
   });
 
+  // Review #303 (code H): under a memory router the window's history state is not the router's; a
+  // stale `idx` there does not let a guarded browser-step Back cut the submission off.
+  it("#303: memory router, a guarded browser-step Back with a stale window idx waits for the submission", async () => {
+    window.history.replaceState({ idx: 4, key: "stale" }, "");
+    const onDiscard = vi.fn();
+    const { action, seen, settle } = submission();
+    const router = submittingRouter(action, { page: <SpyPage onDiscard={onDiscard} /> });
+    await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+    edit();
+    fireEvent.click(screen.getByTestId("step"));
+    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+    await pause();
+    expect(router.state.location.pathname).toBe("/detail");
+    expect(seen.signal?.aborted).toBe(false);
+    expect(onDiscard).not.toHaveBeenCalled();
+    await settleAndWait(settle);
+    await waitFor(() => expect(router.state.location.pathname).toBe("/list"));
+    expect(onDiscard).toHaveBeenCalledTimes(1);
+    window.history.replaceState(null, "");
+  });
+
   // A browser step held during a submission stays a step: to the entry it targeted, counted from where
   // the submission left the history; never `go(0)`, which would reload.
   function browserSubmission(
@@ -3750,6 +3771,80 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
       router.dispose();
     },
   );
+
+  // Codex review v0.135.3 (CX1, #303): a guarded browser-step Back whose step never arrives (`go(-1)`
+  // at the first entry fires no `popstate`) leaves no pass and no Discard for a later change.
+  async function lostStep(onDiscard: () => void, first: boolean) {
+    const { router, settle } = browserSubmission(
+      () => null,
+      first ? "/detail" : "/start",
+      <SpyPage onDiscard={onDiscard} />,
+    );
+    if (first) {
+      // An entry ahead of the first, for a later browser forward.
+      await act(() => router.navigate("/next"));
+      act(() => window.history.back());
+      await waitFor(() => expect(router.state.location.pathname).toBe("/detail"));
+    } else {
+      await act(() => router.navigate("/list"));
+      await act(() => router.navigate("/detail"));
+    }
+    act(() => {
+      void router.navigate("/detail", { formMethod: "post", formData: new FormData() });
+    });
+    await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+    edit();
+    fireEvent.click(screen.getByTestId("step"));
+    const go = vi.spyOn(window.history, "go").mockImplementationOnce(() => {});
+    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+    go.mockRestore();
+    await pause();
+    return { router, settle };
+  }
+
+  it("#303: a guarded browser-step Back at the first entry that never arrives leaves no pass", async () => {
+    const onDiscard = vi.fn();
+    const { router, settle } = await lostStep(onDiscard, true);
+    await settleAndWait(settle);
+    await pause();
+    expect(router.state.location.pathname).toBe("/detail");
+    expect(screen.getByLabelText("Name")).toHaveValue("Changed");
+    act(() => window.history.forward());
+    expect(await screen.findByTestId("leave-guard")).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe("/detail");
+    expect(onDiscard).not.toHaveBeenCalled();
+    router.dispose();
+  });
+
+  // Review #303 (code M): the pass counts only for a step to the entry the Back targeted.
+  it("#303: a lost browser-step Back lets no step to another entry pass during the submission", async () => {
+    const onDiscard = vi.fn();
+    const { router, settle } = await lostStep(onDiscard, false);
+    act(() => window.history.go(-2));
+    expect(await screen.findByTestId("leave-guard")).toBeInTheDocument();
+    expect(onDiscard).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("leave-guard-cancel"));
+    await settleAndWait(settle);
+    await pause();
+    expect(router.state.location.pathname).toBe("/detail");
+    expect(onDiscard).not.toHaveBeenCalled();
+    router.dispose();
+  });
+
+  // Review #303 (code L, ux L): a step whose `popstate` arrives only after the submission ended still
+  // passes the page that confirmed it, without a second question (`SUI-FEATURE-172` AC1).
+  it("#303: a guarded browser-step Back whose pop arrives after the submission passes once", async () => {
+    const onDiscard = vi.fn();
+    const { router, settle } = await lostStep(onDiscard, false);
+    await settleAndWait(settle);
+    await pause();
+    expect(router.state.navigation.state).toBe("idle");
+    act(() => window.history.go(-1));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/list"));
+    expect(screen.queryByTestId("leave-guard")).toBeNull();
+    expect(onDiscard).toHaveBeenCalledTimes(1);
+    router.dispose();
+  });
 
   // Review #283 r3 (L): a browser step submits nothing, also to an entry at the action's path.
   it("AC2: a browser step to an entry at the running action's path is held, not dropped", async () => {
