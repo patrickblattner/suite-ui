@@ -23,12 +23,10 @@ import {
   LIST_FRAME_SELECTOR,
   listEntries,
 } from "../lib/list-focus.js";
+import { FOCUS_NAV_ATTR, isNavigation } from "./focus-return-internal.js";
 
 /** Marks the app's main content target for tier 3: the first field or the canvas of the surface. */
 const FOCUS_MAIN_ATTR = "data-focus-main";
-
-/** Marks a control that leaves the surface (Back, page close): never a fallback target. */
-const FOCUS_NAV_ATTR = "data-focus-nav";
 
 /** Marks a group of controls a fallback stays in, for a group that has no role of its own. */
 const FOCUS_GROUP_ATTR = "data-focus-group";
@@ -60,10 +58,6 @@ function isUsable(element: Element | null): element is HTMLElement {
   if (element.getAttribute("aria-disabled") === "true") return false;
   if (element.closest("[hidden], [inert]") !== null) return false;
   return typeof element.checkVisibility !== "function" || element.checkVisibility();
-}
-
-function isNavigation(element: Element): boolean {
-  return element.matches("a[href]") || element.closest(`[${FOCUS_NAV_ATTR}]`) !== null;
 }
 
 function candidates(group: Element): HTMLElement[] {

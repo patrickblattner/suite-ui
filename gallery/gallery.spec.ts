@@ -3566,7 +3566,8 @@ test("shell: one character searches nothing, Esc returns to the sidebar field", 
 });
 
 // `GL-UI-050` (#145): the search dialog closed by its × hands the focus back to the sidebar field
-// without reopening; opened by the shortcut, Esc returns it to the control that had it.
+// without reopening; opened by the shortcut from a nav link, Esc returns it to the field too, never
+// to the link (`GL-UI-031`, #240).
 test("shell: closing the search returns the focus, by × and after the shortcut", async ({
   page,
 }) => {
@@ -3591,8 +3592,45 @@ test("shell: closing the search returns the focus, by × and after the shortcut"
   await expect(dialog).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(dialog).toHaveCount(0);
-  await expect(link).toBeFocused();
-  expect(await page.evaluate(() => document.activeElement === document.body)).toBe(false);
+  await expect(field).toBeFocused();
+  await expect(link).not.toBeFocused();
+  await expect
+    .poll(() => page.evaluate(() => document.activeElement === document.body))
+    .toBe(false);
+  await page.waitForTimeout(300);
+  await expect(dialog).toHaveCount(0);
+});
+
+// #240: below `md` the closed overlay hides the field. Esc then returns the focus to the control that
+// had it, else the overlay trigger; never `<body>`, never a navigation element (`GL-UI-050`).
+test("shell: below md, Esc after the shortcut keeps the focus off the body and off links", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 600, height: 900 });
+  await page.goto("/?page=shell&route=/dashboard&lng=en");
+  const dialog = page.getByTestId("search-dialog");
+  const isLost = () =>
+    page.evaluate(() => {
+      const active = document.activeElement;
+      return active === null || active === document.body || active.matches("a[href]");
+    });
+
+  const button = page.getByRole("main").getByRole("button").first();
+  await button.focus();
+  await page.keyboard.press("ControlOrMeta+k");
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect(button).toBeFocused();
+
+  // A click on a blank spot leaves nothing focused: the overlay trigger takes the focus.
+  await page.getByTestId("page-title").click();
+  await page.keyboard.press("ControlOrMeta+k");
+  await expect(dialog).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
+  await expect.poll(isLost).toBe(false);
+  await expect(page.getByTestId("sidebar-overlay-trigger")).toBeFocused();
 });
 
 test("shell: the shortcut opens the search from a section route", async ({ page }) => {

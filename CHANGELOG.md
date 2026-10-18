@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.129.2 — #240, GL-UI-031 rev 3 (Q&A #3895): closing the search returns the focus to the sidebar field
+
+Bug fix, not breaking. Since 0.93.0 (#145), closing the `GlobalSearch` dialog with `Esc` or its × gave the focus back to whatever had it when the dialog opened. Opened by the shortcut from a nav link, `Esc` landed on that link. Now closing always puts the focus on the sidebar search field (in the collapsed rail, on its search button), however the dialog was opened, and the dialog does not reopen. The search's trigger is always its sidebar field (`GL-UI-031`, `SUI-FEATURE-015` AC 5). Below `md`, while the overlay sidebar is closed, the field is hidden. The focus then goes back to the control that had it at opening, unless that is a navigation element; else to the overlay trigger; else `GL-UI-050`'s main-content order. It never goes to a link or to `<body>`. A chosen hit still navigates and leaves the focus to the target page; `GL-UI-050` focus return of every other dialog is unchanged.
+
+**Migration:** none; the cockpit e2e `shell-search.spec.ts:77` passes again. Baselines: none changed.
+
 ## 0.129.1 — #239, GL-UI-015 (Q&A #3894): a click on empty space in the row-actions cell opens the row
 
 Bug fix. `RowActions` stopped every click on its wrapper, so with `className="w-full"` a click on the empty part of the actions cell no longer opened the row. It now stops only clicks that come from an action (button, ⋯ trigger, menu entry, locked action); empty space in the cell opens the row. Row keys on a focused action are unchanged.
