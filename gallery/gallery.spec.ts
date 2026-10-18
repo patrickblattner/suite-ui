@@ -4683,7 +4683,7 @@ test("list view shell: the view swaps under the keyboard, the FilterBar is not r
 // the text is the button's description, its name stays the label.
 for (const [trigger, prefix, ids] of [
   ["edit-panel-check-trigger", "check-panel", ["back", "cancel", "submit"]],
-  ["next-panel-trigger", "next-panel", ["submit"]],
+  ["next-panel-trigger", "next-panel", ["cancel", "submit"]],
   ["view-panel-trigger", "view-panel", ["cancel"]],
 ] as const) {
   test(`edit panel footer hints: ${prefix}`, async ({ page }) => {
@@ -4696,6 +4696,7 @@ for (const [trigger, prefix, ids] of [
         "Closes the panel without saving; asks first if there are unsaved changes.",
       ],
       "check-panel-submit": ["Save", "Saves the entries."],
+      "next-panel-cancel": ["Cancel", "Closes the panel; asks first if there are changes."],
       "next-panel-submit": ["Continue to review", "Goes on to the next step."],
       "view-panel-cancel": ["Close", "Closes the panel; asks first if there are changes."],
     } as Record<string, [string, string]>;
@@ -7298,6 +7299,119 @@ test("edit panel: a next step shows its text, then an arrow, never the save symb
   expect((await box(next)).height).toBe(36);
   await next.click();
   await expect(page.getByTestId("next-panel")).toBeHidden();
+});
+
+// `SUI-FEATURE-094`: Apply takes the entries over into the outer form without an icon and without
+// a word about saving; the panel's submit, by click or Enter, never submits that outer form.
+for (const [lng, label, hint, cancelHint] of [
+  [
+    "en",
+    "Apply",
+    "Applies the entries to the form; they are saved there.",
+    "Closes the panel without applying; asks first if there are changes not applied yet.",
+  ],
+  [
+    "de",
+    "Übernehmen",
+    "Übernimmt die Eingaben ins Formular; gespeichert wird dort.",
+    "Schließt das Panel, ohne zu übernehmen; nicht übernommene Änderungen werden vorher abgefragt.",
+  ],
+  [
+    "es",
+    "Aplicar",
+    "Aplica los datos al formulario; se guardan allí.",
+    "Cierra el panel sin aplicar; antes pregunta si hay cambios sin aplicar.",
+  ],
+] as const) {
+  test(`edit panel: apply carries no icon and never submits the outer form (${lng})`, async ({
+    page,
+  }) => {
+    await page.goto(`/?page=edit-panel&lng=${lng}`);
+    await page.getByTestId("apply-panel-trigger").click();
+    const apply = page.getByTestId("apply-panel-submit");
+    await expect(apply).toHaveText(label);
+    await expect(apply).toHaveAccessibleDescription(hint);
+    await expect(apply).toHaveAttribute("data-variant", "success");
+    await expect(apply.locator("svg")).toHaveCount(0);
+    await expect(page.getByTestId("apply-panel-cancel")).toHaveAccessibleDescription(cancelHint);
+    await page.getByLabel("Term", { exact: true }).fill("Lead");
+    await apply.click();
+    await expect(page.getByTestId("apply-panel")).toBeHidden();
+    await page.getByTestId("apply-panel-trigger").click();
+    await page.getByLabel("Term", { exact: true }).fill("Funnel");
+    await page.getByLabel("Term", { exact: true }).press("Enter");
+    await expect(page.getByTestId("apply-panel")).toBeHidden();
+    await expect(page.getByTestId("apply-panel-counts")).toHaveText("terms 2 · page saves 0");
+  });
+}
+
+// `SUI-FEATURE-094` AC4: leaving a changed apply panel asks to apply, never to save; Enter applies.
+for (const [lng, title, cancel, discard, apply] of [
+  ["en", "Apply changes?", "Cancel", "Discard", "Apply"],
+  ["de", "Änderungen übernehmen?", "Abbrechen", "Verwerfen", "Übernehmen"],
+  ["es", "¿Aplicar los cambios?", "Cancelar", "Descartar", "Aplicar"],
+] as const) {
+  test(`edit panel: Esc on a changed apply panel asks to apply (${lng})`, async ({ page }) => {
+    await page.goto(`/?page=edit-panel&lng=${lng}`);
+    await page.getByTestId("apply-panel-trigger").click();
+    await page.getByLabel("Term", { exact: true }).fill("Lead");
+    await page.keyboard.press("Escape");
+    const dialog = page.getByTestId("leave-guard");
+    await expect(dialog.getByRole("heading")).toHaveText(title);
+    await expect(page.getByTestId("leave-guard-cancel")).toHaveText(cancel);
+    await expect(page.getByTestId("leave-guard-discard")).toHaveText(discard);
+    const primary = page.getByTestId("leave-guard-save");
+    await expect(primary).toHaveText(apply);
+    await expect(primary.locator("svg")).toHaveCount(0);
+    await expect(primary).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(page.getByTestId("apply-panel")).toBeHidden();
+    await expect(page.getByTestId("apply-panel-counts")).toHaveText("terms 1 · page saves 0");
+  });
+}
+
+// `SUI-FEATURE-094` AC5: Apply on a navigation hands the leave on to the page, which now has applied
+// terms not yet saved and asks "Save changes?" before the route changes.
+test("edit panel: Apply on a navigation lets the page ask to save first", async ({ page }) => {
+  await page.goto("/?page=edit-panel&lng=en");
+  await page.getByTestId("apply-panel-trigger").click();
+  await page.getByLabel("Term", { exact: true }).fill("Lead");
+  await page.getByTestId("nav-ideas").click();
+  const dialog = page.getByTestId("leave-guard");
+  await expect(dialog.getByRole("heading")).toHaveText("Apply changes?");
+  await page.getByTestId("leave-guard-save").click();
+  await expect(dialog.getByRole("heading")).toHaveText("Save changes?");
+  await expect(page.getByTestId("apply-panel-counts")).toHaveText("terms 1 · page saves 0");
+  await page.getByTestId("leave-guard-save").click();
+  await expect(page.getByTestId("apply-panel-counts")).toBeHidden();
+});
+
+// Review #276: Discard on the page's question drops the applied terms; the page is clean again.
+test("edit panel: Discard on the page drops the applied terms", async ({ page }) => {
+  await page.goto("/?page=edit-panel&lng=en");
+  await page.getByTestId("apply-panel-trigger").click();
+  await page.getByLabel("Term", { exact: true }).fill("Lead");
+  await page.getByTestId("apply-panel-submit").click();
+  await expect(page.getByTestId("apply-panel")).toBeHidden();
+  await expect(page.getByTestId("apply-panel-counts")).toHaveText("terms 1 · page saves 0");
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("leave-guard").getByRole("heading")).toHaveText("Save changes?");
+  await page.getByTestId("leave-guard-discard").click();
+  await expect(page.getByTestId("apply-panel-counts")).toHaveText("terms 0 · page saves 0");
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("leave-guard")).toHaveCount(0);
+});
+
+// `SUI-FEATURE-094` AC4: a changed next step asks "Discard changes?"; it never runs from the dialog.
+test("edit panel: Esc on a changed next step asks to discard", async ({ page }) => {
+  await page.goto("/?page=edit-panel&lng=en");
+  await page.getByTestId("next-panel-trigger").click();
+  await page.getByLabel("File name").fill("renamed.jpg");
+  await page.keyboard.press("Escape");
+  const dialog = page.getByTestId("leave-guard");
+  await expect(dialog.getByRole("heading")).toHaveText("Discard changes?");
+  await expect(page.getByTestId("leave-guard-save")).toHaveCount(0);
+  await expect(page.getByTestId("leave-guard-cancel")).toBeFocused();
 });
 
 // `SUI-FEATURE-120`, `GL-UI-050` §laufende Aktion: a running Save keeps the focus, and neither

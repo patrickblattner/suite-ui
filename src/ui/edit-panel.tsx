@@ -38,12 +38,13 @@ type EditPanelProps = {
   preview?: React.ReactNode;
   // Without `onSubmit` the panel has no save target: the footer carries Close alone.
   submitLabel?: string;
-  // Returning `true` (or a promise of it) reports a successful save: Save in the leave dialog then
-  // carries out the held leave (Back, Previous/Next, a route change). Otherwise the call site closes
-  // the panel on success as for a plain submit.
+  // Returning `true` (or a promise of it) reports a successful save: Save in the leave dialog (Apply
+  // for `submitKind="apply"`) then carries out the held leave (Back, Previous/Next, a route change).
+  // Otherwise the call site closes the panel on success as for a plain submit.
   onSubmit?: () => unknown;
   // Unsaved changes against the loaded state (`GL-UI-007`): every way out asks "Save changes?" first
-  // ("Discard changes?" without `onSubmit`, `SUI-FEATURE-092`).
+  // ("Apply changes?" for `submitKind="apply"`, `SUI-FEATURE-094`; "Discard changes?" without
+  // `onSubmit`, `SUI-FEATURE-092`).
   dirty?: boolean;
   // The primary action is running (`GL-UI-027`): working state and lock on the primary action,
   // Cancel locked with it, and the panel ignores every close request until the caller closes it.
@@ -58,8 +59,10 @@ type EditPanelProps = {
   backHint?: string;
   backDisabledHint?: string;
   // What the primary action does (`SUI-FEATURE-111`): `save` (the default) leads with the save symbol;
-  // `next` only moves on to the next step, saves nothing, and so carries an arrow after its text.
-  submitKind?: "save" | "next";
+  // `next` only moves on to the next step, saves nothing, and so carries an arrow after its text;
+  // `apply` takes the entries over into an outer form that saves them, so it carries no icon
+  // (`SUI-FEATURE-094`, `GL-UI-011` §Icon-Kanon).
+  submitKind?: "save" | "next" | "apply";
   // With `onBack` the footer carries Back left-aligned (`SUI-FEATURE-035`); it goes through the
   // unsaved-changes guard, then calls `onBack`.
   onBack?: () => void;
@@ -107,14 +110,29 @@ function EditPanel({
   style,
 }: EditPanelProps) {
   const { t } = useTranslation("suite");
-  const submitText =
-    submitHint ?? (submitKind === "save" ? t("editPanel.saveHint") : t("editPanel.nextHint"));
+  const submitText = submitHint ?? t(`editPanel.${submitKind}Hint`);
+  // Back's and Cancel's hints follow the kind (`SUI-FEATURE-094`): only `save` speaks of saving.
+  const packageBackHint = {
+    save: t("editPanel.backHint"),
+    apply: t("editPanel.applyBackHint"),
+    next: t("editPanel.nextBackHint"),
+  }[submitKind];
+  const packageCancelHint = {
+    save: t("editPanel.cancelHint"),
+    apply: t("editPanel.applyCancelHint"),
+    next: t("editPanel.nextCancelHint"),
+  }[submitKind];
   const returnFocus = React.useRef<HTMLElement | null>(null);
   const { guard, dialog } = useLeaveConfirm({
     dirty: open && dirty,
     busy: open && busy,
-    // Without `onSubmit` the panel has no save target: the dialog asks "Discard changes?".
-    onSave: onSubmit === undefined ? undefined : () => (submitDisabled ? false : onSubmit()),
+    // Without `onSubmit` the panel has no save target, and a next step saves nothing and never runs
+    // from the dialog (`SUI-FEATURE-094`): the dialog asks "Discard changes?".
+    onSave:
+      onSubmit === undefined || submitKind === "next"
+        ? undefined
+        : () => (submitDisabled ? false : onSubmit()),
+    applies: submitKind === "apply",
   });
   // The `Esc` the panel gets as the top-most layer: an open select, menu, tooltip or dialog takes it
   // first. It leaves only once it has bubbled to the document, so an editor's own `Esc` meaning
@@ -236,6 +254,9 @@ function EditPanel({
             className="flex min-h-0 flex-1 flex-col"
             onSubmit={(event) => {
               event.preventDefault();
+              // React bubbles a submit through the portal: an outer `<form>` the panel stands in
+              // must never submit along (`SUI-FEATURE-094`).
+              event.stopPropagation();
               if (busy || submitDisabled) return;
               void onSubmit?.();
             }}
@@ -288,11 +309,11 @@ function EditPanel({
               {onBack !== undefined && (
                 <Hint
                   className="mr-auto"
-                  text={backHint ?? t("editPanel.backHint")}
+                  text={backHint ?? packageBackHint}
                   disabledText={
                     busy
                       ? t("editPanel.busyHint")
-                      : (backDisabledHint ?? backHint ?? t("editPanel.backHint"))
+                      : (backDisabledHint ?? backHint ?? packageBackHint)
                   }
                 >
                   <Button
@@ -309,7 +330,7 @@ function EditPanel({
                 </Hint>
               )}
               <Hint
-                text={onSubmit === undefined ? t("editPanel.closeHint") : t("editPanel.cancelHint")}
+                text={onSubmit === undefined ? t("editPanel.closeHint") : packageCancelHint}
                 disabledText={t("editPanel.busyHint")}
               >
                 <Button
@@ -338,7 +359,7 @@ function EditPanel({
                     data-testid={`${testIdPrefix}-submit`}
                   >
                     {submitKind === "save" ? <SaveIcon aria-hidden="true" /> : null}
-                    {submitLabel ?? t("actions.save")}
+                    {submitLabel ?? t(`actions.${submitKind}`)}
                     {submitKind === "next" ? <ArrowRightIcon aria-hidden="true" /> : null}
                   </Button>
                 </Hint>

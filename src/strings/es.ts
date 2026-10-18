@@ -17,6 +17,8 @@ export const es: SuiteStrings = {
     remove: "Quitar",
     testConnection: "Probar conexión",
     retry: "Reintentar",
+    apply: "Aplicar",
+    next: "Siguiente",
   },
   status: {
     success: "Éxito",
@@ -226,6 +228,11 @@ export const es: SuiteStrings = {
     closeHint: "Cierra el panel; antes pregunta si hay cambios.",
     saveHint: "Guarda los datos.",
     nextHint: "Pasa al paso siguiente.",
+    applyHint: "Aplica los datos al formulario; se guardan allí.",
+    applyCancelHint: "Cierra el panel sin aplicar; antes pregunta si hay cambios sin aplicar.",
+    applyBackHint: "Vuelve un paso atrás sin aplicar; antes pregunta si hay cambios sin aplicar.",
+    nextCancelHint: "Cierra el panel; antes pregunta si hay cambios.",
+    nextBackHint: "Vuelve un paso atrás; antes pregunta si hay cambios.",
     busyHint: "Hay una acción en curso; vuelve a estar disponible cuando haya terminado.",
   },
   leaveGuard: {
@@ -234,6 +241,8 @@ export const es: SuiteStrings = {
     discard: "Descartar",
     discardTitle: "¿Descartar los cambios?",
     discardDescription: "Esta entrada tiene cambios que se perderán si los descartas.",
+    applyTitle: "¿Aplicar los cambios?",
+    applyDescription: "Esta entrada tiene cambios que aún no se han aplicado.",
   },
   settings: {
     active: "Activo",

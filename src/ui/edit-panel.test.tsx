@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import i18n from "i18next";
-import { useState } from "react";
+import { type FormEvent, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { SidebarProvider, useSidebar } from "../shell/sidebar-provider.js";
@@ -137,6 +137,7 @@ describe("EditPanel", () => {
     expect(submit.firstElementChild).toHaveAttribute("data-testid", "button-loading");
   });
 
+  // SUI-FEATURE-094 AC2.
   it.each([undefined, "save"] as const)(
     "submitKind %s: the Save symbol, no arrow",
     (submitKind) => {
@@ -144,6 +145,131 @@ describe("EditPanel", () => {
       const submit = screen.getByTestId("edit-panel-submit");
       expect(submit.firstElementChild).toHaveClass("lucide-save");
       expect(submit.querySelector(".lucide-arrow-right")).toBeNull();
+    },
+  );
+
+  // SUI-FEATURE-094 AC1: applying to an outer form claims no save and carries no icon; neither
+  // do Cancel's and Back's hints.
+  it.each([
+    [
+      "en",
+      "Apply",
+      "Applies the entries to the form; they are saved there.",
+      "Closes the panel without applying; asks first if there are changes not applied yet.",
+      "Goes back one step without applying; asks first if there are changes not applied yet.",
+    ],
+    [
+      "de",
+      "Übernehmen",
+      "Übernimmt die Eingaben ins Formular; gespeichert wird dort.",
+      "Schließt das Panel, ohne zu übernehmen; nicht übernommene Änderungen werden vorher abgefragt.",
+      "Geht einen Schritt zurück, ohne zu übernehmen; nicht übernommene Änderungen werden vorher abgefragt.",
+    ],
+    [
+      "es",
+      "Aplicar",
+      "Aplica los datos al formulario; se guardan allí.",
+      "Cierra el panel sin aplicar; antes pregunta si hay cambios sin aplicar.",
+      "Vuelve un paso atrás sin aplicar; antes pregunta si hay cambios sin aplicar.",
+    ],
+  ])(
+    '%s: submitKind="apply" is the package text without an icon',
+    async (lng, label, hint, cancelHint, backHint) => {
+      await i18n.changeLanguage(lng);
+      renderPanel({ submitKind: "apply", submitLabel: undefined, onBack: () => {} });
+      const submit = screen.getByTestId("edit-panel-submit");
+      expect(submit).toHaveTextContent(new RegExp(`^${label}$`));
+      expect(submit.querySelector("svg")).toBeNull();
+      expect(submit).toHaveAttribute("data-variant", "success");
+      expect(submit).toHaveAccessibleDescription(hint);
+      expect(screen.getByTestId("edit-panel-cancel")).toHaveAccessibleDescription(cancelHint);
+      expect(screen.getByTestId("edit-panel-back")).toHaveAccessibleDescription(backHint);
+    },
+  );
+
+  // SUI-FEATURE-094 rev 7 AC1: a next step's Cancel and Back claim neither saving nor applying.
+  it.each([
+    [
+      "en",
+      "Closes the panel; asks first if there are changes.",
+      "Goes back one step; asks first if there are changes.",
+    ],
+    [
+      "de",
+      "Schließt das Panel; Änderungen werden vorher abgefragt.",
+      "Geht einen Schritt zurück; Änderungen werden vorher abgefragt.",
+    ],
+    [
+      "es",
+      "Cierra el panel; antes pregunta si hay cambios.",
+      "Vuelve un paso atrás; antes pregunta si hay cambios.",
+    ],
+  ])(
+    '%s: submitKind="next" has the plain Cancel and Back hints',
+    async (lng, cancelHint, backHint) => {
+      await i18n.changeLanguage(lng);
+      renderPanel({ submitKind: "next", onBack: () => {} });
+      expect(screen.getByTestId("edit-panel-cancel")).toHaveAccessibleDescription(cancelHint);
+      expect(screen.getByTestId("edit-panel-back")).toHaveAccessibleDescription(backHint);
+    },
+  );
+
+  // SUI-FEATURE-094 AC2: a next step without its own label is "Next", never "Save".
+  it.each([
+    ["en", "Next"],
+    ["de", "Weiter"],
+    ["es", "Siguiente"],
+  ])('%s: submitKind="next" without submitLabel is the package text', async (lng, label) => {
+    await i18n.changeLanguage(lng);
+    renderPanel({ submitKind: "next", submitLabel: undefined });
+    const submit = screen.getByTestId("edit-panel-submit");
+    expect(submit).toHaveTextContent(new RegExp(`^${label}$`));
+    expect(submit.lastElementChild).toHaveClass("lucide-arrow-right");
+  });
+
+  it('submitKind="apply" locks and works with busy like Save', () => {
+    const { onSubmit } = renderPanel({ submitKind: "apply", submitDisabled: true });
+    expect(screen.getByTestId("edit-panel-submit")).toBeDisabled();
+    fireEvent.submit(screen.getByLabelText("Name"));
+    expect(onSubmit).not.toHaveBeenCalled();
+    cleanup();
+    const { onSubmit: onBusySubmit } = renderPanel({ submitKind: "apply", busy: true });
+    const submit = screen.getByTestId("edit-panel-submit");
+    expect(submit).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(submit);
+    expect(onBusySubmit).not.toHaveBeenCalled();
+    expect(submit).toHaveAttribute("data-busy", "true");
+    cleanup();
+    renderPanel({ submitKind: "apply", submitHint: "Takes the term over." });
+    expect(screen.getByTestId("edit-panel-submit")).toHaveAccessibleDescription(
+      "Takes the term over.",
+    );
+  });
+
+  // SUI-FEATURE-094 AC3: React bubbles the panel's submit through the portal; it stops at the panel.
+  it.each([undefined, "save", "next", "apply"] as const)(
+    "submitKind %s: an outer form never submits along, the panel's onSubmit runs once",
+    (submitKind) => {
+      const spy = vi.fn((event: FormEvent) => event.preventDefault());
+      const onSubmit = vi.fn();
+      render(
+        <form onSubmit={spy}>
+          <EditPanel
+            open
+            onOpenChange={() => {}}
+            title="Glossary"
+            onSubmit={onSubmit}
+            {...(submitKind === undefined ? {} : { submitKind })}
+          >
+            <Input aria-label="Term" />
+          </EditPanel>
+        </form>,
+      );
+      fireEvent.click(screen.getByTestId("edit-panel-submit"));
+      expect(onSubmit).toHaveBeenCalledTimes(1);
+      fireEvent.submit(screen.getByLabelText("Term"));
+      expect(onSubmit).toHaveBeenCalledTimes(2);
+      expect(spy).not.toHaveBeenCalled();
     },
   );
 

@@ -2,7 +2,10 @@ import { SaveIcon } from "lucide-react";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import {
+  type BlockerFunction,
   UNSAFE_DataRouterContext as DataRouterContext,
+  type Location,
+  NavigationType,
   UNSAFE_NavigationContext as NavigationContext,
   useBlocker,
 } from "react-router-dom";
@@ -22,8 +25,14 @@ import {
 // anything else keeps the surface open, where the call site shows the error at its field.
 type LeaveSave = () => unknown;
 
-// A held leave: `leave` carries it out, `stay` drops it (a blocked route change resets).
-type PendingLeave = { leave: () => void; stay?: (() => void) | undefined };
+// A held leave: `leave` carries it out, `stay` drops it (a blocked route change resets). A route change
+// also has `again`: it runs the change anew through the holds active by then, so a page that became
+// dirty meanwhile (values applied from a panel, `SUI-FEATURE-094`) asks before the route goes.
+type PendingLeave = {
+  leave: () => void;
+  stay?: (() => void) | undefined;
+  again?: (() => void) | undefined;
+};
 
 /** The loaded state and the edited one differ, compared by value as the Save/Reset pair does. */
 function isDirty(loaded: unknown, current: unknown): boolean {
@@ -51,14 +60,25 @@ type LeaveConfirmDialogProps = {
   onDiscard: () => void;
   // Without it the surface has no save target: the dialog asks "Discard changes?" instead.
   onSave?: (() => void) | undefined;
+  // The surface's primary action only applies its entries to an outer form (`SUI-FEATURE-094`): the
+  // dialog asks "Apply changes?" and its primary action is Apply, without the save symbol.
+  applies?: boolean | undefined;
 };
 
 // The compact "Save changes?" dialog (`GL-UI-007`): Cancel, Discard and Save as the primary action on
 // the right. It opens with the focus on Save, so `Enter` saves; `Esc` is Cancel. Without a save target
 // it is "Discard changes?" with only Cancel and Discard, opening on Cancel, so `Enter` and `Esc` both
-// stay (`SUI-FEATURE-092`). When the surface stays, the focus returns as every dialog's does
-// (`GL-UI-050`), unless the call site already focused a field (the error of a failed save).
-function LeaveConfirmDialog({ open, onCancel, onDiscard, onSave }: LeaveConfirmDialogProps) {
+// stay (`SUI-FEATURE-092`). On a surface that only applies, it is "Apply changes?" and Save is Apply,
+// without the save symbol (`SUI-FEATURE-094`). When the surface stays, the focus returns as every
+// dialog's does (`GL-UI-050`), unless the call site already focused a field (the error of a failed
+// save).
+function LeaveConfirmDialog({
+  open,
+  onCancel,
+  onDiscard,
+  onSave,
+  applies = false,
+}: LeaveConfirmDialogProps) {
   const { t } = useTranslation("suite");
   const save = React.useRef<HTMLButtonElement>(null);
   const cancel = React.useRef<HTMLButtonElement>(null);
@@ -95,10 +115,18 @@ function LeaveConfirmDialog({ open, onCancel, onDiscard, onSave }: LeaveConfirmD
       >
         <DialogHeader>
           <DialogTitle>
-            {discardOnly ? t("leaveGuard.discardTitle") : t("leaveGuard.title")}
+            {discardOnly
+              ? t("leaveGuard.discardTitle")
+              : applies
+                ? t("leaveGuard.applyTitle")
+                : t("leaveGuard.title")}
           </DialogTitle>
           <DialogDescription>
-            {discardOnly ? t("leaveGuard.discardDescription") : t("leaveGuard.description")}
+            {discardOnly
+              ? t("leaveGuard.discardDescription")
+              : applies
+                ? t("leaveGuard.applyDescription")
+                : t("leaveGuard.description")}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
@@ -132,8 +160,8 @@ function LeaveConfirmDialog({ open, onCancel, onDiscard, onSave }: LeaveConfirmD
               {...opening}
               data-testid="leave-guard-save"
             >
-              <SaveIcon aria-hidden="true" />
-              {t("actions.save")}
+              {applies ? null : <SaveIcon aria-hidden="true" />}
+              {applies ? t("actions.apply") : t("actions.save")}
             </Button>
           )}
         </DialogFooter>
@@ -149,11 +177,16 @@ type NavigatorHolds = { holds: Hold[]; restore: () => void };
 type Hold = (pending: PendingLeave) => void;
 
 // Runs a way out through every hold, innermost (last) first; `leave` once each lets it pass.
-function runHolds(holds: readonly Hold[], leave: () => void, stay?: () => void) {
+function runHolds(
+  holds: readonly Hold[],
+  leave: () => void,
+  stay?: () => void,
+  again?: () => void,
+) {
   const run = (i: number): void => {
     const hold = holds[i];
     if (hold === undefined) leave();
-    else hold({ leave: () => run(i - 1), stay });
+    else hold({ leave: () => run(i - 1), stay, again });
   };
   run(holds.length - 1);
 }
@@ -209,7 +242,8 @@ function wrapNavigator(navigator: RouterNavigator): NavigatorHolds {
   installLeaveGuard();
   const holds: Hold[] = [];
   let passTo: number | null = null;
-  const through = (leave: () => void, stay?: () => void) => runHolds([...holds], leave, stay);
+  const through = (leave: () => void, stay?: () => void, again?: () => void) =>
+    runHolds([...holds], leave, stay, again);
   const push = navigator.push.bind(navigator);
   const replace = navigator.replace.bind(navigator);
   const go = navigator.go.bind(navigator);
@@ -220,16 +254,25 @@ function wrapNavigator(navigator: RouterNavigator): NavigatorHolds {
     index = historyIndex(window.history.state);
     passTo = null;
   };
+  // `again` goes through the navigator's methods as they are then: the holds active by then ask.
   navigator.push = (...args) =>
-    through(() => {
-      push(...args);
-      settle();
-    });
+    through(
+      () => {
+        push(...args);
+        settle();
+      },
+      undefined,
+      () => navigator.push(...args),
+    );
   navigator.replace = (...args) =>
-    through(() => {
-      replace(...args);
-      settle();
-    });
+    through(
+      () => {
+        replace(...args);
+        settle();
+      },
+      undefined,
+      () => navigator.replace(...args),
+    );
   // `skip` counts the pops that put the address back; `passTo` is the entry a step that already
   // passed every hold lands on, so its own `popstate` passes too.
   let skip = 0;
@@ -237,10 +280,14 @@ function wrapNavigator(navigator: RouterNavigator): NavigatorHolds {
     passTo = index === null ? null : index + delta;
   };
   navigator.go = (delta) =>
-    through(() => {
-      passing(delta);
-      go(delta);
-    });
+    through(
+      () => {
+        passing(delta);
+        go(delta);
+      },
+      undefined,
+      () => navigator.go(delta),
+    );
 
   const onPopState = (event: PopStateEvent) => {
     if (skip > 0) {
@@ -258,10 +305,14 @@ function wrapNavigator(navigator: RouterNavigator): NavigatorHolds {
     event.stopImmediatePropagation();
     skip += 1;
     window.history.go(-delta);
-    through(() => {
-      passing(delta);
-      window.history.go(delta);
-    });
+    through(
+      () => {
+        passing(delta);
+        window.history.go(delta);
+      },
+      undefined,
+      () => navigator.go(delta),
+    );
   };
   popHandlers.add(onPopState);
 
@@ -296,9 +347,21 @@ function holdNavigator(navigator: RouterNavigator, hold: Hold): () => void {
 
 // A data router consults only its last blocker, so all guards of one router share one: the first
 // active guard mounts it, and a blocked route change runs through the holds that wanted it blocked
-// at that moment (a confirmed leave no longer does).
+// at that moment (a confirmed leave no longer does). While a change is blocked the blocker stays
+// with its guard (`frozen`), even when that guard turns inactive: its `again` (`SUI-FEATURE-094`)
+// still needs the blocker's `proceed`.
 type RouterHold = { hold: Hold; blocks: () => boolean };
-type RouterHolds = { holds: RouterHold[]; blocking: Hold[]; listeners: Set<() => void> };
+type RouterHolds = {
+  holds: RouterHold[];
+  blocking: Hold[];
+  frozen: RouterHold | null;
+  // How the change last blocked came: its history action and, for a browser `POP`, the index of its
+  // target entry; `pass` is the key of a target entry whose restarted `POP` passes once: the next
+  // `popstate` ends it, whether a blocker was there to use it or not.
+  held: { action: NavigationType; target: number | null };
+  pass: string | null;
+  listeners: Set<() => void>;
+};
 type DataRouter = NonNullable<React.ContextType<typeof DataRouterContext>>["router"];
 
 const routerHolds = new WeakMap<DataRouter, RouterHolds>();
@@ -306,7 +369,14 @@ const routerHolds = new WeakMap<DataRouter, RouterHolds>();
 function routerEntry(router: DataRouter): RouterHolds {
   let entry = routerHolds.get(router);
   if (entry === undefined) {
-    entry = { holds: [], blocking: [], listeners: new Set() };
+    entry = {
+      holds: [],
+      blocking: [],
+      frozen: null,
+      held: { action: NavigationType.Push, target: null },
+      pass: null,
+      listeners: new Set(),
+    };
     routerHolds.set(router, entry);
   }
   return entry;
@@ -324,19 +394,128 @@ function holdRouter(router: DataRouter, hold: RouterHold): () => void {
   };
 }
 
-// Notes which holds want this route change blocked, for the blocked state to run through.
-function collectBlocking(entry: RouterHolds): boolean {
-  entry.blocking = entry.holds.filter((hold) => hold.blocks()).map((hold) => hold.hold);
+// Notes which holds want this route change blocked, for the blocked state to run through, and how the
+// change came. A browser `POP` runs while the history already stands on its target entry: the
+// address and the entry's key are the target's (the first entry has no key of its own, "default").
+function collectBlocking(
+  router: DataRouter,
+  entry: RouterHolds,
+  { nextLocation, historyAction }: { nextLocation: Location; historyAction: NavigationType },
+): boolean {
+  if (historyAction === NavigationType.Pop && nextLocation.key === entry.pass) {
+    entry.pass = null;
+    return false;
+  }
+  entry.blocking = blockingNow(entry);
+  const state = window.history.state as { key?: unknown } | null;
+  const onTarget =
+    (state?.key ?? "default") === nextLocation.key &&
+    window.location.href.endsWith(router.createHref(nextLocation));
+  entry.held = { action: historyAction, target: onTarget ? historyIndex(state) : null };
   return entry.blocking.length > 0;
 }
 
-function DataRouterBlocker({ entry }: { entry: RouterHolds }) {
-  const shouldBlock = React.useCallback(() => collectBlocking(entry), [entry]);
+// Starts a held change anew once its blocker is gone, as it came: a push or a replace with its state,
+// a browser `POP` by the same step through the history. A `POP` whose step is unknown (a memory
+// history) goes to its target as a push.
+function restart(
+  router: DataRouter,
+  entry: RouterHolds,
+  { action, target }: RouterHolds["held"],
+  location: Location,
+) {
+  const now = historyIndex(window.history.state);
+  if (action === NavigationType.Pop && target !== null && now !== null) {
+    entry.pass = location.key;
+    // Added after the router's own listener, so it runs once the router has seen the step.
+    window.addEventListener(
+      "popstate",
+      () => {
+        if (entry.pass === location.key) entry.pass = null;
+      },
+      { once: true },
+    );
+    void router.navigate(target - now);
+    return;
+  }
+  void router.navigate(location, {
+    replace: action === NavigationType.Replace,
+    state: location.state,
+  });
+}
+
+// Keeps the blocker with `owner` while a change is blocked, and lets it go once none is.
+function freeze(entry: RouterHolds, owner: RouterHold, blocked: boolean) {
+  if (blocked) entry.frozen = owner;
+  else if (entry.frozen === owner) {
+    entry.frozen = null;
+    entry.listeners.forEach((listener) => listener());
+  }
+}
+
+// The holds that want a change blocked now, innermost last.
+function blockingNow(entry: RouterHolds): Hold[] {
+  return entry.holds.filter((hold) => hold.blocks()).map((hold) => hold.hold);
+}
+
+function DataRouterBlocker({
+  router,
+  entry,
+  owner,
+}: {
+  router: DataRouter;
+  entry: RouterHolds;
+  owner: RouterHold;
+}) {
+  const shouldBlock = React.useCallback<BlockerFunction>(
+    (args) => collectBlocking(router, entry, args),
+    [router, entry],
+  );
   const blocker = useBlocker(shouldBlock);
+  // Unmounted, the blocker is gone: the freeze ends, so the next active guard mounts its own, and a
+  // change still held then is started anew, through that blocker.
+  const live = React.useRef(true);
   React.useEffect(() => {
-    if (blocker.state === "blocked") runHolds(entry.blocking, blocker.proceed, blocker.reset);
-  }, [blocker, entry]);
+    live.current = true;
+    return () => {
+      live.current = false;
+      freeze(entry, owner, false);
+    };
+  }, [entry, owner]);
+  React.useEffect(() => {
+    if (blocker.state === "proceeding") return;
+    freeze(entry, owner, blocker.state === "blocked");
+    if (blocker.state !== "blocked") return;
+    const { location } = blocker;
+    const { held } = entry;
+    const proceed = () =>
+      live.current ? blocker.proceed() : restart(router, entry, held, location);
+    const reset = () => {
+      if (live.current) blocker.reset();
+    };
+    const again = (): void => runHolds(blockingNow(entry), proceed, reset, again);
+    runHolds(entry.blocking, proceed, reset, again);
+  }, [blocker, entry, owner, router]);
   return null;
+}
+
+// Runs a resumed route change once the current commit's effects are through; the surface that held it
+// lets it pass, as a confirmed leave does.
+function resumeAfterCommit(
+  resume: React.RefObject<PendingLeave | null>,
+  releasing: React.RefObject<boolean>,
+) {
+  const again = resume.current?.again;
+  if (again === undefined) return;
+  resume.current = null;
+  window.setTimeout(() => {
+    releasing.current = true;
+    try {
+      again();
+    } finally {
+      releasing.current = false;
+    }
+  });
 }
 
 type LeaveConfirmOptions = {
@@ -346,13 +525,15 @@ type LeaveConfirmOptions = {
   onSave?: LeaveSave | undefined;
   // Discard runs it before the held leave goes on (an editor resets its draft, `GL-UI-034`).
   onDiscard?: (() => void) | undefined;
+  // `onSave` only applies the entries to an outer form: the dialog asks "Apply changes?".
+  applies?: boolean | undefined;
 };
 
 // The shared core of the edit panel and `useLeaveGuard`: `guard` leaves at once when clean, holds the
 // leave for the dialog when dirty and drops it while an action works; route changes in the app,
 // browser back and forward included, are held the same way while dirty or working. A confirmed leave
 // passes the hold.
-function useLeaveConfirm({ dirty, busy, onSave, onDiscard }: LeaveConfirmOptions) {
+function useLeaveConfirm({ dirty, busy, onSave, onDiscard, applies }: LeaveConfirmOptions) {
   const [pending, setPending] = React.useState<PendingLeave | null>(null);
   // The open dialog's held leave, for a way out that arrives while it asks; set with the state, so a
   // key pressed before the dialog has rendered already sees it.
@@ -401,6 +582,14 @@ function useLeaveConfirm({ dirty, busy, onSave, onDiscard }: LeaveConfirmOptions
       releasing.current = false;
     }
   };
+  // A route change held by a surface that only applies (`SUI-FEATURE-094`): the applied values make
+  // the page around it dirty only once it has rendered. The change runs `again` after that commit,
+  // so the page's own hold, active by then, asks "Save changes?" before the route goes. A surface the
+  // apply unmounts starts it from its cleanup, which runs in that same commit.
+  const resume = React.useRef<PendingLeave | null>(null);
+  const [resumed, setResumed] = React.useState(0);
+  React.useEffect(() => resumeAfterCommit(resume, releasing), [resumed]);
+  React.useEffect(() => () => resumeAfterCommit(resume, releasing), []);
 
   // Outside a data router the navigator of `BrowserRouter`/`MemoryRouter` takes every in-app route
   // change (links, the navigation, `navigate()`); while held its methods ask first.
@@ -433,15 +622,18 @@ function useLeaveConfirm({ dirty, busy, onSave, onDiscard }: LeaveConfirmOptions
       },
       [shared],
     ),
-    () => shared?.holds[0] === routerHold,
+    () => (shared?.frozen ?? shared?.holds[0]) === routerHold,
   );
 
   const close = () => ask(null);
   const dialog = (
     <>
-      {shared !== undefined && ownsBlocker && <DataRouterBlocker entry={shared} />}
+      {router !== undefined && shared !== undefined && ownsBlocker && (
+        <DataRouterBlocker router={router} entry={shared} owner={routerHold} />
+      )}
       <LeaveConfirmDialog
         open={pending !== null}
+        applies={applies}
         onCancel={() => {
           pending?.stay?.();
           close();
@@ -461,7 +653,14 @@ function useLeaveConfirm({ dirty, busy, onSave, onDiscard }: LeaveConfirmOptions
                 void Promise.resolve()
                   .then(() => latest.current.onSave?.())
                   .then(
-                    (saved) => (saved === true ? release(pending) : pending.stay?.()),
+                    (saved) => {
+                      if (saved !== true) pending.stay?.();
+                      else if (applies !== true || pending.again === undefined) release(pending);
+                      else {
+                        resume.current = pending;
+                        setResumed((count) => count + 1);
+                      }
+                    },
                     () => pending.stay?.(),
                   );
               }

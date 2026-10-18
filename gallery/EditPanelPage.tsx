@@ -11,6 +11,7 @@ import { EditPanel } from "../src/ui/edit-panel.js";
 import { Input } from "../src/ui/input.js";
 import { FileFacts } from "../src/ui/file-facts.js";
 import { Label } from "../src/ui/label.js";
+import { useLeaveGuard } from "../src/ui/leave-guard.js";
 import { Textarea } from "../src/ui/textarea.js";
 import {
   type MediaDetailKind,
@@ -116,6 +117,73 @@ const CONTACTS: readonly ComboboxOption[] = [
 ];
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// SUI-FEATURE-094: a glossary panel over a settings form; Apply takes the term over into the form,
+// which saves with its own page Save. The panel's submit never submits the outer form; applied
+// terms not yet saved make the page ask "Save changes?" before a route change.
+function ApplyPanelDemo() {
+  const [open, setOpen] = useState(false);
+  const [term, setTerm] = useState("");
+  const [terms, setTerms] = useState<string[]>([]);
+  const [saves, setSaves] = useState(0);
+  const [saved, setSaved] = useState(0);
+  const { dialog } = useLeaveGuard({
+    dirty: terms.length !== saved,
+    onLeave: () => {},
+    onSave: () => {
+      setSaves((count) => count + 1);
+      setSaved(terms.length);
+      return true;
+    },
+    // Discard drops the applied terms not saved yet: the page is back at its saved state.
+    onDiscard: () => setTerms((list) => list.slice(0, saved)),
+  });
+  return (
+    <form
+      className="contents"
+      onSubmit={(event) => {
+        event.preventDefault();
+        setSaves((count) => count + 1);
+      }}
+    >
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        data-testid="apply-panel-trigger"
+        onClick={() => {
+          setTerm("");
+          setOpen(true);
+        }}
+      >
+        Open a glossary term
+      </Button>
+      <span data-testid="apply-panel-counts">
+        terms {terms.length} · page saves {saves}
+      </span>
+      <EditPanel
+        open={open}
+        onOpenChange={setOpen}
+        title="Glossary term"
+        mode="add"
+        dirty={term !== ""}
+        submitKind="apply"
+        onSubmit={() => {
+          setTerms((list) => [...list, term]);
+          setOpen(false);
+          return true;
+        }}
+        testIdPrefix="apply-panel"
+      >
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="apply-term">Term</Label>
+          <Input id="apply-term" value={term} onChange={(event) => setTerm(event.target.value)} />
+        </div>
+      </EditPanel>
+      {dialog}
+    </form>
+  );
+}
+
 function ContactPanelDemo() {
   const [open, setOpen] = useState(false);
   // The stand-in server's records; the picker's own options stay the first few, as an app's would.
@@ -215,6 +283,7 @@ function Demo() {
   const [backs, setBacks] = useState(0);
   const [media, setMedia] = useState<number | null>(null);
   const [nextOpen, setNextOpen] = useState(false);
+  const [nextName, setNextName] = useState("team-photo.jpg");
   const [viewOpen, setViewOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
   const [note, setNote] = useState("");
@@ -287,7 +356,10 @@ function Demo() {
           variant="outline"
           size="sm"
           data-testid="next-panel-trigger"
-          onClick={() => setNextOpen(true)}
+          onClick={() => {
+            setNextName("team-photo.jpg");
+            setNextOpen(true);
+          }}
         >
           Open a next step
         </Button>
@@ -311,6 +383,7 @@ function Demo() {
           Open without save target
         </Button>
         <ContactPanelDemo />
+        <ApplyPanelDemo />
         <span data-testid="edit-panel-check-counts">
           submits {submits} · backs {backs}
         </span>
@@ -385,13 +458,18 @@ function Demo() {
         description="Step 2 of 3: name the files."
         mode="edit"
         testIdPrefix="next-panel"
+        dirty={nextName !== "team-photo.jpg"}
         submitLabel="Continue to review"
         submitKind="next"
         onSubmit={() => setNextOpen(false)}
       >
         <div className="flex flex-col gap-2">
           <Label htmlFor="next-name">File name</Label>
-          <Input id="next-name" defaultValue="team-photo.jpg" />
+          <Input
+            id="next-name"
+            value={nextName}
+            onChange={(event) => setNextName(event.target.value)}
+          />
         </div>
       </EditPanel>
       {/* SUI-FEATURE-091: without onSubmit the panel only shows a record; its footer is Close. */}

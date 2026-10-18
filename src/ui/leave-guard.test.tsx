@@ -1,8 +1,9 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import i18n from "i18next";
 import { type ComponentProps, type ReactNode, useState } from "react";
 import {
   BrowserRouter,
+  createBrowserRouter,
   createMemoryRouter,
   Link,
   MemoryRouter,
@@ -183,6 +184,67 @@ describe("EditPanel leave guard (GL-UI-007)", () => {
       "leave-guard-save",
     ]);
     expect(screen.getByTestId("leave-guard-save")).toHaveAttribute("data-variant", "success");
+  });
+
+  // SUI-FEATURE-094 AC4: a panel that only applies asks "Apply changes?", never Save with SaveIcon.
+  it.each([
+    ["en", "Apply changes?", "Cancel", "Discard", "Apply"],
+    ["de", "Änderungen übernehmen?", "Abbrechen", "Verwerfen", "Übernehmen"],
+    ["es", "¿Aplicar los cambios?", "Cancelar", "Descartar", "Aplicar"],
+  ])(
+    '%s: submitKind="apply" asks to apply; Apply has no icon, is focused and Enter applies',
+    async (lng, title, cancel, discard, apply) => {
+      await i18n.changeLanguage(lng);
+      const save = vi.fn(() => true);
+      render(<ListWithPanel save={save} submitKind="apply" />);
+      openRow();
+      edit();
+      escape();
+      const dialog = screen.getByTestId("leave-guard");
+      expect(within(dialog).getByRole("heading")).toHaveTextContent(title);
+      const footer = screen.getByTestId("leave-guard-save").parentElement!;
+      expect([...footer.querySelectorAll("button")].map((b) => b.textContent)).toEqual([
+        cancel,
+        discard,
+        apply,
+      ]);
+      const primary = screen.getByTestId("leave-guard-save");
+      expect(primary).toHaveAttribute("data-variant", "success");
+      expect(primary.querySelector("svg")).toBeNull();
+      expect(primary).toHaveFocus();
+      fireEvent.keyDown(dialog, { key: "Enter" });
+      await waitFor(() => expect(screen.queryByTestId("edit-panel")).toBeNull());
+      expect(save).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it('submitKind="save" keeps "Save changes?" with the save symbol', () => {
+    render(<ListWithPanel submitKind="save" />);
+    openRow();
+    edit();
+    escape();
+    expect(within(screen.getByTestId("leave-guard")).getByRole("heading")).toHaveTextContent(
+      "Save changes?",
+    );
+    const primary = screen.getByTestId("leave-guard-save");
+    expect(primary).toHaveTextContent(/^Save$/);
+    expect(primary.querySelector("svg")).toHaveClass("lucide-save");
+  });
+
+  // SUI-FEATURE-094 AC4: a next step saves nothing; the dialog never runs it.
+  it('submitKind="next" asks "Discard changes?" with Cancel and Discard, focused on Cancel', () => {
+    const save = vi.fn(() => true);
+    render(<ListWithPanel save={save} submitKind="next" />);
+    openRow();
+    edit();
+    escape();
+    const dialog = screen.getByTestId("leave-guard");
+    expect(within(dialog).getByRole("heading")).toHaveTextContent("Discard changes?");
+    expect(screen.queryByTestId("leave-guard-save")).toBeNull();
+    expect(screen.getByTestId("leave-guard-cancel")).toHaveFocus();
+    fireEvent.keyDown(dialog, { key: "Enter" });
+    expect(save).not.toHaveBeenCalled();
+    expect(screen.getByTestId("edit-panel")).toBeInTheDocument();
   });
 
   it("in the dialog Esc is Cancel and Enter is Save", async () => {
@@ -542,6 +604,350 @@ describe("EditPanel leave guard: focus, keys and routes (GL-UI-007)", () => {
     fireEvent.click(screen.getByTestId("nav"));
     expect(screen.getByTestId("path")).toHaveTextContent("/other");
   });
+});
+
+// SUI-FEATURE-094 AC5: a glossary panel over a page with a page Save; Apply on a route leave hands
+// the leave on to the page, which is dirty by then and asks first.
+// `unmount`: the call site renders the panel only while open, so the apply unmounts it.
+function GlossaryPage({ unmount = false }: { unmount?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [term, setTerm] = useState("");
+  const [terms, setTerms] = useState<string[]>([]);
+  const [saved, setSaved] = useState<string[]>([]);
+  const { dialog } = useLeaveGuard({
+    dirty: isDirty(saved, terms),
+    onLeave: () => {},
+    onSave: () => {
+      setSaved(terms);
+      return true;
+    },
+  });
+  return (
+    <>
+      <Where />
+      <Link to="/other" data-testid="nav">
+        Other
+      </Link>
+      <Link to="/other" replace state={{ from: "list" }} data-testid="nav-replace">
+        Other, replacing
+      </Link>
+      <button type="button" data-testid="row" onClick={() => setOpen(true)}>
+        Glossary
+      </button>
+      {(open || !unmount) && (
+        <EditPanel
+          open={open}
+          onOpenChange={setOpen}
+          title="Term"
+          submitKind="apply"
+          dirty={term !== ""}
+          onSubmit={() => {
+            setTerms((list) => [...list, term]);
+            setTerm("");
+            setOpen(false);
+            return true;
+          }}
+        >
+          <Input aria-label="Name" value={term} onChange={(event) => setTerm(event.target.value)} />
+        </EditPanel>
+      )}
+      {dialog}
+    </>
+  );
+}
+
+describe("Apply on a route leave (SUI-FEATURE-094 AC5)", () => {
+  async function applyThenPageAsks() {
+    fireEvent.click(screen.getByTestId("row"));
+    edit();
+    fireEvent.click(screen.getByTestId("nav"));
+    expect(within(screen.getByTestId("leave-guard")).getByRole("heading")).toHaveTextContent(
+      "Apply changes?",
+    );
+    fireEvent.click(screen.getByTestId("leave-guard-save"));
+    await waitFor(() =>
+      expect(within(screen.getByTestId("leave-guard")).getByRole("heading")).toHaveTextContent(
+        "Save changes?",
+      ),
+    );
+    expect(screen.getByTestId("path")).toHaveTextContent("/list");
+    fireEvent.click(screen.getByTestId("leave-guard-save"));
+    await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/other"));
+  }
+
+  it("under a navigator router the page asks before the route goes", async () => {
+    render(
+      <MemoryRouter initialEntries={["/list"]}>
+        <Routes>
+          <Route path="/list" element={<GlossaryPage />} />
+          <Route path="*" element={<Where />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    await applyThenPageAsks();
+  });
+
+  it("under a data router the page asks before the route goes", async () => {
+    const router = createMemoryRouter(
+      [
+        { path: "/list", element: <GlossaryPage /> },
+        { path: "*", element: <Where /> },
+      ],
+      { initialEntries: ["/list"] },
+    );
+    render(<RouterProvider router={router} />);
+    await applyThenPageAsks();
+    expect(router.state.location.pathname).toBe("/other");
+  });
+
+  it.each([false, true])(
+    "the panel unmounted by the apply (%s) still hands the leave on to the page",
+    async (unmount) => {
+      const router = createMemoryRouter(
+        [
+          { path: "/list", element: <GlossaryPage unmount={unmount} /> },
+          { path: "*", element: <Where /> },
+        ],
+        { initialEntries: ["/list"] },
+      );
+      render(<RouterProvider router={router} />);
+      await applyThenPageAsks();
+      cleanup();
+      render(
+        <MemoryRouter initialEntries={["/list"]}>
+          <Routes>
+            <Route path="/list" element={<GlossaryPage unmount={unmount} />} />
+            <Route path="*" element={<Where />} />
+          </Routes>
+        </MemoryRouter>,
+      );
+      await applyThenPageAsks();
+    },
+  );
+
+  // Review #276: the change goes on as it came, whether the panel's blocker still stands or not.
+  async function applyAndAnswer(start: () => void) {
+    fireEvent.click(screen.getByTestId("row"));
+    edit();
+    start();
+    fireEvent.click(await screen.findByTestId("leave-guard-save"));
+    await waitFor(() =>
+      expect(within(screen.getByTestId("leave-guard")).getByRole("heading")).toHaveTextContent(
+        "Save changes?",
+      ),
+    );
+    fireEvent.click(screen.getByTestId("leave-guard-save"));
+  }
+  function memoryRouter(unmount: boolean) {
+    const router = createMemoryRouter(
+      [
+        { path: "/list", element: <GlossaryPage unmount={unmount} /> },
+        { path: "*", element: <Where /> },
+      ],
+      { initialEntries: ["/start", "/list"], initialIndex: 1 },
+    );
+    render(<RouterProvider router={router} />);
+    return router;
+  }
+
+  it.each([false, true])("a link stays one push (panel unmounted: %s)", async (unmount) => {
+    const router = memoryRouter(unmount);
+    await applyAndAnswer(() => fireEvent.click(screen.getByTestId("nav")));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/other"));
+    expect(router.state.historyAction).toBe("PUSH");
+    await act(() => router.navigate(-1));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/list"));
+  });
+
+  it.each([false, true])(
+    "a replacing link stays a replace and keeps its state (panel unmounted: %s)",
+    async (unmount) => {
+      const router = memoryRouter(unmount);
+      await applyAndAnswer(() => fireEvent.click(screen.getByTestId("nav-replace")));
+      await waitFor(() => expect(router.state.location.pathname).toBe("/other"));
+      expect(router.state.historyAction).toBe("REPLACE");
+      expect(router.state.location.state).toEqual({ from: "list" });
+    },
+  );
+
+  it.each([false, true])(
+    "browser back stays a step back; forward returns (panel unmounted: %s)",
+    async (unmount) => {
+      window.history.replaceState(null, "", "/start");
+      const router = createBrowserRouter([
+        { path: "/list", element: <GlossaryPage unmount={unmount} /> },
+        { path: "*", element: <Where /> },
+      ]);
+      render(<RouterProvider router={router} />);
+      await act(() => router.navigate("/list"));
+      await applyAndAnswer(() => act(() => window.history.back()));
+      await waitFor(() => expect(router.state.location.pathname).toBe("/start"));
+      expect(router.state.historyAction).toBe("POP");
+      act(() => window.history.forward());
+      await waitFor(() => expect(router.state.location.pathname).toBe("/list"));
+      router.dispose();
+    },
+  );
+
+  // Review #276: the restarted step passes once; a later back onto the same entry asks again.
+  it.each([false, true])(
+    "after a restarted back, a later back to the same entry still asks (panel unmounted: %s)",
+    async (unmount) => {
+      window.history.replaceState(null, "", "/start");
+      const router = createBrowserRouter([
+        { path: "/list", element: <GlossaryPage unmount={unmount} /> },
+        { path: "*", element: <Where /> },
+      ]);
+      render(<RouterProvider router={router} />);
+      await act(() => router.navigate("/list"));
+      await applyAndAnswer(() => act(() => window.history.back()));
+      await waitFor(() => expect(router.state.location.pathname).toBe("/start"));
+      act(() => window.history.forward());
+      await waitFor(() => expect(router.state.location.pathname).toBe("/list"));
+      fireEvent.click(screen.getByTestId("row"));
+      edit();
+      fireEvent.click(screen.getByTestId("edit-panel-submit"));
+      await waitFor(() => expect(screen.queryByTestId("edit-panel")).toBeNull());
+      act(() => window.history.back());
+      await waitFor(() =>
+        expect(within(screen.getByTestId("leave-guard")).getByRole("heading")).toHaveTextContent(
+          "Save changes?",
+        ),
+      );
+      expect(router.state.location.pathname).toBe("/list");
+      router.dispose();
+    },
+  );
+
+  it("Discard on the page's question leaves without saving", async () => {
+    render(
+      <MemoryRouter initialEntries={["/list"]}>
+        <Routes>
+          <Route path="/list" element={<GlossaryPage />} />
+          <Route path="*" element={<Where />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByTestId("row"));
+    edit();
+    fireEvent.click(screen.getByTestId("nav"));
+    fireEvent.click(screen.getByTestId("leave-guard-save"));
+    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+    await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/other"));
+  });
+});
+
+// Review #276: the blocker a data router shares passes on once its guard is gone; a page of another
+// component on the next route, or a guard that turns dirty later, still holds the route change.
+function HandOverPage({ to, id }: { to: string; id: string }) {
+  const [dirty, setDirty] = useState(false);
+  const { dialog } = useLeaveGuard({ dirty, onLeave: () => {}, onSave: () => true });
+  return (
+    <>
+      <Where />
+      <button type="button" data-testid={`edit-${id}`} onClick={() => setDirty(true)} />
+      <Link to={to} data-testid={`nav-${id}`}>
+        Go
+      </Link>
+      {dialog}
+    </>
+  );
+}
+function OtherHandOverPage(props: { to: string; id: string }) {
+  return <HandOverPage {...props} />;
+}
+
+function AlwaysDirty() {
+  const { dialog } = useLeaveGuard({ dirty: true, onLeave: () => {}, onSave: () => true });
+  return dialog;
+}
+
+describe("data router: the shared blocker passes on (review #276)", () => {
+  async function stillHeld(router: ReturnType<typeof createMemoryRouter>, id: string, at: string) {
+    fireEvent.click(screen.getByTestId(`edit-${id}`));
+    fireEvent.click(screen.getByTestId(`nav-${id}`));
+    await screen.findByTestId("leave-guard");
+    expect(router.state.location.pathname).toBe(at);
+  }
+
+  it.each(["leave-guard-save", "leave-guard-discard"])(
+    "after %s on one page, a page of another component still holds",
+    async (answer) => {
+      const router = createMemoryRouter(
+        [
+          { path: "/a", element: <HandOverPage to="/b" id="a" /> },
+          { path: "/b", element: <OtherHandOverPage to="/c" id="b" /> },
+          { path: "*", element: <Where /> },
+        ],
+        { initialEntries: ["/a"] },
+      );
+      render(<RouterProvider router={router} />);
+      await stillHeld(router, "a", "/a");
+      fireEvent.click(screen.getByTestId(answer));
+      await waitFor(() => expect(router.state.location.pathname).toBe("/b"));
+      await stillHeld(router, "b", "/b");
+    },
+  );
+
+  it("a guard owning the blocker unmounts while it holds; another guard still holds", async () => {
+    function Host() {
+      const [child, setChild] = useState(true);
+      return (
+        <>
+          <button type="button" data-testid="drop" onClick={() => setChild(false)} />
+          {child && <AlwaysDirty />}
+          <HandOverPage to="/x" id="host" />
+        </>
+      );
+    }
+    const router = createMemoryRouter(
+      [
+        { path: "/a", element: <Host /> },
+        { path: "*", element: <Where /> },
+      ],
+      { initialEntries: ["/a"] },
+    );
+    render(<RouterProvider router={router} />);
+    fireEvent.click(screen.getByTestId("nav-host"));
+    await screen.findByTestId("leave-guard");
+    fireEvent.click(screen.getByTestId("drop"));
+    await waitFor(() => expect(screen.queryByTestId("leave-guard")).toBeNull());
+    await stillHeld(router, "host", "/a");
+  });
+
+  it.each(["leave-guard-save", "leave-guard-discard", "leave-guard-cancel"])(
+    "after Apply and %s on the page's question, the next route's guard still holds",
+    async (answer) => {
+      const router = createMemoryRouter(
+        [
+          { path: "/list", element: <GlossaryPage /> },
+          { path: "/other", element: <HandOverPage to="/third" id="other" /> },
+          { path: "*", element: <Where /> },
+        ],
+        { initialEntries: ["/list"] },
+      );
+      render(<RouterProvider router={router} />);
+      fireEvent.click(screen.getByTestId("row"));
+      edit();
+      fireEvent.click(screen.getByTestId("nav"));
+      fireEvent.click(screen.getByTestId("leave-guard-save"));
+      await waitFor(() =>
+        expect(within(screen.getByTestId("leave-guard")).getByRole("heading")).toHaveTextContent(
+          "Save changes?",
+        ),
+      );
+      fireEvent.click(screen.getByTestId(answer));
+      if (answer === "leave-guard-cancel") {
+        await waitFor(() => expect(screen.queryByTestId("leave-guard")).toBeNull());
+        expect(router.state.location.pathname).toBe("/list");
+        fireEvent.click(screen.getByTestId("nav"));
+        expect(await screen.findAllByTestId("leave-guard")).toHaveLength(1);
+        fireEvent.click(screen.getByTestId("leave-guard-discard"));
+      }
+      await waitFor(() => expect(router.state.location.pathname).toBe("/other"));
+      await stillHeld(router, "other", "/other");
+    },
+  );
 });
 
 describe("useLeaveGuard on a detail page (GL-UI-007)", () => {

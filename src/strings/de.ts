@@ -17,6 +17,8 @@ export const de: SuiteStrings = {
     remove: "Entfernen",
     testConnection: "Verbindung testen",
     retry: "Erneut versuchen",
+    apply: "Übernehmen",
+    next: "Weiter",
   },
   status: {
     success: "Erfolg",
@@ -228,6 +230,13 @@ export const de: SuiteStrings = {
     closeHint: "Schließt das Panel; Änderungen werden vorher abgefragt.",
     saveHint: "Speichert die Eingaben.",
     nextHint: "Geht zum nächsten Schritt.",
+    applyHint: "Übernimmt die Eingaben ins Formular; gespeichert wird dort.",
+    applyCancelHint:
+      "Schließt das Panel, ohne zu übernehmen; nicht übernommene Änderungen werden vorher abgefragt.",
+    applyBackHint:
+      "Geht einen Schritt zurück, ohne zu übernehmen; nicht übernommene Änderungen werden vorher abgefragt.",
+    nextCancelHint: "Schließt das Panel; Änderungen werden vorher abgefragt.",
+    nextBackHint: "Geht einen Schritt zurück; Änderungen werden vorher abgefragt.",
     busyHint: "Eine Aktion läuft; wieder verfügbar, sobald sie abgeschlossen ist.",
   },
   leaveGuard: {
@@ -236,6 +245,8 @@ export const de: SuiteStrings = {
     discard: "Verwerfen",
     discardTitle: "Änderungen verwerfen?",
     discardDescription: "Dieser Eintrag hat Änderungen, die beim Verwerfen verloren gehen.",
+    applyTitle: "Änderungen übernehmen?",
+    applyDescription: "Dieser Eintrag hat Änderungen, die noch nicht übernommen sind.",
   },
   settings: {
     active: "Aktiv",

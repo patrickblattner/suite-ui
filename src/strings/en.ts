@@ -18,6 +18,8 @@ export const en = {
     remove: "Remove",
     testConnection: "Test connection",
     retry: "Try again",
+    apply: "Apply",
+    next: "Next",
   },
   status: {
     success: "Success",
@@ -236,6 +238,13 @@ export const en = {
     closeHint: "Closes the panel; asks first if there are changes.",
     saveHint: "Saves the entries.",
     nextHint: "Goes on to the next step.",
+    applyHint: "Applies the entries to the form; they are saved there.",
+    applyCancelHint:
+      "Closes the panel without applying; asks first if there are changes not applied yet.",
+    applyBackHint:
+      "Goes back one step without applying; asks first if there are changes not applied yet.",
+    nextCancelHint: "Closes the panel; asks first if there are changes.",
+    nextBackHint: "Goes back one step; asks first if there are changes.",
     busyHint: "An action is running; available again once it has finished.",
   },
   leaveGuard: {
@@ -244,6 +253,8 @@ export const en = {
     discard: "Discard",
     discardTitle: "Discard changes?",
     discardDescription: "This entry has changes that will be lost if you discard them.",
+    applyTitle: "Apply changes?",
+    applyDescription: "This entry has changes that are not applied yet.",
   },
   settings: {
     active: "Active",
