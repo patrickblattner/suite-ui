@@ -469,3 +469,5 @@
 {"ts":"2026-10-18T14:58:52.037Z","key":"SUI-FEATURE-094","from":6,"to":7,"disposition":"ticket","ref":"276"}
 {"ts":"2026-10-18T16:09:41.945Z","key":"SUI-FEATURE-094","from":7,"to":8,"disposition":"ticket","ref":"279"}
 {"ts":"2026-10-18T16:58:59.471Z","key":"SUI-FEATURE-094","from":8,"to":9,"disposition":"ticket","ref":"282"}
+{"ts":"2026-10-18T17:22:48.913Z","key":"PROC-REL-019","from":25,"to":26,"disposition":"editorial","ref":"runner pool queue wording (weekly window); suite-ui runs local mode without PR runners, no code impact"}
+{"ts":"2026-10-18T17:22:49.274Z","key":"SUI-FEATURE-150","from":null,"to":2,"disposition":"ticket","ref":"283"}
