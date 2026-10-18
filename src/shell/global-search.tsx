@@ -14,11 +14,11 @@ import {
 } from "../ui/dialog.js";
 import {
   captureOpener,
-  isNavigation,
   isUsable,
   type Opener,
   returnFocus as restoreFocus,
 } from "../ui/focus-return.js";
+import { isNavigation } from "../ui/focus-return-internal.js";
 import { Hint } from "../ui/hint.js";
 import { SIDEBAR_ID, useSidebar } from "./sidebar-provider.js";
 
