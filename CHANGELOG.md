@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.134.8 — #289, SUI-FEATURE-150 rev 6, SUI-FEATURE-170 rev 5, GL-UI-007: a submission the guard let go stays guarded until it ends
+
+Fix, not breaking.
+
+- **A submission that goes on through the guard is no longer unguarded while it runs** (fixes the known limit noted in 0.134.5 and 0.134.6). Under a data router this is a form's submit let go by the leave question (Discard), or a held submit started anew once the submission before it ended, the page's own Save among them. While it runs, a route change is held as during any other submission and never cuts it off: it lands at its chosen target once the submission succeeded, and is dropped when it failed. A second submit of the same form is dropped, so the action runs once (before: a link aborted the submission, and a second submit ran the action again, as react-router asks no blocker while one proceeds). A held own Save that goes on stays the page's own Save: a way out during it opens no dialog and waits (`SUI-FEATURE-170`).
+
+**Migration:** none required.
+
 ## 0.134.7 — #290, #296, SUI-FEATURE-150 rev 6, SUI-FEATURE-170 rev 5, GL-UI-007 (Codex reviews v0.134.5 and v0.134.6): a dropped second submit keeps the open leave question working, Back waits for the panel's work, and only the own Save itself goes unasked
 
 Fix, not breaking.

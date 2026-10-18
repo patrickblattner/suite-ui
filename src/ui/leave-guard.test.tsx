@@ -14,6 +14,7 @@ import {
   RouterProvider,
   Routes,
   type RouteObject,
+  RouterContextProvider,
   useLoaderData,
   useLocation,
   useNavigate,
@@ -2849,6 +2850,157 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
     },
   );
 
+  // #289: react-router asks no blocker while one proceeds, so a submission the leave question let go
+  // was unguarded until it ended: a link cut it off, and a second submit ran the action again.
+  it("AC2: a link during a submission the leave question let go waits for it, then lands", async () => {
+    const { action, seen, settle } = submission(() => redirect("/posted"));
+    const router = submittingRouter(action, { page: staleForms, submits: false });
+    edit();
+    fireEvent.click(screen.getByTestId("stale-save"));
+    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+    await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+    fireEvent.click(screen.getByTestId("go"));
+    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+    await pause();
+    expect({ aborted: seen.signal?.aborted, at: router.state.location.pathname }).toEqual({
+      aborted: false,
+      at: "/detail",
+    });
+    await settleAndWait(settle);
+    await waitFor(() => expect(router.state.location.pathname).toBe("/elsewhere"));
+  });
+
+  it("AC2: when a submission the leave question let go fails, the held link is dropped; the next asks and lands", async () => {
+    const { action, settle } = submission(() => ({ error: "Name taken" }));
+    const router = submittingRouter(action, { page: staleForms, submits: false });
+    edit();
+    fireEvent.click(screen.getByTestId("stale-save"));
+    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+    await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+    fireEvent.click(screen.getByTestId("go"));
+    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+    await settleAndWait(settle);
+    await pause();
+    expect({ at: router.state.location.pathname, data: router.state.actionData }).toEqual({
+      at: "/detail",
+      data: { "0": { error: "Name taken" } },
+    });
+    fireEvent.click(screen.getByTestId("go"));
+    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/elsewhere"));
+  });
+
+  it("AC2: Cancel on a link during a submission the leave question let go keeps the page; the submission lands", async () => {
+    const { action, seen, settle } = submission(() => redirect("/posted"));
+    const router = submittingRouter(action, { page: staleForms, submits: false });
+    edit();
+    fireEvent.click(screen.getByTestId("stale-save"));
+    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+    await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+    fireEvent.click(screen.getByTestId("go"));
+    fireEvent.click(await screen.findByTestId("leave-guard-cancel"));
+    await waitFor(() => expect(screen.queryByTestId("leave-guard")).toBeNull());
+    expect({ aborted: seen.signal?.aborted, at: router.state.location.pathname }).toEqual({
+      aborted: false,
+      at: "/detail",
+    });
+    await settleAndWait(settle);
+    await waitFor(() => expect(router.state.location.pathname).toBe("/posted"));
+    await pause();
+    expect(router.state.location.pathname).toBe("/posted");
+  });
+
+  it("AC2: a second submit of a form the leave question let go, its method unseen, is dropped", async () => {
+    const { action, methods, settle } = countedAction();
+    const router = submittingRouter(action, { page: staleForms, submits: false });
+    edit();
+    fireEvent.click(screen.getByTestId("stale-save"));
+    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+    await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+    fireEvent.click(screen.getByTestId("stale-save"));
+    await pause();
+    expect(screen.queryByTestId("leave-guard")).toBeNull();
+    await settleAndWait(settle);
+    await waitFor(() => expect(router.state.location.pathname).toBe("/posted"));
+    await pause();
+    expect({ methods, at: router.state.location.pathname }).toEqual({
+      methods: ["POST"],
+      at: "/posted",
+    });
+  });
+
+  // Review #289 (H): a held submit started anew is still its form's, so a second submit of it is
+  // dropped too.
+  it("AC2: a second submit of a held form, once it went on, its method unseen, is dropped", async () => {
+    const methods: string[] = [];
+    const first = deferred();
+    const second = deferred();
+    const action = ({ request }: { request: Request }) => {
+      methods.push(request.method);
+      if (methods.length === 1) return first.promise.then(() => null);
+      if (methods.length === 2) return second.promise.then(() => redirect("/posted"));
+      return redirect("/again");
+    };
+    const router = submittingRouter(action, { page: staleForms });
+    await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+    edit();
+    fireEvent.click(screen.getByTestId("stale-save"));
+    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+    await pause();
+    await settleAndWait(first.settle);
+    await waitFor(() => expect(methods).toHaveLength(2));
+    await pause();
+    fireEvent.click(screen.getByTestId("stale-save"));
+    await pause();
+    expect(screen.queryByTestId("leave-guard")).toBeNull();
+    await settleAndWait(second.settle);
+    await waitFor(() => expect(router.state.location.pathname).toBe("/posted"));
+    await pause();
+    expect({ methods, at: router.state.location.pathname }).toEqual({
+      methods: ["POST", "POST"],
+      at: "/posted",
+    });
+  });
+
+  // Review #289 (M): a router with `getContext` starts the submission only after awaiting it.
+  it("AC2: under a router with getContext a link during a submission let go waits, then lands", async () => {
+    const { action, seen, settle } = submission(() => redirect("/posted"));
+    const router = createMemoryRouter(
+      [
+        {
+          path: "/detail",
+          action,
+          element: (
+            <>
+              <Where />
+              {staleForms}
+            </>
+          ),
+        },
+        { path: "*", element: <Where /> },
+      ],
+      {
+        initialEntries: ["/list", "/detail"],
+        initialIndex: 1,
+        getContext: () => new RouterContextProvider(),
+      },
+    );
+    render(<RouterProvider router={router} />);
+    edit();
+    fireEvent.click(screen.getByTestId("stale-save"));
+    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+    await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+    fireEvent.click(screen.getByTestId("go"));
+    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+    await pause();
+    expect({ aborted: seen.signal?.aborted, at: router.state.location.pathname }).toEqual({
+      aborted: false,
+      at: "/detail",
+    });
+    await settleAndWait(settle);
+    await waitFor(() => expect(router.state.location.pathname).toBe("/elsewhere"));
+  });
+
   // Review #283 r3 (L): a held link goes on with the options it came with.
   it("AC2: a held link goes on with its scroll and view-transition options", async () => {
     const { action, settle } = submission(() => redirect("/posted"));
@@ -3981,6 +4133,53 @@ describe("a page's own Save under a data router (SUI-FEATURE-170)", () => {
     expect(asks()).toBe(false);
   });
 
+  // #289 (and the #288 hand-off): the held own Save goes on through the blocker's proceed, where
+  // react-router asks no blocker; it is still guarded and still the page's own Save.
+  it("the held own Save, once it goes on, holds a link silently and drops a second Save", async () => {
+    const first = deferred();
+    const second = deferred();
+    const { router, posted } = await ownSaveRouter((data) =>
+      posted.length === 1 ? first.promise.then(() => null) : second.promise.then(() => save(data)),
+    );
+    act(() => {
+      void router.navigate("/detail", { formMethod: "put", formData: new FormData() });
+    });
+    await waitFor(() => expect(posted).toHaveLength(1));
+    edit();
+    fireEvent.click(screen.getByTestId("own-save"));
+    await settleAndWait(first.settle);
+    await waitFor(() => expect(posted).toHaveLength(2));
+    fireEvent.click(screen.getByTestId("own-save"));
+    fireEvent.click(screen.getByTestId("go"));
+    await pause();
+    expect({ asks: asks(), posted: posted.length, at: router.state.location.pathname }).toEqual({
+      asks: false,
+      posted: 2,
+      at: "/detail",
+    });
+    await settleAndWait(second.settle);
+    await waitFor(() => expect(router.state.location.pathname).toBe("/elsewhere"));
+    expect({ asks: asks(), posted: posted.length }).toEqual({ asks: false, posted: 2 });
+  });
+
+  it("a second archive submit after Discard let the first go is dropped; the action runs once", async () => {
+    const acted = deferred();
+    const { router, posted } = await ownSaveRouter(() => acted.promise.then(() => null), {
+      archive: true,
+    });
+    edit();
+    fireEvent.click(screen.getByTestId("archive"));
+    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+    await waitFor(() => expect(posted).toHaveLength(1));
+    fireEvent.click(screen.getByTestId("archive"));
+    await pause();
+    expect(asks()).toBe(false);
+    await settleAndWait(acted.settle);
+    await waitFor(() => expect(router.state.navigation.state).toBe("idle"));
+    await pause();
+    expect(posted).toHaveLength(1);
+  });
+
   // The own Save counts only while it runs: a way out during a later submission asks as before.
   it("after the own Save ended, Esc during a foreign submission asks", async () => {
     const out = deferred();
@@ -4054,5 +4253,79 @@ describe("a page's own Save under a data router (SUI-FEATURE-170)", () => {
       });
       expect(router.state.actionData).toEqual({ "0-0": { error: "Name taken" } });
     });
+  });
+});
+
+// Review #289 (L): once every guard is gone, so is the guard's blocker, also when the last guard
+// unmounted while the change it held went on as a submission.
+describe("data router: no guard blocker stays behind a submission that went on", () => {
+  function PanelOnly() {
+    const [open, setOpen] = useState(true);
+    const [term, setTerm] = useState("");
+    if (!open) return null;
+    return (
+      <EditPanel
+        open={open}
+        onOpenChange={setOpen}
+        title="Term"
+        submitKind="apply"
+        dirty={term !== ""}
+        onSubmit={() => {
+          setTerm("");
+          setOpen(false);
+          return true;
+        }}
+      >
+        <Input aria-label="Entry" value={term} onChange={(event) => setTerm(event.target.value)} />
+      </EditPanel>
+    );
+  }
+
+  it("an apply that unmounts the last guard before its held logout goes on registers none anew", async () => {
+    const out = deferred();
+    const router = createMemoryRouter(
+      [
+        {
+          path: "/",
+          element: (
+            <>
+              <Form method="post" action="/logout">
+                <button type="submit" data-testid="logout">
+                  Log out
+                </button>
+              </Form>
+              <Outlet />
+            </>
+          ),
+          children: [
+            { path: "page", element: <PanelOnly /> },
+            { path: "logout", action: () => out.promise.then(() => redirect("/bye")) },
+            { path: "*", element: <Where /> },
+          ],
+        },
+      ],
+      { initialEntries: ["/page"] },
+    );
+    // The guard's blocker, as registered and deleted on the router.
+    const ops: string[] = [];
+    const getBlocker = router.getBlocker.bind(router);
+    const deleteBlocker = router.deleteBlocker.bind(router);
+    router.getBlocker = (key, fn) => {
+      if (key === "suite-leave-guard") ops.push("get");
+      return getBlocker(key, fn);
+    };
+    router.deleteBlocker = (key) => {
+      if (key === "suite-leave-guard") ops.push("delete");
+      deleteBlocker(key);
+    };
+    render(<RouterProvider router={router} />);
+    fireEvent.change(await screen.findByLabelText("Entry"), { target: { value: "x" } });
+    fireEvent.click(screen.getByTestId("logout"));
+    fireEvent.click(await screen.findByTestId("leave-guard-save"));
+    await waitFor(() => expect(router.state.navigation.formAction).toBe("/logout"));
+    expect(screen.queryByLabelText("Entry")).toBeNull();
+    await settleAndWait(out.settle);
+    await waitFor(() => expect(router.state.location.pathname).toBe("/bye"));
+    expect(ops.at(-1)).toBe("delete");
   });
 });

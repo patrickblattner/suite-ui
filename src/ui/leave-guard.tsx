@@ -473,16 +473,22 @@ type RouterHolds = {
   waiting: WaitingChange | null;
   // A change started anew after a submission: the blocked state that carries it on, the holds that
   // confirmed it, which it passes, and for a browser step the entry it goes to. It counts only for
-  // that change: the next one asked, and for a browser step only when it goes to that entry.
+  // that change: the next one asked, and for a browser step only when it goes to that entry. A
+  // submission started anew keeps the form it came from (`source`).
   restarting: {
     carrier: BlockedBlocker | null;
     passing: Set<Hold>;
     index: number | null;
     owners: Set<Hold>;
+    source?: BlockedChange["source"] | undefined;
   } | null;
   // The holds whose own Save the change the blocker let go last is: while that submission runs, a
   // way out passes them to wait for it, and asks them again once it succeeded (`SUI-FEATURE-170`).
   saving: Set<Hold>;
+  // The change the blocker's `proceed` let go last, until it runs; and the blocker's question,
+  // registered anew once that change runs as a submission.
+  proceeded: BlockedChange | null;
+  question: BlockerFunction;
   // The mounted `BlockedRunner`s.
   runners: number;
   // Unregisters the blocker once nothing holds or is blocked; set while it is registered.
@@ -497,7 +503,7 @@ const blockerKey = "suite-leave-guard";
 function routerEntry(router: DataRouter): RouterHolds {
   let entry = routerHolds.get(router);
   if (entry === undefined) {
-    entry = {
+    const created: RouterHolds = {
       holds: [],
       blocking: [],
       run: null,
@@ -512,9 +518,12 @@ function routerEntry(router: DataRouter): RouterHolds {
       waiting: null,
       restarting: null,
       saving: new Set(),
+      proceeded: null,
+      question: (step) => collectBlocking(router, created, step),
       runners: 0,
       settle: null,
     };
+    entry = created;
     routerHolds.set(router, entry);
   }
   return entry;
@@ -535,7 +544,7 @@ function holdRouter(router: DataRouter, hold: RouterHold): () => void {
   const entry = routerEntry(router);
   entry.holds.push(hold);
   if (entry.settle === null) {
-    router.getBlocker(blockerKey, (step) => collectBlocking(router, entry, step));
+    router.getBlocker(blockerKey, entry.question);
     // eslint-disable-next-line @typescript-eslint/unbound-method -- restored as it was, called bound
     const own = router.navigate;
     const navigate = own.bind(router);
@@ -568,6 +577,22 @@ function holdRouter(router: DataRouter, hold: RouterHold): () => void {
       if (router.state.navigation.state === "idle") {
         entry.saving = new Set();
         entry.displaced = null;
+      }
+      // react-router asks no blocker while one proceeds (#289): a submission that went on through
+      // the blocker would run unguarded until it ended. Once it runs (a router with `getContext`
+      // starts it only after awaiting that), the blocker is registered anew, so a way out during it
+      // waits and a second submit is dropped; it counts as let go, as one the blocker passed.
+      const proceeded = entry.proceeded;
+      if (
+        proceeded !== null &&
+        router.state.blockers.get(blockerKey)?.state === "proceeding" &&
+        submitting(router)
+      ) {
+        entry.proceeded = null;
+        entry.submitted = proceeded.source.form;
+        entry.saving = proceeded.owners;
+        router.deleteBlocker(blockerKey);
+        router.getBlocker(blockerKey, entry.question);
       }
       // Without a guard to render the router's state, a change blocked while one waits takes its place,
       // and a waiting change goes on, from here.
@@ -656,7 +681,7 @@ function collectBlocking(
       link,
       answered: false,
       owners,
-      source: { form: entry.submitting, submitter: entry.submitter },
+      source: restarting?.source ?? { form: entry.submitting, submitter: entry.submitter },
     };
   } else {
     entry.submitted = entry.submitting;
@@ -736,6 +761,7 @@ function runBlocked(router: DataRouter, entry: RouterHolds) {
     if (submitting(router)) {
       entry.waiting = { ...blocked, carrier, confirmed, ended: false };
     } else {
+      entry.proceeded = blocked;
       carrier.proceed();
     }
   };
@@ -860,6 +886,7 @@ function restart(router: DataRouter, entry: RouterHolds, waiting: WaitingChange)
     passing: waiting.confirmed,
     index: null,
     owners: waiting.owners,
+    source: waiting.source,
   };
   void router.navigate(null);
   runBlocked(router, entry);
