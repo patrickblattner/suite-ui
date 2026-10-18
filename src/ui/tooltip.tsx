@@ -473,6 +473,15 @@ function TooltipContent({
     content,
     typeof collisionPadding === "number" ? collisionPadding : SIDE_OFFSET,
   );
+  // Over a text field's empty end the bubble keeps clear of the text as it was when placed: typed or
+  // pasted text would grow under it, so a change of the value closes it (#269).
+  const field = row?.field ?? null;
+  React.useEffect(() => {
+    if (field === null) return;
+    const close = () => document.dispatchEvent(new CustomEvent(TOOLTIP_OPEN));
+    field.addEventListener("input", close);
+    return () => field.removeEventListener("input", close);
+  }, [field]);
   return (
     <TooltipPrimitive.Portal>
       <TooltipPrimitive.Content

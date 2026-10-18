@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.133.1 — #269, GL-UI-016 rev 12 (Codex review #268): typing under a bubble over a text field closes it
+
+Fix, not breaking. A bubble that stands over a text field's empty end (the search's own hint, or a bubble of the `FilterBar` controls) measured the end of the text only when it was placed; text typed or pasted while it was open grew under it. A change of the field's value now closes the bubble, so it never covers typed text; the next open places it anew.
+
+**Migration:** none. No package text, prop, export or testid changed; baselines: none.
+
 ## 0.133.0 — #264, SUI-FEATURE-093 rev 3, GL-UI-036 rev 2 (Q&A #3966, #3971): Combobox and CreateAndSelectDialog — create a record from a picker
 
 Feature, not breaking. Two new building blocks in `@suite/ui/ui`, so no app builds its own create dialog from a picker.

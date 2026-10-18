@@ -7961,3 +7961,29 @@ for (const [lng, submit] of [
     await expect(page.getByTestId("contact-create-submit")).toHaveText(submit);
   });
 }
+
+// GL-UI-016 rev 12 §Lage (#269): a bubble over a text field's empty end never covers its text. Typing
+// while it is open closes it: the search's own hint and Clear filter's bubble.
+for (const width of [1440, 1920]) {
+  for (const hovered of ["filter-haystack", "filter-reset"]) {
+    test(`tooltip in the filter bar at ${width} px: typing under ${hovered}'s bubble closes it`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto("/?page=list&lng=en");
+      const search = page.getByTestId("filter-haystack");
+      await search.focus();
+      const element = await box(page.getByTestId(hovered));
+      await page.mouse.move(element.x + 40, element.y + element.height / 2);
+      if (hovered === "filter-reset")
+        await page.mouse.move(element.x + element.width / 2, element.y + element.height / 2);
+      const bubble = page.locator("[data-slot=tooltip-content]");
+      await expect(bubble).toBeVisible({ timeout: 3000 });
+      const tip = await box(bubble);
+      expect(tip.x).toBeLessThan((await box(search)).x + (await box(search)).width);
+      await page.keyboard.type("a query that runs on and on and on and on and on");
+      await expect(search).toHaveValue(/runs on/);
+      await expect(bubble).toBeHidden();
+    });
+  }
+}

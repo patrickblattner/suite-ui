@@ -1016,6 +1016,36 @@ describe("tooltip placement in a row", () => {
     expect(press.defaultPrevented).toBe(false);
   });
 
+  // #269: the text end is measured when the bubble is placed; typing under it closes it.
+  it("typing in the search under a bubble over its empty end closes the bubble", async () => {
+    layOut(1000, filterBar(0, 100));
+    renderFilterBar("");
+    expect(await placedBubble("reset")).toHaveAttribute("data-side", "left");
+    fireEvent.input(screen.getByTestId("search"), { target: { value: "a long query" } });
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
+  it("typing in the search under its own hint closes the hint", async () => {
+    layOut(1000, { ...filterBar(100, 200), search: [0, 800] });
+    render(
+      <div data-tooltip-row="">
+        <Hint text="Searches every column">
+          <input aria-label="Search" defaultValue="query" data-testid="search" />
+        </Hint>
+        <div data-tooltip-group="">
+          <IconButtonTooltip label="Clear filter">
+            <Button variant="ghost" size="icon" data-testid="reset">
+              x
+            </Button>
+          </IconButtonTooltip>
+        </div>
+      </div>,
+    );
+    expect(await placedBubble("search")).toHaveAttribute("data-side", "left");
+    fireEvent.input(screen.getByTestId("search"), { target: { value: "query that runs on" } });
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
   // Nothing of one open carries into the next: the bubble is measured uncapped again.
   it("a reopen places the bubble as a fresh open does", async () => {
     // 150 px right of the group, 124 px left of it up to the text: the larger, right, narrowed.
