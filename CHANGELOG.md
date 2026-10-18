@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.129.4 — #244, GL-UI-050: closing the search opened over a modal keeps the focus in that modal
+
+Bug fix, not breaking. Since 0.129.2 (#240), closing the `GlobalSearch` dialog always sent the focus to the sidebar search field. That also happened when the shortcut opened it from a control inside a modal dialog that is still open, so the focus landed behind that modal. Now `Esc` or the × gives the focus back to the control in the modal that had it, through `GL-UI-050`'s order inside that modal. The desktop and narrow-screen focus return from #240 is unchanged. The gallery's shell page gets `?modal=1`, a modal dialog to open the search over.
+
+**Migration:** none. Baselines: none changed.
+
 ## 0.129.3 — #242, GL-UI-050: tests for the search's last focus fallback and its unmount guard
 
 Tests only, no behaviour change. New unit tests for `GlobalSearch` cover the closed overlay below `md`, where the sidebar field is hidden. Opened by the shortcut from a link in the page content, `Esc` puts the focus on the overlay trigger, or on the main content when there is no trigger. It never goes to the link or to `<body>`. Another test covers unmounting the search while its dialog is open: no focus is returned, and whatever the app focused meanwhile keeps the focus.

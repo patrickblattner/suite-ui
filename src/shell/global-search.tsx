@@ -140,6 +140,11 @@ function GlobalSearch({
     opener.current = null;
     // Neither field nor rail rendered: the search itself is unmounting, nothing to return to.
     if (navigating.current || (inputRef.current === null && railRef.current === null)) return;
+    // Opened over a modal that is still open: back into it, never to the field behind it (#244).
+    if (from?.surface?.isConnected === true && from.surface.dataset.state === "open") {
+      restoreFocus(from);
+      return;
+    }
     // The first usable one that takes the focus, each tried in turn.
     for (const target of [inputRef.current, railRef.current]) {
       if (!isUsable(target)) continue;
