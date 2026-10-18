@@ -156,6 +156,7 @@ function CanvasOverlay({
             top: below ? selected.rect.bottom : selected.rect.top - size.bar.height,
           }}
           data-placement={below ? "below" : "above"}
+          data-tooltip-row=""
           data-testid="canvas-actions"
         >
           {actions}
@@ -215,7 +216,7 @@ function CanvasZoom({ zoom, mode, onMode }: CanvasZoomProps) {
     event.currentTarget.querySelectorAll<HTMLElement>('[role="radio"]')[index]?.focus();
   };
   return (
-    <div className="flex items-center gap-2" data-testid="canvas-zoom">
+    <div className="flex items-center gap-2" data-tooltip-row="" data-testid="canvas-zoom">
       <div
         role="radiogroup"
         aria-label={t("canvas.zoom")}

@@ -313,6 +313,7 @@ function EditorHeader({
       <div
         data-slot="editor-actions"
         data-focus-group=""
+        data-tooltip-row=""
         className="ml-auto flex shrink-0 items-center gap-2"
       >
         {lifecycle === undefined ? null : (

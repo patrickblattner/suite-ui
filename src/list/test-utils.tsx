@@ -1,6 +1,15 @@
 import { act, fireEvent, screen } from "@testing-library/react";
 import { vi } from "vitest";
 
+// The pointer leaves an open tooltip's element (or its bubble) and moves on outside both: the hoverable
+// bubble (`GL-UI-016` rev 5) closes on that move. A native pointerleave does not bubble, so it goes to
+// the tooltip trigger, which radix marks as the bubble's anchor: `from` itself or a locked control's span.
+export function leaveTooltip(from: HTMLElement): void {
+  const trigger = from.closest<HTMLElement>("[data-radix-popper-side]") ?? from;
+  fireEvent.pointerLeave(trigger, { pointerType: "mouse", clientX: 500, clientY: 500 });
+  fireEvent.pointerMove(document.body, { pointerType: "mouse", clientX: 900, clientY: 900 });
+}
+
 // The hint of `control` under fake timers: its text after a hover of 1499 ms and of 1500 ms, and right
 // after keyboard focus (`null` while closed). jsdom has no ResizeObserver; the open tooltip's popper
 // measures its arrow with one.
@@ -30,7 +39,7 @@ export function hintOf(control: HTMLElement): {
       vi.advanceTimersByTime(1);
     });
     const hover1500 = text();
-    fireEvent.pointerLeave(control, { pointerType: "mouse" });
+    leaveTooltip(control);
     act(() => control.focus());
     const focus = text();
     act(() => control.blur());

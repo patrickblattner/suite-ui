@@ -467,7 +467,11 @@ function MediaDetailShell({
                   data-slot="media-detail-preview-column"
                   className="flex shrink-0 flex-col gap-2 @panel-split:min-h-0"
                 >
-                  <div data-slot="media-detail-head" className="flex items-center gap-1">
+                  <div
+                    data-slot="media-detail-head"
+                    data-tooltip-row=""
+                    className="flex items-center gap-1"
+                  >
                     <IconButtonTooltip label={t("pager.previous")}>
                       <Button
                         type="button"
@@ -581,6 +585,7 @@ function MediaDetailShell({
             <div
               data-slot="media-detail-footer"
               data-focus-group=""
+              data-tooltip-row=""
               className="flex shrink-0 flex-row items-center justify-end gap-2 border-t px-6 py-4"
             >
               <Button

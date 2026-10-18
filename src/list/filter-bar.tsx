@@ -98,7 +98,11 @@ function FilterBar({
   // shrinking it, and the wrap never tears the controls group apart. On a row narrower than 20rem the
   // bound is the row itself, so the search never overflows it (320 px reflow).
   return (
-    <div className="flex w-full flex-wrap items-center gap-2" data-testid="filterbar">
+    <div
+      className="flex w-full flex-wrap items-center gap-2"
+      data-tooltip-row=""
+      data-testid="filterbar"
+    >
       <Hint text={helpText ?? t("filter.hint")}>
         <Input
           value={value}
@@ -118,6 +122,7 @@ function FilterBar({
       </Hint>
       <div
         className="ml-auto flex flex-wrap items-center justify-end gap-2"
+        data-tooltip-group=""
         data-testid="filterbar-controls"
       >
         {blockFilters}

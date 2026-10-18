@@ -7,10 +7,14 @@ import { ariaKeyShortcuts, shortcutChip } from "../lib/keyboard.js";
 import { usePressKeepsClosed } from "./press-keeps-closed.js";
 
 // One tooltip behaviour (`GL-UI-016`/`GL-UI-017`): every tooltip, the overflow tooltip included, opens
-// after the one hint delay and closes at once — on pointer leave, click, focus change, scroll and `Esc`;
-// the pointer on the bubble does not hold it open. Radix needs a numeric delay, so this mirrors
+// after the one hint delay and closes at once — once the pointer has left both element and bubble, on
+// click, focus change, scroll and `Esc`. The pointer moving from the element straight onto the bubble
+// keeps it open (hoverable, WCAG 1.4.13, `GL-UI-016` rev 5). Radix needs a numeric delay, so this mirrors
 // `--tooltip-hint-delay` in styles.css. Apps set no delay of their own.
 const TOOLTIP_HINT_DELAY = 1500;
+// How long the pointer may rest on another control on its way from the element to the bubble before
+// the bubble closes (`GL-UI-016` rev 7 §Schließen).
+const TOOLTIP_REST_CLOSE = 300;
 
 type FixedTiming = "delayDuration" | "skipDelayDuration" | "disableHoverableContent";
 
@@ -34,7 +38,7 @@ function TooltipProvider(
         {...props}
         delayDuration={TOOLTIP_HINT_DELAY}
         skipDelayDuration={0}
-        disableHoverableContent
+        disableHoverableContent={false}
       />
     </TriggerNodeContext.Provider>
   );
@@ -133,38 +137,295 @@ function CloseOnFocusOutside() {
   return null;
 }
 
+// The gap between an element (or its row) and its bubble, and how far its top edge stands above the
+// element's.
+const SIDE_OFFSET = 8;
+const ALIGN_RAISE = 4;
+
+// A bar of controls (`GL-UI-016` rev 10 §Lage): a package bar carries `data-tooltip-row`, an app's
+// toolbar its role. Inside a bar the package marks its groups of tightly spaced controls with
+// `data-tooltip-group`; a bar without marked groups is one group. A control outside every marked group
+// of its bar is a group of its own. A group's extent is that of its controls, never its box, which may
+// span the whole width.
+const TOOLTIP_ROW = "[data-tooltip-row], [role=toolbar]";
+const TOOLTIP_GROUP = "[data-tooltip-group]";
+// Radix's select keeps a hidden native `<select>` beside its trigger: no control of its own.
+const ROW_CONTROL =
+  "button, a[href], input, select:not([aria-hidden=true]), textarea, [tabindex]:not([tabindex='-1'])";
+const TEXT_FIELD = "input:not([type]), input[type=text], input[type=search], textarea";
+
+// The outermost marked ancestor of `node` matching `selector`, up to `within`: a bar placed in a larger
+// bar (a `ViewToggle` in the `FilterBar`) counts with all of that bar's controls.
+function outermost(node: Element, selector: string, within?: Element): Element | null {
+  let found: Element | null = null;
+  for (let next = node.closest(selector); next !== null && next !== within;) {
+    if (within !== undefined && !within.contains(next)) break;
+    found = next;
+    next = next.parentElement?.closest(selector) ?? null;
+  }
+  return found;
+}
+
+function rowOf(node: Element | null): Element | null {
+  return node === null ? null : outermost(node, TOOLTIP_ROW);
+}
+
+// The arrow radix adds to the side offset (`size-2.5`). It shows only where the bubble stands right next
+// to its element; beside a group it would point at a neighbour.
+const ARROW_SIZE = 10;
+
+// The narrowest a bubble beside a group wraps to (`GL-UI-016` rev 8 §Lage), and how far it keeps from
+// the typed text of a text field it may stand over (rev 10).
+const ROW_MIN_WIDTH = 120;
+const TEXT_CLEARANCE = 16;
+
+// Where the text of a text field ends: its value, or its placeholder while empty, measured in its own
+// font on a canvas, with no node in the document. Without a canvas the field counts as full.
+let measureCanvas: HTMLCanvasElement | null = null;
+function textEnd(field: HTMLInputElement | HTMLTextAreaElement): number {
+  const box = field.getBoundingClientRect();
+  const style = getComputedStyle(field);
+  measureCanvas ??= document.createElement("canvas");
+  const context = measureCanvas.getContext("2d");
+  if (context === null) return box.right;
+  context.font = [style.fontStyle, style.fontWeight, style.fontSize, style.fontFamily].join(" ");
+  const text = field.value === "" ? field.placeholder : field.value;
+  const spacing = (parseFloat(style.letterSpacing) || 0) * text.length;
+  const start =
+    box.left + (parseFloat(style.borderLeftWidth) || 0) + (parseFloat(style.paddingLeft) || 0);
+  return Math.min(box.right, start + context.measureText(text).width + spacing);
+}
+
+// `fallback`: no side of the group has room even for the narrowest bubble, so it stands beside the
+// element itself and may flip there. `adjacent`: it stands right next to its element, with the arrow.
+// `room`: the width of the gap it stands in, which it narrows to.
+// `lift`: how far the bubble rises above its usual top edge so that it is not cut off at the bottom
+// of the viewport; radix's own shift is off beside a group, together with its flip.
+type RowPlacement = {
+  side: "right" | "left";
+  sideOffset: number;
+  fallback: boolean;
+  adjacent: boolean;
+  room: number;
+  lift: number;
+};
+
+// Inside a bar the bubble stands beside the element's group, at the element's height, in the nearest
+// gap that holds it, so it covers no neighbouring control (`GL-UI-016` rev 10 §Lage): right of the
+// group up to the next control of the bar (or the viewport), else left of it. A text field that takes
+// the remaining width leaves no gap: the bubble may then stand over its empty end, 16 px clear of its
+// text. Without a gap for its full width it takes the larger one and narrows there, down to 120 px;
+// below that (a narrow window) it stands beside the element as outside a bar, and the neighbours'
+// protection yields. Measured when the bubble mounts, before it paints.
+function useRowPlacement(content: HTMLElement | null, padding: number): RowPlacement | null {
+  const trigger = React.useContext(TriggerNodeContext)?.trigger ?? null;
+  const [placement, setPlacement] = React.useState<RowPlacement | null>(null);
+  const [lift, setLift] = React.useState(0);
+  // Closed: nothing of this open carries into the next, which measures the bubble uncapped.
+  if (content === null && (placement !== null || lift !== 0)) {
+    setPlacement(null);
+    setLift(0);
+  }
+  React.useLayoutEffect(() => {
+    const row = rowOf(trigger);
+    if (trigger === null || content === null || row === null) return;
+    const own = trigger.getBoundingClientRect();
+    const marked = row.querySelector(TOOLTIP_GROUP) !== null;
+    const group = marked ? (outermost(trigger, TOOLTIP_GROUP, row) ?? trigger) : row;
+    const onLine = (rect: DOMRect) =>
+      rect.width > 0 && rect.bottom > own.top && rect.top < own.bottom;
+    const controls = [...row.querySelectorAll(ROW_CONTROL)].filter(
+      (node) => !trigger.contains(node) && !node.contains(trigger),
+    );
+    const mine = controls
+      .filter((node) => group.contains(node))
+      .map((node) => node.getBoundingClientRect());
+    const left = Math.min(own.left, ...mine.filter(onLine).map((rect) => rect.left));
+    const right = Math.max(own.right, ...mine.filter(onLine).map((rect) => rect.right));
+    const others = controls.filter((node) => !group.contains(node));
+    let rightBound = document.documentElement.clientWidth - padding;
+    let leftBound = padding;
+    let leftField: Element | null = null;
+    for (const node of others) {
+      const rect = node.getBoundingClientRect();
+      if (!onLine(rect)) continue;
+      if (rect.left >= right) rightBound = Math.min(rightBound, rect.left - SIDE_OFFSET);
+      if (rect.right <= left && rect.right + SIDE_OFFSET > leftBound) {
+        leftBound = rect.right + SIDE_OFFSET;
+        leftField = node;
+      }
+    }
+    if (leftField?.matches(TEXT_FIELD)) {
+      leftBound = textEnd(leftField as HTMLInputElement) + TEXT_CLEARANCE;
+    }
+    // Right next to its element the bubble keeps the arrow's length more.
+    const gapRight = SIDE_OFFSET + (right - own.right < 1 ? ARROW_SIZE : 0);
+    const gapLeft = SIDE_OFFSET + (own.left - left < 1 ? ARROW_SIZE : 0);
+    // The popper places the bubble on whole pixels: the bounds round inward, the rooms down.
+    const roomRight = Math.floor(Math.floor(rightBound) - right - gapRight);
+    const roomLeft = Math.floor(left - gapLeft - Math.ceil(leftBound));
+    const width = content.getBoundingClientRect().width;
+    const fits = width <= roomRight || width <= roomLeft;
+    const side = width <= roomRight || (!fits && roomRight >= roomLeft) ? "right" : "left";
+    const room = side === "right" ? roomRight : roomLeft;
+    const fallback = !fits && room < ROW_MIN_WIDTH;
+    // Measuring the DOM before paint is what layout effects are for.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setPlacement(
+      fallback
+        ? {
+            side: "right",
+            sideOffset: SIDE_OFFSET,
+            fallback,
+            adjacent: true,
+            room: Infinity,
+            lift: 0,
+          }
+        : {
+            side,
+            sideOffset: SIDE_OFFSET + (side === "right" ? right - own.right : own.left - left),
+            fallback,
+            adjacent: (side === "right" ? gapRight : gapLeft) > SIDE_OFFSET,
+            room,
+            lift: 0,
+          },
+    );
+  }, [trigger, content, padding]);
+  // The bubble's height settles once it narrows to its side, so it is measured as it resizes.
+  React.useEffect(() => {
+    if (placement === null || placement.fallback) return;
+    if (trigger === null || content === null || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => {
+      const top = trigger.getBoundingClientRect().top - ALIGN_RAISE;
+      const overflow = top + content.getBoundingClientRect().height;
+      const room = document.documentElement.clientHeight - padding;
+      setLift(Math.min(Math.max(0, overflow - room), Math.max(0, top - padding)));
+    });
+    observer.observe(content);
+    return () => observer.disconnect();
+  }, [placement, trigger, content, padding]);
+  return placement === null ? null : { ...placement, lift: placement.fallback ? 0 : lift };
+}
+
+// The way from the element to the bubble counts as on the way while the pointer moves (`GL-UI-016`
+// rev 7 §Schließen): resting 300 ms on another control on it (a neighbour in the row, which radix's
+// grace area spans) means it has left the element, and the bubble closes. Every move starts the rest
+// anew; on the element or the bubble there is none. Mounted only while the bubble is open.
+function CloseOnRest({ content }: { content: HTMLElement | null }) {
+  const trigger = React.useContext(TriggerNodeContext)?.trigger;
+  React.useEffect(() => {
+    let timer = 0;
+    // Only on the way: once the pointer has left the element. A bubble opened by the focus, with the
+    // pointer elsewhere, keeps open.
+    let away = false;
+    const onLeave = () => (away = true);
+    const onEnter = () => (away = false);
+    trigger?.addEventListener("pointerleave", onLeave);
+    trigger?.addEventListener("pointerenter", onEnter);
+    const onPointerMove = (event: PointerEvent) => {
+      window.clearTimeout(timer);
+      if (!away || !(event.target instanceof Element)) return;
+      const control = event.target.closest(ROW_CONTROL);
+      if (control === null || content?.contains(control)) return;
+      if (trigger != null && (trigger.contains(control) || control.contains(trigger))) return;
+      timer = window.setTimeout(
+        () => document.dispatchEvent(new CustomEvent(TOOLTIP_OPEN)),
+        TOOLTIP_REST_CLOSE,
+      );
+    };
+    document.addEventListener("pointermove", onPointerMove);
+    return () => {
+      window.clearTimeout(timer);
+      document.removeEventListener("pointermove", onPointerMove);
+      trigger?.removeEventListener("pointerleave", onLeave);
+      trigger?.removeEventListener("pointerenter", onEnter);
+    };
+  }, [trigger, content]);
+  return null;
+}
+
 // The bubble stands to the right of its element, its top edge 4 px above the element's, 8 px apart;
 // without room on the right it flips to the left with the same offsets, never above or below, so it
-// covers neither the element nor the neighbour rows. Where neither side has room for its full width
-// (a narrow viewport), it narrows to the room left on its side and wraps, staying inside the viewport
-// (#183). Apps set no placement of their own.
+// covers neither the element nor the neighbour rows. In a row of controls it stands beside the whole
+// row (`useRowPlacement`). Where neither side has room for its full width (a narrow viewport), it
+// narrows to the room left on its side and wraps, staying inside the viewport (#183). Apps set no
+// placement of their own. The bubble is hoverable, so a press can land on it: that press closes it at
+// once (`GL-UI-016` §Schließen), with the event radix uses to close the others. Its click stops there:
+// the bubble is a portal, and in the React tree the element's ancestors (a tile that opens) would
+// hear it.
 function TooltipContent({
+  ref,
   className,
-  collisionPadding = 8,
+  collisionPadding = SIDE_OFFSET,
   children,
+  onPointerDown,
+  onClick,
+  style,
   ...props
 }: Omit<
   React.ComponentProps<typeof TooltipPrimitive.Content>,
   "side" | "align" | "sideOffset" | "alignOffset"
 >) {
+  const [content, setContent] = React.useState<HTMLDivElement | null>(null);
+  const composedRef = React.useCallback(
+    (node: HTMLDivElement | null) => {
+      setContent(node);
+      assignRef(ref, node);
+    },
+    [ref],
+  );
+  const trigger = React.useContext(TriggerNodeContext)?.trigger ?? null;
+  const inRow = rowOf(trigger) !== null;
+  const row = useRowPlacement(
+    content,
+    typeof collisionPadding === "number" ? collisionPadding : SIDE_OFFSET,
+  );
   return (
     <TooltipPrimitive.Portal>
       <TooltipPrimitive.Content
         data-slot="tooltip-content"
-        side="right"
+        side={row?.side ?? "right"}
         align="start"
-        sideOffset={8}
-        alignOffset={-4}
+        sideOffset={row?.sideOffset ?? SIDE_OFFSET}
+        // In a row the side is chosen by the row: a flip would keep the offset of the side it left and
+        // land beside the element, over its neighbours. Without room the bubble narrows instead (#183).
+        // Known from the first render, so no placement computed with a flip arrives after the row's;
+        // the fallback beside the element flips again, as outside a row.
+        avoidCollisions={!inRow || row?.fallback === true}
+        alignOffset={-ALIGN_RAISE}
         collisionPadding={collisionPadding}
         className={cn(
-          "z-50 max-w-[min(var(--container-xs),var(--radix-tooltip-content-available-width,var(--container-xs)))] origin-(--radix-tooltip-content-transform-origin) rounded-md bg-primary px-3 py-1.5 text-xs text-balance text-primary-foreground",
+          "z-50 max-w-[min(var(--container-xs),var(--radix-tooltip-content-available-width,var(--container-xs)),var(--tooltip-room,var(--container-xs)))] origin-(--radix-tooltip-content-transform-origin) rounded-md bg-primary px-3 py-1.5 text-xs text-balance text-primary-foreground",
           className,
         )}
+        // The gap beside a group it stands in, which it narrows to, and its rise off the viewport's
+        // bottom edge, on the bubble itself so the popper need not place it anew.
+        style={
+          row === null || row.fallback
+            ? style
+            : ({
+                ...style,
+                "--tooltip-room": `${row.room}px`,
+                translate: row.lift === 0 ? undefined : `0 -${row.lift}px`,
+              } as React.CSSProperties)
+        }
         {...props}
+        ref={composedRef}
+        onPointerDown={(event) => {
+          onPointerDown?.(event);
+          document.dispatchEvent(new CustomEvent(TOOLTIP_OPEN));
+        }}
+        onClick={(event) => {
+          onClick?.(event);
+          event.stopPropagation();
+        }}
       >
         {children}
         <CloseOnFocusOutside />
-        <TooltipPrimitive.Arrow className="z-50 size-2.5 translate-y-[calc(-50%_-_2px)] rotate-45 rounded-[2px] bg-primary fill-primary" />
+        <CloseOnRest content={content} />
+        {row === null || (row.adjacent && row.lift === 0) ? (
+          <TooltipPrimitive.Arrow className="z-50 size-2.5 translate-y-[calc(-50%_-_2px)] rotate-45 rounded-[2px] bg-primary fill-primary" />
+        ) : null}
       </TooltipPrimitive.Content>
     </TooltipPrimitive.Portal>
   );

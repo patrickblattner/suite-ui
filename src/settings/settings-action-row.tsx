@@ -57,7 +57,12 @@ function SettingsActionRow({
   // Nothing to lead with (also `null` or `false`): the row as before, without an empty group.
   if (leading === undefined || leading === null || leading === false) {
     return (
-      <div className="flex justify-end gap-2" data-focus-group="" data-slot="settings-action-row">
+      <div
+        className="flex justify-end gap-2"
+        data-focus-group=""
+        data-tooltip-row=""
+        data-slot="settings-action-row"
+      >
         {pair}
       </div>
     );
@@ -66,6 +71,7 @@ function SettingsActionRow({
     <div
       className="flex flex-wrap items-center justify-between gap-2"
       data-focus-group=""
+      data-tooltip-row=""
       data-slot="settings-action-row"
     >
       <div className="flex items-center gap-2" data-slot="settings-action-row-leading">

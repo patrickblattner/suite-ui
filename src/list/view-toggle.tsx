@@ -65,6 +65,7 @@ function ViewToggle({ value, onChange, storageKey }: ViewToggleProps) {
       aria-label={t("view.label")}
       className="flex items-center gap-1"
       onKeyDown={onKeyDown}
+      data-tooltip-row=""
       data-testid="view-toggle"
     >
       {VIEWS.map(({ view, icon: Icon }) => (

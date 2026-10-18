@@ -182,7 +182,11 @@ function EditPanel({
             {pager === undefined ? (
               <SheetTitle className="text-lg leading-none">{title}</SheetTitle>
             ) : (
-              <div data-slot="edit-panel-pager" className="flex items-center gap-1">
+              <div
+                data-slot="edit-panel-pager"
+                data-tooltip-row=""
+                className="flex items-center gap-1"
+              >
                 <IconButtonTooltip label={t("pager.previous")}>
                   <Button
                     type="button"
@@ -275,6 +279,7 @@ function EditPanel({
             )}
             <div
               data-slot="edit-panel-footer"
+              data-tooltip-row=""
               className="flex shrink-0 flex-row items-center justify-end gap-2 border-t px-6 py-4"
             >
               {/* Every footer button in the package `Hint` (`SUI-FEATURE-091`). The locked text is

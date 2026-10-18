@@ -89,7 +89,7 @@ function addActions(add: NonNullable<PageHeaderProps["add"]>) {
   if (!Array.isArray(add)) return addButton(add as PageHeaderAdd, false);
   const [first, second] = add as readonly [PageHeaderAdd, PageHeaderAdd];
   return (
-    <div className={ACTION_GROUP} data-testid="page-add-group">
+    <div className={ACTION_GROUP} data-tooltip-row="" data-testid="page-add-group">
       {addButton(second, true)}
       {addButton(first, false)}
     </div>
@@ -127,7 +127,7 @@ function PageHeader({
   const besideTrigger = useOptionalSidebar() !== null ? "max-md:mr-auto" : undefined;
   const actions =
     primaryAction !== undefined || secondaryAction !== undefined ? (
-      <div className={ACTION_GROUP}>
+      <div className={ACTION_GROUP} data-tooltip-row="">
         {secondaryAction}
         {primaryAction !== undefined ? (
           <div data-testid="page-primary-action">{primaryAction}</div>

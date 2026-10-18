@@ -82,7 +82,11 @@ function SecretCardHeader({
   const activeId = React.useId();
   return (
     <div className="flex flex-col items-end gap-2" data-slot="secret-card-header">
-      <div className="flex items-center gap-2" data-slot="secret-card-header-group">
+      <div
+        className="flex items-center gap-2"
+        data-tooltip-row=""
+        data-slot="secret-card-header-group"
+      >
         {active !== undefined ? (
           <div className="flex items-center gap-2">
             <Switch

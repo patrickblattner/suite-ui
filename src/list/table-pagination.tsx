@@ -182,6 +182,7 @@ function TablePagination({
     <div
       ref={rootRef}
       className="flex w-full items-center justify-end gap-[var(--pager-gap)] text-sm"
+      data-tooltip-row=""
       data-testid="pagination"
     >
       {step({

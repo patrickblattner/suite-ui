@@ -287,6 +287,7 @@ function PreviewToolbar({
       role="group"
       aria-label={t("preview.label")}
       data-focus-group=""
+      data-tooltip-row=""
       // One line never shrinks its parts: an overflow shows as one and folds the next step.
       className={wrapped ? "flex flex-col gap-2" : "flex items-center gap-2 [&>*]:shrink-0"}
       data-shrink={shrink}

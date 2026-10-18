@@ -75,7 +75,10 @@ function DrawerRail({ items, open, onOpen, styleSave }: DrawerRailProps) {
       className={cn("flex h-full max-w-full shrink-0", BESIDE_PANEL)}
       data-testid="drawer-rail"
     >
-      <div className="flex w-12 shrink-0 flex-col items-center gap-1 border-r border-border py-2">
+      <div
+        className="flex w-12 shrink-0 flex-col items-center gap-1 border-r border-border py-2"
+        data-tooltip-row=""
+      >
         {ordered.map(({ id: drawer, icon: Icon, badge }) => (
           <IconButtonTooltip key={drawer} label={t(`canvas.drawer.${drawer}`)}>
             <Button

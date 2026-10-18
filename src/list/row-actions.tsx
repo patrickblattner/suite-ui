@@ -357,6 +357,7 @@ function RowActions({
           if (ROW_KEYS.has(event.key)) event.stopPropagation();
         }}
         data-slot="row-actions"
+        data-tooltip-row=""
       >
         {buttons.extra}
         {buttons.edit}

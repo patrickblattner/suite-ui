@@ -195,6 +195,7 @@ function DialogFooter({
   return (
     <div
       data-slot="dialog-footer"
+      data-tooltip-row=""
       className={cn(
         "-mx-6 flex shrink-0 flex-row items-center justify-end gap-2 border-t px-6 pt-4",
         className,

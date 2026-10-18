@@ -4,6 +4,7 @@ import { Tooltip as TooltipPrimitive } from "radix-ui";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { leaveTooltip } from "../list/test-utils.js";
 import { Button } from "./button.js";
 import { EditPanel } from "./edit-panel.js";
 import { Input } from "./input.js";
@@ -493,7 +494,8 @@ describe("tooltip held press", () => {
   });
 });
 
-// SUI-FEATURE-049 AC2: the bubble closes at once; the pointer on it does not hold it open.
+// GL-UI-016 rev 5 §Schließen (#259): the bubble closes at once once the pointer has left element and
+// bubble; the pointer moving from the element onto the bubble keeps it open.
 describe("tooltip closing", () => {
   function openTooltip(): HTMLElement {
     render(
@@ -507,15 +509,68 @@ describe("tooltip closing", () => {
     return trigger;
   }
 
-  it("closes when the pointer leaves the element, without a grace area toward the bubble", () => {
+  it("stays open while the pointer moves from the element onto the bubble", () => {
     const trigger = openTooltip();
-    fireEvent.pointerLeave(trigger, { pointerType: "mouse", clientX: 500, clientY: 10 });
+    fireEvent.pointerLeave(trigger, { pointerType: "mouse", clientX: 10, clientY: 10 });
+    const bubble = screen.getByText("Description", { selector: "[data-slot=tooltip-content]" });
+    fireEvent.pointerMove(bubble, { pointerType: "mouse", clientX: 10, clientY: 10 });
+    act(() => {
+      vi.advanceTimersByTime(3000);
+    });
+    expect(screen.getByRole("tooltip")).toBeInTheDocument();
+  });
+
+  it("closes at once when the pointer leaves the element and the bubble", () => {
+    const trigger = openTooltip();
+    leaveTooltip(trigger);
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
+  it("closes at once when the pointer leaves the bubble after holding it", () => {
+    const trigger = openTooltip();
+    fireEvent.pointerLeave(trigger, { pointerType: "mouse", clientX: 10, clientY: 10 });
+    const bubble = screen.getByText("Description", { selector: "[data-slot=tooltip-content]" });
+    fireEvent.pointerMove(bubble, { pointerType: "mouse", clientX: 10, clientY: 10 });
+    leaveTooltip(bubble);
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
+  it("an OverflowTooltip stays open on its bubble and closes once the pointer leaves both", () => {
+    vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(100);
+    vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return this.classList.contains("truncate") ? 200 : 100;
+    });
+    render(
+      <OverflowTooltip>
+        <span className="truncate">a-very-long-file-name.png</span>
+      </OverflowTooltip>,
+    );
+    const text = screen.getByText("a-very-long-file-name.png", { selector: ".truncate" });
+    expect(openAfter(text, 1500)).toBe(true);
+    fireEvent.pointerLeave(text, { pointerType: "mouse", clientX: 10, clientY: 10 });
+    const bubble = screen.getByText("a-very-long-file-name.png", {
+      selector: "[data-slot=tooltip-content]",
+    });
+    fireEvent.pointerMove(bubble, { pointerType: "mouse", clientX: 10, clientY: 10 });
+    expect(screen.getByRole("tooltip")).toBeInTheDocument();
+    leaveTooltip(bubble);
     expect(screen.queryByRole("tooltip")).toBeNull();
   });
 
   it("closes on a click", () => {
     const trigger = openTooltip();
     fireEvent.pointerDown(trigger, { pointerType: "mouse" });
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
+  it("closes on a click on the bubble", () => {
+    const trigger = openTooltip();
+    fireEvent.pointerLeave(trigger, { pointerType: "mouse", clientX: 10, clientY: 10 });
+    const bubble = screen.getByText("Description", { selector: "[data-slot=tooltip-content]" });
+    fireEvent.pointerMove(bubble, { pointerType: "mouse", clientX: 10, clientY: 10 });
+    fireEvent.pointerDown(bubble, { pointerType: "mouse" });
     expect(screen.queryByRole("tooltip")).toBeNull();
   });
 
@@ -613,5 +668,473 @@ describe("tooltip placement", () => {
     const content = document.querySelector("[data-slot=tooltip-content]");
     expect(content).toHaveAttribute("data-side", "right");
     expect(content).toHaveAttribute("data-align", "start");
+  });
+});
+
+// GL-UI-016 rev 6 §Lage (#259): in a row of controls the bubble stands beside the whole row, at the
+// element's height, so it covers no neighbouring control. jsdom lays nothing out: the boxes are set.
+describe("tooltip placement in a row", () => {
+  function layOut(viewport: number, boxes: Record<string, [number, number]>, height = 800) {
+    Object.defineProperty(document.documentElement, "clientWidth", {
+      configurable: true,
+      value: viewport,
+    });
+    Object.defineProperty(document.documentElement, "clientHeight", {
+      configurable: true,
+      value: height,
+    });
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      const bubble =
+        this.dataset.slot === "tooltip-content" ||
+        this.hasAttribute("data-radix-popper-content-wrapper");
+      const key = bubble ? "bubble" : (this.dataset.testid ?? "");
+      const [left, natural] = boxes[key] ?? [0, 0];
+      // The bubble narrows to the room it was given, as its max-width does.
+      const room = parseFloat(this.style.getPropertyValue("--tooltip-room"));
+      const width = Number.isNaN(room) ? natural : Math.min(natural, room);
+      return new DOMRect(left, 100, width, width === 0 ? 0 : 32);
+    });
+    // The canvas the package measures a text field's text on.
+    vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue({
+      font: "",
+      measureText: () => ({ width: boxes.mirror?.[1] ?? 0 }),
+    } as unknown as CanvasRenderingContext2D);
+    // Radix's popper sizes the bubble by its offset box.
+    const bubbleSize = (node: HTMLElement, size: number) =>
+      node.hasAttribute("data-radix-popper-content-wrapper") ? size : 0;
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return bubbleSize(this, boxes.bubble?.[1] ?? 0);
+    });
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return bubbleSize(this, 32);
+    });
+  }
+
+  afterEach(() => {
+    Reflect.deleteProperty(document.documentElement, "clientWidth");
+    Reflect.deleteProperty(document.documentElement, "clientHeight");
+  });
+
+  function renderRow() {
+    render(
+      <div data-tooltip-row="" data-testid="row">
+        <IconButtonTooltip label="Next page">
+          <Button variant="ghost" size="icon" data-testid="next">
+            &gt;
+          </Button>
+        </IconButtonTooltip>
+        <IconButtonTooltip label="Last page">
+          <Button variant="ghost" size="icon" data-testid="last">
+            &gt;&gt;
+          </Button>
+        </IconButtonTooltip>
+      </div>,
+    );
+  }
+
+  // The offset from the element is the room to the row's far edge plus the usual 8 px.
+  async function placedBubble(testId: string) {
+    expect(openAfter(screen.getByTestId(testId), 1500)).toBe(true);
+    // The popper positions in promises: one round for the first placement, one for the row's.
+    for (let round = 0; round < 6; round++) {
+      await act(async () => {
+        await Promise.resolve();
+      });
+    }
+    return document.querySelector("[data-slot=tooltip-content]");
+  }
+
+  it("stands right of the whole row, past the neighbour", async () => {
+    layOut(1000, { row: [0, 1000], next: [0, 32], last: [36, 32], bubble: [0, 100] });
+    renderRow();
+    const bubble = await placedBubble("next");
+    expect(bubble).toHaveAttribute("data-side", "right");
+    const wrapper = bubble?.parentElement as HTMLElement;
+    // Right of Last page (36 + 32) and 8 px apart: 76.
+    expect(wrapper.style.transform).toMatch(/^translate\(76px,/);
+  });
+
+  it("stands left of the whole row when the right has no room", async () => {
+    layOut(1000, { row: [0, 1000], next: [900, 32], last: [936, 32], bubble: [0, 100] });
+    renderRow();
+    const bubble = await placedBubble("last");
+    expect(bubble).toHaveAttribute("data-side", "left");
+    const wrapper = bubble?.parentElement as HTMLElement;
+    // Its right edge 8 px left of Next page (900), the bubble 100 px wide: 792.
+    expect(wrapper.style.transform).toMatch(/^translate\(792px,/);
+  });
+
+  // Too wide for either side, more room on the right: it stays right of the row and narrows there. A
+  // flip would put it 8 px left of Last page, over Next page.
+  it("keeps beside the row without room on either side", async () => {
+    layOut(400, { row: [0, 400], next: [150, 32], last: [186, 32], bubble: [0, 180] });
+    renderRow();
+    const bubble = await placedBubble("last");
+    expect(bubble).toHaveAttribute("data-side", "right");
+    // Right of Last page (186 + 32) and 8 px apart: 226.
+    expect((bubble?.parentElement as HTMLElement).style.transform).toMatch(/^translate\(226px,/);
+  });
+
+  // Not even 120 px beside the row on either side (a narrow window): it stands beside the element, as
+  // outside a row, and may cover a neighbour.
+  it("stands beside the element when no side of the row has room for 120 px", async () => {
+    layOut(390, {
+      row: [0, 390],
+      first: [20, 32],
+      next: [150, 32],
+      last: [290, 32],
+      bubble: [0, 200],
+    });
+    render(
+      <div data-tooltip-row="" data-testid="row">
+        {(["first", "next", "last"] as const).map((id) => (
+          <IconButtonTooltip key={id} label={id}>
+            <Button variant="ghost" size="icon" data-testid={id}>
+              {id}
+            </Button>
+          </IconButtonTooltip>
+        ))}
+      </div>,
+    );
+    const bubble = await placedBubble("next");
+    expect(bubble).toHaveAttribute("data-side", "right");
+    // 8 px right of Next page itself (150 + 32): 190.
+    expect((bubble?.parentElement as HTMLElement).style.transform).toMatch(/^translate\(190px,/);
+  });
+
+  // Beside a row radix's shift is off: at the bottom of the viewport the bubble rises by itself.
+  it("rises so the bottom of the viewport does not cut it off", async () => {
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(private readonly callback: (entries: []) => void) {}
+        observe() {
+          this.callback([]);
+        }
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    // The element's top at 100, the bubble 32 px tall from 96: 16 px past the room (120 - 8).
+    layOut(1000, { row: [0, 1000], next: [0, 32], last: [36, 32], bubble: [0, 100] }, 120);
+    renderRow();
+    const bubble = await placedBubble("next");
+    expect((bubble?.parentElement as HTMLElement).style.transform).toBe("translate(76px, 96px)");
+    expect((bubble as HTMLElement).style.translate).toBe("0 -16px");
+    // Risen, an arrow would point above the element.
+    fireEvent.pointerDown(bubble!, { pointerType: "mouse" });
+    fireEvent.pointerLeave(screen.getByTestId("next"), { pointerType: "mouse" });
+    const last = await placedBubble("last");
+    expect((last as HTMLElement).style.translate).toBe("0 -16px");
+    expect(last?.querySelector("svg")).toBeNull();
+  });
+
+  // A marked group inside a larger row (a ViewToggle in the FilterBar) counts with the whole row.
+  it("a marked group inside a row stands beside the outer row", async () => {
+    layOut(600, { search: [300, 200], next: [504, 32], last: [540, 32], bubble: [0, 100] });
+    render(
+      <div data-tooltip-row="">
+        <input aria-label="Search" data-testid="search" />
+        <div data-tooltip-row="">
+          <IconButtonTooltip label="Next page">
+            <Button variant="ghost" size="icon" data-testid="next">
+              &gt;
+            </Button>
+          </IconButtonTooltip>
+          <IconButtonTooltip label="Last page">
+            <Button variant="ghost" size="icon" data-testid="last">
+              &gt;&gt;
+            </Button>
+          </IconButtonTooltip>
+        </div>
+      </div>,
+    );
+    const bubble = await placedBubble("last");
+    expect(bubble).toHaveAttribute("data-side", "left");
+    // No room right of the row: left of the search (300), 8 px apart, 100 px wide: 192 — not left of
+    // Next page, over the search.
+    expect((bubble?.parentElement as HTMLElement).style.transform).toMatch(/^translate\(192px,/);
+  });
+
+  // GL-UI-016 rev 10: a bar of groups. The search takes the remaining width and leaves no gap, so a
+  // bubble of the right group stands over the search's empty end, 16 px clear of its text.
+  function renderFilterBar(text: string) {
+    render(
+      <div data-tooltip-row="">
+        <input aria-label="Search" defaultValue={text} data-testid="search" />
+        <div data-tooltip-group="">
+          <IconButtonTooltip label="Clear filter">
+            <Button variant="ghost" size="icon" data-testid="reset">
+              x
+            </Button>
+          </IconButtonTooltip>
+          <IconButtonTooltip label="Sort">
+            <Button variant="ghost" size="icon" data-testid="sort">
+              s
+            </Button>
+          </IconButtonTooltip>
+        </div>
+      </div>,
+    );
+  }
+  const filterBar = (mirror: number, bubble: number) => ({
+    search: [0, 800] as [number, number],
+    reset: [808, 32] as [number, number],
+    sort: [844, 56] as [number, number],
+    mirror: [0, mirror] as [number, number],
+    bubble: [0, bubble] as [number, number],
+  });
+
+  it("stands over the empty end of a search that leaves no gap", async () => {
+    layOut(1000, filterBar(0, 100));
+    renderFilterBar("");
+    const bubble = await placedBubble("reset");
+    expect(bubble).toHaveAttribute("data-side", "left");
+    // Its right edge 8 px left of the group (808): 700.
+    expect((bubble?.parentElement as HTMLElement).style.transform).toMatch(/^translate\(700px,/);
+  });
+
+  it("narrows to keep 16 px clear of the typed text", async () => {
+    // The text ends at 650: room from 666 to 800, less the 8 px gap and the arrow.
+    layOut(1000, filterBar(650, 200));
+    renderFilterBar("a query that runs long");
+    const bubble = await placedBubble("reset");
+    expect(bubble).toHaveAttribute("data-side", "left");
+    // Right next to Clear filter, the first of its group, the arrow's 10 px come off: 124 px.
+    expect(bubble?.getAttribute("style")).toContain("--tooltip-room: 124px");
+  });
+
+  // Nothing of one open carries into the next: the bubble is measured uncapped again.
+  it("a reopen places the bubble as a fresh open does", async () => {
+    // 150 px right of the group, 124 px left of it up to the text: the larger, right, narrowed.
+    layOut(1066, filterBar(650, 200));
+    renderFilterBar("a query that runs long");
+    let bubble = await placedBubble("reset");
+    expect(bubble).toHaveAttribute("data-side", "right");
+    expect(bubble?.getAttribute("style")).toContain("--tooltip-room: 150px");
+    fireEvent.pointerDown(bubble!, { pointerType: "mouse" });
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    // The text is cleared: 774 px on the left hold the bubble at its full width. Measured under the
+    // old 150 px it would fit on the right and stay there.
+    layOut(1066, filterBar(0, 200));
+    fireEvent.pointerLeave(screen.getByTestId("reset"), { pointerType: "mouse" });
+    bubble = await placedBubble("reset");
+    expect(bubble).toHaveAttribute("data-side", "left");
+    expect(bubble?.getAttribute("style")).toContain("--tooltip-room: 774px");
+  });
+
+  // The arrow shows only right next to the element; beside a group it would point at a neighbour.
+  it("shows the arrow next to its element only", async () => {
+    layOut(1000, { next: [0, 32], last: [36, 32], bubble: [0, 100] });
+    renderRow();
+    let bubble = await placedBubble("next");
+    expect(bubble?.querySelector("svg")).toBeNull();
+    fireEvent.pointerDown(bubble!, { pointerType: "mouse" });
+    fireEvent.pointerLeave(screen.getByTestId("next"), { pointerType: "mouse" });
+    bubble = await placedBubble("last");
+    expect(bubble?.querySelector("svg")).not.toBeNull();
+  });
+
+  // Radix's select keeps a hidden native select beside its trigger; it is no neighbour.
+  it("a hidden native select is no neighbour: the bubble stands next to its element", async () => {
+    layOut(1000, { pick: [0, 120], native: [120, 1], bubble: [0, 100] });
+    render(
+      <div data-tooltip-row="">
+        <IconButtonTooltip label="Severity">
+          <Button variant="ghost" size="icon" data-testid="pick">
+            v
+          </Button>
+        </IconButtonTooltip>
+        <select aria-hidden="true" tabIndex={-1} data-testid="native" />
+      </div>,
+    );
+    const bubble = await placedBubble("pick");
+    expect(bubble?.querySelector("svg")).not.toBeNull();
+  });
+
+  it("stands beside the element when the text leaves under 120 px", async () => {
+    // The text ends at 750: 34 px left of the group, 84 px right of it.
+    layOut(1000, filterBar(750, 100));
+    renderFilterBar("a query that runs very long indeed");
+    const bubble = await placedBubble("reset");
+    expect(bubble).toHaveAttribute("data-side", "right");
+    // 8 px right of Clear filter itself (808 + 32): 848.
+    expect((bubble?.parentElement as HTMLElement).style.transform).toMatch(/^translate\(848px,/);
+  });
+
+  it("stands in the gap between its group and the next group of the bar", async () => {
+    layOut(1000, { a1: [0, 32], a2: [36, 32], b1: [900, 32], b2: [936, 32], bubble: [0, 100] });
+    render(
+      <div data-tooltip-row="">
+        {[
+          ["a1", "a2"],
+          ["b1", "b2"],
+        ].map((ids) => (
+          <div key={ids[0]} data-tooltip-group="">
+            {ids.map((id) => (
+              <IconButtonTooltip key={id} label={id}>
+                <Button variant="ghost" size="icon" data-testid={id}>
+                  {id}
+                </Button>
+              </IconButtonTooltip>
+            ))}
+          </div>
+        ))}
+      </div>,
+    );
+    const bubble = await placedBubble("b2");
+    expect(bubble).toHaveAttribute("data-side", "left");
+    // Left of its group (900), 8 px apart: 792, clear of the first group (up to 68).
+    expect((bubble?.parentElement as HTMLElement).style.transform).toMatch(/^translate\(792px,/);
+  });
+
+  it("an app toolbar is a row as well", async () => {
+    layOut(1000, { next: [0, 32], last: [36, 32], bubble: [0, 100] });
+    render(
+      <div role="toolbar" aria-label="Pages">
+        <IconButtonTooltip label="Next page">
+          <Button variant="ghost" size="icon" data-testid="next">
+            &gt;
+          </Button>
+        </IconButtonTooltip>
+        <IconButtonTooltip label="Last page">
+          <Button variant="ghost" size="icon" data-testid="last">
+            &gt;&gt;
+          </Button>
+        </IconButtonTooltip>
+      </div>,
+    );
+    const bubble = await placedBubble("next");
+    expect(bubble).toHaveAttribute("data-side", "right");
+    expect((bubble?.parentElement as HTMLElement).style.transform).toMatch(/^translate\(76px,/);
+  });
+
+  it("outside a row it stands 8 px right of the element, as before", async () => {
+    layOut(1000, { next: [0, 32], bubble: [0, 100] });
+    render(
+      <IconButtonTooltip label="Next page">
+        <Button variant="ghost" size="icon" data-testid="next">
+          &gt;
+        </Button>
+      </IconButtonTooltip>,
+    );
+    const bubble = await placedBubble("next");
+    expect(bubble).toHaveAttribute("data-side", "right");
+    expect((bubble?.parentElement as HTMLElement).style.transform).toMatch(/^translate\(40px,/);
+  });
+});
+
+// GL-UI-016 rev 7 §Schließen (#259): on the way from the element to the bubble the pointer may cross
+// a neighbour; resting there 300 ms closes the bubble, every move starts the rest anew, and the bubble
+// itself ends it.
+describe("tooltip rest on another control", () => {
+  function openNext() {
+    render(
+      <div data-tooltip-row="">
+        <IconButtonTooltip label="Next page">
+          <Button variant="ghost" size="icon" data-testid="next">
+            &gt;
+          </Button>
+        </IconButtonTooltip>
+        <IconButtonTooltip label="Last page">
+          <Button variant="ghost" size="icon" data-testid="last">
+            &gt;&gt;
+          </Button>
+        </IconButtonTooltip>
+      </div>,
+    );
+    const next = screen.getByTestId("next");
+    expect(openAfter(next, 1500)).toBe(true);
+    // On the way: the pointer leaves the element toward the bubble.
+    fireEvent.pointerLeave(next, { pointerType: "mouse", clientX: 10, clientY: 10 });
+    return screen.getByTestId("last");
+  }
+
+  const wait = (ms: number) =>
+    act(() => {
+      vi.advanceTimersByTime(ms);
+    });
+
+  it("closes after 300 ms of rest on the neighbour", () => {
+    const last = openNext();
+    fireEvent.pointerMove(last, { pointerType: "mouse", clientX: 10, clientY: 10 });
+    wait(299);
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Next page");
+    wait(1);
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
+  it("a move on the neighbour starts the rest anew", () => {
+    const last = openNext();
+    fireEvent.pointerMove(last, { pointerType: "mouse", clientX: 10, clientY: 10 });
+    wait(200);
+    fireEvent.pointerMove(last, { pointerType: "mouse", clientX: 10, clientY: 10 });
+    wait(200);
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Next page");
+    wait(100);
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
+  // Only on the way: a bubble opened by the focus, the pointer resting elsewhere, keeps open.
+  it("a bubble opened by the focus keeps open while the pointer rests on another control", () => {
+    render(
+      <>
+        <Tooltip>
+          <TooltipTrigger>Trigger</TooltipTrigger>
+          <TooltipContent>Description</TooltipContent>
+        </Tooltip>
+        <Button variant="ghost" size="icon" data-testid="other">
+          o
+        </Button>
+      </>,
+    );
+    const trigger = screen.getByText("Trigger");
+    act(() => trigger.focus());
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Description");
+    fireEvent.pointerMove(screen.getByTestId("other"), { pointerType: "mouse" });
+    wait(1000);
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Description");
+    expect(trigger).toHaveFocus();
+  });
+
+  it("reaching the bubble ends the rest; the element itself has none", () => {
+    const last = openNext();
+    fireEvent.pointerMove(last, { pointerType: "mouse", clientX: 10, clientY: 10 });
+    wait(200);
+    fireEvent.pointerLeave(last, { pointerType: "mouse", clientX: 10, clientY: 10 });
+    fireEvent.pointerMove(document.querySelector("[data-slot=tooltip-content]")!, {
+      pointerType: "mouse",
+      clientX: 10,
+      clientY: 10,
+    });
+    wait(1000);
+    fireEvent.pointerMove(screen.getByTestId("next"), { pointerType: "mouse" });
+    wait(1000);
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Next page");
+  });
+});
+
+// GL-UI-016 rev 6 §Schließen (#259): a click on the bubble stays there (its press closes it, see
+// "tooltip closing"): the bubble is a portal, so in the React tree the element's ancestors would hear it.
+describe("tooltip click on the bubble", () => {
+  // A bubble still in the document when the click arrives (here one the app holds open) keeps it.
+  it("does not reach the element's ancestors", () => {
+    const onClick = vi.fn();
+    render(
+      <div onClick={onClick}>
+        <Tooltip open>
+          <TooltipTrigger>Trigger</TooltipTrigger>
+          <TooltipContent>Description</TooltipContent>
+        </Tooltip>
+      </div>,
+    );
+    fireEvent.click(screen.getByText("Description", { selector: "[data-slot=tooltip-content]" }));
+    expect(onClick).not.toHaveBeenCalled();
   });
 });

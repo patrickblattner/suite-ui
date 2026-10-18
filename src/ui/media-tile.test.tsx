@@ -110,6 +110,36 @@ describe("MediaTile", () => {
     expect(document.querySelector("[data-slot=tooltip-content]")).toHaveTextContent(name);
   });
 
+  // GL-UI-016 rev 6 (#259): the hoverable bubble of a clipped name is a portal; a click that reaches it
+  // stays there and never opens the tile beneath it in the React tree.
+  it("a click on the name's bubble does not open the tile", () => {
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(100);
+    vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return this.classList.contains("truncate") ? 200 : 100;
+    });
+    const name = "a-very-long-file-name-from-the-summer-campaign-2026-final-version.jpg";
+    const { onOpen } = renderTile({ name });
+    fireEvent.pointerMove(screen.getByText(name), { pointerType: "mouse" });
+    act(() => {
+      vi.advanceTimersByTime(2000);
+    });
+    const bubble = document.querySelector<HTMLElement>("[data-slot=tooltip-content]");
+    expect(bubble).not.toBeNull();
+    fireEvent.click(bubble!);
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
   // AC 4
   it("click and Enter call onOpen; it is a tab stop with the package focus ring", () => {
     const { onOpen, tile } = renderTile();

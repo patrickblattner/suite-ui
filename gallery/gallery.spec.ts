@@ -4708,7 +4708,7 @@ for (const [trigger, prefix, ids] of [
       await page.waitForTimeout(1000);
       await expect(page.getByRole("tooltip")).toHaveCount(0);
       await expect(page.getByRole("tooltip")).toHaveText(hint);
-      await page.mouse.move(0, 0);
+      await page.mouse.move(0, 0, { steps: 4 });
       await expect(page.getByRole("tooltip")).toHaveCount(0);
     }
   });
@@ -4761,19 +4761,339 @@ test("tooltip: delayed, right of the element and raised, closes at once", async 
   const bubble = await box(page.locator("[data-slot=tooltip-content]"));
   expect(Math.abs(element.y - bubble.y - 4)).toBeLessThanOrEqual(1);
   expect(bubble.x).toBeGreaterThanOrEqual(element.x + element.width + 8);
-  await page.mouse.move(element.x - 20, element.y + element.height / 2);
+  // A moving pointer, not a jump: the hoverable bubble closes on the first move outside element and
+  // bubble (GL-UI-016 rev 5).
+  await page.mouse.move(element.x - 20, element.y + element.height / 2, { steps: 4 });
   await expect(page.getByRole("tooltip")).toHaveCount(0, { timeout: 100 });
 });
 
-// SUI-FEATURE-049 AC2: the pointer moved onto the bubble does not hold it open.
-test("tooltip: the pointer on the bubble does not hold it open", async ({ page }) => {
+// GL-UI-016 rev 5 §Schließen (#259): the pointer moved from the element onto the bubble keeps it open
+// (hoverable, WCAG 1.4.13); leaving both closes it without a linger.
+test("tooltip: the pointer on the bubble keeps it open; leaving both closes it", async ({
+  page,
+}) => {
   await page.goto("/?page=components&lng=en");
   await page.getByTestId("hint-save").hover();
   await expect(page.getByRole("tooltip")).toHaveText("Saves the draft");
   const bubble = await box(page.locator("[data-slot=tooltip-content]"));
   await page.mouse.move(bubble.x + bubble.width / 2, bubble.y + bubble.height / 2, { steps: 4 });
+  await page.waitForTimeout(300);
+  await expect(page.getByRole("tooltip")).toHaveText("Saves the draft");
+  await page.mouse.move(bubble.x + bubble.width / 2, bubble.y + bubble.height + 200, { steps: 4 });
   await expect(page.getByRole("tooltip")).toHaveCount(0, { timeout: 100 });
 });
+
+// GL-UI-016 §Schließen (#259): a click on the hoverable bubble closes it at once.
+test("tooltip: a click on the bubble closes it", async ({ page }) => {
+  await page.goto("/?page=components&lng=en");
+  await page.getByTestId("hint-save").hover();
+  await expect(page.getByRole("tooltip")).toHaveText("Saves the draft");
+  const bubble = await box(page.locator("[data-slot=tooltip-content]"));
+  await page.mouse.move(bubble.x + bubble.width / 2, bubble.y + bubble.height / 2, { steps: 4 });
+  await page.mouse.down();
+  await expect(page.getByRole("tooltip")).toHaveCount(0, { timeout: 100 });
+  await page.mouse.up();
+});
+
+// GL-UI-016 rev 6–8 (#259): in a row of controls the open bubble covers no neighbour and stands at
+// the element's height (its top edge 4 px above the element's).
+async function openRowBubble(page: Page, hovered: Locator, neighbour: Locator) {
+  await hovered.hover();
+  const bubble = page.locator("[data-slot=tooltip-content]");
+  await expect(bubble).toBeVisible({ timeout: 3000 });
+  const [tip, target, element] = await Promise.all([box(bubble), box(neighbour), box(hovered)]);
+  const apart =
+    tip.x >= target.x + target.width ||
+    tip.x + tip.width <= target.x ||
+    tip.y >= target.y + target.height ||
+    tip.y + tip.height <= target.y;
+  expect(apart).toBe(true);
+  expect(Math.abs(element.y - tip.y - 4)).toBeLessThanOrEqual(1);
+  return { bubble, text: (await bubble.textContent()) ?? "", target, tip };
+}
+
+// GL-UI-016 rev 7 §Schließen (#259): the pointer moves onto the neighbour and rests there. The bubble
+// closes 300 ms (±50) after the last move, or at once where the neighbour lies off the way to the
+// bubble; the neighbour's own hint follows after its delay, and a click reaches the neighbour.
+async function restOnNeighbourThenClick(page: Page, hovered: Locator, neighbour: Locator) {
+  const { bubble, text, target } = await openRowBubble(page, hovered, neighbour);
+  await page.evaluate(() => {
+    const record = window as unknown as { lastMove: number };
+    document.addEventListener("pointermove", () => (record.lastMove = performance.now()), true);
+  });
+  await page.mouse.move(target.x + target.width / 2, target.y + target.height / 2, { steps: 4 });
+  const rest = await page.evaluate(
+    () =>
+      new Promise<number>((resolve) => {
+        const check = () => {
+          if (document.querySelector("[data-slot=tooltip-content]") === null) {
+            resolve(performance.now() - (window as unknown as { lastMove: number }).lastMove);
+          } else requestAnimationFrame(check);
+        };
+        check();
+      }),
+  );
+  expect(rest).toBeLessThanOrEqual(350);
+  await expect(bubble).toBeVisible({ timeout: 3000 });
+  await expect(bubble).not.toHaveText(text);
+  await page.mouse.down();
+  await page.mouse.up();
+  return rest;
+}
+
+// A direct, moving way from the element onto its bubble keeps it open, neighbours crossed or not.
+async function moveOntoBubble(page: Page, hovered: Locator, neighbour: Locator) {
+  const { bubble, text, tip } = await openRowBubble(page, hovered, neighbour);
+  await page.mouse.move(tip.x + tip.width / 2, tip.y + tip.height / 2, { steps: 10 });
+  await page.waitForTimeout(600);
+  await expect(bubble).toHaveText(text);
+}
+
+test("tooltip in a row: pagination, rest on Last page closes Next's bubble; click → last page", async ({
+  page,
+}) => {
+  await page.goto("/?page=list&lng=en");
+  const pager = page.getByTestId("pagination").first();
+  const summary = pager.getByTestId("pagination-summary");
+  const pages = /\/ (\d+)/.exec((await summary.textContent()) ?? "")?.[1];
+  expect(Number(pages)).toBeGreaterThan(1);
+  await restOnNeighbourThenClick(
+    page,
+    pager.getByTestId("pagination-next"),
+    pager.getByTestId("pagination-last"),
+  );
+  await expect(summary).toContainText(`${pages} / ${pages}`);
+});
+
+test("tooltip in a row: pagination, a moving way onto Next's bubble keeps it open", async ({
+  page,
+}) => {
+  await page.goto("/?page=list&lng=en");
+  const pager = page.getByTestId("pagination").first();
+  await moveOntoBubble(
+    page,
+    pager.getByTestId("pagination-next"),
+    pager.getByTestId("pagination-last"),
+  );
+});
+
+test("tooltip in a row: EditPanel pager, rest on Next closes Previous's bubble; click → next", async ({
+  page,
+}) => {
+  await page.goto("/?page=edit-panel&lng=en");
+  await page.getByTestId("media-panel-trigger").click();
+  const panel = page.getByTestId("media-panel");
+  await expect(panel.getByTestId("media-panel-position")).toHaveText("1/3");
+  const rest = await restOnNeighbourThenClick(
+    page,
+    panel.getByTestId("media-panel-previous"),
+    panel.getByTestId("media-panel-next"),
+  );
+  // Next lies on the way to the bubble right of the pager: the rest, not the way out, closes it.
+  expect(rest).toBeGreaterThanOrEqual(250);
+  await expect(panel.getByTestId("media-panel-position")).toHaveText("2/3");
+});
+
+test("tooltip in a row: EditPanel pager, a moving way onto Previous's bubble keeps it open", async ({
+  page,
+}) => {
+  await page.goto("/?page=edit-panel&lng=en");
+  await page.getByTestId("media-panel-trigger").click();
+  const panel = page.getByTestId("media-panel");
+  await moveOntoBubble(
+    page,
+    panel.getByTestId("media-panel-previous"),
+    panel.getByTestId("media-panel-next"),
+  );
+});
+
+test("tooltip in a row: editor toolbar, rest on Save closes Undo's bubble; click → saved", async ({
+  page,
+}) => {
+  await page.goto("/?page=components&lng=en");
+  const draft = page.getByTestId("editor-header-draft");
+  await expect(draft.getByTestId("editor-state")).toHaveText("Draft · unsaved");
+  await restOnNeighbourThenClick(
+    page,
+    draft.getByTestId("editor-undo"),
+    draft.getByTestId("editor-save"),
+  );
+  await expect(draft.getByTestId("editor-state")).toHaveText("Saved");
+});
+
+test("tooltip in a row: editor toolbar, a moving way onto Undo's bubble keeps it open", async ({
+  page,
+}) => {
+  await page.goto("/?page=components&lng=en");
+  const draft = page.getByTestId("editor-header-draft");
+  await moveOntoBubble(page, draft.getByTestId("editor-undo"), draft.getByTestId("editor-save"));
+});
+
+// GL-UI-016 rev 10 §Lage (#259): the FilterBar is a bar of groups: the search, which takes the remaining
+// width, and the controls. A bubble of the controls stands over the search's empty end, 16 px clear of
+// the typed text, and covers no button, select or radio; a click on a neighbour reaches it at once.
+const FILTER_NEIGHBOUR: Record<string, string> = {
+  "filter-reset": "filter-sort",
+  "filter-sort": "filter-reset",
+  "view-table": "filter-sort",
+};
+for (const width of [1440, 1920]) {
+  for (const [list, hovered] of [
+    ["list", "filter-reset"],
+    ["list", "filter-sort"],
+    ["tiles", "filter-reset"],
+    ["tiles", "filter-sort"],
+    ["tiles", "view-table"],
+  ] as const) {
+    test(`tooltip in the filter bar at ${width} px, ?page=${list}: ${hovered}`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(`/?page=${list}&lng=en`);
+      const bar = page.getByTestId("filterbar");
+      const search = bar.getByTestId("filter-haystack");
+      await search.fill("ada");
+      const element = await box(bar.getByTestId(hovered));
+      await page.mouse.move(element.x + element.width / 2, element.y + element.height / 2, {
+        steps: 4,
+      });
+      const bubble = page.locator("[data-slot=tooltip-content]");
+      await expect(bubble).toBeVisible({ timeout: 3000 });
+      const tip = await box(bubble);
+      const controls = await Promise.all(
+        (await bar.locator("button, [role=combobox], [role=radio]").all()).map(box),
+      );
+      for (const control of controls) {
+        const apart =
+          tip.x >= control.x + control.width ||
+          tip.x + tip.width <= control.x ||
+          tip.y >= control.y + control.height ||
+          tip.y + tip.height <= control.y;
+        expect(apart).toBe(true);
+      }
+      // The typed text ends where its own font says; the bubble keeps 16 px clear of it.
+      const textEnd = await search.evaluate((field: HTMLInputElement) => {
+        const style = getComputedStyle(field);
+        const context = document.createElement("canvas").getContext("2d")!;
+        context.font = style.font;
+        const start =
+          field.getBoundingClientRect().left +
+          parseFloat(style.borderLeftWidth) +
+          parseFloat(style.paddingLeft);
+        return start + context.measureText(field.value).width;
+      });
+      expect(tip.x).toBeGreaterThanOrEqual(textEnd + 15);
+      expect(Math.abs(element.y - 4 - tip.y)).toBeLessThanOrEqual(1);
+      // A click on the neighbour reaches it at once.
+      const neighbour = bar.getByTestId(FILTER_NEIGHBOUR[hovered]!);
+      const target = await box(neighbour);
+      await page.mouse.move(target.x + target.width / 2, target.y + target.height / 2, {
+        steps: 4,
+      });
+      await page.mouse.down();
+      await page.mouse.up();
+      if (FILTER_NEIGHBOUR[hovered] === "filter-sort") {
+        await expect(neighbour).toHaveAttribute("aria-expanded", "true");
+      } else {
+        await expect(search).toHaveValue("");
+      }
+    });
+  }
+  // Long typed text leaves an empty end of about 200 px: the sort bubble, narrowed if need be, keeps
+  // 16 px clear of the text and 8 px clear of its group.
+  for (const list of ["list", "tiles"]) {
+    test(`tooltip in the filter bar at ${width} px, ?page=${list}: 16 px clear of long text`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(`/?page=${list}&lng=en`);
+      const bar = page.getByTestId("filterbar");
+      const search = bar.getByTestId("filter-haystack");
+      const groupLeft = (await box(bar.getByTestId("filterbar-controls"))).x;
+      const measure = (text: string) =>
+        search.evaluate((field: HTMLInputElement, value) => {
+          const style = getComputedStyle(field);
+          const context = document.createElement("canvas").getContext("2d")!;
+          context.font = [style.fontStyle, style.fontWeight, style.fontSize, style.fontFamily].join(
+            " ",
+          );
+          const start =
+            field.getBoundingClientRect().left +
+            parseFloat(style.borderLeftWidth) +
+            parseFloat(style.paddingLeft);
+          return { start, width: context.measureText(value).width };
+        }, text);
+      const one = await measure("a");
+      const text = "a".repeat(Math.floor((groupLeft - 200 - one.start) / one.width));
+      await search.fill(text);
+      const end = await measure(text);
+      const sort = await box(bar.getByTestId("filter-sort"));
+      await page.mouse.move(sort.x + sort.width / 2, sort.y + sort.height / 2, { steps: 4 });
+      const bubble = page.locator("[data-slot=tooltip-content]");
+      await expect(bubble).toBeVisible({ timeout: 3000 });
+      const tip = await box(bubble);
+      expect(tip.x - (end.start + end.width)).toBeGreaterThanOrEqual(16);
+      expect(tip.x + tip.width).toBeLessThanOrEqual(groupLeft - 8 + 0.5);
+    });
+  }
+
+  // The search's visible text stays reachable while a bubble of the controls stands at its end.
+  test(`tooltip in the filter bar at ${width} px: Clear filter, then the search takes the click`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/?page=list&lng=en");
+    await page.getByTestId("filter-reset").hover();
+    const bubble = page.locator("[data-slot=tooltip-content]");
+    await expect(bubble).toBeVisible({ timeout: 3000 });
+    const search = page.getByTestId("filter-haystack");
+    const field = await box(search);
+    await page.mouse.move(field.x + 40, field.y + field.height / 2, { steps: 4 });
+    await page.mouse.down();
+    await page.mouse.up();
+    await expect(search).toBeFocused();
+    await page.keyboard.type("ada");
+    await expect(search).toHaveValue("ada");
+  });
+}
+
+// GL-UI-016 rev 8 §Lage (#259): the pagination at three widths. At 1440 and 768 px the bubble stands
+// beside the whole row and covers none of its controls; at 390 px no side of the row has room, so it
+// stands beside the element, whole in the viewport, at the element's height.
+for (const width of [1440, 768, 390]) {
+  for (const id of ["pagination-next", "pagination-first"]) {
+    test(`tooltip in a row: pagination at ${width} px, ${id}`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto("/?page=list&lng=en");
+      const pager = page.getByTestId("pagination").first();
+      await pager.evaluate((node) => node.scrollIntoView({ block: "center" }));
+      const element = pager.getByTestId(id);
+      // On the first page First page is disabled: the pointer goes to it, onto its carrying span.
+      const centre = await box(element);
+      await page.mouse.move(centre.x + centre.width / 2, centre.y + centre.height / 2);
+      const bubble = page.locator("[data-slot=tooltip-content]");
+      await expect(bubble).toBeVisible({ timeout: 3000 });
+      const [tip, own] = await Promise.all([box(bubble), box(element)]);
+      expect(tip.x).toBeGreaterThanOrEqual(0);
+      expect(tip.x + tip.width).toBeLessThanOrEqual(width);
+      expect(tip.y).toBeGreaterThanOrEqual(0);
+      expect(tip.y + tip.height).toBeLessThanOrEqual(900);
+      expect(Math.abs(own.y - 4 - tip.y)).toBeLessThanOrEqual(4);
+      if (width === 390) return;
+      const controls = await Promise.all(
+        (await pager.locator("button, [role=combobox]").all()).map(box),
+      );
+      for (const control of controls) {
+        const apart =
+          tip.x >= control.x + control.width ||
+          tip.x + tip.width <= control.x ||
+          tip.y >= control.y + control.height ||
+          tip.y + tip.height <= control.y;
+        expect(apart).toBe(true);
+      }
+    });
+  }
+}
 
 // SUI-FEATURE-049 AC3: at the right viewport edge the tooltip stands to the left, same offsets.
 test("tooltip: at the right edge it flips to the left", async ({ page }) => {
@@ -5643,7 +5963,7 @@ test("slider: the hint opens over the whole slider, beside the track's end", asy
   expect(tip.x).toBeGreaterThanOrEqual(track.x + track.width);
   expect(tip.x).toBeGreaterThanOrEqual(knob.x + knob.width);
   await expect(thumb).toHaveAccessibleDescription(description);
-  await page.mouse.move(0, 0);
+  await page.mouse.move(0, 0, { steps: 4 });
   await expect(bubble).toHaveCount(0);
 
   // Held press on the track, then a drag: no bubble.

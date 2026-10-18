@@ -242,7 +242,7 @@ function GridToggle({ mode, value, onChange, definition, unavailableText }: Grid
   const snapOn = !locked && value.einrasten;
   const snapOnId = React.useId();
   return (
-    <div className="flex items-center" data-testid="grid-toggle">
+    <div className="flex items-center" data-tooltip-row="" data-testid="grid-toggle">
       <Hint
         text={t(mode === "gekoppelt" ? "grid.coupledHint" : "grid.guidesHint")}
         disabledText={unavailableText}

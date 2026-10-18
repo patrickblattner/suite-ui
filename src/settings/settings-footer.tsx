@@ -36,6 +36,7 @@ function SettingsFooter({
     <div
       className="flex shrink-0 justify-end gap-2 border-t pt-4"
       data-focus-group=""
+      data-tooltip-row=""
       data-testid="settings-footer"
     >
       {testIdPrefix !== undefined ? (

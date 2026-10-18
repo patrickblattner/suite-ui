@@ -231,7 +231,10 @@ function AppSidebar({
         )}
       >
         {/* Collapsed, the head shows only the toggle; the nav icons carry the identity. */}
-        <div className={cn("flex items-center gap-1 p-2", !isOpen && "justify-center")}>
+        <div
+          className={cn("flex items-center gap-1 p-2", !isOpen && "justify-center")}
+          data-tooltip-row=""
+        >
           {isOpen && (
             <Hint text={`${instanceName}: ${t("nav.home")}`}>
               <button
