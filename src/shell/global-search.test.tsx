@@ -3,6 +3,8 @@ import { FileTextIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "../ui/dialog.js";
+import { EditPanel } from "../ui/edit-panel.js";
 import { GlobalSearch, type SearchResult } from "./global-search.js";
 import { SIDEBAR_ID } from "./sidebar-provider.js";
 import { ShellHarness } from "./test-utils.js";
@@ -176,6 +178,49 @@ describe("GlobalSearch", () => {
       expect(document.activeElement).not.toBe(document.body);
     },
   );
+
+  // #244: opened by the shortcut from a control in a modal dialog that stays open, Esc hands the focus
+  // back to that control (`GL-UI-050`), never to the field behind the modal. A non-modal sheet (an
+  // edit panel) hides nothing: the focus goes to the field as everywhere else (`GL-UI-031`, #240).
+  it.each([
+    [
+      "a modal dialog",
+      "in-surface",
+      <Dialog key="modal" open>
+        <DialogContent>
+          <DialogTitle>Dialog</DialogTitle>
+          <DialogDescription>Over the page.</DialogDescription>
+          <button type="button" data-testid="in-surface">
+            Inside
+          </button>
+        </DialogContent>
+      </Dialog>,
+    ],
+    [
+      "a non-modal edit panel",
+      "shell-search",
+      <EditPanel key="panel" open onOpenChange={() => {}} title="Channel">
+        <input aria-label="Name" data-testid="in-surface" />
+      </EditPanel>,
+    ],
+  ] as const)("the shortcut from %s, then Esc, focuses %s", async (_, target, surface) => {
+    render(
+      <ShellHarness route="/dashboard">
+        <GlobalSearch areas={AREAS} search={vi.fn(() => Promise.resolve(RESULT))} />
+        {surface}
+      </ShellHarness>,
+    );
+    act(() => screen.getByTestId("in-surface").focus());
+    await waitFor(() => expect(screen.getByTestId("in-surface")).toHaveFocus());
+    fireEvent.keyDown(document, { key: "k", ctrlKey: true });
+    const dialog = await screen.findByTestId("search-dialog");
+    fireEvent.keyDown(within(dialog).getByTestId("search-dialog-input"), { key: "Escape" });
+    await waitFor(() => expect(screen.queryByTestId("search-dialog")).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId(target)).toHaveFocus());
+    await settle();
+    await waitFor(() => expect(screen.getByTestId(target)).toHaveFocus());
+    expect(screen.queryByTestId("search-dialog")).not.toBeInTheDocument();
+  });
 
   // #242: unmounting the search with the dialog open returns no focus: the field and the rail are
   // gone, and whatever the app focused meanwhile keeps it.

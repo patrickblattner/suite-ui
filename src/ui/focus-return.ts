@@ -23,7 +23,13 @@ import {
   LIST_FRAME_SELECTOR,
   listEntries,
 } from "../lib/list-focus.js";
-import { FOCUS_NAV_ATTR, isNavigation } from "./focus-return-internal.js";
+import {
+  behindModal,
+  FOCUS_NAV_ATTR,
+  frontDialog,
+  isNavigation,
+  OPEN_DIALOG_SELECTOR,
+} from "./focus-return-internal.js";
 
 /** Marks the app's main content target for tier 3: the first field or the canvas of the surface. */
 const FOCUS_MAIN_ATTR = "data-focus-main";
@@ -33,9 +39,6 @@ const FOCUS_GROUP_ATTR = "data-focus-group";
 
 // Set on the `main` element the package made focusable as the last fallback; it draws no outline.
 const FOCUS_FALLBACK_ATTR = "data-focus-fallback";
-
-// Open dialogs; a modal one hides everything else from assistive technology (`aria-hidden`).
-const OPEN_DIALOG_SELECTOR = "[role=dialog][data-state=open], [role=alertdialog][data-state=open]";
 
 const GROUP_SELECTOR = `[${FOCUS_GROUP_ATTR}], [role=toolbar], [role=row], tr, header`;
 
@@ -166,23 +169,6 @@ function ancestors(element: HTMLElement): HTMLElement[] {
   for (let node = element.parentElement; node && node !== document.body; node = node.parentElement)
     chain.push(node);
   return chain;
-}
-
-function behindModal(element: Element): boolean {
-  return element.closest('[aria-hidden="true"]') !== null;
-}
-
-/**
- * The open modal dialog in front, the one no modal hides: the surface while it is open. Only a modal
- * one counts (it hid the rest of the page, `data-aria-hidden`); an open popover or non-modal sheet
- * elsewhere is no surface of the opener.
- */
-function frontDialog(): HTMLElement | null {
-  if (document.querySelector("[data-aria-hidden]") === null) return null;
-  const open = [...document.querySelectorAll<HTMLElement>(OPEN_DIALOG_SELECTOR)].filter(
-    (dialog) => !behindModal(dialog),
-  );
-  return open.at(-1) ?? null;
 }
 
 /**

@@ -26,6 +26,15 @@ import {
 import { SidebarProvider } from "../src/shell/sidebar-provider.js";
 import { type Appearance, UserMenu, UserMenuItem } from "../src/shell/user-menu.js";
 import type { SuiteLanguage } from "../src/strings/index.js";
+import { Button } from "../src/ui/button.js";
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "../src/ui/dialog.js";
 import { SHELL_DATA, SHELL_LABELS } from "./shell-labels.js";
 
 // The app's own namespace, as an app registers it next to `suite`; called once after the i18n setup.
@@ -155,6 +164,39 @@ function search(term: string): Promise<SearchResult> {
   });
 }
 
+// `?modal=1` (#244): a modal dialog over the frame, to open the search from a control inside it.
+function ModalDemo() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <Button
+        variant="outline"
+        size="sm"
+        data-testid="shell-modal-trigger"
+        onClick={() => setOpen(true)}
+      >
+        Open dialog
+      </Button>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent size="form" data-testid="shell-modal">
+          <DialogHeader>
+            <DialogTitle>Dialog</DialogTitle>
+            <DialogDescription>A modal dialog the search opens over.</DialogDescription>
+          </DialogHeader>
+          <DialogBody className="flex gap-2">
+            <Button variant="outline" size="sm" data-testid="shell-modal-first">
+              First
+            </Button>
+            <Button variant="outline" size="sm" data-testid="shell-modal-second">
+              Second
+            </Button>
+          </DialogBody>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 function Content() {
   const { pathname } = useLocation();
   const { t } = useTranslation();
@@ -165,6 +207,7 @@ function Content() {
   return (
     <PageScroll>
       <PageHeader title={entry ? t(entry.labelKey) : ""} subtitle={t("page.subtitle")} />
+      {new URLSearchParams(window.location.search).get("modal") === "1" && <ModalDemo />}
     </PageScroll>
   );
 }

@@ -18,7 +18,7 @@ import {
   type Opener,
   returnFocus as restoreFocus,
 } from "../ui/focus-return.js";
-import { isNavigation } from "../ui/focus-return-internal.js";
+import { frontDialog, isNavigation } from "../ui/focus-return-internal.js";
 import { Hint } from "../ui/hint.js";
 import { SIDEBAR_ID, useSidebar } from "./sidebar-provider.js";
 
@@ -140,6 +140,12 @@ function GlobalSearch({
     opener.current = null;
     // Neither field nor rail rendered: the search itself is unmounting, nothing to return to.
     if (navigating.current || (inputRef.current === null && railRef.current === null)) return;
+    // Opened from a modal that is still in front: back into it, never to the field behind it (#244).
+    // A non-modal sheet (an edit panel) hides nothing; the field takes the focus as usual.
+    if (from?.surface != null && from.surface === frontDialog()) {
+      restoreFocus(from);
+      return;
+    }
     // The first usable one that takes the focus, each tried in turn.
     for (const target of [inputRef.current, railRef.current]) {
       if (!isUsable(target)) continue;
