@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, createEvent, fireEvent, render, screen } from "@testing-library/react";
 import i18n from "i18next";
 import { Tooltip as TooltipPrimitive } from "radix-ui";
 import { useState } from "react";
@@ -908,6 +908,56 @@ describe("tooltip placement in a row", () => {
     expect(bubble).toHaveAttribute("data-side", "left");
     // Right next to Clear filter, the first of its group, the arrow's 10 px come off: 124 px.
     expect(bubble?.getAttribute("style")).toContain("--tooltip-room: 124px");
+  });
+
+  // GL-UI-016 rev 11 §Lage (#263): a press on the bubble over the search's empty end closes it and
+  // focuses the search.
+  it("a press on the bubble over the search's empty end focuses the search", async () => {
+    layOut(1000, filterBar(0, 100));
+    renderFilterBar("");
+    const bubble = await placedBubble("reset");
+    const press = createEvent.pointerDown(bubble!, { pointerType: "mouse" });
+    fireEvent(bubble!, press);
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    expect(screen.getByTestId("search")).toHaveFocus();
+    expect(press.defaultPrevented).toBe(true);
+  });
+
+  it("a press on a bubble left of the search but clear of it focuses nothing", async () => {
+    // The search ends at 500; the bubble stands from 700 to 800.
+    layOut(1000, { search: [0, 500], reset: [808, 32], sort: [844, 56], bubble: [0, 100] });
+    renderFilterBar("");
+    const bubble = await placedBubble("reset");
+    expect(bubble).toHaveAttribute("data-side", "left");
+    const press = createEvent.pointerDown(bubble!, { pointerType: "mouse" });
+    fireEvent(bubble!, press);
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    expect(screen.getByTestId("search")).not.toHaveFocus();
+    expect(press.defaultPrevented).toBe(false);
+  });
+
+  it("a press on a bubble over no text field focuses nothing", async () => {
+    layOut(1000, { row: [0, 1000], next: [0, 32], last: [36, 32], bubble: [0, 100] });
+    renderRow();
+    const bubble = await placedBubble("next");
+    const press = createEvent.pointerDown(bubble!, { pointerType: "mouse" });
+    fireEvent(bubble!, press);
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    expect(document.body).toHaveFocus();
+    expect(press.defaultPrevented).toBe(false);
+  });
+
+  // #263 (Codex review #265): the placement is measured on open; a resized window would leave the
+  // bubble where the old one had room, past the viewport's edge. A resize closes it instead.
+  it("a resize closes an open bubble beside a group", async () => {
+    layOut(1000, filterBar(0, 100));
+    renderFilterBar("");
+    expect(await placedBubble("reset")).toHaveAttribute("data-side", "left");
+    layOut(600, { search: [0, 400], reset: [408, 32], sort: [444, 56], bubble: [0, 100] });
+    act(() => {
+      window.dispatchEvent(new Event("resize"));
+    });
+    expect(screen.queryByRole("tooltip")).toBeNull();
   });
 
   // Nothing of one open carries into the next: the bubble is measured uncapped again.

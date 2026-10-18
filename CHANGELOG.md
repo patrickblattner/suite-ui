@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.132.1 — #263, GL-UI-016 rev 11 (Q&A #3967): a press on a tooltip over a text field focuses the field, a resize closes a bubble beside a group
+
+Fix, not breaking. A bubble that stands over the empty end of a text field (a bubble of the `FilterBar` controls over the search) no longer swallows the press: a press on it closes it and puts the focus into the text field underneath, so typing lands there, also after the pointer rested on the bubble. A bubble over no text field keeps its behaviour: a press closes it and the click goes no further. A bubble beside a group of controls now closes when the window is resized, as on scroll; before, it kept the place measured at its open and could stand past the viewport's edge (Codex review #265). The next open measures anew.
+
+**Migration:** none. No package text, prop, export or testid changed; baselines: none.
+
 ## 0.132.0 — #259, GL-UI-016 rev 10, SUI-FEATURE-049 rev 7 (Q&A #3948, #3952, #3954, #3955, #3962, #3965): hoverable tooltip, beside its group of controls
 
 Feature, not breaking. Every package tooltip (`Tooltip`, `Hint`, `IconButtonTooltip`, `OverflowTooltip`) is now hoverable (WCAG 1.4.13 "Content on Hover or Focus"). When the pointer moves from the element straight onto the bubble, the bubble stays open. Radix's grace area between element and bubble counts as on the way while the pointer moves. When the pointer, after leaving the element, rests 300 ms on another control on that way (a neighbour in the row), the bubble closes; a bubble opened by the focus does not close this way; every move starts the rest anew, and reaching the bubble ends it. Once the pointer moves outside element, bubble and that way, the bubble closes. A click closes it at once: on the element, on another control (the click reaches that control) and now also on the bubble. The click on the bubble goes no further, so the element's ancestors (a tile that opens) never hear it. Focus change, scroll and `Esc` still close it at once, and the `--tooltip-hint-delay` appear delay is unchanged. Apps still cannot set `disableHoverableContent`.

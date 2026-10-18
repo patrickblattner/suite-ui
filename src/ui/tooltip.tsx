@@ -137,6 +137,19 @@ function CloseOnFocusOutside() {
   return null;
 }
 
+// Beside a group the bubble's side, offset and room are measured once, on open, and radix's collision
+// handling is off: a resized window would leave it where the old one had room, past the viewport's
+// edge (#263, Codex review #265). So a resize closes it, as a scroll does; the next open measures
+// anew. Mounted only while a bubble in a row is open.
+function CloseOnResize() {
+  React.useEffect(() => {
+    const onResize = () => document.dispatchEvent(new CustomEvent(TOOLTIP_OPEN));
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  return null;
+}
+
 // The gap between an element (or its row) and its bubble, and how far its top edge stands above the
 // element's.
 const SIDE_OFFSET = 8;
@@ -201,6 +214,7 @@ function textEnd(field: HTMLInputElement | HTMLTextAreaElement): number {
 // `room`: the width of the gap it stands in, which it narrows to.
 // `lift`: how far the bubble rises above its usual top edge so that it is not cut off at the bottom
 // of the viewport; radix's own shift is off beside a group, together with its flip.
+// `field`: the text field whose empty end the bubble stands over, which a press on it focuses.
 type RowPlacement = {
   side: "right" | "left";
   sideOffset: number;
@@ -208,6 +222,7 @@ type RowPlacement = {
   adjacent: boolean;
   room: number;
   lift: number;
+  field: HTMLInputElement | HTMLTextAreaElement | null;
 };
 
 // Inside a bar the bubble stands beside the element's group, at the element's height, in the nearest
@@ -255,8 +270,10 @@ function useRowPlacement(content: HTMLElement | null, padding: number): RowPlace
         leftField = node;
       }
     }
-    if (leftField?.matches(TEXT_FIELD)) {
-      leftBound = textEnd(leftField as HTMLInputElement) + TEXT_CLEARANCE;
+    const leftText =
+      leftField?.matches(TEXT_FIELD) === true ? (leftField as HTMLInputElement) : null;
+    if (leftText !== null) {
+      leftBound = textEnd(leftText) + TEXT_CLEARANCE;
     }
     // Right next to its element the bubble keeps the arrow's length more.
     const gapRight = SIDE_OFFSET + (right - own.right < 1 ? ARROW_SIZE : 0);
@@ -269,6 +286,11 @@ function useRowPlacement(content: HTMLElement | null, padding: number): RowPlace
     const side = width <= roomRight || (!fits && roomRight >= roomLeft) ? "right" : "left";
     const room = side === "right" ? roomRight : roomLeft;
     const fallback = !fits && room < ROW_MIN_WIDTH;
+    const over =
+      !fallback &&
+      side === "left" &&
+      leftText !== null &&
+      left - gapLeft - Math.min(width, room) < leftText.getBoundingClientRect().right;
     // Measuring the DOM before paint is what layout effects are for.
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPlacement(
@@ -280,6 +302,7 @@ function useRowPlacement(content: HTMLElement | null, padding: number): RowPlace
             adjacent: true,
             room: Infinity,
             lift: 0,
+            field: null,
           }
         : {
             side,
@@ -288,6 +311,7 @@ function useRowPlacement(content: HTMLElement | null, padding: number): RowPlace
             adjacent: (side === "right" ? gapRight : gapLeft) > SIDE_OFFSET,
             room,
             lift: 0,
+            field: over ? leftText : null,
           },
     );
   }, [trigger, content, padding]);
@@ -350,7 +374,9 @@ function CloseOnRest({ content }: { content: HTMLElement | null }) {
 // row (`useRowPlacement`). Where neither side has room for its full width (a narrow viewport), it
 // narrows to the room left on its side and wraps, staying inside the viewport (#183). Apps set no
 // placement of their own. The bubble is hoverable, so a press can land on it: that press closes it at
-// once (`GL-UI-016` §Schließen), with the event radix uses to close the others. Its click stops there:
+// once (`GL-UI-016` §Schließen), with the event radix uses to close the others; over the empty end of
+// a text field it also focuses that field (rev 11 §Lage), in place of the focus the press would move
+// to the page. Its click stops there:
 // the bubble is a portal, and in the React tree the element's ancestors (a tile that opens) would
 // hear it.
 function TooltipContent({
@@ -414,6 +440,10 @@ function TooltipContent({
         onPointerDown={(event) => {
           onPointerDown?.(event);
           document.dispatchEvent(new CustomEvent(TOOLTIP_OPEN));
+          if (row?.field != null) {
+            event.preventDefault();
+            row.field.focus();
+          }
         }}
         onClick={(event) => {
           onClick?.(event);
@@ -423,6 +453,7 @@ function TooltipContent({
         {children}
         <CloseOnFocusOutside />
         <CloseOnRest content={content} />
+        {inRow ? <CloseOnResize /> : null}
         {row === null || (row.adjacent && row.lift === 0) ? (
           <TooltipPrimitive.Arrow className="z-50 size-2.5 translate-y-[calc(-50%_-_2px)] rotate-45 rounded-[2px] bg-primary fill-primary" />
         ) : null}

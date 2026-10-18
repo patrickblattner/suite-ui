@@ -5055,6 +5055,36 @@ for (const width of [1440, 1920]) {
     await page.keyboard.type("ada");
     await expect(search).toHaveValue("ada");
   });
+
+  // GL-UI-016 rev 11 §Lage (#263): a press on the bubble over the search's empty end closes it and
+  // focuses the search, also after the pointer rested on the bubble for a second.
+  for (const list of ["list", "tiles"]) {
+    for (const rest of [0, 1000]) {
+      test(`tooltip in the filter bar at ${width} px, ?page=${list}: a press on the bubble over the search focuses it, rest ${rest} ms`, async ({
+        page,
+      }) => {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto(`/?page=${list}&lng=en`);
+        const search = page.getByTestId("filter-haystack");
+        await page.getByTestId("filter-reset").hover();
+        const bubble = page.locator("[data-slot=tooltip-content]");
+        await expect(bubble).toBeVisible({ timeout: 3000 });
+        const [tip, field] = await Promise.all([box(bubble), box(search)]);
+        expect(tip.x).toBeLessThan(field.x + field.width);
+        // One jump onto the bubble: a stepped way would cross the selects of ?page=list, close
+        // Clear filter's bubble and let the search's own hint open instead.
+        await page.mouse.move(tip.x + tip.width / 2, tip.y + tip.height / 2);
+        await page.waitForTimeout(rest);
+        await expect(bubble).toHaveText("Clear filter");
+        await page.mouse.down();
+        await page.mouse.up();
+        await expect(bubble).toBeHidden();
+        await expect(search).toBeFocused();
+        await page.keyboard.type("ada");
+        await expect(search).toHaveValue("ada");
+      });
+    }
+  }
 }
 
 // GL-UI-016 rev 8 §Lage (#259): the pagination at three widths. At 1440 and 768 px the bubble stands
