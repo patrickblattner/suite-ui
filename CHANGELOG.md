@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.129.1 — #239, GL-UI-015 (Q&A #3894): a click on empty space in the row-actions cell opens the row
+
+Bug fix. `RowActions` stopped every click on its wrapper, so with `className="w-full"` a click on the empty part of the actions cell no longer opened the row. It now stops only clicks that come from an action (button, ⋯ trigger, menu entry, locked action); empty space in the cell opens the row. Row keys on a focused action are unchanged.
+
+- Cockpit: the `*:ml-auto *:w-fit` workaround can be dropped.
+
 ## 0.129.0 — #235, GL-UI-007 rev 4 (Q&A #3865, #3870, #3872): the leave guard holds browser back and forward under `BrowserRouter`
 
 Bug fixes plus one new export. Three defects of the leave guard (`useLeaveGuard`, `useLeaveConfirm`, and through it `EditPanel`, `MediaDetailShell` and the editor's guard) are fixed together.
