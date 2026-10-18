@@ -3633,6 +3633,35 @@ test("shell: below md, Esc after the shortcut keeps the focus off the body and o
   await expect(page.getByTestId("sidebar-overlay-trigger")).toBeFocused();
 });
 
+// #244: the search opened by the shortcut over a modal dialog hands the focus back into that dialog,
+// to the control that had it; never to the sidebar field behind the still-open modal (`GL-UI-050`).
+test("shell: closing the search opened over a modal keeps the focus in the modal", async ({
+  page,
+}) => {
+  await page.goto("/?page=shell&route=/dashboard&lng=en&modal=1");
+  const modal = page.getByTestId("shell-modal");
+  const search = page.getByTestId("search-dialog");
+  const second = modal.getByTestId("shell-modal-second");
+  await page.getByTestId("shell-modal-trigger").click();
+  await expect(modal).toBeVisible();
+  await second.focus();
+  await expect(second).toBeFocused();
+
+  const closes = [
+    () => page.keyboard.press("Escape"),
+    () => search.getByRole("button", { name: "Close" }).click(),
+  ];
+  for (const close of closes) {
+    await page.keyboard.press("ControlOrMeta+k");
+    await expect(search).toBeVisible();
+    await close();
+    await expect(search).toHaveCount(0);
+    await expect(modal).toBeVisible();
+    await expect(second).toBeFocused();
+    await expect(page.getByTestId("shell-search")).not.toBeFocused();
+  }
+});
+
 test("shell: the shortcut opens the search from a section route", async ({ page }) => {
   await page.goto("/?page=shell&route=/admin/users");
   await expect(page.getByTestId("app-sidebar")).toBeVisible();
