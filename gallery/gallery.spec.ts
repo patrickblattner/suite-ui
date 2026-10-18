@@ -3594,7 +3594,9 @@ test("shell: closing the search returns the focus, by × and after the shortcut"
   await expect(dialog).toHaveCount(0);
   await expect(field).toBeFocused();
   await expect(link).not.toBeFocused();
-  expect(await page.evaluate(() => document.activeElement === document.body)).toBe(false);
+  await expect
+    .poll(() => page.evaluate(() => document.activeElement === document.body))
+    .toBe(false);
   await page.waitForTimeout(300);
   await expect(dialog).toHaveCount(0);
 });
@@ -3627,7 +3629,7 @@ test("shell: below md, Esc after the shortcut keeps the focus off the body and o
   await expect(dialog).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(dialog).toHaveCount(0);
-  expect(await isLost()).toBe(false);
+  await expect.poll(isLost).toBe(false);
   await expect(page.getByTestId("sidebar-overlay-trigger")).toBeFocused();
 });
 
