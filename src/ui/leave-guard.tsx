@@ -79,6 +79,10 @@ type LeaveConfirmDialogProps = {
   // The surface's primary action only applies its entries to an outer form (`SUI-FEATURE-094`): the
   // dialog asks "Apply changes?" and its primary action is Apply, without the save symbol.
   applies?: boolean | undefined;
+  // Where the focus goes on close into a surface that works by then (a Save in the dialog that set
+  // its `busy`): its working primary action, whatever opened the dialog (`SUI-FEATURE-171`); `null`
+  // keeps the return of `GL-UI-050`.
+  workingFocus?: (() => HTMLElement | null) | undefined;
 };
 
 // The compact "Save changes?" dialog (`GL-UI-007`): Cancel, Discard and Save as the primary action on
@@ -95,6 +99,7 @@ function LeaveConfirmDialog({
   onDiscard,
   onSave,
   applies = false,
+  workingFocus,
 }: LeaveConfirmDialogProps) {
   const { t } = useTranslation("suite");
   const save = React.useRef<HTMLButtonElement>(null);
@@ -132,7 +137,7 @@ function LeaveConfirmDialog({
       <DialogContent
         ref={content}
         showCloseButton={false}
-        returnFocus={() => moved.current}
+        returnFocus={() => moved.current ?? workingFocus?.() ?? null}
         data-testid="leave-guard"
         onOpenAutoFocus={(event) => {
           event.preventDefault();
@@ -953,6 +958,8 @@ type LeaveConfirmOptions = {
   // and work still running counts for nothing once it settles: no question comes after the surface is
   // gone (`SUI-FEATURE-150`).
   open?: boolean | undefined;
+  // The dialog's focus target on close into a working surface (`LeaveConfirmDialog`).
+  workingFocus?: (() => HTMLElement | null) | undefined;
 };
 
 // The shared core of the edit panel and `useLeaveGuard`: `guard` leaves at once when clean, holds the
@@ -968,6 +975,7 @@ function useLeaveConfirm({
   onDiscard,
   applies,
   open = true,
+  workingFocus,
 }: LeaveConfirmOptions) {
   const [pending, setPending] = React.useState<PendingLeave | null>(null);
   // The open dialog's held leave, for a way out that arrives while it asks; set with the state, so a
@@ -1162,6 +1170,7 @@ function useLeaveConfirm({
         open={pending !== null}
         working={working}
         applies={applies}
+        workingFocus={workingFocus}
         onCancel={() => {
           if (work.current !== null) return;
           pending?.stay?.();

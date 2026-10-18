@@ -442,6 +442,189 @@ describe("EditPanel", () => {
     },
   );
 
+  // #285, SUI-FEATURE-171 AC1–3: during the panel's own slow submit of every kind, a dirty Back opens
+  // no dialog and waits, Cancel is locked and a click on it changes nothing, and both show busyHint;
+  // after the result their hint by kind returns.
+  describe.each([
+    ["save", "backHint", "cancelHint"],
+    ["next", "nextBackHint", "nextCancelHint"],
+    ["apply", "applyBackHint", "applyCancelHint"],
+  ] as const)("slow submit, submitKind=%s", (submitKind, backKey, cancelKey) => {
+    const description = (testId: string) => {
+      const button = screen.getByTestId(testId);
+      const owner = button.hasAttribute("aria-describedby") ? button : button.parentElement;
+      const ids = owner?.getAttribute("aria-describedby")?.split(" ") ?? [];
+      return ids.map((id) => document.getElementById(id)?.textContent ?? "").join(" ");
+    };
+
+    function renderSlow() {
+      let settle: (value: boolean) => void = () => {};
+      const onBack = vi.fn();
+      const { onOpenChange } = renderPanel({
+        submitKind,
+        dirty: true,
+        onBack,
+        onSubmit: () =>
+          new Promise<boolean>((done) => {
+            settle = done;
+          }),
+      });
+      fireEvent.click(screen.getByTestId("edit-panel-submit"));
+      return { onBack, onOpenChange, settle: (ok: boolean) => settle(ok) };
+    }
+
+    it.each([
+      [true, 1],
+      [false, 0],
+    ])(
+      "AC1/AC2: Back waits without a dialog (resolves %s: onBack runs %i times)",
+      async (ok, runs) => {
+        const { onBack, onOpenChange, settle } = renderSlow();
+        expect(screen.getByTestId("edit-panel-submit")).toHaveAttribute("aria-busy", "true");
+        const cancel = screen.getByTestId("edit-panel-cancel");
+        expect(cancel).toBeDisabled();
+        fireEvent.click(cancel);
+        fireEvent.click(screen.getByTestId("edit-panel-back"));
+        expect(screen.queryByTestId("leave-guard")).toBeNull();
+        expect(onBack).not.toHaveBeenCalled();
+        expect(onOpenChange).not.toHaveBeenCalled();
+        await act(async () => {
+          settle(ok);
+          await Promise.resolve();
+        });
+        expect(onBack).toHaveBeenCalledTimes(runs);
+        expect(onOpenChange).not.toHaveBeenCalled();
+        expect(screen.getByTestId("edit-panel-submit")).not.toHaveAttribute("aria-busy");
+      },
+    );
+
+    it.each(["de", "en", "es"])(
+      "AC3 %s: Back and Cancel show busyHint while it works",
+      async (lng) => {
+        await i18n.changeLanguage(lng);
+        const t = i18n.getFixedT(lng, "suite");
+        const { settle } = renderSlow();
+        expect(screen.getByTestId("edit-panel-back")).toBeEnabled();
+        expect(description("edit-panel-back")).toBe(t("editPanel.busyHint"));
+        expect(description("edit-panel-cancel")).toBe(t("editPanel.busyHint"));
+        await act(async () => {
+          settle(false);
+          await Promise.resolve();
+        });
+        expect(description("edit-panel-back")).toBe(t(`editPanel.${backKey}`));
+        expect(description("edit-panel-cancel")).toBe(t(`editPanel.${cancelKey}`));
+      },
+    );
+  });
+
+  // #285, SUI-FEATURE-171 AC5 (GL-UI-007, GL-UI-027): Save or Apply in the leave dialog that turns
+  // on the call site's `busy` closes the dialog into the working panel; the focus goes to its working
+  // primary action, whatever opened the dialog, never to the panel or the body.
+  function BusyCallSite({ submitKind }: { submitKind: "save" | "apply" }) {
+    const [busy, setBusy] = useState(false);
+    return (
+      <EditPanel
+        open
+        onOpenChange={() => {}}
+        title="Channel"
+        dirty
+        busy={busy}
+        submitKind={submitKind}
+        onSubmit={() => setBusy(true)}
+        onBack={() => {}}
+        pager={{ position: "1/2", onPrevious: () => {}, onNext: () => {} }}
+      >
+        <Input aria-label="Name" defaultValue="Main" />
+      </EditPanel>
+    );
+  }
+
+  // Opens the leave dialog from `opener`: a footer or pager button, or `Esc` in the field.
+  function askFrom(opener: string, focused: boolean) {
+    if (opener === "escape") {
+      const field = screen.getByLabelText("Name");
+      field.focus();
+      fireEvent.keyDown(field, { key: "Escape" });
+      return field;
+    }
+    const button = screen.getByTestId(opener);
+    // Safari does not focus a clicked button: the focus is on the body then.
+    if (focused) button.focus();
+    else (document.activeElement as HTMLElement).blur();
+    fireEvent.click(button);
+    return button;
+  }
+
+  it.each([
+    ["save", "edit-panel-cancel", true],
+    ["save", "edit-panel-back", false],
+    ["save", "edit-panel-next", true],
+    ["save", "escape", true],
+    ["apply", "edit-panel-cancel", false],
+    ["apply", "edit-panel-back", true],
+    ["apply", "edit-panel-next", true],
+    ["apply", "escape", true],
+  ] as const)(
+    "AC5 %s: the leave dialog from %s (focused: %s) closes into the busy panel onto the busy submit",
+    async (submitKind, opener, focused) => {
+      render(<BusyCallSite submitKind={submitKind} />);
+      askFrom(opener, focused);
+      fireEvent.click(await screen.findByTestId("leave-guard-save"));
+      await waitFor(() => expect(screen.queryByTestId("leave-guard")).toBeNull());
+      const submit = screen.getByTestId("edit-panel-submit");
+      expect(submit).toHaveAttribute("aria-busy", "true");
+      await waitFor(() => expect(submit).toHaveFocus());
+    },
+  );
+
+  // #285 (GL-UX-001): a Back locked by the work explains the work; one the call site locked itself
+  // keeps its own reason, under its `busy` and during the panel's own work alike.
+  it.each([
+    ["busy", false, "An action is running; available again once it has finished."],
+    ["busy", true, "Available once the upload has finished."],
+    ["working", true, "Available once the upload has finished."],
+  ] as const)(
+    "a locked Back under %s (backDisabled: %s) is described as %j",
+    async (kind, locked, text) => {
+      let settle: (value: boolean) => void = () => {};
+      renderPanel({
+        onBack: () => {},
+        backDisabled: locked,
+        backDisabledHint: "Available once the upload has finished.",
+        busy: kind === "busy",
+        onSubmit: () =>
+          new Promise<boolean>((done) => {
+            settle = done;
+          }),
+      });
+      if (kind === "working") fireEvent.click(screen.getByTestId("edit-panel-submit"));
+      const back = screen.getByTestId("edit-panel-back");
+      expect(back).toBeDisabled();
+      const ids = back.parentElement?.getAttribute("aria-describedby")?.split(" ") ?? [];
+      expect(ids.map((id) => document.getElementById(id)?.textContent).join(" ")).toBe(text);
+      await act(async () => {
+        settle(false);
+        await Promise.resolve();
+      });
+    },
+  );
+
+  // Not working, the dialog's Cancel returns the focus to what opened it (`GL-UI-050`).
+  it.each([
+    ["edit-panel-cancel", false],
+    ["edit-panel-next", true],
+    ["escape", true],
+  ] as const)(
+    "a cancelled leave dialog from %s (focused: %s) returns the focus there",
+    async (opener, focused) => {
+      render(<BusyCallSite submitKind="save" />);
+      const target = askFrom(opener, focused);
+      fireEvent.click(await screen.findByTestId("leave-guard-cancel"));
+      await waitFor(() => expect(screen.queryByTestId("leave-guard")).toBeNull());
+      await waitFor(() => expect(target).toHaveFocus());
+    },
+  );
+
   it("testIdPrefix applies to Back", () => {
     renderPanel({ onBack: () => {}, testIdPrefix: "channel-panel" });
     expect(screen.getByTestId("channel-panel-back")).toBeInTheDocument();

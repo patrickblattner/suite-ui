@@ -129,6 +129,7 @@ function EditPanel({
     next: t("editPanel.nextCancelHint"),
   }[submitKind];
   const returnFocus = React.useRef<HTMLElement | null>(null);
+  const submit = React.useRef<HTMLButtonElement>(null);
   const { guard, dialog, working, run } = useLeaveConfirm({
     dirty: open && dirty,
     busy: open && busyProp,
@@ -140,6 +141,10 @@ function EditPanel({
         ? undefined
         : () => (submitDisabled ? false : onSubmit()),
     applies: submitKind === "apply",
+    // Save or Apply in the leave dialog that set the call site's `busy` closes the dialog into the
+    // working panel: the focus goes to its working primary action (`SUI-FEATURE-171`).
+    workingFocus: () =>
+      submit.current?.getAttribute("aria-busy") === "true" ? submit.current : null,
   });
   const busy = busyProp || working;
   // The `Esc` the panel gets as the top-most layer: an open select, menu, tooltip or dialog takes it
@@ -315,13 +320,15 @@ function EditPanel({
                   always set, so the carrying span stands and a lock never remounts the button; the span
                   takes Back's `mr-auto` as well, it is the footer's flex item. */}
               {onBack !== undefined && (
+                // While the work runs Back explains it, held or locked by it (`SUI-FEATURE-171`); a
+                // Back the call site locked keeps its own reason.
                 <Hint
                   className="mr-auto"
-                  text={backHint ?? packageBackHint}
+                  text={busy ? t("editPanel.busyHint") : (backHint ?? packageBackHint)}
                   disabledText={
-                    busyProp
-                      ? t("editPanel.busyHint")
-                      : (backDisabledHint ?? backHint ?? packageBackHint)
+                    backDisabled
+                      ? (backDisabledHint ?? backHint ?? packageBackHint)
+                      : t("editPanel.busyHint")
                   }
                 >
                   <Button
@@ -364,6 +371,7 @@ function EditPanel({
                     type="submit"
                     variant="success"
                     size="default"
+                    ref={submit}
                     busy={busy}
                     disabled={submitDisabled}
                     data-testid={`${testIdPrefix}-submit`}

@@ -4329,3 +4329,84 @@ describe("data router: no guard blocker stays behind a submission that went on",
     expect(ops.at(-1)).toBe("delete");
   });
 });
+
+// #285, SUI-FEATURE-171 AC4: under the call site's `busy` alone the panel knows no success, so a
+// navigation click meanwhile is dropped: the panel stays open and no route change follows after the
+// work. A promise from `onSubmit` holds the same click until it resolves `true`.
+describe("EditPanel busy without a promise (SUI-FEATURE-171 AC4)", () => {
+  function BusyPage({ slow }: { slow?: () => Promise<boolean> }) {
+    const [busy, setBusy] = useState(false);
+    return (
+      <>
+        <Link to="/other" data-testid="nav">
+          Other
+        </Link>
+        <Where />
+        <button type="button" data-testid="done" onClick={() => setBusy(false)}>
+          done
+        </button>
+        <EditPanel
+          open
+          onOpenChange={() => {}}
+          title="Channel"
+          busy={busy}
+          onSubmit={slow ?? (() => setBusy(true))}
+        >
+          <Input aria-label="Name" defaultValue="Main" />
+        </EditPanel>
+      </>
+    );
+  }
+
+  function renderAt(kind: string, page: ReactNode) {
+    const routes = [
+      { path: "/list", element: page },
+      { path: "*", element: <Where /> },
+    ];
+    if (kind === "data router") {
+      render(<RouterProvider router={createMemoryRouter(routes, { initialEntries: ["/list"] })} />);
+      return;
+    }
+    render(
+      <MemoryRouter initialEntries={["/list"]}>
+        <Routes>
+          {routes.map((route) => (
+            <Route key={route.path} path={route.path} element={route.element} />
+          ))}
+        </Routes>
+      </MemoryRouter>,
+    );
+  }
+
+  it.each(["data router", "navigator router"])(
+    "%s: busy only drops the click; the panel stays and no later route change comes",
+    async (kind) => {
+      renderAt(kind, <BusyPage />);
+      fireEvent.click(screen.getByTestId("edit-panel-submit"));
+      expect(screen.getByTestId("edit-panel-submit")).toHaveAttribute("aria-busy", "true");
+      fireEvent.click(screen.getByTestId("nav"));
+      await act(() => new Promise((done) => window.setTimeout(done, 30)));
+      expect(screen.getByTestId("path")).toHaveTextContent("/list");
+      fireEvent.click(screen.getByTestId("done"));
+      await act(() => new Promise((done) => window.setTimeout(done, 30)));
+      expect(screen.getByTestId("edit-panel-submit")).not.toHaveAttribute("aria-busy");
+      expect(screen.getByTestId("edit-panel")).toBeInTheDocument();
+      expect(screen.getByTestId("path")).toHaveTextContent("/list");
+    },
+  );
+
+  it.each(["data router", "navigator router"])(
+    "%s: with a promise the same click is held and lands at the target",
+    async (kind) => {
+      const submitted = deferredResult();
+      renderAt(kind, <BusyPage slow={() => submitted.promise} />);
+      fireEvent.click(screen.getByTestId("edit-panel-submit"));
+      expect(screen.getByTestId("edit-panel-submit")).toHaveAttribute("aria-busy", "true");
+      fireEvent.click(screen.getByTestId("nav"));
+      await act(() => new Promise((done) => window.setTimeout(done, 30)));
+      expect(screen.getByTestId("path")).toHaveTextContent("/list");
+      await settleAndWait(() => submitted.settle(true));
+      await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/other"));
+    },
+  );
+});
