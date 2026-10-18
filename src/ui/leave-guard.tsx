@@ -455,6 +455,10 @@ type RouterHolds = {
   // The holds that wanted the change last blocked, and the blocked state last run through them.
   blocking: Hold[];
   run: BlockedBlocker | null;
+  // The blocked state of the change last run through the holds, and the one a dropped second submit
+  // displaced: its reset leaves the router no blocked state, yet that change's answer still counts.
+  asked: BlockedBlocker | null;
+  displaced: BlockedBlocker | null;
   // Counts the route changes the router asked the blocker about: a redirect is never asked.
   requests: number;
   blocked: BlockedChange | null;
@@ -497,6 +501,8 @@ function routerEntry(router: DataRouter): RouterHolds {
       holds: [],
       blocking: [],
       run: null,
+      asked: null,
+      displaced: null,
       requests: 0,
       blocked: null,
       calling: null,
@@ -558,7 +564,11 @@ function holdRouter(router: DataRouter, hold: RouterHold): () => void {
     document.addEventListener("submit", onSubmit, true);
     const settle = () => {
       if (entry.run !== null && heldBlocker(router) !== entry.run) entry.run = null;
-      if (router.state.navigation.state === "idle") entry.saving = new Set();
+      // Both count only while a submission runs; once it ended, the router reset every blocker.
+      if (router.state.navigation.state === "idle") {
+        entry.saving = new Set();
+        entry.displaced = null;
+      }
       // Without a guard to render the router's state, a change blocked while one waits takes its place,
       // and a waiting change goes on, from here.
       if (entry.runners === 0) {
@@ -619,9 +629,15 @@ function collectBlocking(
   // A browser step that never arrived (its entry is gone) leaves no pass for a later change.
   const restarting =
     started !== null && (started.index === null || started.index === index) ? started : null;
+  // Only a submission is a surface's own Save: a navigation that submits nothing is a way out, also
+  // in the task of a submit event its form cancelled.
   const owners =
     restarting?.owners ??
-    new Set(entry.holds.filter((hold) => hold.owns(entry.submitting)).map((hold) => hold.hold));
+    (link !== null
+      ? new Set<Hold>()
+      : new Set(
+          entry.holds.filter((hold) => hold.owns(entry.submitting)).map((hold) => hold.hold),
+        ));
   entry.blocking = blockingNow(entry, owners).filter(
     (hold) => restarting?.passing.has(hold) !== true,
   );
@@ -700,13 +716,17 @@ function runBlocked(router: DataRouter, entry: RouterHolds) {
   if (blocker === undefined || blocked === null || entry.run === blocker) return;
   entry.run = blocker;
   if (blocked.answered) {
+    entry.displaced = entry.asked;
     blocker.reset();
     return;
   }
+  entry.asked = blocker;
+  entry.displaced = null;
   // A newer change, even one still loading, has not reset the blocker yet, but it takes the place all
   // the same. A change that was loading already when this one was blocked does not, nor do its
   // redirects: the confirmed leave goes on in its place (`GL-UI-007`).
-  const current = () => heldBlocker(router) === blocker && entry.requests === blocked.requests;
+  const current = () =>
+    (heldBlocker(router) ?? entry.displaced) === blocker && entry.requests === blocked.requests;
   const carrier = blocked.carrier ?? blocker;
   // A form submission of the router still running is never cut off, as its data may be lost
   // (`SUI-FEATURE-150`): the confirmed change waits until it has ended, then starts anew.
@@ -744,9 +764,11 @@ function runBlocked(router: DataRouter, entry: RouterHolds) {
     }
     blocker.reset();
     const { form, submitter } = blocked.source;
-    // A submitter gone from the form meanwhile would throw: the form goes without it then.
+    // A submitter gone from the form meanwhile would throw: the form goes without it then. One
+    // outside the form, tied to it by its `form` attribute, still belongs to it.
     if (form instanceof HTMLFormElement) {
-      form.requestSubmit(submitter !== null && form.contains(submitter) ? submitter : undefined);
+      const owned = (submitter as HTMLButtonElement | null)?.form === form;
+      form.requestSubmit(owned ? submitter : undefined);
     }
   };
   pass(entry.blocking);

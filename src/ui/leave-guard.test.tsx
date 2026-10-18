@@ -2678,6 +2678,57 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
     },
   );
 
+  // #290 (CX1): a second submit dropped while the dialog still asks leaves the dialog's answer
+  // working: the leave confirmed after it waits and lands at the chosen target.
+  it.each(["discard", "save"])(
+    "AC2: a second submit dropped while the dialog asks keeps its answer; %s lands at the chosen target",
+    async (answer) => {
+      const { action, methods, settle } = countedAction();
+      const router = submittingRouter(action);
+      await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+      edit();
+      fireEvent.click(screen.getByTestId("go"));
+      await screen.findByTestId("leave-guard");
+      post(router);
+      await pause();
+      expect(screen.getByTestId("leave-guard")).toBeInTheDocument();
+      fireEvent.click(screen.getByTestId(`leave-guard-${answer}`));
+      await pause();
+      await settleAndWait(settle);
+      await waitFor(() => expect(router.state.location.pathname).toBe("/elsewhere"));
+      await pause();
+      expect({ methods, at: router.state.location.pathname }).toEqual({
+        methods: ["POST"],
+        at: "/elsewhere",
+      });
+    },
+  );
+
+  // #290 review (M): once the submission ended (here it failed, the page stays), the dialog's late
+  // Discard after a dropped second submit leaves the page where it is, without an error.
+  it("AC2: Discard after a dropped second submit and a failed submission stays, without an error", async () => {
+    const { action, settle } = submission(() => ({ error: "Name taken" }));
+    const router = submittingRouter(action);
+    await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+    edit();
+    fireEvent.click(screen.getByTestId("go"));
+    await screen.findByTestId("leave-guard");
+    post(router);
+    await pause();
+    await settleAndWait(settle);
+    await waitFor(() => expect(router.state.navigation.state).toBe("idle"));
+    const errors: unknown[] = [];
+    const onError = (event: ErrorEvent) => errors.push(event.error);
+    window.addEventListener("error", onError);
+    try {
+      fireEvent.click(screen.getByTestId("leave-guard-discard"));
+      await pause();
+    } finally {
+      window.removeEventListener("error", onError);
+    }
+    expect({ errors, at: router.state.location.pathname }).toEqual({ errors: [], at: "/detail" });
+  });
+
   // Review #283 r3 (M), AC2: a form with another method on the same route (Delete next to Save) is
   // a way: it is held and goes on once the submission succeeded.
   it("AC2: a submit with another method to the running action is held and goes on", async () => {
@@ -3573,7 +3624,19 @@ describe("leave prompt without a save target (SUI-FEATURE-092)", () => {
 describe("a page's own Save under a data router (SUI-FEATURE-170)", () => {
   const stored = { name: "Main" };
 
-  function OwnSavePage({ archive = false, panel = false, busy = false, applyFails = false }) {
+  function OwnSavePage({
+    archive = false,
+    panel = false,
+    busy = false,
+    applyFails = false,
+    cancelTo,
+  }: {
+    archive?: boolean;
+    panel?: boolean;
+    busy?: boolean;
+    applyFails?: boolean;
+    cancelTo?: string;
+  }) {
     const loaded = useLoaderData<string>();
     const navigate = useNavigate();
     const submit = useSubmit();
@@ -3590,7 +3653,17 @@ describe("a page's own Save under a data router (SUI-FEATURE-170)", () => {
     return (
       <>
         <Where />
-        <Form method="post" ref={saveForm}>
+        <Form
+          method="post"
+          id="own-form"
+          ref={saveForm}
+          // A call site that cancels its submit and goes elsewhere instead.
+          onSubmit={(event) => {
+            if (cancelTo === undefined) return;
+            event.preventDefault();
+            void navigate(cancelTo);
+          }}
+        >
           <Input
             aria-label="Name"
             name="name"
@@ -3604,6 +3677,13 @@ describe("a page's own Save under a data router (SUI-FEATURE-170)", () => {
           )}
         </Form>
         <button type="button" data-testid="hide-save" onClick={() => setSaveShown(false)} />
+        <button
+          type="submit"
+          form="own-form"
+          name="intent"
+          value="external"
+          data-testid="external-save"
+        />
         {archive && (
           <Form method="post">
             <input type="hidden" name="intent" value="archive" />
@@ -3672,6 +3752,7 @@ describe("a page's own Save under a data router (SUI-FEATURE-170)", () => {
       panel?: boolean;
       busy?: boolean;
       applyFails?: boolean;
+      cancelTo?: string;
       logout?: Promise<void>;
     } = {},
   ) {
@@ -3806,6 +3887,29 @@ describe("a page's own Save under a data router (SUI-FEATURE-170)", () => {
       );
     },
   );
+
+  // #296 (CX2): a submit button outside the form, tied to it by its `form` attribute, is its own.
+  it("AC4: a Save from a button tied to the form by its form attribute goes after Apply with it", async () => {
+    const { posted } = await ownSaveRouter(save, { panel: true });
+    fireEvent.click(screen.getByTestId("row"));
+    fireEvent.change(screen.getByLabelText("Entry"), { target: { value: "x" } });
+    fireEvent.click(screen.getByTestId("external-save"));
+    fireEvent.click(await screen.findByTestId("leave-guard-save"));
+    await waitFor(() => expect(posted).toHaveLength(1));
+    expect([posted[0]?.get("name"), posted[0]?.get("intent")]).toEqual(["Main x", "external"]);
+  });
+
+  // #296 (CX1): a navigation in the task of a submit its form cancelled is a way out, not the Save.
+  it("a changed page whose Save submit is cancelled for a navigation asks", async () => {
+    const { router, posted } = await ownSaveRouter(save, { cancelTo: "/elsewhere" });
+    edit();
+    fireEvent.click(screen.getByTestId("own-save"));
+    await screen.findByTestId("leave-guard");
+    expect({ posted: posted.length, at: router.state.location.pathname }).toEqual({
+      posted: 0,
+      at: "/detail",
+    });
+  });
 
   it("AC4: a Save whose button is gone after Apply goes from its form without it", async () => {
     const { posted } = await ownSaveRouter(save, { panel: true });

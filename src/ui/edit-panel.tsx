@@ -69,7 +69,8 @@ type EditPanelProps = {
   // (`SUI-FEATURE-094`, `GL-UI-011` §Icon-Kanon).
   submitKind?: "save" | "next" | "apply";
   // With `onBack` the footer carries Back left-aligned (`SUI-FEATURE-035`); it goes through the
-  // unsaved-changes guard, then calls `onBack`.
+  // unsaved-changes guard, then calls `onBack`. A Back during the work of a promise from `onSubmit`
+  // goes on only once it resolves `true`; otherwise it is dropped.
   onBack?: () => void;
   backDisabled?: boolean;
   // With `pager` the header carries ‹ and › left of the title, the position beside them. A locked
@@ -318,7 +319,7 @@ function EditPanel({
                   className="mr-auto"
                   text={backHint ?? packageBackHint}
                   disabledText={
-                    busy
+                    busyProp
                       ? t("editPanel.busyHint")
                       : (backDisabledHint ?? backHint ?? packageBackHint)
                   }
@@ -328,7 +329,9 @@ function EditPanel({
                     variant="outline"
                     size="default"
                     className="mr-auto"
-                    disabled={busy || backDisabled}
+                    // While its own promise works Back stays open: it waits for the result
+                    // (`SUI-FEATURE-150`); only the call site's `busy` locks it.
+                    disabled={busyProp || backDisabled}
                     onClick={() => guard(onBack)}
                     data-testid={`${testIdPrefix}-back`}
                   >

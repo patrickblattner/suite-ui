@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.134.7 — #290, #296, SUI-FEATURE-150 rev 6, SUI-FEATURE-170 rev 5, GL-UI-007 (Codex reviews v0.134.5 and v0.134.6): a dropped second submit keeps the open leave question working, Back waits for the panel's work, and only the own Save itself goes unasked
+
+Fix, not breaking.
+
+- **A second submit dropped while "Save changes?" asks no longer makes the dialog's answer do nothing.** Under a data router, while a submission runs and the dialog asks about a route change, a second submit of the running form (same action and method) is still dropped silently. Discard or Save in the dialog then still waits for the submission and lands at the chosen target (before: the answer did nothing and the submission's redirect won). Once the submission has ended, a late answer leaves the page where it is, without an error.
+- **Back in an `EditPanel` waits for the panel's own work.** While a promise from `onSubmit` runs, Back stays usable and is held like Previous/Next and `Esc`: it goes on once the work resolves `true` and is dropped when it fails, as 0.134.5 stated (before: Back was locked). An `onSubmit` promise must resolve `true` for a held Back to go on. The call site's `busy` and `backDisabled` still lock it.
+- **Only the page's own Save submission goes without the question.** A navigation that submits nothing is a way out and asks on a changed page, also when it comes in the task of a submit its registered form cancelled (`preventDefault`, then `navigate`; before: it left without a question).
+- **After Apply the Save is submitted anew with its submit button also when that button stands outside the form**, tied to it by its `form` attribute (before: it went without the button, so its `name`/`value` and any `formaction`/`formmethod` were lost). A button no longer in the form is still left out.
+
+**Migration:** none required.
+
 ## 0.134.6 — #288, SUI-FEATURE-170 rev 5, SUI-FEATURE-150, GL-UI-007 (Q&A #4030, #4032, #4033, #4041; reviews #283, #288): a page's own Save form is not held by its own guard
 
 Fix, not breaking.

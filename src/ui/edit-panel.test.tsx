@@ -411,6 +411,37 @@ describe("EditPanel", () => {
     expect(screen.getByTestId("edit-panel-back")).toBeDisabled();
   });
 
+  // #290 (CX2), SUI-FEATURE-150: Back during the panel's own promise work is held, not locked; it
+  // goes on once the work resolved true and is dropped when it fails.
+  it.each([
+    [true, 1],
+    [false, 0],
+  ])(
+    "Back during a slow submit waits for it (resolves %s: onBack runs %i times)",
+    async (ok, runs) => {
+      let settle: (value: boolean) => void = () => {};
+      const onBack = vi.fn();
+      renderPanel({
+        onBack,
+        onSubmit: () =>
+          new Promise<boolean>((done) => {
+            settle = done;
+          }),
+      });
+      fireEvent.click(screen.getByTestId("edit-panel-submit"));
+      expect(screen.getByTestId("edit-panel-submit")).toHaveAttribute("aria-busy", "true");
+      const back = screen.getByTestId("edit-panel-back");
+      expect(back).toBeEnabled();
+      fireEvent.click(back);
+      expect(onBack).not.toHaveBeenCalled();
+      await act(async () => {
+        settle(ok);
+        await Promise.resolve();
+      });
+      expect(onBack).toHaveBeenCalledTimes(runs);
+    },
+  );
+
   it("testIdPrefix applies to Back", () => {
     renderPanel({ onBack: () => {}, testIdPrefix: "channel-panel" });
     expect(screen.getByTestId("channel-panel-back")).toBeInTheDocument();
