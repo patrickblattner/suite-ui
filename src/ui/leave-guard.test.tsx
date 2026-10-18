@@ -982,7 +982,9 @@ describe("leave prompt without a save target (SUI-FEATURE-092)", () => {
   function expectDiscardOnly() {
     const dialog = screen.getByTestId("leave-guard");
     expect(dialog).toHaveTextContent("Discard changes?");
-    expect(dialog).toHaveTextContent("This entry has changes that will be lost.");
+    expect(dialog).toHaveTextContent(
+      "This entry has changes that will be lost if you discard them.",
+    );
     expect([...dialog.querySelectorAll("button")].map((b) => b.dataset.testid)).toEqual([
       "leave-guard-cancel",
       "leave-guard-discard",

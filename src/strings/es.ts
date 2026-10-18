@@ -223,7 +223,7 @@ export const es: SuiteStrings = {
   editPanel: {
     backHint: "Vuelve un paso atrás; antes pregunta si hay cambios sin guardar.",
     cancelHint: "Cierra el panel sin guardar; antes pregunta si hay cambios sin guardar.",
-    closeHint: "Cierra el panel.",
+    closeHint: "Cierra el panel; antes pregunta si hay cambios.",
     saveHint: "Guarda los datos.",
     nextHint: "Pasa al paso siguiente.",
     busyHint: "Hay una acción en curso; vuelve a estar disponible cuando haya terminado.",
@@ -233,7 +233,7 @@ export const es: SuiteStrings = {
     description: "Esta entrada tiene cambios que aún no se han guardado.",
     discard: "Descartar",
     discardTitle: "¿Descartar los cambios?",
-    discardDescription: "Esta entrada tiene cambios que se perderán.",
+    discardDescription: "Esta entrada tiene cambios que se perderán si los descartas.",
   },
   settings: {
     active: "Activo",

@@ -225,7 +225,7 @@ export const de: SuiteStrings = {
     backHint: "Geht einen Schritt zurück; ungespeicherte Änderungen werden vorher abgefragt.",
     cancelHint:
       "Schließt das Panel, ohne zu speichern; ungespeicherte Änderungen werden vorher abgefragt.",
-    closeHint: "Schließt das Panel.",
+    closeHint: "Schließt das Panel; Änderungen werden vorher abgefragt.",
     saveHint: "Speichert die Eingaben.",
     nextHint: "Geht zum nächsten Schritt.",
     busyHint: "Eine Aktion läuft; wieder verfügbar, sobald sie abgeschlossen ist.",
@@ -235,7 +235,7 @@ export const de: SuiteStrings = {
     description: "Dieser Eintrag hat Änderungen, die noch nicht gespeichert sind.",
     discard: "Verwerfen",
     discardTitle: "Änderungen verwerfen?",
-    discardDescription: "Dieser Eintrag hat Änderungen, die verloren gehen.",
+    discardDescription: "Dieser Eintrag hat Änderungen, die beim Verwerfen verloren gehen.",
   },
   settings: {
     active: "Aktiv",

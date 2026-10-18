@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.131.1 — #258, SUI-FEATURE-092 rev 3, SUI-FEATURE-091 rev 5 (Q&A #3943): leave-prompt texts name the prompt
+
+Text fix, not breaking. The "Discard changes?" description now names the loss as the result of discarding, never as certain, and the `EditPanel` Close hint (no `onSubmit`) now says that changes are asked about first, like Back and Cancel. The `save` hint is unchanged. Texts in de, en and es.
+
+**Migration:** changed package texts — `leaveGuard.discardDescription`: en "This entry has changes that will be lost." → "This entry has changes that will be lost if you discard them.", de "Dieser Eintrag hat Änderungen, die verloren gehen." → "Dieser Eintrag hat Änderungen, die beim Verwerfen verloren gehen.", es "Esta entrada tiene cambios que se perderán." → "Esta entrada tiene cambios que se perderán si los descartas."; `editPanel.closeHint`: en "Closes the panel." → "Closes the panel; asks first if there are changes.", de "Schließt das Panel." → "Schließt das Panel; Änderungen werden vorher abgefragt.", es "Cierra el panel." → "Cierra el panel; antes pregunta si hay cambios.". Props, exports and testids: none. Baselines: 10 `gallery-*.png` (strings table).
+
 ## 0.131.0 — #256, SUI-FEATURE-092 rev 2, GL-UI-007 rev 5: leave prompt without a save target asks "Discard changes?"
 
 Feature, not breaking. A dirty surface without a save target no longer offers a Save that does nothing. Its leave prompt is titled "Discard changes?" and shows only Cancel and Discard (destructive). The focus opens on Cancel with its ring, and `Enter` and `Esc` both stay, so only Discard carries out the held way out (Esc, Cancel/Close, Back, Previous/Next, a navigation click, browser back and forward). It applies to `EditPanel` without `onSubmit` and to `useLeaveGuard` without `onSave`; `onSave` is now optional there and in `useLeaveConfirm`. With `onSubmit` or `onSave` the prompt is unchanged: three buttons, opening on Save. New strings `leaveGuard.discardTitle` and `leaveGuard.discardDescription` in de, en and es. The gallery's edit-panel page gets a panel without a save target (`note-panel`).

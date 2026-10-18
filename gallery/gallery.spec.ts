@@ -4697,7 +4697,7 @@ for (const [trigger, prefix, ids] of [
       ],
       "check-panel-submit": ["Save", "Saves the entries."],
       "next-panel-submit": ["Continue to review", "Goes on to the next step."],
-      "view-panel-cancel": ["Close", "Closes the panel."],
+      "view-panel-cancel": ["Close", "Closes the panel; asks first if there are changes."],
     } as Record<string, [string, string]>;
     for (const id of ids) {
       const [name, hint] = hints[`${prefix}-${id}`]!;

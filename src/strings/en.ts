@@ -233,7 +233,7 @@ export const en = {
   editPanel: {
     backHint: "Goes back one step; asks first if there are unsaved changes.",
     cancelHint: "Closes the panel without saving; asks first if there are unsaved changes.",
-    closeHint: "Closes the panel.",
+    closeHint: "Closes the panel; asks first if there are changes.",
     saveHint: "Saves the entries.",
     nextHint: "Goes on to the next step.",
     busyHint: "An action is running; available again once it has finished.",
@@ -243,7 +243,7 @@ export const en = {
     description: "This entry has changes that are not saved yet.",
     discard: "Discard",
     discardTitle: "Discard changes?",
-    discardDescription: "This entry has changes that will be lost.",
+    discardDescription: "This entry has changes that will be lost if you discard them.",
   },
   settings: {
     active: "Active",
