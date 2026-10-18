@@ -255,6 +255,20 @@ export const de: SuiteStrings = {
     placeholder: "Zeitzone suchen…",
     empty: "Keine passende Zeitzone",
   },
+  combobox: {
+    placeholder: "Suchen …",
+    loading: "Wird gesucht …",
+    empty: "Nichts gefunden",
+    create: "{{term}} anlegen …",
+  },
+  createAndSelect: {
+    submit: "Anlegen und wählen",
+    duplicate: "{{name}} existiert bereits",
+    selectExisting: "Diesen auswählen",
+    submitHint: "Legt den Eintrag an und wählt ihn aus.",
+    cancelHint: "Schließt den Dialog; fragt vorher, wenn du etwas eingegeben hast.",
+    selectExistingHint: "Wählt den bestehenden Eintrag aus, statt einen neuen anzulegen.",
+  },
   fileFacts: {
     format: "Format",
     resolution: "Auflösung",

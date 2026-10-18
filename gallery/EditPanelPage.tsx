@@ -5,6 +5,8 @@ import { useLocation } from "react-router-dom";
 import { PageHeader } from "../src/list/page-header.js";
 import { PageScroll } from "../src/list/page-scroll.js";
 import { Button } from "../src/ui/button.js";
+import { Combobox, type ComboboxOption } from "../src/ui/combobox.js";
+import { CreateAndSelectDialog } from "../src/ui/create-and-select-dialog.js";
 import { EditPanel } from "../src/ui/edit-panel.js";
 import { Input } from "../src/ui/input.js";
 import { FileFacts } from "../src/ui/file-facts.js";
@@ -103,6 +105,101 @@ const LABELS = {
   es: { saveCloseHint: "Guarda los datos y cierra el panel." },
 };
 const FIELDS = Array.from({ length: 24 }, (_, index) => `Field ${index + 1}`);
+
+// `SUI-FEATURE-093` (#264): a record picker in a panel creates a missing contact in the compact
+// dialog over it. The stand-in server searches for 400 ms and creates for 800 ms; a name that exists
+// (in any letter case) is reported as a duplicate.
+const CONTACTS: readonly ComboboxOption[] = [
+  { value: "c1", label: "Ada Lovelace" },
+  { value: "c2", label: "Alan Turing" },
+  { value: "c3", label: "Grace Hopper" },
+];
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+function ContactPanelDemo() {
+  const [open, setOpen] = useState(false);
+  // The stand-in server's records; the picker's own options stay the first few, as an app's would.
+  const [server, setServer] = useState(CONTACTS);
+  const [contact, setContact] = useState<ComboboxOption | null>(null);
+  const [term, setTerm] = useState<string | null>(null);
+  return (
+    <>
+      <Button
+        variant="outline"
+        size="sm"
+        data-testid="contact-panel-trigger"
+        onClick={() => {
+          setContact(null);
+          setOpen(true);
+        }}
+      >
+        Open with a contact picker
+      </Button>
+      <EditPanel
+        open={open}
+        onOpenChange={setOpen}
+        title="Requirement"
+        mode="edit"
+        dirty={contact !== null}
+        onSubmit={() => setOpen(false)}
+        testIdPrefix="contact-panel"
+      >
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="contact-picker">Contact</Label>
+          <Combobox
+            id="contact-picker"
+            options={CONTACTS}
+            value={contact?.value ?? ""}
+            selectedOption={contact ?? undefined}
+            onValueChange={(_, option) => setContact(option)}
+            onSearch={async (text) => {
+              await wait(400);
+              return server.filter(({ label }) => label.toLowerCase().includes(text.toLowerCase()));
+            }}
+            onCreateRequest={setTerm}
+            data-testid="contact-picker"
+          />
+        </div>
+      </EditPanel>
+      <CreateAndSelectDialog
+        open={term !== null}
+        onOpenChange={(next) => !next && setTerm(null)}
+        title="Create contact"
+        initialName={term ?? ""}
+        onCreate={async ({ name = "" }) => {
+          await wait(800);
+          const existing = server.find(
+            ({ label }) => label.toLowerCase() === name.trim().toLowerCase(),
+          );
+          if (existing !== undefined) return { duplicate: existing };
+          const created = { value: `c${server.length + 1}`, label: name.trim() };
+          setServer((list) => [...list, created]);
+          return { created };
+        }}
+        onSelect={setContact}
+        data-testid="contact-create"
+      >
+        {(nameField) => (
+          <>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="contact-name">Name</Label>
+              <Input id="contact-name" data-testid="contact-create-name" {...nameField} />
+            </div>
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="contact-email">Email</Label>
+              <Input
+                id="contact-email"
+                name="email"
+                type="email"
+                data-testid="contact-create-email"
+              />
+            </div>
+          </>
+        )}
+      </CreateAndSelectDialog>
+    </>
+  );
+}
 
 // A long list whose rows open the edit panel, inside the shell frame (`SUI-FEATURE-030`). The panel
 // lives in the routed page as in an app: a navigation away unmounts both. Save works for 1.5 s.
@@ -213,6 +310,7 @@ function Demo() {
         >
           Open without save target
         </Button>
+        <ContactPanelDemo />
         <span data-testid="edit-panel-check-counts">
           submits {submits} · backs {backs}
         </span>

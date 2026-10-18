@@ -57,6 +57,7 @@ describe("focus ring", () => {
     "ui/dropdown-menu.tsx",
     "ui/select.tsx",
     "ui/timezone-combobox.tsx",
+    "ui/combobox.tsx",
     "shell/global-search.tsx",
     "shell/user-menu.tsx",
   ])("%s rings the highlighted entry inset", (file) => {

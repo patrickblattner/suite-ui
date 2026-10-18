@@ -263,6 +263,21 @@ export const en = {
     placeholder: "Search time zone…",
     empty: "No matching time zone",
   },
+  // The searchable choice of a record (`Combobox`) and its create dialog (`SUI-FEATURE-093`).
+  combobox: {
+    placeholder: "Search …",
+    loading: "Searching …",
+    empty: "Nothing found",
+    create: "Create {{term}} …",
+  },
+  createAndSelect: {
+    submit: "Create and select",
+    duplicate: "{{name}} already exists",
+    selectExisting: "Select this one",
+    submitHint: "Creates the entry and selects it.",
+    cancelHint: "Closes the dialog; asks first if you have typed something.",
+    selectExistingHint: "Selects the existing entry instead of creating one.",
+  },
   // The file details of a medium in its detail view (`FileFacts`).
   fileFacts: {
     format: "Format",

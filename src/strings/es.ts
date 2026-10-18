@@ -253,6 +253,20 @@ export const es: SuiteStrings = {
     placeholder: "Buscar zona horaria…",
     empty: "Ninguna zona horaria coincide",
   },
+  combobox: {
+    placeholder: "Buscar …",
+    loading: "Buscando …",
+    empty: "No se encontró nada",
+    create: "Crear {{term}} …",
+  },
+  createAndSelect: {
+    submit: "Crear y seleccionar",
+    duplicate: "{{name}} ya existe",
+    selectExisting: "Seleccionar",
+    submitHint: "Crea la entrada y la selecciona.",
+    cancelHint: "Cierra el diálogo; antes pregunta si has escrito algo.",
+    selectExistingHint: "Selecciona la entrada existente en lugar de crear una nueva.",
+  },
   fileFacts: {
     format: "Formato",
     resolution: "Resolución",

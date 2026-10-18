@@ -7850,3 +7850,114 @@ for (const width of [1440, 1920]) {
     await expect(bubble).toHaveText("Clear filter");
   });
 }
+
+// SUI-FEATURE-093 rev 3 (#264): a contact picker in an EditPanel creates a missing contact in the
+// compact dialog over the panel. The stand-in server searches for 400 ms and creates for 800 ms.
+async function openCreateDialog(page: Page, term: string) {
+  await page.goto("/?page=edit-panel&lng=en");
+  await page.getByTestId("contact-panel-trigger").click();
+  const picker = page.getByTestId("contact-picker");
+  await picker.click();
+  await picker.fill(term);
+  await page.getByTestId("contact-picker-create").click();
+  const dialog = page.getByTestId("contact-create");
+  await expect(dialog).toBeVisible();
+  return { picker, dialog, panel: page.getByTestId("contact-panel") };
+}
+
+test("create and select: Neu anlegen … opens the dialog over the dimmed panel with Neu in the name", async ({
+  page,
+}) => {
+  const { dialog, panel } = await openCreateDialog(page, "Neu");
+  await expect(page.getByTestId("contact-create-name")).toHaveValue("Neu");
+  await expect(page.getByTestId("contact-create-name")).toBeFocused();
+  await expect(panel).toBeVisible();
+  await expect(page.locator("[data-slot=dialog-overlay]")).toBeVisible();
+  // The panel lies under the overlay, the dialog over it.
+  const covering = await panel.evaluate((node) => {
+    const rect = node.getBoundingClientRect();
+    return (document.elementFromPoint(rect.left + 10, rect.top + 10) as HTMLElement | null)?.dataset
+      .slot;
+  });
+  expect(covering).toBe("dialog-overlay");
+  await expect(dialog.getByTestId("contact-create-submit")).toHaveText("Create and select");
+});
+
+test("create and select: working state, then the picker shows the new contact and the panel asks on close", async ({
+  page,
+}) => {
+  const { picker, dialog, panel } = await openCreateDialog(page, "Neu");
+  const submit = dialog.getByTestId("contact-create-submit");
+  await submit.click();
+  await expect(submit).toHaveAttribute("aria-busy", "true");
+  await expect(dialog).toBeHidden();
+  await expect(picker).toHaveValue("Neu");
+  await expect(picker).toBeFocused();
+  await panel.getByTestId("contact-panel-cancel").click();
+  await expect(page.getByRole("dialog", { name: "Save changes?" })).toBeVisible();
+});
+
+test("create and select: a duplicate offers the existing contact, Select this one picks it", async ({
+  page,
+}) => {
+  const { picker, dialog } = await openCreateDialog(page, "ada lovelace");
+  await dialog.getByTestId("contact-create-submit").click();
+  const line = dialog.getByTestId("contact-create-duplicate");
+  await expect(line).toContainText("Ada Lovelace already exists");
+  await line.getByTestId("contact-create-select-existing").click();
+  await expect(dialog).toBeHidden();
+  await expect(picker).toHaveValue("Ada Lovelace");
+});
+
+test("create and select: Esc without input closes at once, with input asks Discard changes?", async ({
+  page,
+}) => {
+  const { picker, dialog, panel } = await openCreateDialog(page, "Neu");
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(panel).toBeVisible();
+  await expect(picker).toHaveValue("");
+  await picker.click();
+  await picker.fill("Neu");
+  await page.getByTestId("contact-picker-create").click();
+  await page.getByTestId("contact-create-email").fill("neu@example.org");
+  await page.keyboard.press("Escape");
+  const prompt = page.getByRole("dialog", { name: "Discard changes?" });
+  await expect(prompt).toBeVisible();
+  await expect(prompt.getByRole("button")).toHaveCount(2);
+  await prompt.getByTestId("leave-guard-discard").click();
+  await expect(dialog).toBeHidden();
+  await expect(panel).toBeVisible();
+  await expect(picker).toHaveValue("");
+});
+
+test("create and select: the picker's server search shows Searching …, then Nothing found", async ({
+  page,
+}) => {
+  await page.goto("/?page=edit-panel&lng=en");
+  await page.getByTestId("contact-panel-trigger").click();
+  const picker = page.getByTestId("contact-picker");
+  await picker.click();
+  await picker.fill("zzz");
+  const status = page.getByTestId("contact-picker-status");
+  await expect(status).toHaveText("Searching …");
+  await expect(status).toHaveText("Nothing found");
+  await expect(page.getByTestId("contact-picker-create")).toHaveText("Create zzz …");
+});
+
+for (const [lng, submit] of [
+  ["de", "Anlegen und wählen"],
+  ["es", "Crear y seleccionar"],
+] as const) {
+  test(`create and select: package texts in ${lng}`, async ({ page }) => {
+    await page.goto(`/?page=edit-panel&lng=${lng}`);
+    await page.getByTestId("contact-panel-trigger").click();
+    const picker = page.getByTestId("contact-picker");
+    await picker.click();
+    await picker.fill("Neu");
+    const entry = page.getByTestId("contact-picker-create");
+    await expect(entry).toHaveText(lng === "de" ? "Neu anlegen …" : "Crear Neu …");
+    await entry.click();
+    await expect(page.getByTestId("contact-create-submit")).toHaveText(submit);
+  });
+}
