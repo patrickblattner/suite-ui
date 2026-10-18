@@ -71,7 +71,8 @@ function isMacPlatform(): boolean {
 
 // The app-shell search (`GL-UI-031`): a field in the sidebar under the head, with its shortcut badge.
 // The field never shows results; focus, click, typing or the shortcut open the centred dialog, which
-// is the one place hits appear. Collapsed, the field is an icon that expands the rail and focuses it.
+// is the one place hits appear. Collapsed, the field is an icon whose click opens the dialog; the
+// rail stays collapsed (#247).
 function GlobalSearch({
   areas,
   search,
@@ -79,12 +80,10 @@ function GlobalSearch({
   emptyTestId = "search-dialog-empty",
 }: GlobalSearchProps) {
   const { t } = useTranslation("suite");
-  const { isOpen, toggle } = useSidebar();
+  const { isOpen } = useSidebar();
   const navigate = useNavigate();
   const inputRef = React.useRef<HTMLInputElement>(null);
   const railRef = React.useRef<HTMLButtonElement>(null);
-  // The collapsed rail has no input to focus; it is focused once the expanded field exists.
-  const focusPending = React.useRef(false);
   // Esc returns the focus to the field; without this flag that focus would reopen the dialog.
   const suppressFocusOpen = React.useRef(false);
   const [term, setTerm] = React.useState("");
@@ -105,13 +104,6 @@ function GlobalSearch({
     isDialogOpen.current = true;
     setDialogOpen(true);
   }, []);
-
-  React.useEffect(() => {
-    if (isOpen && focusPending.current) {
-      focusPending.current = false;
-      inputRef.current?.focus();
-    }
-  }, [isOpen]);
 
   // On the document, so the shortcut works from every route.
   React.useEffect(() => {
@@ -215,10 +207,7 @@ function GlobalSearch({
           ref={railRef}
           type="button"
           data-testid="shell-search"
-          onClick={() => {
-            focusPending.current = true;
-            toggle();
-          }}
+          onClick={() => openDialog()}
           aria-label={t("search.label")}
           className="flex cursor-pointer items-center justify-center rounded-md p-2 text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:focus-ring"
         >

@@ -3662,6 +3662,38 @@ test("shell: closing the search opened over a modal keeps the focus in the modal
   }
 });
 
+// #247: in the collapsed rail the field stays an icon; its click and the shortcut open the dialog
+// directly, the rail stays collapsed, and Esc or × hands the focus back to the icon (`GL-UI-031`).
+test("shell: in the collapsed rail the search opens directly and returns to the icon", async ({
+  page,
+}) => {
+  await page.goto("/?page=shell&route=/dashboard&lng=en");
+  const sidebar = page.getByTestId("app-sidebar");
+  const dialog = page.getByTestId("search-dialog");
+  const icon = sidebar.getByTestId("shell-search");
+  await page.getByTestId("sidebar-trigger").click();
+  await expect(sidebar).toHaveAttribute("data-state", "collapsed");
+
+  const opens = [() => icon.click(), () => page.keyboard.press("ControlOrMeta+k")];
+  const closes = [
+    () => page.keyboard.press("Escape"),
+    () => dialog.getByRole("button", { name: "Close" }).click(),
+  ];
+  for (const open of opens) {
+    for (const close of closes) {
+      await open();
+      await expect(dialog).toBeVisible();
+      await expect(page.getByTestId("search-dialog-input")).toBeFocused();
+      await expect(sidebar).toHaveAttribute("data-state", "collapsed");
+      await close();
+      await expect(dialog).toHaveCount(0);
+      await expect(icon).toBeFocused();
+      await expect(sidebar).toHaveAttribute("data-state", "collapsed");
+      await expect(icon).toHaveJSProperty("tagName", "BUTTON");
+    }
+  }
+});
+
 test("shell: the shortcut opens the search from a section route", async ({ page }) => {
   await page.goto("/?page=shell&route=/admin/users");
   await expect(page.getByTestId("app-sidebar")).toBeVisible();
