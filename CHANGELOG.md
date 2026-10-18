@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.135.2 — #287, SUI-FEATURE-172 rev 3, SUI-FEATURE-150 rev 6, GL-UI-007 (Q&A #4051, #4053): Discard during a running submission resets the draft only when the way goes
+
+Fix, not breaking.
+
+- **`onDiscard` runs only once a route change that waits for a submission goes.** Under a data router, Discard in "Save changes?" while a router submission still runs leaves the draft as it is while the change waits. After the submission succeeded `onDiscard` runs once as the change goes (after a redirect the page may be gone by then), and the page passes without a second question; `onDiscard` is read when it runs, so it is the one of the latest render. When the submission fails the change is dropped, `onDiscard` never runs, and the page keeps the entries the error refers to (before: the draft was reset at once and was gone after a failure). This holds for a link or `navigate`, a held submission of another form and a browser step alike; a guard asked again on the way (a second guard changed meanwhile, or the page after an Apply in a panel) counts with its latest answer, so each reset runs once. Without a running submission, and for a way out that is no route change, `onDiscard` runs at once as before, also when another guard's Cancel then keeps the page.
+- **The newer click wins** (`SUI-FEATURE-172` AC3): a route change made during the wait takes the waiting one's place, passes the guards that confirmed Discard without asking again, takes their resets along and lands at the newer target after the submission succeeded. Guards without a confirmed Discard ask as usual.
+
+**Migration:** none required. Baselines: none. Known limit (`SUI-FEATURE-172`): input made during the wait falls under the confirmed Discard and is dropped with the draft when the change goes; the guard knows only `dirty`, not the values, so it does not ask again.
+
 ## 0.135.1 — #285, SUI-FEATURE-171 rev 3, GL-UI-027, GL-UI-007: Back and Cancel explain the panel's work, and the focus stays on it
 
 Fix, not breaking.

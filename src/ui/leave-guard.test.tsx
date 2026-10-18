@@ -2280,6 +2280,348 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
     },
   );
 
+  // #287, SUI-FEATURE-172: a Discard confirmed during a submission resets the draft only once its
+  // change goes: after the submission succeeded, just before the route changes; when it fails the
+  // draft stays, with the entries the error refers to.
+  function SpyPage({
+    onDiscard,
+    label = "Name",
+    children,
+  }: {
+    onDiscard: (name: string) => void;
+    label?: string;
+    children?: ReactNode;
+  }) {
+    const navigate = useNavigate();
+    const [name, setName] = useState("Main");
+    const { guard, dialog } = useLeaveGuard({
+      dirty: isDirty("Main", name),
+      onLeave: () => void navigate("/list"),
+      onSave: () => true,
+      onDiscard: () => {
+        onDiscard(name);
+        setName("Main");
+      },
+    });
+    return (
+      <>
+        <Input aria-label={label} value={name} onChange={(event) => setName(event.target.value)} />
+        {children}
+        <button
+          type="button"
+          data-testid="back"
+          onClick={() => guard(() => void navigate("/list"))}
+        >
+          Back
+        </button>
+        <button type="button" data-testid="go" onClick={() => void navigate("/elsewhere")}>
+          Go
+        </button>
+        {dialog}
+      </>
+    );
+  }
+
+  // Without a submission the change goes at once, and so does the reset of its Discard.
+  it.each([
+    ["data router", "go", "/elsewhere"],
+    ["data router", "back", "/list"],
+    ["navigator router", "go", "/elsewhere"],
+    ["navigator router", "back", "/list"],
+  ])(
+    "#287: %s, Discard (%s) without a submission resets the draft as it leaves",
+    async (kind, way, target) => {
+      const onDiscard = vi.fn();
+      const routes = [
+        { path: "/detail", element: <SpyPage onDiscard={onDiscard} /> },
+        { path: "*", element: <Where /> },
+      ];
+      if (kind === "data router") {
+        render(
+          <RouterProvider
+            router={createMemoryRouter(routes, {
+              initialEntries: ["/list", "/detail"],
+              initialIndex: 1,
+            })}
+          />,
+        );
+      } else {
+        render(
+          <MemoryRouter initialEntries={["/list", "/detail"]} initialIndex={1}>
+            <Routes>
+              {routes.map((route) => (
+                <Route key={route.path} path={route.path} element={route.element} />
+              ))}
+            </Routes>
+          </MemoryRouter>,
+        );
+      }
+      edit();
+      fireEvent.click(screen.getByTestId(way));
+      fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+      await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent(target));
+      expect(onDiscard).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each(["redirects", "returns nothing"])(
+    "#287 AC1: Discard during a submission that %s resets the draft as the change goes",
+    async (result) => {
+      const { action, settle } = submission(() =>
+        result === "redirects" ? redirect("/posted") : null,
+      );
+      const onDiscard = vi.fn(() => {
+        expect(router.state.navigation.state).toBe("idle");
+        // After a redirect the page is gone by then; the reset runs as the change goes.
+        expect(router.state.location.pathname).toBe(result === "redirects" ? "/posted" : "/detail");
+      });
+      const router = submittingRouter(action, { page: <SpyPage onDiscard={onDiscard} /> });
+      await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+      edit();
+      fireEvent.click(screen.getByTestId("go"));
+      fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+      await pause();
+      expect(onDiscard).not.toHaveBeenCalled();
+      expect(screen.getByLabelText("Name")).toHaveValue("Changed");
+      // SUI-FEATURE-172: input during the wait falls under that Discard; no second question.
+      fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Again" } });
+      await settleAndWait(settle);
+      await waitFor(() => expect(router.state.location.pathname).toBe("/elsewhere"));
+      expect(onDiscard).toHaveBeenCalledTimes(1);
+      // The reset is read when it runs: it sees the input made during the wait.
+      expect(onDiscard).toHaveBeenCalledWith("Again");
+      expect(screen.queryByTestId("leave-guard")).toBeNull();
+    },
+  );
+
+  // SUI-FEATURE-172 AC3: a newer change during the wait takes the waiting one's place, passes the
+  // page's Discard without a second question, takes its reset along and lands at the newer target.
+  it("#287 AC3: a newer change during the wait passes the Discard and resets once at its target", async () => {
+    const { action, settle } = submission(() => null);
+    const onDiscard = vi.fn();
+    const router = submittingRouter(action, { page: <SpyPage onDiscard={onDiscard} /> });
+    await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+    edit();
+    fireEvent.click(screen.getByTestId("go"));
+    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+    await pause();
+    act(() => {
+      void router.navigate("/b");
+    });
+    await pause();
+    expect(screen.queryByTestId("leave-guard")).toBeNull();
+    expect(onDiscard).not.toHaveBeenCalled();
+    await settleAndWait(settle);
+    await waitFor(() => expect(router.state.location.pathname).toBe("/b"));
+    expect(onDiscard).toHaveBeenCalledTimes(1);
+  });
+
+  // The restart paths carry the deferred reset as well: a held submission of another form, and a
+  // browser step under a memory router (a browser router's is below).
+  it("#287: a held post of another form resets the draft once as it goes", async () => {
+    const { action, settle } = submission();
+    const onDiscard = vi.fn();
+    const router = submittingRouter(action, {
+      page: (
+        <SpyPage onDiscard={onDiscard}>
+          <Form method="post" action="/other">
+            <button type="submit" data-testid="nav-post">
+              Post
+            </button>
+          </Form>
+        </SpyPage>
+      ),
+      routes: [{ path: "/other", action: () => redirect("/done") }],
+    });
+    await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+    edit();
+    fireEvent.click(screen.getByTestId("nav-post"));
+    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+    await pause();
+    expect(onDiscard).not.toHaveBeenCalled();
+    await settleAndWait(settle);
+    await waitFor(() => expect(router.state.location.pathname).toBe("/done"));
+    expect(onDiscard).toHaveBeenCalledTimes(1);
+  });
+
+  it("#287: memory router: a browser step held during a submission resets the draft once", async () => {
+    const { action, settle } = submission(() => null);
+    const onDiscard = vi.fn();
+    const router = submittingRouter(action, { page: <SpyPage onDiscard={onDiscard} /> });
+    await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+    edit();
+    act(() => {
+      void router.navigate(-1);
+    });
+    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+    await pause();
+    expect(onDiscard).not.toHaveBeenCalled();
+    await settleAndWait(settle);
+    await waitFor(() => expect(router.state.location.pathname).toBe("/list"));
+    expect(onDiscard).toHaveBeenCalledTimes(1);
+  });
+
+  // A restarted change that a second guard, changed during the wait, blocks again: that guard asks,
+  // and both resets run once the change goes.
+  it("#287: a restarted change a second guard blocks again resets both drafts once", async () => {
+    const { action, settle } = submission(() => null);
+    const first = vi.fn();
+    const second = vi.fn();
+    const router = submittingRouter(action, {
+      page: (
+        <SpyPage onDiscard={first}>
+          <SpyPage onDiscard={second} label="Other" />
+        </SpyPage>
+      ),
+    });
+    await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+    edit();
+    fireEvent.click(screen.getAllByTestId("go")[0]!);
+    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+    await waitFor(() => expect(screen.queryByTestId("leave-guard")).toBeNull());
+    fireEvent.change(screen.getByLabelText("Other"), { target: { value: "Changed" } });
+    await settleAndWait(settle);
+    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/elsewhere"));
+    expect(first).toHaveBeenCalledTimes(1);
+    expect(second).toHaveBeenCalledTimes(1);
+  });
+
+  // Nested guards without a submission: the Discard of the guard asked first resets at once, also
+  // when the other guard's Cancel then keeps the page, under both routers alike.
+  it.each(["data router", "navigator router"])(
+    "#287: %s: one guard's Discard and the other's Cancel reset the first draft; the route stays",
+    async (kind) => {
+      const outer = vi.fn();
+      const inner = vi.fn();
+      const routes = [
+        {
+          path: "/detail",
+          element: (
+            <>
+              <Where />
+              <SpyPage onDiscard={outer}>
+                <SpyPage onDiscard={inner} label="Other" />
+              </SpyPage>
+            </>
+          ),
+        },
+        { path: "*", element: <Where /> },
+      ];
+      if (kind === "data router") {
+        render(
+          <RouterProvider
+            router={createMemoryRouter(routes, {
+              initialEntries: ["/list", "/detail"],
+              initialIndex: 1,
+            })}
+          />,
+        );
+      } else {
+        render(
+          <MemoryRouter initialEntries={["/list", "/detail"]} initialIndex={1}>
+            <Routes>
+              {routes.map((route) => (
+                <Route key={route.path} path={route.path} element={route.element} />
+              ))}
+            </Routes>
+          </MemoryRouter>,
+        );
+      }
+      edit();
+      fireEvent.change(screen.getByLabelText("Other"), { target: { value: "Changed" } });
+      fireEvent.click(screen.getAllByTestId("go")[0]!);
+      fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+      await waitFor(() => expect(inner.mock.calls.length + outer.mock.calls.length).toBe(1));
+      fireEvent.click(await screen.findByTestId("leave-guard-cancel"));
+      await waitFor(() => expect(screen.queryByTestId("leave-guard")).toBeNull());
+      await pause();
+      expect(screen.getByTestId("path")).toHaveTextContent("/detail");
+      expect(inner.mock.calls.length + outer.mock.calls.length).toBe(1);
+      const reset = inner.mock.calls.length === 1 ? "Other" : "Name";
+      expect(screen.getByLabelText(reset)).toHaveValue("Main");
+    },
+  );
+
+  // An apply panel over the page runs the change `again` after its Apply: the page, asked again,
+  // counts with its latest answer, so its reset runs once.
+  function ApplyPanel() {
+    const [term, setTerm] = useState("");
+    return (
+      <EditPanel
+        open
+        onOpenChange={() => {}}
+        title="Term"
+        submitKind="apply"
+        dirty={term !== ""}
+        onSubmit={() => {
+          setTerm("");
+          return true;
+        }}
+      >
+        <Input aria-label="Entry" value={term} onChange={(event) => setTerm(event.target.value)} />
+      </EditPanel>
+    );
+  }
+
+  it("#287: a page asked again after an Apply during the wait resets its draft once", async () => {
+    const { action, settle } = submission(() => null);
+    const onDiscard = vi.fn();
+    const router = submittingRouter(action, {
+      page: (
+        <SpyPage onDiscard={onDiscard}>
+          <ApplyPanel />
+        </SpyPage>
+      ),
+    });
+    await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+    edit();
+    fireEvent.change(screen.getByLabelText("Entry"), { target: { value: "New" } });
+    fireEvent.click(screen.getByTestId("go"));
+    const titles: string[] = [];
+    for (let asked = 0; asked < 4; asked += 1) {
+      const dialog = await screen.findByTestId("leave-guard").catch(() => null);
+      if (dialog === null) break;
+      const title = within(dialog).getByRole("heading").textContent ?? "";
+      titles.push(title);
+      fireEvent.click(
+        within(dialog).getByTestId(
+          title === "Apply changes?" ? "leave-guard-save" : "leave-guard-discard",
+        ),
+      );
+      await pause();
+    }
+    expect(titles).toEqual(["Save changes?", "Apply changes?", "Save changes?"]);
+    expect(onDiscard).not.toHaveBeenCalled();
+    await settleAndWait(settle);
+    await waitFor(() => expect(router.state.location.pathname).toBe("/elsewhere"));
+    expect(onDiscard).toHaveBeenCalledTimes(1);
+  });
+
+  it.each(["throws", "returns data"])(
+    "#287 AC1: Discard during a submission that fails (%s) keeps the draft",
+    async (outcome) => {
+      const { action, settle } = submission(() => {
+        if (outcome === "throws") throw new Error("offline");
+        return { error: "Name taken" };
+      });
+      const onDiscard = vi.fn();
+      const router = submittingRouter(action, { page: <SpyPage onDiscard={onDiscard} /> });
+      await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+      edit();
+      fireEvent.click(screen.getByTestId("go"));
+      fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+      await settleAndWait(settle);
+      await pause();
+      expect(router.state.navigation.state).toBe("idle");
+      expect(router.state.location.pathname).toBe("/detail");
+      expect(onDiscard).not.toHaveBeenCalled();
+      // A thrown error shows the route's error element in the page's place.
+      if (outcome === "throws") expect(screen.getByTestId("route-error")).toBeInTheDocument();
+      else expect(screen.getByLabelText("Name")).toHaveValue("Changed");
+    },
+  );
+
   it("AC2: Cancel during a submission resets the held change; the submission lands", async () => {
     const { action, settle } = submission(() => redirect("/posted"));
     const router = submittingRouter(action);
@@ -2399,7 +2741,10 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
     edit();
     fireEvent.click(screen.getByTestId("go"));
     fireEvent.click(await screen.findByTestId("leave-guard-discard"));
-    await waitFor(() => expect(screen.getByLabelText("Name")).toHaveValue("Main"));
+    await waitFor(() => expect(screen.queryByTestId("leave-guard")).toBeNull());
+    // SUI-FEATURE-172: the draft stays until the change goes; the newer change takes the waiting
+    // one's place and passes the page's Discard without a second question.
+    expect(screen.getByLabelText("Name")).toHaveValue("Changed");
     act(() => {
       void router.navigate("/b");
     });
@@ -2437,6 +2782,8 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
       act(() => {
         void router.navigate("/b");
       });
+      // SUI-FEATURE-172: the newer change passes the page's Discard without a second question.
+      expect(screen.queryByTestId("leave-guard")).toBeNull();
       expect(router.state.navigation.state).toBe("loading");
       act(() => {
         vi.runAllTimers();
@@ -3102,7 +3449,11 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
 
   // A browser step held during a submission stays a step: to the entry it targeted, counted from where
   // the submission left the history; never `go(0)`, which would reload.
-  function browserSubmission(outcome: () => unknown, start = "/start") {
+  function browserSubmission(
+    outcome: () => unknown,
+    start = "/start",
+    page: ReactNode = <DetailPage />,
+  ) {
     window.history.replaceState(null, "", start);
     const { action, settle } = submission(outcome);
     const router = createBrowserRouter([
@@ -3112,7 +3463,7 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
         element: (
           <>
             <Where />
-            <DetailPage />
+            {page}
           </>
         ),
       },
@@ -3141,6 +3492,31 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
     expect(router.state.historyAction).toBe("POP");
     expect(go).toHaveBeenCalledWith(-2);
     go.mockRestore();
+    router.dispose();
+  });
+
+  // #287: a browser step held during a submission resets a Discarded draft once, as it goes.
+  it("#287: browser back held during a submission resets the draft once as it goes", async () => {
+    const onDiscard = vi.fn();
+    const { router, settle } = browserSubmission(
+      () => redirect("/posted"),
+      "/start",
+      <SpyPage onDiscard={onDiscard} />,
+    );
+    await act(() => router.navigate("/list"));
+    await act(() => router.navigate("/detail"));
+    act(() => {
+      void router.navigate("/detail", { formMethod: "post", formData: new FormData() });
+    });
+    await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+    edit();
+    act(() => window.history.back());
+    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+    await pause();
+    expect(onDiscard).not.toHaveBeenCalled();
+    await settleAndWait(settle);
+    await waitFor(() => expect(router.state.location.pathname).toBe("/list"));
+    expect(onDiscard).toHaveBeenCalledTimes(1);
     router.dispose();
   });
 

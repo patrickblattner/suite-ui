@@ -39,8 +39,10 @@ type PendingLeave = {
   // then.
   afterSubmission?: boolean | undefined;
   // The surface confirmed the change (Discard, or a successful save): when the router starts it anew
-  // after a submission, it passes this surface without asking again.
-  confirm?: (() => void) | undefined;
+  // after a submission, it passes this surface without asking again. A Discard hands its reset
+  // (`onDiscard`) along: it runs only once the change goes, so a submission that fails meanwhile
+  // leaves the draft as it is (`SUI-FEATURE-172`).
+  confirm?: ((discard?: () => void) => void) | undefined;
 };
 
 function isThenable(value: unknown): value is PromiseLike<unknown> {
@@ -218,12 +220,12 @@ type NavigatorHolds = { holds: Hold[]; restore: () => void };
 type Hold = (pending: PendingLeave) => void;
 
 // Runs a way out through every hold, innermost (last) first; `leave` once each lets it pass.
-// `confirmed` learns each hold that confirmed it.
+// `confirmed` learns each hold that confirmed it, with the reset of its Discard.
 function runHolds(
   holds: readonly Hold[],
   leave: () => void,
   rest: Omit<PendingLeave, "leave" | "confirm"> = {},
-  confirmed?: (hold: Hold) => void,
+  confirmed?: (hold: Hold, discard?: () => void) => void,
 ) {
   const run = (i: number): void => {
     const hold = holds[i];
@@ -232,7 +234,7 @@ function runHolds(
       hold({
         ...rest,
         leave: () => run(i - 1),
-        confirm: confirmed && (() => confirmed(hold)),
+        confirm: confirmed && ((discard) => confirmed(hold, discard)),
       });
   };
   run(holds.length - 1);
@@ -447,12 +449,18 @@ type BlockedChange = {
   answered: boolean;
   owners: Set<Hold>;
   source: { form: EventTarget | null; submitter: HTMLElement | null };
+  // The resets of the Discards that confirmed it before, run once it goes.
+  discards?: Discards | undefined;
 };
+// The deferred reset of each surface that confirmed a change with Discard (`SUI-FEATURE-172`): one per
+// surface, its latest answer, run once the change goes.
+type Discards = Map<Hold, () => void>;
 // A confirmed change that waits for the router's running submission (`SUI-FEATURE-150`), with the
-// holds that confirmed it; `ended` once the submission has.
+// holds that confirmed it and the resets of their Discards; `ended` once the submission has.
 type WaitingChange = BlockedChange & {
   carrier: BlockedBlocker;
   confirmed: Set<Hold>;
+  discards: Discards;
   ended: boolean;
 };
 type RouterHolds = {
@@ -486,6 +494,7 @@ type RouterHolds = {
     index: number | null;
     owners: Set<Hold>;
     source?: BlockedChange["source"] | undefined;
+    discards: Discards;
   } | null;
   // The holds whose own Save the change the blocker let go last is: while that submission runs, a
   // way out passes them to wait for it, and asks them again once it succeeded (`SUI-FEATURE-170`).
@@ -668,9 +677,14 @@ function collectBlocking(
       : new Set(
           entry.holds.filter((hold) => hold.owns(entry.submitting)).map((hold) => hold.hold),
         ));
-  entry.blocking = blockingNow(entry, owners).filter(
-    (hold) => restarting?.passing.has(hold) !== true,
-  );
+  // A newer change while a confirmed one still waits takes its place: it passes the surfaces that
+  // confirmed Discard without asking again and takes their deferred resets along
+  // (`SUI-FEATURE-172`).
+  const replaced = restarting === null ? entry.waiting : null;
+  const discards =
+    restarting?.discards ?? (replaced === null ? undefined : new Map(replaced.discards));
+  const passing = restarting?.passing ?? new Set(replaced?.discards.keys());
+  entry.blocking = blockingNow(entry, owners).filter((hold) => !passing.has(hold));
   const carrier = restarting?.carrier ?? null;
   const blocks =
     entry.blocking.length > 0 ||
@@ -687,10 +701,13 @@ function collectBlocking(
       answered: false,
       owners,
       source: restarting?.source ?? { form: entry.submitting, submitter: entry.submitter },
+      discards,
     };
   } else {
     entry.submitted = entry.submitting;
     entry.saving = owners;
+    // The change goes now: the Discards that confirmed it reset their drafts.
+    runAll(discards);
   }
   return blocks;
 }
@@ -737,6 +754,13 @@ function blockingNow(entry: RouterHolds, owners: ReadonlySet<Hold>): Hold[] {
   return entry.holds.filter((hold) => hold.blocks(owners.has(hold.hold))).map((hold) => hold.hold);
 }
 
+// Runs the resets of the Discards that confirmed a change, once each, as it goes.
+function runAll(discards: Discards | undefined) {
+  const resets = [...(discards?.values() ?? [])];
+  discards?.clear();
+  for (const reset of resets) reset();
+}
+
 // Runs a newly blocked change through the holds that wanted it blocked, once, from whichever guard
 // commits first. Its `proceed`, `reset` and `again` act only while that change is still the one
 // blocked: once it went, was reset or a newer change took its place, a late answer is dropped.
@@ -760,12 +784,14 @@ function runBlocked(router: DataRouter, entry: RouterHolds) {
   const carrier = blocked.carrier ?? blocker;
   // A form submission of the router still running is never cut off, as its data may be lost
   // (`SUI-FEATURE-150`): the confirmed change waits until it has ended, then starts anew.
-  const confirmed = new Set<Hold>();
+  const discards: Discards = new Map(blocked.discards);
+  const confirmed = new Set<Hold>(discards.keys());
   const proceed = () => {
     if (!current()) return;
     if (submitting(router)) {
-      entry.waiting = { ...blocked, carrier, confirmed, ended: false };
+      entry.waiting = { ...blocked, carrier, confirmed, discards, ended: false };
     } else {
+      runAll(discards);
       entry.proceeded = blocked;
       carrier.proceed();
     }
@@ -782,7 +808,12 @@ function runBlocked(router: DataRouter, entry: RouterHolds) {
       ),
       proceed,
       { stay: reset, again, afterSubmission: submitting(router) },
-      (hold) => confirmed.add(hold),
+      (hold, discard) => {
+        confirmed.add(hold);
+        // A surface asked again (`again`) counts with its latest answer, once.
+        if (discard === undefined) discards.delete(hold);
+        else discards.set(hold, discard);
+      },
     );
   // After an apply a held own Save is submitted anew from its form, so it carries the applied
   // values; its submission from before is dropped (`SUI-FEATURE-170` AC4, Q&A #4041). A formless
@@ -854,7 +885,16 @@ function restart(router: DataRouter, entry: RouterHolds, waiting: WaitingChange)
   if (waiting.step === NavigationType.Pop && index !== null) {
     const at = windowIndex(router.state.location);
     if (at === null || index === at) return;
-    entry.restarting = { carrier: null, passing: waiting.confirmed, index, owners: new Set() };
+    entry.restarting = {
+      carrier: null,
+      passing: waiting.confirmed,
+      index,
+      owners: new Set(),
+      discards: waiting.discards,
+    };
+    // The step arrives later, through the window's history. With no guard left to ask (the page the
+    // submission left is gone), no blocker sees it, so the resets run as it is sent.
+    if (entry.holds.length === 0) runAll(waiting.discards);
     void router.navigate(index - at);
     return;
   }
@@ -875,6 +915,7 @@ function restart(router: DataRouter, entry: RouterHolds, waiting: WaitingChange)
       passing: waiting.confirmed,
       index: null,
       owners: new Set(),
+      discards: waiting.discards,
     };
     void router.navigate(
       { pathname: withoutBasename(pathname, router.basename ?? "/"), search, hash },
@@ -892,6 +933,7 @@ function restart(router: DataRouter, entry: RouterHolds, waiting: WaitingChange)
     index: null,
     owners: waiting.owners,
     source: waiting.source,
+    discards: waiting.discards,
   };
   void router.navigate(null);
   runBlocked(router, entry);
@@ -950,7 +992,10 @@ type LeaveConfirmOptions = {
   busy: boolean;
   // Without it the surface has no save target: the dialog only offers Cancel and Discard.
   onSave?: LeaveSave | undefined;
-  // Discard runs it before the held leave goes on (an editor resets its draft, `GL-UI-034`).
+  // Discard runs it as the held leave goes on (an editor resets its draft, `GL-UI-034`). A leave that
+  // waits for a router submission runs it only once it goes, after the submission succeeded: after
+  // a redirect the surface may be gone by then; when the submission fails it never runs
+  // (`SUI-FEATURE-172`).
   onDiscard?: (() => void) | undefined;
   // `onSave` only applies the entries to an outer form: the dialog asks "Apply changes?".
   applies?: boolean | undefined;
@@ -1033,10 +1078,18 @@ function useLeaveConfirm({
     },
     [hold],
   );
-  const release = (next: PendingLeave) => {
+  // A Discard's reset (`onDiscard`, read when it runs) goes with the way out. A route change that a
+  // data router holds during a submission takes it along and runs it only once it goes, after the
+  // submission succeeded (after a redirect the surface may be gone by then); one dropped meanwhile
+  // (the submission failed) leaves the draft as it is (`SUI-FEATURE-172`).
+  const release = (next: PendingLeave, discard?: () => void) => {
+    // A route change a data router holds during a submission takes the reset along; any other way
+    // goes at once.
+    const later = next.confirm !== undefined && next.afterSubmission === true;
+    if (!later) discard?.();
     releasing.current = true;
     try {
-      next.confirm?.();
+      next.confirm?.(later ? discard : undefined);
       next.leave();
     } finally {
       releasing.current = false;
@@ -1179,8 +1232,7 @@ function useLeaveConfirm({
         onDiscard={() => {
           close();
           if (pending === null) return;
-          latest.current.onDiscard?.();
-          release(pending);
+          release(pending, () => latest.current.onDiscard?.());
         }}
         onSave={
           onSave === undefined
@@ -1211,7 +1263,8 @@ type LeaveGuardOptions = {
   // Leave it out where the page has no save target (`SUI-FEATURE-092`): the dialog then asks
   // "Discard changes?" with only Cancel and Discard.
   onSave?: LeaveSave | undefined;
-  // Discard runs it before the held leave goes on.
+  // Discard runs it as the held leave goes on; after a router submission the leave waited for, only
+  // once it goes (`SUI-FEATURE-172`, see `useLeaveConfirm`).
   onDiscard?: (() => void) | undefined;
 };
 
