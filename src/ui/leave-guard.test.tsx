@@ -1519,6 +1519,41 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
     await waitFor(() => expect(router.state.location.pathname).toBe("/elsewhere"));
   });
 
+  // Codex #280 (CX1): a confirmed leave takes the place of a change that was loading before it.
+  it.each(["discard", "save"])(
+    "under a data router a leave confirmed (%s) while an older change still loads lands at its target",
+    async (answer) => {
+      const loaded = deferred();
+      const router = createMemoryRouter(
+        [
+          {
+            path: "/detail",
+            element: (
+              <>
+                <Where />
+                <DetailPage />
+              </>
+            ),
+          },
+          { path: "/slow", loader: () => loaded.promise.then(() => null), element: <Where /> },
+          { path: "*", element: <Where /> },
+        ],
+        { initialEntries: ["/list", "/detail"], initialIndex: 1 },
+      );
+      render(<RouterProvider router={router} />);
+      act(() => {
+        void router.navigate("/slow");
+      });
+      await waitFor(() => expect(router.state.navigation.state).toBe("loading"));
+      edit();
+      fireEvent.click(screen.getByTestId("go"));
+      fireEvent.click(await screen.findByTestId(`leave-guard-${answer}`));
+      await waitFor(() => expect(router.state.location.pathname).toBe("/elsewhere"));
+      await settleAndWait(loaded.settle);
+      expect(router.state.location.pathname).toBe("/elsewhere");
+    },
+  );
+
   it("under a data router a confirmed Esc leaves at once, and browser back is held", async () => {
     const router = createMemoryRouter(
       [

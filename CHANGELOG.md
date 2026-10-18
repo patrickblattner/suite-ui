@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.134.3 — #280, GL-UI-007 (Codex review v0.134.1): a confirmed leave goes on while an older route change still loads
+
+Fix, not breaking. Under a data router, a route change held while an earlier one was still loading (a slow loader, the page made dirty meanwhile) did nothing when the user confirmed it with Discard or Save, and the earlier change won once its loader finished. The confirmed leave now takes that change's place and lands at its target. A late answer is still dropped when a route change started after the held one is loading, or when the user left meanwhile (0.134.1).
+
+**Migration:** none. No package text, prop, export or testid changed; baselines: none.
+
 ## 0.134.2 — #279, SUI-FEATURE-094 rev 8: the apply hint says when the entries are saved
 
 Fix, not breaking. The hint of an `EditPanel` with `submitKind="apply"` no longer says the entries "are saved there", which read as if they were saved on their own. It now says they are kept only once the page is saved: "Applies the entries to the form; they are kept once you save the page." / „Übernimmt die Eingaben ins Formular; gespeichert wird erst mit dem Speichern der Seite." / "Aplica los datos al formulario; se guardan al guardar la página."

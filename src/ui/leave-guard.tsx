@@ -446,8 +446,17 @@ function runBlocked(router: DataRouter, entry: RouterHolds) {
   const blocker = heldBlocker(router);
   if (blocker === undefined || entry.run === blocker) return;
   entry.run = blocker;
-  // A newer change still loading has not reset the blocker yet, but it takes the place all the same.
-  const current = () => heldBlocker(router) === blocker && router.state.navigation.state === "idle";
+  // A newer change still loading has not reset the blocker yet, but it takes the place all the same;
+  // a change that was loading already when this one was blocked does not: the confirmed leave goes
+  // on in its place (`GL-UI-007`).
+  const loading = router.state.navigation.location;
+  const current = () => {
+    const { navigation } = router.state;
+    return (
+      heldBlocker(router) === blocker &&
+      (navigation.state === "idle" || navigation.location === loading)
+    );
+  };
   const proceed = () => {
     if (current()) blocker.proceed();
   };
