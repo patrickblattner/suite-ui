@@ -183,6 +183,17 @@ function Combobox({
     };
   }, [open, close]);
 
+  // A hidden input fires no event when its value changes: it announces the new value as typing would,
+  // so a surrounding form (the `CreateAndSelectDialog`'s check for input) hears it wherever the value's
+  // state lives (#271).
+  const hiddenRef = React.useRef<HTMLInputElement>(null);
+  const announced = React.useRef(value);
+  React.useEffect(() => {
+    if (announced.current === value) return;
+    announced.current = value;
+    hiddenRef.current?.dispatchEvent(new Event("input", { bubbles: true }));
+  }, [value]);
+
   // Places the open list before it paints; again when searching changes its height.
   usePopupPlacement(open, anchorRef, popupRef, count + (loading ? 1 : 0));
 
@@ -244,7 +255,9 @@ function Combobox({
 
   return (
     <div ref={rootRef} data-slot="combobox" className={cn("w-full", className)}>
-      {name === undefined ? null : <input type="hidden" name={name} value={value} />}
+      {name === undefined ? null : (
+        <input ref={hiddenRef} type="hidden" name={name} value={value} disabled={disabled} />
+      )}
       <div ref={anchorRef} className="relative">
         {hint === undefined ? field : <Hint text={hint}>{field}</Hint>}
         <ChevronDownIcon

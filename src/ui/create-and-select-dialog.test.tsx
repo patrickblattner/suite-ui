@@ -303,3 +303,97 @@ describe("CreateAndSelectDialog fields and results", () => {
     );
   });
 });
+
+// #271: a Combobox whose state lives in a child component of its own counts too; a disabled one
+// carries no value.
+describe("CreateAndSelectDialog with a Combobox of its own state", () => {
+  function CompanyField({ disabled = false }: { disabled?: boolean }) {
+    const [company, setCompany] = useState(disabled ? "acme" : "");
+    return (
+      <Combobox
+        options={[{ value: "acme", label: "Acme" }]}
+        value={company}
+        onValueChange={setCompany}
+        name="company"
+        disabled={disabled}
+        data-testid="company"
+      />
+    );
+  }
+
+  function Dialog({
+    disabled,
+    onCreate = () => new Promise<CreateResult<ComboboxOption>>(() => undefined),
+  }: {
+    disabled?: boolean;
+    onCreate?: (values: Record<string, string>) => Promise<CreateResult<ComboboxOption>>;
+  }) {
+    const [open, setOpen] = useState(true);
+    return (
+      <CreateAndSelectDialog
+        open={open}
+        onOpenChange={setOpen}
+        title="Create contact"
+        initialName="Neu"
+        onCreate={onCreate}
+        onSelect={() => undefined}
+      >
+        {(nameField) => (
+          <>
+            <Input aria-label="Name" {...nameField} />
+            <CompanyField disabled={disabled} />
+          </>
+        )}
+      </CreateAndSelectDialog>
+    );
+  }
+
+  it("a pick makes Cancel ask Discard changes?", () => {
+    render(<Dialog />);
+    const company = screen.getByTestId("company");
+    fireEvent.change(company, { target: { value: "ac" } });
+    fireEvent.click(screen.getByRole("option", { name: "Acme" }));
+    fireEvent.click(screen.getByTestId("create-and-select-cancel"));
+    expect(screen.getByRole("dialog", { name: "Discard changes?" })).toBeInTheDocument();
+  });
+
+  it("a disabled Combobox carries no value into onCreate", () => {
+    const onCreate = vi.fn(() => new Promise<CreateResult<ComboboxOption>>(() => undefined));
+    render(<Dialog disabled onCreate={onCreate} />);
+    fireEvent.click(screen.getByTestId("create-and-select-submit"));
+    expect(onCreate).toHaveBeenCalledWith({ name: "Neu" });
+  });
+});
+
+// #271 review: a controlled field whose value the call site sets by code counts as input too.
+it("a native field set by code makes Cancel ask Discard changes?", () => {
+  function CodeSet() {
+    const [role, setRole] = useState("");
+    return (
+      <>
+        <button type="button" data-testid="set-role" onClick={() => setRole("host")}>
+          set
+        </button>
+        <CreateAndSelectDialog
+          open
+          onOpenChange={() => undefined}
+          title="Create contact"
+          initialName="Neu"
+          onCreate={() => new Promise<CreateResult<ComboboxOption>>(() => undefined)}
+          onSelect={() => undefined}
+        >
+          {(nameField) => (
+            <>
+              <Input aria-label="Name" {...nameField} />
+              <input aria-label="Role" name="role" value={role} readOnly />
+            </>
+          )}
+        </CreateAndSelectDialog>
+      </>
+    );
+  }
+  render(<CodeSet />);
+  act(() => screen.getByTestId("set-role").click());
+  fireEvent.click(screen.getByTestId("create-and-select-cancel"));
+  expect(screen.getByRole("dialog", { name: "Discard changes?" })).toBeInTheDocument();
+});

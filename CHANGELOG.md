@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.133.2 — #271, SUI-FEATURE-093 rev 4 (Codex review #270): a named Combobox counts as input and carries no value while disabled
+
+Fix, not breaking. In a `CreateAndSelectDialog`, a pick in a `Combobox` whose value lives in a child component of the call site did not count as input, so Cancel and `Esc` closed without asking "Discard changes?". A named `Combobox` now announces each new value from its hidden input, as typing would, so the dialog hears it wherever the value's state lives. And a disabled named `Combobox` no longer submits its value: its hidden input is disabled with it, as a disabled field is.
+
+**Migration:** a `Combobox` with `name` now dispatches a bubbling `input` event from its hidden input whenever its value changes; a form `onInput` handler around it hears that event. A disabled named `Combobox` is no longer in the form's `FormData` (and so not in `onCreate`'s values). No package text, prop, export or testid changed; baselines: none.
+
 ## 0.133.1 — #269, GL-UI-016 rev 12 (Codex review #268): typing under a bubble over a text field closes it
 
 Fix, not breaking. A bubble that stands over a text field's empty end (the search's own hint, or a bubble of the `FilterBar` controls) measured the end of the text only when it was placed; text typed or pasted while it was open grew under it. A change of the field's value now closes the bubble, so it never covers typed text; the next open places it anew.

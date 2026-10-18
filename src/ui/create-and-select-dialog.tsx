@@ -93,7 +93,8 @@ function CreateAndSelectDialog<T extends ComboboxOption = ComboboxOption>({
   const measure = React.useCallback(() => {
     setDirty(!sameValues(initial.current, readValues(form.current)));
   }, []);
-  // A value set by code (a `Combobox` field's hidden input) fires no event: measured after each render.
+  // A value the call site sets by code (a controlled field) fires no event: measured after each render
+  // as well.
   React.useEffect(() => {
     if (open && form.current !== null) measure();
   });
