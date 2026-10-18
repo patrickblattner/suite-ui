@@ -7805,3 +7805,48 @@ test("help drawer at 1440 px: picking a page keeps the focus on its link", async
   await expect(link).toBeFocused();
   await expect(page.getByTestId("help-search-bar")).toHaveCSS("position", "static");
 });
+
+// GL-UI-016 rev 12 §Lage and §Schließen (#266): on the filter bar the search's own hint covers no
+// button or select, and a continuous move from Clear filter onto its bubble keeps it open.
+for (const width of [1440, 1920]) {
+  for (const list of ["list", "tiles"]) {
+    test(`tooltip in the filter bar at ${width} px, ?page=${list}: the search's hint covers no control`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto(`/?page=${list}&lng=en`);
+      const bar = page.getByTestId("filterbar");
+      const search = await box(bar.getByTestId("filter-haystack"));
+      await page.mouse.move(search.x + 40, search.y + search.height / 2);
+      const bubble = page.locator("[data-slot=tooltip-content]");
+      await expect(bubble).toContainText("Searches every column", { timeout: 3000 });
+      const tip = await box(bubble);
+      const controls = await Promise.all(
+        (await bar.locator("button, [role=combobox], [role=radio]").all()).map(box),
+      );
+      for (const control of controls) {
+        const apart =
+          tip.x >= control.x + control.width ||
+          tip.x + tip.width <= control.x ||
+          tip.y >= control.y + control.height ||
+          tip.y + tip.height <= control.y;
+        expect(apart).toBe(true);
+      }
+    });
+  }
+
+  test(`tooltip in the filter bar at ${width} px, ?page=list: a continuous move onto Clear filter's bubble keeps it open`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/?page=list&lng=en");
+    const reset = await box(page.getByTestId("filter-reset"));
+    await page.mouse.move(reset.x + reset.width / 2, reset.y + reset.height / 2, { steps: 4 });
+    const bubble = page.locator("[data-slot=tooltip-content]");
+    await expect(bubble).toHaveText("Clear filter", { timeout: 3000 });
+    const tip = await box(bubble);
+    await page.mouse.move(tip.x + tip.width / 2, tip.y + tip.height / 2, { steps: 10 });
+    await page.waitForTimeout(600);
+    await expect(bubble).toHaveText("Clear filter");
+  });
+}

@@ -291,8 +291,31 @@ function useRowPlacement(content: HTMLElement | null, padding: number): RowPlace
       side === "left" &&
       leftText !== null &&
       left - gapLeft - Math.min(width, room) < leftText.getBoundingClientRect().right;
-    // Measuring the DOM before paint is what layout effects are for.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    // A text field that takes the remaining width has no gap beside it for its own hint either: the
+    // bubble stands over its own empty end, 8 px inside its right edge and 16 px clear of its text
+    // (rev 12), and a press on it focuses the field. Under 120 px there it falls back as any.
+    const ownText = trigger.matches(TEXT_FIELD) ? (trigger as HTMLInputElement) : null;
+    const ownRoom =
+      ownText === null
+        ? 0
+        : Math.floor(
+            Math.floor(own.right - SIDE_OFFSET) - Math.ceil(textEnd(ownText) + TEXT_CLEARANCE),
+          );
+    if (!fits && ownText !== null && ownRoom >= ROW_MIN_WIDTH) {
+      // Measuring the DOM before paint is what layout effects are for.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setPlacement({
+        side: "left",
+        // Its right edge 8 px inside the field's.
+        sideOffset: SIDE_OFFSET - own.width,
+        fallback: false,
+        adjacent: false,
+        room: ownRoom,
+        lift: 0,
+        field: ownText,
+      });
+      return;
+    }
     setPlacement(
       fallback
         ? {
@@ -331,10 +354,44 @@ function useRowPlacement(content: HTMLElement | null, padding: number): RowPlace
   return placement === null ? null : { ...placement, lift: placement.fallback ? 0 : lift };
 }
 
+// Whether a point lies in the convex hull of the corners of some boxes: the way between an element
+// and its bubble, edges included.
+type Point = { x: number; y: number };
+function inHull(point: Point, boxes: readonly DOMRect[]): boolean {
+  const corners = boxes
+    .flatMap((box) => [
+      { x: box.left, y: box.top },
+      { x: box.right, y: box.top },
+      { x: box.right, y: box.bottom },
+      { x: box.left, y: box.bottom },
+    ])
+    .sort((a, b) => a.x - b.x || a.y - b.y);
+  const cross = (o: Point, a: Point, b: Point) =>
+    (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+  // Andrew's monotone chain: the lower and the upper half, counter-clockwise.
+  const half = (points: Point[]) => {
+    const chain: Point[] = [];
+    for (const corner of points) {
+      while (chain.length >= 2 && cross(chain.at(-2)!, chain.at(-1)!, corner) <= 0) chain.pop();
+      chain.push(corner);
+    }
+    chain.pop();
+    return chain;
+  };
+  const hull = [...half(corners), ...half([...corners].reverse())];
+  if (hull.length < 3) return false;
+  return hull.every((corner, index) => cross(corner, hull[(index + 1) % hull.length]!, point) >= 0);
+}
+
 // The way from the element to the bubble counts as on the way while the pointer moves (`GL-UI-016`
-// rev 7 §Schließen): resting 300 ms on another control on it (a neighbour in the row, which radix's
-// grace area spans) means it has left the element, and the bubble closes. Every move starts the rest
-// anew; on the element or the bubble there is none. Mounted only while the bubble is open.
+// rev 7 §Schließen): resting 300 ms on another control on it (a neighbour in the row) means it has
+// left the element, and the bubble closes. Every move starts the rest anew; on the element or the
+// bubble there is none. The way is the whole area between element and bubble (the convex hull of
+// both): radix's own grace area is a wedge from the point where the pointer left the element, a few
+// pixels high at the element, and a bubble that stands beside a group, far from its element, closed
+// as soon as the way drifted off it (#266). So the element's leave stops before radix sees it, and
+// the bubble closes here once the pointer is off element, bubble and way. Mounted only while the
+// bubble is open.
 function CloseOnRest({ content }: { content: HTMLElement | null }) {
   const trigger = React.useContext(TriggerNodeContext)?.trigger;
   React.useEffect(() => {
@@ -342,26 +399,36 @@ function CloseOnRest({ content }: { content: HTMLElement | null }) {
     // Only on the way: once the pointer has left the element. A bubble opened by the focus, with the
     // pointer elsewhere, keeps open.
     let away = false;
-    const onLeave = () => (away = true);
+    const onLeave = (event: PointerEvent) => {
+      // A capture listener on the element itself runs before radix's own.
+      if (content !== null) event.stopImmediatePropagation();
+      away = true;
+    };
     const onEnter = () => (away = false);
-    trigger?.addEventListener("pointerleave", onLeave);
+    trigger?.addEventListener("pointerleave", onLeave, { capture: true });
     trigger?.addEventListener("pointerenter", onEnter);
+    const close = () => document.dispatchEvent(new CustomEvent(TOOLTIP_OPEN));
     const onPointerMove = (event: PointerEvent) => {
       window.clearTimeout(timer);
       if (!away || !(event.target instanceof Element)) return;
+      if (content?.contains(event.target) || trigger?.contains(event.target)) return;
+      if (trigger != null && content !== null) {
+        const way = [trigger.getBoundingClientRect(), content.getBoundingClientRect()];
+        if (!inHull({ x: event.clientX, y: event.clientY }, way)) {
+          close();
+          return;
+        }
+      }
       const control = event.target.closest(ROW_CONTROL);
       if (control === null || content?.contains(control)) return;
       if (trigger != null && (trigger.contains(control) || control.contains(trigger))) return;
-      timer = window.setTimeout(
-        () => document.dispatchEvent(new CustomEvent(TOOLTIP_OPEN)),
-        TOOLTIP_REST_CLOSE,
-      );
+      timer = window.setTimeout(close, TOOLTIP_REST_CLOSE);
     };
     document.addEventListener("pointermove", onPointerMove);
     return () => {
       window.clearTimeout(timer);
       document.removeEventListener("pointermove", onPointerMove);
-      trigger?.removeEventListener("pointerleave", onLeave);
+      trigger?.removeEventListener("pointerleave", onLeave, { capture: true });
       trigger?.removeEventListener("pointerenter", onEnter);
     };
   }, [trigger, content]);
