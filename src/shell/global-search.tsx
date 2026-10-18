@@ -138,7 +138,8 @@ function GlobalSearch({
   function returnFocus(): void {
     const from = opener.current;
     opener.current = null;
-    if (navigating.current) return;
+    // Neither field nor rail rendered: the search itself is unmounting, nothing to return to.
+    if (navigating.current || (inputRef.current === null && railRef.current === null)) return;
     // The first usable one that takes the focus, each tried in turn.
     for (const target of [inputRef.current, railRef.current]) {
       if (!isUsable(target)) continue;
