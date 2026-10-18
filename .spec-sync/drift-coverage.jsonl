@@ -436,3 +436,4 @@
 {"ts":"2026-10-17T19:55:46.053Z","key":"SUI-FEATURE-071","from":6,"to":7,"disposition":"ticket","ref":"232"}
 {"ts":"2026-10-17T20:32:03.209Z","key":"SUI-FEATURE-051","from":9,"to":11,"disposition":"ticket","ref":"234"}
 {"ts":"2026-10-18T01:07:09.340Z","key":"GL-UI-031","from":3,"to":4,"disposition":"ticket","ref":"244"}
+{"ts":"2026-10-18T04:37:38.233Z","key":"PROC-REL-024","from":3,"to":4,"disposition":"editorial","ref":"rev4 adds libc/collation reindex step for data images; binds stage-infra pin changes, suite-ui ships no data image or Postgres"}
