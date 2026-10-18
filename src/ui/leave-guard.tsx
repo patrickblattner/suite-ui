@@ -417,13 +417,21 @@ function holdNavigator(navigator: RouterNavigator, hold: Hold): () => void {
 // that held it unmounted meanwhile (a panel the apply closes, `SUI-FEATURE-094`), so the change goes
 // on through the blocker's own `proceed`, with all it came with (a submission's data, a browser
 // step, the basename). It goes once no guard holds, nothing is blocked and no change waits.
-type RouterHold = { hold: Hold; blocks: () => boolean };
+// `owns`: the submission a form's submit event (`form`) starts, or one marked so, is the surface's own
+// Save (`SUI-FEATURE-170`); for it, `blocks(true)` leaves its unsaved changes out.
+type RouterHold = {
+  hold: Hold;
+  blocks: (own: boolean) => boolean;
+  owns: (form: EventTarget | null) => boolean;
+};
 type BlockerStep = Parameters<BlockerFunction>[0];
 // A blocked route change: its count among the changes asked, the blocked state that carries it on
 // (for a change started anew after a submission, its own from before), its target, and for a browser
 // step the entry it targets, where the router keeps its history in the window's. `link`: the options
 // of a `router.navigate` call that submits nothing, so it can go anew to its resolved target.
 // `answered`: a second submit of the running form, which that submission answers already.
+// `owners`: the holds whose own Save the change is; `source`: the form it was submitted from, and
+// its submitter.
 type BlockedChange = {
   requests: number;
   carrier: BlockedBlocker | null;
@@ -432,6 +440,8 @@ type BlockedChange = {
   index: number | null;
   link: { opts: RouterNavigateOptions | undefined } | null;
   answered: boolean;
+  owners: Set<Hold>;
+  source: { form: EventTarget | null; submitter: HTMLElement | null };
 };
 // A confirmed change that waits for the router's running submission (`SUI-FEATURE-150`), with the
 // holds that confirmed it; `ended` once the submission has.
@@ -451,14 +461,24 @@ type RouterHolds = {
   // The options of the `router.navigate` call running now. A form keeps the `navigate` of its render,
   // so its submissions may come without.
   calling: { opts: RouterNavigateOptions | undefined } | null;
-  // The form whose submit event is dispatched now, and the one of the change the blocker let go last.
+  // The form whose submit event is dispatched now (and its submitter), and the one of the change the
+  // blocker let go last.
   submitting: EventTarget | null;
+  submitter: HTMLElement | null;
   submitted: EventTarget | null;
   waiting: WaitingChange | null;
   // A change started anew after a submission: the blocked state that carries it on, the holds that
   // confirmed it, which it passes, and for a browser step the entry it goes to. It counts only for
   // that change: the next one asked, and for a browser step only when it goes to that entry.
-  restarting: { carrier: BlockedBlocker | null; passing: Set<Hold>; index: number | null } | null;
+  restarting: {
+    carrier: BlockedBlocker | null;
+    passing: Set<Hold>;
+    index: number | null;
+    owners: Set<Hold>;
+  } | null;
+  // The holds whose own Save the change the blocker let go last is: while that submission runs, a
+  // way out passes them to wait for it, and asks them again once it succeeded (`SUI-FEATURE-170`).
+  saving: Set<Hold>;
   // The mounted `BlockedRunner`s.
   runners: number;
   // Unregisters the blocker once nothing holds or is blocked; set while it is registered.
@@ -481,9 +501,11 @@ function routerEntry(router: DataRouter): RouterHolds {
       blocked: null,
       calling: null,
       submitting: null,
+      submitter: null,
       submitted: null,
       waiting: null,
       restarting: null,
+      saving: new Set(),
       runners: 0,
       settle: null,
     };
@@ -525,13 +547,18 @@ function holdRouter(router: DataRouter, hold: RouterHold): () => void {
     const onSubmit = (event: Event) => {
       const form = event.target;
       entry.submitting = form;
+      entry.submitter = (event as SubmitEvent).submitter;
       window.setTimeout(() => {
-        if (entry.submitting === form) entry.submitting = null;
+        if (entry.submitting === form) {
+          entry.submitting = null;
+          entry.submitter = null;
+        }
       });
     };
     document.addEventListener("submit", onSubmit, true);
     const settle = () => {
       if (entry.run !== null && heldBlocker(router) !== entry.run) entry.run = null;
+      if (router.state.navigation.state === "idle") entry.saving = new Set();
       // Without a guard to render the router's state, a change blocked while one waits takes its place,
       // and a waiting change goes on, from here.
       if (entry.runners === 0) {
@@ -581,6 +608,8 @@ function collectBlocking(
       index,
       link: null,
       answered: true,
+      owners: new Set(),
+      source: { form: null, submitter: null },
     };
     return true;
   }
@@ -590,7 +619,12 @@ function collectBlocking(
   // A browser step that never arrived (its entry is gone) leaves no pass for a later change.
   const restarting =
     started !== null && (started.index === null || started.index === index) ? started : null;
-  entry.blocking = blockingNow(entry).filter((hold) => restarting?.passing.has(hold) !== true);
+  const owners =
+    restarting?.owners ??
+    new Set(entry.holds.filter((hold) => hold.owns(entry.submitting)).map((hold) => hold.hold));
+  entry.blocking = blockingNow(entry, owners).filter(
+    (hold) => restarting?.passing.has(hold) !== true,
+  );
   const carrier = restarting?.carrier ?? null;
   const blocks =
     entry.blocking.length > 0 ||
@@ -605,9 +639,12 @@ function collectBlocking(
       index,
       link,
       answered: false,
+      owners,
+      source: { form: entry.submitting, submitter: entry.submitter },
     };
   } else {
     entry.submitted = entry.submitting;
+    entry.saving = owners;
   }
   return blocks;
 }
@@ -649,9 +686,9 @@ function windowIndex(location: { key: string }): number | null {
   return key === location.key ? historyIndex(state) : null;
 }
 
-// The holds that want a change blocked now, innermost last.
-function blockingNow(entry: RouterHolds): Hold[] {
-  return entry.holds.filter((hold) => hold.blocks()).map((hold) => hold.hold);
+// The holds that want a change blocked now, innermost last; for `owners` it is their own Save.
+function blockingNow(entry: RouterHolds, owners: ReadonlySet<Hold>): Hold[] {
+  return entry.holds.filter((hold) => hold.blocks(owners.has(hold.hold))).map((hold) => hold.hold);
 }
 
 // Runs a newly blocked change through the holds that wanted it blocked, once, from whichever guard
@@ -685,12 +722,32 @@ function runBlocked(router: DataRouter, entry: RouterHolds) {
   const reset = () => {
     if (current()) blocker.reset();
   };
+  // While a surface's own Save runs, a way out asks it nothing: it waits for the Save, and the
+  // surface is asked again, as it is then, once the Save succeeded (`SUI-FEATURE-170`).
   const pass = (holds: readonly Hold[]) =>
-    runHolds(holds, proceed, { stay: reset, again, afterSubmission: submitting(router) }, (hold) =>
-      confirmed.add(hold),
+    runHolds(
+      holds.filter(
+        (hold) => !(submitting(router) && (entry.saving.has(hold) || blocked.owners.has(hold))),
+      ),
+      proceed,
+      { stay: reset, again, afterSubmission: submitting(router) },
+      (hold) => confirmed.add(hold),
     );
+  // After an apply a held own Save is submitted anew from its form, so it carries the applied
+  // values; its submission from before is dropped (`SUI-FEATURE-170` AC4, Q&A #4041). A formless
+  // one is dropped, and the page stays with its changes.
   const again = (): void => {
-    if (current()) pass(blockingNow(entry));
+    if (!current()) return;
+    if (blocked.owners.size === 0) {
+      pass(blockingNow(entry, blocked.owners));
+      return;
+    }
+    blocker.reset();
+    const { form, submitter } = blocked.source;
+    // A submitter gone from the form meanwhile would throw: the form goes without it then.
+    if (form instanceof HTMLFormElement) {
+      form.requestSubmit(submitter !== null && form.contains(submitter) ? submitter : undefined);
+    }
   };
   pass(entry.blocking);
 }
@@ -744,7 +801,7 @@ function restart(router: DataRouter, entry: RouterHolds, waiting: WaitingChange)
   if (waiting.step === NavigationType.Pop && index !== null) {
     const at = windowIndex(router.state.location);
     if (at === null || index === at) return;
-    entry.restarting = { carrier: null, passing: waiting.confirmed, index };
+    entry.restarting = { carrier: null, passing: waiting.confirmed, index, owners: new Set() };
     void router.navigate(index - at);
     return;
   }
@@ -760,7 +817,12 @@ function restart(router: DataRouter, entry: RouterHolds, waiting: WaitingChange)
   // link would follow the page the submission led to.
   if (waiting.link !== null) {
     const { pathname, search, hash } = waiting.location;
-    entry.restarting = { carrier: null, passing: waiting.confirmed, index: null };
+    entry.restarting = {
+      carrier: null,
+      passing: waiting.confirmed,
+      index: null,
+      owners: new Set(),
+    };
     void router.navigate(
       { pathname: withoutBasename(pathname, router.basename ?? "/"), search, hash },
       {
@@ -771,7 +833,12 @@ function restart(router: DataRouter, entry: RouterHolds, waiting: WaitingChange)
     );
     return;
   }
-  entry.restarting = { carrier: waiting.carrier, passing: waiting.confirmed, index: null };
+  entry.restarting = {
+    carrier: waiting.carrier,
+    passing: waiting.confirmed,
+    index: null,
+    owners: waiting.owners,
+  };
   void router.navigate(null);
   runBlocked(router, entry);
 }
@@ -872,6 +939,8 @@ function useLeaveConfirm({
   const [working, setWorking] = React.useState(false);
   const waiting = React.useRef<PendingLeave | null>(null);
 
+  // Whether the router runs this surface's own Save now; set once its router hold is.
+  const savingNow = React.useRef<() => boolean>(() => false);
   const hold = React.useCallback((next: PendingLeave) => {
     if (releasing.current) {
       next.leave();
@@ -881,6 +950,10 @@ function useLeaveConfirm({
       // The router holds the change until its submission has ended, and asks this surface again then.
       if (next.afterSubmission === true) next.leave();
       else next.stay?.();
+    } else if (savingNow.current()) {
+      // The surface's own Save runs: the way out asks nothing, it goes to the router, which holds it
+      // until the Save ended and asks this surface again then (`SUI-FEATURE-170`).
+      next.leave();
     } else if (latest.current.dirty) {
       ask(next);
     } else {
@@ -993,24 +1066,43 @@ function useLeaveConfirm({
   // of the router waits for it even on a clean surface, silently, as a clean surface lets the change
   // pass to that wait (`SUI-FEATURE-150` rev 4).
   const router = dataRouter?.router;
+  // The surface's own Save under a data router (`SUI-FEATURE-170`): a submit of the form registered
+  // with `saveForm`, or a submission started inside `ownSave`. Any other submission is a way out.
+  const saveForm = React.useRef<HTMLFormElement | null>(null);
+  const marking = React.useRef(false);
+  const ownSave = React.useCallback(<T,>(submit: () => T): T => {
+    marking.current = true;
+    try {
+      return submit();
+    } finally {
+      marking.current = false;
+    }
+  }, []);
   const routerHold = React.useMemo<RouterHold | undefined>(
     () =>
       router === undefined
         ? undefined
         : {
             hold,
-            blocks: () =>
+            blocks: (own) =>
               !releasing.current &&
-              (latest.current.dirty ||
+              ((!own && latest.current.dirty) ||
                 latest.current.busy ||
                 work.current !== null ||
                 submitting(router)),
+            owns: (form) => marking.current || (form !== null && form === saveForm.current),
           },
     [hold, router],
   );
   React.useEffect(() => {
     if (router === undefined || routerHold === undefined) return;
-    return holdRouter(router, routerHold);
+    const entry = routerEntry(router);
+    savingNow.current = () => submitting(router) && entry.saving.has(routerHold.hold);
+    const unhold = holdRouter(router, routerHold);
+    return () => {
+      savingNow.current = () => false;
+      unhold();
+    };
   }, [router, routerHold]);
 
   const close = () => ask(null);
@@ -1048,7 +1140,7 @@ function useLeaveConfirm({
       />
     </>
   );
-  return { guard, dialog, working, run };
+  return { guard, dialog, working, run, saveForm, ownSave };
 }
 
 type LeaveGuardOptions = {
@@ -1071,10 +1163,14 @@ type LeaveGuardOptions = {
  * change, browser back and forward included, is held the same way. Wrap the
  * page's own ways out (Back, Previous/Next) in `guard`, and render `dialog`. `Esc` that an open
  * select, menu, tooltip or dialog takes, or that an editor uses itself (it stops the propagation or
- * prevents the default), does not leave.
+ * prevents the default), does not leave. Under a data router a page that saves through a router form
+ * passes `saveForm` as that form's `ref`, or starts a formless save inside `ownSave(() => submit(…))`
+ * (the submission must start synchronously inside it): that submission is its own Save and goes
+ * without the question; any other submission on the changed page asks. Unregistered, the Save form
+ * asks too, and Discard then posts it.
  */
 function useLeaveGuard({ dirty, busy = false, onLeave, onSave, onDiscard }: LeaveGuardOptions) {
-  const { guard, dialog } = useLeaveConfirm({ dirty, busy, onSave, onDiscard });
+  const { guard, dialog, saveForm, ownSave } = useLeaveConfirm({ dirty, busy, onSave, onDiscard });
   const leave = React.useRef(onLeave);
   React.useEffect(() => {
     leave.current = onLeave;
@@ -1091,7 +1187,7 @@ function useLeaveGuard({ dirty, busy = false, onLeave, onSave, onDiscard }: Leav
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [guard]);
 
-  return { guard, dialog };
+  return { guard, dialog, saveForm, ownSave };
 }
 
 export {

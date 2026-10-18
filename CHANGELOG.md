@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.134.6 — #288, SUI-FEATURE-170 rev 5, SUI-FEATURE-150, GL-UI-007 (Q&A #4030, #4032, #4033, #4041; reviews #283, #288): a page's own Save form is not held by its own guard
+
+Fix, not breaking.
+
+- **Under a data router a page's own Save goes at once.** `useLeaveGuard` now also returns `saveForm` and `ownSave`. A page that saves through a router form passes `saveForm` as that form's `ref` (`<Form method="post" ref={saveForm}>`); a formless save runs inside `ownSave(() => submit(…))`, which marks only a submission started synchronously inside it. That submission is the page's own Save: "Save changes?" does not open and the action runs once (before: the dialog opened, and Discard then posted the dirty entries). It counts only for that guard: an open apply panel with changes still asks by its own rules. After Apply the held submission is dropped and the guard submits its save form anew, so the Save runs once with the applied values (never with the values from before); a formless own Save is dropped then, and the page keeps its changes. When the Apply fails nothing is saved.
+- **Every other submission on a changed page asks**, whatever its path: a second form of the same route (archive), a form in the layout (logout), an unmarked `submit`. Discard lets it go with its own data, never the page's discarded entries.
+- **A way out while the own Save runs opens no dialog**, a navigation click as well as `Esc` or a Back wrapped in `guard`. It waits; after the Save succeeded the page is asked again as it is then: clean, it lands at the chosen target; changed again meanwhile, "Save changes?" opens now. When the Save fails the way out is dropped. While the page is `busy`, or another submission runs, the own Save is held as in 0.134.5, silently, and goes on once that submission ended.
+
+**Migration:** none required. To use it, register the save form with `saveForm` (or wrap a formless save in `ownSave`); without that a page's own Save keeps asking as before, and Discard then still posts the form. Known limit (#289): an own Save the guard held and let go later runs unguarded, as before for every submission let go.
+
 ## 0.134.5 — #283, SUI-FEATURE-150 rev 6, GL-UI-027, GL-UI-007 (Q&A #4003, #4015, #4016, #4017, #4022, #4028, reviews #280, #283): nothing closes before its result, and a held way out waits for the work
 
 Fix, not breaking.

@@ -14,6 +14,7 @@ import {
   RouterProvider,
   Routes,
   type RouteObject,
+  useLoaderData,
   useLocation,
   useNavigate,
   useNavigation,
@@ -3563,5 +3564,391 @@ describe("leave prompt without a save target (SUI-FEATURE-092)", () => {
     expect(dialog).toHaveTextContent(title);
     expect(screen.getByTestId("leave-guard-cancel")).toHaveTextContent(cancel);
     expect(screen.getByTestId("leave-guard-discard")).toHaveTextContent(discard);
+  });
+});
+
+// #288, SUI-FEATURE-170: under a data router the page's own Save, a submit of the form registered
+// with its guard (or a submission the call site marks), is no way out; any other submission on the
+// changed page is one and asks.
+describe("a page's own Save under a data router (SUI-FEATURE-170)", () => {
+  const stored = { name: "Main" };
+
+  function OwnSavePage({ archive = false, panel = false, busy = false, applyFails = false }) {
+    const loaded = useLoaderData<string>();
+    const navigate = useNavigate();
+    const submit = useSubmit();
+    const [name, setName] = useState(loaded);
+    const [open, setOpen] = useState(false);
+    const [term, setTerm] = useState("");
+    const [saveShown, setSaveShown] = useState(true);
+    const { guard, dialog, saveForm, ownSave } = useLeaveGuard({
+      dirty: name !== loaded,
+      busy,
+      onLeave: () => void navigate("/list"),
+      onSave: () => true,
+    });
+    return (
+      <>
+        <Where />
+        <Form method="post" ref={saveForm}>
+          <Input
+            aria-label="Name"
+            name="name"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+          />
+          {saveShown && (
+            <button type="submit" data-testid="own-save" name="intent" value="save">
+              Save
+            </button>
+          )}
+        </Form>
+        <button type="button" data-testid="hide-save" onClick={() => setSaveShown(false)} />
+        {archive && (
+          <Form method="post">
+            <input type="hidden" name="intent" value="archive" />
+            <button type="submit" data-testid="archive">
+              Archive
+            </button>
+          </Form>
+        )}
+        <button
+          type="button"
+          data-testid="own-submit"
+          onClick={() => ownSave(() => void submit({ name }, { method: "post" }))}
+        />
+        <button
+          type="button"
+          data-testid="foreign-submit"
+          onClick={() => void submit({ name }, { method: "post" })}
+        />
+        <button type="button" data-testid="go" onClick={() => void navigate("/elsewhere")} />
+        <button
+          type="button"
+          data-testid="back"
+          onClick={() => guard(() => void navigate("/list"))}
+        />
+        <button type="button" data-testid="row" onClick={() => setOpen(true)} />
+        {panel && (
+          <EditPanel
+            open={open}
+            onOpenChange={setOpen}
+            title="Term"
+            submitKind="apply"
+            dirty={term !== ""}
+            onSubmit={() => {
+              if (applyFails) return false;
+              setName((current) => `${current} ${term}`);
+              setTerm("");
+              setOpen(false);
+              return true;
+            }}
+          >
+            <Input
+              aria-label="Entry"
+              value={term}
+              onChange={(event) => setTerm(event.target.value)}
+            />
+          </EditPanel>
+        )}
+        {dialog}
+      </>
+    );
+  }
+
+  const save = (data: FormData) => {
+    stored.name = data.get("name") as string;
+    return null;
+  };
+
+  // The page at `/detail` under a layout with a logout form; `respond` answers the page's action.
+  async function ownSaveRouter(
+    respond: (data: FormData) => unknown = save,
+    {
+      logout,
+      ...page
+    }: {
+      archive?: boolean;
+      panel?: boolean;
+      busy?: boolean;
+      applyFails?: boolean;
+      logout?: Promise<void>;
+    } = {},
+  ) {
+    stored.name = "Main";
+    const posted: FormData[] = [];
+    const loggedOut: FormData[] = [];
+    const router = createMemoryRouter(
+      [
+        {
+          path: "/",
+          element: (
+            <>
+              <Form method="post" action="/logout">
+                <input type="hidden" name="reason" value="logout" />
+                <button type="submit" data-testid="logout">
+                  Log out
+                </button>
+              </Form>
+              <Outlet />
+            </>
+          ),
+          children: [
+            {
+              path: "detail",
+              loader: () => stored.name,
+              action: async ({ request }) => {
+                const data = await request.formData();
+                posted.push(data);
+                return respond(data);
+              },
+              element: <OwnSavePage {...page} />,
+            },
+            {
+              path: "logout",
+              action: async ({ request }) => {
+                loggedOut.push(await request.formData());
+                await logout;
+                return redirect("/bye");
+              },
+            },
+            { path: "*", element: <Where /> },
+          ],
+        },
+      ],
+      { initialEntries: ["/list", "/detail"], initialIndex: 1 },
+    );
+    render(<RouterProvider router={router} />);
+    await screen.findByLabelText("Name");
+    return { router, posted, loggedOut };
+  }
+
+  const pause = () => act(() => new Promise((done) => window.setTimeout(done, 30)));
+  const asks = () => screen.queryByTestId("leave-guard") !== null;
+
+  it.each(["own-save", "own-submit"])(
+    "AC1: a changed page's own Save (%s) goes without a question; the action runs once",
+    async (button) => {
+      const { router, posted } = await ownSaveRouter();
+      edit();
+      fireEvent.click(screen.getByTestId(button));
+      await waitFor(() => expect(posted).toHaveLength(1));
+      await pause();
+      expect({ asks: asks(), posted: posted.length, at: router.state.location.pathname }).toEqual({
+        asks: false,
+        posted: 1,
+        at: "/detail",
+      });
+      expect(posted[0]?.get("name")).toBe("Changed");
+    },
+  );
+
+  it("AC1: a formless submission the call site does not mark asks", async () => {
+    const { posted } = await ownSaveRouter();
+    edit();
+    fireEvent.click(screen.getByTestId("foreign-submit"));
+    await screen.findByTestId("leave-guard");
+    expect(posted).toHaveLength(0);
+  });
+
+  it("AC2: logging out from the layout asks; Discard logs out without the page's changes", async () => {
+    const { router, posted, loggedOut } = await ownSaveRouter();
+    edit();
+    fireEvent.click(screen.getByTestId("logout"));
+    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/bye"));
+    expect(loggedOut).toHaveLength(1);
+    expect([...(loggedOut[0]?.keys() ?? [])]).toEqual(["reason"]);
+    expect(posted).toHaveLength(0);
+  });
+
+  it("AC3: archiving through a second form of the same route asks, never leaves silently", async () => {
+    const { router, posted } = await ownSaveRouter(save, { archive: true });
+    edit();
+    fireEvent.click(screen.getByTestId("archive"));
+    await screen.findByTestId("leave-guard");
+    await pause();
+    expect({ posted: posted.length, at: router.state.location.pathname }).toEqual({
+      posted: 0,
+      at: "/detail",
+    });
+  });
+
+  // Q&A #4041: after Apply the Save goes anew from its form, with the applied values.
+  it.each([
+    ["stays", save],
+    [
+      "redirects",
+      (data: FormData) => {
+        save(data);
+        return redirect("/saved");
+      },
+    ],
+  ])(
+    "AC4: with a changed apply panel open, the page's Save asks by the panel's rules; after Apply it goes once with the applied values (Save %s)",
+    async (_how, respond) => {
+      const { router, posted } = await ownSaveRouter(respond, { panel: true });
+      fireEvent.click(screen.getByTestId("row"));
+      fireEvent.change(screen.getByLabelText("Entry"), { target: { value: "x" } });
+      fireEvent.click(screen.getByTestId("own-save"));
+      expect(
+        within(await screen.findByTestId("leave-guard")).getByRole("heading"),
+      ).toHaveTextContent("Apply changes?");
+      expect(posted).toHaveLength(0);
+      fireEvent.click(screen.getByTestId("leave-guard-save"));
+      await waitFor(() => expect(posted).toHaveLength(1));
+      await pause();
+      expect({ asks: asks(), posted: posted.length }).toEqual({ asks: false, posted: 1 });
+      expect([posted[0]?.get("name"), posted[0]?.get("intent")]).toEqual(["Main x", "save"]);
+      // The submission from before is dropped: no blocker stays blocked with it.
+      expect([...router.state.blockers.values()].map((blocker) => blocker.state)).not.toContain(
+        "blocked",
+      );
+    },
+  );
+
+  it("AC4: a Save whose button is gone after Apply goes from its form without it", async () => {
+    const { posted } = await ownSaveRouter(save, { panel: true });
+    fireEvent.click(screen.getByTestId("row"));
+    fireEvent.change(screen.getByLabelText("Entry"), { target: { value: "x" } });
+    fireEvent.click(screen.getByTestId("own-save"));
+    await screen.findByTestId("leave-guard");
+    fireEvent.click(screen.getByTestId("hide-save"));
+    fireEvent.click(screen.getByTestId("leave-guard-save"));
+    await waitFor(() => expect(posted).toHaveLength(1));
+    expect([posted[0]?.get("name"), posted[0]?.has("intent")]).toEqual(["Main x", false]);
+  });
+
+  it("AC4: when the Apply fails the page's Save does not run; the panel stays open", async () => {
+    const { router, posted } = await ownSaveRouter(save, { panel: true, applyFails: true });
+    fireEvent.click(screen.getByTestId("row"));
+    fireEvent.change(screen.getByLabelText("Entry"), { target: { value: "x" } });
+    fireEvent.click(screen.getByTestId("own-save"));
+    fireEvent.click(await screen.findByTestId("leave-guard-save"));
+    await waitFor(() => expect(asks()).toBe(false));
+    await pause();
+    expect({ posted: posted.length, at: router.state.location.pathname }).toEqual({
+      posted: 0,
+      at: "/detail",
+    });
+    expect(screen.getByLabelText("Entry")).toHaveValue("x");
+  });
+
+  it("AC4: a formless own Save held by the panel is dropped after Apply; the page keeps its changes", async () => {
+    const { router, posted } = await ownSaveRouter(save, { panel: true });
+    fireEvent.click(screen.getByTestId("row"));
+    fireEvent.change(screen.getByLabelText("Entry"), { target: { value: "x" } });
+    fireEvent.click(screen.getByTestId("own-submit"));
+    fireEvent.click(await screen.findByTestId("leave-guard-save"));
+    await waitFor(() => expect(screen.getByLabelText("Name")).toHaveValue("Main x"));
+    await pause();
+    expect({ asks: asks(), posted: posted.length }).toEqual({ asks: false, posted: 0 });
+    expect([...router.state.blockers.values()].map((blocker) => blocker.state)).not.toContain(
+      "blocked",
+    );
+  });
+
+  it("a busy page's own Save is still held (GL-UI-027)", async () => {
+    const { posted } = await ownSaveRouter(save, { busy: true });
+    edit();
+    fireEvent.click(screen.getByTestId("own-save"));
+    await pause();
+    expect({ asks: asks(), posted: posted.length }).toEqual({ asks: false, posted: 0 });
+  });
+
+  // Another method, so it is no second submit of the running one (SUI-FEATURE-150 rev 6).
+  it("a submission still running holds the page's own Save silently; it goes once that ended", async () => {
+    const first = deferred();
+    const { router, posted } = await ownSaveRouter((data) =>
+      posted.length === 1 ? first.promise.then(() => null) : save(data),
+    );
+    act(() => {
+      void router.navigate("/detail", { formMethod: "put", formData: new FormData() });
+    });
+    await waitFor(() => expect(posted).toHaveLength(1));
+    edit();
+    fireEvent.click(screen.getByTestId("own-save"));
+    await pause();
+    expect({ asks: asks(), posted: posted.length }).toEqual({ asks: false, posted: 1 });
+    await settleAndWait(first.settle);
+    await waitFor(() => expect(posted).toHaveLength(2));
+    expect(posted[1]?.get("name")).toBe("Changed");
+    await pause();
+    expect(asks()).toBe(false);
+  });
+
+  // The own Save counts only while it runs: a way out during a later submission asks as before.
+  it("after the own Save ended, Esc during a foreign submission asks", async () => {
+    const out = deferred();
+    const { router } = await ownSaveRouter(save, { logout: out.promise });
+    edit();
+    fireEvent.click(screen.getByTestId("own-save"));
+    await waitFor(() => expect(router.state.navigation.state).toBe("idle"));
+    await pause();
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Again" } });
+    fireEvent.click(screen.getByTestId("logout"));
+    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+    await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+    escape(document.body);
+    await screen.findByTestId("leave-guard");
+    await settleAndWait(out.settle);
+  });
+
+  describe("AC5: a way out while the own Save runs", () => {
+    async function savingThenGo(respond: (data: FormData) => unknown) {
+      const acted = deferred();
+      const page = await ownSaveRouter((data) => acted.promise.then(() => respond(data)));
+      edit();
+      fireEvent.click(screen.getByTestId("own-save"));
+      await waitFor(() => expect(page.router.state.navigation.state).toBe("submitting"));
+      fireEvent.click(screen.getByTestId("go"));
+      await pause();
+      expect({ asks: asks(), at: page.router.state.location.pathname }).toEqual({
+        asks: false,
+        at: "/detail",
+      });
+      return { ...page, settle: acted.settle };
+    }
+
+    it.each([
+      ["Esc", () => escape(document.body)],
+      ["a guarded Back", () => fireEvent.click(screen.getByTestId("back"))],
+    ])("%s opens no dialog either and leaves once the Save succeeded", async (_way, leave) => {
+      const { router, settle } = await savingThenGo(save);
+      leave();
+      await pause();
+      expect(asks()).toBe(false);
+      await settleAndWait(settle);
+      await waitFor(() => expect(router.state.location.pathname).toBe("/list"));
+      expect(asks()).toBe(false);
+    });
+
+    it("opens no dialog and lands at the target after the Save succeeded", async () => {
+      const { router, settle } = await savingThenGo(save);
+      await settleAndWait(settle);
+      await waitFor(() => expect(router.state.location.pathname).toBe("/elsewhere"));
+      expect(asks()).toBe(false);
+    });
+
+    it("asks once the Save succeeded when the page changed meanwhile", async () => {
+      const { router, settle } = await savingThenGo(save);
+      fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Again" } });
+      await settleAndWait(settle);
+      expect(
+        within(await screen.findByTestId("leave-guard")).getByRole("heading"),
+      ).toHaveTextContent("Save changes?");
+      expect(router.state.location.pathname).toBe("/detail");
+    });
+
+    it("stays with the error when the Save failed", async () => {
+      const { router, settle } = await savingThenGo(() => ({ error: "Name taken" }));
+      await settleAndWait(settle);
+      await pause();
+      expect({ asks: asks(), at: router.state.location.pathname }).toEqual({
+        asks: false,
+        at: "/detail",
+      });
+      expect(router.state.actionData).toEqual({ "0-0": { error: "Name taken" } });
+    });
   });
 });
