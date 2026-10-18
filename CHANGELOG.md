@@ -357,6 +357,8 @@ On unlocking, the Save fill now fades from half-tone to full colour through the 
 
 Fix, not breaking (SUI-FEATURE-085 §Delta 2, GL-UI-050: the locked look stays the same). Since 0.110.1 the locked Save's label in `MediaDetailShell` was half-tone against its own half-tone fill, so in dark mode it read less locked than the disabled Reset beside it. The label colour is now `--success-foreground` mixed 50 % with `--background`, the colour element opacity composited it to before. The half-tone fill and the full-contrast focus ring from 0.110.1 stay. Baselines `media-detail-de-dark.png`, `media-detail-en-dark.png` and `media-detail-es-dark.png` are back to their pre-0.110.1 pixels.
 
+**Migration (nachgetragen):** none in code. Baselines: `media-detail-de-dark`, `media-detail-en-dark` and `media-detail-es-dark` back to their pre-0.110.1 pixels.
+
 ## 0.110.2 — #185: EditPanel pager chevrons keep a full-contrast focus ring
 
 Fix, not breaking (WCAG 1.4.11, GL-UI-013). The locked ‹/› chevrons of the `EditPanel` pager no longer dim with element `opacity-50`, which also dimmed their focus ring below 3:1; they take the same locked look as `MediaDetailShell`'s since 0.110.1: a half-tone icon, no hover tint (in dark mode too), the element opaque. The shared class now lives beside `PANEL_SURFACE_CLASS` in `lib/panel-geometry`.
@@ -364,6 +366,8 @@ Fix, not breaking (WCAG 1.4.11, GL-UI-013). The locked ‹/› chevrons of the `
 ## 0.110.1 — #184: locked Save and pager chevrons keep a full-contrast focus ring
 
 Fix, not breaking (WCAG 1.4.11). In `MediaDetailShell` the locked Save (nothing to save) and the locked ‹/› chevrons at the ends no longer dim with element `opacity-50`, which also dimmed their focus ring to about 1.85:1. Save shows its locked look by half-tone fill and text, the chevrons by a half-tone icon without hover tint; the element stays opaque, so the ring keeps full contrast. A running Save (busy) stays at full colour. Changed baselines: `media-detail-de-dark.png`, `media-detail-en-dark.png` and `media-detail-es-dark.png`, 3 pixels each in the Save icon, as the gallery compares them (Playwright's default colour threshold 0.2, no pixel allowance). The light `media-detail` baselines are unchanged: there the Save label's new slight tint stays below that threshold.
+
+**Migration (nachgetragen):** none in code. Baselines: `media-detail-de-dark`, `media-detail-en-dark` and `media-detail-es-dark` changed.
 
 ## 0.110.0 — #182, SUI-FEATURE-085 rev 2: focus after the delete dialog and Save, guarded pick
 
@@ -411,6 +415,8 @@ Not breaking. `UserMenu` takes `unavailableReason` (`"notYet" | "noRole"`, defau
 
 - It applies to every unavailable entry (`profileUnavailable`, `changePasswordUnavailable`, `securityUnavailable`): `"notYet"` keeps "Not available yet", `"noRole"` shows "Requires a role." The entries stay focusable with `aria-disabled` and trigger nothing.
 
+**Migration (nachgetragen):** none in code. Baselines: 10 `gallery-*` changed (strings table).
+
 ## 0.105.0 — #173, SUI-FEATURE-082: UserMenu as a disclosure panel, keyboard model
 
 The ARIA contract of the open panel changes: it is no longer an ARIA menu, since it holds a select and a radio group, which a menu may not (axe `aria-required-children`). Props are unchanged; no visual change.
@@ -435,6 +441,8 @@ Not breaking. New strings `media.pickUnavailable`, `media.emptyText`; `media.mis
 - `kind="text"` with an empty `text` shows "The file is empty." instead of an empty region.
 - `format="json"` now changes only the whitespace between tokens: number literals and strings show as the file has them (before, `9007199254740993` showed as `9007199254740992` and `1e400` as `null`).
 
+**Migration (nachgetragen):** `media.missingRef` "No object linked." → "No file is attached to this entry."; `media.missingBytes` "File missing from storage." → "The file is no longer available. Upload it again or remove the entry." (de/es reworded alike). App tests that match the old sentences match the new ones. Baselines: 10 `gallery-*` changed (strings table).
+
 ## 0.102.0 — #166, SUI-FEATURE-140 rev 3: MediaDetailShell preview states and text preview
 
 Not breaking. `MediaDetailShell` takes `previewState`, `previewDetail`, `text` and `format`; `src` is now optional; `MediaDetailKind` gains `"text"`. New type export `MediaPreviewState`. New strings `media.missingRef`, `media.missingBytes`, `media.noRenderer`, `media.truncated` (de/en/es).
@@ -442,12 +450,16 @@ Not breaking. `MediaDetailShell` takes `previewState`, `previewDetail`, `text` a
 - `previewState` (`"missingRef" | "missingBytes" | "noRenderer"`) replaces the preview by `kind` with an icon, one sentence and, muted below it, the optional `previewDetail`. Head, paging, details and footer keep working.
 - `kind="text"` shows `text` in its own scroll region in the base family (never monospace, `GL-UI-010`), whitespace kept, wrapping on, tab size 2; `format="json"` indents valid JSON, invalid JSON stays plain. Past 200 KB (UTF-8) only the beginning shows, with a muted note.
 
+**Migration (nachgetragen):** `MediaDetailShell` `src` is now optional and `MediaDetailKind` gains `"text"`; an exhaustive `switch` over `MediaDetailKind` needs the new case. Baselines: 10 `gallery-*` changed (strings table).
+
 ## 0.101.0 — #165, SUI-FEATURE-130 rev 3: DropdownMenu submenu
 
 Not breaking. New exports from `@suite/ui/ui/dropdown-menu`: `DropdownMenuSub`, `DropdownMenuSubTrigger`, `DropdownMenuSubContent`.
 
 - Thin wrappers around the Radix submenu parts, with no logic of their own. The sub-trigger looks like a menu item, carries a trailing chevron (mirrored in RTL) and stays highlighted while its submenu is open; the submenu content looks like the menu content and opens beside its trigger.
 - Keyboard and focus come from Radix: Arrow right opens the submenu, Arrow left closes it with focus back on the sub-trigger, Esc closes the whole menu with focus back on the menu button.
+
+**Migration (nachgetragen):** the tag also carries the version line rework (#156–#158), the sidebar's active-entry tint (#154) and the list tab stop in row-less states (#162). `VersionLine` (in `AppSidebar`): `data-testid="version-tooltip"` removed, the info is `version-info`; `version-line` is now a button named by the new string `version.name` ("Version {{text}}"). Baselines: 54 changed across `edit-panel-preview-split-*`, `edit-panel-preview-stacked-*`, `gallery-*`, `media-detail-*`, `shell-*`, `shell-menu-*`, `shell-search-*` and `shell-settings-*`.
 
 ## 0.100.1 — #151, focus-return follow-ups from the #145 re-review (GL-UI-050)
 
@@ -475,6 +487,8 @@ Not breaking. New: `ConfirmDialog` (`@suite/ui/ui/confirm-dialog`, also in the b
 - Audit: the package's red actions are all losses (delete, discard, Reset of unsaved changes, the leave guard's discard). The only reversible action in red was the gallery's Archive.
 - Gallery: on the preview page, Archive is a plain menu entry with `ArchiveIcon`. Its confirm is a `ConfirmDialog` whose hint names the undo, and its toast offers Undo. A red "Discard draft" entry keeps the demo of the destructive group after the separator. The strings page lists the new strings.
 
+**Migration (nachgetragen):** none in code. Baselines: 10 `gallery-*` changed (strings table).
+
 ## 0.98.0 — #150, SUI-FEATURE-120 rev 3 and GL-UI-050 rev 5: a running button keeps the focus
 
 Changed for apps: `busy` no longer sets the `disabled` attribute. A running `Button` carries `aria-disabled="true"` and `aria-busy="true"` and stays focusable. App tests that check `disabled` (`toBeDisabled`) on a running button switch to `aria-disabled` plus the trigger guard. In Playwright, `toBeDisabled()` also counts `aria-disabled`, while `not.toHaveAttribute("disabled")` tells the two apart. New: `useFocusAfterRun` in `focus-return`.
@@ -483,6 +497,8 @@ Changed for apps: `busy` no longer sets the `disabled` attribute. A running `But
 - Applies to every component that passes `busy` through: `RowActions` (an extra action), `PageHeader` add, `SettingsFooter`, `SettingsActionRow`, `EditPanel`, `EditorHeader`, `ConfirmDeleteDialog`, `MediaDetailShell`, `RestoreDefaultsButton`, `SecretCardHeader`, `DrawerRail`.
 - A Save that locks itself as its run ends (the form is clean) hands the focus on (`GL-UI-050`), never to `<body>`. `SettingsFooter` and `SettingsActionRow` hand it to the next usable control of their row, else the page's main content. `MediaDetailShell` hands it to the next usable control of its footer, else the first field of the details. `EditorHeader` already did this. Their rows carry `data-focus-group`. Each target counts only if it takes the focus; otherwise the next one is tried.
 - Gallery: a check that a running Save keeps the focus, that `Enter`, `Space`, a click and the form's implicit submit start no second run, and that the focus lands on the main content, not the body, once Save locks. The edit panel and media detail checks assert the focus too.
+
+**Migration (nachgetragen):** a running `Button` (`busy`) no longer carries `disabled`, only `aria-disabled="true"` and `aria-busy="true"`. A jest-dom `toBeDisabled()` on a running button switches to `toHaveAttribute("aria-disabled", "true")`; Playwright `toBeDisabled()` keeps passing. Baselines: none changed.
 
 ## 0.97.0 — #149, SUI-FEATURE-111 rev 2: EditPanel next step without the save symbol
 
@@ -503,6 +519,8 @@ Not breaking. Tooling only; the package code is unchanged.
 - At most one gallery run at a time across all worktrees: a lock in the main checkout's `.spec-sync/gallery.lock`. A second run waits and says whose run it waits for, at most 30 minutes; then it exits 4. A run that has ended, or a lock left without a pid for 30 seconds, is taken over atomically, and a run releases only its own lock.
 - The architecture comes from the Docker engine (`docker version`), not the shell, so a Rosetta shell does not bring the emulation back. Ctrl-C stops the run in the container and the container itself (`--init`, signals to the whole process group).
 
+**Migration (nachgetragen):** none in code. Baselines: 204 of 224 regenerated natively (arm64), all page patterns.
+
 ## 0.96.0 — #148, GL-UI-060 rev 2 and SUI-FEATURE-078: colour is never the only signal
 
 Not breaking. New: `FieldError` (`@suite/ui/ui/field-error`, also in the barrel) and `SettingsField error`. Without `error` a field is unchanged. No new strings.
@@ -516,6 +534,8 @@ Not breaking. New: `FieldError` (`@suite/ui/ui/field-error`, also in the barrel)
 - Checked and unchanged: the EditorHeader state mark (ring vs dot, with the state text for screen readers), `InlineStatus` (its own symbol and name per state), `ColorDotBadge` (the dot always stands beside the tag's name) and links in running text (`HelpMarkdown` links are underlined). The package draws no charts.
 - Gallery: a FieldError section on the components page with one invalid field per kind, in one column below md; the tiles state demos stand in one column below md. New checks (`GL-UI-060`) assert that the states of a surface differ without colour, by symbol, shape mark and text: StatusChip tones, InlineStatus, the editor state mark, list and settings errors against the empty state, field errors and toast variants. The toast page now waits for the success toast element instead of its text, which now appears twice.
 
+**Migration (nachgetragen):** none in code. Each toast now carries its variant's name (`suite:status.*`) as screen-reader text, so a test that finds a toast by a text equal to that name ("Success") matches twice; select the toast element (`[data-sonner-toast][data-type=success]`) instead. Baselines: 30 changed, 10 each of `components-*`, `preview-*` and `tiles-*`.
+
 ## 0.95.0 — #147, SUI-FEATURE-110 rev 3: sidebar as an overlay below md
 
 Not breaking. At `md` (48rem) and up the shell and panels look and behave as before. New: `SidebarOverlayTrigger`; `useSidebar()` also returns `isOverlay`, `overlayOpen`, `openOverlay` and `closeOverlay`; the CSS variable `--sidebar-inset`; the string `suite:nav.openNavigation` (de/en/es).
@@ -528,6 +548,8 @@ Not breaking. At `md` (48rem) and up the shell and panels look and behave as bef
 - Panels: `EditPanel`, `MediaDetailShell` and the maximized `PreviewFrame` take the full viewport width below `md`. Their left edge is the sidebar width times `--sidebar-inset` (1, and 0 below `md`), so at `md` and up it is the same as before.
 - Gallery: the shell page at 390 px shows the sidebar closed and the trigger in the page head; the strings page lists the new string.
 
+**Migration (nachgetragen):** none in code. Baselines: 12 changed, 10 `gallery-*` (strings table) and `shell-de-light-390` / `shell-de-dark-390`.
+
 ## 0.94.0 — #146, SUI-FEATURE-100 rev 4: TagInput suggestions
 
 Not breaking. `TagInput` takes an optional `suggestions`; without it the field is unchanged. New string `suite:tags.suggestions` (de/en/es), the name of the suggestion list.
@@ -537,6 +559,8 @@ Not breaking. `TagInput` takes an optional `suggestions`; without it the field i
 - Combobox pattern: the field has `role="combobox"` with `aria-expanded`, the list `role="listbox"`, the chosen option is named by `aria-activedescendant`; adding a chip is still announced. Long names wrap inside the list.
 - The list floats like the time zone list: no portal; in a dialog or panel body it grows the body or opens upwards (`GL-UI-027` §Floating Content). Both use the new shared `usePopupPlacement` (`src/lib/popup-placement.ts`); the time zone list behaves as before.
 - Gallery: the tag field of the components page offers suggestions. The strings page lists the new string.
+
+**Migration (nachgetragen):** none in code. Baselines: 10 `gallery-*` changed (strings table).
 
 ## 0.93.0 — #145, GL-UI-050 rev 4: focus return after every dialog
 
@@ -568,6 +592,8 @@ Not breaking for the API: `useFoldSteps` takes two new optional arguments, `RowA
 - `useFoldSteps(maxSteps, content?, fallback?)`: when `content` (what the bar shows: language, texts) changes, the remembered widths are dropped and the bar folds afresh before the paint, so a shorter text (after Save, in another language) unfolds again without a resize. The bar tracks its control that owns the focus from `focusin` (also through a menu or list it opened), so a step that swaps that control gives the focus back to the new one; a control that the step locked or took away hands it to `fallback`, in `GL-UI-050`'s order from where it stood. Swapped-out parts are no longer watched.
 - Focus (`GL-UI-050`): the Reset confirm returns the focus to its trigger (Reset, or the ⋯ it was folded into), else to the next usable control of the header after it, then before it, else to the editor's main content; never to Back or the body. A control that locks under the focus (Save after saving, Undo at the history's start) hands it on the same way.
 
+**Migration (nachgetragen):** none in code. Baselines: `components-de-light-390` and `components-de-dark-390` changed.
+
 ## 0.92.0 — SUI-FEATURE-090 rev 4 (#141): EditorHeader at narrow width
 
 Breaking for apps that pass `lifecycle.preview` or `lifecycle.menu` (see the migration note). Without a lifecycle, and at any width where everything fits, the header looks as before.
@@ -595,6 +621,8 @@ Not breaking. Package API unchanged.
 
 - Before the gate, `npm run gate:record` compares every `packages` entry of `package-lock.json` with the installed `node_modules/<package>/package.json`, offline; an optional platform package not installed on this machine does not count. `npm ls --all` runs as well, for versions outside their declared range. On any difference it ends with exit 4, names the first differing packages and gives the hint "`npm ci` im Haupt-Checkout", without a gate run and without a record. It never installs anything itself.
 
+**Migration (nachgetragen):** none in code. Baselines: 8 changed, `components-`, `gallery-`, `preview-` and `split-de-{light,dark}-390.png`.
+
 ## 0.91.3 — SUI-FEATURE-076 rev 5 (#135): gallery phase in the pinned Playwright image
 
 Not breaking. Package API unchanged. No CI workflow: the package is built and checked by the local gate.
@@ -604,6 +632,8 @@ Not breaking. Package API unchanged. No CI workflow: the package is built and ch
 - Still scene: fixed browser clock, time zone `Europe/Zurich`, locale `en-US`, `animations: "disabled"`.
 - New screenshots of every gallery page and the shell at 390 and 1440 px, in de, light and dark.
 - `npm run gate:record` runs the merge gate and, on green with a clean tree, records it for HEAD's tree in `.spec-sync/gate-records/`. `npm run release:tag` is the only way to tag: it tags and pushes `v<version>` only with a green record for HEAD's tree.
+
+**Migration (nachgetragen):** none in code. Baselines: all 156 existing ones regenerated in the Playwright image (macOS renderings gone); 68 new, `<page>-de-{light,dark}-{390,1440}.png` for 17 pages.
 
 ## 0.91.2 — SUI-FEATURE-075 rev 2 (#134): Node 24 for development, CI and gate
 
@@ -644,6 +674,8 @@ Not breaking. `ButtonSize` keeps its members; `inline` is typed only beside `var
 - `Button`: new size `size="inline"` for a text link in a table row, a path or running text: no height and no padding of its own (its height is the line of text's), the icon gap of `sm`, `text-sm`. The focus ring stays.
 - `size="inline"` with any `variant` other than `"link"` is a type error. Apps replace `variant="link"` with `className="h-auto p-0"`/`"h-auto px-0"` by `size="inline"`.
 
+**Migration (nachgetragen):** `ButtonProps` is now a union (`{ variant, size }` or `{ variant: "link", size: "inline" }`); `ButtonSize` keeps its members. Baselines: 6 `components-*` changed.
+
 ## 0.88.1 — SUI-FEATURE-049 rev 6 (#129): tooltips close on every focus change
 
 Not breaking.
@@ -658,11 +690,15 @@ Not breaking. Two defaults change; apps drop their shims on the pin bump.
 - `RadioGroup`: the options stand 8 px apart (`gap-2`) instead of 12 px (`gap-3`); an app override to `gap-2` is no longer needed.
 - `SettingsField`, `SettingsToggleField`: their own overrides of both defaults removed; layout unchanged.
 
+**Migration (nachgetragen):** drop app overrides of `mb-0`/`font-medium` on `LabelWithHelp` and `gap-2` on `RadioGroup`; a test that checks the label's `mb-1` or the options' `gap-3` sees the new defaults. Baselines: 6 `components-*` changed.
+
 ## 0.87.0 — SUI-FEATURE-080 rev 2 (#127): Cancel in the delete dialog is always "Cancel"
 
 Breaking for callers that pass `cancelLabel`: it no longer compiles.
 
 - `ConfirmDeleteDialog`: `cancelLabel` removed; Cancel always shows the package text (`actions.cancel`).
+
+**Migration (nachgetragen):** `ConfirmDeleteDialog` prop `cancelLabel` removed; drop it, Cancel shows `actions.cancel`. Baselines: none changed.
 
 ## 0.86.0 — SUI-FEATURE-074 rev 2 (#126): an icon button's hint opens on hover only
 
@@ -679,6 +715,8 @@ Breaking for types only: a compact `DialogContent` with `mode` no longer compile
 - `TimezoneCombobox`: with `data-testid="<id>"` the list carries `<id>-options` and each option `<id>-option`.
 - `TimezoneCombobox`: `aria-errormessage`, set on the field only while it is invalid.
 
+**Migration (nachgetragen):** `DialogContent` `mode` now types only with `size="form"`; drop it from compact dialogs. Baselines: none changed.
+
 ## 0.84.0 — SUI-FEATURE-072 rev 2 (#123): a row action can be running
 
 Not breaking.
@@ -693,6 +731,8 @@ Not breaking.
 Not breaking.
 
 - `UsageTable`: an item's `status` is a catalog state or a domain state `{ tone, label }`; the latter renders as a `StatusChip` in that tone with the app's label.
+
+**Migration (nachgetragen):** `UsageTable` `items[].status` widened from `StatusChipState` to `StatusChipState | { tone, label }`; existing call sites compile unchanged. Baselines: none changed.
 
 ## 0.82.0 — SUI-FEATURE-070 rev 5 (#121): the truncated name badge carries no `title`
 
@@ -709,12 +749,16 @@ Not breaking.
 - The action bar's check against the badge now uses the badge's actual left edge (2 px further right than before at a selection away from the left edge).
 - Gallery: the canvas section shows two narrow frames with a selection at the right edge, one with a badge moved left and one truncated.
 
+**Migration (nachgetragen):** none in code. Baselines: 6 `components-*` changed.
+
 ## 0.80.0 — SUI-FEATURE-070 rev 3 (#119): the name badge is never clipped
 
 Not breaking.
 
 - `CanvasOverlay`: the selection's name badge stands above the selection, left-aligned; without room up to the overlay's edge it moves inside the top left corner, and at the left edge it does not reach past the frame.
 - The action bar also moves below the selection where, above it, it would cover the name badge (a narrow selection); the badge stays.
+
+**Migration (nachgetragen):** none in code. Baselines: 6 `components-*` changed.
 
 ## 0.79.0 — SUI-FEATURE-071 rev 1 (#117): `PropertyPanel` and `DrawerRail`
 
@@ -725,6 +769,8 @@ Not breaking (new components).
 - The style drawer has a footer with "Save style" (`success`, `SaveIcon`) and the scope note "Applies to everything that uses this brand kit"; the app supplies the save and its dirty state through `styleSave`.
 - Texts `canvas.tab.*`, `canvas.drawer.*`, `canvas.styleSave` and `canvas.styleScope` in de/en/es.
 - Gallery: the components page shows an editor frame with the rail, the open style drawer, the canvas and the property panel.
+
+**Migration (nachgetragen):** none in code. Baselines: 12 changed, 6 `components-*` and 6 `gallery-*`.
 
 ## 0.78.0 — SUI-FEATURE-070 rev 1 (#116): `CanvasOverlay` and `CanvasZoom`
 
@@ -737,6 +783,8 @@ Not breaking (new components).
 - Texts `canvas.fit`, `canvas.actual`, `canvas.selected` and `canvas.zoom` (the group's name) in de/en/es.
 - Gallery: the components page shows a canvas under a preview toolbar with the zoom, with hover, selection, actions and insert points.
 
+**Migration (nachgetragen):** none in code. Baselines: 12 changed, 6 `components-*` and 6 `gallery-*`.
+
 ## 0.77.0 — SUI-FEATURE-069 rev 1 (#115): a lifecycle slot in the `EditorHeader`
 
 Not breaking (one new optional property).
@@ -744,6 +792,8 @@ Not breaking (one new optional property).
 - `EditorHeader` takes `lifecycle?: { preview?; menu?; next?: { label; icon?; onClick; busy?; disabledText? } }`. It stands on the right before the editor group, in the order Preview · ⋯ · next step, followed by a vertical separator at the bar's height. Without it nothing changes.
 - The next step is a `Button` `success`, size `default`, with the working state while `busy`. While the draft is unsaved (`dirty`) it is locked with the tooltip "Save first" (`suite:editor.saveFirst`, de/en/es); a `disabledText` of the app takes precedence and locks it as well. So never more than one green button is usable at a time.
 - Gallery: the `EditorHeader` section shows an editor with a lifecycle saved and with a draft.
+
+**Migration (nachgetragen):** none in code. Baselines: 12 changed, 6 `components-*` and 6 `gallery-*`.
 
 ## 0.76.0 — SUI-FEATURE-066 rev 3 (#114): a hint per overflow menu entry
 
@@ -766,6 +816,8 @@ Breaking for `MediaDetailShell.usage` (see below); otherwise additive.
 - New strings `usage.action`, `usage.none`, `usage.empty`, `usage.title`, `usage.type`, `usage.status` (de, en, es).
 - Gallery: the `preview` page shows a preview with "Used by" off and on; the media detail shell uses the button and `UsageTable`.
 
+**Migration (nachgetragen):** `MediaDetailShell.usage` retyped from `ReactNode` to `{ count, active, onToggle, content }`; pass the usages as a `UsageTable` in `content`. `MediaUsageList` is `@deprecated`. Baselines: 18 changed, 6 each of `gallery-*`, `media-detail-*` and `preview-*`.
+
 ## 0.74.0 — SUI-FEATURE-003 rev 1 (#112): `PreviewToolbar` separator and filled active device
 
 Not breaking (no new props).
@@ -774,12 +826,16 @@ Not breaking (no new props).
 - A vertical 1 px rule (`bg-border`, the height of the `sm` buttons, `aria-hidden`, `data-testid="preview-separator"`) parts the view group (device and/or maximize) from the actions. It stands only when both are there; wrapped (`SUI-FEATURE-067` step 3) only when maximize stands beside the actions in the first line.
 - Gallery: the `preview` page shows the separator and the filled device.
 
+**Migration (nachgetragen):** none in code. Baselines: 12 changed, 6 `preview-*` and 6 `split-*`.
+
 ## 0.73.0 — SUI-FEATURE-068 rev 2 (#111): `PageHeader` add entry reports open and closed
 
 Not breaking (two new optional props).
 
 - A `PageHeader` `add` entry takes optional `expanded?: boolean` and `controls?: string`; when set, the button renders `aria-expanded` and `aria-controls`. Without them nothing changes.
 - Gallery: new upload add entry that toggles a panel and reports open/closed.
+
+**Migration (nachgetragen):** none in code. Baselines: 6 `components-*` changed.
 
 ## 0.72.0 — SUI-FEATURE-067 rev 2 (#110): `PreviewToolbar` in a narrow column
 
@@ -791,6 +847,8 @@ Not breaking (no new props).
 - The toolbar carries `data-shrink` (`0`–`3`) for its current step.
 - Gallery: the `preview` page shows the full toolbar at 420, 600 and 900 px.
 
+**Migration (nachgetragen):** `PreviewToolbar` test ids re-nested: `preview-language`, `preview-status` and `preview-device` now sit in the new `preview-toolbar-top` / `preview-toolbar-bottom` wrappers inside `preview-toolbar`. Baselines: 12 changed, 6 `gallery-*` and 6 `preview-*`.
+
 ## 0.71.0 — SUI-FEATURE-066 rev 2 (#109): `RowActionSet` overflow menu
 
 Not breaking (one new optional property).
@@ -800,6 +858,8 @@ Not breaking (one new optional property).
 - The table row (`RowActions`) and the `PreviewToolbar` render the menu alike through `useRowActionButtons`, which now also returns `menu`.
 - New type export `RowMenuItem`.
 - Gallery: the `preview` page shows a row with a menu and its matching preview header.
+
+**Migration (nachgetragen):** none in code. Baselines: 6 `preview-*` changed.
 
 ## 0.70.0 — SUI-FEATURE-065 rev 2 (#107): `ConfirmDeleteDialog` locks Confirm alone
 
@@ -826,6 +886,8 @@ Not breaking (new exports, one new optional option).
 
 **production-cockpit** and **community-platform**: every editor page puts `EditorHeader` and `useEditorLeaveGuard` in place of its own header bar and autosave indicator; its own toolbar stays. The app keeps the working draft on the server and passes `dirty`, `canUndo` and `canRedo`.
 
+**Migration (nachgetragen):** none in code. Baselines: 18 changed, 6 each of `components-*`, `crop-editor-*` and `gallery-*`.
+
 ## 0.68.0 — SUI-FEATURE-063 rev 2 (#105): `MediaTile`
 
 Not breaking (new export only).
@@ -840,6 +902,8 @@ Not breaking (new export only).
 ### Per app, when raising the pin
 
 **production-cockpit** and **community-platform**: the tile view of the media library renders `MediaTile` in `TileGridShell`, switched with the view toggle; the picker passes `selected`.
+
+**Migration (nachgetragen):** none in code. Baselines: 6 `tiles-*` changed.
 
 ## 0.67.1 — GL-UI-007 rev 3 (#104): the leave guard opens with the focus on Save
 
@@ -873,6 +937,8 @@ Not breaking (new exports only).
 
 **production-cockpit** and **community-platform**: every image placement with a change button gets `ImagePlacementButtons` and stores `crop` next to `flipped`. Changing the image resets both. Draw with `CroppedImage`, `CroppedBackground` or `cropToSourceRect`. Editors with their own toolbar keep their controls and may embed `CropEditor` there.
 
+**Migration (nachgetragen):** none in code. Baselines: 6 `components-*` and 6 `gallery-*` changed; 6 `crop-editor-*` new.
+
 ## 0.66.0 — SUI-FEATURE-061 rev 3 (#102): `MediaDetailShell` and `MediaUsageList`
 
 Not breaking (new exports only).
@@ -890,6 +956,8 @@ Not breaking (new exports only).
 ### Per app, when raising the pin
 
 **production-cockpit** and **community-platform**: build the media detail view on `MediaDetailShell` with `FileFacts` in `facts`, the fields with `TagInput` in `fields`, and `MediaUsageList` in `usage` (`CPT-FEATURE-UI-110`); `media.uploadedAt` and `media.uploadedBy` label the upload rows next to `FileFacts`.
+
+**Migration (nachgetragen):** none in code. Baselines: 6 `gallery-*` changed (strings table); 6 `media-detail-*` new.
 
 ## 0.64.0 — SUI-FEATURE-027 rev 4 (#96): the view switch's scroller is the active tab's panel
 
@@ -913,6 +981,8 @@ Also in this release, SUI-FEATURE-022 rev 8 (#95, #97): a select trigger is name
 **community-platform**: the same change on every `DataTableShell` with a tab row: `AdCatalogPage`, `BookingsPage` (via `KursZugangsrechteTab`), `SubscriptionsPage` (both tables), `TrashPage` and `WorkshopTerminePage` (including `TerminePapierkorb`).
 
 **Both apps**: a `SelectTrigger` that shows a field name as text before the value and is named by `aria-label` can switch to `fieldName="…"` with the visible text as an `aria-hidden` child. `FilterSelect` and `SortSelect` need no change. A test that reads a trigger's whole text content now also reads the hidden field name; read the value slot (`[data-slot=select-value]`) instead.
+
+**Migration (nachgetragen):** `tabs` on `DataTableShell` and `TileGridShell` retyped from `ReactNode` to `ListTabs` (`{ list, value }`). A `SelectTrigger` with `fieldName` adds a hidden field name to its text content, so `FilterSelect` and `SortSelect` triggers read it too. Baselines: none changed.
 
 ## 0.63.0 — SUI-DESIGN-011 rev 5 (#91): strings per language, `registerSuiteStringsLazy`
 
@@ -962,3 +1032,5 @@ Importing `@suite/ui/config` is now a type and module-resolution error.
 
 - Lines to drop: the `configureSuiteUi` import from `@suite/ui/config` and the whole `configureSuiteUi({ filterBar, selectWidth, userMenu, tableScroll, tableRowHover, tableActions })` call with its comment in `client/src/i18n/index.ts`.
 - Surfaces whose look changes: every list's FilterBar only (`block` → search first; the filter block moves from left of the search to right of it, before reset and sort). Update the Iris baselines of the affected lists. Select widths, user menu and tables are unchanged.
+
+**Migration (nachgetragen):** export `@suite/ui/config` (`configureSuiteUi`, `suiteUiConfig`, `SuiteUiConfig`) removed. `FilterBar` test ids: `filterbar-filters` and `filterbar-search-group` removed; filters, reset and sort sit in the new `filterbar-controls`. Baselines: 14 changed, `list-*` and `list-bottom-*` (de/en/es, light/dark) and `tiles-en-*`.
