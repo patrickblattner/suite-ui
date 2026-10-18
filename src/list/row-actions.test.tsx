@@ -97,6 +97,15 @@ describe("RowActions (SUI-FEATURE-047)", () => {
     expect(onRowClick).toHaveBeenCalledOnce();
   });
 
+  it("GL-UI-015: a click on the empty part of the actions cell opens the row, with w-full too", () => {
+    const onRowClick = renderRow({ className: "w-full" });
+    const cluster = screen.getByTestId("actions").querySelector('[data-slot="row-actions"]');
+    fireEvent.click(cluster as HTMLElement);
+    expect(onRowClick).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByTestId("row-copy"));
+    expect(onRowClick).toHaveBeenCalledOnce();
+  });
+
   it.each(["Enter", " "])("AC5: %j on an action reaches neither the row nor its table", (key) => {
     const onRowKey = vi.fn();
     const onEdit = vi.fn();

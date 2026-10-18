@@ -315,9 +315,9 @@ function RowActionsHead(props: Omit<React.ComponentProps<typeof TableHead>, "chi
 }
 
 // The action cluster at the end of a row (`GL-UI-011`, `GL-UI-023`): extra actions as `outline` on
-// the left, then edit (`warn`), the overflow menu (`outline`) and delete (`destructive`), all `icon-xs`. A click on the cluster, a
+// the left, then edit (`warn`), the overflow menu (`outline`) and delete (`destructive`), all `icon-xs`. A click on an action, a
 // locked action included, never reaches the row, so it does not open the row's target; neither does
-// Enter or Space on an action.
+// Enter or Space on an action. A click on the empty part of the cell does open the row (`GL-UI-015`).
 function RowActions({
   rowName,
   usage,
@@ -349,7 +349,9 @@ function RowActions({
     <TableCell data-col-kind="actions" {...cellProps}>
       <div
         className="flex items-center justify-end gap-1"
-        onClick={(event) => event.stopPropagation()}
+        onClick={(event) => {
+          if (event.target !== event.currentTarget) event.stopPropagation();
+        }}
         // The keys that activate a button would also open the row in a keyboard grid.
         onKeyDown={(event) => {
           if (ROW_KEYS.has(event.key)) event.stopPropagation();
