@@ -2,12 +2,10 @@ import { SaveIcon } from "lucide-react";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 import {
-  type BlockerFunction,
+  type Blocker,
   UNSAFE_DataRouterContext as DataRouterContext,
-  type Location,
-  NavigationType,
+  UNSAFE_DataRouterStateContext as DataRouterStateContext,
   UNSAFE_NavigationContext as NavigationContext,
-  useBlocker,
 } from "react-router-dom";
 
 import { isInDialog } from "../lib/keyboard.js";
@@ -242,8 +240,20 @@ function wrapNavigator(navigator: RouterNavigator): NavigatorHolds {
   installLeaveGuard();
   const holds: Hold[] = [];
   let passTo: number | null = null;
-  const through = (leave: () => void, stay?: () => void, again?: () => void) =>
-    runHolds([...holds], leave, stay, again);
+  // The key of the entry the app stands on: a browser `POP` is taken while the history already
+  // shows its target, so it is noted when a change lands, not read when one is held.
+  let at = locationKey(navigator);
+  // `again` goes on only while its change is the latest one held on this navigator and the app still
+  // stands where it was held: a late apply (`SUI-FEATURE-094`) drops a change the user left or
+  // replaced. The location is read when `again` comes, not noted: once no hold remains the navigator
+  // is unwrapped, and a change the user makes then passes no wrapper.
+  const through = (leave: () => void, stay?: () => void, again?: () => void) => {
+    const change = (heldChanges.get(navigator) ?? 0) + 1;
+    heldChanges.set(navigator, change);
+    const from = at;
+    const current = () => change === heldChanges.get(navigator) && locationKey(navigator) === from;
+    runHolds([...holds], leave, stay, again && (() => current() && again()));
+  };
   const push = navigator.push.bind(navigator);
   const replace = navigator.replace.bind(navigator);
   const go = navigator.go.bind(navigator);
@@ -253,6 +263,7 @@ function wrapNavigator(navigator: RouterNavigator): NavigatorHolds {
   const settle = () => {
     index = historyIndex(window.history.state);
     passTo = null;
+    at = locationKey(navigator);
   };
   // `again` goes through the navigator's methods as they are then: the holds active by then ask.
   navigator.push = (...args) =>
@@ -284,6 +295,8 @@ function wrapNavigator(navigator: RouterNavigator): NavigatorHolds {
       () => {
         passing(delta);
         go(delta);
+        // A memory history has gone already; a browser one notes it with its `popstate`.
+        at = locationKey(navigator);
       },
       undefined,
       () => navigator.go(delta),
@@ -299,6 +312,7 @@ function wrapNavigator(navigator: RouterNavigator): NavigatorHolds {
     if (to === null || index === null || to === index || to === passTo) {
       passTo = null;
       index = to;
+      at = locationKey(navigator);
       return;
     }
     const delta = to - index;
@@ -325,6 +339,15 @@ function wrapNavigator(navigator: RouterNavigator): NavigatorHolds {
   return { holds, restore };
 }
 
+// Counts the changes held on each navigator, so a late `again` knows a newer one came; kept beyond
+// the navigator's wrapping, which ends and starts again with its holds.
+const heldChanges = new WeakMap<RouterNavigator, number>();
+
+// `BrowserRouter` and `MemoryRouter` pass their history as the navigator; it knows its location.
+function locationKey(navigator: RouterNavigator): string | undefined {
+  return (navigator as { location?: { key?: string } }).location?.key;
+}
+
 // Adds `hold` to the navigator's holds; the undo removes exactly this one, in any order, and unwraps
 // the navigator with the last.
 function holdNavigator(navigator: RouterNavigator, hold: Hold): () => void {
@@ -345,112 +368,70 @@ function holdNavigator(navigator: RouterNavigator, hold: Hold): () => void {
   };
 }
 
-// A data router consults only its last blocker, so all guards of one router share one: the first
-// active guard mounts it, and a blocked route change runs through the holds that wanted it blocked
-// at that moment (a confirmed leave no longer does). While a change is blocked the blocker stays
-// with its guard (`frozen`), even when that guard turns inactive: its `again` (`SUI-FEATURE-094`)
-// still needs the blocker's `proceed`.
+// A data router consults only its last blocker, so all guards of one router share one. The router
+// entry owns it, not a guard: it stays registered while a change is blocked, even when every guard
+// that held it unmounted meanwhile (a panel the apply closes, `SUI-FEATURE-094`), so the change goes
+// on through the blocker's own `proceed`, with all it came with (a submission's data, a browser
+// step, the basename). It goes once no guard holds and nothing is blocked.
 type RouterHold = { hold: Hold; blocks: () => boolean };
 type RouterHolds = {
   holds: RouterHold[];
+  // The holds that wanted the change last blocked, and the blocked state last run through them.
   blocking: Hold[];
-  frozen: RouterHold | null;
-  // How the change last blocked came: its history action and, for a browser `POP`, the index of its
-  // target entry; `pass` is the key of a target entry whose restarted `POP` passes once: the next
-  // `popstate` ends it, whether a blocker was there to use it or not.
-  held: { action: NavigationType; target: number | null };
-  pass: string | null;
-  listeners: Set<() => void>;
+  run: BlockedBlocker | null;
+  // Unregisters the blocker once nothing holds or is blocked; set while it is registered.
+  settle: (() => void) | null;
 };
 type DataRouter = NonNullable<React.ContextType<typeof DataRouterContext>>["router"];
 
 const routerHolds = new WeakMap<DataRouter, RouterHolds>();
+// Blocker keys are per router; `useBlocker`'s own are numbers.
+const blockerKey = "suite-leave-guard";
 
 function routerEntry(router: DataRouter): RouterHolds {
   let entry = routerHolds.get(router);
   if (entry === undefined) {
-    entry = {
-      holds: [],
-      blocking: [],
-      frozen: null,
-      held: { action: NavigationType.Push, target: null },
-      pass: null,
-      listeners: new Set(),
-    };
+    entry = { holds: [], blocking: [], run: null, settle: null };
     routerHolds.set(router, entry);
   }
   return entry;
 }
 
+type BlockedBlocker = Extract<Blocker, { state: "blocked" }>;
+
+function heldBlocker(router: DataRouter): BlockedBlocker | undefined {
+  const blocker = router.state.blockers.get(blockerKey);
+  return blocker?.state === "blocked" ? blocker : undefined;
+}
+
+// Registers the shared blocker with the first hold; once the last hold is gone it goes as soon as
+// no change is blocked.
 function holdRouter(router: DataRouter, hold: RouterHold): () => void {
   const entry = routerEntry(router);
-  const changed = () => entry.listeners.forEach((listener) => listener());
   entry.holds.push(hold);
-  changed();
+  if (entry.settle === null) {
+    router.getBlocker(blockerKey, () => collectBlocking(entry));
+    const settle = () => {
+      if (entry.run !== null && heldBlocker(router) !== entry.run) entry.run = null;
+      if (entry.holds.length > 0 || heldBlocker(router) !== undefined) return;
+      unsubscribe();
+      router.deleteBlocker(blockerKey);
+      entry.settle = null;
+    };
+    const unsubscribe = router.subscribe(settle);
+    entry.settle = settle;
+  }
   return () => {
     const at = entry.holds.indexOf(hold);
     if (at !== -1) entry.holds.splice(at, 1);
-    changed();
+    entry.settle?.();
   };
 }
 
-// Notes which holds want this route change blocked, for the blocked state to run through, and how the
-// change came. A browser `POP` runs while the history already stands on its target entry: the
-// address and the entry's key are the target's (the first entry has no key of its own, "default").
-function collectBlocking(
-  router: DataRouter,
-  entry: RouterHolds,
-  { nextLocation, historyAction }: { nextLocation: Location; historyAction: NavigationType },
-): boolean {
-  if (historyAction === NavigationType.Pop && nextLocation.key === entry.pass) {
-    entry.pass = null;
-    return false;
-  }
+// Notes which holds want this route change blocked, for the blocked state to run through.
+function collectBlocking(entry: RouterHolds): boolean {
   entry.blocking = blockingNow(entry);
-  const state = window.history.state as { key?: unknown } | null;
-  const onTarget =
-    (state?.key ?? "default") === nextLocation.key &&
-    window.location.href.endsWith(router.createHref(nextLocation));
-  entry.held = { action: historyAction, target: onTarget ? historyIndex(state) : null };
   return entry.blocking.length > 0;
-}
-
-// Starts a held change anew once its blocker is gone, as it came: a push or a replace with its state,
-// a browser `POP` by the same step through the history. A `POP` whose step is unknown (a memory
-// history) goes to its target as a push.
-function restart(
-  router: DataRouter,
-  entry: RouterHolds,
-  { action, target }: RouterHolds["held"],
-  location: Location,
-) {
-  const now = historyIndex(window.history.state);
-  if (action === NavigationType.Pop && target !== null && now !== null) {
-    entry.pass = location.key;
-    // Added after the router's own listener, so it runs once the router has seen the step.
-    window.addEventListener(
-      "popstate",
-      () => {
-        if (entry.pass === location.key) entry.pass = null;
-      },
-      { once: true },
-    );
-    void router.navigate(target - now);
-    return;
-  }
-  void router.navigate(location, {
-    replace: action === NavigationType.Replace,
-    state: location.state,
-  });
-}
-
-// Keeps the blocker with `owner` while a change is blocked, and lets it go once none is.
-function freeze(entry: RouterHolds, owner: RouterHold, blocked: boolean) {
-  if (blocked) entry.frozen = owner;
-  else if (entry.frozen === owner) {
-    entry.frozen = null;
-    entry.listeners.forEach((listener) => listener());
-  }
 }
 
 // The holds that want a change blocked now, innermost last.
@@ -458,44 +439,34 @@ function blockingNow(entry: RouterHolds): Hold[] {
   return entry.holds.filter((hold) => hold.blocks()).map((hold) => hold.hold);
 }
 
-function DataRouterBlocker({
-  router,
-  entry,
-  owner,
-}: {
-  router: DataRouter;
-  entry: RouterHolds;
-  owner: RouterHold;
-}) {
-  const shouldBlock = React.useCallback<BlockerFunction>(
-    (args) => collectBlocking(router, entry, args),
-    [router, entry],
-  );
-  const blocker = useBlocker(shouldBlock);
-  // Unmounted, the blocker is gone: the freeze ends, so the next active guard mounts its own, and a
-  // change still held then is started anew, through that blocker.
-  const live = React.useRef(true);
+// Runs a newly blocked change through the holds that wanted it blocked, once, from whichever guard
+// commits first. Its `proceed`, `reset` and `again` act only while that change is still the one
+// blocked: once it went, was reset or a newer change took its place, a late answer is dropped.
+function runBlocked(router: DataRouter, entry: RouterHolds) {
+  const blocker = heldBlocker(router);
+  if (blocker === undefined || entry.run === blocker) return;
+  entry.run = blocker;
+  // A newer change still loading has not reset the blocker yet, but it takes the place all the same.
+  const current = () => heldBlocker(router) === blocker && router.state.navigation.state === "idle";
+  const proceed = () => {
+    if (current()) blocker.proceed();
+  };
+  const reset = () => {
+    if (current()) blocker.reset();
+  };
+  const again = (): void => {
+    if (current()) runHolds(blockingNow(entry), proceed, reset, again);
+  };
+  runHolds(entry.blocking, proceed, reset, again);
+}
+
+// Every guard watches the router's blockers from this leaf, so its host does not render on each router
+// update; the first to commit after a change blocked runs it.
+function BlockedRunner({ router }: { router: DataRouter }) {
+  const blockers = React.useContext(DataRouterStateContext)?.blockers;
   React.useEffect(() => {
-    live.current = true;
-    return () => {
-      live.current = false;
-      freeze(entry, owner, false);
-    };
-  }, [entry, owner]);
-  React.useEffect(() => {
-    if (blocker.state === "proceeding") return;
-    freeze(entry, owner, blocker.state === "blocked");
-    if (blocker.state !== "blocked") return;
-    const { location } = blocker;
-    const { held } = entry;
-    const proceed = () =>
-      live.current ? blocker.proceed() : restart(router, entry, held, location);
-    const reset = () => {
-      if (live.current) blocker.reset();
-    };
-    const again = (): void => runHolds(blockingNow(entry), proceed, reset, again);
-    runHolds(entry.blocking, proceed, reset, again);
-  }, [blocker, entry, owner, router]);
+    runBlocked(router, routerEntry(router));
+  }, [router, blockers]);
   return null;
 }
 
@@ -585,11 +556,19 @@ function useLeaveConfirm({ dirty, busy, onSave, onDiscard, applies }: LeaveConfi
   // A route change held by a surface that only applies (`SUI-FEATURE-094`): the applied values make
   // the page around it dirty only once it has rendered. The change runs `again` after that commit,
   // so the page's own hold, active by then, asks "Save changes?" before the route goes. A surface the
-  // apply unmounts starts it from its cleanup, which runs in that same commit.
+  // apply unmounts starts it from its cleanup, which runs in that same commit, or, when the apply
+  // settles only after that cleanup, at once.
   const resume = React.useRef<PendingLeave | null>(null);
   const [resumed, setResumed] = React.useState(0);
+  const mounted = React.useRef(true);
   React.useEffect(() => resumeAfterCommit(resume, releasing), [resumed]);
-  React.useEffect(() => () => resumeAfterCommit(resume, releasing), []);
+  React.useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      resumeAfterCommit(resume, releasing);
+    };
+  }, []);
 
   // Outside a data router the navigator of `BrowserRouter`/`MemoryRouter` takes every in-app route
   // change (links, the navigation, `navigate()`); while held its methods ask first.
@@ -613,24 +592,11 @@ function useLeaveConfirm({ dirty, busy, onSave, onDiscard, applies }: LeaveConfi
     if (!active || router === undefined) return;
     return holdRouter(router, routerHold);
   }, [active, router, routerHold]);
-  const shared = router === undefined ? undefined : routerEntry(router);
-  const ownsBlocker = React.useSyncExternalStore(
-    React.useCallback(
-      (listener: () => void) => {
-        shared?.listeners.add(listener);
-        return () => shared?.listeners.delete(listener);
-      },
-      [shared],
-    ),
-    () => (shared?.frozen ?? shared?.holds[0]) === routerHold,
-  );
 
   const close = () => ask(null);
   const dialog = (
     <>
-      {router !== undefined && shared !== undefined && ownsBlocker && (
-        <DataRouterBlocker router={router} entry={shared} owner={routerHold} />
-      )}
+      {router !== undefined && <BlockedRunner router={router} />}
       <LeaveConfirmDialog
         open={pending !== null}
         applies={applies}
@@ -658,7 +624,8 @@ function useLeaveConfirm({ dirty, busy, onSave, onDiscard, applies }: LeaveConfi
                       else if (applies !== true || pending.again === undefined) release(pending);
                       else {
                         resume.current = pending;
-                        setResumed((count) => count + 1);
+                        if (mounted.current) setResumed((count) => count + 1);
+                        else resumeAfterCommit(resume, releasing);
                       }
                     },
                     () => pending.stay?.(),

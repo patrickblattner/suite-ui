@@ -5,8 +5,10 @@ import {
   BrowserRouter,
   createBrowserRouter,
   createMemoryRouter,
+  Form,
   Link,
   MemoryRouter,
+  Outlet,
   Route,
   RouterProvider,
   Routes,
@@ -609,7 +611,14 @@ describe("EditPanel leave guard: focus, keys and routes (GL-UI-007)", () => {
 // SUI-FEATURE-094 AC5: a glossary panel over a page with a page Save; Apply on a route leave hands
 // the leave on to the page, which is dirty by then and asks first.
 // `unmount`: the call site renders the panel only while open, so the apply unmounts it.
-function GlossaryPage({ unmount = false }: { unmount?: boolean }) {
+// `late`: the apply settles only once its promise does (an async `onSubmit`).
+function GlossaryPage({
+  unmount = false,
+  late,
+}: {
+  unmount?: boolean;
+  late?: () => Promise<unknown>;
+}) {
   const [open, setOpen] = useState(false);
   const [term, setTerm] = useState("");
   const [terms, setTerms] = useState<string[]>([]);
@@ -645,7 +654,7 @@ function GlossaryPage({ unmount = false }: { unmount?: boolean }) {
             setTerms((list) => [...list, term]);
             setTerm("");
             setOpen(false);
-            return true;
+            return late === undefined ? true : late().then(() => true);
           }}
         >
           <Input aria-label="Name" value={term} onChange={(event) => setTerm(event.target.value)} />
@@ -655,6 +664,63 @@ function GlossaryPage({ unmount = false }: { unmount?: boolean }) {
     </>
   );
 }
+
+// Review #277: a route change of the app's own, outside the page.
+function GoB() {
+  const navigate = useNavigate();
+  return (
+    <button type="button" data-testid="go-b" onClick={() => void navigate("/b")}>
+      B
+    </button>
+  );
+}
+
+// A panel whose late apply leaves the page clean: nothing holds while it settles.
+function CleanLatePage({ late }: { late: () => Promise<unknown> }) {
+  const [open, setOpen] = useState(false);
+  const [term, setTerm] = useState("");
+  return (
+    <>
+      <Where />
+      <Link to="/other" data-testid="nav">
+        Other
+      </Link>
+      <button type="button" data-testid="row" onClick={() => setOpen(true)}>
+        Glossary
+      </button>
+      {open && (
+        <EditPanel
+          open={open}
+          onOpenChange={setOpen}
+          title="Term"
+          submitKind="apply"
+          dirty={term !== ""}
+          onSubmit={() => {
+            setTerm("");
+            setOpen(false);
+            return late().then(() => true);
+          }}
+        >
+          <Input aria-label="Name" value={term} onChange={(event) => setTerm(event.target.value)} />
+        </EditPanel>
+      )}
+    </>
+  );
+}
+
+function deferred() {
+  let settle = () => {};
+  const promise = new Promise<void>((done) => {
+    settle = done;
+  });
+  return { promise, settle };
+}
+
+const settleAndWait = (settle: () => void) =>
+  act(() => {
+    settle();
+    return new Promise((done) => window.setTimeout(done, 30));
+  });
 
 describe("Apply on a route leave (SUI-FEATURE-094 AC5)", () => {
   async function applyThenPageAsks() {
@@ -818,6 +884,329 @@ describe("Apply on a route leave (SUI-FEATURE-094 AC5)", () => {
       router.dispose();
     },
   );
+
+  // #277: a held submission is restarted with its method and data, not as a GET without them.
+  it.each([false, true])(
+    "a held form post stays a post with its data (panel unmounted: %s)",
+    async (unmount) => {
+      const posted: unknown[] = [];
+      const router = createMemoryRouter(
+        [
+          {
+            path: "/list",
+            element: (
+              <>
+                <GlossaryPage unmount={unmount} />
+                <Form method="post" action="/other">
+                  <input type="hidden" name="term" value="Main" />
+                  <button type="submit" data-testid="nav-post">
+                    Post
+                  </button>
+                </Form>
+              </>
+            ),
+          },
+          {
+            path: "/other",
+            action: async ({ request }) => {
+              posted.push((await request.formData()).get("term"));
+              return null;
+            },
+            element: <Where />,
+          },
+        ],
+        { initialEntries: ["/list"] },
+      );
+      render(<RouterProvider router={router} />);
+      await applyAndAnswer(() => fireEvent.click(screen.getByTestId("nav-post")));
+      await waitFor(() => expect(router.state.location.pathname).toBe("/other"));
+      expect(posted).toEqual(["Main"]);
+    },
+  );
+
+  // #277: a held forward goes on by the step it came with, even when the history moved meanwhile;
+  // never `go(0)`, which would reload the page.
+  it("a held step goes on by its own step, never as a reload", async () => {
+    window.history.replaceState(null, "", "/start");
+    const router = createBrowserRouter([
+      { path: "/list", element: <GlossaryPage unmount /> },
+      { path: "*", element: <Where /> },
+    ]);
+    render(<RouterProvider router={router} />);
+    await act(() => router.navigate("/list"));
+    await act(() => router.navigate("/other"));
+    act(() => window.history.back());
+    await waitFor(() => expect(router.state.location.pathname).toBe("/list"));
+    fireEvent.click(screen.getByTestId("row"));
+    edit();
+    act(() => window.history.forward());
+    fireEvent.click(await screen.findByTestId("leave-guard-save"));
+    await waitFor(() =>
+      expect(within(screen.getByTestId("leave-guard")).getByRole("heading")).toHaveTextContent(
+        "Save changes?",
+      ),
+    );
+    // The history moves on behind the router: the held forward's target index is now the current one.
+    const state = window.history.state as { idx: number };
+    window.history.pushState({ ...state, key: "moved", idx: state.idx + 1 }, "", "/list");
+    const go = vi.spyOn(window.history, "go");
+    fireEvent.click(screen.getByTestId("leave-guard-save"));
+    await waitFor(() => expect(go).toHaveBeenCalledWith(1));
+    expect(go).not.toHaveBeenCalledWith(0);
+    go.mockRestore();
+    router.dispose();
+  });
+
+  // #278 CX1: the restarted change lands at its target once, not under the basename twice.
+  it.each([false, true])(
+    "under a basename the change lands at its target (panel unmounted: %s)",
+    async (unmount) => {
+      const router = createMemoryRouter(
+        [
+          { path: "/list", element: <GlossaryPage unmount={unmount} /> },
+          { path: "*", element: <Where /> },
+        ],
+        { initialEntries: ["/app/list"], basename: "/app" },
+      );
+      render(<RouterProvider router={router} />);
+      await applyAndAnswer(() => fireEvent.click(screen.getByTestId("nav")));
+      await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/other"));
+      expect(router.state.location.pathname).toBe("/app/other");
+    },
+  );
+
+  // #278 CX2: an apply that settles after the panel unmounted still hands the leave on to the page.
+  it.each([false, true])(
+    "a late apply still hands the leave on to the page (panel unmounted: %s)",
+    async (unmount) => {
+      const router = createMemoryRouter(
+        [
+          {
+            path: "/list",
+            element: (
+              <GlossaryPage
+                unmount={unmount}
+                late={() => new Promise((done) => window.setTimeout(done, 20))}
+              />
+            ),
+          },
+          { path: "*", element: <Where /> },
+        ],
+        { initialEntries: ["/list"] },
+      );
+      render(<RouterProvider router={router} />);
+      await applyAndAnswer(() => fireEvent.click(screen.getByTestId("nav")));
+      await waitFor(() => expect(router.state.location.pathname).toBe("/other"));
+    },
+  );
+
+  // Review #277: a late apply resumes its change only while that change is still the one held.
+  async function applyLate(unmount: boolean) {
+    let settle = () => {};
+    const applied = new Promise<void>((done) => {
+      settle = done;
+    });
+    const router = createMemoryRouter(
+      [
+        { path: "/list", element: <GlossaryPage unmount={unmount} late={() => applied} /> },
+        { path: "*", element: <Where /> },
+      ],
+      { initialEntries: ["/list"] },
+    );
+    render(<RouterProvider router={router} />);
+    fireEvent.click(screen.getByTestId("row"));
+    edit();
+    fireEvent.click(screen.getByTestId("nav"));
+    fireEvent.click(screen.getByTestId("leave-guard-save"));
+    await waitFor(() => expect(screen.queryByTestId("leave-guard")).toBeNull());
+    // The applied term makes the page dirty; a newer change asks there.
+    await act(() => router.navigate("/b"));
+    await waitFor(() =>
+      expect(within(screen.getByTestId("leave-guard")).getByRole("heading")).toHaveTextContent(
+        "Save changes?",
+      ),
+    );
+    return { router, settle };
+  }
+
+  it.each([false, true])(
+    "a late apply after the user left does not go to the old target (panel unmounted: %s)",
+    async (unmount) => {
+      const { router, settle } = await applyLate(unmount);
+      fireEvent.click(screen.getByTestId("leave-guard-discard"));
+      await waitFor(() => expect(router.state.location.pathname).toBe("/b"));
+      await act(() => {
+        settle();
+        return new Promise((done) => window.setTimeout(done, 20));
+      });
+      expect(router.state.location.pathname).toBe("/b");
+    },
+  );
+
+  it.each([false, true])(
+    "a late apply with a newer change pending lets the newer one win (panel unmounted: %s)",
+    async (unmount) => {
+      const { router, settle } = await applyLate(unmount);
+      await act(() => {
+        settle();
+        return new Promise((done) => window.setTimeout(done, 20));
+      });
+      fireEvent.click(screen.getByTestId("leave-guard-save"));
+      await waitFor(() => expect(router.state.location.pathname).toBe("/b"));
+      await new Promise((done) => window.setTimeout(done, 20));
+      expect(router.state.location.pathname).toBe("/b");
+    },
+  );
+
+  // Review #277 (N1): under a navigator router too, a late apply drops a change the user left.
+  it("navigator router: a late apply after the user left does not go to the old target", async () => {
+    const applied = deferred();
+    render(
+      <MemoryRouter initialEntries={["/list"]}>
+        <GoB />
+        <Routes>
+          <Route path="/list" element={<GlossaryPage unmount late={() => applied.promise} />} />
+          <Route path="*" element={<Where />} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    fireEvent.click(screen.getByTestId("row"));
+    edit();
+    fireEvent.click(screen.getByTestId("nav"));
+    fireEvent.click(screen.getByTestId("leave-guard-save"));
+    await waitFor(() => expect(screen.queryByTestId("leave-guard")).toBeNull());
+    fireEvent.click(screen.getByTestId("go-b"));
+    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+    await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/b"));
+    await settleAndWait(applied.settle);
+    expect(screen.getByTestId("path")).toHaveTextContent("/b");
+  });
+
+  // Review #277 (fix round): the apply leaves the page clean, so nothing holds while the user leaves.
+  it.each(["MemoryRouter", "BrowserRouter"])(
+    "%s: a late apply that leaves the page clean does not go to the old target after a free leave",
+    async (name) => {
+      window.history.replaceState(null, "", "/list");
+      const applied = deferred();
+      const app = (
+        <>
+          <GoB />
+          <Routes>
+            <Route path="/list" element={<CleanLatePage late={() => applied.promise} />} />
+            <Route path="*" element={<Where />} />
+          </Routes>
+        </>
+      );
+      render(
+        name === "MemoryRouter" ? (
+          <MemoryRouter initialEntries={["/list"]}>{app}</MemoryRouter>
+        ) : (
+          <BrowserRouter>{app}</BrowserRouter>
+        ),
+      );
+      fireEvent.click(screen.getByTestId("row"));
+      edit();
+      fireEvent.click(screen.getByTestId("nav"));
+      fireEvent.click(screen.getByTestId("leave-guard-save"));
+      await waitFor(() => expect(screen.queryByTestId("edit-panel")).toBeNull());
+      fireEvent.click(screen.getByTestId("go-b"));
+      await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/b"));
+      await settleAndWait(applied.settle);
+      expect(screen.getByTestId("path")).toHaveTextContent("/b");
+    },
+  );
+
+  // Review #277 (N2): a newer change still loading takes the place of the held one.
+  it("a late apply while a newer change is still loading lets the newer one win", async () => {
+    const applied = deferred();
+    const loaded = deferred();
+    const router = createMemoryRouter(
+      [
+        { path: "/list", element: <CleanLatePage late={() => applied.promise} /> },
+        { path: "/b", loader: () => loaded.promise.then(() => null), element: <Where /> },
+        { path: "*", element: <Where /> },
+      ],
+      { initialEntries: ["/list"] },
+    );
+    render(<RouterProvider router={router} />);
+    fireEvent.click(screen.getByTestId("row"));
+    edit();
+    fireEvent.click(screen.getByTestId("nav"));
+    fireEvent.click(screen.getByTestId("leave-guard-save"));
+    await waitFor(() => expect(screen.queryByTestId("edit-panel")).toBeNull());
+    act(() => {
+      void router.navigate("/b");
+    });
+    await waitFor(() => expect(router.state.navigation.state).toBe("loading"));
+    await settleAndWait(applied.settle);
+    await settleAndWait(loaded.settle);
+    expect(router.state.location.pathname).toBe("/b");
+  });
+
+  // Review #277 (N4): a guard's host does not render on router updates that do not concern it.
+  it("a guard's host does not render on revalidations and fetches", async () => {
+    const rendered = vi.fn();
+    function Host() {
+      rendered();
+      const { dialog } = useLeaveGuard({ dirty: false, onLeave: () => {} });
+      return dialog;
+    }
+    const router = createMemoryRouter(
+      [
+        { path: "/list", loader: () => null, element: <Host /> },
+        { path: "/data", loader: () => 1 },
+      ],
+      { initialEntries: ["/list"] },
+    );
+    render(<RouterProvider router={router} />);
+    await waitFor(() => expect(router.state.initialized).toBe(true));
+    const before = rendered.mock.calls.length;
+    for (const key of ["a", "b", "c"]) {
+      await act(() => router.revalidate());
+      await act(() => {
+        void router.fetch(key, "0", "/data");
+        return new Promise((done) => window.setTimeout(done, 10));
+      });
+    }
+    expect(rendered.mock.calls.length - before).toBe(0);
+  });
+
+  // Review #277: a form rendered before any guard (a layout's header form) still posts its data.
+  it("a held post from a layout form rendered before the guard keeps its data", async () => {
+    const posted: unknown[] = [];
+    const router = createMemoryRouter(
+      [
+        {
+          path: "/",
+          element: (
+            <>
+              <Form method="post" action="/other">
+                <input type="hidden" name="term" value="Main" />
+                <button type="submit" data-testid="nav-post">
+                  Post
+                </button>
+              </Form>
+              <Outlet />
+            </>
+          ),
+          children: [{ path: "list", element: <GlossaryPage unmount /> }],
+        },
+        {
+          path: "/other",
+          action: async ({ request }) => {
+            posted.push((await request.formData()).get("term"));
+            return null;
+          },
+          element: <Where />,
+        },
+      ],
+      { initialEntries: ["/list"] },
+    );
+    render(<RouterProvider router={router} />);
+    await applyAndAnswer(() => fireEvent.click(screen.getByTestId("nav-post")));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/other"));
+    expect(posted).toEqual(["Main"]);
+  });
 
   it("Discard on the page's question leaves without saving", async () => {
     render(
@@ -1159,6 +1548,121 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
     await waitFor(() => expect(router.state.location.pathname).toBe("/list"));
     expect(screen.queryByTestId("leave-guard")).toBeNull();
   });
+});
+
+// Review #277 (R3): under `BrowserRouter` a held browser back goes on once its panel lets it pass.
+describe("browser back held by a panel under BrowserRouter (review #277)", () => {
+  function App({ list }: { list: ReactNode }) {
+    const navigate = useNavigate();
+    return (
+      <>
+        <button type="button" data-testid="open-list" onClick={() => void navigate("/list")}>
+          List
+        </button>
+        <Routes>
+          <Route path="/list" element={list} />
+          <Route path="*" element={<Where />} />
+        </Routes>
+      </>
+    );
+  }
+
+  async function backFromPanel(list: ReactNode, answer: string) {
+    window.history.replaceState(null, "", "/start");
+    render(
+      <BrowserRouter>
+        <App list={list} />
+      </BrowserRouter>,
+    );
+    fireEvent.click(screen.getByTestId("open-list"));
+    expect(window.location.pathname).toBe("/list");
+    fireEvent.click(screen.getByTestId("row"));
+    edit();
+    act(() => window.history.back());
+    expect(within(await screen.findByTestId("leave-guard")).getByRole("heading")).toHaveTextContent(
+      answer,
+    );
+    // The pop that puts the address back arrives first.
+    await act(() => new Promise((done) => window.setTimeout(done, 30)));
+    fireEvent.click(screen.getByTestId("leave-guard-save"));
+  }
+
+  it.each([false, true])(
+    "apply panel: Back, Apply and the page's Save land at the target (panel unmounted: %s)",
+    async (unmount) => {
+      await backFromPanel(<GlossaryPage unmount={unmount} />, "Apply changes?");
+      await waitFor(() =>
+        expect(within(screen.getByTestId("leave-guard")).getByRole("heading")).toHaveTextContent(
+          "Save changes?",
+        ),
+      );
+      fireEvent.click(screen.getByTestId("leave-guard-save"));
+      await waitFor(() => expect(window.location.pathname).toBe("/start"));
+      expect(screen.getByTestId("path")).toHaveTextContent("/start");
+    },
+  );
+
+  it("apply panel: a late Apply still hands the Back on to the page", async () => {
+    await backFromPanel(
+      <GlossaryPage unmount late={() => new Promise((done) => window.setTimeout(done, 20))} />,
+      "Apply changes?",
+    );
+    await waitFor(() =>
+      expect(within(screen.getByTestId("leave-guard")).getByRole("heading")).toHaveTextContent(
+        "Save changes?",
+      ),
+    );
+    fireEvent.click(screen.getByTestId("leave-guard-save"));
+    await waitFor(() => expect(window.location.pathname).toBe("/start"));
+  });
+
+  it("save panel: Back and Save land at the target", async () => {
+    await backFromPanel(<ListWithPanel />, "Save changes?");
+    await waitFor(() => expect(window.location.pathname).toBe("/start"));
+    expect(screen.getByTestId("path")).toHaveTextContent("/start");
+  });
+});
+
+// Review #277 (R3-2): a change held on another navigator leaves a late apply's change alone.
+it("a route change on a second router does not drop a late apply's held change", async () => {
+  function GoX() {
+    const navigate = useNavigate();
+    return (
+      <button type="button" data-testid="go-x" onClick={() => void navigate("/x")}>
+        X
+      </button>
+    );
+  }
+  function Busy() {
+    const { dialog } = useLeaveGuard({ dirty: false, busy: true, onLeave: () => {} });
+    return dialog;
+  }
+  const applied = deferred();
+  render(
+    <>
+      <MemoryRouter initialEntries={["/list"]}>
+        <Routes>
+          <Route path="/list" element={<GlossaryPage late={() => applied.promise} />} />
+          <Route path="*" element={<Where />} />
+        </Routes>
+      </MemoryRouter>
+      <MemoryRouter initialEntries={["/a"]}>
+        <Busy />
+        <GoX />
+      </MemoryRouter>
+    </>,
+  );
+  fireEvent.click(screen.getByTestId("row"));
+  edit();
+  fireEvent.click(screen.getByTestId("nav"));
+  fireEvent.click(screen.getByTestId("leave-guard-save"));
+  fireEvent.click(screen.getByTestId("go-x"));
+  await settleAndWait(applied.settle);
+  await waitFor(() =>
+    expect(within(screen.getByTestId("leave-guard")).getByRole("heading")).toHaveTextContent(
+      "Save changes?",
+    ),
+  );
 });
 
 describe("browser back and forward under BrowserRouter (GL-UI-007 rev 2)", () => {
