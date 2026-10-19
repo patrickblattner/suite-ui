@@ -529,3 +529,5 @@
 {"ts":"2026-10-19T21:13:03.169Z","key":"SUI-FEATURE-120","from":6,"to":7,"disposition":"ticket","ref":"344"}
 {"ts":"2026-10-19T21:13:11.608Z","key":"ADR-067","from":2,"to":3,"disposition":"editorial","ref":"process ADR: measured batch-agent context limit, enforced by toolkit hook; no code impact in suite-ui"}
 {"ts":"2026-10-19T21:13:23.112Z","key":"SUI-FEATURE-161","from":5,"to":6,"disposition":"ticket","ref":"370"}
+{"ts":"2026-10-19T21:47:37.737Z","key":"SUI-FEATURE-240","from":null,"to":2,"disposition":"ticket","ref":"374"}
+{"ts":"2026-10-19T21:47:37.737Z","key":"SUI-FEATURE-076","from":9,"to":10,"disposition":"ticket","ref":"374"}
