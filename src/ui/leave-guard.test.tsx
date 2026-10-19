@@ -1,9 +1,12 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import i18n from "i18next";
+// @ts-expect-error -- jsdom ships no types; the test environment brings it (a router's own window, #306)
+import { JSDOM as UntypedJSDOM } from "jsdom";
 import { type ComponentProps, type ReactNode, useState } from "react";
 import {
   BrowserRouter,
   createBrowserRouter,
+  createHashRouter,
   createMemoryRouter,
   Form,
   Link,
@@ -28,6 +31,11 @@ import { EditPanel, type EditPanelProps } from "./edit-panel.js";
 import { Input } from "./input.js";
 import { installLeaveGuard, isDirty, useLeaveGuard } from "./leave-guard.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select.js";
+
+const JSDOM = UntypedJSDOM as new (
+  html: string,
+  options: { url: string },
+) => { window: Window & typeof globalThis };
 
 beforeAll(() => {
   // As an app's entry does, before any router renders (#235).
@@ -3632,21 +3640,24 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
   // stale `idx` there does not let a guarded browser-step Back cut the submission off.
   it("#303: memory router, a guarded browser-step Back with a stale window idx waits for the submission", async () => {
     window.history.replaceState({ idx: 4, key: "stale" }, "");
-    const onDiscard = vi.fn();
-    const { action, seen, settle } = submission();
-    const router = submittingRouter(action, { page: <SpyPage onDiscard={onDiscard} /> });
-    await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
-    edit();
-    fireEvent.click(screen.getByTestId("step"));
-    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
-    await pause();
-    expect(router.state.location.pathname).toBe("/detail");
-    expect(seen.signal?.aborted).toBe(false);
-    expect(onDiscard).not.toHaveBeenCalled();
-    await settleAndWait(settle);
-    await waitFor(() => expect(router.state.location.pathname).toBe("/list"));
-    expect(onDiscard).toHaveBeenCalledTimes(1);
-    window.history.replaceState(null, "");
+    try {
+      const onDiscard = vi.fn();
+      const { action, seen, settle } = submission();
+      const router = submittingRouter(action, { page: <SpyPage onDiscard={onDiscard} /> });
+      await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+      edit();
+      fireEvent.click(screen.getByTestId("step"));
+      fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+      await pause();
+      expect(router.state.location.pathname).toBe("/detail");
+      expect(seen.signal?.aborted).toBe(false);
+      expect(onDiscard).not.toHaveBeenCalled();
+      await settleAndWait(settle);
+      await waitFor(() => expect(router.state.location.pathname).toBe("/list"));
+      expect(onDiscard).toHaveBeenCalledTimes(1);
+    } finally {
+      window.history.replaceState(null, "");
+    }
   });
 
   // Codex review v0.135.4 (CX1, #304): a memory router's first entry has the key "default", as a
@@ -3654,33 +3665,37 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
   // browser history leaves) does not make the memory router look like a browser router.
   it("#304: memory router, a guarded browser-step Back to the first entry with a keyless window idx waits", async () => {
     window.history.replaceState({ idx: 4 }, "");
-    const onDiscard = vi.fn();
-    const { action, seen, settle } = submission();
-    const router = submittingRouter(action, { page: <SpyPage onDiscard={onDiscard} /> });
-    await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
-    edit();
-    fireEvent.click(screen.getByTestId("step"));
-    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
-    await pause();
-    expect(router.state.location.pathname).toBe("/detail");
-    expect(seen.signal?.aborted).toBe(false);
-    expect(onDiscard).not.toHaveBeenCalled();
-    await settleAndWait(settle);
-    await waitFor(() => expect(router.state.location.pathname).toBe("/list"));
-    expect(onDiscard).toHaveBeenCalledTimes(1);
-    window.history.replaceState(null, "");
+    try {
+      const onDiscard = vi.fn();
+      const { action, seen, settle } = submission();
+      const router = submittingRouter(action, { page: <SpyPage onDiscard={onDiscard} /> });
+      await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+      edit();
+      fireEvent.click(screen.getByTestId("step"));
+      fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+      await pause();
+      expect(router.state.location.pathname).toBe("/detail");
+      expect(seen.signal?.aborted).toBe(false);
+      expect(onDiscard).not.toHaveBeenCalled();
+      await settleAndWait(settle);
+      await waitFor(() => expect(router.state.location.pathname).toBe("/list"));
+      expect(onDiscard).toHaveBeenCalledTimes(1);
+    } finally {
+      window.history.replaceState(null, "");
+    }
   });
 
   // A browser step held during a submission stays a step: to the entry it targeted, counted from where
   // the submission left the history; never `go(0)`, which would reload.
+  // `history` is a hash router's or a browser router's own `window` instead of the global one (#306).
   function browserSubmission(
     outcome: () => unknown,
     start = "/start",
     page: ReactNode = <DetailPage />,
+    history: "browser" | "hash" | Window = "browser",
   ) {
-    window.history.replaceState(null, "", start);
     const { action, settle } = submission(outcome);
-    const router = createBrowserRouter([
+    const routes: RouteObject[] = [
       {
         path: "/detail",
         action,
@@ -3692,7 +3707,18 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
         ),
       },
       { path: "*", element: <Where /> },
-    ]);
+    ];
+    let router: ReturnType<typeof createBrowserRouter>;
+    if (history === "hash") {
+      window.history.replaceState(null, "", `/#${start}`);
+      router = createHashRouter(routes);
+    } else if (history === "browser") {
+      window.history.replaceState(null, "", start);
+      router = createBrowserRouter(routes);
+    } else {
+      history.history.replaceState(null, "", start);
+      router = createBrowserRouter(routes, { window: history });
+    }
     render(<RouterProvider router={router} />);
     return { router, settle };
   }
@@ -3794,6 +3820,46 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
     },
   );
 
+  // #306: the window index comes from the router's own window, under a hash router and under a
+  // browser router created with its own `window` option: after a submission that pushed (a
+  // redirect), the guarded browser-step Back steps to the entry it targeted.
+  it.each(["hash router", "browser router with its own window"])(
+    "#306: %s, a guarded browser-step Back with Discard during a submission that pushed lands at its entry",
+    async (kind) => {
+      const own =
+        kind === "hash router" ? null : new JSDOM("", { url: "http://localhost/" }).window;
+      try {
+        const onDiscard = vi.fn();
+        const { router, settle } = browserSubmission(
+          () => redirect("/posted"),
+          "/start",
+          <SpyPage onDiscard={onDiscard} />,
+          own ?? "hash",
+        );
+        await act(() => router.navigate("/list"));
+        await act(() => router.navigate("/detail"));
+        act(() => {
+          void router.navigate("/detail", { formMethod: "post", formData: new FormData() });
+        });
+        await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+        edit();
+        fireEvent.click(screen.getByTestId("step"));
+        fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+        await pause();
+        expect(onDiscard).not.toHaveBeenCalled();
+        expect(router.state.navigation.state).toBe("submitting");
+        await settleAndWait(settle);
+        await waitFor(() => expect(router.state.location.pathname).toBe("/list"));
+        expect(router.state.historyAction).toBe("POP");
+        expect(onDiscard).toHaveBeenCalledTimes(1);
+        router.dispose();
+      } finally {
+        window.history.replaceState(null, "", "/");
+        own?.close();
+      }
+    },
+  );
+
   // Codex review v0.135.3 (CX1, #303): a guarded browser-step Back whose step never arrives (`go(-1)`
   // at the first entry fires no `popstate`) leaves no pass and no Discard for a later change.
   async function lostStep(onDiscard: () => void, first: boolean) {
@@ -3818,8 +3884,11 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
     edit();
     fireEvent.click(screen.getByTestId("step"));
     const go = vi.spyOn(window.history, "go").mockImplementationOnce(() => {});
-    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
-    go.mockRestore();
+    try {
+      fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+    } finally {
+      go.mockRestore();
+    }
     await pause();
     return { router, settle };
   }

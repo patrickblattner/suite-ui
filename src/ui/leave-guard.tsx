@@ -788,12 +788,12 @@ function isSubmission(opts: RouterNavigateOptions | undefined): boolean {
 // The window's history entry of a browser router's location: it keeps the key (without one the
 // location's is "default") and the index there. A memory router's first entry has the key "default"
 // too (#304), so only a router whose history owns the window's is read: a browser or hash history
-// resolves a relative path against the window's URL, a memory history leaves it as given.
+// resolves a relative path against the window's URL, a memory history leaves it as given. The window
+// is the router's own (its `window` option, else the global one, #306).
 function windowIndex(router: DataRouter, location: { key: string }): number | null {
-  if (typeof window === "undefined" || !router.encodeLocation("x").pathname.startsWith("/")) {
-    return null;
-  }
-  const state = window.history.state as { key?: unknown } | null;
+  const own = router.window;
+  if (own === undefined || !router.encodeLocation("x").pathname.startsWith("/")) return null;
+  const state = own.history.state as { key?: unknown } | null;
   const key = typeof state?.key === "string" ? state.key : "default";
   return key === location.key ? historyIndex(state) : null;
 }

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.136.1 — #306, SUI-FEATURE-172 rev 4, GL-UI-007: the guard reads the router's own window
+
+Fix, not breaking.
+
+- **A guarded Back that is a browser step (`guard(() => navigate(-1))`), let go with Discard during a submission, lands at its entry also under a browser router created with its own `window` option** (review #304). The guard read the global window's history for the router's index, so such a router was taken for one without the window's history and, after a submission that pushed, stepped from the wrong entry. It now reads the router's own window (`router.window`). A test under `createHashRouter` covers the same step there; the history state the #303/#304 tests set is reset in `finally`.
+
+**Migration:** none required. Baselines: none.
+
 ## 0.136.0 — #292, #299, SUI-FEATURE-160 rev 4, SUI-FEATURE-180 rev 3, SUI-DESIGN-002 rev 7 (Q&A #4050, Codex review v0.135.0 CX1, reviews #292): SlideView, SlidePlayer and the headless export draw a slide document in the DOM
 
 Feature, not breaking. Step 1 of the slide editor: the view the editor, the presentation and the export draw with.
