@@ -497,3 +497,9 @@
 {"ts":"2026-10-19T01:16:46.949Z","key":"SUI-FEATURE-161","from":4,"to":5,"disposition":"ticket","ref":"293"}
 {"ts":"2026-10-19T04:18:31.081Z","key":"SUI-FEATURE-190","from":null,"to":2,"disposition":"ticket","ref":"327"}
 {"ts":"2026-10-19T04:18:31.445Z","key":"SUI-FEATURE-180","from":3,"to":4,"disposition":"ticket","ref":"321"}
+{"ts":"2026-10-19T09:01:02.040Z","key":"GL-UI-002","from":13,"to":15,"disposition":"editorial","ref":"new media-item naming rule applies to a project's media stock; suite-ui holds no media stock (only shell/detail building blocks), no code impact"}
+{"ts":"2026-10-19T09:01:10.218Z","key":"GL-UX-001","from":3,"to":4,"disposition":"editorial","ref":"adds WCAG 2.2 AA as mandatory for the Community public website (review scope of that project); no suite-ui code change derived"}
+{"ts":"2026-10-19T09:01:18.177Z","key":"PROC-RUN-014","from":null,"to":2,"disposition":"editorial","ref":"runner/minutes process for repos with workflows; suite-ui has no .github/workflows (local gate mode), no code impact"}
+{"ts":"2026-10-19T09:01:28.129Z","key":"SUI-FEATURE-190","from":2,"to":4,"disposition":"ticket","ref":"327"}
+{"ts":"2026-10-19T09:01:46.268Z","key":"SUI-FEATURE-200","from":null,"to":2,"disposition":"ticket","ref":"341"}
+{"ts":"2026-10-19T09:01:58.970Z","key":"SUI-FEATURE-210","from":null,"to":2,"disposition":"ticket","ref":"342"}
