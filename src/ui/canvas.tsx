@@ -90,7 +90,7 @@ function CanvasOverlay({
   // wider than the overlay it ends in "…"; the full name stays in the announcement. It is never clipped.
   const rect = selected?.rect;
   const badgeInside = rect !== undefined && rect.top < size.badge.height;
-  // The badge's left edge in overlay coordinates; its box sits in the selection's padding box.
+  // The badge's left edge in overlay coordinates.
   const badgeLeft =
     rect === undefined
       ? 0
@@ -124,30 +124,78 @@ function CanvasOverlay({
         />
       )}
       {selected === undefined ? null : (
+        // The frame carries a 1 px `--background` halo outside and a 1 px `--foreground` one inside:
+        // a light and a dark line, so one of them stands out at 3 : 1 on any ground, mid-grey and
+        // saturated included, in either theme (#319, `GL-UI-040`).
         <div
           aria-hidden="true"
-          className="absolute border-2 border-ring"
+          className="absolute border-2 border-ring shadow-[0_0_0_1px_var(--background),inset_0_0_0_1px_var(--foreground)]"
           style={box(selected.rect)}
           data-testid="canvas-selection"
+        />
+      )}
+      {selected === undefined ? null : (
+        // The badge comes after the frame, so it lies over the line. Its 1 px `--background` halo
+        // makes it stand out on a light and a dark page in either theme (`GL-UI-040`): one of the two
+        // always contrasts with the ground. The halo stays off the frame's line and inner line, so
+        // the badge meets the frame without a seam (#319): above the frame it ends on the frame's
+        // outer edge, inside it starts past the inner line. Where the badge reaches past the frame,
+        // a strip gives that part its full halo; without overhang its width is none.
+        // Hidden from screen readers like the frame: the selection is announced with its full name.
+        <span
+          aria-hidden="true"
+          className="absolute"
+          style={
+            badgeInside
+              ? { left: badgeLeft, top: selected.rect.top + BORDER }
+              : { left: badgeLeft, bottom: `calc(100% - ${selected.rect.top + BORDER}px)` }
+          }
         >
-          {/* A 1 px `--background` halo, so the badge stands out on a light and a dark page in
-              either theme (`GL-UI-040`): one of the two always contrasts with the ground. */}
+          <span
+            aria-hidden="true"
+            className={cn(
+              "absolute bg-background",
+              badgeInside
+                ? "rounded-br-[calc(var(--radius-sm)+1px)]"
+                : "rounded-t-[calc(var(--radius-sm)+1px)]",
+            )}
+            style={
+              badgeInside
+                ? {
+                    top: 1,
+                    bottom: -1,
+                    left: Math.max(1, selected.rect.left + BORDER - badgeLeft + 1),
+                    right: `max(-1px, calc(100% - ${selected.rect.right - BORDER - 1 - badgeLeft}px))`,
+                  }
+                : { top: -1, bottom: BORDER, left: -1, right: -1 }
+            }
+            data-testid="canvas-name-halo"
+          />
+          <span
+            aria-hidden="true"
+            className="absolute -top-px -bottom-px -left-px bg-background"
+            style={{ right: `calc(100% - ${selected.rect.left - badgeLeft}px)` }}
+            data-testid="canvas-name-halo-overhang"
+          />
+          <span
+            aria-hidden="true"
+            className="absolute -top-px -right-px -bottom-px bg-background"
+            style={{ left: selected.rect.right - badgeLeft }}
+            data-testid="canvas-name-halo-overhang"
+          />
           <span
             ref={badgeRef}
             className={cn(
-              "absolute overflow-hidden bg-primary px-1.5 py-0.5 text-xs text-ellipsis whitespace-nowrap text-primary-foreground ring-1 ring-background",
-              badgeInside ? "top-0 rounded-br-sm" : "bottom-full rounded-t-sm",
+              "relative block overflow-hidden bg-primary px-1.5 py-0.5 text-xs text-ellipsis whitespace-nowrap text-primary-foreground",
+              badgeInside ? "rounded-br-sm" : "rounded-t-sm",
             )}
-            style={{
-              left: badgeLeft - selected.rect.left - BORDER,
-              maxWidth: size.overlay.width > 0 ? size.overlay.width : undefined,
-            }}
+            style={{ maxWidth: size.overlay.width > 0 ? size.overlay.width : undefined }}
             data-placement={badgeInside ? "inside" : "above"}
             data-testid="canvas-name"
           >
             {selected.name}
           </span>
-        </div>
+        </span>
       )}
       {selected === undefined || actions === undefined ? null : (
         <div

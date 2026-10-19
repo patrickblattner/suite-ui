@@ -7185,9 +7185,12 @@ for (const theme of THEMES) {
   }) => {
     await page.goto(`/?page=components&lng=en&theme=${theme}`);
     const badge = page.getByTestId("canvas-edge-right").getByTestId("canvas-name");
-    const style = await badge.evaluate((el) => {
-      const { backgroundColor, color, boxShadow } = getComputedStyle(el);
-      const halo = /([a-z]+\([^)]*\)) 0px 0px 0px 1px/.exec(boxShadow)?.[1];
+    const halo = await page
+      .getByTestId("canvas-edge-right")
+      .getByTestId("canvas-name-halo")
+      .evaluate((el) => getComputedStyle(el).backgroundColor);
+    const style = await badge.evaluate((el, halo) => {
+      const { backgroundColor, color } = getComputedStyle(el);
       // The badge's colours are opaque, so it stands out on any page, not only on the one tested.
       const context = document.createElement("canvas").getContext("2d")!;
       const alpha = (value: string) => {
@@ -7202,17 +7205,168 @@ for (const theme of THEMES) {
         halo,
         alpha: [backgroundColor, color, halo].map((value) => (value ? alpha(value) : 0)),
       };
-    });
+    }, halo);
     expect(style.halo).toBeDefined();
     expect(style.alpha).toEqual([255, 255, 255]);
     expect(await contrastOf(page, style.color, style.backgroundColor)).toBeGreaterThanOrEqual(4.5);
     for (const ground of ["#ffffff", "#000000"]) {
       const [fill, halo] = [
         await contrastOf(page, style.backgroundColor, ground),
-        await contrastOf(page, style.halo!, ground),
+        await contrastOf(page, style.halo, ground),
       ];
       expect(Math.max(fill, halo), ground).toBeGreaterThanOrEqual(3);
     }
+  });
+}
+
+// #319, `GL-UI-040`: the selection frame stands out at 3 : 1 on any slide ground in either theme —
+// white, black, mid-grey, light grey and saturated — by its `--ring` line or one of its two halos,
+// all of them opaque.
+for (const theme of THEMES) {
+  test(`canvas: the selection frame stands out on any ground (${theme})`, async ({ page }) => {
+    await page.goto(`/?page=components&lng=en&theme=${theme}`);
+    const frame = page.getByTestId("canvas-edge-right").getByTestId("canvas-selection");
+    const style = await frame.evaluate((el) => {
+      const { borderTopColor, boxShadow } = getComputedStyle(el);
+      const halo = (inset: boolean) =>
+        [...boxShadow.matchAll(/([a-z]+\([^)]*\)) 0px 0px 0px 1px( inset)?/g)].find(
+          (match) => (match[2] !== undefined) === inset,
+        )?.[1];
+      const context = document.createElement("canvas").getContext("2d")!;
+      const alpha = (value: string) => {
+        context.clearRect(0, 0, 1, 1);
+        context.fillStyle = value;
+        context.fillRect(0, 0, 1, 1);
+        return context.getImageData(0, 0, 1, 1).data[3];
+      };
+      const colors = [borderTopColor, halo(false), halo(true)];
+      return { colors, alpha: colors.map((value) => (value ? alpha(value) : 0)) };
+    });
+    expect(style.alpha).toEqual([255, 255, 255]);
+    const [line, outside, inside] = style.colors as [string, string, string];
+    for (const ground of ["#ffffff", "#000000", "#808080", "#b3b3b3", "#ff0000", "#0000ff"]) {
+      const best = Math.max(
+        await contrastOf(page, line, ground),
+        await contrastOf(page, outside, ground),
+        await contrastOf(page, inside, ground),
+      );
+      expect(best, ground).toBeGreaterThanOrEqual(3);
+    }
+  });
+}
+
+// The RGB of the screen pixels in a box of the page, row by row, read from a screenshot.
+async function pixelsOf(page: Page, clip: { x: number; y: number; width: number; height: number }) {
+  const png = (await page.screenshot({ clip })).toString("base64");
+  return page.evaluate(async (data) => {
+    const image = new Image();
+    image.src = `data:image/png;base64,${data}`;
+    await image.decode();
+    const canvas = document.createElement("canvas");
+    canvas.width = image.width;
+    canvas.height = image.height;
+    const context = canvas.getContext("2d")!;
+    context.drawImage(image, 0, 0);
+    const { data: rgba } = context.getImageData(0, 0, image.width, image.height);
+    return Array.from({ length: image.height }, (_, y) =>
+      Array.from({ length: image.width }, (_, x) => {
+        const at = (y * image.width + x) * 4;
+        return [rgba[at]!, rgba[at + 1]!, rgba[at + 2]!];
+      }),
+    );
+  }, png);
+}
+
+// #319: the name badge meets the selection frame without a seam, in either theme. On a frame wider
+// than the badge the 2 px line runs on beside the badge in the ring colour, pixel by pixel; and no
+// piece of the badge's halo lies on the line or the inner line, above or inside the frame. Where the
+// badge reaches past the frame, that part keeps its halo.
+for (const theme of THEMES) {
+  test(`canvas: the name badge meets the selection frame without a seam (${theme})`, async ({
+    page,
+  }) => {
+    await page.goto(`/?page=components&lng=en&theme=${theme}`);
+    const demo = page.getByTestId("canvas-demo");
+    const stage = demo.getByTestId("canvas-stage");
+    const halos = async (scope: Locator) => {
+      const pieces = await scope
+        .locator("[data-testid=canvas-name-halo], [data-testid=canvas-name-halo-overhang]")
+        .all();
+      const boxes = await Promise.all(pieces.map((piece) => piece.boundingBox()));
+      return boxes.filter(
+        (one): one is NonNullable<typeof one> => one !== null && one.width > 0 && one.height > 0,
+      );
+    };
+    // No halo piece within the frame's line and inner line: inside the frame's outer box, each piece
+    // stays inside the box 3 px in.
+    const offTheLines = async (scope: Locator) => {
+      const frame = await box(scope.getByTestId("canvas-selection"));
+      const inner = { x: frame.x + 3, y: frame.y + 3, right: frame.x + frame.width - 3 };
+      for (const piece of await halos(scope)) {
+        const x0 = Math.max(piece.x, frame.x);
+        const x1 = Math.min(piece.x + piece.width, frame.x + frame.width);
+        const y0 = Math.max(piece.y, frame.y);
+        const y1 = Math.min(piece.y + piece.height, frame.y + frame.height);
+        if (x1 - x0 <= 0.1 || y1 - y0 <= 0.1) continue;
+        expect(x0, "halo left of the inner line").toBeGreaterThanOrEqual(inner.x - 0.1);
+        expect(x1, "halo right of the inner line").toBeLessThanOrEqual(inner.right + 0.1);
+        expect(y0, "halo on the top line").toBeGreaterThanOrEqual(inner.y - 0.1);
+      }
+      return frame;
+    };
+
+    await stage.locator("[data-canvas-id=text]").click({ position: { x: 4, y: 4 } });
+    const badge = demo.getByTestId("canvas-name");
+    await expect(badge).toHaveText("Text");
+    await expect(badge).toHaveAttribute("data-placement", "above");
+    const frame = await offTheLines(demo);
+    const tag = await box(badge);
+    expect(tag.x + tag.width).toBeLessThan(frame.x + frame.width - 20);
+    // The middle of the 2 px line, from the pixel the badge ends in: each pixel lies between the
+    // badge's colour and the ring's (an edge blends the two), never towards the halo's.
+    const row = Math.floor(frame.y + 1);
+    const start = Math.floor(tag.x + tag.width);
+    const [line] = await pixelsOf(page, { x: start, y: row, width: 12, height: 1 });
+    const [ring] = (await pixelsOf(page, { x: start + 40, y: row, width: 1, height: 1 }))[0]!;
+    const [fill] = (
+      await pixelsOf(page, { x: Math.ceil(tag.x) + 2, y: row, width: 1, height: 1 })
+    )[0]!;
+    line!.forEach((pixel, index) => {
+      pixel.forEach((channel, at) => {
+        const [low, high] = [ring![at]!, fill![at]!].sort((a, b) => a - b);
+        expect(channel, `line pixel ${index} right of the badge`).toBeGreaterThanOrEqual(low! - 8);
+        expect(channel, `line pixel ${index} right of the badge`).toBeLessThanOrEqual(high! + 8);
+      });
+    });
+
+    await stage.locator("[data-canvas-id=hero]").click({ position: { x: 4, y: 4 } });
+    await expect(badge).toHaveAttribute("data-placement", "inside");
+    await offTheLines(demo);
+
+    // Above a frame narrower than the badge: off the lines, and the part past the frame keeps its
+    // halo down to the badge's bottom.
+    const right = page.getByTestId("canvas-edge-right");
+    await offTheLines(right);
+    const narrow = await box(right.getByTestId("canvas-selection"));
+    const name = await box(right.getByTestId("canvas-name"));
+    expect(name.x).toBeLessThan(narrow.x);
+    const overhang = (await halos(right)).find((piece) => piece.x + piece.width <= narrow.x + 0.01);
+    expect(overhang).toBeDefined();
+    expect(overhang!.x).toBeCloseTo(name.x - 1, 1);
+    expect(overhang!.y + overhang!.height).toBeCloseTo(name.y + name.height + 1, 1);
+
+    // Inside a frame narrower than the badge (a narrow element at the page's top with a long name):
+    // off the lines, and the part past the frame keeps its halo.
+    const top = page.getByTestId("canvas-edge-top");
+    await expect(top.getByTestId("canvas-name")).toHaveAttribute("data-placement", "inside");
+    await offTheLines(top);
+    const small = await box(top.getByTestId("canvas-selection"));
+    const wide = await box(top.getByTestId("canvas-name"));
+    expect(wide.x).toBeLessThan(small.x);
+    const past = (await halos(top)).find((piece) => piece.x + piece.width <= small.x + 0.1);
+    expect(past).toBeDefined();
+    expect(past!.x).toBeCloseTo(wide.x - 1, 1);
+    expect(past!.y).toBeCloseTo(wide.y - 1, 1);
   });
 }
 

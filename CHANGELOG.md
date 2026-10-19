@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.137.10 — #319, GL-UI-040, SUI-FEATURE-070: the selection frame stands out on any ground, the name badge meets it without a seam
+
+Fix, not breaking.
+
+- **`CanvasOverlay`'s selection frame (`canvas-selection`) carries a two-tone halo**: 1 px `--background` outside and 1 px `--foreground` inside the 2 px `--ring` line. On a mid-grey slide the line alone reached about 1.1 : 1 and all but vanished; now the line or one of the halos is at least 3 : 1 on any ground in either theme (white, black, mid-grey, light grey and saturated are tested, the colours checked opaque). The hover frame is unchanged.
+- **The name badge (`canvas-name`) meets the frame without a seam**: it lies over the frame's line, and its 1 px `--background` halo stays off the line and the inner line. Above the frame the halo ends on the frame's outer edge, so the line runs on unbroken beside the badge and no halo lies under the badge's bottom; inside the frame it starts past the inner line. Where the badge reaches past the frame (moved left at the overlay's edge, also inside a narrow frame at the page's top), that part keeps its full halo. Like the frame, the badge and its halo stay hidden from screen readers; the selection is announced with its full name. The halo is now drawn as elements under the badge (`canvas-name-halo`, `canvas-name-halo-overhang`) instead of a `ring` on it, and the badge sits beside the frame element in the overlay, no longer inside it. A gallery test reads the line's pixels beside the badge and checks that no halo piece lies on the lines, above and inside the frame; the gallery's edge row has a third frame with a wide badge inside a narrow selection at the top.
+
+**Migration:** none. No prop, export or text changed; new testids `canvas-name-halo` and `canvas-name-halo-overhang`; `canvas-name` is no longer a descendant of `canvas-selection`. Baselines: `components-{de,en,es}-{light,dark}` and `components-de-{light,dark}-{390,1440}`.
+
 ## 0.137.9 — #318: the gallery's contrast check counts a see-through colour as what shows
 
 Not breaking. Gallery tests only, the package is unchanged.

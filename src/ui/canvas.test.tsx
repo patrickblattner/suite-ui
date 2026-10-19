@@ -202,9 +202,10 @@ describe("CanvasOverlay (SUI-FEATURE-070)", () => {
     const { rerender } = renderOverlay({ selected: { rect: rect(0, 0, 400, 80), name: "Hero" } });
     const badge = screen.getByTestId("canvas-name");
     expect(badge).toHaveAttribute("data-placement", "inside");
-    expect(badge).toHaveClass("top-0");
-    expect(badge).toHaveStyle({ left: "0px" });
-    expect(badge).not.toHaveClass("bottom-full");
+    // The badge's box stands in the overlay: its left edge and its top or bottom, in overlay
+    // coordinates.
+    expect(badge.parentElement).toHaveStyle({ top: "2px", left: "2px" });
+    expect(badge.parentElement!.style.bottom).toBe("");
     rerender(
       <div className="relative">
         <CanvasOverlay selected={{ rect: rect(0, 19, 400, 80), name: "Hero" }} />
@@ -217,15 +218,15 @@ describe("CanvasOverlay (SUI-FEATURE-070)", () => {
       </div>,
     );
     expect(badge).toHaveAttribute("data-placement", "above");
-    expect(badge).toHaveClass("bottom-full");
+    expect(badge.parentElement!.style.bottom).toBe("calc(100% - 22px)");
     // At the left edge it does not reach past the frame either.
-    expect(badge).toHaveStyle({ left: "0px" });
+    expect(badge.parentElement).toHaveStyle({ left: "2px" });
     rerender(
       <div className="relative">
         <CanvasOverlay selected={{ rect: rect(40, 20, 400, 80), name: "Hero" }} />
       </div>,
     );
-    expect(badge).toHaveStyle({ left: "-2px" });
+    expect(badge.parentElement).toHaveStyle({ left: "40px" });
   });
 
   // AC 9 (rev 4)
@@ -237,7 +238,7 @@ describe("CanvasOverlay (SUI-FEATURE-070)", () => {
     });
     const badge = screen.getByTestId("canvas-name");
     expect(badge).toHaveAttribute("data-placement", "above");
-    expect(badge).toHaveStyle({ left: "-32px" });
+    expect(badge.parentElement).toHaveStyle({ left: "440px" });
     // Inside the top right corner: from 472 it moves to 440 as well.
     rerender(
       <div className="relative">
@@ -245,14 +246,14 @@ describe("CanvasOverlay (SUI-FEATURE-070)", () => {
       </div>,
     );
     expect(badge).toHaveAttribute("data-placement", "inside");
-    expect(badge).toHaveStyle({ left: "-32px" });
+    expect(badge.parentElement).toHaveStyle({ left: "440px" });
     // With room to the right nothing moves.
     rerender(
       <div className="relative">
         <CanvasOverlay selected={{ rect: rect(400, 100, 100, 40), name: "Hero" }} />
       </div>,
     );
-    expect(badge).toHaveStyle({ left: "-2px" });
+    expect(badge.parentElement).toHaveStyle({ left: "400px" });
   });
 
   // #218: a web font that loads after mount widens the badge; it is measured again and moves left.
@@ -272,11 +273,11 @@ describe("CanvasOverlay (SUI-FEATURE-070)", () => {
     mockSizes({ overlay: 500 });
     renderOverlay({ selected: { rect: rect(470, 100, 30, 40), name: "Hero" } });
     const badge = screen.getByTestId("canvas-name");
-    expect(badge).toHaveStyle({ left: "-32px" });
+    expect(badge.parentElement).toHaveStyle({ left: "440px" });
     // The font swaps in: the badge is 80 wide now and ends at 500 from 420.
     mockSizes({ overlay: 500, text: 80 });
     act(() => observers.forEach((callback) => callback()));
-    expect(badge).toHaveStyle({ left: "-52px" });
+    expect(badge.parentElement).toHaveStyle({ left: "420px" });
   });
 
   // AC 9 (rev 4)
@@ -285,7 +286,21 @@ describe("CanvasOverlay (SUI-FEATURE-070)", () => {
     renderOverlay({ selected: { rect: rect(40, 100, 50, 40), name: "A very long element name" } });
     const badge = screen.getByTestId("canvas-name");
     expect(badge).toHaveClass("overflow-hidden", "text-ellipsis", "whitespace-nowrap");
-    expect(badge).toHaveStyle({ maxWidth: "100px", left: "-42px" });
+    expect(badge).toHaveStyle({ maxWidth: "100px" });
+    expect(badge.parentElement).toHaveStyle({ left: "0px" });
+  });
+
+  // AC 2, #319: the badge and its halo stay hidden from screen readers; the announcement names it.
+  it("the badge, its halo and its overhang strips are hidden from screen readers", () => {
+    mockSizes();
+    renderOverlay({ selected: { rect: rect(40, 100, 50, 40), name: "Hero" } });
+    const pieces = [
+      screen.getByTestId("canvas-name"),
+      screen.getByTestId("canvas-name-halo"),
+      ...screen.getAllByTestId("canvas-name-halo-overhang"),
+    ];
+    expect(pieces).toHaveLength(4);
+    for (const piece of pieces) expect(piece.closest("[aria-hidden=true]")).not.toBeNull();
   });
 
   // AC 2 (rev 5)
