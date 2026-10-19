@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Runs the gallery screenshots in the pinned Playwright image on this machine (SUI-FEATURE-076):
-# the local gate compares against Linux baselines taken in that image, never against a rendering of
+# the merge gate (run on this machine) compares against Linux baselines taken in that image, never against a rendering of
 # the host. Arguments go through to Playwright:
 #
 #   npm run gallery:image                               # compare

@@ -55,7 +55,7 @@ Node 22, npm. `npm ci` builds `dist/` (`prepare`).
 | `npm run gallery:dev`  | Gallery dev server                                                    |
 | `npm run parity`       | Parity command from `dist/`                                           |
 
-Gallery baselines live in `gallery/__screenshots__/`; an intended visual change updates them with `npx playwright test --config gallery/playwright.config.ts --update-snapshots`.
+Gallery baselines live in `gallery/__screenshots__/`; an intended visual change updates them once with `npm run gallery:image -- --update-snapshots=all`, before the merge gate (SUI-FEATURE-240).
 
 ## Requests and questions
 
