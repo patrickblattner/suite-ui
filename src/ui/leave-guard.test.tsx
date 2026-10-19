@@ -3649,6 +3649,28 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
     window.history.replaceState(null, "");
   });
 
+  // Codex review v0.135.4 (CX1, #304): a memory router's first entry has the key "default", as a
+  // browser router's entry without a key; a window entry with an `idx` but no key (the first entry a
+  // browser history leaves) does not make the memory router look like a browser router.
+  it("#304: memory router, a guarded browser-step Back to the first entry with a keyless window idx waits", async () => {
+    window.history.replaceState({ idx: 4 }, "");
+    const onDiscard = vi.fn();
+    const { action, seen, settle } = submission();
+    const router = submittingRouter(action, { page: <SpyPage onDiscard={onDiscard} /> });
+    await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+    edit();
+    fireEvent.click(screen.getByTestId("step"));
+    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+    await pause();
+    expect(router.state.location.pathname).toBe("/detail");
+    expect(seen.signal?.aborted).toBe(false);
+    expect(onDiscard).not.toHaveBeenCalled();
+    await settleAndWait(settle);
+    await waitFor(() => expect(router.state.location.pathname).toBe("/list"));
+    expect(onDiscard).toHaveBeenCalledTimes(1);
+    window.history.replaceState(null, "");
+  });
+
   // A browser step held during a submission stays a step: to the entry it targeted, counted from where
   // the submission left the history; never `go(0)`, which would reload.
   function browserSubmission(

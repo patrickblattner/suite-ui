@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.135.5 — #304, SUI-FEATURE-172 rev 4, SUI-FEATURE-150 rev 6, GL-UI-007: a memory router is never taken for a browser router
+
+Fix, not breaking.
+
+- **Under a memory router, a guarded Back that is a browser step (`guard(() => navigate(-1))`), let go with Discard during a submission, lands at its target once the submission succeeded, also when it steps to the router's first entry** (Codex review v0.135.4, CX1). That entry has the key `"default"`, as a browser router's entry without a key; when the window's history entry had an `idx` but no key (as the first entry a browser history leaves), the guard read the window's history as the router's, and the change was dropped after the submission. The guard now reads the window's history only for a router whose history owns it (browser or hash), so a memory router's step goes by the step it came with.
+
+**Migration:** none required. Baselines: none.
+
 ## 0.135.4 — #303, SUI-FEATURE-172 rev 4, SUI-FEATURE-150 rev 6, GL-UI-007: a browser step that never arrives leaves no pass
 
 Fix, not breaking.

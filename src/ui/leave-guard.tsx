@@ -582,7 +582,7 @@ function holdRouter(router: DataRouter, hold: RouterHold): () => void {
         // A surface's way out let go as a browser step waits for the submission as well.
         if (submitting(router)) {
           const ways = takeReleased(entry);
-          const at = windowIndex(router.state.location);
+          const at = windowIndex(router, router.state.location);
           if (ways.size > 0) entry.stepping = { ways, index: at === null ? null : at + to };
         }
         return navigate(to);
@@ -671,7 +671,7 @@ function collectBlocking(
 ): boolean {
   const calling = entry.calling;
   const link = calling !== null && !isSubmission(calling.opts) ? calling : null;
-  const index = historyAction === NavigationType.Pop ? windowIndex(nextLocation) : null;
+  const index = historyAction === NavigationType.Pop ? windowIndex(router, nextLocation) : null;
   if (link === null && answers(router, entry, nextLocation, calling)) {
     entry.blocked = {
       requests: entry.requests,
@@ -786,9 +786,13 @@ function isSubmission(opts: RouterNavigateOptions | undefined): boolean {
 }
 
 // The window's history entry of a browser router's location: it keeps the key (without one the
-// location's is "default") and the index there.
-function windowIndex(location: { key: string }): number | null {
-  if (typeof window === "undefined") return null;
+// location's is "default") and the index there. A memory router's first entry has the key "default"
+// too (#304), so only a router whose history owns the window's is read: a browser or hash history
+// resolves a relative path against the window's URL, a memory history leaves it as given.
+function windowIndex(router: DataRouter, location: { key: string }): number | null {
+  if (typeof window === "undefined" || !router.encodeLocation("x").pathname.startsWith("/")) {
+    return null;
+  }
   const state = window.history.state as { key?: unknown } | null;
   const key = typeof state?.key === "string" ? state.key : "default";
   return key === location.key ? historyIndex(state) : null;
@@ -942,7 +946,7 @@ function finishWaiting(router: DataRouter, entry: RouterHolds) {
 function restart(router: DataRouter, entry: RouterHolds, waiting: WaitingChange) {
   const { index } = waiting;
   if (waiting.step === NavigationType.Pop && index !== null) {
-    const at = windowIndex(router.state.location);
+    const at = windowIndex(router, router.state.location);
     if (at === null || index === at) return;
     entry.restarting = {
       carrier: null,
