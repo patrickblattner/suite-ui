@@ -49,4 +49,11 @@ function useEscapeLayer(
   }, [active, element]);
 }
 
-export { useEscapeLayer };
+// Whether a package `Esc` layer is active: it takes the next `Esc`, so an outer handler (the leave
+// guard) leaves that one to it, whichever listener the document calls first (`GL-UI-007`: innermost
+// first).
+function hasEscapeLayer(): boolean {
+  return layers.length > 0;
+}
+
+export { hasEscapeLayer, useEscapeLayer };

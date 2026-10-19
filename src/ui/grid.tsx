@@ -330,14 +330,32 @@ type GridOverlayProps = {
   centers?: boolean;
 };
 
+// The fewest screen px between two drawn lines, and the most lines drawn per axis: a fine grid on a
+// large box (step 1 on a 16384 px side) draws every k-th line, so the overlay stays light. Snapping
+// uses every line of `gridLines`; only the drawing thins.
+const GRID_MIN_SPACING = 4;
+const GRID_MAX_LINES = 512;
+
+// The lines to draw of `positions`, each at least the spacing from the last one drawn.
+function thinned(positions: readonly number[], zoom: number, length: number): number[] {
+  const spacing = Math.max(GRID_MIN_SPACING, length / (GRID_MAX_LINES - 1));
+  const drawn: number[] = [];
+  for (const position of positions) {
+    const last = drawn.at(-1);
+    if (last === undefined || (position - last) * zoom >= spacing) drawn.push(position);
+  }
+  return drawn;
+}
+
 // The grid over a DOM canvas (`SUI-FEATURE-087`): the lines of `gridLines`, translucent and unscaled,
 // in `--ring` on a 2 px `--background` halo at 50 %, so they stand out on light and dark content. Render it like
 // `CanvasOverlay` inside the canvas frame, never in a preview or an export; it takes no pointer events.
 // A canvas that draws itself (Konva) uses `gridLines` with its own lines instead.
 function GridOverlay({ definition, box, zoom = 1, centers = false }: GridOverlayProps) {
-  const lines = gridLines(definition, box, { centers });
+  const all = gridLines(definition, box, { centers });
   const width = box.width * zoom;
   const height = box.height * zoom;
+  const lines = { x: thinned(all.x, zoom, width), y: thinned(all.y, zoom, height) };
   // Each line on a pixel's centre, so it is one sharp pixel at any zoom; a line on the far edge takes
   // the last pixel inside.
   const at = (position: number, length: number) =>
@@ -369,6 +387,7 @@ function GridOverlay({ definition, box, zoom = 1, centers = false }: GridOverlay
 }
 
 export {
+  GRID_MAX_LINES,
   type GridField,
   GridFields,
   type GridFieldsProps,

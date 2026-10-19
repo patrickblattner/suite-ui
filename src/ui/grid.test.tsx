@@ -7,6 +7,7 @@ import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
 import {
   GridFields,
   type GridFieldsProps,
+  GRID_MAX_LINES,
   GridOverlay,
   GridToggle,
   type GridToggleValue,
@@ -359,6 +360,28 @@ describe("GridOverlay (SUI-FEATURE-087)", () => {
     expect(line).toHaveAttribute("stroke-width", "1");
     // 24 column edges and 11 rows (0 … 80 every 8).
     expect(line!.querySelectorAll("line")).toHaveLength(24 + 11);
+  });
+
+  // #293: step 1 on a 16384 px side draws at most `GRID_MAX_LINES` lines per axis, each at least
+  // 4 screen px apart, so the overlay stays responsive.
+  it("thins a fine grid on a large box", () => {
+    const started = performance.now();
+    render(
+      <GridOverlay
+        definition={{ kind: "step", step: 1 }}
+        box={{ width: 16384, height: 16384 }}
+        zoom={0.25}
+      />,
+    );
+    const lines = [
+      ...screen.getByTestId("grid-overlay").querySelectorAll("g")[1]!.querySelectorAll("line"),
+    ];
+    expect(lines.length).toBeLessThanOrEqual(2 * GRID_MAX_LINES);
+    const xs = lines
+      .filter((line) => line.getAttribute("y1") === "0")
+      .map((line) => Number(line.getAttribute("x1")));
+    expect(Math.min(...xs.slice(1).map((x, index) => x - xs[index]!))).toBeGreaterThanOrEqual(4);
+    expect(performance.now() - started).toBeLessThan(1000);
   });
 
   it("at a zoom the lines move with it but stay one pixel", () => {

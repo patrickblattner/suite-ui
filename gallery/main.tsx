@@ -29,6 +29,7 @@ import {
 import { PreviewPage } from "./PreviewPage.js";
 import { SettingsPage } from "./SettingsPage.js";
 import { SlideExportHarness, SlidePlayerPage } from "./SlidePlayerPage.js";
+import { SlideEditorPage } from "./SlideEditorPage.js";
 import { SlidesPage } from "./SlidesPage.js";
 import { registerShellLabels, ShellPage } from "./ShellPage.js";
 import { SplitPage } from "./SplitPage.js";
@@ -63,6 +64,7 @@ const PAGES = [
   "split",
   "slides",
   "slide-player",
+  "slide-editor",
 ] as const;
 type Page = (typeof PAGES)[number];
 
@@ -105,6 +107,7 @@ const PAGE_CONTENT: Record<Exclude<Page, "strings">, (theme: Theme) => ReactNode
   split: () => <SplitPage />,
   slides: () => <SlidesPage />,
   "slide-player": () => <SlidePlayerPage />,
+  "slide-editor": () => <SlideEditorPage />,
 };
 
 function keysOf(tree: object, prefix = ""): string[] {

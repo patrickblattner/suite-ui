@@ -46,6 +46,11 @@ const PAGES: [name: string, ready: (page: Page) => Locator][] = [
   ["slides", (page) => page.locator("[data-testid=slide-fit-off][data-slide-ready=true]")],
   // The player once its bar has hidden itself: a still scene without input.
   ["slide-player", (page) => page.locator("[data-slot=slide-player-bar][data-shown=false]")],
+  [
+    "slide-editor",
+    (page) =>
+      page.locator("[data-testid=slide-editor] [data-slot=slide-view][data-slide-ready=true]"),
+  ],
 ];
 
 for (const lng of LANGUAGES) {
@@ -8606,4 +8611,389 @@ test("slide view: unknown type named, real text, alt text, chart data table", as
       return getSelection()!.toString();
     });
   expect(selected).toBe("Welcome");
+});
+
+// SUI-FEATURE-161 (increment A, #293): the slide editor at 100 %, where a page px is a screen px.
+async function openEditor(page: Page, navigate = true) {
+  if (navigate) await page.goto("/?page=slide-editor&lng=en");
+  const editor = page.getByTestId("slide-editor");
+  await editor.getByTestId("canvas-zoom-actual").click();
+  const canvas = editor.getByTestId("slide-editor-canvas");
+  await expect(editor.locator("[data-slot=slide-view][data-slide-ready=true]")).toBeAttached();
+  const origin = (await canvas.boundingBox())!;
+  const at = (x: number, y: number) => ({ x: origin.x + x, y: origin.y + y });
+  const field = (name: string) => editor.getByTestId(`slide-editor-${name}`);
+  const drag = async (
+    from: { x: number; y: number },
+    by: { x: number; y: number },
+    hold?: () => Promise<void>,
+  ) => {
+    const start = at(from.x, from.y);
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.mouse.move(start.x + by.x / 2, start.y + by.y / 2, { steps: 4 });
+    await page.mouse.move(start.x + by.x, start.y + by.y, { steps: 4 });
+    await hold?.();
+    await page.mouse.up();
+  };
+  const select = async (x: number, y: number, shift = false) => {
+    const point = at(x, y);
+    if (shift) await page.keyboard.down("Shift");
+    await page.mouse.click(point.x, point.y);
+    if (shift) await page.keyboard.up("Shift");
+  };
+  return { editor, canvas, at, field, drag, select };
+}
+
+// AC1: drag, scale and rotate → the number fields follow; a number typed → the element follows.
+test("slide editor: dragging, scaling and turning move the fields; a field moves the element", async ({
+  page,
+}) => {
+  const { editor, field, drag, select } = await openEditor(page);
+  await select(140, 130);
+  await expect(field("x")).toHaveValue("100");
+  await page.keyboard.down("Alt");
+  await drag({ x: 140, y: 130 }, { x: 33, y: 21 });
+  await page.keyboard.up("Alt");
+  await expect(field("x")).toHaveValue("133");
+  await expect(field("y")).toHaveValue("121");
+  const east = (await editor.getByTestId("slide-editor-handle-e").boundingBox())!;
+  await page.mouse.move(east.x + east.width / 2, east.y + east.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(east.x + east.width / 2 + 40, east.y + east.height / 2, { steps: 4 });
+  await page.mouse.up();
+  await expect(field("width")).toHaveValue("120");
+  const rotate = (await editor.getByTestId("slide-editor-handle-rotate").boundingBox())!;
+  const centre = { x: 133 + 60, y: 121 + 30 };
+  await page.mouse.move(rotate.x + rotate.width / 2, rotate.y + rotate.height / 2);
+  await page.mouse.down();
+  const canvasBox = (await editor.getByTestId("slide-editor-canvas").boundingBox())!;
+  await page.mouse.move(canvasBox.x + centre.x + 150, canvasBox.y + centre.y, { steps: 6 });
+  await page.mouse.up();
+  await expect(field("rotation")).toHaveValue("90");
+  await field("x").fill("200");
+  await expect(editor.locator("[data-slide-element=a]")).toHaveCSS("left", "200px");
+  await field("rotation").fill("0");
+  await expect(editor.locator("[data-slide-element=a]")).not.toHaveAttribute("style", /rotate/);
+});
+
+// AC2: the grid set and shown; a drag snaps with a guide; Alt holds it off; at a tie the element edge
+// wins; a hidden grid no longer snaps, the page and elements still do.
+test("slide editor: snapping to the grid with a guide, Alt, ties and a hidden grid", async ({
+  page,
+}) => {
+  const { editor, field, drag, select } = await openEditor(page);
+  await editor.getByTestId("drawer-document").click();
+  await expect(editor.getByTestId("grid-step")).toHaveValue("40");
+  await editor.getByTestId("drawer-document").click();
+  await expect(editor.getByTestId("grid-overlay")).toHaveCount(0);
+  await editor.getByTestId("grid-toggle-button").click();
+  await expect(editor.getByTestId("grid-overlay")).toBeVisible();
+  // A at x 100 dragged by 18 → 118, 2 px from the grid line at 120: it snaps there with a guide.
+  await select(140, 130);
+  await drag({ x: 140, y: 130 }, { x: 18, y: 0 }, async () => {
+    await expect(editor.getByTestId("slide-editor-guide-x")).toHaveAttribute("data-guide", "120");
+  });
+  await expect(field("x")).toHaveValue("120");
+  // With Alt it lands where the pointer leaves it.
+  await page.keyboard.down("Alt");
+  await drag({ x: 160, y: 130 }, { x: -2, y: 0 });
+  await page.keyboard.up("Alt");
+  await expect(field("x")).toHaveValue("118");
+  // B moved to x 324 (Alt): A dragged to 322 lies 2 px from the grid (320) and from B's edge (324).
+  await select(340, 190);
+  await page.keyboard.down("Alt");
+  await drag({ x: 340, y: 190 }, { x: 24, y: 0 });
+  await page.keyboard.up("Alt");
+  await select(158, 130);
+  await drag({ x: 158, y: 130 }, { x: 204, y: 0 }, async () => {
+    await expect(editor.getByTestId("slide-editor-guide-x")).toHaveAttribute("data-guide", "324");
+  });
+  await expect(field("x")).toHaveValue("324");
+  // The grid hidden: near a grid line nothing snaps; near B's edge it still does.
+  await editor.getByTestId("grid-toggle-button").click();
+  await expect(editor.getByTestId("grid-overlay")).toHaveCount(0);
+  await select(364, 130);
+  await page.keyboard.down("Alt");
+  await drag({ x: 364, y: 130 }, { x: -206, y: 0 });
+  await page.keyboard.up("Alt");
+  await expect(field("x")).toHaveValue("118");
+  await drag({ x: 158, y: 130 }, { x: 204, y: 0 });
+  await expect(field("x")).toHaveValue("324");
+});
+
+// AC3: three elements aligned, distributed, grouped and ungrouped; undo takes back every step.
+test("slide editor: align, distribute, group, ungroup, and undo each step", async ({ page }) => {
+  const { editor, select } = await openEditor(page);
+  const x = (id: string) =>
+    editor
+      .locator(`[data-slide-element=${id}]`)
+      .evaluate((node) => (node as HTMLElement).style.left);
+  await select(140, 130);
+  await select(340, 190, true);
+  await select(560, 150, true);
+  await expect(editor.getByTestId("slide-editor-align-left")).toBeVisible();
+  await editor.getByTestId("slide-editor-align-left").click();
+  expect([await x("a"), await x("b"), await x("c")]).toEqual(["100px", "100px", "100px"]);
+  await editor.getByTestId("editor-undo").click();
+  expect([await x("a"), await x("b"), await x("c")]).toEqual(["100px", "300px", "520px"]);
+  await editor.getByTestId("slide-editor-distribute-horizontal").click();
+  expect([await x("a"), await x("b"), await x("c")]).toEqual(["100px", "310px", "520px"]);
+  await editor.getByTestId("slide-editor-group").click();
+  await editor.getByTestId("drawer-layers").click();
+  const layers = editor.getByTestId("slide-editor-layer");
+  await expect(layers).toHaveCount(5 + 2 + 1);
+  await expect(editor.getByTestId("slide-editor-ungroup")).toBeVisible();
+  await editor.getByTestId("slide-editor-ungroup").click();
+  await expect(layers).toHaveCount(5 + 2);
+  // Undo: the group is back, then gone, then the distribution, then nothing is left to undo.
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(layers).toHaveCount(5 + 2 + 1);
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(layers).toHaveCount(5 + 2);
+  await page.keyboard.press("ControlOrMeta+z");
+  expect([await x("a"), await x("b"), await x("c")]).toEqual(["100px", "300px", "520px"]);
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(editor.getByTestId("editor-undo")).toBeDisabled();
+  // Redo brings the distribution again (the aligning was undone before it, so it is gone).
+  await page.keyboard.press("ControlOrMeta+Shift+z");
+  expect([await x("a"), await x("b"), await x("c")]).toEqual(["100px", "310px", "520px"]);
+});
+
+// AC6: the gallery's own type (`gallery.stamp`) is selected, moved, resized and layered like a
+// built-in one.
+test("slide editor: an app's own type edits like a built-in one", async ({ page }) => {
+  const { editor, field, drag, select } = await openEditor(page);
+  await select(180, 340);
+  await expect(editor.getByTestId("canvas-name")).toHaveText("Stamp");
+  await expect(field("x")).toHaveValue("100");
+  await page.keyboard.down("Alt");
+  await drag({ x: 180, y: 340 }, { x: 40, y: -20 });
+  await page.keyboard.up("Alt");
+  await expect(field("x")).toHaveValue("140");
+  await expect(field("y")).toHaveValue("280");
+  const corner = (await editor.getByTestId("slide-editor-handle-se").boundingBox())!;
+  await page.keyboard.down("Shift");
+  await page.mouse.move(corner.x + corner.width / 2, corner.y + corner.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(corner.x + corner.width / 2 + 160, corner.y + corner.height / 2, {
+    steps: 4,
+  });
+  await page.mouse.up();
+  await page.keyboard.up("Shift");
+  await expect(field("width")).toHaveValue("320");
+  await expect(field("height")).toHaveValue("160");
+  await editor.getByTestId("slide-editor-front").click();
+  await editor.getByTestId("drawer-layers").click();
+  await expect(editor.getByTestId("slide-editor-layer").first()).toHaveAttribute(
+    "data-layer-id",
+    "stamp",
+  );
+  await page.keyboard.press("ArrowRight");
+  await expect(field("x")).toHaveValue("140");
+  await editor.getByTestId("slide-editor-canvas").focus();
+  await page.keyboard.press("Shift+ArrowRight");
+  await expect(field("x")).toHaveValue("150");
+});
+
+// SUI-FEATURE-161 §Speichern: Save hands the validated document to the app; leaving a draft asks
+// first (`GL-UI-007`).
+test("slide editor: Save goes to the app, Back with a draft asks", async ({ page }) => {
+  const { editor, select } = await openEditor(page);
+  await select(140, 130);
+  await editor.getByTestId("slide-editor-canvas").focus();
+  await page.keyboard.press("ArrowDown");
+  await editor.getByTestId("editor-back").first().click();
+  await expect(page.getByRole("alertdialog").or(page.getByRole("dialog"))).toBeVisible();
+  await page.keyboard.press("Escape");
+  await editor.getByTestId("editor-save").first().click();
+  await expect(page.getByTestId("slide-editor-app")).toHaveText("Saved: 5 elements · Back: 0");
+  await editor.getByTestId("editor-back").first().click();
+  await expect(page.getByTestId("slide-editor-app")).toHaveText("Saved: 5 elements · Back: 1");
+});
+
+// Review #293 (ui, ux): Esc goes from the inside out (`GL-UI-007`, `GL-UI-040` §1): a child's group,
+// no selection, an open drawer, and only then leaving.
+test("slide editor: Esc goes inside out — child to group, selection, drawer, then leave", async ({
+  page,
+}) => {
+  const { editor, at, select } = await openEditor(page);
+  // A double click on the group selects the child under the pointer (rev 5).
+  const child = at(590, 340);
+  await page.mouse.dblclick(child.x, child.y);
+  await expect(editor.getByTestId("canvas-name")).toHaveText("Shape");
+  await expect(editor.getByTestId("slide-editor-x")).toHaveValue("560");
+  await page.keyboard.press("Escape");
+  await expect(editor.getByTestId("canvas-name")).toHaveText("Pair");
+  await page.keyboard.press("Escape");
+  await expect(editor.getByTestId("canvas-selection")).toHaveCount(0);
+  await expect(page.getByTestId("slide-editor-app")).toHaveText("Saved: nothing · Back: 0");
+  await select(140, 130);
+  await editor.getByTestId("drawer-layers").click();
+  await page.keyboard.press("Escape");
+  await expect(editor.getByTestId("drawer")).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(editor.getByTestId("canvas-selection")).toHaveCount(0);
+  await expect(page.getByTestId("slide-editor-app")).toHaveText("Saved: nothing · Back: 0");
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("slide-editor-app")).toHaveText("Saved: nothing · Back: 1");
+});
+
+// SUI-FEATURE-161 rev 5: Lock and Hide each show their state by icon, hint and aria-pressed; a locked
+// or hidden element is not hit on the canvas.
+test("slide editor: Lock and Hide in the layers, and the canvas leaves those elements alone", async ({
+  page,
+}) => {
+  const { editor, select } = await openEditor(page);
+  await editor.getByTestId("drawer-layers").click();
+  const row = editor.locator("[data-layer-id=a]");
+  const lock = row.getByTestId("slide-editor-layer-lock");
+  await expect(lock).toHaveAttribute("aria-pressed", "false");
+  await expect(lock).toHaveAccessibleName("Lock Box A");
+  const unlocked = await lock.innerHTML();
+  await lock.click();
+  await expect(lock).toHaveAttribute("aria-pressed", "true");
+  expect(await lock.innerHTML()).not.toBe(unlocked);
+  await editor.getByTestId("drawer-layers").click();
+  await select(140, 130);
+  await expect(editor.getByTestId("canvas-selection")).toHaveCount(0);
+  await editor.getByTestId("drawer-layers").click();
+  const hide = editor.locator("[data-layer-id=b]").getByTestId("slide-editor-layer-hide");
+  await hide.click();
+  await expect(hide).toHaveAttribute("aria-pressed", "true");
+  await expect(editor.locator("[data-slide-element=b]")).toHaveCSS("display", "none");
+  await editor.getByTestId("drawer-layers").click();
+  await select(340, 190);
+  await expect(editor.getByTestId("canvas-selection")).toHaveCount(0);
+});
+
+// Review #293: typing a number is one step; a number out of range is held to the field's range; the
+// arrows work on after a resize; undo shows the page its step changed; the move cursor; the floating
+// actions.
+test("slide editor: fields, focus after a resize, undo across pages, cursor and actions", async ({
+  page,
+}) => {
+  const { editor, canvas, at, field, select } = await openEditor(page);
+  await page.mouse.move(at(140, 130).x, at(140, 130).y);
+  await expect(canvas).toHaveCSS("cursor", "move");
+  await select(140, 130);
+  await expect(editor.getByTestId("slide-editor-actions")).toBeVisible();
+  await field("x").click();
+  await field("x").press("ControlOrMeta+a");
+  await page.keyboard.type("250");
+  await expect(field("x")).toHaveValue("250");
+  await page.keyboard.press("Tab");
+  await editor.getByTestId("editor-undo").click();
+  await expect(field("x")).toHaveValue("100");
+  await field("width").fill("1e306");
+  await page.keyboard.press("Tab");
+  await expect(field("width")).toHaveValue("32768");
+  await editor.getByTestId("editor-undo").click();
+  const east = (await editor.getByTestId("slide-editor-handle-e").boundingBox())!;
+  await page.mouse.move(east.x + east.width / 2, east.y + east.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(east.x + east.width / 2 + 20, east.y + east.height / 2, { steps: 3 });
+  await page.mouse.up();
+  await page.keyboard.press("ArrowRight");
+  await expect(field("x")).toHaveValue("101");
+  await editor.getByTestId("slide-editor-next-page").click();
+  await expect(editor.getByTestId("slide-editor-page")).toHaveText("Page 2 of 2");
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(editor.getByTestId("slide-editor-page")).toHaveText("Page 1 of 2");
+});
+
+// SUI-FEATURE-161 rev 5 AC2: the guide is 1 px above the shown grid and stands out on the slide in
+// a light and a dark editor alike (contrast against the white page at least 3 : 1).
+for (const theme of THEMES) {
+  test(`slide editor: the snap guide stands out above the grid, ${theme}`, async ({ page }) => {
+    await page.goto(`/?page=slide-editor&lng=en&theme=${theme}`);
+    const { editor, drag, select } = await openEditor(page, false);
+    await editor.getByTestId("grid-toggle-button").click();
+    await select(140, 130);
+    await drag({ x: 140, y: 130 }, { x: 18, y: 0 }, async () => {
+      const guide = editor.getByTestId("slide-editor-guide-x");
+      await expect(guide).toHaveCSS("width", "1px");
+      const contrast = await guide.evaluate((node) => {
+        const channel = (value: number) => {
+          const c = value / 255;
+          return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+        };
+        const luminance = (rgb: string) => {
+          const [r, g, b] = rgb.match(/\d+/g)!.map(Number);
+          return 0.2126 * channel(r!) + 0.7152 * channel(g!) + 0.0722 * channel(b!);
+        };
+        const page = document.querySelector<HTMLElement>(
+          "[data-testid=slide-editor] [data-slot=slide-page]",
+        )!;
+        const a = luminance(getComputedStyle(node).backgroundColor);
+        const b = luminance(getComputedStyle(page).backgroundColor);
+        return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+      });
+      expect(contrast).toBeGreaterThanOrEqual(3);
+      const order = await editor.evaluate((root) =>
+        [
+          ...root.querySelectorAll(
+            "[data-testid=grid-overlay], [data-testid=slide-editor-guide-x]",
+          ),
+        ].map((node) => node.getAttribute("data-testid")),
+      );
+      expect(order).toEqual(["grid-overlay", "slide-editor-guide-x"]);
+    });
+  });
+}
+
+// Review #293 r2 (ux B): the handles of a turned element stay above the floating actions, so each is
+// reachable at any angle.
+test("slide editor: no handle of a turned element lies under the floating actions", async ({
+  page,
+}) => {
+  const { editor, field, select } = await openEditor(page);
+  await select(140, 130);
+  for (const [rotation, handles] of [
+    ["68", ["se", "ne", "nw"]],
+    ["180", ["n", "rotate", "s"]],
+  ] as const) {
+    await field("rotation").fill(rotation);
+    await page.keyboard.press("Tab");
+    await expect(editor.getByTestId("slide-editor-actions")).toBeVisible();
+    for (const handle of handles) {
+      const target = editor.getByTestId(`slide-editor-handle-${handle}`);
+      const box = (await target.boundingBox())!;
+      const hit = await page.evaluate(
+        ([x, y]) => document.elementFromPoint(x!, y!)?.getAttribute("data-testid"),
+        [box.x + box.width / 2, box.y + box.height / 2],
+      );
+      expect(hit, `${handle} at ${rotation}°`).toBe(`slide-editor-handle-${handle}`);
+    }
+  }
+});
+
+// Review #293 r2: a double click into a turned group finds the child where it is drawn.
+test("slide editor: a double click into a turned group selects the child drawn there", async ({
+  page,
+}) => {
+  const { editor, at, field, select } = await openEditor(page);
+  await select(630, 340);
+  await expect(editor.getByTestId("canvas-name")).toHaveText("Pair");
+  await field("rotation").fill("90");
+  await page.keyboard.press("Tab");
+  // Turned a quarter about (630, 340), the left child (centre 590, 340) is drawn at (630, 300).
+  const drawn = at(630, 300);
+  await page.mouse.dblclick(drawn.x, drawn.y);
+  await expect(editor.getByTestId("slide-editor-x")).toHaveValue("560");
+});
+
+// Review #293: a document the schema refuses shows the header with its way back and the named error.
+test("slide editor: an invalid document keeps Back and names the error", async ({ page }) => {
+  await page.goto("/?page=slide-editor&doc=invalid&lng=en");
+  const editor = page.getByTestId("slide-editor");
+  await expect(editor.locator("[data-slide-editor-error]")).toHaveAttribute(
+    "data-slide-editor-error",
+    "newer-version",
+  );
+  await expect(editor.getByRole("alert")).toHaveText("This slide can’t be shown.");
+  await editor.getByTestId("editor-back").first().click();
+  await expect(page.getByTestId("slide-editor-app")).toHaveText("Saved: nothing · Back: 1");
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("slide-editor-app")).toHaveText("Saved: nothing · Back: 2");
 });

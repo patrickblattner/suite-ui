@@ -421,3 +421,77 @@ export const SLIDE_FIT_SHRINKS = textPage("shrinks", [{ text: words(28) }]);
 export const SLIDE_FIT_TOO_LONG = textPage("too-long", [{ text: words(90) }]);
 // The same at the page's top edge: no room above, so its notice stands beside it.
 export const SLIDE_FIT_AT_TOP = textPage("at-top", [{ text: words(90) }], heading, 20);
+
+// The editor's deck (`SUI-FEATURE-161`): a small format so 100 % fits the gallery, three shapes to
+// arrange, an app type, a group, a 40 px grid and a second page.
+const box = (id: string, x: number, y: number, fill: string) =>
+  ({
+    id,
+    name: `Box ${id.toUpperCase()}`,
+    type: "shape",
+    shape: "rectangle",
+    x,
+    y,
+    width: 80,
+    height: 60,
+    fill: { type: "color", color: brand(fill) },
+  }) as const;
+
+export const SLIDE_EDITOR_DOC: SlideDocumentInput = {
+  schemaVersion: SLIDE_SCHEMA_VERSION,
+  format: { name: "Editor test", width: 800, height: 450 },
+  grid: { kind: "step", step: 40 },
+  pages: [
+    {
+      id: "edit-one",
+      background,
+      elements: [
+        box("a", 100, 100, "primary"),
+        box("b", 300, 160, "accent"),
+        box("c", 520, 120, "primary"),
+        {
+          id: "stamp",
+          name: "Stamp",
+          type: "custom",
+          typeId: "gallery.stamp",
+          x: 100,
+          y: 300,
+          width: 160,
+          height: 80,
+        },
+        {
+          id: "pair",
+          name: "Pair",
+          type: "group",
+          x: 560,
+          y: 300,
+          width: 140,
+          height: 80,
+          children: [
+            {
+              id: "pair-left",
+              type: "shape",
+              shape: "ellipse",
+              x: 560,
+              y: 300,
+              width: 60,
+              height: 80,
+              fill: { type: "color", color: brand("accent") },
+            },
+            {
+              id: "pair-right",
+              type: "shape",
+              shape: "ellipse",
+              x: 640,
+              y: 300,
+              width: 60,
+              height: 80,
+              fill: { type: "color", color: brand("accent") },
+            },
+          ],
+        },
+      ],
+    },
+    { id: "edit-two", background: { type: "color", color: brand("muted") }, elements: [] },
+  ],
+};

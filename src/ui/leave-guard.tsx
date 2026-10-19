@@ -12,6 +12,7 @@ import {
   UNSAFE_NavigationContext as NavigationContext,
 } from "react-router-dom";
 
+import { hasEscapeLayer } from "../lib/escape-layers.js";
 import { isInDialog } from "../lib/keyboard.js";
 import { Button } from "./button.js";
 import {
@@ -1425,6 +1426,8 @@ function useLeaveGuard({ dirty, busy = false, onLeave, onSave, onDiscard }: Leav
   React.useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape" || event.defaultPrevented) return;
+      // An inner `Esc` layer (a selection, an open drawer, a maximized preview) takes it first.
+      if (hasEscapeLayer()) return;
       if (isInDialog(event.target instanceof Element ? event.target : null)) return;
       event.preventDefault();
       guard(() => leave.current());

@@ -26,6 +26,7 @@ import {
 } from "react-router-dom";
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
+import { useEscapeLayer } from "../lib/escape-layers.js";
 import { Dialog, DialogContent, DialogTitle } from "./dialog.js";
 import { EditPanel, type EditPanelProps } from "./edit-panel.js";
 import { Input } from "./input.js";
@@ -5323,4 +5324,35 @@ describe("EditPanel busy without a promise (SUI-FEATURE-171 AC4)", () => {
       await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/other"));
     },
   );
+});
+
+// #293: an `Esc` that a package `Esc` layer will take (a canvas selection, an open drawer) is not a
+// leave, whichever document listener runs first (`GL-UI-007`: innermost first).
+describe("useLeaveGuard and the package Esc layers (#293)", () => {
+  function Surface({
+    layer,
+    onLayer,
+    onLeave,
+  }: {
+    layer: boolean;
+    onLayer: () => void;
+    onLeave: () => void;
+  }) {
+    useLeaveGuard({ dirty: false, onLeave });
+    useEscapeLayer(layer, onLayer);
+    return <button type="button">Inside</button>;
+  }
+
+  it("leaves the Esc to an active layer, and leaves once none is active", () => {
+    const onLayer = vi.fn();
+    const onLeave = vi.fn();
+    const { rerender } = render(<Surface layer onLayer={onLayer} onLeave={onLeave} />);
+    escape(document.body);
+    expect(onLayer).toHaveBeenCalledTimes(1);
+    expect(onLeave).not.toHaveBeenCalled();
+    rerender(<Surface layer={false} onLayer={onLayer} onLeave={onLeave} />);
+    escape(document.body);
+    expect(onLeave).toHaveBeenCalledTimes(1);
+    expect(onLayer).toHaveBeenCalledTimes(1);
+  });
 });
