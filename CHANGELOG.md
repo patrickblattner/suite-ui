@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.137.16 — #333, GL-UX-001 rev 5 (WCAG 1.4.11), GL-UI-040: the hover frame stands out on any ground
+
+Fix, not breaking.
+
+- **`CanvasOverlay`'s hover frame (`canvas-hover`) carries the selection frame's two halos** (#319): 1 px `--background` outside and 1 px `--foreground` inside its dashed 2 px `--ring` line. On a mid-grey slide the line alone reached about 1.1 : 1; now one of the halos, a continuous 1 px line, is at least 3 : 1 on a white, black, mid-grey, light-grey and saturated slide in either theme, which is what `GL-UX-001` rev 5 (§3:1 bei Linien) asks; the dashed line itself does not count. It stays dashed and 2 px (`GL-UI-040`), and lies below the badge, the action bar and the snap guide as before. A gallery test reads the computed colours of both frames, checks them opaque and fails on the old hover frame.
+
+**Migration:** none. Baselines: `components-{de,en,es}-{light,dark}` and `components-de-{light,dark}-{390,1440}`.
+
 ## 0.137.15 — #332, SUI-FEATURE-161 rev 5: the snap guide is drawn in the primary colour with a halo
 
 Fix, not breaking.

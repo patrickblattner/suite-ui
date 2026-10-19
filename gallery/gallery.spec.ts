@@ -7219,40 +7219,57 @@ for (const theme of THEMES) {
   });
 }
 
-// #319, `GL-UI-040`: the selection frame stands out at 3 : 1 on any slide ground in either theme —
-// white, black, mid-grey, light grey and saturated — by its `--ring` line or one of its two halos,
-// all of them opaque.
-for (const theme of THEMES) {
-  test(`canvas: the selection frame stands out on any ground (${theme})`, async ({ page }) => {
-    await page.goto(`/?page=components&lng=en&theme=${theme}`);
-    const frame = page.getByTestId("canvas-edge-right").getByTestId("canvas-selection");
-    const style = await frame.evaluate((el) => {
-      const { borderTopColor, boxShadow } = getComputedStyle(el);
-      const halo = (inset: boolean) =>
-        [...boxShadow.matchAll(/([a-z]+\([^)]*\)) 0px 0px 0px 1px( inset)?/g)].find(
-          (match) => (match[2] !== undefined) === inset,
-        )?.[1];
-      const context = document.createElement("canvas").getContext("2d")!;
-      const alpha = (value: string) => {
-        context.clearRect(0, 0, 1, 1);
-        context.fillStyle = value;
-        context.fillRect(0, 0, 1, 1);
-        return context.getImageData(0, 0, 1, 1).data[3];
-      };
-      const colors = [borderTopColor, halo(false), halo(true)];
-      return { colors, alpha: colors.map((value) => (value ? alpha(value) : 0)) };
-    });
-    expect(style.alpha).toEqual([255, 255, 255]);
-    const [line, outside, inside] = style.colors as [string, string, string];
-    for (const ground of ["#ffffff", "#000000", "#808080", "#b3b3b3", "#ff0000", "#0000ff"]) {
-      const best = Math.max(
-        await contrastOf(page, line, ground),
-        await contrastOf(page, outside, ground),
-        await contrastOf(page, inside, ground),
-      );
-      expect(best, ground).toBeGreaterThanOrEqual(3);
-    }
+// #319 and #333, `GL-UX-001` rev 5 (§3:1 bei Linien, WCAG 1.4.11): the selection and the hover frame
+// stand out at 3 : 1 on any slide ground in either theme — white, black, mid-grey, light grey and
+// saturated — by one continuous 1 px line, all their colours opaque. The selection frame's solid
+// `--ring` line counts; the hover frame's dashed one does not, only its two halos.
+async function frameColors(frame: Locator) {
+  return frame.evaluate((el) => {
+    const { borderTopColor, borderTopStyle, borderTopWidth, boxShadow } = getComputedStyle(el);
+    const halo = (inset: boolean) =>
+      [...boxShadow.matchAll(/([a-z]+\([^)]*\)) 0px 0px 0px 1px( inset)?/g)].find(
+        (match) => (match[2] !== undefined) === inset,
+      )?.[1];
+    const context = document.createElement("canvas").getContext("2d")!;
+    const alpha = (value: string) => {
+      context.clearRect(0, 0, 1, 1);
+      context.fillStyle = value;
+      context.fillRect(0, 0, 1, 1);
+      return context.getImageData(0, 0, 1, 1).data[3];
+    };
+    const colors = [borderTopColor, halo(false), halo(true)];
+    return {
+      colors,
+      alpha: colors.map((value) => (value ? alpha(value) : 0)),
+      line: `${borderTopWidth} ${borderTopStyle}`,
+    };
   });
+}
+
+for (const theme of THEMES) {
+  for (const [id, scope, line] of [
+    ["canvas-selection", "canvas-edge-right", "2px solid"],
+    ["canvas-hover", "canvas-demo", "2px dashed"],
+  ] as const) {
+    const continuous = line.endsWith("solid");
+    test(`canvas: the ${id.slice(7)} frame stands out on any ground (${theme})`, async ({
+      page,
+    }) => {
+      await page.goto(`/?page=components&lng=en&theme=${theme}`);
+      const style = await frameColors(page.getByTestId(scope).getByTestId(id));
+      expect(style.line).toBe(line);
+      expect(style.alpha).toEqual([255, 255, 255]);
+      const [ring, outside, inside] = style.colors as [string, string, string];
+      for (const ground of ["#ffffff", "#000000", "#808080", "#b3b3b3", "#ff0000", "#0000ff"]) {
+        const best = Math.max(
+          continuous ? await contrastOf(page, ring, ground) : 0,
+          await contrastOf(page, outside, ground),
+          await contrastOf(page, inside, ground),
+        );
+        expect(best, ground).toBeGreaterThanOrEqual(3);
+      }
+    });
+  }
 }
 
 // The RGB of the screen pixels in a box of the page, row by row, read from a screenshot.

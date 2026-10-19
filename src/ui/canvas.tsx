@@ -27,6 +27,9 @@ type CanvasOverlayProps = {
 
 // The width of the hover and selection lines, at any zoom.
 const BORDER = 2;
+// The two halos of a frame line: 1 px `--background` outside, 1 px `--foreground` inside, so one
+// continuous line stands out at 3 : 1 on any ground in either theme (#319, #333, `GL-UX-001` rev 5).
+const HALOS = "shadow-[0_0_0_1px_var(--background),inset_0_0_0_1px_var(--foreground)]";
 
 // A rect as the absolute box of an element on the overlay.
 function box(rect: DOMRectReadOnly): React.CSSProperties {
@@ -116,9 +119,11 @@ function CanvasOverlay({
       data-testid="canvas-overlay"
     >
       {hovered === undefined ? null : (
+        // Dashed, with the selection frame's two halos: one of them is a continuous line at 3 : 1 on
+        // any ground in either theme (#333).
         <div
           aria-hidden="true"
-          className="absolute border-2 border-dashed border-ring"
+          className={cn("absolute border-2 border-dashed border-ring", HALOS)}
           style={box(hovered.rect)}
           data-testid="canvas-hover"
         />
@@ -129,7 +134,7 @@ function CanvasOverlay({
         // saturated included, in either theme (#319, `GL-UI-040`).
         <div
           aria-hidden="true"
-          className="absolute border-2 border-ring shadow-[0_0_0_1px_var(--background),inset_0_0_0_1px_var(--foreground)]"
+          className={cn("absolute border-2 border-ring", HALOS)}
           style={box(selected.rect)}
           data-testid="canvas-selection"
         />
