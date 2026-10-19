@@ -513,3 +513,6 @@
 {"ts":"2026-10-19T14:31:58.463Z","key":"SUI-FEATURE-231","from":null,"to":2,"disposition":"ticket","ref":"294"}
 {"ts":"2026-10-19T15:55:33.537Z","key":"SUI-FEATURE-231","from":null,"to":3,"disposition":"ticket","ref":"356"}
 {"ts":"2026-10-19T15:55:42.085Z","key":"SUI-FEATURE-096","from":null,"to":2,"disposition":"ticket","ref":"357"}
+{"ts":"2026-10-19T16:42:31.936Z","key":"PROC-DEV-060","from":7,"to":8,"disposition":"editorial","ref":"remote-mode PR polling rule; suite-ui runs GATE_MODE local with release tags, no PRs, no code impact"}
+{"ts":"2026-10-19T16:42:34.952Z","key":"SUI-FEATURE-063","from":2,"to":3,"disposition":"ticket","ref":"359"}
+{"ts":"2026-10-19T16:42:37.751Z","key":"SUI-FEATURE-097","from":null,"to":2,"disposition":"ticket","ref":"360"}
