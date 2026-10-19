@@ -13,9 +13,11 @@ import {
   groupElements,
   intoGroups,
   moveBy,
+  moveEach,
   moveLayer,
   setBox,
   setRotation,
+  stepIntoGroups,
   ungroupElement,
   updateElements,
 } from "./editor-ops.js";
@@ -323,6 +325,30 @@ describe("slide editor operations on turned groups", () => {
     const b = findElement(back.pages[0]!.elements, "b")!.element;
     expect({ x: b.x + b.width / 2, y: b.y + b.height / 2 }).toEqual(before);
     expect(b.rotation).toBe(90);
+  });
+
+  it("moves each element by its own step, a step turned into a turned group's frame", () => {
+    const loose = doc([
+      shape("a", 0, 0),
+      shape("b", 300, 50, 50, 50),
+      shape("c", 1000, 200, 200, 100),
+    ]);
+    const { document: grouped, id } = groupElements(loose, 0, ["a", "b"]);
+    const turned = setRotation(grouped, 0, id!, 90);
+    const frame = groupChain(turned.pages[0]!.elements, "a");
+    const step = stepIntoGroups(frame, { x: 1, y: 0 });
+    expect(step.x).toBeCloseTo(0, 9);
+    expect(step.y).toBeCloseTo(-1, 9);
+    const moved = moveEach(
+      turned,
+      0,
+      new Map([
+        ["a", step],
+        ["c", { x: 1, y: 0 }],
+      ]),
+    );
+    expect(box(moved, "c")).toEqual({ x: 1001, y: 200, width: 200, height: 100 });
+    expect(moveEach(turned, 0, new Map([["c", { x: 0, y: 0 }]]))).toBe(turned);
   });
 
   it("bounds, refits and distributes by the drawn box of a turned child", () => {

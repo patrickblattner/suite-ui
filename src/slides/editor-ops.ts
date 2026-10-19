@@ -169,6 +169,13 @@ export function intoGroups(groups: readonly Group[], point: { x: number; y: numb
   return at;
 }
 
+// A step on the page in the frame of the given groups: turned back by each turned group.
+export function stepIntoGroups(groups: readonly Group[], step: { x: number; y: number }) {
+  const origin = intoGroups(groups, { x: 0, y: 0 });
+  const end = intoGroups(groups, step);
+  return { x: end.x - origin.x, y: end.y - origin.y };
+}
+
 // The page's elements with `change` applied, the groups refitted; the same document when nothing
 // changed, so the history records no step for it.
 function withPage(
@@ -251,15 +258,27 @@ export function moveBy(
   dy: number,
 ): SlideDocument {
   if (dx === 0 && dy === 0) return document;
-  const wanted = new Set(ids);
-  const shift = (element: SlideElement): SlideElement => ({
-    ...element,
-    x: round(element.x + dx),
-    y: round(element.y + dy),
-  });
+  return moveEach(document, page, new Map(ids.map((id) => [id, { x: dx, y: dy }])));
+}
+
+// Moves each element of `steps` (and what is in them) by its own step, the groups refitted once
+// after all of them moved.
+export function moveEach(
+  document: SlideDocument,
+  page: number,
+  steps: ReadonlyMap<string, { x: number; y: number }>,
+): SlideDocument {
+  const shift =
+    (step: { x: number; y: number }) =>
+    (element: SlideElement): SlideElement => ({
+      ...element,
+      x: round(element.x + step.x),
+      y: round(element.y + step.y),
+    });
   const walk = (elements: readonly SlideElement[]): SlideElement[] =>
     elements.map((element) => {
-      if (wanted.has(element.id)) return withDescendants(element, shift);
+      const step = steps.get(element.id);
+      if (step !== undefined) return withDescendants(element, shift(step));
       return element.type === "group" ? { ...element, children: walk(element.children) } : element;
     });
   return withPage(document, page, walk);

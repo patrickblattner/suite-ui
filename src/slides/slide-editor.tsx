@@ -48,10 +48,11 @@ import {
   groupElements,
   intoGroups,
   type LayerMove,
-  moveBy,
+  moveEach,
   moveLayer,
   setBox,
   setRotation,
+  stepIntoGroups,
   ungroupElement,
   updateElements,
 } from "./editor-ops.js";
@@ -118,7 +119,9 @@ type Group = Extract<SlideElement, { type: "group" }>;
 type Drag =
   | {
       kind: "move";
-      frame: Group[];
+      // Each moving element's groups, in the order of `ids`: a step on the page is turned into each
+      // one's own frame, so a selection across levels moves together (Codex #326).
+      frames: Group[][];
       start: Point;
       base: SlideDocument;
       ids: string[];
@@ -456,15 +459,15 @@ function Editor({
     });
     if (moving.length === 0 || (event.shiftKey && !ids.includes(hit.id))) return;
     const movingIds = moving.map((element) => element.id);
-    const frame = groupChain(elements, movingIds[0]!);
-    const turned = frame.some((group) => group.rotation !== 0);
+    const frames = movingIds.map((id) => groupChain(elements, id));
+    const turned = frames.some((frame) => frame.some((group) => group.rotation !== 0));
     const others = elements
       .filter((element) => !movingIds.includes(element.id) && !element.hidden)
       .map(drawnBox);
     setDrag({
       kind: "move",
-      frame,
-      start: intoGroups(frame, point),
+      frames,
+      start: point,
       base: history.document,
       ids: movingIds,
       box: boundsOf(moving.map(drawnBox))!,
@@ -509,13 +512,16 @@ function Editor({
       return;
     }
     if (drag.kind === "move") {
-      const local = intoGroups(drag.frame, point);
-      const dx = local.x - drag.start.x;
-      const dy = local.y - drag.start.y;
+      const dx = point.x - drag.start.x;
+      const dy = point.y - drag.start.y;
       const moved = { ...drag.box, x: drag.box.x + dx, y: drag.box.y + dy };
       const snap = snapBox(moved, drag.candidates, SNAP_PX / zoom, event.altKey);
       setGuides(snap.guides);
-      setPreview(moveBy(drag.base, page, drag.ids, dx + snap.dx, dy + snap.dy));
+      const step = { x: dx + snap.dx, y: dy + snap.dy };
+      const steps = new Map(
+        drag.ids.map((id, index) => [id, stepIntoGroups(drag.frames[index]!, step)]),
+      );
+      setPreview(moveEach(drag.base, page, steps));
       return;
     }
     if (drag.kind === "resize") {
@@ -590,13 +596,17 @@ function Editor({
     if (move === undefined || editable.length === 0) return;
     event.preventDefault();
     const ids = editable.map((element) => element.id);
-    // A step on the screen: in a turned group's frame, the step turned back.
-    const frame = groupChain(elements, ids[0]!);
-    const origin = intoGroups(frame, { x: 0, y: 0 });
-    const end = intoGroups(frame, { x: move[0]!, y: move[1]! });
-    const dx = Math.round((end.x - origin.x) * 1000) / 1000;
-    const dy = Math.round((end.y - origin.y) * 1000) / 1000;
-    apply((current) => moveBy(current, page, ids, dx, dy));
+    // A step on the screen: in a turned group's frame, the step turned back, for each element in
+    // its own groups.
+    const steps = new Map(
+      ids.map((id) => {
+        const local = stepIntoGroups(groupChain(elements, id), { x: move[0]!, y: move[1]! });
+        const x = Math.round(local.x * 1000) / 1000;
+        const y = Math.round(local.y * 1000) / 1000;
+        return [id, { x, y }];
+      }),
+    );
+    apply((current) => moveEach(current, page, steps));
   };
 
   // Esc: a child's group, then no selection (`GL-UI-040`); an open drawer and leaving come after.

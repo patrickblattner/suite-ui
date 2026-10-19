@@ -9101,3 +9101,43 @@ test("slide editor: dragging a child of a turned group follows the pointer", asy
   await expect(field("y")).toHaveValue("290");
   await expect(field("x")).toHaveValue("570");
 });
+
+// Codex #326 CX1 (#323 AC3): a selection across levels — a child of a turned group plus a page-level
+// element — moves each element in its own frame, by arrow key and by drag alike.
+test("slide editor: a selection across levels nudges and drags each element in its own frame", async ({
+  page,
+}) => {
+  const { editor, at, field, select } = await openEditor(page);
+  await select(630, 340);
+  await field("rotation").fill("90");
+  await page.keyboard.press("Tab");
+  const drawn = at(630, 300);
+  await page.mouse.dblclick(drawn.x, drawn.y);
+  await expect(field("x")).toHaveValue("560");
+  await select(140, 130, true);
+  const child = editor.locator("[data-slide-element=pair-left]");
+  const loose = editor.locator("[data-slide-element=a]");
+  const boxes = async () => [(await child.boundingBox())!, (await loose.boundingBox())!];
+  const moved = async (before: { x: number; y: number }[], by: { x: number; y: number }) => {
+    const after = await boxes();
+    after.forEach((box, index) => {
+      expect(box.x - before[index]!.x).toBeCloseTo(by.x, 0);
+      expect(box.y - before[index]!.y).toBeCloseTo(by.y, 0);
+    });
+  };
+  const start = await boxes();
+  await page.keyboard.press("ArrowRight");
+  await moved(start, { x: 1, y: 0 });
+  await page.keyboard.press("Shift+ArrowDown");
+  await moved(start, { x: 1, y: 10 });
+  const before = await boxes();
+  const from = at(141, 140);
+  await page.keyboard.down("Alt");
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(from.x + 10, from.y, { steps: 3 });
+  await page.mouse.move(from.x + 20, from.y, { steps: 3 });
+  await page.mouse.up();
+  await page.keyboard.up("Alt");
+  await moved(before, { x: 20, y: 0 });
+});
