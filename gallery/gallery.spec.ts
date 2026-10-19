@@ -2347,7 +2347,7 @@ test("leave guard (BrowserRouter): browser back with a draft asks once and holds
   await page.getByTestId("harness-value").fill("draft");
   await page.goBack();
   await expect(page.getByTestId("leave-guard")).toBeVisible();
-  expect(pathOf(page)).toBe("/item");
+  await expect.poll(() => pathOf(page)).toBe("/item");
   await page.getByTestId("leave-guard-cancel").click();
   await expectNoDialog(page);
   expect(pathOf(page)).toBe("/item");
@@ -2386,7 +2386,7 @@ test("leave guard (BrowserRouter): browser forward with a draft asks once and ho
   await page.getByTestId("harness-value").fill("draft");
   await page.goForward();
   await expect(page.getByTestId("leave-guard")).toBeVisible();
-  expect(pathOf(page)).toBe("/");
+  await expect.poll(() => pathOf(page)).toBe("/");
   await page.getByTestId("leave-guard-cancel").click();
   await expectNoDialog(page);
   expect(pathOf(page)).toBe("/");

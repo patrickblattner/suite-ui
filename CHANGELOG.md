@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.136.3 — #313
+
+- test: wait for the restored address after the leave dialog opens #313
+
 ## 0.136.2 — #310, SUI-FEATURE-150 rev 6, GL-UI-007: the guard holds a `BrowserRouter` on its own window
 
 Fix, not breaking.
