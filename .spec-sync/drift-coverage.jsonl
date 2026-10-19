@@ -503,3 +503,7 @@
 {"ts":"2026-10-19T09:01:28.129Z","key":"SUI-FEATURE-190","from":2,"to":4,"disposition":"ticket","ref":"327"}
 {"ts":"2026-10-19T09:01:46.268Z","key":"SUI-FEATURE-200","from":null,"to":2,"disposition":"ticket","ref":"341"}
 {"ts":"2026-10-19T09:01:58.970Z","key":"SUI-FEATURE-210","from":null,"to":2,"disposition":"ticket","ref":"342"}
+{"ts":"2026-10-19T10:28:11.032Z","key":"PROC-RUN-014","from":2,"to":3,"disposition":"editorial","ref":"owner exception for hosted runners; suite-ui has no workflows, no code impact"}
+{"ts":"2026-10-19T10:28:11.425Z","key":"GL-UX-001","from":4,"to":5,"disposition":"ticket","ref":"333"}
+{"ts":"2026-10-19T10:28:21.353Z","key":"SUI-FEATURE-006","from":3,"to":4,"disposition":"ticket","ref":"344"}
+{"ts":"2026-10-19T10:40:15.120Z","key":"SUI-FEATURE-220","from":null,"to":2,"disposition":"ticket","ref":"346"}
