@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.137.14 — #325: the release script's tests start without spawning git per test
+
+Not breaking. Tests only, the package is unchanged.
+
+- **`scripts/release.test.ts` no longer waits on git processes in its per-test hooks**: each test spawned four git processes in its `beforeEach` (five more in the review tests), whose start-up a loaded gate slowed until "logs an empty range" hit the 10 s hook timeout once. The starting repos are now built once per file (`beforeAll`, with a 60 s timeout that matches spawning a handful of git processes on a loaded machine) and copied per test, file system work only. Under 32 CPU hogs with 8 runs of the file in parallel, the per-test hooks went from a mean of 72 / 55 ms (max 224 ms) to 18 / 22 ms (max 104 ms); 32 runs in a row green.
+
+**Migration:** none. Baselines: none.
+
 ## 0.137.13 — #324, SUI-FEATURE-161, GL-UI-040: a child of a turned group is framed and handled where it is drawn
 
 Fix, not breaking.

@@ -3,6 +3,7 @@ import { execFileSync, spawnSync } from "node:child_process";
 import {
   chmodSync,
   copyFileSync,
+  cpSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -19,8 +20,9 @@ import { fileURLToPath } from "node:url";
 const script = fileURLToPath(new URL("./release.ts", import.meta.url));
 let repo: string;
 
-const git = (...args: string[]) =>
-  execFileSync("git", args, { cwd: repo, encoding: "utf8", stdio: "pipe" }).trim();
+const gitIn = (cwd: string, ...args: string[]) =>
+  execFileSync("git", args, { cwd, encoding: "utf8", stdio: "pipe" }).trim();
+const git = (...args: string[]) => gitIn(repo, ...args);
 
 const tag = (...args: string[]) => {
   const run = spawnSync(process.execPath, ["scripts/release.ts", "tag", ...args], {
@@ -30,22 +32,48 @@ const tag = (...args: string[]) => {
   return { status: run.status, out: run.stdout + run.stderr };
 };
 
-const writeRecord = (record: object) => {
-  const dir = join(repo, ".spec-sync", "gate-records");
-  mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, `${git("rev-parse", "HEAD^{tree}")}.json`), JSON.stringify(record));
+const writeRecord = (record: object, dir = repo) => {
+  const records = join(dir, ".spec-sync", "gate-records");
+  mkdirSync(records, { recursive: true });
+  writeFileSync(
+    join(records, `${gitIn(dir, "rev-parse", "HEAD^{tree}")}.json`),
+    JSON.stringify(record),
+  );
 };
 
+// Each test's repo is a copy of a starting repo built once per file (#325): building it takes git
+// processes (init, add, commit, update-ref), and each test spawning its own in the hook made the
+// hook wait on process starts, which a loaded gate slowed past the 10 s hook timeout. A copy is
+// file system work only. Built once, the starting repo gets a timeout that matches spawning a
+// handful of git processes on a loaded machine.
+const HOOK_SPAWN_TIMEOUT = 60_000;
+const fresh = (prefix: string) => mkdtempSync(join(tmpdir(), prefix));
+const copyOf = (template: string) => {
+  const dir = fresh("suite-ui-release-");
+  cpSync(template, dir, { recursive: true, preserveTimestamps: true });
+  return dir;
+};
+let start: string;
+
+beforeAll(() => {
+  start = fresh("suite-ui-release-start-");
+  mkdirSync(join(start, "scripts"));
+  copyFileSync(script, join(start, "scripts", "release.ts"));
+  writeFileSync(join(start, "package.json"), JSON.stringify({ version: "9.9.9" }));
+  writeFileSync(join(start, ".gitignore"), ".spec-sync/\nnode_modules/\n");
+  // No template: without its sample hooks there is less to copy per test.
+  gitIn(start, "init", "-q", "--template=", "-b", "main");
+  gitIn(start, "add", ".");
+  gitIn(start, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "init");
+  gitIn(start, "update-ref", "refs/remotes/origin/main", "HEAD");
+}, HOOK_SPAWN_TIMEOUT);
+
+afterAll(() => {
+  rmSync(start, { recursive: true, force: true });
+});
+
 beforeEach(() => {
-  repo = mkdtempSync(join(tmpdir(), "suite-ui-release-"));
-  mkdirSync(join(repo, "scripts"));
-  copyFileSync(script, join(repo, "scripts", "release.ts"));
-  writeFileSync(join(repo, "package.json"), JSON.stringify({ version: "9.9.9" }));
-  writeFileSync(join(repo, ".gitignore"), ".spec-sync/\nnode_modules/\n");
-  git("init", "-q", "-b", "main");
-  git("add", ".");
-  git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "init");
-  git("update-ref", "refs/remotes/origin/main", "HEAD");
+  repo = copyOf(start);
 });
 
 afterEach(() => {
@@ -200,16 +228,28 @@ describe("release:tag review", () => {
     return { status: run.status, out: run.stdout + run.stderr, err: run.stderr, args };
   };
 
-  beforeEach(() => {
+  // The previous tag, a commit after it and its green merge record: built once, copied per test.
+  let tagged: string;
+  beforeAll(() => {
+    tagged = copyOf(start);
     writeFileSync(
-      join(repo, ".gitignore"),
+      join(tagged, ".gitignore"),
       ".spec-sync/\nnode_modules/\n.bin/\n.origin.git/\nnpx-args\nnpx-out\n",
     );
-    git("tag", "v9.9.8");
-    git("add", ".");
-    git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "next");
-    git("update-ref", "refs/remotes/origin/main", "HEAD");
-    writeRecord({ profile: "merge", exit: 0 });
+    gitIn(tagged, "tag", "v9.9.8");
+    gitIn(tagged, "add", ".");
+    gitIn(tagged, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "next");
+    gitIn(tagged, "update-ref", "refs/remotes/origin/main", "HEAD");
+    writeRecord({ profile: "merge", exit: 0 }, tagged);
+  }, HOOK_SPAWN_TIMEOUT);
+
+  afterAll(() => {
+    rmSync(tagged, { recursive: true, force: true });
+  });
+
+  beforeEach(() => {
+    rmSync(repo, { recursive: true, force: true });
+    repo = copyOf(tagged);
   });
 
   it("reviews the range from the previous tag without installing", () => {
