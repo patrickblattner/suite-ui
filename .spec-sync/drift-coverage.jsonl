@@ -524,3 +524,5 @@
 {"ts":"2026-10-19T18:09:32.854Z","key":"SUI-FEATURE-232","from":null,"to":3,"disposition":"ticket","ref":"363"}
 {"ts":"2026-10-19T19:11:13.622Z","key":"SUI-FEATURE-233","from":null,"to":2,"disposition":"ticket","ref":"294"}
 {"ts":"2026-10-19T19:59:30.819Z","key":"SUI-FEATURE-233","from":null,"to":3,"disposition":"ticket","ref":"368"}
+{"ts":"2026-10-19T20:13:58.998Z","key":"PROC-DEV-036","from":9,"to":10,"disposition":"editorial","ref":"context budget default/agent-transcript clarification; toolkit and harness behaviour, no suite-ui code"}
+{"ts":"2026-10-19T20:14:03.701Z","key":"SUI-FEATURE-120","from":5,"to":6,"disposition":"ticket","ref":"344"}
