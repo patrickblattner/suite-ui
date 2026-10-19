@@ -6,6 +6,7 @@
 import { DEFAULT_TEXT_SIZE, pageLists, stackOrder } from "./render-style.js";
 import {
   SLIDE_LIMITS,
+  type ColorValue,
   type SlideDocument,
   type SlideElement,
   type SlideFormat,
@@ -836,4 +837,99 @@ export function transferFormat(
   // What each page draws, its master's and layout's elements too (Codex #355 CX1).
   const drawn = pages.flatMap((_, index) => pageLists(copy, index).flat());
   return { document: copy, overflowIds: [...new Set(overflowingIds(drawn, format))] };
+}
+
+// An icon's name as people read it: "arrow-right" → "Arrow right".
+export function iconLabel(name: string): string {
+  const words = name.replace(/-/g, " ");
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+// What the element library inserts (`SUI-FEATURE-232`): a shape, a line, an icon of the package's
+// set, or a medium of the app (its id, alt text and aspect ratio, width over height).
+export type LibraryEntry =
+  | { kind: "shape"; shape: "rectangle" | "ellipse" | "triangle" }
+  | { kind: "line" }
+  | { kind: "icon"; icon: string }
+  | { kind: "image"; media: string; alt: string; aspect: number };
+
+// A new element for a library entry: 20 % of the page's shorter side (its larger side for an image),
+// centred on `at` (page px), in `color` (a shape's fill, a line's stroke, an icon's colour), above
+// everything on the page.
+export function libraryElement(
+  document: SlideDocument,
+  page: number,
+  entry: LibraryEntry,
+  at: { x: number; y: number },
+  color: ColorValue,
+): SlideElement {
+  const side = round(Math.min(document.format.width, document.format.height) * 0.2);
+  const elements = document.pages[page]?.elements ?? [];
+  const layer = elements.reduce((top, element) => Math.max(top, element.layer), 0);
+  const box = (width: number, height: number) => ({
+    x: round(at.x - width / 2),
+    y: round(at.y - height / 2),
+    width: round(width),
+    height: round(height),
+    rotation: 0,
+    layer,
+    locked: false,
+    hidden: false,
+    opacity: 100,
+  });
+  switch (entry.kind) {
+    case "shape":
+      return {
+        id: uniqueId(document, entry.shape),
+        type: "shape",
+        shape: entry.shape,
+        ...box(side, side),
+        fill: { type: "color", color },
+        cornerRadius: 0,
+      };
+    case "line":
+      return {
+        id: uniqueId(document, "line"),
+        type: "line",
+        ...box(side, Math.max(1, round(side / 10))),
+        stroke: { color, width: Math.max(1, round(side / 40)) },
+      };
+    case "icon":
+      return {
+        id: uniqueId(document, "icon"),
+        // Its name as people read it, in the layers and the path (the id stays the icon's own).
+        name: iconLabel(entry.icon),
+        type: "icon",
+        icon: entry.icon,
+        ...box(side, side),
+        color,
+      };
+    case "image": {
+      const aspect = entry.aspect > 0 && Number.isFinite(entry.aspect) ? entry.aspect : 4 / 3;
+      const [width, height] = aspect >= 1 ? [side, side / aspect] : [side * aspect, side];
+      return {
+        id: uniqueId(document, "image"),
+        type: "image",
+        ...box(width, height),
+        media: { id: entry.media },
+        alt: entry.alt,
+        crop: { zoom: 1, offsetX: 0, offsetY: 0 },
+        flipped: false,
+        cornerRadius: 0,
+      };
+    }
+    default: {
+      const unknown: never = entry;
+      throw new Error(`libraryElement: no such entry ${JSON.stringify(unknown)}`);
+    }
+  }
+}
+
+// The page with `element` added on top.
+export function insertElement(
+  document: SlideDocument,
+  page: number,
+  element: SlideElement,
+): SlideDocument {
+  return withPage(document, page, (elements) => [...elements, element]);
 }

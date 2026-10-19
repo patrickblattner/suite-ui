@@ -1,0 +1,200 @@
+import type { LucideIcon } from "lucide-react";
+import { CircleIcon, ImageIcon, MinusIcon, SquareIcon, TriangleIcon } from "lucide-react";
+import * as React from "react";
+import { useTranslation } from "react-i18next";
+
+import { Button } from "../ui/button.js";
+import { Hint } from "../ui/hint.js";
+import { Input } from "../ui/input.js";
+import { OverflowTooltip } from "../ui/tooltip.js";
+import { iconLabel, type LibraryEntry } from "./editor-ops.js";
+import { isSlideIcon, slideIconNames, useSlideIcons } from "./use-slide-assets.js";
+
+// What a drag from the library carries to the canvas.
+export const LIBRARY_DRAG_TYPE = "application/x-suite-slide-library";
+
+// What the app's media picker hands back (`SUI-FEATURE-232`); `undefined` is a cancel.
+export type PickedMedia = { id: string; alt?: string; width?: number; height?: number };
+
+// The most icons the search shows at once; past it the list says to refine the search.
+const ICON_LIMIT = 60;
+
+const SHAPE_KINDS = ["rectangle", "ellipse", "triangle"] as const;
+
+const SHAPES = [
+  { entry: { kind: "shape", shape: "rectangle" }, icon: SquareIcon, label: "libraryRectangle" },
+  { entry: { kind: "shape", shape: "ellipse" }, icon: CircleIcon, label: "libraryEllipse" },
+  { entry: { kind: "shape", shape: "triangle" }, icon: TriangleIcon, label: "libraryTriangle" },
+  { entry: { kind: "line" }, icon: MinusIcon, label: "libraryLine" },
+] as const satisfies readonly { entry: LibraryEntry; icon: unknown; label: string }[];
+
+export { iconLabel };
+
+// The library entry a drop carries, or `undefined` for anything else: data that is not JSON, or not
+// a shape, a line or an icon of the package's set (a drag never carries media, which come only
+// through the app's picker).
+export function parseLibraryEntry(data: string): LibraryEntry | undefined {
+  let value: unknown;
+  try {
+    value = JSON.parse(data);
+  } catch {
+    return undefined;
+  }
+  if (typeof value !== "object" || value === null) return undefined;
+  const entry = value as Record<string, unknown>;
+  if (entry.kind === "line") return { kind: "line" };
+  if (entry.kind === "shape" && SHAPE_KINDS.some((shape) => shape === entry.shape)) {
+    return { kind: "shape", shape: entry.shape as (typeof SHAPE_KINDS)[number] };
+  }
+  if (entry.kind === "icon" && typeof entry.icon === "string" && isSlideIcon(entry.icon)) {
+    return { kind: "icon", icon: entry.icon };
+  }
+  return undefined;
+}
+
+// The previews loaded so far, kept while the search changes, so a shown icon never blanks.
+const previews = new Map<string, LucideIcon>();
+
+// The element library in the editor's Add drawer (`SUI-FEATURE-162` §Element-Bibliothek,
+// `SUI-FEATURE-232`): shapes and a line, the package's icons with a search that filters as you
+// type, and the app's media through its own picker. A click or Enter on an entry inserts it at the
+// page's centre (the keyboard path for dragging); dragging it onto the page drops it there. The
+// search term is the editor's, so it stays while the drawer is closed.
+export function ElementLibrary({
+  term,
+  onTerm,
+  onInsert,
+  onPickMedia,
+}: {
+  term: string;
+  onTerm: (term: string) => void;
+  onInsert: (entry: LibraryEntry, label: string) => void;
+  onPickMedia: (() => void) | undefined;
+}) {
+  const { t } = useTranslation("suite");
+  const names = React.useMemo(() => slideIconNames(), []);
+  const wanted = term.trim().toLowerCase().replace(/\s+/g, "-");
+  const matches = wanted === "" ? names : names.filter((name) => name.includes(wanted));
+  const shown = matches.slice(0, ICON_LIMIT);
+  const { icons } = useSlideIcons(shown);
+  for (const [name, icon] of icons) previews.set(name, icon);
+  const searchId = React.useId();
+  const drag = (entry: LibraryEntry) => (event: React.DragEvent) => {
+    event.dataTransfer.setData(LIBRARY_DRAG_TYPE, JSON.stringify(entry));
+    event.dataTransfer.effectAllowed = "copy";
+  };
+  const values = (name: string) => ({ name, interpolation: { escapeValue: false } });
+  const entryButton = (
+    entry: LibraryEntry,
+    label: string,
+    preview: React.ReactNode,
+    testId: string,
+  ) => (
+    <Hint key={testId} text={t("slides.editor.libraryInsertHint", values(label))}>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="h-auto min-w-0 justify-start gap-2 py-1.5"
+        draggable
+        onDragStart={drag(entry)}
+        onClick={() => onInsert(entry, label)}
+        data-testid={testId}
+      >
+        {preview}
+        <OverflowTooltip>
+          <span className="min-w-0 truncate">{label}</span>
+        </OverflowTooltip>
+      </Button>
+    </Hint>
+  );
+  return (
+    <div className="flex flex-col gap-4" data-testid="slide-editor-library">
+      <p className="text-xs text-muted-foreground">{t("slides.editor.libraryHint")}</p>
+      <section className="flex flex-col gap-2" aria-labelledby={`${searchId}-shapes`}>
+        <h3 id={`${searchId}-shapes`} className="text-sm font-medium">
+          {t("slides.editor.libraryShapes")}
+        </h3>
+        <div className="grid grid-cols-2 gap-1">
+          {SHAPES.map(({ entry, icon: Icon, label }) =>
+            entryButton(
+              entry,
+              t(`slides.editor.${label}`),
+              <Icon aria-hidden="true" />,
+              `slide-editor-library-${entry.kind === "shape" ? entry.shape : "line"}`,
+            ),
+          )}
+        </div>
+      </section>
+      {onPickMedia === undefined ? null : (
+        <section className="flex flex-col gap-2" aria-labelledby={`${searchId}-media`}>
+          <h3 id={`${searchId}-media`} className="text-sm font-medium">
+            {t("slides.editor.libraryMedia")}
+          </h3>
+          <Hint text={t("slides.editor.libraryMediaHint")}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="min-w-0 justify-start gap-2"
+              onClick={onPickMedia}
+              data-testid="slide-editor-library-media"
+            >
+              <ImageIcon aria-hidden="true" />
+              <OverflowTooltip>
+                <span className="min-w-0 truncate">{t("slides.editor.libraryPickMedia")}</span>
+              </OverflowTooltip>
+            </Button>
+          </Hint>
+        </section>
+      )}
+      <section className="flex flex-col gap-2" aria-labelledby={`${searchId}-icons`}>
+        <h3 id={`${searchId}-icons`} className="text-sm font-medium">
+          {t("slides.editor.libraryIcons")}
+        </h3>
+        <label htmlFor={searchId} className="sr-only">
+          {t("slides.editor.librarySearch")}
+        </label>
+        <Hint text={t("slides.editor.librarySearchHint")}>
+          <Input
+            id={searchId}
+            type="search"
+            value={term}
+            placeholder={t("slides.editor.librarySearch")}
+            onChange={(event) => onTerm(event.target.value)}
+            data-testid="slide-editor-library-search"
+          />
+        </Hint>
+        <p
+          className="text-xs text-muted-foreground"
+          role="status"
+          data-testid="slide-editor-library-count"
+        >
+          {matches.length === 0
+            ? t("slides.editor.libraryNoIcon", {
+                term: term.trim(),
+                interpolation: { escapeValue: false },
+              })
+            : matches.length > ICON_LIMIT
+              ? t("slides.editor.libraryCapped", { shown: ICON_LIMIT, count: matches.length })
+              : t("slides.editor.libraryFound", { count: matches.length })}
+        </p>
+        <div className="grid grid-cols-2 gap-1" data-testid="slide-editor-library-icons">
+          {shown.map((name) => {
+            const Icon = icons.get(name) ?? previews.get(name);
+            return entryButton(
+              { kind: "icon", icon: name },
+              iconLabel(name),
+              Icon === undefined ? (
+                <span className="size-4 shrink-0" aria-hidden="true" />
+              ) : (
+                <Icon aria-hidden="true" />
+              ),
+              `slide-editor-library-icon-${name}`,
+            );
+          })}
+        </div>
+      </section>
+    </div>
+  );
+}

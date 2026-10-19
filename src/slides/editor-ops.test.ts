@@ -12,7 +12,9 @@ import {
   findElement,
   groupChain,
   groupElements,
+  insertElement,
   intoGroups,
+  libraryElement,
   outOfGroups,
   overflowingIds,
   panCrop,
@@ -795,5 +797,66 @@ describe("transfer to another format", () => {
     const b = box(copy, "b");
     expect(b.x - group.x).toBeCloseTo(100 * (2 / 3), 2);
     expect(b.width).toBeCloseTo(100 * (2 / 3), 2);
+  });
+});
+
+// SUI-FEATURE-232 (#294 inc 3): what the element library puts on the page.
+describe("library elements", () => {
+  const color = { kind: "brand", key: "accent" } as const;
+  const page = () => doc([{ ...shape("a", 0, 0), layer: 3 }, shape("rectangle-1", 500, 500)]);
+
+  it("sizes an entry at 20 % of the shorter side, centred on the point, above everything", () => {
+    const document = page();
+    const square = libraryElement(
+      document,
+      0,
+      { kind: "shape", shape: "rectangle" },
+      { x: 960, y: 540 },
+      color,
+    );
+    // 20 % of 1080 is 216; the id is the next one free.
+    expect(square).toMatchObject({
+      id: "rectangle-2",
+      type: "shape",
+      x: 852,
+      y: 432,
+      width: 216,
+      height: 216,
+      layer: 3,
+    });
+    const inserted = insertElement(document, 0, square);
+    expect(inserted.pages[0]!.elements.at(-1)!.id).toBe("rectangle-2");
+    expect(safeParseSlideDocument(inserted).ok).toBe(true);
+    const line = libraryElement(document, 0, { kind: "line" }, { x: 100, y: 100 }, color);
+    expect(line).toMatchObject({ type: "line", width: 216, height: 21.6, stroke: { width: 5.4 } });
+    const icon = libraryElement(
+      document,
+      0,
+      { kind: "icon", icon: "arrow-right" },
+      { x: 100, y: 100 },
+      color,
+    );
+    expect(icon).toMatchObject({
+      type: "icon",
+      icon: "arrow-right",
+      name: "Arrow right",
+      width: 216,
+      height: 216,
+    });
+  });
+
+  it("gives an image its aspect ratio, its larger side 20 % of the shorter one, else 4:3", () => {
+    const document = page();
+    const at = { x: 960, y: 540 };
+    const image = (aspect: number) =>
+      libraryElement(document, 0, { kind: "image", media: "m", alt: "A hill", aspect }, at, color);
+    expect(image(16 / 9)).toMatchObject({
+      width: 216,
+      height: 121.5,
+      media: { id: "m" },
+      alt: "A hill",
+    });
+    expect(image(0.5)).toMatchObject({ width: 108, height: 216 });
+    expect(image(Number.NaN)).toMatchObject({ width: 216, height: 162 });
   });
 });

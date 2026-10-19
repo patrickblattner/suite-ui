@@ -205,6 +205,11 @@ export function isSlideIcon(name: string): boolean {
   return Object.hasOwn(iconImports, name);
 }
 
+// The names of the package's icon set, sorted (the element library's search, `SUI-FEATURE-232`).
+export function slideIconNames(): string[] {
+  return Object.keys(iconImports).sort();
+}
+
 // A failed import is not kept, so the next view tries again.
 function loadIcon(name: string): Promise<LucideIcon | undefined> {
   let load = iconLoads.get(name);

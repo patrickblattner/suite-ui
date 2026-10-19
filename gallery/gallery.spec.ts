@@ -13,6 +13,7 @@ import {
 import { shellTexts } from "./shell-labels.js";
 import { exportSlidePages } from "../src/slides/export.js";
 import { SLIDE_EXAMPLES } from "./slide-examples.js";
+import { SLIDE_BRAND } from "./slide-showcase.js";
 
 const LANGUAGES = ["de", "en", "es"] as const;
 const THEMES = ["light", "dark"] as const;
@@ -9602,6 +9603,218 @@ for (const lng of ["de", "en", "es"]) {
     await page.getByTestId("slide-editor-transfer-confirm").click();
     await expect(page.getByTestId("slide-editor-app")).toHaveAttribute("data-transfer", /Portrait/);
     expect(await button.boundingBox()).toEqual(placed);
+  });
+}
+
+// SUI-FEATURE-162 AC3, SUI-FEATURE-232 (#294 inc 3): the element library in the Add drawer.
+async function openLibrary(page: Page, query = "") {
+  await page.goto(`/?page=slide-editor&lng=en${query}`);
+  const editor = await openEditor(page, false);
+  await editor.editor.getByTestId("drawer-add").click();
+  const library = editor.editor.getByTestId("slide-editor-library");
+  await expect(library).toBeVisible();
+  return { ...editor, library };
+}
+
+// AC1: no media entry without the app's picker; with it, a cancel inserts nothing and a choice
+// inserts the image in its aspect ratio, centred, selected and announced.
+test("slide editor: an image comes from the app's media picker", async ({ page }) => {
+  const without = await openLibrary(page, "&media=none");
+  await expect(without.library.getByTestId("slide-editor-library-media")).toHaveCount(0);
+
+  const { editor, library, field } = await openLibrary(page);
+  const count = () => editor.locator("[data-slide-element]").count();
+  const before = await count();
+  await library.getByTestId("slide-editor-library-media").click();
+  const picker = page.getByTestId("gallery-media-picker");
+  await expect(picker).toBeVisible();
+  await picker.getByRole("button", { name: "Cancel" }).click();
+  await expect(picker).toHaveCount(0);
+  expect(await count()).toBe(before);
+
+  await library.getByTestId("slide-editor-library-media").click();
+  await page.getByTestId("gallery-media-pick-photo").click();
+  await expect.poll(count).toBe(before + 1);
+  // 20 % of the shorter side (450): 90 wide, 90 / (16/9) high, centred on the 800 × 450 page.
+  await expect(field("width")).toHaveValue("90");
+  await expect(field("height")).toHaveValue("50.63");
+  await expect(field("x")).toHaveValue("355");
+  await expect(editor.getByTestId("canvas-announcement")).toHaveText("Inserted: Hills under a sun");
+  await expect(editor.locator("[data-slide-element=image-1] img")).toHaveAttribute(
+    "alt",
+    "Hills under a sun",
+  );
+  await expect(page.locator("[data-sonner-toast]")).toHaveCount(0);
+});
+
+// AC2: the icon search filters as you type, key by key, at most 60 with the hint.
+test("slide editor: the icon search filters as you type", async ({ page }) => {
+  const { library } = await openLibrary(page);
+  const search = library.getByTestId("slide-editor-library-search");
+  const found = library.getByTestId("slide-editor-library-count");
+  const icons = library.getByTestId("slide-editor-library-icons").getByRole("button");
+  await search.focus();
+  for (const key of "arrow") {
+    await page.keyboard.type(key);
+  }
+  await expect(found).toHaveText(/^Showing 60 of \d+ icons\. Refine the search to see more\.$/);
+  await expect(icons).toHaveCount(60);
+  for (const button of await icons.all()) await expect(button).toContainText(/arrow/i);
+  await page.keyboard.type("-down-left");
+  await expect(found).toHaveText(/^\d+ icons?$/);
+  expect(await icons.count()).toBeLessThan(60);
+  await page.keyboard.type("zzz");
+  await expect(found).toHaveText("No icon matches “arrow-down-leftzzz”.");
+  await expect(icons).toHaveCount(0);
+});
+
+// AC3: Enter on an entry puts it at the page's centre, 20 % of the shorter side, selected and
+// announced, without a toast; a drag drops it centred under the pointer.
+test("slide editor: a library entry goes in by Enter or by dragging", async ({ page }) => {
+  const { editor, library, field } = await openLibrary(page);
+  await library.getByTestId("slide-editor-library-rectangle").focus();
+  await page.keyboard.press("Enter");
+  await expect(field("x")).toHaveValue("355");
+  await expect(field("y")).toHaveValue("180");
+  await expect(field("width")).toHaveValue("90");
+  await expect(field("height")).toHaveValue("90");
+  await expect(editor.getByTestId("canvas-announcement")).toHaveText("Inserted: Rectangle");
+  await expect(editor.getByTestId("canvas-selection")).toBeVisible();
+  await expect(page.locator("[data-sonner-toast]")).toHaveCount(0);
+  await expect(library.getByTestId("slide-editor-library-rectangle")).toBeFocused();
+
+  // At 100 % the canvas is the page: (200, 150) on the canvas is (200, 150) on the page. The drawer
+  // moved the canvas, so the point is taken from where it is now.
+  await library
+    .getByTestId("slide-editor-library-ellipse")
+    .dragTo(editor.getByTestId("slide-editor-canvas"), { targetPosition: { x: 200, y: 150 } });
+  await expect(field("x")).toHaveValue("155");
+  await expect(field("y")).toHaveValue("105");
+  await expect(editor.getByTestId("canvas-announcement")).toHaveText("Inserted: Ellipse");
+});
+
+// #294 inc 3 review: a new element stands out on the page — the first brand colour at 3 : 1 against
+// the page's own background, here not "background" (white on white) but "text".
+test("slide editor: a library element stands out on a white page", async ({ page }) => {
+  const { editor, library } = await openLibrary(page);
+  await library.getByTestId("slide-editor-library-rectangle").click();
+  await editor.getByTestId("editor-save").click();
+  const app = page.getByTestId("slide-editor-app");
+  await expect(app).toHaveAttribute("data-saved", /rectangle-1/);
+  const saved = JSON.parse((await app.getAttribute("data-saved"))!) as {
+    pages: { elements: { id: string; fill?: { color: { kind: string; key?: string } } }[] }[];
+  };
+  const fill = saved.pages[0]!.elements.find((element) => element.id === "rectangle-1")!.fill!;
+  expect(fill.color).toEqual({ kind: "brand", key: "text" });
+  const colors = SLIDE_BRAND.colors as Record<string, string>;
+  expect(await contrastOf(page, colors.text!, colors.background!)).toBeGreaterThanOrEqual(3);
+});
+
+// #294 inc 3 review: an icon reads by its name, which is what is announced; every entry describes
+// itself in a hint; the search term stays when the drawer closes and opens again.
+test("slide editor: library entries read by name, carry hints and keep the search", async ({
+  page,
+}) => {
+  const { editor, library } = await openLibrary(page);
+  const search = library.getByTestId("slide-editor-library-search");
+  await search.focus();
+  await page.keyboard.type("arrow-right");
+  const icon = library.getByTestId("slide-editor-library-icon-arrow-right");
+  await expect(icon).toHaveText("Arrow right");
+  await icon.hover();
+  await expect(page.getByRole("tooltip")).toContainText(
+    "Inserts Arrow right at the page’s centre. You can also drag it onto the page.",
+  );
+  await icon.focus();
+  await page.keyboard.press("Enter");
+  await expect(editor.getByTestId("canvas-announcement")).toHaveText("Inserted: Arrow right");
+  await expect(library.getByRole("heading", { name: "Media library" })).toBeVisible();
+  await expect(library.getByTestId("slide-editor-library-media")).toHaveText(
+    "Choose a media item…",
+  );
+  await editor.getByTestId("drawer-add").click();
+  await expect(library).toHaveCount(0);
+  await editor.getByTestId("drawer-add").click();
+  await expect(editor.getByTestId("slide-editor-library-search")).toHaveValue("arrow-right");
+});
+
+// #294 inc 3 review: a drop that is not an entry of the library — broken data, an unknown kind, an
+// unknown icon — inserts nothing and leaves the draft as it was.
+test("slide editor: a foreign drop on the canvas inserts nothing", async ({ page }) => {
+  const { editor } = await openLibrary(page);
+  const count = () => editor.locator("[data-slide-element]").count();
+  const before = await count();
+  const canvas = editor.getByTestId("slide-editor-canvas");
+  for (const data of ["{not json", '{"kind":"chart"}', '{"kind":"icon","icon":"no-such-icon"}']) {
+    const transfer = await page.evaluateHandle((value) => {
+      const dt = new DataTransfer();
+      dt.setData("application/x-suite-slide-library", value);
+      return dt;
+    }, data);
+    await canvas.dispatchEvent("drop", { dataTransfer: transfer });
+  }
+  expect(await count()).toBe(before);
+  await expect(editor.getByTestId("editor-state")).toHaveAttribute("data-dirty", "false");
+});
+
+// #294 inc 3 review: a picker that fails, and a medium the page cannot take, are named in an error
+// toast with what to do next; nothing is inserted.
+test("slide editor: a failing media picker and an unusable medium are named", async ({ page }) => {
+  const failing = await openLibrary(page, "&media=fail");
+  await failing.library.getByTestId("slide-editor-library-media").click();
+  await expect(
+    page.locator("[data-sonner-toast]").filter({
+      hasText: "The media library could not be opened. Try again.",
+    }),
+  ).toBeVisible();
+  const bad = await openLibrary(page, "&media=bad");
+  const before = await bad.editor.locator("[data-slide-element]").count();
+  await bad.library.getByTestId("slide-editor-library-media").click();
+  await page.getByTestId("gallery-media-pick-photo").click();
+  await expect(
+    page.locator("[data-sonner-toast]").filter({
+      hasText: "This medium can’t be placed on the page. Choose another one.",
+    }),
+  ).toBeVisible();
+  expect(await bad.editor.locator("[data-slide-element]").count()).toBe(before);
+});
+
+// #294 inc 3 review: at a zoom other than 100 % a drop still lands centred under the pointer.
+test("slide editor: a library drop lands under the pointer at any zoom", async ({ page }) => {
+  const { editor, library, field } = await openLibrary(page);
+  await editor.getByTestId("canvas-zoom-fit").click();
+  const canvas = editor.getByTestId("slide-editor-canvas");
+  const box = (await canvas.boundingBox())!;
+  const zoom = box.width / 800;
+  expect(Math.abs(zoom - 1)).toBeGreaterThan(0.05);
+  await library
+    .getByTestId("slide-editor-library-ellipse")
+    .dragTo(canvas, { targetPosition: { x: 300, y: 200 } });
+  await expect
+    .poll(async () => Number(await field("x").inputValue()))
+    .toBeCloseTo(300 / zoom - 45, 0);
+  expect(Number(await field("y").inputValue())).toBeCloseTo(200 / zoom - 45, 0);
+});
+
+// #294 inc 3: the library fits the drawer at 390 px in each language.
+for (const lng of ["de", "en", "es"]) {
+  test(`slide editor: the element library fits at 390 px (${lng})`, async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.goto(`/?page=slide-editor&lng=${lng}`);
+    await page.getByTestId("drawer-add").click();
+    const library = page.getByTestId("slide-editor-library");
+    await expect(library).toBeVisible();
+    expect(await library.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+    for (const id of ["rectangle", "line", "media", "search"]) {
+      const placed = (await page.getByTestId(`slide-editor-library-${id}`).boundingBox())!;
+      expect(placed.x, id).toBeGreaterThanOrEqual(0);
+      expect(placed.x + placed.width, id).toBeLessThanOrEqual(390);
+    }
+    // A label cut off in its button shows itself whole in the hint (`GL-UI-016`).
+    await page.getByTestId("slide-editor-library-search").fill("arrow-down-wide-narrow");
+    const long = page.getByTestId("slide-editor-library-icon-arrow-down-wide-narrow");
+    await long.hover();
+    await expect(page.getByRole("tooltip")).toContainText("Arrow down wide narrow");
   });
 }
 

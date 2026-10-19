@@ -47,8 +47,11 @@ import {
   findElement,
   groupChain,
   groupElements,
+  insertElement,
   intoGroups,
   type LayerMove,
+  type LibraryEntry,
+  libraryElement,
   clampCrop,
   type ImageCrop,
   moveEach,
@@ -76,14 +79,23 @@ import {
   snapBox,
   snapCandidates,
 } from "./editor-geometry.js";
-import { stackOrder } from "./render-style.js";
+import { cssColor, stackOrder } from "./render-style.js";
 import {
   SLIDE_LIMITS,
   type SlideDocument,
+  slideElementSchema,
   type SlideDocumentInput,
   type SlideElement,
   type SlideFormat,
 } from "./schema.js";
+import { insertColor } from "./editor-color.js";
+import {
+  ElementLibrary,
+  iconLabel,
+  LIBRARY_DRAG_TYPE,
+  parseLibraryEntry,
+  type PickedMedia,
+} from "./slide-editor-library.js";
 import { TransferFormat, type TransferScope } from "./slide-editor-transfer.js";
 import { SlideView, type SlideViewProps } from "./slide-view.js";
 import { type SlideHistory, useSlideHistory } from "./use-slide-history.js";
@@ -110,6 +122,9 @@ export interface SlideEditorProps extends Pick<
   // layout's and master's) that reach past the page.
   formats?: readonly SlideFormat[];
   onTransfer?: (copy: SlideDocument, details: { overflowIds: string[] }) => void;
+  // The app's media picker (`SUI-FEATURE-232`, `GL-UI-002`): the Add drawer's "Media" entry opens it
+  // and inserts the chosen medium as an image; `undefined` is a cancel. Without it there is no entry.
+  pickMedia?: () => Promise<PickedMedia | undefined>;
   "data-testid"?: string;
 }
 
@@ -253,6 +268,7 @@ export function SlideEditor({
   onGridShown,
   formats,
   onTransfer,
+  pickMedia,
   brand,
   fonts,
   fontOrigins,
@@ -285,6 +301,7 @@ export function SlideEditor({
       onGridShown={onGridShown}
       formats={formats}
       onTransfer={onTransfer}
+      pickMedia={pickMedia}
       view={view}
       testId={testId}
     />
@@ -340,6 +357,7 @@ function Editor({
   onGridShown,
   formats,
   onTransfer,
+  pickMedia,
   view,
   testId,
 }: {
@@ -351,6 +369,7 @@ function Editor({
   onGridShown: ((shown: boolean) => void) | undefined;
   formats: SlideEditorProps["formats"];
   onTransfer: SlideEditorProps["onTransfer"];
+  pickMedia: SlideEditorProps["pickMedia"];
   view: ViewProps;
   testId: string | undefined;
 }) {
@@ -519,6 +538,59 @@ function Editor({
         ? t("slides.editor.transferred", values)
         : t("slides.editor.transferredOverflow", { ...values, count });
     toast.success(text);
+  };
+
+  // The element library's entry put on the page (`SUI-FEATURE-232`): at the page's centre, or centred
+  // on the point it was dropped at; selected, and announced while it stays selected.
+  const [insertNote, setInsertNote] = React.useState<
+    { text: string; selection: readonly string[] } | undefined
+  >(undefined);
+  // The search term of the library, kept while its drawer is closed.
+  const [libraryTerm, setLibraryTerm] = React.useState("");
+  // What people read for an entry: a shape's kind, an icon's name, a medium's alt text.
+  const entryLabel = (entry: LibraryEntry): string =>
+    entry.kind === "icon"
+      ? iconLabel(entry.icon)
+      : entry.kind === "image"
+        ? entry.alt || t("slides.editor.type.image")
+        : t(
+            `slides.editor.library${entry.kind === "line" ? "Line" : entry.shape[0]!.toUpperCase() + entry.shape.slice(1)}`,
+          );
+  // A new element's colour stands out on the page's own background (`GL-UX-001`, 3 : 1).
+  const ground = (() => {
+    const background = pageData?.background;
+    const value =
+      background?.type === "color"
+        ? background.color
+        : background?.type === "gradient"
+          ? background.stops[0]?.color
+          : undefined;
+    return (value === undefined ? undefined : cssColor(value, view.brand)) ?? "#ffffff";
+  })();
+  // Put on the page of the document as it is when it lands (a picked medium arrives later); an
+  // element the schema refuses (a medium's id or alt text past its limits) is named, never inserted.
+  const insertEntry = (entry: LibraryEntry, at?: Point, label = entryLabel(entry)): boolean => {
+    const point = at ?? { x: pageWidth / 2, y: pageHeight / 2 };
+    const color = insertColor(view.brand, ground);
+    const element = libraryElement(history.document, page, entry, point, color);
+    if (!slideElementSchema.safeParse(element).success) return false;
+    apply((current) => insertElement(current, page, element));
+    const ids = [element.id];
+    setSelection(ids);
+    setInsertNote({
+      text: t("slides.editor.inserted", { name: label, interpolation: { escapeValue: false } }),
+      selection: ids,
+    });
+    return true;
+  };
+  // A library entry dragged onto the canvas lands centred under the pointer; anything else dropped
+  // (not an entry of the library) is left alone.
+  const onLibraryDrop = (event: React.DragEvent) => {
+    const data = event.dataTransfer.getData(LIBRARY_DRAG_TYPE);
+    if (data === "") return;
+    event.preventDefault();
+    const entry = parseLibraryEntry(data);
+    if (entry !== undefined) insertEntry(entry, toPage(event));
   };
 
   // Reset drops everything since the last save, a crop being set too.
@@ -807,6 +879,35 @@ function Editor({
     if (cropping !== undefined) endCrop(true);
     setPageState(next);
   };
+
+  const latestInsert = React.useRef(insertEntry);
+  React.useEffect(() => {
+    latestInsert.current = insertEntry;
+  });
+  // The app's picker: a cancel inserts nothing; a picker that fails, or a medium the page cannot
+  // take, is named in an error toast with what to do next.
+  const pickFromMedia =
+    pickMedia === undefined
+      ? undefined
+      : () => {
+          pickMedia().then(
+            (picked) => {
+              if (picked === undefined) return;
+              const aspect =
+                picked.width !== undefined && picked.height !== undefined && picked.height > 0
+                  ? picked.width / picked.height
+                  : Number.NaN;
+              const placed = latestInsert.current({
+                kind: "image",
+                media: picked.id,
+                alt: picked.alt ?? "",
+                aspect,
+              });
+              if (!placed) toast.error(t("slides.editor.libraryMediaInvalid"));
+            },
+            () => toast.error(t("slides.editor.libraryMediaFailed")),
+          );
+        };
 
   // Ends cropping: `keep` takes the crop into the document as one step (clamped to the frame as it
   // is now), else it is dropped. The canvas keeps the focus.
@@ -1369,6 +1470,17 @@ function Editor({
         <DrawerRail
           items={[
             {
+              id: "add",
+              content: (
+                <ElementLibrary
+                  term={libraryTerm}
+                  onTerm={setLibraryTerm}
+                  onInsert={(entry, label) => insertEntry(entry, undefined, label)}
+                  onPickMedia={pickFromMedia}
+                />
+              ),
+            },
+            {
               id: "layers",
               content: (
                 <ul className="flex flex-col gap-0.5" data-testid="slide-editor-layers">
@@ -1489,6 +1601,10 @@ function Editor({
                 onPointerCancel={onPointerUp}
                 onPointerLeave={() => setHovered(undefined)}
                 onDoubleClick={onDoubleClick}
+                onDragOver={(event) => {
+                  if (event.dataTransfer.types.includes(LIBRARY_DRAG_TYPE)) event.preventDefault();
+                }}
+                onDrop={onLibraryDrop}
                 onKeyDown={onKeyDown}
                 onBlur={cropping === undefined ? undefined : keepCropOnLeave}
                 aria-describedby={croppedImage === undefined ? undefined : cropDescription}
@@ -1541,7 +1657,9 @@ function Editor({
                       })
                     : cropNote?.selection === selection
                       ? cropNote.text
-                      : undefined
+                      : insertNote?.selection === selection
+                        ? insertNote.text
+                        : undefined
                 }
               />
               {/* The guides above the selection frame, so it never covers them along the moved

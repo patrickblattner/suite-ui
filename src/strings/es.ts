@@ -430,6 +430,31 @@ export const es: SuiteStrings = {
       cropCancel: "Cancelar",
       cropApplied: "Recorte aplicado.",
       cropCancelled: "Recorte cancelado.",
+      libraryHint:
+        "Haz clic o pulsa Intro para insertar en el centro de la página, o arrastra a la página.",
+      libraryShapes: "Formas",
+      libraryRectangle: "Rectángulo",
+      libraryEllipse: "Elipse",
+      libraryTriangle: "Triángulo",
+      libraryLine: "Línea",
+      libraryMedia: "Biblioteca de medios",
+      libraryPickMedia: "Elegir un medio…",
+      libraryIcons: "Iconos",
+      librarySearch: "Buscar iconos",
+      libraryNoIcon: "Ningún icono coincide con «{{term}}».",
+      libraryFound_one: "{{count}} icono",
+      libraryFound_other: "{{count}} iconos",
+      libraryCapped_one:
+        "Se muestran {{shown}} de {{count}} icono. Afina la búsqueda para ver más.",
+      libraryCapped_other:
+        "Se muestran {{shown}} de {{count}} iconos. Afina la búsqueda para ver más.",
+      libraryInsertHint:
+        "Inserta {{name}} en el centro de la página. También se puede insertar arrastrando a la página.",
+      libraryMediaHint: "Abre la biblioteca de medios para elegir una imagen.",
+      librarySearchHint: "Filtra los iconos por nombre mientras escribes.",
+      libraryMediaFailed: "No se pudo abrir la biblioteca de medios. Inténtalo de nuevo.",
+      libraryMediaInvalid: "Este medio no se puede colocar en la página. Elige otro.",
+      inserted: "Insertado: {{name}}",
       transfer: "Transferir formato",
       transferTitle: "Transferir a otro formato",
       transferDescription:

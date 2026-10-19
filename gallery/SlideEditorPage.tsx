@@ -1,6 +1,16 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import { SlideEditor } from "../src/slides/slide-editor.js";
+import type { PickedMedia } from "../src/slides/slide-editor-library.js";
+import { Button } from "../src/ui/button.js";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "../src/ui/dialog.js";
 import { Toaster } from "../src/ui/toaster.js";
 import type { SlideDocument, SlideFormat } from "../src/slides/schema.js";
 import { SLIDE_EDITOR_DOC } from "./slide-showcase.js";
@@ -13,6 +23,12 @@ import { GALLERY_SLIDE_PROPS } from "./SlidesPage.js";
 // deck's alone); a copy in another format is kept here and opened on request, as an app would.
 const PARAMS = new URLSearchParams(window.location.search);
 const INVALID = PARAMS.get("doc") === "invalid";
+// `SUI-FEATURE-232`: the app's media picker, here a small dialog offering the gallery's photo
+// (`?media=none`: the app has none, so the editor shows no media entry; `?media=fail`: the picker
+// fails; `?media=bad`: it hands back a medium whose alt text is past the schema's limit).
+const MEDIA = PARAMS.get("media") !== "none";
+const MEDIA_FAILS = PARAMS.get("media") === "fail";
+const MEDIA_BAD = PARAMS.get("media") === "bad";
 const FORMATS: SlideFormat[] =
   PARAMS.get("formats") === "one"
     ? [SLIDE_EDITOR_DOC.format]
@@ -23,10 +39,46 @@ export function SlideEditorPage() {
   const [backs, setBacks] = useState(0);
   const [copy, setCopy] = useState<{ document: SlideDocument; overflowIds: string[] } | null>(null);
   const [opened, setOpened] = useState<SlideDocument | null>(null);
+  const [picking, setPicking] = useState(false);
+  const picked = useRef<((media: PickedMedia | undefined) => void) | null>(null);
+  const pick = (media: PickedMedia | undefined) => {
+    setPicking(false);
+    picked.current?.(media);
+    picked.current = null;
+  };
   return (
     <>
       {/* The app's toasts, outside the page's column so the column keeps its layout. */}
       <Toaster />
+      <Dialog open={picking} onOpenChange={(open) => (open ? null : pick(undefined))}>
+        <DialogContent data-testid="gallery-media-picker">
+          <DialogHeader>
+            <DialogTitle>Media library</DialogTitle>
+            <DialogDescription>The app's own picker (gallery stand-in).</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button type="button" variant="outline" size="default" onClick={() => pick(undefined)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="default"
+              size="default"
+              onClick={() =>
+                pick({
+                  id: "photo",
+                  alt: MEDIA_BAD ? "x".repeat(5000) : "Hills under a sun",
+                  width: 1600,
+                  height: 900,
+                })
+              }
+              data-testid="gallery-media-pick-photo"
+            >
+              Hills under a sun
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       <div className="flex flex-col gap-2">
         <div
           className="h-[760px] overflow-hidden rounded-md border"
@@ -44,6 +96,17 @@ export function SlideEditorPage() {
             {...GALLERY_SLIDE_PROPS}
             formats={FORMATS}
             onTransfer={(document, { overflowIds }) => setCopy({ document, overflowIds })}
+            {...(MEDIA
+              ? {
+                  pickMedia: () =>
+                    MEDIA_FAILS
+                      ? Promise.reject(new Error("The gallery's picker failed."))
+                      : new Promise<PickedMedia | undefined>((resolve) => {
+                          picked.current = resolve;
+                          setPicking(true);
+                        }),
+                }
+              : {})}
             onSave={(document) => {
               setSaved(document);
               return true;
