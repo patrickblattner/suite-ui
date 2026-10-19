@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.143.1 — #366, SUI-FEATURE-161: no empty undo step after a value taken back
+
+Fix, not breaking.
+
+- **A field edit taken back is no step** (`useSlideHistory`): changes folded into one step under a `merge` key that end where the step began — typed and taken back, or the field's own text undo (Cmd+Z / Ctrl+Z inside the field) — drop that step instead of leaving one that undoes nothing. The header's Undo then takes back the step before it, or is disabled when there is none; typing on in the same field starts a new step. Compared by value, as Save and Reset compare.
+
+**Migration:** none.
+
 ## 0.143.0 — #294 (increment 4), SUI-FEATURE-162 AC4, SUI-FEATURE-233: charts in the slide editor
 
 New, not breaking.

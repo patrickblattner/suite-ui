@@ -1,10 +1,12 @@
 // The slide editor's history (`SUI-FEATURE-161`): every change of the document is a step that undo
 // takes back and redo brings again, across pages. A change made of many moves (a drag, typing in a
 // field) is one step: the editor shows the moves as a preview and applies the result once, or names
-// a `merge` key so changes under the same key in a row fold into one step.
+// a `merge` key so changes under the same key in a row fold into one step. A step folded back to the
+// document before it (typed and taken back, the field's own text undo) is no step any more (#366).
 
 import * as React from "react";
 
+import { isDirty } from "../ui/leave-guard.js";
 import type { SlideDocument } from "./schema.js";
 
 // How many steps undo keeps.
@@ -38,6 +40,10 @@ function reduce(state: State, action: Action): State {
       if (next === state.present.document) return state;
       const entry = { document: next, page: action.page };
       if (action.merge !== undefined && action.merge === state.merge) {
+        const before = state.past.at(-1);
+        if (before !== undefined && !isDirty(before.document, next)) {
+          return { past: state.past.slice(0, -1), present: before, future: [], merge: undefined };
+        }
         return { ...state, present: entry, future: [] };
       }
       return {

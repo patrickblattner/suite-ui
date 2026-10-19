@@ -55,6 +55,36 @@ describe("useSlideHistory", () => {
 });
 
 describe("useSlideHistory, pinned", () => {
+  // #366: typed and taken back (the field's own text undo) under one merge key is no step.
+  it("drops a merged step that ends where it began, and keeps the step before it", () => {
+    const { result } = renderHook(() => useSlideHistory(start));
+    act(() => result.current.apply((document) => moveBy(document, 0, ["a"], 2, 0)));
+    const before = result.current.document;
+    act(() => result.current.apply((document) => moveBy(document, 0, ["a"], 1, 0), { merge: "k" }));
+    act(() =>
+      result.current.apply((document) => moveBy(document, 0, ["a"], -1, 0), { merge: "k" }),
+    );
+    expect(result.current.document).toBe(before);
+    // Typed again under the same key, after the drop, it is a new step from where it stands.
+    act(() => result.current.apply((document) => moveBy(document, 0, ["a"], 1, 0), { merge: "k" }));
+    act(() => result.current.apply((document) => moveBy(document, 0, ["a"], 1, 0), { merge: "k" }));
+    act(() => result.current.undo());
+    expect(x(result.current.document)).toBe(2);
+    act(() => result.current.undo());
+    expect(x(result.current.document)).toBe(0);
+    expect(result.current.canUndo).toBe(false);
+  });
+
+  it("drops a first merged step that ends where it began, so nothing is left to undo", () => {
+    const { result } = renderHook(() => useSlideHistory(start));
+    act(() => result.current.apply((document) => moveBy(document, 0, ["a"], 4, 0), { merge: "k" }));
+    act(() =>
+      result.current.apply((document) => moveBy(document, 0, ["a"], -4, 0), { merge: "k" }),
+    );
+    expect(result.current.document).toBe(start);
+    expect(result.current.canUndo).toBe(false);
+  });
+
   it("starts a new step under the same merge key after an undo", () => {
     const { result } = renderHook(() => useSlideHistory(start));
     act(() => result.current.apply((document) => moveBy(document, 0, ["a"], 1, 0), { merge: "k" }));

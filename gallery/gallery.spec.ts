@@ -10028,9 +10028,12 @@ test("slide editor: a chart's type changes and back without losing data", async 
   await expect(data.getByRole("rowheader")).toHaveText(["Series 1", "Series 2"]);
   await expect(data.getByRole("row").nth(1).getByRole("cell")).toHaveText(["3", "-2", "4"]);
   await expect(data.getByRole("row").nth(2).getByRole("cell")).toHaveText(["2", "4", "3"]);
-  // The type already chosen is no step: one Undo takes back the bar → pie run, the next the value.
-  await bar.click();
+  // Bar → pie → bar ends where it began, so it is no step (#366); the type already chosen is none
+  // either: one Undo takes back the pie, the next the value.
+  await pie.click();
+  await pie.click();
   await undo.click();
+  await expect(bar).toHaveAttribute("aria-checked", "true");
   await expect(data.getByRole("row").nth(1).getByRole("cell")).toHaveText(["3", "-2", "4"]);
   await undo.click();
   await expect(data.getByRole("row").nth(1).getByRole("cell")).toHaveText(["3", "5", "4"]);
@@ -10046,6 +10049,24 @@ test("slide editor: a chart's type changes and back without losing data", async 
   await page.keyboard.press("ArrowLeft");
   await expect(pie).toBeFocused();
   await expect(pie).toHaveAttribute("aria-checked", "true");
+});
+
+// #366: a value typed and taken back with the field's own text undo leaves no step behind: the
+// header's Undo then takes back the step before it, the chart's insertion.
+test("slide editor: a value taken back in its field leaves no undo step", async ({ page }) => {
+  const { editor, library } = await openLibrary(page);
+  await library.getByTestId("slide-editor-library-chart").click();
+  const panel = editor.getByTestId("slide-editor-chart");
+  const value = panel.getByTestId("slide-editor-chart-value-0-0");
+  await typeInto(page, value, "4");
+  await expect(value).toHaveValue("4");
+  await expect(editor.getByTestId("editor-state")).toHaveAttribute("data-dirty", "true");
+  for (let n = 0; n < 3 && (await value.inputValue()) !== "3"; n += 1)
+    await page.keyboard.press("ControlOrMeta+z");
+  await expect(value).toHaveValue("3");
+  await editor.getByTestId("editor-undo").click();
+  await expect(editor.locator("[data-slide-element=chart-1]")).toHaveCount(0);
+  await expect(editor.getByTestId("editor-undo")).toBeDisabled();
 });
 
 // WCAG 2.4.3: adding or removing by keyboard keeps the focus in the table — on the new name, on the
