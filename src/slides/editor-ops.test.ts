@@ -348,6 +348,18 @@ describe("slide editor operations on turned groups", () => {
       ]),
     );
     expect(box(moved, "c")).toEqual({ x: 1001, y: 200, width: 200, height: 100 });
+    // The turned child is drawn one step to the right on the page (#323): a page point fixed to it
+    // before stands, one step to the right after, at the same place in the child's own box.
+    const inChild = (document: SlideDocument, point: { x: number; y: number }) => {
+      const at = intoGroups(groupChain(document.pages[0]!.elements, "a"), point);
+      const own = box(document, "a");
+      return { x: at.x - own.x, y: at.y - own.y };
+    };
+    const before = inChild(turned, { x: 40, y: 60 });
+    const after = inChild(moved, { x: 41, y: 60 });
+    expect(after.x).toBeCloseTo(before.x, 6);
+    expect(after.y).toBeCloseTo(before.y, 6);
+    expect(box(moved, "a").width).toBe(100);
     expect(moveEach(turned, 0, new Map([["c", { x: 0, y: 0 }]]))).toBe(turned);
   });
 

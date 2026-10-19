@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.137.12 — #323, SUI-FEATURE-161: the slide editor's turned-group behaviour is pinned by tests
+
+Not breaking. Tests only, the package is unchanged.
+
+- **A child of a turned group is nudged, resized and turned in the group's frame**: gallery tests press the arrow keys, drag a side handle and drag the turn handle on a child of a group at a quarter turn, and check where it is drawn and what its fields read. Each of the four steps put back to page coordinates (nudge, resize, turn, and snapping inside the group) fails a test.
+- **The canvas selects no text, and a child of a turned group never snaps to the page's lines**: a gallery test reads `user-select: none` on the canvas frame and drags such a child without Alt, with no guide and no jump.
+- **A selection across levels** moves each element in its own frame, by arrow key and by drag: shipped and tested with #326 (0.137.8). The `moveEach` unit test now also checks the turned child, not only the loose element.
+
+**Migration:** none. Baselines: none.
+
 ## 0.137.11 — #321, SUI-FEATURE-180 rev 4: slide notices name font cuts in the UI's language, an all-hidden deck says so, and no notice is cut off
 
 Fix, not breaking.

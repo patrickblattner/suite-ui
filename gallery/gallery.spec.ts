@@ -9353,3 +9353,91 @@ test("slide editor: a selection across levels nudges and drags each element in i
   await page.keyboard.up("Alt");
   await moved(before, { x: 20, y: 0 });
 });
+
+// #323 AC1: a child of a turned group is nudged, resized and turned in the group's frame. The group
+// stands at a quarter turn: the child's own x axis points down on the screen. Each step taken in page
+// coordinates instead fails here.
+async function turnedChild(page: Page) {
+  const editor = await openEditor(page);
+  await editor.select(630, 340);
+  await editor.field("rotation").fill("90");
+  await page.keyboard.press("Tab");
+  // Turned a quarter about (630, 340), the left child (centre 590, 340) is drawn at (630, 300).
+  const drawn = editor.at(630, 300);
+  await page.mouse.dblclick(drawn.x, drawn.y);
+  await expect(editor.field("x")).toHaveValue("560");
+  return { ...editor, drawn, child: editor.editor.locator("[data-slide-element=pair-left]") };
+}
+
+test("slide editor: arrow keys nudge a child of a turned group along the screen", async ({
+  page,
+}) => {
+  const { child } = await turnedChild(page);
+  const before = (await child.boundingBox())!;
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("Shift+ArrowDown");
+  const after = (await child.boundingBox())!;
+  expect(after.x - before.x).toBeCloseTo(1, 0);
+  expect(after.y - before.y).toBeCloseTo(10, 0);
+});
+
+test("slide editor: a side handle resizes a child of a turned group in the group's frame", async ({
+  page,
+}) => {
+  const { editor, field } = await turnedChild(page);
+  // The east handle is still drawn on the child's unturned box (#324), but a drag of it is measured
+  // in the group's frame: 20 px down on the screen is along the child's own x axis, so it grows
+  // wider.
+  const handle = (await editor.getByTestId("slide-editor-handle-e").boundingBox())!;
+  const from = { x: handle.x + handle.width / 2, y: handle.y + handle.height / 2 };
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(from.x, from.y + 10, { steps: 3 });
+  await page.mouse.move(from.x, from.y + 20, { steps: 3 });
+  await page.mouse.up();
+  await expect(field("width")).toHaveValue("80");
+  await expect(field("height")).toHaveValue("80");
+});
+
+test("slide editor: the turn handle turns a child of a turned group towards the pointer", async ({
+  page,
+}) => {
+  const { editor, field, at } = await turnedChild(page);
+  // Pointing straight down from the child's drawn centre: a half turn on the screen, a quarter turn
+  // in the group's frame.
+  const handle = (await editor.getByTestId("slide-editor-handle-rotate").boundingBox())!;
+  await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
+  await page.mouse.down();
+  const target = at(630, 420);
+  await page.mouse.move(target.x, target.y, { steps: 6 });
+  await page.mouse.up();
+  await expect(field("rotation")).toHaveValue("90");
+});
+
+// #323 AC2: the canvas frame selects no text, and a child of a turned group does not snap to the
+// page's lines (page, grid or other elements). It ends where its drawn edges lie on the page's grid
+// lines while, in the group's frame, its edges stand 10 px or more from the group's and its
+// sibling's (beyond snapping in that frame, `SUI-FEATURE-190`): no guide, and it lies exactly where
+// the pointer took it.
+test("slide editor: no text selection on the canvas, no page snapping in a turned group", async ({
+  page,
+}) => {
+  const { editor, child, drawn } = await turnedChild(page);
+  const canvas = editor.getByTestId("slide-editor-canvas");
+  expect(await canvas.evaluate((el) => getComputedStyle(el.parentElement!).userSelect)).toBe(
+    "none",
+  );
+  const before = (await child.boundingBox())!;
+  const guides = editor.locator("[data-testid^=slide-editor-guide-]");
+  // 10 px right and 20 px up on the screen: drawn from x 600 to 680 (grid lines), in the group's
+  // frame 20 px left and 10 px up.
+  await page.mouse.move(drawn.x, drawn.y);
+  await page.mouse.down();
+  await page.mouse.move(drawn.x + 5, drawn.y - 10, { steps: 3 });
+  await page.mouse.move(drawn.x + 10, drawn.y - 20, { steps: 3 });
+  await expect(guides).toHaveCount(0);
+  await page.mouse.up();
+  const after = (await child.boundingBox())!;
+  expect(after.x - before.x).toBeCloseTo(10, 0);
+  expect(after.y - before.y).toBeCloseTo(-20, 0);
+});
