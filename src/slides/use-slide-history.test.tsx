@@ -85,6 +85,23 @@ describe("useSlideHistory, pinned", () => {
     expect(result.current.canUndo).toBe(false);
   });
 
+  // SUI-FEATURE-161 rev 6 (AC-161.R): the dropped step still took the redo stack with it.
+  it("a merged step dropped back to its base still clears what was undone", () => {
+    const { result } = renderHook(() => useSlideHistory(start));
+    act(() => result.current.apply((document) => moveBy(document, 0, ["a"], 2, 0)));
+    act(() => result.current.undo());
+    expect(result.current.canRedo).toBe(true);
+    act(() => result.current.apply((document) => moveBy(document, 0, ["a"], 1, 0), { merge: "k" }));
+    act(() =>
+      result.current.apply((document) => moveBy(document, 0, ["a"], -1, 0), { merge: "k" }),
+    );
+    expect(result.current.document).toBe(start);
+    expect(result.current.canRedo).toBe(false);
+    act(() => result.current.redo());
+    expect(result.current.document).toBe(start);
+    expect(result.current.canRedo).toBe(false);
+  });
+
   it("starts a new step under the same merge key after an undo", () => {
     const { result } = renderHook(() => useSlideHistory(start));
     act(() => result.current.apply((document) => moveBy(document, 0, ["a"], 1, 0), { merge: "k" }));

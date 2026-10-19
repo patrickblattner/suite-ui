@@ -93,9 +93,9 @@ function nextFocusTarget(header: HTMLElement, from: Element | null): HTMLElement
 // lifecycle it stands after Preview until the first step and leads the group from then on, without
 // one directly left of Save; folded header tools keep their text, icon and lock there, above the
 // lifecycle menu's own entries after a separator.
-// A control that locks under the focus (Undo at the history's start) and the Reset confirm hand the
-// focus on as `GL-UI-050` says. Save locks itself with `aria-disabled` and a trigger lock while nothing
-// differs, so it keeps the focus after saving (`SUI-FEATURE-120`).
+// A control that locks under the focus (Reset after the draft is gone) and the Reset confirm hand the
+// focus on as `GL-UI-050` says. Save, Undo and Redo lock themselves with `aria-disabled` and a trigger
+// lock, so they keep the focus after saving and after the last step (`SUI-FEATURE-120`, #370).
 function EditorHeader({
   title,
   onBack,
@@ -346,7 +346,7 @@ function EditorHeader({
                 type="button"
                 variant="ghost"
                 size="icon-sm"
-                disabled={!canUndo}
+                {...(canUndo ? {} : { "aria-disabled": true })}
                 onClick={onUndo}
                 // A press keeps the focus where it is, so it does not end an edit in progress there
                 // (a crop being set, #349) before Undo acts on it.
@@ -362,7 +362,7 @@ function EditorHeader({
                 type="button"
                 variant="ghost"
                 size="icon-sm"
-                disabled={!canRedo}
+                {...(canRedo ? {} : { "aria-disabled": true })}
                 onClick={onRedo}
                 onPointerDown={(event) => event.preventDefault()}
                 data-slot="editor-redo"

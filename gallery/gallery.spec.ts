@@ -2011,7 +2011,7 @@ test("editor header: Ctrl+Z undoes outside a text field", async ({ page }) => {
   await page.keyboard.press("Control+z");
   await page.keyboard.press("Control+z");
   await expect(draft.getByTestId("editor-state")).toHaveText("Saved");
-  await expect(draft.getByTestId("editor-undo")).toBeDisabled();
+  await expect(draft.getByTestId("editor-undo")).toHaveAttribute("aria-disabled", "true");
   await page.keyboard.press("Control+y");
   await expect(draft.getByTestId("editor-state")).toHaveText("Draft · unsaved");
 });
@@ -9012,7 +9012,7 @@ test("slide editor: align, distribute, group, ungroup, and undo each step", asyn
   await page.keyboard.press("ControlOrMeta+z");
   expect([await x("a"), await x("b"), await x("c")]).toEqual(["100px", "300px", "520px"]);
   await page.keyboard.press("ControlOrMeta+z");
-  await expect(editor.getByTestId("editor-undo")).toBeDisabled();
+  await expect(editor.getByTestId("editor-undo")).toHaveAttribute("aria-disabled", "true");
   // Redo brings the distribution again (the aligning was undone before it, so it is gone).
   await page.keyboard.press("ControlOrMeta+Shift+z");
   expect([await x("a"), await x("b"), await x("c")]).toEqual(["100px", "310px", "520px"]);
@@ -9312,21 +9312,21 @@ test("slide editor: Undo takes back a crop being set as the first edit", async (
   const { editor, canvas, centre, shown, box, state } = await pictureEditor(page);
   const undo = editor.getByTestId("editor-undo");
   const redo = editor.getByTestId("editor-redo");
-  await expect(undo).toBeDisabled();
+  await expect(undo).toHaveAttribute("aria-disabled", "true");
   for (const how of ["key", "button"] as const) {
     await page.mouse.dblclick(centre.x, centre.y);
     await expect(canvas).toHaveAttribute("data-cropping", "picture");
     await page.keyboard.press("+");
     await expect(state).toHaveAttribute("data-dirty", "true");
     await expect(undo).toBeEnabled();
-    await expect(redo).toBeDisabled();
+    await expect(redo).toHaveAttribute("aria-disabled", "true");
     if (how === "key") await page.keyboard.press("ControlOrMeta+z");
     else await undo.click();
     await expect(canvas).not.toHaveAttribute("data-cropping");
     await expect.poll(box).toEqual(shown);
     await expect(state).toHaveAttribute("data-dirty", "false");
-    await expect(undo).toBeDisabled();
-    await expect(redo).toBeDisabled();
+    await expect(undo).toHaveAttribute("aria-disabled", "true");
+    await expect(redo).toHaveAttribute("aria-disabled", "true");
     await expect(editor.getByTestId("canvas-announcement")).toHaveText("Crop cancelled.");
   }
 });
@@ -10151,7 +10151,7 @@ test("slide editor: a value taken back in its field leaves no undo step", async 
   await expect(value).toHaveValue("3");
   await editor.getByTestId("editor-undo").click();
   await expect(editor.locator("[data-slide-element=chart-1]")).toHaveCount(0);
-  await expect(editor.getByTestId("editor-undo")).toBeDisabled();
+  await expect(editor.getByTestId("editor-undo")).toHaveAttribute("aria-disabled", "true");
 });
 
 // WCAG 2.4.3: adding or removing by keyboard keeps the focus in the table — on the new name, on the

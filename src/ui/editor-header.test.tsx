@@ -137,10 +137,16 @@ describe("EditorHeader", () => {
     expect(onRedo).toHaveBeenCalledTimes(2);
   });
 
+  // #370: locked with `aria-disabled`, they stay focusable and trigger nothing.
   it("without history the buttons are locked and the keys do nothing", () => {
     const { onUndo, onRedo } = renderHeader({ canUndo: false, canRedo: false });
-    expect(screen.getByTestId("editor-undo")).toBeDisabled();
-    expect(screen.getByTestId("editor-redo")).toBeDisabled();
+    for (const id of ["editor-undo", "editor-redo"]) {
+      const button = screen.getByTestId(id);
+      expect(button).toHaveAttribute("aria-disabled", "true");
+      expect(button).toBeEnabled();
+      // Enter and Space reach a button as a click, so the click covers the keys too.
+      fireEvent.click(button);
+    }
     fireEvent.keyDown(document.body, { key: "z", ctrlKey: true });
     fireEvent.keyDown(document.body, { key: "y", ctrlKey: true });
     expect(onUndo).not.toHaveBeenCalled();
@@ -800,6 +806,50 @@ describe("EditorHeader at narrow width", () => {
     // Enter and Space reach a button as a click, so the click covers the keys too.
     fireEvent.click(save);
     expect(onSave).toHaveBeenCalledTimes(1);
+  });
+
+  // An editor with a real one-step history, for the focus after the last Undo and the last Redo.
+  function OneStep() {
+    const [done, setDone] = useState(true);
+    return (
+      <main>
+        <EditorHeader
+          title="Spring newsletter"
+          onBack={vi.fn()}
+          canUndo={done}
+          canRedo={!done}
+          onUndo={() => setDone(false)}
+          onRedo={() => setDone(true)}
+          dirty={done}
+          saving={false}
+          onSave={vi.fn()}
+          onReset={() => setDone(false)}
+        />
+      </main>
+    );
+  }
+
+  // #370, GL-UI-050 rev 6: Undo and Redo lock themselves after the last step and keep the focus.
+  it("after the last Undo and the last Redo the focus stays on the locked button", () => {
+    render(<OneStep />);
+    const undo = screen.getByTestId("editor-undo");
+    const redo = screen.getByTestId("editor-redo");
+    undo.focus();
+    fireEvent.click(undo);
+    expect(undo).toHaveAttribute("aria-disabled", "true");
+    expect(undo).toHaveFocus();
+    expect(redo).not.toHaveAttribute("aria-disabled");
+    // A second press does nothing: the locked Undo keeps Redo free.
+    fireEvent.click(undo);
+    expect(redo).not.toHaveAttribute("aria-disabled");
+    redo.focus();
+    fireEvent.click(redo);
+    expect(redo).toHaveAttribute("aria-disabled", "true");
+    expect(redo).toHaveFocus();
+    fireEvent.click(redo);
+    expect(undo).not.toHaveAttribute("aria-disabled");
+    fireEvent.keyDown(document.body, { key: "y", ctrlKey: true });
+    expect(undo).not.toHaveAttribute("aria-disabled");
   });
 
   // Q&A #3709, GL-UI-017: the locked Save says what it does and when it frees; its name stays "Save".

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.145.1 — #370, GL-UI-050 rev 6, SUI-FEATURE-120 rev 7: Undo and Redo keep the focus
+
+Fix, not breaking.
+
+- **Undo and Redo keep the focus after the last step**: in `EditorHeader` (and so in the slide editor) the button that has nothing left to undo or redo locks itself with `aria-disabled` and the `Button`'s trigger lock instead of `disabled`, so the focus stays on it instead of falling to `<body>`. Locked, a click, `Enter`, `Space` and the shortcut do nothing; the look is the locked ghost one in colour.
+- `SUI-FEATURE-161` rev 6: a test pins that a merged step dropped back to its base still clears the redo stack.
+
+**Migration:** app tests that check a locked Undo or Redo with `toBeDisabled` check `aria-disabled="true"` instead.
+
 ## 0.145.0 — #368, SUI-FEATURE-233 rev 3: charts follow-up
 
 New, not breaking.
