@@ -522,3 +522,5 @@
 {"ts":"2026-10-19T18:09:29.358Z","key":"PROC-REL-005","from":null,"to":4,"disposition":"editorial","ref":"go-live checklist (Community website), phase switch to PROC-REL-050; no suite-ui code"}
 {"ts":"2026-10-19T18:09:29.723Z","key":"PROC-REL-050","from":null,"to":3,"disposition":"editorial","ref":"data runs backwards Prod->Stage/Dev after go-live; ops process, no suite-ui code"}
 {"ts":"2026-10-19T18:09:32.854Z","key":"SUI-FEATURE-232","from":null,"to":3,"disposition":"ticket","ref":"363"}
+{"ts":"2026-10-19T19:11:13.622Z","key":"SUI-FEATURE-233","from":null,"to":2,"disposition":"ticket","ref":"294"}
+{"ts":"2026-10-19T19:59:30.819Z","key":"SUI-FEATURE-233","from":null,"to":3,"disposition":"ticket","ref":"368"}
