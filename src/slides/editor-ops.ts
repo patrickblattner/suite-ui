@@ -595,3 +595,54 @@ export function distributeElements(
   }
   return next;
 }
+
+// An image's crop (`SUI-FEATURE-162`): the image zoomed (1 = it covers the frame) and shifted inside
+// the frame, which stays as it is.
+export type ImageCrop = { zoom: number; offsetX: number; offsetY: number };
+
+// A crop that keeps the image covering its frame: zoomed at least 1, shifted no further than the
+// zoomed image reaches past the frame on each side.
+export function clampCrop(width: number, height: number, crop: ImageCrop): ImageCrop {
+  const zoom = Math.max(1, crop.zoom);
+  const reachX = (width * zoom - width) / 2;
+  const reachY = (height * zoom - height) / 2;
+  // `+ 0` turns a clamped −0 into 0.
+  return {
+    zoom: round(zoom),
+    offsetX: round(Math.min(reachX, Math.max(-reachX, crop.offsetX))) + 0,
+    offsetY: round(Math.min(reachY, Math.max(-reachY, crop.offsetY))) + 0,
+  };
+}
+
+// The crop zoomed by `factor` about the frame's centre: the image point there stays there.
+export function zoomCrop(
+  width: number,
+  height: number,
+  crop: ImageCrop,
+  factor: number,
+): ImageCrop {
+  const zoom = Math.max(1, crop.zoom * factor);
+  const scale = zoom / crop.zoom;
+  return clampCrop(width, height, {
+    zoom,
+    offsetX: crop.offsetX * scale,
+    offsetY: crop.offsetY * scale,
+  });
+}
+
+// The crop shifted by a step on the page; an image turned (with its groups) by `rotation` moves in
+// its own axes, so it follows the pointer on the screen.
+export function panCrop(
+  width: number,
+  height: number,
+  crop: ImageCrop,
+  step: { x: number; y: number },
+  rotation: number,
+): ImageCrop {
+  const local = turn(step, -rotation);
+  return clampCrop(width, height, {
+    zoom: crop.zoom,
+    offsetX: crop.offsetX + local.x,
+    offsetY: crop.offsetY + local.y,
+  });
+}

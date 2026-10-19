@@ -23,6 +23,9 @@ type CanvasOverlayProps = {
   inserts?: readonly CanvasInsert[] | undefined;
   // `Esc` with a selection selects the parent.
   onSelectParent?: (() => void) | undefined;
+  // A mode the editor is in with the selection (cropping an image): announced in place of the
+  // selection while it lasts.
+  announcement?: string | undefined;
 };
 
 // The width of the hover and selection lines, at any zoom.
@@ -49,6 +52,7 @@ function CanvasOverlay({
   actions,
   inserts,
   onSelectParent,
+  announcement,
 }: CanvasOverlayProps) {
   const { t } = useTranslation("suite");
   const [node, setNode] = React.useState<HTMLDivElement | null>(null);
@@ -241,7 +245,8 @@ function CanvasOverlay({
         </div>
       ))}
       <span role="status" aria-live="polite" className="sr-only" data-testid="canvas-announcement">
-        {selected === undefined ? "" : t("canvas.selected", { name: selected.name })}
+        {announcement ??
+          (selected === undefined ? "" : t("canvas.selected", { name: selected.name }))}
       </span>
     </div>
   );

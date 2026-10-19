@@ -48,15 +48,19 @@ import {
   groupElements,
   intoGroups,
   type LayerMove,
+  clampCrop,
+  type ImageCrop,
   moveEach,
   moveLayer,
   outerBox,
+  panCrop,
   placedBox,
   setBox,
   setRotation,
   stepIntoGroups,
   ungroupElement,
   updateElements,
+  zoomCrop,
 } from "./editor-ops.js";
 import {
   containsPoint,
@@ -108,6 +112,8 @@ type ViewProps = Pick<
 const SNAP_PX = 6;
 const ROTATE_OFFSET = 32;
 const HANDLE_PX = 10;
+// One step of + or − while cropping, and the wheel's zoom per 100 px of scrolling.
+const CROP_ZOOM_STEP = 1.1;
 // What a number field takes: a box at most twice the largest format side off the page and as large,
 // so nothing typed loses an element or overflows the document's numbers.
 const FIELD_RANGE = 2 * SLIDE_LIMITS.maxFormatSide;
@@ -140,7 +146,16 @@ type Drag =
       handle: Handle;
     }
   // The box where it is drawn on the page and its groups' turn: the angle is measured on the screen.
-  | { kind: "rotate"; base: SlideDocument; id: string; box: Box; turn: number };
+  | { kind: "rotate"; base: SlideDocument; id: string; box: Box; turn: number }
+  // Shifting an image in its frame while cropping: the crop at the press and the image's rotation on
+  // the page, so it follows the pointer.
+  | { kind: "crop"; start: Point; crop: ImageCrop; rotation: number };
+
+// The document with an image's crop set; the same document when nothing changed.
+const withCrop = (document: SlideDocument, page: number, id: string, crop: ImageCrop) =>
+  updateElements(document, page, [id], (element) =>
+    element.type === "image" ? { ...element, crop } : element,
+  );
 
 const rectOf = (box: Box, zoom: number) =>
   new DOMRect(box.x * zoom, box.y * zoom, box.width * zoom, box.height * zoom);
@@ -306,12 +321,17 @@ function Editor({
   const [saved, setSaved] = React.useState(initial);
   const [saving, setSaving] = React.useState(false);
   const [saveError, setSaveError] = React.useState<string | undefined>(undefined);
-  const dirty = history.document !== saved;
   const [page, setPage] = React.useState(0);
   const [selection, setSelection] = React.useState<string[]>([]);
   const [hovered, setHovered] = React.useState<string | undefined>(undefined);
   const [drag, setDrag] = React.useState<Drag | undefined>(undefined);
   const [preview, setPreview] = React.useState<SlideDocument | undefined>(undefined);
+  // The crop mode of an image (`SUI-FEATURE-162`): its crop as it is being set, shown on the canvas
+  // and taken into the document only with Enter.
+  // It holds the selection it began with: any other selection ends it.
+  const [cropState, setCropping] = React.useState<
+    { id: string; crop: ImageCrop; selection: readonly string[] } | undefined
+  >(undefined);
   const [guides, setGuides] = React.useState<{ x?: number; y?: number }>({});
   const [drawer, setDrawer] = React.useState<DrawerId | undefined>(undefined);
   const [zoomMode, setZoomMode] = React.useState<CanvasZoomMode>("fit");
@@ -322,7 +342,22 @@ function Editor({
     onGridShown?.(shown);
   };
 
-  const document = preview ?? history.document;
+  // Cropping lasts while its selection does and its image is there (an Undo can take it away).
+  const base = preview ?? history.document;
+  const stored =
+    cropState === undefined
+      ? undefined
+      : findElement(base.pages[page]?.elements ?? [], cropState.id)?.element;
+  const cropping =
+    cropState?.selection === selection && stored?.type === "image" ? cropState : undefined;
+  const document = cropping === undefined ? base : withCrop(base, page, cropping.id, cropping.crop);
+  // A crop being set is a change not yet in the document: the header and the leave guard see it
+  // (`GL-UI-007`); leaving the canvas keeps it (see `keepCropOnLeave`).
+  const pendingCrop =
+    cropping !== undefined &&
+    stored?.type === "image" &&
+    JSON.stringify(cropping.crop) !== JSON.stringify(stored.crop);
+  const dirty = history.document !== saved || pendingCrop;
   const pageData = document.pages[page] ?? document.pages[0];
   const elements = pageData?.elements ?? [];
   const { width: pageWidth, height: pageHeight } = document.format;
@@ -353,8 +388,13 @@ function Editor({
   // Every change is one step of the history and names the page it changes.
   const apply = (change: (document: SlideDocument) => SlideDocument, merge?: string) =>
     history.apply(change, { merge, page });
-  // Undo and redo show the page their step changed.
+  // Undo and redo show the page their step changed. While cropping, the crop being set is the newest
+  // change: Undo takes it back (cropping ends, the image as it was), Redo has nothing to redo.
   const travel = (step: "undo" | "redo") => {
+    if (cropping !== undefined) {
+      if (step === "undo") setCropping(undefined);
+      return;
+    }
     const target = step === "undo" ? history.undoPage : history.redoPage;
     if (step === "undo") history.undo();
     else history.redo();
@@ -396,6 +436,28 @@ function Editor({
 
   const frame = React.useRef<HTMLDivElement>(null);
   const canvas = React.useRef<HTMLDivElement>(null);
+  // While cropping, the wheel zooms the image about the frame's centre instead of scrolling (a
+  // listener of its own: React's wheel listener cannot prevent the scroll).
+  const croppedImage =
+    cropping === undefined ? undefined : findElement(elements, cropping.id)?.element;
+  const croppedWidth = croppedImage?.width;
+  const croppedHeight = croppedImage?.height;
+  React.useEffect(() => {
+    const node = canvas.current;
+    if (node === null || croppedWidth === undefined || croppedHeight === undefined) return;
+    const [width, height] = [croppedWidth, croppedHeight];
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      const factor = CROP_ZOOM_STEP ** (-event.deltaY / 100);
+      setCropping((current) =>
+        current === undefined
+          ? current
+          : { ...current, crop: zoomCrop(width, height, current.crop, factor) },
+      );
+    };
+    node.addEventListener("wheel", onWheel, { passive: false });
+    return () => node.removeEventListener("wheel", onWheel);
+  }, [croppedWidth, croppedHeight]);
   const toPage = (event: { clientX: number; clientY: number }): Point => {
     const rect = frame.current?.getBoundingClientRect();
     return {
@@ -434,6 +496,17 @@ function Editor({
     event.currentTarget.setPointerCapture(event.pointerId);
     event.currentTarget.focus();
     const point = toPage(event);
+    // While cropping, a press on the image shifts it in its frame; elsewhere nothing happens until
+    // Enter or Esc ends the crop.
+    if (cropping !== undefined) {
+      const image = findElement(elements, cropping.id)?.element;
+      if (image === undefined) return;
+      const placed = placedBox(elements, image);
+      if (containsPoint(placed.box, placed.rotation, point)) {
+        setDrag({ kind: "crop", start: point, crop: cropping.crop, rotation: placed.rotation });
+      }
+      return;
+    }
     const hit = hitTest(point);
     if (hit === undefined) {
       setSelection(event.shiftKey ? selection : []);
@@ -482,8 +555,16 @@ function Editor({
 
   // A double click on a group selects its child under the pointer (`SUI-FEATURE-161` rev 5).
   const onDoubleClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (cropping !== undefined) return;
     const point = toPage(event);
     const hit = hitTest(point);
+    // A double click on an image starts cropping it (`SUI-FEATURE-162`).
+    if (hit?.type === "image" && !hit.locked) {
+      const ids = [hit.id];
+      setSelection(ids);
+      setCropping({ id: hit.id, crop: hit.crop, selection: ids });
+      return;
+    }
     if (hit?.type !== "group") return;
     const child = topmost(hit.children, intoGroups([...groupChain(elements, hit.id), hit], point));
     if (child !== undefined) setSelection([child.id]);
@@ -492,7 +573,29 @@ function Editor({
   const onPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
     const point = toPage(event);
     if (drag === undefined) {
+      // While cropping only the image takes the pointer (to shift it); nothing else is hovered.
+      if (cropping !== undefined) {
+        const image = findElement(elements, cropping.id)?.element;
+        const placed = image === undefined ? undefined : placedBox(elements, image);
+        setHovered(
+          placed !== undefined && containsPoint(placed.box, placed.rotation, point)
+            ? cropping.id
+            : undefined,
+        );
+        return;
+      }
       setHovered(hitTest(point)?.id);
+      return;
+    }
+    if (drag.kind === "crop") {
+      const image =
+        cropping === undefined ? undefined : findElement(elements, cropping.id)?.element;
+      if (image === undefined || cropping === undefined) return;
+      const step = { x: point.x - drag.start.x, y: point.y - drag.start.y };
+      setCropping({
+        ...cropping,
+        crop: panCrop(image.width, image.height, drag.crop, step, drag.rotation),
+      });
       return;
     }
     if (drag.kind === "marquee") {
@@ -593,7 +696,113 @@ function Editor({
     );
   };
 
+  // Ends cropping: `keep` takes the crop into the document as one step (clamped to the frame as it
+  // is now), else it is dropped. The canvas keeps the focus.
+  const endCrop = (keep: boolean) => {
+    if (cropping === undefined) return;
+    const image = findElement(elements, cropping.id)?.element;
+    if (keep && image !== undefined) {
+      const crop = clampCrop(image.width, image.height, cropping.crop);
+      apply((current) => withCrop(current, page, cropping.id, crop));
+    }
+    setCropping(undefined);
+  };
+  // Focus leaving the canvas and its crop bar (to the header, a drawer, the panel, another window)
+  // keeps the crop, as Enter does: a crop being set is never dropped without Esc or Cancel.
+  const keepCropOnLeave = (event: React.FocusEvent) => {
+    const next = event.relatedTarget;
+    if (next instanceof Element && next.closest("[data-crop-bar], [data-slot=slide-editor-canvas]"))
+      return;
+    endCrop(true);
+  };
+  const cropBar =
+    cropping === undefined ? undefined : (
+      <div
+        className="flex items-center gap-1"
+        data-crop-bar=""
+        onBlur={keepCropOnLeave}
+        // Esc on a button of the bar drops the crop too, before the overlay's own `Esc`.
+        onKeyDown={(event) => {
+          if (event.key !== "Escape") return;
+          event.preventDefault();
+          endCrop(false);
+          canvas.current?.focus();
+        }}
+      >
+        <span className="px-1 text-xs text-muted-foreground" data-testid="slide-editor-crop-hint">
+          {t("slides.editor.cropHint")}
+        </span>
+        <Button
+          size="sm"
+          variant="outline"
+          // The canvas keeps the focus (a press elsewhere would move it).
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => {
+            endCrop(false);
+            canvas.current?.focus();
+          }}
+          data-testid="slide-editor-crop-cancel"
+        >
+          {t("slides.editor.cropCancel")}
+        </Button>
+        <Button
+          variant="default"
+          size="sm"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => {
+            endCrop(true);
+            canvas.current?.focus();
+          }}
+          data-testid="slide-editor-crop-apply"
+        >
+          {t("slides.editor.cropApply")}
+        </Button>
+      </div>
+    );
+
+  // While cropping the keys work on the crop: Enter takes it, Esc drops it (before any outer `Esc`
+  // layer, `GL-UI-007`), + and − zoom about the frame's centre, the arrow keys shift the image.
+  const onCropKey = (
+    event: React.KeyboardEvent<HTMLDivElement>,
+    state: { id: string; crop: ImageCrop; selection: readonly string[] },
+  ) => {
+    const { id, crop } = state;
+    const image = findElement(elements, id)?.element;
+    if (image === undefined) return;
+    const step = event.shiftKey ? 10 : 1;
+    const shift = {
+      ArrowLeft: { x: -step, y: 0 },
+      ArrowRight: { x: step, y: 0 },
+      ArrowUp: { x: 0, y: -step },
+      ArrowDown: { x: 0, y: step },
+    }[event.key];
+    const factor = { "+": CROP_ZOOM_STEP, "=": CROP_ZOOM_STEP, "-": 1 / CROP_ZOOM_STEP }[event.key];
+    if (event.key === "Enter") {
+      endCrop(true);
+    } else if (event.key === "Escape") {
+      endCrop(false);
+    } else if (shift !== undefined) {
+      const rotation = placedBox(elements, image).rotation;
+      setCropping({ ...state, crop: panCrop(image.width, image.height, crop, shift, rotation) });
+    } else if (factor !== undefined) {
+      setCropping({ ...state, crop: zoomCrop(image.width, image.height, crop, factor) });
+    } else {
+      return;
+    }
+    event.preventDefault();
+  };
+
   const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (cropping !== undefined) {
+      onCropKey(event, cropping);
+      return;
+    }
+    // Enter on one selected image starts cropping it, as a double click does.
+    if (event.key === "Enter" && single?.type === "image" && !single.locked) {
+      event.preventDefault();
+      setCropping({ id: single.id, crop: single.crop, selection });
+      return;
+    }
     const step = event.shiftKey ? 10 : 1;
     const move = {
       ArrowLeft: [-step, 0],
@@ -1111,9 +1320,18 @@ function Editor({
                 tabIndex={0}
                 className={cn(
                   "absolute inset-0 outline-none focus-visible:focus-ring-inset",
-                  hovered === undefined ? "cursor-default" : "cursor-move",
+                  cropping !== undefined
+                    ? drag?.kind === "crop"
+                      ? "cursor-grabbing"
+                      : hovered === cropping.id
+                        ? "cursor-grab"
+                        : "cursor-default"
+                    : hovered === undefined
+                      ? "cursor-default"
+                      : "cursor-move",
                 )}
                 data-slot="slide-editor-canvas"
+                data-cropping={cropping?.id}
                 data-testid="slide-editor-canvas"
                 onPointerDown={onPointerDown}
                 onPointerMove={onPointerMove}
@@ -1122,6 +1340,12 @@ function Editor({
                 onPointerLeave={() => setHovered(undefined)}
                 onDoubleClick={onDoubleClick}
                 onKeyDown={onKeyDown}
+                onBlur={cropping === undefined ? undefined : keepCropOnLeave}
+                aria-description={
+                  croppedImage === undefined
+                    ? undefined
+                    : t("slides.editor.cropping", { name: nameOf(croppedImage) })
+                }
               />
               {marquee === undefined ? null : (
                 <div
@@ -1151,8 +1375,15 @@ function Editor({
                           name: t("slides.editor.selection", { count: selected.length }),
                         }
                 }
-                actions={drag === undefined ? actions : undefined}
+                actions={
+                  cropping !== undefined ? cropBar : drag === undefined ? actions : undefined
+                }
                 onSelectParent={selectParent}
+                announcement={
+                  croppedImage === undefined
+                    ? undefined
+                    : t("slides.editor.cropping", { name: nameOf(croppedImage) })
+                }
               />
               {/* The guides above the selection frame, so it never covers them along the moved
                   element, and below its name badge, which lies a layer up (#332). */}
@@ -1178,6 +1409,7 @@ function Editor({
               {single === undefined ||
               handlesBox === undefined ||
               single.locked ||
+              cropping !== undefined ||
               drag?.kind === "move" ? null : (
                 <div
                   className="pointer-events-none absolute z-[2]"

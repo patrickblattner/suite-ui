@@ -7,12 +7,14 @@ import {
   boundsOf,
   distributeElements,
   boxOf,
+  clampCrop,
   drawnBox,
   findElement,
   groupChain,
   groupElements,
   intoGroups,
   outOfGroups,
+  panCrop,
   placedBox,
   moveBy,
   moveEach,
@@ -22,6 +24,7 @@ import {
   stepIntoGroups,
   ungroupElement,
   updateElements,
+  zoomCrop,
 } from "./editor-ops.js";
 import {
   containsPoint,
@@ -455,5 +458,42 @@ describe("slide editor operations on turned groups", () => {
     for (const key of ["x", "y", "width", "height"] as const) {
       expect(boxOf(group)[key]).toBeCloseTo(bounds[key], 2);
     }
+  });
+});
+
+// SUI-FEATURE-162 AC1 (#294): an image's crop keeps the image covering its frame.
+describe("image crop", () => {
+  it("keeps the image covering the frame: zoom at least 1, shifted no further than it reaches", () => {
+    expect(clampCrop(400, 200, { zoom: 0.5, offsetX: 30, offsetY: -10 })).toEqual({
+      zoom: 1,
+      offsetX: 0,
+      offsetY: 0,
+    });
+    // Zoomed 1.5: it reaches 100 px past each side and 50 px past top and bottom.
+    expect(clampCrop(400, 200, { zoom: 1.5, offsetX: 130, offsetY: -80 })).toEqual({
+      zoom: 1.5,
+      offsetX: 100,
+      offsetY: -50,
+    });
+  });
+
+  it("zooms about the frame's centre and shifts along the screen, a turned image too", () => {
+    // The image point at the frame's centre stays there: the shift scales with the zoom.
+    expect(zoomCrop(400, 200, { zoom: 2, offsetX: 40, offsetY: -20 }, 1.5)).toEqual({
+      zoom: 3,
+      offsetX: 60,
+      offsetY: -30,
+    });
+    expect(zoomCrop(400, 200, { zoom: 1.2, offsetX: 30, offsetY: 0 }, 0.5).zoom).toBe(1);
+    const zoomed = { zoom: 2, offsetX: 0, offsetY: 0 };
+    expect(panCrop(400, 200, zoomed, { x: 30, y: 20 }, 0)).toEqual({
+      zoom: 2,
+      offsetX: 30,
+      offsetY: 20,
+    });
+    // Turned a quarter, 30 px right on the screen is 30 px up in the image's own axes.
+    const turned = panCrop(400, 200, zoomed, { x: 30, y: 0 }, 90);
+    expect(turned.offsetX).toBeCloseTo(0, 6);
+    expect(turned.offsetY).toBeCloseTo(-30, 6);
   });
 });

@@ -546,6 +546,23 @@ export const SLIDE_EDITOR_DOC: SlideDocumentInput = {
         },
       ],
     },
-    { id: "edit-two", background: { type: "color", color: brand("muted") }, elements: [] },
+    // A photo to crop (`SUI-FEATURE-162`), on the second page so the first stays as it was.
+    {
+      id: "edit-two",
+      background: { type: "color", color: brand("muted") },
+      elements: [
+        {
+          id: "picture",
+          name: "Picture",
+          type: "image",
+          x: 200,
+          y: 100,
+          width: 400,
+          height: 250,
+          media: { id: "photo" },
+          alt: "Hills under a sun",
+        },
+      ],
+    },
   ],
 };

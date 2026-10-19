@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.138.0 — #294 (increment 1), SUI-FEATURE-162 AC1: images are cropped in the slide editor
+
+New, not breaking.
+
+- **Crop an image in its frame**: a double click on an image in `SlideEditor` (or Enter while it is the one element selected) starts cropping it. A drag on the image shifts it in its frame along the screen, also when the image or its groups are turned; the arrow keys shift it by 1 px (10 with Shift); + and − and the wheel zoom it about the frame's centre. The image always covers its frame (zoom at least 1, shifted no further than it reaches). Enter keeps the crop as one step of the document (Undo takes it back), Esc drops it before any outer `Esc` (`GL-UI-007`). The frame stays where it is and the file is never changed: the crop is only the image element's `crop` (zoom and shift), which `SlideView` already draws. While cropping, a crop bar stands in place of the floating actions: a short hint and the buttons Cancel (= Esc) and Apply (= Enter); the handles are hidden, only the image takes the pointer (grab cursor), and a press outside the image does nothing. Entering is announced through `CanvasOverlay`'s live region (new prop `announcement`) and the canvas describes the mode (`aria-description`). A crop being set is a change: the header and the leave guard see it, and focus leaving the canvas (to Back, Save, a drawer or another window) keeps it, as Enter does; it is never dropped without Esc, Cancel or Undo. Undo while cropping takes back the crop being set; cropping also ends when its image is gone. The crop is clamped again to the frame when it is kept.
+- New in `slides/editor-ops`: `clampCrop`, `zoomCrop`, `panCrop` and the type `ImageCrop`.
+- New package texts (de, en, es): `slides.editor.cropping`, `slides.editor.cropHint`, `slides.editor.cropApply`, `slides.editor.cropCancel`. New optional `CanvasOverlay` prop `announcement`.
+- Gallery: the editor deck's second page carries a photo to crop.
+
+**Migration:** none. Baselines: `gallery-*` (strings table with the new keys: de, en, es in light and dark, de also at 1440 and 390 px).
+
 ## 0.137.16 — #333, GL-UX-001 rev 5 (WCAG 1.4.11), GL-UI-040: the hover frame stands out on any ground
 
 Fix, not breaking.

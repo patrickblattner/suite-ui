@@ -9136,6 +9136,168 @@ test("slide editor: fields, focus after a resize, undo across pages, cursor and 
   await expect(editor.getByTestId("slide-editor-page")).toHaveText("Page 1 of 2");
 });
 
+// SUI-FEATURE-162 AC1 (#294): a double click on an image crops it — zoomed with +, shifted by a drag —
+// and Enter keeps the crop while the frame stays where it was and the file stays the same; Esc drops
+// a crop; Undo takes a kept crop back.
+async function pictureEditor(page: Page) {
+  const editor = await openEditor(page);
+  await editor.editor.getByTestId("slide-editor-next-page").click();
+  const image = editor.editor.locator("[data-slide-element=picture] img");
+  await expect(image).toBeVisible();
+  const shown = (await image.boundingBox())!;
+  return {
+    ...editor,
+    image,
+    shown,
+    centre: editor.at(400, 225),
+    state: editor.editor.getByTestId("editor-state"),
+    box: () => image.boundingBox(),
+  };
+}
+
+test("slide editor: an image is cropped in its frame, Enter keeps it, Esc drops it", async ({
+  page,
+}) => {
+  const { canvas, field, image, shown, centre, box } = await pictureEditor(page);
+  const src = await image.getAttribute("src");
+  const crop = async () => {
+    await page.mouse.dblclick(centre.x, centre.y);
+    await expect(canvas).toHaveAttribute("data-cropping", "picture");
+    for (let step = 0; step < 5; step += 1) await page.keyboard.press("+");
+    await page.mouse.move(centre.x, centre.y);
+    await page.mouse.down();
+    await page.mouse.move(centre.x + 15, centre.y + 10, { steps: 3 });
+    await page.mouse.move(centre.x + 30, centre.y + 20, { steps: 3 });
+    await page.mouse.up();
+  };
+  const frame = async () => [
+    await field("x").inputValue(),
+    await field("y").inputValue(),
+    await field("width").inputValue(),
+    await field("height").inputValue(),
+  ];
+
+  // Esc drops the crop: the image is drawn as before.
+  await crop();
+  const zoomed = (await box())!;
+  expect(zoomed.width).toBeCloseTo(shown.width * 1.1 ** 5, 0);
+  await page.keyboard.press("Escape");
+  await expect(canvas).not.toHaveAttribute("data-cropping");
+  await expect.poll(box).toEqual(shown);
+
+  // Enter keeps it: zoomed and shifted 30 px right and 20 px down about the frame's centre.
+  await crop();
+  await page.keyboard.press("Enter");
+  await expect(canvas).not.toHaveAttribute("data-cropping");
+  const kept = (await box())!;
+  expect(kept.width).toBeCloseTo(shown.width * 1.1 ** 5, 0);
+  expect(kept.x + kept.width / 2 - (shown.x + shown.width / 2)).toBeCloseTo(30, 0);
+  expect(kept.y + kept.height / 2 - (shown.y + shown.height / 2)).toBeCloseTo(20, 0);
+  // The frame and the file stay; the picture's box clips the image to the frame.
+  expect(await frame()).toEqual(["200", "100", "400", "250"]);
+  expect(await image.getAttribute("src")).toBe(src);
+  // The crop is a step of the document: Undo takes it back.
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect.poll(box).toEqual(shown);
+});
+
+// #294 review: crop mode is announced and shown — a bar with a hint, Cancel and Apply in place of the
+// actions — and works by keys and wheel; Enter starts it on a selected image; a crop being set counts
+// as a change, and leaving the canvas keeps it.
+test("slide editor: crop mode is announced, has a bar, and works by keys and wheel", async ({
+  page,
+}) => {
+  const { editor, canvas, select, shown, box, state } = await pictureEditor(page);
+  await select(400, 225);
+  await page.keyboard.press("Enter");
+  await expect(canvas).toHaveAttribute("data-cropping", "picture");
+  const told =
+    "Cropping Picture: drag the image or use the arrow keys to move it, + and − to zoom, Enter to apply, Esc to cancel.";
+  await expect(editor.getByTestId("canvas-announcement")).toHaveText(told);
+  await expect(canvas).toHaveAttribute("aria-description", told);
+  const bar = editor.getByTestId("canvas-actions");
+  await expect(bar.getByTestId("slide-editor-crop-hint")).toHaveText(
+    "Drag to move · + / − to zoom",
+  );
+  await expect(bar.getByRole("button", { name: "Cancel" })).toBeVisible();
+  await expect(bar.getByRole("button", { name: "Apply" })).toBeVisible();
+  await expect(editor.getByTestId("slide-editor-handles")).toHaveCount(0);
+  await expect(state).toHaveAttribute("data-dirty", "false");
+
+  // + zooms (and makes it a change), − zooms back, the wheel zooms; arrows shift by 1, with Shift 10.
+  const centreOf = (b: { x: number; y: number; width: number; height: number }) => ({
+    x: b.x + b.width / 2,
+    y: b.y + b.height / 2,
+  });
+  await page.keyboard.press("+");
+  await page.keyboard.press("+");
+  await expect.poll(async () => (await box())!.width).toBeCloseTo(shown.width * 1.21, 0);
+  await expect(state).toHaveAttribute("data-dirty", "true");
+  await page.keyboard.press("-");
+  await expect.poll(async () => (await box())!.width).toBeCloseTo(shown.width * 1.1, 0);
+  await page.mouse.move(shown.x + shown.width / 2, shown.y + shown.height / 2);
+  await page.mouse.wheel(0, -100);
+  await expect.poll(async () => (await box())!.width).toBeCloseTo(shown.width * 1.21, 0);
+  const before = centreOf((await box())!);
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("Shift+ArrowDown");
+  await expect.poll(async () => centreOf((await box())!).x - before.x).toBeCloseTo(1, 0);
+  expect(centreOf((await box())!).y - before.y).toBeCloseTo(10, 0);
+
+  // Cancel drops it: the image as it was, no change left.
+  await bar.getByRole("button", { name: "Cancel" }).click();
+  await expect(canvas).not.toHaveAttribute("data-cropping");
+  await expect.poll(box).toEqual(shown);
+  await expect(state).toHaveAttribute("data-dirty", "false");
+  await expect(editor.getByTestId("canvas-announcement")).toHaveText("Selected: Picture");
+
+  // Apply keeps it, as Enter does.
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("+");
+  await editor.getByTestId("canvas-actions").getByRole("button", { name: "Apply" }).click();
+  await expect(canvas).not.toHaveAttribute("data-cropping");
+  await expect.poll(async () => (await box())!.width).toBeCloseTo(shown.width * 1.1, 0);
+  await expect(state).toHaveAttribute("data-dirty", "true");
+  await expect(canvas).toBeFocused();
+
+  // Leaving the canvas keeps a crop being set, as Enter does: never dropped without Esc or Cancel.
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("+");
+  await editor.getByTestId("drawer-layers").click();
+  await expect(canvas).not.toHaveAttribute("data-cropping");
+  await expect.poll(async () => (await box())!.width).toBeCloseTo(shown.width * 1.21, 0);
+  await editor.getByTestId("drawer-layers").click();
+
+  // Undo while cropping takes back the crop being set; the kept one stays.
+  await select(400, 225);
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("+");
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(canvas).not.toHaveAttribute("data-cropping");
+  await expect.poll(async () => (await box())!.width).toBeCloseTo(shown.width * 1.21, 0);
+});
+
+// #294 review: a locked image is not cropped, by double click or Enter.
+test("slide editor: a locked image is not cropped", async ({ page }) => {
+  const { editor, canvas, centre } = await pictureEditor(page);
+  await editor.getByTestId("drawer-layers").click();
+  await editor.locator("[data-layer-id=picture]").getByTestId("slide-editor-layer-lock").click();
+  await editor.getByTestId("drawer-layers").click();
+  await page.mouse.dblclick(centre.x, centre.y);
+  await expect(canvas).not.toHaveAttribute("data-cropping");
+  // Selected from the layers (the canvas leaves a locked element alone), Enter does not crop it.
+  await editor.getByTestId("drawer-layers").click();
+  await editor
+    .locator("[data-layer-id=picture]")
+    .getByRole("button", { name: "Picture", exact: true })
+    .click();
+  await editor.getByTestId("drawer-layers").click();
+  await expect(editor.getByTestId("canvas-announcement")).toHaveText("Selected: Picture");
+  await canvas.focus();
+  await page.keyboard.press("Enter");
+  await expect(canvas).not.toHaveAttribute("data-cropping");
+});
+
 // SUI-FEATURE-161 rev 5 AC2, #332: the guide is 1 px above the shown grid, in the primary colour with
 // a halo, both opaque; the line or its halo stands out at 3 : 1 on a white, black, mid-grey and
 // light-grey slide in a light and a dark editor alike.

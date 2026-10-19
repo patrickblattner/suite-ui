@@ -443,6 +443,11 @@ export const en = {
     player: "Presentation",
     position: "Slide {{current}} of {{total}}",
     editor: {
+      cropping:
+        "Cropping {{name}}: drag the image or use the arrow keys to move it, + and − to zoom, Enter to apply, Esc to cancel.",
+      cropHint: "Drag to move · + / − to zoom",
+      cropApply: "Apply",
+      cropCancel: "Cancel",
       page: "Page {{current}} of {{total}}",
       previousPage: "Previous page",
       nextPage: "Next page",

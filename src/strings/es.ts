@@ -421,6 +421,11 @@ export const es: SuiteStrings = {
     player: "Presentación",
     position: "Diapositiva {{current}} de {{total}}",
     editor: {
+      cropping:
+        "Recortando {{name}}: arrastra la imagen o usa las flechas para moverla, + y − para ampliar, Intro aplica, Esc cancela.",
+      cropHint: "Arrastra para mover · + / − para ampliar",
+      cropApply: "Aplicar",
+      cropCancel: "Cancelar",
       page: "Página {{current}} de {{total}}",
       previousPage: "Página anterior",
       nextPage: "Página siguiente",

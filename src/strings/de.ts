@@ -428,6 +428,11 @@ export const de: SuiteStrings = {
     player: "Vortrag",
     position: "Folie {{current}} von {{total}}",
     editor: {
+      cropping:
+        "{{name}} zuschneiden: das Bild ziehen oder mit den Pfeiltasten verschieben, + und − zoomen, Enter übernimmt, Esc bricht ab.",
+      cropHint: "Ziehen zum Verschieben · + / − zum Zoomen",
+      cropApply: "Übernehmen",
+      cropCancel: "Abbrechen",
       page: "Seite {{current}} von {{total}}",
       previousPage: "Vorherige Seite",
       nextPage: "Nächste Seite",
