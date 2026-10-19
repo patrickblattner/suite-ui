@@ -14,6 +14,7 @@ import {
   groupElements,
   intoGroups,
   outOfGroups,
+  overflowingIds,
   panCrop,
   placedBox,
   moveBy,
@@ -22,6 +23,7 @@ import {
   setBox,
   setRotation,
   stepIntoGroups,
+  transferFormat,
   ungroupElement,
   updateElements,
   zoomCrop,
@@ -495,5 +497,168 @@ describe("image crop", () => {
     const turned = panCrop(400, 200, zoomed, { x: 30, y: 0 }, 90);
     expect(turned.offsetX).toBeCloseTo(0, 6);
     expect(turned.offsetY).toBeCloseTo(-30, 6);
+  });
+});
+
+// SUI-FEATURE-162 AC2, SUI-FEATURE-231 (#294 inc 2): a copy in another format keeps each element's
+// place by its nearest edges, scales with the shorter side, and names what reaches past the page.
+describe("transfer to another format", () => {
+  const portrait = { name: "Portrait", width: 1080, height: 1920 };
+  const deck = () =>
+    parseSlideDocument({
+      schemaVersion: 1,
+      format: FORMAT_16_9,
+      pages: [
+        {
+          id: "p1",
+          background: { type: "color", color: { kind: "free", value: "#fff" } },
+          elements: [
+            shape("right", 1700, 50, 200, 100),
+            shape("bottom", 100, 950, 200, 100),
+            shape("middle", 860, 490, 200, 100),
+            shape("wide", 0, 300, 1900, 100),
+            {
+              id: "words",
+              type: "text",
+              x: 40,
+              y: 40,
+              width: 400,
+              height: 100,
+              runs: [{ text: "Big", size: 48 }, { text: "default" }],
+            },
+          ],
+        },
+        {
+          id: "p2",
+          background: { type: "color", color: { kind: "free", value: "#fff" } },
+          elements: [shape("other", 10, 10)],
+        },
+      ],
+    });
+
+  it("anchors each element by its nearest edges and names what reaches past the page", () => {
+    const source = deck();
+    const before = JSON.stringify(source);
+    const { document: copy, overflowIds } = transferFormat(source, portrait);
+    expect(JSON.stringify(source)).toBe(before);
+    expect(copy).not.toBe(source);
+    expect(safeParseSlideDocument(copy).ok).toBe(true);
+    expect(copy.format).toEqual(portrait);
+    expect(copy.pages).toHaveLength(2);
+    // The shorter sides are both 1080: nothing scales here.
+    expect(box(copy, "right")).toEqual({ x: 860, y: 50, width: 200, height: 100 });
+    expect(box(copy, "bottom")).toEqual({ x: 100, y: 1790, width: 200, height: 100 });
+    expect(box(copy, "middle")).toEqual({ x: 440, y: 910, width: 200, height: 100 });
+    // 190 px above the centre is nearer than 300 px below the top: it stays centred.
+    expect(box(copy, "wide")).toEqual({ x: 0, y: 720, width: 1900, height: 100 });
+    expect(overflowIds).toEqual(["wide"]);
+    expect(overflowingIds(copy.pages[0]!.elements, portrait)).toEqual(["wide"]);
+    expect(overflowingIds(source.pages[0]!.elements, source.format)).toEqual([]);
+  });
+
+  it("transfers one page alone, scaling sizes and text with the shorter side", () => {
+    const small = { name: "Small", width: 1280, height: 720 };
+    const { document: copy } = transferFormat(deck(), small, 1);
+    expect(copy.pages.map((one) => one.id)).toEqual(["p2"]);
+    expect(box(copy, "other")).toEqual({ x: 6.667, y: 6.667, width: 66.667, height: 66.667 });
+    const { document: all } = transferFormat(deck(), small);
+    const words = findElement(all.pages[0]!.elements, "words")!.element;
+    expect(words.type === "text" && words.runs.map((run) => run.size)).toEqual([32, 21.333]);
+  });
+
+  // #294 inc 2 review: masters with their elements, a turned element's anchor, an image's crop
+  // and corners, a table's columns; and a format that scales up.
+  it("transfers masters, turned elements, crops and tables, down and up", () => {
+    const source = parseSlideDocument({
+      schemaVersion: 1,
+      format: FORMAT_16_9,
+      masters: [{ id: "m", name: "Master", elements: [shape("mark", 1800, 980, 120, 100)] }],
+      pages: [
+        {
+          id: "p",
+          background: { type: "color", color: { kind: "free", value: "#fff" } },
+          elements: [
+            { ...shape("turned", 1500, 400, 400, 100), rotation: 90 },
+            {
+              id: "photo",
+              type: "image",
+              x: 100,
+              y: 100,
+              width: 600,
+              height: 300,
+              media: { id: "m" },
+              crop: { zoom: 2, offsetX: 150, offsetY: -100 },
+              cornerRadius: 30,
+            },
+            {
+              id: "sheet",
+              type: "table",
+              x: 100,
+              y: 600,
+              width: 600,
+              height: 200,
+              columnWidths: [300, 300],
+              rows: [[{ runs: [{ text: "a", size: 30 }] }, { runs: [{ text: "b" }] }]],
+            },
+          ],
+        },
+      ],
+    });
+    const small = { name: "Small", width: 640, height: 360 };
+    const { document: copy } = transferFormat(source, small);
+    expect(safeParseSlideDocument(copy).ok).toBe(true);
+    const mark = findElement(copy.masters[0]!.elements, "mark")!.element;
+    expect([mark.x, mark.y]).toEqual([600, 326.667]);
+    expect(box(copy, "turned").x).toBe(500);
+    const photo = findElement(copy.pages[0]!.elements, "photo")!.element;
+    expect(photo.type === "image" && [photo.crop, photo.cornerRadius]).toEqual([
+      { zoom: 2, offsetX: 50, offsetY: -33.333 },
+      10,
+    ]);
+    const sheet = findElement(copy.pages[0]!.elements, "sheet")!.element;
+    expect(sheet.type === "table" && sheet.columnWidths).toEqual([100, 100]);
+    expect(sheet.type === "table" && sheet.rows[0]!.map((cell) => cell.runs[0]!.size)).toEqual([
+      10, 10.667,
+    ]);
+    // Twice the shorter side: everything doubles, anchored as before.
+    const large = { name: "Large", width: 3840, height: 2160 };
+    const { document: big } = transferFormat(source, large);
+    expect(box(big, "turned")).toEqual({ x: 3000, y: 800, width: 800, height: 200 });
+  });
+
+  it("keeps a text scaled far down at least 1 px", () => {
+    const tiny = doc([
+      {
+        id: "t",
+        type: "text",
+        x: 0,
+        y: 0,
+        width: 100,
+        height: 40,
+        runs: [{ text: "x", size: 0.5 }],
+      },
+    ]);
+    const { document: copy } = transferFormat(tiny, { name: "Small", width: 640, height: 360 });
+    const text = findElement(copy.pages[0]!.elements, "t")!.element;
+    expect(text.type === "text" && text.runs[0]!.size).toBe(1);
+    expect(safeParseSlideDocument(copy).ok).toBe(true);
+  });
+
+  it("moves and scales a group with what is in it", () => {
+    const { document: grouped, id } = groupElements(
+      doc([shape("a", 1700, 900), shape("b", 1800, 960)]),
+      0,
+      ["a", "b"],
+    );
+    const small = { name: "Small", width: 1280, height: 720 };
+    const { document: copy } = transferFormat(grouped, small);
+    // The group (1700..1900 × 900..1060) keeps 20 px to the right edge and 20 px to the bottom,
+    // scaled by 2/3; its children keep their place in it.
+    const group = box(copy, id!);
+    expect(group.x + group.width).toBeCloseTo(1280 - 20 * (2 / 3), 2);
+    expect(group.y + group.height).toBeCloseTo(720 - 20 * (2 / 3), 2);
+    const b = box(copy, "b");
+    expect(b.x - group.x).toBeCloseTo(100 * (2 / 3), 2);
+    expect(b.width).toBeCloseTo(100 * (2 / 3), 2);
   });
 });

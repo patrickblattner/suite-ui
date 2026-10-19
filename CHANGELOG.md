@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.139.0 — #294 (increment 2), SUI-FEATURE-162 AC2, SUI-FEATURE-231: a page or the document is transferred to another format of the app
+
+New, not breaking.
+
+- **Transfer format** (`SUI-FEATURE-231`): `SlideEditor` takes the app's formats (`formats: SlideFormat[]`) and a receiver (`onTransfer(copy, { overflowIds })`). Where `formats` holds a format other than the document's, the toolbar shows "Transfer format"; its dialog chooses the format and what to transfer (this page or all pages) by pointer or keyboard. The copy is always a new valid document in the target format, handed to the app, which keeps and opens it; the open document and its draft stay as they are. Each element keeps its place relative to the page and the nearest of its edges or its centre on each axis, sizes and text (size, letter spacing; a table's columns, an image's crop shift and corners) scale with the shorter side, a group with what is in it; the masters and layouts go along. `overflowIds` names the copy's elements that reach past the page. The editor confirms in a toast (`GL-UI-033`), which announces itself ("Copy in Portrait created; 1 element reaches past the page."); a copy that would fail the schema is named in an error toast with what to do next, never dropped silently (text sizes stay at least 1 px). Enter on a choice in the dialog transfers, as Enter does in a dialog (`GL-UI-027`); a format reads "Portrait · 450 × 800 px".
+- **An element past the page edge carries a notice** in the editor ("Reaches past the page: Box A"), always and not only after a transfer: overflow comes from the geometry, the model gets no field for it, so the mark holds for whoever opens the copy later. It is placed as a text notice is (`SUI-FEATURE-180` §Hinweise im Editor): above the element, else beside it, else in the strip below the page, never over it. `SlideView` does the placing for both (new prop `pastPageNotices`, on in the editor); a text that does not fit its box and reaches past the page has one notice naming both ("Text doesn’t fit its box and reaches past the page: Edge"). Notices carry `data-slide-notice-kind` `text`, `page` or `both`.
+- New in `slides/editor-ops`: `transferFormat` and `overflowingIds`; new module `slides/slide-editor-transfer` (the dialog). Names the app supplies (format, element, image names) are no longer HTML-escaped in the editor's texts (lock, hide, cropping, transfer).
+
+**Migration:** none. New package texts (de, en, es): `slides.editor.transfer`, `transferTitle`, `transferDescription`, `transferFormat`, `transferFormatOption`, `transferScope`, `transferPage`, `transferAll`, `transferConfirm`, `transferCancel`, `transferred`, `transferredOverflow_one` / `_other`, `transferFailed`, and `slides.pastPage`, `slides.overflowingAndPastPage`. Baselines: `gallery-*` (strings table) and `slide-editor-*` (the toolbar's new button), each de, en, es in light and dark, de also at 1440 and 390 px.
+
 ## 0.138.2 — #351 (Codex review v0.138.1 CX1): a focused number field shows the value Undo restores
 
 Fix, not breaking.

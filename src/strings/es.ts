@@ -412,6 +412,8 @@ export const es: SuiteStrings = {
     italicFace: "{{weight}} cursiva",
     allHidden: "Esta presentación no tiene diapositivas visibles.",
     overflowing: "El texto no cabe en su campo: {{names}}",
+    pastPage: "Sobresale de la página: {{names}}",
+    overflowingAndPastPage: "El texto no cabe en su campo y sobresale de la página: {{names}}",
     missingBrand: "Falta el color de marca: {{keys}}",
     previous: "Diapositiva anterior",
     next: "Diapositiva siguiente",
@@ -428,6 +430,24 @@ export const es: SuiteStrings = {
       cropCancel: "Cancelar",
       cropApplied: "Recorte aplicado.",
       cropCancelled: "Recorte cancelado.",
+      transfer: "Transferir formato",
+      transferTitle: "Transferir a otro formato",
+      transferDescription:
+        "Crea una copia de esta página o de todas las páginas en el formato elegido. Este documento queda como está.",
+      transferFormat: "Formato",
+      transferFormatOption: "{{name}} · {{width}} × {{height}} px",
+      transferScope: "Qué transferir",
+      transferPage: "Esta página",
+      transferAll: "Todas las páginas",
+      transferConfirm: "Transferir",
+      transferCancel: "Cancelar",
+      transferred: "Copia en {{format}} creada.",
+      transferredOverflow_one:
+        "Copia en {{format}} creada; {{count}} elemento sobresale de la página.",
+      transferredOverflow_other:
+        "Copia en {{format}} creada; {{count}} elementos sobresalen de la página.",
+      transferFailed:
+        "No se pudo crear la copia en {{format}}. Inténtalo de nuevo. Si sigue fallando, revisa los elementos de la página.",
       page: "Página {{current}} de {{total}}",
       previousPage: "Página anterior",
       nextPage: "Página siguiente",

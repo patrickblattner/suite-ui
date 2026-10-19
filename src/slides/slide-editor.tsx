@@ -33,6 +33,7 @@ import { GridFields, GridOverlay, GridToggle } from "../ui/grid.js";
 import { Input } from "../ui/input.js";
 import { PropertyPanel } from "../ui/property-panel.js";
 import { useLeaveGuard } from "../ui/leave-guard.js";
+import { toast } from "../ui/toaster.js";
 import { IconButtonTooltip, OverflowTooltip } from "../ui/tooltip.js";
 import { type SlideDocumentError, safeParseSlideDocument } from "./document.js";
 import {
@@ -58,6 +59,7 @@ import {
   setBox,
   setRotation,
   stepIntoGroups,
+  transferFormat,
   ungroupElement,
   updateElements,
   zoomCrop,
@@ -80,7 +82,9 @@ import {
   type SlideDocument,
   type SlideDocumentInput,
   type SlideElement,
+  type SlideFormat,
 } from "./schema.js";
+import { TransferFormat, type TransferScope } from "./slide-editor-transfer.js";
 import { SlideView, type SlideViewProps } from "./slide-view.js";
 import { type SlideHistory, useSlideHistory } from "./use-slide-history.js";
 
@@ -100,6 +104,11 @@ export interface SlideEditorProps extends Pick<
   // the app leaves it out.
   gridShown?: boolean;
   onGridShown?: (shown: boolean) => void;
+  // The app's formats and where a copy in one of them goes (`SUI-FEATURE-231`): "Transfer format"
+  // shows when `formats` holds another than the document's; the copy is a new valid document, which
+  // the app keeps and opens; `overflowIds` are its elements that reach past their page.
+  formats?: readonly SlideFormat[];
+  onTransfer?: (copy: SlideDocument, details: { overflowIds: string[] }) => void;
   "data-testid"?: string;
 }
 
@@ -241,6 +250,8 @@ export function SlideEditor({
   onBack,
   gridShown,
   onGridShown,
+  formats,
+  onTransfer,
   brand,
   fonts,
   fontOrigins,
@@ -271,6 +282,8 @@ export function SlideEditor({
       onBack={onBack}
       gridShownProp={gridShown}
       onGridShown={onGridShown}
+      formats={formats}
+      onTransfer={onTransfer}
       view={view}
       testId={testId}
     />
@@ -324,6 +337,8 @@ function Editor({
   onBack,
   gridShownProp,
   onGridShown,
+  formats,
+  onTransfer,
   view,
   testId,
 }: {
@@ -333,6 +348,8 @@ function Editor({
   onBack: () => void;
   gridShownProp: boolean | undefined;
   onGridShown: ((shown: boolean) => void) | undefined;
+  formats: SlideEditorProps["formats"];
+  onTransfer: SlideEditorProps["onTransfer"];
   view: ViewProps;
   testId: string | undefined;
 }) {
@@ -476,6 +493,33 @@ function Editor({
       setSaving(false);
     }
   };
+  // The app's other formats, and a transfer into one: a copy of the page shown or of all pages as a
+  // new document for the app; this document and its draft stay as they are (`SUI-FEATURE-231`).
+  const otherFormats = (formats ?? []).filter(
+    (format) =>
+      format.width !== history.document.format.width ||
+      format.height !== history.document.format.height ||
+      format.name !== history.document.format.name,
+  );
+  // The outcome is a toast (`GL-UI-033`), announced by the toaster itself; a copy that fails the
+  // schema is named as an error, never dropped silently.
+  const transfer = (format: SlideFormat, scope: TransferScope) => {
+    const made = transferFormat(history.document, format, scope === "page" ? page : undefined);
+    const copy = safeParseSlideDocument(made.document);
+    const values = { format: format.name, interpolation: { escapeValue: false } };
+    if (!copy.ok) {
+      toast.error(t("slides.editor.transferFailed", values));
+      return;
+    }
+    onTransfer?.(copy.document, { overflowIds: made.overflowIds });
+    const count = made.overflowIds.length;
+    const text =
+      count === 0
+        ? t("slides.editor.transferred", values)
+        : t("slides.editor.transferredOverflow", { ...values, count });
+    toast.success(text);
+  };
+
   // Reset drops everything since the last save, a crop being set too.
   const reset = () => {
     setCropping(undefined);
@@ -1194,7 +1238,12 @@ function Editor({
         >
           {nameOf(element)}
         </button>
-        <IconButtonTooltip label={t("slides.editor.lock", { name: nameOf(element) })}>
+        <IconButtonTooltip
+          label={t("slides.editor.lock", {
+            name: nameOf(element),
+            interpolation: { escapeValue: false },
+          })}
+        >
           <Button
             type="button"
             variant="ghost"
@@ -1213,7 +1262,12 @@ function Editor({
             {element.locked ? <LockIcon /> : <LockOpenIcon />}
           </Button>
         </IconButtonTooltip>
-        <IconButtonTooltip label={t("slides.editor.hide", { name: nameOf(element) })}>
+        <IconButtonTooltip
+          label={t("slides.editor.hide", {
+            name: nameOf(element),
+            interpolation: { escapeValue: false },
+          })}
+        >
           <Button
             type="button"
             variant="ghost"
@@ -1371,6 +1425,9 @@ function Editor({
               </Button>
             </IconButtonTooltip>
             <div className="ml-auto flex flex-wrap items-center gap-2">
+              {onTransfer === undefined || otherFormats.length === 0 ? null : (
+                <TransferFormat formats={otherFormats} onTransfer={transfer} />
+              )}
               <GridToggle
                 mode="gekoppelt"
                 value={{ guides: gridShown, snap: gridShown }}
@@ -1389,7 +1446,10 @@ function Editor({
               className="relative mx-auto select-none"
               style={{ width: pageWidth * zoom, height: pageHeight * zoom }}
             >
-              <SlideView {...view} document={document} page={page} scale={zoom} />
+              {/* Each element that reaches past the page edge carries a notice, always, placed as a
+                  text notice is: overflow comes from the geometry, not from the model
+                  (`SUI-FEATURE-231`). */}
+              <SlideView {...view} document={document} page={page} scale={zoom} pastPageNotices />
               {/* The grid above the elements, below the selection and the guides (rev 5). */}
               {gridShown && grid !== null ? (
                 <GridOverlay
@@ -1434,7 +1494,10 @@ function Editor({
               />
               {croppedImage === undefined ? null : (
                 <span id={cropDescription} hidden>
-                  {t("slides.editor.cropping", { name: nameOf(croppedImage) })}
+                  {t("slides.editor.cropping", {
+                    name: nameOf(croppedImage),
+                    interpolation: { escapeValue: false },
+                  })}
                 </span>
               )}
               {marquee === undefined ? null : (
@@ -1471,7 +1534,10 @@ function Editor({
                 onSelectParent={selectParent}
                 announcement={
                   croppedImage !== undefined
-                    ? t("slides.editor.cropping", { name: nameOf(croppedImage) })
+                    ? t("slides.editor.cropping", {
+                        name: nameOf(croppedImage),
+                        interpolation: { escapeValue: false },
+                      })
                     : cropNote?.selection === selection
                       ? cropNote.text
                       : undefined

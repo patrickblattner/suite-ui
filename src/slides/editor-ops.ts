@@ -3,8 +3,8 @@
 // in groups too; a group's children keep page coordinates (`SUI-DESIGN-002` §Gruppen), so moving or
 // scaling a group moves or scales its children with it.
 
-import { stackOrder } from "./render-style.js";
-import type { SlideDocument, SlideElement } from "./schema.js";
+import { DEFAULT_TEXT_SIZE, stackOrder } from "./render-style.js";
+import type { SlideDocument, SlideElement, SlideFormat, TextRun } from "./schema.js";
 
 export type Box = { x: number; y: number; width: number; height: number };
 
@@ -645,4 +645,131 @@ export function panCrop(
     offsetX: crop.offsetX + local.x,
     offsetY: crop.offsetY + local.y,
   });
+}
+
+// Where an element starts on one axis of the new page (`SUI-FEATURE-162` §Format übertragen): it
+// keeps its place relative to the nearer of the page's start edge, centre and end edge, its offset
+// from it scaled with the rest.
+function anchored(start: number, length: number, side: number, next: number, scale: number) {
+  const fromStart = start;
+  const fromEnd = side - (start + length);
+  const fromCentre = start + length / 2 - side / 2;
+  const scaled = length * scale;
+  if (Math.abs(fromCentre) <= Math.min(Math.abs(fromStart), Math.abs(fromEnd))) {
+    return next / 2 + fromCentre * scale - scaled / 2;
+  }
+  if (Math.abs(fromStart) <= Math.abs(fromEnd)) return fromStart * scale;
+  return next - scaled - fromEnd * scale;
+}
+
+// A text run at `scale`: its size (the view's default where it has none) and letter spacing.
+const scaledRun = (run: TextRun, scale: number): TextRun => ({
+  ...run,
+  // At least 1 px: a text scaled far down stays a valid size.
+  size: Math.max(1, round((run.size ?? DEFAULT_TEXT_SIZE) * scale)),
+  ...(run.letterSpacing === undefined ? {} : { letterSpacing: round(run.letterSpacing * scale) }),
+});
+
+// What an element draws at `scale`, besides its box: text sizes, a table's column widths, an image's
+// crop shift and corner radius.
+function scaledContent(element: SlideElement, scale: number): SlideElement {
+  switch (element.type) {
+    case "text":
+      return { ...element, runs: element.runs.map((run) => scaledRun(run, scale)) };
+    case "table":
+      return {
+        ...element,
+        columnWidths: element.columnWidths.map((width) => round(width * scale)),
+        rows: element.rows.map((row) =>
+          row.map((cell) => ({ ...cell, runs: cell.runs.map((run) => scaledRun(run, scale)) })),
+        ),
+      };
+    case "image":
+      return {
+        ...element,
+        cornerRadius: round(element.cornerRadius * scale),
+        crop: {
+          zoom: element.crop.zoom,
+          offsetX: round(element.crop.offsetX * scale),
+          offsetY: round(element.crop.offsetY * scale),
+        },
+      };
+    case "shape":
+      return { ...element, cornerRadius: round(element.cornerRadius * scale) };
+    default:
+      return element;
+  }
+}
+
+// The elements of one page (or master, layout) moved to a page of `format`: each top-level element
+// anchored by its nearest edges, and it and what is in it scaled with the shorter side.
+function transferElements(
+  elements: readonly SlideElement[],
+  from: SlideFormat,
+  to: SlideFormat,
+  scale: number,
+): SlideElement[] {
+  return elements.map((element) => {
+    const x = anchored(element.x, element.width, from.width, to.width, scale);
+    const y = anchored(element.y, element.height, from.height, to.height, scale);
+    const place = (one: SlideElement): SlideElement =>
+      scaledContent(
+        {
+          ...one,
+          x: round(x + (one.x - element.x) * scale),
+          y: round(y + (one.y - element.y) * scale),
+          width: round(Math.max(1, one.width * scale)),
+          height: round(Math.max(1, one.height * scale)),
+        },
+        scale,
+      );
+    return withDescendants(element, place);
+  });
+}
+
+// Whether an element, as drawn, reaches past the edge of a page of `format`.
+function reachesPast(element: SlideElement, format: SlideFormat): boolean {
+  const drawn = drawnBox(element);
+  const slack = 0.01;
+  return (
+    drawn.x < -slack ||
+    drawn.y < -slack ||
+    drawn.x + drawn.width > format.width + slack ||
+    drawn.y + drawn.height > format.height + slack
+  );
+}
+
+// The ids of the top-level elements of `elements` that reach past the edge of a page of `format`
+// (`SUI-FEATURE-231`: overflow comes from the geometry, never from a field of the model).
+export function overflowingIds(elements: readonly SlideElement[], format: SlideFormat): string[] {
+  return elements.filter((element) => reachesPast(element, format)).map((element) => element.id);
+}
+
+// A copy of the document in another format (`SUI-FEATURE-162` §Format übertragen, `SUI-FEATURE-231`):
+// one page (by index) or all of them, the masters and layouts with them; every element keeps its
+// place relative to the page and its nearest edges, sizes and text scale with the shorter side. The
+// document itself stays as it is. `overflowIds`: the copy's page elements that reach past its edge.
+export function transferFormat(
+  document: SlideDocument,
+  format: SlideFormat,
+  page?: number,
+): { document: SlideDocument; overflowIds: string[] } {
+  const from = document.format;
+  const scale = Math.min(format.width, format.height) / Math.min(from.width, from.height);
+  const move = (elements: readonly SlideElement[]) =>
+    transferElements(elements, from, format, scale);
+  const pages = (page === undefined ? document.pages : document.pages.slice(page, page + 1)).map(
+    (one) => ({ ...one, elements: move(one.elements) }),
+  );
+  const copy: SlideDocument = {
+    ...document,
+    format: { ...format },
+    masters: document.masters.map((master) => ({ ...master, elements: move(master.elements) })),
+    layouts: document.layouts.map((layout) => ({ ...layout, elements: move(layout.elements) })),
+    pages,
+  };
+  return {
+    document: copy,
+    overflowIds: pages.flatMap((one) => overflowingIds(one.elements, format)),
+  };
 }

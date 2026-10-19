@@ -434,6 +434,8 @@ export const en = {
     italicFace: "{{weight}} italic",
     allHidden: "This presentation has no visible slides.",
     overflowing: "Text doesn’t fit its box: {{names}}",
+    pastPage: "Reaches past the page: {{names}}",
+    overflowingAndPastPage: "Text doesn’t fit its box and reaches past the page: {{names}}",
     missingBrand: "Brand colour missing: {{keys}}",
     previous: "Previous slide",
     next: "Next slide",
@@ -450,6 +452,24 @@ export const en = {
       cropCancel: "Cancel",
       cropApplied: "Crop applied.",
       cropCancelled: "Crop cancelled.",
+      transfer: "Transfer format",
+      transferTitle: "Transfer to another format",
+      transferDescription:
+        "Makes a copy of this page or of all pages in the chosen format. This document stays as it is.",
+      transferFormat: "Format",
+      transferFormatOption: "{{name}} · {{width}} × {{height}} px",
+      transferScope: "What to transfer",
+      transferPage: "This page",
+      transferAll: "All pages",
+      transferConfirm: "Transfer",
+      transferCancel: "Cancel",
+      transferred: "Copy in {{format}} created.",
+      transferredOverflow_one:
+        "Copy in {{format}} created; {{count}} element reaches past the page.",
+      transferredOverflow_other:
+        "Copy in {{format}} created; {{count}} elements reach past the page.",
+      transferFailed:
+        "The copy in {{format}} could not be created. Try again. If it keeps failing, check the page’s elements.",
       page: "Page {{current}} of {{total}}",
       previousPage: "Previous page",
       nextPage: "Next page",

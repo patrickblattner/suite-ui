@@ -663,3 +663,57 @@ describe("SlideView notices (#321)", () => {
     expect(parseFloat(drawnPage.style.top)).toBeCloseTo(14, 1);
   });
 });
+
+// #294 inc 2: a text that does not fit its box and reaches past the page has one notice naming both,
+// under keys of its own (no duplicate React key).
+describe("SlideView notices past the page", () => {
+  it("names a text that overflows and reaches past the page in one notice", async () => {
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(100);
+    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(50);
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    const page = SLIDE_SHOWCASE.pages[0]!;
+    const document = {
+      ...SLIDE_SHOWCASE,
+      pages: [
+        {
+          ...page,
+          elements: [
+            {
+              id: "edge",
+              name: "Edge",
+              type: "text",
+              x: -100,
+              y: 400,
+              width: 400,
+              height: 50,
+              runs: [{ text: "far too long" }],
+            },
+            {
+              id: "inside",
+              name: "Inside",
+              type: "text",
+              x: 600,
+              y: 400,
+              width: 400,
+              height: 50,
+              runs: [{ text: "far too long" }],
+            },
+          ],
+        },
+      ],
+    } as SlideViewProps["document"];
+    await drawn({ document, fitText: true, pastPageNotices: true });
+    const view = screen.getByTestId("view");
+    await waitFor(() =>
+      expect(view.querySelectorAll("[data-slide-notice-for=edge]")).toHaveLength(1),
+    );
+    const edge = view.querySelector("[data-slide-notice-for=edge]")!;
+    expect(edge).toHaveAttribute("data-slide-notice-kind", "both");
+    expect(edge).toHaveTextContent("Text doesn’t fit its box and reaches past the page: Edge");
+    expect(view.querySelector("[data-slide-notice-for=inside]")).toHaveAttribute(
+      "data-slide-notice-kind",
+      "text",
+    );
+    expect(errors.mock.calls.some((call) => String(call[0]).includes("same key"))).toBe(false);
+  });
+});

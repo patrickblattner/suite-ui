@@ -419,6 +419,8 @@ export const de: SuiteStrings = {
     italicFace: "{{weight}} kursiv",
     allHidden: "Diese Präsentation hat keine sichtbaren Folien.",
     overflowing: "Text passt nicht in sein Feld: {{names}}",
+    pastPage: "Ragt über die Seite: {{names}}",
+    overflowingAndPastPage: "Text passt nicht in sein Feld und ragt über die Seite: {{names}}",
     missingBrand: "Markenfarbe fehlt: {{keys}}",
     previous: "Vorherige Folie",
     next: "Nächste Folie",
@@ -435,6 +437,24 @@ export const de: SuiteStrings = {
       cropCancel: "Abbrechen",
       cropApplied: "Ausschnitt übernommen.",
       cropCancelled: "Ausschnitt verworfen.",
+      transfer: "Format übertragen",
+      transferTitle: "In ein anderes Format übertragen",
+      transferDescription:
+        "Erstellt eine Kopie dieser Seite oder aller Seiten im gewählten Format. Dieses Dokument bleibt, wie es ist.",
+      transferFormat: "Format",
+      transferFormatOption: "{{name}} · {{width}} × {{height}} px",
+      transferScope: "Was übertragen",
+      transferPage: "Diese Seite",
+      transferAll: "Alle Seiten",
+      transferConfirm: "Übertragen",
+      transferCancel: "Abbrechen",
+      transferred: "Kopie in {{format}} erstellt.",
+      transferredOverflow_one:
+        "Kopie in {{format}} erstellt; {{count}} Element ragt über die Seite.",
+      transferredOverflow_other:
+        "Kopie in {{format}} erstellt; {{count}} Elemente ragen über die Seite.",
+      transferFailed:
+        "Die Kopie in {{format}} konnte nicht erstellt werden. Versuche es erneut. Klappt es weiterhin nicht, prüfe die Elemente der Seite.",
       page: "Seite {{current}} von {{total}}",
       previousPage: "Vorherige Seite",
       nextPage: "Nächste Seite",

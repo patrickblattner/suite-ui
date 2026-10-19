@@ -9480,6 +9480,128 @@ test("slide editor: a focused number field shows the value Undo restores", async
   await expect(picture).toHaveCSS("left", "250px");
 });
 
+// A notice stands beside what it names, never over its drawn box (`SUI-FEATURE-180`).
+async function expectBeside(notice: Locator, element: Locator) {
+  const [a, b] = [(await notice.boundingBox())!, (await element.boundingBox())!];
+  const apart =
+    a.x + a.width <= b.x + 0.5 ||
+    b.x + b.width <= a.x + 0.5 ||
+    a.y + a.height <= b.y + 0.5 ||
+    b.y + b.height <= a.y + 0.5;
+  expect(apart, "notice beside its element").toBe(true);
+}
+
+// #294 inc 2 review: a text 60 px past the page's left edge carries its notice beside it, never over
+// its text.
+test("slide editor: a text past the page edge has its notice beside it", async ({ page }) => {
+  const { editor, field, select } = await pictureEditor(page);
+  await select(120, 400);
+  await expect(editor.getByTestId("canvas-name")).toHaveText("Caption");
+  await typeInto(page, field("x"), "-60");
+  const notice = editor.locator("[data-slide-notice-kind=page][data-slide-notice-for=caption]");
+  await expect(notice).toHaveText("Reaches past the page: Caption");
+  await expectBeside(notice, editor.locator("[data-slide-element=caption]"));
+});
+
+// SUI-FEATURE-231 AC1: "Transfer format" shows only when the app has a format other than the
+// document's.
+test("slide editor: Transfer format shows only with another format of the app", async ({
+  page,
+}) => {
+  await page.goto("/?page=slide-editor&lng=en&formats=one");
+  await expect(page.getByTestId("slide-editor").getByTestId("canvas-zoom-actual")).toBeVisible();
+  await expect(page.getByTestId("slide-editor-transfer")).toHaveCount(0);
+  await page.goto("/?page=slide-editor&lng=en");
+  await expect(page.getByTestId("slide-editor-transfer")).toBeVisible();
+});
+
+// SUI-FEATURE-162 AC2, SUI-FEATURE-231 AC2/AC3 (#294 inc 2): a page sent to the portrait format by
+// keyboard — a new valid document for the app with the overflowing element named, announced and
+// shown; the open document stays as it was. Opened, the copy shows a notice at that element, from
+// its geometry, and holds no mark in the model.
+test("slide editor: a page is transferred to a portrait format as a new copy", async ({ page }) => {
+  const { editor, field, select } = await openEditor(page);
+  await select(140, 130);
+  // Box A made 700 px wide, flush with the right edge: anchored there, it reaches past the
+  // portrait page.
+  await field("width").focus();
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.press("Backspace");
+  await page.keyboard.type("700");
+  await expect(field("width")).toHaveValue("700");
+  const app = page.getByTestId("slide-editor-app");
+
+  const transfer = editor.getByTestId("slide-editor-transfer");
+  await transfer.focus();
+  await page.keyboard.press("Enter");
+  const dialog = page.getByTestId("slide-editor-transfer-dialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByRole("radio", { name: "Portrait · 450 × 800 px" })).toBeChecked();
+  await expect(dialog.getByRole("radio", { name: "This page" })).toBeChecked();
+  // Enter on a choice transfers, as Enter does in a dialog (`GL-UI-027`).
+  await dialog.getByRole("radio", { name: "This page" }).focus();
+  await page.keyboard.press("Enter");
+  await expect(dialog).toHaveCount(0);
+  await expect(transfer).toBeFocused();
+
+  await expect(app).toHaveAttribute("data-transfer", /Portrait/);
+  const sent = JSON.parse((await app.getAttribute("data-transfer"))!) as {
+    document: {
+      format: { width: number; height: number };
+      pages: { elements: { id: string; x: number; width: number }[] }[];
+    };
+    overflowIds: string[];
+  };
+  expect(sent.document.format).toMatchObject({ width: 450, height: 800 });
+  expect(sent.document.pages).toHaveLength(1);
+  expect(sent.overflowIds).toEqual(["a"]);
+  const a = sent.document.pages[0]!.elements.find((element) => element.id === "a")!;
+  expect(a.x + a.width).toBeCloseTo(450, 3);
+  // Confirmed in a toast, which announces itself; the canvas does not say it a second time.
+  const told = "Copy in Portrait created; 1 element reaches past the page.";
+  await expect(page.locator("[data-sonner-toast]").filter({ hasText: told })).toBeVisible();
+  await expect(editor.getByTestId("canvas-announcement")).not.toHaveText(told);
+  // The open document is as it was: Box A still 700 wide on the 800 × 450 page, nothing past it.
+  await expect(field("width")).toHaveValue("700");
+  await expect(editor.locator("[data-slide-notice-kind=page]")).toHaveCount(0);
+
+  // The app opens the copy: Box A carries its notice, from the geometry alone.
+  await page.getByTestId("slide-editor-app-open-copy").click();
+  const notice = editor.locator("[data-slide-notice-kind=page][data-slide-notice-for=a]");
+  await expect(notice).toHaveText("Reaches past the page: Box A");
+  await expectBeside(notice, editor.locator("[data-slide-element=a]"));
+  // The copy the app keeps holds no mark: the notice comes from where the element lies.
+  expect(JSON.stringify(sent.document)).not.toMatch(/overflow|marked|pastPage/i);
+});
+
+// #294 inc 2: the transfer action and its dialog fit at 390 px in each language.
+for (const lng of ["de", "en", "es"]) {
+  test(`slide editor: Transfer format fits at 390 px (${lng})`, async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.goto(`/?page=slide-editor&lng=${lng}`);
+    const button = page.getByTestId("slide-editor-transfer");
+    await expect(button).toBeVisible();
+    const placed = (await button.boundingBox())!;
+    expect(placed.x).toBeGreaterThanOrEqual(0);
+    expect(placed.x + placed.width).toBeLessThanOrEqual(390);
+    await button.click();
+    const dialog = page.getByTestId("slide-editor-transfer-dialog");
+    await expect(dialog).toBeVisible();
+    const box = (await dialog.boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(390);
+    expect(await dialog.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+    await page.keyboard.press("Escape");
+    await expect(dialog).toHaveCount(0);
+    await expect(page.getByTestId("slide-editor-app")).not.toHaveAttribute("data-transfer");
+    // A transfer confirms in a toast: the toolbar keeps its place.
+    await button.click();
+    await page.getByTestId("slide-editor-transfer-confirm").click();
+    await expect(page.getByTestId("slide-editor-app")).toHaveAttribute("data-transfer", /Portrait/);
+    expect(await button.boundingBox()).toEqual(placed);
+  });
+}
+
 // #294 review: a locked image is not cropped, by double click or Enter.
 test("slide editor: a locked image is not cropped", async ({ page }) => {
   const { editor, canvas, centre } = await pictureEditor(page);
