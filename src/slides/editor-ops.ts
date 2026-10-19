@@ -3,8 +3,14 @@
 // in groups too; a group's children keep page coordinates (`SUI-DESIGN-002` §Gruppen), so moving or
 // scaling a group moves or scales its children with it.
 
-import { DEFAULT_TEXT_SIZE, stackOrder } from "./render-style.js";
-import type { SlideDocument, SlideElement, SlideFormat, TextRun } from "./schema.js";
+import { DEFAULT_TEXT_SIZE, pageLists, stackOrder } from "./render-style.js";
+import {
+  SLIDE_LIMITS,
+  type SlideDocument,
+  type SlideElement,
+  type SlideFormat,
+  type TextRun,
+} from "./schema.js";
 
 export type Box = { x: number; y: number; width: number; height: number };
 
@@ -670,32 +676,73 @@ const scaledRun = (run: TextRun, scale: number): TextRun => ({
   ...(run.letterSpacing === undefined ? {} : { letterSpacing: round(run.letterSpacing * scale) }),
 });
 
+// A line (a border, a stroke) at `scale`: a visible one stays at least 1 px (`SUI-FEATURE-231` rev 3).
+const scaledLine = <T extends { width: number }>(line: T, scale: number): T => ({
+  ...line,
+  width: line.width === 0 ? 0 : Math.max(1, round(line.width * scale)),
+});
+
+type ShadowLike = { blur: number; offsetX: number; offsetY: number };
+
+// A shadow at `scale`: its blur and offset.
+const scaledShadow = <T extends ShadowLike>(shadow: T, scale: number): T => ({
+  ...shadow,
+  blur: round(shadow.blur * scale),
+  offsetX: round(shadow.offsetX * scale),
+  offsetY: round(shadow.offsetY * scale),
+});
+
+// The optional border and shadow of an element, scaled where it has them.
+function withScaledBorderAndShadow<T extends { border?: { width: number }; shadow?: ShadowLike }>(
+  element: T,
+  scale: number,
+): T {
+  return {
+    ...element,
+    ...(element.border === undefined ? {} : { border: scaledLine(element.border, scale) }),
+    ...(element.shadow === undefined ? {} : { shadow: scaledShadow(element.shadow, scale) }),
+  };
+}
 // What an element draws at `scale`, besides its box: text sizes, a table's column widths, an image's
-// crop shift and corner radius.
+// crop shift and corner radius, border and line widths, shadows (`SUI-FEATURE-231` rev 3).
 function scaledContent(element: SlideElement, scale: number): SlideElement {
   switch (element.type) {
     case "text":
-      return { ...element, runs: element.runs.map((run) => scaledRun(run, scale)) };
+      return withScaledBorderAndShadow(
+        { ...element, runs: element.runs.map((run) => scaledRun(run, scale)) },
+        scale,
+      );
+    case "line":
+      return { ...element, stroke: scaledLine(element.stroke, scale) };
     case "table":
-      return {
-        ...element,
-        columnWidths: element.columnWidths.map((width) => round(width * scale)),
-        rows: element.rows.map((row) =>
-          row.map((cell) => ({ ...cell, runs: cell.runs.map((run) => scaledRun(run, scale)) })),
-        ),
-      };
-    case "image":
-      return {
-        ...element,
-        cornerRadius: round(element.cornerRadius * scale),
-        crop: {
-          zoom: element.crop.zoom,
-          offsetX: round(element.crop.offsetX * scale),
-          offsetY: round(element.crop.offsetY * scale),
+      return withScaledBorderAndShadow(
+        {
+          ...element,
+          columnWidths: element.columnWidths.map((width) => round(width * scale)),
+          rows: element.rows.map((row) =>
+            row.map((cell) => ({ ...cell, runs: cell.runs.map((run) => scaledRun(run, scale)) })),
+          ),
         },
-      };
+        scale,
+      );
+    case "image":
+      return withScaledBorderAndShadow(
+        {
+          ...element,
+          cornerRadius: round(element.cornerRadius * scale),
+          crop: {
+            zoom: element.crop.zoom,
+            offsetX: round(element.crop.offsetX * scale),
+            offsetY: round(element.crop.offsetY * scale),
+          },
+        },
+        scale,
+      );
     case "shape":
-      return { ...element, cornerRadius: round(element.cornerRadius * scale) };
+      return withScaledBorderAndShadow(
+        { ...element, cornerRadius: round(element.cornerRadius * scale) },
+        scale,
+      );
     default:
       return element;
   }
@@ -745,10 +792,27 @@ export function overflowingIds(elements: readonly SlideElement[], format: SlideF
   return elements.filter((element) => reachesPast(element, format)).map((element) => element.id);
 }
 
+// The document's grid at `scale`, in whole px as the schema has it: the step, the gap, the margin and
+// the row step; the column count stays (`SUI-FEATURE-231` rev 3).
+function scaledGrid(grid: SlideDocument["grid"], scale: number): SlideDocument["grid"] {
+  if (grid === null) return null;
+  // Within the schema: at most the largest format side (a large factor would pass it).
+  const cap = (value: number) => Math.min(SLIDE_LIMITS.maxFormatSide, Math.round(value * scale));
+  const whole = (value: number) => Math.max(1, cap(value));
+  if (grid.kind === "step") return { ...grid, step: whole(grid.step) };
+  return {
+    ...grid,
+    gap: cap(grid.gap),
+    margin: cap(grid.margin),
+    ...(grid.rowStep === undefined ? {} : { rowStep: whole(grid.rowStep) }),
+  };
+}
+
 // A copy of the document in another format (`SUI-FEATURE-162` §Format übertragen, `SUI-FEATURE-231`):
 // one page (by index) or all of them, the masters and layouts with them; every element keeps its
 // place relative to the page and its nearest edges, sizes and text scale with the shorter side. The
-// document itself stays as it is. `overflowIds`: the copy's page elements that reach past its edge.
+// document itself stays as it is. `overflowIds`: the elements each page of the copy draws — its own,
+// its layout's and its master's — that reach past its edge.
 export function transferFormat(
   document: SlideDocument,
   format: SlideFormat,
@@ -764,12 +828,12 @@ export function transferFormat(
   const copy: SlideDocument = {
     ...document,
     format: { ...format },
+    grid: scaledGrid(document.grid, scale),
     masters: document.masters.map((master) => ({ ...master, elements: move(master.elements) })),
     layouts: document.layouts.map((layout) => ({ ...layout, elements: move(layout.elements) })),
     pages,
   };
-  return {
-    document: copy,
-    overflowIds: pages.flatMap((one) => overflowingIds(one.elements, format)),
-  };
+  // What each page draws, its master's and layout's elements too (Codex #355 CX1).
+  const drawn = pages.flatMap((_, index) => pageLists(copy, index).flat());
+  return { document: copy, overflowIds: [...new Set(overflowingIds(drawn, format))] };
 }

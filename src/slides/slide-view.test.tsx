@@ -717,3 +717,40 @@ describe("SlideView notices past the page", () => {
     expect(errors.mock.calls.some((call) => String(call[0]).includes("same key"))).toBe(false);
   });
 });
+
+// Codex #355 CX1 (#356): an element the page draws from its master reaches past the page too, and
+// the view names it.
+describe("SlideView past-page notices of a master", () => {
+  it("names a master's element that reaches past the page", async () => {
+    const document = {
+      ...SLIDE_SHOWCASE,
+      masters: [
+        {
+          id: "m",
+          name: "Master",
+          elements: [
+            {
+              id: "banner",
+              name: "Banner",
+              type: "shape",
+              shape: "rectangle",
+              x: -100,
+              y: 40,
+              width: 600,
+              height: 80,
+            },
+          ],
+        },
+      ],
+      layouts: [{ id: "l", name: "Layout", masterId: "m", elements: [] }],
+      pages: [{ ...SLIDE_SHOWCASE.pages[0]!, layoutId: "l", elements: [] }],
+    } as SlideViewProps["document"];
+    await drawn({ document, pastPageNotices: true });
+    const view = screen.getByTestId("view");
+    await waitFor(() =>
+      expect(view.querySelector("[data-slide-notice-for=banner]")).toHaveTextContent(
+        "Reaches past the page: Banner",
+      ),
+    );
+  });
+});

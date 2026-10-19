@@ -106,7 +106,8 @@ export interface SlideEditorProps extends Pick<
   onGridShown?: (shown: boolean) => void;
   // The app's formats and where a copy in one of them goes (`SUI-FEATURE-231`): "Transfer format"
   // shows when `formats` holds another than the document's; the copy is a new valid document, which
-  // the app keeps and opens; `overflowIds` are its elements that reach past their page.
+  // the app keeps and opens; `overflowIds` are the elements its pages draw (their own, their
+  // layout's and master's) that reach past the page.
   formats?: readonly SlideFormat[];
   onTransfer?: (copy: SlideDocument, details: { overflowIds: string[] }) => void;
   "data-testid"?: string;

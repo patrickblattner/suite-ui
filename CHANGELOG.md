@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.140.0 — #356, SUI-FEATURE-231 rev 3 (Codex review v0.139.0 CX1, CX2): the format transfer scales everything with a size, starts from the whole document, and counts the master's elements
+
+New, not breaking.
+
+- **Everything with a size scales with the shorter side** (`SUI-FEATURE-231` rev 3, Codex CX2): besides the boxes and the text, borders and line widths, shadows (blur and offset) and the document's grid (step, gap, margin, row step; the column count stays) scale with the ratio of the shorter sides, rounded and within the schema (the grid in whole px, at most the largest format side); a visible line stays at least 1 px. Tested at 2.4, 0.3 and about 15 (into 16384 × 16384): the copy validates.
+- **"Whole document" is preselected** in the transfer dialog, as in the Cockpit studio's transfer, which this one replaces; the choice reads "Whole document" (de "Ganzes Dokument", es "Todo el documento"). The dialog says "Makes a copy of this page or of the whole document in the chosen format."
+- **Elements from the master and the layout count** (Codex CX1): `overflowIds` names every element a page of the copy draws that reaches past it, its master's and layout's too, and `SlideView`'s past-page notices name them on the page they are drawn on.
+
+**Migration:** none. Baselines: `gallery-*` (strings table with the renamed choice: de, en, es in light and dark, de also at 1440 and 390 px).
+
 ## 0.139.0 — #294 (increment 2), SUI-FEATURE-162 AC2, SUI-FEATURE-231: a page or the document is transferred to another format of the app
 
 New, not breaking.

@@ -31,7 +31,7 @@ export function TransferFormat({
   const { t } = useTranslation("suite");
   const [open, setOpen] = React.useState(false);
   const [chosen, setChosen] = React.useState("0");
-  const [scope, setScope] = React.useState<TransferScope>("page");
+  const [scope, setScope] = React.useState<TransferScope>("all");
   const id = React.useId();
   const confirm = () => {
     const format = formats[Number(chosen)];
@@ -53,7 +53,9 @@ export function TransferFormat({
         size="sm"
         onClick={() => {
           setChosen("0");
-          setScope("page");
+          // The whole document first: the transfer replaces the Cockpit studio's (`SUI-FEATURE-231`
+          // rev 3).
+          setScope("all");
           setOpen(true);
         }}
         data-testid="slide-editor-transfer"

@@ -9537,9 +9537,12 @@ test("slide editor: a page is transferred to a portrait format as a new copy", a
   const dialog = page.getByTestId("slide-editor-transfer-dialog");
   await expect(dialog).toBeVisible();
   await expect(dialog.getByRole("radio", { name: "Portrait · 450 × 800 px" })).toBeChecked();
+  // The whole document first, as the Cockpit studio's transfer did (`SUI-FEATURE-231` rev 3).
+  await expect(dialog.getByRole("radio", { name: "Whole document" })).toBeChecked();
+  // This page chosen; Enter on a choice transfers, as Enter does in a dialog (`GL-UI-027`).
+  await dialog.getByRole("radio", { name: "This page" }).click();
   await expect(dialog.getByRole("radio", { name: "This page" })).toBeChecked();
-  // Enter on a choice transfers, as Enter does in a dialog (`GL-UI-027`).
-  await dialog.getByRole("radio", { name: "This page" }).focus();
+  await expect(dialog.getByRole("radio", { name: "This page" })).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(dialog).toHaveCount(0);
   await expect(transfer).toBeFocused();

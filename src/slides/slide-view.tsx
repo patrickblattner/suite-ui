@@ -1097,12 +1097,11 @@ export function SlideView({
   // The page's place in the view, with or without the strip of notices below it: `strip` is the room
   // the page's size leaves for it, `centred` the room it is centred above.
   // The page's elements that reach past its edge, when the view names them (the editor).
+  // Those of its master and layout too: they are drawn on the page (Codex #355 CX1).
   const pastIds = new Set(
-    notices && pastPageNotices && pageData !== undefined
-      ? overflowingIds(pageData.elements, document.format)
-      : [],
+    notices && pastPageNotices ? overflowingIds(lists.flat(), document.format) : [],
   );
-  const pastPage = (pageData?.elements ?? []).filter((element) => pastIds.has(element.id));
+  const pastPage = lists.flat().filter((element) => pastIds.has(element.id));
   const layoutWith = (strip: number, centred = strip) => {
     const factor =
       scale === "fit"

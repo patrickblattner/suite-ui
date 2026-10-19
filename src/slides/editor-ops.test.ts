@@ -644,6 +644,141 @@ describe("transfer to another format", () => {
     expect(safeParseSlideDocument(copy).ok).toBe(true);
   });
 
+  // SUI-FEATURE-231 rev 3 AC3 (#356, Codex #355 CX2): borders, lines, shadows and the grid scale as
+  // the text does, rounded; a visible line stays at least 1 px; the copy validates.
+  it("scales borders, lines, shadows and the grid with the shorter side", () => {
+    const black = { kind: "free", value: "#000" } as const;
+    const source = parseSlideDocument({
+      schemaVersion: 1,
+      format: FORMAT_16_9,
+      grid: { kind: "columns", count: 12, gap: 20, margin: 40, rowStep: 30 },
+      pages: [
+        {
+          id: "p",
+          background: { type: "color", color: { kind: "free", value: "#fff" } },
+          elements: [
+            {
+              ...shape("framed", 100, 100, 200, 100),
+              border: { color: black, width: 2 },
+              shadow: { color: black, blur: 10, offsetX: 4, offsetY: -6 },
+            },
+            {
+              id: "rule",
+              type: "line",
+              x: 100,
+              y: 300,
+              width: 400,
+              height: 1,
+              stroke: { color: black, width: 1 },
+            },
+            {
+              id: "words",
+              type: "text",
+              x: 100,
+              y: 400,
+              width: 400,
+              height: 100,
+              runs: [{ text: "Shade", size: 40 }],
+              shadow: { color: black, blur: 5, offsetX: 10, offsetY: 0 },
+            },
+            {
+              id: "sheet",
+              type: "table",
+              x: 600,
+              y: 400,
+              width: 400,
+              height: 100,
+              columnWidths: [400],
+              rows: [[{ runs: [{ text: "a" }] }]],
+              border: { color: black, width: 3 },
+            },
+            {
+              id: "photo",
+              type: "image",
+              x: 1100,
+              y: 400,
+              width: 400,
+              height: 200,
+              media: { id: "m" },
+              border: { color: black, width: 5 },
+              shadow: { color: black, blur: 20, offsetX: -10, offsetY: 10 },
+            },
+          ],
+        },
+      ],
+    });
+    const check = (format: { name: string; width: number; height: number }) => {
+      const { document: copy } = transferFormat(source, format);
+      expect(safeParseSlideDocument(copy).ok).toBe(true);
+      const of = (id: string) => findElement(copy.pages[0]!.elements, id)!.element;
+      const [framed, rule, words, sheet, photo] = ["framed", "rule", "words", "sheet", "photo"].map(
+        of,
+      );
+      return {
+        border: framed!.type === "shape" ? framed!.border?.width : undefined,
+        shadow: framed!.type === "shape" ? framed!.shadow : undefined,
+        stroke: rule!.type === "line" ? rule!.stroke.width : undefined,
+        text: words!.type === "text" ? words!.shadow : undefined,
+        table: sheet!.type === "table" ? sheet!.border?.width : undefined,
+        image:
+          photo!.type === "image"
+            ? { border: photo!.border?.width, shadow: photo!.shadow }
+            : undefined,
+        grid: copy.grid,
+      };
+    };
+    // 2.4: 1080 → 2592.
+    expect(check({ name: "Big", width: 4608, height: 2592 })).toEqual({
+      border: 4.8,
+      shadow: { color: black, blur: 24, offsetX: 9.6, offsetY: -14.4 },
+      stroke: 2.4,
+      text: { color: black, blur: 12, offsetX: 24, offsetY: 0 },
+      table: 7.2,
+      image: { border: 12, shadow: { color: black, blur: 48, offsetX: -24, offsetY: 24 } },
+      grid: { kind: "columns", count: 12, gap: 48, margin: 96, rowStep: 72 },
+    });
+    // 0.3: 1080 → 324; the border (0.6) and the line (0.3) stay visible at 1 px.
+    expect(check({ name: "Tiny", width: 576, height: 324 })).toEqual({
+      border: 1,
+      shadow: { color: black, blur: 3, offsetX: 1.2, offsetY: -1.8 },
+      stroke: 1,
+      text: { color: black, blur: 1.5, offsetX: 3, offsetY: 0 },
+      table: 1,
+      image: { border: 1.5, shadow: { color: black, blur: 6, offsetX: -3, offsetY: 3 } },
+      grid: { kind: "columns", count: 12, gap: 6, margin: 12, rowStep: 9 },
+    });
+    // A large factor (1080 → 16384) keeps the grid within the schema: the copy still validates.
+    const huge = { name: "Huge", width: 16384, height: 16384 };
+    const wide = { ...source, grid: { kind: "step" as const, step: 1920 } };
+    const { document: giant } = transferFormat(wide, huge);
+    expect(giant.grid).toEqual({ kind: "step", step: 16384 });
+    expect(safeParseSlideDocument(giant).ok).toBe(true);
+    const stepped = { ...source, grid: { kind: "step" as const, step: 40 } };
+    expect(
+      transferFormat(stepped, { name: "Tiny", width: 576, height: 324 }).document.grid,
+    ).toEqual({ kind: "step", step: 12 });
+  });
+
+  // Codex #355 CX1 (#356): an element a page draws from its master (through its layout) counts too.
+  it("names master and layout elements that reach past the copy's page", () => {
+    const source = parseSlideDocument({
+      schemaVersion: 1,
+      format: FORMAT_16_9,
+      masters: [{ id: "m", name: "Master", elements: [shape("banner", 10, 40, 1900, 120)] }],
+      layouts: [{ id: "l", name: "Layout", masterId: "m", elements: [shape("logo", 1700, 900)] }],
+      pages: [
+        {
+          id: "p",
+          layoutId: "l",
+          background: { type: "color", color: { kind: "free", value: "#fff" } },
+          elements: [shape("own", 100, 300)],
+        },
+      ],
+    });
+    const { overflowIds } = transferFormat(source, portrait);
+    expect(overflowIds).toEqual(["banner"]);
+  });
+
   it("moves and scales a group with what is in it", () => {
     const { document: grouped, id } = groupElements(
       doc([shape("a", 1700, 900), shape("b", 1800, 960)]),
