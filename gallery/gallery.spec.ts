@@ -9074,3 +9074,30 @@ test("slide player: a mouse click on a bar button lets the bar hide again", asyn
   await page.keyboard.press("ArrowRight");
   await expect(player).toHaveAttribute("data-slide-step", "2");
 });
+
+// Codex #317 CX3: a child of a turned group moves where the pointer goes, in the group's frame.
+test("slide editor: dragging a child of a turned group follows the pointer", async ({ page }) => {
+  const { editor, at, field, select } = await openEditor(page);
+  await select(630, 340);
+  await field("rotation").fill("90");
+  await page.keyboard.press("Tab");
+  const drawn = at(630, 300);
+  await page.mouse.dblclick(drawn.x, drawn.y);
+  await expect(field("x")).toHaveValue("560");
+  const child = editor.locator("[data-slide-element=pair-left]");
+  const before = (await child.boundingBox())!;
+  await page.keyboard.down("Alt");
+  await page.mouse.move(drawn.x, drawn.y);
+  await page.mouse.down();
+  await page.mouse.move(drawn.x + 10, drawn.y, { steps: 3 });
+  await page.mouse.move(drawn.x + 20, drawn.y, { steps: 3 });
+  await page.mouse.up();
+  await page.keyboard.up("Alt");
+  const after = (await child.boundingBox())!;
+  expect(after.x - before.x).toBeCloseTo(20, 0);
+  expect(after.y - before.y).toBeCloseTo(0, 0);
+  // In the group's own frame (a quarter turn) that is 20 px up; the group then refits around its
+  // children and shifts them by (10, 10) so nothing else moves where it is drawn.
+  await expect(field("y")).toHaveValue("290");
+  await expect(field("x")).toHaveValue("570");
+});

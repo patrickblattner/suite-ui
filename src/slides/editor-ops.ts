@@ -313,6 +313,13 @@ export function setBox(document: SlideDocument, page: number, id: string, box: B
       sy += (a * errorY - c * errorX) / det;
       bounds = measure(sx, sy);
     }
+    // A size no positive scale of the children reaches (a turned child holds the group taller than
+    // asked) is not forced: the children scale plainly and the group takes the box they make.
+    if (!(sx > 0 && sy > 0) || bounds === undefined) {
+      sx = old.width === 0 ? 1 : box.width / old.width;
+      sy = old.height === 0 ? 1 : box.height / old.height;
+      bounds = measure(sx, sy);
+    }
     place = scaled(sx, sy);
     if (bounds !== undefined) {
       const factor = place;

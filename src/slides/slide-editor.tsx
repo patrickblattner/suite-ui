@@ -111,9 +111,14 @@ const FIELD_RANGE = 2 * SLIDE_LIMITS.maxFormatSide;
 // The snap guide's colour: at least 4.4 : 1 against white and against black.
 const GUIDE_COLOR = "#c026d3";
 
+type Group = Extract<SlideElement, { type: "group" }>;
+
+// A drag measures in `frame`: the groups the edited element stands in, outermost first, so moving,
+// resizing and turning a child of a turned group follow the pointer where the child is drawn.
 type Drag =
   | {
       kind: "move";
+      frame: Group[];
       start: Point;
       base: SlideDocument;
       ids: string[];
@@ -123,6 +128,7 @@ type Drag =
   | { kind: "marquee"; start: Point; current: Point; additive: string[] }
   | {
       kind: "resize";
+      frame: Group[];
       start: Point;
       base: SlideDocument;
       id: string;
@@ -130,7 +136,7 @@ type Drag =
       rotation: number;
       handle: Handle;
     }
-  | { kind: "rotate"; base: SlideDocument; id: string; box: Box };
+  | { kind: "rotate"; frame: Group[]; base: SlideDocument; id: string; box: Box };
 
 const rectOf = (box: Box, zoom: number) =>
   new DOMRect(box.x * zoom, box.y * zoom, box.width * zoom, box.height * zoom);
@@ -367,7 +373,8 @@ function Editor({
     setSaving(true);
     try {
       const ok = await onSave(result.document);
-      if (ok === false) return false;
+      // Only `true` is success (`GL-UI-007`); anything else keeps the draft.
+      if (ok !== true) return false;
       setSaved(history.document);
       return true;
     } finally {
@@ -449,21 +456,23 @@ function Editor({
     });
     if (moving.length === 0 || (event.shiftKey && !ids.includes(hit.id))) return;
     const movingIds = moving.map((element) => element.id);
+    const frame = groupChain(elements, movingIds[0]!);
+    const turned = frame.some((group) => group.rotation !== 0);
     const others = elements
       .filter((element) => !movingIds.includes(element.id) && !element.hidden)
       .map(drawnBox);
     setDrag({
       kind: "move",
-      start: point,
+      frame,
+      start: intoGroups(frame, point),
       base: history.document,
       ids: movingIds,
       box: boundsOf(moving.map(drawnBox))!,
-      // Once per drag: the page, the elements that stay, and the grid while it is shown.
-      candidates: snapCandidates(
-        { width: pageWidth, height: pageHeight },
-        others,
-        gridShown ? grid : null,
-      ),
+      // Once per drag: the page, the elements that stay, and the grid while it is shown. In a turned
+      // group's frame the page's lines do not apply, so a child there moves without snapping.
+      candidates: turned
+        ? { x: [], y: [] }
+        : snapCandidates({ width: pageWidth, height: pageHeight }, others, gridShown ? grid : null),
     });
   };
 
@@ -500,8 +509,9 @@ function Editor({
       return;
     }
     if (drag.kind === "move") {
-      const dx = point.x - drag.start.x;
-      const dy = point.y - drag.start.y;
+      const local = intoGroups(drag.frame, point);
+      const dx = local.x - drag.start.x;
+      const dy = local.y - drag.start.y;
       const moved = { ...drag.box, x: drag.box.x + dx, y: drag.box.y + dy };
       const snap = snapBox(moved, drag.candidates, SNAP_PX / zoom, event.altKey);
       setGuides(snap.guides);
@@ -509,18 +519,24 @@ function Editor({
       return;
     }
     if (drag.kind === "resize") {
+      const local = intoGroups(drag.frame, point);
       const box = resizeBox(
         drag.box,
         drag.rotation,
         drag.handle,
-        { x: point.x - drag.start.x, y: point.y - drag.start.y },
+        { x: local.x - drag.start.x, y: local.y - drag.start.y },
         event.shiftKey,
       );
       setPreview(setBox(drag.base, page, drag.id, box));
       return;
     }
     setPreview(
-      setRotation(drag.base, page, drag.id, rotationTowards(drag.box, point, event.shiftKey)),
+      setRotation(
+        drag.base,
+        page,
+        drag.id,
+        rotationTowards(drag.box, intoGroups(drag.frame, point), event.shiftKey),
+      ),
     );
   };
 
@@ -546,18 +562,20 @@ function Editor({
     canvas.current?.setPointerCapture(event.pointerId);
     canvas.current?.focus();
     const box = boxOf(single);
+    const frame = groupChain(elements, single.id);
     setDrag(
       kind === "resize"
         ? {
             kind,
-            start: toPage(event),
+            frame,
+            start: intoGroups(frame, toPage(event)),
             base: history.document,
             id: single.id,
             box,
             rotation: single.rotation,
             handle,
           }
-        : { kind, base: history.document, id: single.id, box },
+        : { kind, frame, base: history.document, id: single.id, box },
     );
   };
 
@@ -572,7 +590,13 @@ function Editor({
     if (move === undefined || editable.length === 0) return;
     event.preventDefault();
     const ids = editable.map((element) => element.id);
-    apply((current) => moveBy(current, page, ids, move[0]!, move[1]!));
+    // A step on the screen: in a turned group's frame, the step turned back.
+    const frame = groupChain(elements, ids[0]!);
+    const origin = intoGroups(frame, { x: 0, y: 0 });
+    const end = intoGroups(frame, { x: move[0]!, y: move[1]! });
+    const dx = Math.round((end.x - origin.x) * 1000) / 1000;
+    const dy = Math.round((end.y - origin.y) * 1000) / 1000;
+    apply((current) => moveBy(current, page, ids, dx, dy));
   };
 
   // Esc: a child's group, then no selection (`GL-UI-040`); an open drawer and leaving come after.
@@ -1040,7 +1064,9 @@ function Editor({
           <div ref={setArea} className="relative min-h-0 flex-1 overflow-auto bg-muted p-6">
             <div
               ref={frame}
-              className="relative mx-auto"
+              // No text selection on the canvas: a double click would select the page's text, and the
+              // next press would drag that selection natively and cancel the editor's drag.
+              className="relative mx-auto select-none"
               style={{ width: pageWidth * zoom, height: pageHeight * zoom }}
             >
               <SlideView {...view} document={document} page={page} scale={zoom} />

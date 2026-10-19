@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.137.7 — #317, SUI-FEATURE-161, GL-UI-007 (Codex review v0.137.0 CX1–CX3): the slide editor saves only on `true`, resizes groups without invalid children, and drags and nudges in a turned group's frame
+
+Fix, not breaking.
+
+- **Save counts only `true` as success** (Codex CX1, high): `SlideEditor` marked the draft saved, and let a held way out go on, for any `onSave` result but `false` (`undefined` included). Now only `true` (or a promise of it) is success, as `GL-UI-007` says; anything else keeps the draft and holds the leave.
+- **Resizing a group never gives a child a negative size** (Codex CX2): a size typed for a group with a turned child that no positive scale reaches no longer forces negative factors; the children scale plainly and the group takes the box they make. Where the size can be reached it is still exact.
+- **A child of a turned group is dragged and nudged where the pointer goes** (Codex CX3): the editor measures a drag and the arrow keys in the frame of the groups the element stands in; inside a turned group a drag does not snap to the page's lines. Resizing and turning such a child stay limited: its frame and handles are still drawn unrotated, so they do not lie where the child is drawn (#324). The canvas also no longer selects text, so a double click into a group followed by a drag is no native text drag.
+
+**Migration:** an app whose `onSave` signals success by returning nothing must now return `true` (as documented); otherwise its saves keep the draft. No package text, prop, export or testid changed. Baselines: none.
+
 ## 0.137.6 — #305, #309, SUI-FEATURE-180, SUI-FEATURE-160 (Codex review v0.136.0 CX1–CX3, ux recheck #292): notices never off the canvas, a clicked bar button lets the bar hide, and three view fixes
 
 Fix with a behaviour change: text in a weight or style the app supplies no font file for is now reported as a missing font (`missingFonts`, named "Family 700"), and an export stops on it; before, it was drawn silently with a synthesized cut.

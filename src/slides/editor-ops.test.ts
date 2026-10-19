@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
 
-import { parseSlideDocument } from "./document.js";
+import { parseSlideDocument, safeParseSlideDocument } from "./document.js";
 import {
   alignElements,
   boundsOf,
@@ -344,12 +344,35 @@ describe("slide editor operations on turned groups", () => {
     expect(uBox.x - (tBox.x + tBox.width)).toBeCloseTo(vBox.x - (uBox.x + uBox.width), 3);
   });
 
-  it("gives a group with a turned child exactly the size typed", () => {
-    const turned = doc([{ ...shape("t", 100, 100, 200, 100), rotation: 45 }, shape("u", 600, 100)]);
+  it("gives a group with a turned child exactly the size typed, where it can", () => {
+    // u (100 × 300) sets the group's height; the turned t fits inside it at any width.
+    const turned = doc([
+      { ...shape("t", 100, 100, 200, 100), rotation: 45 },
+      shape("u", 600, 0, 100, 300),
+    ]);
     const { document: grouped45, id } = groupElements(turned, 0, ["t", "u"]);
     const resized = setBox(grouped45, 0, id!, { ...box(grouped45, id!), width: 900 });
     const result = box(resized, id!);
     expect(result.width).toBeCloseTo(900, 2);
     expect(result.x).toBeCloseTo(box(grouped45, id!).x, 2);
+    expect(safeParseSlideDocument(resized).ok).toBe(true);
+  });
+
+  // Codex #317 CX2: a size no positive scale reaches never gives a child a negative size.
+  it("keeps every child size positive when the size typed cannot be reached", () => {
+    const turned = doc([{ ...shape("t", 100, 100, 200, 100), rotation: 45 }, shape("u", 600, 100)]);
+    const { document: grouped45, id } = groupElements(turned, 0, ["t", "u"]);
+    const resized = setBox(grouped45, 0, id!, { ...box(grouped45, id!), width: 900 });
+    expect(safeParseSlideDocument(resized).ok).toBe(true);
+    const group = resized.pages[0]!.elements[0]!;
+    if (group.type !== "group") throw new Error("expected the group");
+    for (const child of group.children) {
+      expect(child.width).toBeGreaterThan(0);
+      expect(child.height).toBeGreaterThan(0);
+    }
+    const bounds = boundsOf(group.children.map(drawnBox))!;
+    for (const key of ["x", "y", "width", "height"] as const) {
+      expect(boxOf(group)[key]).toBeCloseTo(bounds[key], 2);
+    }
   });
 });
