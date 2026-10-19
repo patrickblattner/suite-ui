@@ -142,9 +142,11 @@ function CanvasOverlay({
         // outer edge, inside it starts past the inner line. Where the badge reaches past the frame,
         // a strip gives that part its full halo; without overhang its width is none.
         // Hidden from screen readers like the frame: the selection is announced with its full name.
+        // One layer up (the overlay's root makes no stacking context of its own), so a line the app
+        // draws over the frame after the overlay, such as a snap guide, passes under the badge (#332).
         <span
           aria-hidden="true"
-          className="absolute"
+          className="absolute z-[1]"
           style={
             badgeInside
               ? { left: badgeLeft, top: selected.rect.top + BORDER }
@@ -200,7 +202,8 @@ function CanvasOverlay({
       {selected === undefined || actions === undefined ? null : (
         <div
           ref={barRef}
-          className="pointer-events-auto absolute flex items-center gap-1 rounded-md border bg-background p-1 shadow-sm"
+          // On the badge's layer and after it, so the bar stays over the badge where they meet (#332).
+          className="pointer-events-auto absolute z-[1] flex items-center gap-1 rounded-md border bg-background p-1 shadow-sm"
           style={{
             right: `calc(100% - ${selected.rect.right}px)`,
             top: below ? selected.rect.bottom : selected.rect.top - size.bar.height,
@@ -215,7 +218,7 @@ function CanvasOverlay({
       {inserts?.map((insert, index) => (
         <div
           key={index}
-          className="pointer-events-auto absolute flex items-center justify-center"
+          className="pointer-events-auto absolute z-[1] flex items-center justify-center"
           style={box(insert.rect)}
         >
           <IconButtonTooltip label={insert.label}>

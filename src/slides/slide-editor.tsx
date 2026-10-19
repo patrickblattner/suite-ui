@@ -111,8 +111,6 @@ const HANDLE_PX = 10;
 // What a number field takes: a box at most twice the largest format side off the page and as large,
 // so nothing typed loses an element or overflows the document's numbers.
 const FIELD_RANGE = 2 * SLIDE_LIMITS.maxFormatSide;
-// The snap guide's colour: at least 4.4 : 1 against white and against black.
-const GUIDE_COLOR = "#c026d3";
 
 type Group = Extract<SlideElement, { type: "group" }>;
 
@@ -981,9 +979,10 @@ function Editor({
         }))),
   ];
 
-  // A guide: 1 px above the grid (`SUI-FEATURE-161` rev 5), in a colour of its own that stands out
-  // on a light and a dark slide alike, whatever the editor's theme (a slide has none).
-  const guideClass = "pointer-events-none absolute";
+  // A guide: 1 px above the grid in the primary colour with a 1 px `--background` halo
+  // (`SUI-FEATURE-161` rev 5): a dark and a light line, so one of them stands out at 3 : 1 on any
+  // slide and beside any grid line, in either theme (#332).
+  const guideClass = "pointer-events-none absolute bg-primary shadow-[0_0_0_1px_var(--background)]";
 
   return (
     <div
@@ -1124,22 +1123,6 @@ function Editor({
                 onDoubleClick={onDoubleClick}
                 onKeyDown={onKeyDown}
               />
-              {guides.x === undefined ? null : (
-                <div
-                  className={cn(guideClass, "top-0 bottom-0 w-px")}
-                  style={{ left: guides.x * zoom, background: GUIDE_COLOR }}
-                  data-testid="slide-editor-guide-x"
-                  data-guide={guides.x}
-                />
-              )}
-              {guides.y === undefined ? null : (
-                <div
-                  className={cn(guideClass, "right-0 left-0 h-px")}
-                  style={{ top: guides.y * zoom, background: GUIDE_COLOR }}
-                  data-testid="slide-editor-guide-y"
-                  data-guide={guides.y}
-                />
-              )}
               {marquee === undefined ? null : (
                 <div
                   className="pointer-events-none absolute border border-dashed border-ring bg-ring/10"
@@ -1171,14 +1154,33 @@ function Editor({
                 actions={drag === undefined ? actions : undefined}
                 onSelectParent={selectParent}
               />
+              {/* The guides above the selection frame, so it never covers them along the moved
+                  element, and below its name badge, which lies a layer up (#332). */}
+              {guides.x === undefined ? null : (
+                <div
+                  className={cn(guideClass, "top-0 bottom-0 w-px")}
+                  style={{ left: guides.x * zoom }}
+                  data-testid="slide-editor-guide-x"
+                  data-guide={guides.x}
+                />
+              )}
+              {guides.y === undefined ? null : (
+                <div
+                  className={cn(guideClass, "right-0 left-0 h-px")}
+                  style={{ top: guides.y * zoom }}
+                  data-testid="slide-editor-guide-y"
+                  data-guide={guides.y}
+                />
+              )}
               {/* The handles above the floating actions, so none lies under them. */}
-              {/* Over the element where it is drawn, turned with its groups (#324). */}
+              {/* Over the element where it is drawn, turned with its groups (#324); a layer above
+                  the name badge (#332), so the badge never covers a handle. */}
               {single === undefined ||
               handlesBox === undefined ||
               single.locked ||
               drag?.kind === "move" ? null : (
                 <div
-                  className="pointer-events-none absolute"
+                  className="pointer-events-none absolute z-[2]"
                   style={{
                     left: handlesBox.box.x * zoom,
                     top: handlesBox.box.y * zoom,

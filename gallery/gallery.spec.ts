@@ -9119,34 +9119,44 @@ test("slide editor: fields, focus after a resize, undo across pages, cursor and 
   await expect(editor.getByTestId("slide-editor-page")).toHaveText("Page 1 of 2");
 });
 
-// SUI-FEATURE-161 rev 5 AC2: the guide is 1 px above the shown grid and stands out on the slide in
-// a light and a dark editor alike (contrast against the white page at least 3 : 1).
+// SUI-FEATURE-161 rev 5 AC2, #332: the guide is 1 px above the shown grid, in the primary colour with
+// a halo, both opaque; the line or its halo stands out at 3 : 1 on a white, black, mid-grey and
+// light-grey slide in a light and a dark editor alike.
 for (const theme of THEMES) {
   test(`slide editor: the snap guide stands out above the grid, ${theme}`, async ({ page }) => {
     await page.goto(`/?page=slide-editor&lng=en&theme=${theme}`);
     const { editor, drag, select } = await openEditor(page, false);
     await editor.getByTestId("grid-toggle-button").click();
     await select(140, 130);
+    const primary = await utilityColor(page, "bg-primary", "backgroundColor");
     await drag({ x: 140, y: 130 }, { x: 18, y: 0 }, async () => {
       const guide = editor.getByTestId("slide-editor-guide-x");
       await expect(guide).toHaveCSS("width", "1px");
-      const contrast = await guide.evaluate((node) => {
-        const channel = (value: number) => {
-          const c = value / 255;
-          return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+      const style = await guide.evaluate((node) => {
+        const { backgroundColor, boxShadow } = getComputedStyle(node);
+        const halo = /([a-z]+\([^)]*\)) 0px 0px 0px 1px/.exec(boxShadow)?.[1];
+        const context = document.createElement("canvas").getContext("2d")!;
+        const alpha = (value: string) => {
+          context.clearRect(0, 0, 1, 1);
+          context.fillStyle = value;
+          context.fillRect(0, 0, 1, 1);
+          return context.getImageData(0, 0, 1, 1).data[3];
         };
-        const luminance = (rgb: string) => {
-          const [r, g, b] = rgb.match(/\d+/g)!.map(Number);
-          return 0.2126 * channel(r!) + 0.7152 * channel(g!) + 0.0722 * channel(b!);
+        return {
+          line: backgroundColor,
+          halo,
+          alpha: [backgroundColor, halo].map((value) => (value ? alpha(value) : 0)),
         };
-        const page = document.querySelector<HTMLElement>(
-          "[data-testid=slide-editor] [data-slot=slide-page]",
-        )!;
-        const a = luminance(getComputedStyle(node).backgroundColor);
-        const b = luminance(getComputedStyle(page).backgroundColor);
-        return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
       });
-      expect(contrast).toBeGreaterThanOrEqual(3);
+      expect(style.line).toBe(primary);
+      expect(style.alpha).toEqual([255, 255]);
+      for (const ground of ["#ffffff", "#000000", "#808080", "#b3b3b3"]) {
+        const best = Math.max(
+          await contrastOf(page, style.line, ground),
+          await contrastOf(page, style.halo!, ground),
+        );
+        expect(best, ground).toBeGreaterThanOrEqual(3);
+      }
       const order = await editor.evaluate((root) =>
         [
           ...root.querySelectorAll(
@@ -9155,9 +9165,115 @@ for (const theme of THEMES) {
         ].map((node) => node.getAttribute("data-testid")),
       );
       expect(order).toEqual(["grid-overlay", "slide-editor-guide-x"]);
+      // Along the moved element the guide lies on its frame's line and is drawn over it: the pixel
+      // there is the guide's colour, not the ring's.
+      const line = (await guide.boundingBox())!;
+      const frame = (await editor.getByTestId("canvas-selection").boundingBox())!;
+      const shown = (
+        await pixelsOf(page, {
+          x: Math.floor(line.x),
+          y: Math.floor(frame.y + frame.height / 2),
+          width: 1,
+          height: 1,
+        })
+      )[0]![0]!;
+      const wanted = await page.evaluate((color) => {
+        const context = document.createElement("canvas").getContext("2d")!;
+        context.fillStyle = color;
+        context.fillRect(0, 0, 1, 1);
+        return [...context.getImageData(0, 0, 1, 1).data.slice(0, 3)];
+      }, primary);
+      const off = Math.max(...shown.map((channel, at) => Math.abs(channel - wanted[at]!)));
+      expect(off, "guide pixel over the frame").toBeLessThanOrEqual(12);
+    });
+
+    // The guide passes under the name badge: snapped by its centre to the page's centre, Box A's
+    // guide runs through its badge, whose pixels stay those of the same drag without a guide (Alt).
+    await page.goto(`/?page=slide-editor&lng=en&theme=${theme}`);
+    const again = await openEditor(page, false);
+    await again.select(140, 130);
+    const badgeAt = async () => {
+      const badge = (await editor.getByTestId("canvas-name").boundingBox())!;
+      return pixelsOf(page, {
+        x: Math.round(badge.x),
+        y: Math.round(badge.y),
+        width: Math.floor(badge.width),
+        height: Math.floor(badge.height),
+      });
+    };
+    let plain: number[][][] = [];
+    await page.keyboard.down("Alt");
+    await again.drag({ x: 140, y: 130 }, { x: 260, y: 0 }, async () => {
+      await expect(editor.getByTestId("slide-editor-guide-x")).toHaveCount(0);
+      plain = await badgeAt();
+    });
+    await page.keyboard.up("Alt");
+    await page.keyboard.press("ControlOrMeta+z");
+    await again.drag({ x: 140, y: 130 }, { x: 260, y: 0 }, async () => {
+      const guide = editor.getByTestId("slide-editor-guide-x");
+      await expect(guide).toHaveAttribute("data-guide", "400");
+      const line = (await guide.boundingBox())!;
+      const badge = (await editor.getByTestId("canvas-name").boundingBox())!;
+      expect(line.x).toBeGreaterThan(badge.x);
+      expect(line.x).toBeLessThan(badge.x + badge.width);
+      const snapped = await badgeAt();
+      let worst = 0;
+      snapped.forEach((row, y) =>
+        row.forEach((pixel, x) =>
+          pixel.forEach((channel, at) => {
+            worst = Math.max(worst, Math.abs(channel - plain[y]![x]![at]!));
+          }),
+        ),
+      );
+      expect(worst, "badge pixels with the guide under it").toBeLessThanOrEqual(8);
     });
   });
 }
+
+// #332: the name badge lies a layer up, and the overlay's own action bar stays over it where a short,
+// narrow selection at the page's top puts the bar across the badge.
+test("slide editor: the action bar stays over the name badge where they meet", async ({ page }) => {
+  const { editor, field, select } = await openEditor(page);
+  await select(140, 130);
+  for (const [name, value] of [
+    ["x", "300"],
+    ["y", "0"],
+    ["width", "40"],
+    ["height", "8"],
+  ] as const) {
+    await field(name).fill(value);
+    await page.keyboard.press("Tab");
+  }
+  const badge = editor.getByTestId("canvas-name");
+  const bar = editor.getByTestId("canvas-actions");
+  await expect(badge).toHaveAttribute("data-placement", "inside");
+  await expect(bar).toHaveAttribute("data-placement", "below");
+  const [tag, actions] = [(await badge.boundingBox())!, (await bar.boundingBox())!];
+  const left = Math.max(tag.x, actions.x);
+  const right = Math.min(tag.x + tag.width, actions.x + actions.width);
+  const top = Math.max(tag.y, actions.y);
+  const bottom = Math.min(tag.y + tag.height, actions.y + actions.height);
+  expect(right - left).toBeGreaterThan(4);
+  expect(bottom - top).toBeGreaterThan(4);
+  // The badge takes no pointer; for the probe only it does, so the point names what lies on top.
+  const onTop = await badge.evaluate(
+    (el, [x, y]) => {
+      const pieces = [el, el.parentElement!];
+      for (const piece of pieces) piece.style.pointerEvents = "auto";
+      const hit = document.elementFromPoint(x!, y!);
+      for (const piece of pieces) piece.style.pointerEvents = "";
+      return hit?.closest("[data-testid]")?.getAttribute("data-testid");
+    },
+    [(left + right) / 2, (top + bottom) / 2],
+  );
+  expect(onTop).not.toBe("canvas-name");
+  expect(
+    await bar.evaluate(
+      (el, [x, y]) => el.contains(document.elementFromPoint(x!, y!)),
+      [(left + right) / 2, (top + bottom) / 2],
+    ),
+  ).toBe(true);
+});
 
 // Review #293 r2 (ux B): the handles of a turned element stay above the floating actions, so each is
 // reachable at any angle.

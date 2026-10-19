@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.137.15 — #332, SUI-FEATURE-161 rev 5: the snap guide is drawn in the primary colour with a halo
+
+Fix, not breaking.
+
+- **`SlideEditor`'s snap guide follows the spec**: 1 px in `--primary` with a 1 px `--background` halo instead of a fixed `#c026d3` without one. On a mid-grey slide the old colour fell below 3 : 1; now the line or its halo is at least 3 : 1 on a white, black, mid-grey (`#808080`) and light-grey (`#b3b3b3`) slide in either theme. The guide is also drawn above the selection frame, which covered it along the moved element's own length, and below the frame's name badge: `CanvasOverlay`'s badge lies a layer up (`z-[1]`; the overlay's root makes no stacking context), so a line an app draws over the frame after the overlay passes under it; the overlay's own action bar and insert buttons share the badge's layer and come after it, so they stay over it where they meet, and the editor's handles lie a layer above it (`z-[2]`) as before. The gallery test reads the computed colours, checks them opaque, reads the guide's pixel where it lies on the frame and the badge's pixels with a centre-snap guide under it, and fails on the old guide.
+
+**Migration:** none. Baselines: none.
+
 ## 0.137.14 — #325: the release script's tests start without spawning git per test
 
 Not breaking. Tests only, the package is unchanged.
