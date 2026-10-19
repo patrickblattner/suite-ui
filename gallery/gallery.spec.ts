@@ -9424,6 +9424,62 @@ test("slide editor: focus moving to the header's ⋯ leaves a crop being set", a
   await expect(canvas).toHaveAttribute("data-cropping", "picture");
 });
 
+// #351 (Codex #350 CX1): a number field keeps what is typed, key by key, as typed — also where the
+// document clamps, turns or rounds it — until it is left or the history goes back or forth; the
+// header's Undo keeps the focus in the field, which then shows the value Undo restored.
+async function typeInto(page: Page, field: Locator, keys: string) {
+  await field.focus();
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.press("Backspace");
+  await page.keyboard.type(keys);
+}
+
+test("slide editor: a number field keeps what is typed while the document clamps or turns it", async ({
+  page,
+}) => {
+  const { editor, field, select } = await pictureEditor(page);
+  await select(400, 225);
+  const picture = editor.locator("[data-slide-element=picture]");
+  for (const typed of ["185.5", "180"]) {
+    await typeInto(page, field("rotation"), typed);
+    await expect(field("rotation")).toHaveValue(typed);
+  }
+  // 0.5 is stored as 1 px (the smallest size), as before; the field keeps 0.5 until it is left.
+  await typeInto(page, field("width"), "0.5");
+  await expect(field("width")).toHaveValue("0.5");
+  await expect(picture).toHaveCSS("width", "1px");
+  await page.keyboard.press("Tab");
+  await expect(field("width")).toHaveValue("1");
+  await typeInto(page, field("width"), "12.3456");
+  await expect(field("width")).toHaveValue("12.3456");
+});
+
+test("slide editor: a focused number field shows the value Undo restores", async ({ page }) => {
+  const { editor, field, select } = await pictureEditor(page);
+  await select(400, 225);
+  const x = field("x");
+  const picture = editor.locator("[data-slide-element=picture]");
+  await expect(x).toHaveValue("200");
+  await typeInto(page, x, "250");
+  await expect(picture).toHaveCSS("left", "250px");
+  await editor.getByTestId("editor-undo").click();
+  await expect(x).toBeFocused();
+  await expect(x).toHaveValue("200");
+  await expect(picture).toHaveCSS("left", "200px");
+  await editor.getByTestId("editor-redo").click();
+  await expect(x).toHaveValue("250");
+
+  // A field cleared (or holding a sign alone) shows the value Undo restores too.
+  await typeInto(page, x, "260");
+  await page.keyboard.press("ControlOrMeta+a");
+  await page.keyboard.press("Backspace");
+  await expect(x).toHaveValue("");
+  await editor.getByTestId("editor-undo").click();
+  await expect(x).toBeFocused();
+  await expect(x).toHaveValue("250");
+  await expect(picture).toHaveCSS("left", "250px");
+});
+
 // #294 review: a locked image is not cropped, by double click or Enter.
 test("slide editor: a locked image is not cropped", async ({ page }) => {
   const { editor, canvas, centre } = await pictureEditor(page);

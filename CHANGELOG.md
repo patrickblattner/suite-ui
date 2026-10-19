@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.138.2 — #351 (Codex review v0.138.1 CX1): a focused number field shows the value Undo restores
+
+Fix, not breaking.
+
+- **`SlideEditor`'s number fields follow the document while focused**: since 0.138.1 the header's Undo and Redo keep the focus where it is, so a number field in the panel kept what was typed (X 250) while the element went back (X 200). A field keeps what is typed, as typed, until it is left or the history goes back or forth: each Undo or Redo (by the header's buttons or their shortcut) counts a history revision, and typed text belongs to the revision it was typed in. So a focused field shows the value Undo restored, also when it was cleared, while typing goes on undisturbed where the document turns, clamps or rounds what is typed (185.5° stays 185.5 in the field, 0.5 px stays 0.5 until the field is left). The header's focus guard stays, so a crop being set still goes to Undo (#349).
+
+**Migration:** none. Baselines: none.
+
 ## 0.138.1 — #349, SUI-FEATURE-162, GL-UI-017, GL-UX-001: crop follow-ups (Codex review v0.138.0 CX1)
 
 Fix, not breaking.

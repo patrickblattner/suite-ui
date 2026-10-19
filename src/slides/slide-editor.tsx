@@ -182,6 +182,7 @@ function NumberField({
   unit,
   readOnly,
   onValue,
+  revision,
   testId,
 }: {
   id: string;
@@ -190,10 +191,17 @@ function NumberField({
   unit: string;
   readOnly: boolean;
   onValue: (value: number) => void;
+  // The history's travel count: what is typed stays, as typed, until the field is left or the
+  // history goes back or forth (#351). The header's Undo keeps the focus here (#349), so the field
+  // would otherwise show what was typed after Undo took it back.
+  revision: number;
   testId: string;
 }) {
   const shown = String(Math.round(value * 100) / 100);
-  const [text, setText] = React.useState<string | null>(null);
+  const [typed, setTyped] = React.useState<{ text: string; revision: number } | null>(null);
+  const text = typed?.revision === revision ? typed.text : null;
+  const setText = (next: string | null) =>
+    setTyped(next === null ? null : { text: next, revision });
   return (
     <Field label={label} htmlFor={id} control={{ className: "relative" }}>
       <Input
@@ -335,6 +343,8 @@ function Editor({
   const [saveError, setSaveError] = React.useState<string | undefined>(undefined);
   const [page, setPageState] = React.useState(0);
   const [selection, setSelectionState] = React.useState<string[]>([]);
+  // How often the history went back or forth: a number field keeps what is typed until then.
+  const [travels, setTravels] = React.useState(0);
   const [hovered, setHovered] = React.useState<string | undefined>(undefined);
   const [drag, setDrag] = React.useState<Drag | undefined>(undefined);
   const [preview, setPreview] = React.useState<SlideDocument | undefined>(undefined);
@@ -409,8 +419,10 @@ function Editor({
   // Undo and redo show the page their step changed. While cropping, the crop being set is the newest
   // change: Undo takes it back (cropping ends, the image as it was), Redo has nothing to redo.
   const travel = (step: "undo" | "redo") => {
-    // A step taken back or done again is no longer what the last crop said.
+    // A step taken back or done again is no longer what the last crop said, nor what a number field
+    // holds typed.
     setCropNote(undefined);
+    setTravels((count) => count + 1);
     if (cropping !== undefined) {
       if (step === "undo") {
         setCropping(undefined);
@@ -986,6 +998,7 @@ function Editor({
               value={single[key]}
               unit="px"
               readOnly={single.locked}
+              revision={travels}
               onValue={(value) =>
                 apply((current) => {
                   const found = findElement(current.pages[page]?.elements ?? [], single.id);
@@ -1006,6 +1019,7 @@ function Editor({
             value={single.rotation}
             unit={t("slides.editor.degrees")}
             readOnly={single.locked}
+            revision={travels}
             onValue={(value) =>
               apply(
                 (current) => setRotation(current, page, single.id, value % 360),
