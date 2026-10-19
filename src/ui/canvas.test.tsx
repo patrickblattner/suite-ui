@@ -63,6 +63,22 @@ describe("CanvasOverlay (SUI-FEATURE-070)", () => {
     expect(screen.getByTestId("canvas-overlay")).toHaveClass("pointer-events-none");
   });
 
+  // #349: a mode the editor is in with the selection is announced in its place while it lasts.
+  it("announces the editor's mode in place of the selection", () => {
+    const { rerender } = renderOverlay({
+      selected: { rect: rect(0, 40, 100, 40), name: "Hero" },
+      announcement: "Cropping Hero",
+    });
+    const live = screen.getByTestId("canvas-announcement");
+    expect(live).toHaveTextContent("Cropping Hero");
+    rerender(
+      <div className="relative">
+        <CanvasOverlay selected={{ rect: rect(0, 40, 100, 40), name: "Hero" }} />
+      </div>,
+    );
+    expect(live).toHaveTextContent("Selected: Hero");
+  });
+
   // AC 2
   it("the selection shows its name tag and is announced once per selection", async () => {
     await i18n.changeLanguage("de");

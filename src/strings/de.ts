@@ -433,6 +433,8 @@ export const de: SuiteStrings = {
       cropHint: "Ziehen zum Verschieben · + / − zum Zoomen",
       cropApply: "Übernehmen",
       cropCancel: "Abbrechen",
+      cropApplied: "Ausschnitt übernommen.",
+      cropCancelled: "Ausschnitt verworfen.",
       page: "Seite {{current}} von {{total}}",
       previousPage: "Vorherige Seite",
       nextPage: "Nächste Seite",

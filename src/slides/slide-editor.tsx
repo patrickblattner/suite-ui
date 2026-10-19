@@ -33,7 +33,7 @@ import { GridFields, GridOverlay, GridToggle } from "../ui/grid.js";
 import { Input } from "../ui/input.js";
 import { PropertyPanel } from "../ui/property-panel.js";
 import { useLeaveGuard } from "../ui/leave-guard.js";
-import { IconButtonTooltip } from "../ui/tooltip.js";
+import { IconButtonTooltip, OverflowTooltip } from "../ui/tooltip.js";
 import { type SlideDocumentError, safeParseSlideDocument } from "./document.js";
 import {
   type Alignment,
@@ -114,6 +114,8 @@ const ROTATE_OFFSET = 32;
 const HANDLE_PX = 10;
 // One step of + or − while cropping, and the wheel's zoom per 100 px of scrolling.
 const CROP_ZOOM_STEP = 1.1;
+// The canvas area's width below which the crop bar leaves its hint out.
+const CROP_HINT_ROOM = 480;
 // What a number field takes: a box at most twice the largest format side off the page and as large,
 // so nothing typed loses an element or overflows the document's numbers.
 const FIELD_RANGE = 2 * SLIDE_LIMITS.maxFormatSide;
@@ -156,6 +158,16 @@ const withCrop = (document: SlideDocument, page: number, id: string, crop: Image
   updateElements(document, page, [id], (element) =>
     element.type === "image" ? { ...element, crop } : element,
   );
+
+// Whether an element lies in the editor header's ⋯ menu: the menu names its trigger, which sits in
+// the header's `editor-menu` slot.
+const inHeaderMenu = (element: Element) => {
+  const trigger = element.closest("[role=menu]")?.getAttribute("aria-labelledby");
+  return (
+    trigger != null &&
+    element.ownerDocument.getElementById(trigger)?.closest("[data-slot=editor-menu]") != null
+  );
+};
 
 const rectOf = (box: Box, zoom: number) =>
   new DOMRect(box.x * zoom, box.y * zoom, box.width * zoom, box.height * zoom);
@@ -321,14 +333,18 @@ function Editor({
   const [saved, setSaved] = React.useState(initial);
   const [saving, setSaving] = React.useState(false);
   const [saveError, setSaveError] = React.useState<string | undefined>(undefined);
-  const [page, setPage] = React.useState(0);
-  const [selection, setSelection] = React.useState<string[]>([]);
+  const [page, setPageState] = React.useState(0);
+  const [selection, setSelectionState] = React.useState<string[]>([]);
   const [hovered, setHovered] = React.useState<string | undefined>(undefined);
   const [drag, setDrag] = React.useState<Drag | undefined>(undefined);
   const [preview, setPreview] = React.useState<SlideDocument | undefined>(undefined);
   // The crop mode of an image (`SUI-FEATURE-162`): its crop as it is being set, shown on the canvas
   // and taken into the document only with Enter.
   // It holds the selection it began with: any other selection ends it.
+  // What ending a crop said ("applied", "cancelled"), announced while its selection stands.
+  const [cropNote, setCropNote] = React.useState<
+    { text: string; selection: readonly string[] } | undefined
+  >(undefined);
   const [cropState, setCropping] = React.useState<
     { id: string; crop: ImageCrop; selection: readonly string[] } | undefined
   >(undefined);
@@ -356,7 +372,9 @@ function Editor({
   const pendingCrop =
     cropping !== undefined &&
     stored?.type === "image" &&
-    JSON.stringify(cropping.crop) !== JSON.stringify(stored.crop);
+    (cropping.crop.zoom !== stored.crop.zoom ||
+      cropping.crop.offsetX !== stored.crop.offsetX ||
+      cropping.crop.offsetY !== stored.crop.offsetY);
   const dirty = history.document !== saved || pendingCrop;
   const pageData = document.pages[page] ?? document.pages[0];
   const elements = pageData?.elements ?? [];
@@ -391,8 +409,13 @@ function Editor({
   // Undo and redo show the page their step changed. While cropping, the crop being set is the newest
   // change: Undo takes it back (cropping ends, the image as it was), Redo has nothing to redo.
   const travel = (step: "undo" | "redo") => {
+    // A step taken back or done again is no longer what the last crop said.
+    setCropNote(undefined);
     if (cropping !== undefined) {
-      if (step === "undo") setCropping(undefined);
+      if (step === "undo") {
+        setCropping(undefined);
+        setCropNote({ text: t("slides.editor.cropCancelled"), selection });
+      }
       return;
     }
     const target = step === "undo" ? history.undoPage : history.redoPage;
@@ -407,7 +430,23 @@ function Editor({
   // Save and the leave question (`GL-UI-007`). A draft the schema refuses is not handed on; its
   // first issue is named under the header.
   const save = async () => {
-    const result = safeParseSlideDocument(history.document);
+    // A crop being set is part of what is saved: kept first, as Enter does (#349).
+    let current = history.document;
+    if (cropping !== undefined) {
+      const image = findElement(elements, cropping.id)?.element;
+      if (image !== undefined) {
+        const next = withCrop(
+          current,
+          page,
+          cropping.id,
+          clampCrop(image.width, image.height, cropping.crop),
+        );
+        if (next !== current) apply(() => next);
+        current = next;
+      }
+      setCropping(undefined);
+    }
+    const result = safeParseSlideDocument(current);
     if (!result.ok) {
       const issue = result.error.issues[0];
       setSaveError(issue === undefined ? result.error.code : `${issue.code} · ${issue.path}`);
@@ -419,13 +458,17 @@ function Editor({
       const ok = await onSave(result.document);
       // Only `true` is success (`GL-UI-007`); anything else keeps the draft.
       if (ok !== true) return false;
-      setSaved(history.document);
+      setSaved(current);
       return true;
     } finally {
       setSaving(false);
     }
   };
-  const reset = () => apply(() => saved);
+  // Reset drops everything since the last save, a crop being set too.
+  const reset = () => {
+    setCropping(undefined);
+    apply(() => saved);
+  };
   const { guard, dialog } = useEditorLeaveGuard({
     dirty,
     saving,
@@ -436,6 +479,7 @@ function Editor({
 
   const frame = React.useRef<HTMLDivElement>(null);
   const canvas = React.useRef<HTMLDivElement>(null);
+  const cropDescription = React.useId();
   // While cropping, the wheel zooms the image about the frame's centre instead of scrolling (a
   // listener of its own: React's wheel listener cannot prevent the scroll).
   const croppedImage =
@@ -696,6 +740,17 @@ function Editor({
     );
   };
 
+  // Any other way out of cropping — another selection, another page — keeps the crop, as Enter does;
+  // only Esc, Cancel and Undo drop it (#349).
+  const setSelection = (ids: string[]) => {
+    if (cropping !== undefined) endCrop(true);
+    setSelectionState(ids);
+  };
+  const setPage = (next: number) => {
+    if (cropping !== undefined) endCrop(true);
+    setPageState(next);
+  };
+
   // Ends cropping: `keep` takes the crop into the document as one step (clamped to the frame as it
   // is now), else it is dropped. The canvas keeps the focus.
   const endCrop = (keep: boolean) => {
@@ -706,19 +761,29 @@ function Editor({
       apply((current) => withCrop(current, page, cropping.id, crop));
     }
     setCropping(undefined);
+    const text = t(keep ? "slides.editor.cropApplied" : "slides.editor.cropCancelled");
+    setCropNote({ text, selection });
   };
   // Focus leaving the canvas and its crop bar (to the header, a drawer, the panel, another window)
-  // keeps the crop, as Enter does: a crop being set is never dropped without Esc or Cancel.
+  // keeps the crop, as Enter does: a crop being set is never dropped without Esc or Cancel. Focus
+  // going to the header's Undo or Redo, or to its ⋯ and into its menu (with Undo and Redo when they
+  // are folded), leaves it to them: Undo takes it back, Redo does nothing, Save keeps it.
   const keepCropOnLeave = (event: React.FocusEvent) => {
     const next = event.relatedTarget;
-    if (next instanceof Element && next.closest("[data-crop-bar], [data-slot=slide-editor-canvas]"))
+    if (
+      next instanceof Element &&
+      (next.closest(
+        "[data-crop-bar], [data-slot=slide-editor-canvas], [data-slot=editor-undo], [data-slot=editor-redo], [data-slot=editor-menu]",
+      ) !== null ||
+        inHeaderMenu(next))
+    )
       return;
     endCrop(true);
   };
   const cropBar =
     cropping === undefined ? undefined : (
       <div
-        className="flex items-center gap-1"
+        className="flex min-w-0 flex-wrap items-center justify-end gap-1"
         data-crop-bar=""
         onBlur={keepCropOnLeave}
         // Esc on a button of the bar drops the crop too, before the overlay's own `Esc`.
@@ -729,9 +794,18 @@ function Editor({
           canvas.current?.focus();
         }}
       >
-        <span className="px-1 text-xs text-muted-foreground" data-testid="slide-editor-crop-hint">
-          {t("slides.editor.cropHint")}
-        </span>
+        {/* Narrower than the bar's room, the hint ends in "…" and shows itself whole on hover; on a
+            narrow canvas it is left out (the canvas's description still says it, #349). */}
+        {areaSize.width < CROP_HINT_ROOM ? null : (
+          <OverflowTooltip>
+            <span
+              className="min-w-0 truncate px-1 text-xs text-muted-foreground"
+              data-testid="slide-editor-crop-hint"
+            >
+              {t("slides.editor.cropHint")}
+            </span>
+          </OverflowTooltip>
+        )}
         <Button
           size="sm"
           variant="outline"
@@ -1203,8 +1277,9 @@ function Editor({
       <EditorHeader
         title={title}
         onBack={() => guard(onBack)}
-        canUndo={history.canUndo}
-        canRedo={history.canRedo}
+        // While cropping, Undo takes back the crop being set, also with nothing in the history (#349).
+        canUndo={history.canUndo || cropping !== undefined}
+        canRedo={history.canRedo && cropping === undefined}
         onUndo={() => travel("undo")}
         onRedo={() => travel("redo")}
         dirty={dirty}
@@ -1341,12 +1416,13 @@ function Editor({
                 onDoubleClick={onDoubleClick}
                 onKeyDown={onKeyDown}
                 onBlur={cropping === undefined ? undefined : keepCropOnLeave}
-                aria-description={
-                  croppedImage === undefined
-                    ? undefined
-                    : t("slides.editor.cropping", { name: nameOf(croppedImage) })
-                }
+                aria-describedby={croppedImage === undefined ? undefined : cropDescription}
               />
+              {croppedImage === undefined ? null : (
+                <span id={cropDescription} hidden>
+                  {t("slides.editor.cropping", { name: nameOf(croppedImage) })}
+                </span>
+              )}
               {marquee === undefined ? null : (
                 <div
                   className="pointer-events-none absolute border border-dashed border-ring bg-ring/10"
@@ -1380,9 +1456,11 @@ function Editor({
                 }
                 onSelectParent={selectParent}
                 announcement={
-                  croppedImage === undefined
-                    ? undefined
-                    : t("slides.editor.cropping", { name: nameOf(croppedImage) })
+                  croppedImage !== undefined
+                    ? t("slides.editor.cropping", { name: nameOf(croppedImage) })
+                    : cropNote?.selection === selection
+                      ? cropNote.text
+                      : undefined
                 }
               />
               {/* The guides above the selection frame, so it never covers them along the moved

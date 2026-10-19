@@ -448,6 +448,8 @@ export const en = {
       cropHint: "Drag to move · + / − to zoom",
       cropApply: "Apply",
       cropCancel: "Cancel",
+      cropApplied: "Crop applied.",
+      cropCancelled: "Crop cancelled.",
       page: "Page {{current}} of {{total}}",
       previousPage: "Previous page",
       nextPage: "Next page",

@@ -32,7 +32,12 @@ export function SlideEditorPage() {
           data-testid="slide-editor"
         />
       </div>
-      <p className="text-sm" data-testid="slide-editor-app">
+      {/* The saved document, for the tests that read what the app got. */}
+      <p
+        className="text-sm"
+        data-testid="slide-editor-app"
+        data-saved={saved === null ? undefined : JSON.stringify(saved)}
+      >
         Saved: {saved === null ? "nothing" : `${saved.pages[0]!.elements.length} elements`} · Back:{" "}
         {backs}
       </p>

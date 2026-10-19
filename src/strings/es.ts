@@ -426,6 +426,8 @@ export const es: SuiteStrings = {
       cropHint: "Arrastra para mover · + / − para ampliar",
       cropApply: "Aplicar",
       cropCancel: "Cancelar",
+      cropApplied: "Recorte aplicado.",
+      cropCancelled: "Recorte cancelado.",
       page: "Página {{current}} de {{total}}",
       previousPage: "Página anterior",
       nextPage: "Página siguiente",

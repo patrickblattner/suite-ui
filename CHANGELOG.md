@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.138.1 — #349, SUI-FEATURE-162, GL-UI-017, GL-UX-001: crop follow-ups (Codex review v0.138.0 CX1)
+
+Fix, not breaking.
+
+- **Undo takes back a crop being set, also as the first edit** (Codex CX1): the header's Undo (button and Ctrl/Cmd+Z) is on while cropping even with nothing in the history, and Redo is off; before, a crop as the first edit could not be undone. A press on the header's Undo or Redo, or on Undo in its ⋯ menu where they are folded (at 390 px), no longer keeps the crop first (it left a stray step to redo): `EditorHeader`'s Undo and Redo keep the focus where it is on a press (new `data-slot` `editor-undo` / `editor-redo`), and the header's ⋯ and its menu (new `data-slot` `editor-menu`) leave it pending, by click and by Tab alike. Save keeps a crop being set and saves it; Reset drops it with everything else. Any other way out of cropping — another selection (from the layers, the path line), another page — keeps the crop as Enter does; only Esc, Cancel and Undo drop it.
+- **The crop bar stays on the canvas at 390 px**: `CanvasOverlay`'s action bar is laid out at its own width (`max-content`), starts at the overlay's left edge where right-aligned it would start left of it, and is never wider than the overlay, so it wraps only where one row does not fit; the crop bar wraps, and on a narrow canvas (below 480 px) leaves its hint out, which the canvas's description still says; where it is shown and has no room it ends in "…" and shows itself whole in its overflow tooltip. Tested in de, en and es at 390 px.
+- **Apply and Cancel are announced** in the overlay's live region ("Crop applied.", "Crop cancelled."; an Undo or Redo clears it), and the canvas points to the crop description with `aria-describedby` instead of `aria-description` (`GL-UI-017`).
+- A crop being set is compared field by field with the stored one; a unit test covers `CanvasOverlay`'s `announcement`.
+
+**Migration:** none. New package texts (de, en, es): `slides.editor.cropApplied`, `slides.editor.cropCancelled`. Baselines: `gallery-*` (strings table with the new keys: de, en, es in light and dark, de also at 1440 and 390 px).
+
 ## 0.138.0 — #294 (increment 1), SUI-FEATURE-162 AC1: images are cropped in the slide editor
 
 New, not breaking.

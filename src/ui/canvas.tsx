@@ -213,8 +213,15 @@ function CanvasOverlay({
           ref={barRef}
           // On the badge's layer and after it, so the bar stays over the badge where they meet (#332).
           className="pointer-events-auto absolute z-[1] flex items-center gap-1 rounded-md border bg-background p-1 shadow-sm"
+          // Right-aligned to the selection; where that would start left of the overlay, from its left
+          // edge instead, and never wider than the overlay (#349).
           style={{
-            right: `calc(100% - ${selected.rect.right}px)`,
+            ...(selected.rect.right < size.bar.width
+              ? { left: 0 }
+              : { right: `calc(100% - ${selected.rect.right}px)` }),
+            // Laid out at its own width, so it is measured unwrapped and only wraps past the overlay.
+            width: "max-content",
+            maxWidth: size.overlay.width > 0 ? size.overlay.width : undefined,
             top: below ? selected.rect.bottom : selected.rect.top - size.bar.height,
           }}
           data-placement={below ? "below" : "above"}

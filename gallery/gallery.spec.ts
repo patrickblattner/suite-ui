@@ -9196,9 +9196,11 @@ test("slide editor: an image is cropped in its frame, Enter keeps it, Esc drops 
   // The frame and the file stay; the picture's box clips the image to the frame.
   expect(await frame()).toEqual(["200", "100", "400", "250"]);
   expect(await image.getAttribute("src")).toBe(src);
-  // The crop is a step of the document: Undo takes it back.
+  // The crop is a step of the document: Undo takes it back, and "Crop applied." is no longer said.
+  await expect(page.getByTestId("canvas-announcement")).toHaveText("Crop applied.");
   await page.keyboard.press("ControlOrMeta+z");
   await expect.poll(box).toEqual(shown);
+  await expect(page.getByTestId("canvas-announcement")).toHaveText("Selected: Picture");
 });
 
 // #294 review: crop mode is announced and shown — a bar with a hint, Cancel and Apply in place of the
@@ -9214,7 +9216,9 @@ test("slide editor: crop mode is announced, has a bar, and works by keys and whe
   const told =
     "Cropping Picture: drag the image or use the arrow keys to move it, + and − to zoom, Enter to apply, Esc to cancel.";
   await expect(editor.getByTestId("canvas-announcement")).toHaveText(told);
-  await expect(canvas).toHaveAttribute("aria-description", told);
+  // The canvas is described by the same text (`aria-describedby`, #349).
+  const described = (await canvas.getAttribute("aria-describedby"))!;
+  await expect(editor.locator(`[id="${described}"]`)).toHaveText(told);
   const bar = editor.getByTestId("canvas-actions");
   await expect(bar.getByTestId("slide-editor-crop-hint")).toHaveText(
     "Drag to move · + / − to zoom",
@@ -9249,7 +9253,7 @@ test("slide editor: crop mode is announced, has a bar, and works by keys and whe
   await expect(canvas).not.toHaveAttribute("data-cropping");
   await expect.poll(box).toEqual(shown);
   await expect(state).toHaveAttribute("data-dirty", "false");
-  await expect(editor.getByTestId("canvas-announcement")).toHaveText("Selected: Picture");
+  await expect(editor.getByTestId("canvas-announcement")).toHaveText("Crop cancelled.");
 
   // Apply keeps it, as Enter does.
   await page.keyboard.press("Enter");
@@ -9259,6 +9263,7 @@ test("slide editor: crop mode is announced, has a bar, and works by keys and whe
   await expect.poll(async () => (await box())!.width).toBeCloseTo(shown.width * 1.1, 0);
   await expect(state).toHaveAttribute("data-dirty", "true");
   await expect(canvas).toBeFocused();
+  await expect(editor.getByTestId("canvas-announcement")).toHaveText("Crop applied.");
 
   // Leaving the canvas keeps a crop being set, as Enter does: never dropped without Esc or Cancel.
   await page.keyboard.press("Enter");
@@ -9275,6 +9280,148 @@ test("slide editor: crop mode is announced, has a bar, and works by keys and whe
   await page.keyboard.press("ControlOrMeta+z");
   await expect(canvas).not.toHaveAttribute("data-cropping");
   await expect.poll(async () => (await box())!.width).toBeCloseTo(shown.width * 1.21, 0);
+});
+
+// #349 (Codex CX1): a crop as the very first edit — Undo, by key and by the header's button, takes it
+// back although the document history is empty, and leaves nothing to redo.
+test("slide editor: Undo takes back a crop being set as the first edit", async ({ page }) => {
+  const { editor, canvas, centre, shown, box, state } = await pictureEditor(page);
+  const undo = editor.getByTestId("editor-undo");
+  const redo = editor.getByTestId("editor-redo");
+  await expect(undo).toBeDisabled();
+  for (const how of ["key", "button"] as const) {
+    await page.mouse.dblclick(centre.x, centre.y);
+    await expect(canvas).toHaveAttribute("data-cropping", "picture");
+    await page.keyboard.press("+");
+    await expect(state).toHaveAttribute("data-dirty", "true");
+    await expect(undo).toBeEnabled();
+    await expect(redo).toBeDisabled();
+    if (how === "key") await page.keyboard.press("ControlOrMeta+z");
+    else await undo.click();
+    await expect(canvas).not.toHaveAttribute("data-cropping");
+    await expect.poll(box).toEqual(shown);
+    await expect(state).toHaveAttribute("data-dirty", "false");
+    await expect(undo).toBeDisabled();
+    await expect(redo).toBeDisabled();
+    await expect(editor.getByTestId("canvas-announcement")).toHaveText("Crop cancelled.");
+  }
+});
+
+// #349: at 390 px the crop bar and both its buttons stay inside the canvas overlay in each language
+// (it wraps, and leaves its hint out on a narrow canvas); its content never overflows it.
+async function cropAt390(page: Page, lng: string) {
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.goto(`/?page=slide-editor&lng=${lng}`);
+  const editor = page.getByTestId("slide-editor");
+  await editor.getByTestId("slide-editor-next-page").click();
+  const picture = editor.locator("[data-slide-element=picture]");
+  await expect(picture).toBeVisible();
+  const at = (await picture.boundingBox())!;
+  await page.mouse.dblclick(at.x + at.width / 2, at.y + at.height / 2);
+  const canvas = editor.getByTestId("slide-editor-canvas");
+  await expect(canvas).toHaveAttribute("data-cropping", "picture");
+  return { editor, canvas, picture };
+}
+
+for (const lng of ["de", "en", "es"]) {
+  test(`slide editor: the crop bar stays on the canvas at 390 px (${lng})`, async ({ page }) => {
+    const { editor } = await cropAt390(page, lng);
+    const overlay = (await editor.getByTestId("canvas-overlay").boundingBox())!;
+    const actions = editor.getByTestId("canvas-actions");
+    const bar = (await actions.boundingBox())!;
+    expect(bar.x).toBeGreaterThanOrEqual(overlay.x - 0.5);
+    expect(bar.x + bar.width).toBeLessThanOrEqual(overlay.x + overlay.width + 0.5);
+    expect(await actions.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+    for (const id of ["slide-editor-crop-cancel", "slide-editor-crop-apply"]) {
+      const button = (await editor.getByTestId(id).boundingBox())!;
+      expect(button.x, id).toBeGreaterThanOrEqual(overlay.x - 0.5);
+      expect(button.x + button.width, id).toBeLessThanOrEqual(overlay.x + overlay.width + 0.5);
+      expect(button.x + button.width, id).toBeLessThanOrEqual(bar.x + bar.width + 0.5);
+    }
+    // It wraps only past the overlay: narrower than it, both buttons stand on one row.
+    const [cancel, apply] = [
+      (await editor.getByTestId("slide-editor-crop-cancel").boundingBox())!,
+      (await editor.getByTestId("slide-editor-crop-apply").boundingBox())!,
+    ];
+    if (bar.width < overlay.width - 1) expect(apply.y).toBeCloseTo(cancel.y, 0);
+  });
+}
+
+// #349: at 390 px Undo sits in the header's ⋯ menu; opening it and choosing Undo takes back the crop
+// being set (the menu does not keep it first) and leaves nothing to redo.
+test("slide editor: Undo from the header's menu takes back a crop being set at 390 px", async ({
+  page,
+}) => {
+  const { editor, canvas, picture } = await cropAt390(page, "en");
+  const image = picture.locator("img");
+  const shown = (await image.boundingBox())!;
+  await page.keyboard.press("+");
+  await expect(editor.getByTestId("editor-undo")).toHaveCount(0);
+  await editor.getByTestId("editor-menu").click();
+  await page.getByTestId("editor-menu-undo").click();
+  await expect(canvas).not.toHaveAttribute("data-cropping");
+  await expect.poll(() => image.boundingBox()).toEqual(shown);
+  await editor.getByTestId("editor-menu").click();
+  await expect(page.getByTestId("editor-menu-undo")).toHaveAttribute("aria-disabled", "true");
+  await expect(page.getByTestId("editor-menu-redo")).toHaveAttribute("aria-disabled", "true");
+});
+
+// #349: a way out of cropping other than Esc, Cancel or Undo keeps the crop — here a ⋯ menu opened
+// and closed (the focus left the canvas), then another layer chosen; the kept crop is a step Undo
+// can take back.
+test("slide editor: choosing another layer keeps a crop being set", async ({ page }) => {
+  const { editor, canvas, picture } = await cropAt390(page, "en");
+  const image = picture.locator("img");
+  const shown = (await image.boundingBox())!;
+  await page.keyboard.press("+");
+  await editor.getByTestId("editor-menu").click();
+  await page.keyboard.press("Escape");
+  await editor.getByTestId("drawer-layers").click();
+  await editor
+    .locator("[data-layer-id=note]")
+    .getByRole("button", { name: "Box NOTE", exact: true })
+    .click();
+  await expect(canvas).not.toHaveAttribute("data-cropping");
+  // The drawer narrows the canvas: closed again, the picture is measured at the same zoom.
+  await editor.getByTestId("drawer-layers").click();
+  await expect
+    .poll(async () => (await image.boundingBox())!.width)
+    .toBeGreaterThan(shown.width + 1);
+  await editor.getByTestId("editor-menu").click();
+  const undo = page.getByTestId("editor-menu-undo");
+  await expect(undo).not.toHaveAttribute("aria-disabled", "true");
+  await undo.click();
+  await expect.poll(() => image.boundingBox()).toEqual(shown);
+});
+
+// #349: Save keeps a crop being set — also after the header's ⋯ was opened and closed — and saves it:
+// crop mode ends, the editor is clean, and the app gets the crop.
+test("slide editor: Save keeps and saves a crop being set", async ({ page }) => {
+  const { editor, canvas } = await cropAt390(page, "en");
+  await page.keyboard.press("+");
+  await editor.getByTestId("editor-menu").click();
+  await page.keyboard.press("Escape");
+  await editor.getByTestId("editor-save").click();
+  await expect(canvas).not.toHaveAttribute("data-cropping");
+  await expect(editor.locator("[data-dirty]").first()).toHaveAttribute("data-dirty", "false");
+  const app = page.getByTestId("slide-editor-app");
+  await expect(app).toHaveAttribute("data-saved", /picture/);
+  const saved = JSON.parse((await app.getAttribute("data-saved"))!) as {
+    pages: { elements: { id: string; crop?: { zoom: number } }[] }[];
+  };
+  const picture = saved.pages[1]!.elements.find((element) => element.id === "picture")!;
+  expect(picture.crop?.zoom).toBeCloseTo(1.1, 3);
+});
+
+// #349: Tab onto the header's ⋯ leaves a crop being set as a click on it does: still cropping.
+test("slide editor: focus moving to the header's ⋯ leaves a crop being set", async ({ page }) => {
+  const { editor, canvas } = await cropAt390(page, "en");
+  await page.keyboard.press("+");
+  await editor.getByTestId("editor-menu").focus();
+  await expect(canvas).toHaveAttribute("data-cropping", "picture");
+  await editor.getByTestId("editor-menu").click();
+  await page.keyboard.press("Escape");
+  await expect(canvas).toHaveAttribute("data-cropping", "picture");
 });
 
 // #294 review: a locked image is not cropped, by double click or Enter.

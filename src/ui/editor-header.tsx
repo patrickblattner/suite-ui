@@ -251,13 +251,17 @@ function EditorHeader({
   const records = lifecycle?.menu?.items ?? [];
   const menu =
     tools.length + records.length > 0 ? (
-      <RowActionMenu
-        menu={{ label: lifecycle?.menu?.label ?? t("editor.more"), items: records }}
-        tools={tools}
-        size="icon-sm"
-        variant="ghost"
-        data-testid="editor-menu"
-      />
+      // `data-slot` marks the ⋯ for an editor that keeps an edit in progress while its menu is used
+      // (the slide editor's crop, #349); its menu names the trigger with `aria-labelledby`.
+      <span className="contents" data-slot="editor-menu">
+        <RowActionMenu
+          menu={{ label: lifecycle?.menu?.label ?? t("editor.more"), items: records }}
+          tools={tools}
+          size="icon-sm"
+          variant="ghost"
+          data-testid="editor-menu"
+        />
+      </span>
     ) : null;
 
   return (
@@ -344,6 +348,10 @@ function EditorHeader({
                 size="icon-sm"
                 disabled={!canUndo}
                 onClick={onUndo}
+                // A press keeps the focus where it is, so it does not end an edit in progress there
+                // (a crop being set, #349) before Undo acts on it.
+                onPointerDown={(event) => event.preventDefault()}
+                data-slot="editor-undo"
                 data-testid="editor-undo"
               >
                 <Undo2Icon aria-hidden="true" />
@@ -356,6 +364,8 @@ function EditorHeader({
                 size="icon-sm"
                 disabled={!canRedo}
                 onClick={onRedo}
+                onPointerDown={(event) => event.preventDefault()}
+                data-slot="editor-redo"
                 data-testid="editor-redo"
               >
                 <Redo2Icon aria-hidden="true" />

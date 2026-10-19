@@ -562,6 +562,7 @@ export const SLIDE_EDITOR_DOC: SlideDocumentInput = {
           media: { id: "photo" },
           alt: "Hills under a sun",
         },
+        box("note", 660, 380, "accent"),
       ],
     },
   ],
