@@ -516,3 +516,9 @@
 {"ts":"2026-10-19T16:42:31.936Z","key":"PROC-DEV-060","from":7,"to":8,"disposition":"editorial","ref":"remote-mode PR polling rule; suite-ui runs GATE_MODE local with release tags, no PRs, no code impact"}
 {"ts":"2026-10-19T16:42:34.952Z","key":"SUI-FEATURE-063","from":2,"to":3,"disposition":"ticket","ref":"359"}
 {"ts":"2026-10-19T16:42:37.751Z","key":"SUI-FEATURE-097","from":null,"to":2,"disposition":"ticket","ref":"360"}
+{"ts":"2026-10-19T17:10:53.685Z","key":"SUI-FEATURE-232","from":null,"to":2,"disposition":"ticket","ref":"294"}
+{"ts":"2026-10-19T17:11:21.384Z","key":"PROC-DEV-060","from":8,"to":9,"disposition":"editorial","ref":"remote-mode PR polling form; suite-ui runs local with release tags, no PRs, no code impact"}
+{"ts":"2026-10-19T17:11:21.781Z","key":"PROC-REL-005","from":null,"to":2,"disposition":"editorial","ref":"go-live checklist for the Community public website; no suite-ui code change derived"}
+{"ts":"2026-10-19T18:09:29.358Z","key":"PROC-REL-005","from":null,"to":4,"disposition":"editorial","ref":"go-live checklist (Community website), phase switch to PROC-REL-050; no suite-ui code"}
+{"ts":"2026-10-19T18:09:29.723Z","key":"PROC-REL-050","from":null,"to":3,"disposition":"editorial","ref":"data runs backwards Prod->Stage/Dev after go-live; ops process, no suite-ui code"}
+{"ts":"2026-10-19T18:09:32.854Z","key":"SUI-FEATURE-232","from":null,"to":3,"disposition":"ticket","ref":"363"}
