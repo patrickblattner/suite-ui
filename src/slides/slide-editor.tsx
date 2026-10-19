@@ -89,6 +89,7 @@ import {
   type SlideFormat,
 } from "./schema.js";
 import { insertColor } from "./editor-color.js";
+import { ChartData } from "./slide-editor-chart.js";
 import {
   ElementLibrary,
   iconLabel,
@@ -553,9 +554,11 @@ function Editor({
       ? iconLabel(entry.icon)
       : entry.kind === "image"
         ? entry.alt || t("slides.editor.type.image")
-        : t(
-            `slides.editor.library${entry.kind === "line" ? "Line" : entry.shape[0]!.toUpperCase() + entry.shape.slice(1)}`,
-          );
+        : entry.kind === "chart"
+          ? entry.name
+          : t(
+              `slides.editor.library${entry.kind === "line" ? "Line" : entry.shape[0]!.toUpperCase() + entry.shape.slice(1)}`,
+            );
   // A new element's colour stands out on the page's own background (`GL-UX-001`, 3 : 1).
   const ground = (() => {
     const background = pageData?.background;
@@ -602,6 +605,17 @@ function Editor({
     event.preventDefault();
     const entry = parseLibraryEntry(data);
     if (entry !== undefined) insertEntry(entry, toPage(event));
+  };
+
+  // The panel's tab: a chart has its data under Content (`SUI-FEATURE-233`), everything its layout.
+  const [panelTab, setPanelTab] = React.useState<"content" | "layout" | "background">("content");
+  // A change to a chart's data goes in only where the schema takes it; else it is named.
+  const changeChart = (next: Extract<SlideElement, { type: "chart" }>, merge?: string) => {
+    if (!slideElementSchema.safeParse(next).success) {
+      toast.error(t("slides.editor.chartInvalid"));
+      return;
+    }
+    apply((current) => updateElements(current, page, [next.id], () => next), merge);
   };
 
   // Reset drops everything since the last save, a crop being set too.
@@ -1743,9 +1757,27 @@ function Editor({
         </div>
         <PropertyPanel
           path={path}
-          tabs={[{ id: "layout", content: layoutTab }]}
-          activeTab="layout"
-          onTab={() => {}}
+          tabs={[
+            ...(single?.type === "chart"
+              ? [
+                  {
+                    id: "content" as const,
+                    content: (
+                      <ChartData
+                        key={single.id}
+                        chart={single}
+                        revision={travels}
+                        readOnly={single.locked}
+                        onChange={(next, merge) => changeChart(next, merge)}
+                      />
+                    ),
+                  },
+                ]
+              : []),
+            { id: "layout", content: layoutTab },
+          ]}
+          activeTab={single?.type === "chart" ? panelTab : "layout"}
+          onTab={setPanelTab}
         />
       </div>
       {dialog}

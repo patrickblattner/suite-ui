@@ -117,9 +117,14 @@ const NOTICE_WIDTH = 140;
 // What a notice beside an element names: text that does not fit its box, the element reaching
 // past the page edge, or both: one notice per element, naming each problem it has.
 type NoticeKind = "text" | "page" | "both";
-// A table cell's padding and a chart's label size, in format px.
+// A table cell's padding and a chart's label size, in format px. A chart's labels, legend, paddings
+// and marks are drawn at that size from a box of `CHART_FULL_SIZE` on its shorter side, and shrink
+// with a smaller box, so a small chart keeps its plot and all its text inside its box (#294).
 const CELL_PADDING = 8;
 const CHART_LABEL_SIZE = 20;
+const CHART_FULL_SIZE = 300;
+// A label's width, estimated from its length (an average glyph is narrower than 0.6 em).
+const GLYPH_WIDTH = 0.6;
 
 // What one render collects while it draws, and what it needs.
 interface Draw {
@@ -547,8 +552,14 @@ function patternMarks(pattern: (typeof CHART_PATTERNS)[number]) {
 }
 
 // The same mark as a line chart's point (`SUI-DESIGN-002` §Diagramm-Reihen).
-function marker(pattern: (typeof CHART_PATTERNS)[number], x: number, y: number, color: string) {
-  const r = 7;
+function marker(
+  pattern: (typeof CHART_PATTERNS)[number],
+  x: number,
+  y: number,
+  color: string,
+  unit: number,
+) {
+  const r = 7 * unit;
   const at = (points: [number, number][]) =>
     points.map(([dx, dy]) => `${num(x + dx)},${num(y + dy)}`).join(" ");
   switch (pattern) {
@@ -584,7 +595,7 @@ function marker(pattern: (typeof CHART_PATTERNS)[number], x: number, y: number, 
         <path
           d={`M${num(x - r)},${num(y)} H${num(x + r)} M${num(x)},${num(y - r)} V${num(y + r)}`}
           stroke={color}
-          strokeWidth={4}
+          strokeWidth={num(4 * unit)}
         />
       );
     case "zigzag":
@@ -592,10 +603,17 @@ function marker(pattern: (typeof CHART_PATTERNS)[number], x: number, y: number, 
         <path
           d={`M${num(x - r)},${num(y - r)} L${num(x + r)},${num(y + r)} M${num(x + r)},${num(y - r)} L${num(x - r)},${num(y + r)}`}
           stroke={color}
-          strokeWidth={4}
+          strokeWidth={num(4 * unit)}
         />
       );
   }
+}
+
+// A label cut to `room` format px, with an ellipsis where it is cut.
+function fitLabel(label: string, size: number, room: number) {
+  if (label.length * size * GLYPH_WIDTH <= room) return label;
+  const keep = Math.floor(room / (size * GLYPH_WIDTH)) - 1;
+  return keep > 0 ? `${label.slice(0, keep)}…` : "";
 }
 
 function chart(draw: Draw, element: ElementOf<"chart">) {
@@ -618,9 +636,49 @@ function chart(draw: Draw, element: ElementOf<"chart">) {
         pattern: one.pattern,
       }));
   const ids = keys.map(() => draw.nextId());
-  const pad = 16;
-  const legend = 40;
-  const labels = pie ? 0 : 36;
+  const unit = Math.min(1, Math.min(w, h) / CHART_FULL_SIZE);
+  const size = CHART_LABEL_SIZE * unit;
+  const pad = 16 * unit;
+  const labels = pie ? 0 : 36 * unit;
+  // The legend runs in rows across the box, at most half of what is left under the paddings; keys
+  // that do not fit are counted at its end ("+2"), and the data table still names them.
+  const row = 40 * unit;
+  const swatch = 24 * unit;
+  const across = w - 2 * pad;
+  const rows = Math.max(1, Math.floor((h - 2 * pad - labels) / 2 / row));
+  const placed: {
+    key: (typeof keys)[number];
+    index: number;
+    x: number;
+    y: number;
+    name: string;
+  }[] = [];
+  let legendX = 0;
+  let legendRow = 0;
+  for (const [index, key] of keys.entries()) {
+    const name = fitLabel(key.name, size, across - swatch - 8 * unit);
+    const width = 40 * unit + name.length * size * GLYPH_WIDTH;
+    if (legendX > 0 && legendX + width - 8 * unit > across) {
+      legendX = 0;
+      legendRow += 1;
+    }
+    if (legendRow >= rows) break;
+    placed.push({ key, index, x: pad + legendX, y: pad + legendRow * row, name });
+    legendX += width;
+  }
+  let more: { x: number; y: number; text: string } | undefined;
+  while (placed.length < keys.length) {
+    const text = `+${keys.length - placed.length}`;
+    const last = placed.at(-1);
+    const end =
+      last === undefined ? pad : last.x + 40 * unit + last.name.length * size * GLYPH_WIDTH;
+    if (last === undefined || end + text.length * size * GLYPH_WIDTH <= pad + across) {
+      more = { x: end, y: last?.y ?? pad, text };
+      break;
+    }
+    placed.pop();
+  }
+  const legend = (Math.min(legendRow, rows - 1) + 1) * row;
   const top = pad + legend;
   const bottom = h - pad - labels;
   const left = pad;
@@ -644,7 +702,13 @@ function chart(draw: Draw, element: ElementOf<"chart">) {
           ? `M${num(cx - radius)},${num(cy)} a${num(radius)},${num(radius)} 0 1,0 ${num(2 * radius)},0 a${num(radius)},${num(radius)} 0 1,0 ${num(-2 * radius)},0`
           : `M${num(cx)},${num(cy)} L${point(angle)} A${num(radius)},${num(radius)} 0 ${sweep > Math.PI ? 1 : 0},1 ${point(end)} Z`;
       marks.push(
-        <path key={index} d={d} fill={`url(#${ids[index]})`} stroke="#ffffff" strokeWidth={2} />,
+        <path
+          key={index}
+          d={d}
+          fill={`url(#${ids[index]})`}
+          stroke="#ffffff"
+          strokeWidth={num(2 * unit)}
+        />,
       );
       angle = end;
     });
@@ -683,13 +747,13 @@ function chart(draw: Draw, element: ElementOf<"chart">) {
             points={points.map(([x, py]) => `${num(x)},${num(py)}`).join(" ")}
             fill="none"
             stroke={keys[at]!.color}
-            strokeWidth={3}
+            strokeWidth={num(3 * unit)}
           />,
         );
         points.forEach(([x, py], index) =>
           marks.push(
             <React.Fragment key={`${at}-${index}`}>
-              {marker(keys[at]!.pattern, x, py, keys[at]!.color)}
+              {marker(keys[at]!.pattern, x, py, keys[at]!.color, unit)}
             </React.Fragment>,
           ),
         );
@@ -703,44 +767,64 @@ function chart(draw: Draw, element: ElementOf<"chart">) {
         x2={num(right)}
         y2={num(y(0))}
         stroke={text}
-        strokeWidth={2}
+        strokeWidth={num(2 * unit)}
       />,
     );
-    categories.forEach((name, index) =>
+    // Labels that would run into each other are thinned to every second, third… one; a label
+    // still too long for its room is cut, so none reaches past the next one or the box.
+    const widest = Math.max(...categories.map((name) => name.length)) * size * GLYPH_WIDTH;
+    const step = Math.min(categories.length, Math.max(1, Math.ceil(widest / (slot * 0.9))));
+    categories.forEach((name, index) => {
+      if (index % step !== 0) return;
+      const x = left + (index + 0.5) * slot;
       marks.push(
         <text
           key={`label-${index}`}
-          x={num(left + (index + 0.5) * slot)}
+          x={num(x)}
           y={num(h - pad - labels / 2)}
           textAnchor="middle"
           dominantBaseline="middle"
-          fontSize={CHART_LABEL_SIZE}
+          fontSize={num(size)}
           fill={text}
         >
-          {name}
+          {fitLabel(name, size, Math.min(step * slot * 0.9, 2 * x, 2 * (w - x)))}
         </text>,
-      ),
-    );
+      );
+    });
   }
-  let legendX = pad;
-  const legendItems = keys.map((key, index) => {
-    const x = legendX;
-    legendX += 40 + key.name.length * CHART_LABEL_SIZE * 0.6;
-    return (
-      <g key={`key-${index}`}>
-        <rect x={num(x)} y={num(pad)} width={24} height={24} fill={`url(#${ids[index]})`} />
-        <text
-          x={num(x + 32)}
-          y={num(pad + 12)}
-          dominantBaseline="middle"
-          fontSize={CHART_LABEL_SIZE}
-          fill={text}
-        >
-          {key.name}
-        </text>
-      </g>
+  const legendItems = placed.map(({ index, x, y, name }) => (
+    <g key={`key-${index}`}>
+      <rect
+        x={num(x)}
+        y={num(y)}
+        width={num(swatch)}
+        height={num(swatch)}
+        fill={`url(#${ids[index]})`}
+      />
+      <text
+        x={num(x + swatch + 8 * unit)}
+        y={num(y + swatch / 2)}
+        dominantBaseline="middle"
+        fontSize={num(size)}
+        fill={text}
+      >
+        {name}
+      </text>
+    </g>
+  ));
+  if (more !== undefined)
+    legendItems.push(
+      <text
+        key="key-more"
+        x={num(more.x)}
+        y={num(more.y + swatch / 2)}
+        dominantBaseline="middle"
+        fontSize={num(size)}
+        fill={text}
+      >
+        {more.text}
+      </text>,
     );
-  });
   return (
     <>
       <svg
@@ -756,6 +840,7 @@ function chart(draw: Draw, element: ElementOf<"chart">) {
               key={index}
               id={ids[index]}
               patternUnits="userSpaceOnUse"
+              patternTransform={unit === 1 ? undefined : `scale(${num(unit)})`}
               width="12"
               height="12"
             >

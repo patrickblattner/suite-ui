@@ -7,6 +7,7 @@ import {
   boundsOf,
   distributeElements,
   boxOf,
+  chartData,
   clampCrop,
   drawnBox,
   findElement,
@@ -37,7 +38,7 @@ import {
   snapBox,
   snapCandidates,
 } from "./editor-geometry.js";
-import { FORMAT_16_9, type SlideDocument } from "./schema.js";
+import { FORMAT_16_9, SLIDE_LIMITS, type SlideDocument, slideElementSchema } from "./schema.js";
 
 const shape = (id: string, x: number, y: number, width = 100, height = 100) => ({
   id,
@@ -862,5 +863,72 @@ describe("library elements", () => {
     });
     expect(image(0.5)).toMatchObject({ width: 108, height: 216 });
     expect(image(Number.NaN)).toMatchObject({ width: 216, height: 162 });
+  });
+});
+
+// SUI-FEATURE-233 (#294 inc 4): a chart from the library, and its data as the editor changes it.
+describe("charts", () => {
+  const color = { kind: "brand", key: "accent" } as const;
+  const chart = () => {
+    const element = libraryElement(
+      doc([]),
+      0,
+      { kind: "chart", name: "Chart", categories: ["A", "B", "C"], series: ["One", "Two"] },
+      { x: 960, y: 540 },
+      color,
+    );
+    if (element.type !== "chart") throw new Error("not a chart");
+    return element;
+  };
+
+  it("inserts a 4:3 bar chart with sample values and a mark of its own per series", () => {
+    const made = chart();
+    expect(made).toMatchObject({
+      id: "chart-1",
+      name: "Chart",
+      chart: "bar",
+      width: 216,
+      height: 162,
+    });
+    expect(made.categories).toEqual(["A", "B", "C"]);
+    expect(made.series.map((one) => one.values)).toEqual([
+      [3, 5, 4],
+      [2, 4, 3],
+    ]);
+    expect(new Set(made.series.map((one) => one.pattern)).size).toBe(2);
+    expect(slideElementSchema.safeParse(made).success).toBe(true);
+  });
+
+  it("changes names, values and the type, and adds and removes within the limits", () => {
+    let made = chart();
+    made = chartData.seriesName(
+      chartData.category(chartData.value(made, 1, 2, 9), 0, "Q1"),
+      0,
+      "Sales",
+    );
+    expect(made.categories[0]).toBe("Q1");
+    expect(made.series[0]!.name).toBe("Sales");
+    expect(made.series[1]!.values).toEqual([2, 4, 9]);
+    expect(chartData.type(made, "pie").chart).toBe("pie");
+    const wider = chartData.addCategory(made, "D");
+    expect(wider.categories).toHaveLength(4);
+    expect(wider.series.every((one) => one.values.length === 4)).toBe(true);
+    let longest = made;
+    for (let n = 0; n < SLIDE_LIMITS.maxChartCategories; n += 1)
+      longest = chartData.addCategory(longest, `C${n}`);
+    expect(longest.categories).toHaveLength(SLIDE_LIMITS.maxChartCategories);
+    expect(slideElementSchema.safeParse(longest).success).toBe(true);
+    let full = made;
+    for (let n = 3; n <= 8; n += 1) full = chartData.addSeries(full, `S${n}`);
+    expect(full.series).toHaveLength(6);
+    expect(new Set(full.series.map((one) => one.pattern)).size).toBe(6);
+    let one = full;
+    for (let n = 0; n < 8; n += 1) one = chartData.removeSeries(one, 0);
+    expect(one.series).toHaveLength(1);
+    let single = made;
+    for (let n = 0; n < 5; n += 1) single = chartData.removeCategory(single, 0);
+    expect(single.categories).toHaveLength(1);
+    expect(single.series.every((series) => series.values.length === 1)).toBe(true);
+    expect(slideElementSchema.safeParse(single).success).toBe(true);
   });
 });

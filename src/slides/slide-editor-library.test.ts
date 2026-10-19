@@ -10,6 +10,9 @@ describe("parseLibraryEntry", () => {
       shape: "ellipse",
     });
     expect(parseLibraryEntry('{"kind":"line"}')).toEqual({ kind: "line" });
+    expect(
+      parseLibraryEntry('{"kind":"chart","name":"Chart","categories":["A"],"series":["One"]}'),
+    ).toEqual({ kind: "chart", name: "Chart", categories: ["A"], series: ["One"] });
     expect(parseLibraryEntry('{"kind":"icon","icon":"arrow-right"}')).toEqual({
       kind: "icon",
       icon: "arrow-right",
@@ -26,6 +29,9 @@ describe("parseLibraryEntry", () => {
       '{"kind":"icon","icon":"no-such-icon"}',
       '{"kind":"icon","icon":42}',
       '{"kind":"image","media":"m","alt":"","aspect":1}',
+      '{"kind":"chart","name":"Chart","categories":[],"series":["One"]}',
+      '{"kind":"chart","name":"Chart","categories":["A"],"series":["1","2","3","4","5","6","7"]}',
+      '{"kind":"chart","name":"Chart","categories":["A"],"series":[1]}',
     ]) {
       expect(parseLibraryEntry(data), data).toBeUndefined();
     }

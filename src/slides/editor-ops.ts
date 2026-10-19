@@ -5,6 +5,7 @@
 
 import { DEFAULT_TEXT_SIZE, pageLists, stackOrder } from "./render-style.js";
 import {
+  CHART_PATTERNS,
   SLIDE_LIMITS,
   type ColorValue,
   type SlideDocument,
@@ -851,7 +852,9 @@ export type LibraryEntry =
   | { kind: "shape"; shape: "rectangle" | "ellipse" | "triangle" }
   | { kind: "line" }
   | { kind: "icon"; icon: string }
-  | { kind: "image"; media: string; alt: string; aspect: number };
+  | { kind: "image"; media: string; alt: string; aspect: number }
+  // A bar chart with sample data, named in the editor's language (`SUI-FEATURE-233`).
+  | { kind: "chart"; name: string; categories: readonly string[]; series: readonly string[] };
 
 // A new element for a library entry: 20 % of the page's shorter side (its larger side for an image),
 // centred on `at` (page px), in `color` (a shape's fill, a line's stroke, an icon's colour), above
@@ -920,6 +923,26 @@ export function libraryElement(
         cornerRadius: 0,
       };
     }
+    case "chart": {
+      // 4:3, its longer side 20 % of the shorter page side, as an image's.
+      const values = [
+        [3, 5, 4],
+        [2, 4, 3],
+      ];
+      return {
+        id: uniqueId(document, "chart"),
+        name: entry.name,
+        type: "chart",
+        ...box(side, side * 0.75),
+        chart: "bar",
+        categories: [...entry.categories],
+        series: entry.series.map((name, index) => ({
+          name,
+          pattern: CHART_PATTERNS[index % CHART_PATTERNS.length]!,
+          values: entry.categories.map((_, at) => values[index % values.length]![at % 3]!),
+        })),
+      };
+    }
     default: {
       const unknown: never = entry;
       throw new Error(`libraryElement: no such entry ${JSON.stringify(unknown)}`);
@@ -935,3 +958,66 @@ export function insertElement(
 ): SlideDocument {
   return withPage(document, page, (elements) => [...elements, element]);
 }
+
+// A chart's data as the editor changes it (`SUI-FEATURE-233`), pure: each returns a new chart. The
+// limits are the schema's: at least one category and one series, at most six series.
+type Chart = Extract<SlideElement, { type: "chart" }>;
+export const chartData = {
+  type: (chart: Chart, type: Chart["chart"]): Chart => ({ ...chart, chart: type }),
+  category: (chart: Chart, at: number, name: string): Chart => ({
+    ...chart,
+    categories: chart.categories.map((one, index) => (index === at ? name : one)),
+  }),
+  seriesName: (chart: Chart, at: number, name: string): Chart => ({
+    ...chart,
+    series: chart.series.map((one, index) => (index === at ? { ...one, name } : one)),
+  }),
+  value: (chart: Chart, series: number, at: number, value: number): Chart => ({
+    ...chart,
+    series: chart.series.map((one, index) =>
+      index === series
+        ? { ...one, values: one.values.map((old, place) => (place === at ? value : old)) }
+        : one,
+    ),
+  }),
+  addCategory: (chart: Chart, name: string): Chart =>
+    chart.categories.length >= SLIDE_LIMITS.maxChartCategories
+      ? chart
+      : {
+          ...chart,
+          categories: [...chart.categories, name],
+          series: chart.series.map((one) => ({ ...one, values: [...one.values, 0] })),
+        },
+  removeCategory: (chart: Chart, at: number): Chart =>
+    chart.categories.length <= 1
+      ? chart
+      : {
+          ...chart,
+          categories: chart.categories.filter((_, index) => index !== at),
+          series: chart.series.map((one) => ({
+            ...one,
+            values: one.values.filter((_, index) => index !== at),
+          })),
+        },
+  addSeries: (chart: Chart, name: string): Chart =>
+    chart.series.length >= SLIDE_LIMITS.maxChartSeries
+      ? chart
+      : {
+          ...chart,
+          series: [
+            ...chart.series,
+            {
+              name,
+              // Its own mark beside its colour (`GL-UI-060`): the first one no other series has.
+              pattern:
+                CHART_PATTERNS.find((free) => !chart.series.some((one) => one.pattern === free)) ??
+                CHART_PATTERNS[chart.series.length % CHART_PATTERNS.length]!,
+              values: chart.categories.map(() => 0),
+            },
+          ],
+        },
+  removeSeries: (chart: Chart, at: number): Chart =>
+    chart.series.length <= 1
+      ? chart
+      : { ...chart, series: chart.series.filter((_, index) => index !== at) },
+};

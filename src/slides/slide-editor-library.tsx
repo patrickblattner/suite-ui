@@ -1,5 +1,12 @@
 import type { LucideIcon } from "lucide-react";
-import { CircleIcon, ImageIcon, MinusIcon, SquareIcon, TriangleIcon } from "lucide-react";
+import {
+  ChartColumnIcon,
+  CircleIcon,
+  ImageIcon,
+  MinusIcon,
+  SquareIcon,
+  TriangleIcon,
+} from "lucide-react";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 
@@ -8,6 +15,7 @@ import { Hint } from "../ui/hint.js";
 import { Input } from "../ui/input.js";
 import { OverflowTooltip } from "../ui/tooltip.js";
 import { iconLabel, type LibraryEntry } from "./editor-ops.js";
+import { SLIDE_LIMITS } from "./schema.js";
 import { isSlideIcon, slideIconNames, useSlideIcons } from "./use-slide-assets.js";
 
 // What a drag from the library carries to the canvas.
@@ -48,6 +56,25 @@ export function parseLibraryEntry(data: string): LibraryEntry | undefined {
   }
   if (entry.kind === "icon" && typeof entry.icon === "string" && isSlideIcon(entry.icon)) {
     return { kind: "icon", icon: entry.icon };
+  }
+  // A chart with names within the schema's limits (`SUI-FEATURE-233`).
+  const names = (value: unknown, most: number) =>
+    Array.isArray(value) &&
+    value.length >= 1 &&
+    value.length <= most &&
+    value.every((name) => typeof name === "string" && name.length <= SLIDE_LIMITS.maxLabelLength)
+      ? (value as string[])
+      : undefined;
+  if (entry.kind === "chart" && typeof entry.name === "string") {
+    const categories = names(entry.categories, SLIDE_LIMITS.maxChartCategories);
+    const series = names(entry.series, SLIDE_LIMITS.maxChartSeries);
+    if (
+      categories !== undefined &&
+      series !== undefined &&
+      entry.name.length <= SLIDE_LIMITS.maxLabelLength
+    ) {
+      return { kind: "chart", name: entry.name, categories, series };
+    }
   }
   return undefined;
 }
@@ -123,6 +150,18 @@ export function ElementLibrary({
               <Icon aria-hidden="true" />,
               `slide-editor-library-${entry.kind === "shape" ? entry.shape : "line"}`,
             ),
+          )}
+          {/* A bar chart with sample data, its names in the editor's language (`SUI-FEATURE-233`). */}
+          {entryButton(
+            {
+              kind: "chart",
+              name: t("slides.editor.libraryChart"),
+              categories: [1, 2, 3].map((n) => t("slides.editor.chartCategory", { n })),
+              series: [1, 2].map((n) => t("slides.editor.chartSeries", { n })),
+            },
+            t("slides.editor.libraryChart"),
+            <ChartColumnIcon aria-hidden="true" />,
+            "slide-editor-library-chart",
           )}
         </div>
       </section>
