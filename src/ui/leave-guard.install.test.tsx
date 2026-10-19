@@ -40,6 +40,7 @@ it("warns once in development when the first hold finds the guard not installed"
   fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Changed" } });
   expect(guardWarnings()).toHaveLength(1);
   expect(String(guardWarnings()[0]?.[0])).toContain("browser back and forward are not held");
+  expect(String(guardWarnings()[0]?.[0])).toContain("<LeaveGuardWindow window={…}>");
   // The fallback installed it: a later hold does not warn again.
   fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Main" } });
   fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Again" } });

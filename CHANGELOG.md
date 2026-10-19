@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.136.2 — #310, SUI-FEATURE-150 rev 6, GL-UI-007: the guard holds a `BrowserRouter` on its own window
+
+Fix, not breaking.
+
+- **Under `<BrowserRouter window={own}>`, browser back and forward and a guarded leave are held as with the global window** (review #306). The navigator wrapper listened to the global window's `popstate` and read and stepped its history, so a back on the router's own window passed a dirty page without asking. New `LeaveGuardWindow`: wrap the router in `<LeaveGuardWindow window={own}>`; it installs the guard's listener on that window as it renders, before the router mounts, and the guards inside hold on it and read its history. `installLeaveGuard(win?)` takes the window to install on (the global one by default). The #306 tests dispose their routers in `finally`.
+
+**Migration:** only for apps with their own window: wrap the router in `<LeaveGuardWindow window={own}>` (same-origin windows only). In development, a hold under a router whose window the guard was not told of warns; the "not installed" warning names `LeaveGuardWindow` too. New export `LeaveGuardWindow`. Baselines: none.
+
 ## 0.136.1 — #306, SUI-FEATURE-172 rev 4, GL-UI-007: the guard reads the router's own window
 
 Fix, not breaking.

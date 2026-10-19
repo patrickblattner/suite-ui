@@ -252,26 +252,62 @@ function historyIndex(state: unknown): number | null {
 // whose listeners run in the order they were added, whatever `capture` says — and React commits the
 // route change between two listeners, so a later one comes too late (#235). The guard therefore
 // listens once, before the router mounts, and hands each `popstate` to the holds active at that
-// moment; a hold created after the router mounted is held the same way.
-const popHandlers = new Set<(event: PopStateEvent) => void>();
-let installed = false;
+// moment; a hold created after the router mounted is held the same way. Each window has its own
+// listener and holds: a `BrowserRouter` with its own `window` hears only that window's (#310).
+const popHandlers = new WeakMap<Window, Set<(event: PopStateEvent) => void>>();
 
 /**
- * Installs the leave guard's `popstate` listener on the window, so a dirty page or panel holds browser
- * back and forward under `BrowserRouter` (`GL-UI-007`). Call it once in the app's entry, before the
- * router renders; it must come before the router's own listener. Further calls do nothing. Without
- * it the first hold installs the listener, too late to hold back and forward when the router mounted
- * first; in-app route changes are held either way.
+ * Installs the leave guard's `popstate` listener on the window (the global one unless given), so a
+ * dirty page or panel holds browser back and forward under `BrowserRouter` (`GL-UI-007`). Call it
+ * once in the app's entry, before the router renders; it must come before the router's own listener.
+ * Further calls for the same window do nothing. Without it the first hold installs the listener, too
+ * late to hold back and forward when the router mounted first; in-app route changes are held either
+ * way. For a `BrowserRouter` with its own `window`, use `LeaveGuardWindow`, which installs it there.
  */
-function installLeaveGuard(): void {
-  if (installed || typeof window === "undefined") return;
-  installed = true;
-  window.addEventListener("popstate", (event) => {
-    for (const handle of [...popHandlers]) {
+function installLeaveGuard(win: Window | undefined = globalWindow()): void {
+  if (win !== undefined) windowHandlers(win);
+}
+
+// The holds' `popstate` handlers on `win`, installing its listener the first time.
+function windowHandlers(win: Window): Set<(event: PopStateEvent) => void> {
+  const handlers = popHandlers.get(win);
+  if (handlers !== undefined) return handlers;
+  const added = new Set<(event: PopStateEvent) => void>();
+  popHandlers.set(win, added);
+  win.addEventListener("popstate", (event) => {
+    for (const handle of [...added]) {
       handle(event);
       if (event.cancelBubble) return;
     }
   });
+  return added;
+}
+
+function globalWindow(): Window | undefined {
+  return typeof window === "undefined" ? undefined : window;
+}
+
+// The window of a `BrowserRouter` given its own (`LeaveGuardWindow`); without one, the global window.
+const LeaveGuardWindowContext = React.createContext<Window | undefined>(undefined);
+
+/**
+ * Under `<BrowserRouter window={own}>`, wrap the router in `<LeaveGuardWindow window={own}>`: the
+ * guards inside hold browser back and forward on that window and read its history (`GL-UI-007`,
+ * #310). It installs the guard's listener there as it renders, before the router below it mounts.
+ * Only for a window of the app's own origin (a same-origin iframe or popup): the guard reads and
+ * steps its history.
+ */
+function LeaveGuardWindow({
+  window: own,
+  children,
+}: {
+  window: Window;
+  children?: React.ReactNode;
+}) {
+  installLeaveGuard(own);
+  return (
+    <LeaveGuardWindowContext.Provider value={own}>{children}</LeaveGuardWindowContext.Provider>
+  );
 }
 
 // Wraps the navigator once for all holds: push, replace and go run through every active hold,
@@ -279,16 +315,29 @@ function installLeaveGuard(): void {
 // taken before the router sees it (see `popHandlers`), the address is put back, and the held step is
 // replayed on leave. The `popstate` of a step that already passed every hold (a replayed one, or a
 // `go` the holds let through) passes again without asking (#235).
-function wrapNavigator(navigator: RouterNavigator): NavigatorHolds {
+function wrapNavigator(navigator: RouterNavigator, win: Window): NavigatorHolds {
   // A memory history (`MemoryRouter`, tests) has no browser history to hold: no warning there.
   const memory = "index" in navigator;
-  if (!installed && !memory && process.env.NODE_ENV !== "production") {
-    console.warn(
-      "@suite/ui leave guard: installLeaveGuard() was not called before the router rendered, so " +
-        "browser back and forward are not held. Call installLeaveGuard() once in the app's entry.",
-    );
+  if (!memory && process.env.NODE_ENV !== "production") {
+    if (!popHandlers.has(win)) {
+      console.warn(
+        "@suite/ui leave guard: installLeaveGuard() was not called before the router rendered, so " +
+          "browser back and forward are not held. Call installLeaveGuard() once in the app's entry; " +
+          "for a BrowserRouter with its own window, wrap it in <LeaveGuardWindow window={…}> instead.",
+      );
+    }
+    // The router keeps its key in its window's history entry: another key there means the router
+    // has its own window, and the guard, not told of it, holds the wrong one (#310).
+    const state = win.history.state as { key?: unknown } | null;
+    const key = typeof state?.key === "string" ? state.key : "default";
+    if (key !== locationKey(navigator)) {
+      console.warn(
+        "@suite/ui leave guard: the router keeps its history in a window of its own, so browser " +
+          "back and forward are not held. Wrap <BrowserRouter window> in <LeaveGuardWindow window={…}>.",
+      );
+    }
   }
-  installLeaveGuard();
+  const handlers = windowHandlers(win);
   const holds: Hold[] = [];
   let passTo: number | null = null;
   // The key of the entry the app stands on: a browser `POP` is taken while the history already
@@ -308,11 +357,11 @@ function wrapNavigator(navigator: RouterNavigator): NavigatorHolds {
   const push = navigator.push.bind(navigator);
   const replace = navigator.replace.bind(navigator);
   const go = navigator.go.bind(navigator);
-  let index = historyIndex(window.history.state);
+  let index = historyIndex(win.history.state);
   // A push or replace starts afresh: a passed step that never arrived (a `go` past the end of the
   // history fires no `popstate`) must not let a later step through.
   const settle = () => {
-    index = historyIndex(window.history.state);
+    index = historyIndex(win.history.state);
     passTo = null;
     at = locationKey(navigator);
   };
@@ -369,20 +418,20 @@ function wrapNavigator(navigator: RouterNavigator): NavigatorHolds {
     const delta = to - index;
     event.stopImmediatePropagation();
     skip += 1;
-    window.history.go(-delta);
+    win.history.go(-delta);
     through(
       () => {
         passing(delta);
-        window.history.go(delta);
+        win.history.go(delta);
       },
       undefined,
       () => navigator.go(delta),
     );
   };
-  popHandlers.add(onPopState);
+  handlers.add(onPopState);
 
   const restore = () => {
-    popHandlers.delete(onPopState);
+    handlers.delete(onPopState);
     navigator.push = push;
     navigator.replace = replace;
     navigator.go = go;
@@ -400,11 +449,11 @@ function locationKey(navigator: RouterNavigator): string | undefined {
 }
 
 // Adds `hold` to the navigator's holds; the undo removes exactly this one, in any order, and unwraps
-// the navigator with the last.
-function holdNavigator(navigator: RouterNavigator, hold: Hold): () => void {
+// the navigator with the last. `win` is the window whose history the navigator keeps.
+function holdNavigator(navigator: RouterNavigator, hold: Hold, win: Window): () => void {
   let entry = navigatorHolds.get(navigator);
   if (entry === undefined) {
-    entry = wrapNavigator(navigator);
+    entry = wrapNavigator(navigator, win);
     navigatorHolds.set(navigator, entry);
   }
   const { holds } = entry;
@@ -1244,11 +1293,12 @@ function useLeaveConfirm({
   const dataRouter = React.useContext(DataRouterContext);
   const navigation = React.useContext(NavigationContext);
   const navigator = dataRouter === null ? navigation?.navigator : undefined;
+  const ownWindow = React.useContext(LeaveGuardWindowContext);
   const active = dirty || busy || working;
   React.useEffect(() => {
     if (!active || navigator === undefined) return;
-    return holdNavigator(navigator, hold);
-  }, [active, navigator, hold]);
+    return holdNavigator(navigator, hold, ownWindow ?? window);
+  }, [active, navigator, hold, ownWindow]);
   // Under a data router the guard holds while it is mounted: a route change during a form submission
   // of the router waits for it even on a clean surface, silently, as a clean surface lets the change
   // pass to that wait (`SUI-FEATURE-150` rev 4).
@@ -1389,6 +1439,7 @@ function useLeaveGuard({ dirty, busy = false, onLeave, onSave, onDiscard }: Leav
 export {
   installLeaveGuard,
   isDirty,
+  LeaveGuardWindow,
   type LeaveGuardOptions,
   type LeaveSave,
   useLeaveConfirm,

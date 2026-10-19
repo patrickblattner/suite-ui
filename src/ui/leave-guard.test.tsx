@@ -29,7 +29,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import { Dialog, DialogContent, DialogTitle } from "./dialog.js";
 import { EditPanel, type EditPanelProps } from "./edit-panel.js";
 import { Input } from "./input.js";
-import { installLeaveGuard, isDirty, useLeaveGuard } from "./leave-guard.js";
+import { installLeaveGuard, isDirty, LeaveGuardWindow, useLeaveGuard } from "./leave-guard.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select.js";
 
 const JSDOM = UntypedJSDOM as new (
@@ -3828,14 +3828,16 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
     async (kind) => {
       const own =
         kind === "hash router" ? null : new JSDOM("", { url: "http://localhost/" }).window;
+      let started: ReturnType<typeof browserSubmission> | undefined;
       try {
         const onDiscard = vi.fn();
-        const { router, settle } = browserSubmission(
+        started = browserSubmission(
           () => redirect("/posted"),
           "/start",
           <SpyPage onDiscard={onDiscard} />,
           own ?? "hash",
         );
+        const { router, settle } = started;
         await act(() => router.navigate("/list"));
         await act(() => router.navigate("/detail"));
         act(() => {
@@ -3852,8 +3854,8 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
         await waitFor(() => expect(router.state.location.pathname).toBe("/list"));
         expect(router.state.historyAction).toBe("POP");
         expect(onDiscard).toHaveBeenCalledTimes(1);
-        router.dispose();
       } finally {
+        started?.router.dispose();
         window.history.replaceState(null, "", "/");
         own?.close();
       }
@@ -4286,6 +4288,125 @@ describe("browser back and forward under BrowserRouter (GL-UI-007 rev 2)", () =>
     expect(window.location.pathname).toBe("/elsewhere");
     expect(screen.queryByTestId("leave-guard")).toBeNull();
   });
+});
+
+// #310: a `BrowserRouter` with its own `window`, wrapped in `LeaveGuardWindow`, is held on that
+// window, as with the global one. The global window's entry carries no index, so a guard reading it
+// instead would let the step through.
+describe("browser back and a guarded leave under BrowserRouter with its own window (#310)", () => {
+  function App() {
+    const navigate = useNavigate();
+    return (
+      <>
+        <Where />
+        <button type="button" data-testid="open" onClick={() => void navigate("/detail")}>
+          Open
+        </button>
+        <button type="button" data-testid="to-a" onClick={() => void navigate({ search: "?a" })}>
+          A
+        </button>
+        <Routes>
+          <Route path="/detail" element={<DetailPage />} />
+          <Route path="*" element={null} />
+        </Routes>
+      </>
+    );
+  }
+
+  async function withOwnWindow(test: (own: Window) => Promise<void>) {
+    const own = new JSDOM("", { url: "http://localhost/" }).window;
+    window.history.replaceState(null, "", "/");
+    try {
+      own.history.replaceState(null, "", "/list");
+      render(
+        <LeaveGuardWindow window={own}>
+          <BrowserRouter window={own}>
+            <App />
+          </BrowserRouter>
+        </LeaveGuardWindow>,
+      );
+      fireEvent.click(screen.getByTestId("open"));
+      expect(screen.getByTestId("path")).toHaveTextContent("/detail");
+      edit();
+      await test(own);
+      expect(window.location.pathname).toBe("/");
+    } finally {
+      cleanup();
+      own.close();
+    }
+  }
+
+  it("Back asks; Cancel keeps the surface and the address, Discard lands at the target", () =>
+    withOwnWindow(async (own) => {
+      act(() => own.history.back());
+      await screen.findByTestId("leave-guard");
+      await waitFor(() => expect(own.location.pathname).toBe("/detail"));
+      expect(screen.getByTestId("path")).toHaveTextContent("/detail");
+
+      fireEvent.click(screen.getByTestId("leave-guard-cancel"));
+      await waitFor(() => expect(screen.queryByTestId("leave-guard")).toBeNull());
+      await act(() => new Promise((resolve) => setTimeout(resolve, 20)));
+      expect(own.location.pathname).toBe("/detail");
+      expect(screen.getByLabelText("Name")).toHaveValue("Changed");
+
+      act(() => own.history.back());
+      fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+      await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/list"));
+      expect(own.location.pathname).toBe("/list");
+      expect(screen.queryByTestId("leave-guard")).toBeNull();
+    }));
+
+  it("a guarded leave asks; Discard lands at the target", () =>
+    withOwnWindow(async (own) => {
+      fireEvent.click(screen.getByTestId("go"));
+      await screen.findByTestId("leave-guard");
+      expect(own.location.pathname).toBe("/detail");
+      fireEvent.click(screen.getByTestId("leave-guard-discard"));
+      await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/elsewhere"));
+      expect(own.location.pathname).toBe("/elsewhere");
+    }));
+
+  // Review #310: an own window the guard was not told of (no `LeaveGuardWindow`) warns, once the
+  // router's key there differs from the global window's; one wrapped in it does not.
+  it.each([
+    ["without", "warns", false],
+    ["with", "does not warn", true],
+  ])("%s LeaveGuardWindow, the first hold %s", (_how, _warns, wrapped) => {
+    const own = new JSDOM("", { url: "http://localhost/" }).window;
+    window.history.replaceState(null, "", "/");
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    try {
+      own.history.replaceState(null, "", "/list");
+      const router = (
+        <BrowserRouter window={own}>
+          <App />
+        </BrowserRouter>
+      );
+      render(wrapped ? <LeaveGuardWindow window={own}>{router}</LeaveGuardWindow> : router);
+      fireEvent.click(screen.getByTestId("open"));
+      edit();
+      const warnings = warn.mock.calls.filter((call) =>
+        String(call[0]).includes("Wrap <BrowserRouter window> in <LeaveGuardWindow"),
+      );
+      expect(warnings).toHaveLength(wrapped ? 0 : 1);
+    } finally {
+      warn.mockRestore();
+      cleanup();
+      own.close();
+    }
+  });
+
+  // The index after a released push comes from the router's window too: a later Back still asks.
+  it("after a released push, Back still asks", () =>
+    withOwnWindow(async (own) => {
+      fireEvent.click(screen.getByTestId("to-a"));
+      fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+      await waitFor(() => expect(own.location.search).toBe("?a"));
+      await waitFor(() => expect(screen.queryByTestId("leave-guard")).toBeNull());
+      act(() => own.history.back());
+      await screen.findByTestId("leave-guard");
+      await waitFor(() => expect(own.location.search).toBe("?a"));
+    }));
 });
 
 describe("several guards under one data router (GL-UI-007)", () => {
