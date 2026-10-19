@@ -397,6 +397,22 @@ export const de: SuiteStrings = {
     previous: "Vorheriges",
     next: "Nächstes",
   },
+  // The slide view and player (`SlideView`, `SlidePlayer`).
+  slides: {
+    unknownType: "„{{type}}“ kann hier nicht angezeigt werden",
+    missingMedia: "Bild {{id}} nicht gefunden",
+    unknownIcon: "Icon {{name}} nicht gefunden",
+    missingFonts: "Schrift fehlt: {{fonts}}",
+    overflowing: "Text passt nicht in sein Feld: {{names}}",
+    missingBrand: "Markenfarbe fehlt: {{keys}}",
+    previous: "Vorherige Folie",
+    next: "Nächste Folie",
+    close: "Vortrag beenden",
+    counter: "{{current}} / {{total}}",
+    invalid: "Diese Folie kann nicht angezeigt werden.",
+    player: "Vortrag",
+    position: "Folie {{current}} von {{total}}",
+  },
   keys: {
     delete: "Entf",
   },

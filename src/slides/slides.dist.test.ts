@@ -31,4 +31,15 @@ describe("slides in dist", () => {
     expect(document.pages[0]?.elements).toEqual([]);
     expect(() => built.parseSlideDocument({})).toThrow(built.SlideDocumentError);
   });
+
+  // SUI-FEATURE-160: the view is a subpath of its own; the model's barrel stays free of React, and the
+  // export helper of Playwright.
+  it("keeps React out of the model and Playwright out of the export helper", () => {
+    const built = (file: string) => readFileSync(`${root}dist/slides/${file}`, "utf8");
+    for (const file of ["index.js", "schema.js", "document.js", "brand.js"]) {
+      expect(built(file)).not.toMatch(/from ["']react/);
+    }
+    expect(built("export.js")).not.toMatch(/playwright/i);
+    expect(built("slide-view.d.ts")).toContain("SlideView");
+  });
 });

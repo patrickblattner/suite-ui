@@ -5,7 +5,6 @@
 import type { z } from "zod";
 
 import {
-  SLIDE_LIMITS,
   SLIDE_SCHEMA_VERSION,
   slideDocumentSchema,
   type SlideDocument,
@@ -144,60 +143,6 @@ export function migrateSlideDocument(
   return document;
 }
 
-// The group depth and the element count of every page, layout and master, walked with a stack of its
-// own before the schema runs: the schema parses groups recursively, so a document nested deeper than
-// `SLIDE_LIMITS.maxGroupDepth` is rejected here by name and never reaches it.
-function structureIssue(document: unknown): SlideDocumentIssue | undefined {
-  const parts = document as Record<string, unknown>;
-  const caps = {
-    masters: SLIDE_LIMITS.maxMasters,
-    layouts: SLIDE_LIMITS.maxLayouts,
-    pages: SLIDE_LIMITS.maxPages,
-  };
-  for (const [key, cap] of Object.entries(caps)) {
-    const list = parts[key];
-    if (!Array.isArray(list)) continue;
-    // A list over its cap is not walked at all (a sparse array can claim 2^32 − 1 entries).
-    if (list.length > cap) return { code: "too-big", path: key, message: `at most ${cap} ${key}` };
-    for (const [index, part] of list.entries()) {
-      const elements = (part as { elements?: unknown } | null)?.elements;
-      const stack: { elements: unknown; depth: number; path: string }[] = [
-        { elements, depth: 0, path: `${key}[${index}].elements` },
-      ];
-      let count = 0;
-      while (stack.length > 0) {
-        const { elements: current, depth, path } = stack.pop()!;
-        if (!Array.isArray(current)) continue;
-        count += current.length;
-        if (count > SLIDE_LIMITS.maxElements) {
-          return {
-            code: "too-many-elements",
-            path: `${key}[${index}]`,
-            message: `at most ${SLIDE_LIMITS.maxElements} elements, those in groups counted`,
-          };
-        }
-        for (const [position, element] of current.entries()) {
-          const children = (element as { children?: unknown } | null)?.children;
-          if (children === undefined) continue;
-          if (depth + 1 > SLIDE_LIMITS.maxGroupDepth) {
-            return {
-              code: "group-depth",
-              path: `${path}[${position}]`,
-              message: `groups nest at most ${SLIDE_LIMITS.maxGroupDepth} deep`,
-            };
-          }
-          stack.push({
-            elements: children,
-            depth: depth + 1,
-            path: `${path}[${position}].children`,
-          });
-        }
-      }
-    }
-  }
-  return undefined;
-}
-
 export type SlideDocumentResult =
   { ok: true; document: SlideDocument } | { ok: false; error: SlideDocumentError };
 
@@ -214,8 +159,6 @@ export function safeParseSlideDocument(
     if (error instanceof SlideDocumentError) return { ok: false, error };
     throw error;
   }
-  const issue = structureIssue(migrated);
-  if (issue !== undefined) return { ok: false, error: new SlideDocumentError("invalid", [issue]) };
   const result = slideDocumentSchema.safeParse(migrated);
   if (result.success) return { ok: true, document: result.data };
   return { ok: false, error: new SlideDocumentError("invalid", issuesOf(result.error)) };

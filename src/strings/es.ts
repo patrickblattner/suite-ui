@@ -390,6 +390,22 @@ export const es: SuiteStrings = {
     previous: "Anterior",
     next: "Siguiente",
   },
+  // The slide view and player (`SlideView`, `SlidePlayer`).
+  slides: {
+    unknownType: "«{{type}}» no se puede mostrar aquí",
+    missingMedia: "Imagen {{id}} no encontrada",
+    unknownIcon: "Icono {{name}} no encontrado",
+    missingFonts: "Falta la fuente: {{fonts}}",
+    overflowing: "El texto no cabe en su campo: {{names}}",
+    missingBrand: "Falta el color de marca: {{keys}}",
+    previous: "Diapositiva anterior",
+    next: "Diapositiva siguiente",
+    close: "Terminar la presentación",
+    counter: "{{current}} / {{total}}",
+    invalid: "Esta diapositiva no se puede mostrar.",
+    player: "Presentación",
+    position: "Diapositiva {{current}} de {{total}}",
+  },
   keys: {
     delete: "Supr",
   },

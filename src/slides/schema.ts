@@ -95,6 +95,10 @@ const COLOR_PATTERN = new RegExp(
   String.raw`^(?:#(?:[0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})|[a-z]{1,32}|(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch)\(\s*${NUMBER}(?:${SEPARATOR}${NUMBER}){0,3}\s*\))$`,
   "i",
 );
+// Whether a value is a colour of that grammar; the view checks a brand set's values with it too.
+export function isSlideColor(value: string): boolean {
+  return value.length <= SLIDE_LIMITS.maxColorLength && COLOR_PATTERN.test(value);
+}
 const freeColor = z
   .string()
   .max(SLIDE_LIMITS.maxColorLength)
@@ -105,11 +109,20 @@ const freeColor = z
     ...issue("invalid-format"),
   });
 // A free font family: letters, digits, spaces and . _ , - only.
+const FAMILY_PATTERN = /^[\p{L}\p{N} ._,-]+$/u;
+// Whether a value is a font family of that grammar; the view checks a brand set's values with it too.
+export function isSlideFontFamily(value: string): boolean {
+  return (
+    value.length > 0 &&
+    value.length <= SLIDE_LIMITS.maxFontFamilyLength &&
+    FAMILY_PATTERN.test(value)
+  );
+}
 const freeFamily = z
   .string()
   .min(1)
   .max(SLIDE_LIMITS.maxFontFamilyLength)
-  .regex(/^[\p{L}\p{N} ._,-]+$/u, "a font family is letters, digits, spaces and . _ , -");
+  .regex(FAMILY_PATTERN, "a font family is letters, digits, spaces and . _ , -");
 const px = z.number().finite();
 const size = px.nonnegative();
 
@@ -509,7 +522,8 @@ function eachElement(
   });
 }
 
-export const slideDocumentSchema = z
+// The document's fields and rules; the exported schema runs it only after the structural preflight.
+const documentShape = z
   .object({
     schemaVersion: z.literal(SLIDE_SCHEMA_VERSION),
     format: slideFormatSchema,
@@ -568,6 +582,82 @@ export const slideDocumentSchema = z
     });
   });
 
+// The group depth, the element count of every page, layout and master, and the length of those
+// lists, walked with a stack of its own: the shape parses groups recursively, so a document nested
+// deeper than `SLIDE_LIMITS.maxGroupDepth` is rejected here by name and never reaches it.
+function structureIssue(
+  document: unknown,
+): { code: SlideIssueCode; path: (string | number)[]; message: string } | undefined {
+  if (typeof document !== "object" || document === null) return undefined;
+  const parts = document as Record<string, unknown>;
+  const caps = {
+    masters: SLIDE_LIMITS.maxMasters,
+    layouts: SLIDE_LIMITS.maxLayouts,
+    pages: SLIDE_LIMITS.maxPages,
+  };
+  for (const [key, cap] of Object.entries(caps)) {
+    const list = parts[key];
+    if (!Array.isArray(list)) continue;
+    // A list over its cap is not walked at all (a sparse array can claim 2^32 − 1 entries).
+    if (list.length > cap)
+      return { code: "too-big", path: [key], message: `at most ${cap} ${key}` };
+    for (const [index, part] of list.entries()) {
+      const elements = (part as { elements?: unknown } | null)?.elements;
+      const stack: { elements: unknown; depth: number; path: (string | number)[] }[] = [
+        { elements, depth: 0, path: [key, index, "elements"] },
+      ];
+      let count = 0;
+      while (stack.length > 0) {
+        const { elements: current, depth, path } = stack.pop()!;
+        if (!Array.isArray(current)) continue;
+        count += current.length;
+        if (count > SLIDE_LIMITS.maxElements) {
+          return {
+            code: "too-many-elements",
+            path: [key, index],
+            message: `at most ${SLIDE_LIMITS.maxElements} elements, those in groups counted`,
+          };
+        }
+        for (const [position, element] of current.entries()) {
+          const children = (element as { children?: unknown } | null)?.children;
+          if (children === undefined) continue;
+          if (depth + 1 > SLIDE_LIMITS.maxGroupDepth) {
+            return {
+              code: "group-depth",
+              path: [...path, position],
+              message: `groups nest at most ${SLIDE_LIMITS.maxGroupDepth} deep`,
+            };
+          }
+          stack.push({
+            elements: children,
+            depth: depth + 1,
+            path: [...path, position, "children"],
+          });
+        }
+      }
+    }
+  }
+  return undefined;
+}
+
+// The slide document schema: the structural preflight first, and only a document that passes it
+// reaches the shape (a pipe stops at the first stage's issue), so every caller of the exported schema
+// gets the limits and a named issue, never a stack overflow (Codex #299 CX1).
+export const slideDocumentSchema = z
+  .unknown()
+  .superRefine((value, context) => {
+    const found = structureIssue(value);
+    if (found !== undefined) {
+      context.addIssue({
+        code: "custom",
+        path: found.path,
+        message: found.message,
+        ...issue(found.code),
+      });
+    }
+  })
+  .pipe(documentShape) as unknown as z.ZodType<SlideDocument, SlideDocumentInput>;
+
 export type ColorValue = z.output<typeof colorValueSchema>;
 export type FontValue = z.output<typeof fontValueSchema>;
 export type Fill = z.output<typeof fillSchema>;
@@ -579,6 +669,6 @@ export type SlideGrid = z.output<typeof slideGridSchema>;
 export type SlideMaster = z.output<typeof slideMasterSchema>;
 export type SlideLayout = z.output<typeof slideLayoutSchema>;
 export type SlidePage = z.output<typeof slidePageSchema>;
-export type SlideDocument = z.output<typeof slideDocumentSchema>;
+export type SlideDocument = z.output<typeof documentShape>;
 // A document as an app or server writes it: the fields with a default may be left out.
-export type SlideDocumentInput = z.input<typeof slideDocumentSchema>;
+export type SlideDocumentInput = z.input<typeof documentShape>;

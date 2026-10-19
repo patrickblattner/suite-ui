@@ -717,3 +717,45 @@ describe("slide document list caps before the walk", () => {
     });
   });
 });
+
+// Codex #299 CX1: the exported schema carries the structural preflight itself, so an app that checks
+// with `slideDocumentSchema.safeParse` gets the limits and never a stack overflow.
+describe("slideDocumentSchema preflight", () => {
+  const page = valid.pages[0]!;
+  const element = page.elements![0]!;
+  const nested = (depth: number) => {
+    let current: Record<string, unknown> = { ...element, id: "leaf" };
+    for (let level = 0; level < depth; level += 1) {
+      current = { ...element, id: `g${level}`, type: "group", children: [current] };
+    }
+    return { ...valid, pages: [{ ...page, elements: [current] }] };
+  };
+  const codes = (raw: unknown) => {
+    const result = slideDocumentSchema.safeParse(raw);
+    return result.success
+      ? []
+      : result.error.issues.map((issue) =>
+          "params" in issue
+            ? String((issue.params as { code?: string } | undefined)?.code)
+            : issue.code,
+        );
+  };
+
+  it(`rejects ${SLIDE_LIMITS.maxGroupDepth + 1} nested groups and takes ${SLIDE_LIMITS.maxGroupDepth}`, () => {
+    expect(slideDocumentSchema.safeParse(nested(SLIDE_LIMITS.maxGroupDepth)).success).toBe(true);
+    expect(codes(nested(SLIDE_LIMITS.maxGroupDepth + 1))).toEqual(["group-depth"]);
+  });
+
+  it("returns an issue for 1000 nested groups instead of throwing", () => {
+    expect(() => slideDocumentSchema.safeParse(nested(1000))).not.toThrow();
+    expect(codes(nested(1000))).toEqual(["group-depth"]);
+  });
+
+  it(`rejects ${SLIDE_LIMITS.maxElements + 1} elements on one page`, () => {
+    const elements = Array.from({ length: SLIDE_LIMITS.maxElements + 1 }, (_, index) => ({
+      ...element,
+      id: `e${index}`,
+    }));
+    expect(codes({ ...valid, pages: [{ ...page, elements }] })).toEqual(["too-many-elements"]);
+  });
+});

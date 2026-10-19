@@ -412,6 +412,22 @@ export const en = {
     previous: "Previous",
     next: "Next",
   },
+  // The slide view and player (`SlideView`, `SlidePlayer`).
+  slides: {
+    unknownType: "“{{type}}” can’t be shown here",
+    missingMedia: "Image {{id}} not found",
+    unknownIcon: "Icon {{name}} not found",
+    missingFonts: "Font missing: {{fonts}}",
+    overflowing: "Text doesn’t fit its box: {{names}}",
+    missingBrand: "Brand colour missing: {{keys}}",
+    previous: "Previous slide",
+    next: "Next slide",
+    close: "End presentation",
+    counter: "{{current}} / {{total}}",
+    invalid: "This slide can’t be shown.",
+    player: "Presentation",
+    position: "Slide {{current}} of {{total}}",
+  },
   // The key names a shortcut chip shows (`GL-UI-006`).
   keys: {
     delete: "Del",

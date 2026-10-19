@@ -1,0 +1,423 @@
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+
+import {
+  resolveSlideMedia,
+  SLIDE_BRAND,
+  SLIDE_DECK,
+  SLIDE_FONTS,
+  SLIDE_MISSING_FONT,
+  SLIDE_SHOWCASE,
+} from "../../gallery/slide-showcase.js";
+import {
+  animationOrders,
+  animationState,
+  cssFill,
+  cssFont,
+  gradientLine,
+  paragraphs,
+  stackOrder,
+} from "./render-style.js";
+import { parseSlideDocument } from "./document.js";
+import { SlideView, type SlideViewProps, type SlideViewReport } from "./slide-view.js";
+
+afterEach(() => {
+  cleanup();
+  vi.restoreAllMocks();
+});
+
+const stamp = () => <span>Stamp of the gallery</span>;
+
+async function drawn(props: Partial<SlideViewProps> = {}) {
+  const onReport = vi.fn<(report: SlideViewReport) => void>();
+  const view = render(
+    <SlideView
+      document={SLIDE_SHOWCASE}
+      brand={SLIDE_BRAND}
+      fonts={SLIDE_FONTS}
+      resolveMedia={resolveSlideMedia}
+      renderers={{ "gallery.stamp": stamp }}
+      scale={0.5}
+      onReport={onReport}
+      data-testid="view"
+      {...props}
+    />,
+  );
+  await waitFor(() =>
+    expect(screen.getByTestId("view")).toHaveAttribute("data-slide-ready", "true"),
+  );
+  return { ...view, report: () => onReport.mock.lastCall![0] };
+}
+
+describe("SlideView", () => {
+  it("draws every element type of the showcase at its place, under one scale", async () => {
+    const { container } = await drawn();
+    const types = new Set(
+      [...container.querySelectorAll("[data-slide-type]")].map((node) =>
+        node.getAttribute("data-slide-type"),
+      ),
+    );
+    expect([...types].sort()).toEqual(
+      [
+        "chart",
+        "custom",
+        "group",
+        "icon",
+        "image",
+        "line",
+        "placeholder",
+        "shape",
+        "table",
+        "text",
+      ].sort(),
+    );
+    expect(screen.getByTestId("view")).toHaveStyle({ width: "960px", height: "540px" });
+    const page = container.querySelector<HTMLElement>("[data-slot=slide-page]")!;
+    expect(page.style.transform).toBe("scale(0.5)");
+    expect(page.style.width).toBe("1920px");
+    const photo = container.querySelector<HTMLElement>("[data-slide-element=photo]")!;
+    expect(photo.style).toMatchObject({
+      left: "1240px",
+      top: "60px",
+      width: "600px",
+      height: "400px",
+    });
+    // A group's children keep page coordinates; they stand relative to the group's box.
+    const back = container.querySelector<HTMLElement>("[data-slide-element=badge-back]")!;
+    expect(back.style).toMatchObject({ left: "0px", top: "0px" });
+  });
+
+  // SUI-FEATURE-160 AC6: an element type without renderer stands as a named stand-in.
+  it("names an unknown element type and draws a registered one", async () => {
+    const { report } = await drawn();
+    expect(screen.getByText("“community.poll” can’t be shown here")).toBeInTheDocument();
+    expect(screen.getByText("Stamp of the gallery")).toBeInTheDocument();
+    expect(report().unknownTypes).toEqual(["community.poll"]);
+  });
+
+  // SUI-FEATURE-160 §Barrierefreiheit: real text, the model's alt text, a chart's data as a table.
+  it("keeps text as text, gives images their alt text and charts a data table", async () => {
+    await drawn();
+    expect(screen.getByText("Workshop")).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Hills under a sun" })).toBeInTheDocument();
+    expect(screen.getAllByRole("listitem")).toHaveLength(3);
+    const data = screen.getByRole("table", { name: "Results" });
+    expect(within(data).getByRole("rowheader", { name: "2026" })).toBeInTheDocument();
+    expect(
+      within(data)
+        .getAllByRole("cell")
+        .map((cell) => cell.textContent),
+    ).toContain("7");
+  });
+
+  it("draws nothing of a document that breaks the schema and names the error", async () => {
+    const onReport = vi.fn<(report: SlideViewReport) => void>();
+    const { container } = render(
+      <SlideView
+        document={{ ...SLIDE_SHOWCASE, schemaVersion: 9 } as unknown as SlideViewProps["document"]}
+        brand={SLIDE_BRAND}
+        onReport={onReport}
+      />,
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent("This slide can’t be shown.");
+    expect(container.querySelector("[data-slot=slide-page]")).toBeNull();
+    await waitFor(() => expect(onReport).toHaveBeenCalled());
+    expect(onReport.mock.lastCall![0].error?.code).toBe("newer-version");
+  });
+
+  // SUI-FEATURE-160 AC3 (the browser half is in the gallery): a font without a file is named.
+  it("names a font without a file, a brand font key the set lacks and a font of another origin", async () => {
+    const { report } = await drawn({ document: SLIDE_MISSING_FONT });
+    expect(report().missingFonts).toEqual(["Unserved Display"]);
+    expect(screen.getByRole("alert")).toHaveTextContent("Font missing: Unserved Display");
+    cleanup();
+    const noBody = await drawn({
+      brand: { ...SLIDE_BRAND, fonts: { heading: "Gallery Slide Sans" } },
+    });
+    expect(noBody.report().missingFonts).toContain("body");
+    cleanup();
+    const foreign = await drawn({
+      fonts: [{ family: "Gallery Slide Sans", src: "https://fonts.example/inter.woff2" }],
+    });
+    expect(foreign.report().missingFonts).toEqual(["Gallery Slide Sans"]);
+  });
+
+  // SUI-FEATURE-160 rev 4 AC3: an origin the app passes counts as its own; any other does not.
+  it("takes a font from an origin the app passes, and only from that one", async () => {
+    const fonts = [{ family: "Gallery Slide Sans", src: "https://media.example/inter.woff2" }];
+    const passed = await drawn({ fonts, fontOrigins: ["https://media.example"] });
+    expect(passed.report().missingFonts).toEqual([]);
+    cleanup();
+    const other = await drawn({ fonts, fontOrigins: ["https://other.example"] });
+    expect(other.report().missingFonts).toEqual(["Gallery Slide Sans"]);
+  });
+
+  // Review #292: an entry that is no http(s) origin admits nothing, so an opaque URL never loads.
+  it("admits no opaque-origin font through a malformed origin entry", async () => {
+    const fonts = [{ family: "Gallery Slide Sans", src: "data:font/woff2;base64,AAAA" }];
+    const { report } = await drawn({ fonts, fontOrigins: ["localhost:3000", "null"] });
+    expect(report().missingFonts).toEqual(["Gallery Slide Sans"]);
+  });
+
+  // SUI-FEATURE-160 rev 4 AC6: an icon name the library lacks stands as a named stand-in.
+  it("names an unknown icon", async () => {
+    const page = SLIDE_SHOWCASE.pages[0]!;
+    const { report } = await drawn({
+      document: {
+        ...SLIDE_SHOWCASE,
+        pages: [
+          {
+            ...page,
+            elements: [
+              {
+                id: "odd",
+                type: "icon",
+                x: 0,
+                y: 0,
+                width: 100,
+                height: 100,
+                icon: "no-such-icon",
+              },
+            ],
+          },
+        ],
+      },
+    });
+    expect(screen.getByText("Icon no-such-icon not found")).toBeInTheDocument();
+    expect(report().unknownIcons).toEqual(["no-such-icon"]);
+  });
+
+  it("writes no brand value outside the colour grammar into CSS", async () => {
+    const { container, report } = await drawn({
+      brand: {
+        ...SLIDE_BRAND,
+        colors: { ...SLIDE_BRAND.colors, accent: "red; background: url(https://evil.example/t)" },
+      },
+    });
+    expect(container.innerHTML).not.toContain("evil.example");
+    expect(report().missingBrand).toContain("accent");
+  });
+
+  it("shows the animation step it is given, and the end state without one", async () => {
+    const step = async (animationStep: number | undefined) => {
+      cleanup();
+      const { container } = await drawn({ document: SLIDE_DECK, animationStep });
+      const inner = (id: string) =>
+        container.querySelector<HTMLElement>(`[data-slide-element=${id}] > div`)!.style;
+      return { one: inner("first-one"), two: inner("first-two") };
+    };
+    const start = await step(0);
+    expect([start.one.visibility, start.two.visibility]).toEqual(["hidden", "hidden"]);
+    const first = await step(1);
+    expect(first.one.animation).toContain("suite-slide-slide-in-left 300ms");
+    expect(first.two.visibility).toBe("hidden");
+    const end = await step(undefined);
+    expect([end.one.visibility, end.one.animation, end.two.visibility]).toEqual(["", "", ""]);
+  });
+});
+
+// Review #292: what the view cannot draw as asked is reported, never a silent gap.
+describe("SlideView reports", () => {
+  const page = SLIDE_SHOWCASE.pages[0]!;
+  const withElements = (elements: unknown[]) =>
+    ({ ...SLIDE_SHOWCASE, pages: [{ ...page, elements }] }) as SlideViewProps["document"];
+  const text = (id: string, name?: string) => ({
+    id,
+    name,
+    type: "text",
+    x: 0,
+    y: 0,
+    width: 100,
+    height: 50,
+    runs: [{ text: "far too long" }],
+  });
+
+  it("keys overflow by element: equal names do not cancel, an empty name falls back to the id", async () => {
+    // Every text box is too small in this layout-free test: content 100 px in a 50 px box.
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(100);
+    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(50);
+    const { report } = await drawn({
+      document: withElements([text("a", "Same"), text("b", "Same"), text("c", "")]),
+      fitText: true,
+    });
+    await waitFor(() => expect(report().overflowing).toHaveLength(3));
+    expect([...report().overflowing].sort()).toEqual(["Same", "Same", "c"]);
+    // Each notice stands beside its own box, below it.
+    const notices = screen.getAllByRole("alert");
+    expect(notices.map((notice) => notice.getAttribute("data-slide-notice-for")).sort()).toEqual([
+      "a",
+      "b",
+      "c",
+    ]);
+  });
+
+  it("names a missing brand colour on the view and in its attributes", async () => {
+    const { report } = await drawn({
+      brand: { ...SLIDE_BRAND, colors: { ...SLIDE_BRAND.colors, accent: "not a colour!" } },
+    });
+    expect(report().missingBrand).toContain("accent");
+    expect(screen.getByTestId("view")).toHaveAttribute("data-slide-missing-brand", "accent");
+    expect(screen.getByRole("alert")).toHaveTextContent("Brand colour missing: accent");
+  });
+
+  it("names an image that resolves but does not load", async () => {
+    const { report } = await drawn();
+    fireEvent.error(screen.getByRole("img", { name: "Hills under a sun" }));
+    expect(await screen.findByText("Image photo not found")).toBeInTheDocument();
+    await waitFor(() => expect(report().missingMedia).toEqual(["photo"]));
+  });
+});
+
+// Review #292 r2: each fix pinned by a test of its own.
+describe("SlideView reports, second round", () => {
+  const page = SLIDE_SHOWCASE.pages[0]!;
+
+  it("names a page background that does not load", async () => {
+    const document = {
+      ...SLIDE_SHOWCASE,
+      pages: [{ ...page, background: { type: "image", media: { id: "photo" } }, elements: [] }],
+    } as SlideViewProps["document"];
+    const { container, report } = await drawn({ document });
+    fireEvent.error(container.querySelector("[data-slot=slide-page] > img")!);
+    await waitFor(() => expect(report().missingMedia).toEqual(["photo"]));
+  });
+
+  it("tries a media id again once the app resolves a new URL for it", async () => {
+    const { rerender } = await drawn();
+    fireEvent.error(screen.getByRole("img", { name: "Hills under a sun" }));
+    await screen.findByText("Image photo not found");
+    rerender(
+      <SlideView
+        document={SLIDE_SHOWCASE}
+        brand={SLIDE_BRAND}
+        fonts={SLIDE_FONTS}
+        resolveMedia={(id) => (id === "photo" ? "/renewed.png" : undefined)}
+        renderers={{ "gallery.stamp": stamp }}
+        scale={0.5}
+        data-testid="view"
+      />,
+    );
+    expect(screen.getByRole("img", { name: "Hills under a sun" })).toHaveAttribute(
+      "src",
+      "/renewed.png",
+    );
+  });
+
+  it("measures a text again when its runs change", async () => {
+    // A box overflows when its text is longer than 20 characters.
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return (this.textContent ?? "").length > 20 ? 100 : 10;
+    });
+    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(50);
+    const document = (text: string) =>
+      ({
+        ...SLIDE_SHOWCASE,
+        pages: [
+          {
+            ...page,
+            elements: [
+              { id: "t", type: "text", x: 0, y: 400, width: 100, height: 50, runs: [{ text }] },
+            ],
+          },
+        ],
+      }) as SlideViewProps["document"];
+    const { rerender, report } = await drawn({ document: document("short"), fitText: true });
+    expect(report().overflowing).toEqual([]);
+    rerender(
+      <SlideView
+        document={document("now far too long for its box")}
+        brand={SLIDE_BRAND}
+        fonts={SLIDE_FONTS}
+        fitText
+        scale={0.5}
+        data-testid="view"
+      />,
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("view")).toHaveAttribute("data-slide-overflowing", "t"),
+    );
+  });
+
+  it("names missing fonts in a strip below the page, never over it", async () => {
+    await drawn({ document: SLIDE_MISSING_FONT });
+    const view = screen.getByTestId("view");
+    // The page keeps its 960 × 540; the strip adds its 28 px below.
+    expect(view).toHaveStyle({ width: "960px", height: "568px" });
+    const strip = screen.getByRole("alert");
+    expect(strip).toHaveClass("bottom-0");
+    expect(strip).toHaveStyle({ height: "28px" });
+  });
+});
+
+describe("slide render rules", () => {
+  it("splits paragraphs at a newline in a run, keeping each piece's run", () => {
+    const runs = [{ text: "a\nb" }, { text: "c" }, { text: "\nd" }];
+    expect(paragraphs(runs).map((pieces) => pieces.map((piece) => piece.text))).toEqual([
+      ["a"],
+      ["b", "c"],
+      ["d"],
+    ]);
+  });
+
+  it("stacks by layer, then by order in the list", () => {
+    const order = stackOrder([
+      { id: "a", layer: 1 },
+      { id: "b", layer: 0 },
+      { id: "c", layer: 1 },
+    ]);
+    expect(order.map((one) => one.id)).toEqual(["b", "a", "c"]);
+  });
+
+  it("quotes named families and keeps generic ones", () => {
+    const brand = { colors: {}, fonts: { body: "Inter, sans-serif" } };
+    expect(cssFont({ kind: "brand", key: "body" }, brand)).toEqual({
+      css: '"Inter", sans-serif',
+      files: ["Inter"],
+    });
+    expect(cssFont({ kind: "brand", key: "nope" }, brand)).toEqual({ missing: "nope" });
+    expect(
+      cssFont({ kind: "brand", key: "body" }, { colors: {}, fonts: { body: 'x"; }' } }),
+    ).toEqual({
+      missing: "body",
+    });
+  });
+
+  it("builds gradients only from colours of the grammar", () => {
+    const fill = {
+      type: "gradient" as const,
+      angle: 90,
+      stops: [
+        { color: { kind: "free" as const, value: "#fff" }, position: 0 },
+        { color: { kind: "brand" as const, key: "x" }, position: 100 },
+      ],
+    };
+    expect(cssFill(fill, { colors: { x: "#000" }, fonts: {} })).toBe(
+      "linear-gradient(90deg, #fff 0%, #000 100%)",
+    );
+    expect(cssFill(fill, { colors: { x: "url(a)" }, fonts: {} })).toBeUndefined();
+    const line = gradientLine(90);
+    expect(
+      [line.x1, line.y1, line.x2, line.y2].map((value) => Math.round(value * 1e6) / 1e6),
+    ).toEqual([0, 0.5, 1, 0.5]);
+  });
+
+  it("orders animation steps and shows an exit's element until it played", () => {
+    const document = parseSlideDocument(SLIDE_DECK);
+    const elements = document.pages[0]!.elements;
+    const orders = animationOrders(elements);
+    expect(orders).toEqual([1, 2]);
+    const exiting = {
+      ...elements[1]!,
+      animation: { exit: { effect: "fade" as const, duration: 200, delay: 0, order: 1 } },
+    };
+    expect(animationState(exiting, 0, orders)).toEqual({ kind: "shown" });
+    expect(animationState(exiting, 1, orders)).toMatchObject({
+      kind: "playing",
+      name: "suite-slide-fade-out",
+    });
+    expect(animationState(exiting, 2, orders)).toEqual({ kind: "hidden" });
+    expect(animationState(exiting, undefined, orders)).toEqual({ kind: "hidden" });
+  });
+});

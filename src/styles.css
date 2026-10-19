@@ -428,3 +428,129 @@
   flex: 1 1 0%;
   min-width: 0;
 }
+
+/* The animations of a slide (`SUI-FEATURE-160`, `src/slides/render-style.ts`): an entrance or exit
+   fades, slides in from or out to a side, or zooms; a page transition uses the same. Under
+   `prefers-reduced-motion` every one only fades, without movement. */
+@keyframes suite-slide-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes suite-slide-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+@keyframes suite-slide-slide-in-left {
+  from {
+    opacity: 0;
+    transform: translateX(-100%);
+  }
+}
+@keyframes suite-slide-slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+}
+@keyframes suite-slide-slide-in-top {
+  from {
+    opacity: 0;
+    transform: translateY(-100%);
+  }
+}
+@keyframes suite-slide-slide-in-bottom {
+  from {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+}
+@keyframes suite-slide-slide-out-left {
+  to {
+    opacity: 0;
+    transform: translateX(-100%);
+  }
+}
+@keyframes suite-slide-slide-out-right {
+  to {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+}
+@keyframes suite-slide-slide-out-top {
+  to {
+    opacity: 0;
+    transform: translateY(-100%);
+  }
+}
+@keyframes suite-slide-slide-out-bottom {
+  to {
+    opacity: 0;
+    transform: translateY(100%);
+  }
+}
+@keyframes suite-slide-zoom-in {
+  from {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+}
+@keyframes suite-slide-zoom-out {
+  to {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  @keyframes suite-slide-slide-in-left {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes suite-slide-slide-in-right {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes suite-slide-slide-in-top {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes suite-slide-slide-in-bottom {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes suite-slide-slide-out-left {
+    to {
+      opacity: 0;
+    }
+  }
+  @keyframes suite-slide-slide-out-right {
+    to {
+      opacity: 0;
+    }
+  }
+  @keyframes suite-slide-slide-out-top {
+    to {
+      opacity: 0;
+    }
+  }
+  @keyframes suite-slide-slide-out-bottom {
+    to {
+      opacity: 0;
+    }
+  }
+  @keyframes suite-slide-zoom-in {
+    from {
+      opacity: 0;
+    }
+  }
+  @keyframes suite-slide-zoom-out {
+    to {
+      opacity: 0;
+    }
+  }
+}

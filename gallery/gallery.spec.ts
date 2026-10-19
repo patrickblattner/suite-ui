@@ -11,6 +11,7 @@ import {
   userMenuOrderViolations,
 } from "../src/testing/index.js";
 import { shellTexts } from "./shell-labels.js";
+import { exportSlidePages } from "../src/slides/export.js";
 import { SLIDE_EXAMPLES } from "./slide-examples.js";
 
 const LANGUAGES = ["de", "en", "es"] as const;
@@ -41,6 +42,10 @@ const PAGES: [name: string, ready: (page: Page) => Locator][] = [
   ["preview", (page) => page.getByTestId("preview-no-device")],
   ["split", (page) => page.getByTestId("split-single-toggle")],
   ["grid", (page) => page.getByTestId("grid-overlay-dark")],
+  // SUI-FEATURE-160: the drawn slides once every view has its fonts and icons.
+  ["slides", (page) => page.locator("[data-testid=slide-fit-off][data-slide-ready=true]")],
+  // The player once its bar has hidden itself: a still scene without input.
+  ["slide-player", (page) => page.locator("[data-slot=slide-player-bar][data-shown=false]")],
 ];
 
 for (const lng of LANGUAGES) {
@@ -137,7 +142,6 @@ const AXE_PAGES: [
 ][] = [
   ["strings", (page) => page.locator("#strings-heading")],
   ["tokens", (page) => page.getByTestId("token-warn-text")],
-  ["slides", (page) => page.getByTestId("slide-examples")],
   ["keys", (page) => page.getByTestId("keys-row").first()],
   [
     "keys",
@@ -8157,4 +8161,449 @@ test("slide documents: every example validates, the invalid one names its error"
   await expect(rows.and(page.locator("[data-valid=false]"))).toHaveText(
     /SlideDocumentError: .*pages\[0\]\.elements\[0\]\.opacity/,
   );
+});
+
+// SUI-FEATURE-160 AC1: the same page in three boxes → every element at the same place relative to the
+// page, only scaled; the page keeps its aspect ratio.
+test("slide view: every element type at three sizes keeps its layout, only scaled", async ({
+  page,
+}) => {
+  await page.goto("/?page=slides&lng=en");
+  const layouts: { ratio: number; boxes: number[][] }[] = [];
+  for (const index of [0, 1, 2]) {
+    const view = page.getByTestId(`slide-size-${index}`);
+    await expect(view).toHaveAttribute("data-slide-ready", "true");
+    layouts.push(
+      await view.evaluate((root) => {
+        const page = root.querySelector("[data-slot=slide-page]")!.getBoundingClientRect();
+        return {
+          ratio: page.width / page.height,
+          boxes: [...root.querySelectorAll("[data-slide-element]")].map((node) => {
+            const box = node.getBoundingClientRect();
+            return [box.left - page.left, box.top - page.top, box.width, box.height].map(
+              (value) => Math.round((value / page.width) * 1000) / 1000,
+            );
+          }),
+        };
+      }),
+    );
+  }
+  expect(layouts[0]!.boxes.length).toBeGreaterThan(10);
+  for (const layout of layouts.slice(1)) {
+    expect(layout.ratio).toBeCloseTo(16 / 9, 2);
+    layout.boxes.forEach((box, index) =>
+      box.forEach((value, at) =>
+        expect(Math.abs(value - layouts[0]!.boxes[index]![at]!)).toBeLessThanOrEqual(0.002),
+      ),
+    );
+  }
+});
+
+// SUI-FEATURE-160 AC2: the export takes PNG from the same component as the editor's view (no pixel
+// differs) and a PDF whose text is real text.
+test("slide export: PNG equal to the editor view, PDF with real text", async ({ page }) => {
+  await page.goto("/?harness=slide-export");
+  const { png, pdf } = await exportSlidePages(page);
+  expect(png).toHaveLength(1);
+  await page.goto("/?harness=slide-export&view=editor");
+  const view = page.getByTestId("slide-editor-view");
+  await expect(view).toHaveAttribute("data-slide-ready", "true");
+  await page.waitForFunction(() => [...document.images].every((image) => image.complete));
+  const editor = await view.screenshot({ animations: "disabled" });
+  expect(Buffer.from(png[0]!).equals(editor)).toBe(true);
+  const { getDocument } = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  const file = await getDocument({ data: new Uint8Array(pdf) }).promise;
+  expect(file.numPages).toBe(1);
+  const text = (await (await file.getPage(1)).getTextContent()).items
+    .map((item) => ("str" in item ? item.str : ""))
+    .join(" ");
+  for (const words of ["Workshop", "Welcome", "Topic", "09:00", "New"])
+    expect(text).toContain(words);
+});
+
+// SUI-FEATURE-160 §Text einpassen, §Schriften: what the view cannot draw as asked stops the export
+// loudly, by name.
+test("slide export: an element the view cannot draw stops the export by name", async ({ page }) => {
+  await page.goto("/?harness=slide-export&broken=1");
+  const error = await exportSlidePages(page).catch((caught: unknown) => caught);
+  expect(error).toMatchObject({
+    name: "SlideExportError",
+    code: "unknown-types",
+    items: ["community.poll"],
+  });
+});
+
+// SUI-FEATURE-160 AC3: a font the app supplies no file for is named; the gallery's own files load.
+test("slide view: a missing font is named, a supplied one is used", async ({ page }) => {
+  await page.goto("/?page=slides&lng=en");
+  const missing = page.getByTestId("slide-missing-font");
+  await expect(missing).toHaveAttribute("data-slide-missing-fonts", "Unserved Display");
+  await expect(missing.getByRole("alert")).toHaveText("Font missing: Unserved Display");
+  const view = page.getByTestId("slide-size-2");
+  await expect(view).toHaveAttribute("data-slide-ready", "true");
+  await expect(view).not.toHaveAttribute("data-slide-missing-fonts");
+  expect(await page.evaluate(() => document.fonts.check('700 72px "Gallery Slide Sans"'))).toBe(
+    true,
+  );
+  await expect(view.getByText("Workshop")).toHaveCSS("font-family", '"Gallery Slide Sans"');
+});
+
+// SUI-FEATURE-160 AC4: fit text on shrinks down to 70 % and reports what still overflows; off, text
+// overflows visibly.
+test("slide view: fit text shrinks to 70 %, reports below, overflows when off", async ({
+  page,
+}) => {
+  await page.goto("/?page=slides&lng=en");
+  const size = (testId: string) =>
+    page
+      .getByTestId(testId)
+      .locator("[data-slide-type=text] span")
+      .first()
+      .evaluate((node) => parseFloat(getComputedStyle(node).fontSize));
+  const shrinks = page.getByTestId("slide-fit-shrinks");
+  await expect(shrinks).toHaveAttribute("data-slide-ready", "true");
+  await expect(shrinks).not.toHaveAttribute("data-slide-overflowing");
+  const shrunk = await size("slide-fit-shrinks");
+  expect(shrunk).toBeLessThan(64);
+  expect(shrunk).toBeGreaterThanOrEqual(64 * 0.7);
+  const tooLong = page.getByTestId("slide-fit-too-long");
+  await expect(tooLong).toHaveAttribute("data-slide-overflowing", "too-long text");
+  await expect(tooLong.getByRole("alert")).toHaveText("Text doesn’t fit its box: too-long text");
+  expect(await size("slide-fit-too-long")).toBeCloseTo(64 * 0.7, 1);
+  const off = page.getByTestId("slide-fit-off");
+  expect(await size("slide-fit-off")).toBe(64);
+  const overflow = await off.locator("[data-slide-type=text]").evaluate((node) => {
+    const box = node.getBoundingClientRect();
+    const text = node.querySelector("p")!.parentElement!.getBoundingClientRect();
+    return { box: box.bottom, text: text.bottom, clip: getComputedStyle(node).overflow };
+  });
+  expect(overflow.text).toBeGreaterThan(overflow.box);
+  expect(overflow.clip).toBe("visible");
+});
+
+// SUI-FEATURE-160 AC5: the player pages with the keys and a click, plays the animations in order,
+// skips a hidden page; under prefers-reduced-motion the animations only fade.
+test("slide player: keys and click page through, animations in order, hidden page skipped", async ({
+  page,
+}) => {
+  await page.goto("/?page=slide-player&lng=en");
+  const player = page.getByTestId("slide-player");
+  const inner = (id: string) => player.locator(`[data-slide-element=${id}] > div`);
+  await expect(player).toHaveAttribute("data-slide-page", "first");
+  await expect(player).toBeFocused();
+  await expect(inner("first-one")).toHaveCSS("visibility", "hidden");
+  await page.keyboard.press("ArrowRight");
+  await expect(player).toHaveAttribute("data-slide-step", "1");
+  await expect(inner("first-one")).toHaveCSS("animation-name", "suite-slide-slide-in-left");
+  await expect(inner("first-two")).toHaveCSS("visibility", "hidden");
+  await player.click();
+  await expect(inner("first-two")).toHaveCSS("animation-name", "suite-slide-zoom-in");
+  await page.keyboard.press(" ");
+  await expect(player).toHaveAttribute("data-slide-page", "second");
+  await expect(player.getByText("Slide 2 of 2")).toBeAttached();
+  await page.keyboard.press("ArrowLeft");
+  await expect(player).toHaveAttribute("data-slide-page", "first");
+  await expect(player).toHaveAttribute("data-slide-step", "2");
+  // Back undoes one animation step at a time, and on the first page's start it stays.
+  await page.keyboard.press("ArrowLeft");
+  await expect(player).toHaveAttribute("data-slide-step", "1");
+  await page.keyboard.press("ArrowLeft");
+  await page.keyboard.press("ArrowLeft");
+  await expect(player).toHaveAttribute("data-slide-step", "0");
+  await expect(player).toHaveAttribute("data-slide-page", "first");
+  await page.keyboard.press("Escape");
+  await expect(player).toHaveCount(0);
+});
+
+// Review #292 (ui, ux): the player is modal: Tab stays inside it, the keys page on from a focused
+// bar button, and closing returns the focus to the control that opened it.
+test("slide player: modal, Tab stays inside, focus returns to the opener", async ({ page }) => {
+  await page.goto("/?page=slide-player&lng=en");
+  const player = page.getByTestId("slide-player");
+  await expect(player).toBeFocused();
+  for (let press = 0; press < 6; press += 1) {
+    await page.keyboard.press("Tab");
+    expect(await player.evaluate((root) => root.contains(document.activeElement))).toBe(true);
+  }
+  await expect(player.getByTestId("slide-player-close")).toBeFocused();
+  await page.keyboard.press("ArrowRight");
+  await expect(player).toHaveAttribute("data-slide-step", "1");
+  expect(
+    await page
+      .getByTestId("slide-player-open")
+      .evaluate((node) => node.closest("[inert]") !== null),
+  ).toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(player).toHaveCount(0);
+  // Opened from its button, closed with Close: the focus is back on the button.
+  await page.getByTestId("slide-player-open").click();
+  await expect(player).toBeFocused();
+  await player.getByTestId("slide-player-close").click();
+  await expect(player).toHaveCount(0);
+  await expect(page.getByTestId("slide-player-open")).toBeFocused();
+});
+
+// SUI-FEATURE-180 AC1: with the pointer only (full screen refused in a headless browser) Back, Next
+// and Close are reachable; the bar hides without input and comes back on a move; by Tab it stays.
+test("slide player: the bar works by pointer, hides, comes back, stays while focused", async ({
+  page,
+}) => {
+  await page.goto("/?page=slide-player&lng=en");
+  const player = page.getByTestId("slide-player");
+  const bar = player.locator("[data-slot=slide-player-bar]");
+  await expect(bar).toHaveAttribute("data-shown", "true");
+  await expect(bar).toHaveAttribute("data-shown", "false", { timeout: 6000 });
+  await page.mouse.move(400, 300);
+  await page.mouse.move(420, 320);
+  await expect(bar).toHaveAttribute("data-shown", "true");
+  // A press right after the bar came into view only shows it (rev 3); after a moment it acts.
+  await page.waitForTimeout(500);
+  await player.getByRole("button", { name: "Next slide" }).click();
+  await expect(player).toHaveAttribute("data-slide-step", "1");
+  await player.getByRole("button", { name: "Previous slide" }).click();
+  await expect(player).toHaveAttribute("data-slide-step", "0");
+  await expect(player.getByRole("button", { name: "Previous slide" })).toBeDisabled();
+  await page.mouse.move(10, 10);
+  await page.keyboard.press("Tab");
+  await page.waitForTimeout(4000);
+  await expect(bar).toHaveAttribute("data-shown", "true");
+  await player.getByRole("button", { name: "End presentation" }).click();
+  await expect(player).toHaveCount(0);
+});
+
+// SUI-FEATURE-180 AC2: on the last page the presentation stays; Next is locked, the counter "m / m".
+test("slide player: the last slide stays, Next locked, counter m / m", async ({ page }) => {
+  await page.goto("/?page=slide-player&lng=en");
+  const player = page.getByTestId("slide-player");
+  await expect(player).toBeFocused();
+  for (let press = 0; press < 3; press += 1) await page.keyboard.press("ArrowRight");
+  await expect(player).toHaveAttribute("data-slide-page", "second");
+  await expect(player.getByTestId("slide-player-counter")).toHaveText("2 / 2");
+  await expect(player.getByRole("button", { name: "Next slide" })).toBeDisabled();
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press(" ");
+  await expect(player).toHaveAttribute("data-slide-page", "second");
+  await expect(player.getByTestId("slide-player-counter")).toHaveText("2 / 2");
+  await expect(player).toBeVisible();
+});
+
+// SUI-FEATURE-180 AC3: a deck with a missing font → a hint at the start that fades, and the app hears
+// it once.
+test("slide player: a missing font gives a hint at the start that fades; onReport once", async ({
+  page,
+}) => {
+  await page.goto("/?page=slide-player&deck=missing-font&lng=en");
+  const hint = page.getByTestId("slide-player").locator("[data-slot=slide-player-hint]");
+  await expect(hint).toHaveText("Font missing: Unserved Display");
+  await expect(hint).toHaveAttribute("data-shown", "true");
+  await expect(hint).toHaveAttribute("data-shown", "false", { timeout: 8000 });
+  await expect(page.getByTestId("slide-player-reports")).toHaveText("Reports: 1");
+});
+
+// SUI-FEATURE-160: a page transition fades the outgoing page out over the incoming one; the outgoing
+// layer goes once the transition ends.
+test("slide player: the transition keeps the outgoing page until it ends", async ({ page }) => {
+  await page.goto("/?page=slide-player&lng=en");
+  const player = page.getByTestId("slide-player");
+  const outgoing = player.locator("[data-slot=slide-player-outgoing]");
+  await expect(player).toBeFocused();
+  for (let press = 0; press < 2; press += 1) await page.keyboard.press("ArrowRight");
+  await expect(outgoing).toHaveCount(0);
+  await page.keyboard.press("ArrowRight");
+  await expect(outgoing).toHaveCount(1);
+  await expect(outgoing).toHaveCSS("animation-name", "suite-slide-fade-out");
+  await expect(outgoing).toHaveCount(0);
+  await expect(player).toHaveAttribute("data-slide-page", "second");
+});
+
+// SUI-FEATURE-180 AC5: in the editor's view the notice of an overflowing text stands outside where
+// its text runs (its box and what spills from it): above it, or beside it without room above.
+test("slide view: the notice of an overflowing text does not cover it", async ({ page }) => {
+  await page.goto("/?page=slides&lng=en");
+  const intersects = (
+    a: { x: number; y: number; width: number; height: number },
+    b: { x: number; y: number; width: number; height: number },
+  ) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+  for (const [testId, name] of [
+    ["slide-fit-too-long", "too-long text"],
+    ["slide-fit-at-top", "at-top text"],
+  ] as const) {
+    const view = page.getByTestId(testId);
+    const notice = view.locator("[data-slot=slide-notice][data-slide-notice-for]");
+    await expect(notice).toHaveText(`Text doesn’t fit its box: ${name}`);
+    const box = (await notice.boundingBox())!;
+    // The text's box and the spilled text.
+    const text = view.locator("[data-slide-type=text]");
+    const spilled = (await text.locator(":scope > div > div > div").boundingBox())!;
+    const frame = (await text.boundingBox())!;
+    expect(intersects(box, frame), `${testId}: notice over the box`).toBe(false);
+    expect(intersects(box, spilled), `${testId}: notice over the spilled text`).toBe(false);
+  }
+});
+
+// Review #292 r2 (ui): missing fonts are named in a strip below the page, not over its text.
+test("slide view: the font notice stands below the page, not over it", async ({ page }) => {
+  await page.goto("/?page=slides&lng=en");
+  const view = page.getByTestId("slide-missing-font");
+  const strip = view.getByRole("alert");
+  await expect(strip).toHaveText("Font missing: Unserved Display");
+  const notice = (await strip.boundingBox())!;
+  const drawn = (await view.locator("[data-slot=slide-page]").boundingBox())!;
+  expect(notice.y).toBeGreaterThanOrEqual(drawn.y + drawn.height - 0.5);
+});
+
+// Review #292 r2 (all lenses): a Next or Previous that locks while it has the focus keeps it, so the
+// keys go on working and the bar stays.
+test("slide player: a locked Next or Previous keeps the focus; the keys work on", async ({
+  page,
+}) => {
+  await page.goto("/?page=slide-player&lng=en");
+  const player = page.getByTestId("slide-player");
+  await expect(player).toBeFocused();
+  const next = player.getByRole("button", { name: "Next slide" });
+  const previous = player.getByRole("button", { name: "Previous slide" });
+  await page.keyboard.press("Tab");
+  await page.keyboard.press("Tab");
+  await expect(next).toBeFocused();
+  for (let press = 0; press < 4; press += 1) await page.keyboard.press("Enter");
+  await expect(player).toHaveAttribute("data-slide-page", "second");
+  await expect(next).toHaveAttribute("aria-disabled", "true");
+  await expect(next).toBeFocused();
+  await page.keyboard.press("ArrowLeft");
+  await expect(player).toHaveAttribute("data-slide-page", "first");
+  await page.keyboard.press("Shift+Tab");
+  await expect(previous).toBeFocused();
+  for (let press = 0; press < 4; press += 1) await page.keyboard.press("Enter");
+  await expect(previous).toHaveAttribute("aria-disabled", "true");
+  await expect(previous).toBeFocused();
+  await page.keyboard.press("ArrowRight");
+  await expect(player).toHaveAttribute("data-slide-step", "1");
+  await page.waitForTimeout(4000);
+  await expect(player.locator("[data-slot=slide-player-bar]")).toHaveAttribute(
+    "data-shown",
+    "true",
+  );
+});
+
+// Review #292 r2 (ux): a bar button keeps the bar while it has the focus, even after the pointer left.
+test("slide player: a focused bar button holds the bar after the pointer left it", async ({
+  page,
+}) => {
+  await page.goto("/?page=slide-player&lng=en");
+  const player = page.getByTestId("slide-player");
+  await expect(player).toBeFocused();
+  const bar = player.locator("[data-slot=slide-player-bar]");
+  await page.keyboard.press("Tab");
+  const area = (await bar.boundingBox())!;
+  await page.mouse.move(area.x + area.width / 2, area.y + area.height / 2);
+  await page.mouse.move(10, 10);
+  await page.waitForTimeout(4000);
+  await expect(bar).toHaveAttribute("data-shown", "true");
+});
+
+// SUI-FEATURE-180 rev 3 AC2: a hidden bar never takes a click. A quick mouse click where hidden
+// Close sits only shows the bar; a click on the slide pages on and shows it.
+test("slide player: a quick click on the hidden bar only shows it", async ({ page }) => {
+  await page.goto("/?page=slide-player&lng=en");
+  const player = page.getByTestId("slide-player");
+  const bar = player.locator("[data-slot=slide-player-bar]");
+  const close = (await player.getByTestId("slide-player-close").boundingBox())!;
+  await expect(bar).toHaveAttribute("data-shown", "false", { timeout: 6000 });
+  await page.mouse.click(close.x + close.width / 2, close.y + close.height / 2);
+  await expect(bar).toHaveAttribute("data-shown", "true");
+  await expect(player).toBeVisible();
+  await expect(player).toHaveAttribute("data-slide-step", "0");
+  await page.mouse.move(300, 300);
+  await expect(bar).toHaveAttribute("data-shown", "false", { timeout: 6000 });
+  await page.mouse.click(300, 300);
+  await expect(player).toHaveAttribute("data-slide-step", "1");
+  await expect(bar).toHaveAttribute("data-shown", "true");
+});
+
+test.describe("touch", () => {
+  test.use({ hasTouch: true });
+
+  // SUI-FEATURE-180 rev 3 AC2 by touch: a tap on the hidden bar's strip shows it and pages nothing; a
+  // tap on the slide pages on and shows it.
+  test("slide player: a tap on the hidden bar only shows it, a tap on the slide pages on", async ({
+    page,
+  }) => {
+    await page.goto("/?page=slide-player&lng=en");
+    const player = page.getByTestId("slide-player");
+    const bar = player.locator("[data-slot=slide-player-bar]");
+    const close = (await player.getByTestId("slide-player-close").boundingBox())!;
+    await expect(bar).toHaveAttribute("data-shown", "false", { timeout: 6000 });
+    await page.touchscreen.tap(close.x + close.width / 2, close.y + close.height / 2);
+    await expect(bar).toHaveAttribute("data-shown", "true");
+    await expect(player).toBeVisible();
+    await expect(player).toHaveAttribute("data-slide-step", "0");
+    await expect(bar).toHaveAttribute("data-shown", "false", { timeout: 6000 });
+    await page.touchscreen.tap(300, 300);
+    await expect(player).toHaveAttribute("data-slide-step", "1");
+    await expect(bar).toHaveAttribute("data-shown", "true");
+  });
+});
+
+test("slide player: prefers-reduced-motion keeps the fade, drops the movement", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/?page=slide-player&lng=en");
+  const player = page.getByTestId("slide-player");
+  await expect(
+    player.locator("[data-slot=slide-view][data-slide-ready=true]").first(),
+  ).toBeAttached();
+  // Each step's animation, with the property names its keyframes change.
+  const playing = () =>
+    page.evaluate(() =>
+      document
+        .getAnimations()
+        .map((animation) => ({
+          name: (animation as CSSAnimation).animationName,
+          keys: (animation.effect as KeyframeEffect)
+            .getKeyframes()
+            .flatMap((frame) => Object.keys(frame)),
+        }))
+        .filter(({ name }) => name.startsWith("suite-slide-")),
+    );
+  for (const name of ["suite-slide-slide-in-left", "suite-slide-zoom-in"]) {
+    await page.keyboard.press("ArrowRight");
+    await expect.poll(async () => (await playing()).map((frame) => frame.name)).toEqual([name]);
+    const [frame] = await playing();
+    expect(frame!.keys).toContain("opacity");
+    expect(frame!.keys).not.toContain("transform");
+  }
+  // Without the preference the same step moves.
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.reload();
+  await expect(
+    player.locator("[data-slot=slide-view][data-slide-ready=true]").first(),
+  ).toBeAttached();
+  await page.keyboard.press("ArrowRight");
+  await expect.poll(async () => (await playing())[0]?.keys).toContain("transform");
+});
+
+// SUI-FEATURE-160 AC6 and §Barrierefreiheit: an unknown type stands as a named stand-in; text stays
+// text, the image has its alt text and the chart its data as a table.
+test("slide view: unknown type named, real text, alt text, chart data table", async ({ page }) => {
+  await page.goto("/?page=slides&lng=en");
+  const view = page.getByTestId("slide-size-2");
+  await expect(view).toHaveAttribute("data-slide-unknown-types", "community.poll");
+  await expect(view.getByText("“community.poll” can’t be shown here")).toBeVisible();
+  await expect(view.getByText("Stamp")).toBeVisible();
+  await expect(view.getByRole("img", { name: "Hills under a sun" })).toBeVisible();
+  const data = view.getByRole("table", { name: "Results" });
+  await expect(data.getByRole("rowheader")).toHaveText(["2025", "2026"]);
+  await expect(data.getByRole("columnheader")).toHaveText(["Q1", "Q2", "Q3"]);
+  const selected = await view
+    .getByText("Welcome", { exact: true })
+    .first()
+    .evaluate((node) => {
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      getSelection()!.removeAllRanges();
+      getSelection()!.addRange(range);
+      return getSelection()!.toString();
+    });
+  expect(selected).toBe("Welcome");
 });

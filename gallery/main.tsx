@@ -28,6 +28,7 @@ import {
 } from "./OverlayPages.js";
 import { PreviewPage } from "./PreviewPage.js";
 import { SettingsPage } from "./SettingsPage.js";
+import { SlideExportHarness, SlidePlayerPage } from "./SlidePlayerPage.js";
 import { SlidesPage } from "./SlidesPage.js";
 import { registerShellLabels, ShellPage } from "./ShellPage.js";
 import { SplitPage } from "./SplitPage.js";
@@ -61,6 +62,7 @@ const PAGES = [
   "preview",
   "split",
   "slides",
+  "slide-player",
 ] as const;
 type Page = (typeof PAGES)[number];
 
@@ -102,6 +104,7 @@ const PAGE_CONTENT: Record<Exclude<Page, "strings">, (theme: Theme) => ReactNode
   preview: (theme) => <PreviewPage theme={theme} />,
   split: () => <SplitPage />,
   slides: () => <SlidesPage />,
+  "slide-player": () => <SlidePlayerPage />,
 };
 
 function keysOf(tree: object, prefix = ""): string[] {
@@ -222,6 +225,19 @@ await Promise.allSettled(
 // `&install=none` leaves that out, as when the guard only arrives with a lazy route (#235).
 const harness = params.get("harness") === "leave-guard";
 if (harness && params.get("install") !== "none") installLeaveGuard();
+// The slide export page, alone on the page as an app's export route renders it.
+const exportHarness = params.get("harness") === "slide-export";
 createRoot(document.getElementById("root") as HTMLElement).render(
-  <StrictMode>{harness ? <LeaveGuardHarness /> : <Gallery />}</StrictMode>,
+  <StrictMode>
+    {exportHarness ? (
+      <SlideExportHarness
+        editor={params.get("view") === "editor"}
+        broken={params.get("broken") === "1"}
+      />
+    ) : harness ? (
+      <LeaveGuardHarness />
+    ) : (
+      <Gallery />
+    )}
+  </StrictMode>,
 );
