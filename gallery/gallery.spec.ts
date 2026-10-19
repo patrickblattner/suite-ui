@@ -9357,13 +9357,15 @@ test("slide editor: a selection across levels nudges and drags each element in i
 // #323 AC1: a child of a turned group is nudged, resized and turned in the group's frame. The group
 // stands at a quarter turn: the child's own x axis points down on the screen. Each step taken in page
 // coordinates instead fails here.
-async function turnedChild(page: Page) {
+async function turnedChild(page: Page, angle = 90) {
   const editor = await openEditor(page);
   await editor.select(630, 340);
-  await editor.field("rotation").fill("90");
+  await editor.field("rotation").fill(String(angle));
   await page.keyboard.press("Tab");
-  // Turned a quarter about (630, 340), the left child (centre 590, 340) is drawn at (630, 300).
-  const drawn = editor.at(630, 300);
+  // Turned about (630, 340), the left child's centre (590, 340) is drawn 40 px from it the other way
+  // round: at a quarter turn at (630, 300).
+  const radians = (angle * Math.PI) / 180;
+  const drawn = editor.at(630 - 40 * Math.cos(radians), 340 - 40 * Math.sin(radians));
   await page.mouse.dblclick(drawn.x, drawn.y);
   await expect(editor.field("x")).toHaveValue("560");
   return { ...editor, drawn, child: editor.editor.locator("[data-slide-element=pair-left]") };
@@ -9385,9 +9387,9 @@ test("slide editor: a side handle resizes a child of a turned group in the group
   page,
 }) => {
   const { editor, field } = await turnedChild(page);
-  // The east handle is still drawn on the child's unturned box (#324), but a drag of it is measured
-  // in the group's frame: 20 px down on the screen is along the child's own x axis, so it grows
-  // wider.
+  // The east handle is drawn where the child's east edge shows, below it on the screen (#324), and
+  // a drag of it is measured in the group's frame: 20 px down is along the child's own x axis, so it
+  // grows wider.
   const handle = (await editor.getByTestId("slide-editor-handle-e").boundingBox())!;
   const from = { x: handle.x + handle.width / 2, y: handle.y + handle.height / 2 };
   await page.mouse.move(from.x, from.y);
@@ -9440,4 +9442,99 @@ test("slide editor: no text selection on the canvas, no page snapping in a turne
   const after = (await child.boundingBox())!;
   expect(after.x - before.x).toBeCloseTo(10, 0);
   expect(after.y - before.y).toBeCloseTo(-20, 0);
+});
+
+// #324: the frame and the handles of a child in a turned group lie where the child is drawn, and
+// every handle and the turn handle follow the pointer on the screen, at a quarter turn and at an odd
+// angle; Shift turns in steps of 15° on the screen.
+const centreOfBox = (box: { x: number; y: number; width: number; height: number }) => ({
+  x: box.x + box.width / 2,
+  y: box.y + box.height / 2,
+});
+for (const angle of [90, 37]) {
+  test(`slide editor: frame and handles lie over a child of a group turned ${angle}°`, async ({
+    page,
+  }) => {
+    const { editor, child } = await turnedChild(page, angle);
+    const drawn = (await child.boundingBox())!;
+    for (const id of ["canvas-selection", "slide-editor-handles"]) {
+      const over = (await editor.getByTestId(id).boundingBox())!;
+      // The handles' box is the child's box turned; its own bounding box is the child's drawn one.
+      expect(Math.abs(over.x - drawn.x), id).toBeLessThan(1.5);
+      expect(Math.abs(over.y - drawn.y), id).toBeLessThan(1.5);
+      expect(Math.abs(over.width - drawn.width), id).toBeLessThan(1.5);
+      expect(Math.abs(over.height - drawn.height), id).toBeLessThan(1.5);
+    }
+  });
+
+  test(`slide editor: each handle follows the pointer on a child of a group turned ${angle}°`, async ({
+    page,
+  }) => {
+    const { editor } = await turnedChild(page, angle);
+    for (const handle of ["n", "ne", "e", "se", "s", "sw", "w", "nw"]) {
+      const centre = centreOfBox((await editor.getByTestId("slide-editor-handles").boundingBox())!);
+      const at = centreOfBox(
+        (await editor.getByTestId(`slide-editor-handle-${handle}`).boundingBox())!,
+      );
+      // 12 px outward, away from the child's centre: the handle ends under the pointer.
+      const length = Math.hypot(at.x - centre.x, at.y - centre.y);
+      const to = {
+        x: at.x + ((at.x - centre.x) / length) * 12,
+        y: at.y + ((at.y - centre.y) / length) * 12,
+      };
+      await page.mouse.move(at.x, at.y);
+      await page.mouse.down();
+      await page.mouse.move((at.x + to.x) / 2, (at.y + to.y) / 2, { steps: 2 });
+      await page.mouse.move(to.x, to.y, { steps: 2 });
+      await page.mouse.up();
+      const after = centreOfBox(
+        (await editor.getByTestId(`slide-editor-handle-${handle}`).boundingBox())!,
+      );
+      expect(Math.abs(after.x - to.x), `${handle} x`).toBeLessThan(1.5);
+      expect(Math.abs(after.y - to.y), `${handle} y`).toBeLessThan(1.5);
+    }
+  });
+
+  test(`slide editor: the turn handle follows the pointer on a child of a group turned ${angle}°`, async ({
+    page,
+  }) => {
+    const { editor } = await turnedChild(page, angle);
+    const handle = editor.getByTestId("slide-editor-handle-rotate");
+    const centre = centreOfBox((await editor.getByTestId("slide-editor-handles").boundingBox())!);
+    const from = centreOfBox((await handle.boundingBox())!);
+    // A small move turns a little, never a jump; then to a point down-left of the centre.
+    const sideways = { x: from.x + 6, y: from.y + 2 };
+    for (const to of [sideways, { x: centre.x - 60, y: centre.y + 80 }]) {
+      const start = centreOfBox((await handle.boundingBox())!);
+      await page.mouse.move(start.x, start.y);
+      await page.mouse.down();
+      await page.mouse.move(to.x, to.y, { steps: 4 });
+      await page.mouse.up();
+      const end = centreOfBox((await handle.boundingBox())!);
+      const pointing = Math.atan2(end.y - centre.y, end.x - centre.x);
+      const wanted = Math.atan2(to.y - centre.y, to.x - centre.x);
+      const off = Math.abs(((pointing - wanted + 3 * Math.PI) % (2 * Math.PI)) - Math.PI);
+      expect((off * 180) / Math.PI).toBeLessThan(1.5);
+    }
+  });
+}
+
+test("slide editor: Shift turns a child of a turned group in steps of 15° on the screen", async ({
+  page,
+}) => {
+  const { editor, field } = await turnedChild(page, 37);
+  const handle = centreOfBox(
+    (await editor.getByTestId("slide-editor-handle-rotate").boundingBox())!,
+  );
+  const centre = centreOfBox((await editor.getByTestId("slide-editor-handles").boundingBox())!);
+  await page.mouse.move(handle.x, handle.y);
+  await page.mouse.down();
+  await page.keyboard.down("Shift");
+  await page.mouse.move(centre.x + 70, centre.y + 25, { steps: 4 });
+  await page.mouse.up();
+  await page.keyboard.up("Shift");
+  // The child's own angle plus the group's 37° is a step of 15° on the screen.
+  const own = Number(await field("rotation").inputValue());
+  expect((((own + 37) % 15) + 15) % 15).toBeCloseTo(0, 1);
+  expect(own).not.toBe(Math.round(own / 15) * 15);
 });

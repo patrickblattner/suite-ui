@@ -81,13 +81,15 @@ export function resizeBox(
   };
 }
 
-// The rotation that points the box's top at `point`; with `step` (Shift) in steps of 15°.
-export function rotationTowards(box: Box, point: Point, step: boolean): number {
+// The rotation that points the box's top at `point`; with `step` (Shift) in steps of 15°. In a turned
+// group (`turn`, its groups' rotations added up) the box and point are where they are drawn, the step
+// counts there, and the rotation is the element's own, the groups' turn taken off.
+export function rotationTowards(box: Box, point: Point, step: boolean, turn = 0): number {
   const cx = box.x + box.width / 2;
   const cy = box.y + box.height / 2;
   let degrees = (Math.atan2(point.y - cy, point.x - cx) * 180) / Math.PI + 90;
   if (step) degrees = Math.round(degrees / 15) * 15;
-  return round((((degrees + 180) % 360) + 360) % 360) - 180;
+  return round((((degrees - turn + 180) % 360) + 360) % 360) - 180;
 }
 
 export type SnapCandidates = { x: SnapCandidate[]; y: SnapCandidate[] };

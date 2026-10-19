@@ -169,6 +169,38 @@ export function intoGroups(groups: readonly Group[], point: { x: number; y: numb
   return at;
 }
 
+// A point in the frame of the given groups (outermost first) on the page: each turned group turns it
+// about its centre, innermost first; the reverse of `intoGroups`.
+export function outOfGroups(groups: readonly Group[], point: { x: number; y: number }) {
+  let at = point;
+  for (const group of [...groups].reverse()) {
+    if (group.rotation === 0) continue;
+    const centre = centreOf(boxOf(group));
+    const turned = turn({ x: at.x - centre.x, y: at.y - centre.y }, group.rotation);
+    at = { x: centre.x + turned.x, y: centre.y + turned.y };
+  }
+  return at;
+}
+
+// Where an element is drawn on the page (#324): its box about the centre its groups draw it at, and
+// its rotation with theirs added.
+export function placedBox(
+  elements: readonly SlideElement[],
+  element: SlideElement,
+): { box: Box; rotation: number } {
+  const groups = groupChain(elements, element.id);
+  const centre = outOfGroups(groups, centreOf(boxOf(element)));
+  return {
+    box: {
+      x: centre.x - element.width / 2,
+      y: centre.y - element.height / 2,
+      width: element.width,
+      height: element.height,
+    },
+    rotation: groups.reduce((sum, group) => sum + group.rotation, element.rotation),
+  };
+}
+
 // A step on the page in the frame of the given groups: turned back by each turned group.
 export function stepIntoGroups(groups: readonly Group[], step: { x: number; y: number }) {
   const origin = intoGroups(groups, { x: 0, y: 0 });

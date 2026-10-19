@@ -50,6 +50,8 @@ import {
   type LayerMove,
   moveEach,
   moveLayer,
+  outerBox,
+  placedBox,
   setBox,
   setRotation,
   stepIntoGroups,
@@ -139,7 +141,8 @@ type Drag =
       rotation: number;
       handle: Handle;
     }
-  | { kind: "rotate"; frame: Group[]; base: SlideDocument; id: string; box: Box };
+  // The box where it is drawn on the page and its groups' turn: the angle is measured on the screen.
+  | { kind: "rotate"; base: SlideDocument; id: string; box: Box; turn: number };
 
 const rectOf = (box: Box, zoom: number) =>
   new DOMRect(box.x * zoom, box.y * zoom, box.width * zoom, box.height * zoom);
@@ -541,7 +544,7 @@ function Editor({
         drag.base,
         page,
         drag.id,
-        rotationTowards(drag.box, intoGroups(drag.frame, point), event.shiftKey),
+        rotationTowards(drag.box, point, event.shiftKey, drag.turn),
       ),
     );
   };
@@ -569,6 +572,7 @@ function Editor({
     canvas.current?.focus();
     const box = boxOf(single);
     const frame = groupChain(elements, single.id);
+    const placed = placedBox(elements, single);
     setDrag(
       kind === "resize"
         ? {
@@ -581,7 +585,13 @@ function Editor({
             rotation: single.rotation,
             handle,
           }
-        : { kind, frame, base: history.document, id: single.id, box },
+        : {
+            kind,
+            base: history.document,
+            id: single.id,
+            box: placed.box,
+            turn: placed.rotation - single.rotation,
+          },
     );
   };
 
@@ -941,10 +951,13 @@ function Editor({
         }
       : undefined;
 
-  const target = (element: SlideElement | undefined): CanvasTarget | undefined =>
-    element === undefined
-      ? undefined
-      : { rect: rectOf(drawnBox(element), zoom), name: nameOf(element) };
+  // An element's frame where it is drawn, its groups' turn included (#324).
+  const target = (element: SlideElement | undefined): CanvasTarget | undefined => {
+    if (element === undefined) return undefined;
+    const placed = placedBox(elements, element);
+    return { rect: rectOf(outerBox(placed.box, placed.rotation), zoom), name: nameOf(element) };
+  };
+  const handlesBox = single === undefined ? undefined : placedBox(elements, single);
   const hoveredElement =
     hovered === undefined ? undefined : findElement(elements, hovered)?.element;
 
@@ -1159,15 +1172,20 @@ function Editor({
                 onSelectParent={selectParent}
               />
               {/* The handles above the floating actions, so none lies under them. */}
-              {single === undefined || single.locked || drag?.kind === "move" ? null : (
+              {/* Over the element where it is drawn, turned with its groups (#324). */}
+              {single === undefined ||
+              handlesBox === undefined ||
+              single.locked ||
+              drag?.kind === "move" ? null : (
                 <div
                   className="pointer-events-none absolute"
                   style={{
-                    left: single.x * zoom,
-                    top: single.y * zoom,
-                    width: single.width * zoom,
-                    height: single.height * zoom,
-                    transform: single.rotation === 0 ? undefined : `rotate(${single.rotation}deg)`,
+                    left: handlesBox.box.x * zoom,
+                    top: handlesBox.box.y * zoom,
+                    width: handlesBox.box.width * zoom,
+                    height: handlesBox.box.height * zoom,
+                    transform:
+                      handlesBox.rotation === 0 ? undefined : `rotate(${handlesBox.rotation}deg)`,
                   }}
                   data-testid="slide-editor-handles"
                 >

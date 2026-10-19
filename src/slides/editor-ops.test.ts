@@ -12,6 +12,8 @@ import {
   groupChain,
   groupElements,
   intoGroups,
+  outOfGroups,
+  placedBox,
   moveBy,
   moveEach,
   moveLayer,
@@ -147,6 +149,47 @@ describe("slide editor geometry", () => {
     const base = { x: 0, y: 0, width: 100, height: 100 };
     expect(rotationTowards(base, { x: 150, y: 50 }, false)).toBe(90);
     expect(rotationTowards(base, { x: 150, y: 60 }, true)).toBe(90);
+    // #324: in groups turned 37° in all, the angle is measured and stepped on the screen, and the
+    // element's own rotation is what remains: 90° on the screen is 53° of its own; 45° (the step
+    // nearest to 50° on the screen) is 8°.
+    expect(rotationTowards(base, { x: 150, y: 50 }, false, 37)).toBe(53);
+    const fifty = {
+      x: 50 + 100 * Math.sin((50 * Math.PI) / 180),
+      y: 50 - 100 * Math.cos((50 * Math.PI) / 180),
+    };
+    expect(rotationTowards(base, fifty, true, 37)).toBe(8);
+  });
+
+  // #324: where a child of nested turned groups is drawn: the reverse of `intoGroups`, its centre
+  // turned out of each group, and its rotation with the groups' added.
+  it("places a child of nested turned groups where it is drawn", () => {
+    const three = doc([shape("a", 0, 0), shape("b", 300, 0), shape("c", 0, 400)]);
+    const { document: once, id: innerId } = groupElements(three, 0, ["a", "b"]);
+    const { document: twice, id: outerId } = groupElements(once, 0, [innerId!, "c"]);
+    let turned = setRotation(twice, 0, innerId!, 90);
+    turned = setRotation(turned, 0, outerId!, 37);
+    const elements = turned.pages[0]!.elements;
+    const groups = groupChain(elements, "a");
+    expect(groups).toHaveLength(2);
+    for (const point of [
+      { x: 10, y: 20 },
+      { x: 500, y: -40 },
+    ]) {
+      const back = intoGroups(groups, outOfGroups(groups, point));
+      expect(back.x).toBeCloseTo(point.x, 9);
+      expect(back.y).toBeCloseTo(point.y, 9);
+    }
+    const a = findElement(elements, "a")!.element;
+    const placed = placedBox(elements, a);
+    expect(placed.rotation).toBe(127);
+    expect(placed.box.width).toBe(a.width);
+    // Its centre, taken back into the groups' frame, is the child's own centre.
+    const centre = intoGroups(groups, {
+      x: placed.box.x + placed.box.width / 2,
+      y: placed.box.y + placed.box.height / 2,
+    });
+    expect(centre.x).toBeCloseTo(a.x + a.width / 2, 9);
+    expect(centre.y).toBeCloseTo(a.y + a.height / 2, 9);
   });
 
   it("snaps to the nearest, an element before the grid at a tie, a hidden grid never", () => {

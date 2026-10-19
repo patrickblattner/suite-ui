@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.137.13 — #324, SUI-FEATURE-161, GL-UI-040: a child of a turned group is framed and handled where it is drawn
+
+Fix, not breaking.
+
+- **Frame, name badge, handles and turn handle lie over the child as it is drawn**: for a child of a turned group (nested turned groups included) `SlideEditor` places them with the groups' turn: the frame around the child's drawn box, the handles on its turned box. Before, they stood on the child's unturned box, so the visible east handle dragged sideways did nothing and a small move of the turn handle jumped (e.g. to −109°).
+- **Every resize handle and the turn handle follow the pointer on the screen**, at a quarter turn and at an odd angle; the turn is measured where the child is drawn and its own rotation is what remains after the groups' turn.
+- **Shift turns in steps of 15° on the screen**: the child's own angle plus its groups' turn is a multiple of 15°.
+- New in `slides/editor-ops`: `outOfGroups` (the reverse of `intoGroups`) and `placedBox`; `rotationTowards` takes the groups' turn as an optional fourth argument.
+
+**Migration:** none. Baselines: none.
+
 ## 0.137.12 — #323, SUI-FEATURE-161: the slide editor's turned-group behaviour is pinned by tests
 
 Not breaking. Tests only, the package is unchanged.
