@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.144.0 — #344, SUI-FEATURE-006 rev 4, SUI-FEATURE-120 rev 7: the inline link's hit area, `aria-disabled` locks in `Button`
+
+New, not breaking.
+
+- **An inline link hits on 24 px** (`SUI-FEATURE-006` rev 4): `size="inline"` adds `py-0.5 -my-0.5`, so a text link in a table row or a path has a hit area of at least 24 px (`GL-UI-013`) while its layout height stays the line of text's; it still sets no `h-*` and no `px-*`, and exists only with `variant="link"`. The gallery measures it in a table row and in a path.
+- **`aria-disabled="true"` locks the `Button` itself** (`SUI-FEATURE-120` rev 7): without `busy`, a click, `Enter`, `Space`, the submit of a surrounding form and a press (`mousedown`, no focus change) trigger nothing; the button shows the disabled look (dimmed, `cursor-not-allowed`) and stays focusable. The dimming is in colour — the fill half-tone, the label mixed with the background, as the package's locked Save and Reset already were — not element opacity, which would dim the focus ring below 3:1 (WCAG 1.4.11); a locked look passed in `className` wins. Apps that use the package `Button` directly (`GL-UI-004`) need no lock of their own.
+
+**Migration:** apps that check `disabled` on a running button or on a Save button locked after a save check `aria-disabled="true"` instead — such buttons are no longer `disabled` and keep the focus (`SUI-FEATURE-120`). An app's own lock around a `Button` with `aria-disabled="true"` can go, and so does its own dimming of it: an `aria-disabled:opacity-*` class on a `Button` stacks element opacity on the package's colour look, dims it twice and the focus ring below 3:1 (`SUI-FEATURE-120` rev 7) — remove it. The package's `SlidePlayer` drops its own for the same reason. Apps that rebuilt the inline hit area (`py-0.5 -my-0.5`) drop it once they pin this tag.
+
 ## 0.143.1 — #366, SUI-FEATURE-161: no empty undo step after a value taken back
 
 Fix, not breaking.

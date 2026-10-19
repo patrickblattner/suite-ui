@@ -1157,6 +1157,26 @@ test("busy button with a leading icon keeps one icon, its text and its width", a
   expect((await box(busy)).width).toBeCloseTo((await box(idle)).width, 0);
 });
 
+// `SUI-FEATURE-006` rev 4: an inline link in a table row and in a path hits on at least 24 px
+// (`GL-UI-013`), while the row and the path keep the height they have without the hit area's padding.
+for (const [where, container] of [
+  ["table row", "button-inline-table"],
+  ["path", "button-inline-path"],
+] as const) {
+  test(`inline link in a ${where}: 24 px hit area, the height of its container unchanged`, async ({
+    page,
+  }) => {
+    await page.goto("/?page=components");
+    const frame = page.getByTestId(container);
+    const link = frame.locator("[data-slot=button][data-size=inline]").first();
+    expect((await box(link)).height).toBeGreaterThanOrEqual(24);
+    const height = (await box(frame)).height;
+    await link.evaluate((element) => element.classList.remove("py-0.5", "-my-0.5"));
+    expect((await box(link)).height).toBeLessThan(24);
+    expect((await box(frame)).height).toBe(height);
+  });
+}
+
 // `SUI-FEATURE-050`/`GL-UI-033`: an operation shows in the head's status slot; the head keeps its
 // height and the first field below moves by 0 px.
 test("status slot: start and end move nothing below the head", async ({ page }) => {
@@ -8794,13 +8814,15 @@ test("slide player: prefers-reduced-motion keeps the fade, drops the movement", 
   await expect(
     player.locator("[data-slot=slide-view][data-slide-ready=true]").first(),
   ).toBeAttached();
-  // Each step's animation, with the property names its keyframes change.
+  // Each step's animation, with the property names its keyframes change. A transition (the locked
+  // chevron's colour, #344) has no animation name.
   const playing = () =>
     page.evaluate(() =>
       document
         .getAnimations()
+        .filter((animation) => animation instanceof CSSAnimation)
         .map((animation) => ({
-          name: (animation as CSSAnimation).animationName,
+          name: animation.animationName,
           keys: (animation.effect as KeyframeEffect)
             .getKeyframes()
             .flatMap((frame) => Object.keys(frame)),

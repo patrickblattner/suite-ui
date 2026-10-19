@@ -371,7 +371,6 @@ export function SlidePlayer({
           aria-label={t("slides.previous")}
           // Locked but focusable, so the focus never falls to the page at the start or the end.
           aria-disabled={atStart}
-          className="aria-disabled:opacity-50"
           onClick={() => {
             if (!atStart) previous();
           }}
@@ -393,7 +392,6 @@ export function SlidePlayer({
           size="icon"
           aria-label={t("slides.next")}
           aria-disabled={atEnd}
-          className="aria-disabled:opacity-50"
           onClick={() => {
             if (!atEnd) next();
           }}

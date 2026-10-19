@@ -43,7 +43,7 @@ function Action({ prop, onRun }: { prop: "busy" | "loading"; onRun: () => void }
 }
 
 describe("Button", () => {
-  it("inline: a text link takes no height and no padding from its size", () => {
+  it("inline: a text link takes no height and no side padding from its size, 2 px to grow its hit area", () => {
     render(
       <Button variant="link" size="inline">
         <PlusIcon />
@@ -54,7 +54,8 @@ describe("Button", () => {
     expect(button).toHaveAttribute("data-size", "inline");
     const classes = button.className.split(/\s+/);
     expect(classes.filter((c) => /^(h|size|min-h)-/.test(c))).toEqual([]);
-    expect(classes.filter((c) => /^(has-\[>svg\]:)?p[xytrbl]?-/.test(c))).toEqual([]);
+    expect(classes.filter((c) => /^(has-\[>svg\]:)?(p|p[xlr]|ps|pe)-/.test(c))).toEqual([]);
+    expect(classes).toEqual(expect.arrayContaining(["py-0.5", "-my-0.5"]));
     expect(classes).toContain("gap-1.5");
     expect(classes).toContain("text-sm");
     expect(classes).toContain("focus-visible:focus-ring");
@@ -123,6 +124,123 @@ describe("Button", () => {
     button.click();
     fireEvent.click(button, { detail: 0 });
     expect(submitted).not.toHaveBeenCalled();
+  });
+
+  // SUI-FEATURE-120 AC4: an app's own `aria-disabled="true"` locks the button without `busy`. A
+  // browser activates a button on Enter and Space by a click of detail 0, a pointer by detail 1.
+  it("aria-disabled: locks click, Enter, Space, the form's submit and the press, keeps the focus", () => {
+    const onClick = vi.fn();
+    const onSubmit = vi.fn((event: { preventDefault: () => void }) => event.preventDefault());
+    render(
+      <form onSubmit={onSubmit}>
+        <input aria-label="Name" />
+        <Button
+          type="submit"
+          variant="success"
+          size="default"
+          aria-disabled="true"
+          onClick={onClick}
+        >
+          Save
+        </Button>
+      </form>,
+    );
+    const button = screen.getByRole("button", { name: "Save" });
+    button.focus();
+    expect(button).toBeEnabled();
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(button).not.toHaveAttribute("aria-busy");
+    // A press keeps the focus where it is.
+    expect(fireEvent.mouseDown(button)).toBe(false);
+    fireEvent.click(button, { detail: 1 });
+    fireEvent.click(button, { detail: 0 });
+    fireEvent.click(button, { detail: 0 });
+    button.click();
+    expect(onClick).not.toHaveBeenCalled();
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(button).toHaveFocus();
+  });
+
+  it("aria-disabled: the locked look of a disabled button in colour, without the working state", () => {
+    render(
+      <Button variant="success" size="default" aria-disabled>
+        Save
+      </Button>,
+    );
+    const button = screen.getByRole("button", { name: "Save" });
+    expect(button).toHaveClass(
+      "aria-disabled:cursor-not-allowed",
+      "aria-disabled:bg-success/50",
+      "aria-disabled:hover:bg-success/50",
+    );
+    // Element opacity would dim the focus ring of the focusable button (WCAG 1.4.11).
+    expect(button.className).not.toMatch(/aria-disabled:opacity/);
+    expect(button).not.toHaveClass("aria-busy:cursor-progress");
+    expect(button.querySelector("[data-slot=busy]")).toBeNull();
+  });
+
+  it("aria-disabled: a look in className wins over the default one", () => {
+    render(
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-disabled
+        aria-label="Next"
+        className="aria-disabled:text-foreground/50"
+      >
+        <PlusIcon />
+      </Button>,
+    );
+    const button = screen.getByRole("button", { name: "Next" });
+    expect(button).toHaveClass("aria-disabled:text-foreground/50");
+    expect(button.className).not.toContain("aria-disabled:text-[color-mix");
+  });
+
+  it("aria-disabled: a hint that names the button still opens on it, unlike while it runs", () => {
+    const { rerender } = render(
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-label="Next"
+        aria-disabled
+        data-slot="tooltip-trigger"
+      >
+        <PlusIcon />
+      </Button>,
+    );
+    const button = screen.getByRole("button", { name: "Next" });
+    expect(fireEvent.pointerMove(button)).toBe(true);
+    rerender(
+      <Button variant="ghost" size="icon" aria-label="Next" busy data-slot="tooltip-trigger">
+        <PlusIcon />
+      </Button>,
+    );
+    expect(fireEvent.pointerMove(button)).toBe(false);
+  });
+
+  it("aria-disabled with disabled: the disabled look alone, never dimmed twice", () => {
+    render(
+      <Button variant="success" size="default" aria-disabled disabled>
+        Save
+      </Button>,
+    );
+    const button = screen.getByRole("button", { name: "Save" });
+    expect(button.className).not.toContain("aria-disabled:bg-success/50");
+    expect(button).toHaveClass("disabled:opacity-50");
+  });
+
+  it('aria-disabled="false" locks nothing', () => {
+    const onClick = vi.fn();
+    render(
+      <Button variant="success" size="default" aria-disabled="false" onClick={onClick}>
+        Save
+      </Button>,
+    );
+    const button = screen.getByRole("button", { name: "Save" });
+    expect(fireEvent.mouseDown(button)).toBe(true);
+    fireEvent.click(button, { detail: 1 });
+    expect(onClick).toHaveBeenCalledTimes(1);
+    expect(button).not.toHaveClass("aria-disabled:bg-success/50");
   });
 
   it("busy ends: the button is usable again and still has the focus", () => {

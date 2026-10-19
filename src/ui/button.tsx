@@ -37,8 +37,10 @@ const buttonVariants = cva(
         "icon-sm": "size-8",
         "icon-lg": "size-10",
         // A text link in a table row, a path or running text (`SUI-FEATURE-006`): no height and no
-        // padding of its own, so the line of text sets its height; only the icon gap of `sm`.
-        inline: "gap-1.5",
+        // side padding of its own, so the line of text sets its height; only the icon gap of `sm`.
+        // The 2 px above and below grow the hit area to 24 px (`GL-UI-013`), the negative margin
+        // takes them back out of the layout.
+        inline: "gap-1.5 py-0.5 -my-0.5",
       },
     },
   },
@@ -73,6 +75,27 @@ const LOCKED_HOVER: Record<ButtonVariant, string> = {
   link: "aria-disabled:hover:no-underline",
 };
 
+// The look of a button locked with `aria-disabled` and no run, as the disabled button's element opacity
+// composited it, but in colour: element opacity would dim the focus ring of the still focusable button
+// below 3:1 (WCAG 1.4.11, #184). The fill half-tone, the label mixed with the background, no hover
+// tint. A look the call site passes in `className` wins.
+const LOCKED_LOOK: Record<ButtonVariant, string> = {
+  default:
+    "aria-disabled:cursor-not-allowed aria-disabled:bg-primary/50 aria-disabled:hover:bg-primary/50 aria-disabled:text-[color-mix(in_srgb,var(--primary-foreground)_50%,var(--background))]",
+  destructive:
+    "aria-disabled:cursor-not-allowed aria-disabled:bg-destructive/50 aria-disabled:hover:bg-destructive/50 aria-disabled:text-[color-mix(in_srgb,var(--destructive-foreground)_50%,var(--background))]",
+  success:
+    "aria-disabled:cursor-not-allowed aria-disabled:bg-success/50 aria-disabled:hover:bg-success/50 aria-disabled:text-[color-mix(in_srgb,var(--success-foreground)_50%,var(--background))]",
+  warn: "aria-disabled:cursor-not-allowed aria-disabled:bg-warn/50 aria-disabled:hover:bg-warn/50 aria-disabled:text-[color-mix(in_srgb,var(--warn-foreground)_50%,var(--background))]",
+  outline:
+    "aria-disabled:cursor-not-allowed aria-disabled:text-[color-mix(in_srgb,var(--foreground)_50%,var(--background))] aria-disabled:hover:text-[color-mix(in_srgb,var(--foreground)_50%,var(--background))] aria-disabled:hover:border-border aria-disabled:hover:bg-background dark:aria-disabled:hover:border-input dark:aria-disabled:hover:bg-input/30",
+  secondary:
+    "aria-disabled:cursor-not-allowed aria-disabled:bg-secondary/50 aria-disabled:hover:bg-secondary/50 aria-disabled:text-[color-mix(in_srgb,var(--secondary-foreground)_50%,var(--background))]",
+  ghost:
+    "aria-disabled:cursor-not-allowed aria-disabled:text-[color-mix(in_srgb,var(--foreground)_50%,var(--background))] aria-disabled:hover:bg-transparent aria-disabled:hover:text-[color-mix(in_srgb,var(--foreground)_50%,var(--background))] dark:aria-disabled:hover:bg-transparent dark:aria-disabled:hover:text-[color-mix(in_srgb,var(--foreground)_50%,var(--background))]",
+  link: "aria-disabled:cursor-not-allowed aria-disabled:text-[color-mix(in_srgb,var(--primary)_50%,var(--background))] aria-disabled:hover:no-underline",
+};
+
 /**
  * A running button stays focusable (`GL-UI-050`, `SUI-FEATURE-120`): `busy` locks it with
  * `aria-disabled`, never the `disabled` attribute, which would drop the focus to `<body>` for the run.
@@ -84,6 +107,12 @@ const LOCKED_HOVER: Record<ButtonVariant, string> = {
  * progress cursor. A hint behaves as before: a tooltip whose trigger is the button itself stays closed
  * while it runs; a wrapping trigger (the span of `Hint` with `disabledText`, `IconButtonTooltip`) opens
  * on hover as before; focus opens none.
+ *
+ * An app's own `aria-disabled="true"` locks the button the same way without the working state
+ * (`SUI-FEATURE-120`): no activation, a press keeps the focus where it is, and the look is the
+ * disabled one in colour (dimmed, `cursor-not-allowed`, `LOCKED_LOOK`), while the button stays
+ * focusable. A hint that names the button opens as on a usable one. Together with `disabled` the
+ * disabled look alone applies, never both.
  */
 // The rendered lock alone does not hold against a real double-click: the second click of a burst is
 // dispatched before React renders the first one's busy state. A button that declares `busy` therefore
@@ -104,8 +133,9 @@ function Button(props: ButtonProps) {
   } = props;
   const guardsRepeatClick = "busy" in props;
   const Comp = asChild ? Slot.Root : "button";
+  const ariaDisabled = rest["aria-disabled"] === true || rest["aria-disabled"] === "true";
   // `asChild` hands its single child to Slot, so the working state does not apply in that shape.
-  const locked = busy && !asChild;
+  const locked = (busy || ariaDisabled) && !asChild;
   const working = (busy || loading) && !asChild;
 
   return (
@@ -118,12 +148,13 @@ function Button(props: ButtonProps) {
       {...(locked ? { "aria-disabled": true } : {})}
       className={cn(
         buttonVariants({ variant, size }),
+        locked && !busy && disabled !== true && LOCKED_LOOK[variant],
         className,
         working && "[&_svg:not([data-slot=busy])]:hidden",
         // "Runs" and "does not work" never share a look: should a running button also be `disabled`,
         // the same utility key as the base class's dimming lets tailwind-merge drop it, so the busy
         // button keeps its full colour.
-        locked && ["aria-busy:cursor-progress disabled:opacity-100", LOCKED_HOVER[variant]],
+        locked && busy && ["aria-busy:cursor-progress disabled:opacity-100", LOCKED_HOVER[variant]],
       )}
       onClick={(event: React.MouseEvent<HTMLButtonElement>) => {
         if (locked) {
@@ -143,15 +174,20 @@ function Button(props: ButtonProps) {
       onPointerMove={(event: React.PointerEvent<HTMLButtonElement>) => {
         // The button as a tooltip trigger of its own (`TooltipTrigger asChild` hands it its
         // `data-slot`): its hint stays closed while it runs, as the disabled button took no pointer
-        // events. A wrapping trigger and any other trigger (a menu's) still see the move.
-        if (locked && (rest as { "data-slot"?: unknown })["data-slot"] === "tooltip-trigger") {
+        // events. A wrapping trigger and any other trigger (a menu's) still see the move. A lock
+        // without a run keeps the hint that names the button.
+        if (
+          locked &&
+          busy &&
+          (rest as { "data-slot"?: unknown })["data-slot"] === "tooltip-trigger"
+        ) {
           event.preventDefault();
         }
         rest.onPointerMove?.(event);
       }}
       onFocus={(event: React.FocusEvent<HTMLButtonElement>) => {
         // The disabled button took no focus, so focus opens no hint while it runs.
-        if (locked) event.preventDefault();
+        if (locked && busy) event.preventDefault();
         rest.onFocus?.(event);
       }}
     >
