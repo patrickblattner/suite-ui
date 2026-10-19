@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.137.8 — #326, SUI-FEATURE-190 (Codex review v0.137.7 CX1): a selection across levels moves each element in its own frame
+
+Fix, not breaking.
+
+- **A selection across levels nudges and drags each element in its own frame** (Codex CX1): with a child of a turned group and a page-level element selected together (Shift-click), the arrow keys and a drag measured the step only in the first element's groups, so the other element moved the wrong way. The editor now turns the step into each element's own groups, applies all moves together and refits the groups once. Such a selection does not snap while any of its elements stands in a turned group (open architect question 4080).
+
+**Migration:** none. Baselines: none.
+
 ## 0.137.7 — #317, SUI-FEATURE-161, GL-UI-007 (Codex review v0.137.0 CX1–CX3): the slide editor saves only on `true`, resizes groups without invalid children, and drags and nudges in a turned group's frame
 
 Fix, not breaking.
