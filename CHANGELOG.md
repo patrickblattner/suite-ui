@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.137.6 — #305, #309, SUI-FEATURE-180, SUI-FEATURE-160 (Codex review v0.136.0 CX1–CX3, ux recheck #292): notices never off the canvas, a clicked bar button lets the bar hide, and three view fixes
+
+Fix with a behaviour change: text in a weight or style the app supplies no font file for is now reported as a missing font (`missingFonts`, named "Family 700"), and an export stops on it; before, it was drawn silently with a synthesized cut.
+
+- **A text notice with no room beside its text goes into the strip below the page.** When the box of a text that does not fit leaves no room above it and none to its right or left (a wide text at the page's top), `SlideView` names it in the strip of page notices below the page instead of placing it mostly off the canvas (`SUI-FEATURE-180`).
+- **A mouse click on a bar button of `SlidePlayer` takes no focus**, so the bar hides again after a few seconds as on any other input; keyboard focus on a bar button still holds it, and the keys stay with the player.
+- **A deck whose pages are all hidden shows none of them** (Codex CX1): the player draws no page and counts "0 / 0"; before, it drew the first hidden page.
+- **A font file that failed counts as a missing face even when another face of the family loaded** (Codex CX2): the view checks each face a text needs (family, weight, style) against the files that loaded (a variable font's weight range included) and names a missing one as "Family 700" or "Family 400 italic"; a family with no file at all is named as before.
+- **`scale="fit"` recovers when an invalid document becomes valid** (Codex CX3): the view measures its box as soon as its root appears, not only when `scale` changes.
+
+**Migration:** none for the API. A document whose text uses a weight or style with no supplied file now reports that face in `missingFonts` (and the export stops on it) where it was silently drawn with a synthesized cut before: supply the file for every weight and style the brand set uses. Baselines: 10 `slides-*.png` (the new wide-text case: de, en, es in light and dark, de also at 1440 and 390 px).
+
 ## 0.137.5 — #316, SUI-FEATURE-161 rev 5, GL-UI-040: the canvas name badge stands out on any page
 
 Fix, not breaking.

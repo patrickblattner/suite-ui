@@ -201,3 +201,22 @@ describe("SlidePlayer steps and hint", () => {
     elsewhere.remove();
   });
 });
+
+// Codex #309 CX1: a deck whose pages are all hidden shows none of them.
+describe("SlidePlayer with every page hidden", () => {
+  it("draws no page and counts 0 / 0", () => {
+    const hidden = {
+      ...SLIDE_DECK,
+      pages: SLIDE_DECK.pages.map((page) => ({ ...page, hidden: true })),
+    } as SlideViewProps["document"];
+    render(<SlidePlayer document={hidden} brand={SLIDE_BRAND} data-testid="player" />);
+    const player = screen.getByTestId("player");
+    expect(player.querySelector("[data-slot=slide-view]")).toBeNull();
+    expect(screen.queryByText("First slide")).toBeNull();
+    expect(screen.getByTestId("slide-player-counter")).toHaveTextContent("0 / 0");
+    expect(screen.getByRole("button", { name: "Next slide" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+  });
+});

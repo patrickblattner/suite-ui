@@ -277,15 +277,18 @@ export function SlidePlayer({
           }
         }}
       >
-        <SlideView
-          {...view}
-          document={source}
-          page={shown[index] ?? 0}
-          animationStep={position.step}
-          scale="fit"
-          notices={false}
-          onReport={(next) => onPageReport(shown[index] ?? 0, next)}
-        />
+        {/* A deck whose pages are all hidden shows none of them; an invalid one says so. */}
+        {parsed.ok && shown[index] === undefined ? null : (
+          <SlideView
+            {...view}
+            document={source}
+            page={shown[index] ?? 0}
+            animationStep={position.step}
+            scale="fit"
+            notices={false}
+            onReport={(next) => onPageReport(shown[index] ?? 0, next)}
+          />
+        )}
       </div>
       {hint === null ? null : (
         <div
@@ -315,8 +318,9 @@ export function SlidePlayer({
             !shownRef.current || performance.now() - shownSince.current < REVEAL_MS;
         }}
         onMouseDownCapture={(event) => {
-          // Nor does it take the focus, which would hold it in view.
-          if (pressedHidden.current) event.preventDefault();
+          // A press takes no focus (the keys stay with the player): only keyboard focus holds the
+          // bar in view, so a mouse click on a button lets it hide as usual (#305).
+          event.preventDefault();
         }}
         onClickCapture={(event) => {
           // A pointer click (a keyboard one has no `detail`) on the bar while it was hidden only
@@ -363,7 +367,10 @@ export function SlidePlayer({
           className="min-w-12 px-1 text-center text-sm tabular-nums"
           data-testid="slide-player-counter"
         >
-          {t("slides.counter", { current: index + 1, total: shown.length })}
+          {t("slides.counter", {
+            current: shown.length === 0 ? 0 : index + 1,
+            total: shown.length,
+          })}
         </span>
         <Button
           variant="ghost"

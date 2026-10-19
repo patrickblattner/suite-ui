@@ -9036,3 +9036,41 @@ test("slide editor: an invalid document keeps Back and names the error", async (
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("slide-editor-app")).toHaveText("Saved: nothing · Back: 2");
 });
+
+// #305 AC1: a wide text at the page's top has no room above or beside it: its notice goes into the
+// strip below the page, never off the canvas.
+test("slide view: a notice with no room beside its text goes into the strip below the page", async ({
+  page,
+}) => {
+  await page.goto("/?page=slides&lng=en");
+  const view = page.getByTestId("slide-fit-wide");
+  await expect(view).toHaveAttribute("data-slide-overflowing", "wide text");
+  const strip = view.locator("[data-slot=slide-notice]:not([data-slide-notice-for])");
+  await expect(strip.locator("[data-slide-notice-for=wide-text]")).toHaveText(
+    "Text doesn’t fit its box: wide text",
+  );
+  const notice = (await strip.boundingBox())!;
+  const drawn = (await view.locator("[data-slot=slide-page]").boundingBox())!;
+  const area = (await page.getByTestId("slide-fit-wide-area").boundingBox())!;
+  expect(notice.y).toBeGreaterThanOrEqual(drawn.y + drawn.height - 0.5);
+  expect(notice.x).toBeGreaterThanOrEqual(area.x - 0.5);
+  expect(notice.x + notice.width).toBeLessThanOrEqual(area.x + area.width + 0.5);
+});
+
+// #305 AC2: a mouse click on a bar button takes no focus, so the bar hides again as usual; the keys
+// stay with the player.
+test("slide player: a mouse click on a bar button lets the bar hide again", async ({ page }) => {
+  await page.goto("/?page=slide-player&lng=en");
+  const player = page.getByTestId("slide-player");
+  const bar = player.locator("[data-slot=slide-player-bar]");
+  await expect(player).toBeFocused();
+  await page.mouse.move(400, 300);
+  await page.waitForTimeout(500);
+  await player.getByRole("button", { name: "Next slide" }).click();
+  await expect(player).toHaveAttribute("data-slide-step", "1");
+  await expect(player).toBeFocused();
+  await page.mouse.move(10, 10);
+  await expect(bar).toHaveAttribute("data-shown", "false", { timeout: 6000 });
+  await page.keyboard.press("ArrowRight");
+  await expect(player).toHaveAttribute("data-slide-step", "2");
+});

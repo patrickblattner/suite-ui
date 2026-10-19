@@ -75,35 +75,76 @@ function loadFont(file: SlideFontFile, origins: readonly string[]): Promise<bool
   return load;
 }
 
-// Loads `files` and tells which of the `needed` families have none that loaded; a file from an origin
-// that is neither the page's, `blob:` nor one of `origins` does not load. Not `ready` until every file
+// A face a text needs: its family, weight (100–900) and style.
+export interface SlideFontNeed {
+  family: string;
+  weight: number;
+  style: "normal" | "italic";
+}
+
+// The weights a file covers: one, or a range for a variable font ("100 900").
+function weightsOf(weight: SlideFontFile["weight"]): [number, number] {
+  if (weight === undefined || weight === "normal") return [400, 400];
+  if (weight === "bold") return [700, 700];
+  const [low, high = low] = String(weight).trim().split(/\s+/).map(Number);
+  return Number.isFinite(low) && Number.isFinite(high) ? [low!, high!] : [400, 400];
+}
+
+type LoadedFace = { family: string; weights: [number, number]; style: string };
+
+// The name a missing face gets: its family when no file of it loaded at all, else family, weight and
+// style (a bold or italic file that failed while the regular one loaded is still missing, never a
+// silent synthesized cut).
+function missingName(need: SlideFontNeed, faces: readonly LoadedFace[]): string | undefined {
+  const family = need.family.toLowerCase();
+  const ofFamily = faces.filter((face) => face.family === family);
+  if (ofFamily.length === 0) return need.family;
+  const covered = ofFamily.some(
+    (face) =>
+      face.style === need.style && face.weights[0] <= need.weight && need.weight <= face.weights[1],
+  );
+  if (covered) return undefined;
+  return `${need.family} ${need.weight}${need.style === "italic" ? " italic" : ""}`;
+}
+
+// Loads `files` and tells which `needed` faces have no file that loaded; a file from an origin that
+// is neither the page's, `blob:` nor one of `origins` does not load. Not `ready` until every file
 // has settled.
 export function useSlideFonts(
   files: readonly SlideFontFile[],
-  needed: readonly string[],
+  needed: readonly SlideFontNeed[],
   origins: readonly string[] = [],
 ): { ready: boolean; missing: string[] } {
   const key = JSON.stringify([files, origins]);
-  const [loaded, setLoaded] = React.useState<{ key: string; families: Set<string> } | null>(null);
+  const [loaded, setLoaded] = React.useState<{ key: string; faces: LoadedFace[] } | null>(null);
   React.useEffect(() => {
     let live = true;
     const [list, allowed] = JSON.parse(key) as [SlideFontFile[], string[]];
     void Promise.all(
       list.map((file) =>
-        loadFont(file, allowed).then((ok) => (ok ? file.family.toLowerCase() : null)),
+        loadFont(file, allowed).then((ok): LoadedFace | null =>
+          ok
+            ? {
+                family: file.family.toLowerCase(),
+                weights: weightsOf(file.weight),
+                style: file.style ?? "normal",
+              }
+            : null,
+        ),
       ),
-    ).then((families) => {
-      if (live) setLoaded({ key, families: new Set(families.filter((name) => name !== null)) });
+    ).then((faces) => {
+      if (live) setLoaded({ key, faces: faces.filter((face) => face !== null) });
     });
     return () => {
       live = false;
     };
   }, [key]);
   if (loaded?.key !== key) return { ready: false, missing: [] };
-  return {
-    ready: true,
-    missing: needed.filter((name) => !loaded.families.has(name.toLowerCase())),
-  };
+  const missing = needed.flatMap((need) => {
+    const name = missingName(need, loaded.faces);
+    return name === undefined ? [] : [name];
+  });
+  return { ready: true, missing: [...new Set(missing)] };
 }
 
 const iconLoads = new Map<string, Promise<LucideIcon | undefined>>();

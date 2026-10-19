@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -144,7 +144,11 @@ describe("SlideView", () => {
 
   // SUI-FEATURE-160 rev 4 AC3: an origin the app passes counts as its own; any other does not.
   it("takes a font from an origin the app passes, and only from that one", async () => {
-    const fonts = [{ family: "Gallery Slide Sans", src: "https://media.example/inter.woff2" }];
+    const fonts = [400, 700].map((weight) => ({
+      family: "Gallery Slide Sans",
+      src: `https://media.example/inter-${weight}.woff2`,
+      weight,
+    }));
     const passed = await drawn({ fonts, fontOrigins: ["https://media.example"] });
     expect(passed.report().missingFonts).toEqual([]);
     cleanup();
@@ -419,5 +423,64 @@ describe("slide render rules", () => {
     });
     expect(animationState(exiting, 2, orders)).toEqual({ kind: "hidden" });
     expect(animationState(exiting, undefined, orders)).toEqual({ kind: "hidden" });
+  });
+});
+
+// Codex #309 CX2 and CX3.
+describe("SlideView fonts by face, and fit after a fix", () => {
+  it("names a bold face whose file failed while the regular one loaded", async () => {
+    const fonts = [
+      { family: "Gallery Slide Sans", src: "/inter-400.woff2", weight: 400 },
+      {
+        family: "Gallery Slide Sans",
+        src: "https://elsewhere.example/inter-700.woff2",
+        weight: 700,
+      },
+    ];
+    const { report } = await drawn({ fonts });
+    expect(report().missingFonts).toEqual(["Gallery Slide Sans 700"]);
+    cleanup();
+    const variable = await drawn({
+      fonts: [{ family: "Gallery Slide Sans", src: "/inter-var.woff2", weight: "100 900" }],
+    });
+    expect(variable.report().missingFonts).toEqual([]);
+  });
+
+  it("fits a document that was invalid once it is valid", async () => {
+    const observed: Element[] = [];
+    let notify:
+      ((entries: { contentRect: { width: number; height: number } }[]) => void) | undefined;
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(callback: typeof notify) {
+          notify = callback;
+        }
+        observe(element: Element) {
+          observed.push(element);
+        }
+        disconnect() {}
+      },
+    );
+    const props = {
+      brand: SLIDE_BRAND,
+      fonts: SLIDE_FONTS,
+      scale: "fit" as const,
+      "data-testid": "fit",
+    };
+    const { rerender } = render(
+      <SlideView
+        {...props}
+        document={{ ...SLIDE_SHOWCASE, schemaVersion: 9 } as unknown as SlideViewProps["document"]}
+      />,
+    );
+    expect(observed).toHaveLength(0);
+    rerender(<SlideView {...props} document={SLIDE_SHOWCASE} />);
+    expect(observed).toHaveLength(1);
+    act(() => notify?.([{ contentRect: { width: 960, height: 540 } }]));
+    await waitFor(() =>
+      expect(screen.getByTestId("fit")).toHaveAttribute("data-slide-ready", "true"),
+    );
+    vi.unstubAllGlobals();
   });
 });

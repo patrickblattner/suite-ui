@@ -421,6 +421,26 @@ export const SLIDE_FIT_SHRINKS = textPage("shrinks", [{ text: words(28) }]);
 export const SLIDE_FIT_TOO_LONG = textPage("too-long", [{ text: words(90) }]);
 // The same at the page's top edge: no room above, so its notice stands beside it.
 export const SLIDE_FIT_AT_TOP = textPage("at-top", [{ text: words(90) }], heading, 20);
+// Nearly as wide as the page at its top edge: no room above or beside, so its notice goes into the
+// strip below the page (#305).
+export const SLIDE_FIT_WIDE = deck([
+  {
+    id: "wide",
+    background,
+    elements: [
+      {
+        id: "wide-text",
+        name: "wide text",
+        type: "text",
+        x: 40,
+        y: 10,
+        width: 1840,
+        height: 120,
+        runs: [{ text: words(200), size: 64, font: heading }],
+      },
+    ],
+  },
+]);
 
 // The editor's deck (`SUI-FEATURE-161`): a small format so 100 % fits the gallery, three shapes to
 // arrange, an app type, a group, a 40 px grid and a second page.

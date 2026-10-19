@@ -36,6 +36,7 @@ import {
 import {
   isSlideIcon,
   type SlideFontFile,
+  type SlideFontNeed,
   useSlideFonts,
   useSlideIcons,
 } from "./use-slide-assets.js";
@@ -889,16 +890,22 @@ function renderElement(
 
 // The fonts (files needed, brand keys missing) and icons the drawn elements ask for.
 function assetsOf(brand: SlideBrandSet, elements: readonly SlideElement[]) {
-  const files = new Set<string>();
+  const faces = new Map<string, SlideFontNeed>();
   const missing = new Set<string>();
   const icons = new Set<string>();
-  const font = (value: FontValue | undefined) => {
+  const font = (value: FontValue | undefined, weight = 400, italic = false) => {
     const resolved = cssFont(value ?? DEFAULT_FONT, brand);
-    if ("missing" in resolved) missing.add(resolved.missing);
-    else for (const name of resolved.files) files.add(name);
+    if ("missing" in resolved) {
+      missing.add(resolved.missing);
+      return;
+    }
+    for (const family of resolved.files) {
+      const need: SlideFontNeed = { family, weight, style: italic ? "italic" : "normal" };
+      faces.set(JSON.stringify(need), need);
+    }
   };
   const body = (runs: readonly TextRun[]) => {
-    for (const run of runs) font(run.font);
+    for (const run of runs) font(run.font, run.weight, run.italic);
   };
   eachElement(elements, (element) => {
     if (element.type === "text") body(element.runs);
@@ -907,7 +914,7 @@ function assetsOf(brand: SlideBrandSet, elements: readonly SlideElement[]) {
     if (element.type === "chart") font(undefined);
     if (element.type === "icon" && isSlideIcon(element.icon)) icons.add(element.icon);
   });
-  return { files: [...files], missing: [...missing], icons: [...icons] };
+  return { faces: [...faces.values()], missing: [...missing], icons: [...icons] };
 }
 
 // One page of a slide document, drawn in the DOM (`SUI-FEATURE-160`): every element absolutely in the
@@ -936,7 +943,7 @@ export function SlideView({
   const pageData = document?.pages[page];
   const lists = document === undefined ? [] : pageLists(document, page);
   const assets = assetsOf(brand, lists.flat());
-  const loadedFonts = useSlideFonts(fonts, assets.files, fontOrigins);
+  const loadedFonts = useSlideFonts(fonts, assets.faces, fontOrigins);
   const loadedIcons = useSlideIcons(assets.icons);
   const ready = loadedFonts.ready && loadedIcons.ready;
 
@@ -955,10 +962,12 @@ export function SlideView({
     setBroken((current) => (current.has(src) ? current : new Set([...current, src])));
   }, []);
 
-  const root = React.useRef<HTMLDivElement>(null);
+  // The root as state, so the observer attaches whenever the root appears (a document that was
+  // invalid and becomes valid renders it only then).
+  const [root, setRoot] = React.useState<HTMLDivElement | null>(null);
   const [box, setBox] = React.useState<{ width: number; height: number } | null>(null);
   React.useLayoutEffect(() => {
-    const element = root.current;
+    const element = root;
     if (scale !== "fit" || element === null || typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(([entry]) => {
       if (entry !== undefined) {
@@ -967,7 +976,7 @@ export function SlideView({
     });
     observer.observe(element);
     return () => observer.disconnect();
-  }, [scale]);
+  }, [scale, root]);
 
   // Ids of this render's SVG defs, counted in drawing order.
   const counter = { value: 0 };
@@ -1061,61 +1070,85 @@ export function SlideView({
   const { width, height } = document.format;
   // Missing fonts and brand colours are named in a strip below the page, never over it: the page
   // gives up the strip's height (`SUI-FEATURE-180`).
-  const shown = notices && (report.missingFonts.length > 0 || report.missingBrand.length > 0);
-  const strip = shown ? STRIP_HEIGHT : 0;
-  const factor =
-    scale === "fit"
-      ? box === null
-        ? 0
-        : Math.min(box.width / width, Math.max(0, box.height - strip) / height)
-      : scale;
-  const measured = scale !== "fit" || box !== null;
-  const pageLeft = scale === "fit" && box !== null ? (box.width - width * factor) / 2 : 0;
-  const pageTop = scale === "fit" && box !== null ? (box.height - strip - height * factor) / 2 : 0;
-  const viewWidth = scale === "fit" ? (box?.width ?? 0) : width * factor;
-  // A text that does not fit is named outside its box and outside where its text spills (down from
-  // the box, wrapped): above the box, else beside it, right or left, never over the text it names
-  // (`SUI-FEATURE-180`).
-  const besides = !notices
-    ? []
-    : [...overflow].flatMap((id) => {
-        const text = draw.texts.get(id);
-        if (text === undefined) return [];
-        const top = pageTop + text.y * factor;
-        const left = pageLeft + text.x * factor;
-        const right = pageLeft + (text.x + text.width) * factor;
-        let place: React.CSSProperties;
-        if (top - NOTICE_ROOM >= 0) {
-          place = { left: px(Math.max(4, left)), top: px(top - 4), transform: "translateY(-100%)" };
-        } else if (viewWidth - right - 8 >= NOTICE_WIDTH) {
-          place = {
+  // The page's place in the view, with or without the strip of notices below it.
+  const layoutWith = (strip: number) => {
+    const factor =
+      scale === "fit"
+        ? box === null
+          ? 0
+          : Math.min(box.width / width, Math.max(0, box.height - strip) / height)
+        : scale;
+    const pageLeft = scale === "fit" && box !== null ? (box.width - width * factor) / 2 : 0;
+    const pageTop =
+      scale === "fit" && box !== null ? (box.height - strip - height * factor) / 2 : 0;
+    const viewWidth = scale === "fit" ? (box?.width ?? 0) : width * factor;
+    // A text that does not fit is named outside its box and outside where its text spills (down from
+    // the box, wrapped): above the box, else beside it, right or left, never over the text it names
+    // (`SUI-FEATURE-180`); with no room for any of them, in the strip below the page (#305).
+    const placed: { id: string; name: string; place: React.CSSProperties }[] = [];
+    const unplaced: { id: string; name: string }[] = [];
+    for (const id of notices ? overflow : []) {
+      const text = draw.texts.get(id);
+      if (text === undefined) continue;
+      const top = pageTop + text.y * factor;
+      const left = pageLeft + text.x * factor;
+      const right = pageLeft + (text.x + text.width) * factor;
+      if (top - NOTICE_ROOM >= 0) {
+        placed.push({
+          id,
+          name: text.name,
+          place: { left: px(Math.max(4, left)), top: px(top - 4), transform: "translateY(-100%)" },
+        });
+      } else if (viewWidth - right - 8 >= NOTICE_WIDTH) {
+        placed.push({
+          id,
+          name: text.name,
+          place: {
             left: px(right + 4),
             top: px(Math.max(4, top)),
             maxWidth: px(viewWidth - right - 8),
-          };
-        } else {
-          place = {
+          },
+        });
+      } else if (left - 8 >= NOTICE_WIDTH) {
+        placed.push({
+          id,
+          name: text.name,
+          place: {
             right: px(viewWidth - left + 4),
             top: px(Math.max(4, top)),
-            maxWidth: px(Math.max(NOTICE_WIDTH, left - 8)),
-          };
-        }
-        return [
-          <div
-            key={id}
-            role="alert"
-            data-slot="slide-notice"
-            data-slide-notice-for={id}
-            className="absolute z-10 max-w-[calc(100%-1rem)] rounded-md bg-destructive px-2 py-0.5 text-xs text-destructive-foreground"
-            style={place}
-          >
-            {t("slides.overflowing", { names: text.name })}
-          </div>,
-        ];
-      });
+            maxWidth: px(left - 8),
+          },
+        });
+      } else {
+        unplaced.push({ id, name: text.name });
+      }
+    }
+    return { factor, pageLeft, pageTop, placed, unplaced };
+  };
+  // Missing fonts and brand colours, and a text notice with no room beside its box, are named in a
+  // strip below the page, never over it: the page gives up the strip's height (`SUI-FEATURE-180`).
+  const general = notices && (report.missingFonts.length > 0 || report.missingBrand.length > 0);
+  let layout = layoutWith(general ? STRIP_HEIGHT : 0);
+  if (!general && layout.unplaced.length > 0) layout = layoutWith(STRIP_HEIGHT);
+  const shown = general || layout.unplaced.length > 0;
+  const strip = shown ? STRIP_HEIGHT : 0;
+  const { factor, pageLeft, pageTop } = layout;
+  const measured = scale !== "fit" || box !== null;
+  const besides = layout.placed.map(({ id, name, place }) => (
+    <div
+      key={id}
+      role="alert"
+      data-slot="slide-notice"
+      data-slide-notice-for={id}
+      className="absolute z-10 max-w-[calc(100%-1rem)] rounded-md bg-destructive px-2 py-0.5 text-xs text-destructive-foreground"
+      style={place}
+    >
+      {t("slides.overflowing", { names: name })}
+    </div>
+  ));
   return (
     <div
-      ref={root}
+      ref={setRoot}
       data-slot="slide-view"
       data-testid={testId}
       data-slide-ready={ready && measured ? "true" : "false"}
@@ -1195,6 +1228,11 @@ export function SlideView({
           {report.missingBrand.length > 0 ? (
             <span>{t("slides.missingBrand", { keys: report.missingBrand.join(", ") })}</span>
           ) : null}
+          {layout.unplaced.map(({ id, name }) => (
+            <span key={id} data-slide-notice-for={id}>
+              {t("slides.overflowing", { names: name })}
+            </span>
+          ))}
         </div>
       ) : null}
       {besides}
