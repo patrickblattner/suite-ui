@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.137.4 — #320
+
+- chore: git-ignore .playwright-mcp/ #320
+
 ## 0.137.0 — #293, SUI-FEATURE-161 rev 5 (increment A), GL-UI-040, SUI-FEATURE-087: the slide editor — a free canvas with selection, transform, layers, arranging and the grid
 
 Feature, not breaking. Increment A of the slide editor (`SUI-FEATURE-161` ACs 1, 2, 3, 6); text, tables, the page sorter and masters/layouts follow in #308.
