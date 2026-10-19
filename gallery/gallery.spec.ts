@@ -7153,6 +7153,45 @@ test("canvas: badge moves left at the right edge, truncates when wider than the 
   expect(ellipsis).toBe(true);
 });
 
+// #316, `GL-UI-040`: the name badge stands out on a white and a black page in either theme — the
+// badge or its halo at least 3 : 1 against the ground — and its text reads at AA (4.5 : 1).
+for (const theme of THEMES) {
+  test(`canvas: the name badge stands out on a light and a dark page (${theme})`, async ({
+    page,
+  }) => {
+    await page.goto(`/?page=components&lng=en&theme=${theme}`);
+    const badge = page.getByTestId("canvas-edge-right").getByTestId("canvas-name");
+    const style = await badge.evaluate((el) => {
+      const { backgroundColor, color, boxShadow } = getComputedStyle(el);
+      const halo = /([a-z]+\([^)]*\)) 0px 0px 0px 1px/.exec(boxShadow)?.[1];
+      // contrastOf reads the channels without alpha: a translucent colour would pass as black.
+      const context = document.createElement("canvas").getContext("2d")!;
+      const alpha = (value: string) => {
+        context.clearRect(0, 0, 1, 1);
+        context.fillStyle = value;
+        context.fillRect(0, 0, 1, 1);
+        return context.getImageData(0, 0, 1, 1).data[3];
+      };
+      return {
+        backgroundColor,
+        color,
+        halo,
+        alpha: [backgroundColor, color, halo].map((value) => (value ? alpha(value) : 0)),
+      };
+    });
+    expect(style.halo).toBeDefined();
+    expect(style.alpha).toEqual([255, 255, 255]);
+    expect(await contrastOf(page, style.color, style.backgroundColor)).toBeGreaterThanOrEqual(4.5);
+    for (const ground of ["#ffffff", "#000000"]) {
+      const [fill, halo] = [
+        await contrastOf(page, style.backgroundColor, ground),
+        await contrastOf(page, style.halo!, ground),
+      ];
+      expect(Math.max(fill, halo), ground).toBeGreaterThanOrEqual(3);
+    }
+  });
+}
+
 // `GL-UI-060`: in greyscale every state of a surface still differs. The check reads what survives
 // without colour (the symbol, the shape mark and the text, also the screen-reader-only text) instead
 // of a greyscale screenshot: it names the state that lost its signal, needs no second set of

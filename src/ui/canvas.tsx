@@ -130,10 +130,12 @@ function CanvasOverlay({
           style={box(selected.rect)}
           data-testid="canvas-selection"
         >
+          {/* A 1 px `--background` halo, so the badge stands out on a light and a dark page in
+              either theme (`GL-UI-040`): one of the two always contrasts with the ground. */}
           <span
             ref={badgeRef}
             className={cn(
-              "absolute overflow-hidden bg-primary px-1.5 py-0.5 text-xs text-ellipsis whitespace-nowrap text-primary-foreground",
+              "absolute overflow-hidden bg-primary px-1.5 py-0.5 text-xs text-ellipsis whitespace-nowrap text-primary-foreground ring-1 ring-background",
               badgeInside ? "top-0 rounded-br-sm" : "bottom-full rounded-t-sm",
             )}
             style={{

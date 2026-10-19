@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.137.5 — #316, SUI-FEATURE-161 rev 5, GL-UI-040: the canvas name badge stands out on any page
+
+Fix, not breaking.
+
+- **`CanvasOverlay`'s name badge (`canvas-name`) carries a 1 px `--background` halo**, so it stands out on a light and a dark page in either theme: in the dark theme the near-white badge was barely visible on a white slide. The badge or its halo is at least 3 : 1 against white and black, its text stays at AA; a gallery test checks the computed colours in both themes. Baselines: `components-{de,en,es}-{light,dark}` and `components-de-{light,dark}-{390,1440}`.
+
 ## 0.137.4 — #320
 
 - chore: git-ignore .playwright-mcp/ #320
