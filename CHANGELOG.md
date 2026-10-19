@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.137.9 — #318: the gallery's contrast check counts a see-through colour as what shows
+
+Not breaking. Gallery tests only, the package is unchanged.
+
+- **`contrastOf` draws the colour over its ground** before it measures: a transparent colour read back as black and a half-transparent one as fully opaque, so a contrast test (the focus-ring, nav-bar and canvas-badge tests) could pass on a see-through colour. Now a transparent colour has contrast 1 with its ground and fails every such test. A see-through ground is drawn over what lies below it, and without that it is refused: the keyboard-highlighted menu entry's tint is see-through, so its ring is now measured on the tint over the popover (still at least 3 : 1). A gallery test pins all of this.
+
+**Migration:** none. Baselines: none.
+
 ## 0.137.8 — #326, SUI-FEATURE-190 (Codex review v0.137.7 CX1): a selection across levels moves each element in its own frame
 
 Fix, not breaking.

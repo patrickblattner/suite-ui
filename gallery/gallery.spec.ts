@@ -5248,32 +5248,55 @@ test("focus ring: a focused button shows an outline under forced colors", async 
   expect(style.outlineColor).not.toBe("rgba(0, 0, 0, 0)");
 });
 
-// The sRGB channels of any CSS color the browser computed (`oklch(…)` included), read back from a
-// one-pixel canvas, and the WCAG contrast of two of them.
-async function contrastOf(page: Page, first: string, second: string) {
+// The WCAG contrast of a colour on its ground, both any CSS color the browser computed (`oklch(…)`
+// included), read back from a one-pixel canvas. The colour is drawn over the ground, so a see-through
+// one counts as what shows (#318); a see-through ground is drawn over what lies `below` it, and a
+// ground that is not opaque then has no single colour and is refused.
+async function contrastOf(page: Page, color: string, ground: string, below?: string) {
   return page.evaluate(
-    ([a, b]) => {
+    ([top, under, base]) => {
       const canvas = document.createElement("canvas");
       canvas.width = canvas.height = 1;
       const context = canvas.getContext("2d", {
         willReadFrequently: true,
       }) as CanvasRenderingContext2D;
-      const luminance = (color: string) => {
-        context.clearRect(0, 0, 1, 1);
-        context.fillStyle = color;
+      const luminance = (fill: string) => {
+        context.fillStyle = fill;
         context.fillRect(0, 0, 1, 1);
-        const [r, g, bl] = [...context.getImageData(0, 0, 1, 1).data].map((channel) => {
+        const data = [...context.getImageData(0, 0, 1, 1).data];
+        if (data[3] !== 255) throw new Error(`contrastOf: the ground ${fill} is not opaque`);
+        const [r, g, bl] = data.slice(0, 3).map((channel) => {
           const c = channel / 255;
           return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
         }) as [number, number, number];
         return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
       };
-      const [high, low] = [luminance(a as string), luminance(b as string)].sort((x, y) => y - x);
+      context.clearRect(0, 0, 1, 1);
+      if (base !== undefined) luminance(base);
+      const back = luminance(under as string);
+      const front = luminance(top as string);
+      const [high, low] = [front, back].sort((x, y) => y - x);
       return ((high as number) + 0.05) / ((low as number) + 0.05);
     },
-    [first, second],
+    [color, ground, below],
   );
 }
+
+// #318: a see-through colour counts as what shows on its ground, so a test built on contrastOf fails
+// for it; a see-through ground counts over what lies below it, and without that it is refused.
+test("contrastOf: a see-through colour is drawn over its ground", async ({ page }) => {
+  await page.goto("/?page=components&lng=en");
+  expect(await contrastOf(page, "#000000", "#ffffff")).toBeCloseTo(21, 1);
+  expect(await contrastOf(page, "transparent", "#ffffff")).toBeCloseTo(1, 5);
+  expect(await contrastOf(page, "rgba(0, 0, 0, 0)", "#000000")).toBeCloseTo(1, 5);
+  const half = await contrastOf(page, "rgba(0, 0, 0, 0.5)", "#ffffff");
+  expect(half).toBeGreaterThan(3);
+  expect(half).toBeLessThan(5);
+  expect(await contrastOf(page, "#000000", "rgba(0, 0, 0, 0.5)", "#000000")).toBeCloseTo(1, 5);
+  await expect(contrastOf(page, "#000000", "rgba(255, 255, 255, 0.5)")).rejects.toThrow(
+    /not opaque/,
+  );
+});
 
 const boxShadowOf = (element: Locator) => element.evaluate((el) => getComputedStyle(el).boxShadow);
 
@@ -5312,8 +5335,9 @@ for (const theme of THEMES) {
     const popover = await menu.evaluate((el) => getComputedStyle(el).backgroundColor);
     expect(popover).toBe(await utilityColor(page, "bg-popover", "backgroundColor"));
     expect(await contrastOf(page, ring, popover)).toBeGreaterThanOrEqual(3);
+    // The tint is see-through: the ring sits on the tint drawn over the popover.
     const tint = await item.evaluate((el) => getComputedStyle(el).backgroundColor);
-    expect(await contrastOf(page, ring, tint)).toBeGreaterThanOrEqual(3);
+    expect(await contrastOf(page, ring, tint, popover)).toBeGreaterThanOrEqual(3);
   });
 }
 
@@ -7164,7 +7188,7 @@ for (const theme of THEMES) {
     const style = await badge.evaluate((el) => {
       const { backgroundColor, color, boxShadow } = getComputedStyle(el);
       const halo = /([a-z]+\([^)]*\)) 0px 0px 0px 1px/.exec(boxShadow)?.[1];
-      // contrastOf reads the channels without alpha: a translucent colour would pass as black.
+      // The badge's colours are opaque, so it stands out on any page, not only on the one tested.
       const context = document.createElement("canvas").getContext("2d")!;
       const alpha = (value: string) => {
         context.clearRect(0, 0, 1, 1);
