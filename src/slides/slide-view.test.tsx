@@ -113,6 +113,36 @@ describe("SlideView", () => {
     ).toContain("7");
   });
 
+  // SUI-FEATURE-233 rev 3: a chart's texts scale with its shorter side, above 300 px as below; an
+  // emptied name is drawn and read by its default name (#368).
+  it("scales a large chart's texts with its box and names an emptied name by its default", async () => {
+    const document = structuredClone(SLIDE_SHOWCASE);
+    const results = document.pages[0]!.elements!.find((element) => element.id === "results")!;
+    if (results.type !== "chart") throw new Error("no chart");
+    results.series[0]!.name = " ";
+    results.categories[1] = "";
+    const { container } = await drawn({ document });
+    const chart = container.querySelector("[data-slide-element=results]")!;
+    // 640 × 360: 20 px at 300 on the shorter side, so 24 here.
+    const sizes = [...chart.querySelectorAll("svg text")].map((text) =>
+      text.getAttribute("font-size"),
+    );
+    expect(new Set(sizes)).toEqual(new Set(["24"]));
+    const data = within(chart as HTMLElement).getByRole("table", { hidden: true });
+    expect(
+      within(data)
+        .getAllByRole("rowheader", { hidden: true })
+        .map((cell) => cell.textContent),
+    ).toEqual(["Series 1", "2026"]);
+    expect(
+      within(data)
+        .getAllByRole("columnheader", { hidden: true })
+        .map((cell) => cell.textContent),
+    ).toEqual(["Q1", "Category 2", "Q3"]);
+    const drawnTexts = [...chart.querySelectorAll("svg text")].map((text) => text.textContent);
+    expect(drawnTexts).toEqual(expect.arrayContaining(["Series 1", "Category 2"]));
+  });
+
   it("draws nothing of a document that breaks the schema and names the error", async () => {
     const onReport = vi.fn<(report: SlideViewReport) => void>();
     const { container } = render(

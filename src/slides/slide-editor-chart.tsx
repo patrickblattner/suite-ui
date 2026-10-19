@@ -1,4 +1,4 @@
-import { PlusIcon, XIcon } from "lucide-react";
+import { PlusIcon, Trash2Icon } from "lucide-react";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 
@@ -18,7 +18,8 @@ import { SLIDE_LIMITS, type SlideElement } from "./schema.js";
 
 type Chart = Extract<SlideElement, { type: "chart" }>;
 const TYPES = ["bar", "line", "pie"] as const;
-// The languages that write a decimal comma ("1,5"); in the others a comma is not a number.
+// The languages that write a decimal comma ("1,5"); in the others a comma is not a number, and in
+// these a point is not one: "1.000" is a thousand there, never 1 (#368).
 const DECIMAL_COMMA = new Set(["de", "es"]);
 // A decimal number as typed: digits with one decimal separator and an exponent at most, so "0x10",
 // "Infinity" or "1_000", which `Number` would take, are not numbers here.
@@ -27,8 +28,15 @@ const DECIMAL = /^[+-]?(\d+([.,]\d*)?|[.,]\d+)(e[+-]?\d+)?$/i;
 // The value of what is typed, or NaN where it is not a decimal number in the user's language.
 function parseValue(text: string, comma: boolean): number {
   const trimmed = text.trim();
-  if (!DECIMAL.test(trimmed) || (!comma && trimmed.includes(","))) return Number.NaN;
+  if (!DECIMAL.test(trimmed) || trimmed.includes(comma ? "." : ",")) return Number.NaN;
   return Number(trimmed.replace(",", "."));
+}
+
+// Why what is typed is not a number: the other language's decimal separator (a thousands point in
+// German and Spanish, "1.000"; a comma in English), or anything else.
+type Invalid = "separator" | "other";
+function invalidOf(text: string): Invalid {
+  return DECIMAL.test(text.trim()) ? "separator" : "other";
 }
 
 // A name field cut off in its cell shows itself whole in a hint (`GL-UI-016`). The hint stands
@@ -48,7 +56,9 @@ function NameField(props: React.ComponentProps<typeof Input> & { value: string }
 
 // One value of the chart: what is typed stays as typed until the field is left or the history goes
 // back or forth (`revision`, as the number fields, #351); a value that is not a number is not kept in
-// the chart and says so (`SUI-FEATURE-233`, `GL-UI-060`: in words, not by colour alone).
+// the chart and says so (`SUI-FEATURE-233`, `GL-UI-060`: in words, not by colour alone) in the
+// error of its row below the table (`error`), which it reports to, with why, while it is not a
+// number (`onInvalid`).
 function ValueField({
   value,
   label,
@@ -56,6 +66,9 @@ function ValueField({
   readOnly,
   onValue,
   describedBy,
+  cell,
+  error,
+  onInvalid,
   testId,
 }: {
   value: number;
@@ -64,42 +77,43 @@ function ValueField({
   readOnly: boolean;
   onValue: (value: number) => void;
   describedBy: string | undefined;
+  cell: string;
+  error: string;
+  onInvalid: (cell: string, invalid: Invalid | null) => void;
   testId: string;
 }) {
-  const { t, i18n } = useTranslation("suite");
+  const { i18n } = useTranslation("suite");
   const comma = DECIMAL_COMMA.has(i18n.resolvedLanguage ?? "");
   const [typed, setTyped] = React.useState<{ text: string; revision: string } | null>(null);
   const text = typed?.revision === revision ? typed.text : null;
   const invalid = text !== null && !Number.isFinite(parseValue(text, comma));
-  const error = React.useId();
+  const why = text !== null && invalid ? invalidOf(text) : null;
+  React.useEffect(() => {
+    if (why === null) return;
+    onInvalid(cell, why);
+    return () => onInvalid(cell, null);
+  }, [why, cell, onInvalid]);
   const shown = comma ? String(value).replace(".", ",") : String(value);
   return (
-    <div className="flex flex-col gap-0.5">
-      <Input
-        inputMode="decimal"
-        aria-label={label}
-        aria-invalid={invalid || undefined}
-        aria-errormessage={invalid ? error : undefined}
-        aria-describedby={invalid ? error : describedBy}
-        readOnly={readOnly}
-        value={text ?? shown}
-        onChange={(event) => {
-          setTyped({ text: event.target.value, revision });
-          const next = parseValue(event.target.value, comma);
-          if (Number.isFinite(next)) onValue(next);
-        }}
-        onBlur={() => {
-          if (!invalid) setTyped(null);
-        }}
-        className="h-8 w-16 px-2"
-        data-testid={testId}
-      />
-      {invalid ? (
-        <FieldError id={error} className="w-16 gap-1 text-xs" data-testid={`${testId}-error`}>
-          {t("slides.editor.chartNotANumber")}
-        </FieldError>
-      ) : null}
-    </div>
+    <Input
+      inputMode="decimal"
+      aria-label={label}
+      aria-invalid={invalid || undefined}
+      aria-errormessage={invalid ? error : undefined}
+      aria-describedby={invalid ? error : describedBy}
+      readOnly={readOnly}
+      value={text ?? shown}
+      onChange={(event) => {
+        setTyped({ text: event.target.value, revision });
+        const next = parseValue(event.target.value, comma);
+        if (Number.isFinite(next)) onValue(next);
+      }}
+      onBlur={() => {
+        if (!invalid) setTyped(null);
+      }}
+      className="h-8 w-16 px-2"
+      data-testid={testId}
+    />
   );
 }
 
@@ -121,7 +135,7 @@ export function ChartData({
   readOnly: boolean;
   onChange: (next: Chart, merge?: string) => void;
 }) {
-  const { t } = useTranslation("suite");
+  const { t, i18n } = useTranslation("suite");
   const root = React.useRef<HTMLDivElement>(null);
   const focusNext = React.useRef<string | null>(null);
   // Adding or removing shifts the rows and columns, so typed text that was not taken is dropped as
@@ -129,6 +143,20 @@ export function ChartData({
   const [shape, setShape] = React.useState(0);
   const typedRevision = `${revision}:${shape}`;
   const negative = React.useId();
+  // The value fields that are not a number, as "column:row" with why. Below the table, outside its
+  // rows, each row with one says so once, naming its category and the series that are not numbers,
+  // so the text is neither squeezed into a value's column nor read as a row of data (#368).
+  const errors = React.useId();
+  const [invalid, setInvalid] = React.useState<ReadonlyMap<string, Invalid>>(() => new Map());
+  const onInvalid = React.useCallback((cell: string, why: Invalid | null) => {
+    setInvalid((cells) => {
+      if ((cells.get(cell) ?? null) === why) return cells;
+      const next = new Map(cells);
+      if (why === null) next.delete(cell);
+      else next.set(cell, why);
+      return next;
+    });
+  }, []);
   React.useLayoutEffect(() => {
     if (focusNext.current === null) return;
     root.current?.querySelector<HTMLElement>(`[data-testid="${focusNext.current}"]`)?.focus();
@@ -144,6 +172,21 @@ export function ChartData({
     chart.series[index]!.name.trim() || t("slides.editor.chartSeries", { n: index + 1 });
   const categoryName = (index: number) =>
     chart.categories[index]!.trim() || t("slides.editor.chartCategory", { n: index + 1 });
+  const list = new Intl.ListFormat(i18n.resolvedLanguage ?? i18n.language, {
+    type: "conjunction",
+  });
+  const rowErrors = chart.categories.flatMap((_, row) => {
+    const columns = chart.series.flatMap((_, column) => {
+      const why = invalid.get(`${column}:${row}`);
+      return why === undefined ? [] : [{ column, why }];
+    });
+    if (columns.length === 0) return [];
+    const key = columns.every(({ why }) => why === "separator")
+      ? "slides.editor.chartSeparator"
+      : "slides.editor.chartNotANumber";
+    const names = list.format(columns.map(({ column }) => seriesName(column)));
+    return [{ row, text: t(key, values({ category: categoryName(row), names })) }];
+  });
   const reshape = (next: Chart, focus: string) => {
     focusNext.current = focus;
     setShape((count) => count + 1);
@@ -249,7 +292,7 @@ export function ChartData({
                         }
                         data-testid={`slide-editor-chart-remove-series-${index}`}
                       >
-                        <XIcon aria-hidden="true" />
+                        <Trash2Icon aria-hidden="true" />
                       </Button>
                     </IconButtonTooltip>
                     {pie && index > 0 ? (
@@ -282,7 +325,9 @@ export function ChartData({
                           step(`category:${row}`),
                         )
                       }
-                      className="h-8 w-24 px-2"
+                      // As wide as its name, within bounds, so a name is shown whole without
+                      // the hint a touch screen opens only on focus (#368).
+                      className="field-sizing-content h-8 w-auto max-w-40 min-w-24 px-2"
                       data-testid={`slide-editor-chart-category-${row}`}
                     />
                     <IconButtonTooltip
@@ -305,7 +350,7 @@ export function ChartData({
                         }
                         data-testid={`slide-editor-chart-remove-category-${row}`}
                       >
-                        <XIcon aria-hidden="true" />
+                        <Trash2Icon aria-hidden="true" />
                       </Button>
                     </IconButtonTooltip>
                   </div>
@@ -331,6 +376,9 @@ export function ChartData({
                           ? negative
                           : undefined
                       }
+                      cell={`${column}:${row}`}
+                      error={`${errors}-${row}`}
+                      onInvalid={onInvalid}
                       testId={`slide-editor-chart-value-${column}-${row}`}
                     />
                   </td>
@@ -340,6 +388,16 @@ export function ChartData({
           </tbody>
         </table>
       </div>
+      {rowErrors.map(({ row, text }) => (
+        <FieldError
+          key={row}
+          id={`${errors}-${row}`}
+          className="gap-1 text-xs"
+          data-testid={`slide-editor-chart-error-${row}`}
+        >
+          {text}
+        </FieldError>
+      ))}
       {hasNegative ? (
         <p
           id={negative}

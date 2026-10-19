@@ -118,8 +118,9 @@ const NOTICE_WIDTH = 140;
 // past the page edge, or both: one notice per element, naming each problem it has.
 type NoticeKind = "text" | "page" | "both";
 // A table cell's padding and a chart's label size, in format px. A chart's labels, legend, paddings
-// and marks are drawn at that size from a box of `CHART_FULL_SIZE` on its shorter side, and shrink
-// with a smaller box, so a small chart keeps its plot and all its text inside its box (#294).
+// and marks are drawn at that size in a box of `CHART_FULL_SIZE` on its shorter side and scale with
+// its shorter side, smaller and larger, never at a fixed size (`SUI-FEATURE-233` rev 3), so a small
+// chart keeps its plot and all its text inside its box (#294).
 const CELL_PADDING = 8;
 const CHART_LABEL_SIZE = 20;
 const CHART_FULL_SIZE = 300;
@@ -617,7 +618,15 @@ function fitLabel(label: string, size: number, room: number) {
 }
 
 function chart(draw: Draw, element: ElementOf<"chart">) {
-  const { width: w, height: h, categories, series } = element;
+  const { width: w, height: h } = element;
+  // An emptied name is drawn and read by its default name, as the panel names it (`SUI-FEATURE-233`).
+  const categories = element.categories.map(
+    (name, index) => name.trim() || draw.t("slides.editor.chartCategory", { n: index + 1 }),
+  );
+  const series = element.series.map((one, index) => ({
+    ...one,
+    name: one.name.trim() || draw.t("slides.editor.chartSeries", { n: index + 1 }),
+  }));
   const pie = element.chart === "pie";
   const family = familyOf(draw, undefined);
   const text = cssColor(DEFAULT_TEXT_COLOR, draw.brand) ?? "#000000";
@@ -636,7 +645,7 @@ function chart(draw: Draw, element: ElementOf<"chart">) {
         pattern: one.pattern,
       }));
   const ids = keys.map(() => draw.nextId());
-  const unit = Math.min(1, Math.min(w, h) / CHART_FULL_SIZE);
+  const unit = Math.min(w, h) / CHART_FULL_SIZE;
   const size = CHART_LABEL_SIZE * unit;
   const pad = 16 * unit;
   const labels = pie ? 0 : 36 * unit;

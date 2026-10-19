@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.145.0 — #368, SUI-FEATURE-233 rev 3: charts follow-up
+
+New, not breaking.
+
+- **A new chart is readable as it is inserted** (`SUI-FEATURE-233` rev 3): 4:3, its longer side 50 % of the page's shorter side (540 × 405 on a 1080 page), instead of 20 %.
+- **A chart scales with its box, never at a fixed size**: its labels, legend, paddings, marks and patterns follow the shorter side of its box above 300 format px too (until now they stopped growing there). Charts larger than 300 px on their shorter side draw their text larger than before.
+- **An emptied name is named by its default on the slide**: a series or category whose name is empty shows "Series 2" / "Category 2" in the legend, the axis labels and the data table for screen readers, as the panel already named it.
+- **In German and Spanish a point is no decimal separator**: "1.000" is not taken as 1; it stays as typed and is marked as not a number, and the error says why ("Gib eine Zahl ohne Tausenderpunkt ein, etwa 1,5." / "Introduce un número sin punto de miles, como 1,5."). Only the comma separates decimals there; in English a comma is refused the same way, asking for a decimal point.
+- **A value's error names what is wrong, below the table**: one message per row with a value that is not a number, under the table and outside its rows (so it is not read as a row of data), naming the row's category and its series that are not numbers ("Category 1 – Sales and Series 2: enter a number, such as 1.5.", the names joined in the language's own way), instead of a bare "Enter a number" one word per line in the value's column (`GL-UI-060`). Each such field points to it as its error message.
+- **A category's field is as wide as its name** (within 96–160 px), so the default names are not cut off at 390 px and a name shows whole without the hint a touch screen opens only on focus.
+- **Removing a category or series shows the bin** (`Trash2Icon`), as the RowActions' delete; the × stays for closing and chips.
+
+**Migration:** none. Package texts: `slides.editor.chartNotANumber` now takes `{{category}}` and `{{names}}`; new `slides.editor.chartSeparator` (de, en, es). Test ids: a chart value's error is `slide-editor-chart-error-<row>` (was `slide-editor-chart-value-<column>-<row>-error`). Baselines: the gallery's slide pages with the showcase chart.
+
 ## 0.144.0 — #344, SUI-FEATURE-006 rev 4, SUI-FEATURE-120 rev 7: the inline link's hit area, `aria-disabled` locks in `Button`
 
 New, not breaking.

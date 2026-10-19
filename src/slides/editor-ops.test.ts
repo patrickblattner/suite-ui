@@ -881,14 +881,15 @@ describe("charts", () => {
     return element;
   };
 
+  // `SUI-FEATURE-233` rev 3: its longer side 50 % of the page's shorter side (1080 here).
   it("inserts a 4:3 bar chart with sample values and a mark of its own per series", () => {
     const made = chart();
     expect(made).toMatchObject({
       id: "chart-1",
       name: "Chart",
       chart: "bar",
-      width: 216,
-      height: 162,
+      width: 540,
+      height: 405,
     });
     expect(made.categories).toEqual(["A", "B", "C"]);
     expect(made.series.map((one) => one.values)).toEqual([

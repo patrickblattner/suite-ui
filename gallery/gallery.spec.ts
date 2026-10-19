@@ -9865,8 +9865,9 @@ test("slide editor: a bar chart with two series tells them apart and reads as a 
   // A chart opens on its data; its size is under Layout.
   await expect(editor.getByTestId("slide-editor-chart")).toBeVisible();
   await editor.getByRole("tab", { name: "Layout" }).click();
-  await expect(field("width")).toHaveValue("90");
-  await expect(field("height")).toHaveValue("67.5");
+  // 4:3, its longer side 50 % of the page's shorter side (`SUI-FEATURE-233` rev 3).
+  await expect(field("width")).toHaveValue("225");
+  await expect(field("height")).toHaveValue("168.75");
   const chart = editor.locator("[data-slide-element=chart-1]");
   // Two series, two patterns that differ in more than their colour (`GL-UI-060`).
   const marks = await chart
@@ -9887,18 +9888,54 @@ test("slide editor: a bar chart with two series tells them apart and reads as a 
   await expect(data.getByRole("rowheader")).toHaveText(["Series 1", "Series 2"]);
 });
 
-// #294 inc 4: a chart at the inserted size (90 × 67.5 here, 216 × 162 on a 1920 × 1080 page) keeps
-// its plot and all its text inside its box, no two texts on each other, in each chart type.
+// A chart's texts as drawn: each inside the chart's box, no two on each other.
+async function expectChartTextsApart(chart: Locator, at: string) {
+  const layout = await chart.evaluate((element) => {
+    const edges = (node: Element) => {
+      const { left, right, top, bottom } = node.getBoundingClientRect();
+      return { left, right, top, bottom };
+    };
+    const box = edges(element);
+    const texts = [...element.querySelectorAll("svg text")].map((text) => ({
+      text: text.textContent,
+      ...edges(text),
+    }));
+    return { box, texts };
+  });
+  expect(layout.texts.length, at).toBeGreaterThan(0);
+  for (const text of layout.texts) {
+    expect(text.left, `${at} ${text.text}`).toBeGreaterThanOrEqual(layout.box.left - 0.5);
+    expect(text.right, `${at} ${text.text}`).toBeLessThanOrEqual(layout.box.right + 0.5);
+    expect(text.top, `${at} ${text.text}`).toBeGreaterThanOrEqual(layout.box.top - 0.5);
+    expect(text.bottom, `${at} ${text.text}`).toBeLessThanOrEqual(layout.box.bottom + 0.5);
+  }
+  for (const [index, one] of layout.texts.entries())
+    for (const other of layout.texts.slice(index + 1))
+      expect(
+        one.right <= other.left ||
+          other.right <= one.left ||
+          one.bottom <= other.top ||
+          other.bottom <= one.top,
+        `${at}: ${one.text} on ${other.text}`,
+      ).toBe(true);
+  return layout.texts.map((text) => text.text ?? "");
+}
+
+// #294 inc 4, SUI-FEATURE-233 rev 3 AC1/AC2: a chart at the inserted size (225 × 168.75 here, 540 ×
+// 405 on a 1080 page) and shrunk to 20 % of the page's shorter side (90 × 67.5; 216 × 162 on a
+// 1920 × 1080 page) keeps its plot and all its text inside its box, no two texts on each other, in
+// each chart type.
 test("slide editor: a small chart keeps its text inside its box and its plot", async ({ page }) => {
   const { editor, library, field } = await openLibrary(page);
   await library.getByTestId("slide-editor-library-chart").click();
   const panel = editor.getByTestId("slide-editor-chart");
   const chart = editor.locator("[data-slide-element=chart-1]");
   for (const [width, height] of [
+    ["225", "168.75"],
     ["90", "67.5"],
     ["216", "162"],
   ] as const) {
-    if (width !== "90") {
+    if (width !== "225") {
       await editor.getByRole("tab", { name: "Layout" }).click();
       await typeInto(page, field("width"), width);
       await typeInto(page, field("height"), height);
@@ -9907,44 +9944,42 @@ test("slide editor: a small chart keeps its text inside its box and its plot", a
     }
     for (const type of ["bar", "line", "pie"] as const) {
       await panel.getByTestId(`slide-editor-chart-type-${type}`).click();
-      const layout = await chart.evaluate((element) => {
-        const edges = (node: Element) => {
-          const { left, right, top, bottom } = node.getBoundingClientRect();
-          return { left, right, top, bottom };
-        };
-        const box = edges(element);
-        const texts = [...element.querySelectorAll("svg text")].map((text) => ({
-          text: text.textContent,
-          ...edges(text),
-        }));
-        const slices = [...element.querySelectorAll("svg > path")].map(
-          (path) => path.getBoundingClientRect().width,
-        );
-        return { box, texts, slices };
-      });
       const at = `${width} × ${height} ${type}`;
-      expect(layout.texts.length, at).toBeGreaterThan(0);
-      for (const text of layout.texts) {
-        expect(text.left, `${at} ${text.text}`).toBeGreaterThanOrEqual(layout.box.left - 0.5);
-        expect(text.right, `${at} ${text.text}`).toBeLessThanOrEqual(layout.box.right + 0.5);
-        expect(text.top, `${at} ${text.text}`).toBeGreaterThanOrEqual(layout.box.top - 0.5);
-        expect(text.bottom, `${at} ${text.text}`).toBeLessThanOrEqual(layout.box.bottom + 0.5);
-      }
-      for (const [index, one] of layout.texts.entries())
-        for (const other of layout.texts.slice(index + 1))
-          expect(
-            one.right <= other.left ||
-              other.right <= one.left ||
-              one.bottom <= other.top ||
-              other.bottom <= one.top,
-            `${at}: ${one.text} on ${other.text}`,
-          ).toBe(true);
+      await expectChartTextsApart(chart, at);
       if (type === "pie") {
-        expect(layout.slices, at).toHaveLength(3);
-        for (const slice of layout.slices) expect(slice, at).toBeGreaterThan(0);
+        const slices = await chart
+          .locator("svg > path")
+          .evaluateAll((paths) => paths.map((path) => path.getBoundingClientRect().width));
+        expect(slices, at).toHaveLength(3);
+        for (const slice of slices) expect(slice, at).toBeGreaterThan(0);
       }
     }
   }
+});
+
+// #368 AC1: 6 series × 12 categories at 216 × 162 — the legend runs in rows and counts the keys
+// that do not fit ("+2"), the category labels are thinned, every text inside the box and apart.
+test("slide editor: a crowded chart counts its hidden keys and thins its labels", async ({
+  page,
+}) => {
+  const { editor, library, field } = await openLibrary(page);
+  await library.getByTestId("slide-editor-library-chart").click();
+  const panel = editor.getByTestId("slide-editor-chart");
+  const chart = editor.locator("[data-slide-element=chart-1]");
+  for (let n = 0; n < 4; n += 1) await panel.getByTestId("slide-editor-chart-add-series").click();
+  for (let n = 0; n < 9; n += 1) await panel.getByTestId("slide-editor-chart-add-category").click();
+  await expect(chart.getByRole("table").getByRole("columnheader")).toHaveCount(12);
+  await editor.getByRole("tab", { name: "Layout" }).click();
+  await typeInto(page, field("width"), "216");
+  await typeInto(page, field("height"), "162");
+  await expect(field("height")).toHaveValue("162");
+  const texts = await expectChartTextsApart(chart, "216 × 162, 6 × 12");
+  expect(texts).toContain("+2");
+  // No label is cut down to nothing.
+  expect(texts.filter((text) => text.trim() === "")).toEqual([]);
+  const labels = texts.filter((text) => /^Category/.test(text) || text.endsWith("…"));
+  expect(labels.length).toBeGreaterThan(0);
+  expect(labels.length).toBeLessThan(12);
 });
 
 test("slide editor: a chart's data is edited in the panel, key by key, within its limits", async ({
@@ -9968,19 +10003,38 @@ test("slide editor: a chart's data is edited in the panel, key by key, within it
   // Not a number: kept as typed, not in the chart, named in words; Undo drops it.
   await typeInto(page, value, "1x");
   await expect(value).toHaveValue("1x");
-  const error = panel.getByTestId("slide-editor-chart-value-0-0-error");
-  await expect(error).toHaveText("Enter a number, such as 1.5.");
+  const error = panel.getByTestId("slide-editor-chart-error-0");
+  // It names its category and series in words, not by the red border alone (`GL-UI-060`, #368).
+  await expect(error).toHaveText("Category 1 – Sales: enter a number, such as 1.5.");
   await expect(error).toHaveRole("alert");
   await expect(value).toHaveAttribute("aria-invalid", "true");
-  await expect(value).toHaveAccessibleErrorMessage("Enter a number, such as 1.5.");
+  await expect(value).toHaveAccessibleErrorMessage(
+    "Category 1 – Sales: enter a number, such as 1.5.",
+  );
+  // Below the table, outside its rows (no row of data to the ear), not wrapped word by word in the
+  // value's column (#368).
+  await expect(panel.getByTestId("slide-editor-chart-data").getByTestId(/-error-/)).toHaveCount(0);
+  const tableBox = (await panel.getByTestId("slide-editor-chart-scroll").boundingBox())!;
+  const errorBox = (await error.boundingBox())!;
+  expect(errorBox.y).toBeGreaterThanOrEqual(tableBox.y + tableBox.height);
+  expect(errorBox.height).toBeLessThan(2 * 20);
+  // A second value of the row that is not a number joins the same message.
+  await typeInto(page, panel.getByTestId("slide-editor-chart-value-1-0"), "x");
+  await expect(error).toHaveText("Category 1 – Sales and Series 2: enter a number, such as 1.5.");
+  await expect(panel.getByTestId("slide-editor-chart-value-1-0")).toHaveAccessibleErrorMessage(
+    "Category 1 – Sales and Series 2: enter a number, such as 1.5.",
+  );
   await expect(firstCell).toHaveText("1");
   await editor.getByTestId("editor-undo").click();
   await expect(value).toHaveValue("3");
   await expect(error).toHaveCount(0);
-  // In English a comma is no decimal separator, and "0x10" is not a decimal number.
-  for (const typed of ["1,5", "0x10"]) {
+  // In English a comma is no decimal separator, and says so; "0x10" is not a decimal number.
+  for (const [typed, text] of [
+    ["1,5", "Category 1 – Sales: enter a number with a decimal point, such as 1.5."],
+    ["0x10", "Category 1 – Sales: enter a number, such as 1.5."],
+  ] as const) {
     await typeInto(page, value, typed);
-    await expect(error, typed).toBeVisible();
+    await expect(error, typed).toHaveText(text);
   }
   await editor.getByTestId("editor-undo").click();
   // Up to six series; then adding says why it cannot.
@@ -10005,6 +10059,15 @@ test("slide editor: a chart's data is edited in the panel, key by key, within it
   );
   await expect(panel.getByTestId("slide-editor-chart-remove-series-1")).toHaveAccessibleName(
     "Remove Series 2",
+  );
+  // The slide names it so too, in its legend and its data table (#368).
+  await expect(data.getByRole("rowheader").nth(1)).toHaveText("Series 2");
+  await expect(
+    editor.locator("[data-slide-element=chart-1] svg text", { hasText: /^Series 2$/ }),
+  ).toHaveCount(1);
+  // Removing shows the bin, as the RowActions' delete (`SUI-FEATURE-233` rev 3).
+  await expect(panel.getByTestId("slide-editor-chart-remove-series-1").locator("svg")).toHaveClass(
+    /lucide-trash-2/,
   );
   for (let n = 0; n < 5; n += 1)
     await panel.getByTestId("slide-editor-chart-remove-series-0").click();
@@ -10131,12 +10194,12 @@ test("slide editor: typed chart values stay with their chart and cell", async ({
   await panel.getByTestId("slide-editor-chart-remove-category-0").click();
   // "1" went in as typed; the "x" after it did not, and is gone with the row's move.
   await expect(panel.getByTestId("slide-editor-chart-value-0-0")).toHaveValue("1");
-  await expect(panel.getByTestId("slide-editor-chart-value-0-0-error")).toHaveCount(0);
+  await expect(panel.getByTestId("slide-editor-chart-error-0")).toHaveCount(0);
   await typeInto(page, panel.getByTestId("slide-editor-chart-value-0-0"), "2y");
   await library.getByTestId("slide-editor-library-chart").click();
   await expect(editor.getByTestId("canvas-announcement")).toHaveText("Inserted: Chart");
   await expect(panel.getByTestId("slide-editor-chart-value-0-0")).toHaveValue("3");
-  await expect(panel.getByTestId("slide-editor-chart-value-0-0-error")).toHaveCount(0);
+  await expect(panel.getByTestId("slide-editor-chart-error-0")).toHaveCount(0);
 });
 
 // German and Spanish write a decimal comma; key by key, "1," and "1,5" are taken, shown as typed.
@@ -10164,13 +10227,21 @@ for (const lng of ["de", "es"]) {
     ] as const) {
       await page.keyboard.type(key);
       await expect(cell, key).toHaveText(taken);
-      await expect(panel.getByTestId("slide-editor-chart-value-0-0-error")).toHaveCount(0);
+      await expect(panel.getByTestId("slide-editor-chart-error-0")).toHaveCount(0);
     }
     await page.keyboard.press("Tab");
     await expect(value).toHaveValue("1,5");
     await typeInto(page, value, "0x10");
-    await expect(panel.getByTestId("slide-editor-chart-value-0-0-error")).toBeVisible();
+    await expect(panel.getByTestId("slide-editor-chart-error-0")).toBeVisible();
     await expect(cell).toHaveText("0");
+    // A point is no decimal separator here: "1.000" is no number, so it is not read as 1 (#368);
+    // the chart keeps the "1" its first key made.
+    await typeInto(page, value, "1.000");
+    await expect(value).toHaveAttribute("aria-invalid", "true");
+    // It says why: no thousands point.
+    await expect(panel.getByTestId("slide-editor-chart-error-0")).toContainText(
+      lng === "de" ? "ohne Tausenderpunkt" : "sin punto de miles",
+    );
   });
 }
 
@@ -10207,6 +10278,14 @@ for (const lng of ["de", "en", "es"]) {
       expect(placed.x, id).toBeGreaterThanOrEqual(scroll.x - 0.5);
       expect(placed.x + placed.width, id).toBeLessThanOrEqual(scroll.x + scroll.width + 0.5);
     }
+    // A category's field is as wide as its name, so none is cut off (#368).
+    for (const id of ["category-0", "category-1", "category-2"])
+      expect(
+        await panel
+          .getByTestId(`slide-editor-chart-${id}`)
+          .evaluate((input) => input.scrollWidth <= input.clientWidth),
+        id,
+      ).toBe(true);
     // A name cut off in its field shows itself whole on hover.
     for (const id of ["series-0", "series-1", "category-0", "category-2"]) {
       const name = panel.getByTestId(`slide-editor-chart-${id}`);

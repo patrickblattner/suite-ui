@@ -856,9 +856,9 @@ export type LibraryEntry =
   // A bar chart with sample data, named in the editor's language (`SUI-FEATURE-233`).
   | { kind: "chart"; name: string; categories: readonly string[]; series: readonly string[] };
 
-// A new element for a library entry: 20 % of the page's shorter side (its larger side for an image),
-// centred on `at` (page px), in `color` (a shape's fill, a line's stroke, an icon's colour), above
-// everything on the page.
+// A new element for a library entry: 20 % of the page's shorter side (its larger side for an image;
+// a chart's 50 %), centred on `at` (page px), in `color` (a shape's fill, a line's stroke, an icon's
+// colour), above everything on the page.
 export function libraryElement(
   document: SlideDocument,
   page: number,
@@ -924,7 +924,9 @@ export function libraryElement(
       };
     }
     case "chart": {
-      // 4:3, its longer side 20 % of the shorter page side, as an image's.
+      // 4:3, its longer side 50 % of the shorter page side, so it is readable as it is inserted
+      // (`SUI-FEATURE-233` rev 3): 540 × 405 on a 1080 page.
+      const width = round(shorter * 0.5);
       const values = [
         [3, 5, 4],
         [2, 4, 3],
@@ -933,7 +935,7 @@ export function libraryElement(
         id: uniqueId(document, "chart"),
         name: entry.name,
         type: "chart",
-        ...box(side, side * 0.75),
+        ...box(width, width * 0.75),
         chart: "bar",
         categories: [...entry.categories],
         series: entry.series.map((name, index) => ({
