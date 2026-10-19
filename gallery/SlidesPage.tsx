@@ -5,6 +5,7 @@ import {
   resolveSlideMedia,
   SLIDE_BRAND,
   SLIDE_FIT_AT_TOP,
+  SLIDE_FIT_EDGES,
   SLIDE_FIT_WIDE,
   SLIDE_FIT_SHRINKS,
   SLIDE_FIT_TOO_LONG,
@@ -119,6 +120,13 @@ export function SlidesPage() {
           fitText
         />
         <Drawn testId="slide-fit-wide" width={480} height={270} document={SLIDE_FIT_WIDE} fitText />
+        <Drawn
+          testId="slide-fit-edges"
+          width={480}
+          height={270}
+          document={SLIDE_FIT_EDGES}
+          fitText
+        />
       </div>
     </section>
   );

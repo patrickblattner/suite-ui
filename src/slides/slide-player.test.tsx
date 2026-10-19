@@ -214,6 +214,10 @@ describe("SlidePlayer with every page hidden", () => {
     expect(player.querySelector("[data-slot=slide-view]")).toBeNull();
     expect(screen.queryByText("First slide")).toBeNull();
     expect(screen.getByTestId("slide-player-counter")).toHaveTextContent("0 / 0");
+    // #321 AC2: it says so, so the screen is never only black once the bar hides.
+    expect(player.querySelector("[data-slot=slide-player-empty]")).toHaveTextContent(
+      "This presentation has no visible slides.",
+    );
     expect(screen.getByRole("button", { name: "Next slide" })).toHaveAttribute(
       "aria-disabled",
       "true",

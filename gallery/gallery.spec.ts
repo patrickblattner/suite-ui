@@ -9235,6 +9235,40 @@ test("slide view: a notice with no room beside its text goes into the strip belo
   expect(notice.x + notice.width).toBeLessThanOrEqual(area.x + area.width + 0.5);
 });
 
+// #321 AC3 and AC4, drawn: a notice above a narrow text at the right edge ends inside the view; the
+// texts with no room beside them share one message in the strip, which ends in "…" instead of being
+// cut off.
+test("slide view: notices stay on the canvas and the strip ends in an ellipsis", async ({
+  page,
+}) => {
+  await page.goto("/?page=slides&lng=en");
+  const view = page.getByTestId("slide-fit-edges");
+  await expect(view).toHaveAttribute("data-slide-ready", "true");
+  const area = (await view.boundingBox())!;
+  const narrow = view.locator("[data-slot=slide-notice][data-slide-notice-for=narrow-right]");
+  await expect(narrow).toHaveText("Text doesn’t fit its box: narrow text at the right edge");
+  const placed = (await narrow.boundingBox())!;
+  expect(placed.x + placed.width).toBeLessThanOrEqual(area.x + area.width - 4 + 0.5);
+  expect(placed.x).toBeGreaterThanOrEqual(area.x + 4 - 0.5);
+  const strip = view.locator("[data-slot=slide-notice]:not([data-slide-notice-for])");
+  const shared = strip.locator("[data-slide-notice-for='across-one across-two']");
+  await expect(shared).toHaveText(
+    "Text doesn’t fit its box: the first heading across the whole page, the second heading across the whole page",
+  );
+  const cut = await shared.evaluate((el) => ({
+    ellipsis: getComputedStyle(el).textOverflow === "ellipsis",
+    overflows: el.scrollWidth > el.clientWidth,
+    inside:
+      el.getBoundingClientRect().right <= el.parentElement!.getBoundingClientRect().right + 0.5,
+  }));
+  expect(cut).toEqual({ ellipsis: true, overflows: true, inside: true });
+  // `GL-UI-016`: the cut message shows its full text in the overflow tooltip.
+  await shared.hover();
+  await expect(page.getByRole("tooltip")).toHaveText(
+    "Text doesn’t fit its box: the first heading across the whole page, the second heading across the whole page",
+  );
+});
+
 // #305 AC2: a mouse click on a bar button takes no focus, so the bar hides again as usual; the keys
 // stay with the player.
 test("slide player: a mouse click on a bar button lets the bar hide again", async ({ page }) => {

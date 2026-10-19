@@ -11,6 +11,7 @@ import { safeParseSlideDocument } from "./document.js";
 import { animationOrders, num, pageLists } from "./render-style.js";
 import type { SlidePage } from "./schema.js";
 import { SlideView, type SlideViewProps, type SlideViewReport } from "./slide-view.js";
+import { missingFontsText } from "./use-slide-assets.js";
 
 export interface SlidePlayerProps extends Omit<
   SlideViewProps,
@@ -196,7 +197,12 @@ export function SlidePlayer({
     report.current?.(next, page);
     const lines = [
       next.missingFonts.length > 0
-        ? t("slides.missingFonts", { fonts: next.missingFonts.join(", ") })
+        ? t("slides.missingFonts", {
+            fonts: missingFontsText(
+              t,
+              next.missingFaces ?? next.missingFonts.map((family) => ({ family })),
+            ),
+          })
         : null,
       next.overflowing.length > 0
         ? t("slides.overflowing", { names: next.overflowing.join(", ") })
@@ -277,8 +283,18 @@ export function SlidePlayer({
           }
         }}
       >
-        {/* A deck whose pages are all hidden shows none of them; an invalid one says so. */}
-        {parsed.ok && shown[index] === undefined ? null : (
+        {/* A deck whose pages are all hidden shows none of them and says so (#321); an invalid one
+            says so too. */}
+        {parsed.ok && shown[index] === undefined ? (
+          <div className="flex size-full items-center justify-center p-4">
+            <p
+              data-slot="slide-player-empty"
+              className="rounded-md bg-background/80 px-2 py-1 text-center text-sm text-foreground"
+            >
+              {t("slides.allHidden")}
+            </p>
+          </div>
+        ) : (
           <SlideView
             {...view}
             document={source}

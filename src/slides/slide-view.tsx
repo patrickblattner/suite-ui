@@ -2,6 +2,7 @@ import * as React from "react";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
+import { OverflowTooltip } from "../ui/tooltip.js";
 import type { SlideBrandSet } from "./brand.js";
 import { safeParseSlideDocument, type SlideDocumentError } from "./document.js";
 import {
@@ -35,8 +36,11 @@ import {
 } from "./schema.js";
 import {
   isSlideIcon,
+  missingFaceName,
+  missingFontsText,
   type SlideFontFile,
   type SlideFontNeed,
+  type SlideMissingFace,
   useSlideFonts,
   useSlideIcons,
 } from "./use-slide-assets.js";
@@ -51,8 +55,11 @@ export type SlideCustomRenderer = (element: ElementOf<"custom">) => React.ReactN
 export interface SlideViewReport {
   // Fonts and icons are loaded and the page is drawn.
   ready: boolean;
-  // Families without a file of the app, and brand font keys the brand set lacks.
+  // Families without a file of the app, and brand font keys the brand set lacks; a face of a family
+  // that has files but not this one as "Inter 700 italic".
   missingFonts: string[];
+  // The same, family, weight and style apart (the view names them by these, `SUI-FEATURE-180`).
+  missingFaces?: SlideMissingFace[];
   // Text elements (by name, else id) whose text does not fit at 70 % of its size.
   overflowing: string[];
   // Media ids the app does not resolve.
@@ -1031,9 +1038,18 @@ export function SlideView({
     draw.missingMedia.add(pageData.background.media.id);
   }
 
+  const missingFaces = [
+    ...new Map(
+      [...assets.missing.map((family) => ({ family })), ...loadedFonts.missing].map((face) => [
+        missingFaceName(face),
+        face,
+      ]),
+    ).values(),
+  ];
   const report: SlideViewReport = {
     ready,
-    missingFonts: [...new Set([...assets.missing, ...loadedFonts.missing])],
+    missingFonts: missingFaces.map(missingFaceName),
+    missingFaces,
     overflowing: [...overflow].flatMap((id) => {
       const text = draw.texts.get(id);
       return text === undefined ? [] : [text.name];
@@ -1070,8 +1086,9 @@ export function SlideView({
   const { width, height } = document.format;
   // Missing fonts and brand colours are named in a strip below the page, never over it: the page
   // gives up the strip's height (`SUI-FEATURE-180`).
-  // The page's place in the view, with or without the strip of notices below it.
-  const layoutWith = (strip: number) => {
+  // The page's place in the view, with or without the strip of notices below it: `strip` is the room
+  // the page's size leaves for it, `centred` the room it is centred above.
+  const layoutWith = (strip: number, centred = strip) => {
     const factor =
       scale === "fit"
         ? box === null
@@ -1080,12 +1097,14 @@ export function SlideView({
         : scale;
     const pageLeft = scale === "fit" && box !== null ? (box.width - width * factor) / 2 : 0;
     const pageTop =
-      scale === "fit" && box !== null ? (box.height - strip - height * factor) / 2 : 0;
+      scale === "fit" && box !== null ? (box.height - centred - height * factor) / 2 : 0;
     const viewWidth = scale === "fit" ? (box?.width ?? 0) : width * factor;
     // A text that does not fit is named outside its box and outside where its text spills (down from
     // the box, wrapped): above the box, else beside it, right or left, never over the text it names
     // (`SUI-FEATURE-180`); with no room for any of them, in the strip below the page (#305).
-    const placed: { id: string; name: string; place: React.CSSProperties }[] = [];
+    // Above the box the notice starts at the box's left edge, as far as it fits: a spacer of that
+    // width before it gives way at the view's right edge (#321), so the notice stays on the canvas.
+    const placed: { id: string; name: string; place: React.CSSProperties; indent?: number }[] = [];
     const unplaced: { id: string; name: string }[] = [];
     for (const id of notices ? overflow : []) {
       const text = draw.texts.get(id);
@@ -1097,7 +1116,8 @@ export function SlideView({
         placed.push({
           id,
           name: text.name,
-          place: { left: px(Math.max(4, left)), top: px(top - 4), transform: "translateY(-100%)" },
+          place: { left: px(4), right: px(4), top: px(top - 4), transform: "translateY(-100%)" },
+          indent: Math.max(0, left - 4),
         });
       } else if (viewWidth - right - 8 >= NOTICE_WIDTH) {
         placed.push({
@@ -1129,23 +1149,44 @@ export function SlideView({
   // strip below the page, never over it: the page gives up the strip's height (`SUI-FEATURE-180`).
   const general = notices && (report.missingFonts.length > 0 || report.missingBrand.length > 0);
   let layout = layoutWith(general ? STRIP_HEIGHT : 0);
-  if (!general && layout.unplaced.length > 0) layout = layoutWith(STRIP_HEIGHT);
+  if (!general && layout.unplaced.length > 0) {
+    layout = layoutWith(STRIP_HEIGHT);
+    // The smaller page left room for every notice: no strip, so the page is centred in the whole
+    // view, without an empty band below it (#321). Centred lower, a notice has more room above and
+    // the same beside, so every one stays placed.
+    if (layout.unplaced.length === 0) layout = layoutWith(STRIP_HEIGHT, 0);
+  }
   const shown = general || layout.unplaced.length > 0;
   const strip = shown ? STRIP_HEIGHT : 0;
   const { factor, pageLeft, pageTop } = layout;
   const measured = scale !== "fit" || box !== null;
-  const besides = layout.placed.map(({ id, name, place }) => (
-    <div
-      key={id}
-      role="alert"
-      data-slot="slide-notice"
-      data-slide-notice-for={id}
-      className="absolute z-10 max-w-[calc(100%-1rem)] rounded-md bg-destructive px-2 py-0.5 text-xs text-destructive-foreground"
-      style={place}
-    >
-      {t("slides.overflowing", { names: name })}
-    </div>
-  ));
+  const besides = layout.placed.map(({ id, name, place, indent }) => {
+    const notice = (
+      <div
+        key={id}
+        role="alert"
+        data-slot="slide-notice"
+        data-slide-notice-for={id}
+        className={cn(
+          "rounded-md bg-destructive px-2 py-0.5 text-xs text-destructive-foreground",
+          indent === undefined
+            ? "absolute z-10 max-w-[calc(100%-1rem)]"
+            : "pointer-events-auto max-w-full flex-none",
+        )}
+        style={indent === undefined ? place : undefined}
+      >
+        {t("slides.overflowing", { names: name })}
+      </div>
+    );
+    return indent === undefined ? (
+      notice
+    ) : (
+      <div key={id} className="pointer-events-none absolute z-10 flex" style={place}>
+        <div className="min-w-0 shrink" style={{ flexBasis: px(indent) }} />
+        {notice}
+      </div>
+    );
+  });
   return (
     <div
       ref={setRoot}
@@ -1222,17 +1263,42 @@ export function SlideView({
           className="absolute inset-x-0 bottom-0 z-10 flex items-center gap-3 overflow-hidden rounded-b-md bg-destructive px-2 text-xs whitespace-nowrap text-destructive-foreground"
           style={{ height: px(STRIP_HEIGHT) }}
         >
-          {report.missingFonts.length > 0 ? (
-            <span>{t("slides.missingFonts", { fonts: report.missingFonts.join(", ") })}</span>
-          ) : null}
-          {report.missingBrand.length > 0 ? (
-            <span>{t("slides.missingBrand", { keys: report.missingBrand.join(", ") })}</span>
-          ) : null}
-          {layout.unplaced.map(({ id, name }) => (
-            <span key={id} data-slide-notice-for={id}>
-              {t("slides.overflowing", { names: name })}
-            </span>
-          ))}
+          {/* Each message ends in "…" where the strip is too narrow, never cut off silently; the
+              texts with no room beside them form one message naming them all (#321). A cut message
+              shows its full text in the overflow tooltip (`GL-UI-016`). */}
+          {[
+            report.missingFonts.length > 0
+              ? {
+                  key: "fonts",
+                  text: t("slides.missingFonts", {
+                    fonts: missingFontsText(t, missingFaces),
+                  }),
+                }
+              : null,
+            report.missingBrand.length > 0
+              ? {
+                  key: "brand",
+                  text: t("slides.missingBrand", { keys: report.missingBrand.join(", ") }),
+                }
+              : null,
+            layout.unplaced.length > 0
+              ? {
+                  key: "overflowing",
+                  for: layout.unplaced.map(({ id }) => id).join(" "),
+                  text: t("slides.overflowing", {
+                    names: layout.unplaced.map(({ name }) => name).join(", "),
+                  }),
+                }
+              : null,
+          ].map((message) =>
+            message === null ? null : (
+              <OverflowTooltip key={message.key} text={message.text}>
+                <span className="min-w-0 truncate" data-slide-notice-for={message.for}>
+                  {message.text}
+                </span>
+              </OverflowTooltip>
+            ),
+          )}
         </div>
       ) : null}
       {besides}

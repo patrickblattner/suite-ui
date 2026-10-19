@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.137.11 — #321, SUI-FEATURE-180 rev 4: slide notices name font cuts in the UI's language, an all-hidden deck says so, and no notice is cut off
+
+Fix, not breaking.
+
+- **Missing font cuts are named, not numbered** (`SUI-FEATURE-180` rev 4): `SlideView`'s strip and `SlidePlayer`'s hint group them by family with the cut's name from the package's texts, "Inter (Bold, Bold italic, Italic)" / "Inter (Fett, Fett kursiv, Kursiv)" / "Inter (Negrita, Negrita cursiva, Cursiva)"; a weight between the named ones reads as the nearest. A family with no file at all is named alone as before, its name whole even where it ends in a number ("Source Sans 3", "Bodoni 72"). `missingFonts` in the report keeps "Inter 700 italic" for the app; the new optional `missingFaces` carries the same faces as family, weight and style, from which the view and the player name them. An italic run without an italic file is missing, the regular file does not stand in for it (now pinned by a test).
+- **A deck whose pages are all hidden says so**: `SlidePlayer` shows "This presentation has no visible slides." instead of a black screen once its bar hides, in the style of its hint (`bg-background/80`, `text-foreground`).
+- **The strip below the page never cuts a notice off silently**: each message ends in "…" where the strip is too narrow and shows its full text in the overflow tooltip (`GL-UI-016`), and the texts with no room beside them form one message naming them all (`data-slide-notice-for` lists their ids, space-separated).
+- **A notice above a text near the right edge stays on the canvas**: it starts at the text's left edge as before but gives way at the view's right edge.
+- **No empty band below the page**: when the smaller page of the second layout pass leaves room for every text notice, there is no strip and the page is centred in the whole view.
+
+**Migration:** none. New package texts (de, en, es): `slides.fontFaces`, `slides.weight.100`–`slides.weight.900`, `slides.italic`, `slides.italicFace`, `slides.allHidden`. New exports `missingFontsText`, `missingFaceName` and the type `SlideMissingFace` from `slides/use-slide-assets`; new optional field `missingFaces` in `SlideViewReport`. Baselines: `gallery-*` (strings table with the new keys) and `slides-*` (the new `slide-fit-edges` case), each de, en, es in light and dark, de also at 1440 and 390 px.
+
 ## 0.137.10 — #319, GL-UI-040, SUI-FEATURE-070: the selection frame stands out on any ground, the name badge meets it without a seam
 
 Fix, not breaking.

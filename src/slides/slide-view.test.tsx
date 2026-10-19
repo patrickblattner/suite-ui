@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import i18n from "i18next";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -20,10 +21,12 @@ import {
 } from "./render-style.js";
 import { parseSlideDocument } from "./document.js";
 import { SlideView, type SlideViewProps, type SlideViewReport } from "./slide-view.js";
+import { missingFontsText } from "./use-slide-assets.js";
 
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 const stamp = () => <span>Stamp of the gallery</span>;
@@ -481,6 +484,182 @@ describe("SlideView fonts by face, and fit after a fix", () => {
     await waitFor(() =>
       expect(screen.getByTestId("fit")).toHaveAttribute("data-slide-ready", "true"),
     );
-    vi.unstubAllGlobals();
+  });
+});
+
+// #321: the notices of the view, their names in the package's languages and their places.
+describe("SlideView notices (#321)", () => {
+  const page = SLIDE_SHOWCASE.pages[0]!;
+  const withElements = (elements: unknown[]) =>
+    ({ ...SLIDE_SHOWCASE, pages: [{ ...page, elements }] }) as SlideViewProps["document"];
+  const text = (id: string, name: string, x: number, y: number, width: number) => ({
+    id,
+    name,
+    type: "text",
+    x,
+    y,
+    width,
+    height: 50,
+    runs: [{ text: "far too long" }],
+  });
+  const overflowing = () => {
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(100);
+    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(50);
+  };
+
+  // AC1: grouped by family, each cut by its name, no weight number, in de, en and es.
+  it("names missing cuts by family and by name in every language", async () => {
+    // Family names that end in a number stay whole: the faces come apart, not as text.
+    const missing = [
+      { family: "Inter", weight: 700, style: "normal" },
+      { family: "Inter", weight: 700, style: "italic" },
+      { family: "Inter", weight: 400, style: "italic" },
+      { family: "Brand Sans" },
+      { family: "Inter", weight: 650, style: "normal" },
+      { family: "Source Sans 3", weight: 700, style: "normal" },
+      { family: "Bodoni 72" },
+    ] as const;
+    const names = Object.fromEntries(
+      ["en", "de", "es"].map((lng) => [
+        lng,
+        missingFontsText(i18n.getFixedT(lng, "suite"), missing),
+      ]),
+    );
+    expect(names).toEqual({
+      en: "Inter (Bold, Bold italic, Italic), Brand Sans, Source Sans 3 (Bold), Bodoni 72",
+      de: "Inter (Fett, Fett kursiv, Kursiv), Brand Sans, Source Sans 3 (Fett), Bodoni 72",
+      es: "Inter (Negrita, Negrita cursiva, Cursiva), Brand Sans, Source Sans 3 (Negrita), Bodoni 72",
+    });
+    // No weight number besides the families' own.
+    for (const name of Object.values(names)) {
+      expect(name.replace(/Source Sans 3|Bodoni 72/g, "")).not.toMatch(/\d/);
+    }
+    // The view's strip names it so, the report keeps the number for the app.
+    await i18n.changeLanguage("de");
+    try {
+      const { report } = await drawn({
+        fonts: [
+          { family: "Gallery Slide Sans", src: "/inter-400.woff2", weight: 400 },
+          { family: "Gallery Slide Sans", src: "https://elsewhere.example/b.woff2", weight: 700 },
+        ],
+      });
+      expect(report().missingFonts).toEqual(["Gallery Slide Sans 700"]);
+      expect(report().missingFaces).toEqual([
+        { family: "Gallery Slide Sans", weight: 700, style: "normal" },
+      ]);
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "Schrift fehlt: Gallery Slide Sans (Fett)",
+      );
+    } finally {
+      await i18n.changeLanguage("en");
+    }
+  });
+
+  // Scope (a): an italic run needs an italic file; the regular one does not stand in for it, and an
+  // italic file that loads covers it.
+  it("matches faces by style: an italic run without its italic file is missing", async () => {
+    const italicPage = withElements([
+      {
+        id: "slanted",
+        type: "text",
+        x: 0,
+        y: 0,
+        width: 800,
+        height: 200,
+        runs: [{ text: "Slanted", italic: true }],
+      },
+    ]);
+    const regular = { family: "Gallery Slide Sans", src: "/inter-400.woff2", weight: 400 };
+    const { report } = await drawn({
+      document: italicPage,
+      fonts: [
+        regular,
+        { ...regular, src: "https://elsewhere.example/i.woff2", style: "italic" as const },
+      ],
+    });
+    expect(report().missingFonts).toEqual(["Gallery Slide Sans 400 italic"]);
+    cleanup();
+    const covered = await drawn({
+      document: italicPage,
+      fonts: [regular, { ...regular, src: "/inter-400-italic.woff2", style: "italic" as const }],
+    });
+    expect(covered.report().missingFonts).toEqual([]);
+  });
+
+  // AC3: texts with no room beside them form one message in the strip, which ends in "…" where it
+  // is too narrow.
+  it("names every text without room in one message of the strip, truncated, never cut", async () => {
+    overflowing();
+    await drawn({
+      document: withElements([text("a", "First", 0, 0, 1920), text("b", "Second", 0, 0, 1920)]),
+      fitText: true,
+    });
+    const view = screen.getByTestId("view");
+    await waitFor(() =>
+      expect(view.querySelector("[data-slide-notice-for='a b']")).toHaveTextContent(
+        "Text doesn’t fit its box: First, Second",
+      ),
+    );
+    const messages = view.querySelectorAll(
+      "[data-slot=slide-notice]:not([data-slide-notice-for]) > span",
+    );
+    expect(messages).toHaveLength(1);
+    for (const message of messages) expect(message).toHaveClass("min-w-0", "truncate");
+  });
+
+  // AC4: above its box a notice starts at the box's left edge but gives way at the view's right edge.
+  it("keeps a notice above a text near the right edge on the canvas", async () => {
+    overflowing();
+    await drawn({ document: withElements([text("a", "Narrow", 1880, 400, 30)]), fitText: true });
+    const notice = await waitFor(() => {
+      const found = screen
+        .getByTestId("view")
+        .querySelector<HTMLElement>("[data-slot=slide-notice][data-slide-notice-for=a]");
+      expect(found).not.toBeNull();
+      return found!;
+    });
+    const row = notice.parentElement!;
+    // The row spans the view inside 4 px; the spacer before the notice is the box's left edge and
+    // shrinks, the notice does not.
+    expect(row.style).toMatchObject({ left: "4px", right: "4px" });
+    expect(row).toHaveClass("flex");
+    const spacer = row.firstElementChild as HTMLElement;
+    expect(spacer.style.flexBasis).toBe("936px");
+    expect(spacer).toHaveClass("min-w-0", "shrink");
+    expect(notice).toHaveClass("max-w-full", "flex-none");
+  });
+
+  // AC5: the smaller page of the second pass leaves room for every notice: no strip, the page centred.
+  it("centres the page again when the strip turns out not to be needed", async () => {
+    overflowing();
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(private readonly callback: ResizeObserverCallback) {}
+        observe() {
+          this.callback(
+            [{ contentRect: { width: 960, height: 540 } } as ResizeObserverEntry],
+            this as unknown as ResizeObserver,
+          );
+        }
+        disconnect() {}
+      },
+    );
+    // Fitted into 960 × 540 it has 132 px on its right (too little); scaled down by the strip,
+    // 150 px: its notice goes beside it, and the page is centred in the whole view.
+    await drawn({
+      document: withElements([text("a", "Wide", 0, 0, 1640)]),
+      fitText: true,
+      scale: "fit",
+    });
+    const view = screen.getByTestId("view");
+    await waitFor(() =>
+      expect(
+        view.querySelector("[data-slot=slide-notice][data-slide-notice-for=a]"),
+      ).not.toBeNull(),
+    );
+    expect(view.querySelector("[data-slot=slide-notice]:not([data-slide-notice-for])")).toBeNull();
+    const drawnPage = view.querySelector<HTMLElement>("[data-slot=slide-page]")!;
+    expect(parseFloat(drawnPage.style.top)).toBeCloseTo(14, 1);
   });
 });

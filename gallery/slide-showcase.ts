@@ -442,6 +442,40 @@ export const SLIDE_FIT_WIDE = deck([
   },
 ]);
 
+// #321: a narrow text near the right edge with room above it, and two texts across the page's top
+// with no room beside them: the first notice stays on the canvas, the other two share one message
+// in the strip, which ends in "…".
+const across = (id: string, name: string, y: number): SlideElementInput => ({
+  id,
+  name,
+  type: "text",
+  x: 0,
+  y,
+  width: 1920,
+  height: 60,
+  runs: [{ text: words(120), size: 48, font: heading }],
+});
+export const SLIDE_FIT_EDGES = deck([
+  {
+    id: "edges",
+    background,
+    elements: [
+      across("across-one", "the first heading across the whole page", 0),
+      across("across-two", "the second heading across the whole page", 0),
+      {
+        id: "narrow-right",
+        name: "narrow text at the right edge",
+        type: "text",
+        x: 1860,
+        y: 600,
+        width: 50,
+        height: 60,
+        runs: [{ text: words(40), size: 48, font: heading }],
+      },
+    ],
+  },
+]);
+
 // The editor's deck (`SUI-FEATURE-161`): a small format so 100 % fits the gallery, three shapes to
 // arrange, an app type, a group, a 40 px grid and a second page.
 const box = (id: string, x: number, y: number, fill: string) =>
