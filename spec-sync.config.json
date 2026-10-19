@@ -2,7 +2,7 @@
   "project": "suite-ui",
   "gate": {
     "profiles": {
-      "local": ["format", "lint", "typecheck", "unit", "gallery"],
+      "local": ["format", "lint", "typecheck", "unit"],
       "merge": ["format", "lint", "typecheck", "build", "unit", "gallery"]
     },
     "phases": [
