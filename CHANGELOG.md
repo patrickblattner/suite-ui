@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.142.0 — #363, SUI-FEATURE-232 rev 3 (Codex review v0.141.0 CX1, CX2): the element library's follow-ups
+
+New, not breaking.
+
+- **The focus goes to the new element** (`SUI-FEATURE-232` rev 3): after an insert by click, Enter, drag or a picked medium, the canvas holds the focus with the new element selected; the Add drawer stays open, and the way back to the library is the one it was.
+- **A new line's stroke is 0.4 % of the page's shorter side**, in whole px and at least 1 px: 4 px on a 1080 page.
+- **A see-through brand colour is never taken** (Codex CX2): each candidate is measured as it shows over the page's background, so on a black page a transparent colour does not pass for white; the first brand colour at 3 : 1, else the theme's primary colour, as before.
+- **An insert past the document's element limit is refused** (Codex CX1): the document with the new element is checked against the schema first; where it would not pass, an error toast says so ("The page can’t take another element. Remove one and try again.") and nothing changes.
+
+**Migration:** none. New package text (de, en, es): `slides.editor.insertRefused`. Baselines: `gallery-*` (strings table: de, en, es in light and dark, de also at 1440 and 390 px).
+
 ## 0.141.0 — #294 (increment 3), SUI-FEATURE-162 AC3, SUI-FEATURE-232: the slide editor's element library
 
 New, not breaking.

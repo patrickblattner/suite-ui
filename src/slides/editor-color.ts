@@ -9,8 +9,9 @@ type Rgb = readonly [number, number, number];
 
 let context: CanvasRenderingContext2D | null | undefined;
 
-// The sRGB of a CSS colour as painted over white; `undefined` without a canvas.
-function painted(color: string): Rgb | undefined {
+// The sRGB of a CSS colour as painted over `under` (white by default), so a see-through colour counts
+// as what shows (Codex #362 CX2); `undefined` without a canvas.
+function painted(color: string, under = "#ffffff"): Rgb | undefined {
   if (context === undefined) {
     context =
       typeof document === "undefined"
@@ -19,6 +20,8 @@ function painted(color: string): Rgb | undefined {
   }
   if (context === null) return undefined;
   context.fillStyle = "#ffffff";
+  context.fillRect(0, 0, 1, 1);
+  context.fillStyle = under;
   context.fillRect(0, 0, 1, 1);
   context.fillStyle = color;
   context.fillRect(0, 0, 1, 1);
@@ -56,11 +59,11 @@ export function insertColor(brand: SlideBrandSet, ground: string): ColorValue {
       : { kind: "brand", key: keys[0] };
   }
   for (const key of keys) {
-    const color = painted(brand.colors[key]!);
+    const color = painted(brand.colors[key]!, ground);
     if (color !== undefined && contrast(color, page) >= 3) return { kind: "brand", key };
   }
   const primary = getComputedStyle(document.documentElement).getPropertyValue("--primary").trim();
-  const theme = primary === "" ? undefined : painted(primary);
+  const theme = primary === "" ? undefined : painted(primary, ground);
   if (theme !== undefined && contrast(theme, page) >= 3) return { kind: "free", value: hex(theme) };
   // Neither stands out: black or white, whichever does.
   return { kind: "free", value: luminance(page) > 0.18 ? "#000000" : "#ffffff" };

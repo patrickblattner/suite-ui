@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Locator, type Page, test } from "@playwright/test";
 
@@ -9681,7 +9682,9 @@ test("slide editor: a library entry goes in by Enter or by dragging", async ({ p
   await expect(editor.getByTestId("canvas-announcement")).toHaveText("Inserted: Rectangle");
   await expect(editor.getByTestId("canvas-selection")).toBeVisible();
   await expect(page.locator("[data-sonner-toast]")).toHaveCount(0);
-  await expect(library.getByTestId("slide-editor-library-rectangle")).toBeFocused();
+  // The focus is on the new element, on the canvas; the drawer stays open (`SUI-FEATURE-232` rev 3).
+  await expect(editor.getByTestId("slide-editor-canvas")).toBeFocused();
+  await expect(library).toBeVisible();
 
   // At 100 % the canvas is the page: (200, 150) on the canvas is (200, 150) on the page. The drawer
   // moved the canvas, so the point is taken from where it is now.
@@ -9794,6 +9797,37 @@ test("slide editor: a library drop lands under the pointer at any zoom", async (
     .poll(async () => Number(await field("x").inputValue()))
     .toBeCloseTo(300 / zoom - 45, 0);
   expect(Number(await field("y").inputValue())).toBeCloseTo(200 / zoom - 45, 0);
+});
+
+// Codex #362 CX2 (#363): a see-through brand colour counts as what shows over the page, so on a black
+// page a transparent colour is never taken; white, the next one, is.
+test("slide editor: a see-through brand colour is not taken for a new element", async ({
+  page,
+}) => {
+  await page.goto("/?page=slide-editor&lng=en");
+  const module = `/@fs${fileURLToPath(new URL("../src/slides/editor-color.ts", import.meta.url))}`;
+  const chosen = await page.evaluate(async (path) => {
+    const { insertColor } = (await import(path)) as typeof import("../src/slides/editor-color.js");
+    return insertColor(
+      { colors: { clear: "rgba(255, 255, 255, 0)", white: "#ffffff" }, fonts: {} },
+      "#000000",
+    );
+  }, module);
+  expect(chosen).toEqual({ kind: "brand", key: "white" });
+});
+
+// Codex #362 CX1 (#363): on a page at the document's element limit an insert is refused with an
+// error and nothing changes.
+test("slide editor: an insert past the element limit is refused", async ({ page }) => {
+  const { editor, library } = await openLibrary(page, "&doc=full");
+  await library.getByTestId("slide-editor-library-rectangle").click();
+  await expect(
+    page.locator("[data-sonner-toast]").filter({
+      hasText: "The page can’t take another element. Remove one and try again.",
+    }),
+  ).toBeVisible();
+  await expect(editor.getByTestId("editor-state")).toHaveAttribute("data-dirty", "false");
+  await expect(editor.locator("[data-slide-element=rectangle-1]")).toHaveCount(0);
 });
 
 // #294 inc 3: the library fits the drawer at 390 px in each language.

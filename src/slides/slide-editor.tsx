@@ -567,14 +567,25 @@ function Editor({
           : undefined;
     return (value === undefined ? undefined : cssColor(value, view.brand)) ?? "#ffffff";
   })();
-  // Put on the page of the document as it is when it lands (a picked medium arrives later); an
-  // element the schema refuses (a medium's id or alt text past its limits) is named, never inserted.
+  // Put on the page of the document as it is when it lands (a picked medium arrives later). The
+  // document with it must pass the schema first: an element it refuses (a medium's id or alt text
+  // past its limits), or a page already at its element limit (Codex #362 CX1), is named in an error
+  // toast and nothing changes. Then the focus goes to the new element on the canvas; the drawer
+  // stays open (`SUI-FEATURE-232` rev 3).
   const insertEntry = (entry: LibraryEntry, at?: Point, label = entryLabel(entry)): boolean => {
     const point = at ?? { x: pageWidth / 2, y: pageHeight / 2 };
     const color = insertColor(view.brand, ground);
     const element = libraryElement(history.document, page, entry, point, color);
-    if (!slideElementSchema.safeParse(element).success) return false;
+    if (!slideElementSchema.safeParse(element).success) {
+      toast.error(t("slides.editor.libraryMediaInvalid"));
+      return false;
+    }
+    if (!safeParseSlideDocument(insertElement(history.document, page, element)).ok) {
+      toast.error(t("slides.editor.insertRefused"));
+      return false;
+    }
     apply((current) => insertElement(current, page, element));
+    canvas.current?.focus();
     const ids = [element.id];
     setSelection(ids);
     setInsertNote({
@@ -897,13 +908,12 @@ function Editor({
                 picked.width !== undefined && picked.height !== undefined && picked.height > 0
                   ? picked.width / picked.height
                   : Number.NaN;
-              const placed = latestInsert.current({
+              latestInsert.current({
                 kind: "image",
                 media: picked.id,
                 alt: picked.alt ?? "",
                 aspect,
               });
-              if (!placed) toast.error(t("slides.editor.libraryMediaInvalid"));
             },
             () => toast.error(t("slides.editor.libraryMediaFailed")),
           );

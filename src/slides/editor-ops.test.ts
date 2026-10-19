@@ -828,7 +828,11 @@ describe("library elements", () => {
     expect(inserted.pages[0]!.elements.at(-1)!.id).toBe("rectangle-2");
     expect(safeParseSlideDocument(inserted).ok).toBe(true);
     const line = libraryElement(document, 0, { kind: "line" }, { x: 100, y: 100 }, color);
-    expect(line).toMatchObject({ type: "line", width: 216, height: 21.6, stroke: { width: 5.4 } });
+    // The stroke is 0.4 % of the shorter side, in whole px: 4 on a 1080 page (`SUI-FEATURE-232` rev 3).
+    expect(line).toMatchObject({ type: "line", width: 216, height: 21.6, stroke: { width: 4 } });
+    const tiny = { ...document, format: { name: "Tiny", width: 200, height: 100 } };
+    const thin = libraryElement(tiny, 0, { kind: "line" }, { x: 10, y: 10 }, color);
+    expect(thin.type === "line" && thin.stroke.width).toBe(1);
     const icon = libraryElement(
       document,
       0,

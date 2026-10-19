@@ -863,7 +863,8 @@ export function libraryElement(
   at: { x: number; y: number },
   color: ColorValue,
 ): SlideElement {
-  const side = round(Math.min(document.format.width, document.format.height) * 0.2);
+  const shorter = Math.min(document.format.width, document.format.height);
+  const side = round(shorter * 0.2);
   const elements = document.pages[page]?.elements ?? [];
   const layer = elements.reduce((top, element) => Math.max(top, element.layer), 0);
   const box = (width: number, height: number) => ({
@@ -892,7 +893,8 @@ export function libraryElement(
         id: uniqueId(document, "line"),
         type: "line",
         ...box(side, Math.max(1, round(side / 10))),
-        stroke: { color, width: Math.max(1, round(side / 40)) },
+        // 0.4 % of the shorter side, in whole px, at least 1 (`SUI-FEATURE-232` rev 3).
+        stroke: { color, width: Math.max(1, Math.round(shorter * 0.004)) },
       };
     case "icon":
       return {

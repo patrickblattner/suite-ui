@@ -454,6 +454,7 @@ export const es: SuiteStrings = {
       librarySearchHint: "Filtra los iconos por nombre mientras escribes.",
       libraryMediaFailed: "No se pudo abrir la biblioteca de medios. Inténtalo de nuevo.",
       libraryMediaInvalid: "Este medio no se puede colocar en la página. Elige otro.",
+      insertRefused: "La página no admite otro elemento. Quita uno e inténtalo de nuevo.",
       inserted: "Insertado: {{name}}",
       transfer: "Transferir formato",
       transferTitle: "Transferir a otro formato",

@@ -23,6 +23,29 @@ import { GALLERY_SLIDE_PROPS } from "./SlidesPage.js";
 // deck's alone); a copy in another format is kept here and opened on request, as an app would.
 const PARAMS = new URLSearchParams(window.location.search);
 const INVALID = PARAMS.get("doc") === "invalid";
+// `?doc=full`: the first page holds as many elements as a document may (Codex #362 CX1).
+const FULL = PARAMS.get("doc") === "full";
+const FULL_DOC = FULL
+  ? {
+      ...SLIDE_EDITOR_DOC,
+      pages: SLIDE_EDITOR_DOC.pages.map((page, index) =>
+        index === 0
+          ? {
+              ...page,
+              elements: Array.from({ length: 5000 }, (_, at) => ({
+                id: `dot-${at}`,
+                type: "shape" as const,
+                shape: "rectangle" as const,
+                x: (at % 100) * 8,
+                y: Math.floor(at / 100) * 8,
+                width: 4,
+                height: 4,
+              })),
+            }
+          : { ...page, elements: [] },
+      ),
+    }
+  : undefined;
 // `SUI-FEATURE-232`: the app's media picker, here a small dialog offering the gallery's photo
 // (`?media=none`: the app has none, so the editor shows no media entry; `?media=fail`: the picker
 // fails; `?media=bad`: it hands back a medium whose alt text is past the schema's limit).
@@ -88,6 +111,7 @@ export function SlideEditorPage() {
             key={opened === null ? "deck" : "copy"}
             document={
               opened ??
+              FULL_DOC ??
               (INVALID
                 ? ({ ...SLIDE_EDITOR_DOC, schemaVersion: 99 } as unknown as typeof SLIDE_EDITOR_DOC)
                 : SLIDE_EDITOR_DOC)

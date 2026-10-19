@@ -473,6 +473,7 @@ export const en = {
       librarySearchHint: "Filters the icons by name as you type.",
       libraryMediaFailed: "The media library could not be opened. Try again.",
       libraryMediaInvalid: "This medium can’t be placed on the page. Choose another one.",
+      insertRefused: "The page can’t take another element. Remove one and try again.",
       inserted: "Inserted: {{name}}",
       transfer: "Transfer format",
       transferTitle: "Transfer to another format",

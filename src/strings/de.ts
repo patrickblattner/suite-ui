@@ -458,6 +458,8 @@ export const de: SuiteStrings = {
       librarySearchHint: "Filtert die Icons beim Tippen nach Namen.",
       libraryMediaFailed: "Die Medien-Bibliothek konnte nicht geöffnet werden. Versuche es erneut.",
       libraryMediaInvalid: "Dieses Medium kann nicht auf die Seite. Wähle ein anderes.",
+      insertRefused:
+        "Die Seite fasst kein weiteres Element. Entferne eines und versuche es erneut.",
       inserted: "Eingefügt: {{name}}",
       transfer: "Format übertragen",
       transferTitle: "In ein anderes Format übertragen",
