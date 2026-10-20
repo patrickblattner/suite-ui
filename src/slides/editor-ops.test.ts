@@ -783,6 +783,42 @@ describe("slide editor operations on turned groups", () => {
 
   // #406: two upright leaves at 90° one above the other: the width is their heights only, so with it
   // kept the height grows without end.
+  // #411 (Codex v0.152.3): an empty turned subgroup keeps its stored box, as `refitGroups` keeps
+  // it; the range and the size solve measure it like that instead of failing.
+  it.each([
+    ["alone", []],
+    ["beside a shape", [shape("b", 400, 300, 100, 100)]],
+  ])("sizes a group with an empty turned subgroup %s", (_, others) => {
+    const empty = { id: "empty", type: "group", x: 100, y: 100, width: 100, height: 50 };
+    const bounds = boundsOf([
+      drawnBox(slideElementSchema.parse({ ...empty, rotation: 45, children: [] })),
+      ...others.map((other) => boxOf(other)),
+    ])!;
+    const document = doc([
+      {
+        id: "outer",
+        type: "group",
+        ...bounds,
+        children: [{ ...empty, rotation: 45, children: [] }, ...others],
+      },
+    ]);
+    const group = findElement(document.pages[0]!.elements, "outer")!.element;
+    if (group.type !== "group") throw new Error("expected the group");
+    for (const key of ["width", "height"] as const) {
+      const other = key === "width" ? "height" : "width";
+      const range = groupSizeRange(group, key)!;
+      expect(range.min).toBeLessThanOrEqual(group[key] + 0.01);
+      for (const target of [range.min, Number.isFinite(range.max) ? range.max : group[key] * 2]) {
+        const resized = box(
+          setBox(document, 0, "outer", { ...boxOf(group), [key]: target }),
+          "outer",
+        );
+        expect(Math.abs(resized[key] - target)).toBeLessThan(0.01);
+        expect(Math.abs(resized[other] - group[other])).toBeLessThan(0.01);
+      }
+    }
+  });
+
   it("names no greatest height where the width kept does not hold it", () => {
     const { group, sized, id } = built([
       [0, 0, 200, 100, 90],

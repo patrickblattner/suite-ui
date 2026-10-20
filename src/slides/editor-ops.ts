@@ -536,7 +536,8 @@ function edgesOf(element: SlideElement, origin: { x: number; y: number }): Edges
   const cx = element.x + element.width / 2 - origin.x;
   const cy = element.y + element.height / 2 - origin.y;
   const radians = (element.rotation * Math.PI) / 180;
-  if (element.type !== "group") {
+  // An empty group keeps its stored box, as `refitGroups` keeps it, and is drawn like a leaf (#411).
+  if (element.type !== "group" || element.children.length === 0) {
     const [c, s] =
       element.rotation === 0 ? [1, 0] : [Math.abs(Math.cos(radians)), Math.abs(Math.sin(radians))];
     const [w, h] = [element.width, element.height];
