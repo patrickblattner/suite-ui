@@ -72,10 +72,12 @@ import {
   setRotation,
   setTransition,
   stepIntoGroups,
+  toggleSelected,
   transferFormat,
   ungroupElement,
   uniqueId,
   updateElements,
+  withoutNested,
   zoomCrop,
 } from "./editor-ops.js";
 import {
@@ -1271,9 +1273,7 @@ function Editor({
     }
     let ids = selection;
     if (event.shiftKey) {
-      ids = selection.includes(hit.id)
-        ? selection.filter((id) => id !== hit.id)
-        : [...selection, hit.id];
+      ids = toggleSelected(elements, selection, hit.id);
     } else if (!selection.includes(hit.id)) {
       ids = [hit.id];
     }
@@ -1520,10 +1520,11 @@ function Editor({
   };
 
   // Any other way out of cropping — another selection, another page — keeps the crop, as Enter does;
-  // only Esc, Cancel and Undo drop it (#349).
+  // only Esc, Cancel and Undo drop it (#349). No selection holds a group together with its own
+  // descendant (`SUI-FEATURE-098`).
   const setSelection = (ids: string[]) => {
     if (cropping !== undefined) endCrop(true);
-    setSelectionState(ids);
+    setSelectionState(withoutNested(elements, ids));
   };
   const setPage = (next: number) => {
     if (cropping !== undefined) endCrop(true);

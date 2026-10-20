@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.152.5 — #409, SUI-FEATURE-098 rev 3: a selection never holds a group and its own child
+
+Fix.
+
+- **Shift-click:** with a child of a group selected, a Shift-click on the group (between its children) selects the group in the child's place. The last one clicked wins, and the frame shows it at once. Other selected elements stay. Before, both stayed selected, and "Align left" moved only the group while the child stayed put (Codex #407). Hit testing is unchanged: a click inside a selected group still hits the group.
+- **Any selection set:** a selection set with a group and one of its descendants keeps only the enclosing element, also when a frame dragged with Shift adds a selected child's group. Where a child would join its selected group (not reachable by a click on the canvas), it replaces the group. Dragging, the arrow keys, align, distribute, delete and group therefore work on exactly the elements framed.
+
+**Migration:** none. Baselines: none.
+
 ## 0.152.4 — #411, Codex review of v0.152.3: empty subgroup in the group size model
 
 Fix.

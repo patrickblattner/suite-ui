@@ -32,9 +32,11 @@ import {
   setRotation,
   setTransition,
   stepIntoGroups,
+  toggleSelected,
   transferFormat,
   ungroupElement,
   updateElements,
+  withoutNested,
   zoomCrop,
 } from "./editor-ops.js";
 import {
@@ -129,6 +131,37 @@ describe("slide editor operations", () => {
     const spread = distributeElements(three, 0, ["a", "b", "c"], "horizontal");
     // Span 0…1200, widths 350: two gaps of 425.
     expect(["a", "b", "c"].map((id) => box(spread, id).x)).toEqual([0, 525, 1000]);
+  });
+
+  // SUI-FEATURE-098 AC1 (#409): a Shift-click on a child of a selected group, or on the group of a
+  // selected child, replaces it; the last clicked wins, other elements stay selected.
+  it("lets a Shift-clicked element replace its selected group or child", () => {
+    const { document: grouped, id } = groupElements(three, 0, ["a", "b"]);
+    const elements = grouped.pages[0]!.elements;
+    expect(toggleSelected(elements, [id!, "c"], "b")).toEqual(["c", "b"]);
+    expect(toggleSelected(elements, ["b", "c"], id!)).toEqual(["c", id]);
+    expect(toggleSelected(elements, ["a"], "b")).toEqual(["a", "b"]);
+    expect(toggleSelected(elements, ["a", "b"], "b")).toEqual(["a"]);
+  });
+
+  // SUI-FEATURE-098 AC2 (#409, Codex #407): a selection set with a group and its own child keeps
+  // only the group, and "Align left" moves only it.
+  it("keeps the enclosing element of a selection set with a group and its child", () => {
+    const pair = doc([shape("left", 100, 0), shape("right", 300, 0)]);
+    const { document: grouped, id } = groupElements(pair, 0, ["left", "right"]);
+    const elements = grouped.pages[0]!.elements;
+    const selection = withoutNested(elements, ["right", id!]);
+    expect(selection).toEqual([id]);
+    expect(withoutNested(elements, ["left", "right"])).toEqual(["left", "right"]);
+    const left = alignElements(grouped, 0, selection, "left", {
+      x: 0,
+      y: 0,
+      width: 1920,
+      height: 1080,
+    });
+    expect(box(left, id!).x).toBe(0);
+    expect(box(left, "left").x).toBe(0);
+    expect(box(left, "right").x).toBe(200);
   });
 });
 

@@ -165,6 +165,33 @@ export function groupChain(elements: readonly SlideElement[], id: string): Group
   return [];
 }
 
+// A selection never holds an element together with one of its groups (`SUI-FEATURE-098`): of
+// such a pair the enclosing element stays. A selection without such a pair comes back as it is: the
+// editor tells selections apart by identity.
+export function withoutNested(elements: readonly SlideElement[], ids: string[]): string[] {
+  const kept = ids.filter(
+    (id) => !groupChain(elements, id).some((group) => ids.includes(group.id)),
+  );
+  return kept.length === ids.length ? ids : kept;
+}
+
+// A Shift-click on `id`: a selected element leaves the selection; any other joins it and replaces
+// its selected groups and descendants, the last one clicked wins (`SUI-FEATURE-098`).
+export function toggleSelected(
+  elements: readonly SlideElement[],
+  ids: readonly string[],
+  id: string,
+): string[] {
+  if (ids.includes(id)) return ids.filter((one) => one !== id);
+  const enclosing = new Set(groupChain(elements, id).map((group) => group.id));
+  return [
+    ...ids.filter(
+      (one) => !enclosing.has(one) && !groupChain(elements, one).some((group) => group.id === id),
+    ),
+    id,
+  ];
+}
+
 // A page point in the frame of the given groups (outermost first): each turned group turned back
 // about its centre, so it can be tested against its children's boxes.
 export function intoGroups(groups: readonly Group[], point: { x: number; y: number }) {

@@ -10626,6 +10626,43 @@ test("slide player: a mouse click on a bar button lets the bar hide again", asyn
   await expect(player).toHaveAttribute("data-slide-step", "2");
 });
 
+// SUI-FEATURE-098 AC1/AC2 (#409, Codex #407): a child selected, a Shift-click on its group's gap
+// selects the group in its place, one frame at once; "Align left" then moves the group alone, its
+// children keep their spacing.
+test("slide editor: a Shift-clicked group replaces its selected child, and aligns alone", async ({
+  page,
+}) => {
+  const { editor, at, field, select } = await openEditor(page);
+  const child = at(670, 340);
+  await page.mouse.dblclick(child.x, child.y);
+  await expect(field("x")).toHaveValue("640");
+  await select(630, 340, true);
+  await expect(editor.getByTestId("canvas-name")).toHaveText("Pair");
+  await expect(editor.getByTestId("canvas-selection")).toHaveCount(1);
+  await expect(field("x")).toHaveValue("560");
+  await editor.getByTestId("slide-editor-align-left").click();
+  await expect(field("x")).toHaveValue("0");
+  const left = (await editor.locator("[data-slide-element=pair-left]").boundingBox())!;
+  const right = (await editor.locator("[data-slide-element=pair-right]").boundingBox())!;
+  expect(right.x - left.x).toBeCloseTo(80, 0);
+});
+
+// SUI-FEATURE-098 (#409): a child selected, a frame dragged with Shift over its group adds the
+// group, and the selection keeps the group alone: one frame.
+test("slide editor: a Shift-frame over a selected child's group keeps the group alone", async ({
+  page,
+}) => {
+  const { editor, at, field, drag } = await openEditor(page);
+  const child = at(670, 340);
+  await page.mouse.dblclick(child.x, child.y);
+  await expect(field("x")).toHaveValue("640");
+  await page.keyboard.down("Shift");
+  await drag({ x: 540, y: 290 }, { x: 180, y: 110 });
+  await page.keyboard.up("Shift");
+  await expect(editor.getByTestId("canvas-name")).toHaveText("Pair");
+  await expect(editor.getByTestId("canvas-selection")).toHaveCount(1);
+});
+
 // Codex #317 CX3: a child of a turned group moves where the pointer goes, in the group's frame.
 test("slide editor: dragging a child of a turned group follows the pointer", async ({ page }) => {
   const { editor, at, field, select } = await openEditor(page);
