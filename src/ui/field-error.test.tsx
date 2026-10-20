@@ -9,7 +9,9 @@ describe("FieldError", () => {
     render(<FieldError id="port-error">Enter a whole number.</FieldError>);
     const error = screen.getByRole("alert");
     expect(error).toHaveAttribute("id", "port-error");
-    expect(error).toHaveTextContent(/^Enter a whole number\.$/);
+    // The visible text, after the word only screen readers read (`SUI-FEATURE-096`).
+    expect(error).toHaveTextContent(/^Error: Enter a whole number\.$/);
+    expect(error.querySelector(".sr-only")).toHaveTextContent("Error:");
     expect(error).toHaveClass("text-destructive-text");
     expect(error).not.toHaveClass("text-destructive");
     const symbol = error.firstElementChild;

@@ -34,6 +34,11 @@ export const en = {
     more_one: "{{n}} more",
     more_other: "{{n}} more",
   },
+  // The word before an `InlineMessage` text that only screen readers read (`SUI-FEATURE-096`).
+  inline: {
+    error: "Error:",
+    warn: "Warning:",
+  },
   // The text of each `StatusChip` state, in sentence case.
   state: {
     succeeded: "Succeeded",

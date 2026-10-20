@@ -7674,6 +7674,29 @@ test("GL-UI-060: error messages lead with a symbol, the empty state has none", a
   expect(await symbolOf(page.getByTestId("settings-error"))).toBe("lucide-circle-x");
 });
 
+// `SUI-FEATURE-096`: each InlineMessage tone has its own symbol, role and word for screen readers; the
+// link in its text is underlined and reached by keyboard.
+test("GL-UI-060: the InlineMessage tones differ without colour, the link is reachable", async ({
+  page,
+}) => {
+  await page.goto("/?page=components&lng=en");
+  const error = page.getByTestId("inline-message-error");
+  const warn = page.getByTestId("inline-message-warn");
+  await expect(error).toHaveAttribute("role", "alert");
+  await expect(warn).toHaveAttribute("role", "status");
+  await expect(error.locator(".sr-only")).toHaveText("Error:");
+  await expect(warn.locator(".sr-only")).toHaveText("Warning:");
+  expect(await symbolOf(error)).toBe("lucide-circle-x");
+  expect(await symbolOf(warn)).toBe("lucide-triangle-alert");
+
+  const link = warn.getByRole("link", { name: "Free up space" });
+  await expect(link).toHaveCSS("text-decoration-line", "underline");
+  await link.focus();
+  await page.keyboard.press("Shift+Tab");
+  await page.keyboard.press("Tab");
+  await expect(link).toBeFocused();
+});
+
 test("GL-UI-060: every toast variant has its own symbol and its name", async ({ page }) => {
   await page.goto("/?page=toast&lng=en");
   await expect(page.locator("[data-sonner-toast][data-type=success]")).toBeVisible();
@@ -7958,7 +7981,7 @@ test("grid fields: count 0 is rejected with its bound", async ({ page }) => {
   await expect(count).not.toHaveAttribute("aria-invalid");
   await count.blur();
   await expect(count).toHaveAttribute("aria-invalid", "true");
-  await expect(page.getByTestId("grid-count-error")).toHaveText("Von 1 bis 24");
+  await expect(page.getByTestId("grid-count-error")).toHaveText("Fehler: Von 1 bis 24");
   await count.fill("6");
   await expect(page.getByTestId("grid-count-error")).toHaveCount(0);
 });
@@ -10427,11 +10450,12 @@ test("slide editor: a chart's data is edited in the panel, key by key, within it
   await expect(value).toHaveValue("1x");
   const error = panel.getByTestId("slide-editor-chart-error-0");
   // It names its category and series in words, not by the red border alone (`GL-UI-060`, #368).
-  await expect(error).toHaveText("Category 1 – Sales: enter a number, such as 1.5.");
+  // The error starts with the word only screen readers read (`SUI-FEATURE-096`).
+  await expect(error).toHaveText("Error: Category 1 – Sales: enter a number, such as 1.5.");
   await expect(error).toHaveRole("alert");
   await expect(value).toHaveAttribute("aria-invalid", "true");
   await expect(value).toHaveAccessibleErrorMessage(
-    "Category 1 – Sales: enter a number, such as 1.5.",
+    "Error: Category 1 – Sales: enter a number, such as 1.5.",
   );
   // Below the table, outside its rows (no row of data to the ear), not wrapped word by word in the
   // value's column (#368).
@@ -10442,9 +10466,11 @@ test("slide editor: a chart's data is edited in the panel, key by key, within it
   expect(errorBox.height).toBeLessThan(2 * 20);
   // A second value of the row that is not a number joins the same message.
   await typeInto(page, panel.getByTestId("slide-editor-chart-value-1-0"), "x");
-  await expect(error).toHaveText("Category 1 – Sales and Series 2: enter a number, such as 1.5.");
+  await expect(error).toHaveText(
+    "Error: Category 1 – Sales and Series 2: enter a number, such as 1.5.",
+  );
   await expect(panel.getByTestId("slide-editor-chart-value-1-0")).toHaveAccessibleErrorMessage(
-    "Category 1 – Sales and Series 2: enter a number, such as 1.5.",
+    "Error: Category 1 – Sales and Series 2: enter a number, such as 1.5.",
   );
   await expect(firstCell).toHaveText("1");
   await editor.getByTestId("editor-undo").click();
@@ -10456,7 +10482,7 @@ test("slide editor: a chart's data is edited in the panel, key by key, within it
     ["0x10", "Category 1 – Sales: enter a number, such as 1.5."],
   ] as const) {
     await typeInto(page, value, typed);
-    await expect(error, typed).toHaveText(text);
+    await expect(error, typed).toHaveText(`Error: ${text}`);
   }
   await editor.getByTestId("editor-undo").click();
   // Up to six series; then adding says why it cannot.

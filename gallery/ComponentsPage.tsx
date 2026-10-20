@@ -40,6 +40,7 @@ import { type Crop, CroppedBackground, CroppedImage } from "../src/ui/cropped-im
 import { EditorHeader, type EditorLifecycle } from "../src/ui/editor-header.js";
 import { FileFacts } from "../src/ui/file-facts.js";
 import { Hint } from "../src/ui/hint.js";
+import { InlineMessage } from "../src/ui/inline-message.js";
 import { InlineStatus } from "../src/ui/inline-status.js";
 import { Input } from "../src/ui/input.js";
 import { Label } from "../src/ui/label.js";
@@ -683,6 +684,22 @@ function FieldErrors() {
             ))}
           </RadioGroup>
         </SettingsField>
+      </div>
+    </Section>
+  );
+}
+
+// `SUI-FEATURE-096`: a free message line per tone, the warning with a link in its text.
+function InlineMessages() {
+  return (
+    <Section id="inline-message" title="InlineMessage">
+      <div className="flex flex-col gap-3">
+        <InlineMessage tone="error" data-testid="inline-message-error">
+          The export could not be written.
+        </InlineMessage>
+        <InlineMessage tone="warn" data-testid="inline-message-warn">
+          The storage is almost full. <a href="#inline-message">Free up space</a>
+        </InlineMessage>
       </div>
     </Section>
   );
@@ -1480,6 +1497,7 @@ export function ComponentsPage() {
       <Badges />
       <Fields />
       <FieldErrors />
+      <InlineMessages />
       <Choices />
       <Sliders />
       <Structure />

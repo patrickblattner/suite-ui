@@ -25,6 +25,7 @@ export * from "./focus-return.js";
 export * from "./grid.js";
 export * from "./grid-core.js";
 export * from "./hint.js";
+export * from "./inline-message.js";
 export * from "./inline-status.js";
 export * from "./input.js";
 export * from "./label.js";

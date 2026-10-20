@@ -32,6 +32,10 @@ export const es: SuiteStrings = {
     more_one: "{{n}} más",
     more_other: "{{n}} más",
   },
+  inline: {
+    error: "Error:",
+    warn: "Aviso:",
+  },
   state: {
     succeeded: "Correcto",
     ok: "OK",

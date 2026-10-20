@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.157.0 — #357, SUI-FEATURE-096: InlineMessage, one error and warning line with a symbol
+
+Feature.
+
+- **New building block `InlineMessage`** (`@suite/ui/ui/inline-message`): a free message line with `tone: "error" | "warn"`; the children are the app's text and may hold a link. Error shows `CircleXIcon` in `--destructive-text` and is an alert; warning shows `TriangleAlertIcon` in `--warn-text` and is a status message. Both in `text-sm`, `id` and `data-testid` pass through.
+- **Screen-reader prefix:** the text starts with a word only screen readers read, so the kind rests neither on colour nor on the symbol alone (`GL-UI-060`): "Error:" / "Warning:" (de "Fehler:" / "Hinweis:", es "Error:" / "Aviso:").
+- **Link in the text:** underlined, in the tone's colour, in the tab order with the focus ring.
+- **FieldError on it:** `FieldError` now renders an `InlineMessage` in the error tone with its field wiring (`id` for `aria-errormessage`); its API, look and spacing are unchanged, and a field error is now announced with the "Error:" prefix too.
+- The gallery's components page shows both tones in a new InlineMessage section, light and dark.
+
+**Migration:** none; apps replace their own error and warning lines outside fields with `InlineMessage`. New strings `inline.error`, `inline.warn` (en, de, es). Baselines: the components page (new section) and the strings table (gallery start page) in de, en and es, light and dark, and in de at 390 px and 1440 px.
+
 ## 0.156.0 — #354, SUI-FEATURE-230: crop mode shows the image's rest, works without a drag, applies on a press beside the image
 
 Feature.

@@ -32,6 +32,10 @@ export const de: SuiteStrings = {
     more_one: "1 weiterer",
     more_other: "{{n}} weitere",
   },
+  inline: {
+    error: "Fehler:",
+    warn: "Hinweis:",
+  },
   state: {
     succeeded: "Erfolgreich",
     ok: "OK",
