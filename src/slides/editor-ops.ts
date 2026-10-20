@@ -210,6 +210,12 @@ export function placedBox(
   };
 }
 
+// The box around an element where it is drawn on the page, its groups' turn included (#328).
+export function pageBox(elements: readonly SlideElement[], element: SlideElement): Box {
+  const placed = placedBox(elements, element);
+  return outerBox(placed.box, placed.rotation);
+}
+
 // A step on the page in the frame of the given groups: turned back by each turned group.
 export function stepIntoGroups(groups: readonly Group[], step: { x: number; y: number }) {
   const origin = intoGroups(groups, { x: 0, y: 0 });
@@ -324,6 +330,8 @@ export function moveEach(
   page: number,
   steps: ReadonlyMap<string, { x: number; y: number }>,
 ): SlideDocument {
+  // No step at all leaves the document as it is, unrounded and unrefitted (#329).
+  if ([...steps.values()].every((step) => step.x === 0 && step.y === 0)) return document;
   const shift =
     (step: { x: number; y: number }) =>
     (element: SlideElement): SlideElement => ({
@@ -672,11 +680,14 @@ export function alignElements(
   alignment: Alignment,
   target: Box,
 ): SlideDocument {
-  let next = document;
+  // Measured where each element is drawn on the page, each step turned into its groups' frame
+  // (#328).
+  const elements = document.pages[page]?.elements ?? [];
+  const steps = new Map<string, { x: number; y: number }>();
   for (const id of ids) {
-    const found = findElement(next.pages[page]?.elements ?? [], id);
+    const found = findElement(elements, id);
     if (found === undefined) continue;
-    const box = drawnBox(found.element);
+    const box = pageBox(elements, found.element);
     const dx =
       alignment === "left"
         ? target.x - box.x
@@ -693,9 +704,9 @@ export function alignElements(
           : alignment === "bottom"
             ? target.y + target.height - (box.y + box.height)
             : 0;
-    next = moveBy(next, page, [id], dx, dy);
+    steps.set(id, stepIntoGroups(groupChain(elements, id), { x: dx, y: dy }));
   }
-  return next;
+  return moveEach(document, page, steps);
 }
 
 // Spreads three or more elements so the gaps between them are equal, the outer two staying.
@@ -708,7 +719,7 @@ export function distributeElements(
   const elements = document.pages[page]?.elements ?? [];
   const boxes = ids.flatMap((id) => {
     const found = findElement(elements, id);
-    return found === undefined ? [] : [{ id, box: drawnBox(found.element) }];
+    return found === undefined ? [] : [{ id, box: pageBox(elements, found.element) }];
   });
   if (boxes.length < 3) return document;
   const start = (box: Box) => (axis === "horizontal" ? box.x : box.y);
@@ -718,20 +729,15 @@ export function distributeElements(
   const last = boxes.at(-1)!.box;
   const span = start(last) + size(last) - start(first);
   const gap = (span - boxes.reduce((sum, one) => sum + size(one.box), 0)) / (boxes.length - 1);
-  let next = document;
+  const steps = new Map<string, { x: number; y: number }>();
   let at = start(first);
   for (const { id, box } of boxes) {
     const delta = at - start(box);
-    next = moveBy(
-      next,
-      page,
-      [id],
-      axis === "horizontal" ? delta : 0,
-      axis === "vertical" ? delta : 0,
-    );
+    const step = { x: axis === "horizontal" ? delta : 0, y: axis === "vertical" ? delta : 0 };
+    steps.set(id, stepIntoGroups(groupChain(elements, id), step));
     at += size(box) + gap;
   }
-  return next;
+  return moveEach(document, page, steps);
 }
 
 // An image's crop (`SUI-FEATURE-162`): the image zoomed (1 = it covers the frame) and shifted inside

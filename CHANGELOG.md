@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.152.2 — #328, SUI-FEATURE-190: align, distribute and the selection frame in turned groups
+
+Fix.
+
+- **Align and distribute:** a child of a turned group is measured where it is drawn on the page, and its step is turned into its group's frame. Before, it moved along the group's axes, so at 90° "Align left" moved it up or down the screen instead of to the left. All the steps are applied together, so the groups refit once.
+- **Selection frame:** a selection with children of a turned group (also one across levels) is framed where it is drawn on the page, and align uses that frame. Before, the frame lay in the group's frame and jumped by about 40 px at 90° when a second element was added.
+- **No move, no change:** a move whose steps are all zero (an Alt-drag back to the start) leaves the document as it was. Before, it rounded fractional coordinates and the document counted as changed (#329).
+
+**Migration:** none. Baselines: none.
+
 ## 0.152.1 — #404, Codex review of v0.152.0: group size range
 
 Fix.

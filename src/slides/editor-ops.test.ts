@@ -19,6 +19,7 @@ import {
   libraryElement,
   outOfGroups,
   overflowingIds,
+  pageBox,
   panCrop,
   placedBox,
   moveBy,
@@ -577,6 +578,57 @@ describe("slide editor operations on turned groups", () => {
       expect(range!.min).toBeLessThanOrEqual(group[key] + 0.01);
       expect(range!.max).toBeGreaterThanOrEqual(group[key] - 0.01);
     }
+  });
+
+  // #328 AC1/AC2: align and distribute measure a child of a turned group where it is drawn on the
+  // page and move it in its group's frame.
+  const onPage = (document: SlideDocument, id: string) => {
+    const elements = document.pages[0]!.elements;
+    return pageBox(elements, findElement(elements, id)!.element);
+  };
+  it.each([90, 37])(
+    "aligns a child of a %i° group by where it is drawn on the page",
+    (rotation) => {
+      const { document } = grouped(rotation);
+      const page = { x: 0, y: 0, width: 1920, height: 1080 };
+      const left = alignElements(document, 0, ["a"], "left", page);
+      expect(onPage(left, "a").x).toBeCloseTo(0, 2);
+      const before = onPage(document, "a");
+      expect(onPage(left, "a").y).toBeCloseTo(before.y, 2);
+      const bottom = alignElements(document, 0, ["a"], "bottom", page);
+      expect(onPage(bottom, "a").y + onPage(bottom, "a").height).toBeCloseTo(1080, 2);
+      expect(onPage(bottom, "a").x).toBeCloseTo(before.x, 2);
+    },
+  );
+
+  it("distributes a child of a turned group by where it is drawn on the page", () => {
+    const { document: inGroup } = grouped(90);
+    const document = {
+      ...inGroup,
+      pages: [
+        {
+          ...inGroup.pages[0]!,
+          elements: [
+            ...inGroup.pages[0]!.elements,
+            slideElementSchema.parse(shape("c", -600, 0)),
+            slideElementSchema.parse(shape("d", 1000, 0)),
+          ],
+        },
+      ],
+    };
+    // The turned child lies in the middle, so its step is not zero; at 90° a step left unturned
+    // would move it up or down the page.
+    const spread = distributeElements(document, 0, ["a", "c", "d"], "horizontal");
+    const [a, c, d] = ["a", "c", "d"].map((id) => onPage(spread, id));
+    expect(a!.x).not.toBeCloseTo(onPage(document, "a").x, 0);
+    expect(a!.x - (c!.x + c!.width)).toBeCloseTo(d!.x - (a!.x + a!.width), 2);
+    expect(a!.y).toBeCloseTo(onPage(document, "a").y, 2);
+  });
+
+  // #328 AC4 (#329): steps that are all zero leave the document as it was, unrounded.
+  it("returns the same document for steps that are all zero", () => {
+    const fractional = doc([shape("a", 10.12345, 20.98765)]);
+    expect(moveEach(fractional, 0, new Map([["a", { x: 0, y: 0 }]]))).toBe(fractional);
   });
 });
 
