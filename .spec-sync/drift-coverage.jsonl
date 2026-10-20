@@ -556,3 +556,5 @@
 {"ts":"2026-10-20T20:26:55.571Z","key":"SUI-FEATURE-095","from":2,"to":3,"disposition":"ticket","ref":"423"}
 {"ts":"2026-10-20T20:26:55.955Z","key":"SUI-FEATURE-230","from":2,"to":3,"disposition":"ticket","ref":"354"}
 {"ts":"2026-10-20T21:00:43.505Z","key":"SUI-FEATURE-230","from":2,"to":4,"disposition":"ticket","ref":"426"}
+{"ts":"2026-10-20T21:33:27.685Z","key":"SUI-FEATURE-096","from":2,"to":3,"disposition":"ticket","ref":"357"}
+{"ts":"2026-10-20T21:33:28.074Z","key":"GL-CODE-001","from":3,"to":6,"disposition":"editorial","ref":"no code impact: suite-ui has no German technical names (scan of data-testid, storage keys, query params, i18n keys); rule applies to future names"}
