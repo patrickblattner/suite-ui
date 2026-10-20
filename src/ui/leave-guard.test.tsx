@@ -70,7 +70,10 @@ const escape = (target: Element = document.activeElement ?? document.body) =>
 
 // A list whose row opens the panel; `Name` is dirty once it differs from the loaded "Main".
 function ListWithPanel(
-  props: Omit<Partial<EditPanelProps>, "submitDisabled" | "submitDisabledHint"> & {
+  props: Omit<
+    Partial<EditPanelProps>,
+    "submitDisabled" | "submitDisabledHint" | "mode" | "actions"
+  > & {
     save?: () => unknown;
   },
 ) {

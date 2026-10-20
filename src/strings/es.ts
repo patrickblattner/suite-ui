@@ -226,7 +226,11 @@ export const es: SuiteStrings = {
     cancelHint: "Cierra el diálogo sin cambiar nada.",
     cancelDisabledHint: "Podrás cerrar de nuevo cuando la acción haya terminado.",
   },
+  panel: {
+    close: "Cerrar",
+  },
   editPanel: {
+    viewCloseHint: "Cierra el panel.",
     backHint: "Vuelve un paso atrás; antes pregunta si hay cambios sin guardar.",
     cancelHint: "Cierra el panel sin guardar; antes pregunta si hay cambios sin guardar.",
     closeHint: "Cierra el panel; antes pregunta si hay cambios.",

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.159.0 — #360, SUI-FEATURE-097: EditPanel view mode with preview
+
+Feature.
+
+- **`mode="view"`:** the EditPanel shows a record before anyone changes it (`GL-UI-027`). It has the same panel and the same `preview` split as the edit mode, but no form, no dirty state, no save and no Back. Apps no longer need to build a view out of `mode="edit"` without `onSubmit`.
+- **Footer:** "Close" (`panel.close`, with the hint "Closes the panel.") plus the app's own `actions` (new prop) to its right. The package forces no primary colour on them, and the app wraps each one in a `Hint` (`SUI-FEATURE-091`). `actions` is accepted only with `mode="view"`; anywhere else it is a type error.
+- **Leaving:** Esc and Close close without asking, even when `dirty` is passed, and the focus returns to the element that opened the panel. When the view hands over to another edit panel (its Edit opens one), the focus stays in the new panel.
+- The gallery's edit panel page has a view mode panel with an image preview and an Edit action, light and dark.
+
+**Migration:** none for existing panels. Props built with `Omit<Partial<EditPanelProps>, …>` must also omit `mode` and `actions`, since the two now form one unit. The Cockpit's avatar detail and template view switch from `mode="edit"` without `onSubmit` to `mode="view"`. New strings `panel.close`, `editPanel.viewCloseHint` (en, de, es). Baselines: new `edit-panel-view` screenshots in de, en and es, light and dark; the strings table (gallery start page) in every language and theme, and in de at 390 px and 1440 px.
+
 ## 0.158.0 — #359, SUI-FEATURE-063: a MediaTile's selection and current choice show in words
 
 Feature.

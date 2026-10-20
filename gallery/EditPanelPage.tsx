@@ -1,3 +1,4 @@
+import { PencilIcon } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router-dom";
@@ -10,6 +11,7 @@ import { CreateAndSelectDialog } from "../src/ui/create-and-select-dialog.js";
 import { EditPanel } from "../src/ui/edit-panel.js";
 import { Input } from "../src/ui/input.js";
 import { FileFacts } from "../src/ui/file-facts.js";
+import { Hint } from "../src/ui/hint.js";
 import { Label } from "../src/ui/label.js";
 import { useLeaveGuard } from "../src/ui/leave-guard.js";
 import { Textarea } from "../src/ui/textarea.js";
@@ -285,6 +287,7 @@ function Demo() {
   const [nextOpen, setNextOpen] = useState(false);
   const [nextName, setNextName] = useState("team-photo.jpg");
   const [viewOpen, setViewOpen] = useState(false);
+  const [viewModeOpen, setViewModeOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
   const [note, setNote] = useState("");
   const [shell, setShell] = useState<number | null>(null);
@@ -370,6 +373,14 @@ function Demo() {
           onClick={() => setViewOpen(true)}
         >
           Open read-only
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          data-testid="view-mode-panel-trigger"
+          onClick={() => setViewModeOpen(true)}
+        >
+          Open view mode
         </Button>
         <Button
           variant="outline"
@@ -481,6 +492,42 @@ function Demo() {
         testIdPrefix="view-panel"
       >
         <p className="text-sm">Created on 3 March, 12 posts.</p>
+      </EditPanel>
+      {/* SUI-FEATURE-097: the view mode shows a record with its preview; Edit is the app's action. */}
+      <EditPanel
+        open={viewModeOpen}
+        onOpenChange={setViewModeOpen}
+        title="team-photo.jpg"
+        description="Uploaded on 3 March by Ana."
+        mode="view"
+        testIdPrefix="view-mode-panel"
+        preview={<img src={PICTURE} alt="team-photo.jpg" data-testid="view-mode-panel-picture" />}
+        actions={
+          <Hint text="Opens the record in the edit panel.">
+            <Button
+              type="button"
+              variant="outline"
+              size="default"
+              data-testid="view-mode-panel-edit"
+              onClick={() => {
+                setViewModeOpen(false);
+                setMedia(0);
+              }}
+            >
+              <PencilIcon aria-hidden="true" />
+              Edit
+            </Button>
+          </Hint>
+        }
+      >
+        <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
+          <dt className="text-muted-foreground">Type</dt>
+          <dd>JPEG image</dd>
+          <dt className="text-muted-foreground">Size</dt>
+          <dd>1200 × 800 px</dd>
+          <dt className="text-muted-foreground">Used in</dt>
+          <dd>Spring newsletter</dd>
+        </dl>
       </EditPanel>
       {/* SUI-FEATURE-092: an unsent comment has no save target; leaving it asks to discard. */}
       <EditPanel

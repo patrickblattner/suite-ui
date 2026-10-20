@@ -237,7 +237,12 @@ export const en = {
     cancelHint: "Closes the dialog without changing anything.",
     cancelDisabledHint: "Closing becomes possible again once the action has finished.",
   },
+  // The edit panel's view mode (`SUI-FEATURE-097`).
+  panel: {
+    close: "Close",
+  },
   editPanel: {
+    viewCloseHint: "Closes the panel.",
     backHint: "Goes back one step; asks first if there are unsaved changes.",
     cancelHint: "Closes the panel without saving; asks first if there are unsaved changes.",
     closeHint: "Closes the panel; asks first if there are changes.",

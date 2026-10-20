@@ -74,14 +74,26 @@ type EditPanelProps = {
   // With `pager` the header carries ‹ and › left of the title, the position beside them. A locked
   // button is `aria-disabled`, not `disabled`: paging to the end keeps the focus on it.
   pager?: EditPanelPager;
-  // The opening focus as in `DialogContent`: only `add` focuses the first field.
-  mode?: "add" | "edit";
   // Replaces `edit-panel` in `edit-panel`, `-body`, `-preview`, `-back`, `-cancel`, `-submit`,
   // `-previous` and `-next`.
   testIdPrefix?: string;
   className?: string;
   style?: React.CSSProperties;
-} & SubmitLock;
+} & SubmitLock &
+  PanelMode;
+
+// The opening focus as in `DialogContent`: only `add` focuses the first field. `view` shows a record
+// before anyone changes it (`SUI-FEATURE-097`): no form, no dirty state, no save and no Back; the
+// footer carries Close and the `actions`, and every way out closes without asking.
+type PanelMode =
+  | { mode?: "add" | "edit"; actions?: never }
+  | {
+      mode: "view";
+      // The app's own actions, right of Close (e.g. an Edit that opens an edit panel); the package
+      // forces no primary colour on them. Every footer button sits in a `Hint` (`SUI-FEATURE-091`),
+      // so the app wraps each of its actions in one.
+      actions?: React.ReactNode;
+    };
 
 // A locked primary action always names its reason (`SUI-FEATURE-250`): `submitDisabled` comes with
 // `submitDisabledHint` or not at all. The app knows the reason; the package invents none.
@@ -115,11 +127,13 @@ function EditPanel({
   backDisabled = false,
   pager,
   mode,
+  actions,
   testIdPrefix = "edit-panel",
   className,
   style,
 }: EditPanelProps) {
   const { t } = useTranslation("suite");
+  const view = mode === "view";
   const submitText = submitHint ?? t(`editPanel.${submitKind}Hint`);
   // Back's and Cancel's hints follow the kind (`SUI-FEATURE-094`): only `save` speaks of saving.
   const packageBackHint = {
@@ -133,15 +147,16 @@ function EditPanel({
     next: t("editPanel.nextCancelHint"),
   }[submitKind];
   const returnFocus = React.useRef<HTMLElement | null>(null);
+  const content = React.useRef<HTMLDivElement>(null);
   const submit = React.useRef<HTMLButtonElement>(null);
   const { guard, dialog, working, run } = useLeaveConfirm({
-    dirty: open && dirty,
+    dirty: open && dirty && !view,
     busy: open && busyProp,
     open,
     // Without `onSubmit` the panel has no save target, and a next step saves nothing and never runs
     // from the dialog (`SUI-FEATURE-094`): the dialog asks "Discard changes?".
     onSave:
-      onSubmit === undefined || submitKind === "next"
+      view || onSubmit === undefined || submitKind === "next"
         ? undefined
         : () => (submitDisabled ? false : onSubmit()),
     applies: submitKind === "apply",
@@ -167,6 +182,7 @@ function EditPanel({
   }, [open, guard, onOpenChange]);
 
   const geometry = usePanelGeometry();
+  const Body = view ? "div" : "form";
 
   return (
     <Sheet
@@ -180,6 +196,7 @@ function EditPanel({
     >
       <SheetPrimitive.Portal>
         <SheetPrimitive.Content
+          ref={content}
           data-slot="edit-panel"
           data-testid={testIdPrefix}
           data-mode={mode}
@@ -201,7 +218,12 @@ function EditPanel({
           }}
           onCloseAutoFocus={(event) => {
             event.preventDefault();
-            returnFocus.current?.focus({ preventScroll: true });
+            // A panel this one handed over to (a view's Edit opening an edit panel) already holds
+            // the focus: it stays there.
+            const holder = document.activeElement?.closest("[data-slot=edit-panel]");
+            if (holder == null || holder === content.current) {
+              returnFocus.current?.focus({ preventScroll: true });
+            }
             returnFocus.current = null;
           }}
           onInteractOutside={(event) => event.preventDefault()}
@@ -265,18 +287,23 @@ function EditPanel({
             )}
             {description !== undefined && <SheetDescription>{description}</SheetDescription>}
           </div>
-          {/* Validation belongs to the call site (Zod, `GL-UI-027`): no browser bubble blocks submit. */}
-          <form
-            noValidate
+          {/* Validation belongs to the call site (Zod, `GL-UI-027`): no browser bubble blocks submit.
+              A `view` panel has nothing to submit and so no form. */}
+          <Body
+            {...(view
+              ? {}
+              : {
+                  noValidate: true,
+                  onSubmit: (event: React.SyntheticEvent) => {
+                    event.preventDefault();
+                    // React bubbles a submit through the portal: an outer `<form>` the panel stands
+                    // in must never submit along (`SUI-FEATURE-094`).
+                    event.stopPropagation();
+                    if (busy || submitDisabled || onSubmit === undefined) return;
+                    run(onSubmit);
+                  },
+                })}
             className="flex min-h-0 flex-1 flex-col"
-            onSubmit={(event) => {
-              event.preventDefault();
-              // React bubbles a submit through the portal: an outer `<form>` the panel stands in
-              // must never submit along (`SUI-FEATURE-094`).
-              event.stopPropagation();
-              if (busy || submitDisabled || onSubmit === undefined) return;
-              run(onSubmit);
-            }}
           >
             {preview === undefined ? (
               <div
@@ -323,7 +350,7 @@ function EditPanel({
               {/* Every footer button in the package `Hint` (`SUI-FEATURE-091`). The locked text is
                   always set, so the carrying span stands and a lock never remounts the button; the span
                   takes Back's `mr-auto` as well, it is the footer's flex item. */}
-              {onBack !== undefined && (
+              {onBack !== undefined && !view && (
                 // While the work runs Back explains it, held or locked by it (`SUI-FEATURE-171`); a
                 // Back the call site locked keeps its own reason.
                 <Hint
@@ -351,7 +378,13 @@ function EditPanel({
                 </Hint>
               )}
               <Hint
-                text={onSubmit === undefined ? t("editPanel.closeHint") : packageCancelHint}
+                text={
+                  view
+                    ? t("editPanel.viewCloseHint")
+                    : onSubmit === undefined
+                      ? t("editPanel.closeHint")
+                      : packageCancelHint
+                }
                 disabledText={t("editPanel.busyHint")}
               >
                 <Button
@@ -362,10 +395,15 @@ function EditPanel({
                   onClick={() => guard(() => onOpenChange(false))}
                   data-testid={`${testIdPrefix}-cancel`}
                 >
-                  {onSubmit === undefined ? t("actions.close") : t("actions.cancel")}
+                  {view
+                    ? t("panel.close")
+                    : onSubmit === undefined
+                      ? t("actions.close")
+                      : t("actions.cancel")}
                 </Button>
               </Hint>
-              {onSubmit !== undefined && (
+              {view && actions}
+              {onSubmit !== undefined && !view && (
                 <Hint
                   // A running Save locks itself inside `Button` (`aria-disabled`), unseen by `Hint`.
                   text={busy ? t("editPanel.busyHint") : submitText}
@@ -387,7 +425,7 @@ function EditPanel({
                 </Hint>
               )}
             </div>
-          </form>
+          </Body>
         </SheetPrimitive.Content>
       </SheetPrimitive.Portal>
       {dialog}

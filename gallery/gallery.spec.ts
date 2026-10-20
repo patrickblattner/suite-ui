@@ -132,6 +132,16 @@ for (const lng of LANGUAGES) {
         });
       });
     }
+
+    // `SUI-FEATURE-097`: the view mode, preview and record side by side, Close and the app's Edit.
+    test(`edit panel view ${lng} ${theme}`, async ({ page }) => {
+      await openViewModePanel(page, `&lng=${lng}&theme=${theme}`);
+      await expect(page.locator("html")).toHaveAttribute("lang", lng);
+      await page.mouse.move(1900, 1060);
+      await expect(page).toHaveScreenshot(`edit-panel-view-${lng}-${theme}.png`, {
+        fullPage: true,
+      });
+    });
   }
 }
 
@@ -1747,6 +1757,18 @@ async function openMediaPanel(page: Page, query = "") {
     .poll(() => picture.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth))
     .toBeGreaterThan(0);
   return page.getByTestId("media-panel");
+}
+
+// `SUI-FEATURE-097`: the view mode panel, its preview loaded.
+async function openViewModePanel(page: Page, query = "") {
+  await page.goto(`/?page=edit-panel${query}`);
+  await page.getByTestId("view-mode-panel-trigger").click();
+  const picture = page.getByTestId("view-mode-panel-picture");
+  await expect(picture).toBeVisible();
+  await expect
+    .poll(() => picture.evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth))
+    .toBeGreaterThan(0);
+  return page.getByTestId("view-mode-panel");
 }
 
 // The crop editor of the components page, with its frame over the loaded image.
@@ -4724,6 +4746,56 @@ test("list view shell: the view swaps under the keyboard, the FilterBar is not r
   await expect(media.getByTestId("data-table")).toHaveCount(0);
   await expect(page.getByTestId("view-tiles")).toBeFocused();
   await expect(media.getByTestId("filterbar")).toHaveAttribute("data-probe", "kept");
+});
+
+// SUI-FEATURE-097 AC1/AC2: the view mode has its preview beside the record, no form and no save;
+// the footer is Close and the app's Edit; Esc and Close leave without asking, back to the trigger.
+test("edit panel view mode: preview, Close and the app's action; Esc and Close leave at once", async ({
+  page,
+}) => {
+  const panel = await openViewModePanel(page, "&lng=en");
+  const trigger = page.getByTestId("view-mode-panel-trigger");
+  await expect(panel).toHaveAttribute("data-mode", "view");
+  await expect(panel.locator("form")).toHaveCount(0);
+  await expect(panel.getByTestId("view-mode-panel-submit")).toHaveCount(0);
+  const [previewBox, bodyBox] = [
+    await box(panel.getByTestId("view-mode-panel-preview")),
+    await box(panel.locator("[data-slot=edit-panel-fields]")),
+  ];
+  // Side by side, as in the edit mode.
+  expect(bodyBox.x).toBeGreaterThan(previewBox.x + previewBox.width - 1);
+  const footer = panel.locator("[data-slot=edit-panel-footer]");
+  await expect(footer.getByRole("button")).toHaveText(["Close", "Edit"]);
+  await expect(panel.getByTestId("view-mode-panel-cancel")).toHaveAccessibleDescription(
+    "Closes the panel.",
+  );
+  await page.keyboard.press("Escape");
+  await expect(panel).toHaveCount(0);
+  await expect(page.getByTestId("leave-guard")).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+  await trigger.click();
+  await page.getByTestId("view-mode-panel-cancel").click();
+  await expect(panel).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+});
+
+// SUI-FEATURE-097: the view's Edit hands over to the edit panel; the closing view does not take the
+// focus back to its trigger behind the new panel.
+test("edit panel view mode: Edit hands the focus over to the edit panel", async ({ page }) => {
+  const view = await openViewModePanel(page, "&lng=en");
+  const edit = page.getByTestId("view-mode-panel-edit");
+  await expect(edit).toHaveAccessibleDescription("Opens the record in the edit panel.");
+  await edit.click();
+  await expect(view).toHaveCount(0);
+  const media = page.getByTestId("media-panel");
+  await expect(media).toBeVisible();
+  const focusInMedia = () =>
+    page.evaluate(() => Boolean(document.activeElement?.closest("[data-testid=media-panel]")));
+  await expect.poll(focusInMedia).toBe(true);
+  // Still there once every close effect of the view has run.
+  await page.waitForTimeout(300);
+  expect(await focusInMedia()).toBe(true);
+  await expect(page.getByTestId("view-mode-panel-trigger")).not.toBeFocused();
 });
 
 // SUI-FEATURE-091 AC1: every EditPanel footer button shows the package hint after the hint delay;

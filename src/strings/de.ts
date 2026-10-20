@@ -227,7 +227,11 @@ export const de: SuiteStrings = {
     cancelHint: "Schließt den Dialog, ohne etwas zu ändern.",
     cancelDisabledHint: "Schließen geht wieder, sobald die Aktion abgeschlossen ist.",
   },
+  panel: {
+    close: "Schließen",
+  },
   editPanel: {
+    viewCloseHint: "Schließt das Panel.",
     backHint: "Geht einen Schritt zurück; ungespeicherte Änderungen werden vorher abgefragt.",
     cancelHint:
       "Schließt das Panel, ohne zu speichern; ungespeicherte Änderungen werden vorher abgefragt.",

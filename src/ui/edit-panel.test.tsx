@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import i18n from "i18next";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, type ReactNode, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { SidebarProvider, useSidebar } from "../shell/sidebar-provider.js";
@@ -13,12 +13,17 @@ afterEach(async () => {
   await i18n.changeLanguage("en");
 });
 
-// The overrides of a test; the submit lock stays one unit as on `EditPanel` (`SUI-FEATURE-250`).
-type PanelOverrides = Omit<Partial<EditPanelProps>, "submitDisabled" | "submitDisabledHint"> &
+// The overrides of a test; the submit lock and the mode with its actions stay one unit each as on
+// `EditPanel` (`SUI-FEATURE-250`, `SUI-FEATURE-097`).
+type PanelOverrides = Omit<
+  Partial<EditPanelProps>,
+  "submitDisabled" | "submitDisabledHint" | "mode" | "actions"
+> &
   (
     | { submitDisabled?: never; submitDisabledHint?: never }
     | { submitDisabled: boolean; submitDisabledHint: string }
-  );
+  ) &
+  ({ mode?: "add" | "edit"; actions?: never } | { mode: "view"; actions?: ReactNode });
 
 function renderPanel(props: PanelOverrides = {}) {
   const onOpenChange = vi.fn();
@@ -1082,4 +1087,91 @@ describe("EditPanel", () => {
       expect(screen.queryByTestId("edit-panel-preview")).toBeNull();
     });
   });
+});
+
+// SUI-FEATURE-097: a view panel shows a record before anyone changes it.
+describe("EditPanel mode=view", () => {
+  function ViewWithTrigger({ dirty }: { dirty?: boolean }) {
+    const [open, setOpen] = useState(false);
+    return (
+      <>
+        <button type="button" data-testid="trigger" onClick={() => setOpen(true)}>
+          View
+        </button>
+        <EditPanel
+          open={open}
+          onOpenChange={setOpen}
+          title="Avatar"
+          mode="view"
+          dirty={dirty}
+          preview={<img src="avatar.png" alt="Avatar" />}
+        >
+          <p>Created on 3 March.</p>
+        </EditPanel>
+      </>
+    );
+  }
+
+  // AC 1
+  it("has the preview, no form, no save; the footer is Close and the app's actions", () => {
+    renderPanel({
+      mode: "view",
+      preview: <img src="avatar.png" alt="Avatar" />,
+      onBack: vi.fn(),
+      actions: (
+        <button type="button" data-testid="view-edit">
+          Edit
+        </button>
+      ),
+    });
+    const panel = screen.getByTestId("edit-panel");
+    expect(panel).toHaveAttribute("data-mode", "view");
+    expect(screen.getByTestId("edit-panel-preview")).toContainElement(
+      screen.getByRole("img", { name: "Avatar" }),
+    );
+    expect(panel.querySelector("[data-slot=edit-panel-split]")).not.toBeNull();
+    expect(panel.querySelector("form")).toBeNull();
+    expect(screen.queryByTestId("edit-panel-submit")).toBeNull();
+    expect(screen.queryByTestId("edit-panel-back")).toBeNull();
+    const footer = panel.querySelector("[data-slot=edit-panel-footer]")!;
+    const buttons = [...footer.querySelectorAll("button")];
+    expect(buttons.map((button) => button.textContent)).toEqual(["Close", "Edit"]);
+    expect(screen.getByTestId("edit-panel-cancel")).toHaveAccessibleDescription(
+      "Closes the panel.",
+    );
+  });
+
+  it("takes actions only in the view mode", () => {
+    const props = { open: true, onOpenChange: () => {}, title: "Channel", children: "x" };
+    // @ts-expect-error -- outside `view` the footer has no place for the app's actions.
+    void (<EditPanel {...props} mode="edit" actions={<button type="button">Edit</button>} />);
+    void (<EditPanel {...props} mode="view" actions={<button type="button">Edit</button>} />);
+  });
+
+  it.each([
+    ["de", "Schließen"],
+    ["es", "Cerrar"],
+  ])("%s: Close comes from panel.close", async (lng, close) => {
+    await i18n.changeLanguage(lng);
+    renderPanel({ mode: "view" });
+    expect(screen.getByTestId("edit-panel-cancel")).toHaveTextContent(close);
+  });
+
+  // AC 2
+  it.each(["Escape", "Close"])(
+    "%s closes without asking, even when dirty is passed; the focus returns to the trigger",
+    async (way) => {
+      render(<ViewWithTrigger dirty />);
+      const trigger = screen.getByTestId("trigger");
+      trigger.focus();
+      fireEvent.click(trigger);
+      const panel = screen.getByTestId("edit-panel");
+      expect(panel).toHaveFocus();
+      if (way === "Escape") fireEvent.keyDown(panel, { key: "Escape" });
+      else fireEvent.click(screen.getByTestId("edit-panel-cancel"));
+      expect(screen.queryByTestId("leave-guard")).toBeNull();
+      expect(screen.queryByTestId("edit-panel")).toBeNull();
+      await waitFor(() => expect(trigger).toHaveFocus());
+    },
+  );
 });
