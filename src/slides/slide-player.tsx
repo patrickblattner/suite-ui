@@ -184,12 +184,7 @@ export function SlidePlayer({
     report.current?.(next, page);
     const lines = [
       next.missingFonts.length > 0
-        ? t("slides.missingFonts", {
-            fonts: missingFontsText(
-              t,
-              next.missingFaces ?? next.missingFonts.map((family) => ({ family })),
-            ),
-          })
+        ? t("slides.missingFonts", { fonts: missingFontsText(t, next.missingFaces) })
         : null,
       next.overflowing.length > 0
         ? t("slides.overflowing", { names: next.overflowing.join(", ") })

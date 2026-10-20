@@ -166,7 +166,7 @@ export interface SlideViewReport {
   // that has files but not this one as "Inter 700 italic".
   missingFonts: string[];
   // The same, family, weight and style apart (the view names them by these, `SUI-FEATURE-180`).
-  missingFaces?: SlideMissingFace[];
+  missingFaces: SlideMissingFace[];
   // Text elements (by name, else id) whose text does not fit at 70 % of its size.
   overflowing: string[];
   // Media ids the app does not resolve.

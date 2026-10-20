@@ -25,6 +25,7 @@ afterEach(() => {
 const report = (extra: Partial<SlideViewReport> = {}): SlideViewReport => ({
   ready: true,
   missingFonts: [],
+  missingFaces: [],
   overflowing: [],
   missingMedia: [],
   unknownTypes: [],

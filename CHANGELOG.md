@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.153.0 — #336, SlideViewReport.missingFaces is required
+
+Breaking.
+
+- **`SlideViewReport.missingFaces`** is no longer optional: the view always fills it. The player's fallback to `missingFonts` when it was absent could never run and is gone.
+
+**Migration:** code that builds a `SlideViewReport` itself (`@suite/ui/slides/slide-view`), such as a test double, adds `missingFaces` (an empty list when no font is missing). Code that only reads the report needs no change. Baselines: none.
+
 ## 0.152.6 — #331, contrastOf: stronger self-test for the below layer
 
 Test-only.
