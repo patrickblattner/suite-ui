@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.152.3 — #406, Codex review of v0.152.1: exact group size range and size solve
+
+Fix.
+
+- **Group size range:** the sizes a group with turned elements reaches are now computed exactly instead of sampled. Its width and height are piecewise linear in the two scale factors, so the ends lie at a kink or where a 1 px floor starts to hold. Before, the sampling could leave out sizes the group reaches (a flat group of two: width at most 515.81 instead of 516.88), and in a nested turned group it could leave out the current size (retyping the width resized the group). This also covers #405.
+- **Group size solve:** `setBox` finds a turned group's scale factors in closed form from the same model instead of by Newton steps. Before, about 9% of reachable sizes were missed, and some (also with a resize handle) blew a group up to 1e10 px or more. The 1 px floor holds, and a size no scale reaches still scales the children plainly.
+- A group of 500 elements: the range takes about 2 ms instead of about 25 ms.
+
+**Migration:** none. Baselines: none.
+
 ## 0.152.2 — #328, SUI-FEATURE-190: align, distribute and the selection frame in turned groups
 
 Fix.

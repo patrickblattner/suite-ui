@@ -368,41 +368,23 @@ export function setBox(document: SlideDocument, page: number, id: string, box: B
   const group = found.element;
   if (group.type === "group") {
     // A group's box is its children's drawn box; with a turned child that is not the scaled box, so
-    // the factors are corrected until the children's box is the one asked for, then put in place.
-    // The drawn box's size is linear in the two factors while the same children stand at its edges,
-    // so a Newton step (from two nudged measurements) lands on it, a few steps at most.
-    const measure = (factorX: number, factorY: number) =>
-      boundsOf(
-        refitGroups(
-          group.children.map((child) => withDescendants(child, scaled(factorX, factorY))),
-        ).map(drawnBox),
-      );
-    let bounds = measure(sx, sy);
-    for (let attempt = 0; attempt < 6 && bounds !== undefined; attempt += 1) {
-      const errorX = box.width - bounds.width;
-      const errorY = box.height - bounds.height;
-      if (Math.abs(errorX) < 1e-6 && Math.abs(errorY) < 1e-6) break;
-      const step = 1e-3;
-      const byX = measure(sx + step, sy);
-      const byY = measure(sx, sy + step);
-      if (byX === undefined || byY === undefined) break;
-      const a = (byX.width - bounds.width) / step;
-      const b = (byY.width - bounds.width) / step;
-      const c = (byX.height - bounds.height) / step;
-      const d = (byY.height - bounds.height) / step;
-      const det = a * d - b * c;
-      if (Math.abs(det) < 1e-9) break;
-      sx += (errorX * d - b * errorY) / det;
-      sy += (a * errorY - c * errorX) / det;
-      bounds = measure(sx, sy);
-    }
+    // the factors come from the group's model, exact per piece (#406), then the box is put in place.
     // A size no positive scale of the children reaches (a turned child holds the group taller than
     // asked) is not forced: the children scale plainly and the group takes the box they make.
-    if (!(sx > 0 && sy > 0) || bounds === undefined) {
-      sx = old.width === 0 ? 1 : box.width / old.width;
-      sy = old.height === 0 ? 1 : box.height / old.height;
-      bounds = measure(sx, sy);
-    }
+    const model = groupModel(group);
+    // A side kept is solved for as the model measures it, not as stored rounded to 1e-3: scaled up,
+    // that rounding would miss the end of the range or break a leaf's floor (#406).
+    const wanted = (side: "width" | "height") =>
+      Math.abs(box[side] - old[side]) < 5e-3 ? model.size[side] : box[side];
+    const exact = model.tied
+      ? groupFactors(model, wanted("width"), wanted("height"), Math.atan2(sy, sx))
+      : undefined;
+    if (exact !== undefined) [sx, sy] = exact;
+    const bounds = boundsOf(
+      refitGroups(group.children.map((child) => withDescendants(child, scaled(sx, sy)))).map(
+        drawnBox,
+      ),
+    );
     place = scaled(sx, sy);
     if (bounds !== undefined) {
       const factor = place;
@@ -456,6 +438,145 @@ type SizeRange = { min: number; max: number } | undefined;
 const sizeRanges = new WeakMap<Group, Partial<Record<"width" | "height", SizeRange>>>();
 
 function measureSizeRange(group: Group, key: "width" | "height"): SizeRange {
+  const model = groupModel(group);
+  if (!model.tied) return undefined;
+  const other = key === "width" ? "height" : "width";
+  const { low } = model;
+  // Kept as the model measures it unscaled, not the stored side rounded to 1e-3: with every leaf at
+  // the 1 px floor only the current factors fit, and that rounding would let none fit (#404).
+  const kept = model.size[other];
+  // Along a piece the side reached with the other kept is linear over linear in the direction, so
+  // monotone: its ends lie at a piece's end or where a floor starts to hold, a root in closed form.
+  let min = Infinity;
+  let max = -Infinity;
+  for (const piece of model.pieces) {
+    const [side, held] = key === "width" ? [piece.w, piece.h] : [piece.h, piece.w];
+    const [o1, o2] = held;
+    const at = [
+      piece.from,
+      piece.to,
+      (piece.from + piece.to) / 2,
+      ...turns(Math.atan2(kept - low.x * o1, low.x * o2)),
+      ...turns(Math.atan2(low.y * o1, kept - low.y * o2)),
+    ].filter((angle) => angle >= piece.from && angle <= piece.to);
+    for (const angle of at) {
+      const unit: Form = [Math.cos(angle), Math.sin(angle)];
+      const reach = (direction: Form) => {
+        const scale = kept / dot(held, direction);
+        const fits =
+          scale * direction[0] >= low.x * (1 - 1e-9) && scale * direction[1] >= low.y * (1 - 1e-9);
+        return fits ? scale * dot(side, direction) : undefined;
+      };
+      if (dot(held, unit) <= 1e-12 * Math.hypot(o1, o2)) {
+        // The kept side does not grow along this direction: next to it, the side grows without end.
+        const inward = angle === piece.from ? angle + 1e-6 : angle - 1e-6;
+        const near: Form = [Math.cos(inward), Math.sin(inward)];
+        if (dot(held, near) > 0 && dot(side, unit) > 0 && reach(near) !== undefined) max = Infinity;
+        continue;
+      }
+      const value = reach(unit);
+      if (value === undefined) continue;
+      min = Math.min(min, value);
+      max = Math.max(max, value);
+    }
+  }
+  // The current size is always reached.
+  if (min > max) return { min: model.size[key], max: model.size[key] };
+  return { min, max };
+}
+
+// A side as a linear form in the two factors: `a·factorX + b·factorY` (#406).
+type Form = readonly [number, number];
+// An element's drawn edges, from the group's old corner: the right and bottom edge are the greatest of
+// their forms, the left and top edge the least.
+type Edges = { right: Form[]; left: Form[]; bottom: Form[]; top: Form[] };
+// A group's children scaled by the factors `(cos t, sin t)·scale`: between two kinks the same forms
+// set the edges, so the drawn width and height are `w·factors` and `h·factors` there.
+type GroupModel = {
+  tied: boolean;
+  // The least factors that keep every leaf side at 1 px (or its own size, where that is smaller).
+  low: { x: number; y: number };
+  pieces: { from: number; to: number; w: Form; h: Form }[];
+  // The drawn size at factors (1, 1).
+  size: { width: number; height: number };
+};
+
+const dot = (form: Form, factors: Form) => form[0] * factors[0] + form[1] * factors[1];
+// An angle and its half turns, for a root of `tan t` that may lie on either branch.
+const turns = (angle: number) => [angle, angle + Math.PI, angle - Math.PI];
+
+// The forms that are the greatest for some positive factors, sorted from the most along factorX to
+// the most along factorY (the upper hull); the rest never set the edge.
+function greatest(forms: readonly Form[]): Form[] {
+  const sorted = [...forms].sort((p, q) => p[0] - q[0] || p[1] - q[1]);
+  const hull: Form[] = [];
+  for (const form of sorted) {
+    while (hull.length >= 2) {
+      const [o, a] = [hull[hull.length - 2]!, hull[hull.length - 1]!];
+      if ((a[0] - o[0]) * (form[1] - o[1]) - (a[1] - o[1]) * (form[0] - o[0]) < 0) break;
+      hull.pop();
+    }
+    hull.push(form);
+  }
+  let first = 0;
+  hull.forEach((form, index) => {
+    if (form[1] >= hull[first]![1]) first = index;
+  });
+  return hull.slice(first);
+}
+const negated = (forms: readonly Form[]): Form[] => forms.map(([a, b]) => [-a, -b]);
+const least = (forms: readonly Form[]) => negated(greatest(negated(forms)));
+const times = (k: number, forms: readonly Form[]): Form[] => forms.map(([a, b]) => [k * a, k * b]);
+// Every sum of a form from each list, plus `shift`.
+const sums = (shift: Form, first: readonly Form[], second: readonly Form[]): Form[] =>
+  first.flatMap(([a, b]) => second.map(([c, d]) => [shift[0] + a + c, shift[1] + b + d] as Form));
+
+// The drawn edges of an element whose box scales from `origin` by the factors.
+function edgesOf(element: SlideElement, origin: { x: number; y: number }): Edges {
+  const cx = element.x + element.width / 2 - origin.x;
+  const cy = element.y + element.height / 2 - origin.y;
+  const radians = (element.rotation * Math.PI) / 180;
+  if (element.type !== "group") {
+    const [c, s] =
+      element.rotation === 0 ? [1, 0] : [Math.abs(Math.cos(radians)), Math.abs(Math.sin(radians))];
+    const [w, h] = [element.width, element.height];
+    return {
+      right: [[cx + (w * c) / 2, (h * s) / 2]],
+      left: [[cx - (w * c) / 2, -(h * s) / 2]],
+      bottom: [[(w * s) / 2, cy + (h * c) / 2]],
+      top: [[-(w * s) / 2, cy - (h * c) / 2]],
+    };
+  }
+  const children = element.children.map((child) => edgesOf(child, origin));
+  const right = greatest(children.flatMap((edges) => edges.right));
+  const left = least(children.flatMap((edges) => edges.left));
+  const bottom = greatest(children.flatMap((edges) => edges.bottom));
+  const top = least(children.flatMap((edges) => edges.top));
+  if (element.rotation === 0) return { right, left, bottom, top };
+  // A turned group turns its children's box about its scaled centre; each drawn edge is the turned
+  // box's corner that lies furthest out, pruned after every group so nesting stays small.
+  const [c, s] = [Math.cos(radians), Math.sin(radians)];
+  const shiftX: Form = [(1 - c) * cx, s * cy];
+  const shiftY: Form = [-s * cx, (1 - c) * cy];
+  return {
+    right: greatest(
+      sums(shiftX, times(c, c >= 0 ? right : left), times(-s, s >= 0 ? top : bottom)),
+    ),
+    left: least(sums(shiftX, times(c, c >= 0 ? left : right), times(-s, s >= 0 ? bottom : top))),
+    bottom: greatest(
+      sums(shiftY, times(s, s >= 0 ? right : left), times(c, c >= 0 ? bottom : top)),
+    ),
+    top: least(sums(shiftY, times(s, s >= 0 ? left : right), times(c, c >= 0 ? top : bottom))),
+  };
+}
+
+// Documents never change in place, so a group's model holds for as long as the group: each keystroke
+// of a typing run and each move of a resize drag solves on the same group from before it.
+const groupModels = new WeakMap<Group, GroupModel>();
+
+function groupModel(group: Group): GroupModel {
+  const known = groupModels.get(group);
+  if (known !== undefined) return known;
   const leaves: SlideElement[] = [];
   let tied = false;
   const visit = (element: SlideElement) => {
@@ -464,89 +585,120 @@ function measureSizeRange(group: Group, key: "width" | "height"): SizeRange {
     else leaves.push(element);
   };
   group.children.forEach(visit);
-  if (!tied) return undefined;
-  const other = key === "width" ? "height" : "width";
-  const least = (side: "width" | "height") =>
-    Math.max(...leaves.map((leaf) => (leaf[side] > 0 ? Math.min(1, 1 / leaf[side]) : 0)), 0);
-  const low = { side: least(key), other: least(other) };
-  // The drawn box of the children scaled by `f` along `key` and `g` along the other side.
-  const old = boxOf(group);
-  const measure = (f: number, g: number) => {
-    const [factorX, factorY] = key === "width" ? [f, g] : [g, f];
-    const scale = (element: SlideElement): SlideElement => ({
-      ...element,
-      x: old.x + (element.x - old.x) * factorX,
-      y: old.y + (element.y - old.y) * factorY,
-      width: element.width * factorX,
-      height: element.height * factorY,
-    });
-    const bounds = boundsOf(
-      refitGroups(group.children.map((child) => withDescendants(child, scale))).map(drawnBox),
-    );
-    return { side: bounds?.[key] ?? 0, other: bounds?.[other] ?? 0 };
-  };
-  // Kept as the children measure it unscaled, not the stored side rounded to 1e-3: with every leaf
-  // at the 1 px floor only the current factors fit, and that rounding would let none fit (#404).
-  const kept = measure(1, 1).other;
-  // Both sides scale with the factors together (a uniform scale commutes with every turn and
-  // refit), so a direction of the two factors fixes the side reached with the other side kept;
-  // no side has to grow with either factor alone (#404: in a nested turned group it does not).
-  // The direction runs from all along `key` (0) to all along the other side (π/2).
-  const reach = (angle: number) => {
-    const unit = measure(Math.cos(angle), Math.sin(angle));
-    const scale = unit.other > 0 ? kept / unit.other : Infinity;
-    const fits =
-      Number.isFinite(scale) &&
-      scale * Math.cos(angle) >= low.side - 1e-9 &&
-      scale * Math.sin(angle) >= low.other - 1e-9;
-    return fits ? scale * unit.side : undefined;
-  };
-  const SAMPLES = 64;
-  const at = Array.from({ length: SAMPLES + 1 }, (_, index) => (Math.PI / 2) * (index / SAMPLES));
-  const sides = at.map(reach);
-  const found: number[] = sides.filter((side): side is number => side !== undefined);
-  // Where the factors reach the least on one side, between a sample that fits and one that does
-  // not: halved until it lies on that edge, measured on the side that fits.
-  for (let index = 0; index < SAMPLES; index += 1) {
-    if ((sides[index] === undefined) === (sides[index + 1] === undefined)) continue;
-    let [inside, outside] =
-      sides[index] === undefined ? [at[index + 1]!, at[index]!] : [at[index]!, at[index + 1]!];
-    for (let step = 0; step < 40; step += 1) {
-      const middle = (inside + outside) / 2;
-      if (reach(middle) === undefined) outside = middle;
-      else inside = middle;
-    }
-    found.push(reach(inside)!);
-  }
-  // The current size is always reached.
-  if (found.length === 0) return { min: old[key], max: old[key] };
-  // The side is piecewise smooth along the direction; an end between two samples (at a kink, where
-  // another child comes to the edge) is found by a golden-section search around the best sample.
-  const refine = (sign: 1 | -1) => {
-    let best = -1;
-    for (let index = 0; index <= SAMPLES; index += 1) {
-      const side = sides[index];
-      if (side !== undefined && (best < 0 || sign * side > sign * sides[best]!)) best = index;
-    }
-    let value = Math.max(...found.map((side) => sign * side));
-    if (best < 0) return sign * value;
-    let [left, right] = [at[Math.max(0, best - 1)]!, at[Math.min(SAMPLES, best + 1)]!];
-    const ratio = (Math.sqrt(5) - 1) / 2;
-    const score = (angle: number) => {
-      const side = reach(angle);
-      return side === undefined ? -Infinity : sign * side;
+  if (!tied) {
+    // Its children scale plainly; nothing else is asked of the model.
+    const plain = {
+      tied,
+      low: { x: 0, y: 0 },
+      pieces: [],
+      size: { width: group.width, height: group.height },
     };
-    for (let step = 0; step < 40; step += 1) {
-      const a = right - ratio * (right - left);
-      const b = left + ratio * (right - left);
-      const [sa, sb] = [score(a), score(b)];
-      value = Math.max(value, sa, sb);
-      if (sa > sb) right = b;
-      else left = a;
-    }
-    return sign * value;
+    groupModels.set(group, plain);
+    return plain;
+  }
+  const floor = (side: "width" | "height") =>
+    Math.max(...leaves.map((leaf) => (leaf[side] > 0 ? Math.min(1, 1 / leaf[side]) : 0)), 0);
+  // The group's own turn is not in its box, which lies in its own frame.
+  const edges = edgesOf({ ...group, rotation: 0 }, group);
+  const greatestAt = (forms: readonly Form[], factors: Form) =>
+    forms.reduce((best, form) => (dot(form, factors) > dot(best, factors) ? form : best));
+  const leastAt = (forms: readonly Form[], factors: Form) =>
+    forms.reduce((best, form) => (dot(form, factors) < dot(best, factors) ? form : best));
+  const gradients = (factors: Form) => {
+    const [right, left] = [greatestAt(edges.right, factors), leastAt(edges.left, factors)];
+    const [bottom, top] = [greatestAt(edges.bottom, factors), leastAt(edges.top, factors)];
+    return {
+      w: [right[0] - left[0], right[1] - left[1]] as Form,
+      h: [bottom[0] - top[0], bottom[1] - top[1]] as Form,
+    };
   };
-  return { min: refine(-1), max: refine(1) };
+  // Where the edge passes from one form to the next. Unsigned: a left or top chain runs the other
+  // way round, and a signed angle would drop its kinks.
+  const kinks = (chain: readonly Form[]) =>
+    chain
+      .slice(1)
+      .map((form, index) =>
+        Math.atan2(Math.abs(form[0] - chain[index]![0]), Math.abs(chain[index]![1] - form[1])),
+      );
+  const breaks = [
+    ...new Set([
+      0,
+      Math.PI / 4,
+      Math.PI / 2,
+      ...[edges.right, edges.left, edges.bottom, edges.top].flatMap(kinks),
+    ]),
+  ]
+    .filter((angle) => angle >= 0 && angle <= Math.PI / 2)
+    .sort((a, b) => a - b);
+  const pieces: GroupModel["pieces"] = [];
+  for (let index = 0; index + 1 < breaks.length; index += 1) {
+    const [from, to] = [breaks[index]!, breaks[index + 1]!];
+    if (to - from < 1e-15) continue;
+    const middle = (from + to) / 2;
+    pieces.push({ from, to, ...gradients([Math.cos(middle), Math.sin(middle)]) });
+  }
+  const unscaled = gradients([1, 1]);
+  const model: GroupModel = {
+    tied,
+    low: { x: floor("width"), y: floor("height") },
+    pieces,
+    size: { width: dot(unscaled.w, [1, 1]), height: dot(unscaled.h, [1, 1]) },
+  };
+  groupModels.set(group, model);
+  return model;
+}
+
+// The factors that give a group a drawn box of `width × height`, or `undefined` where none does:
+// per piece the direction whose width over height is the one asked for, a root in closed form.
+// Several may reach it (a piece whose width and height keep one ratio reaches it everywhere): the
+// one keeping every leaf side above its floor and nearest the plain scale's direction `plain`.
+function groupFactors(
+  model: GroupModel,
+  width: number,
+  height: number,
+  plain: number,
+): Form | undefined {
+  const { low } = model;
+  type Candidate = { factors: Form; error: number; miss: number; distance: number };
+  const candidates: Candidate[] = [];
+  for (const piece of model.pieces) {
+    const { w, h } = piece;
+    const at = [
+      piece.from,
+      piece.to,
+      Math.min(piece.to, Math.max(piece.from, plain)),
+      ...turns(Math.atan2(-(w[0] * height - h[0] * width), w[1] * height - h[1] * width)),
+      ...turns(Math.atan2(width - low.x * w[0], low.x * w[1])),
+      ...turns(Math.atan2(low.y * w[0], width - low.y * w[1])),
+    ];
+    for (const angle of at) {
+      if (!(angle >= piece.from && angle <= piece.to)) continue;
+      const unit: Form = [Math.cos(angle), Math.sin(angle)];
+      if (!(dot(w, unit) > 0)) continue;
+      const scale = width / dot(w, unit);
+      const factors: Form = [scale * unit[0], scale * unit[1]];
+      if (!(factors[0] > 0 && factors[1] > 0)) continue;
+      candidates.push({
+        factors,
+        error: Math.abs(scale * dot(h, unit) - height),
+        miss: Math.max(0, 1 - factors[0] / low.x) + Math.max(0, 1 - factors[1] / low.y),
+        distance: Math.abs(angle - plain),
+      });
+    }
+  }
+  // The box asked for is rounded to 1e-3 and so lands within 2e-3 of the exact one.
+  const reached = candidates.filter((candidate) => candidate.error <= 2e-3);
+  const best = (list: Candidate[], by: (candidate: Candidate) => number) =>
+    list.reduce<Candidate | undefined>(
+      (found, candidate) => (found === undefined || by(candidate) < by(found) ? candidate : found),
+      undefined,
+    );
+  return (
+    best(
+      reached.filter((candidate) => candidate.miss <= 1e-9),
+      (candidate) => candidate.distance,
+    ) ?? best(reached, (candidate) => candidate.miss)
+  )?.factors;
 }
 
 export function setRotation(
