@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.154.0 — #342, SUI-FEATURE-210: Hint takes a shortcut
+
+Feature.
+
+- **`Hint` `shortcut`:** a text button in a `Hint` shows its keyboard shortcut as an icon button does (`GL-UI-006`). The prop takes the same form as on `IconButtonTooltip` (`"Delete"`, or a list of variants such as `["Ctrl+Z", "Meta+Z"]`). The hint shows the same key chip behind its text, hidden from the name and left out while the locked text shows, and the wrapped control carries `aria-keyshortcuts` with every variant. Both components share one chip and one variants helper.
+- Without `shortcut`, `Hint` renders as before.
+- The gallery's Hint row shows a "Delete" text button with the shortcut Delete.
+
+**Migration:** none. New prop `Hint` `shortcut` (optional). Baselines: the components page in de, en and es, light and dark, and in de at 390 px and 1440 px (the Hint row has one button more).
+
 ## 0.153.2 — #341, SUI-FEATURE-200: names of the cuts, a talk with no visible page
 
 Fix.

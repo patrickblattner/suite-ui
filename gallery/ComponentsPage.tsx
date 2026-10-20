@@ -988,6 +988,12 @@ function Badges() {
             {t("actions.save")}
           </Button>
         </Hint>
+        {/* SUI-FEATURE-210: a text button with a shortcut, its key chip as on an icon button. */}
+        <Hint text="Deletes the selected block" shortcut="Delete">
+          <Button variant="destructive" size="default" data-testid="hint-delete">
+            {t("actions.delete")}
+          </Button>
+        </Hint>
       </Row>
       <Row label="Skeleton">
         <Skeleton className="h-4 w-48" />

@@ -1,11 +1,11 @@
 import { Tooltip as TooltipPrimitive } from "radix-ui";
 import * as React from "react";
-import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
-import { ariaKeyShortcuts, shortcutChip } from "../lib/keyboard.js";
+import { ariaKeyShortcuts } from "../lib/keyboard.js";
 import { lockedWithReason } from "./button-lock-internal.js";
 import { usePressKeepsClosed } from "./press-keeps-closed.js";
+import { type Shortcut, ShortcutChip, shortcutVariants } from "./shortcut-chip-internal.js";
 
 // One tooltip behaviour (`GL-UI-016`/`GL-UI-017`): every tooltip, the overflow tooltip included, opens
 // after the one hint delay and closes at once — once the pointer has left both element and bubble, on
@@ -651,7 +651,7 @@ function IconButtonTooltip({
   children: ownChildren,
 }: {
   label: string;
-  shortcut?: string | readonly string[] | undefined;
+  shortcut?: Shortcut | undefined;
   disabledText?: string | undefined;
   named?: boolean;
   children: React.ReactElement<{
@@ -663,13 +663,11 @@ function IconButtonTooltip({
     "aria-keyshortcuts"?: string | undefined;
   }>;
 }) {
-  const { t } = useTranslation("suite");
   const id = React.useId();
   // A press keeps the bubble closed until the pointer leaves (#190).
   const press = usePressKeepsClosed();
   const children = disabledText === undefined ? ownChildren : lockedWithReason(ownChildren);
-  const variants =
-    shortcut === undefined ? undefined : typeof shortcut === "string" ? [shortcut] : shortcut;
+  const variants = shortcutVariants(shortcut);
   const ownLabel = children.props["aria-label"];
   if (ownLabel !== undefined && ownLabel !== label && process.env.NODE_ENV !== "production") {
     throw new Error(
@@ -725,11 +723,7 @@ function IconButtonTooltip({
             ) : (
               label
             )}
-            {disabled || variants === undefined ? null : (
-              <kbd aria-hidden className="ml-2 opacity-70">
-                {shortcutChip(variants, t("keys.delete"))}
-              </kbd>
-            )}
+            {disabled || variants === undefined ? null : <ShortcutChip variants={variants} />}
           </TooltipContent>
         </TooltipPrimitive.Root>
       </TooltipProvider>

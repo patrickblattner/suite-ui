@@ -3,9 +3,11 @@ import * as React from "react";
 import { createPortal } from "react-dom";
 
 import { cn } from "../lib/cn.js";
+import { ariaKeyShortcuts } from "../lib/keyboard.js";
 import { lockedWithReason } from "./button-lock-internal.js";
 import { helpIdFor } from "./label-with-help.js";
 import { usePressKeepsClosed } from "./press-keeps-closed.js";
+import { type Shortcut, ShortcutChip, shortcutVariants } from "./shortcut-chip-internal.js";
 import {
   OverflowReportContext,
   TooltipContent,
@@ -123,6 +125,7 @@ type HintChildProps = {
   "aria-describedby"?: string;
   "aria-label"?: string;
   "aria-disabled"?: boolean | "true" | "false";
+  "aria-keyshortcuts"?: string;
   disabled?: boolean;
   busy?: boolean;
 };
@@ -140,6 +143,9 @@ type HintProps = {
   // indicator's "label, n more", `SUI-FEATURE-051` rev 9), so it gets no `aria-describedby` either;
   // the label is read once (`SUI-FEATURE-052`).
   describe?: boolean | undefined;
+  // The control's keyboard shortcut, as on `IconButtonTooltip` (`SUI-FEATURE-210`): the key hint
+  // behind the text of a usable control and `aria-keyshortcuts` with every variant.
+  shortcut?: Shortcut | undefined;
   children: React.ReactElement<HintChildProps>;
 } & Omit<React.HTMLAttributes<HTMLElement>, "children"> & { ref?: React.Ref<HTMLElement> };
 
@@ -165,6 +171,7 @@ function Hint({
   disabledText,
   carrierClassName,
   describe = true,
+  shortcut,
   children: ownChildren,
   ...passThrough
 }: HintProps) {
@@ -183,20 +190,22 @@ function Hint({
   // A control locked with `aria-disabled` keeps the focus and pointer events, so it owns its
   // description itself; only its text is the locked one.
   const ariaLocked = [true, "true"].includes(children.props["aria-disabled"] ?? false);
-  const shown = (disabled || ariaLocked) && disabledText !== undefined ? disabledText : text;
+  const locked = (disabled || ariaLocked) && disabledText !== undefined;
+  const shown = locked ? disabledText : text;
   const describes = describe && children.props["aria-label"] !== shown;
   const carried = disabledText !== undefined;
+  const variants = shortcutVariants(shortcut);
+  const chip = variants === undefined || locked ? null : <ShortcutChip variants={variants} />;
 
-  let trigger: React.ReactElement =
-    describes && !(carried && disabled)
-      ? React.cloneElement(children, {
-          "aria-describedby": describedBy(
-            children.props["aria-describedby"],
-            children.props.id,
-            id,
-          ),
-        })
-      : children;
+  let trigger: React.ReactElement<HintChildProps> = children;
+  if (describes && !(carried && disabled)) {
+    trigger = React.cloneElement(trigger, {
+      "aria-describedby": describedBy(children.props["aria-describedby"], children.props.id, id),
+    });
+  }
+  if (variants !== undefined) {
+    trigger = React.cloneElement(trigger, { "aria-keyshortcuts": ariaKeyShortcuts(variants) });
+  }
   if (carried) {
     trigger = (
       <span
@@ -236,10 +245,14 @@ function Hint({
                 <span className="block">{fullText}</span>
                 <span className="mt-1 block opacity-90" data-slot="tooltip-hint">
                   {shown}
+                  {chip}
                 </span>
               </>
             ) : (
-              shown
+              <>
+                {shown}
+                {chip}
+              </>
             )}
           </TooltipContent>
         </TooltipPrimitive.Root>

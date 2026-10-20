@@ -4820,6 +4820,17 @@ test("tooltip: the pointer on the bubble keeps it open; leaving both closes it",
   await expect(page.getByRole("tooltip")).toHaveCount(0, { timeout: 100 });
 });
 
+// SUI-FEATURE-210 AC3: the gallery's text button with a shortcut shows the key chip in its hint and
+// carries aria-keyshortcuts.
+test("hint: a text button with a shortcut shows the key chip", async ({ page }) => {
+  await page.goto("/?page=components&lng=en");
+  const button = page.getByTestId("hint-delete");
+  await expect(button).toHaveAttribute("aria-keyshortcuts", "Delete");
+  await button.hover();
+  await expect(page.getByRole("tooltip")).toHaveText("Deletes the selected blockDel");
+  await expect(page.locator("[data-slot=tooltip-content] kbd")).toHaveText("Del");
+});
+
 // GL-UI-016 §Schließen (#259): a click on the hoverable bubble closes it at once.
 test("tooltip: a click on the bubble closes it", async ({ page }) => {
   await page.goto("/?page=components&lng=en");

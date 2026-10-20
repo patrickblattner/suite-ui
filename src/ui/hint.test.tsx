@@ -307,4 +307,69 @@ describe("Hint timing", () => {
     });
     expect(screen.queryByRole("tooltip")).toBeNull();
   });
+
+  // SUI-FEATURE-210 AC1: a text button's shortcut shows as on `IconButtonTooltip`, the chip hidden
+  // from the name, and the button carries `aria-keyshortcuts`; the text stays its description.
+  it("shortcut: shows the key chip and sets aria-keyshortcuts on a text button", () => {
+    render(
+      <Hint text="Deletes the block" shortcut="Delete">
+        <Button variant="destructive" size="default">
+          Delete
+        </Button>
+      </Hint>,
+    );
+    const button = screen.getByRole("button", { name: "Delete" });
+    expect(button).toHaveAttribute("aria-keyshortcuts", "Delete");
+    expect(button).toHaveAccessibleDescription("Deletes the block");
+    hoverFor(button, 1500);
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Deletes the blockDel");
+    const kbd = document.querySelector("[data-slot=tooltip-content] kbd");
+    expect(kbd).toHaveTextContent("Del");
+    expect(kbd).toHaveAttribute("aria-hidden", "true");
+  });
+
+  // A locked control shows the condition, without the chip, as `IconButtonTooltip` does.
+  it("shortcut: no chip while the locked text is shown", () => {
+    render(
+      <Hint text="Deletes the block" disabledText="Select a block first." shortcut="Delete">
+        <Button variant="destructive" size="default" disabled>
+          Delete
+        </Button>
+      </Hint>,
+    );
+    const button = screen.getByRole("button", { name: "Delete" });
+    expect(button).toHaveAttribute("aria-keyshortcuts", "Delete");
+    hoverFor(button, 1500);
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Select a block first.");
+    expect(document.querySelector("[data-slot=tooltip-content] kbd")).toBeNull();
+  });
+
+  // Locked is the state, not the text: a locked text equal to the hint text still hides the chip.
+  it("shortcut: no chip while locked, also when the locked text equals the text", () => {
+    render(
+      <Hint text="Deletes the block" disabledText="Deletes the block" shortcut="Delete">
+        <Button variant="destructive" size="default" disabled>
+          Delete
+        </Button>
+      </Hint>,
+    );
+    hoverFor(screen.getByRole("button", { name: "Delete" }), 1500);
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Deletes the block");
+    expect(document.querySelector("[data-slot=tooltip-content] kbd")).toBeNull();
+  });
+
+  // SUI-FEATURE-210 AC2: without `shortcut` the hint is as before.
+  it("shortcut: none, no chip and no aria-keyshortcuts", () => {
+    render(
+      <Hint text="Deletes the block">
+        <Button variant="destructive" size="default">
+          Delete
+        </Button>
+      </Hint>,
+    );
+    const button = screen.getByRole("button", { name: "Delete" });
+    expect(button).not.toHaveAttribute("aria-keyshortcuts");
+    hoverFor(button, 1500);
+    expect(document.querySelector("[data-slot=tooltip-content] kbd")).toBeNull();
+  });
 });
