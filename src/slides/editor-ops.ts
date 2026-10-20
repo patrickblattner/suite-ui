@@ -3,7 +3,7 @@
 // in groups too; a group's children keep page coordinates (`SUI-DESIGN-002` §Gruppen), so moving or
 // scaling a group moves or scales its children with it.
 
-import { DEFAULT_TEXT_SIZE, pageLists, stackOrder } from "./render-style.js";
+import { animationOrders, DEFAULT_TEXT_SIZE, pageLists, stackOrder } from "./render-style.js";
 import {
   CHART_PATTERNS,
   SLIDE_LIMITS,
@@ -11,6 +11,7 @@ import {
   type SlideDocument,
   type SlideElement,
   type SlideFormat,
+  type SlidePage,
   type TextRun,
 } from "./schema.js";
 
@@ -1023,3 +1024,44 @@ export const chartData = {
       ? chart
       : { ...chart, series: chart.series.filter((_, index) => index !== at) },
 };
+
+export type AnimationKind = "entrance" | "exit";
+export type AnimationStep = NonNullable<NonNullable<SlideElement["animation"]>[AnimationKind]>;
+
+// The order after every animation the page plays, its layout's and master's included: a new
+// entrance or exit comes last (`SUI-FEATURE-162` §Animationen).
+export function nextAnimationOrder(document: SlideDocument, page: number): number {
+  const orders = animationOrders(pageLists(document, page).flat());
+  return orders.length === 0 ? 0 : orders[orders.length - 1]! + 1;
+}
+
+// Sets an element's entrance or exit; `undefined` removes it (and the animation with its last step).
+export function setAnimation(
+  document: SlideDocument,
+  page: number,
+  id: string,
+  kind: AnimationKind,
+  step: AnimationStep | undefined,
+): SlideDocument {
+  return updateElements(document, page, [id], (element) => {
+    const animation = { ...element.animation };
+    if (step === undefined) delete animation[kind];
+    else animation[kind] = step;
+    const next: SlideElement = { ...element, animation };
+    if (animation.entrance === undefined && animation.exit === undefined) delete next.animation;
+    return next;
+  });
+}
+
+// Sets the transition a page comes in with (`SUI-FEATURE-162` §Animationen).
+export function setTransition(
+  document: SlideDocument,
+  page: number,
+  transition: SlidePage["transition"],
+): SlideDocument {
+  if (document.pages[page] === undefined) return document;
+  return {
+    ...document,
+    pages: document.pages.map((one, index) => (index === page ? { ...one, transition } : one)),
+  };
+}

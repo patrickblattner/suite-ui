@@ -27,6 +27,8 @@ const dialogContentVariants = cva(
       size: {
         default: "grid w-full max-w-[calc(100%-2rem)] gap-4 p-6 sm:max-w-lg",
         form: "flex max-h-[85vh] w-full max-w-[calc(100%-2rem)] flex-col gap-4 p-6 sm:max-w-[50vw]",
+        // A stage that shows a page or a medium at its own ratio, within 85 % of the height.
+        stage: "flex max-h-[85vh] w-full max-w-[calc(100%-2rem)] flex-col gap-4 p-6 sm:max-w-4xl",
       },
     },
     defaultVariants: {
@@ -71,7 +73,7 @@ function DialogOverlay({
 // `mode` exists only on the form size (`SUI-FEATURE-073`): a compact dialog confirms or triggers and
 // has no add focus. On the form size it stays optional, for action dialogs with fields.
 type DialogContentSizeProps =
-  { size?: "default" | null; mode?: never } | { size: "form"; mode?: "add" | "edit" };
+  { size?: "default" | "stage" | null; mode?: never } | { size: "form"; mode?: "add" | "edit" };
 
 // `mode` decides the opening focus (`GL-UI-027` §Tastatur): only `add` focuses the first field. In
 // `edit` and without a mode the dialog itself takes the focus, so no field is focused and the first

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.146.0 — #294, SUI-FEATURE-162 AC5: slide animations in the editor, with a preview
+
+New, not breaking.
+
+- **Entrances and exits in the panel** (`SUI-FEATURE-162` §Animationen): a single selected element shows "Animation" in its Layout tab, with an entrance and an exit, each with an effect (none, fade, slide, zoom; worded in or out per kind), the side a slide comes from (entrance) or goes to (exit), a duration and a delay in ms and its place in the page's order (shown from 1). A new entrance or exit plays after every animation the page has, its layout's and master's included; "None" removes it.
+- **A page transition in the panel**: without a selection the Layout tab shows the page's transition (none, cross-fade, slide) and its duration; a new one plays 500 ms.
+- **Preview** in the editor's toolbar: a dialog plays the page as the `SlidePlayer` does, without a click between the steps: its transition from the shown page before it (none on the first shown page, as in the player), then each order of its animations once the one before has played; "Play again" starts over. Under `prefers-reduced-motion` the moving effects only fade, as in the player.
+- Every change is one step of the history (Undo, Redo).
+
+**Migration:** none. New package texts under `slides.editor` (de, en, es): `animation`, `entrance`, `exit`, `animationEffect`, `animationNone`, `entranceFade` / `Slide` / `Zoom`, `exitFade` / `Slide` / `Zoom`, `animationFrom`, `animationTo`, `directionLeft` / `Right` / `Top` / `Bottom`, `animationDuration`, `animationDelay`, `animationOrder`, `ms`, `transition`, `transitionType`, `transitionNone` / `Fade` / `Slide`, `preview`, `previewTitle`, `previewDescription`, `previewReplay`, `previewClose`. New `DialogContent` size `stage` (a page or medium at its ratio, within 85 % of the height). Baselines: the slide editor and the gallery pages that show it.
+
 ## 0.145.1 — #370, GL-UI-050 rev 6, SUI-FEATURE-120 rev 7: Undo and Redo keep the focus
 
 Fix, not breaking.

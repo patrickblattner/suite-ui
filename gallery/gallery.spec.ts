@@ -10875,3 +10875,146 @@ test("slide editor: Shift turns a child of a turned group in steps of 15° on th
   expect((((own + 37) % 15) + 15) % 15).toBeCloseTo(0, 1);
   expect(own).not.toBe(Math.round(own / 15) * 15);
 });
+
+// SUI-FEATURE-162 AC5 (#294 inc 5): two elements get entrances in order and their page a cross-fade
+// in the panel; the editor's preview and, once saved, the app's player play both; under
+// prefers-reduced-motion the entrances only fade.
+async function animatedPage(page: Page) {
+  const { editor, field } = await openEditor(page);
+  await editor.getByTestId("slide-editor-next-page").click();
+  await editor.getByTestId("drawer-layers").click();
+  const choose = async (select: string, option: string) => {
+    await field(select).click();
+    await page.getByRole("option", { name: option, exact: true }).click();
+  };
+  for (const [id, effect, order] of [
+    ["picture", "Fade in", "1"],
+    ["caption", "Slide in", "2"],
+  ] as const) {
+    await editor.locator(`[data-layer-id=${id}] > button`).first().click();
+    await choose("entrance-effect", effect);
+    await expect(field("entrance-order")).toHaveValue(order);
+    await expect(field("entrance-duration")).toHaveValue("500");
+  }
+  await expect(field("entrance-direction")).toBeVisible();
+  // Without a selection the panel shows the page's transition.
+  await editor.getByTestId("property-path-link").first().click();
+  await choose("transition-type", "Cross-fade");
+  await expect(field("transition-duration")).toHaveValue("500");
+  return { editor, field };
+}
+
+const playingSlides = (page: Page) =>
+  page.evaluate(() =>
+    document
+      .getAnimations()
+      .filter((animation) => animation instanceof CSSAnimation)
+      .map((animation) => ({
+        name: animation.animationName,
+        keys: (animation.effect as KeyframeEffect)
+          .getKeyframes()
+          .flatMap((frame) => Object.keys(frame)),
+      }))
+      .filter(({ name }) => name.startsWith("suite-slide-")),
+  );
+
+test("slide editor: entrances in order and a cross-fade play in the preview and the player", async ({
+  page,
+}) => {
+  const { editor } = await animatedPage(page);
+  await editor.getByTestId("slide-editor-preview").click();
+  const preview = page.getByTestId("slide-editor-preview-dialog");
+  const stage = preview.locator("[data-slot=slide-preview]");
+  const inner = (scope: Locator, id: string) => scope.locator(`[data-slide-element=${id}] > div`);
+  // The page cross-fades in over the one before, then the entrances play in their order.
+  await expect(preview.locator("[data-slot=slide-preview-outgoing]")).toHaveCSS(
+    "animation-name",
+    "suite-slide-fade-out",
+  );
+  await expect(preview.locator("[data-slot=slide-preview-page]")).toHaveCSS(
+    "animation-name",
+    "suite-slide-fade-in",
+  );
+  await expect(stage).toHaveAttribute("data-slide-steps", "2");
+  await expect(stage).toHaveAttribute("data-slide-step", "1");
+  await expect(inner(stage, "picture")).toHaveCSS("animation-name", "suite-slide-fade-in");
+  await expect(inner(stage, "caption")).toHaveCSS("visibility", "hidden");
+  await expect(stage).toHaveAttribute("data-slide-step", "2");
+  await expect(inner(stage, "caption")).toHaveCSS("animation-name", "suite-slide-slide-in-left");
+  await expect(preview.locator("[data-slot=slide-preview-outgoing]")).toHaveCount(0);
+  await preview.getByTestId("slide-editor-preview-close").click();
+  await expect(preview).toHaveCount(0);
+  await expect(editor.getByTestId("slide-editor-preview")).toBeFocused();
+
+  // Saved, the app's player plays the same: the cross-fade on the way in, then each entrance.
+  await page.getByTestId("editor-save").click();
+  await page.getByTestId("slide-editor-app-present").click();
+  const player = page.getByTestId("slide-player");
+  await expect(player).toHaveAttribute("data-slide-page", "edit-one");
+  await page.keyboard.press("ArrowRight");
+  await expect(player).toHaveAttribute("data-slide-page", "edit-two");
+  await expect(player.locator("[data-slot=slide-player-outgoing]")).toHaveCSS(
+    "animation-name",
+    "suite-slide-fade-out",
+  );
+  await expect(inner(player, "picture")).toHaveCSS("visibility", "hidden");
+  await page.keyboard.press("ArrowRight");
+  await expect(inner(player, "picture")).toHaveCSS("animation-name", "suite-slide-fade-in");
+  await expect(inner(player, "caption")).toHaveCSS("visibility", "hidden");
+  await page.keyboard.press("ArrowRight");
+  await expect(inner(player, "caption")).toHaveCSS("animation-name", "suite-slide-slide-in-left");
+});
+
+test("slide editor: under prefers-reduced-motion the preview fades without movement", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const { editor } = await animatedPage(page);
+  await editor.getByTestId("slide-editor-preview").click();
+  const stage = page
+    .getByTestId("slide-editor-preview-dialog")
+    .locator("[data-slot=slide-preview]");
+  await expect(stage).toHaveAttribute("data-slide-step", "2");
+  await expect
+    .poll(async () => (await playingSlides(page)).map((frame) => frame.name))
+    .toContain("suite-slide-slide-in-left");
+  const slide = (await playingSlides(page)).find(
+    (frame) => frame.name === "suite-slide-slide-in-left",
+  );
+  expect(slide!.keys).toContain("opacity");
+  expect(slide!.keys).not.toContain("transform");
+});
+
+// Review #294 inc 5 (GL-UI-027 §Höhe): on a portrait page the preview stays within the window, its
+// title, close button and footer in view, at a desktop and a phone size.
+test("slide editor: the preview of a portrait page keeps its title and footer in view", async ({
+  page,
+}) => {
+  const { editor } = await openEditor(page);
+  await editor.getByTestId("slide-editor-transfer").click();
+  const dialog = editor.page().getByTestId("slide-editor-transfer-dialog");
+  await dialog.getByRole("radio", { name: /Portrait/ }).click();
+  await page.getByTestId("slide-editor-transfer-confirm").click();
+  await page.getByTestId("slide-editor-app-open-copy").click();
+  for (const size of [
+    { width: 1440, height: 900 },
+    { width: 390, height: 844 },
+  ]) {
+    await page.setViewportSize(size);
+    await editor.getByTestId("slide-editor-preview").click();
+    const preview = page.getByTestId("slide-editor-preview-dialog");
+    await expect(preview.locator("[data-slot=slide-view][data-slide-ready=true]")).toBeAttached();
+    for (const part of [
+      preview.getByRole("heading", { name: "Preview of page 1" }),
+      preview.getByRole("button", { name: "Close" }).first(),
+      preview.getByTestId("slide-editor-preview-replay"),
+      preview.getByTestId("slide-editor-preview-close"),
+    ]) {
+      await expect(part).toBeInViewport({ ratio: 1 });
+    }
+    const box = (await preview.boundingBox())!;
+    expect(box.height).toBeLessThanOrEqual(size.height * 0.85 + 1);
+    await page.keyboard.press("Escape");
+    await expect(preview).toHaveCount(0);
+  }
+});

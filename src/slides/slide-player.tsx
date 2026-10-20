@@ -8,8 +8,7 @@ import { useModalOverlay } from "../lib/modal-overlay.js";
 import { Button } from "../ui/button.js";
 import { captureOpener, returnFocus, trackFocus } from "../ui/focus-return.js";
 import { safeParseSlideDocument } from "./document.js";
-import { animationOrders, num, pageLists } from "./render-style.js";
-import type { SlidePage } from "./schema.js";
+import { animationOrders, pageLists, transitionOf } from "./render-style.js";
 import { SlideView, type SlideViewProps, type SlideViewReport } from "./slide-view.js";
 import { missingFontsText } from "./use-slide-assets.js";
 
@@ -37,18 +36,6 @@ const BAR_MS = 3000;
 const HINT_MS = 5000;
 // A press this soon after the bar came into view still only shows it.
 const REVEAL_MS = 400;
-
-// The incoming page's transition (`SUI-FEATURE-160`); under `prefers-reduced-motion` a slide only
-// fades (`styles.css`).
-function transitionOf(page: SlidePage, direction: "in" | "out"): string | undefined {
-  const { type, duration } = page.transition;
-  if (type === "none" || duration === 0) return undefined;
-  const name =
-    type === "fade"
-      ? `suite-slide-fade-${direction}`
-      : `suite-slide-slide-${direction}-${direction === "in" ? "right" : "left"}`;
-  return `${name} ${num(duration)}ms ease both`;
-}
 
 const problemsOf = (report: SlideViewReport) =>
   report.missingFonts.length +

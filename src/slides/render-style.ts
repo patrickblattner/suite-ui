@@ -12,6 +12,7 @@ import {
   type FontValue,
   type SlideDocument,
   type SlideElement,
+  type SlidePage,
   type TextRun,
 } from "./schema.js";
 
@@ -195,4 +196,31 @@ export function animationState(
     if (index === step - 1) return play(entrance, "in");
   }
   return { kind: "shown" };
+}
+
+// How long step `step` (1-based, as in `animationState`) of a page plays: the longest delay plus
+// duration among its entrances and exits; 0 past the last step.
+export function stepLength(elements: readonly SlideElement[], step: number): number {
+  const order = animationOrders(elements)[step - 1];
+  let length = 0;
+  eachElement(elements, (element) => {
+    for (const one of [element.animation?.entrance, element.animation?.exit]) {
+      if (one !== undefined && one.order === order) {
+        length = Math.max(length, one.delay + one.duration);
+      }
+    }
+  });
+  return length;
+}
+
+// The incoming page's transition (`SUI-FEATURE-160`) as a CSS animation; under
+// `prefers-reduced-motion` a slide only fades (`styles.css`).
+export function transitionOf(page: SlidePage, direction: "in" | "out"): string | undefined {
+  const { type, duration } = page.transition;
+  if (type === "none" || duration === 0) return undefined;
+  const name =
+    type === "fade"
+      ? `suite-slide-fade-${direction}`
+      : `suite-slide-slide-${direction}-${direction === "in" ? "right" : "left"}`;
+  return `${name} ${num(duration)}ms ease both`;
 }

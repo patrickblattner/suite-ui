@@ -2,6 +2,7 @@ import { useRef, useState } from "react";
 
 import { SlideEditor } from "../src/slides/slide-editor.js";
 import type { PickedMedia } from "../src/slides/slide-editor-library.js";
+import { SlidePlayer } from "../src/slides/slide-player.js";
 import { Button } from "../src/ui/button.js";
 import {
   Dialog,
@@ -63,6 +64,7 @@ export function SlideEditorPage() {
   const [copy, setCopy] = useState<{ document: SlideDocument; overflowIds: string[] } | null>(null);
   const [opened, setOpened] = useState<SlideDocument | null>(null);
   const [picking, setPicking] = useState(false);
+  const [presenting, setPresenting] = useState(false);
   const picked = useRef<((media: PickedMedia | undefined) => void) | null>(null);
   const pick = (media: PickedMedia | undefined) => {
     setPicking(false);
@@ -159,7 +161,27 @@ export function SlideEditorPage() {
             </button>
           )}
         </p>
+        {/* `SUI-FEATURE-162` AC5: the saved document in the app's player, outside the line the
+            tests read. */}
+        {saved === null ? null : (
+          <button
+            type="button"
+            className="self-start text-sm underline"
+            onClick={() => setPresenting(true)}
+            data-testid="slide-editor-app-present"
+          >
+            Present
+          </button>
+        )}
       </div>
+      {saved === null || !presenting ? null : (
+        <SlidePlayer
+          document={saved}
+          {...GALLERY_SLIDE_PROPS}
+          onClose={() => setPresenting(false)}
+          data-testid="slide-player"
+        />
+      )}
     </>
   );
 }

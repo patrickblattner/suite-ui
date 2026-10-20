@@ -32,6 +32,7 @@ import { Field } from "../ui/field.js";
 import { GridFields, GridOverlay, GridToggle } from "../ui/grid.js";
 import { Input } from "../ui/input.js";
 import { PropertyPanel } from "../ui/property-panel.js";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select.js";
 import { useLeaveGuard } from "../ui/leave-guard.js";
 import { toast } from "../ui/toaster.js";
 import { IconButtonTooltip, OverflowTooltip } from "../ui/tooltip.js";
@@ -39,6 +40,8 @@ import { type SlideDocumentError, safeParseSlideDocument } from "./document.js";
 import {
   type Alignment,
   alignElements,
+  type AnimationKind,
+  type AnimationStep,
   type Box,
   boundsOf,
   boxOf,
@@ -56,11 +59,14 @@ import {
   type ImageCrop,
   moveEach,
   moveLayer,
+  nextAnimationOrder,
   outerBox,
   panCrop,
   placedBox,
+  setAnimation,
   setBox,
   setRotation,
+  setTransition,
   stepIntoGroups,
   transferFormat,
   ungroupElement,
@@ -87,6 +93,7 @@ import {
   type SlideDocumentInput,
   type SlideElement,
   type SlideFormat,
+  type SlidePage,
 } from "./schema.js";
 import { insertColor } from "./editor-color.js";
 import { ChartData } from "./slide-editor-chart.js";
@@ -97,6 +104,7 @@ import {
   parseLibraryEntry,
   type PickedMedia,
 } from "./slide-editor-library.js";
+import { SlidePreview } from "./slide-editor-preview.js";
 import { TransferFormat, type TransferScope } from "./slide-editor-transfer.js";
 import { SlideView, type SlideViewProps } from "./slide-view.js";
 import { type SlideHistory, useSlideHistory } from "./use-slide-history.js";
@@ -145,6 +153,13 @@ const CROP_HINT_ROOM = 480;
 // What a number field takes: a box at most twice the largest format side off the page and as large,
 // so nothing typed loses an element or overflows the document's numbers.
 const FIELD_RANGE = 2 * SLIDE_LIMITS.maxFormatSide;
+// How long a new entrance, exit or transition plays, and the most a duration or delay field takes
+// (ms).
+const ANIMATION_MS = 500;
+const ANIMATION_MAX_MS = 60_000;
+const EFFECTS = ["fade", "slide", "zoom"] as const;
+const DIRECTIONS = ["left", "right", "top", "bottom"] as const;
+const TRANSITIONS = ["none", "fade", "slide"] as const;
 
 type Group = Extract<SlideElement, { type: "group" }>;
 
@@ -249,6 +264,215 @@ function NumberField({
         {unit}
       </span>
     </Field>
+  );
+}
+
+// An element's entrance or exit (`SUI-FEATURE-162` §Animationen): its effect ("None" removes it), the
+// side a slide comes from (entrance) or goes to (exit), duration, delay and its place in the page's order, shown from 1.
+// A new one plays after every animation the page has (`nextOrder`).
+function AnimationFields({
+  kind,
+  step,
+  nextOrder,
+  readOnly,
+  revision,
+  onStep,
+}: {
+  kind: AnimationKind;
+  step: AnimationStep | undefined;
+  nextOrder: number;
+  readOnly: boolean;
+  revision: number;
+  onStep: (step: AnimationStep | undefined, merge?: string) => void;
+}) {
+  const { t } = useTranslation("suite");
+  const id = `slide-editor-${kind}`;
+  const withEffect = (effect: string): AnimationStep | undefined => {
+    if (effect === "none") return undefined;
+    const next: AnimationStep = {
+      ...(step ?? { duration: ANIMATION_MS, delay: 0, order: nextOrder }),
+      effect: effect as AnimationStep["effect"],
+    };
+    if (next.effect === "slide") next.direction = step?.direction ?? "left";
+    else delete next.direction;
+    return next;
+  };
+  return (
+    <fieldset className="flex flex-col gap-3" data-testid={id}>
+      <legend className="mb-2 text-sm font-medium">{t(`slides.editor.${kind}`)}</legend>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label={t("slides.editor.animationEffect")} htmlFor={`${id}-effect`}>
+          <Select
+            value={step?.effect ?? "none"}
+            disabled={readOnly}
+            onValueChange={(effect) => onStep(withEffect(effect))}
+          >
+            <SelectTrigger
+              id={`${id}-effect`}
+              fieldName={t("slides.editor.animationEffect")}
+              className="w-full"
+              data-testid={`${id}-effect`}
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">{t("slides.editor.animationNone")}</SelectItem>
+              {EFFECTS.map((effect) => (
+                <SelectItem key={effect} value={effect}>
+                  {t(`slides.editor.${kind}${effect[0]!.toUpperCase()}${effect.slice(1)}`)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        {step?.effect !== "slide" ? null : (
+          <Field
+            label={t(
+              kind === "entrance" ? "slides.editor.animationFrom" : "slides.editor.animationTo",
+            )}
+            htmlFor={`${id}-direction`}
+          >
+            <Select
+              value={step.direction ?? "left"}
+              disabled={readOnly}
+              onValueChange={(direction) =>
+                onStep({ ...step, direction: direction as AnimationStep["direction"] })
+              }
+            >
+              <SelectTrigger
+                id={`${id}-direction`}
+                fieldName={t(
+                  kind === "entrance" ? "slides.editor.animationFrom" : "slides.editor.animationTo",
+                )}
+                className="w-full"
+                data-testid={`${id}-direction`}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {DIRECTIONS.map((direction) => (
+                  <SelectItem key={direction} value={direction}>
+                    {t(
+                      `slides.editor.direction${direction[0]!.toUpperCase()}${direction.slice(1)}`,
+                    )}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+        )}
+        {step === undefined ? null : (
+          <>
+            {(["duration", "delay"] as const).map((key) => (
+              <NumberField
+                key={key}
+                id={`${id}-${key}`}
+                label={t(`slides.editor.animation${key[0]!.toUpperCase()}${key.slice(1)}`)}
+                value={step[key]}
+                unit={t("slides.editor.ms")}
+                readOnly={readOnly}
+                revision={revision}
+                onValue={(value) =>
+                  onStep(
+                    { ...step, [key]: clamp(Math.round(value), 0, ANIMATION_MAX_MS) },
+                    `${id}:${key}`,
+                  )
+                }
+                testId={`${id}-${key}`}
+              />
+            ))}
+            <NumberField
+              id={`${id}-order`}
+              label={t("slides.editor.animationOrder")}
+              value={step.order + 1}
+              unit=""
+              readOnly={readOnly}
+              revision={revision}
+              onValue={(value) =>
+                onStep(
+                  {
+                    ...step,
+                    order: clamp(Math.round(value), 1, 2 * SLIDE_LIMITS.maxElements) - 1,
+                  },
+                  `${id}:order`,
+                )
+              }
+              testId={`${id}-order`}
+            />
+          </>
+        )}
+      </div>
+    </fieldset>
+  );
+}
+
+// The page's transition (`SUI-FEATURE-162` §Animationen): none, a cross-fade or a slide, with its
+// duration.
+function TransitionFields({
+  transition,
+  revision,
+  onTransition,
+}: {
+  transition: SlidePage["transition"];
+  revision: number;
+  onTransition: (transition: SlidePage["transition"], merge?: string) => void;
+}) {
+  const { t } = useTranslation("suite");
+  return (
+    <section className="flex flex-col gap-3" data-testid="slide-editor-transition">
+      <h3 className="text-sm font-medium">{t("slides.editor.transition")}</h3>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label={t("slides.editor.transitionType")} htmlFor="slide-editor-transition-type">
+          <Select
+            value={transition.type}
+            onValueChange={(type) =>
+              onTransition({
+                type: type as SlidePage["transition"]["type"],
+                duration:
+                  type === "none"
+                    ? 0
+                    : transition.duration === 0
+                      ? ANIMATION_MS
+                      : transition.duration,
+              })
+            }
+          >
+            <SelectTrigger
+              id="slide-editor-transition-type"
+              fieldName={t("slides.editor.transitionType")}
+              className="w-full"
+              data-testid="slide-editor-transition-type"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {TRANSITIONS.map((type) => (
+                <SelectItem key={type} value={type}>
+                  {t(`slides.editor.transition${type[0]!.toUpperCase()}${type.slice(1)}`)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        {transition.type === "none" ? null : (
+          <NumberField
+            id="slide-editor-transition-duration"
+            label={t("slides.editor.animationDuration")}
+            value={transition.duration}
+            unit={t("slides.editor.ms")}
+            readOnly={false}
+            revision={revision}
+            onValue={(value) =>
+              onTransition(
+                { ...transition, duration: clamp(Math.round(value), 0, ANIMATION_MAX_MS) },
+                "transition:duration",
+              )
+            }
+            testId="slide-editor-transition-duration"
+          />
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -1200,6 +1424,27 @@ function Editor({
           />
         </div>
       )}
+      {single === undefined ? null : (
+        <section className="flex flex-col gap-3" data-testid="slide-editor-animation">
+          <h3 className="text-sm font-medium">{t("slides.editor.animation")}</h3>
+          {(["entrance", "exit"] as const).map((kind) => (
+            <AnimationFields
+              key={`${single.id}-${kind}`}
+              kind={kind}
+              step={single.animation?.[kind]}
+              nextOrder={nextAnimationOrder(document, page)}
+              readOnly={single.locked}
+              revision={travels}
+              onStep={(step, merge) =>
+                apply(
+                  (current) => setAnimation(current, page, single.id, kind, step),
+                  merge === undefined ? undefined : `${single.id}:${merge}`,
+                )
+              }
+            />
+          ))}
+        </section>
+      )}
       {selected.length === 0 || editable.length === 0 ? null : (
         <section className="flex flex-col gap-2">
           <h3 className="text-sm font-medium">{t("slides.editor.arrange")}</h3>
@@ -1300,6 +1545,19 @@ function Editor({
           </div>
         </section>
       )}
+      {selected.length === 0 && pageData !== undefined ? (
+        <TransitionFields
+          key={pageData.id}
+          transition={pageData.transition}
+          revision={travels}
+          onTransition={(transition, merge) =>
+            apply(
+              (current) => setTransition(current, page, transition),
+              merge === undefined ? undefined : `${pageData.id}:${merge}`,
+            )
+          }
+        />
+      ) : null}
       {selected.length === 0 ? (
         <p className="text-sm text-muted-foreground" data-testid="slide-editor-format">
           {t("slides.editor.format", {
@@ -1562,6 +1820,7 @@ function Editor({
               </Button>
             </IconButtonTooltip>
             <div className="ml-auto flex flex-wrap items-center gap-2">
+              <SlidePreview document={document} page={page} view={view} />
               {onTransfer === undefined || otherFormats.length === 0 ? null : (
                 <TransferFormat formats={otherFormats} onTransfer={transfer} />
               )}

@@ -23,8 +23,11 @@ import {
   moveBy,
   moveEach,
   moveLayer,
+  nextAnimationOrder,
+  setAnimation,
   setBox,
   setRotation,
+  setTransition,
   stepIntoGroups,
   transferFormat,
   ungroupElement,
@@ -931,5 +934,44 @@ describe("charts", () => {
     expect(single.categories).toHaveLength(1);
     expect(single.series.every((series) => series.values.length === 1)).toBe(true);
     expect(slideElementSchema.safeParse(single).success).toBe(true);
+  });
+});
+
+// SUI-FEATURE-162 AC5 (#294 inc 5): entrances and exits in order, and the page's transition.
+describe("animations", () => {
+  const fade = (order: number) => ({ effect: "fade" as const, duration: 500, delay: 0, order });
+
+  it("orders a new animation after every one the page plays", () => {
+    const document = doc([shape("a", 0, 0), shape("b", 200, 0)]);
+    expect(nextAnimationOrder(document, 0)).toBe(0);
+    const first = setAnimation(document, 0, "a", "entrance", fade(nextAnimationOrder(document, 0)));
+    const second = setAnimation(first, 0, "b", "entrance", fade(nextAnimationOrder(first, 0)));
+    expect(second.pages[0]!.elements.map((one) => one.animation?.entrance?.order)).toEqual([0, 1]);
+    expect(nextAnimationOrder(second, 0)).toBe(2);
+    // The result stays a valid document.
+    expect(safeParseSlideDocument(second).ok).toBe(true);
+  });
+
+  it("sets an exit beside the entrance and removes each on its own", () => {
+    const document = setAnimation(doc([shape("a", 0, 0)]), 0, "a", "entrance", fade(0));
+    const both = setAnimation(document, 0, "a", "exit", fade(1));
+    expect(both.pages[0]!.elements[0]!.animation).toEqual({ entrance: fade(0), exit: fade(1) });
+    const exitOnly = setAnimation(both, 0, "a", "entrance", undefined);
+    expect(exitOnly.pages[0]!.elements[0]!.animation).toEqual({ exit: fade(1) });
+    const none = setAnimation(exitOnly, 0, "a", "exit", undefined);
+    expect("animation" in none.pages[0]!.elements[0]!).toBe(false);
+  });
+
+  it("finds an element inside a group", () => {
+    const { document } = groupElements(doc([shape("a", 0, 0), shape("b", 200, 0)]), 0, ["a", "b"]);
+    const next = setAnimation(document, 0, "b", "entrance", fade(0));
+    expect(findElement(next.pages[0]!.elements, "b")?.element.animation?.entrance).toEqual(fade(0));
+  });
+
+  it("sets the page's transition, the other pages unchanged", () => {
+    const document = doc([shape("a", 0, 0)]);
+    const next = setTransition(document, 0, { type: "fade", duration: 700 });
+    expect(next.pages[0]!.transition).toEqual({ type: "fade", duration: 700 });
+    expect(setTransition(document, 3, { type: "fade", duration: 700 })).toBe(document);
   });
 });
