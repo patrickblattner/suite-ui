@@ -13,6 +13,7 @@ import {
   SLIDE_SCHEMA_VERSION,
   SlideDocumentError,
   slideDocumentSchema,
+  slideElementFitsLimits,
   type SlideBrandSet,
   type SlideMigration,
 } from "./index.js";
@@ -757,5 +758,13 @@ describe("slideDocumentSchema preflight", () => {
       id: `e${index}`,
     }));
     expect(codes({ ...valid, pages: [{ ...page, elements }] })).toEqual(["too-many-elements"]);
+  });
+
+  // Codex #389 CX1: one element on its own gets the same limits, 2000 nested groups without throwing.
+  it("bounds one element by the same group depth", () => {
+    const deepest = (raw: ReturnType<typeof nested>) => raw.pages[0]!.elements[0];
+    expect(slideElementFitsLimits(deepest(nested(SLIDE_LIMITS.maxGroupDepth)))).toBe(true);
+    expect(slideElementFitsLimits(deepest(nested(SLIDE_LIMITS.maxGroupDepth + 1)))).toBe(false);
+    expect(slideElementFitsLimits(deepest(nested(2000)))).toBe(false);
   });
 });

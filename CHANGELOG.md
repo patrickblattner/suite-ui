@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.149.1 — #389, Codex review of v0.148.0: a library block nested too deep is left out instead of crashing the editor
+
+Fix.
+
+- **App blocks in the library** (`SlideExtensions.library`, `SUI-FEATURE-163`): a block is checked against the group depth and element count of a page before the recursive schema parses it, so a block with groups nested past `SLIDE_LIMITS.maxGroupDepth` (2,000 deep, say) is left out of the library like any other block that breaks the schema; the editor no longer throws `RangeError: Maximum call stack size exceeded` when it opens.
+- New: `slideElementFitsLimits(element)` — whether one element, groups and all, stays within those limits, checked without recursion; whoever parses an element on its own with `slideElementSchema` asks it first.
+
 ## 0.149.0 — #387, SUI-FEATURE-250: a Button locked with a reason is `aria-disabled` and carries the reason itself
 
 Fix, breaking for app tests and for `EditPanel` call sites without a reason.

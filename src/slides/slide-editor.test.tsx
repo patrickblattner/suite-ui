@@ -418,6 +418,24 @@ describe("SlideEditor extension parts", () => {
       },
       // Breaks the schema: left out of the library.
       { id: "broken", label: "Broken", element: { id: "x", type: "shape" } as never },
+      // Groups nested 2,000 deep: past the structural limits, left out without overflowing the stack
+      // of the recursive schema (Codex #389 CX1).
+      {
+        id: "deep",
+        label: "Deep",
+        element: Array.from({ length: 2000 }).reduce<object>(
+          (child, _, index) => ({
+            id: `deep-${index}`,
+            type: "group",
+            x: 0,
+            y: 0,
+            width: 10,
+            height: 10,
+            children: [child],
+          }),
+          { id: "deep-leaf", type: "shape", shape: "rectangle", x: 0, y: 0, width: 10, height: 10 },
+        ) as never,
+      },
     ],
     overlay: function Overlay({ width, height, zoom }) {
       const [shown] = React.useState(true);

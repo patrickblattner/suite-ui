@@ -640,6 +640,13 @@ function structureIssue(
   return undefined;
 }
 
+// Whether one element, groups and all, stays within the group depth and element count of a page,
+// checked by the same stack walk: whatever parses an element on its own with the recursive
+// `slideElementSchema` (an app's library block) asks this first (Codex #389 CX1).
+export function slideElementFitsLimits(element: unknown): boolean {
+  return structureIssue({ pages: [{ elements: [element] }] }) === undefined;
+}
+
 // The slide document schema: the structural preflight first, and only a document that passes it
 // reaches the shape (a pipe stops at the first stage's issue), so every caller of the exported schema
 // gets the limits and a named issue, never a stack overflow (Codex #299 CX1).

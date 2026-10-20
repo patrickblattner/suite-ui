@@ -91,6 +91,7 @@ import {
   SLIDE_LIMITS,
   type SlideDocument,
   slideElementSchema,
+  slideElementFitsLimits,
   type SlideDocumentInput,
   type SlideElement,
   type SlideFormat,
@@ -781,7 +782,7 @@ function Editor({
   // The search term of the library, kept while its drawer is closed.
   const [libraryTerm, setLibraryTerm] = React.useState("");
   // The app's own types with a library entry and its blocks (`SUI-FEATURE-163`); one whose element
-  // breaks the schema (an over-long type id, a bad size) is left out. A block without a name of its
+  // breaks the schema (an over-long type id, a bad size, groups nested too deep) is left out. A block without a name of its
   // own takes its label, so what was picked stays recognisable in the layers and the path.
   const appEntries = React.useMemo((): AppLibraryEntry[] => {
     const types = Object.entries(view.extensions?.types ?? {}).flatMap(([typeId, type]) => {
@@ -811,6 +812,8 @@ function Editor({
         : [];
     });
     const blocks = (view.extensions?.library ?? []).flatMap((block) => {
+      // Past the structural limits it is left out before the recursive parse (Codex #389 CX1).
+      if (!slideElementFitsLimits(block.element)) return [];
       const parsed = slideElementSchema.safeParse(block.element);
       if (!parsed.success) return [];
       const element = parsed.data.name
