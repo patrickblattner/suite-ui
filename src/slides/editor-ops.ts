@@ -427,6 +427,78 @@ export function setBox(document: SlideDocument, page: number, id: string, box: B
   return withPage(document, page, walk);
 }
 
+// The sizes one side of a group reaches with the other side kept (`SUI-FEATURE-190`): only a turned
+// element in it ties its width to its height, so for any other group `undefined` (every size is
+// reached). The children scale by positive factors, and none of their sides below 1 px (below its
+// own size where that is smaller): a child scaled to nothing never grows back. `max` is `Infinity`
+// when the side grows without bound.
+export function groupSizeRange(
+  group: Group,
+  key: "width" | "height",
+): { min: number; max: number } | undefined {
+  const leaves: SlideElement[] = [];
+  let tied = false;
+  const visit = (element: SlideElement) => {
+    if (element.rotation % 180 !== 0) tied = true;
+    if (element.type === "group") element.children.forEach(visit);
+    else leaves.push(element);
+  };
+  group.children.forEach(visit);
+  if (!tied) return undefined;
+  const other = key === "width" ? "height" : "width";
+  const least = (side: "width" | "height") =>
+    Math.max(...leaves.map((leaf) => (leaf[side] > 0 ? Math.min(1, 1 / leaf[side]) : 0)), 0);
+  const low = { side: least(key), other: least(other) };
+  // The drawn box of the children scaled by `f` along `key` and `g` along the other side.
+  const old = boxOf(group);
+  const measure = (f: number, g: number) => {
+    const [factorX, factorY] = key === "width" ? [f, g] : [g, f];
+    const scale = (element: SlideElement): SlideElement => ({
+      ...element,
+      x: old.x + (element.x - old.x) * factorX,
+      y: old.y + (element.y - old.y) * factorY,
+      width: element.width * factorX,
+      height: element.height * factorY,
+    });
+    const bounds = boundsOf(
+      refitGroups(group.children.map((child) => withDescendants(child, scale))).map(drawnBox),
+    );
+    return { side: bounds?.[key] ?? 0, other: bounds?.[other] ?? 0 };
+  };
+  const kept = old[other];
+  // Both sides only grow with either factor, so each search halves an interval.
+  const solve = (rises: (value: number) => boolean, from: number, to: number) => {
+    let [below, above] = [from, to];
+    for (let step = 0; step < 48; step += 1) {
+      const middle = (below + above) / 2;
+      if (rises(middle)) above = middle;
+      else below = middle;
+    }
+    return above;
+  };
+  if (measure(low.side, low.other).other > kept + 1e-6) return undefined;
+  // The largest factor along `key` that keeps the other side with its own factor at the least.
+  const LIMIT = 1e4;
+  let high = 1;
+  while (high < LIMIT && measure(high, low.other).other <= kept) high *= 2;
+  const bounded = high < LIMIT;
+  if (bounded) high = solve((f) => measure(f, low.other).other > kept, high / 2, high);
+  // The other factor that keeps the other side, for a factor along `key`.
+  const keeping = (f: number) => {
+    let top = 1;
+    while (top < LIMIT && measure(f, top).other < kept) top *= 2;
+    return solve((g) => measure(f, g).other >= kept, low.other, top);
+  };
+  const end = bounded ? high : Math.max(1, low.side);
+  const sides: number[] = [];
+  const SAMPLES = 16;
+  for (let index = 0; index <= SAMPLES; index += 1) {
+    const f = low.side + ((end - low.side) * index) / SAMPLES;
+    sides.push(measure(f, bounded && index === SAMPLES ? low.other : keeping(f)).side);
+  }
+  return { min: Math.min(...sides), max: bounded ? Math.max(...sides) : Infinity };
+}
+
 export function setRotation(
   document: SlideDocument,
   page: number,

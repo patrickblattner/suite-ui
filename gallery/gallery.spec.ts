@@ -10745,14 +10745,18 @@ test("slide editor: the turn handle turns a child of a turned group towards the 
 }) => {
   const { editor, field, at } = await turnedChild(page);
   // Pointing straight down from the child's drawn centre: a half turn on the screen, a quarter turn
-  // in the group's frame.
+  // in the group's frame. The field shows the turn on the screen (`SUI-FEATURE-190`).
   const handle = (await editor.getByTestId("slide-editor-handle-rotate").boundingBox())!;
   await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
   await page.mouse.down();
   const target = at(630, 420);
   await page.mouse.move(target.x, target.y, { steps: 6 });
   await page.mouse.up();
-  await expect(field("rotation")).toHaveValue("90");
+  await expect(field("rotation")).toHaveValue("180");
+  await expect(editor.locator("[data-slide-element=pair-left]")).toHaveAttribute(
+    "style",
+    /rotate\(90deg\)/,
+  );
 });
 
 // #323 AC2: the canvas frame selects no text, and a child of a turned group does not snap to the
@@ -10872,10 +10876,183 @@ test("slide editor: Shift turns a child of a turned group in steps of 15° on th
   await page.mouse.move(centre.x + 70, centre.y + 25, { steps: 4 });
   await page.mouse.up();
   await page.keyboard.up("Shift");
-  // The child's own angle plus the group's 37° is a step of 15° on the screen.
-  const own = Number(await field("rotation").inputValue());
-  expect((((own + 37) % 15) + 15) % 15).toBeCloseTo(0, 1);
-  expect(own).not.toBe(Math.round(own / 15) * 15);
+  // The field shows the angle on the screen, a step of 15° (`SUI-FEATURE-190` AC4); the child keeps
+  // its own angle, the group's 37° taken off.
+  const shown = Number(await field("rotation").inputValue());
+  expect(shown % 15).toBeCloseTo(0, 1);
+  const style = await editor.locator("[data-slide-element=pair-left]").getAttribute("style");
+  const own = Number(/rotate\((-?[\d.]+)deg\)/.exec(style ?? "")?.[1]);
+  expect((((own + 37 - shown) % 360) + 360) % 360).toBeCloseTo(0, 1);
+});
+
+// SUI-FEATURE-190 AC4 (#327): the rotation field of a child of a turned group shows and takes the
+// angle on the page; the child stores its own.
+test("slide editor: a child's rotation field in a turned group shows the angle on the page", async ({
+  page,
+}) => {
+  const { editor, field } = await turnedChild(page, 37);
+  const child = editor.locator("[data-slide-element=pair-left]");
+  await expect(field("rotation")).toHaveValue("37");
+  await typeInto(page, field("rotation"), "42");
+  await page.keyboard.press("Tab");
+  await expect(child).toHaveAttribute("style", /rotate\(5deg\)/);
+  await expect(field("rotation")).toHaveValue("42");
+  await typeInto(page, field("rotation"), "90");
+  await page.keyboard.press("Tab");
+  await expect(field("rotation")).toHaveValue("90");
+  await expect(child).toHaveAttribute("style", /rotate\(53deg\)/);
+});
+
+// SUI-FEATURE-190 AC1 (#327): a group whose turned child holds its width takes the nearest width it
+// reaches and names the limit at the field; its height stays.
+test("slide editor: a group's width beyond what its turned child allows takes the limit", async ({
+  page,
+}) => {
+  const { editor, field } = await turnedGroup(page);
+  const height = await field("height").inputValue();
+  await typeInto(page, field("width"), "50");
+  await page.keyboard.press("Tab");
+  await expect(field("width")).toHaveValue("70.71");
+  await expect(editor.getByTestId("slide-editor-width-limit")).toHaveText(
+    "The group's turned elements hold it at 70.71 px at least.",
+  );
+  await expect(field("height")).toHaveValue(height);
+  await typeInto(page, field("width"), "400");
+  await page.keyboard.press("Tab");
+  await expect(field("width")).toHaveValue("304.33");
+  await expect(editor.getByTestId("slide-editor-width-limit")).toContainText("304.33 px at most");
+  await expect(field("height")).toHaveValue(height);
+  // A width it reaches clears the note.
+  await typeInto(page, field("width"), "200");
+  await page.keyboard.press("Tab");
+  await expect(field("width")).toHaveValue("200");
+  await expect(editor.getByTestId("slide-editor-width-limit")).toHaveCount(0);
+});
+
+// #351 (code review): typed key by key, the width passes 3 and 30, which the group does not reach;
+// each keystroke counts from the group before the typing, so 300 lands as typed.
+test("slide editor: a group's width typed key by key lands as typed", async ({ page }) => {
+  const { field } = await turnedGroup(page);
+  await typeInto(page, field("width"), "300");
+  await expect(field("width")).toHaveValue("300");
+  await page.keyboard.press("Tab");
+  await expect(field("width")).toHaveValue("300");
+});
+
+// The group Pair with its left child turned 45° in it, the group selected.
+async function turnedGroup(page: Page) {
+  const editor = await openEditor(page);
+  await editor.select(630, 340);
+  const child = editor.at(590, 340);
+  await page.mouse.dblclick(child.x, child.y);
+  await expect(editor.field("x")).toHaveValue("560");
+  await typeInto(page, editor.field("rotation"), "45");
+  await page.keyboard.press("Tab");
+  await editor.editor.getByTestId("slide-editor-canvas").focus();
+  await page.keyboard.press("Escape");
+  await expect(editor.editor.getByTestId("canvas-name")).toHaveText("Pair");
+  return editor;
+}
+
+// SUI-FEATURE-190 AC2 (#327): a child of a group turned 30° snaps in the group's frame, to its
+// sibling, the guide drawn turned with the group; with Alt not at all.
+test("slide editor: a child of a turned group snaps to its sibling in the group's frame", async ({
+  page,
+}) => {
+  const { editor, child, drawn } = await turnedChild(page, 30);
+  const guide = editor.getByTestId("slide-editor-guide-x");
+  // 17 px along the group's own x axis: the child's right edge (620) comes 3 px short of its
+  // sibling's left edge (640) and snaps there, 20 px on.
+  const along = (length: number) => ({
+    x: length * Math.cos(Math.PI / 6),
+    y: length * Math.sin(Math.PI / 6),
+  });
+  const dragBy = async (length: number, alt: boolean) => {
+    const before = (await child.boundingBox())!;
+    const by = along(length);
+    if (alt) await page.keyboard.down("Alt");
+    await page.mouse.move(drawn.x, drawn.y);
+    await page.mouse.down();
+    await page.mouse.move(drawn.x + by.x / 2, drawn.y + by.y / 2, { steps: 3 });
+    await page.mouse.move(drawn.x + by.x, drawn.y + by.y, { steps: 3 });
+    if (alt) await expect(guide).toHaveCount(0);
+    else {
+      await expect(guide).toHaveAttribute("data-guide", "640");
+      // A vertical line of the group's frame, drawn turned 30°: wide on the screen.
+      expect((await guide.boundingBox())!.width).toBeGreaterThan(100);
+    }
+    await page.mouse.up();
+    if (alt) await page.keyboard.up("Alt");
+    const after = (await child.boundingBox())!;
+    return { x: after.x - before.x, y: after.y - before.y };
+  };
+  const snapped = await dragBy(17, false);
+  expect(snapped.x).toBeCloseTo(along(20).x, 0);
+  expect(snapped.y).toBeCloseTo(along(20).y, 0);
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(editor.getByTestId("slide-editor-x")).toHaveValue("560");
+  const free = await dragBy(17, true);
+  expect(free.x).toBeCloseTo(along(17).x, 0);
+  expect(free.y).toBeCloseTo(along(17).y, 0);
+});
+
+// SUI-FEATURE-190 AC3 (#327): a child of a turned group with a page element snaps by the selection's
+// box on the page, the same whichever of them is pressed (a click on the canvas reaches the child
+// only from inside its group, so the child is always picked first); two children of the turned
+// group snap in its frame.
+test("slide editor: a selection across levels snaps by its box on the page", async ({ page }) => {
+  const result = async (onChild: boolean) => {
+    const { editor, select, drawn, child, at } = await turnedChild(page);
+    const loose = editor.locator("[data-slide-element=a]");
+    await select(140, 130, true);
+    await expect(editor.getByTestId("canvas-name")).toHaveText("2 elements");
+    const before = [(await child.boundingBox())!, (await loose.boundingBox())!];
+    const from = onChild ? drawn : at(140, 130);
+    await page.mouse.move(from.x, from.y);
+    await page.mouse.down();
+    await page.mouse.move(from.x + 2, from.y, { steps: 2 });
+    await page.mouse.move(from.x + 3, from.y, { steps: 2 });
+    // The selection's left edge (100) stands at the stamp's, its right one (670) at the group's
+    // drawn one: it stays there.
+    const line = editor.getByTestId("slide-editor-guide-x");
+    await expect(line).toBeVisible();
+    const guide = await line.boundingBox();
+    const value = await line.getAttribute("data-guide");
+    await page.mouse.up();
+    const after = [(await child.boundingBox())!, (await loose.boundingBox())!];
+    return {
+      guide: guide!.width,
+      value,
+      moved: after.map((box, index) => ({
+        x: Math.round(box.x - before[index]!.x),
+        y: Math.round(box.y - before[index]!.y),
+      })),
+    };
+  };
+  const onChild = await result(true);
+  expect(await result(false)).toEqual(onChild);
+  expect(onChild.moved[0]!.x).toBe(0);
+  expect(onChild.guide).toBeLessThan(4);
+});
+
+test("slide editor: two children of a turned group snap in its frame", async ({ page }) => {
+  const { editor, at, drawn } = await turnedChild(page);
+  // The sibling is drawn at (630, 380) at a quarter turn.
+  const sibling = at(630, 380);
+  await page.keyboard.down("Shift");
+  await page.mouse.click(sibling.x, sibling.y);
+  await page.keyboard.up("Shift");
+  await expect(editor.getByTestId("canvas-name")).toHaveText("2 elements");
+  await page.mouse.move(drawn.x, drawn.y);
+  await page.mouse.down();
+  await page.mouse.move(drawn.x + 2, drawn.y, { steps: 2 });
+  await page.mouse.move(drawn.x + 3, drawn.y, { steps: 2 });
+  // Both stand at the group's edges: a guide of its frame, drawn turned a quarter: across.
+  const guide = editor.locator("[data-testid^=slide-editor-guide-]").first();
+  await expect(guide).toBeVisible();
+  const turned = (await guide.boundingBox())!;
+  await page.mouse.up();
+  expect(Math.max(turned.width, turned.height)).toBeGreaterThan(100);
 });
 
 // SUI-FEATURE-162 AC5 (#294 inc 5): two elements get entrances in order and their page a cross-fade

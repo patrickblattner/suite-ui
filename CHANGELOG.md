@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.152.0 — #327, SUI-FEATURE-190: group sizes and snapping in turned groups
+
+New, not breaking.
+
+- **Group size:** a width or height typed in the panel that a group's turned elements do not allow (with the other side kept) sets the nearest size the group reaches, and the field names the limit: "The group's turned elements hold it at 70.71 px at least" (or "at most"). No element in the group shrinks below 1 px on the way. The other side stays. Each keystroke counts from the group before the typing, so typing 3, 0, 0 lands on 300 and does not pass through the unreachable 3 (#351).
+- **Snapping in a turned group:** a child of a turned group, or several children of the same one, snaps in the group's frame: to the group's edges and centre and to its siblings, the guide drawn turned with the group. The page and the grid are no candidates there. `Alt` turns it off as before. Any other selection that includes a child of a turned group snaps by its box on the page, to the page, the grid and the other elements. Before, such a selection did not snap at all (#326).
+- **Rotation of a child:** the rotation field of a child of a turned group shows the angle on the page, its own angle plus its groups', from 0 to 360°. A value typed there sets that angle on the page, and the child stores its own angle (a group at 37°: 90 typed stores 53). After a turn with Shift the field shows a multiple of 15.
+- `NumberField` (internal) takes a `help` note, read with the field.
+
+**Migration:** none. New package texts `slides.editor.sizeAtLeast` and `slides.editor.sizeAtMost` (de, en, es). Baselines: none.
+
 ## 0.151.0 — #312, GridToggle mode values in English
 
 Breaking.

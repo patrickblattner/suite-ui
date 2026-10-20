@@ -102,24 +102,30 @@ export function snapCandidates(
   others: readonly Box[],
   grid: GridDefinition | null,
 ): SnapCandidates {
-  const x: SnapCandidate[] = [0, page.width / 2, page.width].map((value) => ({
-    value,
-    source: "area",
-  }));
-  const y: SnapCandidate[] = [0, page.height / 2, page.height].map((value) => ({
-    value,
-    source: "area",
-  }));
+  const { x, y } = frameCandidates({ x: 0, y: 0, ...page }, others);
+  if (grid !== null) {
+    const lines = gridLines(grid, page);
+    for (const value of lines.x) x.push({ value, source: "grid" });
+    for (const value of lines.y) y.push({ value, source: "grid" });
+  }
+  return { x, y };
+}
+
+// What a moving box snaps to in a frame: the frame's edges and centre, and the other boxes' edges
+// and centres. In a turned group's frame that is the group and the siblings (`SUI-FEATURE-190`); the
+// page and the grid lie in another frame there.
+export function frameCandidates(frame: Box, others: readonly Box[]): SnapCandidates {
+  const x: SnapCandidate[] = [frame.x, frame.x + frame.width / 2, frame.x + frame.width].map(
+    (value) => ({ value, source: "area" }),
+  );
+  const y: SnapCandidate[] = [frame.y, frame.y + frame.height / 2, frame.y + frame.height].map(
+    (value) => ({ value, source: "area" }),
+  );
   for (const box of others) {
     for (const value of [box.x, box.x + box.width / 2, box.x + box.width])
       x.push({ value, source: "element" });
     for (const value of [box.y, box.y + box.height / 2, box.y + box.height])
       y.push({ value, source: "element" });
-  }
-  if (grid !== null) {
-    const lines = gridLines(grid, page);
-    for (const value of lines.x) x.push({ value, source: "grid" });
-    for (const value of lines.y) y.push({ value, source: "grid" });
   }
   return { x, y };
 }

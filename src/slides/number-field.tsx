@@ -16,6 +16,7 @@ export function NumberField({
   testId,
   min,
   max,
+  help,
 }: {
   id: string;
   label: string;
@@ -31,6 +32,8 @@ export function NumberField({
   // The range the field's arrows keep to.
   min?: number | undefined;
   max?: number | undefined;
+  // A note under the field, read with it.
+  help?: React.ReactNode;
 }) {
   const shown = value === undefined ? "" : String(Math.round(value * 100) / 100);
   const [typed, setTyped] = React.useState<{ text: string; revision: number } | null>(null);
@@ -38,7 +41,7 @@ export function NumberField({
   const setText = (next: string | null) =>
     setTyped(next === null ? null : { text: next, revision });
   return (
-    <Field label={label} htmlFor={id} control={{ className: "relative" }}>
+    <Field label={label} htmlFor={id} help={help} control={{ className: "relative" }}>
       <Input
         id={id}
         type="number"
@@ -46,6 +49,7 @@ export function NumberField({
         readOnly={readOnly}
         min={min}
         max={max}
+        aria-describedby={help === undefined ? undefined : `${id}-description`}
         value={text ?? shown}
         onChange={(event) => {
           setText(event.target.value);

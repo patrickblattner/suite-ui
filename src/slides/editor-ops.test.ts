@@ -13,6 +13,7 @@ import {
   findElement,
   groupChain,
   groupElements,
+  groupSizeRange,
   insertElement,
   intoGroups,
   libraryElement,
@@ -467,6 +468,37 @@ describe("slide editor operations on turned groups", () => {
     for (const key of ["x", "y", "width", "height"] as const) {
       expect(boxOf(group)[key]).toBeCloseTo(bounds[key], 2);
     }
+  });
+
+  // SUI-FEATURE-190 AC1 (#327): the sizes a side reaches with the other kept, its ends reached.
+  it("names the widths a group with a turned child reaches at its height", () => {
+    const turned = doc([{ ...shape("t", 100, 100, 200, 100), rotation: 45 }, shape("u", 600, 100)]);
+    const { document: grouped45, id } = groupElements(turned, 0, ["t", "u"]);
+    const group = findElement(grouped45.pages[0]!.elements, id!)!.element;
+    if (group.type !== "group") throw new Error("expected the group");
+    const range = groupSizeRange(group, "width")!;
+    expect(range.min).toBeGreaterThan(0);
+    expect(range.min).toBeLessThan(group.width);
+    expect(range.max).toBeGreaterThan(group.width);
+    expect(range.max).toBeLessThan(900);
+    for (const width of [range.min, range.max]) {
+      const resized = setBox(grouped45, 0, id!, { ...boxOf(group), width });
+      expect(box(resized, id!).width).toBeCloseTo(width, 1);
+      expect(box(resized, id!).height).toBeCloseTo(group.height, 1);
+      const children = findElement(resized.pages[0]!.elements, "t")!.group!.children;
+      for (const child of children) {
+        expect(child.width).toBeGreaterThanOrEqual(1 - 1e-3);
+        expect(child.height).toBeGreaterThanOrEqual(1 - 1e-3);
+      }
+    }
+    // Without a turned element every size is reached.
+    const plain = groupElements(doc([shape("a", 0, 0), shape("b", 300, 50, 50, 50)]), 0, [
+      "a",
+      "b",
+    ]);
+    const flat = findElement(plain.document.pages[0]!.elements, plain.id!)!.element;
+    if (flat.type !== "group") throw new Error("expected the group");
+    expect(groupSizeRange(flat, "width")).toBeUndefined();
   });
 });
 

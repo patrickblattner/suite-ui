@@ -614,6 +614,8 @@ export const de: SuiteStrings = {
       width: "Breite",
       height: "Höhe",
       rotation: "Drehung",
+      sizeAtLeast: "Gedrehte Elemente halten die Gruppe bei mindestens {{value}} px.",
+      sizeAtMost: "Gedrehte Elemente halten die Gruppe bei höchstens {{value}} px.",
       unloadedExtension:
         "Dieses Element trägt Einstellungen einer hier nicht geladenen Erweiterung. Sie bleiben erhalten.",
       degrees: "°",
