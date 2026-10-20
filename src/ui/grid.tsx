@@ -216,9 +216,9 @@ function GridFields({ value, onChange, allowNone = false, hidden = [] }: GridFie
 type GridToggleValue = { guides: boolean; snap: boolean };
 
 type GridToggleProps = {
-  // `gekoppelt`: showing the grid is snapping to it. `getrennt`: the button shows the lines, the menu
+  // `coupled`: showing the grid is snapping to it. `separate`: the button shows the lines, the menu
   // beside it switches lines and snapping each on their own.
-  mode: "gekoppelt" | "getrennt";
+  mode: "coupled" | "separate";
   value: GridToggleValue;
   onChange: (value: GridToggleValue) => void;
   // The grid in force; without one the toggle is locked.
@@ -240,7 +240,7 @@ function GridToggle({ mode, value, onChange, definition, unavailableText }: Grid
   return (
     <div className="flex items-center" data-tooltip-row="" data-testid="grid-toggle">
       <Hint
-        text={t(mode === "gekoppelt" ? "grid.coupledHint" : "grid.guidesHint")}
+        text={t(mode === "coupled" ? "grid.coupledHint" : "grid.guidesHint")}
         disabledText={unavailableText}
       >
         <Button
@@ -252,11 +252,11 @@ function GridToggle({ mode, value, onChange, definition, unavailableText }: Grid
           className={cn(
             PRESSED_FILL_CLASS,
             // Separate: the main part of one joined split button.
-            mode === "getrennt" && "rounded-r-none hover:z-10 focus-visible:z-10",
+            mode === "separate" && "rounded-r-none hover:z-10 focus-visible:z-10",
           )}
           onClick={() =>
             onChange(
-              mode === "gekoppelt"
+              mode === "coupled"
                 ? { guides: !value.guides, snap: !value.guides }
                 : { ...value, guides: !value.guides },
             )
@@ -267,7 +267,7 @@ function GridToggle({ mode, value, onChange, definition, unavailableText }: Grid
           {t("grid.label")}
         </Button>
       </Hint>
-      {mode === "getrennt" ? (
+      {mode === "separate" ? (
         <DropdownMenu>
           <IconButtonTooltip label={t("grid.options")} disabledText={unavailableText} named>
             {/* Locked with a reason (`SUI-FEATURE-250`): the trigger's `disabled` keeps the menu shut,

@@ -205,7 +205,7 @@ function Toggle({
   definition = COLUMNS,
   onChange = () => {},
 }: {
-  mode: "gekoppelt" | "getrennt";
+  mode: "coupled" | "separate";
   definition?: GridDefinition | null;
   onChange?: (value: GridToggleValue) => void;
 }) {
@@ -228,7 +228,7 @@ describe("GridToggle (SUI-FEATURE-087)", () => {
   // AC 4
   it("coupled: one toggle shows the grid and snaps to it", () => {
     const onChange = vi.fn();
-    render(<Toggle mode="gekoppelt" onChange={onChange} />);
+    render(<Toggle mode="coupled" onChange={onChange} />);
     const button = screen.getByRole("button", { name: "Grid" });
     expect(button).toHaveAttribute("aria-pressed", "false");
     expect(button).toHaveAccessibleDescription("Shows the grid and snaps to it.");
@@ -243,7 +243,7 @@ describe("GridToggle (SUI-FEATURE-087)", () => {
 
   it("separate: the button shows the lines, the menu switches lines and snapping each", () => {
     const onChange = vi.fn();
-    render(<Toggle mode="getrennt" onChange={onChange} />);
+    render(<Toggle mode="separate" onChange={onChange} />);
     const button = screen.getByRole("button", { name: "Grid" });
     fireEvent.click(button);
     expect(onChange).toHaveBeenLastCalledWith({ guides: true, snap: false });
@@ -260,7 +260,7 @@ describe("GridToggle (SUI-FEATURE-087)", () => {
     expect(button).toHaveAttribute("aria-pressed", "false");
   });
 
-  it.each(["gekoppelt", "getrennt"] as const)(
+  it.each(["coupled", "separate"] as const)(
     "%s without a definition: locked, the hint names where the grid is set",
     (mode) => {
       render(<Toggle mode={mode} definition={null} />);
@@ -270,7 +270,7 @@ describe("GridToggle (SUI-FEATURE-087)", () => {
       // SUI-FEATURE-250: the locked button carries the hint itself; its span is no tab stop.
       expect(button).toHaveAccessibleDescription("Set a grid in the brand kit");
       expect(button.parentElement).not.toHaveAttribute("tabindex");
-      if (mode === "getrennt") {
+      if (mode === "separate") {
         // Rev 3: both parts locked, both carry the app's hint.
         const menu = screen.getByTestId("grid-toggle-menu");
         expect(menu).toHaveAttribute("aria-disabled", "true");
@@ -291,7 +291,7 @@ describe("GridToggle (SUI-FEATURE-087)", () => {
     ["es", "Cuadrícula", "Opciones de cuadrícula"],
   ])("%s", async (lng, label, options) => {
     await i18n.changeLanguage(lng);
-    render(<Toggle mode="getrennt" />);
+    render(<Toggle mode="separate" />);
     expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: options })).toBeInTheDocument();
   });
@@ -299,7 +299,7 @@ describe("GridToggle (SUI-FEATURE-087)", () => {
 
 describe("GridToggle rev 6 (SUI-FEATURE-087)", () => {
   it("separate is one joined split button; the arrow segment carries a dot while snap is on", () => {
-    render(<Toggle mode="getrennt" />);
+    render(<Toggle mode="separate" />);
     const main = screen.getByTestId("grid-toggle-button");
     const menu = screen.getByTestId("grid-toggle-menu");
     expect(screen.getByTestId("grid-toggle")).not.toHaveClass("gap-1");
@@ -313,7 +313,7 @@ describe("GridToggle rev 6 (SUI-FEATURE-087)", () => {
   });
 
   it("the arrow segment is described as snap on only while snapping is on", () => {
-    render(<Toggle mode="getrennt" />);
+    render(<Toggle mode="separate" />);
     const menu = screen.getByTestId("grid-toggle-menu");
     expect(menu).toHaveAccessibleName("Grid options");
     expect(menu).not.toHaveAccessibleDescription("Snap is on");
@@ -324,13 +324,13 @@ describe("GridToggle rev 6 (SUI-FEATURE-087)", () => {
   });
 
   it("coupled is one button, no arrow segment, no dot", () => {
-    render(<Toggle mode="gekoppelt" />);
+    render(<Toggle mode="coupled" />);
     expect(screen.getByTestId("grid-toggle-button")).not.toHaveClass("rounded-r-none");
     expect(screen.queryByTestId("grid-toggle-snap-dot")).toBeNull();
   });
 
   it("the pressed fill is the one shared with the RowActions toggle", () => {
-    render(<Toggle mode="gekoppelt" />);
+    render(<Toggle mode="coupled" />);
     const classes = screen.getByTestId("grid-toggle-button").className.split(" ");
     for (const token of PRESSED_FILL_CLASS.split(" ")) expect(classes).toContain(token);
   });

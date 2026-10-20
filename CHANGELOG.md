@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.151.0 — #312, GridToggle mode values in English
+
+Breaking.
+
+- **`GridToggle`** (`SUI-FEATURE-087` §4): the `mode` values are English (`GL-CODE-001`), like the rest of the grid's identifiers.
+
+**Migration:** `GridToggle` prop `mode`: `"gekoppelt"` → `"coupled"`, `"getrennt"` → `"separate"` (type `"coupled" | "separate"`). No `data-testid` or package text changed. Baselines: the gallery's grid page (its captions).
+
 ## 0.150.2 — #401, Codex review of v0.150.1: an emptied text field
 
 Fix.
