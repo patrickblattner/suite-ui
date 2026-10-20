@@ -44,7 +44,13 @@ import {
   snapBox,
   snapCandidates,
 } from "./editor-geometry.js";
-import { FORMAT_16_9, SLIDE_LIMITS, type SlideDocument, slideElementSchema } from "./schema.js";
+import {
+  FORMAT_16_9,
+  SLIDE_LIMITS,
+  type SlideDocument,
+  type SlideElement,
+  slideElementSchema,
+} from "./schema.js";
 
 const shape = (id: string, x: number, y: number, width = 100, height = 100) => ({
   id,
@@ -578,6 +584,210 @@ describe("slide editor operations on turned groups", () => {
       expect(range!.min).toBeLessThanOrEqual(group[key] + 0.01);
       expect(range!.max).toBeGreaterThanOrEqual(group[key] - 0.01);
     }
+  });
+
+  // #406: a group of leaves `[x, y, width, height, rotation]`; with `inner`, the first two are grouped
+  // first and that group turned by `inner`.
+  type Leaf = [number, number, number, number, number];
+  const built = (leaves: Leaf[], inner?: number) => {
+    let document = doc(
+      leaves.map(([x, y, width, height, rotation], index) => ({
+        ...shape(`e${index}`, x, y, width, height),
+        rotation,
+      })),
+    );
+    let members = leaves.map((_, index) => `e${index}`);
+    if (inner !== undefined) {
+      const first = groupElements(document, 0, members.slice(0, 2));
+      document = updateElements(first.document, 0, [first.id!], (one) => ({
+        ...one,
+        rotation: inner,
+      }));
+      members = [first.id!, ...members.slice(2)];
+    }
+    const { document: grouped, id } = groupElements(document, 0, members);
+    const group = findElement(grouped.pages[0]!.elements, id!)!.element;
+    if (group.type !== "group") throw new Error("expected the group");
+    const sized = (key: "width" | "height", value: number) =>
+      setBox(grouped, 0, id!, { ...boxOf(group), [key]: value });
+    return { document: grouped, id: id!, group, sized };
+  };
+  // Every leaf side of `after` at least 1 px, or the side it had in `before` where that was smaller.
+  const keepsFloor = (before: SlideDocument, after: SlideDocument) => {
+    const leaves = (document: SlideDocument) => {
+      const found = new Map<string, SlideElement>();
+      const visit = (element: SlideElement) =>
+        element.type === "group" ? element.children.forEach(visit) : found.set(element.id, element);
+      document.pages[0]!.elements.forEach(visit);
+      return found;
+    };
+    const old = leaves(before);
+    for (const [id, leaf] of leaves(after)) {
+      for (const side of ["width", "height"] as const) {
+        expect(leaf[side]).toBeGreaterThanOrEqual(Math.min(1, old.get(id)![side]) - 1e-3);
+      }
+    }
+  };
+  const flatA = (): Leaf[] => [
+    [400, 80, 320, 390, 75],
+    [590, 210, 170, 410, 0],
+  ];
+  const nestedB = (): Leaf[] => [
+    [70, 50, 340, 220, 0],
+    [180, 170, 1, 120, 0],
+    [200, 390, 130, 1, 90],
+  ];
+  const nestedC = (): Leaf[] => [
+    [60, 310, 330, 400, 0],
+    [420, 290, 350, 1, 0],
+    [20, 220, 1, 90, 45],
+  ];
+  const nestedE = (): Leaf[] => [
+    [690, 390, 280, 150, 90],
+    [40, 310, 50, 330, 60],
+    [140, 350, 210, 250, 0],
+  ];
+
+  // #406 CX1: the widest a flat group reaches lies at a kink far from the best coarse sample.
+  it("names the exact ends of a flat group, and reaches every size in them", () => {
+    const { group, sized, id } = built(flatA());
+    const width = groupSizeRange(group, "width")!;
+    expect(width.max).toBeGreaterThan(516.8);
+    expect(groupSizeRange(group, "height")!.min).toBeLessThan(489.1);
+    for (const target of [width.max, 440]) {
+      const reached = box(sized("width", target), id);
+      expect(Math.abs(reached.width - target)).toBeLessThan(0.01);
+      expect(Math.abs(reached.height - group.height)).toBeLessThan(0.01);
+    }
+    const beyond = box(sized("width", width.max + 0.5), id);
+    expect(
+      Math.abs(beyond.width - (width.max + 0.5)) > 0.05 ||
+        Math.abs(beyond.height - group.height) > 0.05,
+    ).toBe(true);
+  });
+
+  // #406 (the #405 class): in a nested turned group the range holds the current size and its ends.
+  it("names the heights a nested 90° group reaches, current size included", () => {
+    const { document, group, sized, id } = built(nestedB(), 90);
+    const range = groupSizeRange(group, "height")!;
+    expect(range.min).toBeCloseTo(455.5, 2);
+    expect(range.max).toBeCloseTo(1625.2, 1);
+    const resized = sized("height", range.max);
+    expect(Math.abs(box(resized, id).height - range.max)).toBeLessThan(0.01);
+    expect(Math.abs(box(resized, id).width - group.width)).toBeLessThan(0.01);
+    keepsFloor(document, resized);
+  });
+
+  it("keeps the current width of a nested group in its range", () => {
+    const { document, group, sized, id } = built(nestedC(), 90);
+    expect(groupSizeRange(group, "width")!.min).toBeLessThanOrEqual(group.width + 0.01);
+    const same = box(sized("width", group.width), id);
+    for (const key of ["x", "y", "width", "height"] as const) {
+      expect(Math.abs(same[key] - box(document, id)[key])).toBeLessThan(0.01);
+    }
+  });
+
+  // #405 AC: a group with a 1 px leaf on the kept axis keeps its current width in the range.
+  it("keeps the current width of a group with a hairline leaf in its range", () => {
+    const { group } = built([
+      [100, 100, 2, 300, 45],
+      [600, 100, 400, 1, 0],
+    ]);
+    expect(groupSizeRange(group, "width")!.max).toBeGreaterThanOrEqual(group.width - 1e-3);
+  });
+
+  // #406: setBox solves per piece; the Newton steps it took before blew this group up to 1e11 px.
+  it("gives a nested 135° group a width below its current one", () => {
+    const { group, sized, id } = built(nestedE(), 135);
+    expect(groupSizeRange(group, "width")!.min).toBeCloseTo(895.32, 1);
+    const reached = box(sized("width", 895.4), id);
+    expect(Math.abs(reached.width - 895.4)).toBeLessThan(0.01);
+    expect(Math.abs(reached.height - group.height)).toBeLessThan(0.01);
+  });
+
+  // #406: every size in the range is reached with the other side kept and no leaf below its floor.
+  it.each([
+    ["flat A", flatA(), undefined],
+    ["nested B", nestedB(), 90],
+    ["nested C", nestedC(), 90],
+    ["nested E", nestedE(), 135],
+    [
+      "one turned at 45°",
+      [
+        [100, 100, 200, 100, 45],
+        [600, 0, 100, 300, 0],
+      ] as Leaf[],
+      undefined,
+    ],
+    [
+      "two turned",
+      [
+        [100, 100, 200, 100, 20],
+        [400, 150, 200, 100, 70],
+      ] as Leaf[],
+      undefined,
+    ],
+    [
+      "nested 90° of two 45°",
+      [
+        [0, 100, 100, 300, 45],
+        [100, 200, 100, 200, 45],
+        [400, 300, 200, 200, 90],
+      ] as Leaf[],
+      90,
+    ],
+  ] as const)("reaches every size in the range of %s", (_, leaves, inner) => {
+    const { document, group, sized, id } = built([...leaves], inner);
+    for (const key of ["width", "height"] as const) {
+      const other = key === "width" ? "height" : "width";
+      const range = groupSizeRange(group, key)!;
+      const top = Number.isFinite(range.max) ? range.max : range.min * 3;
+      for (let step = 0; step <= 10; step += 1) {
+        const target = range.min + ((top - range.min) * step) / 10;
+        const resized = sized(key, target);
+        expect(Math.abs(box(resized, id)[key] - target)).toBeLessThan(0.01);
+        expect(Math.abs(box(resized, id)[other] - group[other])).toBeLessThan(0.01);
+        keepsFloor(document, resized);
+      }
+    }
+  });
+
+  // #406: on random groups the ends of the range are reached (a seeded generator, mulberry32).
+  it("reaches the ends of the range on random groups", () => {
+    let seed = 406;
+    const random = () => {
+      seed = (seed + 0x6d2b79f5) | 0;
+      let value = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      value = (value + Math.imul(value ^ (value >>> 7), 61 | value)) ^ value;
+      return ((value ^ (value >>> 14)) >>> 0) / 4294967296;
+    };
+    const pick = <T>(list: readonly T[]) => list[Math.floor(random() * list.length)]!;
+    let ends = 0;
+    for (let round = 0; round < 40; round += 1) {
+      const leaves: Leaf[] = Array.from({ length: 2 + Math.floor(random() * 4) }, () => [
+        Math.round(random() * 800),
+        Math.round(random() * 500),
+        pick([1, 2, 40, 120, 300]) + Math.round(random() * 100),
+        pick([1, 2, 40, 120, 300]) + Math.round(random() * 100),
+        pick([0, 0, 30, 45, 90, 137, 180, -90]),
+      ]);
+      // A turned group inside needs a third element beside it.
+      const inner = leaves.length > 2 ? pick([undefined, 45, 90, 135]) : undefined;
+      const { document, group, sized, id } = built(leaves, inner);
+      for (const key of ["width", "height"] as const) {
+        const other = key === "width" ? "height" : "width";
+        const range = groupSizeRange(group, key);
+        if (range === undefined) continue;
+        for (const end of [range.min, range.max].filter(Number.isFinite)) {
+          const resized = sized(key, end);
+          expect(Math.abs(box(resized, id)[key] - end)).toBeLessThan(0.01);
+          expect(Math.abs(box(resized, id)[other] - group[other])).toBeLessThan(0.01);
+          keepsFloor(document, resized);
+          ends += 1;
+        }
+      }
+    }
+    expect(ends).toBeGreaterThan(60);
   });
 
   // #328 AC1/AC2: align and distribute measure a child of a turned group where it is drawn on the
