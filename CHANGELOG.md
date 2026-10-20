@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.150.0 — #308, SUI-FEATURE-161 increment B and SUI-FEATURE-192: text and tables on the canvas, page sorter, layouts with placeholders; slide schema version 2
+
+New. The slide schema rises to version 2.
+
+- **Text on the canvas** (`SUI-FEATURE-161` §Text): a double click on a text field (or `Enter` on a selected one) edits it in place, turned with it and its groups, at the canvas's zoom; the field sets `select-text` itself inside the `select-none` canvas frame (#317). Typing keeps each run's format; `Enter` starts a paragraph, a paste takes plain text. The panel's Content tab holds the text's format from the brand set — font, size, bold, italic, colour — for the selected text while editing (the whole field without a selection), and the field's alignment and list; `Cmd/Ctrl-B` and `-I` switch bold and italic. `Esc` ends the editing with the field still selected; the next `Esc` goes on outwards (`GL-UI-007`). Undo and Redo in the field are the editor's: what is typed in one editing is one step.
+- **Tables** (`SUI-FEATURE-161` §Tabellen): a press into a selected table picks its current cell; the Content tab inserts rows above or below and columns left or right of it, deletes its row or column (the last stays), and sets its fill from the brand set and its vertical alignment. A column border dragged shares the width of its two columns, the table keeping its box. A double click on a cell edits its text as a text field's.
+- **Page sorter** in the Document drawer (`SUI-FEATURE-161` §Seiten-Sortierer): every page as a small picture; a click shows it, a drag (or the arrow buttons) moves it, and it is duplicated, hidden (the player skips it) or deleted after `ConfirmDeleteDialog` (the last page stays). "New page" adds an empty page after the one shown, blank or from a layout.
+- **Layouts of the app** (`SUI-FEATURE-192`): `SlideEditor` takes `layouts` and `masters`, offered beside the document's own for a new page and in the page's Layout field (Layout tab, nothing selected); one in use is copied into the document with its master once (same id = already there). An open placeholder shows its hint on the canvas; a double click fills it with a text field, a library entry dropped on it becomes its content — in both cases a page element with the placeholder's box, turn and `placeholderRole`, and the page no longer draws that placeholder (also in the view, the player and the export). Changing the layout moves such an element into the new layout's placeholder of its role, or frees it where it is.
+- **Deleting elements:** `Delete` or `Backspace` on the canvas, or the selection's new Delete action, removes the selected unlocked elements (a group left empty goes with them); Undo brings them back.
+- **Library:** Text and Table entries beside the shapes.
+- Every change above is one step of the history, across pages too.
+
+**Migration:** the slide schema is version 2 (`SLIDE_SCHEMA_VERSION`): elements carry an optional `placeholderRole` (token format). A version-1 document is migrated on load without any content change (`SLIDE_MIGRATIONS[1]`, the chain's first step); a server that writes documents writes `schemaVersion: 2`, and an older `@suite/ui` names a version-2 document as newer. New exports `SlideLayoutInput`, `SlideMasterInput`; new package texts under `slides.editor` (de, en, es). The gallery's editor deck has a table on its second page and an app layout "Title". Baselines: the gallery overview (its strings table) and the slide editor page (the page's Layout field).
+
 ## 0.149.1 — #389, Codex review of v0.148.0: a library block nested too deep is left out instead of crashing the editor
 
 Fix.

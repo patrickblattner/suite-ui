@@ -228,7 +228,7 @@ type NoticeKind = "text" | "page" | "both";
 // and marks are drawn at that size in a box of `CHART_FULL_SIZE` on its shorter side and scale with
 // its shorter side, smaller and larger, never at a fixed size (`SUI-FEATURE-233` rev 3), so a small
 // chart keeps its plot and all its text inside its box (#294).
-const CELL_PADDING = 8;
+export const CELL_PADDING = 8;
 const CHART_LABEL_SIZE = 20;
 const CHART_FULL_SIZE = 300;
 // A label's width, estimated from its length (an average glyph is narrower than 0.6 em).

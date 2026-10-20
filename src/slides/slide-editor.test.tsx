@@ -74,6 +74,29 @@ describe("SlideEditor Save", () => {
   });
 });
 
+// #308: the floating Delete names the canvas's keys for it, as a chip and in `aria-keyshortcuts`.
+describe("SlideEditor selection actions", () => {
+  it("shows the Delete keys on the floating Delete", () => {
+    render(
+      <SlideEditor
+        document={SLIDE_EDITOR_DOC}
+        title="Deck"
+        brand={SLIDE_BRAND}
+        onSave={() => true}
+        onBack={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("drawer-layers"));
+    fireEvent.click(
+      within(screen.getAllByTestId("slide-editor-layer")[0]!).getAllByRole("button")[0]!,
+    );
+    expect(screen.getByTestId("slide-editor-action-delete")).toHaveAttribute(
+      "aria-keyshortcuts",
+      "Delete Backspace",
+    );
+  });
+});
+
 // Codex #383 CX1: an element with an exit stays drawn on the canvas, where it is being edited; only
 // the export's end state leaves it out.
 describe("SlideEditor canvas", () => {

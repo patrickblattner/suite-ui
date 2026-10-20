@@ -10,8 +10,8 @@ import { GRID_COLUMNS_MAX, GRID_COLUMNS_MIN } from "../ui/grid-core.js";
 import { shownInError } from "./shown-in-error.js";
 
 // The current schema version. Every change of the schema raises it and adds a step to the migration
-// chain (`document.ts`).
-export const SLIDE_SCHEMA_VERSION = 1;
+// chain (`document.ts`). Version 2 added `placeholderRole` (`SUI-FEATURE-192`).
+export const SLIDE_SCHEMA_VERSION = 2;
 
 // The hard limits of a document, generous on purpose (`SUI-DESIGN-002` §Form): the schema is the one boundary apps
 // and servers share, so tightening a limit later would take a schema version. `maxGroupDepth` and
@@ -194,6 +194,8 @@ const payload = z.record(z.string(), z.unknown()).optional();
 
 // What every element carries: its box, rotation in degrees, layer (stacking order), lock, visibility,
 // opacity 0–100 %, animation and the app's payload. `name` is the label of the selection frame.
+// `placeholderRole` marks a page element as the content of its layout's placeholder of that role,
+// which the page then no longer draws (`SUI-FEATURE-192`).
 // `x`/`y` are page coordinates of the format, for an element inside a group too. Stacking: the lower
 // `layer` lies below; at an equal `layer` the later element in its array lies above (`SUI-DESIGN-002`
 // §Modell).
@@ -210,6 +212,7 @@ const elementBase = {
   hidden: z.boolean().default(false),
   opacity: z.number().min(0).max(100).default(100),
   animation: animationSchema.optional(),
+  placeholderRole: id.optional(),
   payload,
 };
 const elementBaseSchema = z.object(elementBase);
@@ -679,3 +682,6 @@ export type SlidePage = z.output<typeof slidePageSchema>;
 export type SlideDocument = z.output<typeof documentShape>;
 // A document as an app or server writes it: the fields with a default may be left out.
 export type SlideDocumentInput = z.input<typeof documentShape>;
+// A layout and a master as an app writes them (`SUI-FEATURE-192`).
+export type SlideLayoutInput = z.input<typeof slideLayoutSchema>;
+export type SlideMasterInput = z.input<typeof slideMasterSchema>;

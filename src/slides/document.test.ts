@@ -218,9 +218,10 @@ describe("slide document migration", () => {
     })),
   });
 
-  it("ships no step before the first version", () => {
-    expect(SLIDE_SCHEMA_VERSION).toBe(1);
-    expect(SLIDE_MIGRATIONS).toEqual({});
+  it("ships one step, 1 → 2, that changes no content (SUI-FEATURE-192 AC4)", () => {
+    expect(SLIDE_SCHEMA_VERSION).toBe(2);
+    expect(Object.keys(SLIDE_MIGRATIONS)).toEqual(["1"]);
+    expect(parseSlideDocument({ ...valid, schemaVersion: 1 })).toEqual(parseSlideDocument(valid));
   });
 
   it("migrates a previous version on load, content unchanged", () => {
@@ -230,7 +231,7 @@ describe("slide document migration", () => {
       schemaVersion: 0,
       pages: valid.pages.map(({ notes, ...rest }) => ({ ...rest, speakerNotes: notes ?? "" })),
     };
-    expect(parseSlideDocument(previous, { 0: v0to1 })).toEqual(current);
+    expect(parseSlideDocument(previous, { ...SLIDE_MIGRATIONS, 0: v0to1 })).toEqual(current);
   });
 
   it("rejects a version it cannot migrate, a newer one and a missing one by name", () => {
@@ -486,7 +487,7 @@ describe("slide document issue codes", () => {
       "unknown-version",
       "schemaVersion",
     ],
-    ["a newer version", { ...valid, schemaVersion: 2 }, "newer-version", "schemaVersion"],
+    ["a newer version", { ...valid, schemaVersion: 3 }, "newer-version", "schemaVersion"],
     [
       "a wrong type",
       withElements([{ ...element, x: "10%" }]),

@@ -15,9 +15,12 @@ import { shownInError } from "./shown-in-error.js";
 // One step of the chain: takes a document of version `from` and returns it in version `from + 1`.
 export type SlideMigration = (document: Record<string, unknown>) => Record<string, unknown>;
 
-// The package's migrations, by the version they migrate from. Version 1 is the first one, so the
-// chain is empty; every raise of `SLIDE_SCHEMA_VERSION` adds its step here.
-export const SLIDE_MIGRATIONS: Readonly<Record<number, SlideMigration>> = {};
+// The package's migrations, by the version they migrate from. Version 1 is the first one; every raise
+// of `SLIDE_SCHEMA_VERSION` adds its step here.
+export const SLIDE_MIGRATIONS: Readonly<Record<number, SlideMigration>> = {
+  // 1 → 2 added the optional `placeholderRole` (`SUI-FEATURE-192`): no content changes.
+  1: (document) => document,
+};
 
 export type SlideDocumentErrorCode =
   | "invalid"

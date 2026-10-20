@@ -74,7 +74,7 @@ export function findElement(
 }
 
 // Every id in the document, for a new one that is unique.
-function idsOf(document: SlideDocument): Set<string> {
+export function idsOf(document: SlideDocument): Set<string> {
   const ids = new Set<string>();
   const walk = (elements: readonly SlideElement[]) => {
     for (const element of elements) {
@@ -867,6 +867,9 @@ export function iconLabel(name: string): string {
 export type LibraryEntry =
   | { kind: "shape"; shape: "rectangle" | "ellipse" | "triangle" }
   | { kind: "line" }
+  // A text field with a sample text and a 3 × 3 table, in the editor's language (`SUI-FEATURE-161`).
+  | { kind: "text"; text: string }
+  | { kind: "table" }
   | { kind: "icon"; icon: string }
   | { kind: "image"; media: string; alt: string; aspect: number }
   // A bar chart with sample data, named in the editor's language (`SUI-FEATURE-233`).
@@ -924,6 +927,44 @@ export function libraryElement(
         // 0.4 % of the shorter side, in whole px, at least 1 (`SUI-FEATURE-232` rev 3).
         stroke: { color, width: Math.max(1, Math.round(shorter * 0.004)) },
       };
+    case "text":
+      // Half the shorter side wide, its text a 30th of it high.
+      return {
+        id: uniqueId(document, "text"),
+        type: "text",
+        ...box(shorter * 0.5, shorter * 0.12),
+        runs: [
+          {
+            text: entry.text,
+            size: Math.max(1, Math.round(shorter / 30)),
+            fill: { type: "color", color },
+          },
+        ],
+        align: "left",
+        lineHeight: 1.2,
+        list: "none",
+        verticalAlign: "top",
+      };
+    case "table": {
+      // 3 × 3, 80 % of the shorter side wide, each row an eighth of it high.
+      const width = round(shorter * 0.8);
+      const size = Math.max(1, Math.round(shorter / 30));
+      const cell = {
+        runs: [{ text: "", size }],
+        align: "left" as const,
+        lineHeight: 1.2,
+        list: "none" as const,
+        verticalAlign: "top" as const,
+      };
+      return {
+        id: uniqueId(document, "table"),
+        type: "table",
+        ...box(width, shorter * 0.125 * 3),
+        columnWidths: [1, 2, 3].map(() => round(width / 3)),
+        rows: [1, 2, 3].map(() => [1, 2, 3].map(() => structuredClone(cell))),
+        border: { color, width: Math.max(1, Math.round(shorter * 0.002)) },
+      };
+    }
     case "icon":
       return {
         id: uniqueId(document, "icon"),
@@ -1120,4 +1161,28 @@ export function setTransition(
     ...document,
     pages: document.pages.map((one, index) => (index === page ? { ...one, transition } : one)),
   };
+}
+
+// The page without the elements of `ids` (in groups too); a group left without children goes with
+// them, the others refitted.
+export function deleteElements(
+  document: SlideDocument,
+  page: number,
+  ids: readonly string[],
+): SlideDocument {
+  const wanted = new Set(ids);
+  const walk = (elements: readonly SlideElement[]): SlideElement[] =>
+    elements.flatMap((element): SlideElement[] => {
+      if (wanted.has(element.id)) return [];
+      if (element.type !== "group") return [element];
+      const children = walk(element.children);
+      if (children.length === 0) return [];
+      return [
+        children.length === element.children.length &&
+        children.every((child, index) => child === element.children[index])
+          ? element
+          : { ...element, children },
+      ];
+    });
+  return withPage(document, page, walk);
 }

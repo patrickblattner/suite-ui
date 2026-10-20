@@ -120,7 +120,29 @@ export function paragraphs(runs: readonly TextRun[]): Piece[][] {
   return result;
 }
 
-// What a page draws, bottom to top: its master's elements, its layout's, its own.
+// The roles the page's own elements fill (`placeholderRole`, in groups too).
+function filledRoles(elements: readonly SlideElement[]): Set<string> {
+  const roles = new Set<string>();
+  eachElement(elements, (element) => {
+    if (element.placeholderRole !== undefined) roles.add(element.placeholderRole);
+  });
+  return roles;
+}
+
+// A layout's or master's elements without the placeholders whose role the page fills.
+function unfilled(elements: readonly SlideElement[], roles: ReadonlySet<string>): SlideElement[] {
+  if (roles.size === 0) return [...elements];
+  return elements.flatMap((element): SlideElement[] =>
+    element.type === "placeholder" && roles.has(element.role)
+      ? []
+      : element.type === "group"
+        ? [{ ...element, children: unfilled(element.children, roles) }]
+        : [element],
+  );
+}
+
+// What a page draws, bottom to top: its master's elements, its layout's, its own; a placeholder whose
+// role a page element fills is not drawn on that page (`SUI-FEATURE-192`).
 export function pageLists(document: SlideDocument, page: number): SlideElement[][] {
   const data = document.pages[page];
   if (data === undefined) return [];
@@ -132,7 +154,12 @@ export function pageLists(document: SlideDocument, page: number): SlideElement[]
     layout?.masterId === undefined
       ? undefined
       : document.masters.find((one) => one.id === layout.masterId);
-  return [master?.elements ?? [], layout?.elements ?? [], data.elements];
+  const roles = filledRoles(data.elements);
+  return [
+    unfilled(master?.elements ?? [], roles),
+    unfilled(layout?.elements ?? [], roles),
+    data.elements,
+  ];
 }
 
 // Every element of a list, those in groups too.

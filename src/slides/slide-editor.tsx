@@ -18,6 +18,7 @@ import {
   GroupIcon,
   LockIcon,
   LockOpenIcon,
+  Trash2Icon,
   UngroupIcon,
 } from "lucide-react";
 import * as React from "react";
@@ -30,11 +31,11 @@ import { type DrawerId, DrawerRail } from "../ui/drawer-rail.js";
 import { EditorHeader, useEditorLeaveGuard } from "../ui/editor-header.js";
 import { Field } from "../ui/field.js";
 import { GridFields, GridOverlay, GridToggle } from "../ui/grid.js";
-import { Input } from "../ui/input.js";
 import { PropertyPanel } from "../ui/property-panel.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select.js";
 import { useLeaveGuard } from "../ui/leave-guard.js";
 import { toast } from "../ui/toaster.js";
+import { DELETE_SHORTCUT } from "../ui/use-edit-shortcuts.js";
 import { IconButtonTooltip, OverflowTooltip } from "../ui/tooltip.js";
 import { type SlideDocumentError, safeParseSlideDocument } from "./document.js";
 import {
@@ -56,6 +57,7 @@ import {
   type LibraryEntry,
   libraryElement,
   clampCrop,
+  deleteElements,
   type ImageCrop,
   moveEach,
   moveLayer,
@@ -71,6 +73,7 @@ import {
   stepIntoGroups,
   transferFormat,
   ungroupElement,
+  uniqueId,
   updateElements,
   zoomCrop,
 } from "./editor-ops.js";
@@ -86,6 +89,17 @@ import {
   snapBox,
   snapCandidates,
 } from "./editor-geometry.js";
+import { deletePage, duplicatePage, movePage, newPage, setPageHidden } from "./editor-pages.js";
+import {
+  intoPlaceholder,
+  type OpenPlaceholder,
+  offeredLayouts,
+  openPlaceholders,
+  setPageLayout,
+  withLayout,
+} from "./editor-layouts.js";
+import { resizeColumn, setCell } from "./editor-table.js";
+import { formatRange } from "./editor-text.js";
 import { cssColor, stackOrder } from "./render-style.js";
 import {
   SLIDE_LIMITS,
@@ -95,9 +109,16 @@ import {
   type SlideDocumentInput,
   type SlideElement,
   type SlideFormat,
+  type SlideLayout,
+  slideLayoutSchema,
+  type SlideLayoutInput,
+  type SlideMaster,
+  slideMasterSchema,
+  type SlideMasterInput,
   type SlidePage,
 } from "./schema.js";
 import { insertColor } from "./editor-color.js";
+import { NumberField } from "./number-field.js";
 import { ChartData } from "./slide-editor-chart.js";
 import {
   type AppLibraryEntry,
@@ -107,9 +128,28 @@ import {
   parseLibraryEntry,
   type PickedMedia,
 } from "./slide-editor-library.js";
+import { PageSorter } from "./slide-editor-pages.js";
+import {
+  type CellAt,
+  cellBox,
+  cellUnder,
+  nextCell,
+  TableFields,
+  type TableLayout,
+  tableLayout,
+} from "./slide-editor-table.js";
+import {
+  formatSpan,
+  InlineTextEditor,
+  type TextBody,
+  TextFormatFields,
+  type TextRange,
+  toggledFormat,
+} from "./slide-editor-text.js";
 import { SlidePreview } from "./slide-editor-preview.js";
 import { TransferFormat, type TransferScope } from "./slide-editor-transfer.js";
 import {
+  CELL_PADDING,
   carriesUnloadedAddOn,
   checkSlideExtensions,
   SlideView,
@@ -142,6 +182,10 @@ export interface SlideEditorProps extends Pick<
   // The app's media picker (`SUI-FEATURE-232`, `GL-UI-002`): the Add drawer's "Media" entry opens it
   // and inserts the chosen medium as an image; `undefined` is a cancel. Without it there is no entry.
   pickMedia?: () => Promise<PickedMedia | undefined>;
+  // The app's own layouts and their masters (`SUI-FEATURE-192`), offered beside the document's: one
+  // in use is copied into the document with its master, so the document draws without the app.
+  layouts?: readonly SlideLayoutInput[];
+  masters?: readonly SlideMasterInput[];
   "data-testid"?: string;
 }
 
@@ -198,6 +242,9 @@ type Drag =
     }
   // The box where it is drawn on the page and its groups' turn: the angle is measured on the screen.
   | { kind: "rotate"; base: SlideDocument; id: string; box: Box; turn: number }
+  // A table's column border dragged: `frame` is the table's groups and the table itself, so the
+  // pointer is measured along the table's own width.
+  | { kind: "column"; frame: Group[]; start: Point; base: SlideDocument; id: string; index: number }
   // Shifting an image in its frame while cropping: the crop at the press and the image's rotation on
   // the page, so it follows the pointer.
   | { kind: "crop"; start: Point; crop: ImageCrop; rotation: number };
@@ -207,6 +254,52 @@ const withCrop = (document: SlideDocument, page: number, id: string, crop: Image
   updateElements(document, page, [id], (element) =>
     element.type === "image" ? { ...element, crop } : element,
   );
+
+// The text a text field or a table cell holds; `undefined` for any other element or a cell not there.
+const bodyOf = (element: SlideElement, cell: CellAt | undefined): TextBody | undefined =>
+  element.type === "text" && cell === undefined
+    ? element
+    : element.type === "table" && cell !== undefined
+      ? element.rows[cell.row]?.[cell.column]
+      : undefined;
+
+// The element with the text of its field or cell changed.
+const withBody = (
+  element: SlideElement,
+  cell: CellAt | undefined,
+  change: (body: TextBody) => TextBody,
+): SlideElement =>
+  element.type === "text" && cell === undefined
+    ? { ...element, ...change(element) }
+    : element.type === "table" && cell !== undefined
+      ? setCell(element, cell.row, cell.column, (one) => ({ ...one, ...change(one) }))
+      : element;
+
+// An element as a frame of `intoGroups`, which reads a frame's box and turn only (every element has
+// them), so a point can be taken into the element's own box.
+const asFrame = (element: SlideElement) => element as Group;
+
+// Text being edited is drawn by its editable field only: on the canvas it keeps its place but no ink.
+const TRANSPARENT = { type: "color", color: { kind: "free", value: "transparent" } } as const;
+const inkless = (body: TextBody): TextBody => ({
+  ...body,
+  runs: body.runs.map((run) => ({ ...run, fill: TRANSPARENT, highlight: undefined })),
+});
+
+// The parts of an app that pass the schema, those past the structural limits left out before the
+// recursive parse (Codex #389 CX1).
+const validLayouts = (list: readonly SlideLayoutInput[] | undefined): SlideLayout[] =>
+  (list ?? []).flatMap((one) => {
+    if (!(one.elements ?? []).every(slideElementFitsLimits)) return [];
+    const parsed = slideLayoutSchema.safeParse(one);
+    return parsed.success ? [parsed.data] : [];
+  });
+const validMasters = (list: readonly SlideMasterInput[] | undefined): SlideMaster[] =>
+  (list ?? []).flatMap((one) => {
+    if (!(one.elements ?? []).every(slideElementFitsLimits)) return [];
+    const parsed = slideMasterSchema.safeParse(one);
+    return parsed.success ? [parsed.data] : [];
+  });
 
 // Whether an element lies in the editor header's ⋯ menu: the menu names its trigger, which sits in
 // the header's `editor-menu` slot.
@@ -222,58 +315,6 @@ const rectOf = (box: Box, zoom: number) =>
   new DOMRect(box.x * zoom, box.y * zoom, box.width * zoom, box.height * zoom);
 
 const clamp = (value: number, low: number, high: number) => Math.min(high, Math.max(low, value));
-
-// A number field that applies as the person types and keeps what is typed while it is not a number.
-function NumberField({
-  id,
-  label,
-  value,
-  unit,
-  readOnly,
-  onValue,
-  revision,
-  testId,
-}: {
-  id: string;
-  label: string;
-  value: number;
-  unit: string;
-  readOnly: boolean;
-  onValue: (value: number) => void;
-  // The history's travel count: what is typed stays, as typed, until the field is left or the
-  // history goes back or forth (#351). The header's Undo keeps the focus here (#349), so the field
-  // would otherwise show what was typed after Undo took it back.
-  revision: number;
-  testId: string;
-}) {
-  const shown = String(Math.round(value * 100) / 100);
-  const [typed, setTyped] = React.useState<{ text: string; revision: number } | null>(null);
-  const text = typed?.revision === revision ? typed.text : null;
-  const setText = (next: string | null) =>
-    setTyped(next === null ? null : { text: next, revision });
-  return (
-    <Field label={label} htmlFor={id} control={{ className: "relative" }}>
-      <Input
-        id={id}
-        type="number"
-        inputMode="decimal"
-        readOnly={readOnly}
-        value={text ?? shown}
-        onChange={(event) => {
-          setText(event.target.value);
-          const number = Number(event.target.value);
-          if (event.target.value.trim() !== "" && Number.isFinite(number)) onValue(number);
-        }}
-        onBlur={() => setText(null)}
-        className="pr-8"
-        data-testid={testId}
-      />
-      <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground">
-        {unit}
-      </span>
-    </Field>
-  );
-}
 
 // An element's entrance or exit (`SUI-FEATURE-162` §Animationen): its effect ("None" removes it), the
 // side a slide comes from (entrance) or goes to (exit), duration, delay and its place in the page's order, shown from 1.
@@ -502,6 +543,8 @@ export function SlideEditor({
   formats,
   onTransfer,
   pickMedia,
+  layouts,
+  masters,
   brand,
   fonts,
   fontOrigins,
@@ -536,6 +579,8 @@ export function SlideEditor({
       formats={formats}
       onTransfer={onTransfer}
       pickMedia={pickMedia}
+      appLayouts={layouts}
+      appMasters={masters}
       view={view}
       testId={testId}
     />
@@ -592,9 +637,13 @@ function Editor({
   formats,
   onTransfer,
   pickMedia,
+  appLayouts: layoutsProp,
+  appMasters: mastersProp,
   view,
   testId,
 }: {
+  appLayouts: SlideEditorProps["layouts"];
+  appMasters: SlideEditorProps["masters"];
   initial: SlideDocument;
   title: React.ReactNode;
   onSave: SlideEditorProps["onSave"];
@@ -609,10 +658,17 @@ function Editor({
 }) {
   const { t } = useTranslation("suite");
   const history: SlideHistory = useSlideHistory(initial);
+  // The app's layouts and masters that pass the schema (`SUI-FEATURE-192`); any other is left out.
+  const appLayouts = React.useMemo(() => validLayouts(layoutsProp), [layoutsProp]);
+  const appMasters = React.useMemo(() => validMasters(mastersProp), [mastersProp]);
+  const offered = offeredLayouts(history.document, appLayouts);
+  // The document holding the layout of `id`, an app layout copied in on its first use.
+  const holding = (current: SlideDocument, id: string | undefined) =>
+    id === undefined ? current : withLayout(current, id, appLayouts, appMasters);
   const [saved, setSaved] = React.useState(initial);
   const [saving, setSaving] = React.useState(false);
   const [saveError, setSaveError] = React.useState<string | undefined>(undefined);
-  const [page, setPageState] = React.useState(0);
+  const [pageState, setPageState] = React.useState(0);
   const [selection, setSelectionState] = React.useState<string[]>([]);
   // How often the history went back or forth: a number field keeps what is typed until then.
   const [travels, setTravels] = React.useState(0);
@@ -629,6 +685,19 @@ function Editor({
   const [cropState, setCropping] = React.useState<
     { id: string; crop: ImageCrop; selection: readonly string[] } | undefined
   >(undefined);
+  // Text editing on the canvas (`SUI-FEATURE-161` §Text): the text field or table cell being edited,
+  // while the selection it began with stands, and the range of its text the panel's format applies
+  // to. Each editing is a session of its own: what is typed in it folds into one step.
+  const [editState, setEditing] = React.useState<
+    | { id: string; cell: CellAt | undefined; selection: readonly string[]; session: number }
+    | undefined
+  >(undefined);
+  const [textRange, setTextRange] = React.useState<TextRange | undefined>(undefined);
+  const sessions = React.useRef(0);
+  // The selected table's current cell (`SUI-FEATURE-161` §Tabellen), set by a click into it.
+  const [tableCell, setTableCell] = React.useState<{ id: string; cell: CellAt } | undefined>(
+    undefined,
+  );
   const [guides, setGuides] = React.useState<{ x?: number; y?: number }>({});
   const [drawer, setDrawer] = React.useState<DrawerId | undefined>(undefined);
   const [zoomMode, setZoomMode] = React.useState<CanvasZoomMode>("fit");
@@ -641,6 +710,8 @@ function Editor({
 
   // Cropping lasts while its selection does and its image is there (an Undo can take it away).
   const base = preview ?? history.document;
+  // A step taken back can remove the page shown (a new page, a copy): the last one shows then.
+  const page = Math.max(0, Math.min(pageState, base.pages.length - 1));
   const stored =
     cropState === undefined
       ? undefined
@@ -661,6 +732,24 @@ function Editor({
   const elements = pageData?.elements ?? [];
   const { width: pageWidth, height: pageHeight } = document.format;
   const grid = document.grid;
+  // Editing lasts while its selection does and its field or cell is there, unlocked (an Undo can
+  // take it away).
+  const edited = editState === undefined ? undefined : findElement(elements, editState.id)?.element;
+  const editing =
+    editState?.selection === selection &&
+    edited !== undefined &&
+    !edited.locked &&
+    bodyOf(edited, editState.cell) !== undefined
+      ? editState
+      : undefined;
+  // What the canvas draws: the edited text without ink, under its editable field.
+  const canvasDocument =
+    editing === undefined
+      ? document
+      : updateElements(document, page, [editing.id], (element) => {
+          const next = withBody(element, editing.cell, inkless);
+          return next.type === "text" ? { ...next, shadow: undefined } : next;
+        });
 
   // The canvas area's size, for "Fit".
   const [area, setArea] = React.useState<HTMLDivElement | null>(null);
@@ -687,6 +776,13 @@ function Editor({
   // Every change is one step of the history and names the page it changes.
   const apply = (change: (document: SlideDocument) => SlideDocument, merge?: string) =>
     history.apply(change, { merge, page });
+  // Whether a changed document passes the schema (an app layout copied in whose ids clash, a page or
+  // element past its limit); else the change is named in an error toast and not made.
+  const fits = (next: SlideDocument, refused: string) => {
+    if (safeParseSlideDocument(next).ok) return true;
+    toast.error(t(refused));
+    return false;
+  };
   // Undo and redo show the page their step changed. While cropping, the crop being set is the newest
   // change: Undo takes it back (cropping ends, the image as it was), Redo has nothing to redo.
   const travel = (step: "undo" | "redo") => {
@@ -834,9 +930,15 @@ function Editor({
           ? entry.alt || t("slides.editor.type.image")
           : entry.kind === "chart"
             ? entry.name
-            : t(
-                `slides.editor.library${entry.kind === "line" ? "Line" : entry.shape[0]!.toUpperCase() + entry.shape.slice(1)}`,
-              );
+            : entry.kind === "text" || entry.kind === "table"
+              ? t(
+                  entry.kind === "text"
+                    ? "slides.editor.libraryText"
+                    : "slides.editor.libraryTable",
+                )
+              : t(
+                  `slides.editor.library${entry.kind === "line" ? "Line" : entry.shape[0]!.toUpperCase() + entry.shape.slice(1)}`,
+                );
   // A new element's colour stands out on the page's own background (`GL-UX-001`, 3 : 1).
   const ground = (() => {
     const background = pageData?.background;
@@ -853,16 +955,24 @@ function Editor({
   // past its limits), or a page already at its element limit (Codex #362 CX1), is named in an error
   // toast and nothing changes. Then the focus goes to the new element on the canvas; the drawer
   // stays open (`SUI-FEATURE-232` rev 3).
-  const insertEntry = (entry: LibraryEntry, at?: Point, label = entryLabel(entry)): boolean => {
+  // Dropped on an open placeholder (`into`), the element becomes its content: its box, turn and role
+  // (`SUI-FEATURE-192`); a block keeps its own box.
+  const insertEntry = (
+    entry: LibraryEntry,
+    at?: Point,
+    label = entryLabel(entry),
+    into?: OpenPlaceholder,
+  ): boolean => {
     const point = at ?? { x: pageWidth / 2, y: pageHeight / 2 };
     const color = insertColor(view.brand, ground);
-    const element = libraryElement(history.document, page, entry, point, color);
+    const made = libraryElement(history.document, page, entry, point, color);
+    const element =
+      into === undefined || made.type === "group" ? made : intoPlaceholder(made, into);
     if (!slideElementSchema.safeParse(element).success) {
       toast.error(t("slides.editor.libraryMediaInvalid"));
       return false;
     }
-    if (!safeParseSlideDocument(insertElement(history.document, page, element)).ok) {
-      toast.error(t("slides.editor.insertRefused"));
+    if (!fits(insertElement(history.document, page, element), "slides.editor.insertRefused")) {
       return false;
     }
     apply((current) => insertElement(current, page, element));
@@ -885,7 +995,8 @@ function Editor({
       data,
       appEntries.map((one) => one.entry),
     );
-    if (entry !== undefined) insertEntry(entry, toPage(event));
+    const point = toPage(event);
+    if (entry !== undefined) insertEntry(entry, point, undefined, placeholderAt(point));
   };
 
   // The panel's tab: a chart has its data under Content (`SUI-FEATURE-233`), everything its layout.
@@ -977,6 +1088,138 @@ function Editor({
       : t(`slides.editor.type.${element.type}`));
   const selectionBox = boundsOf(selected.map(drawnBox));
 
+  // Where the selected or edited table's rows and columns lie, measured from the drawn table after
+  // each render (a row's content can make it taller than the others).
+  const [tableLayouts, setTableLayouts] = React.useState<ReadonlyMap<string, TableLayout>>(
+    () => new Map(),
+  );
+  const layoutOf = (table: Extract<SlideElement, { type: "table" }>) =>
+    tableLayouts.get(table.id) ?? tableLayout(table, null);
+  const currentCell: CellAt =
+    single?.type === "table" &&
+    tableCell?.id === single.id &&
+    single.rows[tableCell.cell.row]?.[tableCell.cell.column] !== undefined
+      ? tableCell.cell
+      : { row: 0, column: 0 };
+  const measured = [single, edited].flatMap((element) =>
+    element?.type === "table" ? [element.id] : [],
+  );
+  const measuredIds = [...new Set(measured)].join(" ");
+  React.useLayoutEffect(() => {
+    const node = frame.current;
+    if (node === null) return;
+    const list = canvasDocument.pages[page]?.elements ?? [];
+    const next = new Map(
+      measuredIds
+        .split(" ")
+        .flatMap((id) => {
+          const table = findElement(list, id)?.element;
+          return table?.type === "table" ? [table] : [];
+        })
+        .map((table) => [
+          table.id,
+          tableLayout(
+            table,
+            node.querySelector<HTMLTableElement>(`[data-slide-element="${table.id}"] table`),
+          ),
+        ]),
+    );
+    setTableLayouts((current) =>
+      JSON.stringify([...current]) === JSON.stringify([...next]) ? current : next,
+    );
+  }, [measuredIds, canvasDocument, page]);
+  // A page point in an element's own box: its groups and its own turn taken back, from its corner.
+  const localPoint = (element: SlideElement, point: Point): Point => {
+    const turned = intoGroups([...groupChain(elements, element.id), asFrame(element)], point);
+    return { x: turned.x - element.x, y: turned.y - element.y };
+  };
+  // The page's open placeholders (`SUI-FEATURE-192`), the topmost under a point, and one filled with
+  // a new text field that is edited at once.
+  const placeholders = openPlaceholders(document, page);
+  // What people read for a placeholder: its name, else the generic word.
+  const placeholderName = (placeholder: OpenPlaceholder["placeholder"]) =>
+    placeholder.name || t("slides.editor.placeholder");
+  // One fill action per role: a layout's placeholder covers its master's of the same role (drawn
+  // above it, it is the one a double click hits).
+  const fillable = placeholders.filter(
+    (one, index) =>
+      !placeholders
+        .slice(index + 1)
+        .some((later) => later.placeholder.role === one.placeholder.role),
+  );
+  const placeholderAt = (point: Point) =>
+    [...placeholders].reverse().find((one) => containsPoint(one.box, one.rotation, point));
+  const fillWithText = (open: OpenPlaceholder) => {
+    const id = uniqueId(history.document, "text");
+    const size = Math.max(1, Math.round(Math.min(pageWidth, pageHeight) / 30));
+    const made: SlideElement = {
+      id,
+      type: "text",
+      x: 0,
+      y: 0,
+      width: 0,
+      height: 0,
+      rotation: 0,
+      layer: elements.reduce((top, element) => Math.max(top, element.layer), 0),
+      locked: false,
+      hidden: false,
+      opacity: 100,
+      runs: [{ text: "", size }],
+      align: "left",
+      lineHeight: 1.2,
+      list: "none",
+      verticalAlign: "top",
+    };
+    const element = intoPlaceholder(made, open);
+    const next = insertElement(history.document, page, element);
+    if (!fits(next, "slides.editor.insertRefused")) return;
+    apply(() => next);
+    startEditing(id);
+  };
+  // The selection deleted, the unlocked part of it; a placeholder it filled shows again.
+  const removeSelected = () => {
+    const ids = editable.map((element) => element.id);
+    if (ids.length === 0) return;
+    apply((current) => deleteElements(current, page, ids));
+    setSelection([]);
+  };
+  const startEditing = (id: string, cell?: CellAt) => {
+    const ids = [id];
+    setSelection(ids);
+    if (cell !== undefined) setTableCell({ id, cell });
+    sessions.current += 1;
+    setEditing({ id, cell, selection: ids, session: sessions.current });
+    // The text's format is on the Content tab: editing shows it.
+    setBuiltInTab("content");
+    setTextRange(undefined);
+  };
+  // Tab in a table cell's field: the next cell (the one before with Shift) is edited; at the table's
+  // ends the focus leaves as usual.
+  const tabToCell = (back: boolean): boolean => {
+    if (editing?.cell === undefined || edited?.type !== "table") return false;
+    const next = nextCell(edited, editing.cell, back);
+    if (next === undefined) return false;
+    startEditing(edited.id, next);
+    return true;
+  };
+  // `Esc` in the field: editing ends, the element stays selected and the canvas takes the focus.
+  const endEditing = () => {
+    setEditing(undefined);
+    setTextRange(undefined);
+    canvas.current?.focus();
+  };
+  // A change of a field's or a cell's text as one step; under `merge` changes in a row are one.
+  const changeBody = (
+    id: string,
+    cell: CellAt | undefined,
+    change: (body: TextBody) => TextBody,
+    merge?: string,
+  ) =>
+    apply(
+      (current) =>
+        updateElements(current, page, [id], (element) => withBody(element, cell, change)),
+      merge,
+    );
   // Pointer work on the canvas: select, move, frame-select, resize, rotate.
   const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) return;
@@ -994,7 +1237,13 @@ function Editor({
       }
       return;
     }
+    // A press beside the field being edited ends the editing (one in it never reaches the canvas).
+    if (editing !== undefined) setEditing(undefined);
     const hit = hitTest(point);
+    // A press into the selected table makes the cell under it the current one.
+    if (hit?.type === "table" && single?.id === hit.id) {
+      setTableCell({ id: hit.id, cell: cellUnder(layoutOf(hit), localPoint(hit, point)) });
+    }
     if (hit === undefined) {
       setSelection(event.shiftKey ? selection : []);
       setDrag({
@@ -1050,6 +1299,22 @@ function Editor({
       const ids = [hit.id];
       setSelection(ids);
       setCropping({ id: hit.id, crop: hit.crop, selection: ids });
+      return;
+    }
+    // A double click on a text field starts editing it, on a table its cell under the pointer
+    // (`SUI-FEATURE-161` §Text, §Tabellen).
+    if (hit?.type === "text" && !hit.locked) {
+      startEditing(hit.id);
+      return;
+    }
+    if (hit?.type === "table" && !hit.locked) {
+      startEditing(hit.id, cellUnder(layoutOf(hit), localPoint(hit, point)));
+      return;
+    }
+    // A double click on an open placeholder fills it with a text field (`SUI-FEATURE-192`).
+    const open = hit === undefined ? placeholderAt(point) : undefined;
+    if (open !== undefined) {
+      fillWithText(open);
       return;
     }
     if (hit?.type !== "group") return;
@@ -1113,6 +1378,15 @@ function Editor({
         drag.ids.map((id, index) => [id, stepIntoGroups(drag.frames[index]!, step)]),
       );
       setPreview(moveEach(drag.base, page, steps));
+      return;
+    }
+    if (drag.kind === "column") {
+      const delta = intoGroups(drag.frame, point).x - drag.start.x;
+      setPreview(
+        updateElements(drag.base, page, [drag.id], (element) =>
+          element.type === "table" ? resizeColumn(element, drag.index, delta) : element,
+        ),
+      );
       return;
     }
     if (drag.kind === "resize") {
@@ -1181,6 +1455,24 @@ function Editor({
             turn: placed.rotation - single.rotation,
           },
     );
+  };
+
+  // A column border of the selected table dragged (`SUI-FEATURE-161` §Tabellen): the canvas takes the
+  // pointer and the focus, as for a handle.
+  const startColumn = (event: React.PointerEvent, index: number) => {
+    if (single?.type !== "table" || single.locked || event.button !== 0) return;
+    event.stopPropagation();
+    canvas.current?.setPointerCapture(event.pointerId);
+    canvas.current?.focus();
+    const frame = [...groupChain(elements, single.id), asFrame(single)];
+    setDrag({
+      kind: "column",
+      frame,
+      start: intoGroups(frame, toPage(event)),
+      base: history.document,
+      id: single.id,
+      index,
+    });
   };
 
   // Any other way out of cropping — another selection, another page — keeps the crop, as Enter does;
@@ -1348,6 +1640,22 @@ function Editor({
       setCropping({ id: single.id, crop: single.crop, selection });
       return;
     }
+    // Enter on one selected text field or table starts editing it, as a double click does.
+    if (event.key === "Enter" && single?.type === "text" && !single.locked) {
+      event.preventDefault();
+      startEditing(single.id);
+      return;
+    }
+    if (event.key === "Enter" && single?.type === "table" && !single.locked) {
+      event.preventDefault();
+      startEditing(single.id, currentCell);
+      return;
+    }
+    if ((event.key === "Delete" || event.key === "Backspace") && editable.length > 0) {
+      event.preventDefault();
+      removeSelected();
+      return;
+    }
     const step = event.shiftKey ? 10 : 1;
     const move = {
       ArrowLeft: [-step, 0],
@@ -1369,6 +1677,21 @@ function Editor({
       }),
     );
     apply((current) => moveEach(current, page, steps));
+  };
+
+  // The page sorter's changes (`SUI-FEATURE-161` §Seiten-Sortierer): one step each, naming the page
+  // it changed (`changed`) for Undo and Redo; the canvas then shows the page `shown` picks by the id
+  // of the page shown before.
+  const showPage = (index: number) => {
+    setPage(index);
+    setSelection([]);
+  };
+  const changePages = (next: SlideDocument, changed: number, shown: (id: string) => string) => {
+    if (next === history.document) return;
+    history.apply(() => next, { page: changed });
+    const id = shown(history.document.pages[page]?.id ?? "");
+    const index = next.pages.findIndex((one) => one.id === id);
+    if (index !== page) showPage(Math.max(0, index));
   };
 
   // Esc: a child's group, then no selection (`GL-UI-040`); an open drawer and leaving come after.
@@ -1418,8 +1741,9 @@ function Editor({
     onClick: () => void,
     testIdOf: string,
     disabledText?: string,
+    shortcut?: readonly string[],
   ) => (
-    <IconButtonTooltip label={label} disabledText={disabledText}>
+    <IconButtonTooltip label={label} disabledText={disabledText} shortcut={shortcut}>
       <Button
         type="button"
         variant="outline"
@@ -1533,7 +1857,45 @@ function Editor({
             </section>,
           ];
         });
-  const hasContent = single?.type === "chart" || typeFields !== undefined || addOnFields.length > 0;
+  // The text of the selected field, or of the selected table's current cell, and the range of it the
+  // format applies to while it is being edited.
+  const textCell = single?.type === "table" ? currentCell : undefined;
+  const textBody = single === undefined ? undefined : bodyOf(single, textCell);
+  const formatRangeOf =
+    editing !== undefined &&
+    editing.id === single?.id &&
+    editing.cell?.row === textCell?.row &&
+    editing.cell?.column === textCell?.column
+      ? textRange
+      : undefined;
+  const textFields =
+    single === undefined || textBody === undefined ? null : (
+      <TextFormatFields
+        idPrefix="slide-editor-text"
+        body={textBody}
+        range={formatRangeOf}
+        brand={view.brand}
+        readOnly={single.locked}
+        revision={travels}
+        onFormat={(patch, merge) =>
+          changeBody(
+            single.id,
+            textCell,
+            (one) => {
+              const span = formatSpan(one, formatRangeOf);
+              return { ...one, runs: formatRange(one.runs, span.start, span.end, patch) };
+            },
+            merge === undefined ? undefined : `format:${single.id}:${merge}`,
+          )
+        }
+        onBody={(patch) => changeBody(single.id, textCell, (one) => ({ ...one, ...patch }))}
+      />
+    );
+  const hasContent =
+    single?.type === "chart" ||
+    textBody !== undefined ||
+    typeFields !== undefined ||
+    addOnFields.length > 0;
   // A chart and an app type open on Content; a built-in type keeps opening on Layout, add-on fields or
   // not (an extension never changes a built-in tool, `SUI-FEATURE-163` §Grenzen).
   const contentFirst = single?.type === "chart" || typeFields !== undefined;
@@ -1704,6 +2066,60 @@ function Editor({
           </div>
         </section>
       )}
+      {/* The page's layout (`SUI-FEATURE-192`): the document's and the app's; what fills a
+          placeholder follows into the new layout's placeholder of its role. */}
+      {selected.length === 0 && pageData !== undefined && offered.length > 0 ? (
+        <Field label={t("slides.editor.pageLayout")} htmlFor="slide-editor-page-layout">
+          <Select
+            value={pageData.layoutId ?? "none"}
+            onValueChange={(value) => {
+              const id = value === "none" ? undefined : value;
+              const next = setPageLayout(holding(history.document, id), page, id);
+              if (fits(next, "slides.editor.layoutRefused")) apply(() => next);
+            }}
+          >
+            <SelectTrigger
+              id="slide-editor-page-layout"
+              fieldName={t("slides.editor.pageLayout")}
+              className="w-full"
+              data-testid="slide-editor-page-layout"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">{t("slides.editor.noLayout")}</SelectItem>
+              {offered.map((layout) => (
+                <SelectItem key={layout.id} value={layout.id}>
+                  {layout.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+      ) : null}
+      {/* The keyboard's way to fill an open placeholder, as a double click on it does. */}
+      {selected.length === 0 && fillable.length > 0 ? (
+        <section className="flex flex-col gap-2" data-testid="slide-editor-placeholders">
+          <h3 className="text-sm font-medium">{t("slides.editor.placeholders")}</h3>
+          <div className="flex flex-wrap gap-1">
+            {fillable.map((open) => (
+              <Button
+                key={open.placeholder.id}
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => fillWithText(open)}
+                data-testid="slide-editor-placeholder-fill"
+              >
+                {t("slides.editor.placeholderFill", {
+                  name: placeholderName(open.placeholder),
+                  interpolation: { escapeValue: false },
+                })}
+              </Button>
+            ))}
+          </div>
+        </section>
+      ) : null}
       {selected.length === 0 && pageData !== undefined ? (
         <TransitionFields
           key={pageData.id}
@@ -1754,6 +2170,15 @@ function Editor({
               () => layer("backward"),
               "action-backward",
             )}
+        {iconButton(
+          t("slides.editor.deleteSelection"),
+          <Trash2Icon />,
+          removeSelected,
+          "action-delete",
+          undefined,
+          // The canvas's keys for it (`onKeyDown`).
+          DELETE_SHORTCUT,
+        )}
       </div>
     );
 
@@ -1933,11 +2358,53 @@ function Editor({
             {
               id: "document",
               content: (
-                <GridFields
-                  value={grid}
-                  allowNone
-                  onChange={(value) => apply((current) => ({ ...current, grid: value }), "grid")}
-                />
+                <div className="flex flex-col gap-6">
+                  {/* The saved steps only: a drag's preview or a crop being set never redraws the
+                      pictures. */}
+                  <PageSorter
+                    document={history.document}
+                    layouts={offered}
+                    page={page}
+                    view={view}
+                    onShow={showPage}
+                    onMove={(from, to) =>
+                      changePages(movePage(history.document, from, to), to, (id) => id)
+                    }
+                    onDuplicate={(index) => {
+                      const made = duplicatePage(history.document, index);
+                      if (!fits(made.document, "slides.editor.pageRefused")) return;
+                      changePages(
+                        made.document,
+                        made.index,
+                        () => made.document.pages[made.index]!.id,
+                      );
+                    }}
+                    onHidden={(index, hidden) =>
+                      changePages(setPageHidden(history.document, index, hidden), index, (id) => id)
+                    }
+                    onDelete={(index) => {
+                      const next = deletePage(history.document, index);
+                      const shown = Math.min(index, next.pages.length - 1);
+                      changePages(next, shown, (id) =>
+                        next.pages.some((one) => one.id === id) ? id : next.pages[shown]!.id,
+                      );
+                    }}
+                    onNew={(layoutId) => {
+                      const made = newPage(holding(history.document, layoutId), page, layoutId);
+                      if (!fits(made.document, "slides.editor.pageRefused")) return;
+                      changePages(
+                        made.document,
+                        made.index,
+                        () => made.document.pages[made.index]!.id,
+                      );
+                    }}
+                  />
+                  <GridFields
+                    value={grid}
+                    allowNone
+                    onChange={(value) => apply((current) => ({ ...current, grid: value }), "grid")}
+                  />
+                </div>
               ),
             },
           ]}
@@ -2008,7 +2475,7 @@ function Editor({
               {/* Every element as it stands: an exit never hides what is being edited (#383). */}
               <SlideView
                 {...view}
-                document={document}
+                document={canvasDocument}
                 page={page}
                 scale={zoom}
                 animationStep="none"
@@ -2039,6 +2506,31 @@ function Editor({
                   zoom={zoom}
                 />
               ) : null}
+              {/* Each open placeholder of the layout with its hint (`SUI-FEATURE-192`), the
+                  editor's only: a double click or a drop fills it. */}
+              {placeholders.map(({ placeholder, box, rotation }) => (
+                <div
+                  key={placeholder.id}
+                  aria-hidden="true"
+                  className="pointer-events-none absolute overflow-hidden border-2 border-dashed border-muted-foreground/70 p-1"
+                  style={{
+                    left: box.x * zoom,
+                    top: box.y * zoom,
+                    width: box.width * zoom,
+                    height: box.height * zoom,
+                    transform: rotation === 0 ? undefined : `rotate(${rotation}deg)`,
+                  }}
+                  data-testid="slide-editor-placeholder"
+                  data-placeholder-role={placeholder.role}
+                >
+                  <span className="rounded-sm bg-background px-1 text-xs text-muted-foreground">
+                    {t("slides.editor.placeholderHint", {
+                      name: placeholderName(placeholder),
+                      interpolation: { escapeValue: false },
+                    })}
+                  </span>
+                </div>
+              ))}
               <div
                 ref={canvas}
                 role="application"
@@ -2155,6 +2647,7 @@ function Editor({
               handlesBox === undefined ||
               single.locked ||
               cropping !== undefined ||
+              editing !== undefined ||
               drag?.kind === "move" ? null : (
                 <div
                   className="pointer-events-none absolute z-[2]"
@@ -2186,6 +2679,22 @@ function Editor({
                       data-testid={`slide-editor-handle-${handle}`}
                     />
                   ))}
+                  {/* A table's column borders, dragged to share the width of their two columns. */}
+                  {single.type !== "table"
+                    ? null
+                    : layoutOf(single)
+                        .columns.slice(1, -1)
+                        .map((border, index) => (
+                          <div
+                            key={`column-${index}`}
+                            aria-hidden="true"
+                            className="pointer-events-auto absolute inset-y-0 w-2 -translate-x-1/2 cursor-col-resize hover:bg-ring/40"
+                            style={{ left: border * zoom }}
+                            onPointerDown={(event) => startColumn(event, index)}
+                            onMouseDown={(event) => event.preventDefault()}
+                            data-testid={`slide-editor-table-border-${index}`}
+                          />
+                        ))}
                   <div
                     aria-hidden="true"
                     className="pointer-events-auto absolute left-1/2 size-3 -translate-x-1/2 cursor-grab rounded-full border-2 border-ring bg-background"
@@ -2196,6 +2705,70 @@ function Editor({
                   />
                 </div>
               )}
+              {editing === undefined || edited === undefined
+                ? null
+                : (() => {
+                    const body = bodyOf(edited, editing.cell);
+                    if (body === undefined) return null;
+                    const inner =
+                      editing.cell === undefined || edited.type !== "table"
+                        ? undefined
+                        : cellBox(layoutOf(edited), editing.cell);
+                    return (
+                      <InlineTextEditor
+                        key={editing.session}
+                        body={body}
+                        brand={view.brand}
+                        frame={placedBox(elements, edited)}
+                        inner={inner}
+                        padding={inner === undefined ? 0 : CELL_PADDING}
+                        zoom={zoom}
+                        label={
+                          editing.cell === undefined
+                            ? nameOf(edited)
+                            : t("slides.editor.tableCellName", {
+                                name: nameOf(edited),
+                                row: editing.cell.row + 1,
+                                column: editing.cell.column + 1,
+                                interpolation: { escapeValue: false },
+                              })
+                        }
+                        range={textRange}
+                        onRuns={(runs, range) => {
+                          setTextRange(range);
+                          changeBody(
+                            editing.id,
+                            editing.cell,
+                            (one) => ({ ...one, runs }),
+                            `text:${editing.session}`,
+                          );
+                        }}
+                        onRange={setTextRange}
+                        onEnd={endEditing}
+                        onUndo={() => travel("undo")}
+                        onRedo={() => travel("redo")}
+                        onTab={
+                          editing.cell === undefined || edited.type !== "table"
+                            ? undefined
+                            : tabToCell
+                        }
+                        onToggle={(format, range) =>
+                          changeBody(editing.id, editing.cell, (one) => {
+                            const span = formatSpan(one, range);
+                            return {
+                              ...one,
+                              runs: formatRange(
+                                one.runs,
+                                span.start,
+                                span.end,
+                                toggledFormat(one, range, format),
+                              ),
+                            };
+                          })
+                        }
+                      />
+                    );
+                  })()}
             </div>
           </div>
         </div>
@@ -2209,6 +2782,24 @@ function Editor({
                     content: (
                       <div className="flex flex-col gap-4" data-testid="slide-editor-content">
                         {unloadedNote}
+                        {single.type === "table" ? (
+                          <TableFields
+                            key={single.id}
+                            table={single}
+                            cell={currentCell}
+                            brand={view.brand}
+                            readOnly={single.locked}
+                            revision={travels}
+                            onChange={(next, merge) =>
+                              apply(
+                                (current) => updateElements(current, page, [single.id], () => next),
+                                merge === undefined ? undefined : `table:${single.id}:${merge}`,
+                              )
+                            }
+                            onCell={(cell) => setTableCell({ id: single.id, cell })}
+                          />
+                        ) : null}
+                        {textFields}
                         {single.type === "chart" ? (
                           <ChartData
                             key={single.id}

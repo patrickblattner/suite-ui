@@ -11052,3 +11052,176 @@ test("slide editor: the preview of a portrait page keeps its title and footer in
     await expect(preview).toHaveCount(0);
   }
 });
+
+// SUI-FEATURE-161 increment B (#308): the editor's saved document, as the app received it.
+async function savedDocument(page: Page) {
+  await page.getByTestId("editor-save").click();
+  const app = page.getByTestId("slide-editor-app");
+  await expect(app).toHaveAttribute("data-saved", /.+/);
+  return JSON.parse((await app.getAttribute("data-saved"))!) as {
+    layouts: { id: string }[];
+    pages: {
+      id: string;
+      hidden: boolean;
+      layoutId?: string;
+      elements: Record<string, unknown>[];
+    }[];
+  };
+}
+
+// AC1 and AC4 (#308): a double click edits the caption on the canvas; part of it takes another size
+// from the panel, so one field holds two sizes; Esc ends the editing with the caption still selected,
+// and the next Esc goes on outwards (`GL-UI-007`).
+test("slide editor: text edited on the canvas with two sizes in one field; Esc, then Esc", async ({
+  page,
+}) => {
+  const { editor, at, field } = await openEditor(page);
+  await editor.getByTestId("slide-editor-next-page").click();
+  const caption = at(100, 400);
+  await page.mouse.dblclick(caption.x, caption.y);
+  const text = editor.getByTestId("slide-editor-text-field");
+  await expect(text).toBeFocused();
+  // The canvas frame is `select-none`; the field selects text itself (#317).
+  await expect(text).toHaveCSS("user-select", "text");
+  await page.keyboard.press("End");
+  await page.keyboard.type(" here");
+  await expect(text).toHaveText("A caption here");
+  // "caption" selected with the keyboard, then 40 px from the panel.
+  await page.keyboard.press("Home");
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("ArrowRight");
+  for (let step = 0; step < 7; step += 1) await page.keyboard.press("Shift+ArrowRight");
+  // The browser announces a selection in a task of its own (`selectionchange`); a person's next
+  // move comes after it, the test waits for it too.
+  await page.evaluate(
+    () => new Promise((resolve) => setTimeout(() => requestAnimationFrame(resolve), 0)),
+  );
+  await field("text-size").fill("40");
+  await expect(text.locator("span")).toHaveCount(3);
+  await expect(text.locator("span").nth(1)).toHaveCSS("font-size", "40px");
+  await expect(text.locator("span").nth(0)).toHaveCSS("font-size", "20px");
+  // Back into the field, Esc ends the editing; the caption stays selected.
+  const box = (await text.boundingBox())!;
+  await page.mouse.click(box.x + 4, box.y + box.height / 2);
+  await expect(text).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(text).toHaveCount(0);
+  await expect(editor.getByTestId("canvas-selection")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(editor.getByTestId("canvas-selection")).toHaveCount(0);
+  const saved = await savedDocument(page);
+  const runs = saved.pages[1]!.elements.find((element) => element.id === "caption")!.runs;
+  expect(runs).toEqual([
+    { text: "A ", size: 20 },
+    { text: "caption", size: 40 },
+    { text: " here", size: 20 },
+  ]);
+});
+
+// AC2 (#308): a table's column border dragged, a row inserted from the panel, a cell typed into.
+test("slide editor: a table's border is dragged, a row inserted and a cell edited", async ({
+  page,
+}) => {
+  const { editor, at, select } = await openEditor(page);
+  await editor.getByTestId("slide-editor-next-page").click();
+  await select(500, 30);
+  const border = (await editor.getByTestId("slide-editor-table-border-0").boundingBox())!;
+  await page.mouse.move(border.x + border.width / 2, border.y + border.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(border.x + border.width / 2 + 20, border.y + border.height / 2, {
+    steps: 2,
+  });
+  await page.mouse.move(border.x + border.width / 2 + 40, border.y + border.height / 2, {
+    steps: 2,
+  });
+  await page.mouse.up();
+  await editor.getByTestId("property-tab-content").click();
+  await editor.getByTestId("slide-editor-table-row-below").click();
+  const cell = at(700, 30);
+  await page.mouse.dblclick(cell.x, cell.y);
+  const text = editor.getByTestId("slide-editor-text-field");
+  await expect(text).toHaveText("Topic");
+  await page.keyboard.press("End");
+  await page.keyboard.type("s");
+  await page.keyboard.press("Escape");
+  const saved = await savedDocument(page);
+  const table = saved.pages[1]!.elements.find((element) => element.id === "facts")! as {
+    columnWidths: number[];
+    rows: { runs: { text: string }[] }[][];
+    width: number;
+  };
+  expect(table.columnWidths).toEqual([210, 130]);
+  expect(table.width).toBe(340);
+  expect(table.rows).toHaveLength(3);
+  expect(table.rows[0]![1]!.runs[0]!.text).toBe("Topics");
+});
+
+// AC3 and AC5 (#308): pages duplicated, dragged and hidden in the sorter; the player skips the
+// hidden one.
+test("slide editor: the page sorter duplicates, drags and hides; the player skips the hidden page", async ({
+  page,
+}) => {
+  const { editor } = await openEditor(page);
+  await editor.getByTestId("drawer-document").click();
+  const rows = editor.getByTestId("slide-editor-page-row");
+  await expect(rows).toHaveCount(2);
+  await rows.nth(0).getByTestId("slide-editor-page-duplicate").click();
+  await expect(rows).toHaveCount(3);
+  const copy = (await rows.nth(1).getAttribute("data-page-id"))!;
+  // The second page dragged to the top.
+  const from = (await rows.nth(2).boundingBox())!;
+  const to = (await rows.nth(0).boundingBox())!;
+  await page.mouse.move(from.x + from.width - 8, from.y + 10);
+  await page.mouse.down();
+  await page.mouse.move(to.x + to.width - 8, to.y + 20, { steps: 8 });
+  await page.mouse.move(to.x + to.width - 8, to.y + 10, { steps: 2 });
+  await page.mouse.up();
+  await expect(rows.nth(0)).toHaveAttribute("data-page-id", "edit-two");
+  await rows.nth(2).getByTestId("slide-editor-page-hide").click();
+  await expect(rows.nth(2)).toHaveAttribute("data-page-hidden", "true");
+  await expect(rows.nth(2)).toHaveAttribute("data-page-id", copy);
+  const saved = await savedDocument(page);
+  expect(saved.pages.map((one) => [one.id, one.hidden])).toEqual([
+    ["edit-two", false],
+    ["edit-one", false],
+    [copy, true],
+  ]);
+  await page.getByTestId("slide-editor-app-present").click();
+  const player = page.getByTestId("slide-player");
+  await expect(player).toHaveAttribute("data-slide-page", "edit-two");
+  await expect(player.getByText("Slide 1 of 2")).toBeAttached();
+  for (let step = 0; step < 6; step += 1) await page.keyboard.press("ArrowRight");
+  await expect(player).toHaveAttribute("data-slide-page", "edit-one");
+});
+
+// SUI-FEATURE-192 AC1/AC2 (#308): a new page from the app's layout; a double click into its title
+// placeholder makes a text field in its box and role.
+test("slide editor: a page from the app's layout, its placeholder filled by a double click", async ({
+  page,
+}) => {
+  const { editor, at } = await openEditor(page);
+  await editor.getByTestId("drawer-document").click();
+  await editor.getByTestId("slide-editor-page-new").click();
+  await page.getByTestId("slide-editor-page-layout-gallery-title").click();
+  await expect(editor.getByTestId("slide-editor-page")).toHaveText("Page 2 of 3");
+  const placeholder = editor.getByTestId("slide-editor-placeholder");
+  await expect(placeholder).toHaveAttribute("data-placeholder-role", "title");
+  const inside = at(400, 110);
+  await page.mouse.dblclick(inside.x, inside.y);
+  await expect(editor.getByTestId("slide-editor-text-field")).toBeFocused();
+  await expect(placeholder).toHaveCount(0);
+  await page.keyboard.type("Welcome");
+  await page.keyboard.press("Escape");
+  const saved = await savedDocument(page);
+  expect(saved.layouts.map((one) => one.id)).toEqual(["gallery-title"]);
+  expect(saved.pages[1]!.layoutId).toBe("gallery-title");
+  expect(saved.pages[1]!.elements[0]).toMatchObject({
+    type: "text",
+    x: 80,
+    y: 60,
+    width: 640,
+    height: 100,
+    placeholderRole: "title",
+    runs: [{ text: "Welcome" }],
+  });
+});

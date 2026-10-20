@@ -7,7 +7,9 @@ import {
   MinusIcon,
   PuzzleIcon,
   SquareIcon,
+  TableIcon,
   TriangleIcon,
+  TypeIcon,
 } from "lucide-react";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
@@ -63,6 +65,14 @@ export function parseLibraryEntry(
   if (typeof value !== "object" || value === null) return undefined;
   const entry = value as Record<string, unknown>;
   if (entry.kind === "line") return { kind: "line" };
+  if (entry.kind === "table") return { kind: "table" };
+  if (
+    entry.kind === "text" &&
+    typeof entry.text === "string" &&
+    entry.text.length <= SLIDE_LIMITS.maxLabelLength
+  ) {
+    return { kind: "text", text: entry.text };
+  }
   if (entry.kind === "shape" && SHAPE_KINDS.some((shape) => shape === entry.shape)) {
     return { kind: "shape", shape: entry.shape as (typeof SHAPE_KINDS)[number] };
   }
@@ -178,6 +188,19 @@ export function ElementLibrary({
               <Icon aria-hidden="true" />,
               `slide-editor-library-${entry.kind === "shape" ? entry.shape : "line"}`,
             ),
+          )}
+          {/* A text field and a table (`SUI-FEATURE-161` §Text, §Tabellen). */}
+          {entryButton(
+            { kind: "text", text: t("slides.editor.libraryTextSample") },
+            t("slides.editor.libraryText"),
+            <TypeIcon aria-hidden="true" />,
+            "slide-editor-library-text",
+          )}
+          {entryButton(
+            { kind: "table" },
+            t("slides.editor.libraryTable"),
+            <TableIcon aria-hidden="true" />,
+            "slide-editor-library-table",
           )}
           {/* A bar chart with sample data, its names in the editor's language (`SUI-FEATURE-233`). */}
           {entryButton(

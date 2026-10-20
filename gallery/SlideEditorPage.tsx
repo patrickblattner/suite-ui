@@ -15,7 +15,7 @@ import {
   DialogTitle,
 } from "../src/ui/dialog.js";
 import { Toaster } from "../src/ui/toaster.js";
-import type { SlideDocument, SlideFormat } from "../src/slides/schema.js";
+import type { SlideDocument, SlideFormat, SlideLayoutInput } from "../src/slides/schema.js";
 import { SLIDE_EDITOR_DOC } from "./slide-showcase.js";
 import { GALLERY_SLIDE_PROPS, imageFilter } from "./SlidesPage.js";
 
@@ -165,6 +165,26 @@ const GALLERY_EDITOR_EXTENSIONS: SlideExtensions = {
   ),
 };
 
+// `SUI-FEATURE-192`: the app's own layout with a title placeholder, offered beside the document's.
+const LAYOUTS: SlideLayoutInput[] = [
+  {
+    id: "gallery-title",
+    name: "Title",
+    elements: [
+      {
+        id: "gallery-title-heading",
+        name: "Title",
+        type: "placeholder",
+        role: "title",
+        x: 80,
+        y: 60,
+        width: 640,
+        height: 100,
+      },
+    ],
+  },
+];
+
 const FORMATS: SlideFormat[] =
   PARAMS.get("formats") === "one"
     ? [SLIDE_EDITOR_DOC.format]
@@ -234,6 +254,7 @@ export function SlideEditorPage() {
             {...GALLERY_SLIDE_PROPS}
             {...(EDITOR_EXTENSIONS ? { extensions: GALLERY_EDITOR_EXTENSIONS } : {})}
             formats={FORMATS}
+            layouts={LAYOUTS}
             onTransfer={(document, { overflowIds }) => setCopy({ document, overflowIds })}
             {...(MEDIA
               ? {

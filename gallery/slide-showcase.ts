@@ -584,6 +584,25 @@ export const SLIDE_EDITOR_DOC: SlideDocumentInput = {
           height: 40,
           runs: [{ text: "A caption", size: 20 }],
         },
+        // A table to edit (`SUI-FEATURE-161` §Tabellen), above the photo.
+        {
+          id: "facts",
+          name: "Facts",
+          type: "table",
+          x: 420,
+          y: 10,
+          width: 340,
+          height: 80,
+          columnWidths: [170, 170],
+          border: { color: brand("text"), width: 1 },
+          rows: [
+            [
+              { runs: [{ text: "Day", size: 16, weight: 700 }] },
+              { runs: [{ text: "Topic", size: 16, weight: 700 }] },
+            ],
+            [{ runs: [{ text: "Mon", size: 16 }] }, { runs: [{ text: "Slides", size: 16 }] }],
+          ],
+        },
       ],
     },
   ],
