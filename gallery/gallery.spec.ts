@@ -10914,13 +10914,13 @@ test("slide editor: a group's width beyond what its turned child allows takes th
   await page.keyboard.press("Tab");
   await expect(field("width")).toHaveValue("70.71");
   await expect(editor.getByTestId("slide-editor-width-limit")).toHaveText(
-    "The group's turned elements hold it at 70.71 px at least.",
+    "The group's rotated elements keep it at least 70.71 px.",
   );
   await expect(field("height")).toHaveValue(height);
   await typeInto(page, field("width"), "400");
   await page.keyboard.press("Tab");
   await expect(field("width")).toHaveValue("304.33");
-  await expect(editor.getByTestId("slide-editor-width-limit")).toContainText("304.33 px at most");
+  await expect(editor.getByTestId("slide-editor-width-limit")).toContainText("at most 304.33 px");
   await expect(field("height")).toHaveValue(height);
   // A width it reaches clears the note.
   await typeInto(page, field("width"), "200");

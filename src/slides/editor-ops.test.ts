@@ -500,6 +500,35 @@ describe("slide editor operations on turned groups", () => {
     if (flat.type !== "group") throw new Error("expected the group");
     expect(groupSizeRange(flat, "width")).toBeUndefined();
   });
+
+  // #327 code review: with two turned children an end lies at a kink between the samples; the range
+  // names it exactly: reached with the other side kept, and half a pixel beyond it is not.
+  it("names the exact ends of a group with two turned children", () => {
+    const two = doc([
+      { ...shape("a", 100, 100, 200, 100), rotation: 20 },
+      { ...shape("b", 400, 150, 200, 100), rotation: 70 },
+    ]);
+    const { document: grouped, id } = groupElements(two, 0, ["a", "b"]);
+    const group = findElement(grouped.pages[0]!.elements, id!)!.element;
+    if (group.type !== "group") throw new Error("expected the group");
+    for (const key of ["width", "height"] as const) {
+      const other = key === "width" ? "height" : "width";
+      const range = groupSizeRange(group, key)!;
+      const sized = (value: number) =>
+        box(setBox(grouped, 0, id!, { ...boxOf(group), [key]: value }), id!);
+      for (const [end, beyond] of [
+        [range.min, range.min - 0.5],
+        [range.max, range.max + 0.5],
+      ] as const) {
+        expect(sized(end)[key]).toBeCloseTo(end, 1);
+        expect(sized(end)[other]).toBeCloseTo(group[other], 1);
+        const missed = sized(beyond);
+        expect(
+          Math.abs(missed[key] - beyond) > 0.05 || Math.abs(missed[other] - group[other]) > 0.05,
+        ).toBe(true);
+      }
+    }
+  });
 });
 
 // SUI-FEATURE-162 AC1 (#294): an image's crop keeps the image covering its frame.

@@ -608,8 +608,8 @@ export const es: SuiteStrings = {
       width: "Ancho",
       height: "Alto",
       rotation: "Rotación",
-      sizeAtLeast: "Los elementos girados mantienen el grupo en {{value}} px como mínimo.",
-      sizeAtMost: "Los elementos girados mantienen el grupo en {{value}} px como máximo.",
+      sizeAtLeast: "Los elementos rotados mantienen el grupo en {{value}} px como mínimo.",
+      sizeAtMost: "Los elementos rotados mantienen el grupo en {{value}} px como máximo.",
       unloadedExtension:
         "Este elemento tiene ajustes de una extensión no cargada aquí. Se conservan.",
       degrees: "°",

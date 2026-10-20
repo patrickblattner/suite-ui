@@ -476,7 +476,6 @@ export function groupSizeRange(
     }
     return above;
   };
-  if (measure(low.side, low.other).other > kept + 1e-6) return undefined;
   // The largest factor along `key` that keeps the other side with its own factor at the least.
   const LIMIT = 1e4;
   let high = 1;
@@ -489,14 +488,35 @@ export function groupSizeRange(
     while (top < LIMIT && measure(f, top).other < kept) top *= 2;
     return solve((g) => measure(f, g).other >= kept, low.other, top);
   };
-  const end = bounded ? high : Math.max(1, low.side);
-  const sides: number[] = [];
+  const end = bounded ? high : 1;
+  const sideAt = (f: number) => measure(f, bounded && f === end ? low.other : keeping(f)).side;
   const SAMPLES = 16;
-  for (let index = 0; index <= SAMPLES; index += 1) {
-    const f = low.side + ((end - low.side) * index) / SAMPLES;
-    sides.push(measure(f, bounded && index === SAMPLES ? low.other : keeping(f)).side);
-  }
-  return { min: Math.min(...sides), max: bounded ? Math.max(...sides) : Infinity };
+  const at = Array.from(
+    { length: SAMPLES + 1 },
+    (_, index) => low.side + ((end - low.side) * index) / SAMPLES,
+  );
+  const sides = at.map(sideAt);
+  // The side is piecewise smooth along the factor; an end between two samples (at a kink, where
+  // another child comes to the edge) is found by a golden-section search around the best sample.
+  const refine = (sign: 1 | -1) => {
+    const best = sides.reduce(
+      (found, side, index) => (sign * side > sign * sides[found]! ? index : found),
+      0,
+    );
+    let [left, right] = [at[Math.max(0, best - 1)]!, at[Math.min(SAMPLES, best + 1)]!];
+    const ratio = (Math.sqrt(5) - 1) / 2;
+    let value = sign * sides[best]!;
+    for (let step = 0; step < 40; step += 1) {
+      const a = right - ratio * (right - left);
+      const b = left + ratio * (right - left);
+      const [sa, sb] = [sign * sideAt(a), sign * sideAt(b)];
+      value = Math.max(value, sa, sb);
+      if (sa > sb) right = b;
+      else left = a;
+    }
+    return sign * value;
+  };
+  return { min: refine(-1), max: bounded ? refine(1) : Infinity };
 }
 
 export function setRotation(

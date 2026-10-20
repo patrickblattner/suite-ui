@@ -51,8 +51,8 @@ import {
   findElement,
   groupChain,
   groupElements,
-  insertElement,
   groupSizeRange,
+  insertElement,
   intoGroups,
   type LayerMove,
   type LibraryEntry,
@@ -80,13 +80,13 @@ import {
 } from "./editor-ops.js";
 import {
   containsPoint,
+  frameCandidates,
   type Handle,
   HANDLES,
   intersects,
   type Point,
   resizeBox,
   rotationTowards,
-  frameCandidates,
   type SnapCandidates,
   snapBox,
   snapCandidates,
@@ -661,7 +661,7 @@ function Editor({
   view: ViewProps;
   testId: string | undefined;
 }) {
-  const { t } = useTranslation("suite");
+  const { t, i18n } = useTranslation("suite");
   const history: SlideHistory = useSlideHistory(initial);
   // The app's layouts and masters that pass the schema (`SUI-FEATURE-192`); any other is left out.
   const appLayouts = React.useMemo(() => validLayouts(layoutsProp), [layoutsProp]);
@@ -1949,6 +1949,23 @@ function Editor({
   // The turn of the selected element's groups: its rotation field shows and takes the angle on the
   // page, 0–360° in a turned group (`SUI-FEATURE-190`); the element keeps its own angle.
   const turn = single === undefined ? 0 : placedBox(elements, single).rotation - single.rotation;
+  const inTurnedGroup =
+    single !== undefined && groupChain(elements, single.id).some((group) => group.rotation !== 0);
+  // The size-limit note while the group keeps the size it names; also announced on the canvas.
+  const sizeNote =
+    single !== undefined &&
+    sizeLimit?.id === single.id &&
+    sizeLimit.revision === travels &&
+    Math.abs(single[sizeLimit.key] - sizeLimit.limit) < 0.01
+      ? {
+          key: sizeLimit.key,
+          text: t(`slides.editor.${sizeLimit.edge === "min" ? "sizeAtLeast" : "sizeAtMost"}`, {
+            value: new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 2 }).format(
+              sizeLimit.limit,
+            ),
+          }),
+        }
+      : undefined;
   const layoutTab = (
     <div className="flex flex-col gap-4" data-testid="slide-editor-layout">
       {unloadedNote}
@@ -1964,16 +1981,8 @@ function Editor({
               readOnly={single.locked}
               revision={travels}
               help={
-                (key === "width" || key === "height") &&
-                sizeLimit?.id === single.id &&
-                sizeLimit.key === key &&
-                sizeLimit.revision === travels &&
-                Math.abs(single[key] - sizeLimit.limit) < 0.01 ? (
-                  <span data-testid={`slide-editor-${key}-limit`}>
-                    {t(`slides.editor.${sizeLimit.edge === "min" ? "sizeAtLeast" : "sizeAtMost"}`, {
-                      value: Math.round(sizeLimit.limit * 100) / 100,
-                    })}
-                  </span>
+                sizeNote?.key === key ? (
+                  <span data-testid={`slide-editor-${key}-limit`}>{sizeNote.text}</span>
                 ) : undefined
               }
               onValue={(value) => {
@@ -2013,7 +2022,7 @@ function Editor({
             key={`${single.id}-rotation`}
             id="slide-editor-rotation"
             label={t("slides.editor.rotation")}
-            value={turn === 0 ? single.rotation : (((single.rotation + turn) % 360) + 360) % 360}
+            value={inTurnedGroup ? (((single.rotation + turn) % 360) + 360) % 360 : single.rotation}
             unit={t("slides.editor.degrees")}
             readOnly={single.locked}
             revision={travels}
@@ -2710,32 +2719,40 @@ function Editor({
                       ? cropNote.text
                       : insertNote?.selection === selection
                         ? insertNote.text
-                        : undefined
+                        : sizeNote?.text
                 }
               />
               {/* The guides above the selection frame, so it never covers them along the moved
                   element, and below its name badge, which lies a layer up (#332). */}
-              {/* In a turned group's frame turned with its groups, outermost first (`SUI-FEATURE-190`). */}
+              {/* In a turned group's frame turned with its groups, outermost first (`SUI-FEATURE-190`);
+                  clipped to the page, so a turned line never adds scroll overflow mid-drag. */}
               <div
-                className="pointer-events-none absolute inset-0 origin-top-left"
-                style={{ transform: guideTurn }}
+                className={cn(
+                  "pointer-events-none absolute inset-0",
+                  guideTurn !== undefined && "overflow-hidden",
+                )}
               >
-                {guides.x === undefined ? null : (
-                  <div
-                    className={cn(guideClass, "top-0 bottom-0 w-px")}
-                    style={{ left: guides.x * zoom }}
-                    data-testid="slide-editor-guide-x"
-                    data-guide={guides.x}
-                  />
-                )}
-                {guides.y === undefined ? null : (
-                  <div
-                    className={cn(guideClass, "right-0 left-0 h-px")}
-                    style={{ top: guides.y * zoom }}
-                    data-testid="slide-editor-guide-y"
-                    data-guide={guides.y}
-                  />
-                )}
+                <div
+                  className="pointer-events-none absolute inset-0 origin-top-left"
+                  style={{ transform: guideTurn }}
+                >
+                  {guides.x === undefined ? null : (
+                    <div
+                      className={cn(guideClass, "top-0 bottom-0 w-px")}
+                      style={{ left: guides.x * zoom }}
+                      data-testid="slide-editor-guide-x"
+                      data-guide={guides.x}
+                    />
+                  )}
+                  {guides.y === undefined ? null : (
+                    <div
+                      className={cn(guideClass, "right-0 left-0 h-px")}
+                      style={{ top: guides.y * zoom }}
+                      data-testid="slide-editor-guide-y"
+                      data-guide={guides.y}
+                    />
+                  )}
+                </div>
               </div>
               {/* The handles above the floating actions, so none lies under them. */}
               {/* Over the element where it is drawn, turned with its groups (#324); a layer above
