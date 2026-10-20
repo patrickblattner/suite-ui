@@ -3315,6 +3315,8 @@ async function activeMark(page: Page, testId: string) {
   expect(barBox.y + barBox.height).toBeLessThanOrEqual(rowBox.y + rowBox.height);
   expect(barBox.y - rowBox.y).toBe(rowBox.y + rowBox.height - (barBox.y + barBox.height));
   expect(barBox.x + barBox.width).toBeLessThan(iconBox.x);
+  // The bar sits in the sidebar's gutter, clear of the row's tint, so its ground is the sidebar (#331).
+  expect(barBox.x + barBox.width).toBeLessThanOrEqual(rowBox.x);
   const sidebarBackground = await page
     .getByTestId("app-sidebar")
     .evaluate((el) => getComputedStyle(el).backgroundColor);
@@ -5283,11 +5285,11 @@ async function contrastOf(page: Page, color: string, ground: string, below?: str
       const context = canvas.getContext("2d", {
         willReadFrequently: true,
       }) as CanvasRenderingContext2D;
-      const luminance = (fill: string) => {
+      const luminance = (fill: string, layer = "ground") => {
         context.fillStyle = fill;
         context.fillRect(0, 0, 1, 1);
         const data = [...context.getImageData(0, 0, 1, 1).data];
-        if (data[3] !== 255) throw new Error(`contrastOf: the ground ${fill} is not opaque`);
+        if (data[3] !== 255) throw new Error(`contrastOf: the ${layer} ${fill} is not opaque`);
         const [r, g, bl] = data.slice(0, 3).map((channel) => {
           const c = channel / 255;
           return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
@@ -5295,7 +5297,7 @@ async function contrastOf(page: Page, color: string, ground: string, below?: str
         return 0.2126 * r + 0.7152 * g + 0.0722 * bl;
       };
       context.clearRect(0, 0, 1, 1);
-      if (base !== undefined) luminance(base);
+      if (base !== undefined) luminance(base, "below layer");
       const back = luminance(under as string);
       const front = luminance(top as string);
       const [high, low] = [front, back].sort((x, y) => y - x);
@@ -5316,9 +5318,16 @@ test("contrastOf: a see-through colour is drawn over its ground", async ({ page 
   expect(half).toBeGreaterThan(3);
   expect(half).toBeLessThan(5);
   expect(await contrastOf(page, "#000000", "rgba(0, 0, 0, 0.5)", "#000000")).toBeCloseTo(1, 5);
+  // Half-black over white is mid-grey, about 5.3 : 1 against black: wrong compositing misses it (#331).
+  const grey = await contrastOf(page, "#000000", "rgba(0, 0, 0, 0.5)", "#ffffff");
+  expect(grey).toBeGreaterThan(5.2);
+  expect(grey).toBeLessThan(5.4);
   await expect(contrastOf(page, "#000000", "rgba(255, 255, 255, 0.5)")).rejects.toThrow(
-    /not opaque/,
+    /the ground .* is not opaque/,
   );
+  await expect(
+    contrastOf(page, "#000000", "rgba(0, 0, 0, 0.5)", "rgba(255, 255, 255, 0.5)"),
+  ).rejects.toThrow(/the below layer .* is not opaque/);
 });
 
 const boxShadowOf = (element: Locator) => element.evaluate((el) => getComputedStyle(el).boxShadow);

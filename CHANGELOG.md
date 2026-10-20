@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.152.6 — #331, contrastOf: stronger self-test for the below layer
+
+Test-only.
+
+- **`contrastOf` self-test:** a half-black ground over a white below layer must measure about 5.3 : 1 against black, so a helper that composites the layers wrongly fails the test.
+- **`contrastOf` error:** a see-through layer is named as what it is — "the ground" or "the below layer" — instead of always "the ground".
+- **Nav active bar:** verified that the bar sits in the sidebar's gutter, clear of the active row's tint, so measuring it against the sidebar background is right; the test now pins that.
+
+**Migration:** none. Baselines: none.
+
 ## 0.152.5 — #409, SUI-FEATURE-098 rev 3: a selection never holds a group and its own child
 
 Fix.
