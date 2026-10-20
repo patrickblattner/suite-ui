@@ -9,7 +9,7 @@ import {
   setPageLayout,
   withLayout,
 } from "./editor-layouts.js";
-import { deleteElements, insertElement } from "./editor-ops.js";
+import { deleteElements, findElement, insertElement, placedBox } from "./editor-ops.js";
 import { pageLists } from "./render-style.js";
 import { slideElementSchema, slideLayoutSchema, slideMasterSchema } from "./schema.js";
 
@@ -165,5 +165,58 @@ describe("layouts and placeholders", () => {
     expect(intoPlaceholder(element, open)).toMatchObject({ name: "Heading", x: 1, y: 2 });
     const unnamed = { ...open, placeholder: parsed(placeholder("p", "title", 0, 0)) };
     expect(intoPlaceholder(element, unnamed).name).toBe(element.name);
+  });
+
+  it("puts a filling child of a turned group where the new layout's placeholder is drawn (Codex #398 CX2)", () => {
+    const target = slideLayoutSchema.parse({
+      id: "target",
+      name: "Target",
+      elements: [{ ...placeholder("target-ph", "title", 200, 200), width: 300, height: 60 }],
+    });
+    const heading = {
+      id: "heading",
+      type: "text" as const,
+      x: 100,
+      y: 40,
+      width: 300,
+      height: 60,
+      rotation: 0,
+      layer: 0,
+      locked: false,
+      hidden: false,
+      opacity: 100,
+      placeholderRole: "title",
+      runs: [{ text: "Hello" }],
+      align: "left" as const,
+      lineHeight: 1.2,
+      list: "none" as const,
+      verticalAlign: "top" as const,
+    };
+    const extra = { ...heading, id: "extra", x: 500, y: 300, placeholderRole: undefined };
+    for (const children of [[heading], [heading, extra]]) {
+      let doc = withLayout(document, "target", [target], []);
+      doc = insertElement(doc, 0, {
+        id: "turned",
+        type: "group",
+        x: 0,
+        y: 0,
+        width: 0,
+        height: 0,
+        rotation: 90,
+        layer: 0,
+        locked: false,
+        hidden: false,
+        opacity: 100,
+        children,
+      } as never);
+      const moved = setPageLayout(doc, 0, "target");
+      const list = moved.pages[0]!.elements;
+      const placed = placedBox(list, findElement(list, "heading")!.element);
+      expect(placed.rotation).toBe(0);
+      expect(placed.box.x).toBeCloseTo(200, 1);
+      expect(placed.box.y).toBeCloseTo(200, 1);
+      expect(placed.box.width).toBeCloseTo(300, 1);
+      expect(placed.box.height).toBeCloseTo(60, 1);
+    }
   });
 });

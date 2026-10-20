@@ -219,4 +219,58 @@ describe("SlideEditor text editing", () => {
     fireEvent.click(screen.getByTestId("slide-editor-text-numbered"));
     await waitFor(() => expect(paragraph().style.listStyleType).toBe("decimal"));
   });
+
+  it("keeps each run's format after a run was deleted and more is typed (Codex #398 CX1)", async () => {
+    const onSave = vi.fn<(document: SlideDocument) => boolean>(() => true);
+    const document = {
+      ...SLIDE_EDITOR_DOC,
+      pages: SLIDE_EDITOR_DOC.pages.map((page) => ({
+        ...page,
+        elements: (page.elements ?? []).map((element) =>
+          element.id === "caption" && element.type === "text"
+            ? {
+                ...element,
+                runs: [
+                  { text: "a", size: 10 },
+                  { text: "b", size: 20 },
+                  { text: "c", size: 30 },
+                ],
+              }
+            : element,
+        ),
+      })),
+    };
+    render(
+      <SlideEditor
+        document={document}
+        title="Deck"
+        brand={SLIDE_BRAND}
+        onSave={onSave}
+        onBack={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("slide-editor-next-page"));
+    const canvas = screen.getByTestId("slide-editor-canvas");
+    fireEvent.pointerDown(canvas, { ...at(100, 400), button: 0, pointerId: 1 });
+    fireEvent.pointerUp(canvas, at(100, 400));
+    fireEvent.doubleClick(canvas, at(100, 400));
+    const field = await screen.findByTestId("slide-editor-text-field");
+    // "a" deleted: the browser removes its span.
+    field.querySelector('[data-run="0"]')!.remove();
+    fireEvent.input(field);
+    // "d" typed after "c".
+    const last = field.querySelector('[data-run="2"]')!;
+    last.textContent = "cd";
+    fireEvent.input(field);
+    fireEvent.keyDown(field, { key: "Escape" });
+    fireEvent.click(screen.getAllByTestId("editor-save")[0]!);
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    const caption = onSave.mock.calls[0]![0].pages[1]!.elements.find(
+      (element) => element.id === "caption",
+    );
+    expect(caption?.type === "text" && caption.runs).toEqual([
+      { text: "b", size: 20 },
+      { text: "cd", size: 30 },
+    ]);
+  });
 });

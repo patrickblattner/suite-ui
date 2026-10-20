@@ -81,4 +81,13 @@ describe("table changes", () => {
     expect(filled.rows[1]![1]!.fill).toBeDefined();
     expect(filled.rows[0]![0]!.fill).toBeUndefined();
   });
+
+  it("never drags a column below zero in a table narrower than two minimums (Codex #398 CX3)", () => {
+    const narrow = { ...table, width: 6, columnWidths: [3, 3] };
+    for (const delta of [1, -1, 100, -100]) {
+      const resized = resizeColumn(narrow, 0, delta);
+      expect(resized.columnWidths.every((width) => width >= 0)).toBe(true);
+      expect(resized.columnWidths[0]! + resized.columnWidths[1]!).toBe(6);
+    }
+  });
 });

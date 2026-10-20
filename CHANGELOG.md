@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.150.1 — #398, Codex review of v0.150.0: text runs, placeholders in turned groups, narrow table columns
+
+Fix.
+
+- **Text on the canvas:** after a run was deleted, the text typed next kept the format of its own run; it no longer takes the format of the run after it (the field reads its runs against the runs it was filled with, not the normalised ones it handed on).
+- **Layouts:** changing a page's layout puts an element filling a placeholder inside a turned group where the new placeholder is drawn — its box, its turn less the groups', and its centre in the groups' frame, the groups' refit taken into account — instead of using the placeholder's page geometry as the child's own.
+- **Tables:** a column border of a table whose two columns are narrower together than two minimums (8 px each) no longer drags a column below zero, which made the document unsaveable; each column then keeps at least half of the two.
+
 ## 0.150.0 — #308, SUI-FEATURE-161 increment B and SUI-FEATURE-192: text and tables on the canvas, page sorter, layouts with placeholders; slide schema version 2
 
 New. The slide schema rises to version 2.

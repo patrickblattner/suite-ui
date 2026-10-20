@@ -74,13 +74,14 @@ export function deleteColumn(table: Table, at: number): Table {
 
 // The border right of column `at` moved by `delta` px of the page: the column and its right
 // neighbour share the width between them, the table keeps its box. Neither gets narrower than
-// `MIN_COLUMN_PX`.
+// `MIN_COLUMN_PX`, or than half of the two together when they are narrower than two minimums (Codex
+// #398 CX3).
 export function resizeColumn(table: Table, at: number, delta: number): Table {
   const left = table.columnWidths[at];
   const right = table.columnWidths[at + 1];
   if (left === undefined || right === undefined || table.width === 0) return table;
   const factor = sum(table.columnWidths) / table.width;
-  const least = MIN_COLUMN_PX * factor;
+  const least = Math.min(MIN_COLUMN_PX * factor, (left + right) / 2);
   const step = Math.max(least - left, Math.min(right - least, delta * factor));
   if (step === 0) return table;
   const columnWidths = table.columnWidths.map((width, index) =>

@@ -311,6 +311,9 @@ export function InlineTextEditor({
   // it was filled with changed.
   const emitted = React.useRef<TextRun[] | null>(null);
   const filledList = React.useRef(body.list);
+  // The runs the field was last filled with: its spans' `data-run` name their index there, also
+  // after the runs it handed on were normalised (Codex #398 CX1).
+  const filled = React.useRef<readonly TextRun[]>(body.runs);
   const latestRange = React.useRef(range);
   const onRangeRef = React.useRef(onRange);
   React.useLayoutEffect(() => {
@@ -324,6 +327,7 @@ export function InlineTextEditor({
     if (body.runs === emitted.current && body.list === filledList.current && !first.current) return;
     emitted.current = body.runs;
     filledList.current = body.list;
+    filled.current = body.runs;
     fillEditable(node, body.runs, brand, body.list);
     if (first.current) {
       first.current = false;
@@ -421,7 +425,7 @@ export function InlineTextEditor({
             onInput={() => {
               const node = root.current;
               if (node === null) return;
-              const runs = readRuns(node, current());
+              const runs = readRuns(node, filled.current);
               emitted.current = runs;
               onRuns(runs, rangeIn(node));
             }}
