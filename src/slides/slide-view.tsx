@@ -95,8 +95,9 @@ export interface SlideViewProps {
   fitText?: boolean;
   // `fit` scales the page into the view's box (it fills its parent); a number scales by it.
   scale?: number | "fit";
-  // The animation step to show (`SlidePlayer`); without, the end state of every animation.
-  animationStep?: number;
+  // The animation step to show (`SlidePlayer`); without, the end state of every animation; `"none"`
+  // every element as it stands, no animation applied (the editor's canvas).
+  animationStep?: number | "none";
   // Shows missing fonts and overflowing text on the view; the report carries them either way.
   notices?: boolean;
   // Also names each element of the page that reaches past its edge, placed as a text notice is
@@ -130,7 +131,7 @@ const GLYPH_WIDTH = 0.6;
 // What one render collects while it draws, and what it needs.
 interface Draw {
   brand: SlideBrandSet;
-  step: number | undefined;
+  step: number | "none" | undefined;
   orders: number[];
   fitText: boolean;
   ready: boolean;

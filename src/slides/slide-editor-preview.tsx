@@ -11,7 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../ui/dialog.js";
-import { animationOrders, pageLists, stepLength, transitionOf } from "./render-style.js";
+import { pageLists, stepLengths, transitionOf } from "./render-style.js";
 import type { SlideDocument } from "./schema.js";
 import { SlideView, type SlideViewProps } from "./slide-view.js";
 
@@ -41,8 +41,6 @@ export function SlidePreview({
   const [step, setStep] = React.useState(0);
   const [fading, setFading] = React.useState(false);
   const data = document.pages[page];
-  const elements = data === undefined ? [] : pageLists(document, page).flat();
-  const steps = animationOrders(elements).length;
   const before = document.pages.reduce(
     (last, one, index) => (index < page && !one.hidden ? index : last),
     -1,
@@ -53,14 +51,10 @@ export function SlidePreview({
   const ratio = document.format.width / document.format.height;
   const transition = incoming === undefined ? 0 : (data?.transition.duration ?? 0);
 
-  // The play's schedule, read when it starts: the transition, then each step after the one before.
-  const schedule = React.useRef({ transition, lengths: [] as number[] });
-  React.useEffect(() => {
-    schedule.current = {
-      transition,
-      lengths: Array.from({ length: steps }, (_, index) => stepLength(elements, index + 1)),
-    };
-  });
+  // The play's schedule, taken when it starts and never on a render (Codex #383 CX2): the
+  // transition, then each step after the one before.
+  const schedule = React.useRef({ transition: 0, lengths: [] as number[] });
+  const [steps, setSteps] = React.useState(0);
   React.useEffect(() => {
     if (!open) return;
     const { transition: lead, lengths } = schedule.current;
@@ -75,6 +69,11 @@ export function SlidePreview({
   }, [open, run]);
   // A play starts on the page's first state, its transition (if any) running.
   const start = () => {
+    schedule.current = {
+      transition,
+      lengths: data === undefined ? [] : stepLengths(pageLists(document, page).flat()),
+    };
+    setSteps(schedule.current.lengths.length);
     setStep(0);
     setFading(transition > 0);
     setRun((count) => count + 1);

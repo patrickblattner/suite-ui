@@ -171,13 +171,15 @@ export function keyframesOf(step: Step, direction: "in" | "out"): string {
 }
 
 // An element at animation step `step` of the page; `undefined` is the end state of every animation
-// (the export's), where an element that exits is gone.
+// (the export's), where an element that exits is gone; `"none"` draws every element as it stands,
+// no animation applied (the editor's canvas, Codex #383 CX1).
 export function animationState(
   element: SlideElement,
-  step: number | undefined,
+  step: number | "none" | undefined,
   orders: readonly number[],
 ): AnimationState {
   const { entrance, exit } = element.animation ?? {};
+  if (step === "none") return { kind: "shown" };
   if (step === undefined) return exit === undefined ? { kind: "shown" } : { kind: "hidden" };
   const play = (animation: Step, direction: "in" | "out"): AnimationState => ({
     kind: "playing",
@@ -198,19 +200,18 @@ export function animationState(
   return { kind: "shown" };
 }
 
-// How long step `step` (1-based, as in `animationState`) of a page plays: the longest delay plus
-// duration among its entrances and exits; 0 past the last step.
-export function stepLength(elements: readonly SlideElement[], step: number): number {
-  const order = animationOrders(elements)[step - 1];
-  let length = 0;
+// How long each step of a page plays, in the order of `animationOrders`: the longest delay plus
+// duration among its entrances and exits. One pass over the elements (Codex #383 CX2).
+export function stepLengths(elements: readonly SlideElement[]): number[] {
+  const lengths = new Map<number, number>();
   eachElement(elements, (element) => {
     for (const one of [element.animation?.entrance, element.animation?.exit]) {
-      if (one !== undefined && one.order === order) {
-        length = Math.max(length, one.delay + one.duration);
+      if (one !== undefined) {
+        lengths.set(one.order, Math.max(lengths.get(one.order) ?? 0, one.delay + one.duration));
       }
     }
   });
-  return length;
+  return [...lengths.keys()].sort((a, b) => a - b).map((order) => lengths.get(order)!);
 }
 
 // The incoming page's transition (`SUI-FEATURE-160`) as a CSS animation; under

@@ -3,13 +3,20 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { SLIDE_BRAND } from "../../gallery/slide-showcase.js";
 import { parseSlideDocument } from "./document.js";
-import { stepLength } from "./render-style.js";
+import { animationState, stepLengths } from "./render-style.js";
 import { FORMAT_16_9 } from "./schema.js";
 import { SlidePreview } from "./slide-editor-preview.js";
+
+// The schedule's measure, watched: it runs when a play starts, never on a render (Codex #383 CX2).
+vi.mock("./render-style.js", async (original) => {
+  const actual = await original<typeof import("./render-style.js")>();
+  return { ...actual, stepLengths: vi.fn(actual.stepLengths) };
+});
 
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
+  vi.mocked(stepLengths).mockClear();
 });
 
 const shape = (id: string, entrance?: { order: number; duration: number; delay?: number }) => ({
@@ -52,9 +59,29 @@ const document = parseSlideDocument({
 describe("SlidePreview", () => {
   it("measures a step by its longest delay plus duration", () => {
     const elements = document.pages[1]!.elements;
-    expect(stepLength(elements, 1)).toBe(400);
-    expect(stepLength(elements, 2)).toBe(200);
-    expect(stepLength(elements, 3)).toBe(0);
+    expect(stepLengths(elements)).toEqual([400, 200]);
+  });
+
+  it("measures the schedule only when a play starts, never while closed", () => {
+    const { rerender } = render(
+      <SlidePreview document={document} page={1} view={{ brand: SLIDE_BRAND }} />,
+    );
+    for (let index = 0; index < 3; index++) {
+      rerender(<SlidePreview document={document} page={1} view={{ brand: SLIDE_BRAND }} />);
+    }
+    expect(stepLengths).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("slide-editor-preview"));
+    expect(stepLengths).toHaveBeenCalledTimes(1);
+  });
+
+  // Codex #383 CX1: the editor's canvas draws an element with an exit as it stands.
+  it("draws every element as it stands at step none", () => {
+    const element = {
+      ...document.pages[1]!.elements[0]!,
+      animation: { exit: { effect: "fade" as const, duration: 300, delay: 0, order: 0 } },
+    };
+    expect(animationState(element, undefined, [0])).toEqual({ kind: "hidden" });
+    expect(animationState(element, "none", [0])).toEqual({ kind: "shown" });
   });
 
   it("plays the cross-fade, then the entrances in order, and again on Play again", () => {

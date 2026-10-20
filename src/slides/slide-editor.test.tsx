@@ -70,3 +70,40 @@ describe("SlideEditor Save", () => {
     );
   });
 });
+
+// Codex #383 CX1: an element with an exit stays drawn on the canvas, where it is being edited; only
+// the export's end state leaves it out.
+describe("SlideEditor canvas", () => {
+  it("draws an element with an exit animation", () => {
+    const [first, ...rest] = SLIDE_EDITOR_DOC.pages;
+    const document = {
+      ...SLIDE_EDITOR_DOC,
+      pages: [
+        {
+          ...first!,
+          elements: (first!.elements ?? []).map((element) =>
+            element.id === "a"
+              ? {
+                  ...element,
+                  animation: { exit: { effect: "fade" as const, duration: 300, order: 0 } },
+                }
+              : element,
+          ),
+        },
+        ...rest,
+      ],
+    };
+    const { container } = render(
+      <SlideEditor
+        document={document}
+        title="Deck"
+        brand={SLIDE_BRAND}
+        onSave={() => true}
+        onBack={() => {}}
+      />,
+    );
+    const inner = container.querySelector<HTMLElement>("[data-slide-element=a] > div")!;
+    expect(inner).not.toBeNull();
+    expect(inner.style.visibility).toBe("");
+  });
+});

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.146.1 — #383, Codex review of v0.146.0: an exit no longer hides the edited element; the preview measures only when it plays
+
+Fix, not breaking.
+
+- **An element with an exit stays on the editing canvas** (CX1): the slide editor drew its canvas in the export's end state, so adding an exit animation hid the element being edited. The canvas now draws every element as it stands; `SlideView` takes `animationStep="none"` for that. Player, preview and export are unchanged.
+- **The preview measures its schedule only when it starts** (CX2): the step lengths were measured on every render of the editor, the preview closed too, once per animation step over all of the page's elements. They are now measured in one pass over the elements when a play starts (`stepLengths` replaces the internal `stepLength`).
+
+**Migration:** none.
+
 ## 0.146.0 — #294, SUI-FEATURE-162 AC5: slide animations in the editor, with a preview
 
 New, not breaking.

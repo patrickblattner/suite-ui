@@ -1845,7 +1845,15 @@ function Editor({
               {/* Each element that reaches past the page edge carries a notice, always, placed as a
                   text notice is: overflow comes from the geometry, not from the model
                   (`SUI-FEATURE-231`). */}
-              <SlideView {...view} document={document} page={page} scale={zoom} pastPageNotices />
+              {/* Every element as it stands: an exit never hides what is being edited (#383). */}
+              <SlideView
+                {...view}
+                document={document}
+                page={page}
+                scale={zoom}
+                animationStep="none"
+                pastPageNotices
+              />
               {/* The grid above the elements, below the selection and the guides (rev 5). */}
               {gridShown && grid !== null ? (
                 <GridOverlay
