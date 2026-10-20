@@ -7366,6 +7366,74 @@ for (const theme of THEMES) {
   }
 }
 
+// SUI-FEATURE-220 AC1/AC2 (#346): on mid-grey and on red, in either theme, the hover frame's line reads
+// `--ring` dashes with `--background` in the gaps, never the ground, the two at 3 : 1; the selection's
+// line beside it reads `--ring` throughout, so the two differ at the line itself, without the badge.
+for (const theme of THEMES) {
+  for (const ground of ["grey", "red"] as const) {
+    test(`canvas: the hover frame's dashes show on ${ground} beside the solid selection (${theme})`, async ({
+      page,
+    }) => {
+      await page.goto(`/?page=components&lng=en&theme=${theme}`);
+      const scope = page.getByTestId(`canvas-ground-${ground}`);
+      await scope.scrollIntoViewIfNeeded();
+      const rgb = (className: string) =>
+        utilityColor(page, className, "backgroundColor").then((color) =>
+          page.evaluate((fill) => {
+            const context = document.createElement("canvas").getContext("2d")!;
+            context.fillStyle = fill;
+            context.fillRect(0, 0, 1, 1);
+            return [...context.getImageData(0, 0, 1, 1).data.slice(0, 3)];
+          }, color),
+        );
+      const [ring, gap] = [await rgb("bg-ring"), await rgb("bg-background")];
+      const near = (pixel: number[], color: number[]) =>
+        Math.max(...color.map((channel, c) => Math.abs(channel - pixel[c]!))) <= 8;
+      // The pixels along the frame's bottom line, its corners left out.
+      const line = async (id: string) => {
+        const at = (await scope.getByTestId(id).boundingBox())!;
+        return (
+          await pixelsOf(page, {
+            x: at.x + 8,
+            y: at.y + at.height - 2,
+            width: at.width - 16,
+            height: 1,
+          })
+        ).flat();
+      };
+      const hover = await line("canvas-hover");
+      // Every pixel a dash, a gap or, at a dash's end, a blend of the two: never the ground.
+      const blend = (pixel: number[]) => {
+        const span = ring.map((channel, c) => gap[c]! - channel);
+        const t =
+          span.reduce((sum, d, c) => sum + d * (pixel[c]! - ring[c]!), 0) /
+          span.reduce((sum, d) => sum + d * d, 0);
+        return near(
+          pixel,
+          ring.map((channel, c) => channel + Math.min(1, Math.max(0, t)) * span[c]!),
+        );
+      };
+      expect(hover.every(blend), "only dashes and filled gaps").toBe(true);
+      expect(
+        hover.some((pixel) => near(pixel, ring)),
+        "dashes",
+      ).toBe(true);
+      expect(
+        hover.some((pixel) => near(pixel, gap)),
+        "gaps",
+      ).toBe(true);
+      expect(
+        await contrastOf(page, `rgb(${ring.join(",")})`, `rgb(${gap.join(",")})`),
+      ).toBeGreaterThanOrEqual(3);
+      const selection = await line("canvas-selection");
+      expect(
+        selection.every((pixel) => near(pixel, ring)),
+        "solid selection",
+      ).toBe(true);
+    });
+  }
+}
+
 // The RGB of the screen pixels in a box of the page, row by row, read from a screenshot.
 async function pixelsOf(page: Page, clip: { x: number; y: number; width: number; height: number }) {
   const png = (await page.screenshot({ clip })).toString("base64");

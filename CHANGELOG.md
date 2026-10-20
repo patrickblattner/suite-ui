@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.154.2 — #346, SUI-FEATURE-220: the hover frame's dashes show on every ground
+
+Fix.
+
+- **Hover frame gaps:** `--background` now fills the gaps between the hover frame's `--ring` dashes. On mid-grey or saturated grounds the dashes used to blend into the ground, so the frame read as two continuous hairlines (the halos). The dashes and the filled gaps now differ by at least 3 : 1 in either theme, so hover (dashed) and selection (solid) can be told apart by the line alone, without the name badge (`GL-UI-040`). The two-tone halo from #333 and the solid selection frame are unchanged.
+- The gallery's canvas edge row shows hover and selection side by side on mid-grey and on red; a test reads the pixels along both lines in both themes.
+
+**Migration:** none. Baselines: the components page in de, en and es, light and dark, and in de at 390 px and 1440 px (the canvas edge row has two grounds more, and every hover frame has filled gaps).
+
 ## 0.154.1 — #345, CanvasOverlay: the frames keep their outer halo at the canvas edge
 
 Fix.

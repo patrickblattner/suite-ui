@@ -181,6 +181,19 @@ export function CanvasEdgeRow() {
       <div className="relative h-24 w-40 overflow-hidden bg-muted" data-testid="canvas-flush-hover">
         <CanvasOverlay hovered={whole} />
       </div>
+      {/* `SUI-FEATURE-220`: hover and selection side by side on mid-grey and on red. */}
+      {(["grey", "red"] as const).map((ground) => (
+        <div
+          key={ground}
+          className={`relative h-24 w-72 ${ground === "grey" ? "bg-[#808080]" : "bg-[#ff0000]"}`}
+          data-testid={`canvas-ground-${ground}`}
+        >
+          <CanvasOverlay
+            hovered={{ rect: new DOMRectReadOnly(16, 32, 112, 48), name: "Hover" }}
+            selected={{ rect: new DOMRectReadOnly(160, 32, 112, 48), name: "Selection" }}
+          />
+        </div>
+      ))}
     </div>
   );
 }

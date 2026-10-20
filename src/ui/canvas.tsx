@@ -33,6 +33,10 @@ const BORDER = 2;
 // The two halos of a frame line: 1 px `--background` outside, 1 px `--foreground` inside, so one
 // continuous line stands out at 3 : 1 on any ground in either theme (#319, #333, `GL-UX-001` rev 5).
 const HALOS = "shadow-[0_0_0_1px_var(--background),inset_0_0_0_1px_var(--foreground)]";
+// `--background` under the 2 px border strip only, so the gaps of a dashed line read `--background`
+// and its `--ring` dashes stay visible at 3 : 1 on any ground (`SUI-FEATURE-220`).
+const GAPS =
+  "[background:linear-gradient(var(--background),var(--background))_top/100%_2px_no-repeat_border-box,linear-gradient(var(--background),var(--background))_bottom/100%_2px_no-repeat_border-box,linear-gradient(var(--background),var(--background))_left/2px_100%_no-repeat_border-box,linear-gradient(var(--background),var(--background))_right/2px_100%_no-repeat_border-box]";
 
 // A frame's rect with each edge that lies flush with the overlay's edge (within 1 px of it, as the
 // overlay's measured width is rounded) moved 1 px in, so its outer halo is never clipped where the
@@ -151,10 +155,11 @@ function CanvasOverlay({
     >
       {hovered === undefined ? null : (
         // Dashed, with the selection frame's two halos: one of them is a continuous line at 3 : 1 on
-        // any ground in either theme (#333).
+        // any ground in either theme (#333). `--background` fills the gaps, so the dashes show on
+        // mid-tones as well and the frame never reads as two hairlines (`SUI-FEATURE-220`).
         <div
           aria-hidden="true"
-          className={cn("absolute border-2 border-dashed border-ring", HALOS)}
+          className={cn("absolute border-2 border-dashed border-ring", HALOS, GAPS)}
           style={box(hovered.rect)}
           data-testid="canvas-hover"
         />
