@@ -541,3 +541,8 @@
 {"ts":"2026-10-20T04:12:16.367Z","key":"SUI-FEATURE-192","from":null,"to":2,"disposition":"ticket","ref":"308"}
 {"ts":"2026-10-20T05:06:17.494Z","key":"SUI-FEATURE-192","from":null,"to":3,"disposition":"ticket","ref":"395"}
 {"ts":"2026-10-20T05:06:17.842Z","key":"SUI-FEATURE-193","from":null,"to":2,"disposition":"ticket","ref":"396"}
+{"ts":"2026-10-20T13:06:26.098Z","key":"GL-OPS-002","from":null,"to":5,"disposition":"editorial","ref":"no code impact by the guideline's own statement (local stacks are converted by the Overmind only)"}
+{"ts":"2026-10-20T13:06:26.524Z","key":"SUI-FEATURE-087","from":9,"to":10,"disposition":"ticket","ref":"312"}
+{"ts":"2026-10-20T13:06:57.524Z","key":"SUI-FEATURE-190","from":4,"to":5,"disposition":"ticket","ref":"408"}
+{"ts":"2026-10-20T13:06:57.957Z","key":"SUI-FEATURE-098","from":null,"to":2,"disposition":"ticket","ref":"409"}
+{"ts":"2026-10-20T13:06:58.346Z","key":"SUI-FEATURE-260","from":null,"to":2,"disposition":"ticket","ref":"410"}
