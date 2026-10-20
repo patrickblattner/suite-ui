@@ -9,7 +9,7 @@ New, not breaking.
 - **Rotation of a child:** the rotation field of a child of a turned group shows the angle on the page, its own angle plus its groups', from 0 to 360°. A value typed there sets that angle on the page, and the child stores its own angle (a group at 37°: 90 typed stores 53). After a turn with Shift the field shows a multiple of 15.
 - `NumberField` (internal) takes a `help` note, read with the field.
 
-**Migration:** none. New package texts `slides.editor.sizeAtLeast` and `slides.editor.sizeAtMost` (de, en, es). Baselines: none.
+**Migration:** none. New package texts `slides.editor.sizeAtLeast` and `slides.editor.sizeAtMost` (de, en, es). Baselines: the gallery overview (its strings table).
 
 ## 0.151.0 — #312, GridToggle mode values in English
 
