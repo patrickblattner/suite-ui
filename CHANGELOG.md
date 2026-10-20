@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.153.2 — #341, SUI-FEATURE-200: names of the cuts, a talk with no visible page
+
+Fix.
+
+- **Names of the cuts:** in Spanish, weight 900 is now "Negra" instead of "Gruesa", so the names rise from Fina to Negra as is usual. The en and de names already matched the sheet; a test now pins all three lists.
+- **No visible page:** when every page is hidden, the `SlidePlayer` says what is wrong and what to do next: no page is visible, unhide a page in the editor, and Esc or "End presentation" leaves. The message sits in a live region, is also the player dialog's description (read on focus, so it is heard when the player opens on such a deck), and has no icon.
+- Verified as built in #321: the strip stays one line of fixed height with the overflow tooltip on a cut message, and a family with a number in its name keeps its name.
+
+**Migration:** package texts changed. Reworded:
+
+- `slides.allHidden`: en "This presentation has no visible slides." → "No page is visible."; de "Diese Präsentation hat keine sichtbaren Folien." → "Keine Seite ist sichtbar."; es "Esta presentación no tiene diapositivas visibles." → "Ninguna página está visible."
+- `slides.weight.900` (es): "Gruesa" → "Negra".
+
+New (de, en, es):
+
+- `slides.allHiddenShow`: en "Unhide a page in the editor to present it.", de "Blende im Editor eine Seite ein, um sie zu zeigen.", es "Deja de ocultar una página en el editor para presentarla."
+- `slides.allHiddenEnd`: en "Press Esc or “End presentation” to leave.", de "Esc oder „Vortrag beenden“ schließt den Vortrag.", es "Pulsa Esc o «Terminar la presentación» para salir."
+
+An app that overrides these texts checks its wording. Baselines: the gallery overview in de, en and es, light and dark, and in de at 390 px and 1440 px (its strings table has two rows more and the texts above changed).
+
 ## 0.153.1 — #338, SlideEditor: resize cursors turn with the element
 
 Fix.

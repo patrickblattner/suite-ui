@@ -172,6 +172,7 @@ export function SlidePlayer({
   const reported = React.useRef(new Map<number, string>());
   const [hint, setHint] = React.useState<{ lines: string[]; shown: boolean } | null>(null);
   const hintTimer = React.useRef<number | undefined>(undefined);
+  const emptyId = React.useId();
   React.useEffect(() => () => window.clearTimeout(hintTimer.current), []);
   const report = React.useRef(onReport);
   React.useEffect(() => {
@@ -206,12 +207,15 @@ export function SlidePlayer({
   const from = position.from === undefined ? undefined : pages[shown[position.from]!];
   const incoming = page === undefined ? undefined : transitionOf(page, "in");
   const outgoing = page === undefined ? undefined : transitionOf(page, "out");
+  const empty = parsed.ok && shown[index] === undefined;
   return (
     <div
       ref={setElement}
       role="dialog"
       aria-modal="true"
       aria-label={t("slides.player")}
+      // A live region filled at mount may go unannounced; the dialog's description is read on focus.
+      aria-describedby={empty ? emptyId : undefined}
       tabIndex={-1}
       data-slot="slide-player"
       data-testid={testId}
@@ -265,16 +269,20 @@ export function SlidePlayer({
           }
         }}
       >
-        {/* A deck whose pages are all hidden shows none of them and says so (#321); an invalid one
-            says so too. */}
-        {parsed.ok && shown[index] === undefined ? (
+        {/* A deck whose pages are all hidden shows none of them and says so, with the next step, in a
+            live region (#321, `SUI-FEATURE-200`); an invalid one says so too. */}
+        {empty ? (
           <div className="flex size-full items-center justify-center p-4">
-            <p
+            <div
+              id={emptyId}
+              role="status"
               data-slot="slide-player-empty"
-              className="rounded-md bg-background/80 px-2 py-1 text-center text-sm text-foreground"
+              className="flex max-w-sm flex-col gap-1 rounded-md bg-background/80 px-3 py-2 text-center text-sm text-foreground"
             >
-              {t("slides.allHidden")}
-            </p>
+              <p className="font-medium">{t("slides.allHidden")}</p>
+              <p>{t("slides.allHiddenShow")}</p>
+              <p>{t("slides.allHiddenEnd")}</p>
+            </div>
           </div>
         ) : (
           <SlideView

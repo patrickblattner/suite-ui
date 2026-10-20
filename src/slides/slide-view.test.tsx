@@ -736,6 +736,63 @@ describe("SlideView notices (#321)", () => {
     }
   });
 
+  // SUI-FEATURE-200 AC2 (#341): the cuts by their usual names, rising without reversal in every
+  // language; 200 and 900 in en and es.
+  it("names the cuts per SUI-FEATURE-200", () => {
+    const steps = [100, 200, 300, 400, 500, 600, 700, 800, 900];
+    const cuts = Object.fromEntries(
+      ["en", "es", "de"].map((lng) => {
+        const t = i18n.getFixedT(lng, "suite");
+        return [lng, steps.map((step) => t(`slides.weight.${step}`))];
+      }),
+    );
+    expect(cuts).toEqual({
+      en: [
+        "Thin",
+        "Extra light",
+        "Light",
+        "Regular",
+        "Medium",
+        "Semibold",
+        "Bold",
+        "Extra bold",
+        "Black",
+      ],
+      es: [
+        "Fina",
+        "Extraligera",
+        "Ligera",
+        "Normal",
+        "Media",
+        "Seminegrita",
+        "Negrita",
+        "Extranegrita",
+        "Negra",
+      ],
+      de: [
+        "Dünn",
+        "Extraleicht",
+        "Leicht",
+        "Normal",
+        "Mittel",
+        "Halbfett",
+        "Fett",
+        "Extrafett",
+        "Schwarz",
+      ],
+    });
+    const faces = [
+      { family: "Inter", weight: 200, style: "normal" },
+      { family: "Inter", weight: 900, style: "normal" },
+    ] as const;
+    expect(missingFontsText(i18n.getFixedT("en", "suite"), faces)).toBe(
+      "Inter (Extra light, Black)",
+    );
+    expect(missingFontsText(i18n.getFixedT("es", "suite"), faces)).toBe(
+      "Inter (Extraligera, Negra)",
+    );
+  });
+
   // Scope (a): an italic run needs an italic file; the regular one does not stand in for it, and an
   // italic file that loads covers it.
   it("matches faces by style: an italic run without its italic file is missing", async () => {

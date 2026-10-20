@@ -249,11 +249,38 @@ describe("SlidePlayer with every page hidden", () => {
     expect(screen.getByTestId("slide-player-counter")).toHaveTextContent("0 / 0");
     // #321 AC2: it says so, so the screen is never only black once the bar hides.
     expect(player.querySelector("[data-slot=slide-player-empty]")).toHaveTextContent(
-      "This presentation has no visible slides.",
+      "No page is visible.",
     );
     expect(screen.getByRole("button", { name: "Next slide" })).toHaveAttribute(
       "aria-disabled",
       "true",
     );
+  });
+
+  // SUI-FEATURE-200 AC4 (#341): the message says what is and what to do next, in a live region and as
+  // the dialog's description (read on focus, also when the player opens on such a deck), with no
+  // icon; Esc ends the talk.
+  it("announces the next step and ends on Esc", () => {
+    const hidden = {
+      ...SLIDE_DECK,
+      pages: SLIDE_DECK.pages.map((page) => ({ ...page, hidden: true })),
+    } as SlideViewProps["document"];
+    const onClose = vi.fn();
+    render(<SlidePlayer document={hidden} brand={SLIDE_BRAND} onClose={onClose} />);
+    const message = screen
+      .getAllByRole("status")
+      .find((region) => region.dataset.slot === "slide-player-empty")!;
+    const text = [
+      "No page is visible.",
+      "Unhide a page in the editor to present it.",
+      "Press Esc or “End presentation” to leave.",
+    ];
+    expect(message).toHaveTextContent(text.join(""));
+    expect(screen.getByRole("dialog", { name: "Presentation" })).toHaveAccessibleDescription(
+      text.join(" "),
+    );
+    expect(message.querySelector("svg")).toBeNull();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 });
