@@ -64,6 +64,7 @@ import {
   moveLayer,
   nextAnimationOrder,
   outerBox,
+  pageBox,
   panCrop,
   placedBox,
   setAnimation,
@@ -217,8 +218,9 @@ const TRANSITIONS = ["none", "fade", "slide"] as const;
 
 type Group = Extract<SlideElement, { type: "group" }>;
 
-// A drag measures in `frame`: the groups the edited element stands in, outermost first, so moving,
-// resizing and turning a child of a turned group follow the pointer where the child is drawn.
+// A drag measures in `frame`: the groups the edited element stands in, outermost first, so moving
+// and resizing a child of a turned group follow the pointer where the child is drawn. Turning
+// measures on the screen, the groups' `turn` taken off.
 type Drag =
   | {
       kind: "move";
@@ -1098,7 +1100,9 @@ function Editor({
     (element.type === "custom" && types !== undefined && Object.hasOwn(types, element.typeId)
       ? types[element.typeId]!.label
       : t(`slides.editor.type.${element.type}`));
-  const selectionBox = boundsOf(selected.map(drawnBox));
+  // Where the selection is drawn on the page, its groups' turn included (#328): its frame, and the
+  // box align measures against.
+  const selectionBox = boundsOf(selected.map((element) => pageBox(elements, element)));
 
   // Where the selected or edited table's rows and columns lie, measured from the drawn table after
   // each render (a row's content can make it taller than the others).
@@ -2362,8 +2366,7 @@ function Editor({
   // An element's frame where it is drawn, its groups' turn included (#324).
   const target = (element: SlideElement | undefined): CanvasTarget | undefined => {
     if (element === undefined) return undefined;
-    const placed = placedBox(elements, element);
-    return { rect: rectOf(outerBox(placed.box, placed.rotation), zoom), name: nameOf(element) };
+    return { rect: rectOf(pageBox(elements, element), zoom), name: nameOf(element) };
   };
   const handlesBox = single === undefined ? undefined : placedBox(elements, single);
   const hoveredElement =

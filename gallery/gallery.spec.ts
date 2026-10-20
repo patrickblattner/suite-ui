@@ -11055,6 +11055,52 @@ test("slide editor: two children of a turned group snap in its frame", async ({ 
   expect(Math.max(turned.width, turned.height)).toBeGreaterThan(100);
 });
 
+// #328 AC1/AC2: a child of a turned group aligns to the page where it is drawn: its drawn left edge
+// goes to the page's, and it does not move up or down on the screen.
+test("slide editor: a child of a turned group aligns to the page where it is drawn", async ({
+  page,
+}) => {
+  const { editor, child, at } = await turnedChild(page);
+  const before = (await child.boundingBox())!;
+  await editor.getByTestId("slide-editor-align-left").click();
+  const after = (await child.boundingBox())!;
+  expect(after.x - at(0, 0).x).toBeCloseTo(0, 0);
+  expect(after.y - before.y).toBeCloseTo(0, 0);
+});
+
+// #328 AC5: two children of a turned group are framed where they are drawn, and align uses that
+// frame: both drawn left edges go to its left edge.
+for (const angle of [90, 37]) {
+  test(`slide editor: two children of a group turned ${angle}° are framed and aligned where drawn`, async ({
+    page,
+  }) => {
+    const { editor, child, at } = await turnedChild(page, angle);
+    const radians = (angle * Math.PI) / 180;
+    const drawnSibling = at(630 + 40 * Math.cos(radians), 340 + 40 * Math.sin(radians));
+    await page.keyboard.down("Shift");
+    await page.mouse.click(drawnSibling.x, drawnSibling.y);
+    await page.keyboard.up("Shift");
+    await expect(editor.getByTestId("canvas-name")).toHaveText("2 elements");
+    const sibling = editor.locator("[data-slide-element=pair-right]");
+    const [a, b] = [(await child.boundingBox())!, (await sibling.boundingBox())!];
+    const union = {
+      x: Math.min(a.x, b.x),
+      y: Math.min(a.y, b.y),
+      right: Math.max(a.x + a.width, b.x + b.width),
+      bottom: Math.max(a.y + a.height, b.y + b.height),
+    };
+    const frame = (await editor.getByTestId("canvas-selection").boundingBox())!;
+    expect(Math.abs(frame.x - union.x)).toBeLessThan(1.5);
+    expect(Math.abs(frame.y - union.y)).toBeLessThan(1.5);
+    expect(Math.abs(frame.x + frame.width - union.right)).toBeLessThan(1.5);
+    expect(Math.abs(frame.y + frame.height - union.bottom)).toBeLessThan(1.5);
+    await editor.getByTestId("slide-editor-align-left").click();
+    const [left, right] = [(await child.boundingBox())!, (await sibling.boundingBox())!];
+    expect(Math.abs(left.x - union.x)).toBeLessThan(1);
+    expect(Math.abs(right.x - union.x)).toBeLessThan(1);
+  });
+}
+
 // SUI-FEATURE-162 AC5 (#294 inc 5): two elements get entrances in order and their page a cross-fade
 // in the panel; the editor's preview and, once saved, the app's player play both; under
 // prefers-reduced-motion the entrances only fade.
