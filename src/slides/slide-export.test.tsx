@@ -7,9 +7,11 @@ import type { SlideViewProps, SlideViewReport } from "./slide-view.js";
 
 // Each page's view, standing in for `SlideView`: the test sends its reports.
 const views = vi.hoisted(() => new Map<number, (report: SlideViewReport) => void>());
+const extensionsSeen = vi.hoisted(() => [] as unknown[]);
 vi.mock("./slide-view.js", () => ({
-  SlideView: ({ page, onReport }: SlideViewProps) => {
+  SlideView: ({ page, onReport, extensions }: SlideViewProps) => {
     views.set(page ?? 0, (report) => onReport?.(report));
+    extensionsSeen.push(extensions);
     return <div data-page={page} />;
   },
 }));
@@ -17,6 +19,7 @@ vi.mock("./slide-view.js", () => ({
 afterEach(() => {
   cleanup();
   views.clear();
+  extensionsSeen.length = 0;
 });
 
 const report = (extra: Partial<SlideViewReport> = {}): SlideViewReport => ({
@@ -51,5 +54,19 @@ describe("SlideExport", () => {
     expect(root).toHaveAttribute("data-slide-missing-brand", "accent");
     expect(root).toHaveAttribute("data-slide-missing-fonts", "Brand Sans");
     expect(root).not.toHaveAttribute("data-slide-missing-media");
+  });
+
+  // SUI-FEATURE-163 AC1: each page is drawn with the app's extensions, as in the editor's view.
+  it("hands the app's extensions to every page's view", () => {
+    const extensions = { types: { "gallery.stamp": { label: "Stamp", render: () => null } } };
+    render(
+      <SlideExport
+        document={SLIDE_DECK}
+        brand={{ colors: {}, fonts: {} }}
+        extensions={extensions}
+      />,
+    );
+    expect(extensionsSeen.length).toBeGreaterThan(0);
+    expect(extensionsSeen.every((seen) => seen === extensions)).toBe(true);
   });
 });

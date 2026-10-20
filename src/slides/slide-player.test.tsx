@@ -1,7 +1,13 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { SLIDE_BRAND, SLIDE_DECK, SLIDE_MISSING_FONT } from "../../gallery/slide-showcase.js";
+import {
+  resolveSlideMedia,
+  SLIDE_BRAND,
+  SLIDE_DECK,
+  SLIDE_EXPORTABLE,
+  SLIDE_MISSING_FONT,
+} from "../../gallery/slide-showcase.js";
 import * as React from "react";
 
 import { SlidePlayer } from "./slide-player.js";
@@ -44,6 +50,27 @@ const masterDeck = {
 const key = (player: HTMLElement, name: string) => fireEvent.keyDown(player, { key: name });
 
 describe("SlidePlayer", () => {
+  // SUI-FEATURE-163 AC1: the app's type and its image filter are drawn as in the view.
+  it("draws the app's extensions", () => {
+    const { container } = render(
+      <SlidePlayer
+        document={SLIDE_EXPORTABLE}
+        brand={SLIDE_BRAND}
+        resolveMedia={resolveSlideMedia}
+        extensions={{
+          types: { "gallery.stamp": { label: "Stamp", render: () => <span>Stamp drawn</span> } },
+          addOns: [{ type: "image", key: "filter", style: () => ({ filter: "sepia(30%)" }) }],
+        }}
+        data-testid="player"
+      />,
+    );
+    expect(screen.getByText("Stamp drawn")).toBeInTheDocument();
+    const box = container.ownerDocument.querySelector<HTMLElement>(
+      "[data-slide-element=photo] [data-slide-add-on=filter]",
+    )!;
+    expect(box.style.filter).toBe("sepia(30%)");
+  });
+
   it("is one modal dialog with one name", () => {
     render(<SlidePlayer document={SLIDE_DECK} brand={SLIDE_BRAND} data-testid="player" />);
     const player = screen.getByRole("dialog", { name: "Presentation" });

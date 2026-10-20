@@ -106,12 +106,12 @@ import {
 } from "./slide-editor-library.js";
 import { SlidePreview } from "./slide-editor-preview.js";
 import { TransferFormat, type TransferScope } from "./slide-editor-transfer.js";
-import { SlideView, type SlideViewProps } from "./slide-view.js";
+import { carriesUnloadedAddOn, SlideView, type SlideViewProps } from "./slide-view.js";
 import { type SlideHistory, useSlideHistory } from "./use-slide-history.js";
 
 export interface SlideEditorProps extends Pick<
   SlideViewProps,
-  "brand" | "fonts" | "fontOrigins" | "resolveMedia" | "renderers" | "renderPlaceholder"
+  "brand" | "fonts" | "fontOrigins" | "resolveMedia" | "extensions" | "renderPlaceholder"
 > {
   // The saved document; checked on load.
   document: SlideDocumentInput | SlideDocument;
@@ -139,7 +139,7 @@ export interface SlideEditorProps extends Pick<
 
 type ViewProps = Pick<
   SlideViewProps,
-  "brand" | "fonts" | "fontOrigins" | "resolveMedia" | "renderers" | "renderPlaceholder"
+  "brand" | "fonts" | "fontOrigins" | "resolveMedia" | "extensions" | "renderPlaceholder"
 >;
 
 // How near (screen px) an edge snaps, the rotate handle's distance above the box, a handle's size.
@@ -498,12 +498,12 @@ export function SlideEditor({
   fonts,
   fontOrigins,
   resolveMedia,
-  renderers,
+  extensions,
   renderPlaceholder,
   "data-testid": testId,
 }: SlideEditorProps) {
   const parsed = React.useMemo(() => safeParseSlideDocument(source), [source]);
-  const view = { brand, fonts, fontOrigins, resolveMedia, renderers, renderPlaceholder };
+  const view = { brand, fonts, fontOrigins, resolveMedia, extensions, renderPlaceholder };
   if (!parsed.ok) {
     return (
       <Invalid
@@ -909,7 +909,13 @@ function Editor({
   });
   const single = selected.length === 1 ? selected[0] : undefined;
   const editable = selected.filter((element) => !element.locked);
-  const nameOf = (element: SlideElement) => element.name || t(`slides.editor.type.${element.type}`);
+  // Unnamed, an app type goes by its label (`SUI-FEATURE-163`), a built-in one by its type's name.
+  const types = view.extensions?.types;
+  const nameOf = (element: SlideElement) =>
+    element.name ||
+    (element.type === "custom" && types !== undefined && Object.hasOwn(types, element.typeId)
+      ? types[element.typeId]!.label
+      : t(`slides.editor.type.${element.type}`));
   const selectionBox = boundsOf(selected.map(drawnBox));
 
   // Pointer work on the canvas: select, move, frame-select, resize, rotate.
@@ -1382,6 +1388,11 @@ function Editor({
 
   const layoutTab = (
     <div className="flex flex-col gap-4" data-testid="slide-editor-layout">
+      {single !== undefined && carriesUnloadedAddOn(single, view.extensions) ? (
+        <p className="text-sm text-muted-foreground" data-testid="slide-editor-unloaded-extension">
+          {t("slides.editor.unloadedExtension")}
+        </p>
+      ) : null}
       {single === undefined ? null : (
         <div className="grid grid-cols-2 gap-3">
           {(["x", "y", "width", "height"] as const).map((key) => (

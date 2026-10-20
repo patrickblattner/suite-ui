@@ -559,6 +559,8 @@ export const en = {
       width: "Width",
       height: "Height",
       rotation: "Rotation",
+      unloadedExtension:
+        "This element carries settings of an extension not loaded here. They are kept.",
       degrees: "°",
       arrange: "Arrange",
       forward: "Bring forward",

@@ -20,7 +20,14 @@ import {
   stackOrder,
 } from "./render-style.js";
 import { parseSlideDocument } from "./document.js";
-import { SlideView, type SlideViewProps, type SlideViewReport } from "./slide-view.js";
+import {
+  carriesUnloadedAddOn,
+  type SlideAddOn,
+  type SlideExtensions,
+  SlideView,
+  type SlideViewProps,
+  type SlideViewReport,
+} from "./slide-view.js";
 import { missingFontsText } from "./use-slide-assets.js";
 
 afterEach(() => {
@@ -30,6 +37,24 @@ afterEach(() => {
 });
 
 const stamp = () => <span>Stamp of the gallery</span>;
+const extensions: SlideExtensions = {
+  types: { "gallery.stamp": { label: "Stamp", render: stamp } },
+};
+const sepia: SlideAddOn = {
+  type: "image",
+  key: "filter",
+  style: (value) => ({ filter: `sepia(${(value as { warmth: number }).warmth}%)` }),
+};
+// The showcase with the photo carrying filter values in its payload.
+const filtered = {
+  ...SLIDE_SHOWCASE,
+  pages: SLIDE_SHOWCASE.pages.map((page) => ({
+    ...page,
+    elements: page.elements?.map((element) =>
+      element.id === "photo" ? { ...element, payload: { filter: { warmth: 40 } } } : element,
+    ),
+  })),
+} as SlideViewProps["document"];
 
 async function drawn(props: Partial<SlideViewProps> = {}) {
   const onReport = vi.fn<(report: SlideViewReport) => void>();
@@ -39,7 +64,7 @@ async function drawn(props: Partial<SlideViewProps> = {}) {
       brand={SLIDE_BRAND}
       fonts={SLIDE_FONTS}
       resolveMedia={resolveSlideMedia}
-      renderers={{ "gallery.stamp": stamp }}
+      extensions={extensions}
       scale={0.5}
       onReport={onReport}
       data-testid="view"
@@ -319,6 +344,43 @@ describe("SlideView reports, second round", () => {
     await waitFor(() => expect(report().missingMedia).toEqual(["photo"]));
   });
 
+  // SUI-FEATURE-163: an add-on draws onto a built-in type from its payload key.
+  it("draws a registered add-on onto the element whose payload holds its key", async () => {
+    const { container } = await drawn({
+      document: filtered,
+      extensions: { ...extensions, addOns: [sepia] },
+    });
+    const photo = container.querySelector("[data-slide-element=photo]")!;
+    const box = photo.querySelector<HTMLElement>("[data-slide-add-on=filter]")!;
+    expect(box.style.filter).toBe("sepia(40%)");
+    expect(box).toContainElement(screen.getByRole("img", { name: "Hills under a sun" }));
+    // Another image or an element without the key is drawn as it is.
+    expect(container.querySelectorAll("[data-slide-add-on]")).toHaveLength(1);
+  });
+
+  // SUI-FEATURE-163 AC2: without the extension, the custom type is a named stand-in and the image with
+  // filter values is drawn plain, with nothing reported.
+  it("draws a filtered image plain without the add-on and names the unregistered type", async () => {
+    const { container, report } = await drawn({ document: filtered, extensions: undefined });
+    expect(container.querySelector("[data-slide-add-on]")).toBeNull();
+    expect(screen.getByRole("img", { name: "Hills under a sun" })).toBeInTheDocument();
+    expect(screen.getByText("“gallery.stamp” can’t be shown here")).toBeInTheDocument();
+    expect(report().unknownTypes.sort()).toEqual(["community.poll", "gallery.stamp"]);
+    expect(report().missingMedia).toEqual([]);
+  });
+
+  it("tells a built-in element with payload no loaded add-on reads", () => {
+    const image = parseSlideDocument(filtered).pages[0]!.elements.find((e) => e.id === "photo")!;
+    const stampElement = parseSlideDocument(filtered).pages[0]!.elements.find(
+      (e) => e.id === "stamp",
+    )!;
+    expect(carriesUnloadedAddOn(image, undefined)).toBe(true);
+    expect(carriesUnloadedAddOn(image, { addOns: [sepia] })).toBe(false);
+    expect(carriesUnloadedAddOn(image, { addOns: [{ ...sepia, key: "other" }] })).toBe(true);
+    // An app type's payload is its own data, never an add-on's.
+    expect(carriesUnloadedAddOn(stampElement, undefined)).toBe(false);
+  });
+
   it("tries a media id again once the app resolves a new URL for it", async () => {
     const { rerender } = await drawn();
     fireEvent.error(screen.getByRole("img", { name: "Hills under a sun" }));
@@ -329,7 +391,7 @@ describe("SlideView reports, second round", () => {
         brand={SLIDE_BRAND}
         fonts={SLIDE_FONTS}
         resolveMedia={(id) => (id === "photo" ? "/renewed.png" : undefined)}
-        renderers={{ "gallery.stamp": stamp }}
+        extensions={extensions}
         scale={0.5}
         data-testid="view"
       />,

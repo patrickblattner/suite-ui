@@ -14,20 +14,36 @@ import {
   SLIDE_SHOWCASE,
 } from "./slide-showcase.js";
 
-// What the gallery hands every view: its brand set, its own font files, its media and one renderer of
-// an app type (`gallery.stamp`); `community.poll` stays without one.
+// What the gallery hands every view: its brand set, its own font files, its media and its extensions
+// (`SUI-FEATURE-163`): an app type of its own (`gallery.stamp`; `community.poll` stays without one)
+// and an image filter read from the payload key `filter` (warmth and brightness, as the Cockpit keeps
+// them).
 export const GALLERY_SLIDE_PROPS = {
   brand: SLIDE_BRAND,
   fonts: SLIDE_FONTS,
   resolveMedia: resolveSlideMedia,
-  renderers: {
-    "gallery.stamp": () => (
-      <div className="flex size-full items-center justify-center rounded-full border-4 border-dashed border-current text-[40px] font-bold">
-        Stamp
-      </div>
-    ),
+  extensions: {
+    types: {
+      "gallery.stamp": {
+        label: "Stamp",
+        render: () => (
+          <div className="flex size-full items-center justify-center rounded-full border-4 border-dashed border-current text-[40px] font-bold">
+            Stamp
+          </div>
+        ),
+      },
+    },
+    addOns: [{ type: "image", key: "filter", style: imageFilter }],
   },
 } satisfies Partial<SlideViewProps>;
+
+// The gallery's image filter: `{ warmth, brightness }` in % as a CSS filter; anything else draws plain.
+function imageFilter(value: unknown) {
+  if (typeof value !== "object" || value === null) return undefined;
+  const { warmth = 0, brightness = 0 } = value as Record<string, unknown>;
+  if (typeof warmth !== "number" || typeof brightness !== "number") return undefined;
+  return { filter: `sepia(${warmth}%) brightness(${100 + brightness}%)` };
+}
 
 // `SUI-FEATURE-160` AC1: the same page in three boxes of different size and shape.
 const AREAS = [

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.147.0 — #295, SUI-FEATURE-163 increment 1: app extensions draw the same in view, editor, player and export
+
+New. `renderers` is replaced (no app uses it yet).
+
+- **`extensions`** on `SlideView`, `SlideEditor`, `SlidePlayer` and `SlideExport` (and so the editor's preview): `types` holds an app's own element types by type id, each with a `label` and a `render`; `addOns` adds to the drawing of a built-in type: an add-on names its `type`, the payload `key` it reads and a `style` from that value (such as a CSS filter on an image), drawn in a box of its own around the element's drawing, so two add-ons compose. An element without the key is drawn as it is. New exports `SlideExtensions`, `SlideTypeExtension`, `SlideAddOn`, `carriesUnloadedAddOn`.
+- **Without the extension** a document stays valid: an app type is a named stand-in (as before); a built-in element whose payload holds values no loaded add-on reads is drawn plain, its payload untouched, and only the editor's Layout tab notes that it carries settings of an extension not loaded here, which are kept.
+- In the editor's Layers an unnamed element of an app type goes by its type's label.
+- Gallery: a stamp type and an image filter (warmth, brightness from the payload key `filter`); the export harness draws the photo under that filter.
+
+**Migration:** `renderers={{ id: render }}` becomes `extensions={{ types: { id: { label, render } } }}`. New package text `slides.editor.unloadedExtension` (de, en, es). Baselines: the gallery overview (its strings table has one row more).
+
 ## 0.146.1 — #383, Codex review of v0.146.0: an exit no longer hides the edited element; the preview measures only when it plays
 
 Fix, not breaking.

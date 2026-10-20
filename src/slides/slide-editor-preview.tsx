@@ -17,7 +17,7 @@ import { SlideView, type SlideViewProps } from "./slide-view.js";
 
 type ViewProps = Pick<
   SlideViewProps,
-  "brand" | "fonts" | "fontOrigins" | "resolveMedia" | "renderers" | "renderPlaceholder"
+  "brand" | "fonts" | "fontOrigins" | "resolveMedia" | "extensions" | "renderPlaceholder"
 >;
 
 // The editor's preview (`SUI-FEATURE-162` §Animationen): a button that opens a dialog playing the page

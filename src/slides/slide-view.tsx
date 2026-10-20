@@ -52,6 +52,44 @@ type TextBody = Pick<ElementOf<"text">, "runs" | "align" | "lineHeight" | "list"
 // Draws an app's own element type (`SUI-FEATURE-163`).
 export type SlideCustomRenderer = (element: ElementOf<"custom">) => React.ReactNode;
 
+type BuiltInType = Exclude<SlideElement["type"], "custom">;
+
+// An app's own element type (`SUI-FEATURE-163`): its name and how it is drawn.
+export interface SlideTypeExtension {
+  label: string;
+  render: SlideCustomRenderer;
+}
+
+// What an app adds to the drawing of a built-in type (`SUI-FEATURE-163` §Zusätze), such as a CSS filter
+// on an image: its value is the element's payload under `key`; an element without it is drawn as it is.
+export type SlideAddOn = {
+  [T in BuiltInType]: {
+    type: T;
+    key: string;
+    style: (value: unknown, element: ElementOf<T>) => React.CSSProperties | undefined;
+  };
+}[BuiltInType];
+
+// What an app contributes to the view, editor, player and export alike (`SUI-FEATURE-163`): its own
+// element types by type id, and add-ons to built-in types.
+export interface SlideExtensions {
+  types?: Readonly<Record<string, SlideTypeExtension>>;
+  addOns?: readonly SlideAddOn[];
+}
+
+// The element is a built-in type whose payload holds a key no add-on of its type registered here reads:
+// the settings of an extension not loaded, which stay untouched (`SUI-FEATURE-163` §Grenzen).
+export function carriesUnloadedAddOn(
+  element: SlideElement,
+  extensions: SlideExtensions | undefined,
+): boolean {
+  if (element.type === "custom" || element.payload === undefined) return false;
+  const known = new Set(
+    (extensions?.addOns ?? []).filter((addOn) => addOn.type === element.type).map((a) => a.key),
+  );
+  return Object.keys(element.payload).some((key) => !known.has(key));
+}
+
 // What the view could not draw as the document asks; an export aborts on any of it.
 export interface SlideViewReport {
   // Fonts and icons are loaded and the page is drawn.
@@ -87,8 +125,8 @@ export interface SlideViewProps {
   fontOrigins?: readonly string[];
   // The URL of a media id of the app.
   resolveMedia?: (id: string) => string | undefined;
-  // Renderers of the app's own element types, by type id.
-  renderers?: Readonly<Record<string, SlideCustomRenderer>>;
+  // The app's own element types and its add-ons to built-in ones (`SUI-FEATURE-163`).
+  extensions?: SlideExtensions;
   // What a layout placeholder shows; nothing without.
   renderPlaceholder?: (element: ElementOf<"placeholder">) => React.ReactNode;
   // Text that overflows its field shrinks, down to 70 % of its size; below that it is reported.
@@ -137,7 +175,7 @@ interface Draw {
   ready: boolean;
   icons: ReadonlyMap<string, React.ComponentType<React.SVGProps<SVGSVGElement>>>;
   resolveMedia: SlideViewProps["resolveMedia"];
-  renderers: SlideViewProps["renderers"];
+  extensions: SlideViewProps["extensions"];
   renderPlaceholder: SlideViewProps["renderPlaceholder"];
   // A text element (by id) fits its field or not.
   onFit: (id: string, fits: boolean) => void;
@@ -940,15 +978,37 @@ function content(draw: Draw, element: SlideElement): React.ReactNode {
     case "placeholder":
       return draw.renderPlaceholder?.(element) ?? null;
     case "custom": {
-      const renderer =
-        draw.renderers !== undefined && Object.hasOwn(draw.renderers, element.typeId)
-          ? draw.renderers[element.typeId]
+      const types = draw.extensions?.types;
+      const type =
+        types !== undefined && Object.hasOwn(types, element.typeId)
+          ? types[element.typeId]
           : undefined;
-      if (renderer !== undefined) return renderer(element);
+      if (type !== undefined) return type.render(element);
       draw.unknownTypes.add(element.typeId);
       return <Stand text={draw.t("slides.unknownType", { type: element.typeId })} />;
     }
   }
+}
+
+// The element's drawing under each add-on of its type whose key its payload holds, one box per add-on so
+// their styles compose (two filters both apply).
+function withAddOns(draw: Draw, element: SlideElement, drawn: React.ReactNode): React.ReactNode {
+  const payload = element.payload;
+  if (payload === undefined || element.type === "custom") return drawn;
+  return (draw.extensions?.addOns ?? []).reduce<React.ReactNode>((inner, addOn) => {
+    if (addOn.type !== element.type || !Object.hasOwn(payload, addOn.key)) return inner;
+    // The add-on's type is the element's (checked above).
+    const style = (
+      addOn.style as (value: unknown, element: SlideElement) => React.CSSProperties | undefined
+    )(payload[addOn.key], element);
+    return style === undefined ? (
+      inner
+    ) : (
+      <div data-slide-add-on={addOn.key} style={{ ...style, width: "100%", height: "100%" }}>
+        {inner}
+      </div>
+    );
+  }, drawn);
 }
 
 // One element in its box, in the coordinates of the format (a group's children keep the page's, so
@@ -991,7 +1051,7 @@ function renderElement(
               : undefined,
         }}
       >
-        {content(draw, element)}
+        {withAddOns(draw, element, content(draw, element))}
       </div>
     </div>
   );
@@ -1035,7 +1095,7 @@ export function SlideView({
   fonts = [],
   fontOrigins = [],
   resolveMedia,
-  renderers,
+  extensions,
   renderPlaceholder,
   fitText = false,
   scale = "fit",
@@ -1099,7 +1159,7 @@ export function SlideView({
     ready,
     icons: loadedIcons.icons,
     resolveMedia,
-    renderers,
+    extensions,
     renderPlaceholder,
     onFit,
     broken,

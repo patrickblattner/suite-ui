@@ -8472,6 +8472,12 @@ test("slide export: PNG equal to the editor view, PDF with real text", async ({ 
   await page.waitForFunction(() => [...document.images].every((image) => image.complete));
   const editor = await view.screenshot({ animations: "disabled" });
   expect(Buffer.from(png[0]!).equals(editor)).toBe(true);
+  // SUI-FEATURE-163 AC1: the photo is drawn under the gallery's image filter, the stamp by its type.
+  await expect(view.locator("[data-slide-element=photo] [data-slide-add-on=filter]")).toHaveCSS(
+    "filter",
+    /sepia/,
+  );
+  await expect(view.locator("[data-slide-element=stamp]")).toContainText("Stamp");
   const { getDocument } = await import("pdfjs-dist/legacy/build/pdf.mjs");
   const file = await getDocument({ data: new Uint8Array(pdf) }).promise;
   expect(file.numPages).toBe(1);

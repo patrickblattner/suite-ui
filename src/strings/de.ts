@@ -546,6 +546,8 @@ export const de: SuiteStrings = {
       width: "Breite",
       height: "Höhe",
       rotation: "Drehung",
+      unloadedExtension:
+        "Dieses Element trägt Einstellungen einer hier nicht geladenen Erweiterung. Sie bleiben erhalten.",
       degrees: "°",
       arrange: "Anordnen",
       forward: "Eine Ebene nach vorn",

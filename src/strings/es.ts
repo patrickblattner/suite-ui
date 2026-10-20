@@ -540,6 +540,8 @@ export const es: SuiteStrings = {
       width: "Ancho",
       height: "Alto",
       rotation: "Rotación",
+      unloadedExtension:
+        "Este elemento tiene ajustes de una extensión no cargada aquí. Se conservan.",
       degrees: "°",
       arrange: "Organizar",
       forward: "Traer adelante",

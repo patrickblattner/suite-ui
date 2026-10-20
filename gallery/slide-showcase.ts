@@ -302,9 +302,20 @@ const elements: SlideElementInput[] = [
 // Every element type on one page.
 export const SLIDE_SHOWCASE = deck([{ id: "showcase", background, elements }]);
 
-// The same without the type the gallery has no renderer for: the export aborts on that one.
+// The same without the type the gallery has no renderer for (the export aborts on that one), and with
+// the photo under the gallery's image filter (`SUI-FEATURE-163`).
 export const SLIDE_EXPORTABLE = deck([
-  { id: "showcase", background, elements: elements.filter((element) => element.id !== "poll") },
+  {
+    id: "showcase",
+    background,
+    elements: elements
+      .filter((element) => element.id !== "poll")
+      .map((element) =>
+        element.id === "photo"
+          ? { ...element, payload: { filter: { warmth: 30, brightness: -10 } } }
+          : element,
+      ),
+  },
 ]);
 
 // The player's deck: two shown pages with animations in order, a hidden one between them, and a
