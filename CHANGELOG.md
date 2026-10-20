@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.150.2 — #401, Codex review of v0.150.1: an emptied text field
+
+Fix.
+
+- **Text on the canvas:** once every run of a field has been deleted, the text pasted or typed next takes the format of the run deleted last. It no longer brings back the format of a run deleted earlier. The field still resolves its spans against the runs it was filled with, and takes the empty field's format from the runs it last handed on.
+
 ## 0.150.1 — #398, Codex review of v0.150.0: text runs, placeholders in turned groups, narrow table columns
 
 Fix.

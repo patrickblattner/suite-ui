@@ -273,4 +273,54 @@ describe("SlideEditor text editing", () => {
       { text: "cd", size: 30 },
     ]);
   });
+
+  it("gives a field emptied run by run the format of the run deleted last (Codex #401 CX1)", async () => {
+    const onSave = vi.fn<(document: SlideDocument) => boolean>(() => true);
+    const document = {
+      ...SLIDE_EDITOR_DOC,
+      pages: SLIDE_EDITOR_DOC.pages.map((page) => ({
+        ...page,
+        elements: (page.elements ?? []).map((element) =>
+          element.id === "caption" && element.type === "text"
+            ? {
+                ...element,
+                runs: [
+                  { text: "a", size: 10 },
+                  { text: "b", size: 20 },
+                ],
+              }
+            : element,
+        ),
+      })),
+    };
+    render(
+      <SlideEditor
+        document={document}
+        title="Deck"
+        brand={SLIDE_BRAND}
+        onSave={onSave}
+        onBack={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("slide-editor-next-page"));
+    const canvas = screen.getByTestId("slide-editor-canvas");
+    fireEvent.pointerDown(canvas, { ...at(100, 400), button: 0, pointerId: 1 });
+    fireEvent.pointerUp(canvas, at(100, 400));
+    fireEvent.doubleClick(canvas, at(100, 400));
+    const field = await screen.findByTestId("slide-editor-text-field");
+    // "a" deleted, then "b": the browser removes each span.
+    field.querySelector('[data-run="0"]')!.remove();
+    fireEvent.input(field);
+    field.querySelector('[data-run="1"]')!.remove();
+    fireEvent.input(field);
+    // "X" pasted into the empty field.
+    fireEvent.paste(field, { clipboardData: { getData: () => "X" } });
+    fireEvent.keyDown(field, { key: "Escape" });
+    fireEvent.click(screen.getAllByTestId("editor-save")[0]!);
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    const caption = onSave.mock.calls[0]![0].pages[1]!.elements.find(
+      (element) => element.id === "caption",
+    );
+    expect(caption?.type === "text" && caption.runs).toEqual([{ text: "X", size: 20 }]);
+  });
 });

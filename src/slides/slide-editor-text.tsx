@@ -173,9 +173,15 @@ function tokensOf(root: Node): Token[] {
 }
 
 // The runs the editable root holds now: each text takes the format of the run its span names, a text
-// outside any span the one before it; paragraphs end in "\n".
-export function readRuns(root: HTMLElement, previous: readonly TextRun[]): TextRun[] {
-  const first = previous[0] ?? { text: "" };
+// outside any span the one before it; paragraphs end in "\n". Text before any span, or an empty
+// field, takes the first of the `latest` runs handed on, not a run of `previous` deleted since
+// (Codex #401 CX1).
+export function readRuns(
+  root: HTMLElement,
+  previous: readonly TextRun[],
+  latest: readonly TextRun[] = previous,
+): TextRun[] {
+  const first = latest[0] ?? previous[0] ?? { text: "" };
   const pieces: TextRun[] = [];
   let last: TextRun = first;
   for (const token of tokensOf(root)) {
@@ -425,7 +431,7 @@ export function InlineTextEditor({
             onInput={() => {
               const node = root.current;
               if (node === null) return;
-              const runs = readRuns(node, filled.current);
+              const runs = readRuns(node, filled.current, emitted.current ?? filled.current);
               emitted.current = runs;
               onRuns(runs, rangeIn(node));
             }}
