@@ -64,9 +64,9 @@ export function GridPage() {
         <h2 className="text-lg leading-normal font-medium">GridToggle</h2>
         <div className="flex flex-wrap items-start gap-8">
           <div className="flex flex-col gap-2" data-testid="grid-toggle-coupled">
-            <Caption>gekoppelt</Caption>
+            <Caption>coupled</Caption>
             <GridToggle
-              mode="gekoppelt"
+              mode="coupled"
               value={coupled}
               onChange={setCoupled}
               definition={definition}
@@ -74,9 +74,9 @@ export function GridPage() {
             />
           </div>
           <div className="flex flex-col gap-2" data-testid="grid-toggle-separate">
-            <Caption>getrennt</Caption>
+            <Caption>separate</Caption>
             <GridToggle
-              mode="getrennt"
+              mode="separate"
               value={separate}
               onChange={setSeparate}
               definition={definition}
@@ -84,9 +84,9 @@ export function GridPage() {
             />
           </div>
           <div className="flex flex-col gap-2" data-testid="grid-toggle-separate-pressed">
-            <Caption>getrennt, pressed</Caption>
+            <Caption>separate, pressed</Caption>
             <GridToggle
-              mode="getrennt"
+              mode="separate"
               value={{ guides: true, snap: false }}
               onChange={() => {}}
               definition={definition}
@@ -96,7 +96,7 @@ export function GridPage() {
           <div className="flex flex-col gap-2" data-testid="grid-toggle-locked">
             <Caption>no definition</Caption>
             <GridToggle
-              mode="getrennt"
+              mode="separate"
               value={{ guides: false, snap: false }}
               onChange={() => {}}
               definition={null}

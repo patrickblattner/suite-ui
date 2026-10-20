@@ -2452,7 +2452,7 @@ function Editor({
                 <TransferFormat formats={otherFormats} onTransfer={transfer} />
               )}
               <GridToggle
-                mode="gekoppelt"
+                mode="coupled"
                 value={{ guides: gridShown, snap: gridShown }}
                 onChange={(value) => setGridShown(value.guides)}
                 definition={grid}
