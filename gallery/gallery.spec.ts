@@ -9348,8 +9348,8 @@ test("slide editor: fields, focus after a resize, undo across pages, cursor and 
 // SUI-FEATURE-162 AC1 (#294): a double click on an image crops it — zoomed with +, shifted by a drag —
 // and Enter keeps the crop while the frame stays where it was and the file stays the same; Esc drops
 // a crop; Undo takes a kept crop back.
-async function pictureEditor(page: Page) {
-  const editor = await openEditor(page);
+async function pictureEditor(page: Page, navigate = true) {
+  const editor = await openEditor(page, navigate);
   await editor.editor.getByTestId("slide-editor-next-page").click();
   const image = editor.editor.locator("[data-slide-element=picture] img");
   await expect(image).toBeVisible();
@@ -9489,6 +9489,221 @@ test("slide editor: crop mode is announced, has a bar, and works by keys and whe
   await page.keyboard.press("ControlOrMeta+z");
   await expect(canvas).not.toHaveAttribute("data-cropping");
   await expect.poll(async () => (await box())!.width).toBeCloseTo(shown.width * 1.21, 0);
+});
+
+// SUI-FEATURE-230 AC1: while cropping, the image's rest outside its frame shows darkened — opaque under
+// a black scrim, as the CropEditor darkens — with the frame cut out, in light and dark; it grows with
+// the zoom and is gone once cropping ends.
+for (const theme of THEMES) {
+  test(`slide editor: crop mode shows the image's rest dimmed ${theme}`, async ({ page }) => {
+    await page.goto(`/?page=slide-editor&lng=en&theme=${theme}`);
+    const { canvas, centre, shown, at } = await pictureEditor(page, false);
+    const rest = page.getByTestId("slide-editor-crop-rest");
+    await expect(rest).toHaveCount(0);
+    await page.mouse.dblclick(centre.x, centre.y);
+    await expect(canvas).toHaveAttribute("data-cropping", "picture");
+    for (let step = 0; step < 5; step += 1) await page.keyboard.press("+");
+    await expect(rest).toHaveCSS("opacity", "1");
+    await expect(page.getByTestId("slide-editor-crop-scrim")).toHaveCSS(
+      "background-color",
+      "oklab(0 0 0 / 0.5)",
+    );
+    await expect(rest).toHaveCSS("clip-path", /^path\(evenodd/);
+    // The sky above the frame (rest) reads darker than the sky inside it (the image as drawn).
+    await page.mouse.move(0, 0);
+    const above = at(120, 60);
+    const inside = at(250, 110);
+    const sum = (pixel: number[]) => pixel.reduce((total, one) => total + one, 0);
+    await expect
+      .poll(async () => sum(await pixelAt(page, above.x, above.y)))
+      .toBeLessThan(sum(await pixelAt(page, inside.x, inside.y)) - 150);
+    await expect(rest.locator("img")).toBeVisible();
+    // The whole image, centred on the frame, zoomed 1.1⁵.
+    await expect
+      .poll(async () => (await rest.boundingBox())!.width)
+      .toBeCloseTo(shown.width * 1.1 ** 5, 0);
+    const whole = (await rest.boundingBox())!;
+    expect(whole.x + whole.width / 2).toBeCloseTo(shown.x + shown.width / 2, 0);
+    expect(whole.y + whole.height / 2).toBeCloseTo(shown.y + shown.height / 2, 0);
+    await page.keyboard.press("Escape");
+    await expect(rest).toHaveCount(0);
+  });
+}
+
+// SUI-FEATURE-230 rev 3 AC3: zoom stops at 500 %, by keys and wheel as by the slider, whose range is
+// fixed.
+test("slide editor: crop zoom stops at 500 % by keys, wheel and slider", async ({ page }) => {
+  const { editor, centre, shown, box } = await pictureEditor(page);
+  const zoom = editor.getByRole("slider", { name: "Zoom" });
+  await page.mouse.dblclick(centre.x, centre.y);
+  await expect(zoom).toHaveAttribute("aria-valuemax", "5");
+  for (let step = 0; step < 20; step += 1) await page.keyboard.press("+");
+  await expect(zoom).toHaveAttribute("aria-valuetext", "500%");
+  await expect.poll(async () => (await box())!.width).toBeCloseTo(shown.width * 5, 0);
+  await page.mouse.move(centre.x, centre.y);
+  await page.mouse.wheel(0, -500);
+  await page.keyboard.press("+");
+  await expect(zoom).toHaveAttribute("aria-valuetext", "500%");
+  expect((await box())!.width).toBeCloseTo(shown.width * 5, 0);
+  await expect(zoom).toHaveAttribute("aria-valuemax", "5");
+  await zoom.focus();
+  await page.keyboard.press("End");
+  await expect(zoom).toHaveAttribute("aria-valuetext", "500%");
+});
+
+// SUI-FEATURE-230 rev 3: with a corner radius the cut-out keeps the frame's round corners, so the dimmed
+// rest shows in them, where the result cuts the image off; inside the frame the image is undimmed.
+test("slide editor: crop mode shows the dimmed rest in a round corner", async ({ page }) => {
+  await page.goto("/?page=slide-editor&lng=en&picture=round");
+  const { at, centre } = await pictureEditor(page, false);
+  // 6 px inside the frame's top-left corner, outside its 40 px radius; and the frame's top middle.
+  const corner = at(206, 106);
+  const inside = at(400, 110);
+  await page.mouse.move(0, 0);
+  const ground = await pixelAt(page, corner.x, corner.y);
+  const image = await pixelAt(page, inside.x, inside.y);
+  expect(ground).not.toEqual(image);
+  await page.mouse.dblclick(centre.x, centre.y);
+  await expect(page.getByTestId("slide-editor-crop-rest")).toBeVisible();
+  await page.mouse.move(0, 0);
+  await expect.poll(() => pixelAt(page, corner.x, corner.y)).not.toEqual(ground);
+  expect(await pixelAt(page, inside.x, inside.y)).toEqual(image);
+  // Darkened: the corner's sky under the scrim reads darker than the sky inside the frame.
+  const sum = (pixel: number[]) => pixel.reduce((total, one) => total + one, 0);
+  expect(sum(await pixelAt(page, corner.x, corner.y))).toBeLessThan(sum(image) - 150);
+});
+
+// SUI-FEATURE-230 (UX review): each offset field names its reach — none at 100 % — and shows the
+// clamped value once the focus leaves it.
+test("slide editor: the crop offset fields name their reach and show the clamped value", async ({
+  page,
+}) => {
+  const { editor, centre } = await pictureEditor(page);
+  await page.mouse.dblclick(centre.x, centre.y);
+  const offsetX = editor.getByTestId("slide-editor-crop-offsetX");
+  const offsetY = editor.getByTestId("slide-editor-crop-offsetY");
+  const rangeX = editor.getByTestId("slide-editor-crop-offsetX-range");
+  const rangeY = editor.getByTestId("slide-editor-crop-offsetY-range");
+  await expect(rangeX).toHaveText("Zoom in to shift the image.");
+  await expect(offsetX).toHaveAccessibleDescription("Zoom in to shift the image.");
+  await offsetX.fill("30");
+  await offsetY.focus();
+  await expect(offsetX).toHaveValue("0");
+  const zoom = editor.getByRole("slider", { name: "Zoom" });
+  await zoom.focus();
+  for (let step = 0; step < 5; step += 1) await page.keyboard.press("PageUp");
+  await expect(rangeX).toHaveText("From -100 to 100 px");
+  await expect(rangeY).toHaveText("From -62.5 to 62.5 px");
+  await offsetX.fill("999");
+  await offsetY.focus();
+  await expect(offsetX).toHaveValue("100");
+});
+
+// SUI-FEATURE-230 (UX review): an image whose panel shows Content keeps cropping while the person
+// goes to the Layout tab for the crop fields.
+test("slide editor: the Layout tab reaches the crop fields without ending the crop", async ({
+  page,
+}) => {
+  await page.goto("/?page=slide-editor&lng=en&extensions=editor");
+  const { editor, canvas, centre } = await pictureEditor(page, false);
+  await page.mouse.click(centre.x, centre.y);
+  await editor.getByTestId("property-tab-content").click();
+  await page.mouse.dblclick(centre.x, centre.y);
+  await expect(canvas).toHaveAttribute("data-cropping", "picture");
+  await page.keyboard.press("+");
+  await editor.getByTestId("property-tab-layout").click();
+  await expect(canvas).toHaveAttribute("data-cropping", "picture");
+  await expect(editor.getByTestId("slide-editor-crop-fields")).toBeVisible();
+  await expect(editor.getByRole("slider", { name: "Zoom" })).toHaveAttribute(
+    "aria-valuetext",
+    "110%",
+  );
+});
+
+// SUI-FEATURE-230 AC2: the panel's zoom slider and offset fields set the crop without a drag — the
+// fields follow a drag, and slider plus fields reach the very crop the drag set; arrows step them.
+test("slide editor: the crop panel's slider and fields reach what a drag reaches", async ({
+  page,
+}) => {
+  const { editor, canvas, centre, box } = await pictureEditor(page);
+  const fields = editor.getByTestId("slide-editor-crop-fields");
+  const zoom = editor.getByRole("slider", { name: "Zoom" });
+  const offsetX = editor.getByTestId("slide-editor-crop-offsetX");
+  const offsetY = editor.getByTestId("slide-editor-crop-offsetY");
+  await expect(fields).toHaveCount(0);
+
+  // By slider and drag: 1.5 by PageUp (0.1 each), then shifted 30 right and 20 down.
+  await page.mouse.dblclick(centre.x, centre.y);
+  await expect(fields).toBeVisible();
+  await expect(zoom).toHaveAttribute("aria-valuetext", "100%");
+  await zoom.focus();
+  for (let step = 0; step < 5; step += 1) await page.keyboard.press("PageUp");
+  await expect(zoom).toHaveAttribute("aria-valuetext", "150%");
+  // Focus in the panel keeps cropping.
+  await expect(canvas).toHaveAttribute("data-cropping", "picture");
+  await page.mouse.move(centre.x, centre.y);
+  await page.mouse.down();
+  await page.mouse.move(centre.x + 15, centre.y + 10, { steps: 3 });
+  await page.mouse.move(centre.x + 30, centre.y + 20, { steps: 3 });
+  await page.mouse.up();
+  await expect(offsetX).toHaveValue("30");
+  await expect(offsetY).toHaveValue("20");
+  const dragged = (await box())!;
+  // Esc in the panel drops the crop.
+  await offsetX.focus();
+  await page.keyboard.press("Escape");
+  await expect(canvas).not.toHaveAttribute("data-cropping");
+  await expect(canvas).toBeFocused();
+
+  // By slider and fields only: the same crop, drawn the same.
+  await page.keyboard.press("Enter");
+  await zoom.focus();
+  for (let step = 0; step < 5; step += 1) await page.keyboard.press("PageUp");
+  await offsetX.fill("30");
+  await offsetY.fill("20");
+  await expect.poll(async () => (await box())!.x).toBeCloseTo(dragged.x, 1);
+  const set = (await box())!;
+  expect(set.y).toBeCloseTo(dragged.y, 1);
+  expect(set.width).toBeCloseTo(dragged.width, 1);
+  expect(set.height).toBeCloseTo(dragged.height, 1);
+  // The arrows step a field by 1, kept within the reach of the zoomed image.
+  await offsetY.press("ArrowUp");
+  await expect(offsetY).toHaveValue("21");
+  await offsetY.fill("999");
+  await offsetX.focus();
+  await expect(offsetY).toHaveValue("62.5");
+  await editor.getByTestId("canvas-actions").getByRole("button", { name: "Apply" }).click();
+  await expect(canvas).not.toHaveAttribute("data-cropping");
+  await expect(fields).toHaveCount(0);
+});
+
+// SUI-FEATURE-230 AC3: a press beside the image applies the crop and ends cropping, one step Undo takes
+// back; a press on the image's dimmed rest still shifts it.
+test("slide editor: a press beside the image applies the crop, Undo takes it back", async ({
+  page,
+}) => {
+  const { editor, canvas, centre, at, shown, box, state } = await pictureEditor(page);
+  await page.mouse.dblclick(centre.x, centre.y);
+  for (let step = 0; step < 5; step += 1) await page.keyboard.press("+");
+  const zoomed = (await box())!;
+  // The rest left of the frame (x 200) still belongs to the image: a drag there shifts it.
+  const rest = at(150, 225);
+  await page.mouse.move(rest.x, rest.y);
+  await page.mouse.down();
+  await page.mouse.move(rest.x + 10, rest.y, { steps: 3 });
+  await page.mouse.up();
+  await expect(canvas).toHaveAttribute("data-cropping", "picture");
+  await expect.poll(async () => (await box())!.x - zoomed.x).toBeCloseTo(10, 0);
+  const cropped = (await box())!;
+  // Beside the whole image: applied, cropping ends.
+  const beside = at(20, 440);
+  await page.mouse.click(beside.x, beside.y);
+  await expect(canvas).not.toHaveAttribute("data-cropping");
+  await expect(editor.getByTestId("canvas-announcement")).toHaveText("Crop applied.");
+  await expect.poll(box).toEqual(cropped);
+  await expect(state).toHaveAttribute("data-dirty", "true");
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect.poll(box).toEqual(shown);
 });
 
 // #349 (Codex CX1): a crop as the very first edit — Undo, by key and by the header's button, takes it

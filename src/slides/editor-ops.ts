@@ -938,14 +938,18 @@ export function clampCrop(width: number, height: number, crop: ImageCrop): Image
   };
 }
 
-// The crop zoomed by `factor` about the frame's centre: the image point there stays there.
+// The most a crop zooms, by slider, wheel and keys alike (`SUI-FEATURE-230` rev 3).
+export const CROP_ZOOM_MAX = 5;
+
+// The crop zoomed by `factor` about the frame's centre: the image point there stays there. It stays
+// within 1 and `CROP_ZOOM_MAX`.
 export function zoomCrop(
   width: number,
   height: number,
   crop: ImageCrop,
   factor: number,
 ): ImageCrop {
-  const zoom = Math.max(1, crop.zoom * factor);
+  const zoom = Math.min(CROP_ZOOM_MAX, Math.max(1, crop.zoom * factor));
   const scale = zoom / crop.zoom;
   return clampCrop(width, height, {
     zoom,
@@ -969,6 +973,28 @@ export function panCrop(
     offsetX: crop.offsetX + local.x,
     offsetY: crop.offsetY + local.y,
   });
+}
+
+// The whole image of a crop where it is drawn on the page (`SUI-FEATURE-230`): the frame's placed box
+// zoomed about its centre and shifted in the image's own axes, turned as the frame is. Its part outside
+// the frame is the rest the crop can bring in.
+export function croppedImageBox(
+  placed: { box: Box; rotation: number },
+  crop: ImageCrop,
+): { box: Box; rotation: number } {
+  const { box, rotation } = placed;
+  const shift = turn({ x: crop.offsetX, y: crop.offsetY }, rotation);
+  const width = box.width * crop.zoom;
+  const height = box.height * crop.zoom;
+  return {
+    box: {
+      x: box.x + box.width / 2 + shift.x - width / 2,
+      y: box.y + box.height / 2 + shift.y - height / 2,
+      width,
+      height,
+    },
+    rotation,
+  };
 }
 
 // Where an element starts on one axis of the new page (`SUI-FEATURE-162` §Format übertragen): it

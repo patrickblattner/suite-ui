@@ -8,7 +8,9 @@ import {
   distributeElements,
   boxOf,
   chartData,
+  CROP_ZOOM_MAX,
   clampCrop,
+  croppedImageBox,
   drawnBox,
   findElement,
   groupChain,
@@ -994,6 +996,9 @@ describe("image crop", () => {
       offsetY: -30,
     });
     expect(zoomCrop(400, 200, { zoom: 1.2, offsetX: 30, offsetY: 0 }, 0.5).zoom).toBe(1);
+    // SUI-FEATURE-230 rev 3: no zoom past 500 %, by any input.
+    expect(zoomCrop(400, 200, { zoom: 4.8, offsetX: 0, offsetY: 0 }, 1.1).zoom).toBe(CROP_ZOOM_MAX);
+    expect(CROP_ZOOM_MAX).toBe(5);
     const zoomed = { zoom: 2, offsetX: 0, offsetY: 0 };
     expect(panCrop(400, 200, zoomed, { x: 30, y: 20 }, 0)).toEqual({
       zoom: 2,
@@ -1004,6 +1009,23 @@ describe("image crop", () => {
     const turned = panCrop(400, 200, zoomed, { x: 30, y: 0 }, 90);
     expect(turned.offsetX).toBeCloseTo(0, 6);
     expect(turned.offsetY).toBeCloseTo(-30, 6);
+  });
+
+  // SUI-FEATURE-230: the whole image, its rest outside the frame included, where it is drawn.
+  it("places the whole cropped image about the frame, a turned one along its own axes", () => {
+    const frame = { box: { x: 100, y: 50, width: 400, height: 200 }, rotation: 0 };
+    expect(croppedImageBox(frame, { zoom: 1.5, offsetX: 40, offsetY: -20 })).toEqual({
+      box: { x: 40, y: -20, width: 600, height: 300 },
+      rotation: 0,
+    });
+    // Turned a quarter, a shift right in the image's axes is a shift down on the page.
+    const turned = croppedImageBox(
+      { ...frame, rotation: 90 },
+      { zoom: 2, offsetX: 30, offsetY: 0 },
+    );
+    expect(turned.box.x).toBeCloseTo(-100, 6);
+    expect(turned.box.y).toBeCloseTo(-20, 6);
+    expect(turned.rotation).toBe(90);
   });
 });
 

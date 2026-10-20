@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.156.0 — #354, SUI-FEATURE-230: crop mode shows the image's rest, works without a drag, applies on a press beside the image
+
+Feature.
+
+- **Dimmed rest:** while an image is cropped in the SlideEditor, the part of the image outside its frame shows darkened under a 50 % black scrim, as the CropEditor darkens, clipped to the page, with the frame cut out, in light and dark. With a corner radius the cut-out keeps the round corners, so the dimmed rest shows in the corners the result cuts off. A medium that does not load has no rest.
+- **Panel fields:** in crop mode the PropertyPanel's Layout tab starts with a Crop section: a Zoom slider (fixed range 100–500 %, about the frame's centre, by arrows and Page Up/Down too) and Offset X and Offset Y fields in px, each clamped as a drag is. The zoom is spoken as a localized percent. Each offset field names its reach under it ("From -62.5 to 62.5 px", or "Zoom in to shift the image." at 100 %) and shows the clamped value once the focus leaves it. The fields follow drag, wheel and keys; focus moving between them, the panel's tabs and the canvas keeps cropping; Esc in them discards the crop, as in the crop bar.
+- **One zoom maximum:** zoom stops at 500 % for slider, wheel and keys alike (`CROP_ZOOM_MAX` in `zoomCrop`).
+- **Press beside the image:** a press on the canvas beside the whole zoomed image applies the crop and ends crop mode, one history step that Undo takes back. A press on the dimmed rest shifts the image and keeps the mode. Only Esc and Cancel discard a crop.
+
+**Migration:** none. New strings `slides.editor.cropFields`, `cropZoom`, `cropOffsetX`, `cropOffsetY`, `cropOffsetRange`, `cropOffsetNone` (en, de, es). Baselines: the strings table (gallery start page) in de, en and es, light and dark, and in de at 390 px and 1440 px (six rows more).
+
 ## 0.155.0 — #353, SUI-FEATURE-095: one pressed style for the package toggles
 
 Feature.

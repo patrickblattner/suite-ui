@@ -432,6 +432,12 @@ export const es: SuiteStrings = {
       cropCancel: "Cancelar",
       cropApplied: "Recorte aplicado.",
       cropCancelled: "Recorte cancelado.",
+      cropFields: "Recorte",
+      cropZoom: "Zoom",
+      cropOffsetX: "Desplazamiento X",
+      cropOffsetY: "Desplazamiento Y",
+      cropOffsetRange: "De {{min}} a {{max}} px",
+      cropOffsetNone: "Amplía para desplazar la imagen.",
       libraryHint:
         "Haz clic o pulsa Intro para insertar en el centro de la página, o arrastra a la página.",
       libraryShapes: "Formas",

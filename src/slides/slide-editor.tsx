@@ -33,6 +33,7 @@ import { Field } from "../ui/field.js";
 import { GridFields, GridOverlay, GridToggle } from "../ui/grid.js";
 import { PropertyPanel } from "../ui/property-panel.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select.js";
+import { Slider } from "../ui/slider.js";
 import { useLeaveGuard } from "../ui/leave-guard.js";
 import { toast } from "../ui/toaster.js";
 import { DELETE_SHORTCUT } from "../ui/use-edit-shortcuts.js";
@@ -57,7 +58,9 @@ import {
   type LayerMove,
   type LibraryEntry,
   libraryElement,
+  CROP_ZOOM_MAX,
   clampCrop,
+  croppedImageBox,
   deleteElements,
   type ImageCrop,
   moveEach,
@@ -694,6 +697,8 @@ function Editor({
   const [cropState, setCropping] = React.useState<
     { id: string; crop: ImageCrop; selection: readonly string[] } | undefined
   >(undefined);
+  // The medium of the dimmed crop rest that did not load: no rest for it.
+  const [brokenCropSrc, setBrokenCropSrc] = React.useState<string | undefined>(undefined);
   // Text editing on the canvas (`SUI-FEATURE-161` §Text): the text field or table cell being edited,
   // while the selection it began with stands, and the range of its text the panel's format applies
   // to. Each editing is a session of its own: what is typed in it folds into one step.
@@ -1048,6 +1053,12 @@ function Editor({
   // listener of its own: React's wheel listener cannot prevent the scroll).
   const croppedImage =
     cropping === undefined ? undefined : findElement(elements, cropping.id)?.element;
+  // The whole image being cropped where it is drawn, its rest outside the frame included: a press
+  // on it shifts the image, a press beside it applies the crop (`SUI-FEATURE-230`).
+  const cropWhole =
+    croppedImage === undefined || cropping === undefined
+      ? undefined
+      : croppedImageBox(placedBox(elements, croppedImage), cropping.crop);
   const croppedWidth = croppedImage?.width;
   const croppedHeight = croppedImage?.height;
   React.useEffect(() => {
@@ -1154,6 +1165,38 @@ function Editor({
   // The page's open placeholders (`SUI-FEATURE-192`), the topmost under a point, and one filled with
   // a new text field that is edited at once.
   const placeholders = openPlaceholders(document, page);
+  // The dimmed rest of the image being cropped: the whole image with its frame cut out (even-odd),
+  // in the whole image's own px at the canvas zoom. The cut-out keeps the frame's corner radius, so
+  // the rest shows in the round corners the result cuts off (`SUI-FEATURE-230` rev 3). A medium that
+  // does not load has no rest (the view names it missing).
+  const cropSrc =
+    croppedImage?.type === "image" ? view.resolveMedia?.(croppedImage.media.id) : undefined;
+  const cropRest =
+    cropWhole === undefined ||
+    cropping === undefined ||
+    croppedImage?.type !== "image" ||
+    cropSrc === undefined ||
+    cropSrc === brokenCropSrc
+      ? undefined
+      : (() => {
+          const { width, height } = cropWhole.box;
+          const left = (width - croppedImage.width) / 2 - cropping.crop.offsetX;
+          const top = (height - croppedImage.height) / 2 - cropping.crop.offsetY;
+          const [x0, y0] = [left * zoom, top * zoom];
+          const [x1, y1] = [(left + croppedImage.width) * zoom, (top + croppedImage.height) * zoom];
+          const r =
+            Math.min(croppedImage.cornerRadius, croppedImage.width / 2, croppedImage.height / 2) *
+            zoom;
+          const arc = (x: number, y: number) => `A ${r} ${r} 0 0 1 ${x} ${y}`;
+          const outer = `M 0 0 H ${width * zoom} V ${height * zoom} H 0 Z`;
+          const hole = `M ${x0 + r} ${y0} H ${x1 - r} ${arc(x1, y0 + r)} V ${y1 - r} ${arc(x1 - r, y1)} H ${x0 + r} ${arc(x0, y1 - r)} V ${y0 + r} ${arc(x0 + r, y0)} Z`;
+          return {
+            whole: cropWhole,
+            src: cropSrc,
+            flipped: croppedImage.flipped,
+            clip: `path(evenodd, "${outer} ${hole}")`,
+          };
+        })();
   // What people read for a placeholder: its name, else the generic word.
   const placeholderName = (placeholder: OpenPlaceholder["placeholder"]) =>
     placeholder.name || t("slides.editor.placeholder");
@@ -1244,14 +1287,14 @@ function Editor({
     event.currentTarget.setPointerCapture(event.pointerId);
     event.currentTarget.focus();
     const point = toPage(event);
-    // While cropping, a press on the image shifts it in its frame; elsewhere nothing happens until
-    // Enter or Esc ends the crop.
+    // While cropping, a press on the image (its dimmed rest included) shifts it in its frame; a
+    // press beside it applies the crop and ends cropping, one step Undo takes back (`SUI-FEATURE-230`).
     if (cropping !== undefined) {
-      const image = findElement(elements, cropping.id)?.element;
-      if (image === undefined) return;
-      const placed = placedBox(elements, image);
-      if (containsPoint(placed.box, placed.rotation, point)) {
-        setDrag({ kind: "crop", start: point, crop: cropping.crop, rotation: placed.rotation });
+      if (cropWhole === undefined) return;
+      if (containsPoint(cropWhole.box, cropWhole.rotation, point)) {
+        setDrag({ kind: "crop", start: point, crop: cropping.crop, rotation: cropWhole.rotation });
+      } else {
+        endCrop(true);
       }
       return;
     }
@@ -1366,10 +1409,8 @@ function Editor({
     if (drag === undefined) {
       // While cropping only the image takes the pointer (to shift it); nothing else is hovered.
       if (cropping !== undefined) {
-        const image = findElement(elements, cropping.id)?.element;
-        const placed = image === undefined ? undefined : placedBox(elements, image);
         setHovered(
-          placed !== undefined && containsPoint(placed.box, placed.rotation, point)
+          cropWhole !== undefined && containsPoint(cropWhole.box, cropWhole.rotation, point)
             ? cropping.id
             : undefined,
         );
@@ -1576,18 +1617,27 @@ function Editor({
   // Focus leaving the canvas and its crop bar (to the header, a drawer, the panel, another window)
   // keeps the crop, as Enter does: a crop being set is never dropped without Esc or Cancel. Focus
   // going to the header's Undo or Redo, or to its ⋯ and into its menu (with Undo and Redo when they
-  // are folded), leaves it to them: Undo takes it back, Redo does nothing, Save keeps it.
+  // are folded), leaves it to them: Undo takes it back, Redo does nothing, Save keeps it. Focus in the
+  // panel's crop fields, or on its tabs (the way to them from Content), keeps cropping.
   const keepCropOnLeave = (event: React.FocusEvent) => {
     const next = event.relatedTarget;
     if (
       next instanceof Element &&
       (next.closest(
-        "[data-crop-bar], [data-slot=slide-editor-canvas], [data-slot=editor-undo], [data-slot=editor-redo], [data-slot=editor-menu]",
+        "[data-crop-bar], [data-crop-fields], [data-slot=property-panel] [role=tab], [data-slot=slide-editor-canvas], [data-slot=editor-undo], [data-slot=editor-redo], [data-slot=editor-menu]",
       ) !== null ||
         inHeaderMenu(next))
     )
       return;
     endCrop(true);
+  };
+  // Esc in the crop bar or the panel's crop fields drops the crop, before any outer `Esc` layer, and
+  // gives the canvas the focus back.
+  const dropCropOnEscape = (event: React.KeyboardEvent) => {
+    if (event.key !== "Escape") return;
+    event.preventDefault();
+    endCrop(false);
+    canvas.current?.focus();
   };
   const cropBar =
     cropping === undefined ? undefined : (
@@ -1596,12 +1646,7 @@ function Editor({
         data-crop-bar=""
         onBlur={keepCropOnLeave}
         // Esc on a button of the bar drops the crop too, before the overlay's own `Esc`.
-        onKeyDown={(event) => {
-          if (event.key !== "Escape") return;
-          event.preventDefault();
-          endCrop(false);
-          canvas.current?.focus();
-        }}
+        onKeyDown={dropCropOnEscape}
       >
         {/* Narrower than the bar's room, the hint ends in "…" and shows itself whole on hover; on a
             narrow canvas it is left out (the canvas's description still says it, #349). */}
@@ -1966,9 +2011,100 @@ function Editor({
           }),
         }
       : undefined;
+  // While cropping, the panel sets the crop too, without a drag (`SUI-FEATURE-230`, WCAG 2.5.7): a zoom
+  // slider about the frame's centre and the shift in the image's own px, each clamped as a drag is.
+  // Focus moving between them and the canvas keeps cropping; Esc in them drops the crop.
+  const cropFields =
+    cropping === undefined || croppedImage === undefined ? null : (
+      <section
+        className="flex flex-col gap-3"
+        data-crop-fields=""
+        data-testid="slide-editor-crop-fields"
+        onBlur={keepCropOnLeave}
+        onKeyDown={dropCropOnEscape}
+      >
+        <h3 className="text-sm font-medium">{t("slides.editor.cropFields")}</h3>
+        <Field label={t("slides.editor.cropZoom")} htmlFor="slide-editor-crop-zoom">
+          <Slider
+            id="slide-editor-crop-zoom"
+            aria-labelledby="slide-editor-crop-zoom-label"
+            value={cropping.crop.zoom}
+            min={1}
+            max={CROP_ZOOM_MAX}
+            step={0.01}
+            getAriaValueText={(value) =>
+              new Intl.NumberFormat(i18n.language, { style: "percent" }).format(value)
+            }
+            onValueChange={(value) =>
+              setCropping({
+                ...cropping,
+                crop: zoomCrop(
+                  croppedImage.width,
+                  croppedImage.height,
+                  cropping.crop,
+                  value / cropping.crop.zoom,
+                ),
+              })
+            }
+            data-testid="slide-editor-crop-zoom"
+          />
+        </Field>
+        <div className="grid grid-cols-2 gap-3">
+          {(
+            [
+              ["offsetX", "cropOffsetX"],
+              ["offsetY", "cropOffsetY"],
+            ] as const
+          ).map(([key, label]) => {
+            // How far the zoomed image reaches past the frame on this axis: the clamp's bounds, named
+            // under the field (`GL-UX-001`); at 100 % it cannot shift at all.
+            const side = key === "offsetX" ? croppedImage.width : croppedImage.height;
+            const reach = clampCrop(croppedImage.width, croppedImage.height, {
+              ...cropping.crop,
+              [key]: side * cropping.crop.zoom,
+            })[key];
+            const number = new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 2 });
+            return (
+              // No `min`/`max`: the arrows would step from the reach's fraction (−62.5 → 20.5); the
+              // clamp keeps the image covering its frame.
+              <NumberField
+                key={key}
+                id={`slide-editor-crop-${key}`}
+                label={t(`slides.editor.${label}`)}
+                value={cropping.crop[key]}
+                unit="px"
+                readOnly={false}
+                revision={travels}
+                onValue={(value) =>
+                  setCropping({
+                    ...cropping,
+                    crop: clampCrop(croppedImage.width, croppedImage.height, {
+                      ...cropping.crop,
+                      [key]: value,
+                    }),
+                  })
+                }
+                testId={`slide-editor-crop-${key}`}
+                help={
+                  <span data-testid={`slide-editor-crop-${key}-range`}>
+                    {reach === 0
+                      ? t("slides.editor.cropOffsetNone")
+                      : t("slides.editor.cropOffsetRange", {
+                          min: number.format(-reach),
+                          max: number.format(reach),
+                        })}
+                  </span>
+                }
+              />
+            );
+          })}
+        </div>
+      </section>
+    );
   const layoutTab = (
     <div className="flex flex-col gap-4" data-testid="slide-editor-layout">
       {unloadedNote}
+      {cropFields}
       {single === undefined ? null : (
         <div className="grid grid-cols-2 gap-3">
           {(["x", "y", "width", "height"] as const).map((key) => (
@@ -2630,6 +2766,45 @@ function Editor({
                   </span>
                 </div>
               ))}
+              {/* While cropping, the image's rest outside its frame, dimmed: what a drag can bring in
+                  (`SUI-FEATURE-230`). Clipped to the page, with the frame cut out, where the image
+                  itself is drawn. */}
+              {cropRest === undefined ? null : (
+                <div
+                  aria-hidden="true"
+                  className="pointer-events-none absolute inset-0 overflow-hidden"
+                >
+                  <div
+                    className="absolute"
+                    style={{
+                      left: cropRest.whole.box.x * zoom,
+                      top: cropRest.whole.box.y * zoom,
+                      width: cropRest.whole.box.width * zoom,
+                      height: cropRest.whole.box.height * zoom,
+                      transform:
+                        cropRest.whole.rotation === 0
+                          ? undefined
+                          : `rotate(${cropRest.whole.rotation}deg)`,
+                      clipPath: cropRest.clip,
+                    }}
+                    data-testid="slide-editor-crop-rest"
+                  >
+                    <img
+                      src={cropRest.src}
+                      alt=""
+                      draggable={false}
+                      className="size-full max-w-none object-cover"
+                      style={{ transform: cropRest.flipped ? "scaleX(-1)" : undefined }}
+                      onError={() => setBrokenCropSrc(cropRest.src)}
+                    />
+                    {/* Darkened as the package's `CropEditor` darkens what lies outside its frame. */}
+                    <div
+                      className="absolute inset-0 bg-black/50"
+                      data-testid="slide-editor-crop-scrim"
+                    />
+                  </div>
+                </div>
+              )}
               <div
                 ref={canvas}
                 role="application"

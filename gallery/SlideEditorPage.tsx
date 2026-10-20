@@ -49,6 +49,19 @@ const FULL_DOC = FULL
       ),
     }
   : undefined;
+// `?picture=round`: the picture has a 40 px corner radius (`SUI-FEATURE-230` rev 3).
+const ROUND_DOC =
+  PARAMS.get("picture") === "round"
+    ? {
+        ...SLIDE_EDITOR_DOC,
+        pages: SLIDE_EDITOR_DOC.pages.map((page) => ({
+          ...page,
+          elements: page.elements?.map((element) =>
+            element.id === "picture" ? { ...element, cornerRadius: 40 } : element,
+          ),
+        })),
+      }
+    : undefined;
 // `SUI-FEATURE-232`: the app's media picker, here a small dialog offering the gallery's photo
 // (`?media=none`: the app has none, so the editor shows no media entry; `?media=fail`: the picker
 // fails; `?media=bad`: it hands back a medium whose alt text is past the schema's limit).
@@ -246,6 +259,7 @@ export function SlideEditorPage() {
             document={
               opened ??
               FULL_DOC ??
+              ROUND_DOC ??
               (INVALID
                 ? ({ ...SLIDE_EDITOR_DOC, schemaVersion: 99 } as unknown as typeof SLIDE_EDITOR_DOC)
                 : SLIDE_EDITOR_DOC)
