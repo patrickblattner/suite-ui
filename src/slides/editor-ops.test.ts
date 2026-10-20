@@ -781,6 +781,47 @@ describe("slide editor operations on turned groups", () => {
     keepsFloor(document, resized);
   });
 
+  // #411 (Codex v0.152.3): an empty turned subgroup keeps its stored box, as `refitGroups` keeps
+  // it; the range and the size solve measure it like that instead of failing, and its sides keep
+  // the 1 px floor of a leaf.
+  it.each([
+    [45, "alone"],
+    [30, "alone"],
+    [30, "nested"],
+    [45, "beside a shape"],
+    [30, "beside a shape"],
+  ] as const)("sizes a group with an empty %i° subgroup %s", (rotation, where) => {
+    const empty = { id: "empty", type: "group", x: 100, y: 100, width: 100, height: 50, rotation };
+    const drawn = drawnBox(slideElementSchema.parse({ ...empty, children: [] }));
+    const others = where === "beside a shape" ? [shape("b", 400, 300, 100, 100)] : [];
+    const inner =
+      where === "nested"
+        ? { id: "mid", type: "group", ...drawn, children: [{ ...empty, children: [] }] }
+        : { ...empty, children: [] };
+    const document = doc([
+      {
+        id: "outer",
+        type: "group",
+        ...boundsOf([drawn, ...others.map((other) => boxOf(other))])!,
+        children: [inner, ...others],
+      },
+    ]);
+    const group = findElement(document.pages[0]!.elements, "outer")!.element;
+    if (group.type !== "group") throw new Error("expected the group");
+    for (const key of ["width", "height"] as const) {
+      const other = key === "width" ? "height" : "width";
+      const range = groupSizeRange(group, key)!;
+      expect(range.min).toBeLessThanOrEqual(group[key] + 0.01);
+      for (const target of [range.min, Number.isFinite(range.max) ? range.max : group[key] * 2]) {
+        const resized = setBox(document, 0, "outer", { ...boxOf(group), [key]: target });
+        expect(Math.abs(box(resized, "outer")[key] - target)).toBeLessThan(0.01);
+        expect(Math.abs(box(resized, "outer")[other] - group[other])).toBeLessThan(0.01);
+        const kept = findElement(resized.pages[0]!.elements, "empty")!.element;
+        expect(Math.min(kept.width, kept.height)).toBeGreaterThanOrEqual(1 - 1e-3);
+      }
+    }
+  });
+
   // #406: two upright leaves at 90° one above the other: the width is their heights only, so with it
   // kept the height grows without end.
   it("names no greatest height where the width kept does not hold it", () => {

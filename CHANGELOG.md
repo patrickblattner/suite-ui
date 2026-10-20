@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.152.4 — #411, Codex review of v0.152.3: empty subgroup in the group size model
+
+Fix.
+
+- **Group size:** a group that holds an empty turned subgroup no longer fails when its width or height is typed or it is resized. The empty subgroup keeps its stored box, as it does when the group refits, and counts like an element of that box.
+
+**Migration:** none. Baselines: none.
+
 ## 0.152.3 — #406, Codex review of v0.152.1: exact group size range and size solve
 
 Fix.
