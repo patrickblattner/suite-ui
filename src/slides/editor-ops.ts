@@ -582,7 +582,7 @@ function groupModel(group: Group): GroupModel {
   let tied = false;
   const visit = (element: SlideElement) => {
     if (element.rotation % 180 !== 0) tied = true;
-    if (element.type === "group") element.children.forEach(visit);
+    if (element.type === "group" && element.children.length > 0) element.children.forEach(visit);
     else leaves.push(element);
   };
   group.children.forEach(visit);
