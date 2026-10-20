@@ -549,3 +549,6 @@
 {"ts":"2026-10-20T13:16:05.005Z","key":"SUI-FEATURE-098","from":2,"to":3,"disposition":"ticket","ref":"409"}
 {"ts":"2026-10-20T13:49:55.420Z","key":"GL-CODE-001","from":2,"to":3,"disposition":"editorial","ref":"new rule for storage structures (S3 prefixes, folders, keys, generated file names); suite-ui writes none"}
 {"ts":"2026-10-20T13:49:55.859Z","key":"GL-OPS-003","from":null,"to":2,"disposition":"editorial","ref":"object storage layout; suite-ui is a client UI package with no object storage"}
+{"ts":"2026-10-20T16:09:44.504Z","key":"SUI-DESIGN-010","from":5,"to":6,"disposition":"editorial","ref":"release rule aligned to PROC-REL-021 (text change = patch); no code impact, v0.153.2 already conforms"}
+{"ts":"2026-10-20T16:09:44.931Z","key":"SUI-FEATURE-200","from":2,"to":3,"disposition":"ticket","ref":"341"}
+{"ts":"2026-10-20T16:09:50.069Z","key":"SUI-FEATURE-099","from":null,"to":2,"disposition":"ticket","ref":"418"}
