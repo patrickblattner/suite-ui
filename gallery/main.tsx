@@ -26,6 +26,7 @@ import {
   SheetPage,
   ToastPage,
 } from "./OverlayPages.js";
+import { PressedPage } from "./PressedPage.js";
 import { PreviewPage } from "./PreviewPage.js";
 import { SettingsPage } from "./SettingsPage.js";
 import { SlideExportHarness, SlidePlayerPage } from "./SlidePlayerPage.js";
@@ -58,6 +59,7 @@ const PAGES = [
   "edit-panel",
   "editor-shell",
   "grid",
+  "pressed",
   "help",
   "toast",
   "preview",
@@ -101,6 +103,7 @@ const PAGE_CONTENT: Record<Exclude<Page, "strings">, (theme: Theme) => ReactNode
   "edit-panel": () => <EditPanelPage />,
   "editor-shell": (theme) => <EditorShellPage theme={theme} />,
   grid: () => <GridPage />,
+  pressed: () => <PressedPage />,
   help: () => <HelpPage />,
   toast: (theme) => <ToastPage theme={theme} />,
   preview: (theme) => <PreviewPage theme={theme} />,

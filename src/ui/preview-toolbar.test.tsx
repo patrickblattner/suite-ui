@@ -4,6 +4,7 @@ import { CopyIcon } from "lucide-react";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
+import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
 import { RowActions, type RowActionSet } from "../list/row-actions.js";
 import { type PreviewDevice, PreviewToolbar, type PreviewToolbarProps } from "./preview-toolbar.js";
 import type { StatusChipState } from "./status-chip.js";
@@ -67,6 +68,15 @@ const FULL: PreviewToolbarProps = {
 };
 
 describe("PreviewToolbar (GL-UI-008)", () => {
+  // SUI-FEATURE-095 AC 1, 3: maximize and the device switch carry the package's one pressed fill.
+  it("maximize and the devices carry the shared PRESSED_FILL_CLASS", () => {
+    render(<Preview />);
+    for (const id of ["preview-maximize", "preview-device-desktop", "preview-device-mobile"]) {
+      const classes = screen.getByTestId(id).className.split(" ");
+      for (const token of PRESSED_FILL_CLASS.split(" ")) expect(classes).toContain(token);
+    }
+  });
+
   afterEach(async () => {
     cleanup();
     await i18n.changeLanguage("en");
@@ -318,10 +328,10 @@ describe("PreviewToolbar (GL-UI-008)", () => {
     render(<Preview />);
     const desktop = screen.getByRole("radio", { name: "Desktop" });
     const mobile = screen.getByRole("radio", { name: "Mobile" });
-    const filled = ["aria-checked:bg-primary", "aria-checked:text-primary-foreground"];
+    const filled = ["pressed:bg-primary", "pressed:text-primary-foreground"];
     for (const button of [desktop, mobile]) {
-      expect(button).toHaveClass(...filled, "aria-checked:border-primary");
-      expect(button).toHaveClass("aria-checked:hover:bg-primary", "border");
+      expect(button).toHaveClass(...filled, "pressed:border-primary");
+      expect(button).toHaveClass("pressed:hover:bg-primary-hover", "border");
     }
     expect(desktop).toHaveAttribute("aria-checked", "true");
     expect(mobile).toHaveAttribute("aria-checked", "false");

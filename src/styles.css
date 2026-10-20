@@ -14,6 +14,10 @@
 /* Dark mode is driven by a `.dark` class on the html element, not the media query. */
 @custom-variant dark (&:is(.dark *));
 
+/* A toggle that is on: pressed (`aria-pressed`) or the chosen one of a group (`aria-checked`). The one
+   pressed look of the package builds on it (`PRESSED_FILL_CLASS`, SUI-FEATURE-095). */
+@custom-variant pressed (&:is([aria-pressed="true"], [aria-checked="true"]));
+
 :root {
   --radius: 0.5rem;
 

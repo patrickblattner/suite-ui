@@ -406,10 +406,10 @@ describe("RowActions Used by (SUI-FEATURE-004)", () => {
     const button = screen.getByTestId("row-usage");
     expect(button).toHaveAttribute("aria-pressed", "true");
     expect(button).toHaveClass(
-      "aria-pressed:bg-primary",
-      "aria-pressed:text-primary-foreground",
-      "aria-pressed:border-primary",
-      "aria-pressed:hover:bg-primary",
+      "pressed:bg-primary",
+      "pressed:text-primary-foreground",
+      "pressed:border-primary",
+      "pressed:hover:bg-primary-hover",
     );
   });
 });

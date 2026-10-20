@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
 import { useEscapeLayer } from "../lib/escape-layers.js";
+import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
 import { type RowActionSet, type RowMenuItem, useRowActionButtons } from "../list/row-actions.js";
 import { Button } from "./button.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select.js";
@@ -221,8 +222,8 @@ function PreviewToolbar({
             role="radio"
             aria-checked={device.value === value}
             tabIndex={device.value === value ? 0 : -1}
-            // `SUI-FEATURE-003`: the chosen device is filled, also on hover; the other stays outline.
-            className="aria-checked:border-primary aria-checked:bg-primary aria-checked:text-primary-foreground aria-checked:hover:border-primary aria-checked:hover:bg-primary aria-checked:hover:text-primary-foreground dark:aria-checked:border-primary dark:aria-checked:bg-primary dark:aria-checked:hover:bg-primary"
+            // `SUI-FEATURE-003`, `SUI-FEATURE-095`: the chosen device is filled; the other stays outline.
+            className={PRESSED_FILL_CLASS}
             onClick={() => device.onChange(value)}
             data-testid={`preview-device-${value}`}
           >
@@ -246,7 +247,7 @@ function PreviewToolbar({
             variant="outline"
             size="icon-sm"
             aria-pressed={maximize.value}
-            className={cn(rightStart === "maximize" && "ml-auto")}
+            className={cn(PRESSED_FILL_CLASS, rightStart === "maximize" && "ml-auto")}
             onClick={() => maximize.onChange(!maximize.value)}
             data-testid="preview-maximize"
           >

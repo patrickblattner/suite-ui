@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { cn } from "../lib/cn.js";
 import { useEscapeLayer } from "../lib/escape-layers.js";
 import { LOCKED_SAVE_CLASS } from "../lib/locked-save.js";
+import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
 import { Button } from "./button.js";
 import { Hint } from "./hint.js";
 import { IconButtonTooltip } from "./tooltip.js";
@@ -87,7 +88,7 @@ function DrawerRail({ items, open, onOpen, styleSave }: DrawerRailProps) {
               size="icon-sm"
               aria-pressed={open === drawer}
               aria-controls={open === drawer ? `${id}-drawer` : undefined}
-              className="relative aria-pressed:bg-accent aria-pressed:text-accent-foreground"
+              className={cn("relative", PRESSED_FILL_CLASS)}
               onClick={() => onOpen(open === drawer ? undefined : drawer)}
               data-drawer={drawer}
               data-testid={`drawer-${drawer}`}

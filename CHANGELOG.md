@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.155.0 — #353, SUI-FEATURE-095: one pressed style for the package toggles
+
+Feature.
+
+- **Pressed fill:** RowActions, GridToggle, DrawerRail and the PreviewToolbar maximize and device toggles show pressed as the full `--primary` fill with `--primary-foreground` text, in light and dark; pressed under hover goes to `--primary-hover`. DrawerRail used to show pressed in the accent colour. Unpressed toggles are unchanged.
+- The value is defined once, as `PRESSED_FILL_CLASS` (`src/lib/pressed-fill.ts`) on a new `pressed` variant, which matches `aria-pressed="true"` and `aria-checked="true"`. The second copy in `preview-toolbar.tsx` is gone; a test fails if another file paints a pressed state with `bg-primary`.
+- The gallery's new `pressed` page shows all four toggles off and on.
+
+**Migration:** none. Baselines: the new `pressed` page, and the components page (the DrawerRail in the canvas-editor demo shows the primary fill).
+
 ## 0.154.2 — #346, SUI-FEATURE-220: the hover frame's dashes show on every ground
 
 Fix.

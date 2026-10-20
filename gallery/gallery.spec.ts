@@ -44,6 +44,7 @@ const PAGES: [name: string, ready: (page: Page) => Locator][] = [
   ["preview", (page) => page.getByTestId("preview-no-device")],
   ["split", (page) => page.getByTestId("split-single-toggle")],
   ["grid", (page) => page.getByTestId("grid-overlay-dark")],
+  ["pressed", (page) => page.getByTestId("pressed-on")],
   // SUI-FEATURE-160: the drawn slides once every view has its fonts and icons.
   ["slides", (page) => page.locator("[data-testid=slide-fit-off][data-slide-ready=true]")],
   // The player once its bar has hidden itself: a still scene without input.
@@ -6318,9 +6319,14 @@ for (const theme of THEMES) {
     const mobile = full.getByTestId("preview-device-mobile");
     await expect(desktop).toHaveCSS("background-color", primary);
     await expect(mobile).not.toHaveCSS("background-color", primary);
+    // SUI-FEATURE-095: pressed and hovered, the fill moves onto `--primary-hover`.
     await desktop.hover();
-    await expect(desktop).toHaveCSS("background-color", primary);
+    await expect(desktop).toHaveCSS(
+      "background-color",
+      await utilityColor(page, "bg-primary-hover", "backgroundColor"),
+    );
     await mobile.click();
+    await page.mouse.move(0, 0);
     await expect(mobile).toHaveCSS("background-color", primary);
     await expect(desktop).not.toHaveCSS("background-color", primary);
     const separator = await box(full.getByTestId("preview-separator"));
@@ -6329,6 +6335,42 @@ for (const theme of THEMES) {
       (await box(full.getByTestId("preview-maximize"))).height,
       0,
     );
+  });
+}
+
+// `SUI-FEATURE-095` AC 1, 2: maximize, "Used by", GridToggle and the drawer rail look the same pressed —
+// the primary fill with `--primary-foreground` text — and hover onto `--primary-hover`; unpressed
+// none of them is filled. In light and dark.
+for (const theme of THEMES) {
+  test(`pressed toggles: one fill, hover onto primary-hover ${theme}`, async ({ page }) => {
+    await page.goto(`/?page=pressed&lng=en&theme=${theme}`);
+    const primary = await utilityColor(page, "bg-primary", "backgroundColor");
+    const foreground = await utilityColor(page, "bg-primary-foreground", "backgroundColor");
+    const hover = await utilityColor(page, "bg-primary-hover", "backgroundColor");
+    expect(hover).not.toBe(primary);
+    const toggles = ["preview-maximize", "row-usage", "grid-toggle-button"];
+    const on = page.getByTestId("pressed-on");
+    const off = page.getByTestId("pressed-off");
+    const pressed = [...toggles, "drawer-layers"].map((id) => on.getByTestId(id));
+    const unpressed = [
+      ...[...toggles, "drawer-layers"].map((id) => off.getByTestId(id)),
+      on.getByTestId("drawer-add"),
+    ];
+    for (const button of pressed) {
+      await expect(button).toHaveAttribute("aria-pressed", "true");
+      await expect(button).toHaveCSS("background-color", primary);
+      await expect(button).toHaveCSS("color", foreground);
+    }
+    for (const button of unpressed) {
+      await expect(button).toHaveAttribute("aria-pressed", "false");
+      await expect(button).not.toHaveCSS("background-color", primary);
+    }
+    for (const button of pressed) {
+      await button.hover();
+      await expect(button).toHaveCSS("background-color", hover);
+      await expect(button).toHaveCSS("color", foreground);
+    }
+    await page.mouse.move(0, 0);
   });
 }
 

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { LOCKED_SAVE_CLASS } from "../lib/locked-save.js";
+import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
 import { type DrawerId, DrawerRail, type DrawerRailProps } from "./drawer-rail.js";
 
 beforeEach(() => {
@@ -47,6 +48,15 @@ const pressed = () =>
   );
 
 describe("DrawerRail (SUI-FEATURE-071)", () => {
+  // SUI-FEATURE-095 AC 1: the open drawer's button carries the package's one pressed fill.
+  it("every rail button carries the shared PRESSED_FILL_CLASS", () => {
+    render(<Rail initial="layers" />);
+    for (const id of ["add", "layers", "style", "document"]) {
+      const classes = screen.getByTestId(`drawer-${id}`).className.split(" ");
+      for (const token of PRESSED_FILL_CLASS.split(" ")) expect(classes).toContain(token);
+    }
+  });
+
   it.each([
     ["de", ["Hinzufügen", "Ebenen", "Stil", "Dokument"]],
     ["en", ["Add", "Layers", "Style", "Document"]],
