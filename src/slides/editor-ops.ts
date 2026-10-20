@@ -372,8 +372,12 @@ export function setBox(document: SlideDocument, page: number, id: string, box: B
     // A size no positive scale of the children reaches (a turned child holds the group taller than
     // asked) is not forced: the children scale plainly and the group takes the box they make.
     const model = groupModel(group);
+    // A side kept is solved for as the model measures it, not as stored rounded to 1e-3: scaled up,
+    // that rounding would miss the end of the range or break a leaf's floor (#406).
+    const wanted = (side: "width" | "height") =>
+      Math.abs(box[side] - old[side]) < 5e-3 ? model.size[side] : box[side];
     const exact = model.tied
-      ? groupFactors(model, box.width, box.height, Math.atan2(sy, sx))
+      ? groupFactors(model, wanted("width"), wanted("height"), Math.atan2(sy, sx))
       : undefined;
     if (exact !== undefined) [sx, sy] = exact;
     const bounds = boundsOf(
@@ -581,6 +585,17 @@ function groupModel(group: Group): GroupModel {
     else leaves.push(element);
   };
   group.children.forEach(visit);
+  if (!tied) {
+    // Its children scale plainly; nothing else is asked of the model.
+    const plain = {
+      tied,
+      low: { x: 0, y: 0 },
+      pieces: [],
+      size: { width: group.width, height: group.height },
+    };
+    groupModels.set(group, plain);
+    return plain;
+  }
   const floor = (side: "width" | "height") =>
     Math.max(...leaves.map((leaf) => (leaf[side] > 0 ? Math.min(1, 1 / leaf[side]) : 0)), 0);
   // The group's own turn is not in its box, which lies in its own frame.

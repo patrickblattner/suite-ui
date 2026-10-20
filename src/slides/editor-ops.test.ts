@@ -752,6 +752,49 @@ describe("slide editor operations on turned groups", () => {
     }
   });
 
+  // #406 review: the height kept is solved for as the model measures it, not as stored rounded to
+  // 1e-3; scaled up, that rounding missed the range's end.
+  it.each([
+    [
+      "flat",
+      [
+        [600, 468, 40, 5, 271],
+        [425, 107, 202, 1, 271],
+      ] as Leaf[],
+      undefined,
+    ],
+    [
+      "nested 30°",
+      [
+        [353, 59, 300, 40, -33],
+        [704, 160, 198, 5, 60],
+        [342, 452, 167, 120, 90],
+      ] as Leaf[],
+      30,
+    ],
+  ] as const)("reaches the greatest height of a %s group far above its own", (_, leaves, inner) => {
+    const { document, group, sized, id } = built([...leaves], inner);
+    const range = groupSizeRange(group, "height")!;
+    const resized = sized("height", range.max);
+    expect(Math.abs(box(resized, id).height - range.max)).toBeLessThan(0.01);
+    expect(Math.abs(box(resized, id).width - group.width)).toBeLessThan(0.01);
+    keepsFloor(document, resized);
+  });
+
+  // #406: two upright leaves at 90° one above the other: the width is their heights only, so with it
+  // kept the height grows without end.
+  it("names no greatest height where the width kept does not hold it", () => {
+    const { group, sized, id } = built([
+      [0, 0, 200, 100, 90],
+      [0, 300, 200, 100, 90],
+    ]);
+    const range = groupSizeRange(group, "height")!;
+    expect(range.max).toBe(Infinity);
+    const resized = box(sized("height", group.height * 3), id);
+    expect(Math.abs(resized.height - group.height * 3)).toBeLessThan(0.01);
+    expect(Math.abs(resized.width - group.width)).toBeLessThan(0.01);
+  });
+
   // #406: on random groups the ends of the range are reached (a seeded generator, mulberry32).
   it("reaches the ends of the range on random groups", () => {
     let seed = 406;
