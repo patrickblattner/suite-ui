@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.158.0 — #359, SUI-FEATURE-063: a MediaTile's selection and current choice show in words
+
+Feature.
+
+- **Selected:** a `selected` MediaTile keeps its selection ring and also carries a check badge reading "Selected" over the preview's top-left corner. The state no longer rests on the ring's colour alone (`GL-UI-060`), and `aria-pressed` is unchanged.
+- **Current (new prop `current?`):** marks the picker's pinned current choice with a "Current" badge. Screen readers read it with the tile's description, and it sets no `aria-pressed`. With both set, the tile shows only "Selected".
+- Both states can be told apart in greyscale: the filled check badge plus the ring for Selected, the neutral badge for Current.
+- The gallery's tiles page adds a `current` tile next to the `selected` one, light and dark.
+
+**Migration:** pickers in the apps drop their own selection markings and pass `selected` and `current` to MediaTile. The package's own pickers delegate to the app's media picker, so they had none to replace. New strings `tile.selected`, `tile.current` (en, de, es). Baselines: the tiles page in de, en and es, light and dark, and in de at 1440 px; the strings table (gallery start page) in every language and theme, and in de at 390 px and 1440 px.
+
 ## 0.157.0 — #357, SUI-FEATURE-096: InlineMessage, one error and warning line with a symbol
 
 Feature.

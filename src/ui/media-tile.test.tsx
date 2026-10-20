@@ -1,4 +1,5 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import i18n from "i18next";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -170,6 +171,41 @@ describe("MediaTile", () => {
     const unselected = renderTile({ selected: false }).tile;
     expect(unselected).toHaveAttribute("aria-pressed", "false");
     expect(unselected.querySelector("[data-slot=media-tile-selection]")).toBeNull();
+  });
+
+  // SUI-FEATURE-063 rev 3 AC 6: the state shows in words and a symbol, not by the ring's colour alone.
+  it("selected carries a check badge 'Selected', current a badge 'Current', both only 'Selected'", () => {
+    const { tile } = renderTile({ selected: true });
+    const selectedBadge = tile.querySelector("[data-slot=media-tile-selected]");
+    expect(selectedBadge).toHaveTextContent(/^Selected$/);
+    expect(selectedBadge?.querySelector("svg")).toHaveClass("lucide-check");
+    expect(tile.querySelector("[data-slot=media-tile-current]")).toBeNull();
+    cleanup();
+    const current = renderTile({ current: true }).tile;
+    expect(current.querySelector("[data-slot=media-tile-current]")).toHaveTextContent(/^Current$/);
+    expect(current.querySelector("[data-slot=media-tile-selected]")).toBeNull();
+    expect(current.querySelector("[data-slot=media-tile-selection]")).toBeNull();
+    expect(current).not.toHaveAttribute("aria-pressed");
+    expect(current).toHaveAccessibleDescription(/^Current/);
+    cleanup();
+    const both = renderTile({ selected: true, current: true }).tile;
+    expect(both.querySelector("[data-slot=media-tile-selected]")).toHaveTextContent("Selected");
+    expect(both.querySelector("[data-slot=media-tile-current]")).toBeNull();
+    expect(both).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it.each([
+    ["de", "Ausgewählt", "Aktuell"],
+    ["es", "Seleccionado", "Actual"],
+  ] as const)("names the marks in %s", async (lng, selected, current) => {
+    await i18n.changeLanguage(lng);
+    try {
+      expect(renderTile({ selected: true }).tile).toHaveTextContent(selected);
+      cleanup();
+      expect(renderTile({ current: true }).tile).toHaveTextContent(current);
+    } finally {
+      await i18n.changeLanguage("en");
+    }
   });
 });
 

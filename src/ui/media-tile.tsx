@@ -1,5 +1,6 @@
-import { FileTextIcon, FileVideoIcon } from "lucide-react";
+import { CheckIcon, FileTextIcon, FileVideoIcon } from "lucide-react";
 import * as React from "react";
+import { useTranslation } from "react-i18next";
 
 import { useRowActionButtons } from "../list/row-actions.js";
 import { GRID_ITEM_ATTR, type RowGrid } from "../list/use-row-grid.js";
@@ -32,6 +33,8 @@ type MediaTileProps = {
   // Given, the tile is a choice of the picker: `aria-pressed`, and the selection ring while true. A
   // choice needs `onOpen` (the pick); without it `selected` has no effect.
   selected?: boolean;
+  // The picker's pinned current choice: a "Current" badge, which `selected` replaces.
+  current?: boolean;
   "data-testid"?: string;
 };
 
@@ -43,6 +46,8 @@ type MediaTileProps = {
 // drops its line. The name names the button or the group, description and tags describe it. With
 // `onDelete` the tile and the delete button of `RowActions` stand side by side in a frame, the button
 // over the top-right corner: its own hit target, never inside the open button (`SUI-FEATURE-084`).
+// A selected or current choice also says so in a badge over the preview's top-left corner, so the
+// state does not rest on the ring's colour (`GL-UI-060`).
 function MediaTile({
   kind,
   src,
@@ -54,12 +59,22 @@ function MediaTile({
   onDelete,
   rowProps,
   selected,
+  current,
   "data-testid": testId = "media-tile",
 }: MediaTileProps) {
+  const { t } = useTranslation("suite");
   const id = React.useId();
+  const isSelected = selected === true && onOpen !== undefined;
+  // Only one mark: a selected tile shows "Selected", never "Current" as well.
+  const isCurrent = current === true && !isSelected;
   const hasDescription = description !== undefined && description !== "";
   const hasTags = tags.length > 0;
-  const describedBy = [hasDescription && `${id}-description`, hasTags && `${id}-tags`]
+  // `aria-pressed` names the selection; "Current" is read with the description.
+  const describedBy = [
+    isCurrent && `${id}-current`,
+    hasDescription && `${id}-description`,
+    hasTags && `${id}-tags`,
+  ]
     .filter(Boolean)
     .join(" ");
   const Icon = kind === "video" ? FileVideoIcon : FileTextIcon;
@@ -140,12 +155,33 @@ function MediaTile({
         />
       )}
       {/* The selection ring sits over the tile's edge, independent of the focus ring. */}
-      {selected === true && onOpen !== undefined && (
+      {isSelected && (
         <span
           aria-hidden="true"
           data-slot="media-tile-selection"
           className="pointer-events-none absolute inset-0 rounded-[inherit] ring-2 ring-primary ring-inset"
         />
+      )}
+      {isSelected && (
+        <Badge
+          variant="default"
+          aria-hidden="true"
+          data-slot="media-tile-selected"
+          className="absolute top-2 left-2"
+        >
+          <CheckIcon aria-hidden="true" />
+          {t("tile.selected")}
+        </Badge>
+      )}
+      {isCurrent && (
+        <Badge
+          variant="secondary"
+          id={`${id}-current`}
+          data-slot="media-tile-current"
+          className="absolute top-2 left-2 border-border"
+        >
+          {t("tile.current")}
+        </Badge>
       )}
     </>
   );
@@ -158,7 +194,7 @@ function MediaTile({
       <button
         type="button"
         {...shared}
-        data-selected={selected === true || undefined}
+        data-selected={isSelected || undefined}
         aria-pressed={selected}
         onClick={onOpen}
         className={cn(tileClass, "cursor-pointer hover:border-ring")}

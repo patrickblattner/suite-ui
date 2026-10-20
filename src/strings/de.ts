@@ -293,6 +293,10 @@ export const de: SuiteStrings = {
     fileSize: "Dateigröße",
     notMeasured: "nicht gemessen",
   },
+  tile: {
+    selected: "Ausgewählt",
+    current: "Aktuell",
+  },
   media: {
     position: "{{n}} von {{total}}",
     details: "Details",

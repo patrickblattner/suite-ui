@@ -2208,7 +2208,7 @@ test("editor header: an icon-only locked next step shows its name above its reas
 async function mediaTiles(page: Page) {
   await page.goto("/?page=tiles");
   const grid = page.getByTestId("media-tiles");
-  await expect(grid.getByTestId("media-tile")).toHaveCount(6);
+  await expect(grid.getByTestId("media-tile")).toHaveCount(7);
   return grid;
 }
 
@@ -2266,6 +2266,16 @@ test("media tile: Tab reaches the tile with the focus ring, Enter and click open
     "box-shadow",
     "none",
   );
+  // `SUI-FEATURE-063` rev 3: the selection and the current choice say so in words (`GL-UI-060`).
+  const selectedBadge = selected.locator("[data-slot=media-tile-selected]");
+  await expect(selectedBadge).toBeVisible();
+  await expect(selectedBadge).toHaveText("Selected");
+  await expect(selectedBadge.locator("svg.lucide-check")).toBeVisible();
+  const current = grid.getByTestId("media-tile").nth(6);
+  await expect(current).not.toHaveAttribute("aria-pressed");
+  await expect(current.locator("[data-slot=media-tile-current]")).toHaveText("Current");
+  await expect(current).toHaveAccessibleDescription(/^Current/);
+  await expect(current.locator("[data-slot=media-tile-selected]")).toHaveCount(0);
 });
 
 // `SUI-FEATURE-084` rev 5: a tile with `onDelete` shows its delete button in the top-right corner
@@ -2275,7 +2285,7 @@ for (const theme of ["light", "dark"]) {
   test(`media tile: the delete button is always visible, ${theme}`, async ({ page }) => {
     await page.goto(`/?page=tiles&lng=en&theme=${theme}`);
     const grid = page.getByTestId("media-tiles");
-    await expect(grid.getByTestId("media-tile")).toHaveCount(6);
+    await expect(grid.getByTestId("media-tile")).toHaveCount(7);
     // Only the two tiles with `onDelete` carry one.
     await expect(grid.getByTestId("media-tile-delete")).toHaveCount(2);
     for (const [index, name] of [

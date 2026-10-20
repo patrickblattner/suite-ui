@@ -304,6 +304,11 @@ export const en = {
     notMeasured: "not measured",
   },
   // The media detail view (`MediaDetailShell`, `MediaUsageList`).
+  // The marks of a picker's MediaTile (`SUI-FEATURE-063`).
+  tile: {
+    selected: "Selected",
+    current: "Current",
+  },
   media: {
     position: "{{n}} of {{total}}",
     details: "Details",

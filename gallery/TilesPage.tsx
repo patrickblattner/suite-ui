@@ -41,7 +41,8 @@ const PICTURE = `data:image/svg+xml,${encodeURIComponent(
     '<path d="M0 800 L420 420 L700 640 L900 480 L1200 760 L1200 800 Z" fill="#5b6475"/></svg>',
 )}`;
 
-// `SUI-FEATURE-063`: image, video, PDF, a long name, many tags, a bare tile and a picker selection.
+// `SUI-FEATURE-063`: image, video, PDF, a long name, many tags, a bare tile, a picker selection
+// and the picker's current choice.
 const MEDIA: Omit<MediaTileProps, "onOpen">[] = [
   {
     kind: "image",
@@ -71,6 +72,7 @@ const MEDIA: Omit<MediaTileProps, "onOpen">[] = [
     tags: ["nature", "mountain", "summer", "campaign", "outdoor", "hero", "banner", "web"],
   },
   { kind: "image", src: PICTURE, name: "bare.jpg", tags: [], selected: true },
+  { kind: "image", src: PICTURE, name: "current.jpg", tags: [], current: true },
 ];
 
 // `SUI-FEATURE-084` rev 5: an image and an icon tile carry the always-visible delete button.

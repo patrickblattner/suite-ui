@@ -288,6 +288,10 @@ export const es: SuiteStrings = {
     fileSize: "Tamaño del archivo",
     notMeasured: "no medido",
   },
+  tile: {
+    selected: "Seleccionado",
+    current: "Actual",
+  },
   media: {
     position: "{{n}} de {{total}}",
     details: "Detalles",
