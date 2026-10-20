@@ -430,12 +430,24 @@ export function setBox(document: SlideDocument, page: number, id: string, box: B
 // The sizes one side of a group reaches with the other side kept (`SUI-FEATURE-190`): only a turned
 // element in it ties its width to its height, so for any other group `undefined` (every size is
 // reached). The children scale by positive factors, and none of their sides below 1 px (below its
-// own size where that is smaller): a child scaled to nothing never grows back. `max` is `Infinity`
-// when the side grows without bound.
+// own size where that is smaller): a child scaled to nothing never grows back.
 export function groupSizeRange(
   group: Group,
   key: "width" | "height",
 ): { min: number; max: number } | undefined {
+  // Documents never change in place, so a group's ranges hold for as long as the group: each
+  // keystroke of a typing run measures the same group from before the run (#404).
+  const known = sizeRanges.get(group);
+  if (known !== undefined && Object.hasOwn(known, key)) return known[key];
+  const range = measureSizeRange(group, key);
+  sizeRanges.set(group, { ...known, [key]: range });
+  return range;
+}
+
+type SizeRange = { min: number; max: number } | undefined;
+const sizeRanges = new WeakMap<Group, Partial<Record<"width" | "height", SizeRange>>>();
+
+function measureSizeRange(group: Group, key: "width" | "height"): SizeRange {
   const leaves: SlideElement[] = [];
   let tied = false;
   const visit = (element: SlideElement) => {
@@ -466,57 +478,64 @@ export function groupSizeRange(
     return { side: bounds?.[key] ?? 0, other: bounds?.[other] ?? 0 };
   };
   const kept = old[other];
-  // Both sides only grow with either factor, so each search halves an interval.
-  const solve = (rises: (value: number) => boolean, from: number, to: number) => {
-    let [below, above] = [from, to];
-    for (let step = 0; step < 48; step += 1) {
-      const middle = (below + above) / 2;
-      if (rises(middle)) above = middle;
-      else below = middle;
+  // Both sides scale with the factors together (a uniform scale commutes with every turn and
+  // refit), so a direction of the two factors fixes the side reached with the other side kept;
+  // no side has to grow with either factor alone (#404: in a nested turned group it does not).
+  // The direction runs from all along `key` (0) to all along the other side (π/2).
+  const reach = (angle: number) => {
+    const unit = measure(Math.cos(angle), Math.sin(angle));
+    const scale = unit.other > 0 ? kept / unit.other : Infinity;
+    const fits =
+      Number.isFinite(scale) &&
+      scale * Math.cos(angle) >= low.side - 1e-9 &&
+      scale * Math.sin(angle) >= low.other - 1e-9;
+    return fits ? scale * unit.side : undefined;
+  };
+  const SAMPLES = 64;
+  const at = Array.from({ length: SAMPLES + 1 }, (_, index) => (Math.PI / 2) * (index / SAMPLES));
+  const sides = at.map(reach);
+  const found: number[] = sides.filter((side): side is number => side !== undefined);
+  // Where the factors reach the least on one side, between a sample that fits and one that does
+  // not: halved until it lies on that edge, measured on the side that fits.
+  for (let index = 0; index < SAMPLES; index += 1) {
+    if ((sides[index] === undefined) === (sides[index + 1] === undefined)) continue;
+    let [inside, outside] =
+      sides[index] === undefined ? [at[index + 1]!, at[index]!] : [at[index]!, at[index + 1]!];
+    for (let step = 0; step < 40; step += 1) {
+      const middle = (inside + outside) / 2;
+      if (reach(middle) === undefined) outside = middle;
+      else inside = middle;
     }
-    return above;
-  };
-  // The largest factor along `key` that keeps the other side with its own factor at the least.
-  const LIMIT = 1e4;
-  let high = 1;
-  while (high < LIMIT && measure(high, low.other).other <= kept) high *= 2;
-  const bounded = high < LIMIT;
-  if (bounded) high = solve((f) => measure(f, low.other).other > kept, high / 2, high);
-  // The other factor that keeps the other side, for a factor along `key`.
-  const keeping = (f: number) => {
-    let top = 1;
-    while (top < LIMIT && measure(f, top).other < kept) top *= 2;
-    return solve((g) => measure(f, g).other >= kept, low.other, top);
-  };
-  const end = bounded ? high : 1;
-  const sideAt = (f: number) => measure(f, bounded && f === end ? low.other : keeping(f)).side;
-  const SAMPLES = 16;
-  const at = Array.from(
-    { length: SAMPLES + 1 },
-    (_, index) => low.side + ((end - low.side) * index) / SAMPLES,
-  );
-  const sides = at.map(sideAt);
-  // The side is piecewise smooth along the factor; an end between two samples (at a kink, where
+    found.push(reach(inside)!);
+  }
+  if (found.length === 0) return undefined;
+  // The side is piecewise smooth along the direction; an end between two samples (at a kink, where
   // another child comes to the edge) is found by a golden-section search around the best sample.
   const refine = (sign: 1 | -1) => {
-    const best = sides.reduce(
-      (found, side, index) => (sign * side > sign * sides[found]! ? index : found),
-      0,
-    );
+    let best = -1;
+    for (let index = 0; index <= SAMPLES; index += 1) {
+      const side = sides[index];
+      if (side !== undefined && (best < 0 || sign * side > sign * sides[best]!)) best = index;
+    }
+    let value = Math.max(...found.map((side) => sign * side));
+    if (best < 0) return sign * value;
     let [left, right] = [at[Math.max(0, best - 1)]!, at[Math.min(SAMPLES, best + 1)]!];
     const ratio = (Math.sqrt(5) - 1) / 2;
-    let value = sign * sides[best]!;
+    const score = (angle: number) => {
+      const side = reach(angle);
+      return side === undefined ? -Infinity : sign * side;
+    };
     for (let step = 0; step < 40; step += 1) {
       const a = right - ratio * (right - left);
       const b = left + ratio * (right - left);
-      const [sa, sb] = [sign * sideAt(a), sign * sideAt(b)];
+      const [sa, sb] = [score(a), score(b)];
       value = Math.max(value, sa, sb);
       if (sa > sb) right = b;
       else left = a;
     }
     return sign * value;
   };
-  return { min: refine(-1), max: bounded ? refine(1) : Infinity };
+  return { min: refine(-1), max: refine(1) };
 }
 
 export function setRotation(
