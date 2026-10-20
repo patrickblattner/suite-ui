@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.153.1 — #338, SlideEditor: resize cursors turn with the element
+
+Fix.
+
+- **Resize cursors:** each resize handle shows the arrow of the direction it points on the screen: the element's own rotation plus its groups' turn, to the nearest of the eight directions. Before, the cursor stayed fixed, so at a quarter turn the east handle sat below the element but showed a horizontal arrow.
+
+**Migration:** none. Baselines: none.
+
 ## 0.153.0 — #336, SlideViewReport.missingFaces is required
 
 Breaking.

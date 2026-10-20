@@ -36,6 +36,15 @@ export function containsPoint(box: Box, rotation: number, point: Point): boolean
   return Math.abs(local.x) <= box.width / 2 && Math.abs(local.y) <= box.height / 2;
 }
 
+const COMPASS: readonly Handle[] = ["n", "ne", "e", "se", "s", "sw", "w", "nw"];
+
+// The cursor of `handle` on a box drawn turned by `rotation` degrees (its groups' turn included): the
+// direction it points on the screen, to the nearest of the eight (#338).
+export function resizeCursor(handle: Handle, rotation: number): string {
+  const steps = COMPASS.indexOf(handle) + Math.round(rotation / 45);
+  return `${COMPASS[((steps % 8) + 8) % 8]}-resize`;
+}
+
 // Whether two boxes overlap (a marquee selects what it touches).
 export function intersects(a: Box, b: Box): boolean {
   return a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;

@@ -42,6 +42,7 @@ import {
 import {
   containsPoint,
   resizeBox,
+  resizeCursor,
   rotationTowards,
   snapBox,
   snapCandidates,
@@ -170,6 +171,16 @@ describe("slide editor geometry", () => {
     const square = { x: 0, y: 0, width: 100, height: 100 };
     expect(containsPoint(square, 45, { x: 50, y: -15 })).toBe(true);
     expect(containsPoint(square, 45, { x: 2, y: 2 })).toBe(false);
+  });
+
+  // #338: a handle's cursor points where the handle points on the screen, to the nearest of eight.
+  it("turns a handle's resize cursor with the box", () => {
+    expect(resizeCursor("e", 0)).toBe("e-resize");
+    expect(resizeCursor("e", 90)).toBe("s-resize");
+    expect(resizeCursor("nw", 37)).toBe("n-resize");
+    expect(resizeCursor("n", 22)).toBe("n-resize");
+    expect(resizeCursor("w", -90)).toBe("s-resize");
+    expect(resizeCursor("se", 400)).toBe("s-resize");
   });
 
   it("resizes at a handle, keeping the opposite side and, with Shift, the ratio", () => {

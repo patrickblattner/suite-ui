@@ -88,6 +88,7 @@ import {
   intersects,
   type Point,
   resizeBox,
+  resizeCursor,
   rotationTowards,
   type SnapCandidates,
   snapBox,
@@ -2783,7 +2784,7 @@ function Editor({
                         height: HANDLE_PX,
                         left: `calc(${handle.includes("w") ? 0 : handle.includes("e") ? 100 : 50}% - ${HANDLE_PX / 2}px)`,
                         top: `calc(${handle.includes("n") ? 0 : handle.includes("s") ? 100 : 50}% - ${HANDLE_PX / 2}px)`,
-                        cursor: `${handle}-resize`,
+                        cursor: resizeCursor(handle, handlesBox.rotation),
                       }}
                       onPointerDown={(event) => startHandle(event, "resize", handle)}
                       // The canvas keeps the focus (a press elsewhere would move it to the page).

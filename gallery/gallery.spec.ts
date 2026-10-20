@@ -10908,6 +10908,39 @@ for (const angle of [90, 37]) {
   });
 }
 
+// #338: each resize handle's cursor points where the handle points on the screen, to the nearest of
+// the eight: on a turned top-level element by its own turn, on a child by its group's.
+const COMPASS = ["n", "ne", "e", "se", "s", "sw", "w", "nw"];
+for (const angle of [0, 90, 37]) {
+  test(`slide editor: resize cursors turn with an element and its group at ${angle}°`, async ({
+    page,
+  }) => {
+    const editor = await openEditor(page);
+    const cursors = () =>
+      Promise.all(
+        COMPASS.map((handle) =>
+          editor.editor
+            .getByTestId(`slide-editor-handle-${handle}`)
+            .evaluate((el) => getComputedStyle(el).cursor),
+        ),
+      );
+    const turned = COMPASS.map(
+      (_, index) => `${COMPASS[(index + Math.round(angle / 45)) % 8]}-resize`,
+    );
+    // The group, a top-level element, turned by its own rotation.
+    await editor.select(630, 340);
+    await editor.field("rotation").fill(String(angle));
+    await page.keyboard.press("Tab");
+    await expect.poll(cursors).toEqual(turned);
+    // Its left child, unturned itself, turned by the group (as in `turnedChild`).
+    const radians = (angle * Math.PI) / 180;
+    const drawn = editor.at(630 - 40 * Math.cos(radians), 340 - 40 * Math.sin(radians));
+    await page.mouse.dblclick(drawn.x, drawn.y);
+    await expect(editor.field("x")).toHaveValue("560");
+    expect(await cursors()).toEqual(turned);
+  });
+}
+
 test("slide editor: Shift turns a child of a turned group in steps of 15° on the screen", async ({
   page,
 }) => {
