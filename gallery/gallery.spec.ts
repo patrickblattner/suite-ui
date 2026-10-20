@@ -7315,6 +7315,57 @@ for (const theme of THEMES) {
   }
 }
 
+// #345, `GL-UX-001` rev 5 §3:1 bei Linien: on a frame flush with the edges of a canvas that clips, the
+// outer halo is not cut off. From each edge inward the pixels read the `--background` halo, then the
+// selection's 2 px `--ring` line (the hover's is dashed) and the `--foreground` halo, so the line that
+// stands out at 3 : 1 on any ground is there at the edge as well, in either theme.
+for (const theme of THEMES) {
+  for (const id of ["selection", "hover"] as const) {
+    test(`canvas: the ${id} frame keeps its outer halo at a clipping canvas edge (${theme})`, async ({
+      page,
+    }) => {
+      await page.goto(`/?page=components&lng=en&theme=${theme}`);
+      const canvas = page.getByTestId(`canvas-flush-${id}`);
+      await canvas.scrollIntoViewIfNeeded();
+      const rgb = (className: string) =>
+        utilityColor(page, className, "backgroundColor").then((color) =>
+          page.evaluate((fill) => {
+            const context = document.createElement("canvas").getContext("2d")!;
+            context.fillStyle = fill;
+            context.fillRect(0, 0, 1, 1);
+            return [...context.getImageData(0, 0, 1, 1).data.slice(0, 3)];
+          }, color),
+        );
+      const [outside, ring, inside] = [
+        await rgb("bg-background"),
+        await rgb("bg-ring"),
+        await rgb("bg-foreground"),
+      ];
+      const wanted =
+        id === "selection" ? [outside, ring, ring, inside] : [outside, null, null, inside];
+      const at = (await canvas.boundingBox())!;
+      const middle = { x: Math.round(at.x + at.width / 2), y: Math.round(at.y + at.height / 2) };
+      const sides = {
+        left: { x: at.x, y: middle.y, width: 4, height: 1 },
+        right: { x: at.x + at.width - 4, y: middle.y, width: 4, height: 1 },
+        top: { x: middle.x, y: at.y, width: 1, height: 4 },
+        bottom: { x: middle.x, y: at.y + at.height - 4, width: 1, height: 4 },
+      };
+      for (const [side, clip] of Object.entries(sides)) {
+        const read = (await pixelsOf(page, clip)).flat();
+        const inward = side === "right" || side === "bottom" ? read.reverse() : read;
+        wanted.forEach((color, index) => {
+          if (color === null) return;
+          const off = Math.max(
+            ...color.map((channel, c) => Math.abs(channel - inward[index]![c]!)),
+          );
+          expect(off, `${side} pixel ${index}`).toBeLessThanOrEqual(2);
+        });
+      }
+    });
+  }
+}
+
 // The RGB of the screen pixels in a box of the page, row by row, read from a screenshot.
 async function pixelsOf(page: Page, clip: { x: number; y: number; width: number; height: number }) {
   const png = (await page.screenshot({ clip })).toString("base64");
@@ -9550,6 +9601,28 @@ test("slide editor: a text past the page edge has its notice beside it", async (
   await expect(notice).toHaveText("Reaches past the page: Caption");
   await expectBeside(notice, editor.locator("[data-slide-element=caption]"));
 });
+
+// #345 review: the selection frame of a text past the page's left edge, half or wholly, lies over its
+// handles, never cut at the page edge or left there as a stub; only a frame flush with the canvas
+// edge moves 1 px in for its halo.
+for (const x of [-60, -300]) {
+  test(`slide editor: the frame of a text at x ${x} past the page edge matches its handles`, async ({
+    page,
+  }) => {
+    const { editor, field, select } = await pictureEditor(page);
+    await select(120, 400);
+    await expect(editor.getByTestId("canvas-name")).toHaveText("Caption");
+    await typeInto(page, field("x"), String(x));
+    await expect(
+      editor.locator("[data-slide-notice-kind=page][data-slide-notice-for=caption]"),
+    ).toBeVisible();
+    const frame = (await editor.getByTestId("canvas-selection").boundingBox())!;
+    const handles = (await editor.getByTestId("slide-editor-handles").boundingBox())!;
+    for (const key of ["x", "y", "width", "height"] as const) {
+      expect(Math.abs(frame[key] - handles[key]), key).toBeLessThan(1.5);
+    }
+  });
+}
 
 // SUI-FEATURE-231 AC1: "Transfer format" shows only when the app has a format other than the
 // document's.

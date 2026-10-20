@@ -34,6 +34,24 @@ const BORDER = 2;
 // continuous line stands out at 3 : 1 on any ground in either theme (#319, #333, `GL-UX-001` rev 5).
 const HALOS = "shadow-[0_0_0_1px_var(--background),inset_0_0_0_1px_var(--foreground)]";
 
+// A frame's rect with each edge that lies flush with the overlay's edge (within 1 px of it, as the
+// overlay's measured width is rounded) moved 1 px in, so its outer halo is never clipped where the
+// element meets the edge of a canvas that clips (#345). An edge further past the overlay stays where
+// it is, with the element it frames (`SUI-FEATURE-231`); as given until the overlay is measured.
+function insideOverlay(
+  rect: DOMRectReadOnly,
+  overlay: { width: number; height: number },
+): DOMRectReadOnly {
+  if (overlay.width === 0 || overlay.height === 0) return rect;
+  const start = (edge: number) => (Math.abs(edge) < 1 ? 1 : edge);
+  const end = (edge: number, at: number) => (Math.abs(edge - at) < 1 ? at - 1 : edge);
+  const left = start(rect.left);
+  const top = start(rect.top);
+  const right = end(rect.right, overlay.width);
+  const bottom = end(rect.bottom, overlay.height);
+  return new DOMRectReadOnly(left, top, Math.max(0, right - left), Math.max(0, bottom - top));
+}
+
 // A rect as the absolute box of an element on the overlay.
 function box(rect: DOMRectReadOnly): React.CSSProperties {
   return { left: rect.left, top: rect.top, width: rect.width, height: rect.height };
@@ -47,8 +65,8 @@ function box(rect: DOMRectReadOnly): React.CSSProperties {
 // above the selection, right-aligned, and below it when the space above is less than their height.
 // `Esc` with a selection selects the parent; without one it goes on outwards (`GL-UI-007`).
 function CanvasOverlay({
-  hovered,
-  selected,
+  hovered: hoveredTarget,
+  selected: selectedTarget,
   actions,
   inserts,
   onSelectParent,
@@ -57,7 +75,7 @@ function CanvasOverlay({
   const { t } = useTranslation("suite");
   const [node, setNode] = React.useState<HTMLDivElement | null>(null);
   useEscapeLayer(
-    selected !== undefined && onSelectParent !== undefined,
+    selectedTarget !== undefined && onSelectParent !== undefined,
     () => onSelectParent?.(),
     node?.parentElement ?? null,
   );
@@ -91,7 +109,16 @@ function CanvasOverlay({
       if (element !== null) observer.observe(element);
     }
     return () => observer.disconnect();
-  }, [node, selected, actions, size.overlay.width]);
+  }, [node, selectedTarget, actions, size.overlay.width]);
+  // The frames, the badge and the bar go by the rects kept inside the overlay.
+  const selected =
+    selectedTarget === undefined
+      ? undefined
+      : { ...selectedTarget, rect: insideOverlay(selectedTarget.rect, size.overlay) };
+  const hovered =
+    hoveredTarget === undefined
+      ? undefined
+      : { ...hoveredTarget, rect: insideOverlay(hoveredTarget.rect, size.overlay) };
   // The badge stands above the selection, its left edge on the frame's outer edge; without room up to
   // the overlay's edge it moves inside the top left corner. Past the right edge it moves left, and
   // wider than the overlay it ends in "…"; the full name stays in the announcement. It is never clipped.

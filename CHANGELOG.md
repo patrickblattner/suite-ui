@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.154.1 — #345, CanvasOverlay: the frames keep their outer halo at the canvas edge
+
+Fix.
+
+- **Selection and hover frames at the canvas edge:** a frame whose element meets the edge of a canvas that clips (a scrolling canvas) lost its 1 px `--background` halo outside, so at that edge only the ring and the inner halo were left, below 3 : 1 on some grounds. Verified in the gallery in both themes, on all four edges. Each frame, with its name badge and actions, now stays 1 px inside the overlay, so the outer halo shows at every edge and one continuous 1 px line stands out at 3 : 1 there too (`GL-UX-001` rev 5).
+- The gallery's canvas edge row has a selection and a hover frame flush with every edge of a clipping canvas; a test reads their edge pixels in both themes.
+
+**Migration:** none. Baselines: the components page in de, en and es, light and dark, and in de at 390 px and 1440 px (the canvas edge row has two frames more, and the frames at its right edge sit 1 px inside).
+
 ## 0.154.0 — #342, SUI-FEATURE-210: Hint takes a shortcut
 
 Feature.

@@ -164,11 +164,23 @@ export function CanvasEdgeRow() {
       <CanvasOverlay selected={{ rect: new DOMRectReadOnly(130, top, 30, 40), name }} />
     </div>
   );
+  // #345: a selection and a hover frame flush with every edge of a canvas that clips, as a scrolling
+  // canvas does.
+  const whole = { rect: new DOMRectReadOnly(0, 0, 160, 96), name: "Page" };
   return (
     <div className="flex flex-wrap gap-4" data-testid="canvas-edges">
       {frame("Button", "canvas-edge-right")}
       {frame("Speakers of the season and all venues", "canvas-edge-wide")}
       {frame("Speakers of the season and all venues", "canvas-edge-top", 0)}
+      <div
+        className="relative h-24 w-40 overflow-hidden bg-muted"
+        data-testid="canvas-flush-selection"
+      >
+        <CanvasOverlay selected={whole} />
+      </div>
+      <div className="relative h-24 w-40 overflow-hidden bg-muted" data-testid="canvas-flush-hover">
+        <CanvasOverlay hovered={whole} />
+      </div>
     </div>
   );
 }
