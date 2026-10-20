@@ -13,6 +13,7 @@ import {
   findElement,
   groupChain,
   groupElements,
+  groupSizeRange,
   insertElement,
   intoGroups,
   libraryElement,
@@ -466,6 +467,66 @@ describe("slide editor operations on turned groups", () => {
     const bounds = boundsOf(group.children.map(drawnBox))!;
     for (const key of ["x", "y", "width", "height"] as const) {
       expect(boxOf(group)[key]).toBeCloseTo(bounds[key], 2);
+    }
+  });
+
+  // SUI-FEATURE-190 AC1 (#327): the sizes a side reaches with the other kept, its ends reached.
+  it("names the widths a group with a turned child reaches at its height", () => {
+    const turned = doc([{ ...shape("t", 100, 100, 200, 100), rotation: 45 }, shape("u", 600, 100)]);
+    const { document: grouped45, id } = groupElements(turned, 0, ["t", "u"]);
+    const group = findElement(grouped45.pages[0]!.elements, id!)!.element;
+    if (group.type !== "group") throw new Error("expected the group");
+    const range = groupSizeRange(group, "width")!;
+    expect(range.min).toBeGreaterThan(0);
+    expect(range.min).toBeLessThan(group.width);
+    expect(range.max).toBeGreaterThan(group.width);
+    expect(range.max).toBeLessThan(900);
+    for (const width of [range.min, range.max]) {
+      const resized = setBox(grouped45, 0, id!, { ...boxOf(group), width });
+      expect(box(resized, id!).width).toBeCloseTo(width, 1);
+      expect(box(resized, id!).height).toBeCloseTo(group.height, 1);
+      const children = findElement(resized.pages[0]!.elements, "t")!.group!.children;
+      for (const child of children) {
+        expect(child.width).toBeGreaterThanOrEqual(1 - 1e-3);
+        expect(child.height).toBeGreaterThanOrEqual(1 - 1e-3);
+      }
+    }
+    // Without a turned element every size is reached.
+    const plain = groupElements(doc([shape("a", 0, 0), shape("b", 300, 50, 50, 50)]), 0, [
+      "a",
+      "b",
+    ]);
+    const flat = findElement(plain.document.pages[0]!.elements, plain.id!)!.element;
+    if (flat.type !== "group") throw new Error("expected the group");
+    expect(groupSizeRange(flat, "width")).toBeUndefined();
+  });
+
+  // #327 code review: with two turned children an end lies at a kink between the samples; the range
+  // names it exactly: reached with the other side kept, and half a pixel beyond it is not.
+  it("names the exact ends of a group with two turned children", () => {
+    const two = doc([
+      { ...shape("a", 100, 100, 200, 100), rotation: 20 },
+      { ...shape("b", 400, 150, 200, 100), rotation: 70 },
+    ]);
+    const { document: grouped, id } = groupElements(two, 0, ["a", "b"]);
+    const group = findElement(grouped.pages[0]!.elements, id!)!.element;
+    if (group.type !== "group") throw new Error("expected the group");
+    for (const key of ["width", "height"] as const) {
+      const other = key === "width" ? "height" : "width";
+      const range = groupSizeRange(group, key)!;
+      const sized = (value: number) =>
+        box(setBox(grouped, 0, id!, { ...boxOf(group), [key]: value }), id!);
+      for (const [end, beyond] of [
+        [range.min, range.min - 0.5],
+        [range.max, range.max + 0.5],
+      ] as const) {
+        expect(sized(end)[key]).toBeCloseTo(end, 1);
+        expect(sized(end)[other]).toBeCloseTo(group[other], 1);
+        const missed = sized(beyond);
+        expect(
+          Math.abs(missed[key] - beyond) > 0.05 || Math.abs(missed[other] - group[other]) > 0.05,
+        ).toBe(true);
+      }
     }
   });
 });

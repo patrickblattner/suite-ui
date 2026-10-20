@@ -626,6 +626,8 @@ export const en = {
       width: "Width",
       height: "Height",
       rotation: "Rotation",
+      sizeAtLeast: "The group's rotated elements keep it at least {{value}} px.",
+      sizeAtMost: "The group's rotated elements keep it at most {{value}} px.",
       unloadedExtension:
         "This element carries settings of an extension not loaded here. They are kept.",
       degrees: "°",

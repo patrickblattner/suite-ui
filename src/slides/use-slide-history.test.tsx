@@ -52,6 +52,18 @@ describe("useSlideHistory", () => {
     expect(x(result.current.document)).toBe(0);
     expect(result.current.canUndo).toBe(false);
   });
+
+  // #327: a field applying each keystroke computes from the document its run started from.
+  it("names the document a run under one merge key started from", () => {
+    const { result } = renderHook(() => useSlideHistory(start));
+    act(() => result.current.apply((document) => moveBy(document, 0, ["a"], 4, 0)));
+    const before = result.current.document;
+    expect(result.current.before("x")).toBe(before);
+    act(() => result.current.apply((document) => moveBy(document, 0, ["a"], 1, 0), { merge: "x" }));
+    act(() => result.current.apply((document) => moveBy(document, 0, ["a"], 1, 0), { merge: "x" }));
+    expect(result.current.before("x")).toBe(before);
+    expect(result.current.before("y")).toBe(result.current.document);
+  });
 });
 
 describe("useSlideHistory, pinned", () => {

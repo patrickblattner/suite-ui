@@ -51,6 +51,7 @@ import {
   findElement,
   groupChain,
   groupElements,
+  groupSizeRange,
   insertElement,
   intoGroups,
   type LayerMove,
@@ -79,6 +80,7 @@ import {
 } from "./editor-ops.js";
 import {
   containsPoint,
+  frameCandidates,
   type Handle,
   HANDLES,
   intersects,
@@ -223,6 +225,9 @@ type Drag =
       // Each moving element's groups, in the order of `ids`: a step on the page is turned into each
       // one's own frame, so a selection across levels moves together (Codex #326).
       frames: Group[][];
+      // The turned groups all moving elements share, whose frame `box` and the snapping are in
+      // (`SUI-FEATURE-190`); `undefined` measures on the page.
+      frame: Group[] | undefined;
       start: Point;
       base: SlideDocument;
       ids: string[];
@@ -656,7 +661,7 @@ function Editor({
   view: ViewProps;
   testId: string | undefined;
 }) {
-  const { t } = useTranslation("suite");
+  const { t, i18n } = useTranslation("suite");
   const history: SlideHistory = useSlideHistory(initial);
   // The app's layouts and masters that pass the schema (`SUI-FEATURE-192`); any other is left out.
   const appLayouts = React.useMemo(() => validLayouts(layoutsProp), [layoutsProp]);
@@ -698,7 +703,14 @@ function Editor({
   const [tableCell, setTableCell] = React.useState<{ id: string; cell: CellAt } | undefined>(
     undefined,
   );
-  const [guides, setGuides] = React.useState<{ x?: number; y?: number }>({});
+  // The guides, in the frame of the turned groups they are drawn turned with.
+  const [guides, setGuides] = React.useState<{ x?: number; y?: number; frame?: Group[] }>({});
+  // A group's size typed beyond what its turned children reach (`SUI-FEATURE-190`): the size set
+  // instead and which end it is, named at the field while the group keeps that size.
+  const [sizeLimit, setSizeLimit] = React.useState<
+    | { id: string; key: "width" | "height"; limit: number; edge: "min" | "max"; revision: number }
+    | undefined
+  >(undefined);
   const [drawer, setDrawer] = React.useState<DrawerId | undefined>(undefined);
   const [zoomMode, setZoomMode] = React.useState<CanvasZoomMode>("fit");
   const [ownGridShown, setOwnGridShown] = React.useState(false);
@@ -1270,22 +1282,50 @@ function Editor({
     if (moving.length === 0 || (event.shiftKey && !ids.includes(hit.id))) return;
     const movingIds = moving.map((element) => element.id);
     const frames = movingIds.map((id) => groupChain(elements, id));
-    const turned = frames.some((frame) => frame.some((group) => group.rotation !== 0));
-    const others = elements
-      .filter((element) => !movingIds.includes(element.id) && !element.hidden)
-      .map(drawnBox);
+    // Children of the same turned group snap in its frame, at it and their siblings; any other
+    // selection by its box on the page, at the page, the elements that stay and the shown grid
+    // (`SUI-FEATURE-190`). Once per drag.
+    const first = frames[0]!;
+    const shared =
+      first.some((group) => group.rotation !== 0) &&
+      frames.every(
+        (frame) =>
+          frame.length === first.length &&
+          frame.every((group, index) => group.id === first[index]!.id),
+      );
+    const stays = (element: SlideElement) => !movingIds.includes(element.id) && !element.hidden;
+    if (shared) {
+      const group = first.at(-1)!;
+      setDrag({
+        kind: "move",
+        frames,
+        frame: first,
+        start: point,
+        base: history.document,
+        ids: movingIds,
+        box: boundsOf(moving.map(drawnBox))!,
+        candidates: frameCandidates(boxOf(group), group.children.filter(stays).map(drawnBox)),
+      });
+      return;
+    }
     setDrag({
       kind: "move",
       frames,
+      frame: undefined,
       start: point,
       base: history.document,
       ids: movingIds,
-      box: boundsOf(moving.map(drawnBox))!,
-      // Once per drag: the page, the elements that stay, and the grid while it is shown. In a turned
-      // group's frame the page's lines do not apply, so a child there moves without snapping.
-      candidates: turned
-        ? { x: [], y: [] }
-        : snapCandidates({ width: pageWidth, height: pageHeight }, others, gridShown ? grid : null),
+      box: boundsOf(
+        moving.map((element) => {
+          const placed = placedBox(elements, element);
+          return outerBox(placed.box, placed.rotation);
+        }),
+      )!,
+      candidates: snapCandidates(
+        { width: pageWidth, height: pageHeight },
+        elements.filter(stays).map(drawnBox),
+        gridShown ? grid : null,
+      ),
     });
   };
 
@@ -1368,14 +1408,20 @@ function Editor({
       return;
     }
     if (drag.kind === "move") {
-      const dx = point.x - drag.start.x;
-      const dy = point.y - drag.start.y;
-      const moved = { ...drag.box, x: drag.box.x + dx, y: drag.box.y + dy };
+      const frame = drag.frame;
+      const step = stepIntoGroups(frame ?? [], {
+        x: point.x - drag.start.x,
+        y: point.y - drag.start.y,
+      });
+      const moved = { ...drag.box, x: drag.box.x + step.x, y: drag.box.y + step.y };
       const snap = snapBox(moved, drag.candidates, SNAP_PX / zoom, event.altKey);
-      setGuides(snap.guides);
-      const step = { x: dx + snap.dx, y: dy + snap.dy };
+      setGuides({ ...snap.guides, ...(frame === undefined ? {} : { frame }) });
+      const snapped = { x: step.x + snap.dx, y: step.y + snap.dy };
       const steps = new Map(
-        drag.ids.map((id, index) => [id, stepIntoGroups(drag.frames[index]!, step)]),
+        drag.ids.map((id, index) => [
+          id,
+          frame === undefined ? stepIntoGroups(drag.frames[index]!, snapped) : snapped,
+        ]),
       );
       setPreview(moveEach(drag.base, page, steps));
       return;
@@ -1900,6 +1946,26 @@ function Editor({
   // not (an extension never changes a built-in tool, `SUI-FEATURE-163` §Grenzen).
   const contentFirst = single?.type === "chart" || typeFields !== undefined;
 
+  // The turn of the selected element's groups: its rotation field shows and takes the angle on the
+  // page, 0–360° in a turned group (`SUI-FEATURE-190`); the element keeps its own angle.
+  const turn = single === undefined ? 0 : placedBox(elements, single).rotation - single.rotation;
+  const inTurnedGroup =
+    single !== undefined && groupChain(elements, single.id).some((group) => group.rotation !== 0);
+  // The size-limit note while the group keeps the size it names; also announced on the canvas.
+  const sizeNote =
+    single !== undefined &&
+    sizeLimit?.id === single.id &&
+    sizeLimit.revision === travels &&
+    Math.abs(single[sizeLimit.key] - sizeLimit.limit) < 0.01
+      ? {
+          key: sizeLimit.key,
+          text: t(`slides.editor.${sizeLimit.edge === "min" ? "sizeAtLeast" : "sizeAtMost"}`, {
+            value: new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 2 }).format(
+              sizeLimit.limit,
+            ),
+          }),
+        }
+      : undefined;
   const layoutTab = (
     <div className="flex flex-col gap-4" data-testid="slide-editor-layout">
       {unloadedNote}
@@ -1914,16 +1980,41 @@ function Editor({
               unit="px"
               readOnly={single.locked}
               revision={travels}
-              onValue={(value) =>
-                apply((current) => {
-                  const found = findElement(current.pages[page]?.elements ?? [], single.id);
-                  if (found === undefined) return current;
-                  return setBox(current, page, single.id, {
-                    ...boxOf(found.element),
-                    [key]: fieldValue(key, value),
-                  });
-                }, `field:${single.id}:${key}`)
+              help={
+                sizeNote?.key === key ? (
+                  <span data-testid={`slide-editor-${key}-limit`}>{sizeNote.text}</span>
+                ) : undefined
               }
+              onValue={(value) => {
+                // Each keystroke from the document before the typing, so a number on the way to
+                // the one typed changes nothing (#327).
+                const merge = `field:${single.id}:${key}`;
+                const base = history.before(merge);
+                const found = findElement(base.pages[page]?.elements ?? [], single.id);
+                if (found === undefined) return;
+                let wanted = fieldValue(key, value);
+                let limit: typeof sizeLimit;
+                const range =
+                  found.element.type === "group" && (key === "width" || key === "height")
+                    ? groupSizeRange(found.element, key)
+                    : undefined;
+                if (range !== undefined && (wanted < range.min || wanted > range.max)) {
+                  const edge = wanted < range.min ? "min" : "max";
+                  wanted = edge === "min" ? range.min : range.max;
+                  limit = {
+                    id: single.id,
+                    key: key as "width" | "height",
+                    limit: wanted,
+                    edge,
+                    revision: travels,
+                  };
+                }
+                setSizeLimit(limit);
+                apply(
+                  () => setBox(base, page, single.id, { ...boxOf(found.element), [key]: wanted }),
+                  merge,
+                );
+              }}
               testId={`slide-editor-${key}`}
             />
           ))}
@@ -1931,13 +2022,13 @@ function Editor({
             key={`${single.id}-rotation`}
             id="slide-editor-rotation"
             label={t("slides.editor.rotation")}
-            value={single.rotation}
+            value={inTurnedGroup ? (((single.rotation + turn) % 360) + 360) % 360 : single.rotation}
             unit={t("slides.editor.degrees")}
             readOnly={single.locked}
             revision={travels}
             onValue={(value) =>
               apply(
-                (current) => setRotation(current, page, single.id, value % 360),
+                (current) => setRotation(current, page, single.id, (value - turn) % 360),
                 `field:${single.id}:rotation`,
               )
             }
@@ -2302,6 +2393,15 @@ function Editor({
   // (`SUI-FEATURE-161` rev 5): a dark and a light line, so one of them stands out at 3 : 1 on any
   // slide and beside any grid line, in either theme (#332).
   const guideClass = "pointer-events-none absolute bg-primary shadow-[0_0_0_1px_var(--background)]";
+  const guideTurn =
+    (guides.frame ?? [])
+      .filter((group) => group.rotation !== 0)
+      .map((group) => {
+        const cx = (group.x + group.width / 2) * zoom;
+        const cy = (group.y + group.height / 2) * zoom;
+        return `translate(${cx}px, ${cy}px) rotate(${group.rotation}deg) translate(${-cx}px, ${-cy}px)`;
+      })
+      .join(" ") || undefined;
 
   return (
     <div
@@ -2619,27 +2719,41 @@ function Editor({
                       ? cropNote.text
                       : insertNote?.selection === selection
                         ? insertNote.text
-                        : undefined
+                        : sizeNote?.text
                 }
               />
               {/* The guides above the selection frame, so it never covers them along the moved
                   element, and below its name badge, which lies a layer up (#332). */}
-              {guides.x === undefined ? null : (
+              {/* In a turned group's frame turned with its groups, outermost first (`SUI-FEATURE-190`);
+                  clipped to the page, so a turned line never adds scroll overflow mid-drag. */}
+              <div
+                className={cn(
+                  "pointer-events-none absolute inset-0",
+                  guideTurn !== undefined && "overflow-hidden",
+                )}
+              >
                 <div
-                  className={cn(guideClass, "top-0 bottom-0 w-px")}
-                  style={{ left: guides.x * zoom }}
-                  data-testid="slide-editor-guide-x"
-                  data-guide={guides.x}
-                />
-              )}
-              {guides.y === undefined ? null : (
-                <div
-                  className={cn(guideClass, "right-0 left-0 h-px")}
-                  style={{ top: guides.y * zoom }}
-                  data-testid="slide-editor-guide-y"
-                  data-guide={guides.y}
-                />
-              )}
+                  className="pointer-events-none absolute inset-0 origin-top-left"
+                  style={{ transform: guideTurn }}
+                >
+                  {guides.x === undefined ? null : (
+                    <div
+                      className={cn(guideClass, "top-0 bottom-0 w-px")}
+                      style={{ left: guides.x * zoom }}
+                      data-testid="slide-editor-guide-x"
+                      data-guide={guides.x}
+                    />
+                  )}
+                  {guides.y === undefined ? null : (
+                    <div
+                      className={cn(guideClass, "right-0 left-0 h-px")}
+                      style={{ top: guides.y * zoom }}
+                      data-testid="slide-editor-guide-y"
+                      data-guide={guides.y}
+                    />
+                  )}
+                </div>
+              </div>
               {/* The handles above the floating actions, so none lies under them. */}
               {/* Over the element where it is drawn, turned with its groups (#324); a layer above
                   the name badge (#332), so the badge never covers a handle. */}

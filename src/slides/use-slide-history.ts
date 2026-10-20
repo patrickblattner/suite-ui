@@ -86,6 +86,10 @@ export interface SlideHistory {
     change: (document: SlideDocument) => SlideDocument,
     options?: { merge?: string | undefined; page?: number | undefined },
   ) => void;
+  // The document a run of changes under `merge` started from: the one before the last step when it
+  // was made under that key, else the current one. A field that applies each keystroke computes from
+  // it, so a number passed on the way (3 of 300) leaves nothing behind (#327).
+  before: (merge: string) => SlideDocument;
   undo: () => void;
   redo: () => void;
   canUndo: boolean;
@@ -118,6 +122,10 @@ export function useSlideHistory(initial: SlideDocument): SlideHistory {
   return {
     document: state.present.document,
     apply,
+    before: (merge) =>
+      state.merge === merge
+        ? (state.past.at(-1)?.document ?? state.present.document)
+        : state.present.document,
     undo,
     redo,
     canUndo: state.past.length > 0,
