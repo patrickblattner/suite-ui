@@ -67,7 +67,7 @@ describe("SaveResetButtons focus", () => {
     save.focus();
     rerender(page(true, true, false));
     rerender(page(true, false, false));
-    expect(save).toBeDisabled();
+    expect(save).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByTestId("settings-general-reset")).toHaveFocus();
   });
 

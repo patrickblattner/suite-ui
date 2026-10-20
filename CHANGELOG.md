@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.149.0 — #387, SUI-FEATURE-250: a Button locked with a reason is `aria-disabled` and carries the reason itself
+
+Fix, breaking for app tests and for `EditPanel` call sites without a reason.
+
+- **A `Button` locked with a reason** (`disabled` inside `Hint` or `IconButtonTooltip` with `disabledText`) is now locked with `aria-disabled="true"` instead of `disabled` (the lock of `SUI-FEATURE-120`): it stays focusable, takes no click, `Enter`, `Space` or form submit, and names the reason as its own description (`aria-describedby`). The wrapping span is no tab stop for it anymore, so Tab reaches the button once. This holds in `EditPanel`, `ConfirmDialog`, `ConfirmDeleteDialog`, `CreateAndSelectDialog`, `RestoreDefaultsButton`, `DrawerRail`, `PreviewToolbar`, `RowActions`, `PageHeader`, `TablePagination`, `EditorHeader`, `MediaDetailShell`, the settings actions, the slide editor, and both parts of the `Grid` toggle. Controls other than `Button` (fields, a plain `button`) keep the focusable span. The tooltip is unchanged; the look is the locked one of `SUI-FEATURE-120` (dimmed in colour, focus ring ≥ 3:1; under forced colours text and border in `GrayText`). In the slide editor's chart data a read-only chart no longer names a series or category limit as the reason for its locked buttons.
+- **`EditPanel` requires `submitDisabledHint` with `submitDisabled`**: the two come together or not at all; `submitDisabled` without a reason (or a reason without `submitDisabled`) is a type error.
+
+**Migration:** app tests that check such a button with `toBeDisabled()` (Testing Library) switch to `toHaveAttribute("aria-disabled", "true")`, and read its reason from the button (`toHaveAccessibleDescription`), no longer from its parent span. Every `EditPanel` with `submitDisabled` passes a `submitDisabledHint` naming the condition that unlocks Save; a props object typed `Partial<EditPanelProps>` that sets one of the two needs both. Such a locked button now takes the focus and key events: the `Button` cancels only its activation (click, `Enter`, `Space`, form submit), so an app's own `onKeyDown`, `onPointerDown` or `onDoubleClick` on it still runs while it is locked and checks the lock itself.
+
 ## 0.148.0 — #295, SUI-FEATURE-163 increment 2 (rev 5): app extensions in the slide editor — fields, library entries, overlay; add-on ids `ext:<app>.<name>`
 
 New. An add-on's `key` becomes `id` (no app uses it yet).

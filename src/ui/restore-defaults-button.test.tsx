@@ -30,9 +30,9 @@ describe("RestoreDefaultsButton", () => {
       <RestoreDefaultsButton onClick={() => {}} disabled disabledText="Already the defaults" />,
     );
     const button = screen.getByRole("button", { name: "Restore defaults" });
-    expect(button).toBeDisabled();
-    const id = button.parentElement?.getAttribute("aria-describedby") ?? "";
-    expect(document.getElementById(id)).toHaveTextContent("Already the defaults");
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(button).toHaveAccessibleDescription("Already the defaults");
+    expect(button.parentElement).not.toHaveAttribute("tabindex");
   });
 
   it("shows the working state while busy and blocks a click", () => {

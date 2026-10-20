@@ -108,19 +108,50 @@ describe("Hint", () => {
     expect(button).not.toHaveAttribute("data-state");
   });
 
-  it("names the condition while the control is disabled", () => {
-    render(
+  // SUI-FEATURE-250 AC3
+  it("locks a disabled Button with aria-disabled: one tab stop that names the condition", () => {
+    const onClick = vi.fn();
+    const { container } = render(
       <Hint text="Saves the draft" disabledText="Possible once a field changed">
-        <Button variant="success" size="default" disabled>
+        <Button variant="success" size="default" disabled onClick={onClick}>
           Save
         </Button>
       </Hint>,
     );
-    const wrapper = screen.getByRole("button", { name: "Save" }).parentElement;
-    const id = wrapper?.getAttribute("aria-describedby") ?? "";
-    expect(document.getElementById(id)).toHaveTextContent("Possible once a field changed");
+    const button = screen.getByRole("button", { name: "Save" });
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(button).toBeEnabled();
+    expect(button).toHaveAccessibleDescription("Possible once a field changed");
+    expect(button.parentElement).not.toHaveAttribute("tabindex");
+    expect(button.parentElement).not.toHaveAttribute("aria-describedby");
+    expect(tabStops(container)).toEqual([button]);
+    fireEvent.click(button);
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it("keeps a disabled control other than Button in its focusable span", () => {
+    const { container } = render(
+      <Hint text="The name" disabledText="Possible once a field changed">
+        <Input aria-label="Name" disabled />
+      </Hint>,
+    );
+    const input = screen.getByRole("textbox", { name: "Name" });
+    expect(input).toBeDisabled();
+    const span = input.parentElement as HTMLElement;
+    expect(span).toHaveAttribute("tabindex", "0");
+    expect(span).toHaveAccessibleDescription("Possible once a field changed");
+    expect(tabStops(container)).toEqual([span]);
   });
 });
+
+// The keyboard's tab stops in document order: enabled controls and elements with a tab index.
+function tabStops(container: HTMLElement): Element[] {
+  return [
+    ...container.querySelectorAll(
+      "button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex='-1'])",
+    ),
+  ];
+}
 
 describe("Hint on a field with label help", () => {
   it("replaces the label help of the same field: own ids first, the hint id once", () => {

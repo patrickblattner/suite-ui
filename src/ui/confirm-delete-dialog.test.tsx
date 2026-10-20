@@ -110,7 +110,7 @@ describe("ConfirmDeleteDialog", () => {
     expect(confirm).toBeEnabled();
     fireEvent.click(confirm);
     expect(onConfirm).not.toHaveBeenCalled();
-    expect(screen.getByTestId("confirm-cancel")).toBeDisabled();
+    expect(screen.getByTestId("confirm-cancel")).toHaveAttribute("aria-disabled", "true");
     fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
     expect(onOpenChange).not.toHaveBeenCalled();
   });
@@ -136,8 +136,8 @@ describe("ConfirmDeleteDialog", () => {
   // SUI-FEATURE-065 AC2.
   it("confirmDisabledHint is the confirm button's hint while locked", () => {
     renderDialog({ confirmDisabled: true, confirmDisabledHint: "Type DELETE to confirm." });
-    const trigger = screen.getByTestId("confirm-confirm").parentElement;
-    const ids = trigger?.getAttribute("aria-describedby")?.split(" ") ?? [];
+    const trigger = screen.getByTestId("confirm-confirm");
+    const ids = trigger.getAttribute("aria-describedby")?.split(" ") ?? [];
     expect(ids.map((id) => document.getElementById(id)?.textContent ?? "").join(" ")).toBe(
       "Type DELETE to confirm.",
     );

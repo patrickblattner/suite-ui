@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
 import { ariaKeyShortcuts, shortcutChip } from "../lib/keyboard.js";
+import { lockedWithReason } from "./button-lock-internal.js";
 import { usePressKeepsClosed } from "./press-keeps-closed.js";
 
 // One tooltip behaviour (`GL-UI-016`/`GL-UI-017`): every tooltip, the overflow tooltip included, opens
@@ -637,8 +638,8 @@ function uniqueIds(describedBy: string | undefined): string | undefined {
 // with `aria-disabled`, `disabledText` (the condition under which it becomes usable) takes the place
 // of `label`. A disabled control takes no pointer events, so it then sits in a span that is the
 // trigger, focusable and the owner of the description; a control locked with `aria-disabled` (a Save
-// that locked itself, `SUI-FEATURE-120`) keeps the focus and owns the description itself. The span
-// stands either way, so toggling the lock never remounts it. A control that declares `busy` sits in that
+// that locked itself, `SUI-FEATURE-120`) keeps the focus and owns the description itself; a `disabled`
+// `Button` is locked that way instead (`SUI-FEATURE-250`). The span stands either way, so toggling the lock never remounts it. A control that declares `busy` sits in that
 // span as well: while it runs it is locked, and its hint, still `label`, opens on hover over the span
 // (`SUI-FEATURE-072`). With `named`, a disabled control's bubble shows `label` above `disabledText`,
 // for an icon-only control that would otherwise lose its name to the eye (`SUI-FEATURE-090`).
@@ -647,7 +648,7 @@ function IconButtonTooltip({
   shortcut,
   disabledText,
   named = false,
-  children,
+  children: ownChildren,
 }: {
   label: string;
   shortcut?: string | readonly string[] | undefined;
@@ -666,6 +667,7 @@ function IconButtonTooltip({
   const id = React.useId();
   // A press keeps the bubble closed until the pointer leaves (#190).
   const press = usePressKeepsClosed();
+  const children = disabledText === undefined ? ownChildren : lockedWithReason(ownChildren);
   const variants =
     shortcut === undefined ? undefined : typeof shortcut === "string" ? [shortcut] : shortcut;
   const ownLabel = children.props["aria-label"];

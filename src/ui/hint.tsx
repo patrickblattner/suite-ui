@@ -3,6 +3,7 @@ import * as React from "react";
 import { createPortal } from "react-dom";
 
 import { cn } from "../lib/cn.js";
+import { lockedWithReason } from "./button-lock-internal.js";
 import { helpIdFor } from "./label-with-help.js";
 import { usePressKeepsClosed } from "./press-keeps-closed.js";
 import {
@@ -149,8 +150,9 @@ type HintProps = {
 // A disabled control takes no pointer events, so with `disabledText` the control sits in a span that
 // is the tooltip trigger and, while the control is disabled, focusable and the owner of the
 // description. A control locked with `aria-disabled` (a Save that locked itself, `SUI-FEATURE-120`)
-// keeps the focus and owns the description itself; only its text is `disabledText`. The span stands
-// either way, so toggling the lock never remounts the control.
+// keeps the focus and owns the description itself; only its text is `disabledText`. A `disabled`
+// `Button` is locked that way instead (`SUI-FEATURE-250`), so the span is never focusable for it. The
+// span stands either way, so toggling the lock never remounts the control.
 //
 // Extra props (handlers, ref, class) pass through to the control, so a wrapping `OverflowTooltip` keeps
 // working.
@@ -163,9 +165,10 @@ function Hint({
   disabledText,
   carrierClassName,
   describe = true,
-  children,
+  children: ownChildren,
   ...passThrough
 }: HintProps) {
+  const children = disabledText === undefined ? ownChildren : lockedWithReason(ownChildren);
   const id = React.useId();
   const overflow = useIsOverflowing();
   const ownRef = passThrough.ref;

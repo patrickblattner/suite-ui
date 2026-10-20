@@ -224,7 +224,7 @@ describe("SettingsScaffold community additions (SUI-FEATURE-031)", () => {
   it("AC2: valid={false} on a changed form locks Save and keeps Reset", () => {
     const save = vi.fn();
     scaffold({ form: { dirty: true, valid: false, onSave: save, onReset: () => {} } });
-    expect(screen.getByTestId("settings-general-save")).toBeDisabled();
+    expect(screen.getByTestId("settings-general-save")).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByTestId("settings-general-reset")).toBeEnabled();
     fireEvent.submit(screen.getByTestId("settings-general-form"));
     expect(save).not.toHaveBeenCalled();
@@ -375,7 +375,7 @@ describe("SettingsScaffold single column and states (SUI-FEATURE-041)", () => {
     expect(screen.queryByTestId("content")).toBeNull();
     expect(screen.getByTestId("page-title")).toHaveTextContent("General");
     expect(screen.getByTestId("page-subtitle")).toHaveTextContent("The name of this instance.");
-    expect(screen.getByTestId("settings-general-save")).toBeDisabled();
+    expect(screen.getByTestId("settings-general-save")).toHaveAttribute("aria-disabled", "true");
   });
 
   it("AC5: error shows the text in text-destructive, header stays, Save is locked", () => {
@@ -403,7 +403,7 @@ describe("SettingsScaffold single column and states (SUI-FEATURE-041)", () => {
     expect(screen.getByTestId("page-title")).toHaveTextContent("General");
     expect(screen.getByTestId("page-subtitle")).toBeInTheDocument();
     expect(screen.getByTestId("settings-footer")).toBeInTheDocument();
-    expect(screen.getByTestId("settings-general-save")).toBeDisabled();
+    expect(screen.getByTestId("settings-general-save")).toHaveAttribute("aria-disabled", "true");
     fireEvent.submit(screen.getByTestId("settings-general-form"));
     expect(save).not.toHaveBeenCalled();
   });

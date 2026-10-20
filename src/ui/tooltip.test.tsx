@@ -69,8 +69,9 @@ describe("IconButtonTooltip", () => {
     );
     const button = screen.getByRole("button", { name: "Delete the run" });
     const span = button.parentElement as HTMLElement;
-    const description = document.getElementById(span.getAttribute("aria-describedby") ?? "");
-    expect(description).toHaveTextContent("Stop the run to delete it.");
+    // SUI-FEATURE-250: the Button is locked with aria-disabled and carries the condition itself.
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(button).toHaveAccessibleDescription("Stop the run to delete it.");
     expect(openAfter(span, 1500)).toBe(true);
     expect(screen.getByRole("tooltip")).toHaveTextContent("Stop the run to delete it.");
   });
@@ -166,18 +167,32 @@ describe("IconButtonTooltip on focus", () => {
     expect(onNeighbour).toHaveBeenCalledOnce();
   });
 
-  it("AC3: keyboard focus on a disabled button's span opens no bubble; the span is described by disabledText", () => {
+  // SUI-FEATURE-250 AC3: the locked Button is the one tab stop, never its span.
+  it("AC3: keyboard focus on a locked button opens no bubble; the button is described by disabledText", () => {
     render(
       <IconButtonTooltip label="Delete the run" disabledText="Stop the run to delete it.">
         <Button variant="ghost" size="icon" disabled />
       </IconButtonTooltip>,
     );
-    const span = screen.getByRole("button", { name: "Delete the run" })
-      .parentElement as HTMLElement;
-    focusFor(span);
-    expect(span).toHaveFocus();
+    const button = screen.getByRole("button", { name: "Delete the run" });
+    expect(button.parentElement).not.toHaveAttribute("tabindex");
+    focusFor(button);
+    expect(button).toHaveFocus();
     expect(screen.queryByRole("tooltip")).toBeNull();
-    expect(span).toHaveAccessibleDescription("Stop the run to delete it.");
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(button).toHaveAccessibleDescription("Stop the run to delete it.");
+  });
+
+  it("a disabled control other than Button keeps its focusable span", () => {
+    render(
+      <IconButtonTooltip label="Delete the run" disabledText="Stop the run to delete it.">
+        <button type="button" disabled />
+      </IconButtonTooltip>,
+    );
+    const button = screen.getByRole("button", { name: "Delete the run" });
+    expect(button).toBeDisabled();
+    expect(button.parentElement).toHaveAttribute("tabindex", "0");
+    expect(button.parentElement).toHaveAccessibleDescription("Stop the run to delete it.");
   });
 
   // A running button is disabled and takes no focus; between runs it sits focusable in the span.

@@ -149,11 +149,10 @@ describe("PageHeader", () => {
       />,
     );
     const secondary = screen.getByTestId("page-add-secondary");
-    expect(secondary).toBeDisabled();
-    const wrapper = secondary.parentElement;
-    expect(wrapper).toHaveAttribute("tabindex", "0");
-    const id = wrapper?.getAttribute("aria-describedby") ?? "";
-    expect(document.getElementById(id)).toHaveTextContent("Possible once a directory is connected");
+    expect(secondary).toHaveAttribute("aria-disabled", "true");
+    // SUI-FEATURE-250: the locked button is the tab stop and carries the reason itself.
+    expect(secondary.parentElement).not.toHaveAttribute("tabindex");
+    expect(secondary).toHaveAccessibleDescription("Possible once a directory is connected");
     expect(screen.getByTestId("page-add")).toBeEnabled();
   });
 

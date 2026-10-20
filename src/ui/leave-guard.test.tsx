@@ -69,7 +69,11 @@ const escape = (target: Element = document.activeElement ?? document.body) =>
   fireEvent.keyDown(target, { key: "Escape" });
 
 // A list whose row opens the panel; `Name` is dirty once it differs from the loaded "Main".
-function ListWithPanel(props: Partial<EditPanelProps> & { save?: () => unknown }) {
+function ListWithPanel(
+  props: Omit<Partial<EditPanelProps>, "submitDisabled" | "submitDisabledHint"> & {
+    save?: () => unknown;
+  },
+) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("Main");
   const { save, ...rest } = props;
@@ -821,7 +825,7 @@ function deferredResult() {
 // The apply panel works (GL-UI-027): its Apply busy, Cancel locked with it.
 function expectApplyWorking() {
   expect(screen.getByTestId("edit-panel-submit")).toHaveAttribute("aria-busy", "true");
-  expect(screen.getByTestId("edit-panel-cancel")).toBeDisabled();
+  expect(screen.getByTestId("edit-panel-cancel")).toHaveAttribute("aria-disabled", "true");
 }
 
 // SUI-FEATURE-150: the leave dialog works until its Save or Apply settles: open, Save busy, Cancel and

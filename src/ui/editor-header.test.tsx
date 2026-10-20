@@ -199,17 +199,15 @@ describe("EditorHeader lifecycle", () => {
     await i18n.changeLanguage(lng);
     renderHeader({ dirty: true, lifecycle: lifecycle() });
     const next = screen.getByTestId("editor-next");
-    expect(next).toBeDisabled();
-    expect(next.parentElement).toHaveAccessibleDescription(text);
+    expect(next).toHaveAttribute("aria-disabled", "true");
+    expect(next).toHaveAccessibleDescription(text);
     expect(screen.getByTestId("editor-save")).toBeEnabled();
   });
 
   it("dirty: the app's own disabledText takes precedence", () => {
     renderHeader({ dirty: true, lifecycle: lifecycle({ disabledText: "Add a title first" }) });
-    expect(screen.getByTestId("editor-next")).toBeDisabled();
-    expect(screen.getByTestId("editor-next").parentElement).toHaveAccessibleDescription(
-      "Add a title first",
-    );
+    expect(screen.getByTestId("editor-next")).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByTestId("editor-next")).toHaveAccessibleDescription("Add a title first");
   });
 
   // AC 3
@@ -598,7 +596,7 @@ describe("EditorHeader at narrow width", () => {
     renderHeader({ dirty: true, lifecycle: lifecycle({ icon: <EyeIcon aria-hidden="true" /> }) });
     const next = screen.getByTestId("editor-next");
     expect(next).toHaveAccessibleName("Publish");
-    expect(next.parentElement).toHaveAccessibleDescription("Save first");
+    expect(next).toHaveAccessibleDescription("Save first");
   });
 
   // #144: the widths remembered for the draft's longer state text do not keep the header folded.

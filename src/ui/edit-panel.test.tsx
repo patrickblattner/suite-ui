@@ -13,7 +13,14 @@ afterEach(async () => {
   await i18n.changeLanguage("en");
 });
 
-function renderPanel(props: Partial<EditPanelProps> = {}) {
+// The overrides of a test; the submit lock stays one unit as on `EditPanel` (`SUI-FEATURE-250`).
+type PanelOverrides = Omit<Partial<EditPanelProps>, "submitDisabled" | "submitDisabledHint"> &
+  (
+    | { submitDisabled?: never; submitDisabledHint?: never }
+    | { submitDisabled: boolean; submitDisabledHint: string }
+  );
+
+function renderPanel(props: PanelOverrides = {}) {
   const onOpenChange = vi.fn();
   const onSubmit = vi.fn();
   render(
@@ -122,8 +129,8 @@ describe("EditPanel", () => {
   });
 
   it('submitKind="next" locks with submitDisabled and works with busy like Save', () => {
-    renderPanel({ submitKind: "next", submitDisabled: true });
-    expect(screen.getByTestId("edit-panel-submit")).toBeDisabled();
+    renderPanel({ submitKind: "next", submitDisabled: true, submitDisabledHint: "Pick a file." });
+    expect(screen.getByTestId("edit-panel-submit")).toHaveAttribute("aria-disabled", "true");
     cleanup();
     const { onSubmit: onBusySubmit } = renderPanel({ submitKind: "next", busy: true });
     const submit = screen.getByTestId("edit-panel-submit");
@@ -228,8 +235,12 @@ describe("EditPanel", () => {
   });
 
   it('submitKind="apply" locks and works with busy like Save', () => {
-    const { onSubmit } = renderPanel({ submitKind: "apply", submitDisabled: true });
-    expect(screen.getByTestId("edit-panel-submit")).toBeDisabled();
+    const { onSubmit } = renderPanel({
+      submitKind: "apply",
+      submitDisabled: true,
+      submitDisabledHint: "Pick a term.",
+    });
+    expect(screen.getByTestId("edit-panel-submit")).toHaveAttribute("aria-disabled", "true");
     fireEvent.submit(screen.getByLabelText("Name"));
     expect(onSubmit).not.toHaveBeenCalled();
     cleanup();
@@ -282,11 +293,42 @@ describe("EditPanel", () => {
     expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 
-  it("submitDisabled locks the primary action and the form submit", () => {
-    const { onSubmit } = renderPanel({ submitDisabled: true });
-    expect(screen.getByTestId("edit-panel-submit")).toBeDisabled();
-    fireEvent.submit(screen.getByLabelText("Name"));
+  // SUI-FEATURE-250 AC1
+  it("submitDisabled locks the primary action with aria-disabled; it keeps the focus and its reason", () => {
+    const { onSubmit } = renderPanel({
+      submitDisabled: true,
+      submitDisabledHint: "Available once a name is set.",
+    });
+    const submit = screen.getByTestId("edit-panel-submit");
+    expect(submit).toHaveAttribute("aria-disabled", "true");
+    expect(submit).toBeEnabled();
+    expect(submit).toHaveAccessibleDescription("Available once a name is set.");
+    act(() => submit.focus());
+    expect(submit).toHaveFocus();
+    // The wrapping hint span is no tab stop of its own.
+    expect(submit.parentElement).not.toHaveAttribute("tabindex");
+    // Enter in a field submits implicitly by a click on the submit button (jsdom does not, so the
+    // click and the form submit stand in for it); both are cancelled.
+    const name = screen.getByLabelText("Name");
+    fireEvent.keyDown(name, { key: "Enter" });
+    fireEvent.click(submit);
+    fireEvent.submit(name);
     expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  // SUI-FEATURE-250 AC2
+  it("submitDisabled without submitDisabledHint is a type error", () => {
+    const props = { open: true, onOpenChange: () => {}, title: "Channel", children: null };
+    // @ts-expect-error -- a locked primary action always names its reason.
+    const locked: EditPanelProps = { ...props, submitDisabled: true };
+    // @ts-expect-error -- a reason without a lock says nothing.
+    const reasonOnly: EditPanelProps = { ...props, submitDisabledHint: "Set a name." };
+    const both: EditPanelProps = {
+      ...props,
+      submitDisabled: false,
+      submitDisabledHint: "Set a name.",
+    };
+    expect([locked, reasonOnly, both]).toHaveLength(3);
   });
 
   // AC3
@@ -298,7 +340,7 @@ describe("EditPanel", () => {
     expect(submit).toBeEnabled();
     expect(submit).toHaveAttribute("data-busy", "true");
     fireEvent.click(submit);
-    expect(screen.getByTestId("edit-panel-cancel")).toBeDisabled();
+    expect(screen.getByTestId("edit-panel-cancel")).toHaveAttribute("aria-disabled", "true");
     fireEvent.submit(screen.getByLabelText("Name"));
     fireEvent.keyDown(screen.getByTestId("edit-panel"), { key: "Escape" });
     expect(onSubmit).not.toHaveBeenCalled();
@@ -408,7 +450,7 @@ describe("EditPanel", () => {
   // SUI-FEATURE-035 AC3
   it.each([[{ backDisabled: true }], [{ busy: true }]])("%o locks Back", (props) => {
     renderPanel({ onBack: () => {}, ...props });
-    expect(screen.getByTestId("edit-panel-back")).toBeDisabled();
+    expect(screen.getByTestId("edit-panel-back")).toHaveAttribute("aria-disabled", "true");
   });
 
   // #290 (CX2), SUI-FEATURE-150: Back during the panel's own promise work is held, not locked; it
@@ -482,7 +524,7 @@ describe("EditPanel", () => {
         const { onBack, onOpenChange, settle } = renderSlow();
         expect(screen.getByTestId("edit-panel-submit")).toHaveAttribute("aria-busy", "true");
         const cancel = screen.getByTestId("edit-panel-cancel");
-        expect(cancel).toBeDisabled();
+        expect(cancel).toHaveAttribute("aria-disabled", "true");
         fireEvent.click(cancel);
         fireEvent.click(screen.getByTestId("edit-panel-back"));
         expect(screen.queryByTestId("leave-guard")).toBeNull();
@@ -599,9 +641,8 @@ describe("EditPanel", () => {
       });
       if (kind === "working") fireEvent.click(screen.getByTestId("edit-panel-submit"));
       const back = screen.getByTestId("edit-panel-back");
-      expect(back).toBeDisabled();
-      const ids = back.parentElement?.getAttribute("aria-describedby")?.split(" ") ?? [];
-      expect(ids.map((id) => document.getElementById(id)?.textContent).join(" ")).toBe(text);
+      expect(back).toHaveAttribute("aria-disabled", "true");
+      expect(back).toHaveAccessibleDescription(text);
       await act(async () => {
         settle(false);
         await Promise.resolve();
@@ -730,14 +771,13 @@ describe("EditPanel", () => {
         backDisabled: true,
         backDisabledHint: "Available once the upload has finished.",
       });
-      expect(screen.getByTestId("edit-panel-submit")).toBeDisabled();
+      expect(screen.getByTestId("edit-panel-submit")).toHaveAttribute("aria-disabled", "true");
       expect(hintOf("edit-panel-submit")).toBe("Available once a name is set.");
       expect(hintOf("edit-panel-back")).toBe("Available once the upload has finished.");
     });
 
-    it("AC4: locked without a disabled hint, the normal hint stands", () => {
-      renderPanel({ onBack: () => {}, submitDisabled: true, backDisabled: true });
-      expect(hintOf("edit-panel-submit")).toBe("Saves the entries.");
+    it("AC4: Back locked without a disabled hint, the normal hint stands", () => {
+      renderPanel({ onBack: () => {}, backDisabled: true });
       expect(hintOf("edit-panel-back")).toBe(
         "Goes back one step; asks first if there are unsaved changes.",
       );
@@ -914,7 +954,7 @@ describe("EditPanel", () => {
   });
 
   describe("preview (GL-UI-027 §Panel mit Vorschau)", () => {
-    function renderPreview(props: Partial<EditPanelProps> = {}) {
+    function renderPreview(props: PanelOverrides = {}) {
       render(
         <EditPanel
           open

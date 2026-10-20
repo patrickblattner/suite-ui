@@ -145,18 +145,21 @@ describe("RowActions (SUI-FEATURE-047)", () => {
     const onDelete = vi.fn();
     const onRowClick = renderRow({ onDelete, deleteDisabledText: "Still in use by 3 events." });
     const remove = screen.getByRole("button", { name: "Delete Ada" });
-    expect(remove).toBeDisabled();
+    expect(remove).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(remove);
     fireEvent.click(remove.parentElement as HTMLElement);
     expect(onDelete).not.toHaveBeenCalled();
     expect(onRowClick).not.toHaveBeenCalled();
-    // SUI-FEATURE-074: the reason shows on hover; on focus it is the span's description.
+    // SUI-FEATURE-074: the reason shows on hover over the span; on focus it is the button's own
+    // description (SUI-FEATURE-250), and the span is no tab stop.
     const span = remove.parentElement as HTMLElement;
     expect(hintOf(span)).toEqual({
       focus: null,
       hover1499: null,
       hover1500: "Still in use by 3 events.",
     });
-    expect(span).toHaveAccessibleDescription("Still in use by 3 events.");
+    expect(remove).toHaveAccessibleDescription("Still in use by 3 events.");
+    expect(span).not.toHaveAttribute("tabindex");
   });
 
   it("the hint of a usable action is its name", () => {
@@ -387,7 +390,7 @@ describe("RowActions Used by (SUI-FEATURE-004)", () => {
     const onToggle = vi.fn();
     renderRow({ usage: { count: 0, active: false, onToggle } });
     const button = screen.getByTestId("row-usage");
-    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute("aria-disabled", "true");
     fireEvent.click(button);
     expect(onToggle).not.toHaveBeenCalled();
     // SUI-FEATURE-074: the hint shows on hover, not on focus.

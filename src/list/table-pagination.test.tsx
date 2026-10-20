@@ -42,9 +42,9 @@ describe("TablePagination", () => {
       "pagination-next",
       "pagination-last",
     ]) {
-      expect(screen.getByTestId(id)).toBeDisabled();
+      expect(screen.getByTestId(id)).toHaveAttribute("aria-disabled", "true");
     }
-    expect(screen.getByTestId("pagination-first").parentElement).toHaveAccessibleDescription(
+    expect(screen.getByTestId("pagination-first")).toHaveAccessibleDescription(
       "First page: possible once you are on a later page.",
     );
   });

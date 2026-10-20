@@ -468,13 +468,12 @@ describe("MediaDetailShell: preview states and text (SUI-FEATURE-140)", () => {
     const pick = vi.fn();
     renderShell({ previewState: state, pickAction: pick });
     const button = screen.getByTestId("media-detail-pick");
-    expect(button).toBeDisabled();
+    expect(button).toHaveAttribute("aria-disabled", "true");
     fireEvent.click(button);
     expect(pick).not.toHaveBeenCalled();
-    // The wrapper takes the focus and carries the reason as its description.
-    const wrapper = button.parentElement!;
-    expect(wrapper).toHaveAttribute("tabindex", "0");
-    expect(wrapper).toHaveAccessibleDescription(reason);
+    // SUI-FEATURE-250: the locked button takes the focus and carries the reason itself.
+    expect(button.parentElement).not.toHaveAttribute("tabindex");
+    expect(button).toHaveAccessibleDescription(reason);
   });
 
   it("noRenderer: the pick stays usable", () => {
@@ -653,12 +652,11 @@ describe("MediaDetailShell: preview states and text (SUI-FEATURE-140)", () => {
     pick().focus();
     fireEvent.keyDown(pick(), { key: "ArrowRight" });
     expect(screen.getByTestId("media-detail-position")).toHaveTextContent("2 of 3");
-    expect(pick()).toBeDisabled();
+    expect(pick()).toHaveAttribute("aria-disabled", "true");
     expect(panel()).toHaveFocus();
-    // Locked, the wrapper holds the focus; from there back to the usable pick.
-    const wrapper = pick().parentElement!;
-    wrapper.focus();
-    fireEvent.keyDown(wrapper, { key: "ArrowLeft" });
+    // Locked, the button itself holds the focus (SUI-FEATURE-250); from there back to the usable pick.
+    pick().focus();
+    fireEvent.keyDown(pick(), { key: "ArrowLeft" });
     expect(screen.getByTestId("media-detail-position")).toHaveTextContent("1 of 3");
     expect(pick()).toBeEnabled();
     expect(panel()).toHaveFocus();

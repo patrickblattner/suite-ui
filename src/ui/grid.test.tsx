@@ -265,15 +265,23 @@ describe("GridToggle (SUI-FEATURE-087)", () => {
     (mode) => {
       render(<Toggle mode={mode} definition={null} />);
       const button = screen.getByRole("button", { name: "Grid" });
-      expect(button).toBeDisabled();
+      expect(button).toHaveAttribute("aria-disabled", "true");
       expect(button).toHaveAttribute("aria-pressed", "false");
-      expect(button.parentElement).toHaveAccessibleDescription("Set a grid in the brand kit");
+      // SUI-FEATURE-250: the locked button carries the hint itself; its span is no tab stop.
+      expect(button).toHaveAccessibleDescription("Set a grid in the brand kit");
+      expect(button.parentElement).not.toHaveAttribute("tabindex");
       if (mode === "getrennt") {
         // Rev 3: both parts locked, both carry the app's hint.
         const menu = screen.getByTestId("grid-toggle-menu");
-        expect(menu).toBeDisabled();
+        expect(menu).toHaveAttribute("aria-disabled", "true");
+        expect(menu).toBeEnabled();
         expect(menu).toHaveAccessibleName("Grid options");
-        expect(menu.parentElement).toHaveAccessibleDescription("Set a grid in the brand kit");
+        expect(menu).toHaveAccessibleDescription("Set a grid in the brand kit");
+        expect(menu.parentElement).not.toHaveAttribute("tabindex");
+        // The trigger's own lock keeps the menu shut.
+        fireEvent.pointerDown(menu, { button: 0, ctrlKey: false, pointerType: "mouse" });
+        fireEvent.keyDown(menu, { key: "Enter" });
+        expect(screen.queryByRole("menu")).toBeNull();
       }
     },
   );

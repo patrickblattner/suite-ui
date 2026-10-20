@@ -277,7 +277,7 @@ export function ChartData({
                         "slides.editor.chartRemoveSeries",
                         values({ name: seriesName(index) }),
                       )}
-                      disabledText={t("slides.editor.chartMinSeries")}
+                      disabledText={readOnly ? undefined : t("slides.editor.chartMinSeries")}
                     >
                       <Button
                         type="button"
@@ -335,7 +335,7 @@ export function ChartData({
                         "slides.editor.chartRemoveCategory",
                         values({ name: categoryName(row) }),
                       )}
-                      disabledText={t("slides.editor.chartMinCategories")}
+                      disabledText={readOnly ? undefined : t("slides.editor.chartMinCategories")}
                     >
                       <Button
                         type="button"
@@ -410,9 +410,11 @@ export function ChartData({
       <div className="flex flex-wrap gap-2">
         <Hint
           text={t("slides.editor.chartAddCategoryHint")}
-          disabledText={t("slides.editor.chartMaxCategories", {
-            max: SLIDE_LIMITS.maxChartCategories,
-          })}
+          disabledText={
+            readOnly
+              ? undefined
+              : t("slides.editor.chartMaxCategories", { max: SLIDE_LIMITS.maxChartCategories })
+          }
         >
           <Button
             type="button"
@@ -436,7 +438,11 @@ export function ChartData({
         </Hint>
         <Hint
           text={t("slides.editor.chartAddSeriesHint")}
-          disabledText={t("slides.editor.chartMaxSeries", { max: SLIDE_LIMITS.maxChartSeries })}
+          disabledText={
+            readOnly
+              ? undefined
+              : t("slides.editor.chartMaxSeries", { max: SLIDE_LIMITS.maxChartSeries })
+          }
         >
           <Button
             type="button"

@@ -270,11 +270,16 @@ function GridToggle({ mode, value, onChange, definition, unavailableText }: Grid
       {mode === "getrennt" ? (
         <DropdownMenu>
           <IconButtonTooltip label={t("grid.options")} disabledText={unavailableText} named>
-            <DropdownMenuTrigger asChild disabled={locked}>
+            {/* Locked with a reason (`SUI-FEATURE-250`): the trigger's `disabled` keeps the menu shut,
+                `aria-disabled` locks the button, which keeps the focus and carries the reason. */}
+            <DropdownMenuTrigger asChild disabled={locked} aria-disabled={locked || undefined}>
               <Button
                 type="button"
                 variant="outline"
                 size="icon-sm"
+                // The child's own prop beats the `disabled` the trigger's Slot hands down, so the
+                // button takes the `aria-disabled` lock instead of the `disabled` attribute.
+                disabled={false}
                 // The narrow arrow segment of the joined button; its left border is the main part's. The
                 // invisible `after` widens its hit area to 32 px without changing its look.
                 className="relative -ml-px w-6 rounded-l-none after:absolute after:inset-y-0 after:-inset-x-1 focus-visible:z-10"

@@ -63,4 +63,28 @@ describe("ChartData", () => {
     expect(screen.queryByTestId("slide-editor-chart-error-0")).toBeNull();
     expect(onChange.mock.lastCall![0].series[0]!.values[0]).toBe(1.5);
   });
+
+  // #387 (SUI-FEATURE-250): a limit lock names the limit on the focusable button; read-only claims
+  // no limit as its reason and stays plainly disabled, as the panel's other read-only controls.
+  it("names the limit only when it locks, never for a read-only chart", () => {
+    const single = { ...chart, series: [chart.series[0]!] };
+    const { unmount } = render(
+      <ChartData chart={single} revision={0} readOnly={false} onChange={() => {}} />,
+    );
+    const remove = screen.getByTestId("slide-editor-chart-remove-series-0");
+    expect(remove).toHaveAttribute("aria-disabled", "true");
+    expect(remove).toHaveAccessibleDescription("A chart needs at least one series.");
+    unmount();
+    render(<ChartData chart={chart} revision={0} readOnly onChange={() => {}} />);
+    for (const id of [
+      "slide-editor-chart-remove-series-0",
+      "slide-editor-chart-remove-category-0",
+      "slide-editor-chart-add-series",
+      "slide-editor-chart-add-category",
+    ]) {
+      const button = screen.getByTestId(id);
+      expect(button).toBeDisabled();
+      expect(button).not.toHaveAccessibleDescription(/at (least|most)/);
+    }
+  });
 });

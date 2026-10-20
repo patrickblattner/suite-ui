@@ -108,9 +108,8 @@ describe("SecretCardHeader", () => {
         />,
       );
       const button = screen.getByRole("button", { name });
-      expect(button).toBeDisabled();
-      const id = button.parentElement?.getAttribute("aria-describedby") ?? "";
-      expect(document.getElementById(id)).toHaveTextContent(reason);
+      expect(button).toHaveAttribute("aria-disabled", "true");
+      expect(button).toHaveAccessibleDescription(reason);
     },
   );
 
@@ -355,7 +354,7 @@ describe("SettingsActionRow", () => {
     const [leading, pair] = [...row.children] as HTMLElement[];
     // SUI-FEATURE-088 rev 4: the pair's height, one row one height.
     expect(within(leading!).getByTestId("app-replace")).toHaveAttribute("data-size", "default");
-    expect(within(leading!).getByTestId("app-remove")).toBeDisabled();
+    expect(within(leading!).getByTestId("app-remove")).toHaveAttribute("aria-disabled", "true");
     expect([...pair!.querySelectorAll("button")].map((button) => button.dataset.testid)).toEqual([
       "app-cancel",
       "app-save",

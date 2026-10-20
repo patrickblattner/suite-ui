@@ -96,6 +96,11 @@ const LOCKED_LOOK: Record<ButtonVariant, string> = {
   link: "aria-disabled:cursor-not-allowed aria-disabled:text-[color-mix(in_srgb,var(--primary)_50%,var(--background))] aria-disabled:hover:no-underline",
 };
 
+// Under forced colours the system palette replaces the half-tone above: the locked button takes
+// `GrayText` for its label and border, as the browser draws a `disabled` one (#387).
+const LOCKED_FORCED =
+  "forced-colors:aria-disabled:border-[GrayText] forced-colors:aria-disabled:text-[GrayText]";
+
 /**
  * A running button stays focusable (`GL-UI-050`, `SUI-FEATURE-120`): `busy` locks it with
  * `aria-disabled`, never the `disabled` attribute, which would drop the focus to `<body>` for the run.
@@ -148,7 +153,7 @@ function Button(props: ButtonProps) {
       {...(locked ? { "aria-disabled": true } : {})}
       className={cn(
         buttonVariants({ variant, size }),
-        locked && !busy && disabled !== true && LOCKED_LOOK[variant],
+        locked && !busy && disabled !== true && [LOCKED_LOOK[variant], LOCKED_FORCED],
         className,
         working && "[&_svg:not([data-slot=busy])]:hidden",
         // "Runs" and "does not work" never share a look: should a running button also be `disabled`,

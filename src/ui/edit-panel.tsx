@@ -54,13 +54,11 @@ type EditPanelProps = {
   // The primary action is running (`GL-UI-027`): working state and lock on the primary action,
   // Cancel locked with it, and the panel ignores every close request until the caller closes it.
   busy?: boolean;
-  submitDisabled?: boolean;
   // Already translated hints of the footer (`SUI-FEATURE-091`): `submitHint`/`backHint` replace the
   // package's, the `…DisabledHint` names the condition that unlocks `submitDisabled`/`backDisabled`.
   // The package `save` hint says nothing about closing: a call site that closes the panel after
   // saving, or sets a `submitLabel` of its own meaning, passes a `submitHint` saying so.
   submitHint?: string;
-  submitDisabledHint?: string;
   backHint?: string;
   backDisabledHint?: string;
   // What the primary action does (`SUI-FEATURE-111`): `save` (the default) leads with the save symbol;
@@ -83,7 +81,13 @@ type EditPanelProps = {
   testIdPrefix?: string;
   className?: string;
   style?: React.CSSProperties;
-};
+} & SubmitLock;
+
+// A locked primary action always names its reason (`SUI-FEATURE-250`): `submitDisabled` comes with
+// `submitDisabledHint` or not at all. The app knows the reason; the package invents none.
+type SubmitLock =
+  | { submitDisabled?: never; submitDisabledHint?: never }
+  | { submitDisabled: boolean; submitDisabledHint: string };
 
 // The edit panel (`GL-UI-027` §Bearbeitungsflächen, `SUI-FEATURE-030`): from the right over the whole
 // content area, its left edge at the current sidebar width, so the navigation stays visible and

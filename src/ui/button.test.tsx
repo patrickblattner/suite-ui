@@ -179,6 +179,22 @@ describe("Button", () => {
     expect(button.querySelector("[data-slot=busy]")).toBeNull();
   });
 
+  // #387: under forced colours the half-tone is gone; the locked button draws in GrayText.
+  it.each(["default", "outline", "ghost"] as const)(
+    "aria-disabled %s: GrayText label and border under forced colours",
+    (variant) => {
+      render(
+        <Button variant={variant} size="default" aria-disabled>
+          Save
+        </Button>,
+      );
+      expect(screen.getByRole("button", { name: "Save" })).toHaveClass(
+        "forced-colors:aria-disabled:text-[GrayText]",
+        "forced-colors:aria-disabled:border-[GrayText]",
+      );
+    },
+  );
+
   it("aria-disabled: a look in className wins over the default one", () => {
     render(
       <Button

@@ -1937,9 +1937,7 @@ test("media detail shell: text in both formats, the three preview states and an 
       await expect(pick).toBeDisabled();
       await pick.locator("..").hover();
       await expect(page.getByRole("tooltip")).toHaveText("Can't be chosen without a file.");
-      await expect(pick.locator("..")).toHaveAccessibleDescription(
-        "Can't be chosen without a file.",
-      );
+      await expect(pick).toHaveAccessibleDescription("Can't be chosen without a file.");
       await page.mouse.move(0, 0);
     } else {
       await expect(pick).toBeEnabled();
@@ -1959,7 +1957,8 @@ test("media detail shell: text in both formats, the three preview states and an 
   await expect(position).toHaveText("4 of 6");
   await expect(pick).toBeDisabled();
   await expect(shell).toBeFocused();
-  await pick.locator("..").focus();
+  // SUI-FEATURE-250: the locked pick takes the focus itself.
+  await pick.focus();
   await page.keyboard.press("ArrowRight");
   await expect(position).toHaveText("5 of 6");
   await expect(pick).toBeEnabled();
@@ -4544,9 +4543,11 @@ test("page header add pair: a locked entry shows its reason", async ({ page }) =
   await wrapper.hover();
   await expect(page.getByRole("tooltip")).toHaveText("Possible once a directory is connected.");
   await page.mouse.move(1900, 1060);
-  await wrapper.focus();
-  await expect(wrapper).toBeFocused();
-  await expect(wrapper).toHaveAccessibleDescription("Possible once a directory is connected.");
+  // SUI-FEATURE-250: the locked button takes the focus and carries the reason itself.
+  await expect(wrapper).not.toHaveAttribute("tabindex");
+  await secondary.focus();
+  await expect(secondary).toBeFocused();
+  await expect(secondary).toHaveAccessibleDescription("Possible once a directory is connected.");
 });
 
 // SUI-FEATURE-068 AC4: the upload add reports whether its panel is open and names it.
@@ -7925,9 +7926,9 @@ for (const lng of LANGUAGES) {
   });
 }
 
-// #172 (`GL-UI-013`): the focusable span a Hint or an IconButtonTooltip wraps around a locked control
-// shows the package ring, 3 px `--ring`, and under forced colors the outline the ring rule sets; never
-// the browser outline.
+// #172 (`GL-UI-013`): the focus target of a locked control shows the package ring, 3 px `--ring`, and
+// under forced colors the outline the ring rule sets; never the browser outline. A Button locked with a
+// reason is that target itself, its span is no tab stop (`SUI-FEATURE-250`).
 async function expectCarrierRing(page: Page, carrier: Locator, forced: boolean) {
   if (forced) {
     await expectForcedOutline(carrier);
@@ -7941,22 +7942,21 @@ async function expectCarrierRing(page: Page, carrier: Locator, forced: boolean) 
 }
 
 for (const forced of [false, true]) {
-  test(`focus ring: a Hint carrier span${forced ? " under forced colors" : ""}`, async ({
+  test(`focus ring: a Button locked in a Hint${forced ? " under forced colors" : ""}`, async ({
     page,
   }) => {
     if (forced) await page.emulateMedia({ forcedColors: "active" });
     await page.goto("/?page=settings&layout=blocks&lng=en");
     const remove = page.getByTestId("secret-remove");
-    await expect(remove).toBeDisabled();
-    const carrier = remove.locator("..");
-    await expect(carrier).toHaveAttribute("tabindex", "0");
+    await expect(remove).toHaveAttribute("aria-disabled", "true");
+    await expect(remove.locator("..")).not.toHaveAttribute("tabindex");
     await page.getByTestId("secret-replace").focus();
     await page.keyboard.press("Tab");
-    await expect(carrier).toBeFocused();
-    await expectCarrierRing(page, carrier, forced);
+    await expect(remove).toBeFocused();
+    await expectCarrierRing(page, remove, forced);
   });
 
-  test(`focus ring: an IconButtonTooltip carrier span${forced ? " under forced colors" : ""}`, async ({
+  test(`focus ring: a Button locked in an IconButtonTooltip${forced ? " under forced colors" : ""}`, async ({
     page,
   }) => {
     if (forced) await page.emulateMedia({ forcedColors: "active" });
@@ -7971,15 +7971,14 @@ for (const forced of [false, true]) {
       await confirm.getByRole("button", { name: "Delete" }).click();
       await expect(confirm).toHaveCount(0);
     }
-    await expect(remove).toBeDisabled();
-    const carrier = remove.locator("..");
-    await expect(carrier).toHaveAttribute("tabindex", "0");
-    await carrier.focus();
+    await expect(remove).toHaveAttribute("aria-disabled", "true");
+    await expect(remove.locator("..")).not.toHaveAttribute("tabindex");
+    await remove.focus();
     // A keyboard focus, so `:focus-visible` holds.
     await page.keyboard.press("Shift+Tab");
     await page.keyboard.press("Tab");
-    await expect(carrier).toBeFocused();
-    await expectCarrierRing(page, carrier, forced);
+    await expect(remove).toBeFocused();
+    await expectCarrierRing(page, remove, forced);
   });
 }
 
@@ -10051,7 +10050,7 @@ test("slide editor: a chart's data is edited in the panel, key by key, within it
   await page.mouse.move(0, 0);
   await add.locator("..").hover();
   await expect(page.getByRole("tooltip")).toContainText("A chart has at most 6 series.");
-  await expect(add.locator("..")).toHaveAccessibleDescription("A chart has at most 6 series.");
+  await expect(add).toHaveAccessibleDescription("A chart has at most 6 series.");
   // Removing goes down to one; the remove buttons name what they remove, an emptied name by its
   // default name.
   await expect(panel.getByTestId("slide-editor-chart-remove-series-0")).toHaveAccessibleName(
@@ -10084,9 +10083,7 @@ test("slide editor: a chart's data is edited in the panel, key by key, within it
   await expect(data.getByRole("columnheader")).toHaveCount(1);
   const lastCategory = panel.getByTestId("slide-editor-chart-remove-category-0");
   await expect(lastCategory).toBeDisabled();
-  await expect(lastCategory.locator("..")).toHaveAccessibleDescription(
-    "A chart needs at least one category.",
-  );
+  await expect(lastCategory).toHaveAccessibleDescription("A chart needs at least one category.");
 });
 
 // AC4: bar → pie → bar keeps every series and value; a pie says what it does not draw; clicking the

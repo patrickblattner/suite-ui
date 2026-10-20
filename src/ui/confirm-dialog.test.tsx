@@ -92,7 +92,7 @@ describe("ConfirmDialog", () => {
   ])("AC3 %s: a locked Cancel names when it unlocks", async (lng, hint) => {
     await i18n.changeLanguage(lng);
     renderDialog({ busy: true });
-    expect(hintText(screen.getByTestId("confirm-cancel").parentElement)).toBe(hint);
+    expect(hintText(screen.getByTestId("confirm-cancel"))).toBe(hint);
   });
 
   it("confirm and cancel call their handlers", () => {
@@ -109,7 +109,7 @@ describe("ConfirmDialog", () => {
     expect(confirm).toHaveAttribute("aria-busy", "true");
     fireEvent.click(confirm);
     expect(onConfirm).not.toHaveBeenCalled();
-    expect(screen.getByTestId("confirm-cancel")).toBeDisabled();
+    expect(screen.getByTestId("confirm-cancel")).toHaveAttribute("aria-disabled", "true");
     fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
     expect(onOpenChange).not.toHaveBeenCalled();
   });
@@ -120,10 +120,10 @@ describe("ConfirmDialog", () => {
       confirmDisabledHint: "Choose a reason first.",
     });
     const confirm = screen.getByTestId("confirm-confirm");
-    expect(confirm).toBeDisabled();
+    expect(confirm).toHaveAttribute("aria-disabled", "true");
     expect(confirm).not.toHaveAttribute("aria-busy");
     expect(confirm).toHaveAttribute("data-variant", "default");
-    expect(hintText(confirm.parentElement)).toBe("Choose a reason first.");
+    expect(hintText(confirm)).toBe("Choose a reason first.");
     fireEvent.click(confirm);
     expect(onConfirm).not.toHaveBeenCalled();
     fireEvent.click(screen.getByTestId("confirm-cancel"));
