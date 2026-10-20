@@ -2,8 +2,10 @@ import type { LucideIcon } from "lucide-react";
 import {
   ChartColumnIcon,
   CircleIcon,
+  GroupIcon,
   ImageIcon,
   MinusIcon,
+  PuzzleIcon,
   SquareIcon,
   TriangleIcon,
 } from "lucide-react";
@@ -20,6 +22,12 @@ import { isSlideIcon, slideIconNames, useSlideIcons } from "./use-slide-assets.j
 
 // What a drag from the library carries to the canvas.
 export const LIBRARY_DRAG_TYPE = "application/x-suite-slide-library";
+
+// An entry of the app (`SUI-FEATURE-163`): its own type or a block, with the name people read.
+export type AppLibraryEntry = {
+  entry: Extract<LibraryEntry, { kind: "custom" | "block" }>;
+  label: string;
+};
 
 // What the app's media picker hands back (`SUI-FEATURE-232`); `undefined` is a cancel.
 export type PickedMedia = { id: string; alt?: string; width?: number; height?: number };
@@ -40,8 +48,12 @@ export { iconLabel };
 
 // The library entry a drop carries, or `undefined` for anything else: data that is not JSON, or not
 // a shape, a line or an icon of the package's set (a drag never carries media, which come only
-// through the app's picker).
-export function parseLibraryEntry(data: string): LibraryEntry | undefined {
+// through the app's picker). An app's type or block is named by its id only and taken from the app's
+// own entries (`app`), never from the dragged data.
+export function parseLibraryEntry(
+  data: string,
+  app: readonly LibraryEntry[] = [],
+): LibraryEntry | undefined {
   let value: unknown;
   try {
     value = JSON.parse(data);
@@ -56,6 +68,13 @@ export function parseLibraryEntry(data: string): LibraryEntry | undefined {
   }
   if (entry.kind === "icon" && typeof entry.icon === "string" && isSlideIcon(entry.icon)) {
     return { kind: "icon", icon: entry.icon };
+  }
+  if (entry.kind === "custom" || entry.kind === "block") {
+    return app.find((one) =>
+      one.kind === "custom"
+        ? entry.kind === "custom" && one.typeId === entry.typeId
+        : one.kind === "block" && entry.kind === "block" && one.id === entry.id,
+    );
   }
   // A chart with names within the schema's limits (`SUI-FEATURE-233`).
   const names = (value: unknown, most: number) =>
@@ -92,11 +111,13 @@ export function ElementLibrary({
   onTerm,
   onInsert,
   onPickMedia,
+  appEntries = [],
 }: {
   term: string;
   onTerm: (term: string) => void;
   onInsert: (entry: LibraryEntry, label: string) => void;
   onPickMedia: (() => void) | undefined;
+  appEntries?: readonly AppLibraryEntry[];
 }) {
   const { t } = useTranslation("suite");
   const names = React.useMemo(() => slideIconNames(), []);
@@ -107,7 +128,14 @@ export function ElementLibrary({
   for (const [name, icon] of icons) previews.set(name, icon);
   const searchId = React.useId();
   const drag = (entry: LibraryEntry) => (event: React.DragEvent) => {
-    event.dataTransfer.setData(LIBRARY_DRAG_TYPE, JSON.stringify(entry));
+    // An app's entry travels by its id; the drop takes the rest from the app's entries.
+    const data =
+      entry.kind === "custom"
+        ? { kind: "custom", typeId: entry.typeId }
+        : entry.kind === "block"
+          ? { kind: "block", id: entry.id }
+          : entry;
+    event.dataTransfer.setData(LIBRARY_DRAG_TYPE, JSON.stringify(data));
     event.dataTransfer.effectAllowed = "copy";
   };
   const values = (name: string) => ({ name, interpolation: { escapeValue: false } });
@@ -165,6 +193,29 @@ export function ElementLibrary({
           )}
         </div>
       </section>
+      {appEntries.length === 0 ? null : (
+        <section className="flex flex-col gap-2" aria-labelledby={`${searchId}-app`}>
+          <h3 id={`${searchId}-app`} className="text-sm font-medium">
+            {t("slides.editor.libraryApp")}
+          </h3>
+          <div className="grid grid-cols-2 gap-1" data-testid="slide-editor-library-app">
+            {appEntries.map(({ entry, label }) =>
+              entryButton(
+                entry,
+                label,
+                entry.kind === "custom" ? (
+                  <PuzzleIcon aria-hidden="true" />
+                ) : (
+                  <GroupIcon aria-hidden="true" />
+                ),
+                entry.kind === "custom"
+                  ? `slide-editor-library-type-${entry.typeId}`
+                  : `slide-editor-library-block-${entry.id}`,
+              ),
+            )}
+          </div>
+        </section>
+      )}
       {onPickMedia === undefined ? null : (
         <section className="flex flex-col gap-2" aria-labelledby={`${searchId}-media`}>
           <h3 id={`${searchId}-media`} className="text-sm font-medium">

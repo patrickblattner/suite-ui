@@ -59,14 +59,20 @@ describe("SlidePlayer", () => {
         resolveMedia={resolveSlideMedia}
         extensions={{
           types: { "gallery.stamp": { label: "Stamp", render: () => <span>Stamp drawn</span> } },
-          addOns: [{ type: "image", key: "filter", style: () => ({ filter: "sepia(30%)" }) }],
+          addOns: [
+            {
+              type: "image",
+              id: "ext:gallery.image-filter",
+              style: () => ({ filter: "sepia(30%)" }),
+            },
+          ],
         }}
         data-testid="player"
       />,
     );
     expect(screen.getByText("Stamp drawn")).toBeInTheDocument();
     const box = container.ownerDocument.querySelector<HTMLElement>(
-      "[data-slide-element=photo] [data-slide-add-on=filter]",
+      "[data-slide-element=photo] [data-slide-add-on='ext:gallery.image-filter']",
     )!;
     expect(box.style.filter).toBe("sepia(30%)");
   });

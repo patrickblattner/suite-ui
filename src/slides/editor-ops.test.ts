@@ -26,6 +26,7 @@ import {
   nextAnimationOrder,
   setAnimation,
   setBox,
+  setPayload,
   setRotation,
   setTransition,
   stepIntoGroups,
@@ -973,5 +974,77 @@ describe("animations", () => {
     const next = setTransition(document, 0, { type: "fade", duration: 700 });
     expect(next.pages[0]!.transition).toEqual({ type: "fade", duration: 700 });
     expect(setTransition(document, 3, { type: "fade", duration: 700 })).toBe(document);
+  });
+});
+
+// SUI-FEATURE-163: an app's type and block from the library, and its fields' payload.
+describe("app extensions", () => {
+  const color = { kind: "brand", key: "accent" } as const;
+  const page = () => doc([{ ...shape("a", 0, 0), layer: 2 }]);
+
+  it("puts an app type at its size with a copy of its payload", () => {
+    const payload = { text: "New", nested: { n: 1 } };
+    const element = libraryElement(
+      page(),
+      0,
+      { kind: "custom", typeId: "gallery.stamp", size: { width: 200, height: 80 }, payload },
+      { x: 960, y: 540 },
+      color,
+    );
+    expect(element).toMatchObject({
+      id: "custom-1",
+      type: "custom",
+      typeId: "gallery.stamp",
+      x: 860,
+      y: 500,
+      width: 200,
+      height: 80,
+      layer: 2,
+      payload,
+    });
+    expect(element.payload).not.toBe(payload);
+    expect((element.payload as typeof payload).nested).not.toBe(payload.nested);
+    // Without a size, a square of 20 % of the shorter side.
+    const plain = libraryElement(page(), 0, { kind: "custom", typeId: "x" }, { x: 0, y: 0 }, color);
+    expect(plain).toMatchObject({ width: 216, height: 216 });
+    expect(plain).not.toHaveProperty("payload");
+  });
+
+  it("copies a block with new ids, centred on the point, its children moved with it", () => {
+    const document = doc([shape("group-1", 0, 0), shape("shape-1", 0, 0)]);
+    const block = slideElementSchema.parse({
+      id: "saved",
+      type: "group",
+      x: 10,
+      y: 20,
+      width: 200,
+      height: 100,
+      children: [{ ...shape("inner", 10, 20), payload: { keep: [1, 2] } }, shape("other", 110, 20)],
+    });
+    const copy = libraryElement(
+      document,
+      0,
+      { kind: "block", id: "b", element: block },
+      { x: 500, y: 500 },
+      color,
+    );
+    expect(copy.type).toBe("group");
+    expect(copy.id).toBe("group-2");
+    const children = copy.type === "group" ? copy.children : [];
+    expect(children.map((child) => child.id)).toEqual(["shape-2", "shape-3"]);
+    expect(copy.x + copy.width / 2).toBeCloseTo(500);
+    expect(copy.y + copy.height / 2).toBeCloseTo(500);
+    expect(children[0]!.x - copy.x).toBeCloseTo(0);
+    expect(children[1]!.x - copy.x).toBeCloseTo(100);
+    expect(children[0]!.payload).toEqual({ keep: [1, 2] });
+    expect(safeParseSlideDocument(insertElement(document, 0, copy)).ok).toBe(true);
+  });
+
+  it("sets the payload of an element, and removes an empty one", () => {
+    const document = page();
+    const set = setPayload(document, 0, "a", { filter: { warmth: 10 } });
+    expect(set.pages[0]!.elements[0]!.payload).toEqual({ filter: { warmth: 10 } });
+    const cleared = setPayload(set, 0, "a", {});
+    expect(cleared.pages[0]!.elements[0]).not.toHaveProperty("payload");
   });
 });

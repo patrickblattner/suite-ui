@@ -437,6 +437,7 @@ export const es: SuiteStrings = {
       libraryEllipse: "Elipse",
       libraryTriangle: "Triángulo",
       libraryLine: "Línea",
+      libraryApp: "De esta aplicación",
       libraryMedia: "Biblioteca de medios",
       libraryPickMedia: "Elegir un medio…",
       libraryIcons: "Iconos",

@@ -8473,10 +8473,9 @@ test("slide export: PNG equal to the editor view, PDF with real text", async ({ 
   const editor = await view.screenshot({ animations: "disabled" });
   expect(Buffer.from(png[0]!).equals(editor)).toBe(true);
   // SUI-FEATURE-163 AC1: the photo is drawn under the gallery's image filter, the stamp by its type.
-  await expect(view.locator("[data-slide-element=photo] [data-slide-add-on=filter]")).toHaveCSS(
-    "filter",
-    /sepia/,
-  );
+  await expect(
+    view.locator("[data-slide-element=photo] [data-slide-add-on='ext:gallery.image-filter']"),
+  ).toHaveCSS("filter", /sepia/);
   await expect(view.locator("[data-slide-element=stamp]")).toContainText("Stamp");
   const { getDocument } = await import("pdfjs-dist/legacy/build/pdf.mjs");
   const file = await getDocument({ data: new Uint8Array(pdf) }).promise;
@@ -10969,6 +10968,38 @@ test("slide editor: entrances in order and a cross-fade play in the preview and 
   await expect(inner(player, "caption")).toHaveCSS("visibility", "hidden");
   await page.keyboard.press("ArrowRight");
   await expect(inner(player, "caption")).toHaveCSS("animation-name", "suite-slide-slide-in-left");
+});
+
+// SUI-FEATURE-163 AC1 (#295 inc 2): the gallery's extensions with their editor parts. The overlay lies
+// over the page in the editor only, at 1 screen px whatever the zoom; the stamp type and the badge
+// block come from the library; saved, the player draws the stamp and no overlay.
+test("slide editor: the app's overlay, library entries and fields", async ({ page }) => {
+  const { editor, library } = await openLibrary(page, "&extensions=editor");
+  const zone = editor.getByTestId("gallery-safe-zone");
+  await expect(zone).toBeVisible();
+  await expect(zone).toHaveCSS("border-top-width", "1px");
+  await expect(editor.getByTestId("slide-editor-overlay")).toHaveCSS("pointer-events", "none");
+  await editor.getByTestId("canvas-zoom-fit").click();
+  await expect(zone).toHaveCSS("border-top-width", "1px");
+
+  const app = library.getByTestId("slide-editor-library-app");
+  await expect(app.getByRole("button")).toHaveText(["Stamp", "Badge"]);
+  await library.getByTestId("slide-editor-library-type-gallery.stamp").click();
+  const stamp = editor.locator("[data-slot=slide-view] [data-slide-element=custom-1]");
+  await expect(stamp).toContainText("New");
+  // Its field edits its payload, drawn at once.
+  await editor.getByTestId("gallery-stamp-text").fill("Hello");
+  await expect(stamp).toContainText("Hello");
+  await library.getByTestId("slide-editor-library-block-badge").click();
+  await expect(
+    editor.locator("[data-slot=slide-view] [data-slide-type=group]").last(),
+  ).toContainText("Badge");
+
+  await page.getByTestId("editor-save").click();
+  await page.getByTestId("slide-editor-app-present").click();
+  const player = page.getByTestId("slide-player");
+  await expect(player.locator("[data-slide-element=custom-1]")).toContainText("Hello");
+  await expect(player.getByTestId("gallery-safe-zone")).toHaveCount(0);
 });
 
 test("slide editor: under prefers-reduced-motion the preview fades without movement", async ({

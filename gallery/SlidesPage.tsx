@@ -16,7 +16,7 @@ import {
 
 // What the gallery hands every view: its brand set, its own font files, its media and its extensions
 // (`SUI-FEATURE-163`): an app type of its own (`gallery.stamp`; `community.poll` stays without one)
-// and an image filter read from the payload key `filter` (warmth and brightness, as the Cockpit keeps
+// and an image filter read from the payload key `ext:gallery.image-filter` (warmth and brightness, as the Cockpit keeps
 // them).
 export const GALLERY_SLIDE_PROPS = {
   brand: SLIDE_BRAND,
@@ -26,19 +26,20 @@ export const GALLERY_SLIDE_PROPS = {
     types: {
       "gallery.stamp": {
         label: "Stamp",
-        render: () => (
+        // Its payload's `text` when it holds one (the editor's field sets it), else "Stamp".
+        render: (element) => (
           <div className="flex size-full items-center justify-center rounded-full border-4 border-dashed border-current text-[40px] font-bold">
-            Stamp
+            {typeof element.payload?.text === "string" ? element.payload.text : "Stamp"}
           </div>
         ),
       },
     },
-    addOns: [{ type: "image", key: "filter", style: imageFilter }],
+    addOns: [{ type: "image", id: "ext:gallery.image-filter", style: imageFilter }],
   },
 } satisfies Partial<SlideViewProps>;
 
 // The gallery's image filter: `{ warmth, brightness }` in % as a CSS filter; anything else draws plain.
-function imageFilter(value: unknown) {
+export function imageFilter(value: unknown) {
   if (typeof value !== "object" || value === null) return undefined;
   const { warmth = 0, brightness = 0 } = value as Record<string, unknown>;
   if (typeof warmth !== "number" || typeof brightness !== "number") return undefined;

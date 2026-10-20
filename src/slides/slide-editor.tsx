@@ -65,6 +65,7 @@ import {
   placedBox,
   setAnimation,
   setBox,
+  setPayload,
   setRotation,
   setTransition,
   stepIntoGroups,
@@ -98,6 +99,7 @@ import {
 import { insertColor } from "./editor-color.js";
 import { ChartData } from "./slide-editor-chart.js";
 import {
+  type AppLibraryEntry,
   ElementLibrary,
   iconLabel,
   LIBRARY_DRAG_TYPE,
@@ -106,7 +108,12 @@ import {
 } from "./slide-editor-library.js";
 import { SlidePreview } from "./slide-editor-preview.js";
 import { TransferFormat, type TransferScope } from "./slide-editor-transfer.js";
-import { carriesUnloadedAddOn, SlideView, type SlideViewProps } from "./slide-view.js";
+import {
+  carriesUnloadedAddOn,
+  checkSlideExtensions,
+  SlideView,
+  type SlideViewProps,
+} from "./slide-view.js";
 import { type SlideHistory, useSlideHistory } from "./use-slide-history.js";
 
 export interface SlideEditorProps extends Pick<
@@ -502,6 +509,7 @@ export function SlideEditor({
   renderPlaceholder,
   "data-testid": testId,
 }: SlideEditorProps) {
+  checkSlideExtensions(extensions);
   const parsed = React.useMemo(() => safeParseSlideDocument(source), [source]);
   const view = { brand, fonts, fontOrigins, resolveMedia, extensions, renderPlaceholder };
   if (!parsed.ok) {
@@ -772,17 +780,60 @@ function Editor({
   >(undefined);
   // The search term of the library, kept while its drawer is closed.
   const [libraryTerm, setLibraryTerm] = React.useState("");
-  // What people read for an entry: a shape's kind, an icon's name, a medium's alt text.
+  // The app's own types with a library entry and its blocks (`SUI-FEATURE-163`); one whose element
+  // breaks the schema (an over-long type id, a bad size) is left out. A block without a name of its
+  // own takes its label, so what was picked stays recognisable in the layers and the path.
+  const appEntries = React.useMemo((): AppLibraryEntry[] => {
+    const types = Object.entries(view.extensions?.types ?? {}).flatMap(([typeId, type]) => {
+      if (type.library === undefined) return [];
+      const size = type.defaultSize ?? { width: 1, height: 1 };
+      const probe = {
+        id: "probe",
+        type: "custom",
+        typeId,
+        x: 0,
+        y: 0,
+        ...size,
+        payload: type.library.payload,
+      };
+      return slideElementSchema.safeParse(probe).success
+        ? [
+            {
+              entry: {
+                kind: "custom" as const,
+                typeId,
+                size: type.defaultSize,
+                payload: type.library.payload,
+              },
+              label: type.label,
+            },
+          ]
+        : [];
+    });
+    const blocks = (view.extensions?.library ?? []).flatMap((block) => {
+      const parsed = slideElementSchema.safeParse(block.element);
+      if (!parsed.success) return [];
+      const element = parsed.data.name
+        ? parsed.data
+        : { ...parsed.data, name: block.label.slice(0, SLIDE_LIMITS.maxLabelLength) };
+      return [{ entry: { kind: "block" as const, id: block.id, element }, label: block.label }];
+    });
+    return [...types, ...blocks];
+  }, [view.extensions]);
+  // What people read for an entry: a shape's kind, an icon's name, a medium's alt text, an app entry's
+  // label.
   const entryLabel = (entry: LibraryEntry): string =>
-    entry.kind === "icon"
-      ? iconLabel(entry.icon)
-      : entry.kind === "image"
-        ? entry.alt || t("slides.editor.type.image")
-        : entry.kind === "chart"
-          ? entry.name
-          : t(
-              `slides.editor.library${entry.kind === "line" ? "Line" : entry.shape[0]!.toUpperCase() + entry.shape.slice(1)}`,
-            );
+    entry.kind === "custom" || entry.kind === "block"
+      ? (appEntries.find((one) => one.entry === entry)?.label ?? t("slides.editor.type.custom"))
+      : entry.kind === "icon"
+        ? iconLabel(entry.icon)
+        : entry.kind === "image"
+          ? entry.alt || t("slides.editor.type.image")
+          : entry.kind === "chart"
+            ? entry.name
+            : t(
+                `slides.editor.library${entry.kind === "line" ? "Line" : entry.shape[0]!.toUpperCase() + entry.shape.slice(1)}`,
+              );
   // A new element's colour stands out on the page's own background (`GL-UX-001`, 3 : 1).
   const ground = (() => {
     const background = pageData?.background;
@@ -827,12 +878,17 @@ function Editor({
     const data = event.dataTransfer.getData(LIBRARY_DRAG_TYPE);
     if (data === "") return;
     event.preventDefault();
-    const entry = parseLibraryEntry(data);
+    const entry = parseLibraryEntry(
+      data,
+      appEntries.map((one) => one.entry),
+    );
     if (entry !== undefined) insertEntry(entry, toPage(event));
   };
 
   // The panel's tab: a chart has its data under Content (`SUI-FEATURE-233`), everything its layout.
   const [panelTab, setPanelTab] = React.useState<"content" | "layout" | "background">("content");
+  // The tab of a built-in type with add-on fields: Layout first, as without them.
+  const [builtInTab, setBuiltInTab] = React.useState<"content" | "layout" | "background">("layout");
   // A change to a chart's data goes in only where the schema takes it; else it is named.
   const changeChart = (next: Extract<SlideElement, { type: "chart" }>, merge?: string) => {
     if (!slideElementSchema.safeParse(next).success) {
@@ -1386,13 +1442,102 @@ function Editor({
       ? clamp(value, 1, FIELD_RANGE)
       : clamp(value, -FIELD_RANGE, FIELD_RANGE);
 
+  // The panel notes settings of an extension not loaded here on whichever tab it shows
+  // (`SUI-FEATURE-163` §Grenzen).
+  const unloadedNote =
+    single !== undefined && carriesUnloadedAddOn(single, view.extensions) ? (
+      <p className="text-sm text-muted-foreground" data-testid="slide-editor-unloaded-extension">
+        {t("slides.editor.unloadedExtension")}
+      </p>
+    ) : null;
+  // The app's fields of the selected element (`SUI-FEATURE-163`): its own type's over the payload, and
+  // each add-on's of its built-in type over the add-on's value; each change is one step of the history,
+  // changes in a row to the same value one step.
+  const changePayload = (
+    id: string,
+    change: (payload: Record<string, unknown> | undefined) => Record<string, unknown> | undefined,
+    merge: string,
+  ) =>
+    apply((current) => {
+      const found = findElement(current.pages[page]?.elements ?? [], id);
+      return found === undefined
+        ? current
+        : setPayload(current, page, id, change(found.element.payload));
+    }, merge);
+  // Each is rendered as a component of its own, so the app's fields may use hooks; keyed by element, so
+  // another element's fields start afresh.
+  const TypeFields =
+    single?.type === "custom" && types !== undefined && Object.hasOwn(types, single.typeId)
+      ? types[single.typeId]!.fields
+      : undefined;
+  const typeFields =
+    TypeFields === undefined || single?.type !== "custom" ? undefined : (
+      <TypeFields
+        key={`${single.id}:${single.typeId}`}
+        element={single}
+        value={single.payload}
+        readOnly={single.locked}
+        onChange={(payload) => changePayload(single.id, () => payload, `payload:${single.id}`)}
+      />
+    );
+  const addOnFields =
+    single === undefined || single.type === "custom"
+      ? []
+      : (view.extensions?.addOns ?? []).flatMap((addOn) => {
+          if (addOn.type !== single.type || addOn.fields === undefined) return [];
+          // The add-on's type is the element's (checked above).
+          const Fields = addOn.fields as (props: {
+            element: SlideElement;
+            value: unknown;
+            onChange: (value: unknown) => void;
+            readOnly: boolean;
+          }) => React.ReactNode;
+          const payload = single.payload;
+          return [
+            // Fields that render nothing leave no heading behind.
+            <section
+              key={addOn.id}
+              className="flex flex-col gap-3 has-[>div:empty]:hidden"
+              data-testid={`slide-editor-add-on-${addOn.id}`}
+            >
+              {addOn.label === undefined ? null : (
+                <h3 className="text-sm font-medium">{addOn.label}</h3>
+              )}
+              <div className="flex flex-col gap-3">
+                <Fields
+                  key={single.id}
+                  element={single}
+                  value={
+                    payload !== undefined && Object.hasOwn(payload, addOn.id)
+                      ? payload[addOn.id]
+                      : undefined
+                  }
+                  readOnly={single.locked}
+                  onChange={(value) =>
+                    changePayload(
+                      single.id,
+                      (old) => {
+                        const next = { ...old };
+                        if (value === undefined) delete next[addOn.id];
+                        else next[addOn.id] = value;
+                        return next;
+                      },
+                      `addOn:${single.id}:${addOn.id}`,
+                    )
+                  }
+                />
+              </div>
+            </section>,
+          ];
+        });
+  const hasContent = single?.type === "chart" || typeFields !== undefined || addOnFields.length > 0;
+  // A chart and an app type open on Content; a built-in type keeps opening on Layout, add-on fields or
+  // not (an extension never changes a built-in tool, `SUI-FEATURE-163` §Grenzen).
+  const contentFirst = single?.type === "chart" || typeFields !== undefined;
+
   const layoutTab = (
     <div className="flex flex-col gap-4" data-testid="slide-editor-layout">
-      {single !== undefined && carriesUnloadedAddOn(single, view.extensions) ? (
-        <p className="text-sm text-muted-foreground" data-testid="slide-editor-unloaded-extension">
-          {t("slides.editor.unloadedExtension")}
-        </p>
-      ) : null}
+      {unloadedNote}
       {single === undefined ? null : (
         <div className="grid grid-cols-2 gap-3">
           {(["x", "y", "width", "height"] as const).map((key) => (
@@ -1770,6 +1915,7 @@ function Editor({
                   onTerm={setLibraryTerm}
                   onInsert={(entry, label) => insertEntry(entry, undefined, label)}
                   onPickMedia={pickFromMedia}
+                  appEntries={appEntries}
                 />
               ),
             },
@@ -1865,6 +2011,23 @@ function Editor({
                 animationStep="none"
                 pastPageNotices
               />
+              {/* The app's overlay over the page, unscaled, never taking a press; the editor's only
+                  (`SUI-FEATURE-163`). */}
+              {view.extensions?.overlay === undefined ? null : (
+                <div
+                  className="pointer-events-none absolute inset-0 overflow-hidden"
+                  data-testid="slide-editor-overlay"
+                >
+                  {/* A component of its own, so the app's overlay may use hooks. */}
+                  <view.extensions.overlay
+                    page={page}
+                    format={document.format}
+                    zoom={zoom}
+                    width={pageWidth * zoom}
+                    height={pageHeight * zoom}
+                  />
+                </div>
+              )}
               {/* The grid above the elements, below the selection and the guides (rev 5). */}
               {gridShown && grid !== null ? (
                 <GridOverlay
@@ -2036,26 +2199,33 @@ function Editor({
         <PropertyPanel
           path={path}
           tabs={[
-            ...(single?.type === "chart"
+            ...(single !== undefined && hasContent
               ? [
                   {
                     id: "content" as const,
                     content: (
-                      <ChartData
-                        key={single.id}
-                        chart={single}
-                        revision={travels}
-                        readOnly={single.locked}
-                        onChange={(next, merge) => changeChart(next, merge)}
-                      />
+                      <div className="flex flex-col gap-4" data-testid="slide-editor-content">
+                        {unloadedNote}
+                        {single.type === "chart" ? (
+                          <ChartData
+                            key={single.id}
+                            chart={single}
+                            revision={travels}
+                            readOnly={single.locked}
+                            onChange={(next, merge) => changeChart(next, merge)}
+                          />
+                        ) : null}
+                        {typeFields}
+                        {addOnFields}
+                      </div>
                     ),
                   },
                 ]
               : []),
             { id: "layout", content: layoutTab },
           ]}
-          activeTab={single?.type === "chart" ? panelTab : "layout"}
-          onTab={setPanelTab}
+          activeTab={!hasContent ? "layout" : contentFirst ? panelTab : builtInTab}
+          onTab={contentFirst ? setPanelTab : setBuiltInTab}
         />
       </div>
       {dialog}

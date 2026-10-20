@@ -33,6 +33,8 @@ import {
   type SlideDocument,
   type SlideDocumentInput,
   type SlideElement,
+  type SlideElementInput,
+  type SlideFormat,
   type TextRun,
 } from "./schema.js";
 import {
@@ -54,40 +56,106 @@ export type SlideCustomRenderer = (element: ElementOf<"custom">) => React.ReactN
 
 type BuiltInType = Exclude<SlideElement["type"], "custom">;
 
-// An app's own element type (`SUI-FEATURE-163`): its name and how it is drawn.
+// What an app's own fields in the editor's panel get (`SUI-FEATURE-163`): the value they edit, the
+// change to it (one step of the history; changes in a row to the same value merge into one), and
+// whether the element is locked. The value comes from the document as saved: check its shape.
+export interface SlideFieldProps<V, E extends SlideElement> {
+  value: V;
+  onChange: (value: V) => void;
+  readOnly: boolean;
+  element: E;
+}
+
+// An app's own element type (`SUI-FEATURE-163`): its name and how it is drawn; in the editor its
+// fields (the Content tab, over the element's payload), its size when inserted, in format px (without,
+// a square of 20 % of the page's shorter side), and its entry in the element library with the
+// payload a new element starts with (without `library`, no entry).
 export interface SlideTypeExtension {
   label: string;
   render: SlideCustomRenderer;
+  fields?: (
+    props: SlideFieldProps<Record<string, unknown> | undefined, ElementOf<"custom">>,
+  ) => React.ReactNode;
+  defaultSize?: { width: number; height: number };
+  library?: { payload?: Record<string, unknown> };
 }
 
-// What an app adds to the drawing of a built-in type (`SUI-FEATURE-163` §Zusätze), such as a CSS filter
-// on an image: its value is the element's payload under `key`; an element without it is drawn as it is.
+// What an app adds to a built-in type (`SUI-FEATURE-163` §Zusätze), such as a CSS filter on an image.
+// Its `id` has the form `ext:<app>.<name>` (`ext:cockpit.image-filter`; lower-case letters, digits and
+// hyphens), and its value is the element's payload under exactly that key; an element without it is
+// drawn as it is. In the editor its fields edit that value (`undefined` removes the key), under its
+// `label` in the Content tab. The value comes from the document as saved, possibly from someone else: validate its shape and
+// never pass a string from it into a CSS value verbatim (a `url(…)` would load whatever it names).
+// A payload key without `ext:` is plain app data. An `ext:` key no loaded add-on of the element's type
+// has makes the editor's panel note that the element carries settings of an extension not loaded
+// here (`carriesUnloadedAddOn`).
 export type SlideAddOn = {
   [T in BuiltInType]: {
     type: T;
-    key: string;
+    id: string;
     style: (value: unknown, element: ElementOf<T>) => React.CSSProperties | undefined;
+    label?: string;
+    fields?: (props: SlideFieldProps<unknown, ElementOf<T>>) => React.ReactNode;
   };
 }[BuiltInType];
 
-// What an app contributes to the view, editor, player and export alike (`SUI-FEATURE-163`): its own
-// element types by type id, and add-ons to built-in types.
+// A block of the app in the element library (`SUI-FEATURE-163` §Bibliotheks-Einträge), such as a saved
+// group: inserting it puts a copy on the page, with new ids, centred where it lands. A block that
+// breaks the schema is left out of the library.
+export interface SlideLibraryBlock {
+  id: string;
+  label: string;
+  element: SlideElementInput;
+}
+
+// What the editor hands an app's overlay: the page shown, its format and the canvas's zoom, and the
+// page's size on screen in px. The overlay lies over the page at that size, unscaled, and takes no
+// pointer input.
+export interface SlideOverlayProps {
+  page: number;
+  format: SlideFormat;
+  zoom: number;
+  width: number;
+  height: number;
+}
+
+// What an app contributes (`SUI-FEATURE-163`): its own element types by type id and add-ons to built-in
+// types, drawn the same by the view, editor, player and export; blocks for the editor's library; and
+// an overlay only the editor draws, never in the document, the player or the export.
 export interface SlideExtensions {
   types?: Readonly<Record<string, SlideTypeExtension>>;
   addOns?: readonly SlideAddOn[];
+  library?: readonly SlideLibraryBlock[];
+  overlay?: (props: SlideOverlayProps) => React.ReactNode;
 }
 
-// The element is a built-in type whose payload holds a key no add-on of its type registered here reads:
-// the settings of an extension not loaded, which stay untouched (`SUI-FEATURE-163` §Grenzen).
+// An add-on's id: `ext:<app>.<name>`, each part lower-case letters and digits, joined by hyphens.
+const ADD_ON_ID = /^ext:[a-z0-9]+(?:-[a-z0-9]+)*\.[a-z0-9]+(?:-[a-z0-9]+)*$/;
+
+// Refuses extensions whose add-on ids are not of the form `ext:<app>.<name>` (`SUI-FEATURE-163` AC5):
+// the view and the editor check what they are handed and throw, naming the id.
+export function checkSlideExtensions(extensions: SlideExtensions | undefined): void {
+  for (const addOn of extensions?.addOns ?? []) {
+    if (!ADD_ON_ID.test(addOn.id)) {
+      throw new Error(
+        `Slide add-on id ${JSON.stringify(addOn.id)} is not of the form ext:<app>.<name>`,
+      );
+    }
+  }
+}
+
+// The element is a built-in type whose payload holds an `ext:` key no add-on of its type registered
+// here has: the settings of an extension not loaded, which stay untouched (`SUI-FEATURE-163`
+// §Grenzen). Plain app data (keys without `ext:`) never counts.
 export function carriesUnloadedAddOn(
   element: SlideElement,
   extensions: SlideExtensions | undefined,
 ): boolean {
   if (element.type === "custom" || element.payload === undefined) return false;
   const known = new Set(
-    (extensions?.addOns ?? []).filter((addOn) => addOn.type === element.type).map((a) => a.key),
+    (extensions?.addOns ?? []).filter((addOn) => addOn.type === element.type).map((a) => a.id),
   );
-  return Object.keys(element.payload).some((key) => !known.has(key));
+  return Object.keys(element.payload).some((key) => key.startsWith("ext:") && !known.has(key));
 }
 
 // What the view could not draw as the document asks; an export aborts on any of it.
@@ -983,11 +1051,24 @@ function content(draw: Draw, element: SlideElement): React.ReactNode {
         types !== undefined && Object.hasOwn(types, element.typeId)
           ? types[element.typeId]
           : undefined;
-      if (type !== undefined) return type.render(element);
+      if (type !== undefined) {
+        return <AppType key={element.typeId} render={type.render} element={element} />;
+      }
       draw.unknownTypes.add(element.typeId);
       return <Stand text={draw.t("slides.unknownType", { type: element.typeId })} />;
     }
   }
+}
+
+// An app type's drawing as a component of its own, so its renderer may use hooks.
+function AppType({
+  render,
+  element,
+}: {
+  render: SlideCustomRenderer;
+  element: ElementOf<"custom">;
+}) {
+  return render(element);
 }
 
 // The element's drawing under each add-on of its type whose key its payload holds, one box per add-on so
@@ -996,15 +1077,15 @@ function withAddOns(draw: Draw, element: SlideElement, drawn: React.ReactNode): 
   const payload = element.payload;
   if (payload === undefined || element.type === "custom") return drawn;
   return (draw.extensions?.addOns ?? []).reduce<React.ReactNode>((inner, addOn) => {
-    if (addOn.type !== element.type || !Object.hasOwn(payload, addOn.key)) return inner;
+    if (addOn.type !== element.type || !Object.hasOwn(payload, addOn.id)) return inner;
     // The add-on's type is the element's (checked above).
     const style = (
       addOn.style as (value: unknown, element: SlideElement) => React.CSSProperties | undefined
-    )(payload[addOn.key], element);
+    )(payload[addOn.id], element);
     return style === undefined ? (
       inner
     ) : (
-      <div data-slide-add-on={addOn.key} style={{ ...style, width: "100%", height: "100%" }}>
+      <div data-slide-add-on={addOn.id} style={{ ...style, width: "100%", height: "100%" }}>
         {inner}
       </div>
     );
@@ -1106,6 +1187,7 @@ export function SlideView({
   className,
   "data-testid": testId,
 }: SlideViewProps) {
+  checkSlideExtensions(extensions);
   const { t } = useTranslation("suite");
   const uid = React.useId().replace(/[^A-Za-z0-9]/g, "");
   const parsed = React.useMemo(() => safeParseSlideDocument(source), [source]);

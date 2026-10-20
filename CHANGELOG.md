@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.148.0 — #295, SUI-FEATURE-163 increment 2 (rev 5): app extensions in the slide editor — fields, library entries, overlay; add-on ids `ext:<app>.<name>`
+
+New. An add-on's `key` becomes `id` (no app uses it yet).
+
+- **Add-on ids** (`SUI-FEATURE-163` rev 5): an add-on's `id` has the form `ext:<app>.<name>` (`ext:cockpit.image-filter`; lower-case letters, digits, hyphens) and is the payload key of its value. `SlideView` and `SlideEditor` refuse another form with an error naming the id (`checkSlideExtensions`, new export). A payload key without `ext:` is plain app data: the note on settings of an extension not loaded here shows only for an `ext:` key no loaded add-on of the element's type has, never for plain data.
+
+- **Fields of an app's type** (`SlideTypeExtension.fields`): a selected element of the type shows them in the panel's Content tab, over the element's payload. `defaultSize` is its size when inserted (format px; without, a square of 20 % of the page's shorter side), and `library` gives it an entry in the element library with the payload a new element starts with.
+- **Fields of an add-on** (`SlideAddOn.fields`, `label`): a selected built-in element of the add-on's type shows them under its label in the Content tab, over the value under the add-on's id; `undefined` removes the key, and an empty payload is removed. Each change is one step of the history; changes in a row to the same value merge into one.
+- **App blocks in the library** (`SlideExtensions.library`): under "From this app" with the app's types; inserting a block puts a copy on the page with new ids, centred where it lands, its payloads kept. A block that breaks the schema is left out; a drag carries only the entry's id, and the drop takes the rest from the app's entries.
+- An app's renderer, fields and overlay are rendered as components of their own, so they may use hooks; fields start afresh for each selected element. A built-in type with add-on fields still opens on Layout; their fields are under Content. A block without a name of its own takes its library label; an app type whose library element breaks the schema is left out of the library, as a block is. An add-on's fields that render nothing leave no heading.
+- **Overlay** (`SlideExtensions.overlay`): drawn over the editor's page at its size on screen, unscaled, taking no pointer input; never in the document, the view, the player, the preview or the export.
+- The note on settings of an extension not loaded here also shows on the Content tab (a chart opens on it). The `SlideAddOn` comment now says that its value is untrusted document data.
+- Gallery: `?page=slide-editor&extensions=editor` adds the stamp's text field, size and library entry, a warmth field on the filter, a badge block and a safe-zone overlay.
+
+**Migration:** `{ type, key: "filter", style }` becomes `{ type, id: "ext:<app>.filter", style }`, and the values move to that payload key. New exports `SlideFieldProps`, `SlideLibraryBlock`, `SlideOverlayProps`; new package text `slides.editor.libraryApp` (de, en, es). Baselines: the gallery overview (its strings table has one row more).
+
 ## 0.147.0 — #295, SUI-FEATURE-163 increment 1: app extensions draw the same in view, editor, player and export
 
 New. `renderers` is replaced (no app uses it yet).

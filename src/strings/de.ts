@@ -443,6 +443,7 @@ export const de: SuiteStrings = {
       libraryEllipse: "Ellipse",
       libraryTriangle: "Dreieck",
       libraryLine: "Linie",
+      libraryApp: "Aus dieser App",
       libraryMedia: "Medien-Bibliothek",
       libraryPickMedia: "Medium wählen…",
       libraryIcons: "Icons",

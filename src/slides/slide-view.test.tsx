@@ -1,3 +1,4 @@
+import * as React from "react";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import i18n from "i18next";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -22,6 +23,7 @@ import {
 import { parseSlideDocument } from "./document.js";
 import {
   carriesUnloadedAddOn,
+  checkSlideExtensions,
   type SlideAddOn,
   type SlideExtensions,
   SlideView,
@@ -42,7 +44,7 @@ const extensions: SlideExtensions = {
 };
 const sepia: SlideAddOn = {
   type: "image",
-  key: "filter",
+  id: "ext:gallery.image-filter",
   style: (value) => ({ filter: `sepia(${(value as { warmth: number }).warmth}%)` }),
 };
 // The showcase with the photo carrying filter values in its payload.
@@ -51,7 +53,9 @@ const filtered = {
   pages: SLIDE_SHOWCASE.pages.map((page) => ({
     ...page,
     elements: page.elements?.map((element) =>
-      element.id === "photo" ? { ...element, payload: { filter: { warmth: 40 } } } : element,
+      element.id === "photo"
+        ? { ...element, payload: { "ext:gallery.image-filter": { warmth: 40 } } }
+        : element,
     ),
   })),
 } as SlideViewProps["document"];
@@ -344,6 +348,24 @@ describe("SlideView reports, second round", () => {
     await waitFor(() => expect(report().missingMedia).toEqual(["photo"]));
   });
 
+  // Review #295 inc 2: an app type's renderer may use hooks.
+  it("draws an app type whose renderer uses a hook", async () => {
+    await drawn({
+      extensions: {
+        types: {
+          "gallery.stamp": {
+            label: "Stamp",
+            render: function Render() {
+              const [text] = React.useState("Hooked stamp");
+              return <span>{text}</span>;
+            },
+          },
+        },
+      },
+    });
+    expect(screen.getByText("Hooked stamp")).toBeInTheDocument();
+  });
+
   // SUI-FEATURE-163: an add-on draws onto a built-in type from its payload key.
   it("draws a registered add-on onto the element whose payload holds its key", async () => {
     const { container } = await drawn({
@@ -351,11 +373,43 @@ describe("SlideView reports, second round", () => {
       extensions: { ...extensions, addOns: [sepia] },
     });
     const photo = container.querySelector("[data-slide-element=photo]")!;
-    const box = photo.querySelector<HTMLElement>("[data-slide-add-on=filter]")!;
+    const box = photo.querySelector<HTMLElement>("[data-slide-add-on='ext:gallery.image-filter']")!;
     expect(box.style.filter).toBe("sepia(40%)");
     expect(box).toContainElement(screen.getByRole("img", { name: "Hills under a sun" }));
     // Another image or an element without the key is drawn as it is.
     expect(container.querySelectorAll("[data-slide-add-on]")).toHaveLength(1);
+  });
+
+  it("composes two add-ons on one element, one box each", async () => {
+    const tint: SlideAddOn = {
+      type: "image",
+      id: "ext:test.tint",
+      style: () => ({ opacity: 0.5 }),
+    };
+    const document = {
+      ...SLIDE_SHOWCASE,
+      pages: SLIDE_SHOWCASE.pages.map((page) => ({
+        ...page,
+        elements: page.elements?.map((element) =>
+          element.id === "photo"
+            ? {
+                ...element,
+                payload: { "ext:gallery.image-filter": { warmth: 40 }, "ext:test.tint": true },
+              }
+            : element,
+        ),
+      })),
+    } as SlideViewProps["document"];
+    const { container } = await drawn({ document, extensions: { addOns: [sepia, tint] } });
+    const outer = container.querySelector<HTMLElement>(
+      "[data-slide-element=photo] [data-slide-add-on='ext:test.tint']",
+    )!;
+    const inner = outer.querySelector<HTMLElement>(
+      "[data-slide-add-on='ext:gallery.image-filter']",
+    )!;
+    expect(outer.style.opacity).toBe("0.5");
+    expect(inner.style.filter).toBe("sepia(40%)");
+    expect(inner).toContainElement(screen.getByRole("img", { name: "Hills under a sun" }));
   });
 
   // SUI-FEATURE-163 AC2: without the extension, the custom type is a named stand-in and the image with
@@ -376,9 +430,44 @@ describe("SlideView reports, second round", () => {
     )!;
     expect(carriesUnloadedAddOn(image, undefined)).toBe(true);
     expect(carriesUnloadedAddOn(image, { addOns: [sepia] })).toBe(false);
-    expect(carriesUnloadedAddOn(image, { addOns: [{ ...sepia, key: "other" }] })).toBe(true);
+    expect(carriesUnloadedAddOn(image, { addOns: [{ ...sepia, id: "ext:test.other" }] })).toBe(
+      true,
+    );
+    // AC4: plain app data (no `ext:`) never counts, even without any add-on.
+    const plain = { ...image, payload: { origin: "template-7", filter: { warmth: 1 } } };
+    expect(carriesUnloadedAddOn(plain, undefined)).toBe(false);
+    expect(
+      carriesUnloadedAddOn({ ...plain, payload: { ...plain.payload, "ext:x.y": 1 } }, undefined),
+    ).toBe(true);
     // An app type's payload is its own data, never an add-on's.
     expect(carriesUnloadedAddOn(stampElement, undefined)).toBe(false);
+  });
+
+  // SUI-FEATURE-163 AC5: an add-on id not of the form `ext:<app>.<name>` is refused with an error.
+  it("refuses an add-on whose id is not ext:<app>.<name>", () => {
+    for (const id of [
+      "filter",
+      "ext:cockpit",
+      "ext:Cockpit.filter",
+      "ext:cockpit.",
+      "ext:a.b.c",
+      "x:a.b",
+    ]) {
+      expect(() => checkSlideExtensions({ addOns: [{ ...sepia, id }] })).toThrow(id);
+    }
+    for (const id of ["ext:cockpit.image-filter", "ext:a1.b2"]) {
+      expect(() => checkSlideExtensions({ addOns: [{ ...sepia, id }] })).not.toThrow();
+    }
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(() =>
+      render(
+        <SlideView
+          document={SLIDE_SHOWCASE}
+          brand={SLIDE_BRAND}
+          extensions={{ addOns: [{ ...sepia, id: "filter" }] }}
+        />,
+      ),
+    ).toThrow("ext:<app>.<name>");
   });
 
   it("tries a media id again once the app resolves a new URL for it", async () => {

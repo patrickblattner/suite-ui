@@ -1,9 +1,11 @@
 import { useRef, useState } from "react";
 
 import { SlideEditor } from "../src/slides/slide-editor.js";
+import type { SlideExtensions } from "../src/slides/slide-view.js";
 import type { PickedMedia } from "../src/slides/slide-editor-library.js";
 import { SlidePlayer } from "../src/slides/slide-player.js";
 import { Button } from "../src/ui/button.js";
+import { Input } from "../src/ui/input.js";
 import {
   Dialog,
   DialogContent,
@@ -15,7 +17,7 @@ import {
 import { Toaster } from "../src/ui/toaster.js";
 import type { SlideDocument, SlideFormat } from "../src/slides/schema.js";
 import { SLIDE_EDITOR_DOC } from "./slide-showcase.js";
-import { GALLERY_SLIDE_PROPS } from "./SlidesPage.js";
+import { GALLERY_SLIDE_PROPS, imageFilter } from "./SlidesPage.js";
 
 // `SUI-FEATURE-161` (increment A): the editor over a small deck, framed like an app's editor route.
 // The app's side: Save takes the validated document (counted below), Back goes nowhere here.
@@ -53,6 +55,116 @@ const FULL_DOC = FULL
 const MEDIA = PARAMS.get("media") !== "none";
 const MEDIA_FAILS = PARAMS.get("media") === "fail";
 const MEDIA_BAD = PARAMS.get("media") === "bad";
+// `SUI-FEATURE-163` (`?extensions=editor`): the gallery's extensions with their editor parts: the
+// stamp's text field, size and library entry; the filter's warmth field; a saved block (a badge, a
+// group); and an overlay of safe zones 5 % inside the page edge, drawn unscaled at 1 screen px.
+const EDITOR_EXTENSIONS = PARAMS.get("extensions") === "editor";
+const stamp = GALLERY_SLIDE_PROPS.extensions.types["gallery.stamp"];
+const numberIn = (value: unknown, key: string) => {
+  const found =
+    typeof value === "object" && value !== null ? (value as Record<string, unknown>)[key] : 0;
+  return typeof found === "number" ? found : 0;
+};
+const GALLERY_EDITOR_EXTENSIONS: SlideExtensions = {
+  types: {
+    "gallery.stamp": {
+      ...stamp,
+      defaultSize: { width: 200, height: 80 },
+      library: { payload: { text: "New" } },
+      fields: ({ value, onChange, readOnly }) => (
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="gallery-stamp-text" className="text-sm font-medium">
+            Stamp text
+          </label>
+          <Input
+            id="gallery-stamp-text"
+            value={typeof value?.text === "string" ? value.text : ""}
+            readOnly={readOnly}
+            onChange={(event) => onChange({ ...value, text: event.target.value })}
+            data-testid="gallery-stamp-text"
+          />
+        </div>
+      ),
+    },
+  },
+  addOns: [
+    {
+      type: "image",
+      id: "ext:gallery.image-filter",
+      style: imageFilter,
+      label: "Filter",
+      fields: ({ value, onChange, readOnly }) => (
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="gallery-filter-warmth" className="text-sm font-medium">
+            Warmth (%)
+          </label>
+          <Input
+            id="gallery-filter-warmth"
+            type="number"
+            value={numberIn(value, "warmth")}
+            readOnly={readOnly}
+            onChange={(event) =>
+              onChange({
+                ...(typeof value === "object" && value !== null ? value : {}),
+                warmth: Number(event.target.value) || 0,
+              })
+            }
+            data-testid="gallery-filter-warmth"
+          />
+        </div>
+      ),
+    },
+  ],
+  library: [
+    {
+      id: "badge",
+      label: "Badge",
+      element: {
+        id: "badge",
+        type: "group",
+        x: 0,
+        y: 0,
+        width: 160,
+        height: 60,
+        children: [
+          {
+            id: "badge-back",
+            type: "shape",
+            shape: "rectangle",
+            x: 0,
+            y: 0,
+            width: 160,
+            height: 60,
+            fill: { type: "color", color: { kind: "free", value: "#1e3a8a" } },
+          },
+          {
+            id: "badge-text",
+            type: "text",
+            x: 10,
+            y: 10,
+            width: 140,
+            height: 40,
+            runs: [
+              {
+                text: "Badge",
+                size: 24,
+                fill: { type: "color", color: { kind: "free", value: "#ffffff" } },
+              },
+            ],
+          },
+        ],
+      },
+    },
+  ],
+  overlay: ({ width, height }) => (
+    <div
+      className="absolute border border-dashed border-destructive"
+      style={{ left: width * 0.05, top: height * 0.05, right: width * 0.05, bottom: height * 0.05 }}
+      data-testid="gallery-safe-zone"
+    />
+  ),
+};
+
 const FORMATS: SlideFormat[] =
   PARAMS.get("formats") === "one"
     ? [SLIDE_EDITOR_DOC.format]
@@ -120,6 +232,7 @@ export function SlideEditorPage() {
             }
             title="Workshop deck"
             {...GALLERY_SLIDE_PROPS}
+            {...(EDITOR_EXTENSIONS ? { extensions: GALLERY_EDITOR_EXTENSIONS } : {})}
             formats={FORMATS}
             onTransfer={(document, { overflowIds }) => setCopy({ document, overflowIds })}
             {...(MEDIA
@@ -178,6 +291,7 @@ export function SlideEditorPage() {
         <SlidePlayer
           document={saved}
           {...GALLERY_SLIDE_PROPS}
+          {...(EDITOR_EXTENSIONS ? { extensions: GALLERY_EDITOR_EXTENSIONS } : {})}
           onClose={() => setPresenting(false)}
           data-testid="slide-player"
         />

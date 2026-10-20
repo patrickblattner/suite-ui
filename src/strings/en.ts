@@ -458,6 +458,7 @@ export const en = {
       libraryEllipse: "Ellipse",
       libraryTriangle: "Triangle",
       libraryLine: "Line",
+      libraryApp: "From this app",
       libraryMedia: "Media library",
       libraryPickMedia: "Choose a media item…",
       libraryIcons: "Icons",

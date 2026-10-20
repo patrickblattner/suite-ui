@@ -290,6 +290,21 @@ export function updateElements(
   );
 }
 
+// The element's app payload replaced (`SUI-FEATURE-163`); an empty one is removed.
+export function setPayload(
+  document: SlideDocument,
+  page: number,
+  id: string,
+  payload: Record<string, unknown> | undefined,
+): SlideDocument {
+  return updateElements(document, page, [id], (element) => {
+    const next = { ...element };
+    if (payload === undefined || Object.keys(payload).length === 0) delete next.payload;
+    else next.payload = payload;
+    return next;
+  });
+}
+
 // Moves the elements of `ids` (and what is in them) by `dx`, `dy`.
 export function moveBy(
   document: SlideDocument,
@@ -855,7 +870,16 @@ export type LibraryEntry =
   | { kind: "icon"; icon: string }
   | { kind: "image"; media: string; alt: string; aspect: number }
   // A bar chart with sample data, named in the editor's language (`SUI-FEATURE-233`).
-  | { kind: "chart"; name: string; categories: readonly string[]; series: readonly string[] };
+  | { kind: "chart"; name: string; categories: readonly string[]; series: readonly string[] }
+  // An app's own type with its size (format px) and the payload a new element starts with, and an
+  // app's block, put on the page as a copy with new ids (`SUI-FEATURE-163`).
+  | {
+      kind: "custom";
+      typeId: string;
+      size?: { width: number; height: number };
+      payload?: Record<string, unknown>;
+    }
+  | { kind: "block"; id: string; element: SlideElement };
 
 // A new element for a library entry: 20 % of the page's shorter side (its larger side for an image;
 // a chart's 50 %), centred on `at` (page px), in `color` (a shape's fill, a line's stroke, an icon's
@@ -945,6 +969,38 @@ export function libraryElement(
           values: entry.categories.map((_, at) => values[index % values.length]![at % 3]!),
         })),
       };
+    }
+    case "custom": {
+      const size = entry.size ?? { width: side, height: side };
+      return {
+        id: uniqueId(document, "custom"),
+        type: "custom",
+        typeId: entry.typeId,
+        ...box(size.width, size.height),
+        ...(entry.payload === undefined ? {} : { payload: structuredClone(entry.payload) }),
+      };
+    }
+    case "block": {
+      const block = entry.element;
+      const dx = at.x - (block.x + block.width / 2);
+      const dy = at.y - (block.y + block.height / 2);
+      const ids = idsOf(document);
+      const fresh = (prefix: string) => {
+        for (let count = 1; ; count += 1) {
+          const id = `${prefix}-${count}`;
+          if (!ids.has(id)) {
+            ids.add(id);
+            return id;
+          }
+        }
+      };
+      const copy = withDescendants(structuredClone(block), (one) => ({
+        ...one,
+        id: fresh(one.type),
+        x: round(one.x + dx),
+        y: round(one.y + dy),
+      }));
+      return { ...copy, layer };
     }
     default: {
       const unknown: never = entry;
