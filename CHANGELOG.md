@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.152.1 — #404, Codex review of v0.152.0: group size range
+
+Fix.
+
+- **Group size:** the range of sizes a group with turned elements reaches is now found along the direction of the two scale factors. It no longer assumes that a side grows with each factor alone. That assumption failed for a turned group nested in the group: a width of 1000 it reaches was clamped to 991.93.
+- **Typing in a large group's size field:** the range takes about 300 measurements instead of about 8,500, and it is computed once per group and side. Every keystroke of a typing run reuses it. One calculation for a group of 500 elements takes about 16 ms instead of about 330 ms.
+
+**Migration:** none. Baselines: none.
+
 ## 0.152.0 — #327, SUI-FEATURE-190: group sizes and snapping in turned groups
 
 New, not breaking.

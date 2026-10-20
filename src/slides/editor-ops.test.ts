@@ -529,6 +529,55 @@ describe("slide editor operations on turned groups", () => {
       }
     }
   });
+
+  // #404 CX1: in a turned group nested in the group, a side need not grow with every factor; the
+  // range still names a width the group reaches (1000 here), and its ends are reached.
+  it("names the widths a group with a nested turned group reaches", () => {
+    const three = doc([
+      { ...shape("a", 0, 100, 100, 300), rotation: 45 },
+      { ...shape("b", 100, 200, 100, 200), rotation: 45 },
+      { ...shape("c", 400, 300, 200, 200), rotation: 90 },
+    ]);
+    const inner = groupElements(three, 0, ["a", "b"]);
+    const turned = updateElements(inner.document, 0, [inner.id!], (one) => ({
+      ...one,
+      rotation: 90,
+    }));
+    const { document: grouped, id } = groupElements(turned, 0, [inner.id!, "c"]);
+    const group = findElement(grouped.pages[0]!.elements, id!)!.element;
+    if (group.type !== "group") throw new Error("expected the group");
+    const range = groupSizeRange(group, "width")!;
+    const sized = (width: number) => box(setBox(grouped, 0, id!, { ...boxOf(group), width }), id!);
+    expect(sized(1000).width).toBeCloseTo(1000, 1);
+    expect(sized(1000).height).toBeCloseTo(group.height, 1);
+    expect(range.max).toBeGreaterThanOrEqual(1000);
+    // At a kink the size solve lands within a tenth of a pixel, and half a pixel beyond is missed.
+    for (const end of [range.min, range.max]) {
+      expect(sized(end).width).toBeCloseTo(end, 1);
+      expect(Math.abs(sized(end).height - group.height)).toBeLessThan(0.1);
+    }
+    expect(Math.abs(sized(range.min - 0.5).width - (range.min - 0.5))).toBeGreaterThan(0.05);
+    expect(sized(range.max + 0.5).height - group.height).toBeGreaterThan(0.05);
+    expect(groupSizeRange(group, "width")).toBe(range);
+  });
+
+  // #404: with every leaf at the 1 px floor on both axes, only the current factors fit; the range
+  // still names the current size instead of no limit, so no leaf side goes below 1 px.
+  it("keeps a limit when every leaf sits at the 1 px floor", () => {
+    const tiny = doc([
+      { ...shape("a", 100, 100, 1, 50), rotation: 30 },
+      { ...shape("b", 300, 200, 1, 1) },
+    ]);
+    const { document: grouped, id } = groupElements(tiny, 0, ["a", "b"]);
+    const group = findElement(grouped.pages[0]!.elements, id!)!.element;
+    if (group.type !== "group") throw new Error("expected the group");
+    for (const key of ["width", "height"] as const) {
+      const range = groupSizeRange(group, key);
+      expect(range).toBeDefined();
+      expect(range!.min).toBeLessThanOrEqual(group[key] + 0.01);
+      expect(range!.max).toBeGreaterThanOrEqual(group[key] - 0.01);
+    }
+  });
 });
 
 // SUI-FEATURE-162 AC1 (#294): an image's crop keeps the image covering its frame.
