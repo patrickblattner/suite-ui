@@ -13,7 +13,7 @@ type FieldProps = Omit<React.ComponentProps<"div">, "children"> & {
   // The explanation of the field, as a hover hint on the label (`GL-UI-017`).
   hint?: string | undefined;
   // What the value counts, its unit, the effect of a choice: the hint of the package control inside
-  // (Input, Textarea, a Select's trigger) and its description (`GL-UI-017` §Label und Feld sind zwei
+  // (Input, Textarea, a Select's trigger, Combobox, TimezoneCombobox) and its description (`GL-UI-017` §Label und Feld sind zwei
   // Träger). One value control per field takes it; another control carries it in its own `Hint`.
   valueHint?: string | undefined;
   // The help text under the control, under the id `${htmlFor}-description`.

@@ -525,9 +525,9 @@ export const es: SuiteStrings = {
         "100 % llena el marco; hasta 500 % muestra una parte cada vez menor de la imagen.",
       cropOffsetValueHint: "Píxeles desde el centro del marco; 0 centra la imagen.",
       animationEntranceValueHint:
-        "«{{fade}}» aparece poco a poco, «{{slide}}» entra desde un borde, «{{zoom}}» crece; «{{none}}» lo muestra desde el inicio.",
+        "«{{fade}}» aparece poco a poco, «{{slide}}» entra por un borde, «{{zoom}}» crece; «{{none}}» lo muestra ya.",
       animationExitValueHint:
-        "«{{fade}}» desaparece poco a poco, «{{slide}}» sale por un borde, «{{zoom}}» se encoge; «{{none}}» lo deja en su sitio.",
+        "«{{fade}}» desaparece poco a poco, «{{slide}}» sale por un borde, «{{zoom}}» se encoge; «{{none}}» no lo mueve.",
       animationFromValueHint: "El elemento empieza fuera de este borde y se desliza a su sitio.",
       animationToValueHint: "El elemento se desliza desde su sitio hasta salir por este borde.",
       msValueHint: "Milisegundos, de 0 a 60000; 1000 es un segundo.",

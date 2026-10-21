@@ -12180,9 +12180,18 @@ test("slide editor: every field and text button carries its hint", async ({ page
   await editor.getByTestId("drawer-layers").click();
   const chartRow = editor.locator("[data-layer-id]").first();
   await chartRow.getByTestId("slide-editor-layer-lock").click();
-  await expect(page.getByTestId("slide-editor-chart-type-bar")).toHaveAccessibleDescription(
-    "Unlock the element to change its chart.",
-  );
+  // So do its add and remove buttons (#440).
+  for (const testId of [
+    "slide-editor-chart-type-bar",
+    "slide-editor-chart-add-category",
+    "slide-editor-chart-add-series",
+    "slide-editor-chart-remove-series-0",
+    "slide-editor-chart-remove-category-0",
+  ]) {
+    await expect(page.getByTestId(testId), testId).toHaveAccessibleDescription(
+      "Unlock the element to change its chart.",
+    );
+  }
   await chartRow.getByTestId("slide-editor-layer-lock").click();
   // The data table's inputs: each kind its value hint (Q4277).
   for (const id of ["series-0", "category-0", "value-0-0"]) {

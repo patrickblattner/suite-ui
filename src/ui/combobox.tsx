@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { cn } from "../lib/cn.js";
 import { usePopupPlacement } from "../lib/popup-placement.js";
 import { useFieldErrorAttributes } from "./field-error.js";
+import { WithFieldValueHint } from "./field-value-hint.js";
 import { Hint } from "./hint.js";
 
 type ComboboxOption = { value: string; label: string };
@@ -34,7 +35,8 @@ type ComboboxProps = {
   id?: string;
   disabled?: boolean;
   className?: string;
-  // The field hint: a hover hint on the field and its description for assistive tech.
+  // The field hint: a hover hint on the field and its description for assistive tech. Without it, the
+  // value hint of a surrounding `Field` takes its place (`Field valueHint`).
   hint?: string;
   // The error state, shown like every other form field of the package.
   invalid?: boolean;
@@ -262,7 +264,11 @@ function Combobox({
         <input ref={hiddenRef} type="hidden" name={name} value={value} disabled={disabled} />
       )}
       <div ref={anchorRef} className="relative">
-        {hint === undefined ? field : <Hint text={hint}>{field}</Hint>}
+        {hint === undefined ? (
+          <WithFieldValueHint>{field}</WithFieldValueHint>
+        ) : (
+          <Hint text={hint}>{field}</Hint>
+        )}
         <ChevronDownIcon
           aria-hidden="true"
           className="pointer-events-none absolute top-1/2 right-3 size-4 -translate-y-1/2 text-muted-foreground"

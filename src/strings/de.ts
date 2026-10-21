@@ -528,9 +528,9 @@ export const de: SuiteStrings = {
         "100 % füllt den Rahmen; bis 500 % zeigt einen immer kleineren Teil des Bilds.",
       cropOffsetValueHint: "Pixel ab der Mitte des Rahmens; 0 zentriert das Bild.",
       animationEntranceValueHint:
-        "„{{fade}}“ erscheint allmählich, „{{slide}}“ gleitet vom Rand herein, „{{zoom}}“ wächst; „{{none}}“ zeigt es von Anfang an.",
+        "„{{fade}}“ erscheint langsam, „{{slide}}“ gleitet herein, „{{zoom}}“ wächst; „{{none}}“ zeigt es sofort.",
       animationExitValueHint:
-        "„{{fade}}“ verschwindet allmählich, „{{slide}}“ gleitet über den Rand hinaus, „{{zoom}}“ schrumpft; „{{none}}“ lässt es stehen.",
+        "„{{fade}}“ verschwindet langsam, „{{slide}}“ gleitet hinaus, „{{zoom}}“ schrumpft; „{{none}}“ lässt es stehen.",
       animationFromValueHint:
         "Das Element beginnt außerhalb dieses Rands und gleitet an seinen Platz.",
       animationToValueHint: "Das Element gleitet von seinem Platz über diesen Rand hinaus.",

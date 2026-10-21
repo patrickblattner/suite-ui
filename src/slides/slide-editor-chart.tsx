@@ -280,7 +280,11 @@ export function ChartData({
                         "slides.editor.chartRemoveSeries",
                         values({ name: seriesName(index) }),
                       )}
-                      disabledText={readOnly ? undefined : t("slides.editor.chartMinSeries")}
+                      disabledText={
+                        readOnly
+                          ? t("slides.editor.chartLocked")
+                          : t("slides.editor.chartMinSeries")
+                      }
                     >
                       <Button
                         type="button"
@@ -339,7 +343,11 @@ export function ChartData({
                         "slides.editor.chartRemoveCategory",
                         values({ name: categoryName(row) }),
                       )}
-                      disabledText={readOnly ? undefined : t("slides.editor.chartMinCategories")}
+                      disabledText={
+                        readOnly
+                          ? t("slides.editor.chartLocked")
+                          : t("slides.editor.chartMinCategories")
+                      }
                     >
                       <Button
                         type="button"
@@ -416,7 +424,7 @@ export function ChartData({
           text={t("slides.editor.chartAddCategoryHint")}
           disabledText={
             readOnly
-              ? undefined
+              ? t("slides.editor.chartLocked")
               : t("slides.editor.chartMaxCategories", { max: SLIDE_LIMITS.maxChartCategories })
           }
         >
@@ -444,7 +452,7 @@ export function ChartData({
           text={t("slides.editor.chartAddSeriesHint")}
           disabledText={
             readOnly
-              ? undefined
+              ? t("slides.editor.chartLocked")
               : t("slides.editor.chartMaxSeries", { max: SLIDE_LIMITS.maxChartSeries })
           }
         >

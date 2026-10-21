@@ -66,7 +66,7 @@ describe("ChartData", () => {
 
   // #387 (SUI-FEATURE-250): a limit lock names the limit on the focusable button; read-only claims
   // no limit as its reason and stays plainly disabled, as the panel's other read-only controls.
-  it("names the limit only when it locks, never for a read-only chart", () => {
+  it("names the limit when it locks; a read-only chart says to unlock it (#440)", () => {
     const single = { ...chart, series: [chart.series[0]!] };
     const { unmount } = render(
       <ChartData chart={single} revision={0} readOnly={false} onChange={() => {}} />,
@@ -83,8 +83,8 @@ describe("ChartData", () => {
       "slide-editor-chart-add-category",
     ]) {
       const button = screen.getByTestId(id);
-      expect(button).toBeDisabled();
-      expect(button).not.toHaveAccessibleDescription(/at (least|most)/);
+      expect(button).toHaveAttribute("aria-disabled", "true");
+      expect(button).toHaveAccessibleDescription("Unlock the element to change its chart.");
     }
   });
 });

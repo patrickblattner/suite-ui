@@ -198,3 +198,27 @@ describe("suite row texts", () => {
     ]).toEqual(texts);
   });
 });
+
+// #440 (`GL-UI-017` §Hint-Text): a hint stays at about 120 characters, measured with the option
+// names it interpolates filled in.
+describe("suite effect value hints", () => {
+  it.each(languages)(
+    "%s: entrance and exit value hints stay within 120 characters",
+    (_, strings) => {
+      for (const kind of ["entrance", "exit"] as const) {
+        const key = kind === "entrance" ? "animationEntranceValueHint" : "animationExitValueHint";
+        const text = (strings.get(`slides.editor.${key}`) ?? "")
+          .replace("{{none}}", strings.get("slides.editor.animationNone") ?? "")
+          .replace(/\{\{(fade|slide|zoom)\}\}/g, (_, effect: string) => {
+            return (
+              strings.get(`slides.editor.${kind}${effect[0]!.toUpperCase()}${effect.slice(1)}`) ??
+              ""
+            );
+          });
+        expect(text).toMatch(/\S/);
+        expect(text).not.toMatch(/\{\{/);
+        expect(text.length, `${key}: ${text}`).toBeLessThanOrEqual(120);
+      }
+    },
+  );
+});

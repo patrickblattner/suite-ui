@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.161.1 — #440, GL-UI-017: value hints on comboboxes; locked chart buttons name the unlock
+
+Fix.
+
+- **`Combobox`, `TimezoneCombobox`:** inside a `Field` with `valueHint` they take that hint as their hover hint and `aria-describedby` text, like `Input`, `Textarea` and a `Select`'s trigger. Their own `hint` still wins.
+- **Chart:** locked, the add and remove buttons for series and categories say to unlock the element, as the chart type buttons already did.
+- **Strings:** the de and es entrance and exit value hints are shorter, at most 120 characters with the option names filled in; a strings test keeps them there.
+
+**Migration:** none.
+
 ## 0.161.0 — #437, GL-UI-017: value hints on fields; errors and locks are no hint
 
 Fix.

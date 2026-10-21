@@ -3,6 +3,7 @@ import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { Checkbox } from "../ui/checkbox.js";
+import { Combobox } from "../ui/combobox.js";
 import { Input } from "../ui/input.js";
 import { RadioGroup, RadioGroupItem } from "../ui/radio-group.js";
 import { TimezoneCombobox } from "../ui/timezone-combobox.js";
@@ -322,6 +323,48 @@ describe("SettingsField valueHint", () => {
     const textarea = screen.getByRole("textbox", { name: "Notes" });
     expect(textarea).toHaveAccessibleDescription("Up to 500 characters.");
     expect(hover(textarea)).toBe("Up to 500 characters.");
+  });
+
+  it("a Combobox and a TimezoneCombobox take the value hint, a hint of their own wins", () => {
+    render(
+      <>
+        <SettingsField
+          label="Owner"
+          htmlFor="owner"
+          hint="Who answers."
+          valueHint="People of this team."
+        >
+          <Combobox
+            id="owner"
+            options={[{ value: "ada", label: "Ada" }]}
+            value=""
+            onValueChange={() => undefined}
+            aria-describedby="owner-help"
+          />
+        </SettingsField>
+        <SettingsField label="Zone" htmlFor="zone" valueHint="Times show in this zone.">
+          <TimezoneCombobox id="zone" value="" onValueChange={() => undefined} />
+        </SettingsField>
+        <SettingsField label="Backup" htmlFor="backup" valueHint="Not this one.">
+          <Combobox
+            id="backup"
+            options={[]}
+            value=""
+            onValueChange={() => undefined}
+            hint="Its own hint."
+          />
+        </SettingsField>
+      </>,
+    );
+    const owner = screen.getByRole("combobox", { name: "Owner" });
+    expect(owner).toHaveAccessibleDescription("People of this team.");
+    expect(hover(owner)).toBe("People of this team.");
+    expect(screen.getByRole("combobox", { name: "Zone" })).toHaveAccessibleDescription(
+      "Times show in this zone.",
+    );
+    expect(screen.getByRole("combobox", { name: "Backup" })).toHaveAccessibleDescription(
+      "Its own hint.",
+    );
   });
 
   it("without a value hint the input stands alone", () => {
