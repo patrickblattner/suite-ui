@@ -10198,6 +10198,8 @@ test("slide editor: an image comes from the app's media picker", async ({ page }
     "Hills under a sun",
   );
   await expect(page.locator("[data-sonner-toast]")).toHaveCount(0);
+  // The focus is on the new element, on the canvas, as after any insert (#365).
+  await expect(editor.getByTestId("slide-editor-canvas")).toBeFocused();
 });
 
 // AC2: the icon search filters as you type, key by key, at most 60 with the hint.
@@ -10246,6 +10248,7 @@ test("slide editor: a library entry goes in by Enter or by dragging", async ({ p
   await expect(field("x")).toHaveValue("155");
   await expect(field("y")).toHaveValue("105");
   await expect(editor.getByTestId("canvas-announcement")).toHaveText("Inserted: Ellipse");
+  await expect(editor.getByTestId("slide-editor-canvas")).toBeFocused();
 });
 
 // #294 inc 3 review: a new element stands out on the page — the first brand colour at 3 : 1 against
@@ -10380,6 +10383,92 @@ test("slide editor: an insert past the element limit is refused", async ({ page 
   ).toBeVisible();
   await expect(editor.getByTestId("editor-state")).toHaveAttribute("data-dirty", "false");
   await expect(editor.locator("[data-slide-element=rectangle-1]")).toHaveCount(0);
+  // Repeated presses replace the one toast rather than stack (#365).
+  await library.getByTestId("slide-editor-library-rectangle").click();
+  await library.getByTestId("slide-editor-library-rectangle").click();
+  await expect(page.locator("[data-sonner-toast]")).toHaveCount(1);
+  // The full page shows its dots (#365).
+  await expect(editor.locator("[data-slide-element=dot-0] svg rect")).toHaveAttribute(
+    "fill",
+    (SLIDE_BRAND.colors as Record<string, string>).text!,
+  );
+});
+
+// #365: the colour of a new element is chosen against the page's own background: on the dark page
+// (`?ground=dark`) the first brand colour at 3 : 1 is "background", where on white it is "text".
+test("slide editor: a library element stands out on a dark page", async ({ page }) => {
+  const { editor, library } = await openLibrary(page, "&ground=dark");
+  await library.getByTestId("slide-editor-library-rectangle").click();
+  await editor.getByTestId("editor-save").click();
+  const app = page.getByTestId("slide-editor-app");
+  await expect(app).toHaveAttribute("data-saved", /rectangle-1/);
+  const saved = JSON.parse((await app.getAttribute("data-saved"))!) as {
+    pages: { elements: { id: string; fill?: { color: { kind: string; key?: string } } }[] }[];
+  };
+  const fill = saved.pages[0]!.elements.find((element) => element.id === "rectangle-1")!.fill!;
+  expect(fill.color).toEqual({ kind: "brand", key: "background" });
+});
+
+// #365: no brand colour stands out on the page, so a new element takes the theme's primary colour as
+// the browser paints it.
+test("slide editor: without a brand colour at 3 : 1 a new element takes the theme's primary", async ({
+  page,
+}) => {
+  await page.goto("/?page=slide-editor&lng=en");
+  const module = `/@fs${fileURLToPath(new URL("../src/slides/editor-color.ts", import.meta.url))}`;
+  const { chosen, primary } = await page.evaluate(async (path) => {
+    const { insertColor } = (await import(path)) as typeof import("../src/slides/editor-color.js");
+    const context = document.createElement("canvas").getContext("2d")!;
+    context.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--primary");
+    context.fillRect(0, 0, 1, 1);
+    const [r, g, b] = context.getImageData(0, 0, 1, 1).data;
+    return {
+      chosen: insertColor({ colors: { white: "#ffffff" }, fonts: {} }, "#ffffff"),
+      primary: `#${[r, g, b].map((channel) => channel!.toString(16).padStart(2, "0")).join("")}`,
+    };
+  }, module);
+  expect(chosen).toEqual({ kind: "free", value: primary });
+});
+
+// #365 (`GL-UX-001`): the library's icons are one tab stop with a roving tabindex, so the way from
+// the canvas back to the library is a few Shift+Tab presses; the arrows move inside the two columns.
+test("slide editor: the library's icons are one tab stop, the arrows move inside", async ({
+  page,
+}) => {
+  const { editor, library } = await openLibrary(page);
+  const grid = library.getByTestId("slide-editor-library-icons");
+  const icons = grid.getByRole("button");
+  await expect(icons).toHaveCount(60);
+  await expect(grid.locator('button[tabindex="0"]')).toHaveCount(1);
+  const search = library.getByTestId("slide-editor-library-search");
+  await search.focus();
+  await page.keyboard.press("Tab");
+  await expect(icons.nth(0)).toBeFocused();
+  for (const [key, index] of [
+    ["ArrowRight", 1],
+    ["ArrowDown", 3],
+    ["ArrowLeft", 2],
+    ["ArrowUp", 0],
+    ["End", 59],
+    ["Home", 0],
+    ["ArrowDown", 2],
+  ] as const) {
+    await page.keyboard.press(key);
+    await expect(icons.nth(index)).toBeFocused();
+  }
+  // Tab leaves the grid at once; Shift+Tab comes back to the icon last focused.
+  await page.keyboard.press("Tab");
+  await expect(grid.locator(":focus")).toHaveCount(0);
+  await page.keyboard.press("Shift+Tab");
+  await expect(icons.nth(2)).toBeFocused();
+  // From the canvas the search is at most ten Shift+Tab presses away.
+  await editor.getByTestId("slide-editor-canvas").focus();
+  let presses = 0;
+  while (presses < 10 && !(await search.evaluate((node) => node === document.activeElement))) {
+    await page.keyboard.press("Shift+Tab");
+    presses += 1;
+  }
+  await expect(search).toBeFocused();
 });
 
 // SUI-FEATURE-162 AC4, SUI-FEATURE-233 (#294 inc 4): a chart from the library — a bar chart with two

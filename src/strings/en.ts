@@ -580,6 +580,7 @@ export const en = {
       libraryMediaFailed: "The media library could not be opened. Try again.",
       libraryMediaInvalid: "This medium can’t be placed on the page. Choose another one.",
       insertRefused: "The page can’t take another element. Remove one and try again.",
+      insertFailed: "This element can’t be placed on the page. Choose another one.",
       libraryChart: "Chart",
       chartCategory: "Category {{n}}",
       chartSeries: "Series {{n}}",

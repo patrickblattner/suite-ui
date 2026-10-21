@@ -245,8 +245,10 @@ describe("SlideEditor placeholders", () => {
       />,
     );
     fireEvent.click(screen.getByTestId("slide-editor-placeholder-fill"));
+    // One toast id, so repeated presses replace it (#365).
     expect(error).toHaveBeenCalledWith(
       "The page can’t take another element. Remove one and try again.",
+      { id: "slide-editor-insert-refused" },
     );
     expect(screen.queryByTestId("slide-editor-text-field")).toBeNull();
     expect(screen.getByTestId("slide-editor-placeholder")).toBeInTheDocument();

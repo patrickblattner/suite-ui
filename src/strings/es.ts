@@ -556,6 +556,7 @@ export const es: SuiteStrings = {
       libraryMediaFailed: "No se pudo abrir la biblioteca de medios. Inténtalo de nuevo.",
       libraryMediaInvalid: "Este medio no se puede colocar en la página. Elige otro.",
       insertRefused: "La página no admite otro elemento. Quita uno e inténtalo de nuevo.",
+      insertFailed: "Este elemento no se puede colocar en la página. Elige otro.",
       libraryChart: "Gráfico",
       chartCategory: "Categoría {{n}}",
       chartSeries: "Serie {{n}}",

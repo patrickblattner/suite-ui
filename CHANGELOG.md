@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.161.3 — #365, SUI-FEATURE-232: element library follow-ups
+
+Fix.
+
+- **Icons are one tab stop:** the library's icon grid has a roving tabindex (`GL-UX-001`). Tab enters it at the icon last focused, the arrow keys move within its two columns, Home and End go to the first and last icon, and the next Tab leaves the grid. From the canvas the library is a few Shift+Tab presses away instead of about 70.
+- **Refusal toasts:** "The page can’t take another element" appears only when the page is at its element limit. Any other rule the insert breaks gets a new generic error (`slides.editor.insertFailed`). The medium error appears only for images. The toast has one id, so repeated presses replace it instead of stacking.
+- **Gallery:** the `?doc=full` dots have a visible fill, and a new `?ground=dark` page has a dark first page.
+
+**Migration:** none. New string `slides.editor.insertFailed` (en, de, es). Baselines: the strings table (gallery start page) in de, en and es, light and dark, and in de at 390 px and 1440 px.
+
 ## 0.161.2 — #441, GL-UI-016: hint bubbles keep clear of neighbours and floating actions
 
 Fix.

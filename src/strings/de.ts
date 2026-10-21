@@ -562,6 +562,7 @@ export const de: SuiteStrings = {
       libraryMediaInvalid: "Dieses Medium kann nicht auf die Seite. Wähle ein anderes.",
       insertRefused:
         "Die Seite fasst kein weiteres Element. Entferne eines und versuche es erneut.",
+      insertFailed: "Dieses Element kann nicht auf die Seite. Wähle ein anderes.",
       libraryChart: "Diagramm",
       chartCategory: "Kategorie {{n}}",
       chartSeries: "Reihe {{n}}",

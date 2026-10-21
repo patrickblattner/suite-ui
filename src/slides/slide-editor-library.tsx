@@ -137,6 +137,28 @@ export function ElementLibrary({
   const { icons } = useSlideIcons(shown);
   for (const [name, icon] of icons) previews.set(name, icon);
   const searchId = React.useId();
+  // The icons are one tab stop with a roving tabindex (`GL-UX-001`, #365): up to 60 of them would
+  // otherwise stand between the canvas and the rest of the library. The arrows move inside the two
+  // columns, Home and End to the first and last; the stop is the icon last focused, else the first.
+  const [current, setCurrent] = React.useState<string | undefined>(undefined);
+  const stop = current !== undefined && shown.includes(current) ? current : shown[0];
+  const onIconKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.altKey || event.ctrlKey || event.metaKey) return;
+    const at = shown.indexOf(stop ?? "");
+    const step = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: 2, ArrowUp: -2 }[event.key];
+    const index =
+      event.key === "Home"
+        ? 0
+        : event.key === "End"
+          ? shown.length - 1
+          : step === undefined
+            ? undefined
+            : Math.min(shown.length - 1, Math.max(0, at + step));
+    if (index === undefined || at === -1) return;
+    event.preventDefault();
+    setCurrent(shown[index]);
+    event.currentTarget.querySelectorAll<HTMLElement>("button")[index]?.focus();
+  };
   const drag = (entry: LibraryEntry) => (event: React.DragEvent) => {
     // An app's entry travels by its id; the drop takes the rest from the app's entries.
     const data =
@@ -154,6 +176,7 @@ export function ElementLibrary({
     label: string,
     preview: React.ReactNode,
     testId: string,
+    roving?: Pick<React.ComponentProps<"button">, "tabIndex" | "onFocus">,
   ) => (
     <Hint key={testId} text={t("slides.editor.libraryInsertHint", values(label))}>
       <Button
@@ -164,6 +187,7 @@ export function ElementLibrary({
         draggable
         onDragStart={drag(entry)}
         onClick={() => onInsert(entry, label)}
+        {...roving}
         data-testid={testId}
       >
         {preview}
@@ -292,7 +316,11 @@ export function ElementLibrary({
               ? t("slides.editor.libraryCapped", { shown: ICON_LIMIT, count: matches.length })
               : t("slides.editor.libraryFound", { count: matches.length })}
         </p>
-        <div className="grid grid-cols-2 gap-1" data-testid="slide-editor-library-icons">
+        <div
+          className="grid grid-cols-2 gap-1"
+          onKeyDown={onIconKeyDown}
+          data-testid="slide-editor-library-icons"
+        >
           {shown.map((name) => {
             const Icon = icons.get(name) ?? previews.get(name);
             return entryButton(
@@ -304,6 +332,7 @@ export function ElementLibrary({
                 <Icon aria-hidden="true" />
               ),
               `slide-editor-library-icon-${name}`,
+              { tabIndex: name === stop ? 0 : -1, onFocus: () => setCurrent(name) },
             );
           })}
         </div>

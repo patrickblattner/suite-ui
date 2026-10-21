@@ -214,6 +214,8 @@ const CROP_HINT_ROOM = 480;
 // What a number field takes: a box at most twice the largest format side off the page and as large,
 // so nothing typed loses an element or overflows the document's numbers.
 const FIELD_RANGE = 2 * SLIDE_LIMITS.maxFormatSide;
+// The one error toast of a refused insert: a repeated press replaces it (#365).
+const INSERT_REFUSED_TOAST = "slide-editor-insert-refused";
 // How long a new entrance, exit or transition plays, and the most a duration or delay field takes
 // (ms).
 const ANIMATION_MS = 500;
@@ -1018,11 +1020,22 @@ function Editor({
           : undefined;
     return (value === undefined ? undefined : cssColor(value, view.brand)) ?? "#ffffff";
   })();
+  // An insert the document refuses is named in an error toast and nothing changes: a page at its
+  // element limit (Codex #362 CX1) says so, any other broken rule gets the generic error. The toast
+  // has one id, so repeated presses replace it rather than stack (#365).
+  const insertFits = (next: SlideDocument) => {
+    const result = safeParseSlideDocument(next);
+    if (result.ok) return true;
+    const full = result.error.issues.some((issue) => issue.code === "too-many-elements");
+    toast.error(t(full ? "slides.editor.insertRefused" : "slides.editor.insertFailed"), {
+      id: INSERT_REFUSED_TOAST,
+    });
+    return false;
+  };
   // Put on the page of the document as it is when it lands (a picked medium arrives later). The
-  // document with it must pass the schema first: an element it refuses (a medium's id or alt text
-  // past its limits), or a page already at its element limit (Codex #362 CX1), is named in an error
-  // toast and nothing changes. Then the focus goes to the new element on the canvas; the drawer
-  // stays open (`SUI-FEATURE-232` rev 3).
+  // element must pass the schema first: a medium it refuses (its id or alt text past their limits)
+  // is named as a medium, any other element by the generic error. Then the focus goes to the new
+  // element on the canvas; the drawer stays open (`SUI-FEATURE-232` rev 3).
   // Dropped on an open placeholder (`into`), the element becomes its content: its box, turn and role
   // (`SUI-FEATURE-192`); a block keeps its own box.
   const insertEntry = (
@@ -1030,19 +1043,24 @@ function Editor({
     at?: Point,
     label = entryLabel(entry),
     into?: OpenPlaceholder,
-  ): boolean => {
+  ): void => {
     const point = at ?? { x: pageWidth / 2, y: pageHeight / 2 };
     const color = insertColor(view.brand, ground);
     const made = libraryElement(history.document, page, entry, point, color);
     const element =
       into === undefined || made.type === "group" ? made : intoPlaceholder(made, into);
     if (!slideElementSchema.safeParse(element).success) {
-      toast.error(t("slides.editor.libraryMediaInvalid"));
-      return false;
+      toast.error(
+        t(
+          entry.kind === "image"
+            ? "slides.editor.libraryMediaInvalid"
+            : "slides.editor.insertFailed",
+        ),
+        { id: INSERT_REFUSED_TOAST },
+      );
+      return;
     }
-    if (!fits(insertElement(history.document, page, element), "slides.editor.insertRefused")) {
-      return false;
-    }
+    if (!insertFits(insertElement(history.document, page, element))) return;
     apply((current) => insertElement(current, page, element));
     canvas.current?.focus();
     const ids = [element.id];
@@ -1051,7 +1069,6 @@ function Editor({
       text: t("slides.editor.inserted", { name: label, interpolation: { escapeValue: false } }),
       selection: ids,
     });
-    return true;
   };
   // A library entry dragged onto the canvas lands centred under the pointer; anything else dropped
   // (not an entry of the library) is left alone.
@@ -1280,7 +1297,7 @@ function Editor({
     };
     const element = intoPlaceholder(made, open);
     const next = insertElement(history.document, page, element);
-    if (!fits(next, "slides.editor.insertRefused")) return;
+    if (!insertFits(next)) return;
     apply(() => next);
     startEditing(id);
   };
