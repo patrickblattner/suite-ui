@@ -32,13 +32,13 @@ import { EditorHeader, useEditorLeaveGuard } from "../ui/editor-header.js";
 import { Field } from "../ui/field.js";
 import { GridFields, GridOverlay, GridToggle } from "../ui/grid.js";
 import { Hint } from "../ui/hint.js";
+import { useLeaveGuard } from "../ui/leave-guard.js";
 import { PropertyPanel } from "../ui/property-panel.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select.js";
 import { Slider } from "../ui/slider.js";
-import { useLeaveGuard } from "../ui/leave-guard.js";
 import { toast } from "../ui/toaster.js";
-import { DELETE_SHORTCUT } from "../ui/use-edit-shortcuts.js";
 import { IconButtonTooltip, OverflowTooltip } from "../ui/tooltip.js";
+import { DELETE_SHORTCUT } from "../ui/use-edit-shortcuts.js";
 import { type SlideDocumentError, safeParseSlideDocument } from "./document.js";
 import {
   type Alignment,
@@ -155,7 +155,7 @@ import {
   type TextRange,
   toggledFormat,
 } from "./slide-editor-text.js";
-import { SlidePreview } from "./slide-editor-preview.js";
+import { ANIMATION_MAX_MS, SlidePreview } from "./slide-editor-preview.js";
 import { TransferFormat, type TransferScope } from "./slide-editor-transfer.js";
 import {
   CELL_PADDING,
@@ -216,10 +216,9 @@ const CROP_HINT_ROOM = 480;
 const FIELD_RANGE = 2 * SLIDE_LIMITS.maxFormatSide;
 // The one error toast of a refused insert: a repeated press replaces it (#365).
 const INSERT_REFUSED_TOAST = "slide-editor-insert-refused";
-// How long a new entrance, exit or transition plays, and the most a duration or delay field takes
-// (ms).
+// How long a new entrance, exit or transition plays (ms); the most a duration or delay field takes
+// is `ANIMATION_MAX_MS`, shared with the preview.
 const ANIMATION_MS = 500;
-const ANIMATION_MAX_MS = 60_000;
 const EFFECTS = ["fade", "slide", "zoom"] as const;
 const DIRECTIONS = ["left", "right", "top", "bottom"] as const;
 const TRANSITIONS = ["none", "fade", "slide"] as const;
@@ -333,11 +332,14 @@ const clamp = (value: number, low: number, high: number) => Math.min(high, Math.
 
 // An element's entrance or exit (`SUI-FEATURE-162` §Animationen): its effect ("None" removes it), the
 // side a slide comes from (entrance) or goes to (exit), duration, delay and its place in the page's order, shown from 1.
-// A new one plays after every animation the page has (`nextOrder`).
+// A new one plays after every animation the page has (`nextOrder`). An exit at or before the
+// element's entrance is warned under the order of both (`otherOrder`, the order of the other kind),
+// a duration of 0 noted under it (#382).
 function AnimationFields({
   kind,
   step,
   nextOrder,
+  otherOrder,
   readOnly,
   revision,
   onStep,
@@ -345,6 +347,7 @@ function AnimationFields({
   kind: AnimationKind;
   step: AnimationStep | undefined;
   nextOrder: number;
+  otherOrder?: number | undefined;
   readOnly: boolean;
   revision: number;
   onStep: (step: AnimationStep | undefined, merge?: string) => void;
@@ -463,6 +466,11 @@ function AnimationFields({
                 label={t(`slides.editor.animation${key[0]!.toUpperCase()}${key.slice(1)}`)}
                 hint={t(`slides.editor.animation${key[0]!.toUpperCase()}${key.slice(1)}Hint`)}
                 valueHint={t("slides.editor.msValueHint")}
+                help={
+                  key === "duration" && step.duration === 0
+                    ? t(`slides.editor.${kind}ZeroDuration`)
+                    : undefined
+                }
                 value={step[key]}
                 unit={t("slides.editor.ms")}
                 readOnly={readOnly}
@@ -481,6 +489,18 @@ function AnimationFields({
               label={t("slides.editor.animationOrder")}
               hint={t("slides.editor.animationOrderHint")}
               valueHint={t("slides.editor.animationOrderValueHint")}
+              warning={
+                otherOrder === undefined ||
+                (kind === "exit" ? step.order > otherOrder : step.order < otherOrder)
+                  ? undefined
+                  : t(
+                      kind === "exit"
+                        ? "slides.editor.animationExitBeforeEntrance"
+                        : "slides.editor.animationEntranceAfterExit",
+                      { order: otherOrder + 1 },
+                    )
+              }
+              warningTestId={`${id}-order-warning`}
               value={step.order + 1}
               unit=""
               readOnly={readOnly}
@@ -568,6 +588,7 @@ function TransitionFields({
             label={t("slides.editor.animationDuration")}
             hint={t("slides.editor.transitionDurationHint")}
             valueHint={t("slides.editor.msValueHint")}
+            help={transition.duration === 0 ? t("slides.editor.transitionZeroDuration") : undefined}
             value={transition.duration}
             unit={t("slides.editor.ms")}
             readOnly={false}
@@ -2263,6 +2284,7 @@ function Editor({
               kind={kind}
               step={single.animation?.[kind]}
               nextOrder={nextAnimationOrder(document, page)}
+              otherOrder={single.animation?.[kind === "exit" ? "entrance" : "exit"]?.order}
               readOnly={single.locked}
               revision={travels}
               onStep={(step, merge) =>

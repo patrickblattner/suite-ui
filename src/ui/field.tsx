@@ -3,6 +3,7 @@ import type * as React from "react";
 import { cn } from "../lib/cn.js";
 import { FieldError, FieldErrorContext } from "./field-error.js";
 import { FieldValueHintContext } from "./field-value-hint.js";
+import { InlineMessage } from "./inline-message.js";
 import { Label } from "./label.js";
 import { LabelWithHelp } from "./label-with-help.js";
 
@@ -21,6 +22,9 @@ type FieldProps = Omit<React.ComponentProps<"div">, "children"> & {
   // The field is invalid: this text stands under the control in place of the help text, under the id
   // `${htmlFor}-error` (`SUI-FEATURE-078`).
   error?: string | undefined;
+  // A warning about a valid value: it stands under the control in place of the help text, under the
+  // same id `${htmlFor}-description`, as an `InlineMessage` (#382).
+  warning?: string | undefined;
   labelClassName?: string | undefined;
   // The props of the element around the control (width, `role="group"`, …).
   control?: Omit<React.ComponentProps<"div">, "children"> & { "data-slot"?: string };
@@ -28,6 +32,8 @@ type FieldProps = Omit<React.ComponentProps<"div">, "children"> & {
   messageClassName?: string | undefined;
   // The `data-testid` of the error text.
   errorTestId?: string | undefined;
+  // The `data-testid` of the warning.
+  warningTestId?: string | undefined;
   children: React.ReactNode;
 };
 
@@ -42,10 +48,12 @@ function Field({
   valueHint,
   help,
   error,
+  warning,
   labelClassName,
   control,
   messageClassName,
   errorTestId,
+  warningTestId,
   className,
   children,
   ...props
@@ -81,6 +89,15 @@ function Field({
         <FieldError id={errorId} className={messageClassName} data-testid={errorTestId}>
           {error}
         </FieldError>
+      ) : warning !== undefined && warning !== "" ? (
+        <InlineMessage
+          tone="warn"
+          id={`${htmlFor}-description`}
+          className={messageClassName}
+          data-testid={warningTestId}
+        >
+          {warning}
+        </InlineMessage>
       ) : help !== undefined ? (
         <p
           id={`${htmlFor}-description`}

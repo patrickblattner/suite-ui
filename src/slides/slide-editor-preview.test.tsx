@@ -116,6 +116,86 @@ describe("SlidePreview", () => {
     expect(preview()).toHaveAttribute("data-slide-step", "2");
   });
 
+  // #382: a step waits for its longest delay plus duration up to one full delay and one full
+  // duration of the editor's clamp (2 × 60 s), so a step the editor allows plays whole.
+  it("waits a full 75 s step the editor allows", () => {
+    vi.useFakeTimers();
+    const full = parseSlideDocument({
+      ...document,
+      pages: [
+        document.pages[0],
+        {
+          ...document.pages[1],
+          transition: { type: "none", duration: 0 },
+          elements: [
+            shape("first", { order: 0, duration: 60_000, delay: 15_000 }),
+            shape("second", { order: 1, duration: 200 }),
+          ],
+        },
+      ],
+    });
+    render(<SlidePreview document={full} page={1} view={{ brand: SLIDE_BRAND }} />);
+    fireEvent.click(screen.getByTestId("slide-editor-preview"));
+    const preview = () =>
+      screen
+        .getByTestId("slide-editor-preview-dialog")
+        .querySelector<HTMLElement>("[data-slot=slide-preview]")!;
+    act(() => void vi.advanceTimersByTime(74_999));
+    expect(preview()).toHaveAttribute("data-slide-step", "1");
+    act(() => void vi.advanceTimersByTime(1));
+    expect(preview()).toHaveAttribute("data-slide-step", "2");
+  });
+
+  // #382: imported durations beyond the editor's clamp, even beyond the largest timer delay: the
+  // transition plays and waits 60 s, a step waits 120 s at most; the next step still comes.
+  it("caps imported long durations: transition at 60 s, a step at 120 s", () => {
+    vi.useFakeTimers();
+    const long = parseSlideDocument({
+      ...document,
+      pages: [
+        document.pages[0],
+        {
+          ...document.pages[1],
+          transition: { type: "fade", duration: 600_000 },
+          elements: [
+            shape("first", { order: 0, duration: 3_000_000_000 }),
+            shape("second", { order: 1, duration: 200 }),
+          ],
+        },
+      ],
+    });
+    render(<SlidePreview document={long} page={1} view={{ brand: SLIDE_BRAND }} />);
+    fireEvent.click(screen.getByTestId("slide-editor-preview"));
+    const stage = () => screen.getByTestId("slide-editor-preview-dialog");
+    const preview = () => stage().querySelector<HTMLElement>("[data-slot=slide-preview]")!;
+    // The page's CSS transition plays as long as its timer waits.
+    expect(
+      stage().querySelector<HTMLElement>("[data-slot=slide-preview-page]")!.style.animation,
+    ).toBe("suite-slide-fade-in 60000ms ease both");
+    act(() => void vi.advanceTimersByTime(60_000));
+    expect(preview()).toHaveAttribute("data-slide-step", "1");
+    act(() => void vi.advanceTimersByTime(119_999));
+    expect(preview()).toHaveAttribute("data-slide-step", "1");
+    act(() => void vi.advanceTimersByTime(1));
+    expect(preview()).toHaveAttribute("data-slide-step", "2");
+  });
+
+  it("stops the play when the preview closes", () => {
+    vi.useFakeTimers();
+    render(<SlidePreview document={document} page={1} view={{ brand: SLIDE_BRAND }} />);
+    const set = vi.spyOn(window, "setTimeout");
+    fireEvent.click(screen.getByTestId("slide-editor-preview"));
+    // The play's timers, known by their delays: the cross-fade's end and step 1 at 400 ms, step 2 at
+    // 800 ms.
+    const played = set.mock.calls.flatMap(([, delay], index) =>
+      delay === 400 || delay === 800 ? [set.mock.results[index]!.value as number] : [],
+    );
+    expect(played).toHaveLength(3);
+    const clear = vi.spyOn(window, "clearTimeout");
+    fireEvent.click(screen.getByTestId("slide-editor-preview-close"));
+    for (const timer of played) expect(clear).toHaveBeenCalledWith(timer);
+  });
+
   it("plays the first page without its transition, as the player does", () => {
     vi.useFakeTimers();
     render(<SlidePreview document={document} page={0} view={{ brand: SLIDE_BRAND }} />);

@@ -10968,6 +10968,126 @@ for (const lng of ["de", "en", "es"]) {
   });
 }
 
+// #382 (`SUI-FEATURE-162` §Animationen): what the animation and transition fields write, each change
+// one Undo step; an exit at or before the entrance is warned, a duration of 0 noted.
+test("slide editor: the animation fields write the document", async ({ page }) => {
+  // React reports invalid markup (a `<p>` in a `<p>`) on the console (#382).
+  const errors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+  const { editor } = await openEditor(page);
+  const choose = async (id: string, option: string) => {
+    await page.locator(`[id="${id}"]`).click();
+    await page.getByRole("option", { name: option, exact: true }).click();
+  };
+  type Step = { effect: string; direction?: string; duration: number; order: number };
+  type Saved = {
+    pages: {
+      id: string;
+      transition: { type: string; duration: number };
+      elements: { id: string; animation?: { entrance?: Step; exit?: Step } }[];
+    }[];
+  };
+  const save = async () => {
+    await editor.getByTestId("editor-save").click();
+    await expect(editor.locator("[data-dirty]").first()).toHaveAttribute("data-dirty", "false");
+    return JSON.parse(
+      (await page.getByTestId("slide-editor-app").getAttribute("data-saved"))!,
+    ) as Saved;
+  };
+  const undo = editor.getByTestId("editor-undo");
+
+  // Nothing selected: the page's transition. "None" sets 0, a type again 500; one step each.
+  const type = page.locator("#slide-editor-transition-type");
+  await choose("slide-editor-transition-type", "Cross-fade");
+  const duration = editor.getByTestId("slide-editor-transition-duration");
+  await expect(duration).toHaveValue("500");
+  await typeInto(page, duration, "0");
+  await expect(page.locator("#slide-editor-transition-duration-description")).toHaveText(
+    "With 0 ms the page changes without the transition.",
+  );
+  await undo.click();
+  await expect(duration).toHaveValue("500");
+  await choose("slide-editor-transition-type", "None");
+  await expect(duration).toHaveCount(0);
+  // Back from "None" (stored 0) a type plays 500 ms again.
+  await choose("slide-editor-transition-type", "Cross-fade");
+  await expect(duration).toHaveValue("500");
+  await undo.click();
+  await expect(type).toContainText("None");
+
+  // An element: entrance and exit.
+  await editor.getByTestId("drawer-layers").click();
+  const row = editor.locator("[data-layer-id]").first();
+  const id = (await row.getAttribute("data-layer-id"))!;
+  await row.getByTestId("slide-editor-layer-select").click();
+  await editor.getByRole("tab", { name: "Layout" }).click();
+  const element = (document: Saved) =>
+    document.pages.flatMap((one) => one.elements).find((one) => one.id === id)!;
+  await choose("slide-editor-entrance-effect", "Slide in");
+  await choose("slide-editor-entrance-direction", "Right");
+  // Switching from slide drops the direction.
+  await choose("slide-editor-entrance-effect", "Fade in");
+  await expect(page.locator("#slide-editor-entrance-direction")).toHaveCount(0);
+  // The order shows from 1 and is stored from 0.
+  const order = editor.getByTestId("slide-editor-entrance-order");
+  await typeInto(page, order, "3");
+  await page.keyboard.press("Tab");
+  let saved = await save();
+  expect(element(saved).animation?.entrance).toMatchObject({ effect: "fade", order: 2 });
+  // The transition is back on "None", stored with 0 ms.
+  for (const one of saved.pages) expect(one.transition).toEqual({ type: "none", duration: 0 });
+  expect(element(saved).animation?.entrance).not.toHaveProperty("direction");
+  // One Undo step per change: the order back to what it was.
+  await undo.click();
+  await expect(order).not.toHaveValue("3");
+  await typeInto(page, order, "3");
+  await page.keyboard.press("Tab");
+  // A duration of 0 is noted.
+  await typeInto(page, editor.getByTestId("slide-editor-entrance-duration"), "0");
+  await expect(page.locator("#slide-editor-entrance-duration-description")).toHaveText(
+    "With 0 ms the element appears without the effect.",
+  );
+  await page.keyboard.press("Tab");
+  // The exit: at or before the entrance it is warned, after it not.
+  await choose("slide-editor-exit-effect", "Fade out");
+  const exitOrder = editor.getByTestId("slide-editor-exit-order");
+  const warning = editor.getByTestId("slide-editor-exit-order-warning");
+  await typeInto(page, exitOrder, "3");
+  await page.keyboard.press("Tab");
+  await expect(warning).toContainText(
+    "The exit plays before or with the entrance (order 3); give it a higher number.",
+  );
+  await expect(exitOrder).toHaveAccessibleDescription(/before or with the entrance/);
+  // The entrance, the field just edited, says so as well.
+  const entranceWarning = editor.getByTestId("slide-editor-entrance-order-warning");
+  await expect(entranceWarning).toContainText(
+    "The entrance plays after or with the exit (order 3); give it a lower number.",
+  );
+  await typeInto(page, exitOrder, "4");
+  await page.keyboard.press("Tab");
+  await expect(warning).toHaveCount(0);
+  await expect(entranceWarning).toHaveCount(0);
+  // Raising the entrance past the exit warns under the entrance.
+  await typeInto(page, order, "5");
+  await page.keyboard.press("Tab");
+  await expect(entranceWarning).toContainText("(order 4)");
+  await expect(warning).toContainText("(order 5)");
+  await typeInto(page, order, "3");
+  await page.keyboard.press("Tab");
+  await expect(entranceWarning).toHaveCount(0);
+  saved = await save();
+  expect(element(saved).animation?.exit).toMatchObject({ effect: "fade", order: 3 });
+  // "None" removes the animation.
+  await choose("slide-editor-exit-effect", "None");
+  await choose("slide-editor-entrance-effect", "None");
+  saved = await save();
+  expect(element(saved).animation?.entrance).toBeUndefined();
+  expect(element(saved).animation?.exit).toBeUndefined();
+  expect(errors).toEqual([]);
+});
+
 // #294 inc 3: the library fits the drawer at 390 px in each language.
 for (const lng of ["de", "en", "es"]) {
   test(`slide editor: the element library fits at 390 px (${lng})`, async ({ page }) => {

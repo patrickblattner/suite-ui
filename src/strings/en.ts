@@ -556,7 +556,15 @@ export const en = {
       animationFromValueHint: "The element starts outside this edge and slides into place.",
       animationToValueHint: "The element slides from its place out past this edge.",
       msValueHint: "Milliseconds, from 0 to 60000; 1000 is one second.",
-      animationOrderValueHint: "A whole number from 1; lower numbers play first.",
+      animationOrderValueHint:
+        "A whole number from 1; lower numbers play first, equal numbers play together.",
+      animationExitBeforeEntrance:
+        "The exit plays before or with the entrance (order {{order}}); give it a higher number.",
+      animationEntranceAfterExit:
+        "The entrance plays after or with the exit (order {{order}}); give it a lower number.",
+      entranceZeroDuration: "With 0 ms the element appears without the effect.",
+      exitZeroDuration: "With 0 ms the element disappears without the effect.",
+      transitionZeroDuration: "With 0 ms the page changes without the transition.",
       transitionTypeValueHint:
         "“{{fade}}” blends into the new page, “{{slide}}” pushes it in from the side; “{{none}}” switches at once.",
       pageLayoutValueHint:

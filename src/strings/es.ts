@@ -533,7 +533,15 @@ export const es: SuiteStrings = {
       animationFromValueHint: "El elemento empieza fuera de este borde y se desliza a su sitio.",
       animationToValueHint: "El elemento se desliza desde su sitio hasta salir por este borde.",
       msValueHint: "Milisegundos, de 0 a 60000; 1000 es un segundo.",
-      animationOrderValueHint: "Un número entero desde 1; los números menores van primero.",
+      animationOrderValueHint:
+        "Un número entero desde 1; los menores van primero y los iguales a la vez.",
+      animationExitBeforeEntrance:
+        "La salida se reproduce antes o a la vez que la entrada (orden {{order}}); dale un número mayor.",
+      animationEntranceAfterExit:
+        "La entrada se reproduce después o a la vez que la salida (orden {{order}}); dale un número menor.",
+      entranceZeroDuration: "Con 0 ms el elemento aparece sin el efecto.",
+      exitZeroDuration: "Con 0 ms el elemento desaparece sin el efecto.",
+      transitionZeroDuration: "Con 0 ms la página cambia sin la transición.",
       transitionTypeValueHint:
         "«{{fade}}» se funde con la página nueva, «{{slide}}» la empuja desde un lado; «{{none}}» cambia al instante.",
       pageLayoutValueHint:

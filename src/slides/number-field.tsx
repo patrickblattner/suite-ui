@@ -17,6 +17,8 @@ export function NumberField({
   min,
   max,
   help,
+  warning,
+  warningTestId,
   hint,
   valueHint,
 }: {
@@ -36,6 +38,9 @@ export function NumberField({
   max?: number | undefined;
   // A note under the field, read with it.
   help?: React.ReactNode;
+  // A warning about the value, in place of the note and read with the field (`Field warning`).
+  warning?: string | undefined;
+  warningTestId?: string | undefined;
   // What the field is for, as a hover hint on the label, read with the field (`GL-UI-017`).
   hint?: string | undefined;
   // What the number counts and its unit, as the input's own hint and description (`Field valueHint`).
@@ -53,6 +58,8 @@ export function NumberField({
       hint={hint}
       valueHint={valueHint}
       help={help}
+      warning={warning}
+      warningTestId={warningTestId}
       control={{ className: "relative" }}
     >
       <Input
@@ -63,7 +70,11 @@ export function NumberField({
         min={min}
         max={max}
         aria-describedby={
-          [hint && `${id}-help`, help !== undefined && `${id}-description`]
+          [
+            hint && `${id}-help`,
+            (help !== undefined || (warning !== undefined && warning !== "")) &&
+              `${id}-description`,
+          ]
             .filter(Boolean)
             .join(" ") || undefined
         }

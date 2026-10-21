@@ -537,7 +537,15 @@ export const de: SuiteStrings = {
         "Das Element beginnt außerhalb dieses Rands und gleitet an seinen Platz.",
       animationToValueHint: "Das Element gleitet von seinem Platz über diesen Rand hinaus.",
       msValueHint: "Millisekunden, von 0 bis 60000; 1000 ist eine Sekunde.",
-      animationOrderValueHint: "Eine ganze Zahl ab 1; kleinere Zahlen kommen zuerst.",
+      animationOrderValueHint:
+        "Eine ganze Zahl ab 1; kleinere Zahlen kommen zuerst, gleiche spielen zusammen.",
+      animationExitBeforeEntrance:
+        "Der Austritt spielt vor oder mit dem Eintritt (Reihenfolge {{order}}); gib ihm eine höhere Zahl.",
+      animationEntranceAfterExit:
+        "Der Eintritt spielt nach oder mit dem Austritt (Reihenfolge {{order}}); gib ihm eine kleinere Zahl.",
+      entranceZeroDuration: "Mit 0 ms erscheint das Element ohne den Effekt.",
+      exitZeroDuration: "Mit 0 ms verschwindet das Element ohne den Effekt.",
+      transitionZeroDuration: "Mit 0 ms wechselt die Seite ohne den Übergang.",
       transitionTypeValueHint:
         "„{{fade}}“ blendet in die neue Seite über, „{{slide}}“ schiebt sie seitlich herein; „{{none}}“ wechselt sofort.",
       pageLayoutValueHint:
