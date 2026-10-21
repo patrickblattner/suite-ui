@@ -207,13 +207,18 @@ export function TableFields({
           columns <= 1 ? t("slides.editor.tableOneColumn") : undefined,
         )}
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3" data-tooltip-row="">
         {(["row", "column"] as const).map((key) => (
           <NumberField
             key={key}
             id={`slide-editor-table-cell-${key}`}
             label={t(key === "row" ? "slides.editor.tableRow" : "slides.editor.tableColumn")}
             hint={t(key === "row" ? "slides.editor.tableRowHint" : "slides.editor.tableColumnHint")}
+            valueHint={t(
+              key === "row"
+                ? "slides.editor.tableRowValueHint"
+                : "slides.editor.tableColumnValueHint",
+            )}
             value={cell[key] + 1}
             unit=""
             readOnly={false}
@@ -233,6 +238,7 @@ export function TableFields({
           id="slide-editor-table-column-width"
           label={t("slides.editor.tableColumnWidth")}
           hint={t("slides.editor.tableColumnWidthHint")}
+          valueHint={t("slides.editor.tableColumnWidthValueHint")}
           value={Math.round(columnPx(table, cell.column) * 100) / 100}
           unit="px"
           // One column is as wide as the table: its width is the table's own field.
@@ -250,11 +256,15 @@ export function TableFields({
           testId="slide-editor-table-column-width"
         />
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3" data-tooltip-row="">
         <Field
           label={t("slides.editor.tableCellFill")}
           htmlFor="slide-editor-table-fill"
           hint={t("slides.editor.tableCellFillHint")}
+          valueHint={t("slides.editor.tableCellFillValueHint", {
+            none: t("slides.editor.tableNoFill"),
+            interpolation: { escapeValue: false },
+          })}
         >
           <Select
             value={fillKey}
@@ -298,6 +308,7 @@ export function TableFields({
           label={t("slides.editor.tableVerticalAlign")}
           htmlFor="slide-editor-table-valign"
           hint={t("slides.editor.tableVerticalAlignHint")}
+          valueHint={t("slides.editor.tableVerticalAlignValueHint")}
         >
           <Select
             value={current?.verticalAlign ?? "top"}

@@ -9690,9 +9690,9 @@ test("slide editor: the crop offset fields name their reach and show the clamped
   const rangeX = editor.getByTestId("slide-editor-crop-offsetX-range");
   const rangeY = editor.getByTestId("slide-editor-crop-offsetY-range");
   await expect(rangeX).toHaveText("Zoom in to shift the image.");
-  // The field's hint (`GL-UI-017`, #361), then its reach.
+  // Its reach, then the field's value hint (`GL-UI-017`, #437).
   await expect(offsetX).toHaveAccessibleDescription(
-    "Moves the image left or right inside its frame, in pixels. Zoom in to shift the image.",
+    "Zoom in to shift the image. Pixels from the centre of the frame; 0 centres the image.",
   );
   await offsetX.fill("30");
   await offsetY.focus();
@@ -10556,6 +10556,10 @@ test("slide editor: a chart's data is edited in the panel, key by key, within it
   );
   await expect(panel.getByTestId("slide-editor-chart-value-1-0")).toHaveAccessibleErrorMessage(
     "Error: Category 1 – Sales and Series 2: enter a number, such as 1.5.",
+  );
+  // The error is the error message only, never the description (`GL-UI-017` §Fehler sind kein Hint).
+  await expect(panel.getByTestId("slide-editor-chart-value-1-0")).toHaveAccessibleDescription(
+    "The number this series shows for this category, such as 1.5.",
   );
   await expect(firstCell).toHaveText("1");
   await editor.getByTestId("editor-undo").click();
@@ -12054,12 +12058,16 @@ test("slide editor: a page from the app's layout, its placeholder filled by a do
 // pictures carry their name as a tooltip.
 test("slide editor: every field and text button carries its hint", async ({ page }) => {
   // A field: its label hint, the start of the control's description (a note under the field follows).
+  // A field (#437, `GL-UI-017` §Label und Feld sind zwei Träger): the label carries its hint, the
+  // control its own value hint, which is its description, never the label's.
   const field = async (id: string) => {
     const help = page.locator(`[id="${id}-help"]`);
     await expect(help).toHaveText(/\S/);
     const text = (await help.textContent()) ?? "";
-    await expect(page.locator(`[id="${id}"]`)).toHaveAccessibleDescription(
-      new RegExp(`^${text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`),
+    const control = page.locator(`[id="${id}"]`);
+    await expect(control).toHaveAccessibleDescription(/\S/);
+    await expect(control).not.toHaveAccessibleDescription(
+      new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
     );
   };
   const described = (testId: string) =>
@@ -12121,6 +12129,32 @@ test("slide editor: every field and text button carries its hint", async ({ page
   await editor.getByTestId("slide-editor-layer-select").first().click();
   await editor.getByRole("tab", { name: "Layout" }).click();
   for (const id of ["x", "y", "width", "height", "rotation"]) await field(`slide-editor-${id}`);
+  // Hovering the field itself opens its value hint.
+  await page.mouse.move(0, 0);
+  await page.locator("#slide-editor-x").hover();
+  await expect(page.getByRole("tooltip")).toHaveText(
+    "Pixels; 0 puts the element at the left edge of the page.",
+  );
+  // A right-column field's bubble stands beside the whole pair, over no control (`GL-UI-016` §Lage).
+  for (const [id, neighbour] of [
+    ["y", "x"],
+    ["height", "width"],
+  ] as const) {
+    await page.mouse.move(0, 0);
+    await page.locator(`#slide-editor-${id}`).hover();
+    const bubble = page.locator("[data-slot=tooltip-content]");
+    await expect(bubble).toHaveCount(1, { timeout: 5000 });
+    const over = await box(bubble);
+    for (const other of [id, neighbour]) {
+      const control = await box(page.locator(`#slide-editor-${other}`));
+      const apart =
+        over.x >= control.x + control.width ||
+        over.x + over.width <= control.x ||
+        over.y >= control.y + control.height ||
+        over.y + over.height <= control.y;
+      expect(apart, `${id} bubble over ${other}`).toBe(true);
+    }
+  }
   for (const kind of ["entrance", "exit"]) await field(`slide-editor-${kind}-effect`);
   await choose("slide-editor-entrance-effect", "Slide in");
   for (const key of ["direction", "duration", "delay", "order"]) {
@@ -12142,6 +12176,14 @@ test("slide editor: every field and text button carries its hint", async ({ page
   }
   await insert("chart");
   for (const type of ["bar", "line", "pie"]) await described(`slide-editor-chart-type-${type}`);
+  // Locked, the chart type buttons name how they become usable (`GL-UI-017` §Fehler sind kein Hint).
+  await editor.getByTestId("drawer-layers").click();
+  const chartRow = editor.locator("[data-layer-id]").first();
+  await chartRow.getByTestId("slide-editor-layer-lock").click();
+  await expect(page.getByTestId("slide-editor-chart-type-bar")).toHaveAccessibleDescription(
+    "Unlock the element to change its chart.",
+  );
+  await chartRow.getByTestId("slide-editor-layer-lock").click();
   // The data table's inputs: each kind its value hint (Q4277).
   for (const id of ["series-0", "category-0", "value-0-0"]) {
     await described(`slide-editor-chart-${id}`);

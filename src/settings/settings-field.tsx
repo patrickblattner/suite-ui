@@ -9,6 +9,8 @@ type SettingsFieldProps = {
   htmlFor: string;
   // The explanation of the field, as a hover hint on the label (`GL-UI-017`).
   hint?: string;
+  // What the value counts, its unit, the effect of a choice, as the input's own hint (`Field valueHint`).
+  valueHint?: string;
   // The help text under the input, under the id `${htmlFor}-description`.
   help?: React.ReactNode;
   // The field is invalid: this text, which says how to fix it, stands under the input in place of the
@@ -32,6 +34,7 @@ function SettingsField({
   label,
   htmlFor,
   hint,
+  valueHint,
   help,
   error,
   size = "default",
@@ -44,6 +47,7 @@ function SettingsField({
       label={label}
       htmlFor={htmlFor}
       hint={hint}
+      valueHint={valueHint}
       help={help}
       error={error}
       labelClassName="max-w-xl"

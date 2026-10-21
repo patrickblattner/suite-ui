@@ -362,11 +362,24 @@ function AnimationFields({
   return (
     <fieldset className="flex flex-col gap-3" data-testid={id}>
       <legend className="mb-2 text-sm font-medium">{t(`slides.editor.${kind}`)}</legend>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3" data-tooltip-row="">
         <Field
           label={t("slides.editor.animationEffect")}
           htmlFor={`${id}-effect`}
           hint={t("slides.editor.animationEffectHint")}
+          // Each option's effect, under its own name (`GL-UI-017`).
+          valueHint={t(
+            kind === "entrance"
+              ? "slides.editor.animationEntranceValueHint"
+              : "slides.editor.animationExitValueHint",
+            {
+              none: t("slides.editor.animationNone"),
+              fade: t(`slides.editor.${kind}Fade`),
+              slide: t(`slides.editor.${kind}Slide`),
+              zoom: t(`slides.editor.${kind}Zoom`),
+              interpolation: { escapeValue: false },
+            },
+          )}
         >
           <Select
             value={step?.effect ?? "none"}
@@ -402,6 +415,11 @@ function AnimationFields({
               kind === "entrance"
                 ? "slides.editor.animationFromHint"
                 : "slides.editor.animationToHint",
+            )}
+            valueHint={t(
+              kind === "entrance"
+                ? "slides.editor.animationFromValueHint"
+                : "slides.editor.animationToValueHint",
             )}
           >
             <Select
@@ -442,6 +460,7 @@ function AnimationFields({
                 id={`${id}-${key}`}
                 label={t(`slides.editor.animation${key[0]!.toUpperCase()}${key.slice(1)}`)}
                 hint={t(`slides.editor.animation${key[0]!.toUpperCase()}${key.slice(1)}Hint`)}
+                valueHint={t("slides.editor.msValueHint")}
                 value={step[key]}
                 unit={t("slides.editor.ms")}
                 readOnly={readOnly}
@@ -459,6 +478,7 @@ function AnimationFields({
               id={`${id}-order`}
               label={t("slides.editor.animationOrder")}
               hint={t("slides.editor.animationOrderHint")}
+              valueHint={t("slides.editor.animationOrderValueHint")}
               value={step.order + 1}
               unit=""
               readOnly={readOnly}
@@ -496,11 +516,17 @@ function TransitionFields({
   return (
     <section className="flex flex-col gap-3" data-testid="slide-editor-transition">
       <h3 className="text-sm font-medium">{t("slides.editor.transition")}</h3>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3" data-tooltip-row="">
         <Field
           label={t("slides.editor.transitionType")}
           htmlFor="slide-editor-transition-type"
           hint={t("slides.editor.transitionTypeHint")}
+          valueHint={t("slides.editor.transitionTypeValueHint", {
+            none: t("slides.editor.transitionNone"),
+            fade: t("slides.editor.transitionFade"),
+            slide: t("slides.editor.transitionSlide"),
+            interpolation: { escapeValue: false },
+          })}
         >
           <Select
             value={transition.type}
@@ -539,6 +565,7 @@ function TransitionFields({
             id="slide-editor-transition-duration"
             label={t("slides.editor.animationDuration")}
             hint={t("slides.editor.transitionDurationHint")}
+            valueHint={t("slides.editor.msValueHint")}
             value={transition.duration}
             unit={t("slides.editor.ms")}
             readOnly={false}
@@ -2053,32 +2080,35 @@ function Editor({
           htmlFor="slide-editor-crop-zoom"
           hint={t("slides.editor.cropZoomHint")}
         >
-          <Slider
-            id="slide-editor-crop-zoom"
-            aria-labelledby="slide-editor-crop-zoom-label"
-            aria-describedby="slide-editor-crop-zoom-help"
-            value={cropping.crop.zoom}
-            min={1}
-            max={CROP_ZOOM_MAX}
-            step={0.01}
-            getAriaValueText={(value) =>
-              new Intl.NumberFormat(i18n.language, { style: "percent" }).format(value)
-            }
-            onValueChange={(value) =>
-              setCropping({
-                ...cropping,
-                crop: zoomCrop(
-                  croppedImage.width,
-                  croppedImage.height,
-                  cropping.crop,
-                  value / cropping.crop.zoom,
-                ),
-              })
-            }
-            data-testid="slide-editor-crop-zoom"
-          />
+          {/* A slider is no field control: it carries its value hint itself (`Field valueHint`). */}
+          <Hint text={t("slides.editor.cropZoomValueHint")}>
+            <Slider
+              id="slide-editor-crop-zoom"
+              aria-labelledby="slide-editor-crop-zoom-label"
+              aria-describedby="slide-editor-crop-zoom-help"
+              value={cropping.crop.zoom}
+              min={1}
+              max={CROP_ZOOM_MAX}
+              step={0.01}
+              getAriaValueText={(value) =>
+                new Intl.NumberFormat(i18n.language, { style: "percent" }).format(value)
+              }
+              onValueChange={(value) =>
+                setCropping({
+                  ...cropping,
+                  crop: zoomCrop(
+                    croppedImage.width,
+                    croppedImage.height,
+                    cropping.crop,
+                    value / cropping.crop.zoom,
+                  ),
+                })
+              }
+              data-testid="slide-editor-crop-zoom"
+            />
+          </Hint>
         </Field>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3" data-tooltip-row="">
           {(
             [
               ["offsetX", "cropOffsetX"],
@@ -2101,6 +2131,7 @@ function Editor({
                 id={`slide-editor-crop-${key}`}
                 label={t(`slides.editor.${label}`)}
                 hint={t(`slides.editor.${label}Hint`)}
+                valueHint={t("slides.editor.cropOffsetValueHint")}
                 value={cropping.crop[key]}
                 unit="px"
                 readOnly={false}
@@ -2136,13 +2167,14 @@ function Editor({
       {unloadedNote}
       {cropFields}
       {single === undefined ? null : (
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3" data-tooltip-row="">
           {(["x", "y", "width", "height"] as const).map((key) => (
             <NumberField
               key={`${single.id}-${key}`}
               id={`slide-editor-${key}`}
               label={t(`slides.editor.${key}`)}
               hint={t(`slides.editor.${key}Hint`)}
+              valueHint={t(`slides.editor.${key}ValueHint`)}
               value={single[key]}
               unit="px"
               readOnly={single.locked}
@@ -2190,6 +2222,7 @@ function Editor({
             id="slide-editor-rotation"
             label={t("slides.editor.rotation")}
             hint={t("slides.editor.rotationHint")}
+            valueHint={t("slides.editor.rotationValueHint")}
             value={inTurnedGroup ? (((single.rotation + turn) % 360) + 360) % 360 : single.rotation}
             unit={t("slides.editor.degrees")}
             readOnly={single.locked}
@@ -2332,6 +2365,10 @@ function Editor({
           label={t("slides.editor.pageLayout")}
           htmlFor="slide-editor-page-layout"
           hint={t("slides.editor.pageLayoutHint")}
+          valueHint={t("slides.editor.pageLayoutValueHint", {
+            none: t("slides.editor.noLayout"),
+            interpolation: { escapeValue: false },
+          })}
         >
           <Select
             value={pageData.layoutId ?? "none"}

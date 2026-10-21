@@ -558,11 +558,12 @@ export function TextFormatFields({
   return (
     <section className="flex flex-col gap-3" data-testid={`${idPrefix}-format`}>
       <h3 className="text-sm font-medium">{t("slides.editor.textFormat")}</h3>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-2 gap-3" data-tooltip-row="">
         <Field
           label={t("slides.editor.textFont")}
           htmlFor={`${idPrefix}-font`}
           hint={t("slides.editor.textFontHint")}
+          valueHint={t("slides.editor.textFontValueHint")}
         >
           <Select
             value={fontKey ?? ""}
@@ -599,6 +600,7 @@ export function TextFormatFields({
           id={`${idPrefix}-size`}
           label={t("slides.editor.textSize")}
           hint={t("slides.editor.textSizeHint")}
+          valueHint={t("slides.editor.textSizeValueHint")}
           value={mixed.has("size") ? undefined : (format.size ?? DEFAULT_TEXT_SIZE)}
           unit="px"
           readOnly={readOnly}
@@ -614,6 +616,7 @@ export function TextFormatFields({
           label={t("slides.editor.textColor")}
           htmlFor={`${idPrefix}-color`}
           hint={t("slides.editor.textColorHint")}
+          valueHint={t("slides.editor.textColorValueHint")}
         >
           <Select
             value={colorKey ?? ""}

@@ -95,7 +95,7 @@ function ValueField({
         aria-label={label}
         aria-invalid={invalid || undefined}
         aria-errormessage={invalid ? error : undefined}
-        aria-describedby={invalid ? error : describedBy}
+        aria-describedby={describedBy}
         readOnly={readOnly}
         value={text ?? shown}
         onChange={(event) => {
@@ -222,6 +222,7 @@ export function ChartData({
           <Hint
             key={type}
             text={t(`slides.editor.chart${type[0]!.toUpperCase()}${type.slice(1)}Hint`)}
+            disabledText={t("slides.editor.chartLocked")}
           >
             <Button
               type="button"

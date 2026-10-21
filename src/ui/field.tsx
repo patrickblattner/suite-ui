@@ -2,6 +2,7 @@ import type * as React from "react";
 
 import { cn } from "../lib/cn.js";
 import { FieldError, FieldErrorContext } from "./field-error.js";
+import { FieldValueHintContext } from "./field-value-hint.js";
 import { Label } from "./label.js";
 import { LabelWithHelp } from "./label-with-help.js";
 
@@ -11,6 +12,10 @@ type FieldProps = Omit<React.ComponentProps<"div">, "children"> & {
   htmlFor: string;
   // The explanation of the field, as a hover hint on the label (`GL-UI-017`).
   hint?: string | undefined;
+  // What the value counts, its unit, the effect of a choice: the hint of the package control inside
+  // (Input, Textarea, a Select's trigger) and its description (`GL-UI-017` §Label und Feld sind zwei
+  // Träger). One value control per field takes it; another control carries it in its own `Hint`.
+  valueHint?: string | undefined;
   // The help text under the control, under the id `${htmlFor}-description`.
   help?: React.ReactNode;
   // The field is invalid: this text stands under the control in place of the help text, under the id
@@ -34,6 +39,7 @@ function Field({
   label,
   htmlFor,
   hint,
+  valueHint,
   help,
   error,
   labelClassName,
@@ -66,7 +72,9 @@ function Field({
       )}
       <div {...control}>
         <FieldErrorContext.Provider value={invalid ? errorId : null}>
-          {children}
+          <FieldValueHintContext.Provider value={valueHint}>
+            {children}
+          </FieldValueHintContext.Provider>
         </FieldErrorContext.Provider>
       </div>
       {invalid ? (

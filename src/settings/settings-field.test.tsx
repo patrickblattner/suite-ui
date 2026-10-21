@@ -1,12 +1,13 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { Checkbox } from "../ui/checkbox.js";
 import { Input } from "../ui/input.js";
 import { RadioGroup, RadioGroupItem } from "../ui/radio-group.js";
 import { TimezoneCombobox } from "../ui/timezone-combobox.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select.js";
+import { Textarea } from "../ui/textarea.js";
 import { SettingsField } from "./settings-field.js";
 import { SettingsSection } from "./settings-section.js";
 
@@ -223,6 +224,113 @@ describe("SettingsField", () => {
       </RadioGroup>,
     );
     expect(screen.getByRole("radiogroup", { name: "Plain" })).toHaveClass("gap-2");
+  });
+});
+
+// #437 (`GL-UI-017` §Label und Feld sind zwei Träger, §Assistive Tech): the label carries what the
+// field is for, the field its own value hint, which is its description.
+describe("SettingsField valueHint", () => {
+  function hover(element: Element): string | null | undefined {
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    try {
+      fireEvent.pointerMove(element, { pointerType: "mouse" });
+      act(() => {
+        vi.advanceTimersByTime(1500);
+      });
+      return document.querySelector("[data-slot=tooltip-content]")?.textContent;
+    } finally {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    }
+  }
+
+  it("an input: the value hint opens on the field and is its description, the label keeps its own", () => {
+    render(
+      <SettingsField
+        label="Port"
+        htmlFor="port"
+        hint="Where the server listens."
+        valueHint="1 to 65535."
+      >
+        <Input id="port" type="number" aria-describedby="port-help" />
+      </SettingsField>,
+    );
+    const input = screen.getByRole("spinbutton", { name: "Port" });
+    expect(input).toHaveAccessibleDescription("1 to 65535.");
+    expect(hover(input)).toBe("1 to 65535.");
+    expect(document.getElementById("port-help")).toHaveTextContent("Where the server listens.");
+  });
+
+  it("a Select's trigger carries the value hint, read once", () => {
+    render(
+      <SettingsField
+        label="Interval"
+        htmlFor="interval"
+        hint="How often to sync."
+        valueHint="Hourly syncs every hour."
+      >
+        <Select value="hourly">
+          <SelectTrigger id="interval" aria-describedby="interval-help">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="hourly">Hourly</SelectItem>
+          </SelectContent>
+        </Select>
+      </SettingsField>,
+    );
+    const trigger = screen.getByRole("combobox");
+    expect(trigger).toHaveAccessibleDescription("Hourly syncs every hour.");
+    expect(hover(trigger)).toBe("Hourly syncs every hour.");
+  });
+
+  it("an invalid field keeps the value hint as its description and points to the error", () => {
+    render(
+      <SettingsField
+        label="Port"
+        htmlFor="port"
+        valueHint="1 to 65535."
+        error="Enter a port up to 65535."
+      >
+        <Input id="port" type="number" />
+      </SettingsField>,
+    );
+    const input = screen.getByRole("spinbutton", { name: "Port" });
+    expect(input).toHaveAccessibleDescription("1 to 65535.");
+    expect(input).toHaveAttribute("aria-errormessage", "port-error");
+  });
+
+  it("a Textarea carries the value hint as well", () => {
+    render(
+      <SettingsField
+        label="Notes"
+        htmlFor="notes"
+        hint="Shown to admins."
+        valueHint="Up to 500 characters."
+      >
+        <Textarea id="notes" aria-describedby="notes-help" />
+      </SettingsField>,
+    );
+    const textarea = screen.getByRole("textbox", { name: "Notes" });
+    expect(textarea).toHaveAccessibleDescription("Up to 500 characters.");
+    expect(hover(textarea)).toBe("Up to 500 characters.");
+  });
+
+  it("without a value hint the input stands alone", () => {
+    render(
+      <SettingsField label="Name" htmlFor="name">
+        <Input id="name" />
+      </SettingsField>,
+    );
+    expect(screen.getByRole("textbox")).not.toHaveAttribute("aria-describedby");
   });
 });
 

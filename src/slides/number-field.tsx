@@ -18,6 +18,7 @@ export function NumberField({
   max,
   help,
   hint,
+  valueHint,
 }: {
   id: string;
   label: string;
@@ -37,6 +38,8 @@ export function NumberField({
   help?: React.ReactNode;
   // What the field is for, as a hover hint on the label, read with the field (`GL-UI-017`).
   hint?: string | undefined;
+  // What the number counts and its unit, as the input's own hint and description (`Field valueHint`).
+  valueHint?: string | undefined;
 }) {
   const shown = value === undefined ? "" : String(Math.round(value * 100) / 100);
   const [typed, setTyped] = React.useState<{ text: string; revision: number } | null>(null);
@@ -44,7 +47,14 @@ export function NumberField({
   const setText = (next: string | null) =>
     setTyped(next === null ? null : { text: next, revision });
   return (
-    <Field label={label} htmlFor={id} hint={hint} help={help} control={{ className: "relative" }}>
+    <Field
+      label={label}
+      htmlFor={id}
+      hint={hint}
+      valueHint={valueHint}
+      help={help}
+      control={{ className: "relative" }}
+    >
       <Input
         id={id}
         type="number"

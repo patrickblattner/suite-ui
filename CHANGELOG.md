@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.161.0 — #437, GL-UI-017: value hints on fields; errors and locks are no hint
+
+Fix.
+
+- **`Field valueHint`** (also on `SettingsField` and the SlideEditor's `NumberField`): label and field are two carriers. The label keeps its hint on what the field is for; the package control inside the field (`Input`, `Textarea`, a `Select`'s trigger) stands in a `Hint` with the value hint: what the value counts, its unit, the effect of a choice. That hint is the control's `aria-describedby` text, in place of the label's. Any other control (a `Slider`) takes its value hint in its own `Hint`.
+- **SlideEditor:** every panel field has its value hint in de, en and es: position, size, rotation, crop zoom and offsets, entrance and exit effect, direction, duration, delay and order, the page's transition and layout, text font, size and colour, the table's row, column, column width, cell fill and vertical alignment. Label hints say only what the field is for: units, the order rule and picking another cell moved to the value hints. Effect, transition, layout and cell fill hints name each option by its own string. Every two-column field grid of the panel is a tooltip row, so a hint stands beside the whole pair and never covers the neighbouring field (`GL-UI-016`).
+- **Chart:** an invalid value points to its error through `aria-errormessage` only; its description stays the value hint. Locked, the chart type buttons say to unlock the element.
+
+**Migration:** none; `valueHint` is optional. New strings `slides.editor.*ValueHint` (the effect has one for entrance and one for exit), `slides.editor.msValueHint` and `slides.editor.chartLocked` (en, de, es); eleven label hints lose their unit. GridFields gets its hints in #434.
+
 ## 0.160.0 — #361, GL-UI-017: hover hints across the SlideEditor
 
 Feature.

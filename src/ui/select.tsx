@@ -5,6 +5,7 @@ import { Select as SelectPrimitive } from "radix-ui";
 import { cn } from "../lib/cn.js";
 import { useHighlightInput } from "../lib/highlight-input.js";
 import { useFieldErrorAttributes } from "./field-error.js";
+import { WithFieldValueHint } from "./field-value-hint.js";
 import { OverflowTooltip } from "./tooltip.js";
 
 // Whether the pointer opened the list: the entry the list highlights on opening then keeps the tint
@@ -67,36 +68,38 @@ function SelectTrigger({
   // no empty name overrides `aria-label`.
   const named = typeof fieldName === "string" && fieldName.trim() !== "";
   return (
-    <SelectPrimitive.Trigger
-      {...fieldError}
-      data-size={size}
-      aria-labelledby={named ? fieldNameId : undefined}
-      onPointerDown={(event) => {
-        opener?.setOpenedByPointer(true);
-        onPointerDown?.(event);
-      }}
-      onKeyDown={(event) => {
-        opener?.setOpenedByPointer(false);
-        onKeyDown?.(event);
-      }}
-      className={cn(
-        "flex w-fit items-center justify-start gap-2 rounded-md border border-input bg-transparent px-3 py-2 text-sm whitespace-nowrap shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive data-[placeholder]:text-muted-foreground data-[size=default]:h-9 data-[size=sm]:h-8 *:data-[slot=select-value]:min-w-0 dark:bg-input/30 dark:hover:bg-input/50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-muted-foreground",
-        className,
-      )}
-      {...props}
-      // After the spread: a wrapping Slot (a Hint's trigger) must not rename the select.
-      data-slot="select-trigger"
-    >
-      {named && (
-        <span id={fieldNameId} data-slot="select-field-name" hidden>
-          {fieldName}
-        </span>
-      )}
-      {children}
-      <SelectPrimitive.Icon asChild>
-        <ChevronDownIcon className="ml-auto size-4 opacity-50" />
-      </SelectPrimitive.Icon>
-    </SelectPrimitive.Trigger>
+    <WithFieldValueHint>
+      <SelectPrimitive.Trigger
+        {...fieldError}
+        data-size={size}
+        aria-labelledby={named ? fieldNameId : undefined}
+        onPointerDown={(event) => {
+          opener?.setOpenedByPointer(true);
+          onPointerDown?.(event);
+        }}
+        onKeyDown={(event) => {
+          opener?.setOpenedByPointer(false);
+          onKeyDown?.(event);
+        }}
+        className={cn(
+          "flex w-fit items-center justify-start gap-2 rounded-md border border-input bg-transparent px-3 py-2 text-sm whitespace-nowrap shadow-xs transition-[color,box-shadow] outline-none focus-visible:border-ring focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive data-[placeholder]:text-muted-foreground data-[size=default]:h-9 data-[size=sm]:h-8 *:data-[slot=select-value]:min-w-0 dark:bg-input/30 dark:hover:bg-input/50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-muted-foreground",
+          className,
+        )}
+        {...props}
+        // After the spread: a wrapping Slot (a Hint's trigger) must not rename the select.
+        data-slot="select-trigger"
+      >
+        {named && (
+          <span id={fieldNameId} data-slot="select-field-name" hidden>
+            {fieldName}
+          </span>
+        )}
+        {children}
+        <SelectPrimitive.Icon asChild>
+          <ChevronDownIcon className="ml-auto size-4 opacity-50" />
+        </SelectPrimitive.Icon>
+      </SelectPrimitive.Trigger>
+    </WithFieldValueHint>
   );
 }
 
