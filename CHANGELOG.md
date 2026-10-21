@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.163.0 — #385, SUI-FEATURE-234: preview Pause, instant reduced motion, first-page fade, Animation section
+
+Feature.
+
+- **Pause in the preview (#385):** when the editor's preview plays for more than 5 s (transition plus every step), its footer shows "Pause" while it runs (WCAG 2.2.2). Pause stops the steps that are still to come and freezes the running animations. "Play again" starts over. When Pause goes, after a press or at the end of the play, the focus it held moves to "Play again". The preview footer now wraps, so on a phone every button stays inside the dialog.
+- **Reduced motion is instant (#385):** with `prefers-reduced-motion`, every entrance, exit and page transition in the preview and the `SlidePlayer` plays in 0 ms. Each one still waits for its delay, and the order and the preview's waits stay the same. Before, a slide or zoom only faded.
+- **First page fades in from black (#385):** a transition on the first shown page fades it in from black, whatever its type. This now happens in both the preview and the `SlidePlayer`. Before, the player played no transition there, and the preview had dropped it to match.
+- **Animation section (#385):** an element's entrance and exit fields now sit at the end of the Layout tab, in a section labelled "Animation". The page transition stays with the page properties. A new animation still plays 500 ms with no delay, and the order is shown from 1.
+
+**Migration:** new strings `slides.editor.previewPause` (en "Pause", de "Anhalten", es "Pausar") and `slides.editor.previewPauseHint` (en "Stops the preview where it stands.", de "Hält die Vorschau an der Stelle an, an der sie gerade steht.", es "Detiene la vista previa donde está."). Removed from `src/styles.css`: the `@media (prefers-reduced-motion: reduce)` overrides of the `suite-slide-slide-*` and `suite-slide-zoom-*` keyframes; the animations now set a 0 ms duration instead. Internal `transitionOf(page, direction)` in `render-style.ts` takes an optional third argument `{ first, reduced }`; it is not exported. New `data-testid="slide-editor-preview-pause"`. The preview stage (`data-slot="slide-preview"`) carries `data-paused`. The `slide-editor-animation` section moved to the end of `slide-editor-layout` and is labelled through `aria-labelledby="slide-editor-animation-title"`. The preview's `DialogFooter` has `flex-wrap`. Baselines: 10 gallery captures (strings table, two rows longer) in `gallery/__screenshots__/`: `gallery-de-{light,dark}.png`, `gallery-de-{light,dark}-390.png`, `gallery-de-{light,dark}-1440.png` (6) and `gallery-{en,es}-{light,dark}.png` (4).
+
 ## 0.162.0 — #379, #380, #382, SUI-FEATURE-233, GL-UX-001, SUI-FEATURE-162: chart field widths, locked Undo/Redo hints, animation follow-ups
 
 Feature and fixes.

@@ -7,6 +7,7 @@ import type { SlideBrandSet } from "./brand.js";
 import { safeParseSlideDocument, type SlideDocumentError } from "./document.js";
 import { drawnBox, overflowingIds } from "./editor-ops.js";
 import {
+  animationOf,
   animationOrders,
   animationState,
   cssColor,
@@ -37,6 +38,7 @@ import {
   type SlideFormat,
   type TextRun,
 } from "./schema.js";
+import { useReducedMotion } from "./use-reduced-motion.js";
 import {
   isSlideIcon,
   missingFaceName,
@@ -239,6 +241,8 @@ interface Draw {
   brand: SlideBrandSet;
   step: number | "none" | undefined;
   orders: number[];
+  // Less motion: every animation plays in no time (`useReducedMotion`).
+  reduced: boolean;
   fitText: boolean;
   ready: boolean;
   icons: ReadonlyMap<string, React.ComponentType<React.SVGProps<SVGSVGElement>>>;
@@ -1128,7 +1132,7 @@ function renderElement(
           visibility: state.kind === "hidden" ? "hidden" : undefined,
           animation:
             state.kind === "playing"
-              ? `${state.name} ${num(state.duration)}ms ease ${num(state.delay)}ms both`
+              ? animationOf(state.name, state.duration, state.delay, draw.reduced)
               : undefined,
         }}
       >
@@ -1198,6 +1202,7 @@ export function SlideView({
   const loadedFonts = useSlideFonts(fonts, assets.faces, fontOrigins);
   const loadedIcons = useSlideIcons(assets.icons);
   const ready = loadedFonts.ready && loadedIcons.ready;
+  const reduced = useReducedMotion();
 
   const [overflow, setOverflow] = React.useState<ReadonlySet<string>>(() => new Set());
   const onFit = React.useCallback((id: string, fits: boolean) => {
@@ -1237,6 +1242,7 @@ export function SlideView({
     step: animationStep,
     // Master and layout elements animate on the page's steps too.
     orders: animationOrders(lists.flat()),
+    reduced,
     fitText,
     ready,
     icons: loadedIcons.icons,

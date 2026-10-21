@@ -284,3 +284,77 @@ describe("SlidePlayer with every page hidden", () => {
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 });
+
+// SUI-FEATURE-234 AC2/AC3: the first page's transition fades in from black; with less motion
+// every transition and animation plays in no time.
+describe("SlidePlayer transitions", () => {
+  const background = { type: "color", color: { kind: "free", value: "#fff" } };
+  const deck = {
+    ...SLIDE_DECK,
+    pages: [
+      { id: "one", background, transition: { type: "slide", duration: 400 }, elements: [] },
+      {
+        id: "two",
+        background,
+        transition: { type: "slide", duration: 400 },
+        elements: [
+          {
+            id: "box",
+            type: "shape",
+            shape: "rectangle",
+            x: 0,
+            y: 0,
+            width: 10,
+            height: 10,
+            animation: { entrance: { effect: "zoom", duration: 300, delay: 100, order: 0 } },
+          },
+        ],
+      },
+    ],
+  } as SlideViewProps["document"];
+  const layer = (slot: string) => document.querySelector<HTMLElement>(`[data-slot=${slot}]`);
+
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("fades the first page in from black, also on a slide transition", () => {
+    render(<SlidePlayer document={deck} brand={SLIDE_BRAND} data-testid="player" />);
+    expect(layer("slide-player-outgoing")).toBeNull();
+    expect(layer("slide-player-page")!.style.animation).toBe("suite-slide-fade-in 400ms ease both");
+    // A later page slides in over the one before.
+    key(screen.getByTestId("player"), "ArrowRight");
+    expect(layer("slide-player-page")!.style.animation).toBe(
+      "suite-slide-slide-in-right 400ms ease both",
+    );
+  });
+
+  it("starts a later page without a transition", () => {
+    render(<SlidePlayer document={deck} brand={SLIDE_BRAND} startPage={1} />);
+    expect(layer("slide-player-page")!.style.animation).toBe("");
+  });
+
+  it("plays transitions and animations in no time with less motion", () => {
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((query: string) => ({
+        matches: query === "(prefers-reduced-motion: reduce)",
+        media: query,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      })),
+    );
+    render(<SlidePlayer document={deck} brand={SLIDE_BRAND} data-testid="player" />);
+    expect(layer("slide-player-page")!.style.animation).toBe("suite-slide-fade-in 0ms ease both");
+    const player = screen.getByTestId("player");
+    key(player, "ArrowRight");
+    expect(layer("slide-player-page")!.style.animation).toBe(
+      "suite-slide-slide-in-right 0ms ease both",
+    );
+    expect(layer("slide-player-outgoing")!.style.animation).toBe(
+      "suite-slide-slide-out-left 0ms ease both",
+    );
+    key(player, "ArrowRight");
+    expect(
+      document.querySelector<HTMLElement>("[data-slide-element=box] > div")!.style.animation,
+    ).toBe("suite-slide-zoom-in 0ms ease 100ms both");
+  });
+});

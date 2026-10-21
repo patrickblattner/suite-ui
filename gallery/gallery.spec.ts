@@ -8836,7 +8836,7 @@ test("slide view: fit text shrinks to 70 %, reports below, overflows when off", 
 });
 
 // SUI-FEATURE-160 AC5: the player pages with the keys and a click, plays the animations in order,
-// skips a hidden page; under prefers-reduced-motion the animations only fade.
+// skips a hidden page; under prefers-reduced-motion the animations play in no time (#385).
 test("slide player: keys and click page through, animations in order, hidden page skipped", async ({
   page,
 }) => {
@@ -9098,17 +9098,17 @@ test.describe("touch", () => {
   });
 });
 
-test("slide player: prefers-reduced-motion keeps the fade, drops the movement", async ({
-  page,
-}) => {
+// #385 (`SUI-FEATURE-234` AC2): under prefers-reduced-motion each step's animation plays in no
+// time, so it shows its end state at once.
+test("slide player: prefers-reduced-motion plays every animation in no time", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/?page=slide-player&lng=en");
   const player = page.getByTestId("slide-player");
   await expect(
     player.locator("[data-slot=slide-view][data-slide-ready=true]").first(),
   ).toBeAttached();
-  // Each step's animation, with the property names its keyframes change. A transition (the locked
-  // chevron's colour, #344) has no animation name.
+  // Each step's animation with its duration. A transition (the locked chevron's colour, #344) has
+  // no animation name.
   const playing = () =>
     page.evaluate(() =>
       document
@@ -9116,27 +9116,25 @@ test("slide player: prefers-reduced-motion keeps the fade, drops the movement", 
         .filter((animation) => animation instanceof CSSAnimation)
         .map((animation) => ({
           name: animation.animationName,
-          keys: (animation.effect as KeyframeEffect)
-            .getKeyframes()
-            .flatMap((frame) => Object.keys(frame)),
+          duration: animation.effect!.getComputedTiming().duration,
         }))
         .filter(({ name }) => name.startsWith("suite-slide-")),
     );
   for (const name of ["suite-slide-slide-in-left", "suite-slide-zoom-in"]) {
     await page.keyboard.press("ArrowRight");
-    await expect.poll(async () => (await playing()).map((frame) => frame.name)).toEqual([name]);
-    const [frame] = await playing();
-    expect(frame!.keys).toContain("opacity");
-    expect(frame!.keys).not.toContain("transform");
+    await expect.poll(async () => (await playing()).map((frame) => frame.name)).toContain(name);
+    expect((await playing()).find((frame) => frame.name === name)!.duration).toBe(0);
   }
-  // Without the preference the same step moves.
+  // Without the preference the same step takes its time.
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.reload();
   await expect(
     player.locator("[data-slot=slide-view][data-slide-ready=true]").first(),
   ).toBeAttached();
   await page.keyboard.press("ArrowRight");
-  await expect.poll(async () => (await playing())[0]?.keys).toContain("transform");
+  await expect
+    .poll(async () => (await playing()).find((frame) => frame.name === "suite-slide-slide-in-left"))
+    .toMatchObject({ duration: 300 });
 });
 
 // SUI-FEATURE-160 AC6 and §Barrierefreiheit: an unknown type stands as a named stand-in; text stays
@@ -11088,6 +11086,30 @@ test("slide editor: the animation fields write the document", async ({ page }) =
   expect(errors).toEqual([]);
 });
 
+// #385 (`SUI-FEATURE-234` §Felder, §Standardwerte): the animation fields stand in their own labelled
+// section at the end of the Layout tab; a new entrance plays 500 ms, without delay, as order 1.
+test("slide editor: the Animation section ends the Layout tab with its defaults", async ({
+  page,
+}) => {
+  const { editor } = await openEditor(page);
+  await editor.getByTestId("drawer-layers").click();
+  await editor.locator("[data-layer-id]").first().getByTestId("slide-editor-layer-select").click();
+  await editor.getByRole("tab", { name: "Layout" }).click();
+  const section = editor.getByRole("region", { name: "Animation", exact: true });
+  await expect(section).toHaveAttribute("data-testid", "slide-editor-animation");
+  // Nothing of the tab follows it.
+  expect(
+    await editor
+      .getByTestId("slide-editor-layout")
+      .evaluate((tab) => tab.lastElementChild?.getAttribute("data-testid")),
+  ).toBe("slide-editor-animation");
+  await page.locator("#slide-editor-entrance-effect").click();
+  await page.getByRole("option", { name: "Fade in", exact: true }).click();
+  await expect(section.getByTestId("slide-editor-entrance-duration")).toHaveValue("500");
+  await expect(section.getByTestId("slide-editor-entrance-delay")).toHaveValue("0");
+  await expect(section.getByTestId("slide-editor-entrance-order")).toHaveValue("1");
+});
+
 // #294 inc 3: the library fits the drawer at 390 px in each language.
 for (const lng of ["de", "en", "es"]) {
   test(`slide editor: the element library fits at 390 px (${lng})`, async ({ page }) => {
@@ -11962,7 +11984,7 @@ for (const angle of [90, 37]) {
 
 // SUI-FEATURE-162 AC5 (#294 inc 5): two elements get entrances in order and their page a cross-fade
 // in the panel; the editor's preview and, once saved, the app's player play both; under
-// prefers-reduced-motion the entrances only fade.
+// prefers-reduced-motion the entrances play in no time (#385).
 async function animatedPage(page: Page) {
   const { editor, field } = await openEditor(page);
   await editor.getByTestId("slide-editor-next-page").click();
@@ -11995,9 +12017,7 @@ const playingSlides = (page: Page) =>
       .filter((animation) => animation instanceof CSSAnimation)
       .map((animation) => ({
         name: animation.animationName,
-        keys: (animation.effect as KeyframeEffect)
-          .getKeyframes()
-          .flatMap((frame) => Object.keys(frame)),
+        duration: animation.effect!.getComputedTiming().duration,
       }))
       .filter(({ name }) => name.startsWith("suite-slide-")),
   );
@@ -12081,7 +12101,75 @@ test("slide editor: the app's overlay, library entries and fields", async ({ pag
   await expect(player.getByTestId("gallery-safe-zone")).toHaveCount(0);
 });
 
-test("slide editor: under prefers-reduced-motion the preview fades without movement", async ({
+// #385 (`SUI-FEATURE-234` AC1): a page whose play runs over 5 s, its picture fading in for 5.5 s;
+// the preview open on it.
+async function longPreview(page: Page, lng: string) {
+  await page.goto(`/?page=slide-editor&lng=${lng}`);
+  const { editor, field } = await openEditor(page, false);
+  await editor.getByTestId("slide-editor-next-page").click();
+  await editor.getByTestId("drawer-layers").click();
+  await editor.locator("[data-layer-id=picture] > button").first().click();
+  await field("entrance-effect").click();
+  // The first effect after "None": fading in, in every language.
+  await page.getByRole("option").nth(1).click();
+  await typeInto(page, field("entrance-duration"), "5500");
+  await page.keyboard.press("Tab");
+  await editor.getByTestId("slide-editor-preview").click();
+  const preview = page.getByTestId("slide-editor-preview-dialog");
+  return {
+    preview,
+    pause: preview.getByTestId("slide-editor-preview-pause"),
+    replay: preview.getByTestId("slide-editor-preview-replay"),
+  };
+}
+
+// Review #385: on a phone the footer wraps, so Pause stays inside the dialog.
+for (const lng of ["de", "es"]) {
+  test(`slide editor: the preview's Pause stays inside the dialog at 390 px (${lng})`, async ({
+    page,
+  }) => {
+    const { preview, pause } = await longPreview(page, lng);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(pause).toBeVisible();
+    const dialog = (await preview.boundingBox())!;
+    const button = (await pause.boundingBox())!;
+    expect(button.x).toBeGreaterThanOrEqual(dialog.x);
+    expect(button.x + button.width).toBeLessThanOrEqual(dialog.x + dialog.width);
+  });
+}
+
+// Review #385: Pause freezes the running animations; the focus it held goes to Play again, when it
+// is pressed and when the play ends on its own.
+test("slide editor: the preview's Pause freezes the play and hands its focus on", async ({
+  page,
+}) => {
+  const { pause, replay } = await longPreview(page, "en");
+  const states = () =>
+    page.evaluate(() =>
+      document
+        .getAnimations()
+        .filter(
+          (animation) =>
+            animation instanceof CSSAnimation && animation.animationName.startsWith("suite-slide-"),
+        )
+        .map((animation) => animation.playState),
+    );
+  await expect.poll(states).toContain("running");
+  await pause.focus();
+  await page.keyboard.press("Enter");
+  await expect(pause).toHaveCount(0);
+  await expect(replay).toBeFocused();
+  const frozen = await states();
+  expect(frozen.length).toBeGreaterThan(0);
+  expect(frozen.every((state) => state === "paused")).toBe(true);
+  // Played again and left to its end, Pause goes on its own.
+  await replay.click();
+  await pause.focus();
+  await expect(pause).toHaveCount(0, { timeout: 15_000 });
+  await expect(replay).toBeFocused();
+});
+
+test("slide editor: under prefers-reduced-motion the preview plays in no time", async ({
   page,
 }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
@@ -12097,8 +12185,7 @@ test("slide editor: under prefers-reduced-motion the preview fades without movem
   const slide = (await playingSlides(page)).find(
     (frame) => frame.name === "suite-slide-slide-in-left",
   );
-  expect(slide!.keys).toContain("opacity");
-  expect(slide!.keys).not.toContain("transform");
+  expect(slide!.duration).toBe(0);
 });
 
 // Review #294 inc 5 (GL-UI-027 §Höhe): on a portrait page the preview stays within the window, its

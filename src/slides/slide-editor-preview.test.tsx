@@ -16,6 +16,7 @@ vi.mock("./render-style.js", async (original) => {
 afterEach(() => {
   cleanup();
   vi.useRealTimers();
+  vi.unstubAllGlobals();
   vi.mocked(stepLengths).mockClear();
 });
 
@@ -186,29 +187,104 @@ describe("SlidePreview", () => {
     const set = vi.spyOn(window, "setTimeout");
     fireEvent.click(screen.getByTestId("slide-editor-preview"));
     // The play's timers, known by their delays: the cross-fade's end and step 1 at 400 ms, step 2 at
-    // 800 ms.
+    // 800 ms, the play's end at 1000 ms.
     const played = set.mock.calls.flatMap(([, delay], index) =>
-      delay === 400 || delay === 800 ? [set.mock.results[index]!.value as number] : [],
+      delay === 400 || delay === 800 || delay === 1000
+        ? [set.mock.results[index]!.value as number]
+        : [],
     );
-    expect(played).toHaveLength(3);
+    expect(played).toHaveLength(4);
     const clear = vi.spyOn(window, "clearTimeout");
     fireEvent.click(screen.getByTestId("slide-editor-preview-close"));
     for (const timer of played) expect(clear).toHaveBeenCalledWith(timer);
   });
 
-  it("plays the first page without its transition, as the player does", () => {
-    vi.useFakeTimers();
-    render(<SlidePreview document={document} page={0} view={{ brand: SLIDE_BRAND }} />);
+  // SUI-FEATURE-234 AC3: a transition on the first page fades in from black, as in the player.
+  it("fades the first page in from black, whatever its transition", () => {
+    const sliding = parseSlideDocument({
+      ...document,
+      pages: [{ ...document.pages[0], transition: { type: "slide", duration: 400 } }],
+    });
+    render(<SlidePreview document={sliding} page={0} view={{ brand: SLIDE_BRAND }} />);
     fireEvent.click(screen.getByTestId("slide-editor-preview"));
     const stage = screen.getByTestId("slide-editor-preview-dialog");
-    expect(stage.querySelector("[data-slot=slide-preview]")).toHaveAttribute(
-      "data-slide-steps",
-      "0",
-    );
     expect(stage.querySelector("[data-slot=slide-preview-outgoing]")).toBeNull();
-    // As in the player, the first shown page comes in without its transition.
     expect(
       stage.querySelector<HTMLElement>("[data-slot=slide-preview-page]")!.style.animation,
-    ).toBe("");
+    ).toBe("suite-slide-fade-in 400ms ease both");
+  });
+
+  // SUI-FEATURE-234 AC1: a play over 5 s offers Pause while it runs (WCAG 2.2.2).
+  it("offers Pause only while a play over 5 s runs, and holds it there", () => {
+    vi.useFakeTimers();
+    const long = parseSlideDocument({
+      ...document,
+      pages: [
+        document.pages[0],
+        {
+          ...document.pages[1],
+          elements: [
+            shape("first", { order: 0, duration: 3000 }),
+            shape("second", { order: 1, duration: 3000 }),
+          ],
+        },
+      ],
+    });
+    render(<SlidePreview document={long} page={1} view={{ brand: SLIDE_BRAND }} />);
+    fireEvent.click(screen.getByTestId("slide-editor-preview"));
+    const preview = () =>
+      screen
+        .getByTestId("slide-editor-preview-dialog")
+        .querySelector<HTMLElement>("[data-slot=slide-preview]")!;
+    expect(screen.getByTestId("slide-editor-preview-pause")).toHaveTextContent("Pause");
+    act(() => void vi.advanceTimersByTime(400));
+    expect(preview()).toHaveAttribute("data-slide-step", "1");
+    fireEvent.click(screen.getByTestId("slide-editor-preview-pause"));
+    expect(preview()).toHaveAttribute("data-paused", "true");
+    expect(preview().className).toContain("[animation-play-state:paused]");
+    expect(screen.queryByTestId("slide-editor-preview-pause")).toBeNull();
+    act(() => void vi.advanceTimersByTime(10_000));
+    expect(preview()).toHaveAttribute("data-slide-step", "1");
+    // Play again starts over, unpaused, and Pause goes once the play has ended.
+    fireEvent.click(screen.getByTestId("slide-editor-preview-replay"));
+    expect(preview()).toHaveAttribute("data-paused", "false");
+    expect(screen.getByTestId("slide-editor-preview-pause")).toBeInTheDocument();
+    act(() => void vi.advanceTimersByTime(6400));
+    expect(preview()).toHaveAttribute("data-slide-step", "2");
+    expect(screen.queryByTestId("slide-editor-preview-pause")).toBeNull();
+  });
+
+  it("offers no Pause for a play of 5 s or less", () => {
+    render(<SlidePreview document={document} page={1} view={{ brand: SLIDE_BRAND }} />);
+    fireEvent.click(screen.getByTestId("slide-editor-preview"));
+    expect(screen.queryByTestId("slide-editor-preview-pause")).toBeNull();
+  });
+
+  // SUI-FEATURE-234 AC2: with less motion nothing moves; each end state comes in its order, after
+  // the same waits.
+  it("plays in no time with less motion, keeping the order and the waits", () => {
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((query: string) => ({
+        matches: query === "(prefers-reduced-motion: reduce)",
+        media: query,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      })),
+    );
+    render(<SlidePreview document={document} page={1} view={{ brand: SLIDE_BRAND }} />);
+    fireEvent.click(screen.getByTestId("slide-editor-preview"));
+    const stage = () => screen.getByTestId("slide-editor-preview-dialog");
+    const preview = () => stage().querySelector<HTMLElement>("[data-slot=slide-preview]")!;
+    expect(
+      stage().querySelector<HTMLElement>("[data-slot=slide-preview-page]")!.style.animation,
+    ).toBe("suite-slide-fade-in 0ms ease both");
+    act(() => void vi.advanceTimersByTime(400));
+    expect(preview()).toHaveAttribute("data-slide-step", "1");
+    const first = stage().querySelector<HTMLElement>("[data-slide-element=first] > div")!;
+    expect(first.style.animation).toBe("suite-slide-fade-in 0ms ease 100ms both");
+    act(() => void vi.advanceTimersByTime(400));
+    expect(preview()).toHaveAttribute("data-slide-step", "2");
   });
 });

@@ -10,6 +10,7 @@ import { captureOpener, returnFocus, trackFocus } from "../ui/focus-return.js";
 import { safeParseSlideDocument } from "./document.js";
 import { animationOrders, pageLists, transitionOf } from "./render-style.js";
 import { SlideView, type SlideViewProps, type SlideViewReport } from "./slide-view.js";
+import { useReducedMotion } from "./use-reduced-motion.js";
 import { missingFontsText } from "./use-slide-assets.js";
 
 export interface SlidePlayerProps extends Omit<
@@ -27,6 +28,8 @@ export interface SlidePlayerProps extends Omit<
   onReport?: (report: SlideViewReport, page: number) => void;
 }
 
+// `from`: the shown page the transition comes from, or -1 for the first page fading in from black
+// (`SUI-FEATURE-234` §Erste Seite).
 type Position = { index: number; step: number; from?: number };
 
 const NEXT = new Set(["ArrowRight", "ArrowDown", "PageDown", " ", "Enter"]);
@@ -50,7 +53,8 @@ const problemsOf = (report: SlideViewReport) =>
 // Page Down, space, Enter or a click, back with ←, ↑, Page Up, Backspace; each step plays the next
 // order of the page's animations, back undoes one. A bar with Back, Next, "n / m" and Close appears on
 // any input and hides after a few seconds. The last page stays; `Esc` or Close ends it and the focus
-// returns to where it came from.
+// returns to where it came from. The first page comes in with its transition as a fade from black;
+// with less motion nothing moves (`SUI-FEATURE-234`).
 export function SlidePlayer({
   document: source,
   startPage = 0,
@@ -69,7 +73,8 @@ export function SlidePlayer({
     document === undefined ? 0 : animationOrders(pageLists(document, shown[index]!).flat()).length;
   const [position, setPosition] = React.useState<Position>(() => {
     const at = shown.findIndex((index) => index >= startPage);
-    return { index: at === -1 ? Math.max(0, shown.length - 1) : at, step: 0 };
+    const index = at === -1 ? Math.max(0, shown.length - 1) : at;
+    return { index, step: 0, ...(index === 0 ? { from: -1 } : {}) };
   });
   const index = Math.min(position.index, Math.max(0, shown.length - 1));
   const atStart = index === 0 && position.step === 0;
@@ -203,10 +208,13 @@ export function SlidePlayer({
     );
   };
 
+  const reduced = useReducedMotion();
   const page = pages[shown[index]!];
-  const from = position.from === undefined ? undefined : pages[shown[position.from]!];
-  const incoming = page === undefined ? undefined : transitionOf(page, "in");
-  const outgoing = page === undefined ? undefined : transitionOf(page, "out");
+  const from =
+    position.from === undefined || position.from < 0 ? undefined : pages[shown[position.from]!];
+  const first = position.from === -1;
+  const incoming = page === undefined ? undefined : transitionOf(page, "in", { first, reduced });
+  const outgoing = page === undefined ? undefined : transitionOf(page, "out", { reduced });
   const empty = parsed.ok && shown[index] === undefined;
   return (
     <div

@@ -504,6 +504,7 @@ export const de: SuiteStrings = {
       newPageMenuHint: "Öffnet eine Liste von Layouts für eine neue Seite nach der angezeigten.",
       previewHint: "Spielt diese Seite mit ihren Animationen in einem Fenster ab.",
       previewReplayHint: "Spielt die Seite noch einmal von vorn ab.",
+      previewPauseHint: "Hält die Vorschau an der Stelle an, an der sie gerade steht.",
       previewCloseHint: "Schließt die Vorschau.",
       transferHint:
         "Öffnet einen Dialog, um diese Seite oder das ganze Dokument als Kopie in ein anderes Format zu übertragen.",
@@ -632,6 +633,7 @@ export const de: SuiteStrings = {
       previewDescription:
         "Spielt die Seite mit ihrem Übergang und ihren Animationen in Reihenfolge ab.",
       previewReplay: "Erneut abspielen",
+      previewPause: "Anhalten",
       previewClose: "Schließen",
       transfer: "Format übertragen",
       transferTitle: "In ein anderes Format übertragen",

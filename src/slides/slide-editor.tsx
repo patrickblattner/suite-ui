@@ -2275,28 +2275,6 @@ function Editor({
           />
         </div>
       )}
-      {single === undefined ? null : (
-        <section className="flex flex-col gap-3" data-testid="slide-editor-animation">
-          <h3 className="text-sm font-medium">{t("slides.editor.animation")}</h3>
-          {(["entrance", "exit"] as const).map((kind) => (
-            <AnimationFields
-              key={`${single.id}-${kind}`}
-              kind={kind}
-              step={single.animation?.[kind]}
-              nextOrder={nextAnimationOrder(document, page)}
-              otherOrder={single.animation?.[kind === "exit" ? "entrance" : "exit"]?.order}
-              readOnly={single.locked}
-              revision={travels}
-              onStep={(step, merge) =>
-                apply(
-                  (current) => setAnimation(current, page, single.id, kind, step),
-                  merge === undefined ? undefined : `${single.id}:${merge}`,
-                )
-              }
-            />
-          ))}
-        </section>
-      )}
       {selected.length === 0 || editable.length === 0 ? null : (
         <section className="flex flex-col gap-2">
           <h3 className="text-sm font-medium">{t("slides.editor.arrange")}</h3>
@@ -2483,6 +2461,36 @@ function Editor({
           })}
         </p>
       ) : null}
+      {/* The element's animations in their own section at the end of the tab (`SUI-FEATURE-234`
+          §Felder); the page's transition stands with the page's properties above. */}
+      {single === undefined ? null : (
+        <section
+          className="flex flex-col gap-3"
+          aria-labelledby="slide-editor-animation-title"
+          data-testid="slide-editor-animation"
+        >
+          <h3 id="slide-editor-animation-title" className="text-sm font-medium">
+            {t("slides.editor.animation")}
+          </h3>
+          {(["entrance", "exit"] as const).map((kind) => (
+            <AnimationFields
+              key={`${single.id}-${kind}`}
+              kind={kind}
+              step={single.animation?.[kind]}
+              nextOrder={nextAnimationOrder(document, page)}
+              otherOrder={single.animation?.[kind === "exit" ? "entrance" : "exit"]?.order}
+              readOnly={single.locked}
+              revision={travels}
+              onStep={(step, merge) =>
+                apply(
+                  (current) => setAnimation(current, page, single.id, kind, step),
+                  merge === undefined ? undefined : `${single.id}:${merge}`,
+                )
+              }
+            />
+          ))}
+        </section>
+      )}
     </div>
   );
 

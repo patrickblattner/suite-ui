@@ -191,7 +191,7 @@ export type AnimationState =
 
 type Step = NonNullable<NonNullable<SlideElement["animation"]>["entrance"]>;
 
-// The keyframes of a step (`styles.css`); under `prefers-reduced-motion` the moving ones only fade.
+// The keyframes of a step (`styles.css`).
 export function keyframesOf(step: Step, direction: "in" | "out"): string {
   if (step.effect === "slide") return `suite-slide-slide-${direction}-${step.direction ?? "left"}`;
   return `suite-slide-${step.effect}-${direction}`;
@@ -241,14 +241,30 @@ export function stepLengths(elements: readonly SlideElement[]): number[] {
   return [...lengths.keys()].sort((a, b) => a - b).map((order) => lengths.get(order)!);
 }
 
-// The incoming page's transition (`SUI-FEATURE-160`) as a CSS animation; under
-// `prefers-reduced-motion` a slide only fades (`styles.css`).
-export function transitionOf(page: SlidePage, direction: "in" | "out"): string | undefined {
+// A step's CSS animation; with less motion it plays in no time after its delay, so it shows its end
+// state at once and in its place in the order (`SUI-FEATURE-234` §Weniger Bewegung).
+export function animationOf(
+  name: string,
+  duration: number,
+  delay: number,
+  reduced: boolean,
+): string {
+  return `${name} ${num(reduced ? 0 : duration)}ms ease ${num(delay)}ms both`;
+}
+
+// The incoming page's transition (`SUI-FEATURE-160`) as a CSS animation. On the first page (`first`,
+// no page before it) any transition fades in from black (`SUI-FEATURE-234` §Erste Seite); with less
+// motion it plays in no time.
+export function transitionOf(
+  page: SlidePage,
+  direction: "in" | "out",
+  { first = false, reduced = false }: { first?: boolean; reduced?: boolean } = {},
+): string | undefined {
   const { type, duration } = page.transition;
   if (type === "none" || duration === 0) return undefined;
   const name =
-    type === "fade"
+    type === "fade" || first
       ? `suite-slide-fade-${direction}`
       : `suite-slide-slide-${direction}-${direction === "in" ? "right" : "left"}`;
-  return `${name} ${num(duration)}ms ease both`;
+  return `${name} ${num(reduced ? 0 : duration)}ms ease both`;
 }
