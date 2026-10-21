@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.161.2 — #441, GL-UI-016: hint bubbles keep clear of neighbours and floating actions
+
+Fix.
+
+- **Field pairs:** a field's label counts as a control of its row (`label[for]`), and the label's whole box belongs to its hint. On the label line of a two-column pair, the label hint stands beside both labels, no longer over the neighbour's label and the top of its input.
+- **Field pairs in an app's grid:** two `Field`s (or `SettingsField`s) side by side on one line form a row without a `data-tooltip-row` marker. Their label and value hints stand beside the whole pair.
+- **Other bars at the bubble's height:** a bubble beside its group also keeps clear of the controls of other bars at its height, such as the canvas's floating actions (ungroup, forward, backward, delete, crop Apply) beside the SlideEditor panel. It stands in the nearest gap that holds it, or narrows in the widest one.
+- **Narrow windows:** when neither side of the element has 120 px, the bubble stands at the element, at least 120 px wide and inside the viewport. Before, it shrank to a few pixels and ran past the edge.
+- **Chart:** the add-category and add-series buttons are one tooltip row, so neither hint covers the other button.
+
+**Migration:** none. The gallery has a new `?harness=field-pair` page, with no capture.
+
 ## 0.161.1 — #440, GL-UI-017: value hints on comboboxes; locked chart buttons name the unlock
 
 Fix.

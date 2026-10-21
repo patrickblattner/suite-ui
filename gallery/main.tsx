@@ -11,6 +11,7 @@ import { installLeaveGuard } from "../src/ui/leave-guard.js";
 import { ComponentsPage } from "./ComponentsPage.js";
 import { EditorShellPage } from "./EditorShellPage.js";
 import { EditPanelPage } from "./EditPanelPage.js";
+import { FieldPairHarness } from "./FieldPairHarness.js";
 import { GridPage } from "./GridPage.js";
 import { HelpPage } from "./HelpPage.js";
 import { InsetPage } from "./InsetPage.js";
@@ -233,6 +234,8 @@ const harness = params.get("harness") === "leave-guard";
 if (harness && params.get("install") !== "none") installLeaveGuard();
 // The slide export page, alone on the page as an app's export route renders it.
 const exportHarness = params.get("harness") === "slide-export";
+// Two fields side by side in an app's grid (#441).
+const fieldPair = params.get("harness") === "field-pair";
 createRoot(document.getElementById("root") as HTMLElement).render(
   <StrictMode>
     {exportHarness ? (
@@ -240,6 +243,8 @@ createRoot(document.getElementById("root") as HTMLElement).render(
         editor={params.get("view") === "editor"}
         broken={params.get("broken") === "1"}
       />
+    ) : fieldPair ? (
+      <FieldPairHarness />
     ) : harness ? (
       <LeaveGuardHarness />
     ) : (

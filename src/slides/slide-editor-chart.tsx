@@ -419,7 +419,7 @@ export function ChartData({
           {t("slides.editor.chartNegativeInPie")}
         </p>
       ) : null}
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2" data-tooltip-row="">
         <Hint
           text={t("slides.editor.chartAddCategoryHint")}
           disabledText={

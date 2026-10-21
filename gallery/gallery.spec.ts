@@ -12262,3 +12262,133 @@ test("slide editor: series-name and transfer-option bubbles cover no control", a
     over.y + over.height <= neighbour.y;
   expect(apart).toBe(true);
 });
+
+// #441 (`GL-UI-016` §Lage): the hint bubble of `target`, opened by the pointer, as a box.
+async function hintBubble(page: Page, target: Locator) {
+  await page.mouse.move(0, 0);
+  await target.hover();
+  const bubble = page.locator("[data-slot=tooltip-content]");
+  await expect(bubble).toHaveCount(1, { timeout: 5000 });
+  return box(bubble);
+}
+
+type Box = { x: number; y: number; width: number; height: number };
+function shareNoArea(a: Box, b: Box) {
+  return (
+    a.x >= b.x + b.width || a.x + a.width <= b.x || a.y >= b.y + b.height || a.y + a.height <= b.y
+  );
+}
+
+// #441: at 1440 px the panel's bubbles stand left of it, over the canvas; there they cover no button
+// of the selection's floating actions, and a right-column label's bubble covers neither the left
+// label nor its input: the label line counts both labels.
+test("slide editor at 1440: panel hints cover neither the floating actions nor the neighbour field", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/?page=slide-editor&lng=de");
+  const { editor } = await openEditor(page, false);
+  await editor.getByTestId("drawer-layers").click();
+  await editor.getByTestId("slide-editor-layer-select").first().click();
+  await page.locator("#slide-editor-entrance-effect").click();
+  await page.getByRole("option").nth(2).click();
+  const actions = await page.getByTestId("slide-editor-actions").getByRole("button").all();
+  expect(actions.length).toBeGreaterThan(0);
+  for (const target of [
+    page.locator('label[for="slide-editor-entrance-delay"] > span'),
+    page.locator("#slide-editor-entrance-delay"),
+    page.locator("#slide-editor-entrance-duration"),
+  ]) {
+    const over = await hintBubble(page, target);
+    for (const action of actions) expect(shareNoArea(over, await box(action))).toBe(true);
+  }
+  for (const [id, neighbour] of [
+    ["y", "x"],
+    ["entrance-delay", "entrance-duration"],
+  ] as const) {
+    const over = await hintBubble(page, page.locator(`label[for="slide-editor-${id}"] > span`));
+    for (const other of [
+      page.locator(`label[for="slide-editor-${neighbour}"]`),
+      page.locator(`#slide-editor-${neighbour}`),
+    ]) {
+      expect(shareNoArea(over, await box(other)), `${id} label bubble over ${neighbour}`).toBe(
+        true,
+      );
+    }
+  }
+});
+
+// #441: cropping at 1440 px, the size fields' bubbles leave the crop's Apply button free.
+test("slide editor at 1440: the size fields' hints leave the crop actions free", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const { editor, centre } = await pictureEditor(page);
+  await page.mouse.dblclick(centre.x, centre.y);
+  const apply = editor.getByTestId("slide-editor-crop-apply");
+  await expect(apply).toBeVisible();
+  for (const id of ["width", "height"]) {
+    const over = await hintBubble(page, page.locator(`#slide-editor-${id}`));
+    expect(shareNoArea(over, await box(apply)), `${id} bubble over Apply`).toBe(true);
+  }
+});
+
+// #441: the chart's add buttons are one row: each one's bubble stands beside both.
+test("slide editor at 1440: the chart's add buttons' hints cover neither add button", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const { editor, library } = await openLibrary(page);
+  await library.getByTestId("slide-editor-library-chart").click();
+  const buttons = ["add-category", "add-series"].map((id) =>
+    editor.getByTestId(`slide-editor-chart-${id}`),
+  );
+  for (const button of buttons) {
+    const over = await hintBubble(page, button);
+    for (const other of buttons) expect(shareNoArea(over, await box(other))).toBe(true);
+  }
+});
+
+// #441: two `Field`s side by side in an app's grid, no row marker: label and value bubbles of one
+// cover neither label nor input of the other. At 390 px a full-width field's bubble stands at the
+// field, at least 120 px wide and inside the viewport (`GL-UI-016` §Lage).
+test("field pair: hints stand beside the pair; at 390 px at the field, 120 px or wider", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/?harness=field-pair&lng=en");
+  for (const [id, neighbour] of [
+    ["name", "owner"],
+    ["owner", "name"],
+  ] as const) {
+    for (const target of [
+      page.locator(`label[for="harness-${id}"] > span`),
+      page.locator(`#harness-${id}`),
+    ]) {
+      const over = await hintBubble(page, target);
+      for (const other of [
+        page.locator(`label[for="harness-${neighbour}"]`),
+        page.locator(`#harness-${neighbour}`),
+      ]) {
+        expect(shareNoArea(over, await box(other)), `${id} bubble over ${neighbour}`).toBe(true);
+      }
+    }
+  }
+  // At 1000 px the Owner value bubble has no room for its full width but 120 px and more beside the
+  // pair: it narrows there, off its own field (`GL-UI-016` §Lage: narrowing comes first).
+  await page.setViewportSize({ width: 1000, height: 800 });
+  for (const id of ["name", "owner"]) {
+    const field = page.locator(`#harness-${id}`);
+    const over = await hintBubble(page, field);
+    for (const other of ["name", "owner"]) {
+      const input = await box(page.locator(`#harness-${other}`));
+      expect(shareNoArea(over, input), `${id} bubble over ${other}`).toBe(true);
+    }
+    expect(over.width).toBeGreaterThanOrEqual(120);
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  const over = await hintBubble(page, page.locator("#harness-description"));
+  expect(over.width).toBeGreaterThanOrEqual(120);
+  expect(over.x).toBeGreaterThanOrEqual(0);
+  expect(over.x + over.width).toBeLessThanOrEqual(390);
+});

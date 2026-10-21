@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { leaveTooltip } from "../list/test-utils.js";
 import { Button } from "./button.js";
 import { EditPanel } from "./edit-panel.js";
+import { Field } from "./field.js";
 import { Hint } from "./hint.js";
 import { Input } from "./input.js";
 import {
@@ -1179,6 +1180,182 @@ describe("tooltip placement in a row", () => {
     expect(bubble).toHaveAttribute("data-side", "right");
     expect((bubble?.parentElement as HTMLElement).style.transform).toMatch(/^translate\(40px,/);
   });
+
+  // #441: on the label line of a field pair the neighbour's label is a control of the row, and the
+  // label's whole box is the element's: the left label's bubble stands right of both labels.
+  it("a label hint stands beside both labels of a pair", async () => {
+    layOut(1000, {
+      row: [0, 1000],
+      "label-x": [0, 140],
+      "text-x": [0, 10],
+      "label-y": [150, 140],
+      "text-y": [150, 10],
+      bubble: [0, 100],
+    });
+    render(
+      <div data-tooltip-row="" data-testid="row">
+        {(["x", "y"] as const).map((id) => (
+          <label key={id} htmlFor={id} data-testid={`label-${id}`}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span data-testid={`text-${id}`}>{id}</span>
+              </TooltipTrigger>
+              <TooltipContent>{`${id} hint`}</TooltipContent>
+            </Tooltip>
+          </label>
+        ))}
+      </div>,
+    );
+    const bubble = await placedBubble("text-x");
+    expect(bubble).toHaveAttribute("data-side", "right");
+    // Right of label Y (150 + 140) and 8 px apart: 298.
+    expect((bubble?.parentElement as HTMLElement).style.transform).toMatch(/^translate\(298px,/);
+  });
+
+  // #441: two `Field`s side by side in an app's grid, without a row marker, are a row of their own.
+  it("a value hint in an unmarked field pair stands beside the whole pair", async () => {
+    layOut(1000, {
+      "field-a": [0, 140],
+      "field-b": [150, 140],
+      "input-a": [0, 140],
+      "input-b": [150, 140],
+      bubble: [0, 100],
+    });
+    render(
+      <div>
+        {(["a", "b"] as const).map((id) => (
+          <Field
+            key={id}
+            label={id}
+            htmlFor={id}
+            valueHint={`${id} value`}
+            data-testid={`field-${id}`}
+          >
+            <Input id={id} data-testid={`input-${id}`} />
+          </Field>
+        ))}
+      </div>,
+    );
+    const bubble = await placedBubble("input-a");
+    expect(bubble).toHaveAttribute("data-side", "right");
+    // Right of field B's input (150 + 140) and 8 px apart: 298.
+    expect((bubble?.parentElement as HTMLElement).style.transform).toMatch(/^translate\(298px,/);
+  });
+
+  // #441: a control of another bar at the bubble's height (a canvas's floating actions beside a panel)
+  // breaks the side into gaps: the bubble stands in the nearest gap that holds it, past that bar.
+  it("stands past another bar's control at its height", async () => {
+    layOut(1000, { row: [0, 1000], last: [900, 32], block: [820, 32], bubble: [0, 100] });
+    render(
+      <>
+        <div data-tooltip-row="">
+          <Button variant="ghost" size="icon" data-testid="block">
+            x
+          </Button>
+        </div>
+        <div data-tooltip-row="" data-testid="row">
+          <IconButtonTooltip label="Last page">
+            <Button variant="ghost" size="icon" data-testid="last">
+              &gt;&gt;
+            </Button>
+          </IconButtonTooltip>
+        </div>
+      </>,
+    );
+    const bubble = await placedBubble("last");
+    expect(bubble).toHaveAttribute("data-side", "left");
+    // Its right edge 8 px left of the other bar's control (820), the bubble 100 px wide: 712.
+    expect((bubble?.parentElement as HTMLElement).style.transform).toMatch(/^translate\(712px,/);
+  });
+
+  // Last page alone in its row, other bars' single controls (`blocks`) at its height.
+  function renderPastBlocks(blocks: readonly string[]) {
+    render(
+      <>
+        {blocks.map((id) => (
+          <div key={id} data-tooltip-row="">
+            <Button variant="ghost" size="icon" data-testid={id}>
+              x
+            </Button>
+          </div>
+        ))}
+        <div data-tooltip-row="" data-testid="row">
+          <IconButtonTooltip label="Last page">
+            <Button variant="ghost" size="icon" data-testid="last">
+              &gt;&gt;
+            </Button>
+          </IconButtonTooltip>
+        </div>
+      </>,
+    );
+  }
+
+  // #441: the other bar's control lies farther out, the nearest gap holds the bubble: it stays there,
+  // right next to its element.
+  it("keeps to the nearest gap that holds it, past which another bar's control stands", async () => {
+    layOut(1000, { row: [0, 1000], last: [900, 32], block: [600, 32], bubble: [0, 100] });
+    renderPastBlocks(["block"]);
+    const bubble = await placedBubble("last");
+    expect(bubble).toHaveAttribute("data-side", "left");
+    // Its right edge 8 px left of Last page (900), the bubble 100 px wide: 792.
+    expect((bubble?.parentElement as HTMLElement).style.transform).toMatch(/^translate\(792px,/);
+  });
+
+  // #441: no gap holds the bubble at its full width: it narrows in the widest one, past both blocks.
+  it("narrows in the widest gap when none holds it", async () => {
+    layOut(1000, {
+      row: [0, 1000],
+      last: [900, 32],
+      block: [700, 32],
+      far: [450, 32],
+      bubble: [0, 450],
+    });
+    renderPastBlocks(["block", "far"]);
+    const bubble = (await placedBubble("last")) as HTMLElement;
+    expect(bubble).toHaveAttribute("data-side", "left");
+    // Gaps of 142, 202 and, left of the far block up to 8 px, 434 px.
+    expect(bubble.style.getPropertyValue("--tooltip-room")).toBe("434px");
+  });
+
+  // #441: a closed hint reads no layout, however often its form renders: a field pair is found only
+  // once a bubble is open.
+  it("reads no layout while closed", () => {
+    const read = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect");
+    const pair = (value: string) => (
+      <div>
+        {(["a", "b"] as const).map((id) => (
+          <Field key={id} label={id} htmlFor={id} hint={`${id} hint`} valueHint={`${id} value`}>
+            <Input id={id} value={value} onChange={() => undefined} />
+          </Field>
+        ))}
+      </div>
+    );
+    const { rerender } = render(pair("1"));
+    rerender(pair("12"));
+    rerender(pair("123"));
+    expect(read).not.toHaveBeenCalled();
+  });
+
+  // #441 (`GL-UI-016` §Lage): a full-width element in a narrow window leaves no side 120 px: the
+  // bubble stands at the element at its full width, with no arrow. Its geometry, the right edge 8 px
+  // inside the viewport, is measured in the gallery: jsdom's popper keeps the arrow's first offset.
+  it("stands at a full-width element when no side holds 120 px", async () => {
+    layOut(390, { wide: [24, 342], bubble: [0, 200] });
+    render(
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button variant="outline" size="default" data-testid="wide">
+            Wide
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent>Description</TooltipContent>
+      </Tooltip>,
+    );
+    const bubble = (await placedBubble("wide")) as HTMLElement;
+    expect(bubble).toHaveAttribute("data-side", "right");
+    expect(bubble.style.getPropertyValue("--tooltip-room")).toBe("200px");
+    expect(bubble.querySelector("svg")).toBeNull();
+  });
 });
 
 // GL-UI-016 rev 7 §Schließen (#259): on the way from the element to the bubble the pointer may cross
@@ -1227,6 +1404,34 @@ describe("tooltip rest on another control", () => {
   it("closes after 300 ms of rest on the neighbour", () => {
     const last = openNext();
     fireEvent.pointerMove(last, { pointerType: "mouse", clientX: 52, clientY: 116 });
+    wait(299);
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Next page");
+    wait(1);
+    expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
+  // #441: a field's label is a control of its row, so resting on one on the way closes the bubble too.
+  it("closes after 300 ms of rest on a label", () => {
+    render(
+      <div data-tooltip-row="">
+        <IconButtonTooltip label="Next page">
+          <Button variant="ghost" size="icon" data-testid="next">
+            &gt;
+          </Button>
+        </IconButtonTooltip>
+        <label htmlFor="other" data-testid="last">
+          Other
+        </label>
+      </div>,
+    );
+    const next = screen.getByTestId("next");
+    expect(openAfter(next, 1500)).toBe(true);
+    fireEvent.pointerLeave(next, { pointerType: "mouse", clientX: 52, clientY: 116 });
+    fireEvent.pointerMove(screen.getByTestId("last"), {
+      pointerType: "mouse",
+      clientX: 52,
+      clientY: 116,
+    });
     wait(299);
     expect(screen.getByRole("tooltip")).toHaveTextContent("Next page");
     wait(1);
