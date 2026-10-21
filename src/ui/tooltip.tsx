@@ -416,14 +416,24 @@ function useRowPlacement(content: HTMLElement | null, padding: number): RowPlace
       return { fits, side, chosen: side === "right" ? gapRight : gapLeft };
     };
     let choice = choose(bubble.height);
-    // Narrowed to its gap it wraps and grows taller: chosen again at the height it takes there.
+    // Narrowed to its gap it wraps and grows taller: chosen again at the height it takes there, until
+    // its room narrows no further (#445). Still narrowing after three rounds, it is chosen at the
+    // height it takes at 120 px, its tallest, which no room it may get exceeds.
     if (!choice.fits && choice.chosen.room >= ROW_MIN_WIDTH) {
       const before = content.style.getPropertyValue("--tooltip-room");
-      content.style.setProperty("--tooltip-room", `${choice.chosen.room}px`);
-      const narrowed = content.getBoundingClientRect().height;
+      const heightAt = (room: number) => {
+        content.style.setProperty("--tooltip-room", `${room}px`);
+        return content.getBoundingClientRect().height;
+      };
+      let settled = false;
+      for (let round = 0; round < 3 && !settled; round++) {
+        const room = choice.chosen.room;
+        choice = choose(heightAt(room));
+        settled = choice.fits || choice.chosen.room >= room || choice.chosen.room < ROW_MIN_WIDTH;
+      }
+      if (!settled) choice = choose(heightAt(ROW_MIN_WIDTH));
       if (before === "") content.style.removeProperty("--tooltip-room");
       else content.style.setProperty("--tooltip-room", before);
-      choice = choose(narrowed);
     }
     const { fits, side, chosen } = choice;
     const room = chosen.room;

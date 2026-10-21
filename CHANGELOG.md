@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.161.4 — #445, GL-UI-016: a narrowed hint bubble is checked at its final height
+
+Fix.
+
+- **Bubbles beside a group:** narrowed to a gap, a bubble wraps and grows taller, which can bring in another bar's control lower down. It is now chosen again at each new height until its room narrows no further. If it still narrows after three rounds, it is chosen at the height it takes at 120 px, its tallest. Before, it was checked only once after narrowing, and could narrow further and grow over a control that was never checked.
+
+**Migration:** none.
+
 ## 0.161.3 — #365, SUI-FEATURE-232: element library follow-ups
 
 Fix.

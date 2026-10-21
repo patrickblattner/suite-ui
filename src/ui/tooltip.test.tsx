@@ -1317,6 +1317,75 @@ describe("tooltip placement in a row", () => {
     expect(bubble.style.getPropertyValue("--tooltip-room")).toBe("434px");
   });
 
+  // #445: Last page at 900 px in a 1000 px window, other bars' controls (`blocks`, as [left, top],
+  // 32 px wide and 20 px high) lower and lower down; the bubble, `width` wide and 32 px high, wraps to
+  // the height `tall` gives for the room it narrows to. Its top is the element's raised by 4 px: 96.
+  function layOutTall(
+    width: number,
+    blocks: Record<string, [number, number]>,
+    tall: (room: number) => number,
+  ) {
+    layOut(1000, { row: [0, 1000], bubble: [0, width] });
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      if (this.dataset.slot === "tooltip-content") {
+        const room = parseFloat(this.style.getPropertyValue("--tooltip-room"));
+        if (Number.isNaN(room)) return new DOMRect(0, 96, width, 32);
+        return new DOMRect(0, 96, Math.min(width, room), tall(room));
+      }
+      const id = this.dataset.testid ?? "";
+      if (id === "row") return new DOMRect(0, 100, 1000, 32);
+      if (id === "last") return new DOMRect(900, 100, 32, 32);
+      const [left, top] = blocks[id] ?? [0, 0];
+      return id in blocks ? new DOMRect(left, top, 32, 20) : new DOMRect(0, 0, 0, 0);
+    });
+    renderPastBlocks(Object.keys(blocks));
+  }
+
+  // #445: narrowed, the bubble wraps and grows taller, which brings in a control lower down: chosen
+  // again until its room settles, it never stands taller than the controls it was checked against.
+  it("chooses again until the narrowed bubble's room settles", async () => {
+    layOutTall(700, { upper: [600, 96], middle: [300, 136], lower: [100, 176] }, (room) =>
+      room >= 500 ? 60 : 100,
+    );
+    const bubble = (await placedBubble("last")) as HTMLElement;
+    expect(bubble).toHaveAttribute("data-side", "left");
+    // 32 px high it narrows to 584 px past the upper control; 60 px high, the middle one leaves 284 px;
+    // 100 px high, the lower one too: it settles in the 252 px between the upper and the middle one.
+    expect(bubble.style.getPropertyValue("--tooltip-room")).toBe("252px");
+  });
+
+  // #445: it settles below its tallest height, so a control that only its 120 px height reaches does
+  // not count: the room it settles in stands, not one chosen at its tallest.
+  it("settles in its room without counting a control only its tallest height reaches", async () => {
+    layOutTall(
+      700,
+      { upper: [600, 96], middle: [300, 136], lower: [100, 176], bottom: [450, 216] },
+      (room) => (room >= 500 ? 60 : room >= 200 ? 100 : 140),
+    );
+    const bubble = (await placedBubble("last")) as HTMLElement;
+    expect(bubble).toHaveAttribute("data-side", "left");
+    // Rooms of 584, 284 and 252 px, 100 px high there and stable; 140 px high (its height at 120 px)
+    // the bottom control would split that gap and leave the nearest, 242 px.
+    expect(bubble.style.getPropertyValue("--tooltip-room")).toBe("252px");
+  });
+
+  // #445: still narrowing after three rounds, it is chosen at the height it takes at 120 px, its
+  // tallest, so no room it gets lets it grow over a control it was not checked against.
+  it("is chosen at its tallest when its room does not settle", async () => {
+    layOutTall(
+      900,
+      { b1: [700, 96], b2: [450, 136], b3: [250, 176], b4: [120, 216], b5: [580, 256] },
+      (room) => (room >= 600 ? 60 : room >= 400 ? 100 : room >= 220 ? 140 : 180),
+    );
+    const bubble = (await placedBubble("last")) as HTMLElement;
+    expect(bubble).toHaveAttribute("data-side", "left");
+    // Rooms of 684, 434, 234 and 202 px, each taller; 180 px high every control counts and the widest
+    // gap is the 152 px between b2 and b3.
+    expect(bubble.style.getPropertyValue("--tooltip-room")).toBe("152px");
+  });
+
   // #441: a closed hint reads no layout, however often its form renders: a field pair is found only
   // once a bubble is open.
   it("reads no layout while closed", () => {
