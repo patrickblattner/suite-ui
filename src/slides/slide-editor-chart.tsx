@@ -27,10 +27,12 @@ function parseValue(text: string, comma: boolean): number {
 }
 
 // Why what is typed is not a number: the other language's decimal separator (a thousands point in
-// German and Spanish, "1.000"; a comma in English), or anything else.
+// German and Spanish, "1.000"; a comma in English), or anything else, such as a decimal number too
+// large for a number ("1.5e309", #378).
 type Invalid = "separator" | "other";
-function invalidOf(text: string): Invalid {
-  return DECIMAL.test(text.trim()) ? "separator" : "other";
+function invalidOf(text: string, comma: boolean): Invalid {
+  const trimmed = text.trim();
+  return DECIMAL.test(trimmed) && trimmed.includes(comma ? "." : ",") ? "separator" : "other";
 }
 
 // A name field with the hint of its value (`GL-UI-017`); cut off in its cell, the same bubble shows
@@ -81,7 +83,7 @@ function ValueField({
   const [typed, setTyped] = React.useState<{ text: string; revision: string } | null>(null);
   const text = typed?.revision === revision ? typed.text : null;
   const invalid = text !== null && !Number.isFinite(parseValue(text, comma));
-  const why = text !== null && invalid ? invalidOf(text) : null;
+  const why = text !== null && invalid ? invalidOf(text, comma) : null;
   React.useEffect(() => {
     if (why === null) return;
     onInvalid(cell, why);

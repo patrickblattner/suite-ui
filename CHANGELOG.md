@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.161.6 — #378, SUI-FEATURE-233: a too-large chart value gets the generic message
+
+Fix.
+
+- **Separator message only for the separator:** a chart value now gets the separator message only when it contains the separator its language forbids (a point in German and Spanish, a comma in English). A decimal number too large for a number, such as `1.5e309`, now gets the generic "enter a number" message. Before, it got the separator message although it had no wrong separator.
+
+**Migration:** none.
+
 ## 0.161.5 — #372, SUI-FEATURE-120 rev 7: locked buttons use the Button's own look
 
 Fix.

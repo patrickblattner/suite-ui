@@ -64,6 +64,29 @@ describe("ChartData", () => {
     expect(onChange.mock.lastCall![0].series[0]!.values[0]).toBe(1.5);
   });
 
+  // #378: only the other language's separator gets the separator message; a decimal number too
+  // large for a number gets the generic one.
+  it("says a separator is why only when the value has the one the language forbids", async () => {
+    const { unmount } = render(
+      <ChartData chart={chart} revision={0} readOnly={false} onChange={() => {}} />,
+    );
+    fireEvent.change(value(0, 0), { target: { value: "1,5" } });
+    expect(screen.getByTestId("slide-editor-chart-error-0")).toHaveTextContent(
+      "Q1 – Sales: enter a number with a decimal point, such as 1.5.",
+    );
+    fireEvent.change(value(0, 0), { target: { value: "1.5e309" } });
+    expect(screen.getByTestId("slide-editor-chart-error-0")).toHaveTextContent(
+      "Q1 – Sales: enter a number, such as 1.5.",
+    );
+    unmount();
+    await i18n.changeLanguage("de");
+    render(<ChartData chart={chart} revision={0} readOnly={false} onChange={() => {}} />);
+    fireEvent.change(value(0, 0), { target: { value: "1,5e309" } });
+    expect(screen.getByTestId("slide-editor-chart-error-0")).toHaveTextContent(
+      "Q1 – Sales: Gib eine Zahl ein, etwa 1,5.",
+    );
+  });
+
   // #387 (SUI-FEATURE-250): a limit lock names the limit on the focusable button; read-only claims
   // no limit as its reason and stays plainly disabled, as the panel's other read-only controls.
   it("names the limit when it locks; a read-only chart says to unlock it (#440)", () => {
