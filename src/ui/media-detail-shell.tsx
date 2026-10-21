@@ -15,15 +15,9 @@ import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
-import { cn } from "../lib/cn.js";
 import { isTextField } from "../lib/keyboard.js";
-import { LOCKED_SAVE_CLASS } from "../lib/locked-save.js";
 import { type RowUsage, useRowActionButtons } from "../list/row-actions.js";
-import {
-  LOCKED_CHEVRON_CLASS,
-  PANEL_SURFACE_CLASS,
-  usePanelGeometry,
-} from "../lib/panel-geometry.js";
+import { PANEL_SURFACE_CLASS, usePanelGeometry } from "../lib/panel-geometry.js";
 import { Button } from "./button.js";
 import { Hint } from "./hint.js";
 import { useLeaveConfirm } from "./leave-guard.js";
@@ -478,7 +472,6 @@ function MediaDetailShell({
                         variant="ghost"
                         size="icon-sm"
                         aria-disabled={first || undefined}
-                        className={LOCKED_CHEVRON_CLASS}
                         onClick={previous}
                         data-testid="media-detail-previous"
                       >
@@ -491,7 +484,6 @@ function MediaDetailShell({
                         variant="ghost"
                         size="icon-sm"
                         aria-disabled={last || undefined}
-                        className={LOCKED_CHEVRON_CLASS}
                         onClick={next}
                         data-testid="media-detail-next"
                       >
@@ -609,7 +601,6 @@ function MediaDetailShell({
                   size="default"
                   {...(dirty ? {} : { "aria-disabled": true })}
                   busy={saving}
-                  className={cn(!dirty && !saving && LOCKED_SAVE_CLASS)}
                   data-testid="media-detail-save"
                 >
                   <SaveIcon aria-hidden="true" />

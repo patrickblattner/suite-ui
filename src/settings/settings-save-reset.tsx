@@ -2,8 +2,6 @@ import { RotateCcwIcon, SaveIcon } from "lucide-react";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 
-import { cn } from "../lib/cn.js";
-import { LOCKED_SAVE_CLASS } from "../lib/locked-save.js";
 import { Button } from "../ui/button.js";
 import { useFocusAfterRun } from "../ui/focus-return.js";
 import { Hint } from "../ui/hint.js";
@@ -23,18 +21,6 @@ type SaveResetButtonsProps = {
   // Given, Save is a plain button that calls it; otherwise Save is the submit button of its form.
   onSave?: (() => void) | undefined;
 } & SaveResetLeft;
-
-// A Cancel that is not cancelable locks itself like a clean Save (`GL-UI-050`): `aria-disabled` with a
-// trigger lock, so the focus stays on it after a cancel; the label mixed with the background, in the
-// look the disabled button had.
-const LOCKED_CANCEL_CLASS =
-  "cursor-not-allowed text-[color-mix(in_srgb,var(--foreground)_50%,var(--background))]";
-
-// Reset locks the same way once the entry is clean again (`GL-UI-050`, #201), so the focus stays on it
-// after a reset: the fill half-tone and the label mixed with the background, as the disabled button's
-// element opacity composited them.
-const LOCKED_RESET_CLASS =
-  "cursor-not-allowed bg-destructive/50 text-[color-mix(in_srgb,var(--destructive-foreground)_50%,var(--background))] hover:bg-destructive/50";
 
 // Reset (`destructive`) and Save (`success`), each with its fixed decorative icon before the label,
 // shared by `SettingsFooter` and `SettingsActionRow` so both carry the same variants, sizes, icons,
@@ -66,7 +52,6 @@ function SaveResetButtons({
             variant="outline"
             size="default"
             {...(cancel.cancelable ? {} : { "aria-disabled": true })}
-            className={cn(!cancel.cancelable && LOCKED_CANCEL_CLASS)}
             onClick={() => {
               if (cancel.cancelable) cancel.onCancel();
             }}
@@ -82,7 +67,6 @@ function SaveResetButtons({
             variant="destructive"
             size="default"
             {...(dirty ? {} : { "aria-disabled": true })}
-            className={cn(!dirty && LOCKED_RESET_CLASS)}
             onClick={() => {
               if (dirty) onReset();
             }}
@@ -105,7 +89,6 @@ function SaveResetButtons({
           disabled={!valid}
           {...(clean ? { "aria-disabled": true } : {})}
           busy={saving}
-          className={cn(clean && LOCKED_SAVE_CLASS)}
           onClick={(event) => {
             // Cancels the click and with it the submit of the form, Enter in a field included.
             if (clean) event.preventDefault();

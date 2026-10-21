@@ -267,6 +267,10 @@ describe("SettingsActionRow", () => {
     const cancel = screen.getByTestId("secret-cancel");
     expect(cancel).toBeEnabled();
     expect(cancel).toHaveAttribute("aria-disabled", "true");
+    // #372: the outline Button's own locked look.
+    expect(cancel).toHaveClass(
+      "aria-disabled:text-[color-mix(in_srgb,var(--foreground)_50%,var(--background))]",
+    );
     fireEvent.click(cancel);
     expect(onCancel).not.toHaveBeenCalled();
   });

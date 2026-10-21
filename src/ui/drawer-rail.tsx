@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
 import { useEscapeLayer } from "../lib/escape-layers.js";
-import { LOCKED_SAVE_CLASS } from "../lib/locked-save.js";
 import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
 import { Button } from "./button.js";
 import { Hint } from "./hint.js";
@@ -128,7 +127,6 @@ function DrawerRail({ items, open, onOpen, styleSave }: DrawerRailProps) {
                   size="default"
                   {...(styleClean ? { "aria-disabled": true } : {})}
                   {...(styleSave.saving !== undefined ? { busy: styleSave.saving } : {})}
-                  className={cn(styleClean && LOCKED_SAVE_CLASS)}
                   onClick={styleClean ? undefined : styleSave.onSave}
                   data-testid="drawer-style-save"
                 >

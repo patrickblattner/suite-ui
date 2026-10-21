@@ -2,12 +2,6 @@ import type * as React from "react";
 
 import { useOptionalSidebar } from "../shell/sidebar-provider.js";
 
-// A locked pager chevron of a panel stays focusable (`aria-disabled`); its locked look is the
-// half-tone icon, not element opacity, which would dim its focus ring below 3:1 (WCAG 1.4.11, #184,
-// #185). No hover tint, in dark mode too.
-const LOCKED_CHEVRON_CLASS =
-  "aria-disabled:cursor-not-allowed aria-disabled:text-foreground/50 aria-disabled:hover:bg-transparent aria-disabled:hover:text-foreground/50 dark:aria-disabled:hover:bg-transparent dark:aria-disabled:hover:text-foreground/50";
-
 // The surface of every panel over the content area (`EditPanel`, `MediaDetailShell`).
 const PANEL_SURFACE_CLASS =
   "fixed z-50 flex flex-col bg-background shadow-lg outline-none transition-[left] duration-200 data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right data-[state=open]:animate-in data-[state=open]:slide-in-from-right";
@@ -37,4 +31,4 @@ function usePanelGeometry(): React.CSSProperties {
   };
 }
 
-export { LOCKED_CHEVRON_CLASS, PANEL_SURFACE_CLASS, usePanelGeometry };
+export { PANEL_SURFACE_CLASS, usePanelGeometry };

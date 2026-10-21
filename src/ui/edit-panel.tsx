@@ -4,11 +4,7 @@ import * as React from "react";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
-import {
-  LOCKED_CHEVRON_CLASS,
-  PANEL_SURFACE_CLASS,
-  usePanelGeometry,
-} from "../lib/panel-geometry.js";
+import { PANEL_SURFACE_CLASS, usePanelGeometry } from "../lib/panel-geometry.js";
 import { Button } from "./button.js";
 import { FIELD_SELECTOR } from "./dialog.js";
 import { Hint } from "./hint.js";
@@ -250,7 +246,6 @@ function EditPanel({
                     variant="ghost"
                     size="icon-sm"
                     aria-disabled={pager.previousDisabled === true || undefined}
-                    className={LOCKED_CHEVRON_CLASS}
                     onClick={() => {
                       if (pager.previousDisabled !== true) guard(pager.onPrevious);
                     }}
@@ -265,7 +260,6 @@ function EditPanel({
                     variant="ghost"
                     size="icon-sm"
                     aria-disabled={pager.nextDisabled === true || undefined}
-                    className={LOCKED_CHEVRON_CLASS}
                     onClick={() => {
                       if (pager.nextDisabled !== true) guard(pager.onNext);
                     }}

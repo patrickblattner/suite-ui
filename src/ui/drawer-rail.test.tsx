@@ -3,7 +3,6 @@ import i18n from "i18next";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { LOCKED_SAVE_CLASS } from "../lib/locked-save.js";
 import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
 import { type DrawerId, DrawerRail, type DrawerRailProps } from "./drawer-rail.js";
 
@@ -152,7 +151,7 @@ describe("DrawerRail (SUI-FEATURE-071)", () => {
     const save = screen.getByTestId("drawer-style-save");
     expect(save).toBeEnabled();
     expect(save).toHaveAttribute("aria-disabled", "true");
-    expect(save).toHaveClass(LOCKED_SAVE_CLASS);
+    expect(save).toHaveClass("aria-disabled:bg-success/50");
     expect(save).toHaveAccessibleName("Save style");
     expect(save).toHaveAccessibleDescription(
       "Saves this style — available once you have changed something.",

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.161.5 — #372, SUI-FEATURE-120 rev 7: locked buttons use the Button's own look
+
+Fix.
+
+- **One locked look:** the package's own locked Save, Reset, Cancel and pager chevrons no longer add a class of their own. They use the look the `Button` gives itself on `aria-disabled`: a half-tone fill, the label mixed with the background, no hover tint, focus ring at full contrast. The removed classes repeated that look. The chevrons now mix their icon with `--background` instead of using 50 % alpha. On the panel surface (`bg-background`) both give the same colour.
+
+**Migration:** none. The removed classes were internal.
+
 ## 0.161.4 — #445, GL-UI-016: a narrowed hint bubble is checked at its final height
 
 Fix.

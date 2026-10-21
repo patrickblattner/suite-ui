@@ -840,16 +840,16 @@ describe("EditPanel", () => {
   });
 
   // #185: a locked chevron dims its icon, not the element, so its focus ring keeps its contrast;
-  // no hover tint, in dark mode too.
+  // no hover tint, in dark mode too. #372: the look is the ghost Button's own lock.
   it("pager: a locked chevron is half-tone, never element opacity", () => {
     renderPanel({
       pager: { position: "1/3", onPrevious: vi.fn(), onNext: vi.fn(), previousDisabled: true },
     });
     const previous = screen.getByTestId("edit-panel-previous");
     expect(previous).toHaveClass(
-      "aria-disabled:text-foreground/50",
-      "aria-disabled:hover:text-foreground/50",
-      "dark:aria-disabled:hover:text-foreground/50",
+      "aria-disabled:text-[color-mix(in_srgb,var(--foreground)_50%,var(--background))]",
+      "aria-disabled:hover:text-[color-mix(in_srgb,var(--foreground)_50%,var(--background))]",
+      "dark:aria-disabled:hover:text-[color-mix(in_srgb,var(--foreground)_50%,var(--background))]",
     );
     expect(previous).not.toHaveClass("aria-disabled:opacity-50");
   });

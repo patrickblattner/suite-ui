@@ -4,7 +4,6 @@ import { useTranslation } from "react-i18next";
 
 import { type RowMenuItem, RowActionMenu } from "../list/row-actions.js";
 import { cn } from "../lib/cn.js";
-import { LOCKED_SAVE_CLASS } from "../lib/locked-save.js";
 import { Button } from "./button.js";
 import { ConfirmDeleteDialog } from "./confirm-delete-dialog.js";
 import { fallbackTarget } from "./focus-return.js";
@@ -203,7 +202,6 @@ function EditorHeader({
   const clean = !dirty && !saving;
   const saveLock = {
     ...(clean ? { "aria-disabled": true } : {}),
-    className: cn(clean && LOCKED_SAVE_CLASS),
     onClick: clean ? undefined : onSave,
   };
 

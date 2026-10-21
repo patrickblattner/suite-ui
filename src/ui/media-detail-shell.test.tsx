@@ -91,26 +91,29 @@ describe("MediaDetailShell", () => {
   });
 
   // #184: the locked chevron dims its icon, not the element, so its focus ring keeps its contrast.
+  // #372: the look is the ghost Button's own lock.
   it("a locked chevron is half-tone, never element opacity", () => {
     renderShell({ position: 1, total: 2 });
     const previous = screen.getByTestId("media-detail-previous");
-    expect(previous).toHaveClass("aria-disabled:text-foreground/50");
+    expect(previous).toHaveClass(
+      "aria-disabled:text-[color-mix(in_srgb,var(--foreground)_50%,var(--background))]",
+    );
     expect(previous).not.toHaveClass("aria-disabled:opacity-50");
     // The ghost variant's dark hover colour must not bring the full icon back.
     expect(previous).toHaveClass(
-      "aria-disabled:hover:text-foreground/50",
-      "dark:aria-disabled:hover:text-foreground/50",
+      "aria-disabled:hover:text-[color-mix(in_srgb,var(--foreground)_50%,var(--background))]",
+      "dark:aria-disabled:hover:text-[color-mix(in_srgb,var(--foreground)_50%,var(--background))]",
     );
   });
 
   const LOCKED_SAVE_LABEL =
-    "text-[color-mix(in_srgb,var(--success-foreground)_50%,var(--background))]";
+    "aria-disabled:text-[color-mix(in_srgb,var(--success-foreground)_50%,var(--background))]";
 
   it("a running Save stays at full colour, without the half-tone classes", () => {
     renderShell({ dirty: false, saving: true });
     const save = screen.getByTestId("media-detail-save");
     expect(save).toHaveAttribute("data-busy", "true");
-    expect(save).not.toHaveClass("bg-success/50");
+    expect(save).not.toHaveClass("aria-disabled:bg-success/50");
     expect(save).not.toHaveClass(LOCKED_SAVE_LABEL);
   });
 
@@ -153,7 +156,11 @@ describe("MediaDetailShell", () => {
     expect(save).toBeEnabled();
     expect(save).toHaveAttribute("aria-disabled", "true");
     // #189: the label is mixed with the background, so it looks as under element opacity.
-    expect(save).toHaveClass("bg-success/50", LOCKED_SAVE_LABEL, "cursor-not-allowed");
+    expect(save).toHaveClass(
+      "aria-disabled:bg-success/50",
+      LOCKED_SAVE_LABEL,
+      "aria-disabled:cursor-not-allowed",
+    );
     expect(save).not.toHaveClass("opacity-50");
     fireEvent.click(save);
     fireEvent.submit(screen.getByLabelText("Name"));

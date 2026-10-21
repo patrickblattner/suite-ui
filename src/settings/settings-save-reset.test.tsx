@@ -1,7 +1,6 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { LOCKED_SAVE_CLASS } from "../lib/locked-save.js";
 import { FOCUS_MAIN_ATTR } from "../ui/focus-return.js";
 import { SettingsFooter } from "./settings-footer.js";
 
@@ -37,7 +36,7 @@ describe("SaveResetButtons focus", () => {
     expect(save).toHaveFocus();
     expect(save).toBeEnabled();
     expect(save).toHaveAttribute("aria-disabled", "true");
-    expect(save).toHaveClass(LOCKED_SAVE_CLASS);
+    expect(save).toHaveClass("aria-disabled:bg-success/50");
     fireEvent.click(save);
     expect(onSubmit).not.toHaveBeenCalled();
   });
@@ -55,6 +54,9 @@ describe("SaveResetButtons focus", () => {
   it("a Reset locked by a clean form describes what it does and when it frees", () => {
     render(page(false, false));
     const reset = screen.getByRole("button", { name: "Reset" });
+    // #372: the destructive Button's own locked look.
+    expect(reset).toHaveAttribute("aria-disabled", "true");
+    expect(reset).toHaveClass("aria-disabled:bg-destructive/50");
     expect(reset).toHaveAccessibleDescription(
       "Discards the unsaved changes on this page — available once you have changed something here.",
     );
