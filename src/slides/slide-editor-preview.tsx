@@ -11,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../ui/dialog.js";
+import { Hint } from "../ui/hint.js";
 import { pageLists, stepLengths, transitionOf } from "./render-style.js";
 import type { SlideDocument } from "./schema.js";
 import { SlideView, type SlideViewProps } from "./slide-view.js";
@@ -81,19 +82,21 @@ export function SlidePreview({
 
   return (
     <>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        onClick={() => {
-          start();
-          setOpen(true);
-        }}
-        data-testid="slide-editor-preview"
-      >
-        <PlayIcon />
-        {t("slides.editor.preview")}
-      </Button>
+      <Hint text={t("slides.editor.previewHint")}>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            start();
+            setOpen(true);
+          }}
+          data-testid="slide-editor-preview"
+        >
+          <PlayIcon />
+          {t("slides.editor.preview")}
+        </Button>
+      </Hint>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent size="stage" data-testid="slide-editor-preview-dialog">
           <DialogHeader>
@@ -139,24 +142,28 @@ export function SlidePreview({
             </div>
           </div>
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              size="default"
-              onClick={start}
-              data-testid="slide-editor-preview-replay"
-            >
-              {t("slides.editor.previewReplay")}
-            </Button>
-            <Button
-              type="button"
-              variant="default"
-              size="default"
-              onClick={() => setOpen(false)}
-              data-testid="slide-editor-preview-close"
-            >
-              {t("slides.editor.previewClose")}
-            </Button>
+            <Hint text={t("slides.editor.previewReplayHint")}>
+              <Button
+                type="button"
+                variant="outline"
+                size="default"
+                onClick={start}
+                data-testid="slide-editor-preview-replay"
+              >
+                {t("slides.editor.previewReplay")}
+              </Button>
+            </Hint>
+            <Hint text={t("slides.editor.previewCloseHint")}>
+              <Button
+                type="button"
+                variant="default"
+                size="default"
+                onClick={() => setOpen(false)}
+                data-testid="slide-editor-preview-close"
+              >
+                {t("slides.editor.previewClose")}
+              </Button>
+            </Hint>
           </DialogFooter>
         </DialogContent>
       </Dialog>

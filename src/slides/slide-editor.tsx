@@ -31,6 +31,7 @@ import { type DrawerId, DrawerRail } from "../ui/drawer-rail.js";
 import { EditorHeader, useEditorLeaveGuard } from "../ui/editor-header.js";
 import { Field } from "../ui/field.js";
 import { GridFields, GridOverlay, GridToggle } from "../ui/grid.js";
+import { Hint } from "../ui/hint.js";
 import { PropertyPanel } from "../ui/property-panel.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select.js";
 import { Slider } from "../ui/slider.js";
@@ -362,7 +363,11 @@ function AnimationFields({
     <fieldset className="flex flex-col gap-3" data-testid={id}>
       <legend className="mb-2 text-sm font-medium">{t(`slides.editor.${kind}`)}</legend>
       <div className="grid grid-cols-2 gap-3">
-        <Field label={t("slides.editor.animationEffect")} htmlFor={`${id}-effect`}>
+        <Field
+          label={t("slides.editor.animationEffect")}
+          htmlFor={`${id}-effect`}
+          hint={t("slides.editor.animationEffectHint")}
+        >
           <Select
             value={step?.effect ?? "none"}
             disabled={readOnly}
@@ -370,6 +375,7 @@ function AnimationFields({
           >
             <SelectTrigger
               id={`${id}-effect`}
+              aria-describedby={`${id}-effect-help`}
               fieldName={t("slides.editor.animationEffect")}
               className="w-full"
               data-testid={`${id}-effect`}
@@ -392,6 +398,11 @@ function AnimationFields({
               kind === "entrance" ? "slides.editor.animationFrom" : "slides.editor.animationTo",
             )}
             htmlFor={`${id}-direction`}
+            hint={t(
+              kind === "entrance"
+                ? "slides.editor.animationFromHint"
+                : "slides.editor.animationToHint",
+            )}
           >
             <Select
               value={step.direction ?? "left"}
@@ -402,6 +413,7 @@ function AnimationFields({
             >
               <SelectTrigger
                 id={`${id}-direction`}
+                aria-describedby={`${id}-direction-help`}
                 fieldName={t(
                   kind === "entrance" ? "slides.editor.animationFrom" : "slides.editor.animationTo",
                 )}
@@ -429,6 +441,7 @@ function AnimationFields({
                 key={key}
                 id={`${id}-${key}`}
                 label={t(`slides.editor.animation${key[0]!.toUpperCase()}${key.slice(1)}`)}
+                hint={t(`slides.editor.animation${key[0]!.toUpperCase()}${key.slice(1)}Hint`)}
                 value={step[key]}
                 unit={t("slides.editor.ms")}
                 readOnly={readOnly}
@@ -445,6 +458,7 @@ function AnimationFields({
             <NumberField
               id={`${id}-order`}
               label={t("slides.editor.animationOrder")}
+              hint={t("slides.editor.animationOrderHint")}
               value={step.order + 1}
               unit=""
               readOnly={readOnly}
@@ -483,7 +497,11 @@ function TransitionFields({
     <section className="flex flex-col gap-3" data-testid="slide-editor-transition">
       <h3 className="text-sm font-medium">{t("slides.editor.transition")}</h3>
       <div className="grid grid-cols-2 gap-3">
-        <Field label={t("slides.editor.transitionType")} htmlFor="slide-editor-transition-type">
+        <Field
+          label={t("slides.editor.transitionType")}
+          htmlFor="slide-editor-transition-type"
+          hint={t("slides.editor.transitionTypeHint")}
+        >
           <Select
             value={transition.type}
             onValueChange={(type) =>
@@ -500,6 +518,7 @@ function TransitionFields({
           >
             <SelectTrigger
               id="slide-editor-transition-type"
+              aria-describedby="slide-editor-transition-type-help"
               fieldName={t("slides.editor.transitionType")}
               className="w-full"
               data-testid="slide-editor-transition-type"
@@ -519,6 +538,7 @@ function TransitionFields({
           <NumberField
             id="slide-editor-transition-duration"
             label={t("slides.editor.animationDuration")}
+            hint={t("slides.editor.transitionDurationHint")}
             value={transition.duration}
             unit={t("slides.editor.ms")}
             readOnly={false}
@@ -1660,31 +1680,35 @@ function Editor({
             </span>
           </OverflowTooltip>
         )}
-        <Button
-          size="sm"
-          variant="outline"
-          // The canvas keeps the focus (a press elsewhere would move it).
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={() => {
-            endCrop(false);
-            canvas.current?.focus();
-          }}
-          data-testid="slide-editor-crop-cancel"
-        >
-          {t("slides.editor.cropCancel")}
-        </Button>
-        <Button
-          variant="default"
-          size="sm"
-          onMouseDown={(event) => event.preventDefault()}
-          onClick={() => {
-            endCrop(true);
-            canvas.current?.focus();
-          }}
-          data-testid="slide-editor-crop-apply"
-        >
-          {t("slides.editor.cropApply")}
-        </Button>
+        <Hint text={t("slides.editor.cropCancelHint")}>
+          <Button
+            size="sm"
+            variant="outline"
+            // The canvas keeps the focus (a press elsewhere would move it).
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => {
+              endCrop(false);
+              canvas.current?.focus();
+            }}
+            data-testid="slide-editor-crop-cancel"
+          >
+            {t("slides.editor.cropCancel")}
+          </Button>
+        </Hint>
+        <Hint text={t("slides.editor.cropApplyHint")}>
+          <Button
+            variant="default"
+            size="sm"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => {
+              endCrop(true);
+              canvas.current?.focus();
+            }}
+            data-testid="slide-editor-crop-apply"
+          >
+            {t("slides.editor.cropApply")}
+          </Button>
+        </Hint>
       </div>
     );
 
@@ -2024,10 +2048,15 @@ function Editor({
         onKeyDown={dropCropOnEscape}
       >
         <h3 className="text-sm font-medium">{t("slides.editor.cropFields")}</h3>
-        <Field label={t("slides.editor.cropZoom")} htmlFor="slide-editor-crop-zoom">
+        <Field
+          label={t("slides.editor.cropZoom")}
+          htmlFor="slide-editor-crop-zoom"
+          hint={t("slides.editor.cropZoomHint")}
+        >
           <Slider
             id="slide-editor-crop-zoom"
             aria-labelledby="slide-editor-crop-zoom-label"
+            aria-describedby="slide-editor-crop-zoom-help"
             value={cropping.crop.zoom}
             min={1}
             max={CROP_ZOOM_MAX}
@@ -2071,6 +2100,7 @@ function Editor({
                 key={key}
                 id={`slide-editor-crop-${key}`}
                 label={t(`slides.editor.${label}`)}
+                hint={t(`slides.editor.${label}Hint`)}
                 value={cropping.crop[key]}
                 unit="px"
                 readOnly={false}
@@ -2112,6 +2142,7 @@ function Editor({
               key={`${single.id}-${key}`}
               id={`slide-editor-${key}`}
               label={t(`slides.editor.${key}`)}
+              hint={t(`slides.editor.${key}Hint`)}
               value={single[key]}
               unit="px"
               readOnly={single.locked}
@@ -2158,6 +2189,7 @@ function Editor({
             key={`${single.id}-rotation`}
             id="slide-editor-rotation"
             label={t("slides.editor.rotation")}
+            hint={t("slides.editor.rotationHint")}
             value={inTurnedGroup ? (((single.rotation + turn) % 360) + 360) % 360 : single.rotation}
             unit={t("slides.editor.degrees")}
             readOnly={single.locked}
@@ -2296,7 +2328,11 @@ function Editor({
       {/* The page's layout (`SUI-FEATURE-192`): the document's and the app's; what fills a
           placeholder follows into the new layout's placeholder of its role. */}
       {selected.length === 0 && pageData !== undefined && offered.length > 0 ? (
-        <Field label={t("slides.editor.pageLayout")} htmlFor="slide-editor-page-layout">
+        <Field
+          label={t("slides.editor.pageLayout")}
+          htmlFor="slide-editor-page-layout"
+          hint={t("slides.editor.pageLayoutHint")}
+        >
           <Select
             value={pageData.layoutId ?? "none"}
             onValueChange={(value) => {
@@ -2307,6 +2343,7 @@ function Editor({
           >
             <SelectTrigger
               id="slide-editor-page-layout"
+              aria-describedby="slide-editor-page-layout-help"
               fieldName={t("slides.editor.pageLayout")}
               className="w-full"
               data-testid="slide-editor-page-layout"
@@ -2330,19 +2367,20 @@ function Editor({
           <h3 className="text-sm font-medium">{t("slides.editor.placeholders")}</h3>
           <div className="flex flex-wrap gap-1">
             {fillable.map((open) => (
-              <Button
-                key={open.placeholder.id}
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => fillWithText(open)}
-                data-testid="slide-editor-placeholder-fill"
-              >
-                {t("slides.editor.placeholderFill", {
-                  name: placeholderName(open.placeholder),
-                  interpolation: { escapeValue: false },
-                })}
-              </Button>
+              <Hint key={open.placeholder.id} text={t("slides.editor.placeholderFillHint")}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fillWithText(open)}
+                  data-testid="slide-editor-placeholder-fill"
+                >
+                  {t("slides.editor.placeholderFill", {
+                    name: placeholderName(open.placeholder),
+                    interpolation: { escapeValue: false },
+                  })}
+                </Button>
+              </Hint>
             ))}
           </div>
         </section>
@@ -2421,18 +2459,22 @@ function Editor({
         style={{ "--layer-depth": depth } as React.CSSProperties}
         data-testid="slide-editor-layer"
         data-layer-id={element.id}
+        data-tooltip-row=""
       >
-        <button
-          type="button"
-          className={cn(
-            "min-w-0 flex-1 truncate px-2 py-1 text-left text-sm",
-            element.hidden && "text-muted-foreground line-through",
-          )}
-          aria-pressed={selection.includes(element.id)}
-          onClick={() => setSelection([element.id])}
-        >
-          {nameOf(element)}
-        </button>
+        <Hint text={t("slides.editor.layerSelectHint")}>
+          <button
+            type="button"
+            className={cn(
+              "min-w-0 flex-1 truncate px-2 py-1 text-left text-sm",
+              element.hidden && "text-muted-foreground line-through",
+            )}
+            aria-pressed={selection.includes(element.id)}
+            onClick={() => setSelection([element.id])}
+            data-testid="slide-editor-layer-select"
+          >
+            {nameOf(element)}
+          </button>
+        </Hint>
         <IconButtonTooltip
           label={t("slides.editor.lock", {
             name: nameOf(element),

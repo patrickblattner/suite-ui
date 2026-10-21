@@ -559,7 +559,11 @@ export function TextFormatFields({
     <section className="flex flex-col gap-3" data-testid={`${idPrefix}-format`}>
       <h3 className="text-sm font-medium">{t("slides.editor.textFormat")}</h3>
       <div className="grid grid-cols-2 gap-3">
-        <Field label={t("slides.editor.textFont")} htmlFor={`${idPrefix}-font`}>
+        <Field
+          label={t("slides.editor.textFont")}
+          htmlFor={`${idPrefix}-font`}
+          hint={t("slides.editor.textFontHint")}
+        >
           <Select
             value={fontKey ?? ""}
             disabled={readOnly}
@@ -567,6 +571,7 @@ export function TextFormatFields({
           >
             <SelectTrigger
               id={`${idPrefix}-font`}
+              aria-describedby={`${idPrefix}-font-help`}
               fieldName={t("slides.editor.textFont")}
               className="w-full"
               data-testid={`${idPrefix}-font`}
@@ -593,6 +598,7 @@ export function TextFormatFields({
           key={`${start}-${end}`}
           id={`${idPrefix}-size`}
           label={t("slides.editor.textSize")}
+          hint={t("slides.editor.textSizeHint")}
           value={mixed.has("size") ? undefined : (format.size ?? DEFAULT_TEXT_SIZE)}
           unit="px"
           readOnly={readOnly}
@@ -604,7 +610,11 @@ export function TextFormatFields({
           }}
           testId={`${idPrefix}-size`}
         />
-        <Field label={t("slides.editor.textColor")} htmlFor={`${idPrefix}-color`}>
+        <Field
+          label={t("slides.editor.textColor")}
+          htmlFor={`${idPrefix}-color`}
+          hint={t("slides.editor.textColorHint")}
+        >
           <Select
             value={colorKey ?? ""}
             disabled={readOnly}
@@ -614,6 +624,7 @@ export function TextFormatFields({
           >
             <SelectTrigger
               id={`${idPrefix}-color`}
+              aria-describedby={`${idPrefix}-color-help`}
               fieldName={t("slides.editor.textColor")}
               className="w-full"
               data-testid={`${idPrefix}-color`}

@@ -473,6 +473,63 @@ export const es: SuiteStrings = {
         "Inserta {{name}} en el centro de la página. También se puede insertar arrastrando a la página.",
       libraryMediaHint: "Abre la biblioteca de medios para elegir una imagen.",
       librarySearchHint: "Filtra los iconos por nombre mientras escribes.",
+      xHint:
+        "Distancia del borde izquierdo del elemento al borde izquierdo de la página, en píxeles.",
+      yHint:
+        "Distancia del borde superior del elemento al borde superior de la página, en píxeles.",
+      widthHint: "Ancho del elemento, en píxeles.",
+      heightHint: "Alto del elemento, en píxeles.",
+      rotationHint:
+        "Gira el elemento en el sentido de las agujas del reloj alrededor de su centro, en grados.",
+      cropZoomHint: "Amplía la imagen dentro de su marco.",
+      cropOffsetXHint:
+        "Mueve la imagen a la izquierda o a la derecha dentro de su marco, en píxeles.",
+      cropOffsetYHint: "Mueve la imagen hacia arriba o hacia abajo dentro de su marco, en píxeles.",
+      cropCancelHint: "Termina el recorte y descarta el nuevo encuadre.",
+      cropApplyHint: "Termina el recorte y conserva el nuevo encuadre.",
+      animationEffectHint: "Cómo aparece o desaparece el elemento durante la presentación.",
+      animationFromHint: "El lado desde el que entra el elemento.",
+      animationToHint: "El lado hacia el que sale el elemento.",
+      animationDurationHint: "Cuánto dura el movimiento, en milisegundos.",
+      animationDelayHint: "Cuánto se espera antes de que empiece el movimiento, en milisegundos.",
+      animationOrderHint:
+        "Cuándo se reproduce el movimiento en la página: los números menores van primero.",
+      transitionTypeHint: "Cómo sigue esta página a la anterior en la presentación.",
+      transitionDurationHint: "Cuánto dura el cambio de página, en milisegundos.",
+      pageLayoutHint: "El diseño cuyos marcadores de posición y fondo usa esta página.",
+      placeholderFillHint: "Añade texto a este marcador de posición vacío.",
+      layerSelectHint: "Selecciona este elemento en la página.",
+      newPageHint: "Añade una página nueva después de la que se muestra.",
+      newPageMenuHint:
+        "Abre una lista de diseños para una página nueva después de la que se muestra.",
+      previewHint: "Reproduce esta página con sus animaciones en una ventana.",
+      previewReplayHint: "Vuelve a reproducir la página desde el principio.",
+      previewCloseHint: "Cierra la vista previa.",
+      transferHint:
+        "Abre un diálogo para crear una copia de esta página o de todo el documento en otro formato.",
+      transferCancelHint: "Cierra el diálogo sin crear una copia.",
+      transferConfirmHint:
+        "Crea una copia de las páginas elegidas en el formato elegido; este documento no cambia.",
+      transferFormatOptionHint: "Crea la copia con un tamaño de {{width}} × {{height}} píxeles.",
+      transferPageHint: "Copia solo la página que se muestra.",
+      transferAllHint: "Copia todas las páginas del documento.",
+      textFontHint: "La fuente de marca del texto seleccionado.",
+      textSizeHint: "El tamaño del texto seleccionado, en píxeles.",
+      textColorHint: "El color de marca del texto seleccionado.",
+      tableRowHint:
+        "La fila de la celda cuyos ajustes se muestran debajo; otro número elige otra celda.",
+      tableColumnHint:
+        "La columna de la celda cuyos ajustes se muestran debajo; otro número elige otra celda.",
+      tableColumnWidthHint: "Ancho de la columna de esta celda, en píxeles.",
+      tableCellFillHint: "El color de fondo de esta celda.",
+      tableVerticalAlignHint: "Dónde se sitúa el texto en la celda: arriba, en el centro o abajo.",
+      chartBarHint: "Muestra los datos como barras.",
+      chartLineHint: "Muestra los datos como líneas.",
+      chartPieHint: "Muestra la primera serie como porciones de un círculo.",
+      chartSeriesNameHint: "El nombre de esta serie, que aparece en la leyenda del gráfico.",
+      chartCategoryNameHint:
+        "El nombre de esta categoría, que aparece en el eje del gráfico o junto a su porción.",
+      chartValueHint: "El número que muestra esta serie para esta categoría, como 1,5.",
       libraryMediaFailed: "No se pudo abrir la biblioteca de medios. Inténtalo de nuevo.",
       libraryMediaInvalid: "Este medio no se puede colocar en la página. Elige otro.",
       insertRefused: "La página no admite otro elemento. Quita uno e inténtalo de nuevo.",

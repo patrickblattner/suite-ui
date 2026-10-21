@@ -6,13 +6,7 @@ import { Button } from "../ui/button.js";
 import { FieldError } from "../ui/field-error.js";
 import { Hint } from "../ui/hint.js";
 import { Input } from "../ui/input.js";
-import {
-  IconButtonTooltip,
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-  useIsOverflowing,
-} from "../ui/tooltip.js";
+import { IconButtonTooltip } from "../ui/tooltip.js";
 import { chartData } from "./editor-ops.js";
 import { SLIDE_LIMITS, type SlideElement } from "./schema.js";
 
@@ -39,18 +33,17 @@ function invalidOf(text: string): Invalid {
   return DECIMAL.test(text.trim()) ? "separator" : "other";
 }
 
-// A name field cut off in its cell shows itself whole in a hint (`GL-UI-016`). The hint stands
-// whether or not the name is cut, so the field is never remounted (and the focus kept) while typing.
-function NameField(props: React.ComponentProps<typeof Input> & { value: string }) {
-  const { ref, isOverflowing } = useIsOverflowing();
-  const [open, setOpen] = React.useState(false);
+// A name field with the hint of its value (`GL-UI-017`); cut off in its cell, the same bubble shows
+// the whole name above it (`GL-UI-016`). The hint stands whether or not the name is cut, so the field
+// is never remounted (and the focus kept) while typing.
+function NameField({
+  hint,
+  ...props
+}: React.ComponentProps<typeof Input> & { value: string; hint: string }) {
   return (
-    <Tooltip open={open && isOverflowing} onOpenChange={setOpen}>
-      <TooltipTrigger asChild>
-        <Input ref={ref} {...props} />
-      </TooltipTrigger>
-      <TooltipContent>{props.value}</TooltipContent>
-    </Tooltip>
+    <Hint text={hint}>
+      <Input {...props} />
+    </Hint>
   );
 }
 
@@ -72,6 +65,7 @@ function ValueField({
   testId,
 }: {
   value: number;
+  // The field's name; its hint says what the number is (`GL-UI-017`).
   label: string;
   revision: string;
   readOnly: boolean;
@@ -82,7 +76,7 @@ function ValueField({
   onInvalid: (cell: string, invalid: Invalid | null) => void;
   testId: string;
 }) {
-  const { i18n } = useTranslation("suite");
+  const { t, i18n } = useTranslation("suite");
   const comma = DECIMAL_COMMA.has(i18n.resolvedLanguage ?? "");
   const [typed, setTyped] = React.useState<{ text: string; revision: string } | null>(null);
   const text = typed?.revision === revision ? typed.text : null;
@@ -95,25 +89,27 @@ function ValueField({
   }, [why, cell, onInvalid]);
   const shown = comma ? String(value).replace(".", ",") : String(value);
   return (
-    <Input
-      inputMode="decimal"
-      aria-label={label}
-      aria-invalid={invalid || undefined}
-      aria-errormessage={invalid ? error : undefined}
-      aria-describedby={invalid ? error : describedBy}
-      readOnly={readOnly}
-      value={text ?? shown}
-      onChange={(event) => {
-        setTyped({ text: event.target.value, revision });
-        const next = parseValue(event.target.value, comma);
-        if (Number.isFinite(next)) onValue(next);
-      }}
-      onBlur={() => {
-        if (!invalid) setTyped(null);
-      }}
-      className="h-8 w-16 px-2"
-      data-testid={testId}
-    />
+    <Hint text={t("slides.editor.chartValueHint")}>
+      <Input
+        inputMode="decimal"
+        aria-label={label}
+        aria-invalid={invalid || undefined}
+        aria-errormessage={invalid ? error : undefined}
+        aria-describedby={invalid ? error : describedBy}
+        readOnly={readOnly}
+        value={text ?? shown}
+        onChange={(event) => {
+          setTyped({ text: event.target.value, revision });
+          const next = parseValue(event.target.value, comma);
+          if (Number.isFinite(next)) onValue(next);
+        }}
+        onBlur={() => {
+          if (!invalid) setTyped(null);
+        }}
+        className="h-8 w-16 px-2"
+        data-testid={testId}
+      />
+    </Hint>
   );
 }
 
@@ -219,24 +215,29 @@ export function ChartData({
         role="radiogroup"
         aria-label={t("slides.editor.chartType")}
         className="flex items-center gap-1"
+        data-tooltip-row=""
         onKeyDown={onTypeKey}
       >
         {TYPES.map((type) => (
-          <Button
+          <Hint
             key={type}
-            type="button"
-            variant="outline"
-            size="sm"
-            role="radio"
-            aria-checked={chart.chart === type}
-            tabIndex={chart.chart === type ? 0 : -1}
-            disabled={readOnly}
-            className="aria-checked:border-ring aria-checked:bg-accent aria-checked:text-accent-foreground dark:aria-checked:border-ring dark:aria-checked:bg-accent"
-            onClick={() => setType(type)}
-            data-testid={`slide-editor-chart-type-${type}`}
+            text={t(`slides.editor.chart${type[0]!.toUpperCase()}${type.slice(1)}Hint`)}
           >
-            {t(`slides.editor.chart${type[0]!.toUpperCase()}${type.slice(1)}`)}
-          </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              role="radio"
+              aria-checked={chart.chart === type}
+              tabIndex={chart.chart === type ? 0 : -1}
+              disabled={readOnly}
+              className="aria-checked:border-ring aria-checked:bg-accent aria-checked:text-accent-foreground dark:aria-checked:border-ring dark:aria-checked:bg-accent"
+              onClick={() => setType(type)}
+              data-testid={`slide-editor-chart-type-${type}`}
+            >
+              {t(`slides.editor.chart${type[0]!.toUpperCase()}${type.slice(1)}`)}
+            </Button>
+          </Hint>
         ))}
       </div>
       {/* Wider than the panel with more series, the table scrolls sideways (`SUI-FEATURE-233`). */}
@@ -247,7 +248,7 @@ export function ChartData({
           data-testid="slide-editor-chart-data"
         >
           <thead>
-            <tr>
+            <tr data-tooltip-row="">
               <th
                 scope="col"
                 className="text-left align-top text-xs font-medium text-muted-foreground"
@@ -259,6 +260,7 @@ export function ChartData({
                   <div className="flex flex-col items-start gap-0.5">
                     <NameField
                       aria-label={t("slides.editor.chartSeriesName", { n: index + 1 })}
+                      hint={t("slides.editor.chartSeriesNameHint")}
                       value={series.name}
                       placeholder={t("slides.editor.chartSeries", { n: index + 1 })}
                       maxLength={SLIDE_LIMITS.maxLabelLength}
@@ -310,11 +312,12 @@ export function ChartData({
           </thead>
           <tbody>
             {chart.categories.map((category, row) => (
-              <tr key={row}>
+              <tr key={row} data-tooltip-row="">
                 <th scope="row" className="text-left align-top font-normal">
                   <div className="flex items-center gap-1">
                     <NameField
                       aria-label={t("slides.editor.chartCategoryName", { n: row + 1 })}
+                      hint={t("slides.editor.chartCategoryNameHint")}
                       value={category}
                       placeholder={t("slides.editor.chartCategory", { n: row + 1 })}
                       maxLength={SLIDE_LIMITS.maxLabelLength}

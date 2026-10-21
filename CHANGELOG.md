@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.160.0 — #361, GL-UI-017: hover hints across the SlideEditor
+
+Feature.
+
+- **Fields:** every field in the SlideEditor's property panel now has a hover hint on its label, in de, en and es. Screen readers read the same text as the field's description. This covers position, size, rotation, crop zoom and offsets, entrance and exit effects with direction, duration, delay and order, the page's transition and layout, text font, size and colour, and the table's row, column, column width, cell fill and vertical alignment. `NumberField` takes a new `hint` prop for this.
+- **Buttons:** every text button has a hint: Preview with Replay and Close, Transfer format with Cancel and Transfer, crop Cancel and Apply, placeholder fill, New page (which names the layout list when the app has layouts), the chart type buttons, and the layer rows of the Layers drawer. The page pictures in the Document drawer show their name ("Show page n") as a tooltip. The chart type buttons, each row of the chart data and each layer row are a tooltip row, so a hint never covers the neighbouring controls (`GL-UI-016`).
+- **Transfer dialog:** each format and each scope option ("This page", "Whole document") carries its hint on the radio and on its label alike. The transfer hints say that the dialog makes a copy and leaves the document as it is.
+- **Chart data:** the series name, category name and value inputs each have a hint that says what the entry is for. The aria-label stays the field's name.
+- **`Hint` around an input** (`src/ui/tooltip.tsx`, `useIsOverflowing`): for an input or textarea, the hint now checks whether the value itself is cut off, where before it read the element's text. A cut-off value shows in full above the hint in one bubble, as on truncating buttons (`GL-UI-016`). A password's value is never read. The chart's name fields use this in place of their own overflow tooltip.
+
+**Migration:** none. Many new `slides.editor.*Hint` strings (en, de, es), among them `newPageMenuHint`, `transferFormatOptionHint`, `transferPageHint` and `transferAllHint`. GridFields and CanvasZoom get their hints in #434. Baselines: the strings table (gallery start page) in de, en and es, light and dark, and in de at 390 px and 1440 px.
+
 ## 0.159.0 — #360, SUI-FEATURE-097: EditPanel view mode with preview
 
 Feature.

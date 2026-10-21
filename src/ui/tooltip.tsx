@@ -541,7 +541,10 @@ function TooltipContent({
 
 // Whether the wrapped element overflows (scrollWidth > clientWidth), measured after every render: the
 // text can change without the box resizing (a select switching value, a language switch). A box with
-// no width yet is not laid out, so it never revokes an overflow already found.
+// no width yet is not laid out, so it never revokes an overflow already found. An input's text is its
+// value, so a `Hint` around an input shows a clipped value above its description (`GL-UI-016`, #361);
+// a password's value is never read. An uncontrolled input's value is read on the render that opens
+// the hint, so it is never stale.
 function useIsOverflowing() {
   const [node, setNode] = React.useState<HTMLElement | null>(null);
   const [measurement, setMeasurement] = React.useState({ isOverflowing: false, text: "" });
@@ -550,7 +553,12 @@ function useIsOverflowing() {
     if (node === null || node.clientWidth === 0) return;
     const next = {
       isOverflowing: node.scrollWidth > node.clientWidth,
-      text: node.textContent ?? "",
+      text:
+        node instanceof HTMLInputElement && node.type === "password"
+          ? ""
+          : node instanceof HTMLInputElement || node instanceof HTMLTextAreaElement
+            ? node.value
+            : (node.textContent ?? ""),
     };
     setMeasurement((prev) =>
       prev.isOverflowing === next.isOverflowing && prev.text === next.text ? prev : next,

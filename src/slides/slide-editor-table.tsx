@@ -213,6 +213,7 @@ export function TableFields({
             key={key}
             id={`slide-editor-table-cell-${key}`}
             label={t(key === "row" ? "slides.editor.tableRow" : "slides.editor.tableColumn")}
+            hint={t(key === "row" ? "slides.editor.tableRowHint" : "slides.editor.tableColumnHint")}
             value={cell[key] + 1}
             unit=""
             readOnly={false}
@@ -231,6 +232,7 @@ export function TableFields({
           key={`width-${cell.column}`}
           id="slide-editor-table-column-width"
           label={t("slides.editor.tableColumnWidth")}
+          hint={t("slides.editor.tableColumnWidthHint")}
           value={Math.round(columnPx(table, cell.column) * 100) / 100}
           unit="px"
           // One column is as wide as the table: its width is the table's own field.
@@ -249,7 +251,11 @@ export function TableFields({
         />
       </div>
       <div className="grid grid-cols-2 gap-3">
-        <Field label={t("slides.editor.tableCellFill")} htmlFor="slide-editor-table-fill">
+        <Field
+          label={t("slides.editor.tableCellFill")}
+          htmlFor="slide-editor-table-fill"
+          hint={t("slides.editor.tableCellFillHint")}
+        >
           <Select
             value={fillKey}
             disabled={readOnly}
@@ -266,6 +272,7 @@ export function TableFields({
           >
             <SelectTrigger
               id="slide-editor-table-fill"
+              aria-describedby="slide-editor-table-fill-help"
               fieldName={t("slides.editor.tableCellFill")}
               className="w-full"
               data-testid="slide-editor-table-fill"
@@ -287,7 +294,11 @@ export function TableFields({
             </SelectContent>
           </Select>
         </Field>
-        <Field label={t("slides.editor.tableVerticalAlign")} htmlFor="slide-editor-table-valign">
+        <Field
+          label={t("slides.editor.tableVerticalAlign")}
+          htmlFor="slide-editor-table-valign"
+          hint={t("slides.editor.tableVerticalAlignHint")}
+        >
           <Select
             value={current?.verticalAlign ?? "top"}
             disabled={readOnly}
@@ -302,6 +313,7 @@ export function TableFields({
           >
             <SelectTrigger
               id="slide-editor-table-valign"
+              aria-describedby="slide-editor-table-valign-help"
               fieldName={t("slides.editor.tableVerticalAlign")}
               className="w-full"
               data-testid="slide-editor-table-valign"

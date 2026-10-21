@@ -20,6 +20,7 @@ import {
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu.js";
 import { GRID_ITEM_ATTR, useRowGrid } from "../list/use-row-grid.js";
+import { Hint } from "../ui/hint.js";
 import { IconButtonTooltip } from "../ui/tooltip.js";
 import { DELETE_SHORTCUT } from "../ui/use-edit-shortcuts.js";
 import type { SlideDocument } from "./schema.js";
@@ -118,18 +119,25 @@ export function PageSorter({
       </Button>
     </IconButtonTooltip>
   );
+  // With the app's layouts the button opens their list instead of adding a page.
   const newButton = (onClick?: () => void) => (
-    <Button
-      type="button"
-      variant="outline"
-      size="sm"
-      className="self-start"
-      onClick={onClick}
-      data-testid="slide-editor-page-new"
+    <Hint
+      text={t(
+        onClick === undefined ? "slides.editor.newPageMenuHint" : "slides.editor.newPageHint",
+      )}
     >
-      <PlusIcon aria-hidden="true" />
-      {t("slides.editor.newPage")}
-    </Button>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className="self-start"
+        onClick={onClick}
+        data-testid="slide-editor-page-new"
+      >
+        <PlusIcon aria-hidden="true" />
+        {t("slides.editor.newPage")}
+      </Button>
+    </Hint>
   );
   return (
     <section className="flex flex-col gap-2" data-testid="slide-editor-pages">
@@ -174,25 +182,26 @@ export function PageSorter({
               data-page-id={one.id}
               data-page-hidden={one.hidden ? "true" : undefined}
             >
-              <button
-                type="button"
-                tabIndex={entry.tabIndex}
-                onKeyDown={entry.onKeyDown}
-                {...{ [GRID_ITEM_ATTR]: true }}
-                className={cn(
-                  "w-20 shrink-0 overflow-hidden rounded-sm border bg-background",
-                  entry.className,
-                )}
-                style={{ aspectRatio: `${width} / ${height}` }}
-                aria-current={index === page ? "page" : undefined}
-                aria-label={t("slides.editor.showPage", { n })}
-                onClick={() => onShow(index)}
-                data-testid="slide-editor-page-show"
-              >
-                <div className={cn("pointer-events-none size-full", one.hidden && "opacity-40")}>
-                  <PageThumb document={document} index={index} view={view} />
-                </div>
-              </button>
+              <IconButtonTooltip label={t("slides.editor.showPage", { n })}>
+                <button
+                  type="button"
+                  tabIndex={entry.tabIndex}
+                  onKeyDown={entry.onKeyDown}
+                  {...{ [GRID_ITEM_ATTR]: true }}
+                  className={cn(
+                    "w-20 shrink-0 overflow-hidden rounded-sm border bg-background",
+                    entry.className,
+                  )}
+                  style={{ aspectRatio: `${width} / ${height}` }}
+                  aria-current={index === page ? "page" : undefined}
+                  onClick={() => onShow(index)}
+                  data-testid="slide-editor-page-show"
+                >
+                  <div className={cn("pointer-events-none size-full", one.hidden && "opacity-40")}>
+                    <PageThumb document={document} index={index} view={view} />
+                  </div>
+                </button>
+              </IconButtonTooltip>
               <div className="flex min-w-0 flex-1 flex-col gap-1">
                 <span className="truncate text-sm tabular-nums">
                   {t("slides.editor.pageNumber", { n })}

@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
+import * as React from "react";
 import { MemoryRouter, NavLink } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -371,5 +372,113 @@ describe("Hint timing", () => {
     expect(button).not.toHaveAttribute("aria-keyshortcuts");
     hoverFor(button, 1500);
     expect(document.querySelector("[data-slot=tooltip-content] kbd")).toBeNull();
+  });
+});
+
+// #361 (`GL-UI-016`, `GL-UI-017`): around an input, the hint measures the input's value; a clipped
+// value shows above the description in one bubble, a value that fits shows the description only.
+describe("Hint around an input", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    // 10 px per character in a 100 px box.
+    vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(100);
+    vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return this instanceof HTMLInputElement ? Math.max(100, this.value.length * 10) : 100;
+    });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  function NameInput({ initial }: { initial: string }) {
+    const [value, setValue] = React.useState(initial);
+    return (
+      <Hint text="Shown in the legend.">
+        <Input
+          aria-label="Series 1 name"
+          value={value}
+          onChange={(event) => setValue(event.target.value)}
+        />
+      </Hint>
+    );
+  }
+
+  function bubbleAfterHover(): Element | undefined {
+    const input = screen.getByRole("textbox");
+    fireEvent.pointerMove(input, { pointerType: "mouse" });
+    act(() => {
+      vi.advanceTimersByTime(1500);
+    });
+    return document.querySelectorAll("[data-slot=tooltip-content]")[0];
+  }
+
+  it("a short value: the bubble shows the description only; the name stays the label", () => {
+    render(<NameInput initial="Sales" />);
+    const input = screen.getByRole("textbox", { name: "Series 1 name" });
+    expect(input).toHaveAccessibleDescription("Shown in the legend.");
+    const bubble = bubbleAfterHover();
+    expect(bubble).toHaveTextContent(/^Shown in the legend\.$/);
+  });
+
+  it("a long value: the whole value on top, the description below", () => {
+    render(<NameInput initial="Revenue from the spring campaign" />);
+    const lines = bubbleAfterHover()?.querySelectorAll("span.block") ?? [];
+    expect(lines[0]).toHaveTextContent(/^Revenue from the spring campaign$/);
+    expect(lines[1]).toHaveTextContent(/^Shown in the legend\.$/);
+    // The value is never part of the description.
+    expect(screen.getByRole("textbox")).toHaveAccessibleDescription("Shown in the legend.");
+  });
+
+  it("a value typed past the edge while the bubble is closed shows whole on the next hover", () => {
+    render(<NameInput initial="Sales" />);
+    const input = screen.getByRole("textbox");
+    fireEvent.change(input, { target: { value: "Sales in the northern region" } });
+    expect(document.querySelector("[data-slot=tooltip-content]")).toBeNull();
+    const lines = bubbleAfterHover()?.querySelectorAll("span.block") ?? [];
+    expect(lines[0]).toHaveTextContent(/^Sales in the northern region$/);
+    expect(lines[1]).toHaveTextContent(/^Shown in the legend\.$/);
+  });
+
+  it("a password's value is never shown, however long", () => {
+    render(
+      <Hint text="At least 12 characters.">
+        <Input type="password" aria-label="Password" defaultValue="a very long secret phrase" />
+      </Hint>,
+    );
+    const input = screen.getByLabelText("Password");
+    fireEvent.pointerMove(input, { pointerType: "mouse" });
+    act(() => {
+      vi.advanceTimersByTime(1500);
+    });
+    const bubble = document.querySelectorAll("[data-slot=tooltip-content]")[0];
+    expect(bubble).toHaveTextContent(/^At least 12 characters\.$/);
+    expect(document.body).not.toHaveTextContent("a very long secret phrase");
+  });
+
+  it("an uncontrolled input shows the value typed into it, not its first one", () => {
+    render(
+      <Hint text="Shown in the legend.">
+        <Input aria-label="Series 1 name" defaultValue="Sales" />
+      </Hint>,
+    );
+    const input = screen.getByRole("textbox");
+    (input as HTMLInputElement).value = "Sales in the northern region";
+    fireEvent.input(input);
+    const lines = bubbleAfterHover()?.querySelectorAll("span.block") ?? [];
+    expect(lines[0]).toHaveTextContent(/^Sales in the northern region$/);
+    expect(lines[1]).toHaveTextContent(/^Shown in the legend\.$/);
   });
 });

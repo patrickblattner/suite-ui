@@ -9690,7 +9690,10 @@ test("slide editor: the crop offset fields name their reach and show the clamped
   const rangeX = editor.getByTestId("slide-editor-crop-offsetX-range");
   const rangeY = editor.getByTestId("slide-editor-crop-offsetY-range");
   await expect(rangeX).toHaveText("Zoom in to shift the image.");
-  await expect(offsetX).toHaveAccessibleDescription("Zoom in to shift the image.");
+  // The field's hint (`GL-UI-017`, #361), then its reach.
+  await expect(offsetX).toHaveAccessibleDescription(
+    "Moves the image left or right inside its frame, in pixels. Zoom in to shift the image.",
+  );
   await offsetX.fill("30");
   await offsetY.focus();
   await expect(offsetX).toHaveValue("0");
@@ -10632,8 +10635,9 @@ test("slide editor: a chart's type changes and back without losing data", async 
   await expect(panel.getByTestId("slide-editor-chart-negative-in-pie")).toHaveText(
     "A pie chart leaves out values below 0.",
   );
+  // The note first, then the field's hint (`GL-UI-017`, #361).
   await expect(panel.getByTestId("slide-editor-chart-value-0-1")).toHaveAccessibleDescription(
-    "A pie chart leaves out values below 0.",
+    "A pie chart leaves out values below 0. The number this series shows for this category, such as 1.5.",
   );
   await bar.click();
   await expect(bar).toHaveAttribute("aria-checked", "true");
@@ -12043,4 +12047,167 @@ test("slide editor: a page from the app's layout, its placeholder filled by a do
     placeholderRole: "title",
     runs: [{ text: "Welcome" }],
   });
+});
+
+// #361 (`GL-UI-017`): every field of the SlideEditor's panel carries its hint on the label, read with
+// the field; every text button of toolbar, panel, drawers and dialogs carries its hint; the page
+// pictures carry their name as a tooltip.
+test("slide editor: every field and text button carries its hint", async ({ page }) => {
+  // A field: its label hint, the start of the control's description (a note under the field follows).
+  const field = async (id: string) => {
+    const help = page.locator(`[id="${id}-help"]`);
+    await expect(help).toHaveText(/\S/);
+    const text = (await help.textContent()) ?? "";
+    await expect(page.locator(`[id="${id}"]`)).toHaveAccessibleDescription(
+      new RegExp(`^${text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`),
+    );
+  };
+  const described = (testId: string) =>
+    expect(page.getByTestId(testId).first()).toHaveAccessibleDescription(/\S/);
+  const choose = async (id: string, option: string) => {
+    await page.locator(`[id="${id}"]`).click();
+    await page.getByRole("option", { name: option }).click();
+  };
+
+  // Toolbar and its dialogs; the page's transition and layout with nothing selected.
+  const { editor } = await openEditor(page);
+  await described("slide-editor-preview");
+  await described("slide-editor-transfer");
+  await page.getByTestId("slide-editor-preview").click();
+  await described("slide-editor-preview-replay");
+  await described("slide-editor-preview-close");
+  await page.getByTestId("slide-editor-preview-close").click();
+  await page.getByTestId("slide-editor-transfer").click();
+  await described("slide-editor-transfer-cancel");
+  await described("slide-editor-transfer-confirm");
+  // Each radio carries its hint on control and label alike (`GL-UI-017`).
+  const transfer = page.getByTestId("slide-editor-transfer-dialog");
+  await expect(transfer.getByRole("radio", { name: "This page" })).toHaveAccessibleDescription(
+    "Copies only the page shown.",
+  );
+  await expect(transfer.getByRole("radio", { name: "Whole document" })).toHaveAccessibleDescription(
+    "Copies every page of the document.",
+  );
+  for (const radio of await transfer
+    .getByTestId("slide-editor-transfer-formats")
+    .getByRole("radio")
+    .all()) {
+    await expect(radio).toHaveAccessibleDescription(/^Makes the copy \d+ × \d+ pixels in size\.$/);
+  }
+  await page.getByTestId("slide-editor-transfer-cancel").click();
+  await field("slide-editor-transition-type");
+  await choose("slide-editor-transition-type", "Cross-fade");
+  await field("slide-editor-transition-duration");
+  await field("slide-editor-page-layout");
+
+  // Document drawer: New page, the page pictures; a page from a layout offers its placeholders.
+  await editor.getByTestId("drawer-document").click();
+  // With the app's layouts, New page opens their list.
+  await expect(editor.getByTestId("slide-editor-page-new")).toHaveAccessibleDescription(
+    "Opens a list of layouts for a new page after the one shown.",
+  );
+  const picture = editor.getByTestId("slide-editor-page-show").first();
+  await expect(picture).toHaveAccessibleName("Show page 1");
+  await picture.hover();
+  await expect(page.getByRole("tooltip")).toHaveText("Show page 1");
+  await editor.getByTestId("slide-editor-page-new").click();
+  await page.getByTestId("slide-editor-page-layout-gallery-title").click();
+  await described("slide-editor-placeholder-fill");
+
+  // Layers drawer: a layer row selects its element; the element's layout and animation fields.
+  await editor.getByTestId("slide-editor-previous-page").click();
+  await editor.getByTestId("drawer-layers").click();
+  await described("slide-editor-layer-select");
+  await editor.getByTestId("slide-editor-layer-select").first().click();
+  await editor.getByRole("tab", { name: "Layout" }).click();
+  for (const id of ["x", "y", "width", "height", "rotation"]) await field(`slide-editor-${id}`);
+  for (const kind of ["entrance", "exit"]) await field(`slide-editor-${kind}-effect`);
+  await choose("slide-editor-entrance-effect", "Slide in");
+  for (const key of ["direction", "duration", "delay", "order"]) {
+    await field(`slide-editor-entrance-${key}`);
+  }
+
+  // Text, table and chart from the library: their content fields.
+  const library = editor.getByTestId("slide-editor-library");
+  const insert = async (entry: string) => {
+    if (!(await library.isVisible())) await editor.getByTestId("drawer-add").click();
+    await library.getByTestId(`slide-editor-library-${entry}`).click();
+    await editor.getByRole("tab", { name: "Content" }).click();
+  };
+  await insert("text");
+  for (const key of ["font", "size", "color"]) await field(`slide-editor-text-${key}`);
+  await insert("table");
+  for (const id of ["cell-row", "cell-column", "column-width", "fill", "valign"]) {
+    await field(`slide-editor-table-${id}`);
+  }
+  await insert("chart");
+  for (const type of ["bar", "line", "pie"]) await described(`slide-editor-chart-type-${type}`);
+  // The data table's inputs: each kind its value hint (Q4277).
+  for (const id of ["series-0", "category-0", "value-0-0"]) {
+    await described(`slide-editor-chart-${id}`);
+  }
+  // A long series name: one bubble, the whole name above the hint (`GL-UI-016`).
+  const series = page.getByTestId("slide-editor-chart-series-0");
+  const longName = "Revenue from the spring campaign";
+  await series.fill(longName);
+  await expect(series).toHaveAccessibleDescription(
+    "The name of this series, shown in the chart's legend.",
+  );
+  await page.mouse.move(0, 0);
+  await series.hover();
+  const bubble = page.locator("[data-slot=tooltip-content]");
+  await expect(bubble).toHaveCount(1, { timeout: 5000 });
+  await expect(bubble.locator("span.block").first()).toHaveText(longName);
+  await expect(bubble.locator("span.block").nth(1)).toHaveText(
+    "The name of this series, shown in the chart's legend.",
+  );
+
+  // Crop mode: zoom, offsets, Cancel and Apply.
+  const { canvas, centre } = await pictureEditor(page);
+  await page.mouse.dblclick(centre.x, centre.y);
+  await expect(canvas).toHaveAttribute("data-cropping", "picture");
+  for (const id of ["zoom", "offsetX", "offsetY"]) await field(`slide-editor-crop-${id}`);
+  await described("slide-editor-crop-cancel");
+  await described("slide-editor-crop-apply");
+});
+
+// #361 (`GL-UI-016` §Lage): a series name's bubble clears the neighbouring series input; a transfer
+// option's bubble stands beside its label, never over it, so the first click on the label checks it.
+test("slide editor: series-name and transfer-option bubbles cover no control", async ({ page }) => {
+  const { editor } = await openEditor(page);
+  const bubble = page.locator("[data-slot=tooltip-content]");
+
+  await page.getByTestId("slide-editor-transfer").click();
+  const dialog = page.getByTestId("slide-editor-transfer-dialog");
+  for (const name of ["This page", "Whole document"]) {
+    const radio = dialog.getByRole("radio", { name });
+    const label = dialog.locator(`label[for="${await radio.getAttribute("id")}"]`);
+    await page.mouse.move(0, 0);
+    await radio.hover();
+    await expect(bubble).toHaveCount(1, { timeout: 5000 });
+    expect((await box(bubble)).x).toBeGreaterThanOrEqual(
+      (await box(label)).x + (await box(label)).width,
+    );
+    await label.click();
+    await expect(radio).toHaveAttribute("aria-checked", "true");
+  }
+  await page.getByTestId("slide-editor-transfer-cancel").click();
+
+  await editor.getByTestId("drawer-add").click();
+  await editor
+    .getByTestId("slide-editor-library")
+    .getByTestId("slide-editor-library-chart")
+    .click();
+  await editor.getByRole("tab", { name: "Content" }).click();
+  const first = page.getByTestId("slide-editor-chart-series-0");
+  await page.mouse.move(0, 0);
+  await page.getByTestId("slide-editor-chart-series-1").hover();
+  await expect(bubble).toHaveCount(1, { timeout: 5000 });
+  const [over, neighbour] = [await box(bubble), await box(first)];
+  const apart =
+    over.x >= neighbour.x + neighbour.width ||
+    over.x + over.width <= neighbour.x ||
+    over.y >= neighbour.y + neighbour.height ||
+    over.y + over.height <= neighbour.y;
+  expect(apart).toBe(true);
 });
