@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.162.0 — #379, #380, #382, SUI-FEATURE-233, GL-UX-001, SUI-FEATURE-162: chart field widths, locked Undo/Redo hints, animation follow-ups
+
+Feature and fixes.
+
+- **Chart data panel (#379):** the category name fields are all as wide as their column (`flex-1`, at least `min-w-28`), whatever their names. The remove buttons line up and the values no longer move while a name is typed. Before, each category field was as wide as its name (`min-w-24` to `max-w-40`). The series name fields keep `w-20`. Interim: overflow at narrow widths waits for a taste decision.
+- **Locked Undo/Redo (#380):** with nothing to undo or redo, the hover hint gives the reason ("Nothing to undo", "Nothing to redo") and drops the shortcut chip. A locked control (`disabled`) no longer carries `aria-keyshortcuts`; a usable one still names every variant.
+- **Animation order check (#382):** an exit that plays before or with the entrance of the same element, and an entrance that plays after or with its exit, get a warning under the order field naming the other order. Equal orders play together, and the order hint says so.
+- **Long and zero durations (#382):** a duration of 0 ms gets a help note under the field (not a `warning`) that the element appears or disappears, or the page changes, without the effect. In the preview an imported transition longer than 60 000 ms (`ANIMATION_MAX_MS`) plays 60 000 ms, and a step waits at most 120 000 ms; the page fade CSS is clamped to 60 s. Closing or restarting the preview clears its timers. Panel writes of the animation fields have tests.
+- **`Field` warning (#382):** new optional props `warning` and `warningTestId`. A warning about a valid value stands under the control in place of the help text, under the same id `${htmlFor}-description`, as an `InlineMessage` with `tone="warn"`. An error still wins.
+
+**Migration:** new public `Field` props `warning` and `warningTestId` (optional). `editor-undo` and `editor-redo` (EditorHeader) now always sit inside the `IconButtonTooltip` span: tooltip trigger attributes such as `data-state` move to the span, and while locked the button carries `aria-describedby` to the reason text. `aria-keyshortcuts` is dropped only on `IconButtonTooltip`/`Hint` controls with `disabledText` while they are `disabled` or `aria-disabled`. New strings `editor.undoNone`, `editor.redoNone`, `slides.editor.animationExitBeforeEntrance`, `slides.editor.animationEntranceAfterExit`, `slides.editor.entranceZeroDuration`, `slides.editor.exitZeroDuration`, `slides.editor.transitionZeroDuration` (en, de, es). Changed string `slides.editor.animationOrderValueHint`: en "A whole number from 1; lower numbers play first." → "A whole number from 1; lower numbers play first, equal numbers play together."; de "Eine ganze Zahl ab 1; kleinere Zahlen kommen zuerst." → "Eine ganze Zahl ab 1; kleinere Zahlen kommen zuerst, gleiche spielen zusammen."; es "Un número entero desde 1; los números menores van primero." → "Un número entero desde 1; los menores van primero y los iguales a la vez.". Baselines: 10 gallery captures (strings table) in `gallery/__screenshots__/`, changed in #380 and again in #382: `gallery-de-{light,dark}.png`, `gallery-de-{light,dark}-390.png`, `gallery-de-{light,dark}-1440.png` (6) and `gallery-{en,es}-{light,dark}.png` (4). Gallery captures now load `gallery/still-scene.css`.
+
 ## 0.161.6 — #378, SUI-FEATURE-233: a too-large chart value gets the generic message
 
 Fix.
