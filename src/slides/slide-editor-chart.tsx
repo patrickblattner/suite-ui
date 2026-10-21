@@ -335,9 +335,9 @@ export function ChartData({
                           step(`category:${row}`),
                         )
                       }
-                      // As wide as its name, within bounds, so a name is shown whole without
-                      // the hint a touch screen opens only on focus (#368).
-                      className="field-sizing-content h-8 w-auto max-w-40 min-w-24 px-2"
+                      // All as wide as the column, whatever their names, so the remove buttons
+                      // line up and the values do not move while a name is typed (#379).
+                      className="h-8 min-w-28 flex-1 px-2"
                       data-testid={`slide-editor-chart-category-${row}`}
                     />
                     <IconButtonTooltip

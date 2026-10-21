@@ -12,6 +12,9 @@ import {
   userMenuOrderViolations,
 } from "../src/testing/index.js";
 import { shellTexts } from "./shell-labels.js";
+import { de } from "../src/strings/de.js";
+import { en } from "../src/strings/en.js";
+import { es } from "../src/strings/es.js";
 import { exportSlidePages } from "../src/slides/export.js";
 import { SLIDE_EXAMPLES } from "./slide-examples.js";
 import { SLIDE_BRAND } from "./slide-showcase.js";
@@ -10810,6 +10813,27 @@ test("slide editor: adding and removing chart data keeps the focus", async ({ pa
   await expect(panel.getByTestId("slide-editor-chart-category-0")).toBeFocused();
 });
 
+// #379: the category names share their column at one width, whatever their length, so the remove
+// buttons line up and the values do not move while a name is typed.
+test("slide editor: chart category names keep one stable width", async ({ page }) => {
+  const { editor, library } = await openLibrary(page);
+  await library.getByTestId("slide-editor-library-chart").click();
+  const panel = editor.getByTestId("slide-editor-chart");
+  const box = async (testId: string) => (await panel.getByTestId(testId).boundingBox())!;
+  const before = await box("slide-editor-chart-value-0-0");
+  await typeInto(page, panel.getByTestId("slide-editor-chart-category-0"), "A long category name");
+  await typeInto(page, panel.getByTestId("slide-editor-chart-category-1"), "B");
+  expect((await box("slide-editor-chart-value-0-0")).x).toBe(before.x);
+  const widths: number[] = [];
+  const trash: number[] = [];
+  for (let row = 0; row < 3; row += 1) {
+    widths.push((await box(`slide-editor-chart-category-${row}`)).width);
+    trash.push((await box(`slide-editor-chart-remove-category-${row}`)).x);
+  }
+  expect(new Set(widths).size).toBe(1);
+  expect(new Set(trash).size).toBe(1);
+});
+
 // #294 inc 4: invalid text stays with its cell: another chart, or a row removed above, drops it.
 test("slide editor: typed chart values stay with their chart and cell", async ({ page }) => {
   const { editor, library } = await openLibrary(page);
@@ -10871,7 +10895,8 @@ for (const lng of ["de", "es"]) {
 }
 
 // #294 inc 4: the chart's data fits the panel at 390 px in each language: every part of the default
-// table inside the scroll area (scrolled into it where needed), no name cut off in its field.
+// table inside the scroll area (scrolled into it where needed), no default category name cut off in
+// its field.
 for (const lng of ["de", "en", "es"]) {
   test(`slide editor: the chart data fits at 390 px (${lng})`, async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 900 });
@@ -10903,7 +10928,8 @@ for (const lng of ["de", "en", "es"]) {
       expect(placed.x, id).toBeGreaterThanOrEqual(scroll.x - 0.5);
       expect(placed.x + placed.width, id).toBeLessThanOrEqual(scroll.x + scroll.width + 0.5);
     }
-    // A category's field is as wide as its name, so none is cut off (#368).
+    // The category fields keep one width whatever their names (#379), wide enough for the default
+    // names; a longer typed name may be cut off.
     for (const id of ["category-0", "category-1", "category-2"])
       expect(
         await panel
@@ -10911,14 +10937,34 @@ for (const lng of ["de", "en", "es"]) {
           .evaluate((input) => input.scrollWidth <= input.clientWidth),
         id,
       ).toBe(true);
-    // A name cut off in its field shows itself whole on hover.
+    // A name cut off in its field shows itself whole on hover, above the field's hint
+    // (`GL-UI-016`, `GL-UI-017`).
+    const editorTexts = { de, en, es }[lng]!.slides.editor;
     for (const id of ["series-0", "series-1", "category-0", "category-2"]) {
       const name = panel.getByTestId(`slide-editor-chart-${id}`);
       if (await name.evaluate((input) => input.scrollWidth <= input.clientWidth)) continue;
       await page.mouse.move(0, 0);
       await name.hover();
-      await expect(page.getByRole("tooltip"), id).toHaveText(await name.inputValue());
+      const bubble = page.getByRole("tooltip");
+      await expect(bubble.locator("span").first(), id).toHaveText(await name.inputValue());
+      await expect(bubble.locator("[data-slot=tooltip-hint]"), id).toHaveText(
+        id.startsWith("series")
+          ? editorTexts.chartSeriesNameHint
+          : editorTexts.chartCategoryNameHint,
+      );
     }
+    // A long typed name is cut off at that width, so the bubble provably shows here.
+    const long = panel.getByTestId("slide-editor-chart-category-1");
+    await typeInto(page, long, "Umsatz Region Nordwest 2026");
+    await long.blur();
+    expect(await long.evaluate((input) => input.scrollWidth > input.clientWidth)).toBe(true);
+    await page.mouse.move(0, 0);
+    await long.hover();
+    const bubble = page.getByRole("tooltip");
+    await expect(bubble.locator("span").first()).toHaveText("Umsatz Region Nordwest 2026");
+    await expect(bubble.locator("[data-slot=tooltip-hint]")).toHaveText(
+      editorTexts.chartCategoryNameHint,
+    );
   });
 }
 
