@@ -152,6 +152,29 @@ describe("EditorHeader", () => {
     expect(onUndo).not.toHaveBeenCalled();
     expect(onRedo).not.toHaveBeenCalled();
   });
+
+  // #380: locked, each says why and offers no shortcut; usable, the shortcut is back.
+  it.each([
+    ["de", "Nichts rückgängig zu machen", "Nichts wiederherzustellen"],
+    ["en", "Nothing to undo", "Nothing to redo"],
+    ["es", "Nada que deshacer", "Nada que rehacer"],
+  ])("%s: locked Undo/Redo read %s / %s, without a shortcut", async (lng, undo, redo) => {
+    await i18n.changeLanguage(lng);
+    renderHeader({ canUndo: false, canRedo: false });
+    for (const [id, reason] of [
+      ["editor-undo", undo],
+      ["editor-redo", redo],
+    ] as const) {
+      expect(screen.getByTestId(id)).toHaveAccessibleDescription(reason);
+      expect(screen.getByTestId(id)).not.toHaveAttribute("aria-keyshortcuts");
+    }
+    cleanup();
+    renderHeader();
+    for (const id of ["editor-undo", "editor-redo"]) {
+      expect(screen.getByTestId(id)).not.toHaveAccessibleDescription();
+      expect(screen.getByTestId(id)).toHaveAttribute("aria-keyshortcuts");
+    }
+  });
 });
 
 // `SUI-FEATURE-069`: the lifecycle slot, in the structured form of `SUI-FEATURE-090`.

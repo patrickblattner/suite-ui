@@ -339,7 +339,13 @@ function EditorHeader({
         )}
         {folded("undo") ? null : (
           <>
-            <IconButtonTooltip label={t("editor.undo")} shortcut={UNDO_SHORTCUT}>
+            {/* Locked, each names why and offers no shortcut (#380). */}
+            <IconButtonTooltip
+              label={t("editor.undo")}
+              shortcut={UNDO_SHORTCUT}
+              disabledText={t("editor.undoNone")}
+              named
+            >
               <Button
                 type="button"
                 variant="ghost"
@@ -355,7 +361,12 @@ function EditorHeader({
                 <Undo2Icon aria-hidden="true" />
               </Button>
             </IconButtonTooltip>
-            <IconButtonTooltip label={t("editor.redo")} shortcut={REDO_SHORTCUT}>
+            <IconButtonTooltip
+              label={t("editor.redo")}
+              shortcut={REDO_SHORTCUT}
+              disabledText={t("editor.redoNone")}
+              named
+            >
               <Button
                 type="button"
                 variant="ghost"

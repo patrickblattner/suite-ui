@@ -279,6 +279,28 @@ describe("IconButtonTooltip shortcut and labels", () => {
     await i18n.changeLanguage("en");
   });
 
+  // #380: locked, the control offers no shortcut — neither as a chip nor in aria-keyshortcuts.
+  it("a locked control shows its reason without the shortcut", () => {
+    const { rerender } = render(
+      <IconButtonTooltip label="Undo" shortcut="Ctrl+Z" disabledText="Nothing to undo" named>
+        <Button variant="ghost" size="icon" aria-disabled />
+      </IconButtonTooltip>,
+    );
+    const button = screen.getByRole("button", { name: "Undo" });
+    expect(button).not.toHaveAttribute("aria-keyshortcuts");
+    expect(button).toHaveAccessibleDescription("Nothing to undo");
+    expect(openAfter(button, 1500)).toBe(true);
+    expect(screen.getByRole("tooltip")).toHaveTextContent("UndoNothing to undo");
+    expect(document.querySelector("[data-slot=tooltip-content] kbd")).toBeNull();
+    rerender(
+      <IconButtonTooltip label="Undo" shortcut="Ctrl+Z" disabledText="Nothing to undo" named>
+        <Button variant="ghost" size="icon" />
+      </IconButtonTooltip>,
+    );
+    expect(button).toHaveAttribute("aria-keyshortcuts", "Control+Z");
+    expect(document.querySelector("[data-slot=tooltip-content] kbd")).toHaveTextContent("Ctrl+Z");
+  });
+
   it("an arrow key shows as its arrow", () => {
     render(
       <IconButtonTooltip label="Next page" shortcut="ArrowRight">

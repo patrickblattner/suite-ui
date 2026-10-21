@@ -1,3 +1,5 @@
+import { fileURLToPath } from "node:url";
+
 import { defineConfig, devices } from "@playwright/test";
 
 const PORT = 5179;
@@ -29,7 +31,11 @@ export default defineConfig({
     },
   ],
   expect: {
-    toHaveScreenshot: { maxDiffPixels: 0, animations: "disabled" },
+    toHaveScreenshot: {
+      maxDiffPixels: 0,
+      animations: "disabled",
+      stylePath: fileURLToPath(new URL("./still-scene.css", import.meta.url)),
+    },
   },
   webServer: {
     command: `vite --config gallery/vite.config.ts --port ${PORT} --strictPort`,

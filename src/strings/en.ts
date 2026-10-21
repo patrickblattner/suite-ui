@@ -357,6 +357,8 @@ export const en = {
     back: "Back",
     undo: "Undo",
     redo: "Redo",
+    undoNone: "Nothing to undo",
+    redoNone: "Nothing to redo",
     saved: "Saved",
     draft: "Draft · unsaved",
     resetConfirm: "Discard the draft and return to the saved state?",

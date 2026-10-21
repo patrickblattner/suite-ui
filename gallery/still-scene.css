@@ -1,0 +1,6 @@
+/* `GL-TEST-019`: a still scene. Applied by Playwright to every screenshot only: a spinner stands on
+   its initial frame (no rotation), a defensive freeze on top of `animations: "disabled"` against a
+   spinner caught mid-turn (#380; not reproduced). */
+.animate-spin {
+  animation: none !important;
+}

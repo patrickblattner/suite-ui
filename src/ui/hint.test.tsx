@@ -329,9 +329,10 @@ describe("Hint timing", () => {
     expect(kbd).toHaveAttribute("aria-hidden", "true");
   });
 
-  // A locked control shows the condition, without the chip, as `IconButtonTooltip` does.
-  it("shortcut: no chip while the locked text is shown", () => {
-    render(
+  // A locked control shows the condition, without the chip and without aria-keyshortcuts, as
+  // `IconButtonTooltip` does (#380); unlocked, both are back.
+  it("shortcut: no chip and no aria-keyshortcuts while the locked text is shown", () => {
+    const { rerender } = render(
       <Hint text="Deletes the block" disabledText="Select a block first." shortcut="Delete">
         <Button variant="destructive" size="default" disabled>
           Delete
@@ -339,10 +340,19 @@ describe("Hint timing", () => {
       </Hint>,
     );
     const button = screen.getByRole("button", { name: "Delete" });
-    expect(button).toHaveAttribute("aria-keyshortcuts", "Delete");
+    expect(button).not.toHaveAttribute("aria-keyshortcuts");
     hoverFor(button, 1500);
     expect(screen.getByRole("tooltip")).toHaveTextContent("Select a block first.");
     expect(document.querySelector("[data-slot=tooltip-content] kbd")).toBeNull();
+    rerender(
+      <Hint text="Deletes the block" disabledText="Select a block first." shortcut="Delete">
+        <Button variant="destructive" size="default">
+          Delete
+        </Button>
+      </Hint>,
+    );
+    expect(button).toHaveAttribute("aria-keyshortcuts", "Delete");
+    expect(document.querySelector("[data-slot=tooltip-content] kbd")).toHaveTextContent("Del");
   });
 
   // Locked is the state, not the text: a locked text equal to the hint text still hides the chip.

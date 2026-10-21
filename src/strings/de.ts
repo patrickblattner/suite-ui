@@ -342,6 +342,8 @@ export const de: SuiteStrings = {
     back: "Zurück",
     undo: "Rückgängig",
     redo: "Wiederherstellen",
+    undoNone: "Nichts rückgängig zu machen",
+    redoNone: "Nichts wiederherzustellen",
     saved: "Gespeichert",
     draft: "Entwurf · ungespeichert",
     resetConfirm: "Entwurf verwerfen und zum gespeicherten Stand zurückkehren?",

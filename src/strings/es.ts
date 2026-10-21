@@ -335,6 +335,8 @@ export const es: SuiteStrings = {
     back: "Volver",
     undo: "Deshacer",
     redo: "Rehacer",
+    undoNone: "Nada que deshacer",
+    redoNone: "Nada que rehacer",
     saved: "Guardado",
     draft: "Borrador · sin guardar",
     resetConfirm: "¿Descartar el borrador y volver al estado guardado?",

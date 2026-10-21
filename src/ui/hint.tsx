@@ -203,7 +203,8 @@ function Hint({
       "aria-describedby": describedBy(children.props["aria-describedby"], children.props.id, id),
     });
   }
-  if (variants !== undefined) {
+  // Locked, the control offers no shortcut, as `IconButtonTooltip` (#380).
+  if (variants !== undefined && !locked) {
     trigger = React.cloneElement(trigger, { "aria-keyshortcuts": ariaKeyShortcuts(variants) });
   }
   if (carried) {

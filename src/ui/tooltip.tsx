@@ -797,14 +797,15 @@ function uniqueIds(describedBy: string | undefined): string | undefined {
 // (`GL-UI-017`): the child keeps only its own `aria-describedby` ids, each once. `shortcut` (`Ctrl+B`,
 // or a list of variants such as `["Ctrl+Z", "Meta+Z"]`) shows as a key hint behind the text of a usable
 // control, hidden from the name: the variant of this system, `⌘Z` on macOS, `Ctrl+Z` elsewhere
-// (`GL-UI-006`). `aria-keyshortcuts` names every variant. While the control is `disabled` or locked
-// with `aria-disabled`, `disabledText` (the condition under which it becomes usable) takes the place
-// of `label`. A disabled control takes no pointer events, so it then sits in a span that is the
-// trigger, focusable and the owner of the description; a control locked with `aria-disabled` (a Save
-// that locked itself, `SUI-FEATURE-120`) keeps the focus and owns the description itself; a `disabled`
-// `Button` is locked that way instead (`SUI-FEATURE-250`). The span stands either way, so toggling the lock never remounts it. A control that declares `busy` sits in that
-// span as well: while it runs it is locked, and its hint, still `label`, opens on hover over the span
-// (`SUI-FEATURE-072`). With `named`, a disabled control's bubble shows `label` above `disabledText`,
+// (`GL-UI-006`). `aria-keyshortcuts` names every variant of a usable control (#380). While the
+// control is `disabled` or locked with `aria-disabled`, `disabledText` (the condition under which it
+// becomes usable) takes the place of `label`. A disabled control takes no pointer events, so it
+// then sits in a span that is the trigger, focusable and the owner of the description; a control
+// locked with `aria-disabled` (a Save that locked itself, `SUI-FEATURE-120`) keeps the focus and owns
+// the description itself; a `disabled` `Button` is locked that way instead (`SUI-FEATURE-250`). The
+// span stands either way, so toggling the lock never remounts it. A control that declares `busy`
+// sits in that span as well: while it runs it is locked, and its hint, still `label`, opens on hover
+// over the span (`SUI-FEATURE-072`). With `named`, a disabled control's bubble shows `label` above `disabledText`,
 // for an icon-only control that would otherwise lose its name to the eye (`SUI-FEATURE-090`).
 function IconButtonTooltip({
   label,
@@ -850,7 +851,8 @@ function IconButtonTooltip({
     "aria-describedby": uniqueIds(
       `${children.props["aria-describedby"] ?? ""} ${ariaLocked ? id : ""}`,
     ),
-    "aria-keyshortcuts": variants === undefined ? undefined : ariaKeyShortcuts(variants),
+    "aria-keyshortcuts":
+      disabled || variants === undefined ? undefined : ariaKeyShortcuts(variants),
   });
   const trigger =
     disabledText === undefined && !("busy" in children.props) ? (
