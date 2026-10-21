@@ -560,3 +560,10 @@
 {"ts":"2026-10-20T21:33:28.074Z","key":"GL-CODE-001","from":3,"to":6,"disposition":"editorial","ref":"no code impact: suite-ui has no German technical names (scan of data-testid, storage keys, query params, i18n keys); rule applies to future names"}
 {"ts":"2026-10-20T22:11:51.449Z","key":"SUI-FEATURE-096","from":3,"to":4,"disposition":"ticket","ref":"430"}
 {"ts":"2026-10-21T07:14:57.001Z","key":"SUI-FEATURE-251","from":null,"to":2,"disposition":"ticket","ref":"449"}
+{"ts":"2026-10-21T12:27:36.343Z","key":"SUI-FEATURE-234","from":2,"to":4,"disposition":"ticket","ref":"460"}
+{"ts":"2026-10-21T12:27:50.811Z","key":"GL-UI-006","from":2,"to":3,"disposition":"ticket","ref":"461"}
+{"ts":"2026-10-21T12:28:05.043Z","key":"GL-UI-013","from":4,"to":5,"disposition":"ticket","ref":"462"}
+{"ts":"2026-10-21T12:28:05.043Z","key":"GL-UI-028","from":4,"to":5,"disposition":"ticket","ref":"462"}
+{"ts":"2026-10-21T12:28:09.485Z","key":"PROC-DEV-070","from":3,"to":4,"disposition":"editorial","ref":"process rule (wording is not taste); no code impact — applied to how questions are filed"}
+{"ts":"2026-10-21T12:28:26.768Z","key":"SUI-FEATURE-101","from":null,"to":2,"disposition":"ticket","ref":"462"}
+{"ts":"2026-10-21T12:28:27.118Z","key":"SUI-FEATURE-102","from":null,"to":2,"disposition":"ticket","ref":"463"}
