@@ -13,8 +13,8 @@ import {
   DialogTitle,
 } from "../ui/dialog.js";
 import { Hint } from "../ui/hint.js";
-import { pageLists, stepLengths, transitionOf } from "./render-style.js";
-import type { SlideDocument } from "./schema.js";
+import { pageLists, type Step, stepLengths, transitionOf } from "./render-style.js";
+import type { SlideDocument, SlideElement } from "./schema.js";
 import { SlideView, type SlideViewProps } from "./slide-view.js";
 import { useReducedMotion } from "./use-reduced-motion.js";
 
@@ -23,11 +23,58 @@ type ViewProps = Pick<
   "brand" | "fonts" | "fontOrigins" | "resolveMedia" | "extensions" | "renderPlaceholder"
 >;
 
-// The most a duration or delay field of the editor takes (ms). A step of the preview waits at most
-// one of each, so an imported longer one never stalls the play nor overflows a timer (#382); a
-// transition plays at most one duration.
+// The most a duration or delay field of the editor takes (ms). The preview plays an imported longer
+// one capped at it, the drawn animation as long as its timer waits, so a step never stalls the play
+// nor overflows a timer (#382) and Pause stays until the last animation ends (#459).
 export const ANIMATION_MAX_MS = 60_000;
-const STEP_MAX_MS = 2 * ANIMATION_MAX_MS;
+
+const cap = (value: number) => Math.min(value, ANIMATION_MAX_MS);
+
+const cappedStep = (step: Step): Step => ({
+  ...step,
+  duration: cap(step.duration),
+  delay: cap(step.delay),
+});
+
+function cappedElement(element: SlideElement): SlideElement {
+  const { animation } = element;
+  const capped: SlideElement =
+    animation === undefined
+      ? element
+      : {
+          ...element,
+          animation: {
+            ...(animation.entrance === undefined
+              ? {}
+              : { entrance: cappedStep(animation.entrance) }),
+            ...(animation.exit === undefined ? {} : { exit: cappedStep(animation.exit) }),
+          },
+        };
+  return capped.type === "group"
+    ? { ...capped, children: capped.children.map(cappedElement) }
+    : capped;
+}
+
+// The document as the preview plays it: every delay, duration and transition capped at
+// `ANIMATION_MAX_MS`, on the pages, layouts and masters.
+function previewDocument(document: SlideDocument): SlideDocument {
+  return {
+    ...document,
+    masters: document.masters.map((one) => ({
+      ...one,
+      elements: one.elements.map(cappedElement),
+    })),
+    layouts: document.layouts.map((one) => ({
+      ...one,
+      elements: one.elements.map(cappedElement),
+    })),
+    pages: document.pages.map((one) => ({
+      ...one,
+      transition: { ...one.transition, duration: cap(one.transition.duration) },
+      elements: one.elements.map(cappedElement),
+    })),
+  };
+}
 // A play longer than this offers "Pause" while it runs (WCAG 2.2.2).
 const PAUSE_AFTER_MS = 5000;
 
@@ -38,7 +85,7 @@ const PAUSE_AFTER_MS = 5000;
 // play over 5 s can be paused while it runs; with less motion nothing moves, the order and the waits
 // stay (`SUI-FEATURE-234`).
 export function SlidePreview({
-  document,
+  document: source,
   page,
   view,
 }: {
@@ -56,31 +103,21 @@ export function SlidePreview({
   const [playing, setPlaying] = React.useState(false);
   const [paused, setPaused] = React.useState(false);
   const reduced = useReducedMotion();
+  // Played as its timers wait, every delay and duration capped (#459); built only while open.
+  const document = React.useMemo(() => (open ? previewDocument(source) : source), [open, source]);
   const data = document.pages[page];
   const before = document.pages.reduce(
     (last, one, index) => (index < page && !one.hidden ? index : last),
     -1,
   );
-  // Like the player, the first shown page fades in from black; an imported transition longer than
-  // the editor's clamp plays that long, as its timer waits.
-  const shown =
-    data === undefined
-      ? undefined
-      : {
-          ...data,
-          transition: {
-            ...data.transition,
-            duration: Math.min(data.transition.duration, ANIMATION_MAX_MS),
-          },
-        };
+  // Like the player, the first shown page fades in from black.
   const first = before === -1;
-  const incoming = shown === undefined ? undefined : transitionOf(shown, "in", { first, reduced });
-  const outgoing = shown === undefined ? undefined : transitionOf(shown, "out", { reduced });
+  const incoming = data === undefined ? undefined : transitionOf(data, "in", { first, reduced });
+  const outgoing = data === undefined ? undefined : transitionOf(data, "out", { reduced });
   const ratio = document.format.width / document.format.height;
-  const transition = incoming === undefined ? 0 : (shown?.transition.duration ?? 0);
 
   // The play's schedule, taken and set when it starts, never on a render (Codex #383 CX2): the
-  // transition, then each step after the one before, each waiting `STEP_MAX_MS` at most (#382).
+  // transition, then each step after the one before, on the capped document (#382, #459).
   const [steps, setSteps] = React.useState(0);
   const [length, setLength] = React.useState(0);
   const timers = React.useRef<number[]>([]);
@@ -100,8 +137,14 @@ export function SlidePreview({
   // A play starts on the page's first state, its transition (if any) running.
   const start = () => {
     stop();
-    const lead = transition;
-    const lengths = data === undefined ? [] : stepLengths(pageLists(document, page).flat());
+    // From the capped copy, also on the click that opens the preview.
+    const played = previewDocument(source);
+    const shown = played.pages[page];
+    const lead =
+      shown === undefined || transitionOf(shown, "in", { first }) === undefined
+        ? 0
+        : shown.transition.duration;
+    const lengths = shown === undefined ? [] : stepLengths(pageLists(played, page).flat());
     setSteps(lengths.length);
     setStep(0);
     setFading(lead > 0);
@@ -111,7 +154,7 @@ export function SlidePreview({
     let at = lead;
     lengths.forEach((one, index) => {
       timers.current.push(window.setTimeout(() => setStep(index + 1), at));
-      at += Math.min(one, STEP_MAX_MS);
+      at += one;
     });
     setLength(at);
     setPlaying(at > 0);

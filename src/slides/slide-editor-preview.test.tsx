@@ -147,9 +147,9 @@ describe("SlidePreview", () => {
     expect(preview()).toHaveAttribute("data-slide-step", "2");
   });
 
-  // #382: imported durations beyond the editor's clamp, even beyond the largest timer delay: the
-  // transition plays and waits 60 s, a step waits 120 s at most; the next step still comes.
-  it("caps imported long durations: transition at 60 s, a step at 120 s", () => {
+  // #382, #459: imported durations beyond the editor's clamp, even beyond the largest timer delay,
+  // play capped at 60 s each — the drawn animation as long as its timer waits.
+  it("caps imported long durations at 60 s, drawn and waited alike", () => {
     vi.useFakeTimers();
     const long = parseSlideDocument({
       ...document,
@@ -159,7 +159,7 @@ describe("SlidePreview", () => {
           ...document.pages[1],
           transition: { type: "fade", duration: 600_000 },
           elements: [
-            shape("first", { order: 0, duration: 3_000_000_000 }),
+            shape("first", { order: 0, duration: 3_000_000_000, delay: 90_000 }),
             shape("second", { order: 1, duration: 200 }),
           ],
         },
@@ -175,10 +175,83 @@ describe("SlidePreview", () => {
     ).toBe("suite-slide-fade-in 60000ms ease both");
     act(() => void vi.advanceTimersByTime(60_000));
     expect(preview()).toHaveAttribute("data-slide-step", "1");
+    expect(
+      stage().querySelector<HTMLElement>("[data-slide-element=first] > div")!.style.animation,
+    ).toBe("suite-slide-fade-in 60000ms ease 60000ms both");
     act(() => void vi.advanceTimersByTime(119_999));
     expect(preview()).toHaveAttribute("data-slide-step", "1");
     act(() => void vi.advanceTimersByTime(1));
     expect(preview()).toHaveAttribute("data-slide-step", "2");
+  });
+
+  // Codex #459 CX1: a final 180 s entrance plays 60 s, and Pause stays until it has.
+  it("keeps Pause until a capped final animation ends", () => {
+    vi.useFakeTimers();
+    const long = parseSlideDocument({
+      ...document,
+      pages: [
+        document.pages[0],
+        {
+          ...document.pages[1],
+          transition: { type: "none", duration: 0 },
+          elements: [shape("first", { order: 0, duration: 180_000 })],
+        },
+      ],
+    });
+    render(<SlidePreview document={long} page={1} view={{ brand: SLIDE_BRAND }} />);
+    fireEvent.click(screen.getByTestId("slide-editor-preview"));
+    const stage = screen.getByTestId("slide-editor-preview-dialog");
+    act(() => void vi.advanceTimersByTime(0));
+    expect(
+      stage.querySelector<HTMLElement>("[data-slide-element=first] > div")!.style.animation,
+    ).toBe("suite-slide-fade-in 60000ms ease 0ms both");
+    act(() => void vi.advanceTimersByTime(59_999));
+    expect(screen.getByTestId("slide-editor-preview-pause")).toBeInTheDocument();
+    act(() => void vi.advanceTimersByTime(1));
+    expect(screen.queryByTestId("slide-editor-preview-pause")).toBeNull();
+  });
+
+  // Review #459: the cap reaches a master's element and a group's child too.
+  it("caps a master element and a group child alike, Pause staying until 60 s", () => {
+    vi.useFakeTimers();
+    const long = parseSlideDocument({
+      ...document,
+      masters: [
+        {
+          id: "master",
+          name: "Master",
+          elements: [shape("logo", { order: 0, duration: 180_000 })],
+        },
+      ],
+      layouts: [{ id: "layout", name: "Layout", masterId: "master" }],
+      pages: [
+        document.pages[0],
+        {
+          ...document.pages[1],
+          layoutId: "layout",
+          transition: { type: "none", duration: 0 },
+          elements: [
+            {
+              ...shape("group"),
+              type: "group",
+              children: [shape("child", { order: 0, duration: 180_000, delay: 180_000 })],
+            },
+          ],
+        },
+      ],
+    });
+    render(<SlidePreview document={long} page={1} view={{ brand: SLIDE_BRAND }} />);
+    fireEvent.click(screen.getByTestId("slide-editor-preview"));
+    const stage = screen.getByTestId("slide-editor-preview-dialog");
+    const drawn = (id: string) =>
+      stage.querySelector<HTMLElement>(`[data-slide-element=${id}] > div`)!.style.animation;
+    act(() => void vi.advanceTimersByTime(0));
+    expect(drawn("logo")).toBe("suite-slide-fade-in 60000ms ease 0ms both");
+    expect(drawn("child")).toBe("suite-slide-fade-in 60000ms ease 60000ms both");
+    act(() => void vi.advanceTimersByTime(119_999));
+    expect(screen.getByTestId("slide-editor-preview-pause")).toBeInTheDocument();
+    act(() => void vi.advanceTimersByTime(1));
+    expect(screen.queryByTestId("slide-editor-preview-pause")).toBeNull();
   });
 
   it("stops the play when the preview closes", () => {

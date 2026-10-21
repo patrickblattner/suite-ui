@@ -189,7 +189,7 @@ export type AnimationState =
   | { kind: "hidden" }
   | { kind: "playing"; name: string; duration: number; delay: number };
 
-type Step = NonNullable<NonNullable<SlideElement["animation"]>["entrance"]>;
+export type Step = NonNullable<NonNullable<SlideElement["animation"]>["entrance"]>;
 
 // The keyframes of a step (`styles.css`).
 export function keyframesOf(step: Step, direction: "in" | "out"): string {

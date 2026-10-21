@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.163.1 — #459, SUI-FEATURE-234: Pause stays until a capped long animation ends
+
+Fix.
+
+- **Preview plays what it waits for (#459):** the editor's preview now plays an imported delay, duration or transition longer than 60 000 ms (`ANIMATION_MAX_MS`) capped at 60 000 ms. This holds on the page, its layout and its master, and inside groups. The drawn animation now ends when the step's timer does, so Pause stays until the last animation has played. Before, only the timers were capped (a step at 120 000 ms): a final 180 000 ms entrance kept running for 60 s after Pause had gone. The document itself is not changed.
+
+**Migration:** none. A step of the preview with an imported delay or duration over 60 000 ms now waits up to 60 000 ms for each, instead of up to 120 000 ms for the two together. The internal `STEP_MAX_MS` is removed.
+
 ## 0.163.0 — #385, SUI-FEATURE-234: preview Pause, instant reduced motion, first-page fade, Animation section
 
 Feature.
