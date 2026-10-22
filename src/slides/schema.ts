@@ -438,21 +438,18 @@ export const groupElementSchema = elementBaseSchema.extend({
 });
 
 // The element's recursive shape; the exported schema runs it only after the structural preflight.
-const elementShape: z.ZodType<SlideElement, SlideElementInput> = z.discriminatedUnion(
-  "type",
-  [
-    textElementSchema,
-    imageElementSchema,
-    shapeElementSchema,
-    lineElementSchema,
-    iconElementSchema,
-    tableElementSchema,
-    chartElementSchema,
-    groupElementSchema,
-    placeholderElementSchema,
-    customElementSchema,
-  ],
-);
+const elementShape: z.ZodType<SlideElement, SlideElementInput> = z.discriminatedUnion("type", [
+  textElementSchema,
+  imageElementSchema,
+  shapeElementSchema,
+  lineElementSchema,
+  iconElementSchema,
+  tableElementSchema,
+  chartElementSchema,
+  groupElementSchema,
+  placeholderElementSchema,
+  customElementSchema,
+]);
 
 // Formats are data: a name and the page's width and height in px.
 export const slideFormatSchema = z.object({
