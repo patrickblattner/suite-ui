@@ -80,6 +80,24 @@ describe("element clipboard", () => {
     expect(elementsOf(second.document)[2]).toMatchObject({ x: 20, y: 20 });
   });
 
+  it("offsets a paste of a group's child off its original in the group (#467)", () => {
+    const grouped = groupElements(doc([shape("a", 0, 0), shape("b", 200, 0)]), 0, ["a", "b"]);
+    const copies = copyElements(elementsOf(grouped.document), ["a"]);
+    const result = pasteElements(grouped.document, 0, copies);
+    expect(elementsOf(result.document).at(-1)).toMatchObject({ x: 10, y: 10 });
+  });
+
+  it("pastes over its original when the offset cannot move coordinates that large (#467)", () => {
+    const huge = 2 ** 100;
+    const far = doc([shape("a", huge, huge), shape("b", 0, 0)]);
+    const copies = copyElements(elementsOf(far), ["a", "b"]);
+    const result = pasteElements(far, 0, copies);
+    expect(elementsOf(result.document).slice(-2)).toMatchObject([
+      { x: huge, y: huge },
+      { x: 0, y: 0 },
+    ]);
+  });
+
   it("keeps an image's app payload byte-equal through copy, paste and duplicate", () => {
     const payload = {
       "ext.gallery.image-filter": { warmth: 20, brightness: -5 },
