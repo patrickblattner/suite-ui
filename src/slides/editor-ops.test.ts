@@ -43,6 +43,7 @@ import {
   zoomCrop,
 } from "./editor-ops.js";
 import {
+  columnBorderCursor,
   containsPoint,
   resizeBox,
   resizeCursor,
@@ -184,6 +185,16 @@ describe("slide editor geometry", () => {
     expect(resizeCursor("n", 22)).toBe("n-resize");
     expect(resizeCursor("w", -90)).toBe("s-resize");
     expect(resizeCursor("se", 400)).toBe("s-resize");
+  });
+
+  // #415: a table's column border resizes along the box's width, so its cursor follows the turn.
+  it("turns a table column border's cursor with the box", () => {
+    expect(columnBorderCursor(0)).toBe("col-resize");
+    expect(columnBorderCursor(30)).toBe("col-resize");
+    expect(columnBorderCursor(90)).toBe("row-resize");
+    expect(columnBorderCursor(-80)).toBe("row-resize");
+    expect(columnBorderCursor(180)).toBe("col-resize");
+    expect(columnBorderCursor(270)).toBe("row-resize");
   });
 
   it("resizes at a handle, keeping the opposite side and, with Shift, the ratio", () => {

@@ -95,6 +95,7 @@ import {
   zoomCrop,
 } from "./editor-ops.js";
 import {
+  columnBorderCursor,
   containsPoint,
   frameCandidates,
   type Handle,
@@ -3240,8 +3241,11 @@ function Editor({
                           <div
                             key={`column-${index}`}
                             aria-hidden="true"
-                            className="pointer-events-auto absolute inset-y-0 w-2 -translate-x-1/2 cursor-col-resize hover:bg-ring/40"
-                            style={{ left: border * zoom }}
+                            className="pointer-events-auto absolute inset-y-0 w-2 -translate-x-1/2 hover:bg-ring/40"
+                            style={{
+                              left: border * zoom,
+                              cursor: columnBorderCursor(handlesBox.rotation),
+                            }}
                             onPointerDown={(event) => startColumn(event, index)}
                             onMouseDown={(event) => event.preventDefault()}
                             data-testid={`slide-editor-table-border-${index}`}
