@@ -221,6 +221,64 @@ describe("layouts and placeholders", () => {
     }
   });
 
+  it("puts a filling child of nested turned groups at a turned placeholder in one placement (#399)", () => {
+    const target = slideLayoutSchema.parse({
+      id: "target",
+      name: "Target",
+      elements: [{ ...placeholder("target-ph", "title", 200, 200), rotation: 20 }],
+    });
+    const text = (id: string, x: number, y: number, placeholderRole?: string) => ({
+      id,
+      type: "text" as const,
+      x,
+      y,
+      width: 120,
+      height: 50,
+      rotation: 10,
+      layer: 0,
+      locked: false,
+      hidden: false,
+      opacity: 100,
+      ...(placeholderRole ? { placeholderRole } : {}),
+      runs: [{ text: id }],
+      align: "left" as const,
+      lineHeight: 1.2,
+      list: "none" as const,
+      verticalAlign: "top" as const,
+    });
+    const group = (id: string, rotation: number, children: object[]) => ({
+      id,
+      type: "group" as const,
+      x: 0,
+      y: 0,
+      width: 0,
+      height: 0,
+      rotation,
+      layer: 0,
+      locked: false,
+      hidden: false,
+      opacity: 100,
+      children,
+    });
+    let doc = withLayout(document, "target", [target], []);
+    doc = insertElement(
+      doc,
+      0,
+      group("outer", 30, [
+        group("inner", -45, [text("heading", 100, 40, "title"), text("extra", 400, 260)]),
+        text("aside", 600, 500),
+      ]) as never,
+    );
+    const moved = setPageLayout(doc, 0, "target");
+    const list = moved.pages[0]!.elements;
+    const placed = placedBox(list, findElement(list, "heading")!.element);
+    expect(placed.rotation).toBeCloseTo(20, 6);
+    expect(Math.abs(placed.box.x - 200)).toBeLessThan(0.01);
+    expect(Math.abs(placed.box.y - 200)).toBeLessThan(0.01);
+    expect(placed.box.width).toBe(300);
+    expect(placed.box.height).toBe(60);
+  });
+
   it("starts a placeholder's text at its role size against the format's base size (#395)", () => {
     const heading = { kind: "brand", key: "heading" };
     const body = { kind: "brand", key: "body" };
