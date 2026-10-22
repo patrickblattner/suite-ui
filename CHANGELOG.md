@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.167.2 — #471, SUI-FEATURE-250 rev 4: a Button in a disabled fieldset dims again
+
+- **Disabled through a fieldset (#471):** a `Button` disabled by a parent `<fieldset disabled>` (without its own `disabled` prop) now shows the same colour-dimmed look as `<Button disabled>`, in light and dark. Since 0.166.0 it stayed disabled but kept its full colour. A `busy` button keeps its full colour as before.
+
+**Migration:** none.
+
 ## 0.167.1 — #469, SUI-FEATURE-191: paste offset bound counts copy-element pairs
 
 - **Paste clears every covered element (#469):** when several pasted copies would lie on the same identical element at successive offsets, `pasteElements` keeps offsetting until none lies on one. The number of offsets is now bounded by copies times elements on the page instead of the elements alone; the stop when the offset no longer moves a covering copy stays.

@@ -175,8 +175,9 @@ function Button(props: ButtonProps) {
         buttonVariants({ variant, size }),
         locked && !busy && disabled !== true && [LOCKED_LOOK[variant], LOCKED_FORCED],
         // "Runs" and "does not work" never share a look: a running button that is also `disabled`
-        // keeps its full colour.
-        !busy && disabled === true && [DISABLED_LOOK[variant], DISABLED_FORCED],
+        // keeps its full colour. Its `disabled:` variants match the `:disabled` state, so a button
+        // disabled through a `<fieldset disabled>` dims as well (#471).
+        !busy && [DISABLED_LOOK[variant], DISABLED_FORCED],
         className,
         working && "[&_svg:not([data-slot=busy])]:hidden",
         locked && busy && ["aria-busy:cursor-progress", LOCKED_HOVER[variant]],

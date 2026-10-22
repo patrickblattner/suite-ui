@@ -284,6 +284,44 @@ describe("Button", () => {
     expect(button.className).not.toMatch(/opacity/);
   });
 
+  // #471: a parent `<fieldset disabled>` disables the button without its prop; it dims the same.
+  it.each(["default", "destructive", "success", "warn", "outline", "secondary", "ghost"] as const)(
+    "%s in a disabled fieldset: the look of the disabled button",
+    (variant) => {
+      render(
+        <Button variant={variant} size="default" disabled>
+          Save
+        </Button>,
+      );
+      const own = screen.getByRole("button", { name: "Save" }).className;
+      cleanup();
+      render(
+        <fieldset disabled>
+          <Button variant={variant} size="default">
+            Save
+          </Button>
+        </fieldset>,
+      );
+      const button = screen.getByRole("button", { name: "Save" });
+      expect(button).toBeDisabled();
+      expect(button.matches(":disabled")).toBe(true);
+      expect(button.className).toBe(own);
+    },
+  );
+
+  it("busy in a disabled fieldset: the full colour of the variant", () => {
+    render(
+      <fieldset disabled>
+        <Button variant="success" size="default" busy>
+          Save
+        </Button>
+      </fieldset>,
+    );
+    const button = screen.getByRole("button", { name: "Save" });
+    expect(button.className).not.toContain("disabled:bg-success/50");
+    expect(button.className).not.toMatch(/opacity/);
+  });
+
   it('aria-disabled="false" locks nothing', () => {
     const onClick = vi.fn();
     render(
