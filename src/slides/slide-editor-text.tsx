@@ -11,6 +11,7 @@ import {
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 
+import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
 import { Button } from "../ui/button.js";
 import { Field } from "../ui/field.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select.js";
@@ -544,7 +545,7 @@ export function TextFormatFields({
         size="icon-sm"
         aria-pressed={pressed}
         disabled={readOnly}
-        className="aria-pressed:bg-accent aria-pressed:text-accent-foreground"
+        className={PRESSED_FILL_CLASS}
         // The text keeps its selection while editing.
         onMouseDown={(event) => event.preventDefault()}
         onClick={onClick}

@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
 import { useEscapeLayer } from "../lib/escape-layers.js";
+import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
 import { Button } from "./button.js";
 import { IconButtonTooltip } from "./tooltip.js";
 
@@ -334,7 +335,7 @@ function CanvasZoom({ zoom, mode, onMode }: CanvasZoomProps) {
             role="radio"
             aria-checked={mode === value}
             tabIndex={mode === value ? 0 : -1}
-            className="aria-checked:border-ring aria-checked:bg-accent aria-checked:text-accent-foreground dark:aria-checked:border-ring dark:aria-checked:bg-accent"
+            className={PRESSED_FILL_CLASS}
             onClick={() => onMode(value)}
             data-testid={`canvas-zoom-${value}`}
           >

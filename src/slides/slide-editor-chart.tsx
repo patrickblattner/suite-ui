@@ -2,6 +2,7 @@ import { PlusIcon, Trash2Icon } from "lucide-react";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 
+import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
 import { Button } from "../ui/button.js";
 import { FieldError } from "../ui/field-error.js";
 import { Hint } from "../ui/hint.js";
@@ -234,7 +235,7 @@ export function ChartData({
               aria-checked={chart.chart === type}
               tabIndex={chart.chart === type ? 0 : -1}
               disabled={readOnly}
-              className="aria-checked:border-ring aria-checked:bg-accent aria-checked:text-accent-foreground dark:aria-checked:border-ring dark:aria-checked:bg-accent"
+              className={PRESSED_FILL_CLASS}
               onClick={() => setType(type)}
               data-testid={`slide-editor-chart-type-${type}`}
             >

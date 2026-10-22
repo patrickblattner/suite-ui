@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
 import { useEscapeLayer } from "../lib/escape-layers.js";
+import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
 import { Button } from "../ui/button.js";
 import { Tooltip, TooltipContent, TooltipTrigger } from "../ui/tooltip.js";
 
@@ -200,7 +201,7 @@ function SplitWorkspace({
               role="radio"
               aria-checked={pane === value}
               tabIndex={pane === value ? 0 : -1}
-              className="aria-checked:border-ring aria-checked:bg-accent aria-checked:text-accent-foreground dark:aria-checked:border-ring dark:aria-checked:bg-accent"
+              className={PRESSED_FILL_CLASS}
               onClick={() => setPane(value)}
               onKeyDown={(event) => {
                 if (!["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(event.key))
