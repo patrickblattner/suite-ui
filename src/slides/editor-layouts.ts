@@ -6,9 +6,11 @@ import {
   findElement,
   groupChain,
   intoGroups,
+  moveBy,
   placedBox,
   setBox,
   setRotation,
+  stepIntoGroups,
   updateElements,
   type Box,
 } from "./editor-ops.js";
@@ -176,10 +178,20 @@ function placeAt(
     x: target.box.x + width / 2,
     y: target.box.y + height / 2,
   });
-  return setBox(turned, page, id, {
+  const sized = setBox(turned, page, id, {
     x: centre.x - width / 2,
     y: centre.y - height / 2,
     width,
     height,
   });
+  // A group whose turned children cannot take the placeholder's shape keeps another size, drawn from
+  // the box's corner (Codex #476 CX1): one step puts its centre on the placeholder's.
+  const after = findElement(listOf(sized), id)?.element;
+  if (after === undefined || (after.width === width && after.height === height)) return sized;
+  const drawn = placedBox(listOf(sized), after).box;
+  const step = stepIntoGroups(groupChain(listOf(sized), id), {
+    x: target.box.x + width / 2 - (drawn.x + drawn.width / 2),
+    y: target.box.y + height / 2 - (drawn.y + drawn.height / 2),
+  });
+  return moveBy(sized, page, [id], step.x, step.y);
 }
