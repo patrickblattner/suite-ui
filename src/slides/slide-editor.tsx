@@ -22,6 +22,7 @@ import {
   UngroupIcon,
 } from "lucide-react";
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
@@ -1589,19 +1590,24 @@ function Editor({
     if (child !== undefined) setSelection([child.id]);
   };
 
+  // What the pointer stands over; while cropping only the image takes the pointer (to shift it),
+  // nothing else is hovered.
+  const hover = (point: Point) =>
+    setHovered(
+      cropping !== undefined
+        ? cropWhole !== undefined && containsPoint(cropWhole.box, cropWhole.rotation, point)
+          ? cropping.id
+          : undefined
+        : hitTest(point)?.id,
+    );
+
+  // Where the pointer last was on the page, so Esc can give back the pointer of that spot.
+  const pointerAt = React.useRef<Point | undefined>(undefined);
   const onPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
     const point = toPage(event);
+    pointerAt.current = point;
     if (drag === undefined) {
-      // While cropping only the image takes the pointer (to shift it); nothing else is hovered.
-      if (cropping !== undefined) {
-        setHovered(
-          cropWhole !== undefined && containsPoint(cropWhole.box, cropWhole.rotation, point)
-            ? cropping.id
-            : undefined,
-        );
-        return;
-      }
-      setHovered(hitTest(point)?.id);
+      hover(point);
       return;
     }
     if (drag.kind === "crop") {
@@ -1682,7 +1688,8 @@ function Editor({
     );
   };
 
-  const onPointerUp = () => {
+  // After the release the pointer is the one of the spot under it again (`SUI-FEATURE-099`).
+  const onPointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
     if (preview !== undefined) {
       const result = preview;
       apply(() => result);
@@ -1690,6 +1697,7 @@ function Editor({
     setPreview(undefined);
     setDrag(undefined);
     setGuides({});
+    hover(toPage(event));
   };
 
   const startHandle = (
@@ -1910,6 +1918,20 @@ function Editor({
   };
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    // Esc cancels a gesture: nothing of it is kept, a frame selection gives back the one before, and
+    // the pointer is the one of the spot again (`SUI-FEATURE-099`). While cropping, Esc goes on to
+    // drop the crop.
+    if (event.key === "Escape" && drag !== undefined) {
+      if (drag.kind === "marquee") setSelection(drag.additive);
+      setPreview(undefined);
+      setDrag(undefined);
+      setGuides({});
+      if (pointerAt.current !== undefined) hover(pointerAt.current);
+      if (cropping === undefined) {
+        event.preventDefault();
+        return;
+      }
+    }
     if (cropping !== undefined) {
       onCropKey(event, cropping);
       return;
@@ -2750,6 +2772,23 @@ function Editor({
     return { rect: rectOf(pageBox(elements, element), zoom), name: nameOf(element) };
   };
   const handlesBox = single === undefined ? undefined : placedBox(elements, single);
+  // The pointer a gesture shows from the press to the release, wherever it goes — over other
+  // elements, the canvas or outside the page (`SUI-FEATURE-099`): the dragged handle's arrow, the
+  // rotate handle's, "move", a column border's.
+  const gestureCursor =
+    drag === undefined
+      ? undefined
+      : drag.kind === "resize"
+        ? resizeCursor(drag.handle, handlesBox?.rotation ?? drag.rotation)
+        : drag.kind === "rotate"
+          ? "grab"
+          : drag.kind === "move"
+            ? "move"
+            : drag.kind === "column"
+              ? columnBorderCursor(handlesBox?.rotation ?? 0)
+              : drag.kind === "crop"
+                ? "grabbing"
+                : "default";
   const hoveredElement =
     hovered === undefined ? undefined : findElement(elements, hovered)?.element;
 
@@ -3108,6 +3147,19 @@ function Editor({
                   {menuEntry("duplicate", editable.length > 0, DUPLICATE_SHORTCUT, duplicate)}
                 </ContextMenuContent>
               </ContextMenu>
+              {/* Over the whole window during a gesture, so nothing under the pointer changes it; the
+                  canvas keeps the pointer captured, so every event still goes to it. */}
+              {gestureCursor === undefined
+                ? null
+                : createPortal(
+                    <div
+                      aria-hidden="true"
+                      className="fixed inset-0 z-[100]"
+                      style={{ cursor: gestureCursor }}
+                      data-testid="slide-editor-gesture-cursor"
+                    />,
+                    window.document.body,
+                  )}
               {croppedImage === undefined ? null : (
                 <span id={cropDescription} hidden>
                   {t("slides.editor.cropping", {

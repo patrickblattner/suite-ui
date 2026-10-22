@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.168.4 — #418, SUI-FEATURE-099: the pointer stays the same during a gesture
+
+- **Gesture pointer (#418):** from the press to the release the pointer stays the one the gesture started with: the dragged handle's resize arrow (turned with the element, #338), the rotate handle's, "move" while moving, a column border's. Before, it changed with what it passed over: other elements, the canvas, the window outside the page. After the release it is the pointer of the spot under it again, without a further move.
+- **Esc cancels a gesture (#418):** Esc during a resize, turn, move, column drag or frame selection drops it (nothing changes, a frame selection gives back the selection before) and the pointer is the one of the spot again. While cropping, Esc still also drops the crop.
+
+**Migration:** none.
+
 ## 0.168.3 — #415, SUI-FEATURE-161: a table's column border cursor turns with the table
 
 - **Border cursor (#415):** the cursor over a table's column border now follows the table's turn on the screen, its groups' turn included, as the resize handles do since 0.153.1 (#338): `col-resize` while the border runs up and down on the screen, `row-resize` once it lies nearer the horizontal (around 90° and 270°). Before, it always showed `col-resize`, so on a table turned by 90° it pointed across the drag.
