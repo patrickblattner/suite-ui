@@ -567,3 +567,7 @@
 {"ts":"2026-10-21T12:28:09.485Z","key":"PROC-DEV-070","from":3,"to":4,"disposition":"editorial","ref":"process rule (wording is not taste); no code impact — applied to how questions are filed"}
 {"ts":"2026-10-21T12:28:26.768Z","key":"SUI-FEATURE-101","from":null,"to":2,"disposition":"ticket","ref":"462"}
 {"ts":"2026-10-21T12:28:27.118Z","key":"SUI-FEATURE-102","from":null,"to":2,"disposition":"ticket","ref":"463"}
+{"ts":"2026-10-22T11:57:07.370Z","key":"ADR-067","from":3,"to":4,"disposition":"editorial","ref":"process ADR (fresh build agent per ticket); worker process, no app code impact"}
+{"ts":"2026-10-22T11:57:12.627Z","key":"PROC-CC-012","from":11,"to":12,"disposition":"editorial","ref":"Overmind night-note process rule; no app code impact"}
+{"ts":"2026-10-22T11:57:27.708Z","key":"PROC-DEV-043","from":4,"to":5,"disposition":"editorial","ref":"worker delegation rule (fresh agent per ticket, targeted reads); process only, no app code impact"}
+{"ts":"2026-10-22T11:57:36.255Z","key":"SUI-FEATURE-191","from":2,"to":3,"disposition":"ticket","ref":"466"}
