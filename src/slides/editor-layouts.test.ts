@@ -279,6 +279,51 @@ describe("layouts and placeholders", () => {
     expect(placed.box.height).toBe(60);
   });
 
+  it("centres a filling group whose turned child cannot reach the placeholder's shape on it (Codex #476 CX1)", () => {
+    const target = slideLayoutSchema.parse({
+      id: "target",
+      name: "Target",
+      elements: [{ ...placeholder("target-ph", "title", 200, 200), rotation: 20 }],
+    });
+    const base = { rotation: 0, layer: 0, locked: false, hidden: false, opacity: 100 };
+    let doc = withLayout(document, "target", [target], []);
+    doc = insertElement(doc, 0, {
+      ...base,
+      id: "filled",
+      type: "group",
+      x: 0,
+      y: 0,
+      width: 0,
+      height: 0,
+      placeholderRole: "title",
+      children: [
+        {
+          ...base,
+          id: "square",
+          type: "text",
+          x: 100,
+          y: 100,
+          width: 100,
+          height: 100,
+          rotation: 45,
+          runs: [{ text: "square" }],
+          align: "left",
+          lineHeight: 1.2,
+          list: "none",
+          verticalAlign: "top",
+        },
+      ],
+    } as never);
+    const moved = setPageLayout(doc, 0, "target");
+    const list = moved.pages[0]!.elements;
+    const placed = placedBox(list, findElement(list, "filled")!.element);
+    expect(placed.rotation).toBeCloseTo(20, 6);
+    // The group does not take 300 × 60, but its centre is the placeholder's.
+    expect(placed.box.width / placed.box.height).not.toBeCloseTo(5, 1);
+    expect(Math.abs(placed.box.x + placed.box.width / 2 - 350)).toBeLessThan(0.01);
+    expect(Math.abs(placed.box.y + placed.box.height / 2 - 230)).toBeLessThan(0.01);
+  });
+
   it("starts a placeholder's text at its role size against the format's base size (#395)", () => {
     const heading = { kind: "brand", key: "heading" };
     const body = { kind: "brand", key: "body" };

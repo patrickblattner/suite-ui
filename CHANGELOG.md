@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.168.2 — #476, SUI-FEATURE-192: a filling group lands centred on the new placeholder
+
+- **Centred group (#476):** when the page's layout changes, a group filling a placeholder whose turned children cannot take the placeholder's shape keeps its own size, as before, but is now centred on the placeholder where it is drawn (within 0.01 px). Since 0.167.3 it was placed from the placeholder's corner, its centre off by up to half the size difference.
+
+**Migration:** none.
+
 ## 0.168.1 — #408, SUI-FEATURE-190 rev 5: align and distribute in a turned group's axes
 
 - **Align in the group's frame (#408):** when every selected element sits in the same turned group, align and distribute now work in that group's axes: two children aligned left get flush left edges in the group, not on the page. Any other multi-selection still aligns its axis-parallel outline on the page, and a single element still aligns to the page where it is drawn.
