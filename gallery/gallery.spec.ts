@@ -6538,6 +6538,39 @@ for (const theme of THEMES) {
   });
 }
 
+// `SUI-FEATURE-095` rev 3 AC 1, 2 (#423): the list's view, the split workspace's single column, the
+// canvas zoom mode, the chart type and the text formats share that fill; the unchosen stay unfilled.
+for (const theme of THEMES) {
+  test(`pressed choices: one fill, hover onto primary-hover ${theme}`, async ({ page }) => {
+    await page.goto(`/?page=pressed&lng=en&theme=${theme}`);
+    const primary = await utilityColor(page, "bg-primary", "backgroundColor");
+    const foreground = await utilityColor(page, "bg-primary-foreground", "backgroundColor");
+    const hover = await utilityColor(page, "bg-primary-hover", "backgroundColor");
+    const choices = page.getByTestId("pressed-choices");
+    // Pressed and unpressed of each toggle, with the attribute that carries its state.
+    const pairs = [
+      ["view-table", "view-tiles", "aria-checked"],
+      ["pressed-split-preview-tab", "pressed-split-list-tab", "aria-checked"],
+      ["canvas-zoom-fit", "canvas-zoom-actual", "aria-checked"],
+      ["slide-editor-chart-type-bar", "slide-editor-chart-type-line", "aria-checked"],
+      ["pressed-text-bold", "pressed-text-italic", "aria-pressed"],
+    ] as const;
+    for (const [on, off, attribute] of pairs) {
+      const pressed = choices.getByTestId(on);
+      const unpressed = choices.getByTestId(off);
+      await expect(pressed).toHaveAttribute(attribute, "true");
+      await expect(pressed).toHaveCSS("background-color", primary);
+      await expect(pressed).toHaveCSS("color", foreground);
+      await expect(unpressed).toHaveAttribute(attribute, "false");
+      await expect(unpressed).not.toHaveCSS("background-color", primary);
+      await pressed.hover();
+      await expect(pressed).toHaveCSS("background-color", hover);
+      await expect(pressed).toHaveCSS("color", foreground);
+    }
+    await page.mouse.move(0, 0);
+  });
+}
+
 // `SUI-FEATURE-004` AC 1, 3, 4, 7: "Used by" in the preview toolbar; on, the usages take the
 // preview's place, the button pressed and filled like the chosen device, in light and dark.
 for (const theme of THEMES) {

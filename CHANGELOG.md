@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.169.0 — #423, SUI-FEATURE-095 rev 3: every toggle pressed in the one primary fill
+
+- **Remaining toggles (#423):** the list's view toggle, the single-column List / Preview switch of `SplitWorkspace`, the canvas zoom mode ("Fit" · "100 %"), the slide editor's chart type and its text formats (bold, italic, alignment, bullets) now show their pressed or chosen state in the package's one pressed fill (`PRESSED_FILL_CLASS`: `--primary` with `--primary-foreground`, on hover `--primary-hover`), in light and dark, like RowActions, GridToggle, the drawer rail and maximize since 0.155.0 (#353). Before, they used the accent surface, barely visible in the light theme. Unpressed they are unchanged.
+- **Guard (#423):** the package test now also fails on an accent surface for an `aria-pressed`/`aria-checked` state, not only on a second primary copy.
+- **Gallery (#423):** the "Pressed toggles" page shows the new toggles, each with a pressed and an unpressed button.
+
+**Migration:** none. Apps that relied on the accent look of these toggles see the primary fill.
+
 ## 0.168.6 — #410, SUI-FEATURE-260: date and time fields keep the focus ring on the calendar button
 
 - **Focus ring on the calendar button (#410):** an `Input` of type `date`, `time`, `datetime-local`, `month` or `week` now shows the focus ring while any part of it holds the keyboard focus, the calendar button included. In Chromium that button is a tab stop of its own and left the field without a ring. A mouse click into such a field, on its segments or its calendar button, shows no ring; the next key pressed in the field brings it back. Ring, colour and 3:1 are unchanged.
