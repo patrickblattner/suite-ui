@@ -130,4 +130,27 @@ describe("SlideEditor gesture pointer", () => {
     fireEvent.pointerUp(canvas, at(400, 100));
     expect(stamp()).toBe(before);
   });
+
+  // #482 CX1: a frame without Shift empties the selection while it runs; Esc gives the one before.
+  it("gives back the selection before a frame without Shift on Esc", () => {
+    const { canvas } = renderEditor();
+    expect(screen.queryByTestId("slide-editor-handle-e")).not.toBeNull();
+    fireEvent.pointerDown(canvas, { ...at(400, 100), button: 0 });
+    fireEvent.pointerMove(canvas, at(420, 120));
+    expect(screen.queryByTestId("slide-editor-handle-e")).toBeNull();
+    fireEvent.keyDown(canvas, { key: "Escape" });
+    expect(screen.queryByTestId("slide-editor-handle-e")).not.toBeNull();
+  });
+
+  // #482 CX2: the pointer after Esc is the one of the spot with the element back in its place.
+  it("hovers the spot against the restored page after Esc", () => {
+    const { canvas, stamp } = renderEditor();
+    const before = stamp();
+    fireEvent.pointerDown(canvas, { ...at(180, 340), button: 0 });
+    fireEvent.pointerMove(canvas, at(400, 100));
+    expect(stamp()).not.toBe(before);
+    fireEvent.keyDown(canvas, { key: "Escape" });
+    expect(stamp()).toBe(before);
+    expect(canvas).toHaveClass("cursor-default");
+  });
 });
