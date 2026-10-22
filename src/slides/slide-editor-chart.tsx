@@ -213,7 +213,7 @@ export function ChartData({
   const pie = chart.chart === "pie";
   const hasNegative = pie && (chart.series[0]?.values ?? []).some((value) => value < 0);
   return (
-    <div ref={root} className="flex flex-col gap-3" data-testid="slide-editor-chart">
+    <div ref={root} className="flex flex-col gap-4" data-testid="slide-editor-chart">
       <div
         role="radiogroup"
         aria-label={t("slides.editor.chartType")}

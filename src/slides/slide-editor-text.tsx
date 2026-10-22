@@ -557,150 +557,152 @@ export function TextFormatFields({
   );
   const mixedText = t("slides.editor.textMixed");
   return (
-    <section className="flex flex-col gap-3" data-testid={`${idPrefix}-format`}>
-      <h3 className="text-sm font-medium">{t("slides.editor.textFormat")}</h3>
-      <div className="grid grid-cols-2 gap-3" data-tooltip-row="">
-        <Field
-          label={t("slides.editor.textFont")}
-          htmlFor={`${idPrefix}-font`}
-          hint={t("slides.editor.textFontHint")}
-          valueHint={t("slides.editor.textFontValueHint")}
-        >
-          <Select
-            value={fontKey ?? ""}
-            disabled={readOnly}
-            onValueChange={(key) => onFormat({ font: { kind: "brand", key } })}
+    <section className="flex flex-col gap-2" data-testid={`${idPrefix}-format`}>
+      <h3 className="text-base font-semibold">{t("slides.editor.textFormat")}</h3>
+      <div className="flex flex-col gap-4">
+        <div className="grid grid-cols-2 gap-4" data-tooltip-row="">
+          <Field
+            label={t("slides.editor.textFont")}
+            htmlFor={`${idPrefix}-font`}
+            hint={t("slides.editor.textFontHint")}
+            valueHint={t("slides.editor.textFontValueHint")}
           >
-            <SelectTrigger
-              id={`${idPrefix}-font`}
-              aria-describedby={`${idPrefix}-font-help`}
-              fieldName={t("slides.editor.textFont")}
-              className="w-full"
-              data-testid={`${idPrefix}-font`}
+            <Select
+              value={fontKey ?? ""}
+              disabled={readOnly}
+              onValueChange={(key) => onFormat({ font: { kind: "brand", key } })}
             >
-              <SelectValue
-                placeholder={mixed.has("font") ? mixedText : t("slides.editor.textOwnFont")}
-              />
-            </SelectTrigger>
-            <SelectContent>
-              {Object.entries(brand.fonts).map(([key, { family, label }]) => (
-                <SelectItem key={key} value={key}>
-                  {t("slides.editor.textBrandFont", {
-                    label,
-                    family,
-                    interpolation: { escapeValue: false },
-                  })}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-        {/* Keyed by the range only: a size typed into it changes the size it shows (#308). */}
-        <NumberField
-          key={`${start}-${end}`}
-          id={`${idPrefix}-size`}
-          label={t("slides.editor.textSize")}
-          hint={t("slides.editor.textSizeHint")}
-          valueHint={t("slides.editor.textSizeValueHint")}
-          value={mixed.has("size") ? undefined : (format.size ?? DEFAULT_TEXT_SIZE)}
-          unit="px"
-          readOnly={readOnly}
-          revision={revision}
-          onValue={(size) => {
-            if (size > 0) {
-              onFormat({ size: Math.min(MAX_TEXT_SIZE, Math.round(size * 100) / 100) }, "size");
-            }
-          }}
-          testId={`${idPrefix}-size`}
-        />
-        <Field
-          label={t("slides.editor.textColor")}
-          htmlFor={`${idPrefix}-color`}
-          hint={t("slides.editor.textColorHint")}
-          valueHint={t("slides.editor.textColorValueHint")}
-        >
-          <Select
-            value={colorKey ?? ""}
-            disabled={readOnly}
-            onValueChange={(key) =>
-              onFormat({ fill: { type: "color", color: { kind: "brand", key } } })
-            }
+              <SelectTrigger
+                id={`${idPrefix}-font`}
+                aria-describedby={`${idPrefix}-font-help`}
+                fieldName={t("slides.editor.textFont")}
+                className="w-full"
+                data-testid={`${idPrefix}-font`}
+              >
+                <SelectValue
+                  placeholder={mixed.has("font") ? mixedText : t("slides.editor.textOwnFont")}
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(brand.fonts).map(([key, { family, label }]) => (
+                  <SelectItem key={key} value={key}>
+                    {t("slides.editor.textBrandFont", {
+                      label,
+                      family,
+                      interpolation: { escapeValue: false },
+                    })}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          {/* Keyed by the range only: a size typed into it changes the size it shows (#308). */}
+          <NumberField
+            key={`${start}-${end}`}
+            id={`${idPrefix}-size`}
+            label={t("slides.editor.textSize")}
+            hint={t("slides.editor.textSizeHint")}
+            valueHint={t("slides.editor.textSizeValueHint")}
+            value={mixed.has("size") ? undefined : (format.size ?? DEFAULT_TEXT_SIZE)}
+            unit="px"
+            readOnly={readOnly}
+            revision={revision}
+            onValue={(size) => {
+              if (size > 0) {
+                onFormat({ size: Math.min(MAX_TEXT_SIZE, Math.round(size * 100) / 100) }, "size");
+              }
+            }}
+            testId={`${idPrefix}-size`}
+          />
+          <Field
+            label={t("slides.editor.textColor")}
+            htmlFor={`${idPrefix}-color`}
+            hint={t("slides.editor.textColorHint")}
+            valueHint={t("slides.editor.textColorValueHint")}
           >
-            <SelectTrigger
-              id={`${idPrefix}-color`}
-              aria-describedby={`${idPrefix}-color-help`}
-              fieldName={t("slides.editor.textColor")}
-              className="w-full"
-              data-testid={`${idPrefix}-color`}
+            <Select
+              value={colorKey ?? ""}
+              disabled={readOnly}
+              onValueChange={(key) =>
+                onFormat({ fill: { type: "color", color: { kind: "brand", key } } })
+              }
             >
-              <SelectValue
-                placeholder={mixed.has("fill") ? mixedText : t("slides.editor.textOwnColor")}
-              />
-            </SelectTrigger>
-            <SelectContent>
-              {Object.entries(brand.colors).map(([key, { value, label }]) => (
-                <SelectItem key={key} value={key}>
-                  <span
-                    aria-hidden="true"
-                    className="size-3 shrink-0 rounded-full border"
-                    style={{ background: cssColor({ kind: "brand", key }, brand) ?? value }}
-                  />
-                  {label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-      </div>
-      <div className="flex flex-wrap gap-1" data-tooltip-row="">
-        {toggle(
-          t("slides.editor.textBold"),
-          <BoldIcon />,
-          bold,
-          () => onFormat(toggledFormat(body, range, "bold")),
-          "bold",
-        )}
-        {toggle(
-          t("slides.editor.textItalic"),
-          <ItalicIcon />,
-          italic,
-          () => onFormat(toggledFormat(body, range, "italic")),
-          "italic",
-        )}
-        <span className="mx-1 w-px self-stretch bg-border" aria-hidden="true" />
-        {(
-          [
-            ["left", AlignLeftIcon],
-            ["center", AlignCenterIcon],
-            ["right", AlignRightIcon],
-            ["justify", AlignJustifyIcon],
-          ] as const
-        ).map(([align, Icon]) => (
-          <React.Fragment key={align}>
-            {toggle(
-              t(`slides.editor.text${align[0]!.toUpperCase()}${align.slice(1)}`),
-              <Icon />,
-              body.align === align,
-              () => onBody({ align }),
-              `align-${align}`,
-            )}
-          </React.Fragment>
-        ))}
-        <span className="mx-1 w-px self-stretch bg-border" aria-hidden="true" />
-        {toggle(
-          t("slides.editor.textBullets"),
-          <ListIcon />,
-          body.list === "bullet",
-          () => onBody({ list: body.list === "bullet" ? "none" : "bullet" }),
-          "bullets",
-        )}
-        {toggle(
-          t("slides.editor.textNumbered"),
-          <ListOrderedIcon />,
-          body.list === "numbered",
-          () => onBody({ list: body.list === "numbered" ? "none" : "numbered" }),
-          "numbered",
-        )}
+              <SelectTrigger
+                id={`${idPrefix}-color`}
+                aria-describedby={`${idPrefix}-color-help`}
+                fieldName={t("slides.editor.textColor")}
+                className="w-full"
+                data-testid={`${idPrefix}-color`}
+              >
+                <SelectValue
+                  placeholder={mixed.has("fill") ? mixedText : t("slides.editor.textOwnColor")}
+                />
+              </SelectTrigger>
+              <SelectContent>
+                {Object.entries(brand.colors).map(([key, { value, label }]) => (
+                  <SelectItem key={key} value={key}>
+                    <span
+                      aria-hidden="true"
+                      className="size-3 shrink-0 rounded-full border"
+                      style={{ background: cssColor({ kind: "brand", key }, brand) ?? value }}
+                    />
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+        </div>
+        <div className="flex flex-wrap gap-1" data-tooltip-row="">
+          {toggle(
+            t("slides.editor.textBold"),
+            <BoldIcon />,
+            bold,
+            () => onFormat(toggledFormat(body, range, "bold")),
+            "bold",
+          )}
+          {toggle(
+            t("slides.editor.textItalic"),
+            <ItalicIcon />,
+            italic,
+            () => onFormat(toggledFormat(body, range, "italic")),
+            "italic",
+          )}
+          <span className="mx-1 w-px self-stretch bg-border" aria-hidden="true" />
+          {(
+            [
+              ["left", AlignLeftIcon],
+              ["center", AlignCenterIcon],
+              ["right", AlignRightIcon],
+              ["justify", AlignJustifyIcon],
+            ] as const
+          ).map(([align, Icon]) => (
+            <React.Fragment key={align}>
+              {toggle(
+                t(`slides.editor.text${align[0]!.toUpperCase()}${align.slice(1)}`),
+                <Icon />,
+                body.align === align,
+                () => onBody({ align }),
+                `align-${align}`,
+              )}
+            </React.Fragment>
+          ))}
+          <span className="mx-1 w-px self-stretch bg-border" aria-hidden="true" />
+          {toggle(
+            t("slides.editor.textBullets"),
+            <ListIcon />,
+            body.list === "bullet",
+            () => onBody({ list: body.list === "bullet" ? "none" : "bullet" }),
+            "bullets",
+          )}
+          {toggle(
+            t("slides.editor.textNumbered"),
+            <ListOrderedIcon />,
+            body.list === "numbered",
+            () => onBody({ list: body.list === "numbered" ? "none" : "numbered" }),
+            "numbered",
+          )}
+        </div>
       </div>
     </section>
   );

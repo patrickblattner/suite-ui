@@ -148,205 +148,209 @@ export function TableFields({
         ? "none"
         : "";
   return (
-    <section className="flex flex-col gap-3" data-testid="slide-editor-table">
-      <h3 className="text-sm font-medium">{t("slides.editor.tableCell", values)}</h3>
-      <div className="flex flex-wrap gap-1" data-tooltip-row="">
-        {button(
-          t("slides.editor.tableRowAbove"),
-          <BetweenHorizontalStartIcon />,
-          () => {
-            onChange(insertRow(table, cell.row));
-            onCell({ ...cell, row: cell.row + 1 });
-          },
-          "row-above",
-          fullRows,
-        )}
-        {button(
-          t("slides.editor.tableRowBelow"),
-          <BetweenHorizontalEndIcon />,
-          () => onChange(insertRow(table, cell.row + 1)),
-          "row-below",
-          fullRows,
-        )}
-        {button(
-          t("slides.editor.tableDeleteRow", values),
-          <Trash2Icon />,
-          () => {
-            onChange(deleteRow(table, cell.row));
-            onCell({ ...cell, row: Math.min(cell.row, rows - 2) });
-          },
-          "delete-row",
-          rows <= 1 ? t("slides.editor.tableOneRow") : undefined,
-        )}
-        <span className="mx-1 w-px self-stretch bg-border" aria-hidden="true" />
-        {button(
-          t("slides.editor.tableColumnLeft"),
-          <BetweenVerticalStartIcon />,
-          () => {
-            onChange(insertColumn(table, cell.column));
-            onCell({ ...cell, column: cell.column + 1 });
-          },
-          "column-left",
-          fullColumns,
-        )}
-        {button(
-          t("slides.editor.tableColumnRight"),
-          <BetweenVerticalEndIcon />,
-          () => onChange(insertColumn(table, cell.column + 1)),
-          "column-right",
-          fullColumns,
-        )}
-        {button(
-          t("slides.editor.tableDeleteColumn", values),
-          <Trash2Icon />,
-          () => {
-            onChange(deleteColumn(table, cell.column));
-            onCell({ ...cell, column: Math.min(cell.column, columns - 2) });
-          },
-          "delete-column",
-          columns <= 1 ? t("slides.editor.tableOneColumn") : undefined,
-        )}
-      </div>
-      <div className="grid grid-cols-2 gap-3" data-tooltip-row="">
-        {(["row", "column"] as const).map((key) => (
+    <section className="flex flex-col gap-2" data-testid="slide-editor-table">
+      <h3 className="text-base font-semibold">{t("slides.editor.tableCell", values)}</h3>
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-wrap gap-1" data-tooltip-row="">
+          {button(
+            t("slides.editor.tableRowAbove"),
+            <BetweenHorizontalStartIcon />,
+            () => {
+              onChange(insertRow(table, cell.row));
+              onCell({ ...cell, row: cell.row + 1 });
+            },
+            "row-above",
+            fullRows,
+          )}
+          {button(
+            t("slides.editor.tableRowBelow"),
+            <BetweenHorizontalEndIcon />,
+            () => onChange(insertRow(table, cell.row + 1)),
+            "row-below",
+            fullRows,
+          )}
+          {button(
+            t("slides.editor.tableDeleteRow", values),
+            <Trash2Icon />,
+            () => {
+              onChange(deleteRow(table, cell.row));
+              onCell({ ...cell, row: Math.min(cell.row, rows - 2) });
+            },
+            "delete-row",
+            rows <= 1 ? t("slides.editor.tableOneRow") : undefined,
+          )}
+          <span className="mx-1 w-px self-stretch bg-border" aria-hidden="true" />
+          {button(
+            t("slides.editor.tableColumnLeft"),
+            <BetweenVerticalStartIcon />,
+            () => {
+              onChange(insertColumn(table, cell.column));
+              onCell({ ...cell, column: cell.column + 1 });
+            },
+            "column-left",
+            fullColumns,
+          )}
+          {button(
+            t("slides.editor.tableColumnRight"),
+            <BetweenVerticalEndIcon />,
+            () => onChange(insertColumn(table, cell.column + 1)),
+            "column-right",
+            fullColumns,
+          )}
+          {button(
+            t("slides.editor.tableDeleteColumn", values),
+            <Trash2Icon />,
+            () => {
+              onChange(deleteColumn(table, cell.column));
+              onCell({ ...cell, column: Math.min(cell.column, columns - 2) });
+            },
+            "delete-column",
+            columns <= 1 ? t("slides.editor.tableOneColumn") : undefined,
+          )}
+        </div>
+        <div className="grid grid-cols-2 gap-4" data-tooltip-row="">
+          {(["row", "column"] as const).map((key) => (
+            <NumberField
+              key={key}
+              id={`slide-editor-table-cell-${key}`}
+              label={t(key === "row" ? "slides.editor.tableRow" : "slides.editor.tableColumn")}
+              hint={t(
+                key === "row" ? "slides.editor.tableRowHint" : "slides.editor.tableColumnHint",
+              )}
+              valueHint={t(
+                key === "row"
+                  ? "slides.editor.tableRowValueHint"
+                  : "slides.editor.tableColumnValueHint",
+              )}
+              value={cell[key] + 1}
+              unit=""
+              readOnly={false}
+              min={1}
+              max={key === "row" ? rows : columns}
+              revision={revision}
+              onValue={(value) => {
+                const count = key === "row" ? rows : columns;
+                const index = Math.min(count, Math.max(1, Math.round(value))) - 1;
+                if (index !== cell[key]) onCell({ ...cell, [key]: index });
+              }}
+              testId={`slide-editor-table-cell-${key}`}
+            />
+          ))}
           <NumberField
-            key={key}
-            id={`slide-editor-table-cell-${key}`}
-            label={t(key === "row" ? "slides.editor.tableRow" : "slides.editor.tableColumn")}
-            hint={t(key === "row" ? "slides.editor.tableRowHint" : "slides.editor.tableColumnHint")}
-            valueHint={t(
-              key === "row"
-                ? "slides.editor.tableRowValueHint"
-                : "slides.editor.tableColumnValueHint",
-            )}
-            value={cell[key] + 1}
-            unit=""
-            readOnly={false}
-            min={1}
-            max={key === "row" ? rows : columns}
+            key={`width-${cell.column}`}
+            id="slide-editor-table-column-width"
+            label={t("slides.editor.tableColumnWidth")}
+            hint={t("slides.editor.tableColumnWidthHint")}
+            valueHint={t("slides.editor.tableColumnWidthValueHint")}
+            value={Math.round(columnPx(table, cell.column) * 100) / 100}
+            unit="px"
+            // One column is as wide as the table: its width is the table's own field.
+            readOnly={readOnly || columns <= 1}
+            help={
+              !readOnly && columns <= 1 ? (
+                <span data-testid="slide-editor-table-column-width-reason">
+                  {t("slides.editor.tableColumnWidthOne")}
+                </span>
+              ) : undefined
+            }
             revision={revision}
             onValue={(value) => {
-              const count = key === "row" ? rows : columns;
-              const index = Math.min(count, Math.max(1, Math.round(value))) - 1;
-              if (index !== cell[key]) onCell({ ...cell, [key]: index });
+              const delta = value - columnPx(table, cell.column);
+              // The last column shares with the one left of it.
+              const next =
+                cell.column < columns - 1
+                  ? resizeColumn(table, cell.column, delta)
+                  : resizeColumn(table, cell.column - 1, -delta);
+              if (next !== table) onChange(next, `width:${cell.column}`);
             }}
-            testId={`slide-editor-table-cell-${key}`}
+            testId="slide-editor-table-column-width"
           />
-        ))}
-        <NumberField
-          key={`width-${cell.column}`}
-          id="slide-editor-table-column-width"
-          label={t("slides.editor.tableColumnWidth")}
-          hint={t("slides.editor.tableColumnWidthHint")}
-          valueHint={t("slides.editor.tableColumnWidthValueHint")}
-          value={Math.round(columnPx(table, cell.column) * 100) / 100}
-          unit="px"
-          // One column is as wide as the table: its width is the table's own field.
-          readOnly={readOnly || columns <= 1}
-          help={
-            !readOnly && columns <= 1 ? (
-              <span data-testid="slide-editor-table-column-width-reason">
-                {t("slides.editor.tableColumnWidthOne")}
-              </span>
-            ) : undefined
-          }
-          revision={revision}
-          onValue={(value) => {
-            const delta = value - columnPx(table, cell.column);
-            // The last column shares with the one left of it.
-            const next =
-              cell.column < columns - 1
-                ? resizeColumn(table, cell.column, delta)
-                : resizeColumn(table, cell.column - 1, -delta);
-            if (next !== table) onChange(next, `width:${cell.column}`);
-          }}
-          testId="slide-editor-table-column-width"
-        />
-      </div>
-      <div className="grid grid-cols-2 gap-3" data-tooltip-row="">
-        <Field
-          label={t("slides.editor.tableCellFill")}
-          htmlFor="slide-editor-table-fill"
-          hint={t("slides.editor.tableCellFillHint")}
-          valueHint={t("slides.editor.tableCellFillValueHint", {
-            none: t("slides.editor.tableNoFill"),
-            interpolation: { escapeValue: false },
-          })}
-        >
-          <Select
-            value={fillKey}
-            disabled={readOnly}
-            onValueChange={(key) =>
-              onChange(
-                setCell(table, cell.row, cell.column, (one) => {
-                  const next = { ...one };
-                  if (key === "none") delete next.fill;
-                  else next.fill = { type: "color", color: { kind: "brand", key } };
-                  return next;
-                }),
-              )
-            }
+        </div>
+        <div className="grid grid-cols-2 gap-4" data-tooltip-row="">
+          <Field
+            label={t("slides.editor.tableCellFill")}
+            htmlFor="slide-editor-table-fill"
+            hint={t("slides.editor.tableCellFillHint")}
+            valueHint={t("slides.editor.tableCellFillValueHint", {
+              none: t("slides.editor.tableNoFill"),
+              interpolation: { escapeValue: false },
+            })}
           >
-            <SelectTrigger
-              id="slide-editor-table-fill"
-              aria-describedby="slide-editor-table-fill-help"
-              fieldName={t("slides.editor.tableCellFill")}
-              className="w-full"
-              data-testid="slide-editor-table-fill"
+            <Select
+              value={fillKey}
+              disabled={readOnly}
+              onValueChange={(key) =>
+                onChange(
+                  setCell(table, cell.row, cell.column, (one) => {
+                    const next = { ...one };
+                    if (key === "none") delete next.fill;
+                    else next.fill = { type: "color", color: { kind: "brand", key } };
+                    return next;
+                  }),
+                )
+              }
             >
-              <SelectValue placeholder={t("slides.editor.textOwnColor")} />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">{t("slides.editor.tableNoFill")}</SelectItem>
-              {Object.entries(brand.colors).map(([key, { label }]) => (
-                <SelectItem key={key} value={key}>
-                  <span
-                    aria-hidden="true"
-                    className="size-3 shrink-0 rounded-full border"
-                    style={{ background: cssColor({ kind: "brand", key }, brand) }}
-                  />
-                  {label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-        <Field
-          label={t("slides.editor.tableVerticalAlign")}
-          htmlFor="slide-editor-table-valign"
-          hint={t("slides.editor.tableVerticalAlignHint")}
-          valueHint={t("slides.editor.tableVerticalAlignValueHint")}
-        >
-          <Select
-            value={current?.verticalAlign ?? "top"}
-            disabled={readOnly}
-            onValueChange={(value) =>
-              onChange(
-                setCell(table, cell.row, cell.column, (one) => ({
-                  ...one,
-                  verticalAlign: value as "top" | "middle" | "bottom",
-                })),
-              )
-            }
+              <SelectTrigger
+                id="slide-editor-table-fill"
+                aria-describedby="slide-editor-table-fill-help"
+                fieldName={t("slides.editor.tableCellFill")}
+                className="w-full"
+                data-testid="slide-editor-table-fill"
+              >
+                <SelectValue placeholder={t("slides.editor.textOwnColor")} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">{t("slides.editor.tableNoFill")}</SelectItem>
+                {Object.entries(brand.colors).map(([key, { label }]) => (
+                  <SelectItem key={key} value={key}>
+                    <span
+                      aria-hidden="true"
+                      className="size-3 shrink-0 rounded-full border"
+                      style={{ background: cssColor({ kind: "brand", key }, brand) }}
+                    />
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          <Field
+            label={t("slides.editor.tableVerticalAlign")}
+            htmlFor="slide-editor-table-valign"
+            hint={t("slides.editor.tableVerticalAlignHint")}
+            valueHint={t("slides.editor.tableVerticalAlignValueHint")}
           >
-            <SelectTrigger
-              id="slide-editor-table-valign"
-              aria-describedby="slide-editor-table-valign-help"
-              fieldName={t("slides.editor.tableVerticalAlign")}
-              className="w-full"
-              data-testid="slide-editor-table-valign"
+            <Select
+              value={current?.verticalAlign ?? "top"}
+              disabled={readOnly}
+              onValueChange={(value) =>
+                onChange(
+                  setCell(table, cell.row, cell.column, (one) => ({
+                    ...one,
+                    verticalAlign: value as "top" | "middle" | "bottom",
+                  })),
+                )
+              }
             >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {(["top", "middle", "bottom"] as const).map((value) => (
-                <SelectItem key={value} value={value}>
-                  {t(`slides.editor.tableAlign${value[0]!.toUpperCase()}${value.slice(1)}`)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
+              <SelectTrigger
+                id="slide-editor-table-valign"
+                aria-describedby="slide-editor-table-valign-help"
+                fieldName={t("slides.editor.tableVerticalAlign")}
+                className="w-full"
+                data-testid="slide-editor-table-valign"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {(["top", "middle", "bottom"] as const).map((value) => (
+                  <SelectItem key={value} value={value}>
+                    {t(`slides.editor.tableAlign${value[0]!.toUpperCase()}${value.slice(1)}`)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+        </div>
       </div>
     </section>
   );

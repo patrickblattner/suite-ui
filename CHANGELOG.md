@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.169.2 — #425, GL-UI-010: slide editor property panel headings and spacing
+
+- **Headings (#425):** every slide editor property panel section (transition, animation with its entrance/exit legends, add-on fields, crop, text format, table cell, arrange, align, distribute, placeholders) titles itself `text-base font-semibold` instead of `text-sm font-medium`.
+- **Spacing (#425):** a field section stands 8 px (`gap-2`) from its heading to its content and 16 px (`gap-4`) between its fields and field grids, instead of 12 px throughout; the chart data fields also stand 16 px apart. Button-row sections keep `gap-2`.
+
+**Migration:** none for code. 26 gallery baselines changed: `slide-editor-{de,en,es}-{light,dark}.png`, `slide-editor-de-{light,dark}-{390,1440}.png`, `slide-editor-menu-{de,en,es}-{light,dark}.png`, `pressed-{de,en,es}-{light,dark}.png`, `pressed-de-{light,dark}-{390,1440}.png`.
+
 ## 0.169.1 — #484, SUI-FEATURE-260: invalid date and time fields keep the destructive border under focus
 
 - **Fix (#484):** a date or time `Input` with `aria-invalid="true"` no longer swaps its destructive border for the ring color on keyboard focus; the focus ring stays. Regression from 0.168.6 (#410).

@@ -384,9 +384,9 @@ function AnimationFields({
     return next;
   };
   return (
-    <fieldset className="flex flex-col gap-3" data-testid={id}>
-      <legend className="mb-2 text-sm font-medium">{t(`slides.editor.${kind}`)}</legend>
-      <div className="grid grid-cols-2 gap-3" data-tooltip-row="">
+    <fieldset className="flex flex-col gap-4" data-testid={id}>
+      <legend className="mb-2 text-base font-semibold">{t(`slides.editor.${kind}`)}</legend>
+      <div className="grid grid-cols-2 gap-4" data-tooltip-row="">
         <Field
           label={t("slides.editor.animationEffect")}
           htmlFor={`${id}-effect`}
@@ -555,72 +555,76 @@ function TransitionFields({
 }) {
   const { t } = useTranslation("suite");
   return (
-    <section className="flex flex-col gap-3" data-testid="slide-editor-transition">
-      <h3 className="text-sm font-medium">{t("slides.editor.transition")}</h3>
-      <div className="grid grid-cols-2 gap-3" data-tooltip-row="">
-        <Field
-          label={t("slides.editor.transitionType")}
-          htmlFor="slide-editor-transition-type"
-          hint={t("slides.editor.transitionTypeHint")}
-          valueHint={t("slides.editor.transitionTypeValueHint", {
-            none: t("slides.editor.transitionNone"),
-            fade: t("slides.editor.transitionFade"),
-            slide: t("slides.editor.transitionSlide"),
-            interpolation: { escapeValue: false },
-          })}
-        >
-          <Select
-            value={transition.type}
-            onValueChange={(type) =>
-              onTransition({
-                type: type as SlidePage["transition"]["type"],
-                duration:
-                  type === "none"
-                    ? 0
-                    : transition.duration === 0
-                      ? ANIMATION_MS
-                      : transition.duration,
-              })
-            }
+    <section className="flex flex-col gap-2" data-testid="slide-editor-transition">
+      <h3 className="text-base font-semibold">{t("slides.editor.transition")}</h3>
+      <div className="flex flex-col gap-4">
+        <div className="grid grid-cols-2 gap-4" data-tooltip-row="">
+          <Field
+            label={t("slides.editor.transitionType")}
+            htmlFor="slide-editor-transition-type"
+            hint={t("slides.editor.transitionTypeHint")}
+            valueHint={t("slides.editor.transitionTypeValueHint", {
+              none: t("slides.editor.transitionNone"),
+              fade: t("slides.editor.transitionFade"),
+              slide: t("slides.editor.transitionSlide"),
+              interpolation: { escapeValue: false },
+            })}
           >
-            <SelectTrigger
-              id="slide-editor-transition-type"
-              aria-describedby="slide-editor-transition-type-help"
-              fieldName={t("slides.editor.transitionType")}
-              className="w-full"
-              data-testid="slide-editor-transition-type"
+            <Select
+              value={transition.type}
+              onValueChange={(type) =>
+                onTransition({
+                  type: type as SlidePage["transition"]["type"],
+                  duration:
+                    type === "none"
+                      ? 0
+                      : transition.duration === 0
+                        ? ANIMATION_MS
+                        : transition.duration,
+                })
+              }
             >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {TRANSITIONS.map((type) => (
-                <SelectItem key={type} value={type}>
-                  {t(`slides.editor.transition${type[0]!.toUpperCase()}${type.slice(1)}`)}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-        {transition.type === "none" ? null : (
-          <NumberField
-            id="slide-editor-transition-duration"
-            label={t("slides.editor.animationDuration")}
-            hint={t("slides.editor.transitionDurationHint")}
-            valueHint={t("slides.editor.msValueHint")}
-            help={transition.duration === 0 ? t("slides.editor.transitionZeroDuration") : undefined}
-            value={transition.duration}
-            unit={t("slides.editor.ms")}
-            readOnly={false}
-            revision={revision}
-            onValue={(value) =>
-              onTransition(
-                { ...transition, duration: clamp(Math.round(value), 0, ANIMATION_MAX_MS) },
-                "transition:duration",
-              )
-            }
-            testId="slide-editor-transition-duration"
-          />
-        )}
+              <SelectTrigger
+                id="slide-editor-transition-type"
+                aria-describedby="slide-editor-transition-type-help"
+                fieldName={t("slides.editor.transitionType")}
+                className="w-full"
+                data-testid="slide-editor-transition-type"
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {TRANSITIONS.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {t(`slides.editor.transition${type[0]!.toUpperCase()}${type.slice(1)}`)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          {transition.type === "none" ? null : (
+            <NumberField
+              id="slide-editor-transition-duration"
+              label={t("slides.editor.animationDuration")}
+              hint={t("slides.editor.transitionDurationHint")}
+              valueHint={t("slides.editor.msValueHint")}
+              help={
+                transition.duration === 0 ? t("slides.editor.transitionZeroDuration") : undefined
+              }
+              value={transition.duration}
+              unit={t("slides.editor.ms")}
+              readOnly={false}
+              revision={revision}
+              onValue={(value) =>
+                onTransition(
+                  { ...transition, duration: clamp(Math.round(value), 0, ANIMATION_MAX_MS) },
+                  "transition:duration",
+                )
+              }
+              testId="slide-editor-transition-duration"
+            />
+          )}
+        </div>
       </div>
     </section>
   );
@@ -2158,13 +2162,13 @@ function Editor({
             // Fields that render nothing leave no heading behind.
             <section
               key={addOn.id}
-              className="flex flex-col gap-3 has-[>div:empty]:hidden"
+              className="flex flex-col gap-2 has-[>div:empty]:hidden"
               data-testid={`slide-editor-add-on-${addOn.id}`}
             >
               {addOn.label === undefined ? null : (
-                <h3 className="text-sm font-medium">{addOn.label}</h3>
+                <h3 className="text-base font-semibold">{addOn.label}</h3>
               )}
-              <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-4">
                 <Fields
                   key={single.id}
                   element={single}
@@ -2260,97 +2264,99 @@ function Editor({
   const cropFields =
     cropping === undefined || croppedImage === undefined ? null : (
       <section
-        className="flex flex-col gap-3"
+        className="flex flex-col gap-2"
         data-crop-fields=""
         data-testid="slide-editor-crop-fields"
         onBlur={keepCropOnLeave}
         onKeyDown={dropCropOnEscape}
       >
-        <h3 className="text-sm font-medium">{t("slides.editor.cropFields")}</h3>
-        <Field
-          label={t("slides.editor.cropZoom")}
-          htmlFor="slide-editor-crop-zoom"
-          hint={t("slides.editor.cropZoomHint")}
-        >
-          {/* A slider is no field control: it carries its value hint itself (`Field valueHint`). */}
-          <Hint text={t("slides.editor.cropZoomValueHint")}>
-            <Slider
-              id="slide-editor-crop-zoom"
-              aria-labelledby="slide-editor-crop-zoom-label"
-              aria-describedby="slide-editor-crop-zoom-help"
-              value={cropping.crop.zoom}
-              min={1}
-              max={CROP_ZOOM_MAX}
-              step={0.01}
-              getAriaValueText={(value) =>
-                new Intl.NumberFormat(i18n.language, { style: "percent" }).format(value)
-              }
-              onValueChange={(value) =>
-                setCropping({
-                  ...cropping,
-                  crop: zoomCrop(
-                    croppedImage.width,
-                    croppedImage.height,
-                    cropping.crop,
-                    value / cropping.crop.zoom,
-                  ),
-                })
-              }
-              data-testid="slide-editor-crop-zoom"
-            />
-          </Hint>
-        </Field>
-        <div className="grid grid-cols-2 gap-3" data-tooltip-row="">
-          {(
-            [
-              ["offsetX", "cropOffsetX"],
-              ["offsetY", "cropOffsetY"],
-            ] as const
-          ).map(([key, label]) => {
-            // How far the zoomed image reaches past the frame on this axis: the clamp's bounds, named
-            // under the field (`GL-UX-001`); at 100 % it cannot shift at all.
-            const side = key === "offsetX" ? croppedImage.width : croppedImage.height;
-            const reach = clampCrop(croppedImage.width, croppedImage.height, {
-              ...cropping.crop,
-              [key]: side * cropping.crop.zoom,
-            })[key];
-            const number = new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 2 });
-            return (
-              // No `min`/`max`: the arrows would step from the reach's fraction (−62.5 → 20.5); the
-              // clamp keeps the image covering its frame.
-              <NumberField
-                key={key}
-                id={`slide-editor-crop-${key}`}
-                label={t(`slides.editor.${label}`)}
-                hint={t(`slides.editor.${label}Hint`)}
-                valueHint={t("slides.editor.cropOffsetValueHint")}
-                value={cropping.crop[key]}
-                unit="px"
-                readOnly={false}
-                revision={travels}
-                onValue={(value) =>
+        <h3 className="text-base font-semibold">{t("slides.editor.cropFields")}</h3>
+        <div className="flex flex-col gap-4">
+          <Field
+            label={t("slides.editor.cropZoom")}
+            htmlFor="slide-editor-crop-zoom"
+            hint={t("slides.editor.cropZoomHint")}
+          >
+            {/* A slider is no field control: it carries its value hint itself (`Field valueHint`). */}
+            <Hint text={t("slides.editor.cropZoomValueHint")}>
+              <Slider
+                id="slide-editor-crop-zoom"
+                aria-labelledby="slide-editor-crop-zoom-label"
+                aria-describedby="slide-editor-crop-zoom-help"
+                value={cropping.crop.zoom}
+                min={1}
+                max={CROP_ZOOM_MAX}
+                step={0.01}
+                getAriaValueText={(value) =>
+                  new Intl.NumberFormat(i18n.language, { style: "percent" }).format(value)
+                }
+                onValueChange={(value) =>
                   setCropping({
                     ...cropping,
-                    crop: clampCrop(croppedImage.width, croppedImage.height, {
-                      ...cropping.crop,
-                      [key]: value,
-                    }),
+                    crop: zoomCrop(
+                      croppedImage.width,
+                      croppedImage.height,
+                      cropping.crop,
+                      value / cropping.crop.zoom,
+                    ),
                   })
                 }
-                testId={`slide-editor-crop-${key}`}
-                help={
-                  <span data-testid={`slide-editor-crop-${key}-range`}>
-                    {reach === 0
-                      ? t("slides.editor.cropOffsetNone")
-                      : t("slides.editor.cropOffsetRange", {
-                          min: number.format(-reach),
-                          max: number.format(reach),
-                        })}
-                  </span>
-                }
+                data-testid="slide-editor-crop-zoom"
               />
-            );
-          })}
+            </Hint>
+          </Field>
+          <div className="grid grid-cols-2 gap-4" data-tooltip-row="">
+            {(
+              [
+                ["offsetX", "cropOffsetX"],
+                ["offsetY", "cropOffsetY"],
+              ] as const
+            ).map(([key, label]) => {
+              // How far the zoomed image reaches past the frame on this axis: the clamp's bounds, named
+              // under the field (`GL-UX-001`); at 100 % it cannot shift at all.
+              const side = key === "offsetX" ? croppedImage.width : croppedImage.height;
+              const reach = clampCrop(croppedImage.width, croppedImage.height, {
+                ...cropping.crop,
+                [key]: side * cropping.crop.zoom,
+              })[key];
+              const number = new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 2 });
+              return (
+                // No `min`/`max`: the arrows would step from the reach's fraction (−62.5 → 20.5); the
+                // clamp keeps the image covering its frame.
+                <NumberField
+                  key={key}
+                  id={`slide-editor-crop-${key}`}
+                  label={t(`slides.editor.${label}`)}
+                  hint={t(`slides.editor.${label}Hint`)}
+                  valueHint={t("slides.editor.cropOffsetValueHint")}
+                  value={cropping.crop[key]}
+                  unit="px"
+                  readOnly={false}
+                  revision={travels}
+                  onValue={(value) =>
+                    setCropping({
+                      ...cropping,
+                      crop: clampCrop(croppedImage.width, croppedImage.height, {
+                        ...cropping.crop,
+                        [key]: value,
+                      }),
+                    })
+                  }
+                  testId={`slide-editor-crop-${key}`}
+                  help={
+                    <span data-testid={`slide-editor-crop-${key}-range`}>
+                      {reach === 0
+                        ? t("slides.editor.cropOffsetNone")
+                        : t("slides.editor.cropOffsetRange", {
+                            min: number.format(-reach),
+                            max: number.format(reach),
+                          })}
+                    </span>
+                  }
+                />
+              );
+            })}
+          </div>
         </div>
       </section>
     );
@@ -2359,7 +2365,7 @@ function Editor({
       {unloadedNote}
       {cropFields}
       {single === undefined ? null : (
-        <div className="grid grid-cols-2 gap-3" data-tooltip-row="">
+        <div className="grid grid-cols-2 gap-4" data-tooltip-row="">
           {(["x", "y", "width", "height"] as const).map((key) => (
             <NumberField
               key={`${single.id}-${key}`}
@@ -2431,7 +2437,7 @@ function Editor({
       )}
       {selected.length === 0 || editable.length === 0 ? null : (
         <section className="flex flex-col gap-2">
-          <h3 className="text-sm font-medium">{t("slides.editor.arrange")}</h3>
+          <h3 className="text-base font-semibold">{t("slides.editor.arrange")}</h3>
           <div className="flex flex-wrap gap-1" data-tooltip-row="">
             {single === undefined ? null : (
               <>
@@ -2467,7 +2473,7 @@ function Editor({
       )}
       {editable.length === 0 ? null : (
         <section className="flex flex-col gap-2">
-          <h3 className="text-sm font-medium">{t("slides.editor.align")}</h3>
+          <h3 className="text-base font-semibold">{t("slides.editor.align")}</h3>
           <div className="flex flex-wrap gap-1" data-tooltip-row="">
             {iconButton(
               t("slides.editor.alignLeft"),
@@ -2510,7 +2516,7 @@ function Editor({
       )}
       {selected.length < 2 ? null : (
         <section className="flex flex-col gap-2">
-          <h3 className="text-sm font-medium">{t("slides.editor.distribute")}</h3>
+          <h3 className="text-base font-semibold">{t("slides.editor.distribute")}</h3>
           <div className="flex flex-wrap gap-1" data-tooltip-row="">
             {iconButton(
               t("slides.editor.distributeHorizontal"),
@@ -2572,7 +2578,7 @@ function Editor({
       {/* The keyboard's way to fill an open placeholder, as a double click on it does. */}
       {selected.length === 0 && fillable.length > 0 ? (
         <section className="flex flex-col gap-2" data-testid="slide-editor-placeholders">
-          <h3 className="text-sm font-medium">{t("slides.editor.placeholders")}</h3>
+          <h3 className="text-base font-semibold">{t("slides.editor.placeholders")}</h3>
           <div className="flex flex-wrap gap-1">
             {fillable.map((open) => (
               <Hint key={open.placeholder.id} text={t("slides.editor.placeholderFillHint")}>
@@ -2619,30 +2625,32 @@ function Editor({
           §Felder); the page's transition stands with the page's properties above. */}
       {single === undefined ? null : (
         <section
-          className="flex flex-col gap-3"
+          className="flex flex-col gap-2"
           aria-labelledby="slide-editor-animation-title"
           data-testid="slide-editor-animation"
         >
-          <h3 id="slide-editor-animation-title" className="text-sm font-medium">
+          <h3 id="slide-editor-animation-title" className="text-base font-semibold">
             {t("slides.editor.animation")}
           </h3>
-          {(["entrance", "exit"] as const).map((kind) => (
-            <AnimationFields
-              key={`${single.id}-${kind}`}
-              kind={kind}
-              step={single.animation?.[kind]}
-              nextOrder={nextAnimationOrder(document, page)}
-              otherOrder={single.animation?.[kind === "exit" ? "entrance" : "exit"]?.order}
-              readOnly={single.locked}
-              revision={travels}
-              onStep={(step, merge) =>
-                apply(
-                  (current) => setAnimation(current, page, single.id, kind, step),
-                  merge === undefined ? undefined : `${single.id}:${merge}`,
-                )
-              }
-            />
-          ))}
+          <div className="flex flex-col gap-4">
+            {(["entrance", "exit"] as const).map((kind) => (
+              <AnimationFields
+                key={`${single.id}-${kind}`}
+                kind={kind}
+                step={single.animation?.[kind]}
+                nextOrder={nextAnimationOrder(document, page)}
+                otherOrder={single.animation?.[kind === "exit" ? "entrance" : "exit"]?.order}
+                readOnly={single.locked}
+                revision={travels}
+                onStep={(step, merge) =>
+                  apply(
+                    (current) => setAnimation(current, page, single.id, kind, step),
+                    merge === undefined ? undefined : `${single.id}:${merge}`,
+                  )
+                }
+              />
+            ))}
+          </div>
         </section>
       )}
     </div>
