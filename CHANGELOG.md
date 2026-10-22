@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.167.0 — #395, SUI-FEATURE-192 rev 3: placeholder text starts at its role size
+
+- **Placeholder text by role (#395):** a text field made by filling a placeholder (double click or the fill button) now starts at its role's size, measured against the format's base text size (32 px at a 1080 px shorter side, scaled with the format): `title` twice it in the brand set's `heading` font, `subtitle` one and a half times, every other role the base size in the `body` font. A title at 1920 × 1080 starts at 64 px. Before, every role started at 36 px in the default font.
+
+**Migration:** none. Existing documents are unchanged.
+
 ## 0.166.0 — #392, SUI-FEATURE-250 rev 4: one look for "not available"
 
 Feature.

@@ -12,8 +12,15 @@ import {
   updateElements,
   type Box,
 } from "./editor-ops.js";
-import { eachElement, pageLists } from "./render-style.js";
-import type { SlideDocument, SlideElement, SlideLayout, SlideMaster } from "./schema.js";
+import { DEFAULT_FONT, DEFAULT_TEXT_SIZE, eachElement, pageLists } from "./render-style.js";
+import type {
+  FontValue,
+  SlideDocument,
+  SlideElement,
+  SlideLayout,
+  SlideMaster,
+  TextRun,
+} from "./schema.js";
 
 export type Placeholder = Extract<SlideElement, { type: "placeholder" }>;
 
@@ -80,6 +87,17 @@ function placeholderOf(document: SlideDocument, layout: SlideLayout | undefined,
     if (found !== undefined) return placedBox(list, found);
   }
   return undefined;
+}
+
+// The first run of a text field filling a placeholder of `role` (`SUI-FEATURE-192` rev 3): the
+// format's base size (32 px at a 1080 px shorter side, scaled with the format), `title` twice it in the
+// brand's heading font, `subtitle` one and a half times, every other role the base size in the body
+// font.
+export function roleTextRun(role: string, pageWidth: number, pageHeight: number): TextRun {
+  const base = (DEFAULT_TEXT_SIZE * Math.min(pageWidth, pageHeight)) / 1080;
+  const factor = role === "title" ? 2 : role === "subtitle" ? 1.5 : 1;
+  const font: FontValue = role === "title" ? { kind: "brand", key: "heading" } : DEFAULT_FONT;
+  return { text: "", size: Math.max(1, Math.round(base * factor)), font };
 }
 
 // An element made the content of a placeholder: its box, turn and role, and the placeholder's name

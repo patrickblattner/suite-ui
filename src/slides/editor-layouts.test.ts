@@ -6,6 +6,7 @@ import {
   intoPlaceholder,
   openPlaceholders,
   type Placeholder,
+  roleTextRun,
   setPageLayout,
   withLayout,
 } from "./editor-layouts.js";
@@ -218,5 +219,18 @@ describe("layouts and placeholders", () => {
       expect(placed.box.width).toBeCloseTo(300, 1);
       expect(placed.box.height).toBeCloseTo(60, 1);
     }
+  });
+
+  it("starts a placeholder's text at its role size against the format's base size (#395)", () => {
+    const heading = { kind: "brand", key: "heading" };
+    const body = { kind: "brand", key: "body" };
+    expect(roleTextRun("title", 1920, 1080)).toEqual({ text: "", size: 64, font: heading });
+    expect(roleTextRun("subtitle", 1920, 1080)).toEqual({ text: "", size: 48, font: body });
+    expect(roleTextRun("body", 1920, 1080)).toEqual({ text: "", size: 32, font: body });
+    expect(roleTextRun("workshop.title", 1920, 1080)).toEqual({ text: "", size: 32, font: body });
+    // Scaled with the format: the shorter side counts, portrait or landscape.
+    expect(roleTextRun("title", 1080, 1920).size).toBe(64);
+    expect(roleTextRun("title", 1280, 720).size).toBe(43);
+    expect(roleTextRun("body", 1280, 720).size).toBe(21);
   });
 });

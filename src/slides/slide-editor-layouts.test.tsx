@@ -96,6 +96,11 @@ describe("SlideEditor placeholders", () => {
       placeholderRole: "title",
     });
     expect(heading.type === "text" && heading.runs[0]!.text).toBe("Welcome");
+    // At 1920 × 1080 the title starts at 64 px in the heading font (#395).
+    expect(heading.type === "text" && heading.runs[0]).toMatchObject({
+      size: 64,
+      font: { kind: "brand", key: "heading" },
+    });
     // Delete: the element goes, the placeholder shows again; Undo brings the element back.
     fireEvent.keyDown(canvas, { key: "Delete" });
     expect(screen.getByTestId("slide-editor-placeholder")).toBeInTheDocument();
