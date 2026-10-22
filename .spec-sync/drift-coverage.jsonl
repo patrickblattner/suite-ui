@@ -578,3 +578,6 @@
 {"ts":"2026-10-22T18:33:58.973Z","key":"SUI-FEATURE-191","from":3,"to":4,"disposition":"ticket","ref":"487"}
 {"ts":"2026-10-22T18:34:11.343Z","key":"SUI-FEATURE-260","from":2,"to":3,"disposition":"editorial","ref":"rev 3 clarifies that non-picker fields stay on focus-visible; #410 already scopes the change to picker types only; no code change"}
 {"ts":"2026-10-22T18:34:31.665Z","key":"GL-UI-006","from":3,"to":4,"disposition":"ticket","ref":"461"}
+{"ts":"2026-10-22T20:38:28.428Z","key":"GL-UI-010","from":6,"to":7,"disposition":"ticket","ref":"425,488"}
+{"ts":"2026-10-22T20:38:28.879Z","key":"SUI-FEATURE-052","from":6,"to":7,"disposition":"ticket","ref":"428"}
+{"ts":"2026-10-22T20:38:46.206Z","key":"SUI-FEATURE-270","from":null,"to":3,"disposition":"ticket","ref":"490"}
