@@ -13,7 +13,7 @@ import {
   SLIDE_SCHEMA_VERSION,
   SlideDocumentError,
   slideDocumentSchema,
-  slideElementFitsLimits,
+  slideElementSchema,
   type SlideBrandSet,
   type SlideMigration,
 } from "./index.js";
@@ -761,11 +761,33 @@ describe("slideDocumentSchema preflight", () => {
     expect(codes({ ...valid, pages: [{ ...page, elements }] })).toEqual(["too-many-elements"]);
   });
 
-  // Codex #389 CX1: one element on its own gets the same limits, 2000 nested groups without throwing.
-  it("bounds one element by the same group depth", () => {
+  // Codex #389 CX1 (#391): the element schema runs the same preflight, 2000 nested groups an issue.
+  it("bounds one element by the same group depth and element count", () => {
     const deepest = (raw: ReturnType<typeof nested>) => raw.pages[0]!.elements[0];
-    expect(slideElementFitsLimits(deepest(nested(SLIDE_LIMITS.maxGroupDepth)))).toBe(true);
-    expect(slideElementFitsLimits(deepest(nested(SLIDE_LIMITS.maxGroupDepth + 1)))).toBe(false);
-    expect(slideElementFitsLimits(deepest(nested(2000)))).toBe(false);
+    const issues = (raw: unknown) => {
+      const result = slideElementSchema.safeParse(raw);
+      return result.success
+        ? []
+        : result.error.issues.map((issue) => ({
+            code: String((issue as { params?: { code?: string } }).params?.code ?? issue.code),
+            path: issue.path,
+          }));
+    };
+    expect(slideElementSchema.safeParse(deepest(nested(SLIDE_LIMITS.maxGroupDepth))).success).toBe(
+      true,
+    );
+    expect(issues(deepest(nested(SLIDE_LIMITS.maxGroupDepth + 1)))[0]?.code).toBe("group-depth");
+    expect(() => slideElementSchema.safeParse(deepest(nested(2000)))).not.toThrow();
+    const deep = issues(deepest(nested(2000)));
+    expect(deep).toHaveLength(1);
+    expect(deep[0]!.code).toBe("group-depth");
+    // The path is the element's own: the wrapping page's prefix is cut off.
+    expect(deep[0]!.path.slice(0, 2)).toEqual(["children", 0]);
+    const children = Array.from({ length: SLIDE_LIMITS.maxElements }, (_, index) => ({
+      ...element,
+      id: `c${index}`,
+    }));
+    const group = { ...element, id: "g", type: "group", children };
+    expect(issues(group)).toEqual([{ code: "too-many-elements", path: [] }]);
   });
 });
