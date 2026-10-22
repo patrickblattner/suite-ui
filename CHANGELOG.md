@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — #391, SUI-FEATURE-163: element schema with the structural preflight
+
+Fix.
+
+- **One element is bounded (#391):** `slideElementSchema` now runs the same structural preflight as `slideDocumentSchema` before its recursive parse: groups nest at most `SLIDE_LIMITS.maxGroupDepth` deep and an element holds at most `SLIDE_LIMITS.maxElements` elements, those in groups counted. Past them, parsing returns an issue (`group-depth`, `too-many-elements`) with the element's own path, never a `RangeError`; 2000 nested groups included.
+
+**Migration:** removed export `slideElementFitsLimits(element)`; parse with `slideElementSchema` instead, which now checks the same limits itself. Its type stays `z.ZodType<SlideElement, SlideElementInput>`.
+
 ## 0.163.1 — #459, SUI-FEATURE-234: Pause stays until a capped long animation ends
 
 Fix.

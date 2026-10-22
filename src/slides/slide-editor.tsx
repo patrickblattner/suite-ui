@@ -123,7 +123,6 @@ import {
   SLIDE_LIMITS,
   type SlideDocument,
   slideElementSchema,
-  slideElementFitsLimits,
   type SlideDocumentInput,
   type SlideElement,
   type SlideFormat,
@@ -316,16 +315,17 @@ const inkless = (body: TextBody): TextBody => ({
 });
 
 // The parts of an app that pass the schema, those past the structural limits left out before the
-// recursive parse (Codex #389 CX1).
+// recursive parse: each element first passes the element schema with its preflight (Codex #389 CX1).
+const fitsLimits = (element: unknown) => slideElementSchema.safeParse(element).success;
 const validLayouts = (list: readonly SlideLayoutInput[] | undefined): SlideLayout[] =>
   (list ?? []).flatMap((one) => {
-    if (!(one.elements ?? []).every(slideElementFitsLimits)) return [];
+    if (!(one.elements ?? []).every(fitsLimits)) return [];
     const parsed = slideLayoutSchema.safeParse(one);
     return parsed.success ? [parsed.data] : [];
   });
 const validMasters = (list: readonly SlideMasterInput[] | undefined): SlideMaster[] =>
   (list ?? []).flatMap((one) => {
-    if (!(one.elements ?? []).every(slideElementFitsLimits)) return [];
+    if (!(one.elements ?? []).every(fitsLimits)) return [];
     const parsed = slideMasterSchema.safeParse(one);
     return parsed.success ? [parsed.data] : [];
   });
@@ -784,9 +784,9 @@ function Editor({
   >(undefined);
   // The medium of the dimmed crop rest that did not load: no rest for it.
   const [brokenCropSrc, setBrokenCropSrc] = React.useState<string | undefined>(undefined);
-  // Text editing on the canvas (`SUI-FEATURE-161` §Text): the text field or table cell being edited,
-  // while the selection it began with stands, and the range of its text the panel's format applies
-  // to. Each editing is a session of its own: what is typed in it folds into one step.
+  // Text editing on the canvas (`SUI-FEATURE-161` §Text): the text field or table cell being
+  // edited, while the selection it began with stands, and the range of its text the panel's format
+  // applies to. Each editing is a session of its own: what is typed in it folds into one step.
   const [editState, setEditing] = React.useState<
     | { id: string; cell: CellAt | undefined; selection: readonly string[]; session: number }
     | undefined
@@ -1014,8 +1014,6 @@ function Editor({
         : [];
     });
     const blocks = (view.extensions?.library ?? []).flatMap((block) => {
-      // Past the structural limits it is left out before the recursive parse (Codex #389 CX1).
-      if (!slideElementFitsLimits(block.element)) return [];
       const parsed = slideElementSchema.safeParse(block.element);
       if (!parsed.success) return [];
       const element = parsed.data.name

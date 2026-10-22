@@ -433,11 +433,12 @@ export type SlideElement =
 export const groupElementSchema = elementBaseSchema.extend({
   type: z.literal("group"),
   get children(): z.ZodArray<z.ZodType<SlideElement, SlideElementInput>> {
-    return z.array(slideElementSchema);
+    return z.array(elementShape);
   },
 });
 
-export const slideElementSchema: z.ZodType<SlideElement, SlideElementInput> = z.discriminatedUnion(
+// The element's recursive shape; the exported schema runs it only after the structural preflight.
+const elementShape: z.ZodType<SlideElement, SlideElementInput> = z.discriminatedUnion(
   "type",
   [
     textElementSchema,
@@ -491,7 +492,7 @@ export const slideMasterSchema = z.object({
   id,
   name: label.min(1),
   background: backgroundSchema.optional(),
-  elements: z.array(slideElementSchema).default([]),
+  elements: z.array(elementShape).default([]),
 });
 
 export const slideLayoutSchema = z.object({
@@ -499,14 +500,14 @@ export const slideLayoutSchema = z.object({
   name: label.min(1),
   masterId: id.optional(),
   background: backgroundSchema.optional(),
-  elements: z.array(slideElementSchema).default([]),
+  elements: z.array(elementShape).default([]),
 });
 
 export const slidePageSchema = z.object({
   id,
   layoutId: id.optional(),
   background: backgroundSchema,
-  elements: z.array(slideElementSchema).default([]),
+  elements: z.array(elementShape).default([]),
   notes: z.string().max(SLIDE_LIMITS.maxTextLength).default(""),
   hidden: z.boolean().default(false),
   transition: transitionSchema.default({ type: "none", duration: 0 }),
@@ -643,12 +644,23 @@ function structureIssue(
   return undefined;
 }
 
-// Whether one element, groups and all, stays within the group depth and element count of a page,
-// checked by the same stack walk: whatever parses an element on its own with the recursive
-// `slideElementSchema` (an app's library block) asks this first (Codex #389 CX1).
-export function slideElementFitsLimits(element: unknown): boolean {
-  return structureIssue({ pages: [{ elements: [element] }] }) === undefined;
-}
+// The one element schema, the same preflight first: the element is walked as the only element of a
+// page, so its group depth and element count are those of a page (Codex #389 CX1). An issue's path
+// is the element's own, the prefix of that wrapping page cut off.
+export const slideElementSchema = z
+  .unknown()
+  .superRefine((value, context) => {
+    const found = structureIssue({ pages: [{ elements: [value] }] });
+    if (found !== undefined) {
+      context.addIssue({
+        code: "custom",
+        path: found.path.slice(4),
+        message: found.message,
+        ...issue(found.code),
+      });
+    }
+  })
+  .pipe(elementShape) as unknown as z.ZodType<SlideElement, SlideElementInput>;
 
 // The slide document schema: the structural preflight first, and only a document that passes it
 // reaches the shape (a pipe stops at the first stage's issue), so every caller of the exported schema
