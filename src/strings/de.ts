@@ -34,7 +34,7 @@ export const de: SuiteStrings = {
   },
   inline: {
     error: "Fehler:",
-    warn: "Hinweis:",
+    warn: "Warnung:",
   },
   state: {
     succeeded: "Erfolgreich",

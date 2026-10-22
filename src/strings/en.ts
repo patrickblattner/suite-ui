@@ -308,12 +308,12 @@ export const en = {
     fileSize: "File size",
     notMeasured: "not measured",
   },
-  // The media detail view (`MediaDetailShell`, `MediaUsageList`).
   // The marks of a picker's MediaTile (`SUI-FEATURE-063`).
   tile: {
     selected: "Selected",
     current: "Current",
   },
+  // The media detail view (`MediaDetailShell`, `MediaUsageList`).
   media: {
     position: "{{n}} of {{total}}",
     details: "Details",

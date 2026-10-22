@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.170.0 — #430, SUI-FEATURE-096 rev 4: InlineMessage warning prefix and link hover
+
+- **Warning prefix (#430):** the screen-reader prefix of `InlineMessage tone="warn"` reads "Warnung:" / "Warning:" / "Advertencia:", the same words as `status.warning` / `severity.warning` (was "Hinweis:" / "Aviso:" in de/es).
+- **Link (#430, GL-UI-060, GL-UI-013):** a link in the text stays underlined at rest and drops the underline on hover, like the help-markdown link; the token focus ring stays. The link colour stays the tone colour.
+
+**Migration:** none. Tests that read the whole de/es warning text see the new prefix.
+
 ## 0.169.3 — #428, GL-UI-004, SUI-FEATURE-096: the remaining error lines through InlineMessage
 
 - **One error line (#428):** the error of `SettingsScaffold` (`settings-error`), the rejected-files line of `UploadStep` (`upload-rejected`) and the error state of `DataTableShell`/`TileGridShell` now render through `InlineMessage tone="error"`: same symbol, colour and `role="alert"`, and screen readers now hear the "Error:" prefix before the text. The list error is newly announced as an alert.

@@ -35,8 +35,8 @@ describe("InlineMessage", () => {
   );
 
   it.each([
-    ["de", "Fehler:", "Hinweis:"],
-    ["es", "Error:", "Aviso:"],
+    ["de", "Fehler:", "Warnung:"],
+    ["es", "Error:", "Advertencia:"],
   ] as const)("names the tone in %s", async (lng, error, warn) => {
     await i18n.changeLanguage(lng);
     render(
@@ -49,14 +49,18 @@ describe("InlineMessage", () => {
     expect(screen.getByRole("status")).toHaveTextContent(`${warn} B`);
   });
 
-  it("underlines a link in the text and keeps it in the tab order", () => {
+  it("underlines a link at rest, drops it on hover and keeps it in the tab order", () => {
     render(
       <InlineMessage tone="warn">
         Quota almost used. <a href="#plans">See plans</a>
       </InlineMessage>,
     );
     const message = screen.getByRole("status");
-    expect(message).toHaveClass("[&_a]:underline", "[&_a]:focus-visible:focus-ring");
+    expect(message).toHaveClass(
+      "[&_a]:underline",
+      "[&_a]:hover:no-underline",
+      "[&_a]:focus-visible:focus-ring",
+    );
     const link = screen.getByRole("link", { name: "See plans" });
     expect(link.tabIndex).toBe(0);
     link.focus();
