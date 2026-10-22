@@ -15,9 +15,8 @@
       "mcp__spec__record_decision",
       "Edit(//Users/pbl/projects/specs-meta/**)",
       "Edit(//Users/pbl/projects/overmind/**)",
-      "Write(//Users/pbl/projects/overmind/**)",
-      "Bash(git -C /Users/pbl/projects/specs-meta*:*)",
-      "Bash(git -C /Users/pbl/projects/overmind*:*)"
+      "Bash(git -C /Users/pbl/projects/specs-meta*)",
+      "Bash(git -C /Users/pbl/projects/overmind*)"
     ],
     "additionalDirectories": [
       "/Users/pbl/projects/.worktrees/suite-ui"
