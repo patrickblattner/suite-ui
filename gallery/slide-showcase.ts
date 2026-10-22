@@ -11,17 +11,21 @@ import type { SlideFontFile } from "../src/slides/use-slide-assets.js";
 // animations for the player, and the cases of a missing font and of text that does not fit.
 
 // The gallery's brand set: its fonts are files the gallery serves itself, under a family name of their
-// own so only the view's loading can make them appear.
+// own so only the view's loading can make them appear. Its names are the gallery's own, in English as
+// its app type's label is.
 export const SLIDE_BRAND: SlideBrandSet = {
   colors: {
-    background: "#ffffff",
-    text: "#0f172a",
-    primary: "#1d4ed8",
-    accent: "#d97706",
-    muted: "#e2e8f0",
-    highlight: "#fde68a",
+    background: { value: "#ffffff", label: "Background" },
+    text: { value: "#0f172a", label: "Text" },
+    primary: { value: "#1d4ed8", label: "Primary colour" },
+    accent: { value: "#d97706", label: "Accent" },
+    muted: { value: "#e2e8f0", label: "Muted" },
+    highlight: { value: "#fde68a", label: "Highlight" },
   },
-  fonts: { body: "Gallery Slide Sans", heading: "Gallery Slide Sans" },
+  fonts: {
+    body: { family: "Gallery Slide Sans", label: "Body text" },
+    heading: { family: "Gallery Slide Sans", label: "Heading" },
+  },
 };
 
 export const SLIDE_FONTS: SlideFontFile[] = [

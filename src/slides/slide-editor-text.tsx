@@ -582,10 +582,10 @@ export function TextFormatFields({
               />
             </SelectTrigger>
             <SelectContent>
-              {Object.entries(brand.fonts).map(([key, family]) => (
+              {Object.entries(brand.fonts).map(([key, { family, label }]) => (
                 <SelectItem key={key} value={key}>
                   {t("slides.editor.textBrandFont", {
-                    key,
+                    label,
                     family,
                     interpolation: { escapeValue: false },
                   })}
@@ -637,14 +637,14 @@ export function TextFormatFields({
               />
             </SelectTrigger>
             <SelectContent>
-              {Object.entries(brand.colors).map(([key, value]) => (
+              {Object.entries(brand.colors).map(([key, { value, label }]) => (
                 <SelectItem key={key} value={key}>
                   <span
                     aria-hidden="true"
                     className="size-3 shrink-0 rounded-full border"
                     style={{ background: cssColor({ kind: "brand", key }, brand) ?? value }}
                   />
-                  {key}
+                  {label}
                 </SelectItem>
               ))}
             </SelectContent>

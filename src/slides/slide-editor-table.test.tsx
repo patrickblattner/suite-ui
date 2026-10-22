@@ -83,8 +83,13 @@ describe("SlideEditor tables", () => {
       ["", ""],
       ["Mon", "Slides"],
     ]);
+    expect(screen.queryByTestId("slide-editor-table-column-width-reason")).toBeNull();
     fireEvent.click(screen.getByTestId("slide-editor-table-delete-column"));
     expect(cells()).toEqual([["Day"], [""], ["Mon"]]);
+    // One column is as wide as the table: its width field says why it is read-only.
+    expect(screen.getByTestId("slide-editor-table-column-width-reason")).toHaveTextContent(
+      "Change: possible once the table has another column.",
+    );
     expect(screen.getByTestId("slide-editor-table-delete-column")).toHaveAttribute(
       "aria-disabled",
       "true",

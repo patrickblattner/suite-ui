@@ -1296,9 +1296,14 @@ function Editor({
             clip: `path(evenodd, "${outer} ${hole}")`,
           };
         })();
-  // What people read for a placeholder: its name, else the generic word.
+  // What people read for a placeholder: its name, else the generic word, numbered in page order
+  // when the page has more than one unnamed placeholder.
+  const unnamed = placeholders.filter((one) => !one.placeholder.name).map((one) => one.placeholder);
   const placeholderName = (placeholder: OpenPlaceholder["placeholder"]) =>
-    placeholder.name || t("slides.editor.placeholder");
+    placeholder.name ||
+    (unnamed.length > 1
+      ? t("slides.editor.placeholderNumbered", { n: unnamed.indexOf(placeholder) + 1 })
+      : t("slides.editor.placeholder"));
   // One fill action per role: a layout's placeholder covers its master's of the same role (drawn
   // above it, it is the one a double click hits).
   const fillable = placeholders.filter(

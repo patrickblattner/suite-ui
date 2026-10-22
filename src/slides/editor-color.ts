@@ -59,7 +59,7 @@ export function insertColor(brand: SlideBrandSet, ground: string): ColorValue {
       : { kind: "brand", key: keys[0] };
   }
   for (const key of keys) {
-    const color = painted(brand.colors[key]!, ground);
+    const color = painted(brand.colors[key]!.value, ground);
     if (color !== undefined && contrast(color, page) >= 3) return { kind: "brand", key };
   }
   const primary = getComputedStyle(document.documentElement).getPropertyValue("--primary").trim();

@@ -222,3 +222,14 @@ describe("suite effect value hints", () => {
     },
   );
 });
+
+// SUI-FEATURE-193 AC3: the package says "page" throughout; no text names a "Folie", "slide" or
+// "diapositiva" (interpolation names such as `{{slide}}` are code, not text).
+describe("suite page wording", () => {
+  it.each(languages)("%s: no text says slide", (_, strings) => {
+    const said = [...strings]
+      .filter(([, text]) => /folie|slide|diapositiva/i.test(text.replace(/\{\{\w+\}\}/g, "")))
+      .map(([key, text]) => `${key}: ${text}`);
+    expect(said).toEqual([]);
+  });
+});

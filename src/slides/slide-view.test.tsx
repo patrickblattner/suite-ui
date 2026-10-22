@@ -181,7 +181,7 @@ describe("SlideView", () => {
         onReport={onReport}
       />,
     );
-    expect(screen.getByRole("alert")).toHaveTextContent("This slide can’t be shown.");
+    expect(screen.getByRole("alert")).toHaveTextContent("This page can’t be shown.");
     expect(container.querySelector("[data-slot=slide-page]")).toBeNull();
     await waitFor(() => expect(onReport).toHaveBeenCalled());
     expect(onReport.mock.lastCall![0].error?.code).toBe("newer-version");
@@ -194,7 +194,10 @@ describe("SlideView", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("Font missing: Unserved Display");
     cleanup();
     const noBody = await drawn({
-      brand: { ...SLIDE_BRAND, fonts: { heading: "Gallery Slide Sans" } },
+      brand: {
+        ...SLIDE_BRAND,
+        fonts: { heading: { family: "Gallery Slide Sans", label: "Heading" } },
+      },
     });
     expect(noBody.report().missingFonts).toContain("body");
     cleanup();
@@ -257,7 +260,10 @@ describe("SlideView", () => {
     const { container, report } = await drawn({
       brand: {
         ...SLIDE_BRAND,
-        colors: { ...SLIDE_BRAND.colors, accent: "red; background: url(https://evil.example/t)" },
+        colors: {
+          ...SLIDE_BRAND.colors,
+          accent: { value: "red; background: url(https://evil.example/t)", label: "Accent" },
+        },
       },
     });
     expect(container.innerHTML).not.toContain("evil.example");
@@ -319,7 +325,10 @@ describe("SlideView reports", () => {
 
   it("names a missing brand colour on the view and in its attributes", async () => {
     const { report } = await drawn({
-      brand: { ...SLIDE_BRAND, colors: { ...SLIDE_BRAND.colors, accent: "not a colour!" } },
+      brand: {
+        ...SLIDE_BRAND,
+        colors: { ...SLIDE_BRAND.colors, accent: { value: "not a colour!", label: "Accent" } },
+      },
     });
     expect(report().missingBrand).toContain("accent");
     expect(screen.getByTestId("view")).toHaveAttribute("data-slide-missing-brand", "accent");
@@ -564,14 +573,17 @@ describe("slide render rules", () => {
   });
 
   it("quotes named families and keeps generic ones", () => {
-    const brand = { colors: {}, fonts: { body: "Inter, sans-serif" } };
+    const brand = { colors: {}, fonts: { body: { family: "Inter, sans-serif", label: "Body" } } };
     expect(cssFont({ kind: "brand", key: "body" }, brand)).toEqual({
       css: '"Inter", sans-serif',
       files: ["Inter"],
     });
     expect(cssFont({ kind: "brand", key: "nope" }, brand)).toEqual({ missing: "nope" });
     expect(
-      cssFont({ kind: "brand", key: "body" }, { colors: {}, fonts: { body: 'x"; }' } }),
+      cssFont(
+        { kind: "brand", key: "body" },
+        { colors: {}, fonts: { body: { family: 'x"; }', label: "Body" } } },
+      ),
     ).toEqual({
       missing: "body",
     });
@@ -586,10 +598,12 @@ describe("slide render rules", () => {
         { color: { kind: "brand" as const, key: "x" }, position: 100 },
       ],
     };
-    expect(cssFill(fill, { colors: { x: "#000" }, fonts: {} })).toBe(
+    expect(cssFill(fill, { colors: { x: { value: "#000", label: "X" } }, fonts: {} })).toBe(
       "linear-gradient(90deg, #fff 0%, #000 100%)",
     );
-    expect(cssFill(fill, { colors: { x: "url(a)" }, fonts: {} })).toBeUndefined();
+    expect(
+      cssFill(fill, { colors: { x: { value: "url(a)", label: "X" } }, fonts: {} }),
+    ).toBeUndefined();
     const line = gradientLine(90);
     expect(
       [line.x1, line.y1, line.x2, line.y2].map((value) => Math.round(value * 1e6) / 1e6),
