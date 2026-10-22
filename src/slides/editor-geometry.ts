@@ -45,6 +45,12 @@ export function resizeCursor(handle: Handle, rotation: number): string {
   return `${COMPASS[((steps % 8) + 8) % 8]}-resize`;
 }
 
+// The cursor of a table's column border on a box drawn turned by `rotation` degrees (groups
+// included): the border moves along the box's width, so col- or row-resize by the nearer axis (#415).
+export function columnBorderCursor(rotation: number): string {
+  return Math.abs(Math.round(rotation / 90)) % 2 === 1 ? "row-resize" : "col-resize";
+}
+
 // Whether two boxes overlap (a marquee selects what it touches).
 export function intersects(a: Box, b: Box): boolean {
   return a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;

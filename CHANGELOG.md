@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.168.3 — #415, SUI-FEATURE-161: a table's column border cursor turns with the table
+
+- **Border cursor (#415):** the cursor over a table's column border now follows the table's turn on the screen, its groups' turn included, as the resize handles do since 0.153.1 (#338): `col-resize` while the border runs up and down on the screen, `row-resize` once it lies nearer the horizontal (around 90° and 270°). Before, it always showed `col-resize`, so on a table turned by 90° it pointed across the drag.
+
+**Migration:** none.
+
 ## 0.168.2 — #476, SUI-FEATURE-192: a filling group lands centred on the new placeholder
 
 - **Centred group (#476):** when the page's layout changes, a group filling a placeholder whose turned children cannot take the placeholder's shape keeps its own size, as before, but is now centred on the placeholder where it is drawn (within 0.01 px). Since 0.167.3 it was placed from the placeholder's corner, its centre off by up to half the size difference.

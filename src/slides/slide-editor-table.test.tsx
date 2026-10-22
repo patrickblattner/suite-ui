@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SLIDE_BRAND, SLIDE_EDITOR_DOC } from "../../gallery/slide-showcase.js";
-import type { SlideDocument } from "./schema.js";
+import type { SlideDocument, SlideDocumentInput } from "./schema.js";
 import { SlideEditor } from "./slide-editor.js";
 
 beforeEach(() => {
@@ -30,11 +30,11 @@ afterEach(() => {
 const ZOOM = 0.25;
 const at = (x: number, y: number) => ({ clientX: x * ZOOM, clientY: y * ZOOM });
 
-function renderEditor() {
+function renderEditor(document: SlideDocumentInput = SLIDE_EDITOR_DOC) {
   const onSave = vi.fn<(document: SlideDocument) => boolean>(() => true);
   const { container } = render(
     <SlideEditor
-      document={SLIDE_EDITOR_DOC}
+      document={document}
       title="Deck"
       brand={SLIDE_BRAND}
       onSave={onSave}
@@ -112,6 +112,30 @@ describe("SlideEditor tables", () => {
     const table = await saved();
     expect(table.columnWidths).toEqual([210, 130]);
     expect(table.width).toBe(340);
+  });
+
+  // #415: the border's cursor follows the table's turn on the screen, as the handles do (#338).
+  it("turns the column border's cursor with the table", () => {
+    const turned: SlideDocumentInput = {
+      ...SLIDE_EDITOR_DOC,
+      pages: SLIDE_EDITOR_DOC.pages.map((page, index) =>
+        index !== 1
+          ? page
+          : {
+              ...page,
+              elements: page.elements?.map((element) =>
+                element.id === "facts" ? { ...element, rotation: 90 } : element,
+              ),
+            },
+      ),
+    };
+    const straight = renderEditor();
+    straight.press(500, 30);
+    expect(screen.getByTestId("slide-editor-table-border-0").style.cursor).toBe("col-resize");
+    cleanup();
+    const { press } = renderEditor(turned);
+    press(590, 50);
+    expect(screen.getByTestId("slide-editor-table-border-0").style.cursor).toBe("row-resize");
   });
 
   it("fills a cell from the brand set and edits its text on a double click", async () => {
