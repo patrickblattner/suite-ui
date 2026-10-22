@@ -139,7 +139,7 @@ import {
   type SlidePage,
 } from "./schema.js";
 import { insertColor } from "./editor-color.js";
-import { NumberField } from "./number-field.js";
+import { NumberField, NumberInput } from "./number-field.js";
 import { ChartData } from "./slide-editor-chart.js";
 import {
   type AppLibraryEntry,
@@ -220,8 +220,11 @@ type ViewProps = Pick<
 const SNAP_PX = 6;
 const ROTATE_OFFSET = 32;
 const HANDLE_PX = 10;
-// One step of + or − while cropping, and the wheel's zoom per 100 px of scrolling.
+// The wheel's zoom per 100 px of scrolling while cropping.
 const CROP_ZOOM_STEP = 1.1;
+// One step of + or − while cropping: coarse, 10 % as `Bild↑`/`Bild↓` on the zoom slider
+// (`SUI-FEATURE-230` rev 4).
+const CROP_KEY_STEP = 0.1;
 // The canvas area's width below which the crop bar leaves its hint out.
 const CROP_HINT_ROOM = 480;
 // What a number field takes: a box at most twice the largest format side off the page and as large,
@@ -792,6 +795,8 @@ function Editor({
   >(undefined);
   // The medium of the dimmed crop rest that did not load: no rest for it.
   const [brokenCropSrc, setBrokenCropSrc] = React.useState<string | undefined>(undefined);
+  // The crop zoom the % field set last (see `cropZoomRevision`).
+  const [cropZoomByField, setCropZoomByField] = React.useState<number | undefined>(undefined);
   // Text editing on the canvas (`SUI-FEATURE-161` §Text): the text field or table cell being
   // edited, while the selection it began with stands, and the range of its text the panel's format
   // applies to. Each editing is a session of its own: what is typed in it folds into one step.
@@ -1159,12 +1164,25 @@ function Editor({
   // listener of its own: React's wheel listener cannot prevent the scroll).
   const croppedImage =
     cropping === undefined ? undefined : findElement(elements, cropping.id)?.element;
+  // The width of its border: the view draws the image inside it, shifted by it (Codex CX1, #426).
+  const cropBorder = croppedImage?.type === "image" ? (croppedImage.border?.width ?? 0) : 0;
   // The whole image being cropped where it is drawn, its rest outside the frame included: a press
   // on it shifts the image, a press beside it applies the crop (`SUI-FEATURE-230`).
   const cropWhole =
     croppedImage === undefined || cropping === undefined
       ? undefined
-      : croppedImageBox(placedBox(elements, croppedImage), cropping.crop);
+      : croppedImageBox(placedBox(elements, croppedImage), {
+          ...cropping.crop,
+          offsetX: cropping.crop.offsetX + cropBorder,
+          offsetY: cropping.crop.offsetY + cropBorder,
+        });
+  // A press on the image being cropped: on the whole image or on its frame with the border, which a
+  // border's shift leaves partly beside the whole image (left and top as right and bottom, #426).
+  const onCropImage = (point: Point) =>
+    cropWhole !== undefined &&
+    croppedImage !== undefined &&
+    (containsPoint(cropWhole.box, cropWhole.rotation, point) ||
+      containsPoint(placedBox(elements, croppedImage).box, cropWhole.rotation, point));
   const croppedWidth = croppedImage?.width;
   const croppedHeight = croppedImage?.height;
   React.useEffect(() => {
@@ -1272,9 +1290,10 @@ function Editor({
   // a new text field that is edited at once.
   const placeholders = openPlaceholders(document, page);
   // The dimmed rest of the image being cropped: the whole image with its frame cut out (even-odd),
-  // in the whole image's own px at the canvas zoom. The cut-out keeps the frame's corner radius, so
-  // the rest shows in the round corners the result cuts off (`SUI-FEATURE-230` rev 3). A medium that
-  // does not load has no rest (the view names it missing).
+  // in the whole image's own px at the canvas zoom. The cut-out is the frame with its border, so the
+  // border stays in view, and keeps the frame's corner radius, so the rest shows in the round corners
+  // the result cuts off (`SUI-FEATURE-230` rev 3). A medium that does not load has no rest (the view
+  // names it missing).
   const cropSrc =
     croppedImage?.type === "image" ? view.resolveMedia?.(croppedImage.media.id) : undefined;
   const cropRest =
@@ -1286,8 +1305,8 @@ function Editor({
       ? undefined
       : (() => {
           const { width, height } = cropWhole.box;
-          const left = (width - croppedImage.width) / 2 - cropping.crop.offsetX;
-          const top = (height - croppedImage.height) / 2 - cropping.crop.offsetY;
+          const left = (width - croppedImage.width) / 2 - cropping.crop.offsetX - cropBorder;
+          const top = (height - croppedImage.height) / 2 - cropping.crop.offsetY - cropBorder;
           const [x0, y0] = [left * zoom, top * zoom];
           const [x1, y1] = [(left + croppedImage.width) * zoom, (top + croppedImage.height) * zoom];
           const r =
@@ -1303,6 +1322,18 @@ function Editor({
             clip: `path(evenodd, "${outer} ${hole}")`,
           };
         })();
+  // Where the dimmed rest may show, around the page: the canvas area's content with its padding (`p-6`),
+  // in the page's px at the canvas zoom; the page stands centred in it (`SUI-FEATURE-230` rev 4).
+  const cropRestBounds = (() => {
+    const [width, height] = [pageWidth * zoom, pageHeight * zoom];
+    const margin = Math.max(0, (areaSize.width - width) / 2);
+    return {
+      left: -(margin + 24),
+      top: -24,
+      width: Math.max(areaSize.width, width) + 48,
+      height: Math.max(areaSize.height, height) + 48,
+    };
+  })();
   // What people read for a placeholder: its name, else the generic word, numbered in page order
   // when the page has more than one unnamed placeholder.
   const unnamed = placeholders.filter((one) => !one.placeholder.name).map((one) => one.placeholder);
@@ -1481,7 +1512,7 @@ function Editor({
     // press beside it applies the crop and ends cropping, one step Undo takes back (`SUI-FEATURE-230`).
     if (cropping !== undefined) {
       if (cropWhole === undefined) return;
-      if (containsPoint(cropWhole.box, cropWhole.rotation, point)) {
+      if (onCropImage(point)) {
         setDrag({ kind: "crop", start: point, crop: cropping.crop, rotation: cropWhole.rotation });
       } else {
         endCrop(true);
@@ -1599,11 +1630,7 @@ function Editor({
   // nothing else is hovered.
   const hover = (point: Point) =>
     setHovered(
-      cropping !== undefined
-        ? cropWhole !== undefined && containsPoint(cropWhole.box, cropWhole.rotation, point)
-          ? cropping.id
-          : undefined
-        : hitTest(point)?.id,
+      cropping !== undefined ? (onCropImage(point) ? cropping.id : undefined) : hitTest(point)?.id,
     );
 
   // Where the pointer last was on the page, so Esc can give back the pointer of that spot.
@@ -1914,7 +1941,12 @@ function Editor({
       ArrowUp: { x: 0, y: -step },
       ArrowDown: { x: 0, y: step },
     }[event.key];
-    const factor = { "+": CROP_ZOOM_STEP, "=": CROP_ZOOM_STEP, "-": 1 / CROP_ZOOM_STEP }[event.key];
+    const sign = { "+": 1, "=": 1, "-": -1 }[event.key];
+    // Rounded to whole %, so the steps land on 110 %, 120 %, … and not beside them.
+    const factor =
+      sign === undefined
+        ? undefined
+        : Math.round((crop.zoom + sign * CROP_KEY_STEP) * 100) / 100 / crop.zoom;
     if (event.key === "Enter") {
       endCrop(true);
     } else if (event.key === "Escape") {
@@ -2261,6 +2293,20 @@ function Editor({
   // While cropping, the panel sets the crop too, without a drag (`SUI-FEATURE-230`, WCAG 2.5.7): a zoom
   // slider about the frame's centre and the shift in the image's own px, each clamped as a drag is.
   // Focus moving between them and the canvas keeps cropping; Esc in them drops the crop.
+  // The zoom typed in the % field, clamped; the field remembers it, so its typed text stands while the
+  // zoom is its own and goes once Undo, the wheel, a key or the slider changed it (`NumberInput`
+  // `revision`, as a `NumberField` keys it to `travels`).
+  const zoomCropTo = (zoom: number) => {
+    if (cropping === undefined || croppedImage === undefined) return;
+    const { width, height } = croppedImage;
+    const crop = zoomCrop(width, height, cropping.crop, zoom / cropping.crop.zoom);
+    setCropping({ ...cropping, crop });
+    setCropZoomByField(crop.zoom);
+  };
+  const cropZoomRevision =
+    cropping === undefined
+      ? ""
+      : `${travels}:${cropping.id}:${cropping.crop.zoom === cropZoomByField ? "field" : cropping.crop.zoom}`;
   const cropFields =
     cropping === undefined || croppedImage === undefined ? null : (
       <section
@@ -2276,6 +2322,8 @@ function Editor({
             label={t("slides.editor.cropZoom")}
             htmlFor="slide-editor-crop-zoom"
             hint={t("slides.editor.cropZoomHint")}
+            valueHint={t("slides.editor.cropZoomValueHint")}
+            control={{ className: "flex items-center gap-2" }}
           >
             {/* A slider is no field control: it carries its value hint itself (`Field valueHint`). */}
             <Hint text={t("slides.editor.cropZoomValueHint")}>
@@ -2301,9 +2349,30 @@ function Editor({
                     ),
                   })
                 }
+                className="flex-1"
                 data-testid="slide-editor-crop-zoom"
               />
             </Hint>
+            {/* The same zoom in %, beside the slider (`SUI-FEATURE-057`, `SUI-FEATURE-230` rev 4).
+                Typing applies only 100–500 %, so a first digit never zooms out to 100 % and drops
+                the shift; leaving the field or Enter clamps what is typed, as every other way of
+                zooming stops at 500 %. */}
+            <NumberInput
+              value={cropping.crop.zoom * 100}
+              unit="%"
+              size="sm"
+              min={100}
+              max={CROP_ZOOM_MAX * 100}
+              step={1}
+              aria-label={t("slides.editor.cropZoomPercent")}
+              revision={cropZoomRevision}
+              onValue={(percent) => {
+                if (percent >= 100 && percent <= CROP_ZOOM_MAX * 100) zoomCropTo(percent / 100);
+              }}
+              onLeave={(percent) => zoomCropTo(percent / 100)}
+              className="w-24 shrink-0"
+              testId="slide-editor-crop-zoom-input"
+            />
           </Field>
           <div className="grid grid-cols-2 gap-4" data-tooltip-row="">
             {(
@@ -3072,18 +3141,20 @@ function Editor({
                 </div>
               ))}
               {/* While cropping, the image's rest outside its frame, dimmed: what a drag can bring in
-                  (`SUI-FEATURE-230`). Clipped to the page, with the frame cut out, where the image
-                  itself is drawn. */}
+                  (`SUI-FEATURE-230`). It runs past the page edge onto the work area (rev 4), clipped
+                  to the area's content with its padding so it adds no scrolling; the frame is cut out
+                  where the image itself is drawn. */}
               {cropRest === undefined ? null : (
                 <div
                   aria-hidden="true"
-                  className="pointer-events-none absolute inset-0 overflow-hidden"
+                  className="pointer-events-none absolute overflow-hidden"
+                  style={cropRestBounds}
                 >
                   <div
                     className="absolute"
                     style={{
-                      left: cropRest.whole.box.x * zoom,
-                      top: cropRest.whole.box.y * zoom,
+                      left: cropRest.whole.box.x * zoom - cropRestBounds.left,
+                      top: cropRest.whole.box.y * zoom - cropRestBounds.top,
                       width: cropRest.whole.box.width * zoom,
                       height: cropRest.whole.box.height * zoom,
                       transform:
@@ -3125,8 +3196,25 @@ function Editor({
                       total: document.pages.length,
                     })}
                     tabIndex={0}
+                    // While cropping it reaches over the work area too, where the dimmed rest runs past
+                    // the page (`SUI-FEATURE-230` rev 4): a press on that rest shifts the image as well.
+                    // Its focus ring stays around the page, drawn by a box at the page's place.
+                    style={
+                      cropping === undefined
+                        ? undefined
+                        : ({
+                            ...cropRestBounds,
+                            "--crop-page-x": `${-cropRestBounds.left}px`,
+                            "--crop-page-y": `${-cropRestBounds.top}px`,
+                            "--crop-page-w": `${pageWidth * zoom}px`,
+                            "--crop-page-h": `${pageHeight * zoom}px`,
+                          } as React.CSSProperties)
+                    }
                     className={cn(
-                      "absolute inset-0 outline-none focus-visible:focus-ring-inset",
+                      "absolute outline-none",
+                      cropping === undefined
+                        ? "inset-0 focus-visible:focus-ring-inset"
+                        : "after:pointer-events-none after:absolute after:top-(--crop-page-y) after:left-(--crop-page-x) after:h-(--crop-page-h) after:w-(--crop-page-w) focus-visible:after:focus-ring-inset",
                       cropping !== undefined
                         ? drag?.kind === "crop"
                           ? "cursor-grabbing"

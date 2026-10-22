@@ -527,6 +527,7 @@ export const de: SuiteStrings = {
       widthValueHint: "In Pixeln; eine größere Zahl macht das Element breiter.",
       heightValueHint: "In Pixeln; eine größere Zahl macht das Element höher.",
       rotationValueHint: "Grad im Uhrzeigersinn; 0 ist aufrecht.",
+      cropZoomPercent: "Zoom in %",
       cropZoomValueHint:
         "100 % füllt den Rahmen; bis 500 % zeigt einen immer kleineren Teil des Bilds.",
       cropOffsetValueHint: "Pixel ab der Mitte des Rahmens; 0 zentriert das Bild.",

@@ -70,15 +70,23 @@ const DARK_DOC =
         ),
       }
     : undefined;
-// `?picture=round`: the picture has a 40 px corner radius (`SUI-FEATURE-230` rev 3).
-const ROUND_DOC =
-  PARAMS.get("picture") === "round"
+// `?picture=round`: the picture has a 40 px corner radius (`SUI-FEATURE-230` rev 3); `?picture=bleed`:
+// it fills the whole page (rev 4); `?picture=border`: it has a 10 px border (#426).
+const PICTURES: Record<string, object | undefined> = {
+  round: { cornerRadius: 40 },
+  bleed: { x: 0, y: 0, width: 800, height: 450 },
+  border: { border: { color: { kind: "free", value: "#dc2626" }, width: 10 } },
+};
+const pictureParam = PARAMS.get("picture") ?? "";
+const PICTURE = Object.hasOwn(PICTURES, pictureParam) ? PICTURES[pictureParam] : undefined;
+const PICTURE_DOC =
+  PICTURE !== undefined
     ? {
         ...SLIDE_EDITOR_DOC,
         pages: SLIDE_EDITOR_DOC.pages.map((page) => ({
           ...page,
           elements: page.elements?.map((element) =>
-            element.id === "picture" ? { ...element, cornerRadius: 40 } : element,
+            element.id === "picture" ? { ...element, ...PICTURE } : element,
           ),
         })),
       }
@@ -281,7 +289,7 @@ export function SlideEditorPage() {
               opened ??
               FULL_DOC ??
               DARK_DOC ??
-              ROUND_DOC ??
+              PICTURE_DOC ??
               (INVALID
                 ? ({ ...SLIDE_EDITOR_DOC, schemaVersion: 99 } as unknown as typeof SLIDE_EDITOR_DOC)
                 : SLIDE_EDITOR_DOC)

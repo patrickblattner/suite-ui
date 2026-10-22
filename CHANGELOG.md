@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.171.0 — #426, SUI-FEATURE-230 rev 4: crop mode rest past the page, zoom % field
+
+- **Rest past the page (#426):** in the slide editor's crop mode the dimmed rest of the image runs past the page edge onto the work area, so a full-bleed image shows its rest too, in light and dark. The canvas takes presses over that area while cropping: a press on the rest past the page shifts the image, a press beside the image still applies the crop. Its focus ring stays around the page.
+- **Zoom % field (#426):** a number field in % stands beside the crop zoom slider (slider beside number field, `SUI-FEATURE-057`) with the same value; typing there moves the slider and the other way round. While typing it applies only 100–500 %, so a first digit no longer zooms out and drops the shift; leaving the field or Enter clamps what is typed to 100–500 %, like slider, wheel and keys. Typed text gives way once the zoom changes elsewhere (Undo, wheel, keys, slider).
+- **Steps (#426):** `+`/`−` while cropping now step the zoom by 10 points (300 % → 310 %), coarse as PageUp/PageDown on the slider; before they multiplied by 1.1. The slider's arrows step 1 %, the wheel still zooms by a factor.
+- **Border (#426, Codex CX1):** for an image with a border the dimmed rest continues the image drawn inside the border, and its cut-out is the bordered frame, so the border stays in view. A press on any edge of the bordered frame shifts the image.
+- **NumberInput (#426):** the input of the slide editor's `NumberField` with its unit is a part of its own, used by the crop zoom field too (GL-UI-004).
+- **Tests (#426):** the dimmed rest is left out once its medium fails to load.
+- **Strings (#426):** new `slides.editor.cropZoomPercent` (en, de, es).
+
+**Migration:** none for code. 10 gallery baselines changed (the strings listing gains one row): `gallery-{de,en,es}-{light,dark}.png`, `gallery-de-{light,dark}-{390,1440}.png`.
+
 ## 0.170.0 — #430, SUI-FEATURE-096 rev 4: InlineMessage warning prefix and link hover
 
 - **Warning prefix (#430):** the screen-reader prefix of `InlineMessage tone="warn"` reads "Warnung:" / "Warning:" / "Advertencia:", the same words as `status.warning` / `severity.warning` (was "Hinweis:" / "Aviso:" in de/es).

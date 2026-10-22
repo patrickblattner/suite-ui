@@ -547,6 +547,7 @@ export const en = {
       widthValueHint: "Pixels; a larger number makes the element wider.",
       heightValueHint: "Pixels; a larger number makes the element taller.",
       rotationValueHint: "Degrees clockwise; 0 is upright.",
+      cropZoomPercent: "Zoom (%)",
       cropZoomValueHint:
         "100% fills the frame; up to 500% shows an ever smaller part of the image.",
       cropOffsetValueHint: "Pixels from the centre of the frame; 0 centres the image.",
