@@ -1512,3 +1512,109 @@ export function deleteElements(
     });
   return withPage(document, page, walk);
 }
+
+// The element clipboard (`SUI-FEATURE-191`): a copy keeps a group's children, the animations, the
+// crop and the app's payload as they are; only the ids are new, made where the copy lands.
+
+// How far a duplicate lies from its original, and a paste from an identical element it would cover:
+// right and down, in page units.
+export const DUPLICATE_OFFSET = 10;
+
+// The element and what is in it moved by `step`.
+const shifted = (element: SlideElement, step: { x: number; y: number }): SlideElement =>
+  withDescendants(element, (one) => ({
+    ...one,
+    x: round(one.x + step.x),
+    y: round(one.y + step.y),
+  }));
+
+// The element and what is in it with ids unused in the document; `taken` grows with each.
+function withFreshIds(element: SlideElement, taken: Set<string>): SlideElement {
+  return withDescendants(element, (one) => {
+    let count = 1;
+    while (taken.has(`${one.type}-${count}`)) count += 1;
+    const id = `${one.type}-${count}`;
+    taken.add(id);
+    return { ...one, id };
+  });
+}
+
+// An element without its ids and its layer, to tell whether a paste would lie exactly on it: the
+// paste comes on top, whatever layer its original had.
+const withoutIds = (element: SlideElement) =>
+  JSON.stringify(withDescendants({ ...element, layer: 0 }, (one) => ({ ...one, id: "" })));
+
+// The elements of `ids` as they are drawn on the page, in drawing order: one in a group comes out at
+// its place and turn on the page.
+export function copyElements(
+  elements: readonly SlideElement[],
+  ids: readonly string[],
+): SlideElement[] {
+  const wanted = new Set(ids);
+  const drawn = (list: readonly SlideElement[]): SlideElement[] =>
+    stackOrder(list).flatMap((element) =>
+      wanted.has(element.id) ? [element] : element.type === "group" ? drawn(element.children) : [],
+    );
+  return drawn(elements).map((element) => {
+    if (groupChain(elements, element.id).length === 0) return element;
+    const placed = placedBox(elements, element);
+    const step = { x: placed.box.x - element.x, y: placed.box.y - element.y };
+    return { ...shifted(element, step), rotation: placed.rotation };
+  });
+}
+
+// Copies put on top of the page with new ids, where they were copied; while one would lie exactly
+// on an identical element there, all of them a further offset right and down.
+export function pasteElements(
+  document: SlideDocument,
+  page: number,
+  copies: readonly SlideElement[],
+): { document: SlideDocument; ids: string[] } {
+  const current = document.pages[page];
+  if (current === undefined || copies.length === 0) return { document, ids: [] };
+  const layer = Math.max(0, ...current.elements.map((element) => element.layer));
+  const at = (step: number) =>
+    copies.map((copy) => ({ ...shifted(copy, { x: step, y: step }), layer }));
+  const present = new Set(current.elements.map(withoutIds));
+  let step = 0;
+  while (at(step).some((copy) => present.has(withoutIds(copy)))) step += DUPLICATE_OFFSET;
+  const taken = idsOf(document);
+  const placed = at(step).map((copy) => withFreshIds(copy, taken));
+  return {
+    document: withPage(document, page, (elements) => [...elements, ...placed]),
+    ids: placed.map((element) => element.id),
+  };
+}
+
+// A copy of each element of `ids` directly above it in its list, offset right and down on the
+// screen (in a turned group's frame, the offset turned back).
+export function duplicateElements(
+  document: SlideDocument,
+  page: number,
+  ids: readonly string[],
+): { document: SlideDocument; ids: string[] } {
+  const elements = document.pages[page]?.elements ?? [];
+  const taken = idsOf(document);
+  const copies = new Map<string, SlideElement>();
+  for (const id of ids) {
+    const element = findElement(elements, id)?.element;
+    if (element === undefined) continue;
+    const step = stepIntoGroups(groupChain(elements, id), {
+      x: DUPLICATE_OFFSET,
+      y: DUPLICATE_OFFSET,
+    });
+    copies.set(id, withFreshIds(shifted(element, step), taken));
+  }
+  if (copies.size === 0) return { document, ids: [] };
+  const walk = (list: readonly SlideElement[]): SlideElement[] =>
+    list.flatMap((element) => {
+      const self =
+        element.type === "group" ? { ...element, children: walk(element.children) } : element;
+      const copy = copies.get(element.id);
+      return copy === undefined ? [self] : [self, copy];
+    });
+  return {
+    document: withPage(document, page, walk),
+    ids: [...copies.values()].map((copy) => copy.id),
+  };
+}

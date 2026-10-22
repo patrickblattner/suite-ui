@@ -55,6 +55,7 @@ describe("focus ring", () => {
   // SUI-FEATURE-055: the keyboard-highlighted entry of a menu or choice list carries the inset ring.
   it.each([
     "ui/dropdown-menu.tsx",
+    "ui/context-menu.tsx",
     "ui/select.tsx",
     "ui/timezone-combobox.tsx",
     "ui/combobox.tsx",

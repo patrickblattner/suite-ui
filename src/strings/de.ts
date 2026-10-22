@@ -707,6 +707,23 @@ export const de: SuiteStrings = {
       pageRefused:
         "Das Dokument fasst diese Seite nicht. Entferne eine Seite oder ein Element und versuche es erneut.",
       deleteSelection: "Löschen",
+      cut: "Ausschneiden",
+      cutHint:
+        "Entfernt die Auswahl und hält sie zum Einfügen auf jeder Seite und in jedem Dokument bereit.",
+      cutUnavailable: "Ausschneiden: möglich, sobald ein nicht gesperrtes Element ausgewählt ist.",
+      copy: "Kopieren",
+      copyHint:
+        "Hält eine Kopie der Auswahl zum Einfügen auf jeder Seite und in jedem Dokument bereit.",
+      copyUnavailable: "Kopieren: möglich, sobald ein Element ausgewählt ist.",
+      paste: "Einfügen",
+      pasteHint: "Setzt Ausgeschnittenes oder Kopiertes auf diese Seite, an seine Stelle.",
+      pasteUnavailable: "Einfügen: möglich, sobald ein Element ausgeschnitten oder kopiert ist.",
+      duplicate: "Duplizieren",
+      duplicateHint: "Setzt eine Kopie der Auswahl leicht nach rechts unten versetzt darüber.",
+      duplicateUnavailable:
+        "Duplizieren: möglich, sobald ein nicht gesperrtes Element ausgewählt ist.",
+      pasteRefused:
+        "So viele Elemente passen nicht auf die Seite. Entferne einige und versuche es erneut.",
       pages: "Seiten",
       pageNumber: "Seite {{n}}",
       showPage: "Seite {{n}} zeigen",

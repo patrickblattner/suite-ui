@@ -145,6 +145,23 @@ for (const lng of LANGUAGES) {
         fullPage: true,
       });
     });
+
+    // `SUI-FEATURE-191`: the canvas menu on an element, Paste locked while nothing was copied; every
+    // entry one full-width row (#388).
+    test(`slide editor menu ${lng} ${theme}`, async ({ page }) => {
+      await page.goto(`/?page=slide-editor&lng=${lng}&theme=${theme}`);
+      await expect(page.locator("html")).toHaveAttribute("lang", lng);
+      const { at } = await openEditor(page, false);
+      const stamp = at(180, 340);
+      await page.mouse.click(stamp.x, stamp.y, { button: "right" });
+      const menu = page.getByTestId("slide-editor-menu");
+      await expect(menu).toBeVisible();
+      await expect(page.getByTestId("slide-editor-menu-paste")).toHaveAttribute(
+        "aria-disabled",
+        "true",
+      );
+      await expect(page).toHaveScreenshot(`slide-editor-menu-${lng}-${theme}.png`);
+    });
   }
 }
 

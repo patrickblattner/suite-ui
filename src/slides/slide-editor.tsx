@@ -26,6 +26,12 @@ import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
 import { Button } from "../ui/button.js";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "../ui/context-menu.js";
 import { CanvasOverlay, type CanvasTarget, CanvasZoom, type CanvasZoomMode } from "../ui/canvas.js";
 import { type DrawerId, DrawerRail } from "../ui/drawer-rail.js";
 import { EditorHeader, useEditorLeaveGuard } from "../ui/editor-header.js";
@@ -48,8 +54,10 @@ import {
   type Box,
   boundsOf,
   boxOf,
+  copyElements,
   distributeElements,
   drawnBox,
+  duplicateElements,
   findElement,
   groupChain,
   groupElements,
@@ -69,6 +77,7 @@ import {
   nextAnimationOrder,
   pageBox,
   panCrop,
+  pasteElements,
   placedBox,
   setAnimation,
   setBox,
@@ -165,6 +174,7 @@ import {
   type SlideViewProps,
 } from "./slide-view.js";
 import { type SlideHistory, useSlideHistory } from "./use-slide-history.js";
+import { elementClipboard, keepInClipboard } from "./element-clipboard-internal.js";
 
 export interface SlideEditorProps extends Pick<
   SlideViewProps,
@@ -216,6 +226,11 @@ const CROP_HINT_ROOM = 480;
 const FIELD_RANGE = 2 * SLIDE_LIMITS.maxFormatSide;
 // The one error toast of a refused insert: a repeated press replaces it (#365).
 const INSERT_REFUSED_TOAST = "slide-editor-insert-refused";
+// The element clipboard's keys (`SUI-FEATURE-191`), on the canvas and named in its menu.
+const CUT_SHORTCUT = ["Ctrl+X", "Meta+X"] as const;
+const COPY_SHORTCUT = ["Ctrl+C", "Meta+C"] as const;
+const PASTE_SHORTCUT = ["Ctrl+V", "Meta+V"] as const;
+const DUPLICATE_SHORTCUT = ["Ctrl+D", "Meta+D"] as const;
 // How long a new entrance, exit or transition plays (ms); the most a duration or delay field takes
 // is `ANIMATION_MAX_MS`, shared with the preview.
 const ANIMATION_MS = 500;
@@ -1044,11 +1059,11 @@ function Editor({
   // An insert the document refuses is named in an error toast and nothing changes: a page at its
   // element limit (Codex #362 CX1) says so, any other broken rule gets the generic error. The toast
   // has one id, so repeated presses replace it rather than stack (#365).
-  const insertFits = (next: SlideDocument) => {
+  const insertFits = (next: SlideDocument, refused = "slides.editor.insertRefused") => {
     const result = safeParseSlideDocument(next);
     if (result.ok) return true;
     const full = result.error.issues.some((issue) => issue.code === "too-many-elements");
-    toast.error(t(full ? "slides.editor.insertRefused" : "slides.editor.insertFailed"), {
+    toast.error(t(full ? refused : "slides.editor.insertFailed"), {
       id: INSERT_REFUSED_TOAST,
     });
     return false;
@@ -1329,6 +1344,86 @@ function Editor({
     apply((current) => deleteElements(current, page, ids));
     setSelection([]);
   };
+  // The element clipboard (`SUI-FEATURE-191`): copy takes the whole selection, cut and duplicate its
+  // unlocked part; a paste or duplicate the page cannot take is refused with a toast. Each change is
+  // one step, the copies selected after it.
+  const copySelection = () => {
+    if (selected.length === 0) return;
+    keepInClipboard(
+      copyElements(
+        elements,
+        selected.map((element) => element.id),
+      ),
+    );
+  };
+  const cutSelection = () => {
+    const ids = editable.map((element) => element.id);
+    if (ids.length === 0) return;
+    keepInClipboard(copyElements(elements, ids));
+    removeSelected();
+  };
+  const placeCopies = (result: { document: SlideDocument; ids: string[] }) => {
+    if (result.ids.length === 0 || !insertFits(result.document, "slides.editor.pasteRefused")) {
+      return;
+    }
+    apply(() => result.document);
+    setSelection(result.ids);
+  };
+  const paste = () => placeCopies(pasteElements(history.document, page, elementClipboard.elements));
+  const duplicate = () =>
+    placeCopies(
+      duplicateElements(
+        history.document,
+        page,
+        editable.map((element) => element.id),
+      ),
+    );
+  // The canvas's menu (`SUI-FEATURE-191`): a right click on an element outside the selection selects
+  // it first. Paste reads the clipboard as the menu opens; another editor may have filled it.
+  const [clipboardFilled, setClipboardFilled] = React.useState(false);
+  const selectUnderMenu = (event: React.MouseEvent<HTMLDivElement>) => {
+    // While cropping the menu rests, and so does the browser's.
+    if (cropping !== undefined) {
+      event.preventDefault();
+      return;
+    }
+    if (editing !== undefined) setEditing(undefined);
+    const hit = hitTest(toPage(event));
+    if (hit !== undefined && !selection.includes(hit.id)) setSelection([hit.id]);
+  };
+  const menuEntry = (
+    name: "cut" | "copy" | "paste" | "duplicate",
+    usable: boolean,
+    shortcut: readonly string[],
+    onSelect: () => void,
+  ) => (
+    <Hint
+      key={name}
+      text={t(`slides.editor.${name}Hint`)}
+      // Always carried, so every entry stands in the same full-width grid and toggling never
+      // remounts it.
+      disabledText={t(`slides.editor.${name}Unavailable`)}
+      carrierClassName="grid rounded-sm focus-visible:focus-ring-inset"
+      shortcut={shortcut}
+    >
+      <ContextMenuItem
+        {...(usable ? {} : { "aria-disabled": true, "data-disabled": "" })}
+        onSelect={(event) => {
+          if (usable) onSelect();
+          else event.preventDefault();
+        }}
+        // Its hint opens on the pointer as well; locked, it takes no tint.
+        className={
+          usable
+            ? undefined
+            : "focus:bg-transparent focus:text-popover-foreground data-[disabled]:pointer-events-auto data-[disabled]:cursor-not-allowed"
+        }
+        data-testid={`slide-editor-menu-${name}`}
+      >
+        {t(`slides.editor.${name}`)}
+      </ContextMenuItem>
+    </Hint>
+  );
   const startEditing = (id: string, cell?: CellAt) => {
     const ids = [id];
     setSelection(ids);
@@ -1812,6 +1907,15 @@ function Editor({
   const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (cropping !== undefined) {
       onCropKey(event, cropping);
+      return;
+    }
+    const command = (event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey;
+    const clipboardKey = command
+      ? { x: cutSelection, c: copySelection, v: paste, d: duplicate }[event.key.toLowerCase()]
+      : undefined;
+    if (clipboardKey !== undefined) {
+      event.preventDefault();
+      clipboardKey();
       return;
     }
     // Enter on one selected image starts cropping it, as a double click does.
@@ -2931,44 +3035,60 @@ function Editor({
                   </div>
                 </div>
               )}
-              <div
-                ref={canvas}
-                role="application"
-                aria-roledescription={t("slides.editor.document")}
-                aria-label={t("slides.editor.page", {
-                  current: page + 1,
-                  total: document.pages.length,
-                })}
-                tabIndex={0}
-                className={cn(
-                  "absolute inset-0 outline-none focus-visible:focus-ring-inset",
-                  cropping !== undefined
-                    ? drag?.kind === "crop"
-                      ? "cursor-grabbing"
-                      : hovered === cropping.id
-                        ? "cursor-grab"
-                        : "cursor-default"
-                    : hovered === undefined
-                      ? "cursor-default"
-                      : "cursor-move",
-                )}
-                data-slot="slide-editor-canvas"
-                data-cropping={cropping?.id}
-                data-testid="slide-editor-canvas"
-                onPointerDown={onPointerDown}
-                onPointerMove={onPointerMove}
-                onPointerUp={onPointerUp}
-                onPointerCancel={onPointerUp}
-                onPointerLeave={() => setHovered(undefined)}
-                onDoubleClick={onDoubleClick}
-                onDragOver={(event) => {
-                  if (event.dataTransfer.types.includes(LIBRARY_DRAG_TYPE)) event.preventDefault();
+              <ContextMenu
+                onOpenChange={(open) => {
+                  if (open) setClipboardFilled(elementClipboard.elements.length > 0);
                 }}
-                onDrop={onLibraryDrop}
-                onKeyDown={onKeyDown}
-                onBlur={cropping === undefined ? undefined : keepCropOnLeave}
-                aria-describedby={croppedImage === undefined ? undefined : cropDescription}
-              />
+              >
+                <ContextMenuTrigger asChild disabled={cropping !== undefined}>
+                  <div
+                    ref={canvas}
+                    role="application"
+                    aria-roledescription={t("slides.editor.document")}
+                    aria-label={t("slides.editor.page", {
+                      current: page + 1,
+                      total: document.pages.length,
+                    })}
+                    tabIndex={0}
+                    className={cn(
+                      "absolute inset-0 outline-none focus-visible:focus-ring-inset",
+                      cropping !== undefined
+                        ? drag?.kind === "crop"
+                          ? "cursor-grabbing"
+                          : hovered === cropping.id
+                            ? "cursor-grab"
+                            : "cursor-default"
+                        : hovered === undefined
+                          ? "cursor-default"
+                          : "cursor-move",
+                    )}
+                    data-slot="slide-editor-canvas"
+                    data-cropping={cropping?.id}
+                    data-testid="slide-editor-canvas"
+                    onPointerDown={onPointerDown}
+                    onPointerMove={onPointerMove}
+                    onPointerUp={onPointerUp}
+                    onPointerCancel={onPointerUp}
+                    onPointerLeave={() => setHovered(undefined)}
+                    onDoubleClick={onDoubleClick}
+                    onDragOver={(event) => {
+                      if (event.dataTransfer.types.includes(LIBRARY_DRAG_TYPE))
+                        event.preventDefault();
+                    }}
+                    onDrop={onLibraryDrop}
+                    onKeyDown={onKeyDown}
+                    onContextMenu={selectUnderMenu}
+                    onBlur={cropping === undefined ? undefined : keepCropOnLeave}
+                    aria-describedby={croppedImage === undefined ? undefined : cropDescription}
+                  />
+                </ContextMenuTrigger>
+                <ContextMenuContent data-testid="slide-editor-menu">
+                  {menuEntry("cut", editable.length > 0, CUT_SHORTCUT, cutSelection)}
+                  {menuEntry("copy", selected.length > 0, COPY_SHORTCUT, copySelection)}
+                  {menuEntry("paste", clipboardFilled, PASTE_SHORTCUT, paste)}
+                  {menuEntry("duplicate", editable.length > 0, DUPLICATE_SHORTCUT, duplicate)}
+                </ContextMenuContent>
+              </ContextMenu>
               {croppedImage === undefined ? null : (
                 <span id={cropDescription} hidden>
                   {t("slides.editor.cropping", {
