@@ -82,7 +82,7 @@ describe("element clipboard", () => {
 
   it("keeps an image's app payload byte-equal through copy, paste and duplicate", () => {
     const payload = {
-      "ext:gallery.image-filter": { warmth: 20, brightness: -5 },
+      "ext.gallery.image-filter": { warmth: 20, brightness: -5 },
       note: ["kept", 1],
     };
     const image = {

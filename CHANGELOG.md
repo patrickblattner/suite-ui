@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.165.0 — #394, SUI-FEATURE-163 rev 6: add-on ids `ext.<app>.<name>`
+
+Breaking for apps that register slide add-ons or keep add-on values in an element's payload.
+
+- **Add-on ids without a colon (#394):** an add-on's `id` now has the form `ext.<app>.<name>` (`ext.cockpit.image-filter`), the token format of `SUI-DESIGN-002`. `SlideView` and `SlideEditor` (`checkSlideExtensions`) refuse any other form with an error naming the id, the old `ext:<app>.<name>` included. Only a payload key starting with `ext.` counts as an add-on's value: the editor's note on settings of an extension not loaded here shows for such a key, never for plain app data, and an `ext:` key is now plain app data. The gallery's example add-on is `ext.gallery.image-filter`.
+
+**Migration:** rename each add-on `id` from `ext:<app>.<name>` to `ext.<app>.<name>`, and move stored values from the payload key `ext:<app>.<name>` to `ext.<app>.<name>` (until then they are kept as plain app data and not drawn).
+
 ## 0.164.0 — #391, SUI-FEATURE-163: element schema with the structural preflight
 
 Breaking for apps that call `slideElementFitsLimits`: the export is removed.

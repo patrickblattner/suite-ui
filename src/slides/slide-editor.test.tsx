@@ -156,7 +156,7 @@ describe("SlideEditor extensions", () => {
             media: { id: "photo" },
             alt: "Filtered photo",
             payload: {
-              "ext:gallery.image-filter": { warmth: 20, brightness: -5 },
+              "ext.gallery.image-filter": { warmth: 20, brightness: -5 },
               note: ["kept", 1],
             },
           },
@@ -186,10 +186,10 @@ describe("SlideEditor extensions", () => {
           addOns: [
             {
               type: "image",
-              id: "ext:gallery.image-filter",
+              id: "ext.gallery.image-filter",
               style: () => ({ filter: "sepia(20%)" }),
             },
-            { type: "image", id: "ext:test.note", style: () => undefined },
+            { type: "image", id: "ext.test.note", style: () => undefined },
           ],
         }}
         onSave={() => true}
@@ -198,7 +198,7 @@ describe("SlideEditor extensions", () => {
     );
     expect(screen.getAllByText("Stamp drawn").length).toBeGreaterThan(0);
     const box = container.querySelector<HTMLElement>(
-      "[data-slide-element=filtered] [data-slide-add-on='ext:gallery.image-filter']",
+      "[data-slide-element=filtered] [data-slide-add-on='ext.gallery.image-filter']",
     )!;
     expect(box.style.filter).toBe("sepia(20%)");
     select("filtered");
@@ -256,7 +256,7 @@ describe("SlideEditor extensions", () => {
     expect(saved).toMatchObject({ x: 50, y: 301 });
     expect(JSON.stringify(saved.payload)).toBe(
       JSON.stringify({
-        "ext:gallery.image-filter": { warmth: 20, brightness: -5 },
+        "ext.gallery.image-filter": { warmth: 20, brightness: -5 },
         note: ["kept", 1],
       }),
     );
@@ -331,7 +331,7 @@ describe("SlideEditor extensions", () => {
                   chart: "bar" as const,
                   categories: ["A"],
                   series: [{ name: "One", values: [1] }],
-                  payload: { "ext:test.trend": true },
+                  payload: { "ext.test.trend": true },
                 },
               ],
             }
@@ -396,7 +396,7 @@ describe("SlideEditor extension parts", () => {
     addOns: [
       {
         type: "image",
-        id: "ext:gallery.image-filter",
+        id: "ext.gallery.image-filter",
         label: "Filter",
         style: (value) => ({
           filter: `sepia(${Number((value as { warmth?: number })?.warmth ?? 0)}%)`,
@@ -540,16 +540,16 @@ describe("SlideEditor extension parts", () => {
     expect(screen.getByTestId("property-tab-layout")).toHaveAttribute("data-state", "active");
     fireEvent.mouseDown(screen.getByTestId("property-tab-content"));
     fireEvent.click(screen.getByTestId("property-tab-content"));
-    const section = screen.getByTestId("slide-editor-add-on-ext:gallery.image-filter");
+    const section = screen.getByTestId("slide-editor-add-on-ext.gallery.image-filter");
     expect(section).toHaveTextContent("Filter");
     fireEvent.change(within(section).getByLabelText("Warmth"), { target: { value: "30" } });
     expect(
       container.querySelector<HTMLElement>(
-        "[data-slide-element=photo-1] [data-slide-add-on='ext:gallery.image-filter']",
+        "[data-slide-element=photo-1] [data-slide-add-on='ext.gallery.image-filter']",
       )!.style.filter,
     ).toBe("sepia(30%)");
     expect((await saved(onSave)).find((element) => element.id === "photo-1")!.payload).toEqual({
-      "ext:gallery.image-filter": { warmth: 30 },
+      "ext.gallery.image-filter": { warmth: 30 },
     });
     fireEvent.change(within(section).getByLabelText("Warmth"), { target: { value: "" } });
     expect((await saved(onSave)).find((element) => element.id === "photo-1")).not.toHaveProperty(

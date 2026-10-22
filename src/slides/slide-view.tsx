@@ -83,12 +83,12 @@ export interface SlideTypeExtension {
 }
 
 // What an app adds to a built-in type (`SUI-FEATURE-163` §Zusätze), such as a CSS filter on an image.
-// Its `id` has the form `ext:<app>.<name>` (`ext:cockpit.image-filter`; lower-case letters, digits and
+// Its `id` has the form `ext.<app>.<name>` (`ext.cockpit.image-filter`; lower-case letters, digits and
 // hyphens), and its value is the element's payload under exactly that key; an element without it is
 // drawn as it is. In the editor its fields edit that value (`undefined` removes the key), under its
 // `label` in the Content tab. The value comes from the document as saved, possibly from someone else: validate its shape and
 // never pass a string from it into a CSS value verbatim (a `url(…)` would load whatever it names).
-// A payload key without `ext:` is plain app data. An `ext:` key no loaded add-on of the element's type
+// A payload key without `ext.` is plain app data. An `ext.` key no loaded add-on of the element's type
 // has makes the editor's panel note that the element carries settings of an extension not loaded
 // here (`carriesUnloadedAddOn`).
 export type SlideAddOn = {
@@ -131,24 +131,24 @@ export interface SlideExtensions {
   overlay?: (props: SlideOverlayProps) => React.ReactNode;
 }
 
-// An add-on's id: `ext:<app>.<name>`, each part lower-case letters and digits, joined by hyphens.
-const ADD_ON_ID = /^ext:[a-z0-9]+(?:-[a-z0-9]+)*\.[a-z0-9]+(?:-[a-z0-9]+)*$/;
+// An add-on's id: `ext.<app>.<name>`, each part lower-case letters and digits, joined by hyphens.
+const ADD_ON_ID = /^ext\.[a-z0-9]+(?:-[a-z0-9]+)*\.[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
-// Refuses extensions whose add-on ids are not of the form `ext:<app>.<name>` (`SUI-FEATURE-163` AC5):
+// Refuses extensions whose add-on ids are not of the form `ext.<app>.<name>` (`SUI-FEATURE-163` AC5):
 // the view and the editor check what they are handed and throw, naming the id.
 export function checkSlideExtensions(extensions: SlideExtensions | undefined): void {
   for (const addOn of extensions?.addOns ?? []) {
     if (!ADD_ON_ID.test(addOn.id)) {
       throw new Error(
-        `Slide add-on id ${JSON.stringify(addOn.id)} is not of the form ext:<app>.<name>`,
+        `Slide add-on id ${JSON.stringify(addOn.id)} is not of the form ext.<app>.<name>`,
       );
     }
   }
 }
 
-// The element is a built-in type whose payload holds an `ext:` key no add-on of its type registered
+// The element is a built-in type whose payload holds an `ext.` key no add-on of its type registered
 // here has: the settings of an extension not loaded, which stay untouched (`SUI-FEATURE-163`
-// §Grenzen). Plain app data (keys without `ext:`) never counts.
+// §Grenzen). Plain app data (keys without `ext.`) never counts.
 export function carriesUnloadedAddOn(
   element: SlideElement,
   extensions: SlideExtensions | undefined,
@@ -157,7 +157,7 @@ export function carriesUnloadedAddOn(
   const known = new Set(
     (extensions?.addOns ?? []).filter((addOn) => addOn.type === element.type).map((a) => a.id),
   );
-  return Object.keys(element.payload).some((key) => key.startsWith("ext:") && !known.has(key));
+  return Object.keys(element.payload).some((key) => key.startsWith("ext.") && !known.has(key));
 }
 
 // What the view could not draw as the document asks; an export aborts on any of it.

@@ -45,7 +45,7 @@ const shape = (id: string, x: number, y: number) => ({
   height: 100,
 });
 const background = { type: "color" as const, color: { kind: "free" as const, value: "#fff" } };
-const payload = { "ext:gallery.image-filter": { warmth: 20, brightness: -5 }, note: ["kept", 1] };
+const payload = { "ext.gallery.image-filter": { warmth: 20, brightness: -5 }, note: ["kept", 1] };
 
 const DOC = {
   schemaVersion: 2 as const,

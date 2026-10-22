@@ -62,7 +62,7 @@ describe("SlidePlayer", () => {
           addOns: [
             {
               type: "image",
-              id: "ext:gallery.image-filter",
+              id: "ext.gallery.image-filter",
               style: () => ({ filter: "sepia(30%)" }),
             },
           ],
@@ -72,7 +72,7 @@ describe("SlidePlayer", () => {
     );
     expect(screen.getByText("Stamp drawn")).toBeInTheDocument();
     const box = container.ownerDocument.querySelector<HTMLElement>(
-      "[data-slide-element=photo] [data-slide-add-on='ext:gallery.image-filter']",
+      "[data-slide-element=photo] [data-slide-add-on='ext.gallery.image-filter']",
     )!;
     expect(box.style.filter).toBe("sepia(30%)");
   });

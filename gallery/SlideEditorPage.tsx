@@ -124,7 +124,7 @@ const GALLERY_EDITOR_EXTENSIONS: SlideExtensions = {
   addOns: [
     {
       type: "image",
-      id: "ext:gallery.image-filter",
+      id: "ext.gallery.image-filter",
       style: imageFilter,
       label: "Filter",
       fields: ({ value, onChange, readOnly }) => (

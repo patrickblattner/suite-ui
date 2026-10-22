@@ -16,7 +16,7 @@ import {
 
 // What the gallery hands every view: its brand set, its own font files, its media and its extensions
 // (`SUI-FEATURE-163`): an app type of its own (`gallery.stamp`; `community.poll` stays without one)
-// and an image filter read from the payload key `ext:gallery.image-filter` (warmth and brightness, as the Cockpit keeps
+// and an image filter read from the payload key `ext.gallery.image-filter` (warmth and brightness, as the Cockpit keeps
 // them).
 export const GALLERY_SLIDE_PROPS = {
   brand: SLIDE_BRAND,
@@ -34,7 +34,7 @@ export const GALLERY_SLIDE_PROPS = {
         ),
       },
     },
-    addOns: [{ type: "image", id: "ext:gallery.image-filter", style: imageFilter }],
+    addOns: [{ type: "image", id: "ext.gallery.image-filter", style: imageFilter }],
   },
 } satisfies Partial<SlideViewProps>;
 
