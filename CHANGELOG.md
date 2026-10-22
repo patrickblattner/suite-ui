@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.165.1 — #467, SUI-FEATURE-191: paste offset bounded, group children counted
+
+- **Paste never freezes the editor (#467):** `pasteElements` stops offsetting once the offset no longer moves a copy that covers an identical element (coordinates too large to change by 10 page units); the copies then land where they were copied. The number of offsets is bounded by the elements on the page.
+- **Paste offsets off a group's child (#467):** a child copied alone out of a group and pasted onto the same page now gets the paste offset when it would lie exactly on its original; the elements in groups count, as drawn on the page.
+
 ## 0.165.0 — #394, SUI-FEATURE-163 rev 6: add-on ids `ext.<app>.<name>`
 
 Breaking for apps that register slide add-ons or keep add-on values in an element's payload.

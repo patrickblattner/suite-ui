@@ -1564,7 +1564,9 @@ export function copyElements(
 }
 
 // Copies put on top of the page with new ids, where they were copied; while one would lie exactly
-// on an identical element there, all of them a further offset right and down.
+// on an identical element there (one in a group too, as it is drawn on the page), all of them a
+// further offset right and down. Where the offset no longer moves a covering one (coordinates too
+// large to change by it), they stay where they are.
 export function pasteElements(
   document: SlideDocument,
   page: number,
@@ -1574,12 +1576,30 @@ export function pasteElements(
   if (current === undefined || copies.length === 0) return { document, ids: [] };
   const layer = Math.max(0, ...current.elements.map((element) => element.layer));
   const at = (step: number) =>
-    copies.map((copy) => ({ ...shifted(copy, { x: step, y: step }), layer }));
-  const present = new Set(current.elements.map(withoutIds));
+    copies.map((copy) => withoutIds({ ...shifted(copy, { x: step, y: step }), layer }));
+  const present = new Set<string>();
+  for (let level = current.elements; level.length > 0;) {
+    for (const element of copyElements(
+      current.elements,
+      level.map((one) => one.id),
+    ))
+      present.add(withoutIds(element));
+    level = level.flatMap((one) => (one.type === "group" ? one.children : []));
+  }
+  // Each further offset has to clear an element still covered, so there are at most as many as
+  // there are elements.
   let step = 0;
-  while (at(step).some((copy) => present.has(withoutIds(copy)))) step += DUPLICATE_OFFSET;
+  let keys = at(step);
+  for (let tries = 0; tries < present.size && keys.some((key) => present.has(key)); tries += 1) {
+    const next = at(step + DUPLICATE_OFFSET);
+    if (keys.some((key, index) => present.has(key) && next[index] === key)) break;
+    step += DUPLICATE_OFFSET;
+    keys = next;
+  }
   const taken = idsOf(document);
-  const placed = at(step).map((copy) => withFreshIds(copy, taken));
+  const placed = copies
+    .map((copy) => ({ ...shifted(copy, { x: step, y: step }), layer }))
+    .map((copy) => withFreshIds(copy, taken));
   return {
     document: withPage(document, page, (elements) => [...elements, ...placed]),
     ids: placed.map((element) => element.id),
