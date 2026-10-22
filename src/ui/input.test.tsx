@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
 import { Button } from "./button.js";
@@ -52,5 +52,55 @@ describe("height scale", () => {
     expect(trigger).toHaveAttribute("data-size", size);
     expect(trigger).toHaveClass(`data-[size=${size}]:${height}`);
     expect(button).toHaveClass(height);
+  });
+});
+
+// `SUI-FEATURE-260`: a date or time field rings while any part of it holds the keyboard focus, never
+// after a pure mouse click. jsdom has no Tailwind, so the origin is checked through the attribute.
+describe("date and time fields", () => {
+  it.each(["date", "time", "datetime-local", "month", "week"])(
+    "`%s` rings on keyboard focus within, not on pointer focus",
+    (type) => {
+      render(<Input type={type} aria-label="When" />);
+      const input = screen.getByLabelText("When");
+      expect(input).toHaveClass("[&:focus-within:not([data-pointer-focus])]:focus-ring");
+      expect(input).not.toHaveClass("focus-visible:focus-ring");
+      expect(input).not.toHaveAttribute("data-pointer-focus");
+
+      fireEvent.pointerDown(input);
+      expect(input).toHaveAttribute("data-pointer-focus");
+      fireEvent.keyDown(input, { key: "Tab" });
+      expect(input).not.toHaveAttribute("data-pointer-focus");
+
+      fireEvent.pointerDown(input);
+      fireEvent.blur(input);
+      expect(input).not.toHaveAttribute("data-pointer-focus");
+    },
+  );
+
+  it("a text field keeps the `focus-visible` ring and no pointer marker", () => {
+    render(<Input aria-label="Name" />);
+    const input = screen.getByRole("textbox", { name: "Name" });
+    fireEvent.pointerDown(input);
+    expect(input).toHaveClass("focus-visible:focus-ring");
+    expect(input).not.toHaveAttribute("data-pointer-focus");
+  });
+
+  it("passes the caller's pointer, key and blur handlers through", () => {
+    const calls: string[] = [];
+    render(
+      <Input
+        type="date"
+        aria-label="Day"
+        onPointerDown={() => calls.push("pointer")}
+        onKeyDown={() => calls.push("key")}
+        onBlur={() => calls.push("blur")}
+      />,
+    );
+    const input = screen.getByLabelText("Day");
+    fireEvent.pointerDown(input);
+    fireEvent.keyDown(input, { key: "1" });
+    fireEvent.blur(input);
+    expect(calls).toEqual(["pointer", "key", "blur"]);
   });
 });
