@@ -6550,7 +6550,7 @@ for (const theme of THEMES) {
     // Pressed and unpressed of each toggle, with the attribute that carries its state.
     const pairs = [
       ["view-table", "view-tiles", "aria-checked"],
-      ["pressed-split-list-tab", "pressed-split-preview-tab", "aria-checked"],
+      ["pressed-split-preview-tab", "pressed-split-list-tab", "aria-checked"],
       ["canvas-zoom-fit", "canvas-zoom-actual", "aria-checked"],
       ["slide-editor-chart-type-bar", "slide-editor-chart-type-line", "aria-checked"],
       ["pressed-text-bold", "pressed-text-italic", "aria-pressed"],
