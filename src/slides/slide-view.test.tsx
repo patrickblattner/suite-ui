@@ -44,7 +44,7 @@ const extensions: SlideExtensions = {
 };
 const sepia: SlideAddOn = {
   type: "image",
-  id: "ext:gallery.image-filter",
+  id: "ext.gallery.image-filter",
   style: (value) => ({ filter: `sepia(${(value as { warmth: number }).warmth}%)` }),
 };
 // The showcase with the photo carrying filter values in its payload.
@@ -54,7 +54,7 @@ const filtered = {
     ...page,
     elements: page.elements?.map((element) =>
       element.id === "photo"
-        ? { ...element, payload: { "ext:gallery.image-filter": { warmth: 40 } } }
+        ? { ...element, payload: { "ext.gallery.image-filter": { warmth: 40 } } }
         : element,
     ),
   })),
@@ -373,7 +373,7 @@ describe("SlideView reports, second round", () => {
       extensions: { ...extensions, addOns: [sepia] },
     });
     const photo = container.querySelector("[data-slide-element=photo]")!;
-    const box = photo.querySelector<HTMLElement>("[data-slide-add-on='ext:gallery.image-filter']")!;
+    const box = photo.querySelector<HTMLElement>("[data-slide-add-on='ext.gallery.image-filter']")!;
     expect(box.style.filter).toBe("sepia(40%)");
     expect(box).toContainElement(screen.getByRole("img", { name: "Hills under a sun" }));
     // Another image or an element without the key is drawn as it is.
@@ -383,7 +383,7 @@ describe("SlideView reports, second round", () => {
   it("composes two add-ons on one element, one box each", async () => {
     const tint: SlideAddOn = {
       type: "image",
-      id: "ext:test.tint",
+      id: "ext.test.tint",
       style: () => ({ opacity: 0.5 }),
     };
     const document = {
@@ -394,7 +394,7 @@ describe("SlideView reports, second round", () => {
           element.id === "photo"
             ? {
                 ...element,
-                payload: { "ext:gallery.image-filter": { warmth: 40 }, "ext:test.tint": true },
+                payload: { "ext.gallery.image-filter": { warmth: 40 }, "ext.test.tint": true },
               }
             : element,
         ),
@@ -402,10 +402,10 @@ describe("SlideView reports, second round", () => {
     } as SlideViewProps["document"];
     const { container } = await drawn({ document, extensions: { addOns: [sepia, tint] } });
     const outer = container.querySelector<HTMLElement>(
-      "[data-slide-element=photo] [data-slide-add-on='ext:test.tint']",
+      "[data-slide-element=photo] [data-slide-add-on='ext.test.tint']",
     )!;
     const inner = outer.querySelector<HTMLElement>(
-      "[data-slide-add-on='ext:gallery.image-filter']",
+      "[data-slide-add-on='ext.gallery.image-filter']",
     )!;
     expect(outer.style.opacity).toBe("0.5");
     expect(inner.style.filter).toBe("sepia(40%)");
@@ -430,32 +430,37 @@ describe("SlideView reports, second round", () => {
     )!;
     expect(carriesUnloadedAddOn(image, undefined)).toBe(true);
     expect(carriesUnloadedAddOn(image, { addOns: [sepia] })).toBe(false);
-    expect(carriesUnloadedAddOn(image, { addOns: [{ ...sepia, id: "ext:test.other" }] })).toBe(
+    expect(carriesUnloadedAddOn(image, { addOns: [{ ...sepia, id: "ext.test.other" }] })).toBe(
       true,
     );
-    // AC4: plain app data (no `ext:`) never counts, even without any add-on.
-    const plain = { ...image, payload: { origin: "template-7", filter: { warmth: 1 } } };
+    // AC4: plain app data (no `ext.`) never counts, even without any add-on; an old `ext:` key is
+    // plain app data too.
+    const plain = {
+      ...image,
+      payload: { origin: "template-7", filter: { warmth: 1 }, "ext:gallery.image-filter": {} },
+    };
     expect(carriesUnloadedAddOn(plain, undefined)).toBe(false);
     expect(
-      carriesUnloadedAddOn({ ...plain, payload: { ...plain.payload, "ext:x.y": 1 } }, undefined),
+      carriesUnloadedAddOn({ ...plain, payload: { ...plain.payload, "ext.x.y": 1 } }, undefined),
     ).toBe(true);
     // An app type's payload is its own data, never an add-on's.
     expect(carriesUnloadedAddOn(stampElement, undefined)).toBe(false);
   });
 
-  // SUI-FEATURE-163 AC5: an add-on id not of the form `ext:<app>.<name>` is refused with an error.
-  it("refuses an add-on whose id is not ext:<app>.<name>", () => {
+  // SUI-FEATURE-163 AC5: an add-on id not of the form `ext.<app>.<name>` is refused with an error.
+  it("refuses an add-on whose id is not ext.<app>.<name>", () => {
     for (const id of [
       "filter",
-      "ext:cockpit",
-      "ext:Cockpit.filter",
-      "ext:cockpit.",
-      "ext:a.b.c",
+      "ext.cockpit",
+      "ext.Cockpit.filter",
+      "ext.cockpit.",
+      "ext.a.b.c",
+      "ext:cockpit.image-filter",
       "x:a.b",
     ]) {
       expect(() => checkSlideExtensions({ addOns: [{ ...sepia, id }] })).toThrow(id);
     }
-    for (const id of ["ext:cockpit.image-filter", "ext:a1.b2"]) {
+    for (const id of ["ext.cockpit.image-filter", "ext.a1.b2"]) {
       expect(() => checkSlideExtensions({ addOns: [{ ...sepia, id }] })).not.toThrow();
     }
     vi.spyOn(console, "error").mockImplementation(() => {});
@@ -467,7 +472,7 @@ describe("SlideView reports, second round", () => {
           extensions={{ addOns: [{ ...sepia, id: "filter" }] }}
         />,
       ),
-    ).toThrow("ext:<app>.<name>");
+    ).toThrow("ext.<app>.<name>");
   });
 
   it("tries a media id again once the app resolves a new URL for it", async () => {

@@ -312,7 +312,7 @@ export const SLIDE_EXPORTABLE = deck([
       .filter((element) => element.id !== "poll")
       .map((element) =>
         element.id === "photo"
-          ? { ...element, payload: { "ext:gallery.image-filter": { warmth: 30, brightness: -10 } } }
+          ? { ...element, payload: { "ext.gallery.image-filter": { warmth: 30, brightness: -10 } } }
           : element,
       ),
   },
