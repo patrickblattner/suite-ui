@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.168.5 — #482, SUI-FEATURE-099: Esc gives back the selection and the spot's pointer
+
+- **Selection before a frame (#482):** Esc during a frame selection started without Shift now gives back the selection from before the press. Before, it left the selection empty (only a Shift frame got its selection back).
+- **Pointer after Esc (#482):** the pointer after Esc is computed against the page with the gesture dropped. Before, it was taken from the cancelled preview: an element moved over an empty spot left the move pointer there until the next pointer move.
+
+**Migration:** none.
+
 ## 0.168.4 — #418, SUI-FEATURE-099: the pointer stays the same during a gesture
 
 - **Gesture pointer (#418):** from the press to the release the pointer stays the one the gesture started with: the dragged handle's resize arrow (turned with the element, #338), the rotate handle's, "move" while moving, a column border's. Before, it changed with what it passed over: other elements, the canvas, the window outside the page. After the release it is the pointer of the spot under it again, without a further move.

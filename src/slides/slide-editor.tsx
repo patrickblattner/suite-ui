@@ -261,7 +261,7 @@ type Drag =
       box: Box;
       candidates: SnapCandidates;
     }
-  | { kind: "marquee"; start: Point; current: Point; additive: string[] }
+  | { kind: "marquee"; start: Point; current: Point; additive: string[]; before: string[] }
   | {
       kind: "resize";
       frame: Group[];
@@ -1498,6 +1498,7 @@ function Editor({
         start: point,
         current: point,
         additive: event.shiftKey ? selection : [],
+        before: selection,
       });
       return;
     }
@@ -1603,6 +1604,14 @@ function Editor({
 
   // Where the pointer last was on the page, so Esc can give back the pointer of that spot.
   const pointerAt = React.useRef<Point | undefined>(undefined);
+  // Set by Esc: the spot is hovered again once the cancelled gesture's preview is gone, against the
+  // restored elements and selection.
+  const rehover = React.useRef(false);
+  React.useEffect(() => {
+    if (!rehover.current) return;
+    rehover.current = false;
+    if (pointerAt.current !== undefined) hover(pointerAt.current);
+  });
   const onPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
     const point = toPage(event);
     pointerAt.current = point;
@@ -1922,11 +1931,11 @@ function Editor({
     // the pointer is the one of the spot again (`SUI-FEATURE-099`). While cropping, Esc goes on to
     // drop the crop.
     if (event.key === "Escape" && drag !== undefined) {
-      if (drag.kind === "marquee") setSelection(drag.additive);
+      if (drag.kind === "marquee") setSelection(drag.before);
       setPreview(undefined);
       setDrag(undefined);
       setGuides({});
-      if (pointerAt.current !== undefined) hover(pointerAt.current);
+      rehover.current = true;
       if (cropping === undefined) {
         event.preventDefault();
         return;
