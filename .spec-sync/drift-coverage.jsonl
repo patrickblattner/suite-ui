@@ -571,3 +571,10 @@
 {"ts":"2026-10-22T11:57:12.627Z","key":"PROC-CC-012","from":11,"to":12,"disposition":"editorial","ref":"Overmind night-note process rule; no app code impact"}
 {"ts":"2026-10-22T11:57:27.708Z","key":"PROC-DEV-043","from":4,"to":5,"disposition":"editorial","ref":"worker delegation rule (fresh agent per ticket, targeted reads); process only, no app code impact"}
 {"ts":"2026-10-22T11:57:36.255Z","key":"SUI-FEATURE-191","from":2,"to":3,"disposition":"ticket","ref":"466"}
+{"ts":"2026-10-22T18:32:19.823Z","key":"GL-OPS-002","from":5,"to":6,"disposition":"editorial","ref":"local backup location under ~/Backups/: suite-ui is a UI library with no local stack or backup paths in code; no code impact"}
+{"ts":"2026-10-22T18:32:26.119Z","key":"PROC-RUN-002","from":null,"to":2,"disposition":"editorial","ref":"overmind efficiency collector process; no suite-ui code impact"}
+{"ts":"2026-10-22T18:32:51.287Z","key":"SUI-FEATURE-099","from":2,"to":3,"disposition":"editorial","ref":"rev 3 states the grab rotate pointer that #418 already built and tests (slide-editor-gesture.test.tsx AC2); no code change"}
+{"ts":"2026-10-22T18:33:19.200Z","key":"SUI-FEATURE-103","from":null,"to":2,"disposition":"ticket","ref":"486"}
+{"ts":"2026-10-22T18:33:58.973Z","key":"SUI-FEATURE-191","from":3,"to":4,"disposition":"ticket","ref":"487"}
+{"ts":"2026-10-22T18:34:11.343Z","key":"SUI-FEATURE-260","from":2,"to":3,"disposition":"editorial","ref":"rev 3 clarifies that non-picker fields stay on focus-visible; #410 already scopes the change to picker types only; no code change"}
+{"ts":"2026-10-22T18:34:31.665Z","key":"GL-UI-006","from":3,"to":4,"disposition":"ticket","ref":"461"}
