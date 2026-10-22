@@ -78,6 +78,16 @@ describe("date and time fields", () => {
     },
   );
 
+  it("keeps the destructive border of an invalid field under keyboard focus (#484)", () => {
+    render(<Input type="date" aria-label="When" aria-invalid="true" />);
+    const input = screen.getByLabelText("When");
+    expect(input).toHaveClass("aria-invalid:border-destructive");
+    expect(input).toHaveClass(
+      "[&:focus-within:not([data-pointer-focus]):not([aria-invalid=true])]:border-ring",
+    );
+    expect(input).not.toHaveClass("[&:focus-within:not([data-pointer-focus])]:border-ring");
+  });
+
   it("a text field keeps the `focus-visible` ring and no pointer marker", () => {
     render(<Input aria-label="Name" />);
     const input = screen.getByRole("textbox", { name: "Name" });

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.169.1 — #484, SUI-FEATURE-260: invalid date and time fields keep the destructive border under focus
+
+- **Fix (#484):** a date or time `Input` with `aria-invalid="true"` no longer swaps its destructive border for the ring color on keyboard focus; the focus ring stays. Regression from 0.168.6 (#410).
+
+**Migration:** none.
+
 ## 0.169.0 — #423, SUI-FEATURE-095 rev 3: every toggle pressed in the one primary fill
 
 - **Remaining toggles (#423):** the list's view toggle, the single-column List / Preview switch of `SplitWorkspace`, the canvas zoom mode ("Fit" · "100 %"), the slide editor's chart type and its text formats (bold, italic, alignment, bullets) now show their pressed or chosen state in the package's one pressed fill (`PRESSED_FILL_CLASS`: `--primary` with `--primary-foreground`, on hover `--primary-hover`), in light and dark, like RowActions, GridToggle, the drawer rail and maximize since 0.155.0 (#353). Before, they used the accent surface, barely visible in the light theme. Unpressed they are unchanged.

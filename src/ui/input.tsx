@@ -39,7 +39,8 @@ function Input({
           "w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none selection:bg-primary selection:text-primary-foreground file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm dark:bg-input/30",
           "data-[size=default]:h-9 data-[size=sm]:h-8",
           picker
-            ? "[&:focus-within:not([data-pointer-focus])]:border-ring [&:focus-within:not([data-pointer-focus])]:focus-ring"
+            ? // An invalid field keeps its destructive border under focus, as non-picker fields do (#484).
+              "[&:focus-within:not([data-pointer-focus]):not([aria-invalid=true])]:border-ring [&:focus-within:not([data-pointer-focus])]:focus-ring"
             : "focus-visible:border-ring focus-visible:focus-ring",
           "aria-invalid:border-destructive",
           className,

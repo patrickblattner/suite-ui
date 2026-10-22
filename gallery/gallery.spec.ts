@@ -12918,7 +12918,7 @@ test("date fields: the calendar button keeps the focus ring on the field", async
     ["month", "Month"],
     ["week", "Week"],
   ] as const) {
-    const field = page.locator(`input[type="${type}"]`);
+    const field = page.locator(`input[type="${type}"]:not([aria-invalid])`);
     await expect(field).toHaveAccessibleName(name);
     const onCalendarButton = () =>
       field.evaluate((el) => el.matches(":focus-within") && !el.matches(":focus-visible"));
@@ -12932,6 +12932,14 @@ test("date fields: the calendar button keeps the focus ring on the field", async
       .toContain(`${ring} 0px 0px 0px 3px`);
     await page.keyboard.press("Tab");
   }
+  // #484: Tab into an invalid date field keeps its destructive border under the focus ring.
+  const destructive = await utilityColor(page, "bg-destructive", "backgroundColor");
+  const invalid = page.getByLabel("Invalid day");
+  await expect(invalid).toBeFocused();
+  await expect
+    .poll(() => invalid.evaluate((el) => getComputedStyle(el).boxShadow))
+    .toContain("3px");
+  expect(await invalid.evaluate((el) => getComputedStyle(el).borderColor)).toBe(destructive);
 });
 
 // #410 (`SUI-FEATURE-260` AC3): a mouse click into the segments or onto the calendar button shows no
@@ -12940,7 +12948,7 @@ test("date fields: a mouse click shows no focus ring", async ({ page }) => {
   await page.goto("/?harness=date-fields&lng=en");
   const ring = await utilityColor(page, "bg-ring", "backgroundColor");
   for (const type of ["datetime-local", "date", "time", "month", "week"]) {
-    const field = page.locator(`input[type="${type}"]`);
+    const field = page.locator(`input[type="${type}"]:not([aria-invalid])`);
     const shadow = () => field.evaluate((el) => getComputedStyle(el).boxShadow);
     const { x, y, width, height } = await box(field);
     // The calendar button first: its picker would take the key pressed after the segment click.

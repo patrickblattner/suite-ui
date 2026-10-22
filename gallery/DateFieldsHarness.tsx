@@ -12,6 +12,7 @@ function DateFieldsHarness() {
       <Input type="time" aria-label="Time" />
       <Input type="month" aria-label="Month" />
       <Input type="week" aria-label="Week" />
+      <Input type="date" aria-label="Invalid day" aria-invalid="true" />
       <button type="button">After</button>
     </main>
   );
