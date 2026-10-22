@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.167.1 — #469, SUI-FEATURE-191: paste offset bound counts copy-element pairs
+
+- **Paste clears every covered element (#469):** when several pasted copies would lie on the same identical element at successive offsets, `pasteElements` keeps offsetting until none lies on one. The number of offsets is now bounded by copies times elements on the page instead of the elements alone; the stop when the offset no longer moves a covering copy stays.
+
 ## 0.167.0 — #395, SUI-FEATURE-192 rev 3: placeholder text starts at its role size
 
 - **Placeholder text by role (#395):** a text field made by filling a placeholder (double click or the fill button) now starts at its role's size, measured against the format's base text size (32 px at a 1080 px shorter side, scaled with the format): `title` twice it in the brand set's `heading` font, `subtitle` one and a half times, every other role the base size in the `body` font. A title at 1920 × 1080 starts at 64 px. Before, every role started at 36 px in the default font.

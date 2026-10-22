@@ -1586,11 +1586,12 @@ export function pasteElements(
       present.add(withoutIds(element));
     level = level.flatMap((one) => (one.type === "group" ? one.children : []));
   }
-  // Each further offset has to clear an element still covered, so there are at most as many as
-  // there are elements.
+  // Each further offset has to clear a copy off an element it covers, and a copy lies on a given
+  // element at one offset at most, so there are at most as many as copy-element pairs.
   let step = 0;
   let keys = at(step);
-  for (let tries = 0; tries < present.size && keys.some((key) => present.has(key)); tries += 1) {
+  const pairs = copies.length * present.size;
+  for (let tries = 0; tries < pairs && keys.some((key) => present.has(key)); tries += 1) {
     const next = at(step + DUPLICATE_OFFSET);
     if (keys.some((key, index) => present.has(key) && next[index] === key)) break;
     step += DUPLICATE_OFFSET;

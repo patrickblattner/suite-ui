@@ -87,6 +87,18 @@ describe("element clipboard", () => {
     expect(elementsOf(result.document).at(-1)).toMatchObject({ x: 10, y: 10 });
   });
 
+  it("offsets until no copy lies on an element when several copies meet the same one (#469)", () => {
+    const copies = copyElements(elementsOf(doc([shape("p", 0, 0), shape("q", 10, 10)])), [
+      "p",
+      "q",
+    ]);
+    const result = pasteElements(doc([shape("e", 10, 10)]), 0, copies);
+    expect(elementsOf(result.document).slice(-2)).toMatchObject([
+      { x: 20, y: 20 },
+      { x: 30, y: 30 },
+    ]);
+  });
+
   it("pastes over its original when the offset cannot move coordinates that large (#467)", () => {
     const huge = 2 ** 100;
     const far = doc([shape("a", huge, huge), shape("b", 0, 0)]);
