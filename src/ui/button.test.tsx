@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { PlusIcon } from "lucide-react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -242,7 +242,46 @@ describe("Button", () => {
     );
     const button = screen.getByRole("button", { name: "Save" });
     expect(button.className).not.toContain("aria-disabled:bg-success/50");
-    expect(button).toHaveClass("disabled:opacity-50");
+    expect(button).toHaveClass("disabled:bg-success/50");
+  });
+
+  // SUI-FEATURE-250 rev 4: one look for "not available" — disabled dims in colour as the lock does.
+  it.each(["default", "destructive", "success", "warn", "outline", "secondary", "ghost"] as const)(
+    "disabled %s: the half-tone of the lock, no opacity, GrayText under forced colours",
+    (variant) => {
+      render(
+        <Button variant={variant} size="default" disabled>
+          Save
+        </Button>,
+      );
+      const button = screen.getByRole("button", { name: "Save" });
+      expect(button.className).not.toMatch(/opacity/);
+      const text = button.className.match(/(?<=^| )disabled:text-\S+/)?.[0];
+      // The same label tone as the locked button of the variant.
+      expect(text).toBeDefined();
+      expect(button).toHaveClass(
+        "forced-colors:disabled:text-[GrayText]",
+        "forced-colors:disabled:border-[GrayText]",
+      );
+      cleanup();
+      render(
+        <Button variant={variant} size="default" aria-disabled>
+          Save
+        </Button>,
+      );
+      expect(screen.getByRole("button", { name: "Save" })).toHaveClass(`aria-${text!}`);
+    },
+  );
+
+  it("disabled and busy: the full colour of the variant", () => {
+    render(
+      <Button variant="success" size="default" disabled busy>
+        Save
+      </Button>,
+    );
+    const button = screen.getByRole("button", { name: "Save" });
+    expect(button.className).not.toContain("disabled:bg-success/50");
+    expect(button.className).not.toMatch(/opacity/);
   });
 
   it('aria-disabled="false" locks nothing', () => {
@@ -310,8 +349,7 @@ describe("Button", () => {
       </Button>,
     );
     const button = screen.getByRole("button", { name: "Delete" });
-    expect(button.className).toContain("disabled:opacity-100");
-    expect(button.className).not.toContain("disabled:opacity-50");
+    expect(button.className).not.toMatch(/opacity/);
     expect(button.querySelector("[data-slot=busy]")).not.toBeNull();
   });
 

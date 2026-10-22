@@ -5,12 +5,12 @@ import type * as React from "react";
 
 import { cn } from "../lib/cn.js";
 
-// The transition list is enumerated and leaves `opacity` out on purpose: animating the jump from
-// `disabled:opacity-50` to 1 shows the filled surface half-transparent for a moment, and a contrast
-// check in that window reads the mix instead of the token pair. Filled variants hover onto their own
-// `-hover` token, never onto a lower opacity (`GL-UI-014`).
+// The transition list is enumerated and leaves `opacity` out on purpose: an animated opacity shows the
+// filled surface half-transparent for a moment, and a contrast check in that window reads the mix
+// instead of the token pair. Filled variants hover onto their own `-hover` token, never onto a lower
+// opacity (`GL-UI-014`); a disabled button dims in colour (`DISABLED_LOOK`).
 const buttonVariants = cva(
-  "inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow] outline-none focus-visible:border-ring focus-visible:focus-ring disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow] outline-none focus-visible:border-ring focus-visible:focus-ring disabled:pointer-events-none disabled:cursor-not-allowed aria-invalid:border-destructive [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
@@ -96,10 +96,30 @@ const LOCKED_LOOK: Record<ButtonVariant, string> = {
   link: "aria-disabled:cursor-not-allowed aria-disabled:text-[color-mix(in_srgb,var(--primary)_50%,var(--background))] aria-disabled:hover:no-underline",
 };
 
+// One look for "not available" (`SUI-FEATURE-250` rev 4): a `disabled` button wears the same half-tone
+// as `LOCKED_LOOK`, never element opacity, so locked and disabled look the same. It takes no pointer
+// events, so it needs no hover pair; the base class gives the cursor.
+const DISABLED_LOOK: Record<ButtonVariant, string> = {
+  default:
+    "disabled:bg-primary/50 disabled:text-[color-mix(in_srgb,var(--primary-foreground)_50%,var(--background))]",
+  destructive:
+    "disabled:bg-destructive/50 disabled:text-[color-mix(in_srgb,var(--destructive-foreground)_50%,var(--background))]",
+  success:
+    "disabled:bg-success/50 disabled:text-[color-mix(in_srgb,var(--success-foreground)_50%,var(--background))]",
+  warn: "disabled:bg-warn/50 disabled:text-[color-mix(in_srgb,var(--warn-foreground)_50%,var(--background))]",
+  outline: "disabled:text-[color-mix(in_srgb,var(--foreground)_50%,var(--background))]",
+  secondary:
+    "disabled:bg-secondary/50 disabled:text-[color-mix(in_srgb,var(--secondary-foreground)_50%,var(--background))]",
+  ghost: "disabled:text-[color-mix(in_srgb,var(--foreground)_50%,var(--background))]",
+  link: "disabled:text-[color-mix(in_srgb,var(--primary)_50%,var(--background))]",
+};
+
 // Under forced colours the system palette replaces the half-tone above: the locked button takes
 // `GrayText` for its label and border, as the browser draws a `disabled` one (#387).
 const LOCKED_FORCED =
   "forced-colors:aria-disabled:border-[GrayText] forced-colors:aria-disabled:text-[GrayText]";
+const DISABLED_FORCED =
+  "forced-colors:disabled:border-[GrayText] forced-colors:disabled:text-[GrayText]";
 
 /**
  * A running button stays focusable (`GL-UI-050`, `SUI-FEATURE-120`): `busy` locks it with
@@ -154,12 +174,12 @@ function Button(props: ButtonProps) {
       className={cn(
         buttonVariants({ variant, size }),
         locked && !busy && disabled !== true && [LOCKED_LOOK[variant], LOCKED_FORCED],
+        // "Runs" and "does not work" never share a look: a running button that is also `disabled`
+        // keeps its full colour.
+        !busy && disabled === true && [DISABLED_LOOK[variant], DISABLED_FORCED],
         className,
         working && "[&_svg:not([data-slot=busy])]:hidden",
-        // "Runs" and "does not work" never share a look: should a running button also be `disabled`,
-        // the same utility key as the base class's dimming lets tailwind-merge drop it, so the busy
-        // button keeps its full colour.
-        locked && busy && ["aria-busy:cursor-progress disabled:opacity-100", LOCKED_HOVER[variant]],
+        locked && busy && ["aria-busy:cursor-progress", LOCKED_HOVER[variant]],
       )}
       onClick={(event: React.MouseEvent<HTMLButtonElement>) => {
         if (locked) {

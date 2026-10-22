@@ -107,7 +107,7 @@ describe("SettingsScaffold", () => {
     expect(button).toHaveAttribute("data-busy", "true");
     expect(button.querySelector("[data-slot=busy]")).not.toBeNull();
     // The busy lock replaces the generic dimming: the full colour stays.
-    expect(button.className).toContain("disabled:opacity-100");
+    expect(button.className).not.toMatch(/opacity|disabled:bg-/);
     fireEvent.click(button, { detail: 1 });
     fireEvent.submit(screen.getByTestId("settings-general-form"));
     expect(save).toHaveBeenCalledTimes(1);

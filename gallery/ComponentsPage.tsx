@@ -146,7 +146,21 @@ function Buttons() {
               <PlusIcon />
             </Button>
           ))}
-          <Button variant={variant} size="default" disabled>
+          <Button
+            variant={variant}
+            size="default"
+            disabled
+            data-testid={`button-disabled-${variant}`}
+          >
+            disabled
+          </Button>
+          {/* SUI-FEATURE-250 AC 5: the locked twin, the same look as the disabled one. */}
+          <Button
+            variant={variant}
+            size="default"
+            aria-disabled
+            data-testid={`button-locked-${variant}`}
+          >
             disabled
           </Button>
           <Button variant={variant} size="default" busy>

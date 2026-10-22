@@ -87,14 +87,44 @@ describe("EditorHeader", () => {
     await i18n.changeLanguage(lng);
     renderHeader();
     expect(screen.getByTestId("editor-state")).toHaveTextContent(saved);
-    expect(screen.getByTestId("editor-reset")).toBeDisabled();
-    // SUI-FEATURE-120 rev 5: Save locks itself with `aria-disabled` and its trigger lock.
-    expect(screen.getByTestId("editor-save")).toHaveAttribute("aria-disabled", "true");
+    // SUI-FEATURE-120 rev 5, #392: Save and Reset lock themselves with `aria-disabled` and their
+    // trigger lock, in the locked look (half-tone, not opacity).
+    const reset = screen.getByTestId("editor-reset");
+    const save = screen.getByTestId("editor-save");
+    expect(reset).toHaveAttribute("aria-disabled", "true");
+    expect(reset).toBeEnabled();
+    expect(reset).toHaveClass(
+      "aria-disabled:cursor-not-allowed",
+      "aria-disabled:text-[color-mix(in_srgb,var(--foreground)_50%,var(--background))]",
+    );
+    expect(save).toHaveAttribute("aria-disabled", "true");
+    expect(save).toHaveClass(
+      "aria-disabled:cursor-not-allowed",
+      "aria-disabled:bg-success/50",
+      "aria-disabled:text-[color-mix(in_srgb,var(--success-foreground)_50%,var(--background))]",
+    );
+    expect(`${reset.className} ${save.className}`).not.toMatch(/opacity/);
     cleanup();
     renderHeader({ dirty: true });
     expect(screen.getByTestId("editor-state")).toHaveTextContent(draft);
-    expect(screen.getByTestId("editor-reset")).toBeEnabled();
+    expect(screen.getByTestId("editor-reset")).not.toHaveAttribute("aria-disabled");
     expect(screen.getByTestId("editor-save")).toBeEnabled();
+  });
+
+  // #392 (GL-UI-050): the locked Reset keeps the focus and opens no confirm, clean or while saving.
+  it.each([
+    ["clean", {}],
+    ["saving", { dirty: true, saving: true }],
+  ])("%s: Reset is locked, focusable and asks nothing", async (_state, props) => {
+    renderHeader(props);
+    const reset = screen.getByTestId("editor-reset");
+    expect(reset).toHaveAttribute("aria-disabled", "true");
+    reset.focus();
+    expect(fireEvent.mouseDown(reset)).toBe(false);
+    fireEvent.click(reset);
+    expect(reset).toHaveFocus();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(screen.queryByTestId("editor-reset-confirm")).toBeNull();
   });
 
   it("saving: Save carries the working state", () => {
@@ -242,7 +272,7 @@ describe("EditorHeader lifecycle", () => {
     fireEvent.click(next);
     expect(onClick).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId("editor-save")).toHaveAttribute("aria-disabled", "true");
-    expect(screen.getByTestId("editor-reset")).toBeDisabled();
+    expect(screen.getByTestId("editor-reset")).toHaveAttribute("aria-disabled", "true");
     for (const dirty of [false, true]) {
       cleanup();
       renderHeader({ dirty, lifecycle: lifecycle() });

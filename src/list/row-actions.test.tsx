@@ -468,7 +468,8 @@ describe("RowActions busy (SUI-FEATURE-072)", () => {
     // SUI-FEATURE-120: locked by aria-disabled and the click guard, never `disabled`.
     expect(send).toHaveAttribute("aria-disabled", "true");
     expect(send).toBeEnabled();
-    expect(send).toHaveClass("disabled:opacity-100");
+    // Full colour: neither opacity nor the disabled half-tone (SUI-FEATURE-250 rev 4).
+    expect(send.className).not.toMatch(/opacity|disabled:bg-/);
     expect(send).toHaveAttribute("aria-keyshortcuts", "Control+Enter");
     fireEvent.click(send);
     fireEvent.click(send, { detail: 2 });
