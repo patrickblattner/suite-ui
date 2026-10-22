@@ -110,6 +110,7 @@ import {
 import { deletePage, duplicatePage, movePage, newPage, setPageHidden } from "./editor-pages.js";
 import {
   intoPlaceholder,
+  roleTextRun,
   type OpenPlaceholder,
   offeredLayouts,
   openPlaceholders,
@@ -1310,7 +1311,6 @@ function Editor({
     [...placeholders].reverse().find((one) => containsPoint(one.box, one.rotation, point));
   const fillWithText = (open: OpenPlaceholder) => {
     const id = uniqueId(history.document, "text");
-    const size = Math.max(1, Math.round(Math.min(pageWidth, pageHeight) / 30));
     const made: SlideElement = {
       id,
       type: "text",
@@ -1323,7 +1323,7 @@ function Editor({
       locked: false,
       hidden: false,
       opacity: 100,
-      runs: [{ text: "", size }],
+      runs: [roleTextRun(open.placeholder.role, pageWidth, pageHeight)],
       align: "left",
       lineHeight: 1.2,
       list: "none",

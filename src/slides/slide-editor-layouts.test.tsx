@@ -58,6 +58,8 @@ describe("SlideEditor placeholders", () => {
     const onSave = vi.fn<(document: SlideDocument) => boolean>(() => true);
     const document = {
       ...SLIDE_EDITOR_DOC,
+      // 1920 × 1080, where a title starts at 64 px (#395).
+      format: { name: "16:9", width: 1920, height: 1080 },
       layouts: [TITLE],
       pages: SLIDE_EDITOR_DOC.pages.map((page, index) =>
         index === 0 ? { ...page, layoutId: "app-title" } : page,
@@ -96,6 +98,11 @@ describe("SlideEditor placeholders", () => {
       placeholderRole: "title",
     });
     expect(heading.type === "text" && heading.runs[0]!.text).toBe("Welcome");
+    // The title starts at 64 px in the heading font (#395).
+    expect(heading.type === "text" && heading.runs[0]).toMatchObject({
+      size: 64,
+      font: { kind: "brand", key: "heading" },
+    });
     // Delete: the element goes, the placeholder shows again; Undo brings the element back.
     fireEvent.keyDown(canvas, { key: "Delete" });
     expect(screen.getByTestId("slide-editor-placeholder")).toBeInTheDocument();
