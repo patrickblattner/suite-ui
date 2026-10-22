@@ -243,6 +243,13 @@ export function TableFields({
           unit="px"
           // One column is as wide as the table: its width is the table's own field.
           readOnly={readOnly || columns <= 1}
+          help={
+            !readOnly && columns <= 1 ? (
+              <span data-testid="slide-editor-table-column-width-reason">
+                {t("slides.editor.tableColumnWidthOne")}
+              </span>
+            ) : undefined
+          }
           revision={revision}
           onValue={(value) => {
             const delta = value - columnPx(table, cell.column);
@@ -291,14 +298,14 @@ export function TableFields({
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="none">{t("slides.editor.tableNoFill")}</SelectItem>
-              {Object.keys(brand.colors).map((key) => (
+              {Object.entries(brand.colors).map(([key, { label }]) => (
                 <SelectItem key={key} value={key}>
                   <span
                     aria-hidden="true"
                     className="size-3 shrink-0 rounded-full border"
                     style={{ background: cssColor({ kind: "brand", key }, brand) }}
                   />
-                  {key}
+                  {label}
                 </SelectItem>
               ))}
             </SelectContent>

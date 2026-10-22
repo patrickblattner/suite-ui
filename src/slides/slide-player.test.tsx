@@ -192,7 +192,7 @@ describe("SlidePlayer steps and hint", () => {
     render(<SlidePlayer document={SLIDE_DECK} brand={SLIDE_BRAND} data-testid="player" />);
     const player = screen.getByTestId("player");
     key(player, "ArrowRight");
-    const previous = screen.getByRole("button", { name: "Previous slide" });
+    const previous = screen.getByRole("button", { name: "Previous page" });
     previous.focus();
     fireEvent.keyDown(previous, { key: "Enter" });
     expect(player).toHaveAttribute("data-slide-step", "1");
@@ -204,7 +204,7 @@ describe("SlidePlayer steps and hint", () => {
     render(
       <SlidePlayer document={SLIDE_DECK} brand={SLIDE_BRAND} startPage={2} data-testid="player" />,
     );
-    const next = screen.getByRole("button", { name: "Next slide" });
+    const next = screen.getByRole("button", { name: "Next page" });
     expect(next).toHaveAttribute("aria-disabled", "true");
     expect(next).not.toBeDisabled();
     fireEvent.click(next);
@@ -251,7 +251,7 @@ describe("SlidePlayer with every page hidden", () => {
     expect(player.querySelector("[data-slot=slide-player-empty]")).toHaveTextContent(
       "No page is visible.",
     );
-    expect(screen.getByRole("button", { name: "Next slide" })).toHaveAttribute(
+    expect(screen.getByRole("button", { name: "Next page" })).toHaveAttribute(
       "aria-disabled",
       "true",
     );

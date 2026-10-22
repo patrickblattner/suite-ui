@@ -8933,7 +8933,7 @@ test("slide player: keys and click page through, animations in order, hidden pag
   await expect(inner("first-two")).toHaveCSS("animation-name", "suite-slide-zoom-in");
   await page.keyboard.press(" ");
   await expect(player).toHaveAttribute("data-slide-page", "second");
-  await expect(player.getByText("Slide 2 of 2")).toBeAttached();
+  await expect(player.getByText("Page 2 of 2")).toBeAttached();
   await page.keyboard.press("ArrowLeft");
   await expect(player).toHaveAttribute("data-slide-page", "first");
   await expect(player).toHaveAttribute("data-slide-step", "2");
@@ -8991,11 +8991,11 @@ test("slide player: the bar works by pointer, hides, comes back, stays while foc
   await expect(bar).toHaveAttribute("data-shown", "true");
   // A press right after the bar came into view only shows it (rev 3); after a moment it acts.
   await page.waitForTimeout(500);
-  await player.getByRole("button", { name: "Next slide" }).click();
+  await player.getByRole("button", { name: "Next page" }).click();
   await expect(player).toHaveAttribute("data-slide-step", "1");
-  await player.getByRole("button", { name: "Previous slide" }).click();
+  await player.getByRole("button", { name: "Previous page" }).click();
   await expect(player).toHaveAttribute("data-slide-step", "0");
-  await expect(player.getByRole("button", { name: "Previous slide" })).toBeDisabled();
+  await expect(player.getByRole("button", { name: "Previous page" })).toBeDisabled();
   await page.mouse.move(10, 10);
   await page.keyboard.press("Tab");
   await page.waitForTimeout(4000);
@@ -9012,7 +9012,7 @@ test("slide player: the last slide stays, Next locked, counter m / m", async ({ 
   for (let press = 0; press < 3; press += 1) await page.keyboard.press("ArrowRight");
   await expect(player).toHaveAttribute("data-slide-page", "second");
   await expect(player.getByTestId("slide-player-counter")).toHaveText("2 / 2");
-  await expect(player.getByRole("button", { name: "Next slide" })).toBeDisabled();
+  await expect(player.getByRole("button", { name: "Next page" })).toBeDisabled();
   await page.keyboard.press("ArrowRight");
   await page.keyboard.press(" ");
   await expect(player).toHaveAttribute("data-slide-page", "second");
@@ -9093,8 +9093,8 @@ test("slide player: a locked Next or Previous keeps the focus; the keys work on"
   await page.goto("/?page=slide-player&lng=en");
   const player = page.getByTestId("slide-player");
   await expect(player).toBeFocused();
-  const next = player.getByRole("button", { name: "Next slide" });
-  const previous = player.getByRole("button", { name: "Previous slide" });
+  const next = player.getByRole("button", { name: "Next page" });
+  const previous = player.getByRole("button", { name: "Previous page" });
   await page.keyboard.press("Tab");
   await page.keyboard.press("Tab");
   await expect(next).toBeFocused();
@@ -10344,8 +10344,10 @@ test("slide editor: a library element stands out on a white page", async ({ page
   };
   const fill = saved.pages[0]!.elements.find((element) => element.id === "rectangle-1")!.fill!;
   expect(fill.color).toEqual({ kind: "brand", key: "text" });
-  const colors = SLIDE_BRAND.colors as Record<string, string>;
-  expect(await contrastOf(page, colors.text!, colors.background!)).toBeGreaterThanOrEqual(3);
+  const colors = SLIDE_BRAND.colors;
+  expect(
+    await contrastOf(page, colors.text!.value, colors.background!.value),
+  ).toBeGreaterThanOrEqual(3);
 });
 
 // #294 inc 3 review: an icon reads by its name, which is what is announced; every entry describes
@@ -10444,7 +10446,13 @@ test("slide editor: a see-through brand colour is not taken for a new element", 
   const chosen = await page.evaluate(async (path) => {
     const { insertColor } = (await import(path)) as typeof import("../src/slides/editor-color.js");
     return insertColor(
-      { colors: { clear: "rgba(255, 255, 255, 0)", white: "#ffffff" }, fonts: {} },
+      {
+        colors: {
+          clear: { value: "rgba(255, 255, 255, 0)", label: "Clear" },
+          white: { value: "#ffffff", label: "White" },
+        },
+        fonts: {},
+      },
       "#000000",
     );
   }, module);
@@ -10470,7 +10478,7 @@ test("slide editor: an insert past the element limit is refused", async ({ page 
   // The full page shows its dots (#365).
   await expect(editor.locator("[data-slide-element=dot-0] svg rect")).toHaveAttribute(
     "fill",
-    (SLIDE_BRAND.colors as Record<string, string>).text!,
+    SLIDE_BRAND.colors.text!.value,
   );
 });
 
@@ -10503,7 +10511,10 @@ test("slide editor: without a brand colour at 3 : 1 a new element takes the them
     context.fillRect(0, 0, 1, 1);
     const [r, g, b] = context.getImageData(0, 0, 1, 1).data;
     return {
-      chosen: insertColor({ colors: { white: "#ffffff" }, fonts: {} }, "#ffffff"),
+      chosen: insertColor(
+        { colors: { white: { value: "#ffffff", label: "White" } }, fonts: {} },
+        "#ffffff",
+      ),
       primary: `#${[r, g, b].map((channel) => channel!.toString(16).padStart(2, "0")).join("")}`,
     };
   }, module);
@@ -11102,7 +11113,7 @@ test("slide editor: the animation fields write the document", async ({ page }) =
   await editor.getByRole("tab", { name: "Layout" }).click();
   const element = (document: Saved) =>
     document.pages.flatMap((one) => one.elements).find((one) => one.id === id)!;
-  await choose("slide-editor-entrance-effect", "Slide in");
+  await choose("slide-editor-entrance-effect", "Glide in");
   await choose("slide-editor-entrance-direction", "Right");
   // Switching from slide drops the direction.
   await choose("slide-editor-entrance-effect", "Fade in");
@@ -11437,7 +11448,7 @@ test("slide editor: an invalid document keeps Back and names the error", async (
     "data-slide-editor-error",
     "newer-version",
   );
-  await expect(editor.getByRole("alert")).toHaveText("This slide can’t be shown.");
+  await expect(editor.getByRole("alert")).toHaveText("This page can’t be shown.");
   await editor.getByTestId("editor-back").first().click();
   await expect(page.getByTestId("slide-editor-app")).toHaveText("Saved: nothing · Back: 1");
   await page.keyboard.press("Escape");
@@ -11507,7 +11518,7 @@ test("slide player: a mouse click on a bar button lets the bar hide again", asyn
   await expect(player).toBeFocused();
   await page.mouse.move(400, 300);
   await page.waitForTimeout(500);
-  await player.getByRole("button", { name: "Next slide" }).click();
+  await player.getByRole("button", { name: "Next page" }).click();
   await expect(player).toHaveAttribute("data-slide-step", "1");
   await expect(player).toBeFocused();
   await page.mouse.move(10, 10);
@@ -12074,7 +12085,7 @@ async function animatedPage(page: Page) {
   };
   for (const [id, effect, order] of [
     ["picture", "Fade in", "1"],
-    ["caption", "Slide in", "2"],
+    ["caption", "Glide in", "2"],
   ] as const) {
     await editor.locator(`[data-layer-id=${id}] > button`).first().click();
     await choose("entrance-effect", effect);
@@ -12437,7 +12448,7 @@ test("slide editor: the page sorter duplicates, drags and hides; the player skip
   await page.getByTestId("slide-editor-app-present").click();
   const player = page.getByTestId("slide-player");
   await expect(player).toHaveAttribute("data-slide-page", "edit-two");
-  await expect(player.getByText("Slide 1 of 2")).toBeAttached();
+  await expect(player.getByText("Page 1 of 2")).toBeAttached();
   for (let step = 0; step < 6; step += 1) await page.keyboard.press("ArrowRight");
   await expect(player).toHaveAttribute("data-slide-page", "edit-one");
 });
@@ -12577,7 +12588,7 @@ test("slide editor: every field and text button carries its hint", async ({ page
     }
   }
   for (const kind of ["entrance", "exit"]) await field(`slide-editor-${kind}-effect`);
-  await choose("slide-editor-entrance-effect", "Slide in");
+  await choose("slide-editor-entrance-effect", "Glide in");
   for (const key of ["direction", "duration", "delay", "order"]) {
     await field(`slide-editor-entrance-${key}`);
   }

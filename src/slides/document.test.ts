@@ -268,8 +268,14 @@ describe("brand references", () => {
     if (element.type !== "text") throw new Error("expected a text element");
     const [run, freeRun] = element.runs;
     const color = run!.fill!.type === "color" ? run!.fill!.color : undefined;
-    const before: SlideBrandSet = { colors: { primary: "#0a3d62" }, fonts: { heading: "Inter" } };
-    const after: SlideBrandSet = { colors: { primary: "#c0392b" }, fonts: { heading: "Lora" } };
+    const before: SlideBrandSet = {
+      colors: { primary: { value: "#0a3d62", label: "Primary" } },
+      fonts: { heading: { family: "Inter", label: "Heading" } },
+    };
+    const after: SlideBrandSet = {
+      colors: { primary: { value: "#c0392b", label: "Primary" } },
+      fonts: { heading: { family: "Lora", label: "Heading" } },
+    };
     expect([resolveColor(color!, before), resolveFont(run!.font!, before)]).toEqual([
       "#0a3d62",
       "Inter",

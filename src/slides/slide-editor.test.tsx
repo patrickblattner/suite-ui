@@ -95,6 +95,34 @@ describe("SlideEditor selection actions", () => {
       "Delete Backspace",
     );
   });
+
+  // SUI-FEATURE-193 AC2: Undo brings it back, so an element deletes without a confirm.
+  it("deletes an element at once with Delete or Backspace; Ctrl+Z brings it back", () => {
+    render(
+      <SlideEditor
+        document={SLIDE_EDITOR_DOC}
+        title="Deck"
+        brand={SLIDE_BRAND}
+        onSave={() => true}
+        onBack={() => {}}
+      />,
+    );
+    const canvas = screen.getByTestId("slide-editor-canvas");
+    fireEvent.click(screen.getByTestId("drawer-layers"));
+    const layers = () =>
+      screen.getAllByTestId("slide-editor-layer").map((row) => row.getAttribute("data-layer-id"));
+    const before = layers();
+    for (const key of ["Delete", "Backspace"]) {
+      fireEvent.click(
+        within(screen.getAllByTestId("slide-editor-layer")[0]!).getAllByRole("button")[0]!,
+      );
+      fireEvent.keyDown(canvas, { key });
+      expect(layers()).not.toContain(before[0]);
+      expect(screen.queryByRole("alertdialog")).toBeNull();
+      fireEvent.keyDown(canvas, { key: "z", ctrlKey: true });
+      expect(layers()).toEqual(before);
+    }
+  });
 });
 
 // Codex #383 CX1: an element with an exit stays drawn on the canvas, where it is being edited; only

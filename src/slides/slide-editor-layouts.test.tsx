@@ -135,6 +135,45 @@ describe("SlideEditor placeholders", () => {
     expect(saved.pages.filter((page) => page.layoutId === "app-title")).toHaveLength(2);
   });
 
+  it("numbers unnamed placeholders when a page has more than one (SUI-FEATURE-193)", () => {
+    const two: SlideLayoutInput = {
+      ...TITLE,
+      elements: [
+        TITLE.elements![0]!,
+        {
+          id: "app-body-ph",
+          type: "placeholder",
+          role: "body",
+          x: 300,
+          y: 100,
+          width: 300,
+          height: 60,
+        },
+      ],
+    };
+    render(
+      <SlideEditor
+        document={{
+          ...SLIDE_EDITOR_DOC,
+          layouts: [two],
+          pages: SLIDE_EDITOR_DOC.pages.map((page, index) =>
+            index === 0 ? { ...page, layoutId: "app-title" } : page,
+          ),
+        }}
+        title="Deck"
+        brand={SLIDE_BRAND}
+        onSave={() => true}
+        onBack={() => {}}
+      />,
+    );
+    expect(screen.getAllByTestId("slide-editor-placeholder").map((one) => one.textContent)).toEqual(
+      ["Placeholder 1 · double-click to add text", "Placeholder 2 · double-click to add text"],
+    );
+    expect(
+      screen.getAllByTestId("slide-editor-placeholder-fill").map((one) => one.textContent),
+    ).toEqual(["Fill Placeholder 1", "Fill Placeholder 2"]);
+  });
+
   it("fills a placeholder from the keyboard; the hint and the element take its name (#308)", async () => {
     const onSave = vi.fn<(document: SlideDocument) => boolean>(() => true);
     const named: SlideLayoutInput = {

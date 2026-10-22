@@ -12,6 +12,11 @@ beforeEach(() => {
     configurable: true,
     value: () => {},
   });
+  // Nor scrolling an option into view.
+  Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+    configurable: true,
+    value: () => {},
+  });
   vi.stubGlobal(
     "ResizeObserver",
     class {
@@ -179,6 +184,32 @@ describe("SlideEditor text editing", () => {
       "aria-pressed",
       "false",
     );
+  });
+
+  it("names brand fonts and colours by the app's labels, never by key (SUI-FEATURE-193 AC1)", () => {
+    renderEditor();
+    const canvas = screen.getByTestId("slide-editor-canvas");
+    fireEvent.pointerDown(canvas, { ...at(100, 400), button: 0, pointerId: 1 });
+    fireEvent.pointerUp(canvas, at(100, 400));
+    fireEvent.mouseDown(screen.getByTestId("property-tab-content"), { button: 0 });
+    const options = (testId: string) => {
+      fireEvent.keyDown(screen.getByTestId(testId), { key: "Enter" });
+      const names = screen.getAllByRole("option").map((option) => option.textContent);
+      fireEvent.keyDown(screen.getByRole("listbox"), { key: "Escape" });
+      return names;
+    };
+    expect(options("slide-editor-text-font")).toEqual([
+      "Body text · Gallery Slide Sans",
+      "Heading · Gallery Slide Sans",
+    ]);
+    expect(options("slide-editor-text-color")).toEqual([
+      "Background",
+      "Text",
+      "Primary colour",
+      "Accent",
+      "Muted",
+      "Highlight",
+    ]);
   });
 
   it("keeps the size field focused while a size is typed key by key (#308)", async () => {
