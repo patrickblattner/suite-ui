@@ -12869,3 +12869,57 @@ test("field pair: hints stand beside the pair; at 390 px at the field, 120 px or
   expect(over.x).toBeGreaterThanOrEqual(0);
   expect(over.x + over.width).toBeLessThanOrEqual(390);
 });
+
+// #410 (`SUI-FEATURE-260`): Tab onto the calendar button of a date or time field leaves the field
+// `:focus-within` only; the field still draws the one ring, at 3:1 or more on the page.
+test("date fields: the calendar button keeps the focus ring on the field", async ({ page }) => {
+  await page.goto("/?harness=date-fields&lng=en");
+  const ring = await utilityColor(page, "bg-ring", "backgroundColor");
+  const ground = await utilityColor(page, "bg-background", "backgroundColor");
+  expect(await contrastOf(page, ring, ground)).toBeGreaterThanOrEqual(3);
+  await page.getByRole("button", { name: "Before" }).focus();
+  for (const [type, name] of [
+    ["datetime-local", "Starts at"],
+    ["date", "Day"],
+    ["time", "Time"],
+    ["month", "Month"],
+    ["week", "Week"],
+  ] as const) {
+    const field = page.locator(`input[type="${type}"]`);
+    await expect(field).toHaveAccessibleName(name);
+    const onCalendarButton = () =>
+      field.evaluate((el) => el.matches(":focus-within") && !el.matches(":focus-visible"));
+    // Tab through the segments until the calendar button holds the focus.
+    for (let step = 0; step < 10 && !(await onCalendarButton()); step++) {
+      await page.keyboard.press("Tab");
+    }
+    expect(await onCalendarButton(), type).toBe(true);
+    await expect
+      .poll(() => field.evaluate((el) => getComputedStyle(el).boxShadow), { message: type })
+      .toContain(`${ring} 0px 0px 0px 3px`);
+    await page.keyboard.press("Tab");
+  }
+});
+
+// #410 (`SUI-FEATURE-260` AC3): a mouse click into the segments or onto the calendar button shows no
+// keyboard ring; a key pressed in the field brings it back.
+test("date fields: a mouse click shows no focus ring", async ({ page }) => {
+  await page.goto("/?harness=date-fields&lng=en");
+  const ring = await utilityColor(page, "bg-ring", "backgroundColor");
+  for (const type of ["datetime-local", "date", "time", "month", "week"]) {
+    const field = page.locator(`input[type="${type}"]`);
+    const shadow = () => field.evaluate((el) => getComputedStyle(el).boxShadow);
+    const { x, y, width, height } = await box(field);
+    // The calendar button first: its picker would take the key pressed after the segment click.
+    for (const at of [x + width - 14, x + 16]) {
+      await page.getByRole("button", { name: "After" }).focus();
+      await page.mouse.click(at, y + height / 2);
+      expect(await field.evaluate((el) => el.matches(":focus-within")), type).toBe(true);
+      // Give the `box-shadow` transition its time before reading the end value.
+      await page.waitForTimeout(200);
+      expect(await shadow(), `${type} at ${at}`).not.toContain(`${ring} 0px 0px 0px 3px`);
+    }
+    await page.keyboard.press("ArrowUp");
+    await expect.poll(shadow, { message: type }).toContain(`${ring} 0px 0px 0px 3px`);
+  }
+});

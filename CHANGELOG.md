@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.168.6 — #410, SUI-FEATURE-260: date and time fields keep the focus ring on the calendar button
+
+- **Focus ring on the calendar button (#410):** an `Input` of type `date`, `time`, `datetime-local`, `month` or `week` now shows the focus ring while any part of it holds the keyboard focus, the calendar button included. In Chromium that button is a tab stop of its own and left the field without a ring. A mouse click into such a field, on its segments or its calendar button, shows no ring; the next key pressed in the field brings it back. Ring, colour and 3:1 are unchanged.
+
+**Migration:** none.
+
 ## 0.168.5 — #482, SUI-FEATURE-099: Esc gives back the selection and the spot's pointer
 
 - **Selection before a frame (#482):** Esc during a frame selection started without Shift now gives back the selection from before the press. Before, it left the selection empty (only a Shift frame got its selection back).

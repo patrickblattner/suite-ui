@@ -11,6 +11,7 @@ import { installLeaveGuard } from "../src/ui/leave-guard.js";
 import { ComponentsPage } from "./ComponentsPage.js";
 import { EditorShellPage } from "./EditorShellPage.js";
 import { EditPanelPage } from "./EditPanelPage.js";
+import { DateFieldsHarness } from "./DateFieldsHarness.js";
 import { FieldPairHarness } from "./FieldPairHarness.js";
 import { GridPage } from "./GridPage.js";
 import { HelpPage } from "./HelpPage.js";
@@ -236,6 +237,8 @@ if (harness && params.get("install") !== "none") installLeaveGuard();
 const exportHarness = params.get("harness") === "slide-export";
 // Two fields side by side in an app's grid (#441).
 const fieldPair = params.get("harness") === "field-pair";
+// The date and time types of `Input`, to tab onto their calendar button (#410).
+const dateFields = params.get("harness") === "date-fields";
 createRoot(document.getElementById("root") as HTMLElement).render(
   <StrictMode>
     {exportHarness ? (
@@ -245,6 +248,8 @@ createRoot(document.getElementById("root") as HTMLElement).render(
       />
     ) : fieldPair ? (
       <FieldPairHarness />
+    ) : dateFields ? (
+      <DateFieldsHarness />
     ) : harness ? (
       <LeaveGuardHarness />
     ) : (
