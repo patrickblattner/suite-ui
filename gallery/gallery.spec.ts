@@ -4880,6 +4880,26 @@ test("edit panel view mode: Edit hands the focus over to the edit panel", async 
   await expect(page.getByTestId("view-mode-panel-trigger")).not.toBeFocused();
 });
 
+// #432 (SUI-FEATURE-097 AC2): the view's Edit is gone once the view has closed; closing the edit
+// panel it handed over to returns the focus to the trigger that opened the view.
+test("edit panel view mode: closing the handed-over edit panel returns to the view's trigger", async ({
+  page,
+}) => {
+  await openViewModePanel(page, "&lng=en");
+  const trigger = page.getByTestId("view-mode-panel-trigger");
+  await page.getByTestId("view-mode-panel-edit").click();
+  const media = page.getByTestId("media-panel");
+  await expect(media).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(() => Boolean(document.activeElement?.closest("[data-testid=media-panel]"))),
+    )
+    .toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(media).toHaveCount(0);
+  await expect(trigger).toBeFocused();
+});
+
 // SUI-FEATURE-091 AC1: every EditPanel footer button shows the package hint after the hint delay;
 // the text is the button's description, its name stays the label.
 for (const [trigger, prefix, ids] of [

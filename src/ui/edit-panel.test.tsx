@@ -1174,4 +1174,58 @@ describe("EditPanel mode=view", () => {
       await waitFor(() => expect(trigger).toHaveFocus());
     },
   );
+
+  // #432: the view's Edit is gone once the view has closed; the edit panel returns to the trigger.
+  it("closing the edit panel the view handed over to returns the focus to the view's trigger", async () => {
+    function ViewThenEdit() {
+      const [viewOpen, setViewOpen] = useState(false);
+      const [editOpen, setEditOpen] = useState(false);
+      return (
+        <>
+          <button type="button" data-testid="trigger" onClick={() => setViewOpen(true)}>
+            View
+          </button>
+          <EditPanel
+            open={viewOpen}
+            onOpenChange={setViewOpen}
+            title="Avatar"
+            mode="view"
+            testIdPrefix="view-panel"
+            actions={
+              <button
+                type="button"
+                data-testid="view-edit"
+                onClick={() => {
+                  setViewOpen(false);
+                  setEditOpen(true);
+                }}
+              >
+                Edit
+              </button>
+            }
+          >
+            <p>Created on 3 March.</p>
+          </EditPanel>
+          <EditPanel open={editOpen} onOpenChange={setEditOpen} title="Avatar" mode="edit">
+            <p>Fields</p>
+          </EditPanel>
+        </>
+      );
+    }
+    render(<ViewThenEdit />);
+    const trigger = screen.getByTestId("trigger");
+    trigger.focus();
+    fireEvent.click(trigger);
+    const edit = screen.getByTestId("view-edit");
+    edit.focus();
+    fireEvent.click(edit);
+    const panel = screen.getByTestId("edit-panel");
+    await waitFor(() => expect(screen.queryByTestId("view-panel")).toBeNull());
+    // The closing view leaves the focus in the edit panel.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(panel.contains(document.activeElement)).toBe(true);
+    fireEvent.click(screen.getByTestId("edit-panel-cancel"));
+    await waitFor(() => expect(screen.queryByTestId("edit-panel")).toBeNull());
+    await waitFor(() => expect(trigger).toHaveFocus());
+  });
 });

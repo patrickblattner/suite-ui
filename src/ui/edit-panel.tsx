@@ -12,6 +12,10 @@ import { useLeaveConfirm } from "./leave-guard.js";
 import { Sheet, SheetDescription, SheetTitle } from "./sheet.js";
 import { IconButtonTooltip } from "./tooltip.js";
 
+// The return target a closing panel hands to the panel it handed over to (a view's Edit opening an
+// edit panel): that panel's own target, the view's Edit, is gone once the view has closed.
+const handedOver = new WeakMap<HTMLElement, HTMLElement>();
+
 // Paging through a set of records in one panel (`SUI-FEATURE-051`); `position` is e.g. "1/3".
 type EditPanelPager = {
   position: string;
@@ -143,7 +147,6 @@ function EditPanel({
     next: t("editPanel.nextCancelHint"),
   }[submitKind];
   const returnFocus = React.useRef<HTMLElement | null>(null);
-  const content = React.useRef<HTMLDivElement>(null);
   const submit = React.useRef<HTMLButtonElement>(null);
   const { guard, dialog, working, run } = useLeaveConfirm({
     dirty: open && dirty && !view,
@@ -192,7 +195,6 @@ function EditPanel({
     >
       <SheetPrimitive.Portal>
         <SheetPrimitive.Content
-          ref={content}
           data-slot="edit-panel"
           data-testid={testIdPrefix}
           data-mode={mode}
@@ -214,11 +216,16 @@ function EditPanel({
           }}
           onCloseAutoFocus={(event) => {
             event.preventDefault();
+            const self = event.currentTarget as HTMLElement;
+            const target = handedOver.get(self) ?? returnFocus.current;
+            handedOver.delete(self);
             // A panel this one handed over to (a view's Edit opening an edit panel) already holds
-            // the focus: it stays there.
-            const holder = document.activeElement?.closest("[data-slot=edit-panel]");
-            if (holder == null || holder === content.current) {
-              returnFocus.current?.focus({ preventScroll: true });
+            // the focus: it stays there and returns it to this panel's target when it closes.
+            const holder = document.activeElement?.closest<HTMLElement>("[data-slot=edit-panel]");
+            if (holder == null || holder === self) {
+              target?.focus({ preventScroll: true });
+            } else if (target !== null) {
+              handedOver.set(holder, target);
             }
             returnFocus.current = null;
           }}

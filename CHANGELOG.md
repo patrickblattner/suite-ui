@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.171.1 — #432, SUI-FEATURE-097: focus return after the view → edit hand-off
+
+- **Focus return (#432, GL-UI-007):** when a view panel's Edit opens an edit panel, the closing view hands its return target to that panel; closing the edit panel puts the focus back on the element that opened the view, not on the page body (the view's Edit is gone by then).
+- **Tests (#432):** a unit test and a gallery test walk view → Edit → close and expect the focus on the original trigger.
+
+**Migration:** none.
+
 ## 0.171.0 — #426, SUI-FEATURE-230 rev 4: crop mode rest past the page, zoom % field
 
 - **Rest past the page (#426):** in the slide editor's crop mode the dimmed rest of the image runs past the page edge onto the work area, so a full-bleed image shows its rest too, in light and dark. The canvas takes presses over that area while cropping: a press on the rest past the page shifts the image, a press beside the image still applies the crop. Its focus ring stays around the page.
