@@ -12448,7 +12448,7 @@ test("slide editor: the page sorter duplicates, drags and hides; the player skip
   await page.getByTestId("slide-editor-app-present").click();
   const player = page.getByTestId("slide-player");
   await expect(player).toHaveAttribute("data-slide-page", "edit-two");
-  await expect(player.getByText("Slide 1 of 2")).toBeAttached();
+  await expect(player.getByText("Page 1 of 2")).toBeAttached();
   for (let step = 0; step < 6; step += 1) await page.keyboard.press("ArrowRight");
   await expect(player).toHaveAttribute("data-slide-page", "edit-one");
 });

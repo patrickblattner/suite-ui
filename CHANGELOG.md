@@ -10,7 +10,7 @@ Breaking for apps that pass a brand set to `SlideView`, `SlideEditor`, `SlidePla
 - **Column width says why (#396):** with one column the read-only column width field explains under it that it can change once the table has another column.
 - **Numbered placeholders (#396):** when a page has more than one unnamed placeholder, the canvas hint and the fill buttons number them ("Placeholder 1", "Placeholder 2").
 
-**Migration:** give every brand set entry a display name: `colors: { primary: "#1d4ed8" }` becomes `colors: { primary: { value: "#1d4ed8", label: t("brand.primary") } }`, `fonts: { body: "Inter" }` becomes `fonts: { body: { family: "Inter", label: t("brand.body") } }`. App tests that find the player's buttons by "Previous slide"/"Next slide", the position "Slide n of m", the invalid text "This slide can’t be shown." or the effect options "Slide in"/"Slide out"/"Slide" switch to the new texts.
+**Migration:** give every brand set entry a display name: `colors: { primary: "#1d4ed8" }` becomes `colors: { primary: { value: "#1d4ed8", label: t("brand.primary") } }`, `fonts: { body: "Inter" }` becomes `fonts: { body: { family: "Inter", label: t("brand.body") } }`. App tests that find the player's buttons by "Previous slide"/"Next slide", the position "Slide n of m", the invalid text "This slide can’t be shown." or the effect options "Slide in"/"Slide out"/"Slide" switch to the new texts. Baselines: the string table grows by two keys in 10 gallery captures in `gallery/__screenshots__/`: `gallery-{de,en,es}-{light,dark}.png` (6) and `gallery-de-{light,dark}-{390,1440}.png` (4).
 
 ## 0.167.3 — #399, SUI-FEATURE-192: a layout switch places a grouped element in one step
 
