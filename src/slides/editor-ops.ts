@@ -852,22 +852,53 @@ export function ungroupElement(
 
 export type Alignment = "left" | "center" | "right" | "top" | "middle" | "bottom";
 
-// Aligns the elements' boxes to an edge or centre of `target` (the selection's box, or the page).
+// The groups (outermost first) all elements of `ids` stand in, when one of them is turned: the frame
+// they share, where they align and distribute (`SUI-FEATURE-190`); `undefined` otherwise.
+export function sharedTurnedFrame(
+  elements: readonly SlideElement[],
+  ids: readonly string[],
+): Group[] | undefined {
+  const [first, ...rest] = ids.map((id) => groupChain(elements, id));
+  if (first === undefined || !first.some((group) => group.rotation !== 0)) return undefined;
+  const same = rest.every(
+    (chain) =>
+      chain.length === first.length && chain.every((group, index) => group.id === first[index]!.id),
+  );
+  return same ? first : undefined;
+}
+
+// An element's box and a step for it: in a shared turned `frame` its box there, the step as it is;
+// otherwise where it is drawn on the page, the step turned into its groups' frame (#328).
+function framed(
+  elements: readonly SlideElement[],
+  element: SlideElement,
+  frame?: readonly Group[],
+) {
+  return frame === undefined
+    ? {
+        box: pageBox(elements, element),
+        step: (step: { x: number; y: number }) =>
+          stepIntoGroups(groupChain(elements, element.id), step),
+      }
+    : { box: drawnBox(element), step: (step: { x: number; y: number }) => step };
+}
+
+// Aligns the elements' boxes to an edge or centre of `target` (the selection's box, or the page), in
+// `frame` when they share a turned group's (`SUI-FEATURE-190`), else on the page.
 export function alignElements(
   document: SlideDocument,
   page: number,
   ids: readonly string[],
   alignment: Alignment,
   target: Box,
+  frame?: readonly Group[],
 ): SlideDocument {
-  // Measured where each element is drawn on the page, each step turned into its groups' frame
-  // (#328).
   const elements = document.pages[page]?.elements ?? [];
   const steps = new Map<string, { x: number; y: number }>();
   for (const id of ids) {
     const found = findElement(elements, id);
     if (found === undefined) continue;
-    const box = pageBox(elements, found.element);
+    const { box, step } = framed(elements, found.element, frame);
     const dx =
       alignment === "left"
         ? target.x - box.x
@@ -884,22 +915,24 @@ export function alignElements(
           : alignment === "bottom"
             ? target.y + target.height - (box.y + box.height)
             : 0;
-    steps.set(id, stepIntoGroups(groupChain(elements, id), { x: dx, y: dy }));
+    steps.set(id, step({ x: dx, y: dy }));
   }
   return moveEach(document, page, steps);
 }
 
-// Spreads three or more elements so the gaps between them are equal, the outer two staying.
+// Spreads three or more elements so the gaps between them are equal, the outer two staying; in
+// `frame` when they share a turned group's (`SUI-FEATURE-190`), else on the page.
 export function distributeElements(
   document: SlideDocument,
   page: number,
   ids: readonly string[],
   axis: "horizontal" | "vertical",
+  frame?: readonly Group[],
 ): SlideDocument {
   const elements = document.pages[page]?.elements ?? [];
   const boxes = ids.flatMap((id) => {
     const found = findElement(elements, id);
-    return found === undefined ? [] : [{ id, box: pageBox(elements, found.element) }];
+    return found === undefined ? [] : [{ id, ...framed(elements, found.element, frame) }];
   });
   if (boxes.length < 3) return document;
   const start = (box: Box) => (axis === "horizontal" ? box.x : box.y);
@@ -911,10 +944,12 @@ export function distributeElements(
   const gap = (span - boxes.reduce((sum, one) => sum + size(one.box), 0)) / (boxes.length - 1);
   const steps = new Map<string, { x: number; y: number }>();
   let at = start(first);
-  for (const { id, box } of boxes) {
+  for (const { id, box, step } of boxes) {
     const delta = at - start(box);
-    const step = { x: axis === "horizontal" ? delta : 0, y: axis === "vertical" ? delta : 0 };
-    steps.set(id, stepIntoGroups(groupChain(elements, id), step));
+    steps.set(
+      id,
+      step({ x: axis === "horizontal" ? delta : 0, y: axis === "vertical" ? delta : 0 }),
+    );
     at += size(box) + gap;
   }
   return moveEach(document, page, steps);

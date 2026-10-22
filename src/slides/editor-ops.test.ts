@@ -33,6 +33,7 @@ import {
   setPayload,
   setRotation,
   setTransition,
+  sharedTurnedFrame,
   stepIntoGroups,
   toggleSelected,
   transferFormat,
@@ -963,6 +964,51 @@ describe("slide editor operations on turned groups", () => {
     expect(a!.x).not.toBeCloseTo(onPage(document, "a").x, 0);
     expect(a!.x - (c!.x + c!.width)).toBeCloseTo(d!.x - (a!.x + a!.width), 2);
     expect(a!.y).toBeCloseTo(onPage(document, "a").y, 2);
+  });
+
+  // SUI-FEATURE-190 rev 5 AC3 (#408): children of the same turned group share its frame and align
+  // and distribute in its axes; with an element outside it, or in an upright group, there is none.
+  const inTurned = (rotation: number, extra: unknown[] = []) => {
+    const { document, id } = groupElements(
+      doc([shape("a", 0, 0), shape("b", 200, 100, 50, 50), shape("c", 500, 40, 80, 80), ...extra]),
+      0,
+      ["a", "b", "c"],
+    );
+    return updateElements(document, 0, [id!], (one) => ({ ...one, rotation }));
+  };
+  it("finds the frame only children of the same turned group share", () => {
+    const elements = inTurned(30, [shape("d", 900, 0)]).pages[0]!.elements;
+    expect(sharedTurnedFrame(elements, ["a", "b"])?.map((group) => group.rotation)).toEqual([30]);
+    expect(sharedTurnedFrame(elements, ["a", "d"])).toBeUndefined();
+    expect(sharedTurnedFrame(inTurned(0).pages[0]!.elements, ["a", "b"])).toBeUndefined();
+  });
+
+  it.each([30, 90])(
+    "aligns two children of a %i° group to the left in the group's frame",
+    (rotation) => {
+      const document = inTurned(rotation);
+      const elements = document.pages[0]!.elements;
+      const frame = sharedTurnedFrame(elements, ["a", "b"]);
+      const target = boundsOf(
+        ["a", "b"].map((id) => drawnBox(findElement(elements, id)!.element)),
+      )!;
+      const left = alignElements(document, 0, ["a", "b"], "left", target, frame);
+      // Left edges flush in the group's frame, the vertical places in it kept.
+      expect(box(left, "a").x).toBeCloseTo(box(left, "b").x, 3);
+      expect(box(left, "b").y - box(left, "a").y).toBeCloseTo(100, 3);
+      // On the page the drawn left edges are not flush: the page's axes were not used.
+      expect(onPage(left, "a").x).not.toBeCloseTo(onPage(left, "b").x, 0);
+    },
+  );
+
+  it("distributes three children of a turned group in the group's frame", () => {
+    const document = inTurned(30);
+    const frame = sharedTurnedFrame(document.pages[0]!.elements, ["a", "b", "c"]);
+    const spread = distributeElements(document, 0, ["c", "a", "b"], "horizontal", frame);
+    const [a, b, c] = ["a", "b", "c"].map((id) => box(spread, id));
+    expect(b!.x - (a!.x + a!.width)).toBeCloseTo(c!.x - (b!.x + b!.width), 3);
+    expect(b!.y - a!.y).toBeCloseTo(100, 3);
+    expect(c!.y - a!.y).toBeCloseTo(40, 3);
   });
 
   // #328 AC4 (#329): steps that are all zero leave the document as it was, unrounded.
