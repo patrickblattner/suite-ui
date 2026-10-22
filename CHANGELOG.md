@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.168.1 — #408, SUI-FEATURE-190 rev 5: align and distribute in a turned group's axes
+
+- **Align in the group's frame (#408):** when every selected element sits in the same turned group, align and distribute now work in that group's axes: two children aligned left get flush left edges in the group, not on the page. Any other multi-selection still aligns its axis-parallel outline on the page, and a single element still aligns to the page where it is drawn.
+- **Tests (#408):** a group width typed key by key leaves the children where the width set at once puts them; a child of an upright group snaps to the group's edges and centre as measured when the drag starts.
+
+**Migration:** none.
+
 ## 0.168.0 — #396, SUI-FEATURE-193: brand values by name, delete without confirm, one word "page"
 
 Breaking for apps that pass a brand set to `SlideView`, `SlideEditor`, `SlidePlayer` or `SlideExport`.
