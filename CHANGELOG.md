@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.166.0 — #392, SUI-FEATURE-250 rev 4: one look for "not available"
+
+Feature.
+
+- **Disabled looks like locked (#392):** a `Button` with a real `disabled` (no reason) now dims in colour like a button locked with `aria-disabled` (`SUI-FEATURE-120`): the fill at half tone, the label mixed half with the background, `GrayText` for label and border under forced colours. It no longer uses half element opacity (`disabled:opacity-50` is gone from the base class). A disabled button that is also `busy` keeps the full colour of its variant. Other disabled controls (inputs, checkboxes, tabs …) keep their look.
+- **EditorHeader Reset keeps the focus (#392):** while there is nothing to reset or Save runs, `editor-reset` locks with `aria-disabled` and the trigger lock of `Button`, in the locked look, instead of `disabled`. It stays focusable; a click or `Enter` opens no confirm. A confirmed Reset still hands the focus on as `GL-UI-050` says.
+
+**Migration:** App tests that check `toBeDisabled()` on `editor-reset` (EditorHeader) switch to `toHaveAttribute("aria-disabled", "true")`. App code or tests that read the class `disabled:opacity-50` or a computed opacity of 0.5 on a disabled `Button` read the half-tone instead (`disabled:bg-<variant>/50`, `disabled:text-[color-mix(…)]`). The busy class `disabled:opacity-100` is gone. Gallery: each variant row of the Button section has a new locked twin `button-locked-<variant>` next to the new `button-disabled-<variant>`. Baselines: 10 gallery captures (Button section) in `gallery/__screenshots__/`: `components-de-{light,dark}.png`, `components-de-{light,dark}-390.png`, `components-de-{light,dark}-1440.png` (6) and `components-{en,es}-{light,dark}.png` (4).
+
 ## 0.165.1 — #467, SUI-FEATURE-191: paste offset bounded, group children counted
 
 - **Paste never freezes the editor (#467):** `pasteElements` stops offsetting once the offset no longer moves a copy that covers an identical element (coordinates too large to change by 10 page units); the copies then land where they were copied. The number of offsets is bounded by the elements on the page.

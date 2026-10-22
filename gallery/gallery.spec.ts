@@ -1188,6 +1188,31 @@ test("busy button with a leading icon keeps one icon, its text and its width", a
   expect((await box(busy)).width).toBeCloseTo((await box(idle)).width, 0);
 });
 
+// The largest difference of one colour channel between two equally sized PNG captures, decoded in the
+// page (the gallery has no PNG decoder of its own); Infinity when their sizes differ.
+async function maxChannelDelta(page: Page, a: Buffer, b: Buffer) {
+  return page.evaluate(
+    async ([first, second]) => {
+      const pixels = async (base64: string) => {
+        const image = await createImageBitmap(
+          await (await fetch(`data:image/png;base64,${base64}`)).blob(),
+        );
+        const canvas = new OffscreenCanvas(image.width, image.height);
+        const context = canvas.getContext("2d")!;
+        context.drawImage(image, 0, 0);
+        return context.getImageData(0, 0, image.width, image.height);
+      };
+      const [x, y] = [await pixels(first!), await pixels(second!)];
+      if (x.width !== y.width || x.height !== y.height) return Infinity;
+      let max = 0;
+      for (let i = 0; i < x.data.length; i++)
+        max = Math.max(max, Math.abs(x.data[i]! - y.data[i]!));
+      return max;
+    },
+    [a.toString("base64"), b.toString("base64")],
+  );
+}
+
 // `SUI-FEATURE-250` AC 5 (#392): one look for "not available". A `disabled` and an `aria-disabled`
 // button of the same variant are pixel-equal while neither has the focus, and neither dims by opacity.
 for (const theme of ["light", "dark"] as const) {
@@ -1214,8 +1239,13 @@ for (const theme of ["light", "dark"] as const) {
         ).toBe(1);
       }
       expect((await box(locked)).width).toBeCloseTo((await box(disabled)).width, 0);
-      const shot = await disabled.screenshot({ animations: "disabled" });
-      expect(shot.equals(await locked.screenshot({ animations: "disabled" })), variant).toBe(true);
+      // Equal up to 1 per channel: the rasterizer antialiases the rounded corners of two boxes at
+      // different x a shade apart (a few corner pixels), never the fill, label or border.
+      const [a, b] = [
+        await disabled.screenshot({ animations: "disabled" }),
+        await locked.screenshot({ animations: "disabled" }),
+      ];
+      expect(await maxChannelDelta(page, a, b), variant).toBeLessThanOrEqual(1);
     }
   });
 }
