@@ -1188,6 +1188,38 @@ test("busy button with a leading icon keeps one icon, its text and its width", a
   expect((await box(busy)).width).toBeCloseTo((await box(idle)).width, 0);
 });
 
+// `SUI-FEATURE-250` AC 5 (#392): one look for "not available". A `disabled` and an `aria-disabled`
+// button of the same variant are pixel-equal while neither has the focus, and neither dims by opacity.
+for (const theme of ["light", "dark"] as const) {
+  test(`disabled and locked buttons look the same in ${theme}`, async ({ page }) => {
+    await page.goto(`/?page=components&lng=en&theme=${theme}`);
+    const variants = await page
+      .locator("[data-testid^=button-disabled-]")
+      .evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-variant")!));
+    expect(variants.length).toBeGreaterThan(0);
+    await page.mouse.move(0, 0);
+    for (const variant of variants) {
+      const disabled = page.getByTestId(`button-disabled-${variant}`);
+      const locked = page.getByTestId(`button-locked-${variant}`);
+      await expect(disabled).toBeDisabled();
+      await expect(locked).toHaveAttribute("aria-disabled", "true");
+      for (const button of [disabled, locked]) {
+        expect(
+          await button.evaluate((node) => {
+            let opacity = 1;
+            for (let el: Element | null = node; el; el = el.parentElement)
+              opacity *= Number(getComputedStyle(el).opacity);
+            return opacity;
+          }),
+        ).toBe(1);
+      }
+      expect((await box(locked)).width).toBeCloseTo((await box(disabled)).width, 0);
+      const shot = await disabled.screenshot({ animations: "disabled" });
+      expect(shot.equals(await locked.screenshot({ animations: "disabled" })), variant).toBe(true);
+    }
+  });
+}
+
 // `SUI-FEATURE-006` rev 4: an inline link in a table row and in a path hits on at least 24 px
 // (`GL-UI-013`), while the row and the path keep the height they have without the hit area's padding.
 for (const [where, container] of [
@@ -2018,7 +2050,7 @@ test("editor header: both states, the order, Reset asks first", async ({ page })
   const saved = page.getByTestId("editor-header-saved");
   const draft = page.getByTestId("editor-header-draft");
   await expect(saved.getByTestId("editor-state")).toHaveText("Saved");
-  await expect(saved.getByTestId("editor-reset")).toBeDisabled();
+  await expect(saved.getByTestId("editor-reset")).toHaveAttribute("aria-disabled", "true");
   await expect(saved.getByTestId("editor-save")).toHaveAttribute("aria-disabled", "true");
   await expect(draft.getByTestId("editor-state")).toHaveText("Draft · unsaved");
   const order = await draft

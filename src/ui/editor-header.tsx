@@ -92,9 +92,10 @@ function nextFocusTarget(header: HTMLElement, from: Element | null): HTMLElement
 // lifecycle it stands after Preview until the first step and leads the group from then on, without
 // one directly left of Save; folded header tools keep their text, icon and lock there, above the
 // lifecycle menu's own entries after a separator.
-// A control that locks under the focus (Reset after the draft is gone) and the Reset confirm hand the
-// focus on as `GL-UI-050` says. Save, Undo and Redo lock themselves with `aria-disabled` and a trigger
-// lock, so they keep the focus after saving and after the last step (`SUI-FEATURE-120`, #370).
+// A control that locks under the focus and the Reset confirm hand the focus on as `GL-UI-050` says.
+// Save, Reset, Undo and Redo lock themselves with `aria-disabled` and a trigger lock, so they keep the
+// focus after saving and after the last step (`SUI-FEATURE-120`, #370, #392); a confirmed Reset hands
+// it on from the locked trigger.
 function EditorHeader({
   title,
   onBack,
@@ -425,7 +426,7 @@ function EditorHeader({
             type="button"
             variant="outline"
             size="default"
-            disabled={!dirty || saving}
+            {...(!dirty || saving ? { "aria-disabled": true } : {})}
             onClick={() => setConfirming(true)}
             data-testid="editor-reset"
           >
