@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SLIDE_BRAND, SLIDE_EDITOR_DOC } from "../../gallery/slide-showcase.js";
-import type { SlideDocument } from "./schema.js";
+import type { SlideDocument, SlideDocumentInput } from "./schema.js";
 import { SlideEditor } from "./slide-editor.js";
 
 beforeEach(() => {
@@ -30,7 +30,7 @@ afterEach(() => {
 const ZOOM = 0.25;
 const at = (x: number, y: number) => ({ clientX: x * ZOOM, clientY: y * ZOOM });
 
-function renderEditor(document: SlideDocument = SLIDE_EDITOR_DOC) {
+function renderEditor(document: SlideDocumentInput = SLIDE_EDITOR_DOC) {
   const onSave = vi.fn<(document: SlideDocument) => boolean>(() => true);
   const { container } = render(
     <SlideEditor
@@ -116,14 +116,14 @@ describe("SlideEditor tables", () => {
 
   // #415: the border's cursor follows the table's turn on the screen, as the handles do (#338).
   it("turns the column border's cursor with the table", () => {
-    const turned: SlideDocument = {
+    const turned: SlideDocumentInput = {
       ...SLIDE_EDITOR_DOC,
       pages: SLIDE_EDITOR_DOC.pages.map((page, index) =>
         index !== 1
           ? page
           : {
               ...page,
-              elements: page.elements.map((element) =>
+              elements: page.elements?.map((element) =>
                 element.id === "facts" ? { ...element, rotation: 90 } : element,
               ),
             },
