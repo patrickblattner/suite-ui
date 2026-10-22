@@ -11902,12 +11902,32 @@ test("slide editor: a group's width beyond what its turned child allows takes th
 
 // #351 (code review): typed key by key, the width passes 3 and 30, which the group does not reach;
 // each keystroke counts from the group before the typing, so 300 lands as typed.
+// SUI-FEATURE-190 rev 5 AC1 (#408): no child stays deformed by them: the children end where the
+// width set at once puts them.
 test("slide editor: a group's width typed key by key lands as typed", async ({ page }) => {
-  const { field } = await turnedGroup(page);
+  const children = async (editor: Locator) =>
+    Promise.all(
+      ["pair-left", "pair-right"].map(
+        async (id) => (await editor.locator(`[data-slide-element=${id}]`).boundingBox())!,
+      ),
+    );
+  const atOnce = await turnedGroup(page);
+  await atOnce.field("width").fill("300");
+  await page.keyboard.press("Tab");
+  await expect(atOnce.field("width")).toHaveValue("300");
+  const expected = await children(atOnce.editor);
+  const { editor, field } = await turnedGroup(page);
   await typeInto(page, field("width"), "300");
   await expect(field("width")).toHaveValue("300");
   await page.keyboard.press("Tab");
   await expect(field("width")).toHaveValue("300");
+  const typed = await children(editor);
+  typed.forEach((box, index) => {
+    const want = expected[index]!;
+    for (const key of ["x", "y", "width", "height"] as const) {
+      expect(Math.abs(box[key] - want[key])).toBeLessThan(1);
+    }
+  });
 });
 
 // The group Pair with its left child turned 45° in it, the group selected.
@@ -12026,6 +12046,28 @@ test("slide editor: two children of a turned group snap in its frame", async ({ 
   expect(Math.max(turned.width, turned.height)).toBeGreaterThan(100);
 });
 
+// SUI-FEATURE-190 rev 5 AC2 (#408): a child of an upright group snaps to the group's edges and
+// centre as measured when the drag starts; the group's refit under the drag does not move them.
+test("slide editor: a child of an upright group snaps to the group's centre from the start", async ({
+  page,
+}) => {
+  const { editor, at } = await openEditor(page);
+  const child = editor.locator("[data-slide-element=pair-left]");
+  const from = at(590, 340);
+  await page.mouse.dblclick(from.x, from.y);
+  await expect(editor.getByTestId("slide-editor-x")).toHaveValue("560");
+  const before = (await child.boundingBox())!;
+  // 67 px on: the child's left edge (627) comes 3 px short of the group's centre at the start (630)
+  // and snaps there; the group refitted under the drag has its centre near 664 by then.
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(from.x + 30, from.y, { steps: 3 });
+  await page.mouse.move(from.x + 67, from.y, { steps: 3 });
+  await expect(editor.getByTestId("slide-editor-guide-x")).toHaveAttribute("data-guide", "630");
+  await page.mouse.up();
+  expect((await child.boundingBox())!.x - before.x).toBeCloseTo(70, 0);
+});
+
 // #328 AC1/AC2: a child of a turned group aligns to the page where it is drawn: its drawn left edge
 // goes to the page's, and it does not move up or down on the screen.
 test("slide editor: a child of a turned group aligns to the page where it is drawn", async ({
@@ -12039,10 +12081,11 @@ test("slide editor: a child of a turned group aligns to the page where it is dra
   expect(after.y - before.y).toBeCloseTo(0, 0);
 });
 
-// #328 AC5: two children of a turned group are framed where they are drawn, and align uses that
-// frame: both drawn left edges go to its left edge.
+// #328 AC5: two children of a turned group are framed where they are drawn. SUI-FEATURE-190 rev 5
+// AC3 (#408): they align in the group's axes: the right one's left edge goes to the left one's in
+// the group's frame, and the two equal ellipses then cover each other on the screen.
 for (const angle of [90, 37]) {
-  test(`slide editor: two children of a group turned ${angle}° are framed and aligned where drawn`, async ({
+  test(`slide editor: two children of a group turned ${angle}° are framed where drawn and aligned in its axes`, async ({
     page,
   }) => {
     const { editor, child, at } = await turnedChild(page, angle);
@@ -12067,8 +12110,10 @@ for (const angle of [90, 37]) {
     expect(Math.abs(frame.y + frame.height - union.bottom)).toBeLessThan(1.5);
     await editor.getByTestId("slide-editor-align-left").click();
     const [left, right] = [(await child.boundingBox())!, (await sibling.boundingBox())!];
-    expect(Math.abs(left.x - union.x)).toBeLessThan(1);
-    expect(Math.abs(right.x - union.x)).toBeLessThan(1);
+    expect(Math.abs(left.x - a.x)).toBeLessThan(1);
+    expect(Math.abs(left.y - a.y)).toBeLessThan(1);
+    expect(Math.abs(right.x - left.x)).toBeLessThan(1);
+    expect(Math.abs(right.y - left.y)).toBeLessThan(1);
   });
 }
 

@@ -84,6 +84,7 @@ import {
   setPayload,
   setRotation,
   setTransition,
+  sharedTurnedFrame,
   stepIntoGroups,
   toggleSelected,
   transferFormat,
@@ -1992,17 +1993,31 @@ function Editor({
       apply((current) => moveLayer(current, page, single.id, move));
     }
   };
+  // Several elements in the same turned group align and distribute in its axes (`SUI-FEATURE-190`).
+  const sharedFrame = () =>
+    selected.length > 1
+      ? sharedTurnedFrame(
+          elements,
+          selected.map((element) => element.id),
+        )
+      : undefined;
   const align = (alignment: Alignment) => {
     const ids = editable.map((element) => element.id);
+    const frame = sharedFrame();
     const target =
-      selected.length === 1 ? { x: 0, y: 0, width: pageWidth, height: pageHeight } : selectionBox;
+      selected.length === 1
+        ? { x: 0, y: 0, width: pageWidth, height: pageHeight }
+        : frame !== undefined
+          ? boundsOf(selected.map(drawnBox))
+          : selectionBox;
     if (target !== undefined && ids.length > 0) {
-      apply((current) => alignElements(current, page, ids, alignment, target));
+      apply((current) => alignElements(current, page, ids, alignment, target, frame));
     }
   };
   const distribute = (axis: "horizontal" | "vertical") => {
     const ids = editable.map((element) => element.id);
-    apply((current) => distributeElements(current, page, ids, axis));
+    const frame = sharedFrame();
+    apply((current) => distributeElements(current, page, ids, axis, frame));
   };
   const group = () => {
     const result = groupElements(
