@@ -1,6 +1,6 @@
 {
   "name": "@suite/ui",
-  "version": "0.169.2",
+  "version": "0.169.3",
   "private": true,
   "type": "module",
   "engines": {

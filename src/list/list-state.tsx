@@ -1,8 +1,9 @@
-import { CircleXIcon, PlusIcon } from "lucide-react";
+import { PlusIcon } from "lucide-react";
 import type * as React from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "../ui/button.js";
+import { InlineMessage } from "../ui/inline-message.js";
 
 // The state props `DataTableShell` and `TileGridShell` share (`GL-UI-023` §Zustände): table, grid and
 // cards show loading, empty and error the same way.
@@ -92,12 +93,11 @@ function ListStateContent({
 }: Omit<ListStateProps, "isPending" | "isEmpty" | "isError"> & { state: "error" | "empty" }) {
   const { t } = useTranslation("suite");
   if (state === "error") {
-    // The error symbol before the text, so error and empty differ without their colour (`GL-UI-060`).
+    // An InlineMessage, whose symbol before the text tells error from empty without colour (`GL-UI-060`).
     const message = (
-      <span className="inline-flex items-start gap-2" data-slot="list-error">
-        <CircleXIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
-        <span>{error}</span>
-      </span>
+      <InlineMessage tone="error" className="inline-flex" data-slot="list-error">
+        {error}
+      </InlineMessage>
     );
     if (onRetry === undefined) return message;
     return (

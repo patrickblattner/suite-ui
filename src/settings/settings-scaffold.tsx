@@ -1,7 +1,7 @@
-import { CircleXIcon } from "lucide-react";
 import type * as React from "react";
 
 import { PageHeader } from "../list/page-header.js";
+import { InlineMessage } from "../ui/inline-message.js";
 import { Skeleton } from "../ui/skeleton.js";
 import { Tabs } from "../ui/tabs.js";
 import { SettingsFooter } from "./settings-footer.js";
@@ -96,15 +96,9 @@ function SettingsScaffold({
   const state = loading ? (
     <Skeleton className="h-9 w-full" aria-busy="true" data-testid="settings-loading" />
   ) : error !== undefined ? (
-    // The error symbol before the text, so the message does not rest on its colour (`GL-UI-060`).
-    <p
-      className="flex items-start gap-2 text-sm text-destructive-text"
-      role="alert"
-      data-testid="settings-error"
-    >
-      <CircleXIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
-      <span>{error}</span>
-    </p>
+    <InlineMessage tone="error" data-testid="settings-error">
+      {error}
+    </InlineMessage>
   ) : null;
   const content =
     state !== null ? (

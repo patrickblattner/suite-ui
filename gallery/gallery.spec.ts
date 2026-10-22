@@ -1787,12 +1787,12 @@ test("removable chip: the × removes on Enter and Space", async ({ page }) => {
   await expect(chips).toHaveCount(0);
 });
 
-// `SUI-FEATURE-052`: a file outside `accept` is named below the drop zone as a status.
+// `SUI-FEATURE-052`: a file outside `accept` is named below the drop zone as an alert (`SUI-FEATURE-096`).
 test("upload step: the rejected file is named below the drop zone", async ({ page }) => {
   await page.goto("/?page=components");
   const frame = page.getByTestId("upload-frame-rejected");
-  const message = frame.getByRole("status");
-  await expect(message).toHaveText("Not taken, file type not allowed: notes.txt");
+  const message = frame.getByRole("alert");
+  await expect(message).toHaveText("Error: Not taken, file type not allowed: notes.txt");
   await expect(message).toBeVisible();
   expect((await box(message)).y).toBeGreaterThanOrEqual(
     (await box(frame.getByTestId("upload-drop"))).y +
@@ -1820,9 +1820,9 @@ test("tag input: leaving by Tab makes a chip, chips are announced", async ({ pag
 test("upload step: the rejected file is named above the rows", async ({ page }) => {
   await page.goto("/?page=components");
   const frame = page.getByTestId("upload-frame-rejected-rows");
-  const message = frame.getByRole("status");
+  const message = frame.getByRole("alert");
   await expect(frame.getByTestId("upload-row")).toContainText("team-photo.jpg");
-  await expect(message).toHaveText("Not taken, file type not allowed: notes.txt");
+  await expect(message).toHaveText("Error: Not taken, file type not allowed: notes.txt");
   await expect(message).toBeVisible();
   expect((await box(message)).y + (await box(message)).height).toBeLessThanOrEqual(
     (await box(frame.getByTestId("upload-rows"))).y,

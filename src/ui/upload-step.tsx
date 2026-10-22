@@ -1,9 +1,10 @@
-import { CircleXIcon, UploadIcon } from "lucide-react";
+import { UploadIcon } from "lucide-react";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
 import { Button } from "./button.js";
+import { InlineMessage } from "./inline-message.js";
 import { InlineStatus, type InlineStatusState } from "./inline-status.js";
 import { OverflowTooltip } from "./tooltip.js";
 
@@ -143,27 +144,18 @@ function UploadStep({
           </div>
         </>
       )}
-      <p
-        role="status"
-        className={cn(
-          "flex items-start gap-2 text-sm text-destructive-text",
-          showsRows ? "empty:-mb-4" : "empty:-mt-4",
-        )}
-        data-testid="upload-rejected"
-      >
-        {/* The error symbol before the text, so the message does not rest on its colour (`GL-UI-060`). */}
+      {/* The wrapper stays in place across a rejection and the switch to rows (`SUI-FEATURE-052`); the
+          message inside it is the one alert (`SUI-FEATURE-096`). */}
+      <div className={showsRows ? "empty:-mb-4" : "empty:-mt-4"} data-testid="upload-rejected">
         {rejected.length > 0 ? (
-          <>
-            <CircleXIcon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
-            <span>
-              {t("upload.rejected", {
-                files: rejected.join(", "),
-                interpolation: { escapeValue: false },
-              })}
-            </span>
-          </>
+          <InlineMessage tone="error">
+            {t("upload.rejected", {
+              files: rejected.join(", "),
+              interpolation: { escapeValue: false },
+            })}
+          </InlineMessage>
         ) : null}
-      </p>
+      </div>
       {showsRows ? (
         <ul
           ref={list}

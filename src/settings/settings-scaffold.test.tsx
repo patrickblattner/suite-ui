@@ -392,6 +392,9 @@ describe("SettingsScaffold single column and states (SUI-FEATURE-041)", () => {
     );
     const error = screen.getByTestId("settings-error");
     expect(error).toHaveTextContent("Settings could not be loaded.");
+    // SUI-FEATURE-096: an InlineMessage alert, its text led by the screen-reader prefix.
+    expect(error).toHaveAttribute("role", "alert");
+    expect(error).toHaveTextContent(/^Error: Settings could not be loaded\.$/);
     // SUI-FEATURE-052: the AA text token, not the fill; its 4.5:1 on --background in both themes is
     // checked in styles.test.ts.
     expect(error).toHaveClass("text-destructive-text");

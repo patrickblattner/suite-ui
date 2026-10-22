@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.169.3 — #428, GL-UI-004, SUI-FEATURE-096: the remaining error lines through InlineMessage
+
+- **One error line (#428):** the error of `SettingsScaffold` (`settings-error`), the rejected-files line of `UploadStep` (`upload-rejected`) and the error state of `DataTableShell`/`TileGridShell` now render through `InlineMessage tone="error"`: same symbol, colour and `role="alert"`, and screen readers now hear the "Error:" prefix before the text. The list error is newly announced as an alert.
+- **UploadStep (#428, SUI-FEATURE-052 rev 7):** `upload-rejected` stays in place as a wrapper without a role; the message inside it is the one alert, empty again with the next choice. Before, the wrapper itself was `role="status"`.
+
+**Migration:** none. Tests that read the whole text of these lines see the invisible "Error:" prefix; tests that looked for `role="status"` in `upload-rejected` look for `role="alert"` inside it.
+
 ## 0.169.2 — #425, GL-UI-010: slide editor property panel headings and spacing
 
 - **Headings (#425):** every slide editor property panel section (transition, animation with its entrance/exit legends, add-on fields, crop, text format, table cell, arrange, align, distribute, placeholders) titles itself `text-base font-semibold` instead of `text-sm font-medium`.

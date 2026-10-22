@@ -118,11 +118,11 @@ describe("UploadStep", () => {
   });
 
   // SUI-FEATURE-052: a file that does not match accept is named, not silently dropped.
-  it("hands on the matching file and names the rejected one in a status until the next choice", () => {
+  it("hands on the matching file and names the rejected one in an alert until the next choice", () => {
     const onFiles = vi.fn();
     render(<UploadStep accept="image/*" onFiles={onFiles} />);
     const message = screen.getByTestId("upload-rejected");
-    expect(message).toHaveAttribute("role", "status");
+    expect(message).not.toHaveAttribute("role");
     expect(message).toBeEmptyDOMElement();
     const image = png("a.png");
     const text = new File(["x"], "R&D notes.txt", { type: "text/plain" });
@@ -130,9 +130,11 @@ describe("UploadStep", () => {
     expect(onFiles).toHaveBeenCalledWith([image]);
     expect(message).toHaveTextContent("Not taken, file type not allowed: R&D notes.txt");
     expect(message).toBeVisible();
-    // GL-UI-060: a hidden error symbol before the text.
-    expect(message.firstElementChild).toHaveClass("lucide-circle-x");
-    expect(message.firstElementChild).toHaveAttribute("aria-hidden", "true");
+    // SUI-FEATURE-096: the one alert, inside the wrapper; GL-UI-060: a hidden error symbol before the text.
+    const alert = within(message).getByRole("alert");
+    expect(alert).toHaveTextContent("Error: Not taken, file type not allowed: R&D notes.txt");
+    expect(alert.firstElementChild).toHaveClass("lucide-circle-x");
+    expect(alert.firstElementChild).toHaveAttribute("aria-hidden", "true");
     fireEvent.drop(screen.getByTestId("upload-drop"), { dataTransfer: { files: [png("b.png")] } });
     expect(message).toBeEmptyDOMElement();
   });
@@ -172,9 +174,9 @@ describe("UploadStep", () => {
       target: { files: [png("a.png"), text] },
     });
     expect(screen.getAllByTestId("upload-row")).toHaveLength(1);
-    // The same live region node, now above the rows.
+    // The same wrapper node, now above the rows, with the alert inside.
     expect(screen.getByTestId("upload-rejected")).toBe(message);
-    expect(message).toHaveAttribute("role", "status");
+    expect(within(message).getByRole("alert")).toBeInTheDocument();
     expect(message).toHaveTextContent("Not taken, file type not allowed: notes.txt");
     expect(message).toBeVisible();
     const rows = screen.getByTestId("upload-rows");

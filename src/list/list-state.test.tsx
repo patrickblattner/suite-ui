@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { TableCell, TableHead, TableRow } from "../ui/table.js";
@@ -105,6 +105,10 @@ describe.each(shells)("$name list states (SUI-FEATURE-046)", (shell) => {
     });
     const error = screen.getByTestId("x-error");
     expect(error).toHaveTextContent("The media files could not be loaded.");
+    // SUI-FEATURE-096: an InlineMessage alert, its text led by the screen-reader prefix.
+    expect(within(error).getByRole("alert")).toHaveTextContent(
+      /^Error: The media files could not be loaded\.$/,
+    );
     expect(error).toHaveClass("text-destructive-text");
     expect(screen.queryByTestId("x-empty")).toBeNull();
     // GL-UI-060: a hidden error symbol before the text; the empty state has none.
