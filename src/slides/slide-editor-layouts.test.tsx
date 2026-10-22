@@ -140,7 +140,15 @@ describe("SlideEditor placeholders", () => {
       ...TITLE,
       elements: [
         TITLE.elements![0]!,
-        { ...TITLE.elements![0]!, id: "app-body-ph", role: "body", y: 100 },
+        {
+          id: "app-body-ph",
+          type: "placeholder",
+          role: "body",
+          x: 300,
+          y: 100,
+          width: 300,
+          height: 60,
+        },
       ],
     };
     render(
