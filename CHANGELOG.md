@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.167.3 — #399, SUI-FEATURE-192: a layout switch places a grouped element in one step
+
+- **One placement (#399):** when the page's layout changes, an element filling a placeholder inside turned groups is now placed once, against its groups as they stand after its turn, instead of being corrected in up to six nudged steps. It lands where the new placeholder is drawn within 0.01 px, nested and turned groups and a turned placeholder included.
+
+**Migration:** none.
+
 ## 0.167.2 — #471, SUI-FEATURE-250 rev 4: a Button in a disabled fieldset dims again
 
 - **Disabled through a fieldset (#471):** a `Button` disabled by a parent `<fieldset disabled>` (without its own `disabled` prop) now shows the same colour-dimmed look as `<Button disabled>`, in light and dark. Since 0.166.0 it stayed disabled but kept its full colour. A `busy` button keeps its full colour as before.

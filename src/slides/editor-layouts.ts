@@ -152,15 +152,9 @@ export function setPageLayout(
   return next;
 }
 
-// How near (px of the page) a child of groups is put to where it is asked for, and the most steps.
-const PLACE_TOLERANCE = 0.01;
-const PLACE_STEPS = 6;
-
 // The element drawn at `target` on the page (Codex #398 CX2): in its groups' frame, its turn less
-// theirs and its centre turned back by them. Its groups refit to it and move their centre, which
-// moves where it is drawn; where it is drawn is linear in its centre while the same children stand
-// at the groups' edges, so a Newton step (from two nudged measurements) takes the rest back, a few
-// steps at most (a single child at once, the group's centre being its own).
+// theirs and its centre turned back by them. Turning it refits its groups, so their frame is read
+// after the turn; putting it there refits them again, which keeps everything where it is drawn.
 function placeAt(
   document: SlideDocument,
   page: number,
@@ -168,48 +162,24 @@ function placeAt(
   target: { box: Box; rotation: number },
 ): SlideDocument {
   const listOf = (doc: SlideDocument) => doc.pages[page]?.elements ?? [];
-  const groups = groupChain(listOf(document), id);
-  const inherited = groups.reduce((sum, group) => sum + group.rotation, 0);
-  const { width, height } = target.box;
-  const goal = { x: target.box.x + width / 2, y: target.box.y + height / 2 };
+  const inherited = groupChain(listOf(document), id).reduce(
+    (sum, group) => sum + group.rotation,
+    0,
+  );
   let turned = document;
   const now = findElement(listOf(turned), id)?.element;
   if (now !== undefined && now.rotation !== target.rotation - inherited) {
     turned = setRotation(turned, page, id, target.rotation - inherited);
   }
-  // The document with the element's centre at `centre` in its groups' frame, and how far from the
-  // goal it is drawn then.
-  const at = (centre: { x: number; y: number }) => {
-    const doc = setBox(turned, page, id, {
-      x: centre.x - width / 2,
-      y: centre.y - height / 2,
-      width,
-      height,
-    });
-    const element = findElement(listOf(doc), id)?.element;
-    const drawn = element === undefined ? undefined : placedBox(listOf(doc), element).box;
-    const offset =
-      drawn === undefined
-        ? { x: 0, y: 0 }
-        : { x: drawn.x + drawn.width / 2 - goal.x, y: drawn.y + drawn.height / 2 - goal.y };
-    return { doc, offset };
-  };
-  let centre = intoGroups(groups, goal);
-  let current = at(centre);
-  for (let step = 0; step < PLACE_STEPS; step += 1) {
-    const { offset } = current;
-    if (Math.hypot(offset.x, offset.y) < PLACE_TOLERANCE) break;
-    const alongX = at({ x: centre.x + 1, y: centre.y }).offset;
-    const alongY = at({ x: centre.x, y: centre.y + 1 }).offset;
-    const [a, c] = [alongX.x - offset.x, alongX.y - offset.y];
-    const [b, d] = [alongY.x - offset.x, alongY.y - offset.y];
-    const determinant = a * d - b * c;
-    if (Math.abs(determinant) < 1e-9) break;
-    centre = {
-      x: centre.x + (-offset.x * d + offset.y * b) / determinant,
-      y: centre.y + (offset.x * c - offset.y * a) / determinant,
-    };
-    current = at(centre);
-  }
-  return current.doc;
+  const { width, height } = target.box;
+  const centre = intoGroups(groupChain(listOf(turned), id), {
+    x: target.box.x + width / 2,
+    y: target.box.y + height / 2,
+  });
+  return setBox(turned, page, id, {
+    x: centre.x - width / 2,
+    y: centre.y - height / 2,
+    width,
+    height,
+  });
 }
