@@ -354,6 +354,7 @@ export const de: SuiteStrings = {
     saveHint: "Speichert den Entwurf.",
     saveCleanHint: "Speichert den Entwurf — verfügbar, sobald du etwas geändert hast.",
     more: "Weitere Aktionen",
+    readOnly: "Nur lesen",
   },
   canvas: {
     fit: "Einpassen",

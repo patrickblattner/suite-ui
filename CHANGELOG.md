@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased (minor) — #519, SUI-FEATURE-104 rev 2, SUI-FEATURE-105 rev 2: EditorHeader tools, status, read-only, page head
+
+- **`tools` (#519):** `EditorHeader` takes `tools?: EditorHeaderTool[]` (`{ id, label, icon, onClick, pressed?, disabledText? }`, type exported). They stand first in the right group as `icon-sm` buttons named by `label` (accessible name and tooltip), followed by a separator: tools · separator · Preview · ⋯ · next · separator · Undo · Redo · status · state · Reset · Save. `pressed` makes a toggle with `aria-pressed` and the package's pressed fill; `disabledText` locks it with `aria-disabled` and names the reason. At narrow width they fold with Preview (stage 3) into the one ⋯, ahead of the other folded tools; a pressed tool becomes a checkbox entry (`RowMenuItem` gains `checked?`).
+- **`status` (#519):** `status?: ReactNode` for a running operation stands directly left of the state indicator and never folds.
+- **`readOnly` (#519):** with `readOnly` the header renders Back, the title, the tools, Preview, `status` and "Read only" (`suite:editor.readOnly`: Nur lesen / Read only / Solo lectura) in place of the state; Undo, Redo, the state, Reset, Save, the next step and the record's menu are absent, and the undo/redo keys are not bound.
+- **Page head (#519):** the visible title is now the page's `h1` with `data-testid="page-title"` (same size, weight and truncation). A new `subtitle?: ReactNode` renders one muted `text-sm` line under it (`data-testid="page-subtitle"`), truncating with its full text as the tooltip; the header grows by that line only when it is set.
+- **Gallery and tests (#519):** a new gallery page `editor-bar` shows tools + status, read-only, and the subtitle with and without a lifecycle (new screenshots); unit and gallery tests cover order, toggles, the folded checkbox entry, read-only, the `h1` and the subtitle at 390 px. The default gallery page (strings table) shows the new key.
+
+**Migration:** none for the props. A page that renders its own `h1` beside `EditorHeader` drops it, so the route keeps one `h1`; a test that finds the editor title by `data-slot=editor-title-text` still does, and it is now also `getByRole("heading", { level: 1 })`.
+
 ## Unreleased — #460, SUI-FEATURE-234 rev 4: the preview's long-play control is Stop, not Pause
 
 - **Stop in the preview (#460):** the control the editor's preview shows while a play over 5 s runs is now "Stop" (de "Stoppen", es "Detener"), its hint "Ends the play; the page stays as far as it got." It ends the play: no further step, the running animations stay in the state they reached, and the focus it held moves to "Play again", which starts over. There is no resume. The `SlidePlayer` is unchanged by this; its changes from #385 (less motion, the first page fading in from black) already match rev 4.

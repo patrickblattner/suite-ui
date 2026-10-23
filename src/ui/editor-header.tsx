@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import { type RowMenuItem, RowActionMenu } from "../list/row-actions.js";
 import { cn } from "../lib/cn.js";
+import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
 import { Button } from "./button.js";
 import { ConfirmDeleteDialog } from "./confirm-delete-dialog.js";
 import { fallbackTarget } from "./focus-return.js";
@@ -20,8 +21,10 @@ import { REDO_SHORTCUT, UNDO_SHORTCUT, useEditShortcuts } from "./use-edit-short
 import { useFoldSteps } from "./use-fold-steps.js";
 
 type EditorHeaderProps = {
-  // The record's title, as the app shows it.
+  // The record's title, as the app shows it: the page's `h1` (`SUI-FEATURE-105`).
   title: React.ReactNode;
+  // One line under the title, e.g. the record's status and identifier (`SUI-FEATURE-105`).
+  subtitle?: React.ReactNode;
   // Back to the list; pass it through the leave guard (`useEditorLeaveGuard`).
   onBack: () => void;
   canUndo: boolean;
@@ -37,6 +40,25 @@ type EditorHeaderProps = {
   onReset: () => void;
   // The record's lifecycle (`SUI-FEATURE-069`): Preview, ⋯ and the next step, before the editor group.
   lifecycle?: EditorLifecycle;
+  // The editor's own tools in the header row, first in the right group (`SUI-FEATURE-104`).
+  tools?: readonly EditorHeaderTool[];
+  // A running operation, compact (icon and short text), directly left of the state; never folds.
+  status?: React.ReactNode;
+  // A role that may only read: no write controls at all, "Read only" in place of the state. The app
+  // passes `dirty={false}` with it, so `useEditorLeaveGuard` (which follows `dirty` alone) stays
+  // inactive.
+  readOnly?: boolean;
+};
+
+// An `icon-sm` tool of the header (`SUI-FEATURE-104`); `label` is its name and tooltip. With `pressed`
+// it is a toggle; `disabledText` locks it and names the reason.
+type EditorHeaderTool = {
+  id: string;
+  label: string;
+  icon: React.ReactNode;
+  onClick: () => void;
+  pressed?: boolean;
+  disabledText?: string;
 };
 
 // Structured, so the header can fold Preview and the menu's entries into its one ⋯ (`SUI-FEATURE-090`).
@@ -61,7 +83,7 @@ type EditorLifecycle = {
 };
 
 // What folds when the header does not fit one line (`SUI-FEATURE-090`), in this order: Undo/Redo,
-// Reset and Preview move into the one ⋯ menu, the state text shrinks to its mark, then Back, Save and
+// Reset and Preview (with the header tools, `SUI-FEATURE-104`) move into the one ⋯ menu, the state text shrinks to its mark, then Back, Save and
 // last the next step (if it has an icon) show their icon only, keeping their name as accessible name
 // and tooltip. Until then the title keeps about 18 characters; only the last step lets it shrink to 6.
 // Back, the title, the next step and Save always stay.
@@ -86,6 +108,11 @@ function nextFocusTarget(header: HTMLElement, from: Element | null): HTMLElement
 // stand before that group, behind a separator; the next step is locked while the draft is unsaved, so
 // never more than one green button is usable at a time.
 //
+// `SUI-FEATURE-104`: the editor's `tools` lead the right group, behind a separator of their own; a
+// running operation's `status` stands left of the state. `readOnly` drops every write control (Undo,
+// Redo, the state, Reset, Save, the next step, the record's menu) and names the mode instead of the
+// state. `SUI-FEATURE-105`: the title is the page's `h1`, `subtitle` one muted line under it.
+//
 // `SUI-FEATURE-090`: the header measures its own width. While it overflows one line it folds a step
 // (`Fold`); each step remembers the width it needed, and once the header is that wide again it steps
 // back. The title truncates with its full text as a tooltip. There is never more than one ⋯: with a
@@ -98,6 +125,7 @@ function nextFocusTarget(header: HTMLElement, from: Element | null): HTMLElement
 // it on from the locked trigger.
 function EditorHeader({
   title,
+  subtitle,
   onBack,
   canUndo,
   canRedo,
@@ -108,23 +136,30 @@ function EditorHeader({
   onSave,
   onReset,
   lifecycle,
+  tools: headerTools = [],
+  status,
+  readOnly = false,
 }: EditorHeaderProps) {
   const { t, i18n } = useTranslation("suite");
   const [confirming, setConfirming] = React.useState(false);
   useEditShortcuts({
-    onUndo: canUndo ? onUndo : undefined,
-    onRedo: canRedo ? onRedo : undefined,
+    onUndo: canUndo && !readOnly ? onUndo : undefined,
+    onRedo: canRedo && !readOnly ? onRedo : undefined,
   });
-  const folds: Fold[] = [
-    "undo",
-    "reset",
-    ...(lifecycle?.preview ? ["preview" as const] : []),
-    "state",
-    "back",
-    "save",
-    ...(lifecycle?.next?.icon !== undefined ? ["next" as const] : []),
-    "title",
-  ];
+  // The header tools fold with Preview. Read-only, only what it shows can fold.
+  const foldsPreview = lifecycle?.preview !== undefined || headerTools.length > 0;
+  const folds: Fold[] = readOnly
+    ? [...(foldsPreview ? ["preview" as const] : []), "back", "title"]
+    : [
+        "undo",
+        "reset",
+        ...(foldsPreview ? ["preview" as const] : []),
+        "state",
+        "back",
+        "save",
+        ...(lifecycle?.next?.icon !== undefined ? ["next" as const] : []),
+        "title",
+      ];
   // The title's floor: its first 18 characters and the ellipsis while folding, 6 after the last
   // step, sized by an invisible copy in the title's own font. A title given as nodes is read back
   // from the rendered text.
@@ -147,6 +182,7 @@ function EditorHeader({
     titleText.slice(0, TITLE_BUDGET),
     lifecycle?.preview?.label,
     lifecycle?.next?.label,
+    folds.join(),
   ].join("\u0000");
   // A control a refold locked or took away (the ⋯ when its tools unfold) hands the focus on in
   // `GL-UI-050`'s order from where it stood; a Save swapped between icon and text takes it back.
@@ -210,6 +246,20 @@ function EditorHeader({
   };
 
   const tools: RowMenuItem[] = [];
+  if (folded("preview")) {
+    // The header tools lead the folded ones; a toggle becomes a checkbox entry.
+    for (const tool of headerTools) {
+      tools.push({
+        label: tool.label,
+        icon: tool.icon,
+        onSelect: tool.onClick,
+        ...(tool.pressed !== undefined ? { checked: tool.pressed } : {}),
+        disabled: tool.disabledText !== undefined,
+        ...(tool.disabledText !== undefined ? { hint: tool.disabledText } : {}),
+        "data-testid": `editor-menu-tool-${tool.id}`,
+      });
+    }
+  }
   if (folded("undo")) {
     // Locked, each names why and offers no shortcut, as the header buttons (#380, #454).
     tools.push(
@@ -252,14 +302,18 @@ function EditorHeader({
       "data-testid": "editor-menu-preview",
     });
   }
-  const records = lifecycle?.menu?.items ?? [];
+  // Read-only, the record's own menu is absent; the ⋯ only holds folded tools.
+  const records = readOnly ? [] : (lifecycle?.menu?.items ?? []);
   const menu =
     tools.length + records.length > 0 ? (
       // `data-slot` marks the ⋯ for an editor that keeps an edit in progress while its menu is used
       // (the slide editor's crop, #349); its menu names the trigger with `aria-labelledby`.
       <span className="contents" data-slot="editor-menu">
         <RowActionMenu
-          menu={{ label: lifecycle?.menu?.label ?? t("editor.more"), items: records }}
+          menu={{
+            label: (readOnly ? undefined : lifecycle?.menu?.label) ?? t("editor.more"),
+            items: records,
+          }}
           tools={tools}
           size="icon-sm"
           variant="ghost"
@@ -267,6 +321,10 @@ function EditorHeader({
         />
       </span>
     ) : null;
+
+  // What the lifecycle group shows: a divider stands only between groups that show something.
+  const previewShown = preview !== undefined && !folded("preview");
+  const nextShown = lifecycle?.next !== undefined && !readOnly;
 
   return (
     <header
@@ -313,10 +371,25 @@ function EditorHeader({
           {titleFloor}
         </span>
         <OverflowTooltip>
-          <div data-slot="editor-title-text" className="col-start-1 row-start-1 min-w-0 truncate">
+          <h1
+            data-slot="editor-title-text"
+            // Its own type, so an app's base `h1` rule does not restyle it.
+            className="col-start-1 row-start-1 m-0 min-w-0 truncate text-sm/[1.5] font-medium"
+            data-testid="page-title"
+          >
             {title}
-          </div>
+          </h1>
         </OverflowTooltip>
+        {subtitle === undefined ? null : (
+          <OverflowTooltip>
+            <p
+              className="col-start-1 row-start-2 min-w-0 truncate text-sm font-normal text-muted-foreground"
+              data-testid="page-subtitle"
+            >
+              {subtitle}
+            </p>
+          </OverflowTooltip>
+        )}
       </div>
       <div
         data-slot="editor-actions"
@@ -324,26 +397,41 @@ function EditorHeader({
         data-tooltip-row=""
         className="ml-auto flex shrink-0 items-center gap-2"
       >
+        {headerTools.length === 0 || folded("preview") ? null : (
+          <>
+            {headerTools.map((tool) => (
+              <HeaderTool key={tool.id} {...tool} />
+            ))}
+            <div
+              aria-hidden="true"
+              className={cn("w-px self-stretch bg-border", wrapped ? "-mb-3" : "-my-3")}
+              data-testid="editor-tools-separator"
+            />
+          </>
+        )}
         {lifecycle === undefined ? null : (
           <>
             {/* Unfolded, the app's ⋯ keeps its place after Preview; from the first step the one
                 ⋯ leads the group (`SUI-FEATURE-090` rev 11). */}
             {shrink > 0 ? menu : null}
-            {preview === undefined || folded("preview") ? null : <PreviewButton {...preview} />}
+            {previewShown ? <PreviewButton {...preview} /> : null}
             {shrink > 0 ? null : menu}
-            {lifecycle.next === undefined ? null : (
-              <NextStep {...lifecycle.next} dirty={dirty} iconOnly={folded("next")} />
-            )}
+            {nextShown ? (
+              <NextStep {...lifecycle.next!} dirty={dirty} iconOnly={folded("next")} />
+            ) : null}
             {/* Full bar height: the stretch reaches through the header's vertical padding; wrapped,
-                it spans the action row and the bottom padding only. */}
-            <div
-              aria-hidden="true"
-              className={cn("w-px self-stretch bg-border", wrapped ? "-mb-3" : "-my-3")}
-              data-testid="editor-lifecycle-separator"
-            />
+                it spans the action row and the bottom padding only. Only between two groups that
+                show something: the editor group after it always does. */}
+            {menu !== null || previewShown || nextShown ? (
+              <div
+                aria-hidden="true"
+                className={cn("w-px self-stretch bg-border", wrapped ? "-mb-3" : "-my-3")}
+                data-testid="editor-lifecycle-separator"
+              />
+            ) : null}
           </>
         )}
-        {folded("undo") ? null : (
+        {folded("undo") || readOnly ? null : (
           <>
             {/* Locked, each names why and offers no shortcut (#380). */}
             <IconButtonTooltip
@@ -388,7 +476,19 @@ function EditorHeader({
             </IconButtonTooltip>
           </>
         )}
-        {folded("state") ? (
+        {status === undefined ? null : (
+          <div data-slot="editor-status" className="flex shrink-0 items-center">
+            {status}
+          </div>
+        )}
+        {readOnly ? (
+          <span
+            className="text-sm whitespace-nowrap text-muted-foreground"
+            data-testid="editor-read-only"
+          >
+            {t("editor.readOnly")}
+          </span>
+        ) : folded("state") ? (
           // Shrunk to its mark, the state keeps its text as the tooltip and for screen readers.
           <Tooltip>
             <TooltipTrigger asChild>
@@ -426,7 +526,7 @@ function EditorHeader({
             {stateText}
           </span>
         )}
-        {folded("reset") ? null : (
+        {folded("reset") || readOnly ? null : (
           <Hint text={t("editor.resetHint")} disabledText={resetLockReason}>
             <Button
               type="button"
@@ -443,7 +543,7 @@ function EditorHeader({
         )}
         {/* Without a lifecycle the ⋯ stands directly left of Save. */}
         {lifecycle === undefined ? menu : null}
-        {folded("save") ? (
+        {readOnly ? null : folded("save") ? (
           <IconButtonTooltip
             label={t("actions.save")}
             disabledText={t("editor.saveCleanHint")}
@@ -490,6 +590,27 @@ function EditorHeader({
         data-testid="editor-reset-confirm"
       />
     </header>
+  );
+}
+
+// A header tool: `icon-sm` `ghost`, named by its label; pressed, the package's pressed fill
+// (`SUI-FEATURE-095`). Locked like Undo, so it keeps the focus.
+function HeaderTool({ id, label, icon, onClick, pressed, disabledText }: EditorHeaderTool) {
+  return (
+    <IconButtonTooltip label={label} disabledText={disabledText} named>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        {...(pressed === undefined ? {} : { "aria-pressed": pressed })}
+        {...(disabledText === undefined ? {} : { "aria-disabled": true })}
+        className={pressed === undefined ? undefined : PRESSED_FILL_CLASS}
+        onClick={onClick}
+        data-testid={`editor-tool-${id}`}
+      >
+        {icon}
+      </Button>
+    </IconButtonTooltip>
   );
 }
 
@@ -596,6 +717,7 @@ function useEditorLeaveGuard({
 export {
   EditorHeader,
   type EditorHeaderProps,
+  type EditorHeaderTool,
   type EditorLeaveGuardOptions,
   type EditorLifecycle,
   useEditorLeaveGuard,

@@ -369,6 +369,7 @@ export const en = {
     saveHint: "Saves the draft.",
     saveCleanHint: "Saves the draft — available once you have changed something.",
     more: "More actions",
+    readOnly: "Read only",
   },
   // The canvas of a visual editor (`CanvasOverlay`, `CanvasZoom`).
   canvas: {

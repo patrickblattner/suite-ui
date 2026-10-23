@@ -8,6 +8,7 @@ import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
 import { Button } from "../ui/button.js";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
@@ -42,6 +43,9 @@ type RowMenuItem = {
   // The key hint of the action the entry stands for, e.g. Undo's `["Ctrl+Z", "Meta+Z"]`.
   shortcut?: readonly string[];
   onSelect: () => void;
+  // Set, the entry is a switch with this state (a pressed header tool, `SUI-FEATURE-104`): a checkbox
+  // entry, and choosing it calls `onSelect`.
+  checked?: boolean;
   destructive?: boolean;
   disabled?: boolean;
   hint?: string;
@@ -175,36 +179,52 @@ function RowActionMenu({
     // A locked entry with a hint stays in the arrow keys' path, so its reason reaches the keyboard
     // too: it is marked `aria-disabled` and ignores the choice instead of being `disabled`.
     const lockedWithReason = item.disabled === true && item.hint !== undefined;
-    const control = (
-      <DropdownMenuItem
-        key={item.label}
-        variant={item.destructive === true ? "destructive" : "default"}
-        disabled={item.disabled === true && !lockedWithReason}
-        {...(lockedWithReason ? { "aria-disabled": true, "data-disabled": "" } : {})}
-        aria-keyshortcuts={
-          item.shortcut === undefined ? undefined : ariaKeyShortcuts(item.shortcut)
-        }
-        onSelect={(event) => {
-          if (lockedWithReason) event.preventDefault();
-          else item.onSelect();
-        }}
-        // Its hint opens on the pointer as well.
-        className={
-          lockedWithReason
-            ? "data-[disabled]:pointer-events-auto data-[disabled]:cursor-not-allowed"
-            : undefined
-        }
-        data-testid={item["data-testid"] ?? "row-menu-item"}
-      >
-        {item.icon}
-        {item.label}
-        {item.shortcut === undefined ? null : (
-          <kbd aria-hidden className="ml-auto pl-4 text-xs opacity-70">
-            {shortcutChip(item.shortcut, t("keys.delete"))}
-          </kbd>
-        )}
-      </DropdownMenuItem>
-    );
+    const lock = {
+      disabled: item.disabled === true && !lockedWithReason,
+      ...(lockedWithReason ? { "aria-disabled": true, "data-disabled": "" } : {}),
+      // Its hint opens on the pointer as well.
+      className: lockedWithReason
+        ? "data-[disabled]:pointer-events-auto data-[disabled]:cursor-not-allowed"
+        : undefined,
+      "data-testid": item["data-testid"] ?? "row-menu-item",
+    };
+    const control =
+      item.checked === undefined ? (
+        <DropdownMenuItem
+          key={item.label}
+          variant={item.destructive === true ? "destructive" : "default"}
+          {...lock}
+          aria-keyshortcuts={
+            item.shortcut === undefined ? undefined : ariaKeyShortcuts(item.shortcut)
+          }
+          onSelect={(event) => {
+            if (lockedWithReason) event.preventDefault();
+            else item.onSelect();
+          }}
+        >
+          {item.icon}
+          {item.label}
+          {item.shortcut === undefined ? null : (
+            <kbd aria-hidden className="ml-auto pl-4 text-xs opacity-70">
+              {shortcutChip(item.shortcut, t("keys.delete"))}
+            </kbd>
+          )}
+        </DropdownMenuItem>
+      ) : (
+        <DropdownMenuCheckboxItem
+          key={item.label}
+          checked={item.checked}
+          // The check after the text, so the entry lines up with the menu's plain entries.
+          indicator="end"
+          {...lock}
+          onCheckedChange={() => {
+            if (!lockedWithReason) item.onSelect();
+          }}
+        >
+          {item.icon}
+          {item.label}
+        </DropdownMenuCheckboxItem>
+      );
     return item.hint === undefined ? (
       control
     ) : (

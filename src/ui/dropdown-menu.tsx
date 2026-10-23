@@ -75,7 +75,8 @@ function DropdownMenuItem({
 }
 
 // An entry that switches on and off (`SUI-FEATURE-087`): `aria-checked`, the check before the text
-// while on. The menu stays open, so several switches can be set in a row.
+// while on. The menu stays open, so several switches can be set in a row. `indicator="end"` puts the
+// check after the text instead, so the entry lines up with plain entries in a mixed menu.
 function DropdownMenuCheckboxItem({
   className,
   children,
@@ -83,26 +84,38 @@ function DropdownMenuCheckboxItem({
   onPointerLeave,
   onBlur,
   onSelect,
+  indicator = "start",
   ...props
-}: React.ComponentProps<typeof DropdownMenuPrimitive.CheckboxItem>) {
+}: React.ComponentProps<typeof DropdownMenuPrimitive.CheckboxItem> & {
+  indicator?: "start" | "end";
+}) {
   const highlight = useHighlightInput({ onPointerMove, onPointerLeave, onBlur });
+  const check = (
+    <span
+      className={cn(
+        "pointer-events-none flex size-4 items-center justify-center",
+        indicator === "start" ? "absolute left-2" : "ml-auto pl-4",
+      )}
+    >
+      <DropdownMenuPrimitive.ItemIndicator>
+        <CheckIcon aria-hidden="true" />
+      </DropdownMenuPrimitive.ItemIndicator>
+    </span>
+  );
   return (
     <DropdownMenuPrimitive.CheckboxItem
       data-slot="dropdown-menu-checkbox-item"
       {...highlight}
-      className={cn(ITEM_CLASS, "pl-8", className)}
+      className={cn(ITEM_CLASS, indicator === "start" && "pl-8", className)}
       onSelect={(event) => {
         event.preventDefault();
         onSelect?.(event);
       }}
       {...props}
     >
-      <span className="pointer-events-none absolute left-2 flex size-4 items-center justify-center">
-        <DropdownMenuPrimitive.ItemIndicator>
-          <CheckIcon aria-hidden="true" />
-        </DropdownMenuPrimitive.ItemIndicator>
-      </span>
+      {indicator === "start" ? check : null}
       {children}
+      {indicator === "end" ? check : null}
     </DropdownMenuPrimitive.CheckboxItem>
   );
 }

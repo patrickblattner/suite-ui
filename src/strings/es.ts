@@ -347,6 +347,7 @@ export const es: SuiteStrings = {
     saveHint: "Guarda el borrador.",
     saveCleanHint: "Guarda el borrador — disponible en cuanto cambies algo.",
     more: "Más acciones",
+    readOnly: "Solo lectura",
   },
   canvas: {
     fit: "Ajustar",

@@ -48,6 +48,8 @@ const PAGES: [name: string, ready: (page: Page) => Locator][] = [
   ["split", (page) => page.getByTestId("split-single-toggle")],
   ["grid", (page) => page.getByTestId("grid-overlay-dark")],
   ["pressed", (page) => page.getByTestId("pressed-on")],
+  // `SUI-FEATURE-104`/`-105`: tools and status, read-only, and the subtitle.
+  ["editor-bar", (page) => page.getByTestId("editor-header-subtitle")],
   // SUI-FEATURE-160: the drawn slides once every view has its fonts and icons.
   ["slides", (page) => page.locator("[data-testid=slide-fit-off][data-slide-ready=true]")],
   // The player once its bar has hidden itself: a still scene without input.
@@ -2287,6 +2289,91 @@ test("editor header: Ctrl+Z undoes outside a text field", async ({ page }) => {
   await expect(draft.getByTestId("editor-undo")).toHaveAttribute("aria-disabled", "true");
   await page.keyboard.press("Control+y");
   await expect(draft.getByTestId("editor-state")).toHaveText("Draft · unsaved");
+});
+
+// `SUI-FEATURE-104`: tools lead the right group and toggle; read-only renders no write control.
+test("editor header: tools, status and read-only", async ({ page }) => {
+  await page.goto("/?page=editor-bar&lng=en");
+  const tools = page.getByTestId("editor-header-tools");
+  const desktop = tools.getByTestId("editor-tool-desktop");
+  await expect(desktop).toHaveAttribute("aria-pressed", "true");
+  await desktop.click();
+  await expect(desktop).toHaveAttribute("aria-pressed", "false");
+  await expect(tools.getByTestId("editor-tool-grid")).toHaveAttribute("aria-disabled", "true");
+  const order = await tools
+    .locator("[data-slot=editor-actions] [data-testid]")
+    .evaluateAll((nodes) =>
+      nodes.map(
+        (node) => [node.getAttribute("data-testid"), node.getBoundingClientRect().x] as const,
+      ),
+    );
+  expect(order.map(([id]) => id)).toEqual([
+    "editor-tool-desktop",
+    "editor-tool-grid",
+    "editor-tools-separator",
+    "editor-preview",
+    "editor-menu",
+    "editor-next",
+    "editor-lifecycle-separator",
+    "editor-undo",
+    "editor-redo",
+    "gallery-upload-status",
+    "editor-state",
+    "editor-reset",
+    "editor-save",
+  ]);
+  const xs = order.map(([, x]) => x);
+  expect([...xs].sort((a, b) => a - b)).toEqual(xs);
+
+  const readOnly = page.getByTestId("editor-header-read-only");
+  await expect(readOnly.getByTestId("editor-read-only")).toHaveText("Read only");
+  await expect(
+    readOnly.locator(
+      "[data-testid=editor-undo], [data-testid=editor-redo], [data-testid=editor-state], [data-testid=editor-reset], [data-testid=editor-save], [data-testid=editor-next], [data-testid=editor-menu]",
+    ),
+  ).toHaveCount(0);
+  await expect(readOnly.getByTestId("editor-preview")).toBeVisible();
+  await expect(readOnly.getByTestId("gallery-upload-status")).toBeVisible();
+});
+
+// `SUI-FEATURE-105`: each header renders one `h1` and, when set, its subtitle directly under it; at
+// 390 px both stay visible and truncate with their full text as the tooltip.
+test("editor header: title as h1, subtitle under it, both truncated at 390 px", async ({
+  page,
+}) => {
+  await page.goto("/?page=editor-bar&lng=en");
+  for (const id of ["editor-header-subtitle", "editor-header-subtitle-lifecycle"]) {
+    const header = page.getByTestId(id);
+    await expect(header.locator("h1")).toHaveCount(1);
+    await expect(header.getByTestId("page-subtitle")).toHaveCount(1);
+    const [title, subtitle] = await Promise.all([
+      header.getByTestId("page-title").boundingBox(),
+      header.getByTestId("page-subtitle").boundingBox(),
+    ]);
+    expect(subtitle!.y).toBeGreaterThanOrEqual(title!.y + title!.height - 1);
+    expect(subtitle!.x).toBeCloseTo(title!.x, 0);
+  }
+  // Without a subtitle the header keeps its height.
+  const plain = await page.getByTestId("editor-header-tools").boundingBox();
+  const withSubtitle = await page.getByTestId("editor-header-subtitle").boundingBox();
+  expect(withSubtitle!.height).toBeGreaterThan(plain!.height);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const header = page.getByTestId("editor-header-subtitle-lifecycle");
+  for (const [testId, full] of [
+    ["page-title", "Autumn campaign landing page for the spring sale"],
+    ["page-subtitle", "In review · LP-2026-117 · Marketing · Spring sale"],
+  ] as const) {
+    const node = header.getByTestId(testId);
+    await expect(node).toBeVisible();
+    await expect.poll(() => node.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
+    await node.hover();
+    await expect(page.getByRole("tooltip")).toHaveText(full);
+    await page.mouse.move(0, 0);
+    await expect(page.getByRole("tooltip")).toBeHidden();
+  }
+  await expect(header.getByTestId("editor-next")).toBeVisible();
+  await expect(header.getByTestId("editor-save")).toBeVisible();
 });
 
 // `SUI-FEATURE-090`: at narrow width every control of each editor header lies inside it and the

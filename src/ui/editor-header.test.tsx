@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import i18n from "i18next";
-import { EyeIcon } from "lucide-react";
+import { EyeIcon, FileTextIcon, GridIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   EditorHeader,
   type EditorHeaderProps,
+  type EditorHeaderTool,
   type EditorLifecycle,
   useEditorLeaveGuard,
 } from "./editor-header.js";
@@ -333,6 +334,207 @@ describe("EditorHeader lifecycle", () => {
     renderHeader();
     expect(screen.queryByTestId("editor-next")).toBeNull();
     expect(screen.queryByTestId("editor-lifecycle-separator")).toBeNull();
+  });
+});
+
+const headerTools = (pressed = true): EditorHeaderTool[] => [
+  {
+    id: "mode",
+    label: "Preview mode",
+    icon: <FileTextIcon aria-hidden="true" />,
+    onClick: vi.fn(),
+    pressed,
+  },
+  { id: "grid", label: "Grid", icon: <GridIcon aria-hidden="true" />, onClick: vi.fn() },
+];
+const uploadStatus = <span data-testid="upload-status">Uploading 40 %</span>;
+
+// `SUI-FEATURE-104`
+describe("EditorHeader tools, status and read-only", () => {
+  const order = () =>
+    [...document.querySelectorAll("[data-slot=editor-actions] [data-testid]")].map((node) =>
+      node.getAttribute("data-testid"),
+    );
+
+  // AC 1
+  it("reads tools · separator · Preview · ⋯ · next · separator · Undo · Redo · status · state · Reset · Save", () => {
+    renderHeader({ tools: headerTools(), status: uploadStatus, lifecycle: lifecycle() });
+    expect(order()).toEqual([
+      "editor-tool-mode",
+      "editor-tool-grid",
+      "editor-tools-separator",
+      "editor-preview",
+      "editor-menu",
+      "editor-next",
+      "editor-lifecycle-separator",
+      "editor-undo",
+      "editor-redo",
+      "upload-status",
+      "editor-state",
+      "editor-reset",
+      "editor-save",
+    ]);
+    expect(screen.getByTestId("editor-tools-separator")).toHaveAttribute("aria-hidden", "true");
+    expect(screen.getByTestId("editor-tools-separator")).toHaveClass("bg-border");
+  });
+
+  it("without a lifecycle: tools · separator · the editor group", () => {
+    renderHeader({ tools: headerTools() });
+    expect(order()).toEqual([
+      "editor-tool-mode",
+      "editor-tool-grid",
+      "editor-tools-separator",
+      "editor-undo",
+      "editor-redo",
+      "editor-state",
+      "editor-reset",
+      "editor-save",
+    ]);
+  });
+
+  // AC 2
+  it("a tool is an icon-sm button named by its label; pressed, a toggle with the pressed fill", () => {
+    const tools = headerTools();
+    renderHeader({ tools });
+    const mode = screen.getByTestId("editor-tool-mode");
+    expect(mode).toHaveAccessibleName("Preview mode");
+    expect(mode).toHaveAttribute("data-size", "icon-sm");
+    expect(mode).toHaveAttribute("aria-pressed", "true");
+    expect(mode).toHaveClass("pressed:bg-primary");
+    fireEvent.click(mode);
+    expect(tools[0]?.onClick).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("editor-tool-grid")).not.toHaveAttribute("aria-pressed");
+  });
+
+  it("a tool with disabledText is locked, keeps the focus and names the reason", () => {
+    const onClick = vi.fn();
+    renderHeader({
+      tools: [
+        {
+          id: "upload",
+          label: "Upload",
+          icon: <FileTextIcon aria-hidden="true" />,
+          onClick,
+          disabledText: "Save first",
+        },
+      ],
+    });
+    const upload = screen.getByTestId("editor-tool-upload");
+    expect(upload).toHaveAttribute("aria-disabled", "true");
+    expect(upload).toHaveAccessibleDescription("Save first");
+    fireEvent.click(upload);
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
+  // AC 4
+  it("read-only: no write control, Back, title, tools, Preview, status and Read only stay", () => {
+    const { onUndo, onRedo } = renderHeader({
+      readOnly: true,
+      dirty: true,
+      tools: headerTools(),
+      status: uploadStatus,
+      lifecycle: lifecycle(),
+    });
+    for (const id of [
+      "editor-undo",
+      "editor-redo",
+      "editor-state",
+      "editor-reset",
+      "editor-save",
+      "editor-next",
+      "editor-menu",
+    ])
+      expect(screen.queryByTestId(id)).toBeNull();
+    for (const id of [
+      "editor-back",
+      "page-title",
+      "editor-tool-mode",
+      "editor-preview",
+      "upload-status",
+    ])
+      expect(screen.getByTestId(id)).toBeInTheDocument();
+    expect(screen.getByTestId("editor-read-only")).toHaveTextContent("Read only");
+    expect(order()).toEqual([
+      "editor-tool-mode",
+      "editor-tool-grid",
+      "editor-tools-separator",
+      "editor-preview",
+      "editor-lifecycle-separator",
+      "upload-status",
+      "editor-read-only",
+    ]);
+    fireEvent.keyDown(document.body, { key: "z", metaKey: true });
+    fireEvent.keyDown(document.body, { key: "z", metaKey: true, shiftKey: true });
+    fireEvent.keyDown(document.body, { key: "y", ctrlKey: true });
+    expect(onUndo).not.toHaveBeenCalled();
+    expect(onRedo).not.toHaveBeenCalled();
+  });
+
+  // AC 6
+  it.each([
+    ["de", "Nur lesen"],
+    ["en", "Read only"],
+    ["es", "Solo lectura"],
+  ])("%s read-only names the mode %s", async (lng, text) => {
+    await i18n.changeLanguage(lng);
+    renderHeader({ readOnly: true });
+    expect(screen.getByTestId("editor-read-only")).toHaveTextContent(text);
+  });
+
+  // #519 review: a divider stands only between groups that both show something.
+  it.each([
+    ["without tools", undefined, ["editor-read-only"]],
+    [
+      "with tools",
+      headerTools(),
+      ["editor-tool-mode", "editor-tool-grid", "editor-tools-separator", "editor-read-only"],
+    ],
+  ])("read-only, a lifecycle without Preview %s: no lone divider", (_, tools, expected) => {
+    renderHeader({
+      readOnly: true,
+      ...(tools === undefined ? {} : { tools }),
+      lifecycle: { next: { label: "Publish", onClick: vi.fn() } },
+    });
+    expect(order()).toEqual(expected);
+  });
+
+  it("an empty lifecycle renders no divider", () => {
+    renderHeader({ lifecycle: {} });
+    expect(screen.queryByTestId("editor-lifecycle-separator")).toBeNull();
+  });
+});
+
+// `SUI-FEATURE-105`
+describe("EditorHeader page head", () => {
+  // AC 1
+  it("the title is the only h1, page-title; the sizing copy is no heading", () => {
+    renderHeader();
+    const headings = screen.getAllByRole("heading");
+    expect(headings).toHaveLength(1);
+    expect(headings[0]).toHaveProperty("tagName", "H1");
+    expect(headings[0]).toHaveAttribute("data-testid", "page-title");
+    expect(headings[0]).toHaveTextContent("Spring newsletter");
+    expect(headings[0]).toHaveClass("truncate", "m-0", "text-sm/[1.5]", "font-medium");
+    const floor = document.querySelector("[data-slot=editor-title] > span");
+    expect(floor).toHaveAttribute("aria-hidden", "true");
+    expect(screen.queryByTestId("page-subtitle")).toBeNull();
+  });
+
+  it("subtitle: one muted, truncating line directly under the title", () => {
+    renderHeader({ subtitle: "Draft · NL-2026-04" });
+    const subtitles = screen.getAllByTestId("page-subtitle");
+    expect(subtitles).toHaveLength(1);
+    const subtitle = subtitles[0]!;
+    expect(subtitle).toHaveTextContent("Draft · NL-2026-04");
+    expect(subtitle).toHaveClass("text-sm", "text-muted-foreground", "truncate", "row-start-2");
+    expect(screen.getByTestId("page-title").nextElementSibling).toBe(subtitle);
+    expect(screen.getAllByRole("heading")).toHaveLength(1);
+  });
+
+  it("read-only keeps title and subtitle", () => {
+    renderHeader({ readOnly: true, subtitle: "Published" });
+    expect(screen.getByTestId("page-title")).toHaveTextContent("Spring newsletter");
+    expect(screen.getByTestId("page-subtitle")).toHaveTextContent("Published");
   });
 });
 
@@ -1203,5 +1405,106 @@ describe("EditorHeader at narrow width", () => {
     available = 250;
     renderHeader({ lifecycle: lifecycle() });
     expect(screen.getByTestId("editor-next")).toHaveTextContent("Publish");
+  });
+  // `SUI-FEATURE-104` AC 2, 3: the tools fold with Preview, first, a pressed one as a checkbox entry.
+  it("at 560 px the tools lead the ⋯; a pressed tool is a checked checkbox entry", () => {
+    available = 560;
+    const tools = headerTools();
+    renderHeader({ tools, lifecycle: lifecycle() });
+    expect(inline().slice(0, 2)).toEqual(["editor-menu", "editor-next"]);
+    expect(screen.queryByTestId("editor-tool-mode")).toBeNull();
+    expect(screen.queryByTestId("editor-tools-separator")).toBeNull();
+    const menu = openMenu();
+    const items = [...menu.querySelectorAll("[role^=menuitem]")].map((el) =>
+      el.getAttribute("data-testid"),
+    );
+    expect(items.slice(0, 2)).toEqual(["editor-menu-tool-mode", "editor-menu-tool-grid"]);
+    const mode = within(menu).getByRole("menuitemcheckbox", { name: "Preview mode" });
+    expect(mode).toHaveAttribute("aria-checked", "true");
+    expect(within(menu).getByRole("menuitem", { name: "Grid" })).toBeInTheDocument();
+    mode.focus();
+    fireEvent.keyDown(mode, { key: "Enter" });
+    expect(tools[0]?.onClick).toHaveBeenCalledTimes(1);
+  });
+
+  it("at 390 px Back, title, status, Save and the next step stay", () => {
+    available = 390;
+    renderHeader({
+      tools: headerTools(),
+      status: uploadStatus,
+      subtitle: "Draft · NL-2026-04",
+      lifecycle: lifecycle(),
+    });
+    for (const id of [
+      "editor-back",
+      "page-title",
+      "page-subtitle",
+      "upload-status",
+      "editor-save",
+      "editor-next",
+    ])
+      expect(screen.getByTestId(id)).toBeInTheDocument();
+    expect(screen.queryByTestId("editor-tool-mode")).toBeNull();
+    expect(screen.getByTestId("page-subtitle")).toHaveClass("truncate");
+  });
+
+  // #519 review: a folded checkbox entry lines up with the plain entries; its check stands last.
+  it("a folded pressed tool lines up with the plain entries, its check after the label", () => {
+    available = 560;
+    renderHeader({ tools: headerTools(), lifecycle: lifecycle() });
+    const menu = openMenu();
+    const mode = within(menu).getByRole("menuitemcheckbox", { name: "Preview mode" });
+    const grid = within(menu).getByRole("menuitem", { name: "Grid" });
+    expect(mode).not.toHaveClass("pl-8");
+    expect(mode.className.match(/\bp[lx]-\S+/g)).toEqual(grid.className.match(/\bp[lx]-\S+/g));
+    expect(mode.lastElementChild?.querySelector("svg.lucide-check")).not.toBeNull();
+  });
+
+  // #519 review: a locked tool folds with its reason, as a plain and as a checkbox entry.
+  it.each([
+    ["plain", undefined, "menuitem"],
+    ["checkbox", true, "menuitemcheckbox"],
+  ] as const)(
+    "a locked %s tool keeps its reason in the ⋯ and ignores Enter",
+    (_, pressed, role) => {
+      available = 560;
+      const onClick = vi.fn();
+      renderHeader({
+        lifecycle: lifecycle(),
+        tools: [
+          {
+            id: "upload",
+            label: "Upload",
+            icon: <FileTextIcon aria-hidden="true" />,
+            onClick,
+            disabledText: "Save first",
+            ...(pressed === undefined ? {} : { pressed }),
+          },
+        ],
+      });
+      const menu = openMenu();
+      const entry = within(menu).getByRole(role, { name: "Upload" });
+      expect(entry).toHaveAttribute("aria-disabled", "true");
+      const described = (entry.getAttribute("aria-describedby") ?? "")
+        .split(" ")
+        .map((id) => document.getElementById(id)?.textContent)
+        .join(" ");
+      expect(described).toBe("Save first");
+      entry.focus();
+      fireEvent.keyDown(entry, { key: "Enter" });
+      expect(onClick).not.toHaveBeenCalled();
+    },
+  );
+
+  it("read-only, folded tools stand in a ⋯ of their own, without the record's entries", () => {
+    available = 200;
+    renderHeader({ readOnly: true, tools: headerTools(false), lifecycle: lifecycle() });
+    expect(screen.getByTestId("editor-menu")).toHaveAccessibleName("More actions");
+    const menu = openMenu();
+    expect(within(menu).queryByRole("menuitem", { name: "Duplicate" })).toBeNull();
+    expect(within(menu).getByRole("menuitemcheckbox", { name: "Preview mode" })).toHaveAttribute(
+      "aria-checked",
+      "false",
+    );
   });
 });
