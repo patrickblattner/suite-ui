@@ -598,3 +598,4 @@
 {"ts":"2026-10-23T08:24:45.642Z","key":"GL-ARCH-002","from":null,"to":2,"disposition":"editorial","ref":"no code impact: app-to-app integration switches and outbox; @suite/ui binds no partner application"}
 {"ts":"2026-10-23T10:11:07.048Z","key":"SUI-FEATURE-104","from":null,"to":2,"disposition":"ticket","ref":"519"}
 {"ts":"2026-10-23T10:51:37.343Z","key":"SUI-FEATURE-105","from":null,"to":2,"disposition":"ticket","ref":"519"}
+{"ts":"2026-10-23T14:41:51.794Z","key":"SUI-FEATURE-104","from":2,"to":3,"disposition":"ticket","ref":"521"}
