@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — #455, SUI-FEATURE-162: no entrance warning when the exit is at order 1
+
+- **Animation order check (#455):** with the exit at order 1, the entrance's order field no longer asks for a lower number, since it cannot go below 1; the exit's warning ("give it a higher number") alone tells the fix. The `Field` props `warning` and `warningTestId` this uses are listed under 0.162.0 (#382).
+- **Tests (#455):** the gallery animation test sets the exit to order 1 and checks that only the exit is warned.
+
+**Migration:** none.
+
 ## Unreleased — #451, GL-UI-037 rev 2, SUI-FEATURE-233 rev 6: one number parser, `parseDecimal`
 
 - **New export `parseDecimal` (#451):** `@suite/ui/ui/decimal-number` (also in `@suite/ui/ui/index`) exports `parseDecimal(text, language)`, `formatDecimal(value, language)`, `decimalSign(language)`, `numpadDecimal(event, language)` and the type `DecimalInvalid`. It is the one parser for number entry per `GL-UI-037`: in de and es a point and a comma are both the decimal sign ("1.5" = "1,5"), in en only the point; nothing is grouped, so one separator is always decimal ("1.000" = 1) and two ("1.000,5", "1,000.5") are refused as `separator`. A decimal number too large for a number is `tooLarge`, anything else `other`.

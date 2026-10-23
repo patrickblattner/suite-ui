@@ -11587,6 +11587,13 @@ test("slide editor: the animation fields write the document", async ({ page }) =
   await page.keyboard.press("Tab");
   await expect(entranceWarning).toContainText("(order 4)");
   await expect(warning).toContainText("(order 5)");
+  // An exit at order 1: the entrance cannot go lower, so only the exit is warned (#455).
+  await typeInto(page, exitOrder, "1");
+  await page.keyboard.press("Tab");
+  await expect(warning).toContainText("(order 5)");
+  await expect(entranceWarning).toHaveCount(0);
+  await typeInto(page, exitOrder, "4");
+  await page.keyboard.press("Tab");
   await typeInto(page, order, "3");
   await page.keyboard.press("Tab");
   await expect(entranceWarning).toHaveCount(0);

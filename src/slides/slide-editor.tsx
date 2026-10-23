@@ -518,7 +518,9 @@ function AnimationFields({
               valueHint={t("slides.editor.animationOrderValueHint")}
               warning={
                 otherOrder === undefined ||
-                (kind === "exit" ? step.order > otherOrder : step.order < otherOrder)
+                (kind === "exit" ? step.order > otherOrder : step.order < otherOrder) ||
+                // An entrance cannot go below an exit at order 1; the exit's warning tells the fix (#455).
+                (kind === "entrance" && otherOrder === 0)
                   ? undefined
                   : t(
                       kind === "exit"
