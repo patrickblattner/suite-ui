@@ -10,6 +10,7 @@ import { useTranslation } from "react-i18next";
 
 import { Button } from "../ui/button.js";
 import { Field } from "../ui/field.js";
+import { helpIdFor } from "../ui/label-with-help.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select.js";
 import { IconButtonTooltip } from "../ui/tooltip.js";
 import type { SlideBrandSet } from "./brand.js";
@@ -292,7 +293,7 @@ export function TableFields({
             >
               <SelectTrigger
                 id="slide-editor-table-fill"
-                aria-describedby="slide-editor-table-fill-help"
+                aria-describedby={helpIdFor("slide-editor-table-fill")}
                 fieldName={t("slides.editor.tableCellFill")}
                 className="w-full"
                 data-testid="slide-editor-table-fill"
@@ -334,7 +335,7 @@ export function TableFields({
             >
               <SelectTrigger
                 id="slide-editor-table-valign"
-                aria-describedby="slide-editor-table-valign-help"
+                aria-describedby={helpIdFor("slide-editor-table-valign")}
                 fieldName={t("slides.editor.tableVerticalAlign")}
                 className="w-full"
                 data-testid="slide-editor-table-valign"

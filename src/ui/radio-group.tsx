@@ -1,20 +1,58 @@
-import type * as React from "react";
+import * as React from "react";
 import { CircleIcon } from "lucide-react";
 import { RadioGroup as RadioGroupPrimitive } from "radix-ui";
 
 import { cn } from "../lib/cn.js";
 import { useFieldErrorAttributes } from "./field-error.js";
 
+const ARROW_KEYS = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
+
+// An arrow key moves the focus to the next option and checks it (WAI-ARIA radio group pattern, #438).
+// radix checks on that focus only while the key is still down, but it moves the focus in a timeout:
+// a key released before the timeout ran (a quick tap, a synthesized key press) left the option
+// unchecked. So the group checks an option focused after an arrow key that radix did not check.
 function RadioGroup({
   className,
+  onKeyDown,
+  onClick,
+  onFocus,
+  onBlur,
   ...props
 }: React.ComponentProps<typeof RadioGroupPrimitive.Root>) {
   const fieldError = useFieldErrorAttributes();
+  // "arrow": an arrow key moved the focus, which has not arrived yet; "checked": radix checked it.
+  const arrow = React.useRef<"none" | "arrow" | "checked">("none");
+  const presses = React.useRef(0);
   return (
     <RadioGroupPrimitive.Root
       {...fieldError}
       data-slot="radio-group"
       className={cn("grid gap-2", className)}
+      onKeyDown={(event) => {
+        onKeyDown?.(event);
+        arrow.current = ARROW_KEYS.includes(event.key) ? "arrow" : "none";
+        if (arrow.current === "none") return;
+        // An arrow that moves no focus (a key across the group's orientation, its end without loop, a
+        // single option) leaves nothing pending: radix's own timeout, which moves the focus, runs first.
+        const press = ++presses.current;
+        setTimeout(() => {
+          if (presses.current === press && arrow.current === "arrow") arrow.current = "none";
+        });
+      }}
+      onClick={(event) => {
+        onClick?.(event);
+        if (arrow.current === "arrow") arrow.current = "checked";
+      }}
+      onFocus={(event) => {
+        onFocus?.(event);
+        const pending = arrow.current === "arrow";
+        arrow.current = "none";
+        if (pending && event.target.getAttribute("role") === "radio") event.target.click();
+      }}
+      onBlur={(event) => {
+        onBlur?.(event);
+        if (!event.currentTarget.contains(event.relatedTarget)) arrow.current = "none";
+      }}
       {...props}
     />
   );

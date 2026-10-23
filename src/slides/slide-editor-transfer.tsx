@@ -135,6 +135,9 @@ export function TransferFormat({
               value={scope}
               onValueChange={(value) => setScope(value === "all" ? "all" : "page")}
               onKeyDown={enterConfirms}
+              // The options are one group of controls: an option's bubble stands beside the labels it
+              // would reach, so it never covers the other option's (`GL-UI-016` §Lage, #438).
+              data-tooltip-row=""
               data-testid="slide-editor-transfer-scope"
             >
               {(["page", "all"] as const).map((value) => (

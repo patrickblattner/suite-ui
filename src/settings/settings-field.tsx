@@ -2,6 +2,7 @@ import type * as React from "react";
 
 import { cn } from "../lib/cn.js";
 import { Field } from "../ui/field.js";
+import { helpIdFor } from "../ui/label-with-help.js";
 
 type SettingsFieldProps = {
   label: string;
@@ -61,7 +62,7 @@ function SettingsField({
               role: "group",
               "aria-labelledby": `${htmlFor}-label`,
               // The group, not its options, carries the hint as its description, read once (#505).
-              "aria-describedby": hint !== undefined ? `${htmlFor}-help` : undefined,
+              "aria-describedby": hint !== undefined ? helpIdFor(htmlFor) : undefined,
               "aria-invalid": invalid ? true : undefined,
               "aria-errormessage": invalid ? `${htmlFor}-error` : undefined,
               className: "flex w-full max-w-xl flex-col gap-2",

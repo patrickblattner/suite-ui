@@ -119,13 +119,10 @@ export function PageSorter({
       </Button>
     </IconButtonTooltip>
   );
-  // With the app's layouts the button opens their list instead of adding a page.
-  const newButton = (onClick?: () => void) => (
-    <Hint
-      text={t(
-        onClick === undefined ? "slides.editor.newPageMenuHint" : "slides.editor.newPageHint",
-      )}
-    >
+  // With the app's layouts the button opens their list instead of adding a page. The Hint then wraps
+  // the menu trigger rather than sitting inside it (GL-UI-016 §Doppel-Rolle).
+  const newButton = (onClick?: () => void) => {
+    const button = (
       <Button
         type="button"
         variant="outline"
@@ -137,8 +134,21 @@ export function PageSorter({
         <PlusIcon aria-hidden="true" />
         {t("slides.editor.newPage")}
       </Button>
-    </Hint>
-  );
+    );
+    return (
+      <Hint
+        text={t(
+          onClick === undefined ? "slides.editor.newPageMenuHint" : "slides.editor.newPageHint",
+        )}
+      >
+        {onClick === undefined ? (
+          <DropdownMenuTrigger asChild>{button}</DropdownMenuTrigger>
+        ) : (
+          button
+        )}
+      </Hint>
+    );
+  };
   return (
     <section className="flex flex-col gap-2" data-testid="slide-editor-pages">
       <h3 className="text-sm font-medium">{t("slides.editor.pages")}</h3>
@@ -259,7 +269,7 @@ export function PageSorter({
         newButton(() => onNew(undefined))
       ) : (
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>{newButton()}</DropdownMenuTrigger>
+          {newButton()}
           <DropdownMenuContent align="start" data-testid="slide-editor-page-layouts">
             <DropdownMenuItem onSelect={() => onNew(undefined)}>
               {t("slides.editor.blankPage")}

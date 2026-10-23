@@ -135,6 +135,33 @@ describe("SlideEditor placeholders", () => {
     expect(saved.pages.filter((page) => page.layoutId === "app-title")).toHaveLength(2);
   });
 
+  // GL-UI-016 §Doppel-Rolle (#438): the Hint wraps the menu trigger, so tooltip and menu trigger
+  // compose onto the one button, with no wrapper: it keeps the menu trigger's slot and carries the
+  // hint's description. The menu's state is observed by `aria-expanded`.
+  it("New page with layouts is a menu trigger and a hint carrier at once (#438)", async () => {
+    render(
+      <SlideEditor
+        document={SLIDE_EDITOR_DOC}
+        title="Deck"
+        brand={SLIDE_BRAND}
+        layouts={[TITLE]}
+        onSave={() => true}
+        onBack={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("drawer-document"));
+    const trigger = screen.getByTestId("slide-editor-page-new");
+    expect(trigger.tagName).toBe("BUTTON");
+    expect(trigger.parentElement).toBe(screen.getByTestId("slide-editor-pages"));
+    expect(trigger).toHaveAttribute("data-slot", "dropdown-menu-trigger");
+    expect(trigger).toHaveAttribute("aria-haspopup", "menu");
+    expect(trigger).toHaveAttribute("aria-expanded", "false");
+    expect(trigger).toHaveAccessibleDescription(/\S/);
+    fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false, pointerType: "mouse" });
+    expect(await screen.findByTestId("slide-editor-page-layouts")).toBeInTheDocument();
+    expect(trigger).toHaveAttribute("aria-expanded", "true");
+  });
+
   it("numbers unnamed placeholders when a page has more than one (SUI-FEATURE-193)", () => {
     const two: SlideLayoutInput = {
       ...TITLE,

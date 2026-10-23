@@ -39,6 +39,7 @@ import { EditorHeader, useEditorLeaveGuard } from "../ui/editor-header.js";
 import { Field } from "../ui/field.js";
 import { GridFields, GridOverlay, GridToggle } from "../ui/grid.js";
 import { Hint } from "../ui/hint.js";
+import { helpIdFor } from "../ui/label-with-help.js";
 import { useLeaveGuard } from "../ui/leave-guard.js";
 import { PropertyPanel } from "../ui/property-panel.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select.js";
@@ -415,7 +416,7 @@ function AnimationFields({
           >
             <SelectTrigger
               id={`${id}-effect`}
-              aria-describedby={`${id}-effect-help`}
+              aria-describedby={helpIdFor(`${id}-effect`)}
               fieldName={t("slides.editor.animationEffect")}
               className="w-full"
               data-testid={`${id}-effect`}
@@ -458,7 +459,7 @@ function AnimationFields({
             >
               <SelectTrigger
                 id={`${id}-direction`}
-                aria-describedby={`${id}-direction-help`}
+                aria-describedby={helpIdFor(`${id}-direction`)}
                 fieldName={t(
                   kind === "entrance" ? "slides.editor.animationFrom" : "slides.editor.animationTo",
                 )}
@@ -589,7 +590,7 @@ function TransitionFields({
             >
               <SelectTrigger
                 id="slide-editor-transition-type"
-                aria-describedby="slide-editor-transition-type-help"
+                aria-describedby={helpIdFor("slide-editor-transition-type")}
                 fieldName={t("slides.editor.transitionType")}
                 className="w-full"
                 data-testid="slide-editor-transition-type"
@@ -2386,7 +2387,7 @@ function Editor({
               <Slider
                 id="slide-editor-crop-zoom"
                 aria-labelledby="slide-editor-crop-zoom-label"
-                aria-describedby="slide-editor-crop-zoom-help"
+                aria-describedby={helpIdFor("slide-editor-crop-zoom")}
                 value={cropping.crop.zoom}
                 min={1}
                 max={CROP_ZOOM_MAX}
@@ -2683,7 +2684,7 @@ function Editor({
           >
             <SelectTrigger
               id="slide-editor-page-layout"
-              aria-describedby="slide-editor-page-layout-help"
+              aria-describedby={helpIdFor("slide-editor-page-layout")}
               fieldName={t("slides.editor.pageLayout")}
               className="w-full"
               data-testid="slide-editor-page-layout"

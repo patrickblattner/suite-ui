@@ -178,13 +178,14 @@ function Hint({
 }: HintProps) {
   const children = disabledText === undefined ? ownChildren : lockedWithReason(ownChildren);
   const id = React.useId();
-  const overflow = useIsOverflowing();
+  // A press keeps the bubble closed until the pointer leaves (a slider thumb held or dragged, #187).
+  const press = usePressKeepsClosed();
+  // Measured only while the bubble is open: a closed hint reads no layout (#438).
+  const overflow = useIsOverflowing(press.root.open);
   const ownRef = passThrough.ref;
   const ref = React.useMemo(() => composeRefs(ownRef, overflow.ref), [ownRef, overflow.ref]);
   const [innerClipped, setInnerClipped] = React.useState("");
   const fullText = overflow.isOverflowing && overflow.text !== "" ? overflow.text : innerClipped;
-  // A press keeps the bubble closed until the pointer leaves (a slider thumb held or dragged, #187).
-  const press = usePressKeepsClosed();
   const clipped = fullText !== "";
 
   const disabled = children.props.disabled === true;

@@ -2,6 +2,7 @@ import * as React from "react";
 
 import { cn } from "../lib/cn.js";
 import { Field } from "../ui/field.js";
+import { helpIdFor } from "../ui/label-with-help.js";
 import { Input } from "../ui/input.js";
 
 // A number field that applies as the person types and keeps what is typed while it is not a number.
@@ -66,7 +67,7 @@ export function NumberField({
         max={max}
         aria-describedby={
           [
-            hint && `${id}-help`,
+            hint && helpIdFor(id),
             (help !== undefined || (warning !== undefined && warning !== "")) &&
               `${id}-description`,
           ]

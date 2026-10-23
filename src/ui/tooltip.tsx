@@ -186,18 +186,41 @@ function outermost(node: Element, selector: string, within?: Element): Element |
 
 // A `Field` that stands beside another on its line (a field pair an app lays out) is in a bar of those
 // fields, as the package's own field grids mark theirs: the package sets the groups, call sites change
-// nothing (`GL-UI-016` §Lage, #441).
+// nothing (`GL-UI-016` §Lage, #441). The pair is looked for at the nearest level where other fields
+// stand: the field's own siblings, or those of a wrapper an app puts around each field (#438). A
+// wrapper is climbed only while it holds no other control, and a neighbour counts by its fields on the
+// line, never by its box: a lone field beside a tall column of fields pairs with none of them.
 function fieldRowOf(node: Element): Element | null {
   const field = node.closest(FIELD);
-  const parent = field?.parentElement;
-  if (field == null || parent == null) return null;
-  const own = field.getBoundingClientRect();
-  const paired = [...parent.children].some((sibling) => {
-    if (sibling === field || !sibling.matches(FIELD)) return false;
-    const rect = sibling.getBoundingClientRect();
-    return rect.width > 0 && rect.bottom > own.top && rect.top < own.bottom;
-  });
-  return paired ? parent : null;
+  if (field === null) return null;
+  for (
+    let item: Element = field, parent = field.parentElement;
+    parent !== null && parent !== document.body;
+    item = parent, parent = parent.parentElement
+  ) {
+    const others = [...parent.children].filter((sibling) => sibling !== item);
+    const fields = others.flatMap((sibling) =>
+      sibling.matches(FIELD) ? [sibling] : [...sibling.querySelectorAll(FIELD)],
+    );
+    if (fields.length > 0) {
+      const own = field.getBoundingClientRect();
+      const paired = fields.some((other) => {
+        const rect = other.getBoundingClientRect();
+        return rect.width > 0 && rect.bottom > own.top && rect.top < own.bottom;
+      });
+      return paired ? parent : null;
+    }
+    // A hidden input (a form's own value) is no control a wrapper holds.
+    const control = (node: Element) =>
+      node.matches(ROW_CONTROL) && !node.matches("input[type=hidden]");
+    if (
+      others.some(
+        (sibling) => control(sibling) || [...sibling.querySelectorAll(ROW_CONTROL)].some(control),
+      )
+    )
+      return null;
+  }
+  return null;
 }
 
 // `measured`: whether a field pair may be found, which reads the layout. A closed bubble renders on
@@ -335,12 +358,18 @@ function useRowPlacement(content: HTMLElement | null, padding: number): RowPlace
       .map((node) => node.getBoundingClientRect());
     // A label's hint sits on the label's text: the label's whole box is the element's in its group.
     const label = trigger.closest("label[for]")?.getBoundingClientRect() ?? own;
-    const left = Math.min(own.left, label.left, ...mine.filter(onLine).map((rect) => rect.left));
-    const right = Math.max(
-      own.right,
-      label.right,
-      ...mine.filter(onLine).map((rect) => rect.right),
+    // The group's extent counts each of its controls the bubble would reach at its height, raised
+    // beside the element: in a group of stacked options (a radio group) also the option below (#438).
+    // The popper rounds the bubble's top to a whole pixel, either way.
+    const bubbleTop = own.top - ALIGN_RAISE;
+    const reached = mine.filter(
+      (rect) =>
+        rect.width > 0 &&
+        rect.bottom > Math.floor(bubbleTop) &&
+        rect.top < Math.ceil(bubbleTop) + bubble.height,
     );
+    const left = Math.min(own.left, label.left, ...reached.map((rect) => rect.left));
+    const right = Math.max(own.right, label.right, ...reached.map((rect) => rect.right));
     const others = controls.filter((node) => !group.contains(node));
     let rightBound = document.documentElement.clientWidth - padding;
     let leftBound = padding;
@@ -646,9 +675,10 @@ function TooltipContent({
         sideOffset={row?.sideOffset ?? SIDE_OFFSET}
         // In a row the side is chosen by the row: a flip would keep the offset of the side it left and
         // land beside the element, over its neighbours. Without room the bubble narrows instead (#183).
-        // Known from the first render, so no placement computed with a flip arrives after the row's;
-        // the fallback beside the element flips again, as outside a row. At the element itself, in a
-        // narrow window, it neither flips nor shifts (#441).
+        // A marked bar is known from the first render, a field pair from the render that opens the
+        // bubble (it is looked up only while open), so no placement computed with a flip arrives after
+        // the row's; the fallback beside the element flips again, as outside a row. At the element
+        // itself, in a narrow window, it neither flips nor shifts (#441).
         avoidCollisions={row === null ? !inRow : row.fallback}
         alignOffset={-ALIGN_RAISE}
         collisionPadding={collisionPadding}
@@ -699,13 +729,14 @@ function TooltipContent({
 // no width yet is not laid out, so it never revokes an overflow already found. An input's text is its
 // value, so a `Hint` around an input shows a clipped value above its description (`GL-UI-016`, #361);
 // a password's value is never read. An uncontrolled input's value is read on the render that opens
-// the hint, so it is never stale.
-function useIsOverflowing() {
+// the hint, so it is never stale. `active: false` reads no layout: a `Hint` measures only while its
+// bubble is open, before it paints (#438).
+function useIsOverflowing(active = true) {
   const [node, setNode] = React.useState<HTMLElement | null>(null);
   const [measurement, setMeasurement] = React.useState({ isOverflowing: false, text: "" });
 
   const measure = React.useCallback(() => {
-    if (node === null || node.clientWidth === 0) return;
+    if (!active || node === null || node.clientWidth === 0) return;
     const next = {
       isOverflowing: node.scrollWidth > node.clientWidth,
       text:
@@ -718,18 +749,18 @@ function useIsOverflowing() {
     setMeasurement((prev) =>
       prev.isOverflowing === next.isOverflowing && prev.text === next.text ? prev : next,
     );
-  }, [node]);
+  }, [active, node]);
 
   // Measuring the DOM after render is what layout effects are for; equal results bail out.
   // eslint-disable-next-line react-hooks/set-state-in-effect
   React.useLayoutEffect(measure);
 
   React.useLayoutEffect(() => {
-    if (node === null || typeof ResizeObserver === "undefined") return;
+    if (!active || node === null || typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(measure);
     observer.observe(node);
     return () => observer.disconnect();
-  }, [measure, node]);
+  }, [active, measure, node]);
 
   return { ref: setNode, ...measurement };
 }

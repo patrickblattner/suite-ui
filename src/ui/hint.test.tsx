@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import * as React from "react";
 import { MemoryRouter, NavLink } from "react-router-dom";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from "vitest";
 
 import { Button } from "./button.js";
 import { Hint } from "./hint.js";
@@ -174,6 +174,7 @@ describe("Hint on a field with label help", () => {
 });
 
 describe("Hint timing", () => {
+  let scrollWidth: MockInstance<() => number>;
   beforeEach(() => {
     vi.useFakeTimers();
     // jsdom has no ResizeObserver and no layout: an element with `truncate` reports a clipped text.
@@ -186,11 +187,11 @@ describe("Hint timing", () => {
       },
     );
     vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(100);
-    vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockImplementation(function (
-      this: HTMLElement,
-    ) {
-      return this.classList.contains("truncate") ? 200 : 100;
-    });
+    scrollWidth = vi
+      .spyOn(HTMLElement.prototype, "scrollWidth", "get")
+      .mockImplementation(function (this: HTMLElement) {
+        return this.classList.contains("truncate") ? 200 : 100;
+      });
   });
 
   afterEach(() => {
@@ -207,6 +208,27 @@ describe("Hint timing", () => {
   }
 
   const secondLine = () => document.querySelector("[data-slot=tooltip-hint]");
+
+  // #438: a closed hint reads no layout, however often it renders; it measures on the render that
+  // opens it, before the bubble paints.
+  it("reads no layout while closed", () => {
+    const hint = (name: string) => (
+      <Hint text="Saves the draft">
+        <Button variant="success" size="default" className="w-24 truncate">
+          {name}
+        </Button>
+      </Hint>
+    );
+    const { rerender } = render(hint("Save the very long draft name"));
+    rerender(hint("Save the very long draft names"));
+    rerender(hint("Save the very long draft name"));
+    expect(scrollWidth).not.toHaveBeenCalled();
+    hoverFor(screen.getByRole("button"), 1500);
+    expect(scrollWidth).toHaveBeenCalled();
+    expect(document.querySelector("[data-slot=tooltip-content] span.block")).toHaveTextContent(
+      /^Save the very long draft name$/,
+    );
+  });
 
   it("clipped text: opens after 1500 ms, the full text on top and the description below", () => {
     render(

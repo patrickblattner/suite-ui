@@ -4351,6 +4351,29 @@ for (const [column, text, short] of [
   });
 }
 
+// #438: in the package RadioGroup an arrow key moves the focus to the next option and checks it, as
+// the WAI-ARIA radio group pattern has it; the disabled option is skipped.
+test("radio group: an arrow key moves the focus and checks the option", async ({ page }) => {
+  await page.goto("/?page=components");
+  const group = page.getByRole("radiogroup", { name: "RadioGroup", exact: true });
+  const [a, b] = [
+    group.getByRole("radio", { name: "a", exact: true }),
+    group.getByRole("radio", { name: "b", exact: true }),
+  ];
+  await a.focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(b).toBeFocused();
+  await expect(b).toHaveAttribute("aria-checked", "true");
+  await expect(a).toHaveAttribute("aria-checked", "false");
+  // Past the disabled option, round to the first.
+  await page.keyboard.press("ArrowDown");
+  await expect(a).toBeFocused();
+  await expect(a).toHaveAttribute("aria-checked", "true");
+  await page.keyboard.press("ArrowLeft");
+  await expect(b).toBeFocused();
+  await expect(b).toHaveAttribute("aria-checked", "true");
+});
+
 // SUI-FEATURE-042 AC4: `group` is a group named by the label, its options 8 px apart, a package
 // RadioGroup in it included; a RadioGroup outside stands 8 px apart too (`SUI-FEATURE-005` AC2).
 test("settings field: option groups named by the label, options 8 px apart", async ({ page }) => {
@@ -12860,21 +12883,29 @@ test("slide editor: every field and text button carries its hint", async ({ page
 
 // #361 (`GL-UI-016` §Lage): a series name's bubble clears the neighbouring series input; a transfer
 // option's bubble stands beside its label, never over it, so the first click on the label checks it.
+// #438: it clears the other option's label box as well.
 test("slide editor: series-name and transfer-option bubbles cover no control", async ({ page }) => {
   const { editor } = await openEditor(page);
   const bubble = page.locator("[data-slot=tooltip-content]");
 
   await page.getByTestId("slide-editor-transfer").click();
   const dialog = page.getByTestId("slide-editor-transfer-dialog");
-  for (const name of ["This page", "Whole document"]) {
+  const labelOf = async (name: string) =>
+    dialog.locator(`label[for="${await dialog.getByRole("radio", { name }).getAttribute("id")}"]`);
+  for (const [name, other] of [
+    ["This page", "Whole document"],
+    ["Whole document", "This page"],
+  ] as const) {
     const radio = dialog.getByRole("radio", { name });
-    const label = dialog.locator(`label[for="${await radio.getAttribute("id")}"]`);
+    const label = await labelOf(name);
     await page.mouse.move(0, 0);
     await radio.hover();
     await expect(bubble).toHaveCount(1, { timeout: 5000 });
     expect((await box(bubble)).x).toBeGreaterThanOrEqual(
       (await box(label)).x + (await box(label)).width,
     );
+    const [over, neighbour] = [await box(bubble), await box(await labelOf(other))];
+    expect(shareNoArea(over, neighbour), `${name}: bubble over the label of ${other}`).toBe(true);
     await label.click();
     await expect(radio).toHaveAttribute("aria-checked", "true");
   }
@@ -12986,8 +13017,9 @@ test("slide editor at 1440: the chart's add buttons' hints cover neither add but
 });
 
 // #441: two `Field`s side by side in an app's grid, no row marker: label and value bubbles of one
-// cover neither label nor input of the other. At 390 px a full-width field's bubble stands at the
-// field, at least 120 px wide and inside the viewport (`GL-UI-016` §Lage).
+// cover neither label nor input of the other, also where the app wraps each field in a div (#438).
+// At 390 px a full-width field's bubble stands at the field, at least 120 px wide and inside the
+// viewport (`GL-UI-016` §Lage).
 test("field pair: hints stand beside the pair; at 390 px at the field, 120 px or wider", async ({
   page,
 }) => {
@@ -12996,6 +13028,8 @@ test("field pair: hints stand beside the pair; at 390 px at the field, 120 px or
   for (const [id, neighbour] of [
     ["name", "owner"],
     ["owner", "name"],
+    ["city", "country"],
+    ["country", "city"],
   ] as const) {
     for (const target of [
       page.locator(`label[for="harness-${id}"] > span`),

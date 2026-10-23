@@ -14,6 +14,7 @@ import { useTranslation } from "react-i18next";
 import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
 import { Button } from "../ui/button.js";
 import { Field } from "../ui/field.js";
+import { helpIdFor } from "../ui/label-with-help.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select.js";
 import { IconButtonTooltip } from "../ui/tooltip.js";
 import type { SlideBrandSet } from "./brand.js";
@@ -574,7 +575,7 @@ export function TextFormatFields({
             >
               <SelectTrigger
                 id={`${idPrefix}-font`}
-                aria-describedby={`${idPrefix}-font-help`}
+                aria-describedby={helpIdFor(`${idPrefix}-font`)}
                 fieldName={t("slides.editor.textFont")}
                 className="w-full"
                 data-testid={`${idPrefix}-font`}
@@ -629,7 +630,7 @@ export function TextFormatFields({
             >
               <SelectTrigger
                 id={`${idPrefix}-color`}
-                aria-describedby={`${idPrefix}-color-help`}
+                aria-describedby={helpIdFor(`${idPrefix}-color`)}
                 fieldName={t("slides.editor.textColor")}
                 className="w-full"
                 data-testid={`${idPrefix}-color`}
