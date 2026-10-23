@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — #530, SUI-FEATURE-191 rev 7: arrow keys pressed during a drag are no longer undone
+
+- **Arrow keys during a drag (#530):** Arrow and Shift+Arrow pressed while an element is being dragged, resized or rotated now join the #527 order and move the selection once the drag ends, kept or cancelled with Esc, each as its own history step on the document the drag left. Before, the release put back the drag's preview, drawn from the document before the move, and the move vanished. During a frame selection the arrows still move the selection shown at once.
+- **Tests (#530):** arrows during a kept drag (two steps Undo takes back one by one), `Ctrl+D` then Shift+Arrow during an Esc-cancelled drag (the copy moves, the original stays), arrows during a frame selection.
+
 ## Unreleased — #527, SUI-FEATURE-191 rev 6: clipboard keys and Delete pressed during a drag are no longer lost
 
 - **Clipboard keys and Delete during a drag (#527):** `Cmd/Ctrl+C`, `X`, `V`, `D` and `Delete`/`Backspace` pressed while an element is being dragged, resized or rotated now take effect once the drag ends, kept or cancelled with Esc, in the order they were pressed, each as its own history step on the document the drag left. A paste whose `adoptMedia` answer arrives meanwhile joins the same order (#525). Before, the release put back the drag's preview, drawn from the document before the edit, and a cut, duplicate or delete vanished; `X` then `V` in one drag pasted nothing back; and a copy or cut during a cancelled drag took the dragged, not the kept, position. During a frame selection, which draws no preview, the keys act at once on the selection shown.

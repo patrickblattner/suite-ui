@@ -576,6 +576,56 @@ describe("SlideEditor element clipboard", () => {
     expect(elements.map((e) => e.id)).toEqual(["a", "pair", "photo", "words"]);
   });
 
+  const arrow = (key: string, shiftKey = false) => fireEvent.keyDown(canvas(), { key, shiftKey });
+
+  it("moves with the arrow keys pressed during a drag once it ends, one step each (#530)", async () => {
+    const onSave = renderEditor();
+    dragA(() => {
+      arrow("ArrowRight");
+      arrow("ArrowDown", true);
+    });
+    expect((await saved(onSave))[0]).toMatchObject({ id: "a", x: 401, y: 10 });
+    key("z");
+    expect((await saved(onSave))[0]).toMatchObject({ id: "a", x: 401, y: 0 });
+    key("z");
+    expect((await saved(onSave))[0]).toMatchObject({ id: "a", x: 400, y: 0 });
+  });
+
+  it("moves with an arrow key after Ctrl+D during a drag Esc cancels, in that order (#530)", async () => {
+    const onSave = renderEditor();
+    dragA(() => {
+      key("d");
+      arrow("ArrowRight", true);
+    }, true);
+    const xy = (elements: readonly SlideElement[]) =>
+      elements.slice(0, 2).map(({ x, y }) => ({ x, y }));
+    expect(xy(await saved(onSave))).toEqual([
+      { x: 0, y: 0 },
+      { x: 20, y: 10 },
+    ]);
+    key("z");
+    expect(xy(await saved(onSave))).toEqual([
+      { x: 0, y: 0 },
+      { x: 10, y: 10 },
+    ]);
+  });
+
+  it("moves with the arrow keys during a frame selection what it shows, at once (#530)", async () => {
+    const onSave = renderEditor();
+    click(50, 50);
+    fireEvent.pointerDown(canvas(), { ...at(250, 200), button: 0, pointerId: 1 });
+    fireEvent.pointerMove(canvas(), at(350, 50));
+    arrow("ArrowRight");
+    expect((await saved(onSave))[1]).toMatchObject({ id: "b", x: 301 });
+    fireEvent.keyDown(canvas(), { key: "Escape" });
+    fireEvent.pointerUp(canvas(), at(350, 50));
+    const elements = await saved(onSave);
+    expect(elements.slice(0, 2)).toMatchObject([
+      { id: "a", x: 0 },
+      { id: "b", x: 301 },
+    ]);
+  });
+
   it("asks the app for every medium when the target resolves none (#525)", async () => {
     const warning = vi.spyOn(toast, "warning");
     const adoptMedia = vi.fn(() => Promise.resolve({}));

@@ -1872,9 +1872,9 @@ function Editor({
   // step. A medium that still does not resolve after that, renamed by the app or not, pastes anyway,
   // its image a placeholder, and a hint names it by its image's alt text or name (one with neither is
   // counted). A paste while one waits for the app is ignored; one the editor closes on never lands.
-  // Copy, cut, paste, duplicate and Delete keyed during a drag with a preview wait for it to end,
-  // kept or cancelled, and so does a paste the app answers meanwhile: the release would put back the
-  // preview, drawn from the document as the drag began (#525, #527). They land in the order they
+  // Copy, cut, paste, duplicate, Delete and the arrow keys keyed during a drag with a preview wait
+  // for it to end, kept or cancelled, and so does a paste the app answers meanwhile: the release
+  // would put back the preview, drawn from the document as the drag began (#525, #527, #530). They land in the order they
   // came, one a render, each on what the one before left. A frame selection draws no preview: under
   // it they act at once.
   const held = React.useRef<(() => void)[]>([]);
@@ -1939,12 +1939,26 @@ function Editor({
     };
     adoptMedia(unresolved).then(land, () => land({}));
   };
+  // The arrow keys move the selection a step on the screen: in a turned group's frame, the step
+  // turned back, for each element in its own groups.
+  const nudge = (move: { x: number; y: number }) => {
+    const steps = new Map(
+      editable.map(({ id }) => {
+        const local = stepIntoGroups(groupChain(elements, id), move);
+        const x = Math.round(local.x * 1000) / 1000;
+        const y = Math.round(local.y * 1000) / 1000;
+        return [id, { x, y }];
+      }),
+    );
+    if (steps.size > 0) apply((current) => moveEach(current, page, steps));
+  };
   const latestHeld = React.useRef({
     cut: cutSelection,
     copy: copySelection,
     paste,
     duplicate,
     remove: removeSelected,
+    nudge,
   });
   React.useEffect(() => {
     latestHeld.current = {
@@ -1953,6 +1967,7 @@ function Editor({
       paste,
       duplicate,
       remove: removeSelected,
+      nudge,
     };
   });
   React.useEffect(() => {
@@ -1962,9 +1977,10 @@ function Editor({
     edit();
     setHeldTurn((turn) => turn + 1);
   }, [drag, heldTurn]);
-  const heldKey = (edit: keyof typeof latestHeld.current, run: () => void) => () => {
-    if (!holdForDrag(() => latestHeld.current[edit]())) run();
-  };
+  const heldKey =
+    (edit: Exclude<keyof typeof latestHeld.current, "nudge">, run: () => void) => () => {
+      if (!holdForDrag(() => latestHeld.current[edit]())) run();
+    };
   // The app's picker: a cancel inserts nothing; a picker that fails, or a medium the page cannot
   // take, is named in an error toast with what to do next.
   const pickFromMedia =
@@ -2177,25 +2193,14 @@ function Editor({
     }
     const step = event.shiftKey ? 10 : 1;
     const move = {
-      ArrowLeft: [-step, 0],
-      ArrowRight: [step, 0],
-      ArrowUp: [0, -step],
-      ArrowDown: [0, step],
+      ArrowLeft: { x: -step, y: 0 },
+      ArrowRight: { x: step, y: 0 },
+      ArrowUp: { x: 0, y: -step },
+      ArrowDown: { x: 0, y: step },
     }[event.key];
     if (move === undefined || editable.length === 0) return;
     event.preventDefault();
-    const ids = editable.map((element) => element.id);
-    // A step on the screen: in a turned group's frame, the step turned back, for each element in
-    // its own groups.
-    const steps = new Map(
-      ids.map((id) => {
-        const local = stepIntoGroups(groupChain(elements, id), { x: move[0]!, y: move[1]! });
-        const x = Math.round(local.x * 1000) / 1000;
-        const y = Math.round(local.y * 1000) / 1000;
-        return [id, { x, y }];
-      }),
-    );
-    apply((current) => moveEach(current, page, steps));
+    if (!holdForDrag(() => latestHeld.current.nudge(move))) nudge(move);
   };
 
   // The page sorter's changes (`SUI-FEATURE-161` §Seiten-Sortierer): one step each, naming the page
