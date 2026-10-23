@@ -5228,27 +5228,19 @@ async function openRowBubble(page: Page, hovered: Locator, neighbour: Locator) {
   const bubble = page.locator("[data-slot=tooltip-content]");
   await expect(bubble).toBeVisible({ timeout: 3000 });
   const [tip, target, element] = await Promise.all([box(bubble), box(neighbour), box(hovered)]);
-  const apart =
-    tip.x >= target.x + target.width ||
-    tip.x + tip.width <= target.x ||
-    tip.y >= target.y + target.height ||
-    tip.y + tip.height <= target.y;
-  expect(apart).toBe(true);
+  expect(shareNoArea(tip, target)).toBe(true);
   expect(Math.abs(element.y - tip.y - 4)).toBeLessThanOrEqual(1);
   return { bubble, text: (await bubble.textContent()) ?? "", target, tip };
 }
 
-// GL-UI-016 rev 7 §Schließen (#259): the pointer moves onto the neighbour and rests there. The bubble
-// closes 300 ms (±50) after the last move, or at once where the neighbour lies off the way to the
-// bubble; the neighbour's own hint follows after its delay, and a click reaches the neighbour.
-async function restOnNeighbourThenClick(page: Page, hovered: Locator, neighbour: Locator) {
-  const { bubble, text, target } = await openRowBubble(page, hovered, neighbour);
+// Moves the pointer to (x, y) and rests there: how long after its last move the open bubble closed.
+async function restUntilClosed(page: Page, x: number, y: number) {
   await page.evaluate(() => {
     const record = window as unknown as { lastMove: number };
     document.addEventListener("pointermove", () => (record.lastMove = performance.now()), true);
   });
-  await page.mouse.move(target.x + target.width / 2, target.y + target.height / 2, { steps: 4 });
-  const rest = await page.evaluate(
+  await page.mouse.move(x, y, { steps: 4 });
+  return page.evaluate(
     () =>
       new Promise<number>((resolve) => {
         const check = () => {
@@ -5258,6 +5250,18 @@ async function restOnNeighbourThenClick(page: Page, hovered: Locator, neighbour:
         };
         check();
       }),
+  );
+}
+
+// GL-UI-016 rev 7 §Schließen (#259): the pointer moves onto the neighbour and rests there. The bubble
+// closes 300 ms (±50) after the last move, or at once where the neighbour lies off the way to the
+// bubble; the neighbour's own hint follows after its delay, and a click reaches the neighbour.
+async function restOnNeighbourThenClick(page: Page, hovered: Locator, neighbour: Locator) {
+  const { bubble, text, target } = await openRowBubble(page, hovered, neighbour);
+  const rest = await restUntilClosed(
+    page,
+    target.x + target.width / 2,
+    target.y + target.height / 2,
   );
   expect(rest).toBeLessThanOrEqual(350);
   await expect(bubble).toBeVisible({ timeout: 3000 });
@@ -11478,6 +11482,80 @@ for (const lng of ["de", "en", "es"]) {
     await expect(bubble.locator("[data-slot=tooltip-hint]")).toHaveText(
       editorTexts.chartCategoryNameHint,
     );
+  });
+}
+
+// #453 (`GL-UI-016` §Lage): the bubble of a clipped category name stands beside its whole row where
+// the panel leaves room for it, covering neither the remove button nor the values.
+async function clippedCategoryBubble(page: Page, panel: Locator) {
+  const name = panel.getByTestId("slide-editor-chart-category-1");
+  await typeInto(page, name, "Umsatz Region Nordwest und Nordost, alle Filialen 2026");
+  await name.blur();
+  expect(await name.evaluate((input) => input.scrollWidth > input.clientWidth)).toBe(true);
+  await page.mouse.move(0, 0);
+  await name.hover();
+  const bubble = page.locator("[data-slot=tooltip-content]");
+  await expect(bubble).toBeVisible({ timeout: 3000 });
+  return { name, bubble, tip: await box(bubble), field: await box(name) };
+}
+
+for (const lng of ["de", "en", "es"]) {
+  test(`slide editor: a clipped category name's bubble stands beside its row (${lng})`, async ({
+    page,
+  }) => {
+    await page.goto(`/?page=slide-editor&lng=${lng}`);
+    await page.getByTestId("drawer-add").click();
+    await page.getByTestId("slide-editor-library-chart").click();
+    const panel = page.getByTestId("slide-editor-chart");
+    const { tip, field } = await clippedCategoryBubble(page, panel);
+    const neighbours = await Promise.all(
+      ["remove-category-1", "value-0-1", "value-1-1"].map((id) =>
+        box(panel.getByTestId(`slide-editor-chart-${id}`)),
+      ),
+    );
+    for (const neighbour of neighbours) expect(shareNoArea(tip, neighbour)).toBe(true);
+    // Beside the whole row: on its right where that holds the bubble, else on its left; at the
+    // name's height, its top edge 4 px above the name's.
+    const right = Math.max(...neighbours.map((n) => n.x + n.width));
+    expect(tip.x >= right || tip.x + tip.width <= field.x).toBe(true);
+    expect(Math.abs(field.y - tip.y - 4)).toBeLessThanOrEqual(1);
+  });
+
+  // #453 (`GL-UI-016` §Lage, §Schließen): at 390 px no side of the row holds the narrowest bubble,
+  // so it stands at the name itself; a click closes it, as does a 300 ms rest on the remove button.
+  test(`slide editor: at 390 px a clipped category name's bubble stands at the name (${lng})`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 390, height: 900 });
+    await page.goto(`/?page=slide-editor&lng=${lng}`);
+    await page.getByTestId("drawer-add").click();
+    await page.getByTestId("slide-editor-library-chart").click();
+    const panel = page.getByTestId("slide-editor-chart");
+    await panel.scrollIntoViewIfNeeded();
+    const { name, bubble, tip, field } = await clippedCategoryBubble(page, panel);
+    // Right next to the name, past the arrow, its top edge 4 px above the name's.
+    expect(Math.abs(tip.x - (field.x + field.width + 18))).toBeLessThanOrEqual(1);
+    expect(Math.abs(field.y - tip.y - 4)).toBeLessThanOrEqual(1);
+    await page.mouse.move(tip.x + tip.width / 2, tip.y + tip.height / 2, { steps: 4 });
+    await page.mouse.down();
+    await expect(bubble).toHaveCount(0, { timeout: 100 });
+    await page.mouse.up();
+
+    await page.mouse.move(0, 0);
+    await name.hover();
+    await expect(bubble).toBeVisible({ timeout: 3000 });
+    // The trash button's left edge, clear of the bubble and its arrow.
+    const trash = await box(panel.getByTestId("slide-editor-chart-remove-category-1"));
+    const point = { x: trash.x + 2, y: trash.y + trash.height / 2 };
+    const rest = await restUntilClosed(page, point.x, point.y);
+    expect(rest).toBeGreaterThanOrEqual(250);
+    expect(rest).toBeLessThanOrEqual(350);
+    expect(
+      await page.evaluate(
+        ({ x, y }) => document.elementFromPoint(x, y)?.closest("button")?.dataset.testid,
+        point,
+      ),
+    ).toBe("slide-editor-chart-remove-category-1");
   });
 }
 
