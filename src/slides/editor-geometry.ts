@@ -10,7 +10,10 @@ import {
   pickSnap,
   type SnapCandidate,
 } from "../ui/grid-core.js";
-import type { Box } from "./editor-ops.js";
+import { type Box, boxOf, drawnBox } from "./editor-ops.js";
+import type { SlideElement } from "./schema.js";
+
+type Group = Extract<SlideElement, { type: "group" }>;
 
 export type Point = { x: number; y: number };
 
@@ -124,6 +127,41 @@ export function snapCandidates(
     for (const value of lines.y) y.push({ value, source: "grid" });
   }
   return { x, y };
+}
+
+// The elements a moving selection snaps to on the page, in the page's order: the page's own and, in
+// each group the selection stands in (`enclosing`, at every level), that group's children — so every
+// enclosing group and the siblings (`SUI-FEATURE-190` rev 5). `stays` leaves out what moves or is
+// hidden.
+export function standingElements(
+  elements: readonly SlideElement[],
+  enclosing: ReadonlySet<string>,
+  stays: (element: SlideElement) => boolean,
+): SlideElement[] {
+  return elements.flatMap((element) => [
+    ...(stays(element) ? [element] : []),
+    ...(element.type === "group" && enclosing.has(element.id)
+      ? standingElements(element.children, enclosing, stays)
+      : []),
+  ]);
+}
+
+// What a moving child of a turned group snaps to in its frame (`chain`, outermost first, holds a
+// turned group): the innermost group's edges and centre, and, from the innermost turned group down —
+// the upright groups below it share its frame — every enclosing group and the siblings at each level
+// (`SUI-FEATURE-190` rev 5). Groups above the innermost turned one lie in another frame.
+export function turnedFrameCandidates(
+  chain: readonly Group[],
+  stays: (element: SlideElement) => boolean,
+): SnapCandidates {
+  const turnedAt = chain.reduce((last, group, index) => (group.rotation !== 0 ? index : last), 0);
+  const shared = chain.slice(turnedAt);
+  const turned = shared[0]!;
+  const enclosing = new Set(shared.map((group) => group.id));
+  return frameCandidates(boxOf(chain.at(-1)!), [
+    ...(shared.length > 1 ? [boxOf(turned)] : []),
+    ...standingElements(turned.children, enclosing, stays).map(drawnBox),
+  ]);
 }
 
 // What a moving box snaps to in a frame: the frame's edges and centre, and the other boxes' edges

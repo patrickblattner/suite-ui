@@ -12840,6 +12840,71 @@ test("slide editor: a child of an upright group snaps to the group's centre from
   expect((await child.boundingBox())!.x - before.x).toBeCloseTo(70, 0);
 });
 
+// #478 (SUI-FEATURE-190 rev 5 AC2): a child of a group nested in another upright group snaps to
+// every enclosing group, not only the page's own, and to its sibling.
+test("slide editor: a child of a nested upright group snaps to its group and its sibling", async ({
+  page,
+}) => {
+  const { editor, at, select, field } = await openEditor(page);
+  // The pair grouped with Box B: the pair now stands one level down.
+  await select(630, 340);
+  await select(340, 190, true);
+  await editor.getByTestId("slide-editor-group").click();
+  const child = editor.locator("[data-slide-element=pair-left]");
+  const from = at(590, 340);
+  await page.mouse.dblclick(from.x, from.y);
+  await expect(field("width")).toHaveValue("140");
+  await page.mouse.dblclick(from.x, from.y);
+  await expect(field("width")).toHaveValue("60");
+  const dragBy = async (by: number, guide: string) => {
+    const before = (await child.boundingBox())!;
+    await page.mouse.move(from.x, from.y);
+    await page.mouse.down();
+    await page.mouse.move(from.x + by / 2, from.y, { steps: 3 });
+    await page.mouse.move(from.x + by, from.y, { steps: 3 });
+    await expect(editor.getByTestId("slide-editor-guide-x")).toHaveAttribute("data-guide", guide);
+    await page.mouse.up();
+    return (await child.boundingBox())!.x - before.x;
+  };
+  // 67 px on: the child's left edge (627) comes 3 px short of the inner group's centre (630).
+  expect(await dragBy(67, "630")).toBeCloseTo(70, 0);
+  await page.keyboard.press("ControlOrMeta+z");
+  await expect(field("x")).toHaveValue("560");
+  // 17 px on: its right edge (637) comes 3 px short of its sibling's left edge (640).
+  expect(await dragBy(17, "640")).toBeCloseTo(20, 0);
+});
+
+// #478 review: an upright group in a group turned a quarter shares the turned group's frame, so its
+// child snaps to the turned group's other children there too.
+test("slide editor: a child of an upright group in a turned group snaps to the turned group's children", async ({
+  page,
+}) => {
+  const { editor, at, select, field } = await openEditor(page);
+  // The pair grouped with Box B (300–700 × 160–380), the group turned a quarter about (500, 270).
+  await select(630, 340);
+  await select(340, 190, true);
+  await editor.getByTestId("slide-editor-group").click();
+  await field("rotation").fill("90");
+  await page.keyboard.press("Tab");
+  // The pair's left child (centre 590, 340) is drawn a quarter round at (430, 360).
+  const child = editor.locator("[data-slide-element=pair-left]");
+  const from = at(430, 360);
+  await page.mouse.dblclick(from.x, from.y);
+  await expect(field("width")).toHaveValue("140");
+  await page.mouse.dblclick(from.x, from.y);
+  await expect(field("width")).toHaveValue("60");
+  const before = (await child.boundingBox())!;
+  // 177 px back along the group's x axis (up on the screen): the child's left edge (383) comes 3 px
+  // short of Box B's right edge (380) in the group's frame and snaps there.
+  await page.mouse.move(from.x, from.y);
+  await page.mouse.down();
+  await page.mouse.move(from.x, from.y - 90, { steps: 3 });
+  await page.mouse.move(from.x, from.y - 177, { steps: 3 });
+  await expect(editor.getByTestId("slide-editor-guide-x")).toHaveAttribute("data-guide", "380");
+  await page.mouse.up();
+  expect((await child.boundingBox())!.y - before.y).toBeCloseTo(-180, 0);
+});
+
 // #328 AC1/AC2: a child of a turned group aligns to the page where it is drawn: its drawn left edge
 // goes to the page's, and it does not move up or down on the screen.
 test("slide editor: a child of a turned group aligns to the page where it is drawn", async ({

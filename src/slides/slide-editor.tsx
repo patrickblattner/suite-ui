@@ -100,7 +100,6 @@ import {
 import {
   columnBorderCursor,
   containsPoint,
-  frameCandidates,
   type Handle,
   HANDLES,
   intersects,
@@ -111,6 +110,8 @@ import {
   type SnapCandidates,
   snapBox,
   snapCandidates,
+  standingElements,
+  turnedFrameCandidates,
 } from "./editor-geometry.js";
 import { deletePage, duplicatePage, movePage, newPage, setPageHidden } from "./editor-pages.js";
 import {
@@ -1606,9 +1607,9 @@ function Editor({
     if (moving.length === 0 || (event.shiftKey && !ids.includes(hit.id))) return;
     const movingIds = moving.map((element) => element.id);
     const frames = movingIds.map((id) => groupChain(elements, id));
-    // Children of the same turned group snap in its frame, at it and their siblings; any other
-    // selection by its box on the page, at the page, the elements that stay and the shown grid
-    // (`SUI-FEATURE-190`). Once per drag.
+    // Children of the same turned group snap in its frame, at it, the groups enclosing it there and
+    // the siblings; any other selection by its box on the page, at the page, the elements that stay
+    // (in its groups too, at every level) and the shown grid (`SUI-FEATURE-190`). Once per drag.
     const first = frames[0]!;
     const shared =
       first.some((group) => group.rotation !== 0) &&
@@ -1619,7 +1620,6 @@ function Editor({
       );
     const stays = (element: SlideElement) => !movingIds.includes(element.id) && !element.hidden;
     if (shared) {
-      const group = first.at(-1)!;
       setDrag({
         kind: "move",
         frames,
@@ -1628,7 +1628,7 @@ function Editor({
         base: history.document,
         ids: movingIds,
         box: boundsOf(moving.map(drawnBox))!,
-        candidates: frameCandidates(boxOf(group), group.children.filter(stays).map(drawnBox)),
+        candidates: turnedFrameCandidates(first, stays),
       });
       return;
     }
@@ -1642,7 +1642,9 @@ function Editor({
       box: boundsOf(moving.map((element) => pageBox(elements, element)))!,
       candidates: snapCandidates(
         { width: pageWidth, height: pageHeight },
-        elements.filter(stays).map(drawnBox),
+        standingElements(elements, new Set(frames.flat().map((group) => group.id)), stays).map(
+          (element) => pageBox(elements, element),
+        ),
         gridShown ? grid : null,
       ),
     });
