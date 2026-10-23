@@ -1872,11 +1872,18 @@ function Editor({
   // step. A medium that still does not resolve after that, renamed by the app or not, pastes anyway,
   // its image a placeholder, and a hint names it by its image's alt text or name (one with neither is
   // counted). A paste while one waits for the app is ignored; one the editor closes on never lands.
+  // One that comes in during a drag waits for the drag to end, kept or cancelled: the drag's preview
+  // is drawn from the document as it began and would take the paste back (#525).
+  const heldPaste = React.useRef<(() => void) | undefined>(undefined);
   const landPaste = (
     copies: readonly SlideElement[],
     unresolved: readonly string[],
     remap: Record<string, string>,
   ) => {
+    if (drag !== undefined) {
+      heldPaste.current = () => latestLandPaste.current(copies, unresolved, remap);
+      return;
+    }
     const missing = unresolved.filter(
       (id) => view.resolveMedia?.(Object.hasOwn(remap, id) ? remap[id]! : id) === undefined,
     );
@@ -1901,6 +1908,12 @@ function Editor({
   React.useEffect(() => {
     latestLandPaste.current = landPaste;
   });
+  React.useEffect(() => {
+    if (drag !== undefined || heldPaste.current === undefined) return;
+    const land = heldPaste.current;
+    heldPaste.current = undefined;
+    land();
+  }, [drag]);
   const pastePending = React.useRef(false);
   const closed = React.useRef(false);
   React.useEffect(() => {
@@ -1910,12 +1923,11 @@ function Editor({
     };
   }, []);
   const paste = () => {
-    if (pastePending.current) return;
+    if (pastePending.current || heldPaste.current !== undefined) return;
     const { elements: copied, brand, titles } = elementClipboard;
     const copies = adoptBrand(copied, brand, view.brand, titles);
-    const resolve = view.resolveMedia;
-    const unresolved =
-      resolve === undefined ? [] : mediaIds(copies).filter((id) => resolve(id) === undefined);
+    // Without `resolveMedia` no medium resolves: the page draws each one as missing (#525).
+    const unresolved = mediaIds(copies).filter((id) => view.resolveMedia?.(id) === undefined);
     if (unresolved.length === 0 || adoptMedia === undefined) {
       landPaste(copies, unresolved, {});
       return;

@@ -400,6 +400,44 @@ describe("SlideEditor element clipboard", () => {
     warning.mockRestore();
   });
 
+  it("lands a paste whose adoptMedia answers during a drag once the drag ends (#525)", async () => {
+    let answer: (remap: Record<string, string>) => void = () => {};
+    const onSave = copyThenOpenOther("photo", {
+      document: { ...DOC, pages: [{ id: "other", background, elements: [shape("a", 0, 0)] }] },
+      adoptMedia: () => new Promise((resolve) => (answer = resolve)),
+      resolveMedia: (id: string) => (id === "photo-copy" ? "blob:photo" : undefined),
+    });
+    key("v");
+    fireEvent.pointerDown(canvas(), { ...at(50, 50), button: 0, pointerId: 1 });
+    fireEvent.pointerMove(canvas(), at(250, 50));
+    answer({ photo: "photo-copy" });
+    await Promise.resolve();
+    await Promise.resolve();
+    fireEvent.pointerMove(canvas(), at(450, 50));
+    fireEvent.pointerUp(canvas(), at(450, 50));
+    fireEvent.click(screen.getByTestId("drawer-layers"));
+    await waitFor(() => expect(screen.getAllByTestId("slide-editor-layer")).toHaveLength(2));
+    const elements = await saved(onSave);
+    expect(elements.map(({ type, x }) => ({ type, x }))).toEqual([
+      { type: "shape", x: 400 },
+      { type: "image", x: 40 },
+    ]);
+    expect(elements[1]).toMatchObject({ media: { id: "photo-copy" } });
+  });
+
+  it("asks the app for every medium when the target resolves none (#525)", async () => {
+    const warning = vi.spyOn(toast, "warning");
+    const adoptMedia = vi.fn(() => Promise.resolve({}));
+    const onSave = copyThenOpenOther("photo", { adoptMedia, resolveMedia: undefined });
+    key("v");
+    await waitFor(() => expect(warning).toHaveBeenCalledTimes(1));
+    expect(adoptMedia).toHaveBeenCalledWith(["photo"]);
+    expect(warning.mock.lastCall![0]).toContain("photo");
+    const [pasted] = await saved(onSave);
+    expect(pasted).toMatchObject({ type: "image", media: { id: "photo" } });
+    warning.mockRestore();
+  });
+
   it("takes the target's brand for a key it has, its role default for one it lacks (AC9)", async () => {
     const branded = {
       ...DOC,

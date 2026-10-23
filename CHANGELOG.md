@@ -8,6 +8,12 @@
 
 **Migration:** app tests that expect a running button to be `disabled` because the call site also passed `disabled` check `aria-disabled="true"` instead.
 
+## Unreleased — #525, SUI-FEATURE-106 rev 2: a paste awaiting `adoptMedia` survives a drag; no `resolveMedia` resolves nothing
+
+- **Paste during a drag (#525):** a paste whose `adoptMedia` answer arrives while an element is being dragged, resized or rotated now lands once the drag ends (kept or cancelled with Esc). Before, the drag's release put back the document as it was when the drag began and the paste was lost. A paste in the meantime is ignored.
+- **Paste without `resolveMedia` (#525):** an editor without `resolveMedia` treats every pasted medium as unresolved, as its page draws them: `adoptMedia` is asked for all of them, and any still unresolved is named in the hint. Before, such a paste skipped `adoptMedia` and the hint while the images showed the missing-media placeholder.
+- **Tests (#525):** editor tests for both cases (`slide-editor-clipboard.test.tsx`).
+
 ## 0.173.0 — #466, SUI-FEATURE-191 rev 5, SUI-FEATURE-106 rev 2: copy/paste of locked elements, layout roles, group children, and into another document
 
 - **Locked elements (#466):** copy, cut and duplicate now take the whole selection, locked elements included. Cut leaves a locked element in place and removes only the unlocked part. Before, cut and duplicate skipped locked elements. Copies are never locked, and the canvas menu's Cut and Duplicate are usable whenever something is selected; their hints (`cutHint`, `cutUnavailable`, `duplicateUnavailable`) say so.
