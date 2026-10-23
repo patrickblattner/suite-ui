@@ -75,6 +75,42 @@ describe("AppSidebar", () => {
     expect(screen.getByTestId("location")).toHaveTextContent("/dashboard");
   });
 
+  // `SUI-FEATURE-102`: a focused entry scrolls fully into view, its ring clear of the area's edges.
+  it("a keyboard-focused entry scrolls into view inside the padded nav area", () => {
+    const scrolled = vi.fn();
+    Element.prototype.scrollIntoView = scrolled;
+    try {
+      renderSidebar("/dashboard");
+      expect(screen.getByTestId("nav-scroll")).toHaveClass("overflow-y-auto", "scroll-py-2");
+      const help = screen.getByTestId("help-button");
+      // jsdom guesses the focus modality from earlier events; the entry answers as keyboard focus.
+      Object.defineProperty(help, "matches", { value: () => true });
+      act(() => help.focus());
+      expect(scrolled).toHaveBeenCalledWith({ block: "nearest" });
+      expect(scrolled.mock.contexts.at(-1)).toBe(help);
+    } finally {
+      // @ts-expect-error -- jsdom has no scrollIntoView; restore its absence.
+      delete Element.prototype.scrollIntoView;
+    }
+  });
+
+  // Pointer focus is not `:focus-visible`; scrolling then would move the entry from under the click.
+  it("a pointer-focused entry does not scroll", () => {
+    const scrolled = vi.fn();
+    Element.prototype.scrollIntoView = scrolled;
+    try {
+      renderSidebar("/dashboard");
+      const help = screen.getByTestId("help-button");
+      // The entry answers `:focus-visible` as pointer focus would.
+      Object.defineProperty(help, "matches", { value: () => false });
+      act(() => help.focus());
+      expect(scrolled).not.toHaveBeenCalled();
+    } finally {
+      // @ts-expect-error -- jsdom has no scrollIntoView; restore its absence.
+      delete Element.prototype.scrollIntoView;
+    }
+  });
+
   it("an entry whose view key is denied is not in the DOM; an emptied section drops", () => {
     renderSidebar("/dashboard", (key) => key !== "ideas" && !key.startsWith("admin."));
     expect(screen.queryByTestId("nav-ideas")).not.toBeInTheDocument();

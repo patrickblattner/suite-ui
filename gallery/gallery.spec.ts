@@ -3625,6 +3625,92 @@ test("sidebar overlay: Tab and Shift+Tab stay inside the open overlay", async ({
   ).toBe(false);
 });
 
+// `SUI-FEATURE-102` (`GL-UI-013` rev 5): Tab through every entry of the nav area to the last
+// (`nav-section-*`, `help-button`); each stop, ring included, lies fully inside the area's visible
+// part and above the footer — expanded and collapsed at 1280 px, and in the overlay at 390 px, at a
+// laptop height and at one low enough that the area scrolls.
+for (const height of [720, 400]) {
+  for (const mode of ["expanded", "collapsed", "overlay"] as const) {
+    test(`sidebar focus: every nav stop with its ring in view, ${mode} at ${height} px`, async ({
+      page,
+    }) => {
+      await page.setViewportSize({ width: mode === "overlay" ? 390 : 1280, height });
+      await page.goto("/?page=shell&route=/dashboard&lng=en");
+      const sidebar = page.getByTestId("app-sidebar");
+      if (mode === "overlay") {
+        await page.getByTestId("sidebar-overlay-trigger").click();
+      } else if (mode === "collapsed") {
+        await page.getByTestId("sidebar-trigger").click();
+      }
+      await expect(sidebar).toBeVisible();
+      await expect(sidebar).toHaveAttribute(
+        "data-state",
+        mode === "collapsed" ? "collapsed" : "expanded",
+      );
+      const area = sidebar.getByTestId("nav-scroll");
+      await area.locator("a[href], button").first().focus();
+      const stops: string[] = [];
+      for (;;) {
+        // The ring: a 3 px shadow, and the 2 px transparent outline 2 px out that forced colours paint.
+        const stop = await page.evaluate(() => {
+          const active = document.activeElement as HTMLElement;
+          const area = document.querySelector<HTMLElement>("[data-testid=nav-scroll]")!;
+          if (!area.contains(active)) return null;
+          const footer = area.parentElement!.lastElementChild!.getBoundingClientRect();
+          const node = active.getBoundingClientRect();
+          const frame = area.getBoundingClientRect();
+          const ring = 4;
+          const view = {
+            top: frame.top + area.clientTop,
+            left: frame.left + area.clientLeft,
+            bottom: frame.top + area.clientTop + area.clientHeight,
+            right: frame.left + area.clientLeft + area.clientWidth,
+          };
+          const inView =
+            node.top - ring >= view.top &&
+            node.left - ring >= view.left &&
+            node.bottom + ring <= view.bottom &&
+            node.right + ring <= view.right &&
+            node.bottom + ring <= footer.top &&
+            node.bottom + ring <= window.innerHeight;
+          return { id: active.dataset.testid ?? "", inView };
+        });
+        if (stop === null) break;
+        expect(stop.inView, `${stop.id} with its ring is not fully in view`).toBe(true);
+        stops.push(stop.id);
+        await page.keyboard.press("Tab");
+      }
+      expect(stops).toContain("nav-section-admin");
+      expect(stops.at(-1)).toBe("help-button");
+    });
+  }
+}
+
+// `SUI-FEATURE-102` rev 3: only keyboard focus scrolls the nav. A click on the entry cut off at the
+// area's bottom lands on it: Chromium focuses on mousedown, and a scroll then would move the entry
+// from under the pointer before mouseup.
+test("sidebar focus: a click on the entry cut off at the nav's bottom selects it", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 320 });
+  await page.goto("/?page=shell&route=/dashboard&lng=en");
+  const area = page.getByTestId("nav-scroll");
+  await expect(area).toBeVisible();
+  const target = await area.evaluate((node) => {
+    const bottom = node.getBoundingClientRect().top + node.clientTop + node.clientHeight;
+    for (const link of node.querySelectorAll<HTMLElement>("a[href]")) {
+      const { top, bottom: end, left, width } = link.getBoundingClientRect();
+      if (top < bottom - 4 && end > bottom) {
+        return { id: link.dataset.testid!, x: left + width / 2, y: (top + bottom) / 2 };
+      }
+    }
+    return null;
+  });
+  expect(target, "no nav link is cut off at the area's bottom").not.toBeNull();
+  await page.mouse.click(target!.x, target!.y);
+  await expect(page.getByTestId(target!.id)).toHaveAttribute("aria-current", "page");
+});
+
 // `GL-UI-007`: inside the open overlay, Esc closes the open user menu first and only it; the next Esc
 // closes the overlay.
 test("sidebar overlay: Esc closes the user menu first, then the overlay", async ({ page }) => {

@@ -8,6 +8,13 @@
 
 **Migration:** none for the API. A test that compares the exact class string of one of these scroll containers adds `scroll-py-2` (`@panel-split:scroll-py-2` on the split column); the frozen markup of `DataTableShell` and `PageScroll` is unchanged. An app that closed a toast itself before tabbing to a control under it (or a test that dismissed the toast first) can drop that; the package does it. Apps build nothing of their own for it (`GL-UI-004`).
 
+## Unreleased — #463, SUI-FEATURE-102 rev 3: the Sidebar's focused entry is never obscured
+
+- **Sidebar focus (#463, `GL-UI-013` rev 5):** the Sidebar's scrolling nav area keeps a block `scroll-padding` (8 px, clear of the 3 px ring and the forced-colours outline) and scrolls a keyboard-focused (`:focus-visible`) entry into view with `scrollIntoView({ block: 'nearest' })`. Pointer focus does not scroll: Chromium focuses on mousedown, and a scroll then would move the entry from under the pointer and lose the click. Before, at a low viewport height the browser scrolled a tabbed-to entry only to the area's edge, so the lower part of its ring was clipped against the footer (e.g. `nav-section-admin`, `nav-section-settings` at 400 px). Applies expanded, collapsed and in the overlay; the area carries `data-testid="nav-scroll"`.
+- **Tests (#463):** unit tests check the padding, the `scrollIntoView` call on keyboard focus and none on pointer focus; a gallery test at 1280 × 320 clicks the link cut off at the nav's bottom and finds it active; a gallery test tabs through every nav stop to `help-button` at 1280 × 720 and 1280 × 400 (expanded, collapsed) and 390 × 720 / 390 × 400 (overlay) and asserts each box plus ring lies inside the area's visible part and above the footer.
+
+**Migration:** none. No strings or baselines change.
+
 ## Unreleased — #461, GL-UI-006 rev 4: a locked shortcut control offers no shortcut
 
 - **Locked without a reason of its own (#461):** `IconButtonTooltip` and `Hint` now drop the shortcut chip and `aria-keyshortcuts` whenever the wrapped control is `disabled` or `aria-disabled`, also without `disabledText`. Before, they dropped them only with `disabledText`. This is the case of a surface or toolbar locked as a whole whose hint names the reason once: its Undo/Redo pass `disabled` and no `disabledText`, so they carry no reason of their own, have no focusable wrapper (`Tab` skips them) and offer no shortcut; usable again, chip and `aria-keyshortcuts` return. The `disabledText` path is unchanged.

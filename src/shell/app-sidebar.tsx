@@ -252,8 +252,18 @@ function AppSidebar({
 
         {search}
 
-        {/* `relative`: the frame of the active entry's bar, which sits at its left edge. */}
+        {/* `relative`: the frame of the active entry's bar, which sits at its left edge. The focus is
+            never obscured (`GL-UI-013`, `SUI-FEATURE-102`): a keyboard-focused entry scrolls fully into
+            view, its ring kept clear of the area's edges by the scroll padding, so the footer below never
+            meets it. Only keyboard focus: Chromium focuses on mousedown, and scrolling then would move the
+            entry from under the pointer and lose the click. */}
         <div
+          onFocus={(event) => {
+            if (event.target.matches(":focus-visible")) {
+              event.target.scrollIntoView?.({ block: "nearest" });
+            }
+          }}
+          data-testid="nav-scroll"
           className={cn(
             "relative min-h-0 flex-1 scroll-py-2 overflow-y-auto px-2 py-2",
             !isOpen && "flex flex-col items-center [scrollbar-gutter:auto]",
