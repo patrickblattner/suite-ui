@@ -225,7 +225,7 @@ export function ElementLibrary({
     <div className="flex flex-col gap-4" data-testid="slide-editor-library">
       <p className="text-xs text-muted-foreground">{t("slides.editor.libraryHint")}</p>
       <section className="flex flex-col gap-2" aria-labelledby={`${searchId}-shapes`}>
-        <h3 id={`${searchId}-shapes`} className="text-sm font-medium">
+        <h3 id={`${searchId}-shapes`} className="text-base font-semibold">
           {t("slides.editor.libraryShapes")}
         </h3>
         <div
@@ -276,7 +276,7 @@ export function ElementLibrary({
       </section>
       {appEntries.length === 0 ? null : (
         <section className="flex flex-col gap-2" aria-labelledby={`${searchId}-app`}>
-          <h3 id={`${searchId}-app`} className="text-sm font-medium">
+          <h3 id={`${searchId}-app`} className="text-base font-semibold">
             {t("slides.editor.libraryApp")}
           </h3>
           <div className="grid grid-cols-2 gap-1" data-testid="slide-editor-library-app">
@@ -299,7 +299,7 @@ export function ElementLibrary({
       )}
       {onPickMedia === undefined ? null : (
         <section className="flex flex-col gap-2" aria-labelledby={`${searchId}-media`}>
-          <h3 id={`${searchId}-media`} className="text-sm font-medium">
+          <h3 id={`${searchId}-media`} className="text-base font-semibold">
             {t("slides.editor.libraryMedia")}
           </h3>
           <Hint text={t("slides.editor.libraryMediaHint")}>
@@ -320,7 +320,7 @@ export function ElementLibrary({
         </section>
       )}
       <section className="flex flex-col gap-2" aria-labelledby={`${searchId}-icons`}>
-        <h3 id={`${searchId}-icons`} className="text-sm font-medium">
+        <h3 id={`${searchId}-icons`} className="text-base font-semibold">
           {t("slides.editor.libraryIcons")}
         </h3>
         <label htmlFor={searchId} className="sr-only">

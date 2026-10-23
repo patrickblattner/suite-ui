@@ -101,7 +101,7 @@ export function TransferFormat({
             <DialogDescription>{t("slides.editor.transferDescription")}</DialogDescription>
           </DialogHeader>
           <fieldset className="flex flex-col gap-2">
-            <legend className="mb-2 text-sm font-medium">
+            <legend className="mb-2 text-base font-semibold">
               {t("slides.editor.transferFormat")}
             </legend>
             <RadioGroup
@@ -130,7 +130,9 @@ export function TransferFormat({
             </RadioGroup>
           </fieldset>
           <fieldset className="flex flex-col gap-2">
-            <legend className="mb-2 text-sm font-medium">{t("slides.editor.transferScope")}</legend>
+            <legend className="mb-2 text-base font-semibold">
+              {t("slides.editor.transferScope")}
+            </legend>
             <RadioGroup
               value={scope}
               onValueChange={(value) => setScope(value === "all" ? "all" : "page")}

@@ -3167,7 +3167,7 @@ function Editor({
             {
               id: "document",
               content: (
-                <div className="flex flex-col gap-6">
+                <div className="flex flex-col gap-4">
                   {/* The saved steps only: a drag's preview or a crop being set never redraws the
                       pictures. */}
                   <PageSorter

@@ -151,7 +151,7 @@ export function PageSorter({
   };
   return (
     <section className="flex flex-col gap-2" data-testid="slide-editor-pages">
-      <h3 className="text-sm font-medium">{t("slides.editor.pages")}</h3>
+      <h3 className="text-base font-semibold">{t("slides.editor.pages")}</h3>
       {/* The list takes the grid's keys, but no grid role: its pages are no table rows. */}
       <ol {...grid.gridProps} role={undefined} className="flex flex-col gap-1">
         {document.pages.map((one, index) => {
