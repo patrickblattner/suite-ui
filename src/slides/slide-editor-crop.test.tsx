@@ -287,6 +287,18 @@ describe("SlideEditor crop mode (SUI-FEATURE-230 rev 4)", () => {
     expect(offsetX).toHaveValue(0);
   });
 
+  // #496: Esc after typing in the % field drops the crop; the field leaving to the canvas sets its
+  // zoom on the way, which must not bring cropping back.
+  it("drops the crop on Esc after typing in the zoom % field", () => {
+    renderEditor();
+    startCrop();
+    percent().focus();
+    fireEvent.change(percent(), { target: { value: "300" } });
+    fireEvent.keyDown(percent(), { key: "Escape" });
+    expect(canvas()).not.toHaveAttribute("data-cropping");
+    expect(canvas()).toHaveFocus();
+  });
+
   // Codex CX1 review: with a border, a press on the frame shifts the image on every side; beside it,
   // it applies the crop. Frame 40–200 px wide, the whole image drawn 10 px further right (50–210).
   it("shifts a bordered image from any edge of its frame", () => {

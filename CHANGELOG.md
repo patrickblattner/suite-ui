@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.171.3 — #496, SUI-FEATURE-230 rev 4: Esc after typing in the crop zoom % field
+
+- **Esc drops the crop (#496):** Esc in the crop zoom % field after typing a zoom now ends cropping as it does without typing; before, the field leaving for the canvas set its zoom on the way and brought cropping back.
+- **Tests (#496):** a unit test types 300 % and presses Esc, expecting cropping ended and the focus on the canvas.
+
+**Migration:** none.
+
 ## 0.171.2 — #495, Codex review v0.171.0: crop zoom % field
 
 - **Leaving for outside (#495, Codex CX1):** typing a zoom past 500 % in the crop zoom % field and then moving the focus outside cropping (a drawer button, the header) keeps the clamped 500 %; before, cropping ended with the zoom from before the field was left.

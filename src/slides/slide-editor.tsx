@@ -1883,12 +1883,14 @@ function Editor({
     endCrop(true, kept);
   };
   // Esc in the crop bar or the panel's crop fields drops the crop, before any outer `Esc` layer, and
-  // gives the canvas the focus back.
+  // gives the canvas the focus back. The focus goes first: the % field leaving sets its zoom on the
+  // way, and the drop after it must be the last word, or that zoom brings cropping back (#496).
   const dropCropOnEscape = (event: React.KeyboardEvent) => {
     if (event.key !== "Escape") return;
     event.preventDefault();
-    endCrop(false);
     canvas.current?.focus();
+    cropByField.current = undefined;
+    endCrop(false);
   };
   const cropBar =
     cropping === undefined ? undefined : (
