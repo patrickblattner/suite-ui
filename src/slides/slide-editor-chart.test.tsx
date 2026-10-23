@@ -110,4 +110,32 @@ describe("ChartData", () => {
       expect(button).toHaveAccessibleDescription("Unlock the element to change its chart.");
     }
   });
+
+  // #436 (GL-UI-017): a locked chart's type buttons say how to unlock it, as its other buttons.
+  it("a read-only chart's type buttons say to unlock the element (#436)", () => {
+    render(<ChartData chart={chart} revision={0} readOnly onChange={() => {}} />);
+    for (const type of ["bar", "line", "pie"]) {
+      const button = screen.getByTestId(`slide-editor-chart-type-${type}`);
+      expect(button).toHaveAttribute("aria-disabled", "true");
+      expect(button).toHaveAccessibleDescription("Unlock the element to change its chart.");
+    }
+  });
+
+  // #436 (GL-UI-017 §Fehler): the error is referenced by aria-errormessage, never aria-describedby,
+  // and leaves the field once its value is a number again.
+  it("drops a value's error reference once the value is a number again (#436)", () => {
+    render(<ChartData chart={chart} revision={0} readOnly={false} onChange={() => {}} />);
+    fireEvent.change(value(0, 1), { target: { value: "1x" } });
+    const error = screen.getByTestId("slide-editor-chart-error-1");
+    expect(value(0, 1)).toHaveAttribute("aria-errormessage", error.id);
+    expect(value(0, 1).getAttribute("aria-describedby") ?? "").not.toContain(error.id);
+    fireEvent.change(value(0, 1), { target: { value: "7" } });
+    expect(screen.queryByTestId("slide-editor-chart-error-1")).toBeNull();
+    expect(value(0, 1)).not.toHaveAttribute("aria-invalid");
+    expect(value(0, 1)).not.toHaveAttribute("aria-errormessage");
+    expect(value(0, 1).getAttribute("aria-describedby") ?? "").not.toContain(error.id);
+    expect(value(0, 1)).toHaveAccessibleDescription(
+      i18n.t("slides.editor.chartValueHint", { ns: "suite" }),
+    );
+  });
 });

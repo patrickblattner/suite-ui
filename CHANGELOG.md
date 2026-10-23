@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.171.8 — #436, GL-UI-017 rev 6: locked chart controls and value errors under test
+
+- **Locked chart (#436):** the chart panel's type buttons, like its add and remove buttons (#440), stay focusable while the element is locked and say "Unlock the element to change its chart." as their description; this already held, a test now pins it.
+- **Value error (#436):** a chart value that is not a number points to its row's error by `aria-errormessage`, never `aria-describedby`; once the value is a number again, the reference and the error are gone and the value hint is its whole description. This already held since #437, a test now pins it.
+- **Tests (#436):** unit tests cover both.
+
+**Migration:** none. No code change; tests only.
+
 ## 0.171.7 — #505, GL-UI-017 rev 6: SettingsField group described by its hint
 
 - **Group hint (#505):** a `SettingsField` with `group` and a `hint` describes its group element by that hint (`aria-describedby` to `${htmlFor}-help`), read once; the options still take none of the field's hints.
