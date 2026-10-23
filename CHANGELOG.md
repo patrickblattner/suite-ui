@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased (minor) — #519, SUI-FEATURE-104 rev 2, SUI-FEATURE-105 rev 2: EditorHeader tools, status, read-only, page head
+## 0.172.0 — #519, SUI-FEATURE-104 rev 2, SUI-FEATURE-105 rev 2: EditorHeader tools, status, read-only, page head
 
 - **`tools` (#519):** `EditorHeader` takes `tools?: EditorHeaderTool[]` (`{ id, label, icon, onClick, pressed?, disabledText? }`, type exported). They stand first in the right group as `icon-sm` buttons named by `label` (accessible name and tooltip), followed by a separator: tools · separator · Preview · ⋯ · next · separator · Undo · Redo · status · state · Reset · Save. `pressed` makes a toggle with `aria-pressed` and the package's pressed fill; `disabledText` locks it with `aria-disabled` and names the reason. At narrow width they fold with Preview (stage 3) into the one ⋯, ahead of the other folded tools; a pressed tool becomes a checkbox entry (`RowMenuItem` gains `checked?`).
 - **`status` (#519):** `status?: ReactNode` for a running operation stands directly left of the state indicator and never folds.
@@ -10,21 +10,21 @@
 
 **Migration:** none for the props. A page that renders its own `h1` beside `EditorHeader` drops it, so the route keeps one `h1`; a test that finds the editor title by `data-slot=editor-title-text` still does, and it is now also `getByRole("heading", { level: 1 })`.
 
-## Unreleased — #460, SUI-FEATURE-234 rev 4: the preview's long-play control is Stop, not Pause
+## 0.172.0 — #460, SUI-FEATURE-234 rev 4: the preview's long-play control is Stop, not Pause
 
 - **Stop in the preview (#460):** the control the editor's preview shows while a play over 5 s runs is now "Stop" (de "Stoppen", es "Detener"), its hint "Ends the play; the page stays as far as it got." It ends the play: no further step, the running animations stay in the state they reached, and the focus it held moves to "Play again", which starts over. There is no resume. The `SlidePlayer` is unchanged by this; its changes from #385 (less motion, the first page fading in from black) already match rev 4.
 - **Tests (#460):** unit and gallery tests use the new test id and attribute; the gallery 390 px test checks the de and es labels.
 
 **Migration:** strings `slides.editor.previewPause` → `slides.editor.previewStop` (en "Pause" → "Stop", de "Anhalten" → "Stoppen", es "Pausar" → "Detener") and `slides.editor.previewPauseHint` → `slides.editor.previewStopHint` (en "Stops the preview where it stands." → "Ends the play; the page stays as far as it got.", de "Hält die Vorschau an der Stelle an, an der sie gerade steht." → "Beendet das Abspielen; die Seite bleibt im erreichten Stand.", es "Detiene la vista previa donde está." → "Termina la reproducción; la página queda donde ha llegado."). `data-testid="slide-editor-preview-pause"` → `slide-editor-preview-stop`; the preview stage's `data-paused` → `data-stopped`. Baselines: 10 gallery captures (strings table) in `gallery/__screenshots__/`: `gallery-de-{light,dark}.png`, `gallery-de-{light,dark}-390.png`, `gallery-de-{light,dark}-1440.png` (6) and `gallery-{en,es}-{light,dark}.png` (4).
 
-## Unreleased — #455, SUI-FEATURE-162: no entrance warning when the exit is at order 1
+## 0.172.0 — #455, SUI-FEATURE-162: no entrance warning when the exit is at order 1
 
 - **Animation order check (#455):** with the exit at order 1, the entrance's order field no longer asks for a lower number, since it cannot go below 1; the exit's warning ("give it a higher number") alone tells the fix. The `Field` props `warning` and `warningTestId` this uses are listed under 0.162.0 (#382).
 - **Tests (#455):** the gallery animation test sets the exit to order 1 and checks that only the exit is warned.
 
 **Migration:** none.
 
-## Unreleased — #451, GL-UI-037 rev 2, SUI-FEATURE-233 rev 6: one number parser, `parseDecimal`
+## 0.172.0 — #451, GL-UI-037 rev 2, SUI-FEATURE-233 rev 6: one number parser, `parseDecimal`
 
 - **New export `parseDecimal` (#451):** `@suite/ui/ui/decimal-number` (also in `@suite/ui/ui/index`) exports `parseDecimal(text, language)`, `formatDecimal(value, language)`, `decimalSign(language)`, `numpadDecimal(event, language)` and the type `DecimalInvalid`. It is the one parser for number entry per `GL-UI-037`: in de and es a point and a comma are both the decimal sign ("1.5" = "1,5"), in en only the point; nothing is grouped, so one separator is always decimal ("1.000" = 1) and two ("1.000,5", "1,000.5") are refused as `separator`. A decimal number too large for a number is `tooLarge`, anything else `other`.
 - **Chart values and `NumberField`/`NumberInput` (#451):** both read what is typed through `parseDecimal` and show the stored number with the UI language's decimal sign. The numpad's decimal key (`code` `NumpadDecimal`) types that sign whatever the key reports. A refused value stays as typed with an error that says why and names the right form, for example "Enter the number with one decimal point and no comma, such as 1000.5." An overflowing chart value now says the number is too large.
@@ -33,7 +33,7 @@
 
 **Migration:** apps read their own number fields through `parseDecimal` and show numbers through `formatDecimal` instead of `Number()`/`String()`; on a keydown they pass the event to `numpadDecimal`. Tests that read a `NumberInput`'s value as a number (`toHaveValue(12)`) now read text (`toHaveValue("12")`), and `min`/`max` are now `aria-valuemin`/`aria-valuemax`.
 
-## Unreleased — #449, SUI-FEATURE-251 rev 2: the locked look mixes with the surface it sits on
+## 0.172.0 — #449, SUI-FEATURE-251 rev 2: the locked look mixes with the surface it sits on
 
 - **`--surface` token (#449):** a new package token for the colour of the surface a control sits on, defaulting to `--background`.
 - **Package surfaces (#449):** every package container with its own background sets `--surface` to that token: `Card`, `MediaTile` and the app sidebar (`--card`); popover, dropdown and context menu, `Select`, `Combobox`, `TagInput`, `TimezoneCombobox` and the user menu (`--popover`); `Dialog`, `Sheet`, the `DrawerRail` drawer, `EditorHeader`, `PropertyPanel`, the slide player's bar, the canvas action bar, the maximized `PreviewFrame`, the `EditPanel` and `MediaDetailShell` panels and the sticky table header (`--background`); the selected row of the slide page sorter (`--accent`); the `bg-muted` tab list, previews and the theme switch of the user menu (`--muted`).
@@ -42,14 +42,14 @@
 
 **Migration:** none for package surfaces. An app that builds its own container with a background other than `--background` sets `--surface` to that colour token on it (`[--surface:var(--card)]`), so a locked button inside matches it; without it, `--background` applies as before. A test that checks the locked label's class `…_50%,var(--background))]` checks `…_50%,var(--surface))]`.
 
-## Unreleased — #513, GL-UI-031 rev 5: shell search no longer opens on focus
+## 0.172.0 — #513, GL-UI-031 rev 5: shell search no longer opens on focus
 
 - **No open-on-focus (#513):** tabbing onto the sidebar search field (`shell-search`) leaves the search dialog closed (WCAG 2.2 SC 3.2.1); click, `Enter`, typing or the shortcut open it, and a typed prefix still arrives in `search-dialog-input`. `Esc` closes the dialog and returns the focus to the field without reopening it.
 - **Tests (#513):** unit tests cover focus without opening, `Enter` and click opening, and `Esc` back to the closed field.
 
 **Migration:** none for callers; a test that opened the dialog by focusing the field clicks it or presses `Enter` instead.
 
-## Unreleased — #446, SUI-FEATURE-086 rev 3: SlideEditor `headerRef`
+## 0.172.0 — #446, SUI-FEATURE-086 rev 3: SlideEditor `headerRef`
 
 - **`headerRef` (#446):** `SlideEditor` takes a new optional `headerRef` prop and hangs it on its header element. The full-screen editor route passes the same ref to `useEditorShellToastOffset`, so toasts start below the editor's header and cover none of its controls; the editor never calls the hook itself, and a DOM lookup of the header is no way for apps.
 
