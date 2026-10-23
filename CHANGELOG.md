@@ -1,13 +1,16 @@
 # Changelog
 
-## Unreleased — #466, SUI-FEATURE-191 rev 5: copy/paste of locked elements, layout roles and group children
+## Unreleased — #466, SUI-FEATURE-191 rev 5, SUI-FEATURE-106 rev 2: copy/paste of locked elements, layout roles, group children, and into another document
 
 - **Locked elements (#466):** copy, cut and duplicate now take the whole selection, locked elements included. Cut leaves a locked element in place and removes only the unlocked part. Before, cut and duplicate skipped locked elements. Copies are never locked, and the canvas menu's Cut and Duplicate are usable whenever something is selected.
 - **Layout role (#466):** a copy no longer carries the layout placeholder role (`placeholderRole`), so after a layout change each role belongs only to the original.
 - **Group child copied alone (#466):** the copy takes the groups' opacity multiplied into its own and their hiding, so it looks as it did on the page. A group copied whole is unchanged.
-- **Tests (#466):** unit tests for AC 6–8 (`editor-clipboard.test.ts`) and editor tests for cut and duplicate with a locked element (`slide-editor-clipboard.test.tsx`).
+- **Paste into another document — media (#466, SUI-FEATURE-106):** `SlideEditor` takes `adoptMedia?: (ids: string[]) => Promise<Record<string, string>>`. A paste calls it once with the media ids `resolveMedia` does not resolve; the app creates the entries and answers old id → new id (an id it leaves out stays). The paste waits for the answer and stays one undo step. If the call fails, the prop is absent, or a medium still does not resolve, the paste goes in anyway: the image shows the missing-media placeholder and a hint (`slides.editor.mediaNotAdopted`) names the medium by its alt text or name.
+- **Paste into another document — brand (#466, SUI-FEATURE-106):** `SlideBrandSet` takes `defaults?: { text?, fill?, line?, heading?, body? }`. A brand key the target's brand set has stays. A key it lacks is rewritten in the document to the target's default for the key's role, or to the set's first key of that kind when there is no default; with no key of that kind at all, the source's resolved value is baked in as a free value. Roles: a run's colour is `text`; fills, highlights, icon and chart-series colours are `fill`; borders, line strokes and shadows are `line`; the font of a title placeholder's content (or the source's `defaults.heading` key) is `heading`, any other font `body`.
+- **Tests (#466):** unit tests for AC 6–8 (`editor-clipboard.test.ts`) and for media and brand adoption (`editor-adopt.test.ts`); editor tests for cut and duplicate with a locked element, `adoptMedia` remapping, a failed adoption with its hint and one undo step, and brand keys in another document (`slide-editor-clipboard.test.tsx`).
+- **Gallery (#466):** the default gallery page (strings table) shows the new key; its baselines are updated.
 
-**Migration:** none. No strings or baselines change. Paste into another document (media, brand keys, `SUI-FEATURE-106`) is not part of this change.
+**Migration:** none required; both props are optional and without them nothing changes. Apps with their own media store pass `adoptMedia` and set `defaults` on their brand set.
 
 ## Unreleased — #462, SUI-FEATURE-101 rev 3, GL-UI-028 rev 5, GL-UI-013 rev 5: keyboard focus never rests under a toast
 
