@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.171.7 — #505, GL-UI-017 rev 6: SettingsField group described by its hint
+
+- **Group hint (#505):** a `SettingsField` with `group` and a `hint` describes its group element by that hint (`aria-describedby` to `${htmlFor}-help`), read once; the options still take none of the field's hints.
+- **Tests (#505):** a unit test checks the group's description and that neither the options nor the inner radiogroup repeat it.
+
+**Migration:** a caller that wires the group field's hint by hand (`aria-describedby={helpIdFor(htmlFor)}` on the inner `RadioGroup` or its options) drops that wiring, otherwise the hint is read twice.
+
 ## 0.171.6 — #435, GL-UI-017 rev 6: Field and SettingsField hint on the control
 
 - **Hint on the control (#435):** a `Field` or `SettingsField` with a `hint` and no `valueHint` now carries that hint on its package control too (Input, Textarea, a Select's trigger, Combobox, TimezoneCombobox): hovering the control opens it, and it is the control's description in place of the label's hidden help, read once. A `valueHint` still wins. Help, warning and error keep their wiring.

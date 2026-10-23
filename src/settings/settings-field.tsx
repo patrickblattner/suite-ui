@@ -60,6 +60,8 @@ function SettingsField({
               id: htmlFor,
               role: "group",
               "aria-labelledby": `${htmlFor}-label`,
+              // The group, not its options, carries the hint as its description, read once (#505).
+              "aria-describedby": hint !== undefined ? `${htmlFor}-help` : undefined,
               "aria-invalid": invalid ? true : undefined,
               "aria-errormessage": invalid ? `${htmlFor}-error` : undefined,
               className: "flex w-full max-w-xl flex-col gap-2",
