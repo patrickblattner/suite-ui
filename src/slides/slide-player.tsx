@@ -324,7 +324,7 @@ export function SlidePlayer({
         data-slot="slide-player-bar"
         data-shown={bar}
         className={cn(
-          "absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1 rounded-lg bg-background/90 px-1 py-1 text-foreground shadow-md transition-opacity duration-200 motion-reduce:transition-none",
+          "absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-1 rounded-lg bg-background/90 [--surface:var(--background)] px-1 py-1 text-foreground shadow-md transition-opacity duration-200 motion-reduce:transition-none",
           bar ? "opacity-100" : "opacity-0",
         )}
         onPointerDownCapture={() => {

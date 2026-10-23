@@ -1250,6 +1250,175 @@ for (const theme of ["light", "dark"] as const) {
   });
 }
 
+// `SUI-FEATURE-251` AC 1–2: a locked button mixes fill and label half with the surface it sits on,
+// not with the page background: on the page, a card, a popover and the slide player's bar, in light
+// and dark. The components page's locked button of each variant is placed on the surface; the
+// expected colour is the half mix of the variant's token with the surface's token, per channel.
+const LOCKED_LABEL: Record<string, string> = {
+  default: "--primary-foreground",
+  destructive: "--destructive-foreground",
+  success: "--success-foreground",
+  warn: "--warn-foreground",
+  secondary: "--secondary-foreground",
+  outline: "--foreground",
+  ghost: "--foreground",
+  link: "--primary",
+};
+const LOCKED_FILL: Record<string, string> = {
+  default: "--primary",
+  destructive: "--destructive",
+  success: "--success",
+  warn: "--warn",
+  secondary: "--secondary",
+};
+// The page, the surface, its colour token and the drawer to open first. The player bar lets the slide
+// show through at 10 %, so only the opaque surfaces are checked to wear their token. The selected row
+// of the page sorter holds the row's locked buttons on `--accent` (#449).
+const LOCKED_SURFACES = [
+  ["page background", "components", "body", "--background", true, null],
+  ["card", "components", "[data-slot=card]", "--card", true, null],
+  ["popover", "overlays", "[role=menu]", "--popover", true, null],
+  ["player bar", "slide-player", "[data-slot=slide-player-bar]", "--background", false, null],
+  [
+    "selected page row",
+    "slide-editor",
+    "[data-testid=slide-editor-page-row].bg-accent",
+    "--accent",
+    true,
+    "drawer-document",
+  ],
+] as const;
+
+for (const theme of THEMES) {
+  test(`locked buttons mix with the surface they sit on (${theme})`, async ({ page }) => {
+    await page.goto(`/?page=components&lng=en&theme=${theme}`);
+    const buttons = await page
+      .locator("[data-testid^=button-locked-]")
+      .evaluateAll((nodes) =>
+        nodes.map((node) => [node.getAttribute("data-variant")!, node.className] as const),
+      );
+    expect(buttons.map(([variant]) => variant).sort()).toEqual(Object.keys(LOCKED_LABEL).sort());
+    const ring = await utilityColor(page, "bg-ring", "backgroundColor");
+    for (const [name, pageName, selector, token, opaque, drawer] of LOCKED_SURFACES) {
+      await page.goto(`/?page=${pageName}&lng=en&theme=${theme}`);
+      if (drawer !== null) await page.getByTestId(drawer).first().click();
+      await page.locator(selector).first().waitFor({ state: "attached" });
+      await page.mouse.move(0, 0);
+      const seen = await page.evaluate(
+        ([sel, tok, list, labels, fills]) => {
+          const canvas = document.createElement("canvas");
+          canvas.width = canvas.height = 1;
+          const context = canvas.getContext("2d", { willReadFrequently: true })!;
+          // A colour as it shows, drawn over the `under` colour when it is see-through.
+          const rgba = (fill: string, under?: string) => {
+            context.clearRect(0, 0, 1, 1);
+            for (const layer of under === undefined ? [fill] : [under, fill]) {
+              context.fillStyle = layer;
+              context.fillRect(0, 0, 1, 1);
+            }
+            return [...context.getImageData(0, 0, 1, 1).data];
+          };
+          const surface = document.querySelector(sel as string)!;
+          const style = getComputedStyle(surface);
+          const tokenOf = (name: string) => rgba(style.getPropertyValue(name));
+          const result = (list as [string, string][]).map(([variant, className]) => {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = className;
+            button.setAttribute("aria-disabled", "true");
+            button.setAttribute("data-testid", `surface-locked-${variant}`);
+            button.textContent = "Save";
+            surface.append(button);
+            const computed = getComputedStyle(button);
+            const fill = fills[variant];
+            return {
+              variant,
+              label: rgba(computed.color),
+              labelToken: tokenOf(labels[variant]!),
+              // The fill is a half-tone: it shows over the surface's own colour.
+              fill:
+                fill === undefined
+                  ? undefined
+                  : rgba(computed.backgroundColor, style.getPropertyValue(tok)),
+              fillToken: fill === undefined ? undefined : tokenOf(fill),
+            };
+          });
+          return {
+            ground: tokenOf(tok),
+            own: rgba(style.backgroundColor),
+            groundColor: style.getPropertyValue(tok),
+            result,
+          };
+        },
+        [selector, token, buttons, LOCKED_LABEL, LOCKED_FILL] as const,
+      );
+      if (opaque) expect(seen.own, `${name} wears ${token}`).toEqual(seen.ground);
+      const half = (color: number[]) =>
+        color.slice(0, 3).map((channel, i) => (channel + seen.ground[i]!) / 2);
+      for (const { variant, label, labelToken, fill, fillToken } of seen.result) {
+        const near = (actual: number[], expected: number[], what: string) => {
+          expect(actual[3], `${what} opaque`).toBe(255);
+          actual.slice(0, 3).forEach((channel, i) => {
+            expect(Math.abs(channel - expected[i]!), `${what} channel ${i}`).toBeLessThanOrEqual(1);
+          });
+        };
+        near(label, half(labelToken), `${name} ${variant} label`);
+        if (fill !== undefined) near(fill, half(fillToken!), `${name} ${variant} fill`);
+      }
+      // AC 2: the focus ring of the locked button keeps 3:1 on this surface, undimmed.
+      const locked = page.getByTestId("surface-locked-default");
+      await page.keyboard.press("Tab");
+      await locked.focus();
+      await expect(locked).toBeFocused();
+      expect(await boxShadowOf(locked)).not.toBe("none");
+      expect(
+        await locked.evaluate((node, sel) => {
+          let opacity = 1;
+          const surface = document.querySelector(sel);
+          for (let el: Element | null = node; el && el !== surface; el = el.parentElement)
+            opacity *= Number(getComputedStyle(el).opacity);
+          return opacity;
+        }, selector),
+      ).toBe(1);
+      expect(
+        await contrastOf(page, ring, seen.groundColor),
+        `${name}: ring on ${token}`,
+      ).toBeGreaterThanOrEqual(3);
+    }
+  });
+}
+
+// `SUI-FEATURE-251` AC 3: the locked Save on the surfaces where it sat off-tone before: the
+// `SettingsFooter`, the `EditorHeader` and the `DrawerRail` style drawer, light and dark.
+for (const theme of THEMES) {
+  test(`locked Save on its surface: footer, editor header, drawer rail (${theme})`, async ({
+    page,
+  }) => {
+    await page.goto(`/?page=settings&lng=en&theme=${theme}`);
+    await expect(page.getByTestId("settings-general-save")).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+    await page.mouse.move(0, 0);
+    await expect(page.getByTestId("settings-footer")).toHaveScreenshot(
+      `locked-save-settings-footer-${theme}.png`,
+    );
+    await page.goto(`/?page=components&lng=en&theme=${theme}`);
+    const editorSave = page.getByTestId("editor-header-saved").getByTestId("editor-save");
+    await expect(editorSave).toHaveAttribute("aria-disabled", "true");
+    await page.mouse.move(0, 0);
+    await expect(editorSave).toHaveScreenshot(`locked-save-editor-header-${theme}.png`);
+    // The demo opens with a changed style: saving it locks the Save.
+    const drawerSave = page.getByTestId("canvas-editor").getByTestId("drawer-style-save");
+    await drawerSave.click();
+    await expect(drawerSave).toHaveAttribute("aria-disabled", "true");
+    await page.mouse.move(0, 0);
+    await expect(
+      page.getByTestId("canvas-editor").getByTestId("drawer-style-footer"),
+    ).toHaveScreenshot(`locked-save-drawer-rail-${theme}.png`);
+  });
+}
+
 // `SUI-FEATURE-006` rev 4: an inline link in a table row and in a path hits on at least 24 px
 // (`GL-UI-013`), while the row and the path keep the height they have without the hit area's padding.
 for (const [where, container] of [

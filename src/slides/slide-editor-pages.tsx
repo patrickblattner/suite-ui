@@ -185,7 +185,8 @@ export function PageSorter({
               onDragEnd={() => setOver(undefined)}
               className={cn(
                 "flex items-start gap-2 rounded-md border border-transparent p-1",
-                index === page && "border-ring bg-accent text-accent-foreground",
+                index === page &&
+                  "border-ring bg-accent [--surface:var(--accent)] text-accent-foreground",
                 over === index && "border-primary",
               )}
               data-testid="slide-editor-page-row"

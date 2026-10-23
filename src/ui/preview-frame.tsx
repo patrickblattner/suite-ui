@@ -109,7 +109,7 @@ function PreviewFrame({
       data-maximized={maximized}
       className={cn(
         "flex min-w-0 flex-col gap-2",
-        maximized && "fixed z-40 bg-background p-4",
+        maximized && "fixed z-40 bg-background [--surface:var(--background)] p-4",
         className,
       )}
       style={maximized ? { top: 0, right: 0, bottom: 0, left } : undefined}

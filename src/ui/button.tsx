@@ -77,23 +77,24 @@ const LOCKED_HOVER: Record<ButtonVariant, string> = {
 
 // The look of a button locked with `aria-disabled` and no run, as the disabled button's element opacity
 // composited it, but in colour: element opacity would dim the focus ring of the still focusable button
-// below 3:1 (WCAG 1.4.11, #184). The fill half-tone, the label mixed with the background, no hover
-// tint. A look the call site passes in `className` wins.
+// below 3:1 (WCAG 1.4.11, #184). The fill half-tone, so it shows half the surface under it; the label
+// mixed half with `--surface`, the colour of the surface the button sits on (`SUI-FEATURE-251`); no
+// hover tint. A look the call site passes in `className` wins.
 const LOCKED_LOOK: Record<ButtonVariant, string> = {
   default:
-    "aria-disabled:cursor-not-allowed aria-disabled:bg-primary/50 aria-disabled:hover:bg-primary/50 aria-disabled:text-[color-mix(in_srgb,var(--primary-foreground)_50%,var(--background))]",
+    "aria-disabled:cursor-not-allowed aria-disabled:bg-primary/50 aria-disabled:hover:bg-primary/50 aria-disabled:text-[color-mix(in_srgb,var(--primary-foreground)_50%,var(--surface))]",
   destructive:
-    "aria-disabled:cursor-not-allowed aria-disabled:bg-destructive/50 aria-disabled:hover:bg-destructive/50 aria-disabled:text-[color-mix(in_srgb,var(--destructive-foreground)_50%,var(--background))]",
+    "aria-disabled:cursor-not-allowed aria-disabled:bg-destructive/50 aria-disabled:hover:bg-destructive/50 aria-disabled:text-[color-mix(in_srgb,var(--destructive-foreground)_50%,var(--surface))]",
   success:
-    "aria-disabled:cursor-not-allowed aria-disabled:bg-success/50 aria-disabled:hover:bg-success/50 aria-disabled:text-[color-mix(in_srgb,var(--success-foreground)_50%,var(--background))]",
-  warn: "aria-disabled:cursor-not-allowed aria-disabled:bg-warn/50 aria-disabled:hover:bg-warn/50 aria-disabled:text-[color-mix(in_srgb,var(--warn-foreground)_50%,var(--background))]",
+    "aria-disabled:cursor-not-allowed aria-disabled:bg-success/50 aria-disabled:hover:bg-success/50 aria-disabled:text-[color-mix(in_srgb,var(--success-foreground)_50%,var(--surface))]",
+  warn: "aria-disabled:cursor-not-allowed aria-disabled:bg-warn/50 aria-disabled:hover:bg-warn/50 aria-disabled:text-[color-mix(in_srgb,var(--warn-foreground)_50%,var(--surface))]",
   outline:
-    "aria-disabled:cursor-not-allowed aria-disabled:text-[color-mix(in_srgb,var(--foreground)_50%,var(--background))] aria-disabled:hover:text-[color-mix(in_srgb,var(--foreground)_50%,var(--background))] aria-disabled:hover:border-border aria-disabled:hover:bg-background dark:aria-disabled:hover:border-input dark:aria-disabled:hover:bg-input/30",
+    "aria-disabled:cursor-not-allowed aria-disabled:text-[color-mix(in_srgb,var(--foreground)_50%,var(--surface))] aria-disabled:hover:text-[color-mix(in_srgb,var(--foreground)_50%,var(--surface))] aria-disabled:hover:border-border aria-disabled:hover:bg-background dark:aria-disabled:hover:border-input dark:aria-disabled:hover:bg-input/30",
   secondary:
-    "aria-disabled:cursor-not-allowed aria-disabled:bg-secondary/50 aria-disabled:hover:bg-secondary/50 aria-disabled:text-[color-mix(in_srgb,var(--secondary-foreground)_50%,var(--background))]",
+    "aria-disabled:cursor-not-allowed aria-disabled:bg-secondary/50 aria-disabled:hover:bg-secondary/50 aria-disabled:text-[color-mix(in_srgb,var(--secondary-foreground)_50%,var(--surface))]",
   ghost:
-    "aria-disabled:cursor-not-allowed aria-disabled:text-[color-mix(in_srgb,var(--foreground)_50%,var(--background))] aria-disabled:hover:bg-transparent aria-disabled:hover:text-[color-mix(in_srgb,var(--foreground)_50%,var(--background))] dark:aria-disabled:hover:bg-transparent dark:aria-disabled:hover:text-[color-mix(in_srgb,var(--foreground)_50%,var(--background))]",
-  link: "aria-disabled:cursor-not-allowed aria-disabled:text-[color-mix(in_srgb,var(--primary)_50%,var(--background))] aria-disabled:hover:no-underline",
+    "aria-disabled:cursor-not-allowed aria-disabled:text-[color-mix(in_srgb,var(--foreground)_50%,var(--surface))] aria-disabled:hover:bg-transparent aria-disabled:hover:text-[color-mix(in_srgb,var(--foreground)_50%,var(--surface))] dark:aria-disabled:hover:bg-transparent dark:aria-disabled:hover:text-[color-mix(in_srgb,var(--foreground)_50%,var(--surface))]",
+  link: "aria-disabled:cursor-not-allowed aria-disabled:text-[color-mix(in_srgb,var(--primary)_50%,var(--surface))] aria-disabled:hover:no-underline",
 };
 
 // One look for "not available" (`SUI-FEATURE-250` rev 4): a `disabled` button wears the same half-tone
@@ -101,17 +102,17 @@ const LOCKED_LOOK: Record<ButtonVariant, string> = {
 // events, so it needs no hover pair; the base class gives the cursor.
 const DISABLED_LOOK: Record<ButtonVariant, string> = {
   default:
-    "disabled:bg-primary/50 disabled:text-[color-mix(in_srgb,var(--primary-foreground)_50%,var(--background))]",
+    "disabled:bg-primary/50 disabled:text-[color-mix(in_srgb,var(--primary-foreground)_50%,var(--surface))]",
   destructive:
-    "disabled:bg-destructive/50 disabled:text-[color-mix(in_srgb,var(--destructive-foreground)_50%,var(--background))]",
+    "disabled:bg-destructive/50 disabled:text-[color-mix(in_srgb,var(--destructive-foreground)_50%,var(--surface))]",
   success:
-    "disabled:bg-success/50 disabled:text-[color-mix(in_srgb,var(--success-foreground)_50%,var(--background))]",
-  warn: "disabled:bg-warn/50 disabled:text-[color-mix(in_srgb,var(--warn-foreground)_50%,var(--background))]",
-  outline: "disabled:text-[color-mix(in_srgb,var(--foreground)_50%,var(--background))]",
+    "disabled:bg-success/50 disabled:text-[color-mix(in_srgb,var(--success-foreground)_50%,var(--surface))]",
+  warn: "disabled:bg-warn/50 disabled:text-[color-mix(in_srgb,var(--warn-foreground)_50%,var(--surface))]",
+  outline: "disabled:text-[color-mix(in_srgb,var(--foreground)_50%,var(--surface))]",
   secondary:
-    "disabled:bg-secondary/50 disabled:text-[color-mix(in_srgb,var(--secondary-foreground)_50%,var(--background))]",
-  ghost: "disabled:text-[color-mix(in_srgb,var(--foreground)_50%,var(--background))]",
-  link: "disabled:text-[color-mix(in_srgb,var(--primary)_50%,var(--background))]",
+    "disabled:bg-secondary/50 disabled:text-[color-mix(in_srgb,var(--secondary-foreground)_50%,var(--surface))]",
+  ghost: "disabled:text-[color-mix(in_srgb,var(--foreground)_50%,var(--surface))]",
+  link: "disabled:text-[color-mix(in_srgb,var(--primary)_50%,var(--surface))]",
 };
 
 // Under forced colours the system palette replaces the half-tone above: the locked button takes

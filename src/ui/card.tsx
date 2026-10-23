@@ -15,7 +15,7 @@ function Card({
       data-slot="card"
       data-interactive={interactive ? "" : undefined}
       className={cn(
-        "flex flex-col gap-6 rounded-xl border bg-card py-6 text-card-foreground shadow-sm",
+        "flex flex-col gap-6 rounded-xl border bg-card [--surface:var(--card)] py-6 text-card-foreground shadow-sm",
         interactive &&
           "cursor-pointer transition-colors outline-none hover:bg-accent/40 focus-visible:border-ring focus-visible:focus-ring",
         className,

@@ -33,7 +33,7 @@ const SCROLL_FOCUS_CLASS = "outline-none focus-visible:focus-ring";
 
 // The inset shadow draws the header rule without a border that would scroll away with the rows.
 const STICKY_HEADER_CLASS =
-  "sticky top-0 z-10 bg-background shadow-[inset_0_-1px_0_0_var(--border)]";
+  "sticky top-0 z-10 bg-background [--surface:var(--background)] shadow-[inset_0_-1px_0_0_var(--border)]";
 
 // Hands the scroller to the app's ref, object or callback.
 function assignRef<T>(ref: React.Ref<T> | undefined, node: T | null): void {

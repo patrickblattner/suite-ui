@@ -847,9 +847,9 @@ describe("EditPanel", () => {
     });
     const previous = screen.getByTestId("edit-panel-previous");
     expect(previous).toHaveClass(
-      "aria-disabled:text-[color-mix(in_srgb,var(--foreground)_50%,var(--background))]",
-      "aria-disabled:hover:text-[color-mix(in_srgb,var(--foreground)_50%,var(--background))]",
-      "dark:aria-disabled:hover:text-[color-mix(in_srgb,var(--foreground)_50%,var(--background))]",
+      "aria-disabled:text-[color-mix(in_srgb,var(--foreground)_50%,var(--surface))]",
+      "aria-disabled:hover:text-[color-mix(in_srgb,var(--foreground)_50%,var(--surface))]",
+      "dark:aria-disabled:hover:text-[color-mix(in_srgb,var(--foreground)_50%,var(--surface))]",
     );
     expect(previous).not.toHaveClass("aria-disabled:opacity-50");
   });

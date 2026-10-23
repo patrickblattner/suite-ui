@@ -533,7 +533,7 @@ function MediaDetailShell({
                     data-kind={kind}
                     data-state={previewState}
                     hidden={showUsage}
-                    className="flex h-[45vh] shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted @panel-split:h-auto @panel-split:min-h-0 @panel-split:flex-1"
+                    className="flex h-[45vh] shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted [--surface:var(--muted)] @panel-split:h-auto @panel-split:min-h-0 @panel-split:flex-1"
                   >
                     {previewState !== undefined ? (
                       <PreviewState state={previewState} detail={previewDetail} />

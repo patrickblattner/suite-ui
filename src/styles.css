@@ -58,6 +58,10 @@
   --checker-size: 12px;
 
   --background: oklch(1 0 0);
+  /* The surface a control sits on (`SUI-FEATURE-251`): every package container with its own
+     background sets it to that colour token, so a locked button mixes with what lies under it. An
+     app's own container with another background sets it too; without it the page background holds. */
+  --surface: var(--background);
   --foreground: oklch(0.21 0.006 285.9);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.21 0.006 285.9);
@@ -161,6 +165,8 @@
 /* Dark is the deliberately high-contrast palette. */
 .dark {
   --background: oklch(0.16 0.004 285.9);
+  /* Resolved again here, so a `.dark` below the root mixes with the dark page background. */
+  --surface: var(--background);
   --foreground: oklch(0.985 0 0);
   --card: oklch(0.21 0.006 285.9);
   --card-foreground: oklch(0.985 0 0);

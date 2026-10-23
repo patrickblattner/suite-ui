@@ -404,7 +404,7 @@ function UserMenu({
             }}
             onKeyDownCapture={onPanelKeyDownCapture}
             className={cn(
-              "absolute bottom-full left-0 z-50 mb-1 w-max overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md",
+              "absolute bottom-full left-0 z-50 mb-1 w-max overflow-hidden rounded-md border bg-popover [--surface:var(--popover)] p-1 text-popover-foreground shadow-md",
               collapsed ? "min-w-56" : "min-w-full",
             )}
           >
@@ -461,7 +461,7 @@ function UserMenu({
                 role="radiogroup"
                 aria-label={t("account.appearance")}
                 data-testid="theme-toggle"
-                className="grid grid-cols-3 gap-1 rounded-md bg-muted p-0.5"
+                className="grid grid-cols-3 gap-1 rounded-md bg-muted [--surface:var(--muted)] p-0.5"
                 onKeyDown={onAppearanceKeyDown}
               >
                 {APPEARANCES.map(({ mode, icon: Icon }) => {

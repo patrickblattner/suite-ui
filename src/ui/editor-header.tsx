@@ -269,7 +269,7 @@ function EditorHeader({
       data-slot="editor-header"
       data-shrink={shrink}
       className={cn(
-        "flex min-w-0 shrink-0 items-center gap-3 border-b bg-background px-[var(--page-gutter)] py-3",
+        "flex min-w-0 shrink-0 items-center gap-3 border-b bg-background [--surface:var(--background)] px-[var(--page-gutter)] py-3",
         // Every step spent and still too narrow (320 px, WCAG 1.4.10 Reflow; #221): the action group
         // wraps onto its own line, right-aligned. Where the header fits, wrapping changes nothing.
         spent && "flex-wrap",

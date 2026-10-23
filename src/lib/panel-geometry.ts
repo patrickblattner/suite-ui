@@ -4,7 +4,7 @@ import { useOptionalSidebar } from "../shell/sidebar-provider.js";
 
 // The surface of every panel over the content area (`EditPanel`, `MediaDetailShell`).
 const PANEL_SURFACE_CLASS =
-  "fixed z-50 flex flex-col bg-background shadow-lg outline-none transition-[left] duration-200 data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right data-[state=open]:animate-in data-[state=open]:slide-in-from-right";
+  "fixed z-50 flex flex-col bg-background [--surface:var(--background)] shadow-lg outline-none transition-[left] duration-200 data-[state=closed]:animate-out data-[state=closed]:slide-out-to-right data-[state=open]:animate-in data-[state=open]:slide-in-from-right";
 
 // Edges and width belong to the package (`GL-UI-027`): set inline after the caller's style, they win
 // over every width or inset class and style of the call site. The left edge sits at the current

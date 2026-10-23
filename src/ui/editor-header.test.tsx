@@ -95,13 +95,13 @@ describe("EditorHeader", () => {
     expect(reset).toBeEnabled();
     expect(reset).toHaveClass(
       "aria-disabled:cursor-not-allowed",
-      "aria-disabled:text-[color-mix(in_srgb,var(--foreground)_50%,var(--background))]",
+      "aria-disabled:text-[color-mix(in_srgb,var(--foreground)_50%,var(--surface))]",
     );
     expect(save).toHaveAttribute("aria-disabled", "true");
     expect(save).toHaveClass(
       "aria-disabled:cursor-not-allowed",
       "aria-disabled:bg-success/50",
-      "aria-disabled:text-[color-mix(in_srgb,var(--success-foreground)_50%,var(--background))]",
+      "aria-disabled:text-[color-mix(in_srgb,var(--success-foreground)_50%,var(--surface))]",
     );
     expect(`${reset.className} ${save.className}`).not.toMatch(/opacity/);
     cleanup();

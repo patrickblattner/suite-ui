@@ -256,7 +256,7 @@ function TagInput({
       {open ? (
         <div
           ref={popup}
-          className="absolute inset-x-0 top-full z-50 mt-1 rounded-md border bg-popover text-popover-foreground shadow-md data-[side=top]:top-auto data-[side=top]:bottom-full data-[side=top]:mt-0 data-[side=top]:mb-1"
+          className="absolute inset-x-0 top-full z-50 mt-1 rounded-md border bg-popover [--surface:var(--popover)] text-popover-foreground shadow-md data-[side=top]:top-auto data-[side=top]:bottom-full data-[side=top]:mt-0 data-[side=top]:mb-1"
         >
           <ul
             id={listId}

@@ -12,7 +12,7 @@ const CONTAINER_CLASS = "relative w-full";
 // The sticky header of `GL-UI-023`: `bg-background` keeps rows from showing through, the inset shadow
 // is its bottom edge.
 const HEADER_CLASS =
-  "sticky top-0 z-10 bg-background shadow-[inset_0_-1px_0_0_var(--border)] [&_tr]:border-b";
+  "sticky top-0 z-10 bg-background [--surface:var(--background)] shadow-[inset_0_-1px_0_0_var(--border)] [&_tr]:border-b";
 
 // Only a row with an open target (`data-grid-row`) promises a click and highlights on hover
 // (`GL-UI-023`); selection and expansion stay.

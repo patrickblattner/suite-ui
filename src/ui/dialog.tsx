@@ -21,7 +21,7 @@ export const DIALOG_MAX_HEIGHT_VH = 85;
 // width, the height grows with the content up to 85% and only then the `DialogBody` scrolls, while the
 // header and the footer stay put.
 const dialogContentVariants = cva(
-  "fixed top-[50%] left-[50%] z-50 translate-x-[-50%] translate-y-[-50%] rounded-lg border bg-background shadow-lg outline-none",
+  "fixed top-[50%] left-[50%] z-50 translate-x-[-50%] translate-y-[-50%] rounded-lg border bg-background [--surface:var(--background)] shadow-lg outline-none",
   {
     variants: {
       size: {

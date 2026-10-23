@@ -330,7 +330,7 @@ function EditPanel({
                   <div
                     data-slot="edit-panel-preview"
                     data-testid={`${testIdPrefix}-preview`}
-                    className="flex h-[45vh] shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted @panel-split:h-full [&>*]:max-h-full [&>*]:w-full [&>:not(img,video)]:overflow-y-auto [&>img]:size-full [&>img]:object-contain [&>video]:size-full [&>video]:object-contain"
+                    className="flex h-[45vh] shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted [--surface:var(--muted)] @panel-split:h-full [&>*]:max-h-full [&>*]:w-full [&>:not(img,video)]:overflow-y-auto [&>img]:size-full [&>img]:object-contain [&>video]:size-full [&>video]:object-contain"
                   >
                     {preview}
                   </div>

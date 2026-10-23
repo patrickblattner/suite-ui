@@ -32,7 +32,7 @@ function PropertyPanel({ path, tabs, activeTab, onTab }: PropertyPanelProps) {
   return (
     <div
       data-slot="property-panel"
-      className="flex h-full w-[340px] shrink-0 flex-col border-l border-border bg-background @max-editor-split/editor:h-(--property-panel-share) @max-editor-split/editor:min-w-0 @max-editor-split/editor:basis-full @max-editor-split/editor:border-t @max-editor-split/editor:border-l-0"
+      className="flex h-full w-[340px] shrink-0 flex-col border-l border-border bg-background [--surface:var(--background)] @max-editor-split/editor:h-(--property-panel-share) @max-editor-split/editor:min-w-0 @max-editor-split/editor:basis-full @max-editor-split/editor:border-t @max-editor-split/editor:border-l-0"
       data-testid="property-panel"
     >
       <Tabs

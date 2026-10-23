@@ -110,7 +110,7 @@ function DrawerRail({ items, open, onOpen, styleSave }: DrawerRailProps) {
         <section
           id={`${id}-drawer`}
           aria-labelledby={`${id}-title`}
-          className="flex w-[300px] min-w-0 flex-col border-r border-border bg-background"
+          className="flex w-[300px] min-w-0 flex-col border-r border-border bg-background [--surface:var(--background)]"
           data-testid="drawer"
           data-drawer-open={current.id}
         >

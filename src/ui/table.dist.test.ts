@@ -7,7 +7,8 @@ const BASE = {
   head: "h-10 px-3 text-left align-middle font-medium whitespace-nowrap text-foreground [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
   cell: "px-3 py-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
 };
-const STICKY_HEADER = "sticky top-0 z-10 bg-background shadow-[inset_0_-1px_0_0_var(--border)]";
+const STICKY_HEADER =
+  "sticky top-0 z-10 bg-background [--surface:var(--background)] shadow-[inset_0_-1px_0_0_var(--border)]";
 const STICKY_EDGE =
   "data-[col-kind=actions]:in-data-actions-shadow:[--actions-edge:-8px_0_8px_-8px_var(--shadow-edge)]";
 const STUCK = "data-[col-kind=actions]:in-data-actions-stuck";

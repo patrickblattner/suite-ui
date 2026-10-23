@@ -246,7 +246,7 @@ function CanvasOverlay({
         <div
           ref={barRef}
           // On the badge's layer and after it, so the bar stays over the badge where they meet (#332).
-          className="pointer-events-auto absolute z-[1] flex items-center gap-1 rounded-md border bg-background p-1 shadow-sm"
+          className="pointer-events-auto absolute z-[1] flex items-center gap-1 rounded-md border bg-background [--surface:var(--background)] p-1 shadow-sm"
           // Right-aligned to the selection; where that would start left of the overlay, from its left
           // edge instead, and never wider than the overlay (#349).
           style={{

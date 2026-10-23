@@ -96,18 +96,18 @@ describe("MediaDetailShell", () => {
     renderShell({ position: 1, total: 2 });
     const previous = screen.getByTestId("media-detail-previous");
     expect(previous).toHaveClass(
-      "aria-disabled:text-[color-mix(in_srgb,var(--foreground)_50%,var(--background))]",
+      "aria-disabled:text-[color-mix(in_srgb,var(--foreground)_50%,var(--surface))]",
     );
     expect(previous).not.toHaveClass("aria-disabled:opacity-50");
     // The ghost variant's dark hover colour must not bring the full icon back.
     expect(previous).toHaveClass(
-      "aria-disabled:hover:text-[color-mix(in_srgb,var(--foreground)_50%,var(--background))]",
-      "dark:aria-disabled:hover:text-[color-mix(in_srgb,var(--foreground)_50%,var(--background))]",
+      "aria-disabled:hover:text-[color-mix(in_srgb,var(--foreground)_50%,var(--surface))]",
+      "dark:aria-disabled:hover:text-[color-mix(in_srgb,var(--foreground)_50%,var(--surface))]",
     );
   });
 
   const LOCKED_SAVE_LABEL =
-    "aria-disabled:text-[color-mix(in_srgb,var(--success-foreground)_50%,var(--background))]";
+    "aria-disabled:text-[color-mix(in_srgb,var(--success-foreground)_50%,var(--surface))]";
 
   it("a running Save stays at full colour, without the half-tone classes", () => {
     renderShell({ dirty: false, saving: true });

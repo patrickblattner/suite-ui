@@ -222,7 +222,7 @@ function AppSidebar({
         data-state={isOpen ? "expanded" : "collapsed"}
         data-overlay={isOverlay ? (overlayOpen ? "open" : "closed") : undefined}
         className={cn(
-          "flex h-full shrink-0 flex-col border-r bg-card transition-[width] duration-200",
+          "flex h-full shrink-0 flex-col border-r bg-card [--surface:var(--card)] transition-[width] duration-200",
           isOpen ? "w-56" : "w-14",
           // Below `md` the sidebar takes no room beside the content: hidden, or over it while open.
           overlayOpen

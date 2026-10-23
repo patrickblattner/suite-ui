@@ -103,14 +103,14 @@ function MediaTile({
       : { tabIndex: entry.tabIndex, onKeyDown: entry.onKeyDown, [GRID_ITEM_ATTR]: true }),
   };
   const tileClass = cn(
-    "group/tile relative flex w-full min-w-0 flex-col overflow-hidden rounded-xl border bg-card text-left text-card-foreground transition-colors",
+    "group/tile relative flex w-full min-w-0 flex-col overflow-hidden rounded-xl border bg-card [--surface:var(--card)] text-left text-card-foreground transition-colors",
     entry === undefined ? "outline-none focus-visible:focus-ring" : entry.className,
   );
   const content = (
     <>
       <span
         data-slot="media-tile-preview"
-        className="flex h-32 w-full shrink-0 flex-col items-center justify-center gap-1 bg-muted text-muted-foreground"
+        className="flex h-32 w-full shrink-0 flex-col items-center justify-center gap-1 bg-muted [--surface:var(--muted)] text-muted-foreground"
       >
         {kind === "image" && src !== undefined ? (
           <img src={src} alt="" className="size-full object-cover" />

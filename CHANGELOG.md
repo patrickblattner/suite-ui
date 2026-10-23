@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — #449, SUI-FEATURE-251 rev 2: the locked look mixes with the surface it sits on
+
+- **`--surface` token (#449):** a new package token for the colour of the surface a control sits on, defaulting to `--background`.
+- **Package surfaces (#449):** every package container with its own background sets `--surface` to that token: `Card`, `MediaTile` and the app sidebar (`--card`); popover, dropdown and context menu, `Select`, `Combobox`, `TagInput`, `TimezoneCombobox` and the user menu (`--popover`); `Dialog`, `Sheet`, the `DrawerRail` drawer, `EditorHeader`, `PropertyPanel`, the slide player's bar, the canvas action bar, the maximized `PreviewFrame`, the `EditPanel` and `MediaDetailShell` panels and the sticky table header (`--background`); the selected row of the slide page sorter (`--accent`); the `bg-muted` tab list, previews and the theme switch of the user menu (`--muted`).
+- **Locked and disabled look (#449):** a `Button` locked with `aria-disabled` or `disabled` mixes its label half with `--surface`, never with `--background`; the half-tone fill already shows half of the surface under it: a locked Save in `SettingsFooter`, `EditorHeader` or `DrawerRail` and a locked button on a card, popover or the player bar now match their surface in dark mode. No opacity dimming, the focus ring stays at least 3:1, no hover tone (`SUI-FEATURE-120`).
+- **Tests (#449):** a gallery test checks label and fill of every variant's locked button on the page background, a card, a popover, the player bar and the selected page row as the 50 % mix with that surface's token, light and dark, and the focus ring at 3:1 on each; gallery shots show the locked Save in `SettingsFooter`, `EditorHeader` and `DrawerRail`, light and dark.
+
+**Migration:** none for package surfaces. An app that builds its own container with a background other than `--background` sets `--surface` to that colour token on it (`[--surface:var(--card)]`), so a locked button inside matches it; without it, `--background` applies as before. A test that checks the locked label's class `…_50%,var(--background))]` checks `…_50%,var(--surface))]`.
+
 ## Unreleased — #513, GL-UI-031 rev 5: shell search no longer opens on focus
 
 - **No open-on-focus (#513):** tabbing onto the sidebar search field (`shell-search`) leaves the search dialog closed (WCAG 2.2 SC 3.2.1); click, `Enter`, typing or the shortcut open it, and a typed prefix still arrives in `search-dialog-input`. `Esc` closes the dialog and returns the focus to the field without reopening it.
