@@ -334,6 +334,72 @@ describe("SlideEditor element clipboard", () => {
     warning.mockRestore();
   });
 
+  it("pastes an image whose medium did not come along without adoptMedia, with a hint (SUI-FEATURE-106 AC4)", async () => {
+    const warning = vi.spyOn(toast, "warning");
+    const onSave = copyThenOpenOther("photo", { resolveMedia: () => undefined });
+    key("v");
+    expect(warning).toHaveBeenCalledTimes(1);
+    expect(warning.mock.lastCall![0]).toContain("photo");
+    expect(screen.getByText("Image photo not found")).toBeInTheDocument();
+    const [pasted] = await saved(onSave);
+    expect(pasted).toMatchObject({ type: "image", media: { id: "photo" } });
+    key("z");
+    fireEvent.click(screen.getByTestId("drawer-layers"));
+    expect(screen.queryAllByTestId("slide-editor-layer")).toHaveLength(0);
+    warning.mockRestore();
+  });
+
+  it("hints at a medium the app renamed that still does not resolve (SUI-FEATURE-106)", async () => {
+    const warning = vi.spyOn(toast, "warning");
+    const onSave = copyThenOpenOther("photo", {
+      adoptMedia: () => Promise.resolve({ photo: "photo-copy" }),
+      resolveMedia: () => undefined,
+    });
+    key("v");
+    await waitFor(() => expect(warning).toHaveBeenCalledTimes(1));
+    expect(warning.mock.lastCall![0]).toContain("photo");
+    expect(screen.getByText("Image photo-copy not found")).toBeInTheDocument();
+    const [pasted] = await saved(onSave);
+    expect(pasted).toMatchObject({ type: "image", media: { id: "photo-copy" } });
+    warning.mockRestore();
+  });
+
+  it("ignores a second paste while the app is still adopting media (SUI-FEATURE-106)", async () => {
+    let answer: (remap: Record<string, string>) => void = () => {};
+    const adoptMedia = vi.fn(
+      () => new Promise<Record<string, string>>((resolve) => (answer = resolve)),
+    );
+    copyThenOpenOther("photo", {
+      adoptMedia,
+      resolveMedia: (id: string) => (id === "photo-copy" ? "blob:photo" : undefined),
+    });
+    key("v");
+    key("v");
+    expect(adoptMedia).toHaveBeenCalledTimes(1);
+    answer({ photo: "photo-copy" });
+    fireEvent.click(screen.getByTestId("drawer-layers"));
+    await waitFor(() => expect(screen.getAllByTestId("slide-editor-layer")).toHaveLength(1));
+    key("v");
+    expect(adoptMedia).toHaveBeenCalledTimes(2);
+  });
+
+  it("drops a paste whose adoptMedia answers after the editor closed (SUI-FEATURE-106)", async () => {
+    const warning = vi.spyOn(toast, "warning");
+    let answer: (remap: Record<string, string>) => void = () => {};
+    const onSave = copyThenOpenOther("photo", {
+      adoptMedia: () => new Promise((resolve) => (answer = resolve)),
+      resolveMedia: () => undefined,
+    });
+    key("v");
+    cleanup();
+    answer({});
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(warning).not.toHaveBeenCalled();
+    expect(onSave).not.toHaveBeenCalled();
+    warning.mockRestore();
+  });
+
   it("takes the target's brand for a key it has, its role default for one it lacks (AC9)", async () => {
     const branded = {
       ...DOC,

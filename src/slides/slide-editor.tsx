@@ -124,7 +124,7 @@ import {
 } from "./editor-layouts.js";
 import { resizeColumn, setCell } from "./editor-table.js";
 import { formatRange } from "./editor-text.js";
-import { cssColor, stackOrder } from "./render-style.js";
+import { cssColor, eachElement, stackOrder } from "./render-style.js";
 import {
   SLIDE_LIMITS,
   type SlideDocument,
@@ -1438,11 +1438,9 @@ function Editor({
   const copySelection = () => {
     if (selected.length === 0) return;
     const titles = new Set<string>();
-    const visit = (element: SlideElement) => {
+    eachElement(selected, (element) => {
       if (element.placeholderRole === "title") titles.add(element.id);
-      if (element.type === "group") element.children.forEach(visit);
-    };
-    selected.forEach(visit);
+    });
     keepInClipboard(
       copyElements(
         elements,
@@ -1869,23 +1867,29 @@ function Editor({
   });
   // A paste takes the brand keys this document lacks to its own brand set's, and asks the app for the
   // media it cannot resolve; it lands once the app answers, on the document as it is then, as one
-  // step. A medium still unresolved after that pastes anyway, its image a placeholder, and is named in
-  // a hint by its image's alt text or name; one the app's answer renames counts as brought along.
+  // step. A medium that still does not resolve after that, renamed by the app or not, pastes anyway,
+  // its image a placeholder, and a hint names it by its image's alt text or name (one with neither is
+  // counted). A paste while one waits for the app is ignored; one the editor closes on never lands.
   const landPaste = (
     copies: readonly SlideElement[],
     unresolved: readonly string[],
     remap: Record<string, string>,
   ) => {
     const missing = unresolved.filter(
-      (id) => !Object.hasOwn(remap, id) && view.resolveMedia?.(id) === undefined,
+      (id) => view.resolveMedia?.(Object.hasOwn(remap, id) ? remap[id]! : id) === undefined,
     );
     const result = pasteElements(history.document, page, withMedia(copies, remap));
     placeCopies(result);
     if (result.ids.length > 0 && missing.length > 0) {
+      const named = missing.flatMap((id) => mediaLabel(copies, id) ?? []);
+      const unnamed = missing.length - named.length;
       toast.warning(
         t("slides.editor.mediaNotAdopted", {
           count: missing.length,
-          names: missing.map((id) => mediaLabel(copies, id)).join(", "),
+          names: [
+            ...named,
+            ...(unnamed > 0 ? [t("slides.editor.unnamedMedia", { count: unnamed })] : []),
+          ].join(", "),
           interpolation: { escapeValue: false },
         }),
       );
@@ -1895,7 +1899,16 @@ function Editor({
   React.useEffect(() => {
     latestLandPaste.current = landPaste;
   });
+  const pastePending = React.useRef(false);
+  const closed = React.useRef(false);
+  React.useEffect(() => {
+    closed.current = false;
+    return () => {
+      closed.current = true;
+    };
+  }, []);
   const paste = () => {
+    if (pastePending.current) return;
     const { elements: copied, brand, titles } = elementClipboard;
     const copies = adoptBrand(copied, brand, view.brand, titles);
     const resolve = view.resolveMedia;
@@ -1905,10 +1918,12 @@ function Editor({
       landPaste(copies, unresolved, {});
       return;
     }
-    adoptMedia(unresolved).then(
-      (remap) => latestLandPaste.current(copies, unresolved, remap),
-      () => latestLandPaste.current(copies, unresolved, {}),
-    );
+    pastePending.current = true;
+    const land = (remap: Record<string, string>) => {
+      pastePending.current = false;
+      if (!closed.current) latestLandPaste.current(copies, unresolved, remap);
+    };
+    adoptMedia(unresolved).then(land, () => land({}));
   };
   // The app's picker: a cancel inserts nothing; a picker that fails, or a medium the page cannot
   // take, is named in an error toast with what to do next.

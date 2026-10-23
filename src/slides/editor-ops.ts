@@ -300,7 +300,7 @@ function mapListOf(
 }
 
 // The element and every element in it (a group's children, at any depth).
-function withDescendants(
+export function withDescendants(
   element: SlideElement,
   change: (one: SlideElement) => SlideElement,
 ): SlideElement {

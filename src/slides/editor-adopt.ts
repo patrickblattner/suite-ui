@@ -2,6 +2,8 @@
 // lacks, and its brand keys rewritten to the target's brand set.
 
 import { resolveColor, resolveFont, type SlideBrandRole, type SlideBrandSet } from "./brand.js";
+import { withDescendants } from "./editor-ops.js";
+import { eachElement } from "./render-style.js";
 import {
   type ColorValue,
   type Fill,
@@ -15,27 +17,23 @@ import {
 // The media ids the images of `elements` reference, those in groups too, each once.
 export function mediaIds(elements: readonly SlideElement[]): string[] {
   const ids = new Set<string>();
-  const visit = (element: SlideElement) => {
+  eachElement(elements, (element) => {
     if (element.type === "image") ids.add(element.media.id);
-    if (element.type === "group") element.children.forEach(visit);
-  };
-  elements.forEach(visit);
+  });
   return [...ids];
 }
 
-// How a hint names the medium of `id`: by the alt text or name of its first image, else its id.
-export function mediaLabel(elements: readonly SlideElement[], id: string): string {
-  const find = (list: readonly SlideElement[]): string | undefined => {
-    for (const element of list) {
-      if (element.type === "image" && element.media.id === id) {
-        return element.alt || element.name || id;
-      }
-      const inner = element.type === "group" ? find(element.children) : undefined;
-      if (inner !== undefined) return inner;
-    }
-    return undefined;
-  };
-  return find(elements) ?? id;
+// How a hint names the medium of `id`: by the alt text or name of its first image; `undefined` when
+// it has neither, as an id means nothing to the user.
+export function mediaLabel(elements: readonly SlideElement[], id: string): string | undefined {
+  let label: string | undefined;
+  let found = false;
+  eachElement(elements, (element) => {
+    if (found || element.type !== "image" || element.media.id !== id) return;
+    found = true;
+    label = element.alt || element.name || undefined;
+  });
+  return label;
 }
 
 // The elements with each image's media id put through `remap`; an id it lacks stays.
@@ -43,14 +41,13 @@ export function withMedia(
   elements: readonly SlideElement[],
   remap: Readonly<Record<string, string>>,
 ): SlideElement[] {
-  const change = (element: SlideElement): SlideElement => {
-    if (element.type === "image" && Object.hasOwn(remap, element.media.id)) {
-      return { ...element, media: { id: remap[element.media.id]! } };
-    }
-    if (element.type === "group") return { ...element, children: element.children.map(change) };
-    return element;
-  };
-  return elements.map(change);
+  return elements.map((element) =>
+    withDescendants(element, (one) =>
+      one.type === "image" && Object.hasOwn(remap, one.media.id)
+        ? { ...one, media: { id: remap[one.media.id]! } }
+        : one,
+    ),
+  );
 }
 
 // The key a role falls back to in `brand`: its default when the set has that key, else the set's

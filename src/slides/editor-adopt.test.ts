@@ -106,6 +106,6 @@ describe("adopting a paste into another document", () => {
     const renamed = withMedia(elements, { two: "two-copy" });
     expect(mediaIds(renamed)).toEqual(["one", "two-copy"]);
     expect(mediaLabel(elements, "two")).toBe("Harbour");
-    expect(mediaLabel(elements, "one")).toBe("one");
+    expect(mediaLabel(elements, "one")).toBeUndefined();
   });
 });
