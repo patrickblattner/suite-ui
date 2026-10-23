@@ -1579,8 +1579,18 @@ function withFreshIds(element: SlideElement, taken: Set<string>): SlideElement {
 const withoutIds = (element: SlideElement) =>
   JSON.stringify(withDescendants({ ...element, layer: 0 }, (one) => ({ ...one, id: "" })));
 
+// A copy as the clipboard holds it: never locked and free of its layout role, inside too, so a
+// layout change maps each role to the original alone (`SUI-FEATURE-191` rev 3).
+const freed = (element: SlideElement): SlideElement =>
+  withDescendants(element, (one) => {
+    const free = { ...one, locked: false };
+    delete free.placeholderRole;
+    return free;
+  });
+
 // The elements of `ids` as they are drawn on the page, in drawing order: one in a group comes out at
-// its place and turn on the page.
+// its place and turn on the page, its groups' opacity multiplied into its own and their hiding taken
+// over. Copies are freed (`freed`).
 export function copyElements(
   elements: readonly SlideElement[],
   ids: readonly string[],
@@ -1591,10 +1601,18 @@ export function copyElements(
       wanted.has(element.id) ? [element] : element.type === "group" ? drawn(element.children) : [],
     );
   return drawn(elements).map((element) => {
-    if (groupChain(elements, element.id).length === 0) return element;
+    const chain = groupChain(elements, element.id);
+    if (chain.length === 0) return freed(element);
     const placed = placedBox(elements, element);
     const step = { x: placed.box.x - element.x, y: placed.box.y - element.y };
-    return { ...shifted(element, step), rotation: placed.rotation };
+    return freed({
+      ...shifted(element, step),
+      rotation: placed.rotation,
+      opacity: round(
+        chain.reduce((opacity, group) => (opacity * group.opacity) / 100, element.opacity),
+      ),
+      hidden: element.hidden || chain.some((group) => group.hidden),
+    });
   });
 }
 
@@ -1643,7 +1661,7 @@ export function pasteElements(
 }
 
 // A copy of each element of `ids` directly above it in its list, offset right and down on the
-// screen (in a turned group's frame, the offset turned back).
+// screen (in a turned group's frame, the offset turned back), freed (`freed`).
 export function duplicateElements(
   document: SlideDocument,
   page: number,
@@ -1659,7 +1677,7 @@ export function duplicateElements(
       x: DUPLICATE_OFFSET,
       y: DUPLICATE_OFFSET,
     });
-    copies.set(id, withFreshIds(shifted(element, step), taken));
+    copies.set(id, withFreshIds(freed(shifted(element, step)), taken));
   }
   if (copies.size === 0) return { document, ids: [] };
   const walk = (list: readonly SlideElement[]): SlideElement[] =>

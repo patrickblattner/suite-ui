@@ -1420,9 +1420,9 @@ function Editor({
     apply((current) => deleteElements(current, page, ids));
     setSelection([]);
   };
-  // The element clipboard (`SUI-FEATURE-191`): copy takes the whole selection, cut and duplicate its
-  // unlocked part; a paste or duplicate the page cannot take is refused with a toast. Each change is
-  // one step, the copies selected after it.
+  // The element clipboard (`SUI-FEATURE-191`): copy, cut and duplicate take the whole selection, a
+  // locked element too; cut removes only its unlocked part. A paste or duplicate the page cannot take
+  // is refused with a toast. Each change is one step, the copies selected after it.
   const copySelection = () => {
     if (selected.length === 0) return;
     keepInClipboard(
@@ -1433,9 +1433,7 @@ function Editor({
     );
   };
   const cutSelection = () => {
-    const ids = editable.map((element) => element.id);
-    if (ids.length === 0) return;
-    keepInClipboard(copyElements(elements, ids));
+    copySelection();
     removeSelected();
   };
   const placeCopies = (result: { document: SlideDocument; ids: string[] }) => {
@@ -1451,7 +1449,7 @@ function Editor({
       duplicateElements(
         history.document,
         page,
-        editable.map((element) => element.id),
+        selected.map((element) => element.id),
       ),
     );
   // The canvas's menu (`SUI-FEATURE-191`): a right click on an element outside the selection selects
@@ -3321,10 +3319,10 @@ function Editor({
                   />
                 </ContextMenuTrigger>
                 <ContextMenuContent data-testid="slide-editor-menu">
-                  {menuEntry("cut", editable.length > 0, CUT_SHORTCUT, cutSelection)}
+                  {menuEntry("cut", selected.length > 0, CUT_SHORTCUT, cutSelection)}
                   {menuEntry("copy", selected.length > 0, COPY_SHORTCUT, copySelection)}
                   {menuEntry("paste", clipboardFilled, PASTE_SHORTCUT, paste)}
-                  {menuEntry("duplicate", editable.length > 0, DUPLICATE_SHORTCUT, duplicate)}
+                  {menuEntry("duplicate", selected.length > 0, DUPLICATE_SHORTCUT, duplicate)}
                 </ContextMenuContent>
               </ContextMenu>
               {/* Over the whole window during a gesture, so nothing under the pointer changes it; the

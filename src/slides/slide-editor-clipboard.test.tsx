@@ -242,6 +242,47 @@ describe("SlideEditor element clipboard", () => {
     expect(second!.elements[0]!.id).not.toBe("b");
   });
 
+  // Selects a and b on the canvas, then locks a: the selection stays.
+  const selectWithLockedA = () => {
+    click(50, 50);
+    click(350, 50, true);
+    fireEvent.click(screen.getByTestId("drawer-layers"));
+    const row = screen
+      .getAllByTestId("slide-editor-layer")
+      .find((node) => node.getAttribute("data-layer-id") === "a")!;
+    fireEvent.click(row.querySelector('[data-testid="slide-editor-layer-lock"]')!);
+  };
+
+  it("cuts a locked element as a copy and leaves it in place, the copy unlocked (AC6)", async () => {
+    const onSave = renderEditor();
+    selectWithLockedA();
+    key("x");
+    nextPage();
+    key("v");
+    fireEvent.click(screen.getAllByTestId("editor-save")[0]!);
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    const [first, second] = onSave.mock.lastCall![0].pages;
+    expect(first!.elements.map((e) => e.id)).toEqual(["a", "pair", "photo", "words"]);
+    expect(first!.elements[0]).toMatchObject({ locked: true });
+    expect(second!.elements.map(({ x, y, locked }) => ({ x, y, locked }))).toEqual([
+      { x: 0, y: 0, locked: false },
+      { x: 300, y: 0, locked: false },
+    ]);
+  });
+
+  it("duplicates a selection with a locked element whole, the copies unlocked (AC6)", async () => {
+    const onSave = renderEditor();
+    selectWithLockedA();
+    key("d");
+    const elements = await saved(onSave);
+    expect(elements.map(({ x, y, locked }) => ({ x, y, locked })).slice(0, 4)).toEqual([
+      { x: 0, y: 0, locked: true },
+      { x: 10, y: 10, locked: false },
+      { x: 300, y: 0, locked: false },
+      { x: 310, y: 10, locked: false },
+    ]);
+  });
+
   it("keeps an image's payload byte-equal through copy and paste (AC3)", async () => {
     const onSave = renderEditor();
     select("photo");
