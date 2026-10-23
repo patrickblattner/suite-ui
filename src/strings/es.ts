@@ -522,7 +522,7 @@ export const es: SuiteStrings = {
         "Abre una lista de diseños para una página nueva después de la que se muestra.",
       previewHint: "Reproduce esta página con sus animaciones en una ventana.",
       previewReplayHint: "Vuelve a reproducir la página desde el principio.",
-      previewPauseHint: "Detiene la vista previa donde está.",
+      previewStopHint: "Termina la reproducción; la página queda donde ha llegado.",
       previewCloseHint: "Cierra la vista previa.",
       transferHint:
         "Abre un diálogo para crear una copia de esta página o de todo el documento en otro formato.",
@@ -656,7 +656,7 @@ export const es: SuiteStrings = {
       previewTitle: "Vista previa de la página {{current}}",
       previewDescription: "Reproduce la página con su transición y sus animaciones en orden.",
       previewReplay: "Reproducir de nuevo",
-      previewPause: "Pausar",
+      previewStop: "Detener",
       previewClose: "Cerrar",
       transfer: "Transferir formato",
       transferTitle: "Transferir a otro formato",

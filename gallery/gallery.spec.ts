@@ -12763,32 +12763,33 @@ async function longPreview(page: Page, lng: string) {
   const preview = page.getByTestId("slide-editor-preview-dialog");
   return {
     preview,
-    pause: preview.getByTestId("slide-editor-preview-pause"),
+    stop: preview.getByTestId("slide-editor-preview-stop"),
     replay: preview.getByTestId("slide-editor-preview-replay"),
   };
 }
 
-// Review #385: on a phone the footer wraps, so Pause stays inside the dialog.
+// Review #385: on a phone the footer wraps, so Stop stays inside the dialog.
 for (const lng of ["de", "es"]) {
-  test(`slide editor: the preview's Pause stays inside the dialog at 390 px (${lng})`, async ({
+  test(`slide editor: the preview's Stop stays inside the dialog at 390 px (${lng})`, async ({
     page,
   }) => {
-    const { preview, pause } = await longPreview(page, lng);
+    const { preview, stop } = await longPreview(page, lng);
     await page.setViewportSize({ width: 390, height: 844 });
-    await expect(pause).toBeVisible();
+    await expect(stop).toBeVisible();
+    // SUI-FEATURE-234 rev 4: "Stoppen" / "Detener", not a pause.
+    await expect(stop).toHaveText(lng === "de" ? "Stoppen" : "Detener");
     const dialog = (await preview.boundingBox())!;
-    const button = (await pause.boundingBox())!;
+    const button = (await stop.boundingBox())!;
     expect(button.x).toBeGreaterThanOrEqual(dialog.x);
     expect(button.x + button.width).toBeLessThanOrEqual(dialog.x + dialog.width);
   });
 }
 
-// Review #385: Pause freezes the running animations; the focus it held goes to Play again, when it
-// is pressed and when the play ends on its own.
-test("slide editor: the preview's Pause freezes the play and hands its focus on", async ({
-  page,
-}) => {
-  const { pause, replay } = await longPreview(page, "en");
+// Review #385, SUI-FEATURE-234 rev 4: Stop ends the play, the running animations frozen in the
+// reached state; the focus it held goes to Play again, when it is pressed and when the play ends on
+// its own.
+test("slide editor: the preview's Stop ends the play and hands its focus on", async ({ page }) => {
+  const { stop, replay } = await longPreview(page, "en");
   const states = () =>
     page.evaluate(() =>
       document
@@ -12800,17 +12801,17 @@ test("slide editor: the preview's Pause freezes the play and hands its focus on"
         .map((animation) => animation.playState),
     );
   await expect.poll(states).toContain("running");
-  await pause.focus();
+  await stop.focus();
   await page.keyboard.press("Enter");
-  await expect(pause).toHaveCount(0);
+  await expect(stop).toHaveCount(0);
   await expect(replay).toBeFocused();
   const frozen = await states();
   expect(frozen.length).toBeGreaterThan(0);
   expect(frozen.every((state) => state === "paused")).toBe(true);
-  // Played again and left to its end, Pause goes on its own.
+  // Played again and left to its end, Stop goes on its own.
   await replay.click();
-  await pause.focus();
-  await expect(pause).toHaveCount(0, { timeout: 15_000 });
+  await stop.focus();
+  await expect(stop).toHaveCount(0, { timeout: 15_000 });
   await expect(replay).toBeFocused();
 });
 

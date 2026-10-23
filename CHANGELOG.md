@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — #460, SUI-FEATURE-234 rev 4: the preview's long-play control is Stop, not Pause
+
+- **Stop in the preview (#460):** the control the editor's preview shows while a play over 5 s runs is now "Stop" (de "Stoppen", es "Detener"), its hint "Ends the play; the page stays as far as it got." It ends the play: no further step, the running animations stay in the state they reached, and the focus it held moves to "Play again", which starts over. There is no resume. The `SlidePlayer` is unchanged by this; its changes from #385 (less motion, the first page fading in from black) already match rev 4.
+- **Tests (#460):** unit and gallery tests use the new test id and attribute; the gallery 390 px test checks the de and es labels.
+
+**Migration:** strings `slides.editor.previewPause` → `slides.editor.previewStop` (en "Pause" → "Stop", de "Anhalten" → "Stoppen", es "Pausar" → "Detener") and `slides.editor.previewPauseHint` → `slides.editor.previewStopHint` (en "Stops the preview where it stands." → "Ends the play; the page stays as far as it got.", de "Hält die Vorschau an der Stelle an, an der sie gerade steht." → "Beendet das Abspielen; die Seite bleibt im erreichten Stand.", es "Detiene la vista previa donde está." → "Termina la reproducción; la página queda donde ha llegado."). `data-testid="slide-editor-preview-pause"` → `slide-editor-preview-stop`; the preview stage's `data-paused` → `data-stopped`. Baselines: 10 gallery captures (strings table) in `gallery/__screenshots__/`: `gallery-de-{light,dark}.png`, `gallery-de-{light,dark}-390.png`, `gallery-de-{light,dark}-1440.png` (6) and `gallery-{en,es}-{light,dark}.png` (4).
+
 ## Unreleased — #455, SUI-FEATURE-162: no entrance warning when the exit is at order 1
 
 - **Animation order check (#455):** with the exit at order 1, the entrance's order field no longer asks for a lower number, since it cannot go below 1; the exit's warning ("give it a higher number") alone tells the fix. The `Field` props `warning` and `warningTestId` this uses are listed under 0.162.0 (#382).

@@ -545,7 +545,7 @@ export const en = {
       newPageMenuHint: "Opens a list of layouts for a new page after the one shown.",
       previewHint: "Plays this page with its animations in a window.",
       previewReplayHint: "Plays the page again from the start.",
-      previewPauseHint: "Stops the preview where it stands.",
+      previewStopHint: "Ends the play; the page stays as far as it got.",
       previewCloseHint: "Closes the preview.",
       transferHint:
         "Opens a dialog to make a copy of this page or the whole document in another format.",
@@ -680,7 +680,7 @@ export const en = {
       previewTitle: "Preview of page {{current}}",
       previewDescription: "Plays the page with its transition and its animations in order.",
       previewReplay: "Play again",
-      previewPause: "Pause",
+      previewStop: "Stop",
       previewClose: "Close",
       transfer: "Transfer format",
       transferTitle: "Transfer to another format",

@@ -184,8 +184,8 @@ describe("SlidePreview", () => {
     expect(preview()).toHaveAttribute("data-slide-step", "2");
   });
 
-  // Codex #459 CX1: a final 180 s entrance plays 60 s, and Pause stays until it has.
-  it("keeps Pause until a capped final animation ends", () => {
+  // Codex #459 CX1: a final 180 s entrance plays 60 s, and Stop stays until it has.
+  it("keeps Stop until a capped final animation ends", () => {
     vi.useFakeTimers();
     const long = parseSlideDocument({
       ...document,
@@ -206,13 +206,13 @@ describe("SlidePreview", () => {
       stage.querySelector<HTMLElement>("[data-slide-element=first] > div")!.style.animation,
     ).toBe("suite-slide-fade-in 60000ms ease 0ms both");
     act(() => void vi.advanceTimersByTime(59_999));
-    expect(screen.getByTestId("slide-editor-preview-pause")).toBeInTheDocument();
+    expect(screen.getByTestId("slide-editor-preview-stop")).toBeInTheDocument();
     act(() => void vi.advanceTimersByTime(1));
-    expect(screen.queryByTestId("slide-editor-preview-pause")).toBeNull();
+    expect(screen.queryByTestId("slide-editor-preview-stop")).toBeNull();
   });
 
   // Review #459: the cap reaches a master's element and a group's child too.
-  it("caps a master element and a group child alike, Pause staying until 60 s", () => {
+  it("caps a master element and a group child alike, Stop staying until 60 s", () => {
     vi.useFakeTimers();
     const long = parseSlideDocument({
       ...document,
@@ -249,9 +249,9 @@ describe("SlidePreview", () => {
     expect(drawn("logo")).toBe("suite-slide-fade-in 60000ms ease 0ms both");
     expect(drawn("child")).toBe("suite-slide-fade-in 60000ms ease 60000ms both");
     act(() => void vi.advanceTimersByTime(119_999));
-    expect(screen.getByTestId("slide-editor-preview-pause")).toBeInTheDocument();
+    expect(screen.getByTestId("slide-editor-preview-stop")).toBeInTheDocument();
     act(() => void vi.advanceTimersByTime(1));
-    expect(screen.queryByTestId("slide-editor-preview-pause")).toBeNull();
+    expect(screen.queryByTestId("slide-editor-preview-stop")).toBeNull();
   });
 
   it("stops the play when the preview closes", () => {
@@ -287,8 +287,8 @@ describe("SlidePreview", () => {
     ).toBe("suite-slide-fade-in 400ms ease both");
   });
 
-  // SUI-FEATURE-234 AC1: a play over 5 s offers Pause while it runs (WCAG 2.2.2).
-  it("offers Pause only while a play over 5 s runs, and holds it there", () => {
+  // SUI-FEATURE-234 AC1: a play over 5 s offers Stop while it runs (WCAG 2.2.2); rev 4: no resume.
+  it("offers Stop only while a play over 5 s runs, and ends it there", () => {
     vi.useFakeTimers();
     const long = parseSlideDocument({
       ...document,
@@ -309,28 +309,28 @@ describe("SlidePreview", () => {
       screen
         .getByTestId("slide-editor-preview-dialog")
         .querySelector<HTMLElement>("[data-slot=slide-preview]")!;
-    expect(screen.getByTestId("slide-editor-preview-pause")).toHaveTextContent("Pause");
+    expect(screen.getByTestId("slide-editor-preview-stop")).toHaveTextContent("Stop");
     act(() => void vi.advanceTimersByTime(400));
     expect(preview()).toHaveAttribute("data-slide-step", "1");
-    fireEvent.click(screen.getByTestId("slide-editor-preview-pause"));
-    expect(preview()).toHaveAttribute("data-paused", "true");
+    fireEvent.click(screen.getByTestId("slide-editor-preview-stop"));
+    expect(preview()).toHaveAttribute("data-stopped", "true");
     expect(preview().className).toContain("[animation-play-state:paused]");
-    expect(screen.queryByTestId("slide-editor-preview-pause")).toBeNull();
+    expect(screen.queryByTestId("slide-editor-preview-stop")).toBeNull();
     act(() => void vi.advanceTimersByTime(10_000));
     expect(preview()).toHaveAttribute("data-slide-step", "1");
-    // Play again starts over, unpaused, and Pause goes once the play has ended.
+    // Play again starts over, no longer stopped, and Stop goes once the play has ended.
     fireEvent.click(screen.getByTestId("slide-editor-preview-replay"));
-    expect(preview()).toHaveAttribute("data-paused", "false");
-    expect(screen.getByTestId("slide-editor-preview-pause")).toBeInTheDocument();
+    expect(preview()).toHaveAttribute("data-stopped", "false");
+    expect(screen.getByTestId("slide-editor-preview-stop")).toBeInTheDocument();
     act(() => void vi.advanceTimersByTime(6400));
     expect(preview()).toHaveAttribute("data-slide-step", "2");
-    expect(screen.queryByTestId("slide-editor-preview-pause")).toBeNull();
+    expect(screen.queryByTestId("slide-editor-preview-stop")).toBeNull();
   });
 
-  it("offers no Pause for a play of 5 s or less", () => {
+  it("offers no Stop for a play of 5 s or less", () => {
     render(<SlidePreview document={document} page={1} view={{ brand: SLIDE_BRAND }} />);
     fireEvent.click(screen.getByTestId("slide-editor-preview"));
-    expect(screen.queryByTestId("slide-editor-preview-pause")).toBeNull();
+    expect(screen.queryByTestId("slide-editor-preview-stop")).toBeNull();
   });
 
   // SUI-FEATURE-234 AC2: with less motion nothing moves; each end state comes in its order, after

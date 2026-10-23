@@ -25,7 +25,7 @@ type ViewProps = Pick<
 
 // The most a duration or delay field of the editor takes (ms). The preview plays an imported longer
 // one capped at it, the drawn animation as long as its timer waits, so a step never stalls the play
-// nor overflows a timer (#382) and Pause stays until the last animation ends (#459).
+// nor overflows a timer (#382) and Stop stays until the last animation ends (#459).
 export const ANIMATION_MAX_MS = 60_000;
 
 const cap = (value: number) => Math.min(value, ANIMATION_MAX_MS);
@@ -75,15 +75,15 @@ function previewDocument(document: SlideDocument): SlideDocument {
     })),
   };
 }
-// A play longer than this offers "Pause" while it runs (WCAG 2.2.2).
-const PAUSE_AFTER_MS = 5000;
+// A play longer than this offers "Stop" while it runs (WCAG 2.2.2).
+const STOP_AFTER_MS = 5000;
 
 // The editor's preview (`SUI-FEATURE-162` §Animationen): a button that opens a dialog playing the page
 // shown as the `SlidePlayer` would, without a click between the steps — its transition from the shown
 // page before it (on the first shown page a fade from black, as in the player), then each order of
 // its animations once the one before has played. The end state stays; "Play again" starts over. A
-// play over 5 s can be paused while it runs; with less motion nothing moves, the order and the waits
-// stay (`SUI-FEATURE-234`).
+// play over 5 s can be stopped while it runs, with no resume; with less motion nothing moves, the
+// order and the waits stay (`SUI-FEATURE-234`).
 export function SlidePreview({
   document: source,
   page,
@@ -99,9 +99,9 @@ export function SlidePreview({
   const [run, setRun] = React.useState(0);
   const [step, setStep] = React.useState(0);
   const [fading, setFading] = React.useState(false);
-  // The play runs (offering "Pause" when long), and was paused.
+  // The play runs (offering "Stop" when long), and was stopped.
   const [playing, setPlaying] = React.useState(false);
-  const [paused, setPaused] = React.useState(false);
+  const [stopped, setStopped] = React.useState(false);
   const reduced = useReducedMotion();
   // Played as its timers wait, every delay and duration capped (#459); built only while open.
   const document = React.useMemo(() => (open ? previewDocument(source) : source), [open, source]);
@@ -121,11 +121,11 @@ export function SlidePreview({
   const [steps, setSteps] = React.useState(0);
   const [length, setLength] = React.useState(0);
   const timers = React.useRef<number[]>([]);
-  // "Pause" goes when the play stops; the focus it held moves to "Play again" (#385).
-  const pauseButton = React.useRef<HTMLButtonElement>(null);
+  // "Stop" goes when the play ends; the focus it held moves to "Play again" (#385).
+  const stopButton = React.useRef<HTMLButtonElement>(null);
   const replayButton = React.useRef<HTMLButtonElement>(null);
   const keepFocus = () => {
-    if (pauseButton.current !== null && pauseButton.current === window.document.activeElement) {
+    if (stopButton.current !== null && stopButton.current === window.document.activeElement) {
       replayButton.current?.focus();
     }
   };
@@ -148,7 +148,7 @@ export function SlidePreview({
     setSteps(lengths.length);
     setStep(0);
     setFading(lead > 0);
-    setPaused(false);
+    setStopped(false);
     setRun((count) => count + 1);
     if (lead > 0) timers.current.push(window.setTimeout(() => setFading(false), lead));
     let at = lead;
@@ -167,12 +167,13 @@ export function SlidePreview({
       );
     }
   };
-  // Holds the play where it stands: no further step, the running animations frozen.
-  const pause = () => {
+  // Ends the play where it stands: no further step, the running animations frozen in the reached
+  // state; only "Play again" starts it anew (`SUI-FEATURE-234` rev 4).
+  const end = () => {
     keepFocus();
     stop();
     setPlaying(false);
-    setPaused(true);
+    setStopped(true);
   };
   const close = (next: boolean) => {
     if (!next) stop();
@@ -205,7 +206,7 @@ export function SlidePreview({
           <div
             className={cn(
               "relative mx-auto max-w-full shrink-0 overflow-hidden rounded-md bg-black",
-              paused && "[&_*]:[animation-play-state:paused]!",
+              stopped && "[&_*]:[animation-play-state:paused]!",
             )}
             // As wide as the dialog allows and as high as 85 % of the window leaves beside the
             // title and the footer (12rem), so a portrait page keeps them in view (`GL-UI-027`).
@@ -216,7 +217,7 @@ export function SlidePreview({
             data-slot="slide-preview"
             data-slide-step={step}
             data-slide-steps={steps}
-            data-paused={paused}
+            data-stopped={stopped}
           >
             {fading && !first ? (
               <div
@@ -246,17 +247,17 @@ export function SlidePreview({
           </div>
           {/* Wraps on a narrow window, so every button stays inside the dialog. */}
           <DialogFooter className="flex-wrap">
-            {playing && length > PAUSE_AFTER_MS ? (
-              <Hint text={t("slides.editor.previewPauseHint")}>
+            {playing && length > STOP_AFTER_MS ? (
+              <Hint text={t("slides.editor.previewStopHint")}>
                 <Button
                   type="button"
                   variant="outline"
                   size="default"
-                  ref={pauseButton}
-                  onClick={pause}
-                  data-testid="slide-editor-preview-pause"
+                  ref={stopButton}
+                  onClick={end}
+                  data-testid="slide-editor-preview-stop"
                 >
-                  {t("slides.editor.previewPause")}
+                  {t("slides.editor.previewStop")}
                 </Button>
               </Hint>
             ) : null}
