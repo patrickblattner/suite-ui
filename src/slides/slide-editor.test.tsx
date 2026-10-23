@@ -1,5 +1,5 @@
 import * as React from "react";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { resolveSlideMedia, SLIDE_BRAND, SLIDE_EDITOR_DOC } from "../../gallery/slide-showcase.js";
@@ -45,8 +45,11 @@ describe("SlideEditor Save", () => {
       />,
     );
     makeDraft();
-    fireEvent.click(screen.getAllByTestId("editor-save")[0]!);
-    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    await act(async () => {
+      fireEvent.click(screen.getAllByTestId("editor-save")[0]!);
+      await Promise.resolve();
+    });
+    expect(onSave).toHaveBeenCalledTimes(1);
     expect(screen.getAllByTestId("editor-state")[0]).toHaveTextContent("Draft");
     // Back asks; Save in the question fails the same way, so nothing leaves.
     fireEvent.click(screen.getAllByTestId("editor-back")[0]!);
