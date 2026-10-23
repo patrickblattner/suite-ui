@@ -609,3 +609,5 @@
 {"ts":"2026-10-23T20:54:34.622Z","key":"SUI-FEATURE-107","from":null,"to":2,"disposition":"ticket","ref":"529"}
 {"ts":"2026-10-23T21:37:20.835Z","key":"SUI-FEATURE-191","from":6,"to":7,"disposition":"ticket","ref":"527"}
 {"ts":"2026-10-23T22:01:08.150Z","key":"SUI-FEATURE-191","from":7,"to":8,"disposition":"ticket","ref":"530"}
+{"ts":"2026-10-23T23:53:44.996Z","key":"GL-UI-010","from":8,"to":9,"disposition":"ticket","ref":"534"}
+{"ts":"2026-10-23T23:53:48.021Z","key":"SUI-FEATURE-106","from":2,"to":5,"disposition":"ticket","ref":"535"}
