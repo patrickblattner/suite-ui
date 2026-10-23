@@ -10,7 +10,9 @@ import {
   groupElements,
   pasteElements,
   setRotation,
+  updateElements,
 } from "./editor-ops.js";
+import { setPageLayout } from "./editor-layouts.js";
 import { FORMAT_16_9, type SlideDocument, type SlideElement } from "./schema.js";
 
 const shape = (id: string, x: number, y: number) => ({
@@ -157,5 +159,65 @@ describe("element clipboard", () => {
     const result = pasteElements(layered, 1, copyElements(elementsOf(layered), ["a"]));
     const back = pasteElements(result.document, 0, [elementsOf(result.document, 1)[0]!]);
     expect(elementsOf(back.document).at(-1)).toMatchObject({ layer: 3 });
+  });
+
+  it("copies and duplicates a locked element, every copy unlocked (AC6)", () => {
+    const locked = doc([{ ...shape("a", 0, 0), locked: true }, shape("b", 300, 0)]);
+    const copies = copyElements(elementsOf(locked), ["a", "b"]);
+    expect(copies.map((copy) => copy.locked)).toEqual([false, false]);
+    const pasted = pasteElements(locked, 0, copies);
+    // The unlocked copy still counts as lying on its locked original: offset.
+    expect(elementsOf(pasted.document).at(-2)).toMatchObject({ x: 10, y: 10, locked: false });
+    const duplicated = duplicateElements(locked, 0, ["a", "b"]);
+    expect(duplicated.ids).toHaveLength(2);
+    for (const id of duplicated.ids) {
+      expect(findElement(elementsOf(duplicated.document), id)!.element.locked).toBe(false);
+    }
+  });
+
+  it("frees a copy of its layout role, so a layout change moves only the original (AC7)", () => {
+    const layout = (id: string, x: number) => ({
+      id,
+      name: id,
+      elements: [
+        { id: `${id}-ph`, type: "placeholder", role: "title", x, y: 40, width: 300, height: 60 },
+      ],
+    });
+    const filled = parseSlideDocument({
+      schemaVersion: 2,
+      format: FORMAT_16_9,
+      layouts: [layout("one", 100), layout("two", 500)],
+      pages: [
+        {
+          ...page("p0", [{ ...shape("a", 100, 40), placeholderRole: "title" }]),
+          layoutId: "one",
+        },
+      ],
+    });
+    const duplicated = duplicateElements(filled, 0, ["a"]);
+    const copy = findElement(elementsOf(duplicated.document), duplicated.ids[0]!)!.element;
+    expect(copy.placeholderRole).toBeUndefined();
+    expect(copyElements(elementsOf(filled), ["a"])[0]!.placeholderRole).toBeUndefined();
+    const moved = elementsOf(setPageLayout(duplicated.document, 0, "two"));
+    expect(findElement(moved, "a")!.element).toMatchObject({ x: 500, placeholderRole: "title" });
+    expect(findElement(moved, copy.id)!.element).toMatchObject({ x: copy.x, y: copy.y });
+  });
+
+  it("bakes a group's opacity and hiding into a child copied alone (AC8)", () => {
+    const grouped = groupElements(
+      doc([{ ...shape("a", 0, 0), opacity: 80 }, shape("b", 200, 0)]),
+      0,
+      ["a", "b"],
+    );
+    const half = updateElements(grouped.document, 0, [grouped.id!], (group) => ({
+      ...group,
+      opacity: 50,
+    }));
+    expect(copyElements(elementsOf(half), ["a"])[0]).toMatchObject({ opacity: 40, hidden: false });
+    const hidden = updateElements(half, 0, [grouped.id!], (group) => ({ ...group, hidden: true }));
+    expect(copyElements(elementsOf(hidden), ["b"])[0]).toMatchObject({ opacity: 50, hidden: true });
+    // The group copied whole keeps its own opacity; its children stay as they are.
+    const [group] = copyElements(elementsOf(half), [grouped.id!]);
+    expect(group).toMatchObject({ opacity: 50 });
   });
 });

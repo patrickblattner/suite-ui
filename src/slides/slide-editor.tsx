@@ -124,7 +124,7 @@ import {
 } from "./editor-layouts.js";
 import { resizeColumn, setCell } from "./editor-table.js";
 import { formatRange } from "./editor-text.js";
-import { cssColor, stackOrder } from "./render-style.js";
+import { cssColor, eachElement, stackOrder } from "./render-style.js";
 import {
   SLIDE_LIMITS,
   type SlideDocument,
@@ -179,6 +179,7 @@ import {
   type SlideViewProps,
 } from "./slide-view.js";
 import { type SlideHistory, useSlideHistory } from "./use-slide-history.js";
+import { adoptBrand, mediaIds, mediaLabel, withMedia } from "./editor-adopt.js";
 import { elementClipboard, keepInClipboard } from "./element-clipboard-internal.js";
 
 export interface SlideEditorProps extends Pick<
@@ -206,6 +207,11 @@ export interface SlideEditorProps extends Pick<
   // The app's media picker (`SUI-FEATURE-232`, `GL-UI-002`): the Add drawer's "Media" entry opens it
   // and inserts the chosen medium as an image; `undefined` is a cancel. Without it there is no entry.
   pickMedia?: () => Promise<PickedMedia | undefined>;
+  // The app's media entries for a paste from another document (`SUI-FEATURE-106`): called once per
+  // paste with the media ids `resolveMedia` does not resolve; the app makes their entries and answers
+  // old id → new id (an id it leaves out stays). Without it, or when it fails, the paste goes in anyway
+  // and a hint names each medium not brought along.
+  adoptMedia?: (ids: string[]) => Promise<Record<string, string>>;
   // The app's own layouts and their masters (`SUI-FEATURE-192`), offered beside the document's: one
   // in use is copied into the document with its master, so the document draws without the app.
   layouts?: readonly SlideLayoutInput[];
@@ -658,6 +664,7 @@ export function SlideEditor({
   formats,
   onTransfer,
   pickMedia,
+  adoptMedia,
   layouts,
   masters,
   brand,
@@ -696,6 +703,7 @@ export function SlideEditor({
       formats={formats}
       onTransfer={onTransfer}
       pickMedia={pickMedia}
+      adoptMedia={adoptMedia}
       appLayouts={layouts}
       appMasters={masters}
       view={view}
@@ -759,6 +767,7 @@ function Editor({
   formats,
   onTransfer,
   pickMedia,
+  adoptMedia,
   appLayouts: layoutsProp,
   appMasters: mastersProp,
   view,
@@ -776,6 +785,7 @@ function Editor({
   formats: SlideEditorProps["formats"];
   onTransfer: SlideEditorProps["onTransfer"];
   pickMedia: SlideEditorProps["pickMedia"];
+  adoptMedia: SlideEditorProps["adoptMedia"];
   view: ViewProps;
   headerRef: SlideEditorProps["headerRef"];
   testId: string | undefined;
@@ -1420,22 +1430,28 @@ function Editor({
     apply((current) => deleteElements(current, page, ids));
     setSelection([]);
   };
-  // The element clipboard (`SUI-FEATURE-191`): copy takes the whole selection, cut and duplicate its
-  // unlocked part; a paste or duplicate the page cannot take is refused with a toast. Each change is
-  // one step, the copies selected after it.
+  // The element clipboard (`SUI-FEATURE-191`): copy, cut and duplicate take the whole selection, a
+  // locked element too; cut removes only its unlocked part. A paste or duplicate the page cannot take
+  // is refused with a toast. Each change is one step, the copies selected after it. The clipboard
+  // keeps this editor's brand set and which copies filled a title placeholder, for a paste into
+  // another document (`SUI-FEATURE-106`).
   const copySelection = () => {
     if (selected.length === 0) return;
+    const titles = new Set<string>();
+    eachElement(selected, (element) => {
+      if (element.placeholderRole === "title") titles.add(element.id);
+    });
     keepInClipboard(
       copyElements(
         elements,
         selected.map((element) => element.id),
       ),
+      view.brand,
+      titles,
     );
   };
   const cutSelection = () => {
-    const ids = editable.map((element) => element.id);
-    if (ids.length === 0) return;
-    keepInClipboard(copyElements(elements, ids));
+    copySelection();
     removeSelected();
   };
   const placeCopies = (result: { document: SlideDocument; ids: string[] }) => {
@@ -1445,13 +1461,12 @@ function Editor({
     apply(() => result.document);
     setSelection(result.ids);
   };
-  const paste = () => placeCopies(pasteElements(history.document, page, elementClipboard.elements));
   const duplicate = () =>
     placeCopies(
       duplicateElements(
         history.document,
         page,
-        editable.map((element) => element.id),
+        selected.map((element) => element.id),
       ),
     );
   // The canvas's menu (`SUI-FEATURE-191`): a right click on an element outside the selection selects
@@ -1850,6 +1865,66 @@ function Editor({
   React.useEffect(() => {
     latestInsert.current = insertEntry;
   });
+  // A paste takes the brand keys this document lacks to its own brand set's, and asks the app for the
+  // media it cannot resolve; it lands once the app answers, on the document as it is then, as one
+  // step. A medium that still does not resolve after that, renamed by the app or not, pastes anyway,
+  // its image a placeholder, and a hint names it by its image's alt text or name (one with neither is
+  // counted). A paste while one waits for the app is ignored; one the editor closes on never lands.
+  const landPaste = (
+    copies: readonly SlideElement[],
+    unresolved: readonly string[],
+    remap: Record<string, string>,
+  ) => {
+    const missing = unresolved.filter(
+      (id) => view.resolveMedia?.(Object.hasOwn(remap, id) ? remap[id]! : id) === undefined,
+    );
+    const result = pasteElements(history.document, page, withMedia(copies, remap));
+    placeCopies(result);
+    if (result.ids.length > 0 && missing.length > 0) {
+      const named = missing.flatMap((id) => mediaLabel(copies, id) ?? []);
+      const unnamed = missing.length - named.length;
+      toast.warning(
+        t("slides.editor.mediaNotAdopted", {
+          count: missing.length,
+          names: [
+            ...named,
+            ...(unnamed > 0 ? [t("slides.editor.unnamedMedia", { count: unnamed })] : []),
+          ].join(", "),
+          interpolation: { escapeValue: false },
+        }),
+      );
+    }
+  };
+  const latestLandPaste = React.useRef(landPaste);
+  React.useEffect(() => {
+    latestLandPaste.current = landPaste;
+  });
+  const pastePending = React.useRef(false);
+  const closed = React.useRef(false);
+  React.useEffect(() => {
+    closed.current = false;
+    return () => {
+      closed.current = true;
+    };
+  }, []);
+  const paste = () => {
+    if (pastePending.current) return;
+    const { elements: copied, brand, titles } = elementClipboard;
+    const copies = adoptBrand(copied, brand, view.brand, titles);
+    const resolve = view.resolveMedia;
+    const unresolved =
+      resolve === undefined ? [] : mediaIds(copies).filter((id) => resolve(id) === undefined);
+    if (unresolved.length === 0 || adoptMedia === undefined) {
+      landPaste(copies, unresolved, {});
+      return;
+    }
+    pastePending.current = true;
+    const land = (remap: Record<string, string>) => {
+      pastePending.current = false;
+      if (!closed.current) latestLandPaste.current(copies, unresolved, remap);
+    };
+    adoptMedia(unresolved).then(land, () => land({}));
+  };
   // The app's picker: a cancel inserts nothing; a picker that fails, or a medium the page cannot
   // take, is named in an error toast with what to do next.
   const pickFromMedia =
@@ -3321,10 +3396,13 @@ function Editor({
                   />
                 </ContextMenuTrigger>
                 <ContextMenuContent data-testid="slide-editor-menu">
-                  {menuEntry("cut", editable.length > 0, CUT_SHORTCUT, cutSelection)}
+                  {menuEntry("cut", selected.length > 0, CUT_SHORTCUT, cutSelection)}
                   {menuEntry("copy", selected.length > 0, COPY_SHORTCUT, copySelection)}
+                  {/* The entry calls paste only when chosen; paste reads its ref only once the app
+                      answers `adoptMedia`, never while rendering. */}
+                  {/* eslint-disable-next-line react-hooks/refs */}
                   {menuEntry("paste", clipboardFilled, PASTE_SHORTCUT, paste)}
-                  {menuEntry("duplicate", editable.length > 0, DUPLICATE_SHORTCUT, duplicate)}
+                  {menuEntry("duplicate", selected.length > 0, DUPLICATE_SHORTCUT, duplicate)}
                 </ContextMenuContent>
               </ContextMenu>
               {/* Over the whole window during a gesture, so nothing under the pointer changes it; the

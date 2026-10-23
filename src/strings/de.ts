@@ -743,8 +743,8 @@ export const de: SuiteStrings = {
       deleteSelection: "Löschen",
       cut: "Ausschneiden",
       cutHint:
-        "Entfernt die Auswahl und hält sie zum Einfügen auf jeder Seite und in jedem Dokument bereit.",
-      cutUnavailable: "Ausschneiden: möglich, sobald ein nicht gesperrtes Element ausgewählt ist.",
+        "Entfernt die Auswahl außer gesperrten Elementen, die an ihrem Platz bleiben, und hält alles zum Einfügen auf jeder Seite und in jedem Dokument bereit.",
+      cutUnavailable: "Ausschneiden: möglich, sobald ein Element ausgewählt ist.",
       copy: "Kopieren",
       copyHint:
         "Hält eine Kopie der Auswahl zum Einfügen auf jeder Seite und in jedem Dokument bereit.",
@@ -754,10 +754,15 @@ export const de: SuiteStrings = {
       pasteUnavailable: "Einfügen: möglich, sobald ein Element ausgeschnitten oder kopiert ist.",
       duplicate: "Duplizieren",
       duplicateHint: "Setzt eine Kopie der Auswahl leicht nach rechts unten versetzt darüber.",
-      duplicateUnavailable:
-        "Duplizieren: möglich, sobald ein nicht gesperrtes Element ausgewählt ist.",
+      duplicateUnavailable: "Duplizieren: möglich, sobald ein Element ausgewählt ist.",
       pasteRefused:
         "So viele Elemente passen nicht auf die Seite. Entferne einige und versuche es erneut.",
+      mediaNotAdopted_one:
+        "Eingefügt, aber das Medium {{names}} konnte nicht übernommen werden. Sein Bild zeigt einen Platzhalter, bis du es ersetzt.",
+      mediaNotAdopted_other:
+        "Eingefügt, aber die Medien {{names}} konnten nicht übernommen werden. Ihre Bilder zeigen einen Platzhalter, bis du sie ersetzt.",
+      unnamedMedia_one: "{{count}} ohne Namen",
+      unnamedMedia_other: "{{count}} ohne Namen",
       pages: "Seiten",
       pageNumber: "Seite {{n}}",
       showPage: "Seite {{n}} zeigen",

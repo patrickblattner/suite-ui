@@ -100,7 +100,7 @@ const DOC = {
   ],
 };
 
-function renderEditor() {
+function renderEditor(props: Partial<React.ComponentProps<typeof SlideEditor>> = {}) {
   const onSave = vi.fn((saved: SlideDocument) => {
     void saved;
     return true as const;
@@ -113,6 +113,7 @@ function renderEditor() {
       resolveMedia={resolveSlideMedia}
       onSave={onSave}
       onBack={() => {}}
+      {...props}
     />,
   );
   return onSave;
@@ -240,6 +241,212 @@ describe("SlideEditor element clipboard", () => {
     expect(second!.elements).toHaveLength(1);
     expect(second!.elements[0]).toMatchObject(original("b"));
     expect(second!.elements[0]!.id).not.toBe("b");
+  });
+
+  // Selects a and b on the canvas, then locks a: the selection stays.
+  const selectWithLockedA = () => {
+    click(50, 50);
+    click(350, 50, true);
+    fireEvent.click(screen.getByTestId("drawer-layers"));
+    const row = screen
+      .getAllByTestId("slide-editor-layer")
+      .find((node) => node.getAttribute("data-layer-id") === "a")!;
+    fireEvent.click(row.querySelector('[data-testid="slide-editor-layer-lock"]')!);
+  };
+
+  it("cuts a locked element as a copy and leaves it in place, the copy unlocked (AC6)", async () => {
+    const onSave = renderEditor();
+    selectWithLockedA();
+    key("x");
+    nextPage();
+    key("v");
+    fireEvent.click(screen.getAllByTestId("editor-save")[0]!);
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    const [first, second] = onSave.mock.lastCall![0].pages;
+    expect(first!.elements.map((e) => e.id)).toEqual(["a", "pair", "photo", "words"]);
+    expect(first!.elements[0]).toMatchObject({ locked: true });
+    expect(second!.elements.map(({ x, y, locked }) => ({ x, y, locked }))).toEqual([
+      { x: 0, y: 0, locked: false },
+      { x: 300, y: 0, locked: false },
+    ]);
+  });
+
+  it("duplicates a selection with a locked element whole, the copies unlocked (AC6)", async () => {
+    const onSave = renderEditor();
+    selectWithLockedA();
+    key("d");
+    const elements = await saved(onSave);
+    expect(elements.map(({ x, y, locked }) => ({ x, y, locked })).slice(0, 4)).toEqual([
+      { x: 0, y: 0, locked: true },
+      { x: 10, y: 10, locked: false },
+      { x: 300, y: 0, locked: false },
+      { x: 310, y: 10, locked: false },
+    ]);
+  });
+
+  // Another document of the session: its own brand set and media, the first page empty.
+  const OTHER_BRAND = {
+    colors: {
+      ink: { value: "#101010", label: "Ink" },
+      primary: { value: "#ff0000", label: "Red" },
+    },
+    fonts: { plain: { family: "Plain", label: "Plain" } },
+    defaults: { text: "ink" },
+  };
+  const OTHER = { ...DOC, pages: [{ id: "other", background, elements: [] }] };
+  const copyThenOpenOther = (id: string, props: Parameters<typeof renderEditor>[0]) => {
+    renderEditor();
+    select(id);
+    key("c");
+    cleanup();
+    return renderEditor({ document: OTHER, brand: OTHER_BRAND, ...props });
+  };
+
+  it("brings an image's medium into another document through adoptMedia (SUI-FEATURE-106 AC1)", async () => {
+    const adoptMedia = vi.fn(() => Promise.resolve({ photo: "photo-copy" }));
+    const onSave = copyThenOpenOther("photo", {
+      adoptMedia,
+      resolveMedia: (id: string) => (id === "photo-copy" ? "blob:photo" : undefined),
+    });
+    key("v");
+    fireEvent.click(screen.getByTestId("drawer-layers"));
+    await waitFor(() => expect(screen.getAllByTestId("slide-editor-layer")).toHaveLength(1));
+    expect(adoptMedia).toHaveBeenCalledTimes(1);
+    expect(adoptMedia).toHaveBeenCalledWith(["photo"]);
+    const [pasted] = await saved(onSave);
+    expect(pasted).toMatchObject({ type: "image", media: { id: "photo-copy" }, payload });
+  });
+
+  it("pastes an image whose medium did not come along, with a hint (SUI-FEATURE-106 AC4)", async () => {
+    const warning = vi.spyOn(toast, "warning");
+    const onSave = copyThenOpenOther("photo", {
+      adoptMedia: () => Promise.reject(new Error("offline")),
+      resolveMedia: () => undefined,
+    });
+    key("v");
+    await waitFor(() => expect(warning).toHaveBeenCalledTimes(1));
+    expect(warning.mock.lastCall![0]).toContain("photo");
+    const [pasted] = await saved(onSave);
+    expect(pasted).toMatchObject({ type: "image", media: { id: "photo" } });
+    key("z");
+    fireEvent.click(screen.getByTestId("drawer-layers"));
+    expect(screen.queryAllByTestId("slide-editor-layer")).toHaveLength(0);
+    warning.mockRestore();
+  });
+
+  it("pastes an image whose medium did not come along without adoptMedia, with a hint (SUI-FEATURE-106 AC4)", async () => {
+    const warning = vi.spyOn(toast, "warning");
+    const onSave = copyThenOpenOther("photo", { resolveMedia: () => undefined });
+    key("v");
+    expect(warning).toHaveBeenCalledTimes(1);
+    expect(warning.mock.lastCall![0]).toContain("photo");
+    expect(screen.getByText("Image photo not found")).toBeInTheDocument();
+    const [pasted] = await saved(onSave);
+    expect(pasted).toMatchObject({ type: "image", media: { id: "photo" } });
+    key("z");
+    fireEvent.click(screen.getByTestId("drawer-layers"));
+    expect(screen.queryAllByTestId("slide-editor-layer")).toHaveLength(0);
+    warning.mockRestore();
+  });
+
+  it("hints at a medium the app renamed that still does not resolve (SUI-FEATURE-106)", async () => {
+    const warning = vi.spyOn(toast, "warning");
+    const onSave = copyThenOpenOther("photo", {
+      adoptMedia: () => Promise.resolve({ photo: "photo-copy" }),
+      resolveMedia: () => undefined,
+    });
+    key("v");
+    await waitFor(() => expect(warning).toHaveBeenCalledTimes(1));
+    expect(warning.mock.lastCall![0]).toContain("photo");
+    expect(screen.getByText("Image photo-copy not found")).toBeInTheDocument();
+    const [pasted] = await saved(onSave);
+    expect(pasted).toMatchObject({ type: "image", media: { id: "photo-copy" } });
+    warning.mockRestore();
+  });
+
+  it("ignores a second paste while the app is still adopting media (SUI-FEATURE-106)", async () => {
+    let answer: (remap: Record<string, string>) => void = () => {};
+    const adoptMedia = vi.fn(
+      () => new Promise<Record<string, string>>((resolve) => (answer = resolve)),
+    );
+    copyThenOpenOther("photo", {
+      adoptMedia,
+      resolveMedia: (id: string) => (id === "photo-copy" ? "blob:photo" : undefined),
+    });
+    key("v");
+    key("v");
+    expect(adoptMedia).toHaveBeenCalledTimes(1);
+    answer({ photo: "photo-copy" });
+    fireEvent.click(screen.getByTestId("drawer-layers"));
+    await waitFor(() => expect(screen.getAllByTestId("slide-editor-layer")).toHaveLength(1));
+    key("v");
+    expect(adoptMedia).toHaveBeenCalledTimes(2);
+  });
+
+  it("drops a paste whose adoptMedia answers after the editor closed (SUI-FEATURE-106)", async () => {
+    const warning = vi.spyOn(toast, "warning");
+    let answer: (remap: Record<string, string>) => void = () => {};
+    const onSave = copyThenOpenOther("photo", {
+      adoptMedia: () => new Promise((resolve) => (answer = resolve)),
+      resolveMedia: () => undefined,
+    });
+    key("v");
+    cleanup();
+    answer({});
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(warning).not.toHaveBeenCalled();
+    expect(onSave).not.toHaveBeenCalled();
+    warning.mockRestore();
+  });
+
+  it("takes the target's brand for a key it has, its role default for one it lacks (AC9)", async () => {
+    const branded = {
+      ...DOC,
+      pages: [
+        {
+          id: "one",
+          background,
+          elements: [
+            {
+              ...shape("a", 0, 0),
+              fill: { type: "color" as const, color: { kind: "brand" as const, key: "primary" } },
+            },
+          ],
+        },
+      ],
+    };
+    const words = {
+      id: "words",
+      name: "words",
+      type: "text" as const,
+      ...{ x: 300, y: 0, width: 200, height: 40 },
+      runs: [
+        {
+          text: "Some words",
+          fill: { type: "color" as const, color: { kind: "brand" as const, key: "text" } },
+          font: { kind: "brand" as const, key: "body" },
+        },
+      ],
+    };
+    branded.pages[0]!.elements.push(words as never);
+    renderEditor({ document: branded });
+    click(50, 50);
+    click(350, 20, true);
+    key("c");
+    cleanup();
+    const onSave = renderEditor({ document: OTHER, brand: OTHER_BRAND });
+    key("v");
+    const [kept, rewritten] = await saved(onSave);
+    expect(kept).toMatchObject({ fill: { color: { kind: "brand", key: "primary" } } });
+    expect(rewritten).toMatchObject({
+      runs: [
+        {
+          fill: { color: { kind: "brand", key: "ink" } },
+          font: { kind: "brand", key: "plain" },
+        },
+      ],
+    });
   });
 
   it("keeps an image's payload byte-equal through copy and paste (AC3)", async () => {
