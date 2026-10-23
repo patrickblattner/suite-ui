@@ -872,18 +872,20 @@ function IconButtonTooltip({
   }
   // A control locked with `aria-disabled` (a Save that locked itself, `SUI-FEATURE-120`) keeps the
   // focus, so it carries the locked description itself; a `disabled` one leaves it to the span.
-  const ariaLocked =
-    disabledText !== undefined && [true, "true"].includes(children.props["aria-disabled"] ?? false);
+  const ariaDisabled = [true, "true"].includes(children.props["aria-disabled"] ?? false);
+  const ariaLocked = disabledText !== undefined && ariaDisabled;
   const disabled = disabledText !== undefined && (children.props.disabled === true || ariaLocked);
   const spanHolds = disabled && !ariaLocked;
+  // Locked, with or without a reason of its own, the control offers no shortcut (`GL-UI-006` rev 4
+  // §Sichtbarkeit): on a surface locked as a whole, its hint names the reason once (#461).
+  const offered = children.props.disabled === true || ariaDisabled ? undefined : variants;
   // The explicit `aria-describedby` key, even undefined, wins over the one radix points at the bubble.
   const control = React.cloneElement(children, {
     "aria-label": label,
     "aria-describedby": uniqueIds(
       `${children.props["aria-describedby"] ?? ""} ${ariaLocked ? id : ""}`,
     ),
-    "aria-keyshortcuts":
-      disabled || variants === undefined ? undefined : ariaKeyShortcuts(variants),
+    "aria-keyshortcuts": offered === undefined ? undefined : ariaKeyShortcuts(offered),
   });
   const trigger =
     disabledText === undefined && !("busy" in children.props) ? (
@@ -919,7 +921,7 @@ function IconButtonTooltip({
             ) : (
               label
             )}
-            {disabled || variants === undefined ? null : <ShortcutChip variants={variants} />}
+            {offered === undefined ? null : <ShortcutChip variants={offered} />}
           </TooltipContent>
         </TooltipPrimitive.Root>
       </TooltipProvider>

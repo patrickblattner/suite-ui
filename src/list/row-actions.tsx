@@ -179,6 +179,8 @@ function RowActionMenu({
     // A locked entry with a hint stays in the arrow keys' path, so its reason reaches the keyboard
     // too: it is marked `aria-disabled` and ignores the choice instead of being `disabled`.
     const lockedWithReason = item.disabled === true && item.hint !== undefined;
+    // Locked, the entry offers no shortcut (`GL-UI-006` §Sichtbarkeit, #518).
+    const shortcut = item.disabled === true ? undefined : item.shortcut;
     const lock = {
       disabled: item.disabled === true && !lockedWithReason,
       ...(lockedWithReason ? { "aria-disabled": true, "data-disabled": "" } : {}),
@@ -194,9 +196,7 @@ function RowActionMenu({
           key={item.label}
           variant={item.destructive === true ? "destructive" : "default"}
           {...lock}
-          aria-keyshortcuts={
-            item.shortcut === undefined ? undefined : ariaKeyShortcuts(item.shortcut)
-          }
+          aria-keyshortcuts={shortcut === undefined ? undefined : ariaKeyShortcuts(shortcut)}
           onSelect={(event) => {
             if (lockedWithReason) event.preventDefault();
             else item.onSelect();
@@ -204,9 +204,9 @@ function RowActionMenu({
         >
           {item.icon}
           {item.label}
-          {item.shortcut === undefined ? null : (
+          {shortcut === undefined ? null : (
             <kbd aria-hidden className="ml-auto pl-4 text-xs opacity-70">
-              {shortcutChip(item.shortcut, t("keys.delete"))}
+              {shortcutChip(shortcut, t("keys.delete"))}
             </kbd>
           )}
         </DropdownMenuItem>

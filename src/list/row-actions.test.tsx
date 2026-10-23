@@ -355,6 +355,75 @@ describe("RowActions menu entry hint (SUI-FEATURE-066 rev 3)", () => {
   });
 });
 
+// #518: a locked menu entry offers no shortcut (`GL-UI-006` rev 4 §Sichtbarkeit).
+describe("RowActions menu entry shortcut (GL-UI-006)", () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const row = (disabled: boolean) => (
+    <Table>
+      <TableBody>
+        <TableRow>
+          <RowActions
+            rowName="Ada"
+            menu={{
+              label: "More for Ada",
+              items: [
+                {
+                  label: "Undo",
+                  onSelect: vi.fn(),
+                  shortcut: ["Ctrl+Z", "Meta+Z"],
+                  disabled,
+                  ...(disabled ? { hint: "Nothing to undo." } : {}),
+                },
+                { label: "Redo", onSelect: vi.fn(), shortcut: ["Ctrl+Y"], disabled },
+              ],
+            }}
+          />
+        </TableRow>
+      </TableBody>
+    </Table>
+  );
+  const openMenu = () => {
+    const trigger = screen.getByRole("button", { name: "More for Ada" });
+    trigger.focus();
+    fireEvent.keyDown(trigger, { key: "Enter" });
+    return screen.getByRole("menu");
+  };
+  const entry = (menu: HTMLElement, name: string) =>
+    within(menu)
+      .getAllByRole("menuitem")
+      .find((item) => item.textContent?.startsWith(name))!;
+
+  it("a disabled entry, with or without a hint, shows no chip and no aria-keyshortcuts; enabled, both return", () => {
+    const { rerender } = render(row(true));
+    let menu = openMenu();
+    for (const name of ["Undo", "Redo"]) {
+      const item = entry(menu, name);
+      expect(item).not.toHaveAttribute("aria-keyshortcuts");
+      expect(item.querySelector("kbd")).toBeNull();
+    }
+    fireEvent.keyDown(menu, { key: "Escape" });
+    rerender(row(false));
+    menu = openMenu();
+    expect(entry(menu, "Undo")).toHaveAttribute("aria-keyshortcuts", "Control+Z Meta+Z");
+    expect(entry(menu, "Undo").querySelector("kbd")).not.toBeNull();
+    expect(entry(menu, "Redo")).toHaveAttribute("aria-keyshortcuts", "Control+Y");
+    expect(entry(menu, "Redo").querySelector("kbd")).not.toBeNull();
+  });
+});
+
 describe("RowActions Used by (SUI-FEATURE-004)", () => {
   afterEach(async () => {
     vi.useRealTimers();

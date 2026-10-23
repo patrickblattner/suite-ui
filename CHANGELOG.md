@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — #461, GL-UI-006 rev 4: a locked shortcut control offers no shortcut
+
+- **Locked without a reason of its own (#461):** `IconButtonTooltip` and `Hint` now drop the shortcut chip and `aria-keyshortcuts` whenever the wrapped control is `disabled` or `aria-disabled`, also without `disabledText`. Before, they dropped them only with `disabledText`. This is the case of a surface or toolbar locked as a whole whose hint names the reason once: its Undo/Redo pass `disabled` and no `disabledText`, so they carry no reason of their own, have no focusable wrapper (`Tab` skips them) and offer no shortcut; usable again, chip and `aria-keyshortcuts` return. The `disabledText` path is unchanged.
+- **Row overflow menu (#461, #518):** a `disabled` entry of a row's ⋯ menu (`RowActions` `menu.items`, also the `EditorHeader`'s folded tools) no longer shows its shortcut chip and no longer carries `aria-keyshortcuts`, with or without a `hint`; once it is usable again, both return.
+- **Audit (#461):** already correct before this change, no code change: the `TablePagination` chevrons, the row delete button, the slide page sorter's delete, the slide editor's context-menu entries, and the editor's Undo/Redo (header buttons and folded ⋯ entries, #380/#454). Fixed here: the row ⋯ menu entries and the whole-surface case above. No surface in the package locks Undo/Redo as a whole today.
+- **Tests (#461):** a unit and a gallery test check that the back button on page 1 carries neither chip nor `aria-keyshortcuts` and names its reason, and on page 2 carries both; a unit test covers the menu entry; a unit test models a surface locked as a whole (`GL-UI-006` rev 4, last acceptance bullet).
+
+**Migration:** a control wrapped in `IconButtonTooltip` or `Hint` that is `disabled` or `aria-disabled` without `disabledText` no longer gets `aria-keyshortcuts` or the `kbd` chip; tests that expected them on such a locked control expect them only once it is usable. An app that passes `shortcut` on a `disabled` menu entry no longer gets them on that entry either; a `disabled` `RowMenuItem` must carry a `hint` naming its reason, otherwise it shows neither a shortcut nor a reason (`GL-UX-001` question 5). No strings or baselines change.
+
 ## 0.172.1 — #520: a long malformed number is rejected in linear time
 
 - **Number parsing (#520):** `parseDecimal` no longer backtracks quadratically on a long malformed paste (40,000 digits and an "x" took over 2 s, now well under 1 ms). What it accepts and rejects, and why, is unchanged (`GL-UI-037`).

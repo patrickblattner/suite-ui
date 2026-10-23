@@ -74,6 +74,22 @@ describe("TablePagination", () => {
       expect(hintOf(button)).toEqual({ focus: null, hover1499: null, hover1500: hint });
     }
   });
+
+  // GL-UI-006 rev 4 §Sichtbarkeit (#461): a locked chevron offers no shortcut and names its reason.
+  it("on page 1 the back button carries neither chip nor aria-keyshortcuts; on page 2 both", () => {
+    render(<Harness total={23} />);
+    const prev = screen.getByTestId("pagination-prev");
+    expect(prev).not.toHaveAttribute("aria-keyshortcuts");
+    expect(hintOf(prev).hover1500).not.toContain("←");
+    expect(prev).toHaveAccessibleDescription(i18n.t("suite:pagination.prevPageDisabled"));
+    fireEvent.click(screen.getByTestId("pagination-next"));
+    expect(prev).toHaveAttribute("aria-keyshortcuts", "ArrowLeft");
+    expect(hintOf(prev).hover1500).toBe(`${prev.getAttribute("aria-label")}←`);
+    fireEvent.click(screen.getByTestId("pagination-last"));
+    const next = screen.getByTestId("pagination-next");
+    expect(next).not.toHaveAttribute("aria-keyshortcuts");
+    expect(hintOf(next).hover1500).not.toContain("→");
+  });
 });
 
 describe("TablePagination select width (SUI-FEATURE-026)", () => {

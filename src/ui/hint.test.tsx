@@ -391,6 +391,33 @@ describe("Hint timing", () => {
     expect(document.querySelector("[data-slot=tooltip-content] kbd")).toBeNull();
   });
 
+  // GL-UI-006 rev 4 §Sichtbarkeit (#461): locked with `aria-disabled` and no reason of its own (the
+  // surface's hint names it), the control offers no shortcut; usable again, chip and
+  // aria-keyshortcuts return.
+  it("shortcut: no chip and no aria-keyshortcuts while aria-disabled without a reason; back once usable", () => {
+    const { rerender } = render(
+      <Hint text="Redo the last step" shortcut={["Ctrl+Y", "Meta+Y"]}>
+        <Button variant="ghost" size="sm" aria-disabled>
+          Redo
+        </Button>
+      </Hint>,
+    );
+    const button = screen.getByRole("button", { name: "Redo" });
+    expect(button).not.toHaveAttribute("aria-keyshortcuts");
+    hoverFor(button, 1500);
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Redo the last step");
+    expect(document.querySelector("[data-slot=tooltip-content] kbd")).toBeNull();
+    rerender(
+      <Hint text="Redo the last step" shortcut={["Ctrl+Y", "Meta+Y"]}>
+        <Button variant="ghost" size="sm">
+          Redo
+        </Button>
+      </Hint>,
+    );
+    expect(button).toHaveAttribute("aria-keyshortcuts", "Control+Y Meta+Y");
+    expect(document.querySelector("[data-slot=tooltip-content] kbd")).not.toBeNull();
+  });
+
   // SUI-FEATURE-210 AC2: without `shortcut` the hint is as before.
   it("shortcut: none, no chip and no aria-keyshortcuts", () => {
     render(

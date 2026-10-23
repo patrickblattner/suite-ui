@@ -1738,3 +1738,79 @@ describe("tooltip click on the bubble", () => {
     expect(onClick).not.toHaveBeenCalled();
   });
 });
+
+// GL-UI-006 rev 4 §Sichtbarkeit, last Abnahme bullet (#461): on a surface locked as a whole, whose
+// hint names the reason once, Undo and Redo carry neither chip nor aria-keyshortcuts nor a reason of
+// their own, and Tab skips them; usable again, chip and aria-keyshortcuts return.
+describe("Undo and Redo on a surface locked as a whole (GL-UI-006 rev 4)", () => {
+  function Surface({ locked }: { locked: boolean }) {
+    return (
+      <div role="toolbar" aria-label="History" aria-describedby="surface-reason">
+        {locked ? <p id="surface-reason">Read only: this version is published.</p> : null}
+        <IconButtonTooltip label="Undo" shortcut={["Ctrl+Z", "Meta+Z"]}>
+          <Button variant="ghost" size="icon" disabled={locked} />
+        </IconButtonTooltip>
+        <Hint text="Redo the last step" shortcut={["Ctrl+Y", "Meta+Y"]}>
+          <Button variant="ghost" size="sm" disabled={locked}>
+            Redo
+          </Button>
+        </Hint>
+        <Button variant="outline" size="sm">
+          After
+        </Button>
+      </div>
+    );
+  }
+  // The elements Tab stops at, in document order.
+  const tabStops = () =>
+    [...document.querySelectorAll<HTMLElement>("button, a[href], input, [tabindex]")].filter(
+      (element) => element.tabIndex >= 0 && !(element as HTMLButtonElement).disabled,
+    );
+
+  it("locked: no chip, no aria-keyshortcuts, no own reason, Tab skips them; usable: both return", () => {
+    const { rerender } = render(<Surface locked />);
+    const undo = screen.getByRole("button", { name: "Undo" });
+    const redo = screen.getByRole("button", { name: "Redo" });
+    expect(screen.getByRole("toolbar")).toHaveAccessibleDescription(
+      "Read only: this version is published.",
+    );
+    for (const button of [undo, redo]) {
+      expect(button).not.toHaveAttribute("aria-keyshortcuts");
+      expect(button).not.toHaveAttribute("aria-disabled");
+      expect(button.getAttribute("aria-describedby") ?? "").not.toContain("surface-reason");
+    }
+    expect(undo).not.toHaveAccessibleDescription();
+    expect(redo).toHaveAccessibleDescription("Redo the last step");
+    expect(tabStops()).toEqual([screen.getByRole("button", { name: "After" })]);
+    for (const [button, text] of [
+      [undo, "Undo"],
+      [redo, "Redo the last step"],
+    ] as const) {
+      expect(openAfter(button, 1500)).toBe(true);
+      expect(screen.getByRole("tooltip")).toHaveTextContent(text);
+      expect(document.querySelector("[data-slot=tooltip-content] kbd")).toBeNull();
+      leaveTooltip(button);
+      expect(screen.queryByRole("tooltip")).toBeNull();
+    }
+
+    rerender(<Surface locked={false} />);
+    expect(undo).toHaveAttribute("aria-keyshortcuts", "Control+Z Meta+Z");
+    expect(redo).toHaveAttribute("aria-keyshortcuts", "Control+Y Meta+Y");
+    expect(tabStops()).toEqual([undo, redo, screen.getByRole("button", { name: "After" })]);
+    expect(openAfter(undo, 1500)).toBe(true);
+    expect(document.querySelector("[data-slot=tooltip-content] kbd")).not.toBeNull();
+  });
+
+  it("a control locked with aria-disabled and no reason of its own offers no shortcut either", () => {
+    render(
+      <IconButtonTooltip label="Undo" shortcut="Ctrl+Z">
+        <Button variant="ghost" size="icon" aria-disabled />
+      </IconButtonTooltip>,
+    );
+    const undo = screen.getByRole("button", { name: "Undo" });
+    expect(undo).not.toHaveAttribute("aria-keyshortcuts");
+    expect(openAfter(undo, 1500)).toBe(true);
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Undo");
+    expect(document.querySelector("[data-slot=tooltip-content] kbd")).toBeNull();
+  });
+});

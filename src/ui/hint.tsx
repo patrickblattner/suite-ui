@@ -197,7 +197,10 @@ function Hint({
   const describes = describe && children.props["aria-label"] !== shown;
   const carried = disabledText !== undefined;
   const variants = shortcutVariants(shortcut);
-  const chip = variants === undefined || locked ? null : <ShortcutChip variants={variants} />;
+  // Locked, with or without a reason of its own, the control offers no shortcut (`GL-UI-006` rev 4
+  // §Sichtbarkeit): on a surface locked as a whole, its hint names the reason once (#461).
+  const offered = disabled || ariaLocked ? undefined : variants;
+  const chip = offered === undefined ? null : <ShortcutChip variants={offered} />;
 
   let trigger: React.ReactElement<HintChildProps> = children;
   if (describes && !(carried && disabled)) {
@@ -206,8 +209,8 @@ function Hint({
     });
   }
   // Locked, the control offers no shortcut, as `IconButtonTooltip` (#380).
-  if (variants !== undefined && !locked) {
-    trigger = React.cloneElement(trigger, { "aria-keyshortcuts": ariaKeyShortcuts(variants) });
+  if (offered !== undefined) {
+    trigger = React.cloneElement(trigger, { "aria-keyshortcuts": ariaKeyShortcuts(offered) });
   }
   if (carried) {
     trigger = (

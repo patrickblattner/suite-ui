@@ -5382,6 +5382,26 @@ test("tooltip in a row: pagination, rest on Last page closes Next's bubble; clic
   await expect(summary).toContainText(`${pages} / ${pages}`);
 });
 
+// GL-UI-006 rev 4 §Sichtbarkeit (#461): on page 1 the back button offers no shortcut and its hint
+// names the reason; on page 2 chip and aria-keyshortcuts return.
+test("pagination: the back button on page 1 carries no shortcut, on page 2 it does", async ({
+  page,
+}) => {
+  await page.goto("/?page=list&lng=en");
+  const pager = page.getByTestId("pagination").first();
+  const prev = pager.getByTestId("pagination-prev");
+  await expect(prev).not.toHaveAttribute("aria-keyshortcuts");
+  await prev.hover();
+  await expect(page.getByRole("tooltip")).toHaveText(
+    "Previous page: possible once you are on a later page.",
+  );
+  await expect(page.locator("[data-slot=tooltip-content] kbd")).toHaveCount(0);
+  await pager.getByTestId("pagination-next").click();
+  await expect(prev).toHaveAttribute("aria-keyshortcuts", "ArrowLeft");
+  await prev.hover();
+  await expect(page.locator("[data-slot=tooltip-content] kbd")).toHaveText("←");
+});
+
 test("tooltip in a row: pagination, a moving way onto Next's bubble keeps it open", async ({
   page,
 }) => {
