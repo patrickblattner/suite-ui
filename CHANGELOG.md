@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #466, SUI-FEATURE-191 rev 5, SUI-FEATURE-106 rev 2: copy/paste of locked elements, layout roles, group children, and into another document
+## 0.173.0 — #466, SUI-FEATURE-191 rev 5, SUI-FEATURE-106 rev 2: copy/paste of locked elements, layout roles, group children, and into another document
 
 - **Locked elements (#466):** copy, cut and duplicate now take the whole selection, locked elements included. Cut leaves a locked element in place and removes only the unlocked part. Before, cut and duplicate skipped locked elements. Copies are never locked, and the canvas menu's Cut and Duplicate are usable whenever something is selected; their hints (`cutHint`, `cutUnavailable`, `duplicateUnavailable`) say so.
 - **Layout role (#466):** a copy no longer carries the layout placeholder role (`placeholderRole`), so after a layout change each role belongs only to the original.
@@ -12,7 +12,7 @@
 
 **Migration:** none required; both props are optional and without them nothing changes. Apps with their own media store pass `adoptMedia` and set `defaults` on their brand set.
 
-## Unreleased — #462, SUI-FEATURE-101 rev 3, GL-UI-028 rev 5, GL-UI-013 rev 5: keyboard focus never rests under a toast
+## 0.173.0 — #462, SUI-FEATURE-101 rev 3, GL-UI-028 rev 5, GL-UI-013 rev 5: keyboard focus never rests under a toast
 
 - **Toaster (#462):** when keyboard focus lands on an element that a visible toast covers, wholly or in part (its focus ring included, 4 px around it as in forced colours), `<Toaster>` closes all toasts, the keyboard counterpart of the click that dismisses them all; the live region has announced them already. Only keyboard focus counts, as `:focus-visible` tells it; focus after a pointer press is unchanged, and focus on a toast's own action or close button closes none.
 - **Scroll containers (#462):** the sidebar nav, the edit panel and media detail shell (both columns), the property panel, the drawer rail, the dialog body, the tile grid and the settings scaffold now carry `scroll-padding` of 0.5 rem, so a focused node scrolled into view keeps its whole ring visible, also the last Tab stop of a sidebar.
@@ -20,14 +20,14 @@
 
 **Migration:** none for the API. A test that compares the exact class string of one of these scroll containers adds `scroll-py-2` (`@panel-split:scroll-py-2` on the split column); the frozen markup of `DataTableShell` and `PageScroll` is unchanged. An app that closed a toast itself before tabbing to a control under it (or a test that dismissed the toast first) can drop that; the package does it. Apps build nothing of their own for it (`GL-UI-004`).
 
-## Unreleased — #463, SUI-FEATURE-102 rev 3: the Sidebar's focused entry is never obscured
+## 0.173.0 — #463, SUI-FEATURE-102 rev 3: the Sidebar's focused entry is never obscured
 
 - **Sidebar focus (#463, `GL-UI-013` rev 5):** the Sidebar's scrolling nav area keeps a block `scroll-padding` (8 px, clear of the 3 px ring and the forced-colours outline) and scrolls a keyboard-focused (`:focus-visible`) entry into view with `scrollIntoView({ block: 'nearest' })`. Pointer focus does not scroll: Chromium focuses on mousedown, and a scroll then would move the entry from under the pointer and lose the click. Before, at a low viewport height the browser scrolled a tabbed-to entry only to the area's edge, so the lower part of its ring was clipped against the footer (e.g. `nav-section-admin`, `nav-section-settings` at 400 px). Applies expanded, collapsed and in the overlay; the area carries `data-testid="nav-scroll"`.
 - **Tests (#463):** unit tests check the padding, the `scrollIntoView` call on keyboard focus and none on pointer focus; a gallery test at 1280 × 320 clicks the link cut off at the nav's bottom and finds it active; a gallery test tabs through every nav stop to `help-button` at 1280 × 720 and 1280 × 400 (expanded, collapsed) and 390 × 720 / 390 × 400 (overlay) and asserts each box plus ring lies inside the area's visible part and above the footer.
 
 **Migration:** none. No strings or baselines change.
 
-## Unreleased — #461, GL-UI-006 rev 4: a locked shortcut control offers no shortcut
+## 0.173.0 — #461, GL-UI-006 rev 4: a locked shortcut control offers no shortcut
 
 - **Locked without a reason of its own (#461):** `IconButtonTooltip` and `Hint` now drop the shortcut chip and `aria-keyshortcuts` whenever the wrapped control is `disabled` or `aria-disabled`, also without `disabledText`. Before, they dropped them only with `disabledText`. This is the case of a surface or toolbar locked as a whole whose hint names the reason once: its Undo/Redo pass `disabled` and no `disabledText`, so they carry no reason of their own, have no focusable wrapper (`Tab` skips them) and offer no shortcut; usable again, chip and `aria-keyshortcuts` return. The `disabledText` path is unchanged.
 - **Row overflow menu (#461, #518):** a `disabled` entry of a row's ⋯ menu (`RowActions` `menu.items`, also the `EditorHeader`'s folded tools) no longer shows its shortcut chip and no longer carries `aria-keyshortcuts`, with or without a `hint`; once it is usable again, both return.
