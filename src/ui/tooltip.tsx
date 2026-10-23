@@ -873,8 +873,10 @@ function IconButtonTooltip({
   // A control locked with `aria-disabled` (a Save that locked itself, `SUI-FEATURE-120`) keeps the
   // focus, so it carries the locked description itself; a `disabled` one leaves it to the span.
   const ariaDisabled = [true, "true"].includes(children.props["aria-disabled"] ?? false);
-  const ariaLocked = disabledText !== undefined && ariaDisabled;
-  const disabled = disabledText !== undefined && (children.props.disabled === true || ariaLocked);
+  // A run is no lock with a reason: no `disabledText` while the control is `busy` (`SUI-FEATURE-103`).
+  const reasoned = disabledText !== undefined && children.props.busy !== true;
+  const ariaLocked = reasoned && ariaDisabled;
+  const disabled = reasoned && (children.props.disabled === true || ariaLocked);
   const spanHolds = disabled && !ariaLocked;
   // Locked, with or without a reason of its own, the control offers no shortcut (`GL-UI-006` rev 4
   // §Sichtbarkeit): on a surface locked as a whole, its hint names the reason once (#461).

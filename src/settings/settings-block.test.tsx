@@ -185,6 +185,30 @@ describe("SettingsActionRow", () => {
     expect(save).toHaveFocus();
   });
 
+  // SUI-FEATURE-103 AC3: a dirty Save that is saving is locked with `aria-disabled` for the run, and
+  // keeps the focus; an invalid entry's `disabled` waits until the run ends.
+  it.each([true, false])("a dirty Save that is saving is aria-disabled (valid %s)", (valid) => {
+    const onSave = vi.fn();
+    render(
+      <SettingsActionRow
+        dirty
+        valid={valid}
+        saving
+        onSave={onSave}
+        onReset={() => {}}
+        testIdPrefix="mail"
+      />,
+    );
+    const save = screen.getByTestId("mail-save");
+    expect(save).toBeEnabled();
+    expect(save).toHaveAttribute("aria-disabled", "true");
+    expect(save).toHaveAttribute("aria-busy", "true");
+    save.focus();
+    fireEvent.click(save, { detail: 1 });
+    expect(onSave).not.toHaveBeenCalled();
+    expect(save).toHaveFocus();
+  });
+
   // SUI-FEATURE-088 AC1: Cancel in place of Reset, usable while cancelable, also without a change.
   it("with onCancel and cancelable but no change: Cancel usable, Save locked", () => {
     const onCancel = vi.fn();

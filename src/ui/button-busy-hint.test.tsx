@@ -53,6 +53,42 @@ describe("hints of a running button (as on main)", () => {
     });
   });
 
+  // SUI-FEATURE-103 AC2: a run is no lock with a reason, whatever the call site passes besides `busy`.
+  it.each([
+    ["disabled", { disabled: true }],
+    ["aria-disabled", { "aria-disabled": true }],
+    ["aria-disabled={false}", { "aria-disabled": false }],
+  ] as const)("a Hint with disabledText shows no reason while it runs (%s)", (_, lock) => {
+    render(
+      <Hint text="Saves the settings" disabledText="Possible once a field changed">
+        <Button variant="success" size="default" busy {...lock}>
+          Save
+        </Button>
+      </Hint>,
+    );
+    const button = screen.getByRole("button", { name: "Save" });
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(hintOf(button).hover1500).toBe("Saves the settings");
+    expect(document.body.textContent).not.toContain("Possible once a field changed");
+  });
+
+  it.each([
+    ["disabled", { disabled: true }],
+    ["aria-disabled", { "aria-disabled": true }],
+  ] as const)("IconButtonTooltip shows no reason while it runs (%s)", (_, lock) => {
+    render(
+      <IconButtonTooltip label="Send Ada" disabledText="Possible once online">
+        <Button variant="outline" size="icon-xs" busy {...lock}>
+          <span aria-hidden="true">→</span>
+        </Button>
+      </IconButtonTooltip>,
+    );
+    const button = screen.getByRole("button", { name: "Send Ada" });
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(hintOf(button).hover1500).toBe("Send Ada");
+    expect(document.body.textContent).not.toContain("Possible once online");
+  });
+
   it("IconButtonTooltip keeps its label on hover while the action runs (SUI-FEATURE-072)", () => {
     render(
       <IconButtonTooltip label="Send Ada">

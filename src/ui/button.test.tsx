@@ -356,6 +356,75 @@ describe("Button", () => {
     expect(onClick).toHaveBeenCalledTimes(1);
   });
 
+  // SUI-FEATURE-103 AC1: the call site's `disabled` waits while the button runs; it applies again once
+  // the run ends.
+  it("busy with disabled: no disabled attribute, keeps the focus, fires nothing; disabled after", () => {
+    const onClick = vi.fn();
+    const onSubmit = vi.fn((event: { preventDefault: () => void }) => event.preventDefault());
+    const view = (busy: boolean) => (
+      <form onSubmit={onSubmit}>
+        <Button
+          type="submit"
+          variant="success"
+          size="default"
+          busy={busy}
+          disabled
+          onClick={onClick}
+        >
+          Save
+        </Button>
+      </form>
+    );
+    const { rerender } = render(view(true));
+    const button = screen.getByRole("button", { name: "Save" });
+    expect(button).not.toHaveAttribute("disabled");
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(button).toHaveAttribute("aria-busy", "true");
+    button.focus();
+    expect(button).toHaveFocus();
+    expect(fireEvent.mouseDown(button)).toBe(false);
+    fireEvent.click(button, { detail: 0 });
+    fireEvent.click(button, { detail: 1 });
+    button.click();
+    expect(onClick).not.toHaveBeenCalled();
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(button).toHaveFocus();
+    rerender(view(false));
+    expect(button).toBeDisabled();
+    expect(button).not.toHaveAttribute("aria-busy");
+  });
+
+  // SUI-FEATURE-103 AC2: a call site's `aria-disabled={false}` cannot undo the run's lock.
+  it.each([false, "false"] as const)(
+    "busy with aria-disabled=%s: locked, fires nothing",
+    (ariaDisabled) => {
+      const onClick = vi.fn();
+      const onSubmit = vi.fn((event: { preventDefault: () => void }) => event.preventDefault());
+      render(
+        <form onSubmit={onSubmit}>
+          <Button
+            type="submit"
+            variant="success"
+            size="default"
+            busy
+            aria-disabled={ariaDisabled}
+            onClick={onClick}
+          >
+            Save
+          </Button>
+        </form>,
+      );
+      const button = screen.getByRole("button", { name: "Save" });
+      expect(button).toHaveAttribute("aria-disabled", "true");
+      expect(button).toHaveAttribute("aria-busy", "true");
+      fireEvent.click(button, { detail: 0 });
+      fireEvent.click(button, { detail: 1 });
+      button.click();
+      expect(onClick).not.toHaveBeenCalled();
+      expect(onSubmit).not.toHaveBeenCalled();
+    },
+  );
+
   it("busy: a double-click burst is one intent", () => {
     const onClick = vi.fn();
     render(

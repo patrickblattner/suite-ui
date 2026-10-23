@@ -192,7 +192,9 @@ function Hint({
   // A control locked with `aria-disabled` keeps the focus and pointer events, so it owns its
   // description itself; only its text is the locked one.
   const ariaLocked = [true, "true"].includes(children.props["aria-disabled"] ?? false);
-  const locked = (disabled || ariaLocked) && disabledText !== undefined;
+  // A run is no lock with a reason: no `disabledText` while the control is `busy` (`SUI-FEATURE-103`).
+  const locked =
+    (disabled || ariaLocked) && disabledText !== undefined && children.props.busy !== true;
   const shown = locked ? disabledText : text;
   const describes = describe && children.props["aria-label"] !== shown;
   const carried = disabledText !== undefined;

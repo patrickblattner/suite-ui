@@ -169,9 +169,9 @@ function Button(props: ButtonProps) {
       data-slot="button"
       data-variant={variant}
       data-size={size}
-      {...(disabled !== undefined ? { disabled } : {})}
-      {...(working ? { "data-busy": "true", "aria-busy": true } : {})}
-      {...(locked ? { "aria-disabled": true } : {})}
+      // While it runs, the call site's `disabled` waits: the attribute would drop the focus to `<body>`
+      // (`SUI-FEATURE-103`); the run's lock holds instead, and `disabled` applies again once it ends.
+      {...(disabled !== undefined && !(busy && !asChild) ? { disabled } : {})}
       className={cn(
         buttonVariants({ variant, size }),
         locked && !busy && disabled !== true && [LOCKED_LOOK[variant], LOCKED_FORCED],
@@ -192,6 +192,10 @@ function Button(props: ButtonProps) {
         onClick?.(event);
       }}
       {...rest}
+      // After the spread, so a call site's `aria-disabled` or `aria-busy` cannot undo the lock
+      // (`SUI-FEATURE-103`).
+      {...(working ? { "data-busy": "true", "aria-busy": true } : {})}
+      {...(locked ? { "aria-disabled": true } : {})}
       // After the spread, so they wrap the handlers a wrapping trigger merged in.
       onMouseDown={(event: React.MouseEvent<HTMLButtonElement>) => {
         // A press on the running button does not move the focus.

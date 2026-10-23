@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — #486, SUI-FEATURE-103 rev 2: Button `busy` wins over the call site's `disabled` and `aria-disabled`
+
+- **Button (#486):** while `busy`, a call site's `disabled` no longer renders the `disabled` attribute, so the focus stays on the running button; the run's `aria-disabled="true"` lock holds instead, and `disabled` applies again once `busy` ends. `aria-disabled="true"` and `aria-busy="true"` are now set after the passed-through props, so a call-site `aria-disabled={false}` (or `aria-busy`) can no longer undo the lock during a run. Applies to every building block that passes `busy` through.
+- **Hints (#486):** `Hint` and `IconButtonTooltip` show no `disabledText` while the wrapped button is `busy`; a run is no lock with a reason. Report a run only through `busy`, never folded into `aria-disabled`.
+- **Tests (#486):** unit tests for `busy` with `disabled` (no attribute, focus kept, nothing fires, `disabled` after the run), `busy` with `aria-disabled={false}` (click, `Enter`/`Space`, form submit fire nothing), no reason hint while `busy`, and a saving `SettingsActionRow` Save.
+
+**Migration:** app tests that expect a running button to be `disabled` because the call site also passed `disabled` check `aria-disabled="true"` instead.
+
 ## 0.173.0 — #466, SUI-FEATURE-191 rev 5, SUI-FEATURE-106 rev 2: copy/paste of locked elements, layout roles, group children, and into another document
 
 - **Locked elements (#466):** copy, cut and duplicate now take the whole selection, locked elements included. Cut leaves a locked element in place and removes only the unlocked part. Before, cut and duplicate skipped locked elements. Copies are never locked, and the canvas menu's Cut and Duplicate are usable whenever something is selected; their hints (`cutHint`, `cutUnavailable`, `duplicateUnavailable`) say so.
