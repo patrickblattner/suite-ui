@@ -65,6 +65,23 @@ describe("GlobalSearch", () => {
     expect(screen.queryByTestId("search-dialog")).not.toBeInTheDocument();
   });
 
+  it("focus alone leaves the dialog closed; click and Enter open it", async () => {
+    renderSearch();
+    const field = screen.getByTestId("shell-search");
+    act(() => field.focus());
+    await settle();
+    expect(screen.queryByTestId("search-dialog")).not.toBeInTheDocument();
+    fireEvent.keyDown(field, { key: "Enter" });
+    const dialog = await screen.findByTestId("search-dialog");
+    fireEvent.keyDown(within(dialog).getByTestId("search-dialog-input"), { key: "Escape" });
+    await waitFor(() => expect(screen.queryByTestId("search-dialog")).not.toBeInTheDocument());
+    expect(field).toHaveFocus();
+    await settle();
+    expect(screen.queryByTestId("search-dialog")).not.toBeInTheDocument();
+    fireEvent.click(field);
+    expect(await screen.findByTestId("search-dialog")).toBeInTheDocument();
+  });
+
   it("one character searches nothing and names the areas exactly once; Esc returns to the field", async () => {
     const search = renderSearch();
     fireEvent.change(screen.getByTestId("shell-search"), { target: { value: "s" } });

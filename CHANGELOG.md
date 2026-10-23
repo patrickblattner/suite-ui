@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — #513, GL-UI-031 rev 5: shell search no longer opens on focus
+
+- **No open-on-focus (#513):** tabbing onto the sidebar search field (`shell-search`) leaves the search dialog closed (WCAG 2.2 SC 3.2.1); click, `Enter`, typing or the shortcut open it, and a typed prefix still arrives in `search-dialog-input`. `Esc` closes the dialog and returns the focus to the field without reopening it.
+- **Tests (#513):** unit tests cover focus without opening, `Enter` and click opening, and `Esc` back to the closed field.
+
+**Migration:** none for callers; a test that opened the dialog by focusing the field clicks it or presses `Enter` instead.
+
 ## Unreleased — #446, SUI-FEATURE-086 rev 3: SlideEditor `headerRef`
 
 - **`headerRef` (#446):** `SlideEditor` takes a new optional `headerRef` prop and hangs it on its header element. The full-screen editor route passes the same ref to `useEditorShellToastOffset`, so toasts start below the editor's header and cover none of its controls; the editor never calls the hook itself, and a DOM lookup of the header is no way for apps.

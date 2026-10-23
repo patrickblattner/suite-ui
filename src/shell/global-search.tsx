@@ -70,8 +70,8 @@ function isMacPlatform(): boolean {
 }
 
 // The app-shell search (`GL-UI-031`): a field in the sidebar under the head, with its shortcut badge.
-// The field never shows results; focus, click, typing or the shortcut open the centred dialog, which
-// is the one place hits appear. Collapsed, the field is an icon whose click opens the dialog; the
+// The field never shows results; click, Enter, typing or the shortcut open the centred dialog, which
+// is the one place hits appear; focus alone opens nothing (WCAG 2.2 SC 3.2.1). Collapsed, the field is an icon whose click opens the dialog; the
 // rail stays collapsed (#247).
 function GlobalSearch({
   areas,
@@ -84,8 +84,6 @@ function GlobalSearch({
   const navigate = useNavigate();
   const inputRef = React.useRef<HTMLInputElement>(null);
   const railRef = React.useRef<HTMLButtonElement>(null);
-  // Esc returns the focus to the field; without this flag that focus would reopen the dialog.
-  const suppressFocusOpen = React.useRef(false);
   const [term, setTerm] = React.useState("");
   const [dialogOpen, setDialogOpen] = React.useState(false);
   // A chosen hit navigates away and leaves the focus to the page.
@@ -123,10 +121,10 @@ function GlobalSearch({
   }
 
   // Once the dialog has closed: back to the field, else the rail's button. The search's trigger is
-  // always its sidebar field, also when the shortcut opened it (`GL-UI-031`, #240). The field itself
-  // takes the focus without reopening the dialog. With both hidden (the closed overlay below `md`):
-  // what had the focus at opening unless it navigates, else the overlay trigger, else `GL-UI-050`'s
-  // order without the trigger; never a navigation element, never `<body>`.
+  // always its sidebar field, also when the shortcut opened it (`GL-UI-031`, #240). With both hidden
+  // (the closed overlay below `md`): what had the focus at opening unless it navigates, else the
+  // overlay trigger, else `GL-UI-050`'s order without the trigger; never a navigation element, never
+  // `<body>`.
   function returnFocus(): void {
     const from = opener.current;
     opener.current = null;
@@ -141,10 +139,8 @@ function GlobalSearch({
     // The first usable one that takes the focus, each tried in turn.
     for (const target of [inputRef.current, railRef.current]) {
       if (!isUsable(target)) continue;
-      if (target === inputRef.current) suppressFocusOpen.current = true;
       target.focus();
       if (document.activeElement === target) return;
-      suppressFocusOpen.current = false;
     }
     const kept = from !== null && !isNavigation(from.trigger) ? from : null;
     if (kept !== null && isUsable(kept.trigger)) {
@@ -180,12 +176,8 @@ function GlobalSearch({
             aria-keyshortcuts="Meta+K Control+K"
             placeholder={t("search.placeholder")}
             onChange={(event) => openDialog(event.target.value)}
-            onFocus={() => {
-              if (suppressFocusOpen.current) {
-                suppressFocusOpen.current = false;
-                return;
-              }
-              openDialog();
+            onKeyDown={(event) => {
+              if (event.key === "Enter") openDialog();
             }}
             onClick={() => openDialog()}
             className="h-9 w-full rounded-md border border-input bg-transparent py-1 pr-16 pl-8 text-sm shadow-xs outline-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:focus-ring dark:bg-input/30"

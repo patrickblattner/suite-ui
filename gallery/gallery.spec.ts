@@ -3285,6 +3285,7 @@ test("sidebar overlay: Tab and Shift+Tab stay inside the open overlay", async ({
   expect(await focused()).toBe(last);
   // The search dialog the overlay opens keeps its own Tab; its Esc closes only itself.
   await sidebar.getByTestId("shell-search").focus();
+  await page.keyboard.press("Enter");
   const search = page.getByTestId("search-dialog");
   await expect(search).toBeVisible();
   await page.keyboard.press("Tab");
