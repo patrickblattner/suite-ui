@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — #446, SUI-FEATURE-086 rev 3: SlideEditor `headerRef`
+
+- **`headerRef` (#446):** `SlideEditor` takes a new optional `headerRef` prop and hangs it on its header element. The full-screen editor route passes the same ref to `useEditorShellToastOffset`, so toasts start below the editor's header and cover none of its controls; the editor never calls the hook itself, and a DOM lookup of the header is no way for apps.
+
+**Migration:** the slide editor's route calls `useEditorShellToastOffset(ref)` and passes `headerRef={ref}` to `SlideEditor`.
+
 ## 0.171.8 — #436, GL-UI-017 rev 6: locked chart controls and value errors under test
 
 - **Locked chart (#436):** the chart panel's type buttons, like its add and remove buttons (#440), stay focusable while the element is locked and say "Unlock the element to change its chart." as their description; this already held, a test now pins it.

@@ -14,7 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "../src/ui/dialog.js";
-import { Toaster } from "../src/ui/toaster.js";
+import { Toaster, useEditorShellToastOffset } from "../src/ui/toaster.js";
 import type { SlideDocument, SlideFormat, SlideLayoutInput } from "../src/slides/schema.js";
 import { SLIDE_EDITOR_DOC } from "./slide-showcase.js";
 import { GALLERY_SLIDE_PROPS, imageFilter } from "./SlidesPage.js";
@@ -239,6 +239,11 @@ export function SlideEditorPage() {
   const [opened, setOpened] = useState<SlideDocument | null>(null);
   const [picking, setPicking] = useState(false);
   const [presenting, setPresenting] = useState(false);
+  // The editor route is a full-screen editor's shell: its toasts start below the editor's header and
+  // cover none of its controls (`GL-UI-028`, `SUI-FEATURE-086` rev 3, #446). The header is the
+  // editor's own; the editor hangs the route's ref on it (`headerRef`).
+  const header = useRef<HTMLDivElement>(null);
+  useEditorShellToastOffset(header);
   const picked = useRef<((media: PickedMedia | undefined) => void) | null>(null);
   const pick = (media: PickedMedia | undefined) => {
     setPicking(false);
@@ -295,6 +300,7 @@ export function SlideEditorPage() {
                 : SLIDE_EDITOR_DOC)
             }
             title="Workshop deck"
+            headerRef={header}
             {...GALLERY_SLIDE_PROPS}
             {...(EDITOR_EXTENSIONS ? { extensions: GALLERY_EDITOR_EXTENSIONS } : {})}
             formats={FORMATS}

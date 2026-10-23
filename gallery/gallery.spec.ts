@@ -10662,6 +10662,27 @@ test("slide editor: an insert past the element limit is refused", async ({ page 
     "fill",
     SLIDE_BRAND.colors.text!.value,
   );
+  // The error toast starts below the editor's header and covers none of its controls, Reset and
+  // Save among them (`GL-UI-028`, `SUI-FEATURE-086`, #446).
+  const header = editor.locator("[data-slot=editor-header]");
+  const controls = header.locator("button:visible, [role=status]");
+  const toastBox = () => box(page.locator("[data-sonner-toast]").first());
+  const covered = async () => {
+    const shown = await toastBox();
+    const boxes = await Promise.all((await controls.all()).map(box));
+    return boxes.filter(
+      (control) =>
+        control.x < shown.x + shown.width &&
+        shown.x < control.x + control.width &&
+        control.y < shown.y + shown.height &&
+        shown.y < control.y + control.height,
+    ).length;
+  };
+  await expect(header.getByTestId("editor-save")).toBeVisible();
+  await expect
+    .poll(async () => (await toastBox()).y - ((await box(header)).y + (await box(header)).height))
+    .toBeGreaterThanOrEqual(0);
+  await expect.poll(covered).toBe(0);
 });
 
 // #365: the colour of a new element is chosen against the page's own background: on the dark page
@@ -10713,6 +10734,11 @@ test("slide editor: the library's icons are one tab stop, the arrows move inside
   const icons = grid.getByRole("button");
   await expect(icons).toHaveCount(60);
   await expect(grid.locator('button[tabindex="0"]')).toHaveCount(1);
+  // The arrows' scope is announced: a group named by the "Icons" heading (#446).
+  await expect(library.getByRole("group", { name: "Icons" })).toHaveAttribute(
+    "data-testid",
+    "slide-editor-library-icons",
+  );
   const search = library.getByTestId("slide-editor-library-search");
   await search.focus();
   await page.keyboard.press("Tab");
@@ -10723,6 +10749,17 @@ test("slide editor: the library's icons are one tab stop, the arrows move inside
     ["ArrowLeft", 2],
     ["ArrowUp", 0],
     ["End", 59],
+    // An arrow that would leave the grid does nothing, no clamp sideways (#446).
+    ["ArrowRight", 59],
+    ["ArrowDown", 59],
+    ["Home", 0],
+    ["ArrowUp", 0],
+    ["ArrowLeft", 0],
+    ["ArrowRight", 1],
+    ["ArrowUp", 1],
+    ["End", 59],
+    ["ArrowLeft", 58],
+    ["ArrowDown", 58],
     ["Home", 0],
     ["ArrowDown", 2],
   ] as const) {
@@ -10742,6 +10779,37 @@ test("slide editor: the library's icons are one tab stop, the arrows move inside
     presses += 1;
   }
   await expect(search).toBeFocused();
+});
+
+// #446 (`GL-UX-001` consistency): the shapes grid is one tab stop with the icons' roving tabindex,
+// a group named by its heading; an arrow that would leave it does nothing.
+test("slide editor: the library's shapes are one tab stop, the arrows move inside", async ({
+  page,
+}) => {
+  const { library } = await openLibrary(page);
+  const grid = library.getByRole("group", { name: "Shapes" });
+  await expect(grid).toHaveAttribute("data-testid", "slide-editor-library-shapes");
+  const shapes = grid.getByRole("button");
+  await expect(shapes).toHaveCount(7);
+  await expect(grid.locator('button[tabindex="0"]')).toHaveCount(1);
+  await shapes.nth(0).focus();
+  for (const [key, index] of [
+    ["ArrowUp", 0],
+    ["ArrowLeft", 0],
+    ["ArrowRight", 1],
+    ["ArrowDown", 3],
+    ["End", 6],
+    ["ArrowRight", 6],
+    ["ArrowDown", 6],
+    ["ArrowUp", 4],
+    ["Home", 0],
+  ] as const) {
+    await page.keyboard.press(key);
+    await expect(shapes.nth(index)).toBeFocused();
+  }
+  // Tab leaves the grid at once.
+  await page.keyboard.press("Tab");
+  await expect(grid.locator(":focus")).toHaveCount(0);
 });
 
 // SUI-FEATURE-162 AC4, SUI-FEATURE-233 (#294 inc 4): a chart from the library — a bar chart with two

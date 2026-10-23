@@ -594,6 +594,7 @@ export const de: SuiteStrings = {
       insertRefused:
         "Die Seite fasst kein weiteres Element. Entferne eines und versuche es erneut.",
       insertFailed: "Dieses Element kann nicht auf die Seite. Wähle ein anderes.",
+      placeholderFillFailed: "Der Text kann nicht in diesen Platzhalter.",
       libraryChart: "Diagramm",
       chartCategory: "Kategorie {{n}}",
       chartSeries: "Reihe {{n}}",

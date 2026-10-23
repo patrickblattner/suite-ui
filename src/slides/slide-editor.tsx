@@ -209,6 +209,9 @@ export interface SlideEditorProps extends Pick<
   // in use is copied into the document with its master, so the document draws without the app.
   layouts?: readonly SlideLayoutInput[];
   masters?: readonly SlideMasterInput[];
+  // The editor's header element, for the route's `useEditorShellToastOffset` (`SUI-FEATURE-086`
+  // rev 3): the route passes the same ref to the hook; the editor never calls it itself.
+  headerRef?: React.Ref<HTMLDivElement>;
   "data-testid"?: string;
 }
 
@@ -660,6 +663,7 @@ export function SlideEditor({
   resolveMedia,
   extensions,
   renderPlaceholder,
+  headerRef,
   "data-testid": testId,
 }: SlideEditorProps) {
   checkSlideExtensions(extensions);
@@ -673,6 +677,7 @@ export function SlideEditor({
         error={parsed.error}
         source={source}
         view={view}
+        headerRef={headerRef}
         testId={testId}
       />
     );
@@ -691,6 +696,7 @@ export function SlideEditor({
       appLayouts={layouts}
       appMasters={masters}
       view={view}
+      headerRef={headerRef}
       testId={testId}
     />
   );
@@ -703,6 +709,7 @@ function Invalid({
   error,
   source,
   view,
+  headerRef,
   testId,
 }: {
   title: React.ReactNode;
@@ -710,24 +717,27 @@ function Invalid({
   error: SlideDocumentError;
   source: SlideEditorProps["document"];
   view: ViewProps;
+  headerRef: SlideEditorProps["headerRef"];
   testId: string | undefined;
 }) {
   // `Esc` leaves as Back does: there is no draft to lose.
   const { dialog } = useLeaveGuard({ dirty: false, onLeave: onBack });
   return (
     <div className="flex h-full min-h-0 flex-col" data-slot="slide-editor" data-testid={testId}>
-      <EditorHeader
-        title={title}
-        onBack={onBack}
-        canUndo={false}
-        canRedo={false}
-        onUndo={() => {}}
-        onRedo={() => {}}
-        dirty={false}
-        saving={false}
-        onSave={() => {}}
-        onReset={() => {}}
-      />
+      <div ref={headerRef} className="shrink-0">
+        <EditorHeader
+          title={title}
+          onBack={onBack}
+          canUndo={false}
+          canRedo={false}
+          onUndo={() => {}}
+          onRedo={() => {}}
+          dirty={false}
+          saving={false}
+          onSave={() => {}}
+          onReset={() => {}}
+        />
+      </div>
       <div className="p-6" data-slide-editor-error={error.code}>
         <SlideView {...view} document={source} />
       </div>
@@ -749,6 +759,7 @@ function Editor({
   appLayouts: layoutsProp,
   appMasters: mastersProp,
   view,
+  headerRef,
   testId,
 }: {
   appLayouts: SlideEditorProps["layouts"];
@@ -763,6 +774,7 @@ function Editor({
   onTransfer: SlideEditorProps["onTransfer"];
   pickMedia: SlideEditorProps["pickMedia"];
   view: ViewProps;
+  headerRef: SlideEditorProps["headerRef"];
   testId: string | undefined;
 }) {
   const { t, i18n } = useTranslation("suite");
@@ -1083,11 +1095,15 @@ function Editor({
   // An insert the document refuses is named in an error toast and nothing changes: a page at its
   // element limit (Codex #362 CX1) says so, any other broken rule gets the generic error. The toast
   // has one id, so repeated presses replace it rather than stack (#365).
-  const insertFits = (next: SlideDocument, refused = "slides.editor.insertRefused") => {
+  const insertFits = (
+    next: SlideDocument,
+    refused = "slides.editor.insertRefused",
+    failed = "slides.editor.insertFailed",
+  ) => {
     const result = safeParseSlideDocument(next);
     if (result.ok) return true;
     const full = result.error.issues.some((issue) => issue.code === "too-many-elements");
-    toast.error(t(full ? refused : "slides.editor.insertFailed"), {
+    toast.error(t(full ? refused : failed), {
       id: INSERT_REFUSED_TOAST,
     });
     return false;
@@ -1387,7 +1403,8 @@ function Editor({
     };
     const element = intoPlaceholder(made, open);
     const next = insertElement(history.document, page, element);
-    if (!insertFits(next)) return;
+    // No other element to choose here, so the generic error's advice does not apply (#446).
+    if (!insertFits(next, undefined, "slides.editor.placeholderFillFailed")) return;
     apply(() => next);
     startEditing(id);
   };
@@ -2977,19 +2994,21 @@ function Editor({
       data-testid={testId}
       data-slide-page={pageData?.id}
     >
-      <EditorHeader
-        title={title}
-        onBack={() => guard(onBack)}
-        // While cropping, Undo takes back the crop being set, also with nothing in the history (#349).
-        canUndo={history.canUndo || cropping !== undefined}
-        canRedo={history.canRedo && cropping === undefined}
-        onUndo={() => travel("undo")}
-        onRedo={() => travel("redo")}
-        dirty={dirty}
-        saving={saving}
-        onSave={() => void save()}
-        onReset={reset}
-      />
+      <div ref={headerRef} className="shrink-0">
+        <EditorHeader
+          title={title}
+          onBack={() => guard(onBack)}
+          // While cropping, Undo takes back the crop being set, also with nothing in the history (#349).
+          canUndo={history.canUndo || cropping !== undefined}
+          canRedo={history.canRedo && cropping === undefined}
+          onUndo={() => travel("undo")}
+          onRedo={() => travel("redo")}
+          dirty={dirty}
+          saving={saving}
+          onSave={() => void save()}
+          onReset={reset}
+        />
+      </div>
       {saveError === undefined ? null : (
         <p
           role="alert"

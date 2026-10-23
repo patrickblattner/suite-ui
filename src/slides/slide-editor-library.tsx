@@ -111,6 +111,48 @@ export function parseLibraryEntry(
 // The previews loaded so far, kept while the search changes, so a shown icon never blanks.
 const previews = new Map<string, LucideIcon>();
 
+// A grid of two columns as one tab stop with a roving tabindex (`GL-UX-001`, #365, #446): up to 60
+// entries would otherwise stand between the canvas and the rest of the library. The arrows move
+// inside the two columns, Home and End to the first and last; an arrow that would leave the grid
+// does nothing. The stop is the entry last focused, else the first.
+function useRovingGrid(keys: readonly string[]) {
+  const [current, setCurrent] = React.useState<string | undefined>(undefined);
+  const stop = current !== undefined && keys.includes(current) ? current : keys[0];
+  const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+    if (event.altKey || event.ctrlKey || event.metaKey) return;
+    const at = keys.indexOf(stop ?? "");
+    const step = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: 2, ArrowUp: -2 }[event.key];
+    const index =
+      event.key === "Home"
+        ? 0
+        : event.key === "End"
+          ? keys.length - 1
+          : step === undefined
+            ? undefined
+            : at + step;
+    if (index === undefined || at === -1) return;
+    event.preventDefault();
+    if (index < 0 || index >= keys.length) return;
+    setCurrent(keys[index]);
+    event.currentTarget.querySelectorAll<HTMLElement>("button")[index]?.focus();
+  };
+  const roving = (key: string) => ({
+    tabIndex: key === stop ? 0 : -1,
+    onFocus: () => setCurrent(key),
+  });
+  return { onKeyDown, roving };
+}
+
+const shapeTestId = (entry: LibraryEntry) =>
+  `slide-editor-library-${entry.kind === "shape" ? entry.shape : "line"}`;
+// The shapes grid's entries in their order: the shapes and the line, then text, table and chart.
+const SHAPE_GRID = [
+  ...SHAPES.map(({ entry }) => shapeTestId(entry)),
+  "slide-editor-library-text",
+  "slide-editor-library-table",
+  "slide-editor-library-chart",
+];
+
 // The element library in the editor's Add drawer (`SUI-FEATURE-162` §Element-Bibliothek,
 // `SUI-FEATURE-232`): shapes and a line, the package's icons with a search that filters as you
 // type, and the app's media through its own picker. A click or Enter on an entry inserts it at the
@@ -137,28 +179,9 @@ export function ElementLibrary({
   const { icons } = useSlideIcons(shown);
   for (const [name, icon] of icons) previews.set(name, icon);
   const searchId = React.useId();
-  // The icons are one tab stop with a roving tabindex (`GL-UX-001`, #365): up to 60 of them would
-  // otherwise stand between the canvas and the rest of the library. The arrows move inside the two
-  // columns, Home and End to the first and last; the stop is the icon last focused, else the first.
-  const [current, setCurrent] = React.useState<string | undefined>(undefined);
-  const stop = current !== undefined && shown.includes(current) ? current : shown[0];
-  const onIconKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
-    if (event.altKey || event.ctrlKey || event.metaKey) return;
-    const at = shown.indexOf(stop ?? "");
-    const step = { ArrowRight: 1, ArrowLeft: -1, ArrowDown: 2, ArrowUp: -2 }[event.key];
-    const index =
-      event.key === "Home"
-        ? 0
-        : event.key === "End"
-          ? shown.length - 1
-          : step === undefined
-            ? undefined
-            : Math.min(shown.length - 1, Math.max(0, at + step));
-    if (index === undefined || at === -1) return;
-    event.preventDefault();
-    setCurrent(shown[index]);
-    event.currentTarget.querySelectorAll<HTMLElement>("button")[index]?.focus();
-  };
+  // The shapes and the icons are one tab stop each (`useRovingGrid`).
+  const shapeGrid = useRovingGrid(SHAPE_GRID);
+  const iconGrid = useRovingGrid(shown);
   const drag = (entry: LibraryEntry) => (event: React.DragEvent) => {
     // An app's entry travels by its id; the drop takes the rest from the app's entries.
     const data =
@@ -183,7 +206,8 @@ export function ElementLibrary({
         type="button"
         variant="outline"
         size="sm"
-        className="h-auto min-w-0 justify-start gap-2 py-1.5"
+        // The focus ring keeps clear of the drawer's scroll edge when the focus scrolls it (#446).
+        className="h-auto min-w-0 scroll-my-1 justify-start gap-2 py-1.5"
         draggable
         onDragStart={drag(entry)}
         onClick={() => onInsert(entry, label)}
@@ -204,13 +228,20 @@ export function ElementLibrary({
         <h3 id={`${searchId}-shapes`} className="text-sm font-medium">
           {t("slides.editor.libraryShapes")}
         </h3>
-        <div className="grid grid-cols-2 gap-1">
+        <div
+          className="grid grid-cols-2 gap-1"
+          role="group"
+          aria-labelledby={`${searchId}-shapes`}
+          onKeyDown={shapeGrid.onKeyDown}
+          data-testid="slide-editor-library-shapes"
+        >
           {SHAPES.map(({ entry, icon: Icon, label }) =>
             entryButton(
               entry,
               t(`slides.editor.${label}`),
               <Icon aria-hidden="true" />,
-              `slide-editor-library-${entry.kind === "shape" ? entry.shape : "line"}`,
+              shapeTestId(entry),
+              shapeGrid.roving(shapeTestId(entry)),
             ),
           )}
           {/* A text field and a table (`SUI-FEATURE-161` §Text, §Tabellen). */}
@@ -219,12 +250,14 @@ export function ElementLibrary({
             t("slides.editor.libraryText"),
             <TypeIcon aria-hidden="true" />,
             "slide-editor-library-text",
+            shapeGrid.roving("slide-editor-library-text"),
           )}
           {entryButton(
             { kind: "table" },
             t("slides.editor.libraryTable"),
             <TableIcon aria-hidden="true" />,
             "slide-editor-library-table",
+            shapeGrid.roving("slide-editor-library-table"),
           )}
           {/* A bar chart with sample data, its names in the editor's language (`SUI-FEATURE-233`). */}
           {entryButton(
@@ -237,6 +270,7 @@ export function ElementLibrary({
             t("slides.editor.libraryChart"),
             <ChartColumnIcon aria-hidden="true" />,
             "slide-editor-library-chart",
+            shapeGrid.roving("slide-editor-library-chart"),
           )}
         </div>
       </section>
@@ -318,7 +352,9 @@ export function ElementLibrary({
         </p>
         <div
           className="grid grid-cols-2 gap-1"
-          onKeyDown={onIconKeyDown}
+          role="group"
+          aria-labelledby={`${searchId}-icons`}
+          onKeyDown={iconGrid.onKeyDown}
           data-testid="slide-editor-library-icons"
         >
           {shown.map((name) => {
@@ -332,7 +368,7 @@ export function ElementLibrary({
                 <Icon aria-hidden="true" />
               ),
               `slide-editor-library-icon-${name}`,
-              { tabIndex: name === stop ? 0 : -1, onFocus: () => setCurrent(name) },
+              iconGrid.roving(name),
             );
           })}
         </div>

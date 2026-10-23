@@ -612,6 +612,7 @@ export const en = {
       libraryMediaInvalid: "This medium can’t be placed on the page. Choose another one.",
       insertRefused: "The page can’t take another element. Remove one and try again.",
       insertFailed: "This element can’t be placed on the page. Choose another one.",
+      placeholderFillFailed: "The text can’t be placed in this placeholder.",
       libraryChart: "Chart",
       chartCategory: "Category {{n}}",
       chartSeries: "Series {{n}}",
