@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — #466, SUI-FEATURE-191 rev 5: copy/paste of locked elements, layout roles and group children
+
+- **Locked elements (#466):** copy, cut and duplicate now take the whole selection, locked elements included. Cut leaves a locked element in place and removes only the unlocked part. Before, cut and duplicate skipped locked elements. Copies are never locked, and the canvas menu's Cut and Duplicate are usable whenever something is selected.
+- **Layout role (#466):** a copy no longer carries the layout placeholder role (`placeholderRole`), so after a layout change each role belongs only to the original.
+- **Group child copied alone (#466):** the copy takes the groups' opacity multiplied into its own and their hiding, so it looks as it did on the page. A group copied whole is unchanged.
+- **Tests (#466):** unit tests for AC 6–8 (`editor-clipboard.test.ts`) and editor tests for cut and duplicate with a locked element (`slide-editor-clipboard.test.tsx`).
+
+**Migration:** none. No strings or baselines change. Paste into another document (media, brand keys, `SUI-FEATURE-106`) is not part of this change.
+
 ## Unreleased — #462, SUI-FEATURE-101 rev 3, GL-UI-028 rev 5, GL-UI-013 rev 5: keyboard focus never rests under a toast
 
 - **Toaster (#462):** when keyboard focus lands on an element that a visible toast covers, wholly or in part (its focus ring included, 4 px around it as in forced colours), `<Toaster>` closes all toasts, the keyboard counterpart of the click that dismisses them all; the live region has announced them already. Only keyboard focus counts, as `:focus-visible` tells it; focus after a pointer press is unchanged, and focus on a toast's own action or close button closes none.
