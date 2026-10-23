@@ -3,6 +3,7 @@ import * as React from "react";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
+import { useMediaQuery } from "../lib/use-media-query.js";
 import { Button } from "../ui/button.js";
 import {
   captureOpener,
@@ -14,21 +15,6 @@ import { Hint } from "../ui/hint.js";
 
 // Below the package's mobile break (`md`, 48rem) the sidebar is an overlay (`SUI-FEATURE-110`).
 const OVERLAY_QUERY = "(width < 48rem)";
-
-function subscribeOverlay(onChange: () => void): () => void {
-  if (typeof window === "undefined" || typeof window.matchMedia !== "function") return () => {};
-  const query = window.matchMedia(OVERLAY_QUERY);
-  query.addEventListener("change", onChange);
-  return () => query.removeEventListener("change", onChange);
-}
-
-function overlaySnapshot(): boolean {
-  return (
-    typeof window !== "undefined" &&
-    typeof window.matchMedia === "function" &&
-    window.matchMedia(OVERLAY_QUERY).matches
-  );
-}
 
 // The expanded/collapsed state of the sidebar, shared by the sidebar, its search field and the app's
 // layout. The choice persists per app under `storageKey`, so a returning user keeps the layout.
@@ -103,7 +89,7 @@ type SidebarProviderProps = {
 
 function SidebarProvider({ storageKey, children }: SidebarProviderProps) {
   const [expanded, setExpanded] = React.useState(() => readOpen(storageKey));
-  const isOverlay = React.useSyncExternalStore(subscribeOverlay, overlaySnapshot, () => false);
+  const isOverlay = useMediaQuery(OVERLAY_QUERY);
   const [overlayOpen, setOverlayOpen] = React.useState(false);
   // What opened the overlay; it gets the focus back once the overlay is closed.
   const opener = React.useRef<Opener | null>(null);
