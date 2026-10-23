@@ -208,13 +208,14 @@ function EditorHeader({
 
   const tools: RowMenuItem[] = [];
   if (folded("undo")) {
+    // Locked, each names why and offers no shortcut, as the header buttons (#380, #454).
     tools.push(
       {
         label: t("editor.undo"),
         icon: <Undo2Icon aria-hidden="true" />,
         onSelect: onUndo,
         disabled: !canUndo,
-        shortcut: UNDO_SHORTCUT,
+        ...(canUndo ? { shortcut: UNDO_SHORTCUT } : { hint: t("editor.undoNone") }),
         "data-testid": "editor-menu-undo",
       },
       {
@@ -222,7 +223,7 @@ function EditorHeader({
         icon: <Redo2Icon aria-hidden="true" />,
         onSelect: onRedo,
         disabled: !canRedo,
-        shortcut: REDO_SHORTCUT,
+        ...(canRedo ? { shortcut: REDO_SHORTCUT } : { hint: t("editor.redoNone") }),
         "data-testid": "editor-menu-redo",
       },
     );

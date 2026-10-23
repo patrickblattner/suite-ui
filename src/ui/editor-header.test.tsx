@@ -644,6 +644,28 @@ describe("EditorHeader at narrow width", () => {
     expect(undo.querySelector("kbd")).not.toBeNull();
   });
 
+  // #454, GL-UI-006: folded and locked, each says why and offers no shortcut, as in the header.
+  it.each([
+    ["de", "Nichts rückgängig zu machen", "Nichts wiederherzustellen"],
+    ["en", "Nothing to undo", "Nothing to redo"],
+    ["es", "Nada que deshacer", "Nada que rehacer"],
+  ])("%s: folded locked Undo/Redo read %s / %s, without a shortcut", async (lng, undo, redo) => {
+    await i18n.changeLanguage(lng);
+    available = 500;
+    renderHeader({ canUndo: false, canRedo: false });
+    const menu = openMenu();
+    for (const [id, reason] of [
+      ["editor-menu-undo", undo],
+      ["editor-menu-redo", redo],
+    ] as const) {
+      const entry = within(menu).getByTestId(id);
+      expect(entry).toHaveAttribute("aria-disabled", "true");
+      expect(entry).toHaveAccessibleDescription(reason);
+      expect(entry).not.toHaveAttribute("aria-keyshortcuts");
+      expect(entry.querySelector("kbd")).toBeNull();
+    }
+  });
+
   it("an icon-only locked next step keeps its name and describes its reason", () => {
     available = 250;
     renderHeader({ dirty: true, lifecycle: lifecycle({ icon: <EyeIcon aria-hidden="true" /> }) });
