@@ -758,6 +758,10 @@ export const de: SuiteStrings = {
         "Duplizieren: möglich, sobald ein nicht gesperrtes Element ausgewählt ist.",
       pasteRefused:
         "So viele Elemente passen nicht auf die Seite. Entferne einige und versuche es erneut.",
+      mediaNotAdopted_one:
+        "Eingefügt, aber das Medium {{names}} konnte nicht übernommen werden. Sein Bild zeigt einen Platzhalter, bis du es ersetzt.",
+      mediaNotAdopted_other:
+        "Eingefügt, aber die Medien {{names}} konnten nicht übernommen werden. Ihre Bilder zeigen einen Platzhalter, bis du sie ersetzt.",
       pages: "Seiten",
       pageNumber: "Seite {{n}}",
       showPage: "Seite {{n}} zeigen",

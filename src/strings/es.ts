@@ -746,6 +746,10 @@ export const es: SuiteStrings = {
       duplicateHint: "Pone una copia de la selección justo a la derecha y debajo de ella.",
       duplicateUnavailable: "Duplicar: posible cuando haya un elemento no bloqueado seleccionado.",
       pasteRefused: "La página no admite tantos elementos. Quita algunos e inténtalo de nuevo.",
+      mediaNotAdopted_one:
+        "Pegado, pero el medio {{names}} no se pudo traer. Su imagen muestra un marcador hasta que la reemplaces.",
+      mediaNotAdopted_other:
+        "Pegado, pero los medios {{names}} no se pudieron traer. Sus imágenes muestran un marcador hasta que las reemplaces.",
       pages: "Páginas",
       pageNumber: "Página {{n}}",
       showPage: "Mostrar la página {{n}}",

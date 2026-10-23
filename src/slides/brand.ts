@@ -20,9 +20,17 @@ export interface SlideBrandFont {
   label: string;
 }
 
+// The roles a brand key is used in (`SUI-FEATURE-106`): text colour, fill, line or border, and the
+// font of a title or of anything else.
+export type SlideBrandRole = "text" | "fill" | "line" | "heading" | "body";
+
 export interface SlideBrandSet {
   colors: Readonly<Record<string, SlideBrandColor>>;
   fonts: Readonly<Record<string, SlideBrandFont>>;
+  // The key each role falls back to when a pasted element brings a key this set lacks: a key of
+  // `colors` for text, fill and line, of `fonts` for heading and body. Without one, the set's first
+  // key of its kind.
+  defaults?: Readonly<Partial<Record<SlideBrandRole, string>>>;
 }
 
 // The CSS colour of a value; a key the brand set does not have itself (an inherited one such as
