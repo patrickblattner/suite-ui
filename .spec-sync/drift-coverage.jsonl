@@ -583,3 +583,5 @@
 {"ts":"2026-10-22T20:38:46.206Z","key":"SUI-FEATURE-270","from":null,"to":3,"disposition":"ticket","ref":"490"}
 {"ts":"2026-10-22T22:51:43.612Z","key":"GL-UI-060","from":2,"to":3,"disposition":"editorial","ref":"rev 3 splits running-text vs standalone links; InlineMessage/help-markdown (#430) are running text, Button link variant, media usage list and PropertyPanel path are standalone with hover underline; code already complies"}
 {"ts":"2026-10-23T04:29:05.164Z","key":"PROC-RUN-013","from":3,"to":4,"disposition":"editorial","ref":"no code impact: @suite/ui is a component library without .env/.env.example or a boot-time env check; mode-conditional REQUIRED and empty=unset rules do not apply"}
+{"ts":"2026-10-23T06:19:20.944Z","key":"ADR-TEST-016","from":4,"to":5,"disposition":"ticket","ref":"512"}
+{"ts":"2026-10-23T06:19:21.389Z","key":"SUI-FEATURE-086","from":2,"to":3,"disposition":"ticket","ref":"446"}
