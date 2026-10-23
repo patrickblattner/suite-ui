@@ -624,9 +624,15 @@ export const en = {
       chartCategoryHeader: "Category",
       chartCategoryName: "Name of category {{n}}",
       chartSeriesName: "Name of series {{n}}",
+      numberNotANumber: "Enter a number, such as 1.5.",
+      numberSeparator: "Enter the number with one decimal point and no comma, such as 1000.5.",
+      numberTooLarge: "The number is too large. Enter a smaller one, such as 1.5.",
       chartValue: "{{series}}, {{category}}",
       chartNotANumber: "{{category}} – {{names}}: enter a number, such as 1.5.",
-      chartSeparator: "{{category}} – {{names}}: enter a number with a decimal point, such as 1.5.",
+      chartSeparator:
+        "{{category}} – {{names}}: enter the number with one decimal point and no comma, such as 1000.5.",
+      chartTooLarge:
+        "{{category}} – {{names}}: the number is too large for the chart. Enter a smaller one, such as 1.5.",
       chartNotInPie: "Not shown in a pie chart",
       chartNegativeInPie: "A pie chart leaves out values below 0.",
       chartRemoveCategory: "Remove {{name}}",

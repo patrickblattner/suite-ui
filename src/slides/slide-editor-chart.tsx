@@ -4,6 +4,12 @@ import { useTranslation } from "react-i18next";
 
 import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
 import { Button } from "../ui/button.js";
+import {
+  type DecimalInvalid,
+  formatDecimal,
+  numpadDecimal,
+  parseDecimal,
+} from "../ui/decimal-number.js";
 import { FieldError } from "../ui/field-error.js";
 import { Hint } from "../ui/hint.js";
 import { Input } from "../ui/input.js";
@@ -13,29 +19,6 @@ import { SLIDE_LIMITS, type SlideElement } from "./schema.js";
 
 type Chart = Extract<SlideElement, { type: "chart" }>;
 const TYPES = ["bar", "line", "pie"] as const;
-// The languages that write a decimal comma ("1,5"); in the others a comma is not a number, and in
-// these a point is not one: "1.000" is a thousand there, never 1 (#368).
-const DECIMAL_COMMA = new Set(["de", "es"]);
-// A decimal number as typed: digits with one decimal separator and an exponent at most, so "0x10",
-// "Infinity" or "1_000", which `Number` would take, are not numbers here.
-const DECIMAL = /^[+-]?(\d+([.,]\d*)?|[.,]\d+)(e[+-]?\d+)?$/i;
-
-// The value of what is typed, or NaN where it is not a decimal number in the user's language.
-function parseValue(text: string, comma: boolean): number {
-  const trimmed = text.trim();
-  if (!DECIMAL.test(trimmed) || trimmed.includes(comma ? "." : ",")) return Number.NaN;
-  return Number(trimmed.replace(",", "."));
-}
-
-// Why what is typed is not a number: the other language's decimal separator (a thousands point in
-// German and Spanish, "1.000"; a comma in English), or anything else, such as a decimal number too
-// large for a number ("1.5e309", #378).
-type Invalid = "separator" | "other";
-function invalidOf(text: string, comma: boolean): Invalid {
-  const trimmed = text.trim();
-  return DECIMAL.test(trimmed) && trimmed.includes(comma ? "." : ",") ? "separator" : "other";
-}
-
 // A name field with the hint of its value (`GL-UI-017`); cut off in its cell, the same bubble shows
 // the whole name above it (`GL-UI-016`). The hint stands whether or not the name is cut, so the field
 // is never remounted (and the focus kept) while typing.
@@ -76,21 +59,25 @@ function ValueField({
   describedBy: string | undefined;
   cell: string;
   error: string;
-  onInvalid: (cell: string, invalid: Invalid | null) => void;
+  onInvalid: (cell: string, invalid: DecimalInvalid | null) => void;
   testId: string;
 }) {
   const { t, i18n } = useTranslation("suite");
-  const comma = DECIMAL_COMMA.has(i18n.resolvedLanguage ?? "");
+  const language = i18n.resolvedLanguage;
   const [typed, setTyped] = React.useState<{ text: string; revision: string } | null>(null);
   const text = typed?.revision === revision ? typed.text : null;
-  const invalid = text !== null && !Number.isFinite(parseValue(text, comma));
-  const why = text !== null && invalid ? invalidOf(text, comma) : null;
+  const why = text === null ? null : (parseDecimal(text, language).invalid ?? null);
+  const invalid = why !== null;
   React.useEffect(() => {
     if (why === null) return;
     onInvalid(cell, why);
     return () => onInvalid(cell, null);
   }, [why, cell, onInvalid]);
-  const shown = comma ? String(value).replace(".", ",") : String(value);
+  const type = (next: string) => {
+    setTyped({ text: next, revision });
+    const parsed = parseDecimal(next, language);
+    if (parsed.invalid === undefined) onValue(parsed.value);
+  };
   return (
     <Hint text={t("slides.editor.chartValueHint")}>
       <Input
@@ -100,11 +87,11 @@ function ValueField({
         aria-errormessage={invalid ? error : undefined}
         aria-describedby={describedBy}
         readOnly={readOnly}
-        value={text ?? shown}
-        onChange={(event) => {
-          setTyped({ text: event.target.value, revision });
-          const next = parseValue(event.target.value, comma);
-          if (Number.isFinite(next)) onValue(next);
+        value={text ?? formatDecimal(value, language)}
+        onChange={(event) => type(event.target.value)}
+        onKeyDown={(event) => {
+          const next = numpadDecimal(event, language);
+          if (next !== null) type(next);
         }}
         onBlur={() => {
           if (!invalid) setTyped(null);
@@ -146,8 +133,10 @@ export function ChartData({
   // rows, each row with one says so once, naming its category and the series that are not numbers,
   // so the text is neither squeezed into a value's column nor read as a row of data (#368).
   const errors = React.useId();
-  const [invalid, setInvalid] = React.useState<ReadonlyMap<string, Invalid>>(() => new Map());
-  const onInvalid = React.useCallback((cell: string, why: Invalid | null) => {
+  const [invalid, setInvalid] = React.useState<ReadonlyMap<string, DecimalInvalid>>(
+    () => new Map(),
+  );
+  const onInvalid = React.useCallback((cell: string, why: DecimalInvalid | null) => {
     setInvalid((cells) => {
       if ((cells.get(cell) ?? null) === why) return cells;
       const next = new Map(cells);
@@ -180,9 +169,13 @@ export function ChartData({
       return why === undefined ? [] : [{ column, why }];
     });
     if (columns.length === 0) return [];
-    const key = columns.every(({ why }) => why === "separator")
-      ? "slides.editor.chartSeparator"
-      : "slides.editor.chartNotANumber";
+    // One reason for the whole row is named; mixed reasons get the generic message.
+    const why = columns.every(({ why }) => why === columns[0]!.why) ? columns[0]!.why : "other";
+    const key = {
+      separator: "slides.editor.chartSeparator",
+      tooLarge: "slides.editor.chartTooLarge",
+      other: "slides.editor.chartNotANumber",
+    }[why];
     const names = list.format(columns.map(({ column }) => seriesName(column)));
     return [{ row, text: t(key, values({ category: categoryName(row), names })) }];
   });

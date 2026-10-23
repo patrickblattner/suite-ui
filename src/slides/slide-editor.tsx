@@ -34,6 +34,7 @@ import {
   ContextMenuTrigger,
 } from "../ui/context-menu.js";
 import { CanvasOverlay, type CanvasTarget, CanvasZoom, type CanvasZoomMode } from "../ui/canvas.js";
+import { type DecimalInvalid } from "../ui/decimal-number.js";
 import { type DrawerId, DrawerRail } from "../ui/drawer-rail.js";
 import { EditorHeader, useEditorLeaveGuard } from "../ui/editor-header.js";
 import { Field } from "../ui/field.js";
@@ -140,7 +141,7 @@ import {
   type SlidePage,
 } from "./schema.js";
 import { insertColor } from "./editor-color.js";
-import { NumberField, NumberInput } from "./number-field.js";
+import { NUMBER_ERROR, NumberField, NumberInput } from "./number-field.js";
 import { ChartData } from "./slide-editor-chart.js";
 import {
   type AppLibraryEntry,
@@ -822,6 +823,8 @@ function Editor({
   // Whether the key last pressed in the % field steps it (an arrow key): the change it makes is a step,
   // not typing.
   const cropZoomStep = React.useRef(false);
+  // Why the text typed in the % field is not a number, for its error under the zoom (`GL-UI-037`).
+  const [cropZoomInvalid, setCropZoomInvalid] = React.useState<DecimalInvalid | null>(null);
   // Text editing on the canvas (`SUI-FEATURE-161` §Text): the text field or table cell being
   // edited, while the selection it began with stands, and the range of its text the panel's format
   // applies to. Each editing is a session of its own: what is typed in it folds into one step.
@@ -2336,10 +2339,9 @@ function Editor({
   // field's typed text stands while the crop is its own and goes for good once Undo, the wheel, a key,
   // the slider or a shift changed it: each change elsewhere counts on, so a zoom that comes back never
   // brings back what was typed (`NumberInput` `revision`, as a `NumberField` keys it to `travels`).
-  // A step by the field's arrow keys or its spinner (each change while a primary press on the field
-  // lasts, held auto-repeat included) zooms from the crop as it is, and `ends` (leaving, Enter) closes
-  // the typing from where it started: either way the next typing starts from the crop then, never from
-  // an older one (#495, #500).
+  // A step by the field's arrow keys (held auto-repeat included) zooms from the crop as it is, and
+  // `ends` (leaving, Enter) closes the typing from where it started: either way the next typing
+  // starts from the crop then, never from an older one (#495, #500).
   const zoomCropTo = (zoom: number, ends = false) => {
     if (cropping === undefined || croppedImage === undefined) return;
     const { width, height } = croppedImage;
@@ -2370,25 +2372,16 @@ function Editor({
           if (event.relatedTarget !== canvas.current) cropByField.current = undefined;
           keepCropOnLeave(event, byField?.before === cropping.crop ? byField.crop : undefined);
         }}
-        onKeyDown={(event) => {
+        // Before the % field steps on its arrow keys, so the step knows it is one.
+        onKeyDownCapture={(event) => {
           if (
             event.target instanceof HTMLElement &&
             event.target.id === "slide-editor-crop-zoom-percent"
           )
             cropZoomStep.current = event.key === "ArrowUp" || event.key === "ArrowDown";
-          dropCropOnEscape(event);
         }}
-        onPointerDown={(event) => {
-          if (
-            event.button === 0 &&
-            event.target instanceof HTMLElement &&
-            event.target.id === "slide-editor-crop-zoom-percent"
-          )
-            cropZoomStep.current = true;
-        }}
+        onKeyDown={dropCropOnEscape}
         onKeyUp={() => (cropZoomStep.current = false)}
-        onPointerUp={() => (cropZoomStep.current = false)}
-        onPointerCancel={() => (cropZoomStep.current = false)}
       >
         <h3 className="text-base font-semibold">{t("slides.editor.cropFields")}</h3>
         <div className="flex flex-col gap-4">
@@ -2397,6 +2390,8 @@ function Editor({
             htmlFor="slide-editor-crop-zoom"
             hint={t("slides.editor.cropZoomHint")}
             valueHint={t("slides.editor.cropZoomValueHint")}
+            error={cropZoomInvalid === null ? undefined : t(NUMBER_ERROR[cropZoomInvalid])}
+            errorTestId="slide-editor-crop-zoom-error"
             control={{ className: "flex items-center gap-2" }}
           >
             {/* A slider is no field control: it carries its value hint itself (`Field valueHint`). */}
@@ -2445,6 +2440,7 @@ function Editor({
                 if (percent >= 100 && percent <= CROP_ZOOM_MAX * 100) zoomCropTo(percent / 100);
               }}
               onLeave={(percent) => zoomCropTo(percent / 100, true)}
+              onInvalid={setCropZoomInvalid}
               className="w-24 shrink-0"
               testId="slide-editor-crop-zoom-input"
             />

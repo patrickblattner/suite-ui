@@ -599,9 +599,16 @@ export const es: SuiteStrings = {
       chartCategoryHeader: "Categoría",
       chartCategoryName: "Nombre de la categoría {{n}}",
       chartSeriesName: "Nombre de la serie {{n}}",
+      numberNotANumber: "Introduce un número, como 1,5.",
+      numberSeparator:
+        "Introduce el número con un solo signo decimal y sin separador de miles, como 1000,5.",
+      numberTooLarge: "El número es demasiado grande. Introduce uno más pequeño, como 1,5.",
       chartValue: "{{series}}, {{category}}",
       chartNotANumber: "{{category}} – {{names}}: introduce un número, como 1,5.",
-      chartSeparator: "{{category}} – {{names}}: introduce un número sin punto de miles, como 1,5.",
+      chartSeparator:
+        "{{category}} – {{names}}: introduce el número con un solo signo decimal y sin separador de miles, como 1000,5.",
+      chartTooLarge:
+        "{{category}} – {{names}}: el número es demasiado grande para el gráfico. Introduce uno más pequeño, como 1,5.",
       chartNotInPie: "No se muestra en un gráfico circular",
       chartNegativeInPie: "Un gráfico circular omite los valores por debajo de 0.",
       chartRemoveCategory: "Quitar {{name}}",

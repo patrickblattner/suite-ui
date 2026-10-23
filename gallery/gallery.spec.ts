@@ -11167,7 +11167,10 @@ test("slide editor: a chart's data is edited in the panel, key by key, within it
   await expect(error).toHaveCount(0);
   // In English a comma is no decimal separator, and says so; "0x10" is not a decimal number.
   for (const [typed, text] of [
-    ["1,5", "Category 1 – Sales: enter a number with a decimal point, such as 1.5."],
+    [
+      "1,5",
+      "Category 1 – Sales: enter the number with one decimal point and no comma, such as 1000.5.",
+    ],
     ["0x10", "Category 1 – Sales: enter a number, such as 1.5."],
   ] as const) {
     await typeInto(page, value, typed);
@@ -11391,13 +11394,15 @@ for (const lng of ["de", "es"]) {
     await typeInto(page, value, "0x10");
     await expect(panel.getByTestId("slide-editor-chart-error-0")).toBeVisible();
     await expect(cell).toHaveText("0");
-    // A point is no decimal separator here: "1.000" is no number, so it is not read as 1 (#368);
-    // the chart keeps the "1" its first key made.
+    // A point is a decimal sign too and nothing is grouped (GL-UI-037, #451): "1.000" is 1, and
+    // "1.000,5", with two separators, is refused with the right form.
     await typeInto(page, value, "1.000");
+    await expect(cell).toHaveText("1");
+    await expect(panel.getByTestId("slide-editor-chart-error-0")).toHaveCount(0);
+    await typeInto(page, value, "1.000,5");
     await expect(value).toHaveAttribute("aria-invalid", "true");
-    // It says why: no thousands point.
     await expect(panel.getByTestId("slide-editor-chart-error-0")).toContainText(
-      lng === "de" ? "ohne Tausenderpunkt" : "sin punto de miles",
+      lng === "de" ? "ohne Tausendertrennung" : "sin separador de miles",
     );
   });
 }

@@ -196,8 +196,11 @@ describe("SlideEditor tables", () => {
     const { press, saved } = renderEditor();
     press(500, 30);
     fireEvent.mouseDown(screen.getByTestId("property-tab-content"), { button: 0 });
-    expect(screen.getByTestId("slide-editor-table-cell-row")).toHaveAttribute("min", "1");
-    expect(screen.getByTestId("slide-editor-table-cell-column")).toHaveAttribute("max", "2");
+    expect(screen.getByTestId("slide-editor-table-cell-row")).toHaveAttribute("aria-valuemin", "1");
+    expect(screen.getByTestId("slide-editor-table-cell-column")).toHaveAttribute(
+      "aria-valuemax",
+      "2",
+    );
     fireEvent.change(screen.getByTestId("slide-editor-table-cell-row"), { target: { value: "2" } });
     fireEvent.change(screen.getByTestId("slide-editor-table-cell-column"), {
       target: { value: "9" },
@@ -211,7 +214,7 @@ describe("SlideEditor tables", () => {
     fireEvent.keyDown(field, { key: "Escape" });
     // The last column's width is shared with the one left of it; the table keeps its box.
     const width = screen.getByTestId("slide-editor-table-column-width");
-    expect(width).toHaveValue(170);
+    expect(width).toHaveValue("170");
     fireEvent.change(width, { target: { value: "120" } });
     const table = await saved();
     expect(table.columnWidths).toEqual([220, 120]);

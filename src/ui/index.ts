@@ -13,6 +13,7 @@ export * from "./confirm-dialog.js";
 export * from "./create-and-select-dialog.js";
 export * from "./crop-editor.js";
 export * from "./cropped-image.js";
+export * from "./decimal-number.js";
 export * from "./dialog.js";
 export * from "./drawer-rail.js";
 export * from "./dropdown-menu.js";

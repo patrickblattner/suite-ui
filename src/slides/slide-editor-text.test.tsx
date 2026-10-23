@@ -225,7 +225,7 @@ describe("SlideEditor text editing", () => {
       fireEvent.change(screen.getByTestId("slide-editor-text-size"), { target: { value: typed } });
       expect(screen.getByTestId("slide-editor-text-size")).toBe(size);
       expect(document.activeElement).toBe(size);
-      expect(size).toHaveValue(typed === "" ? null : Number(typed));
+      expect(size).toHaveValue(typed);
     }
     fireEvent.click(screen.getAllByTestId("editor-save")[0]!);
     await waitFor(() => expect(onSave).toHaveBeenCalled());

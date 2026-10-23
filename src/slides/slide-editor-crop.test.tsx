@@ -79,14 +79,14 @@ describe("SlideEditor crop mode (SUI-FEATURE-230 rev 4)", () => {
   it("keeps the zoom % field and the slider on the same value", () => {
     renderEditor();
     startCrop();
-    expect(percent()).toHaveValue(100);
+    expect(percent()).toHaveValue("100");
     fireEvent.change(percent(), { target: { value: "250" } });
     expect(slider()).toHaveAttribute("aria-valuenow", "2.5");
     expect(slider()).toHaveAttribute("aria-valuetext", "250%");
     fireEvent.blur(percent(), { relatedTarget: slider() });
     fireEvent.keyDown(slider(), { key: "ArrowRight" });
     expect(slider()).toHaveAttribute("aria-valuetext", "251%");
-    expect(percent()).toHaveValue(251);
+    expect(percent()).toHaveValue("251");
   });
 
   // AC4: the field stops at 500 % as the slider does, and at 100 % below; leaving it shows the value.
@@ -98,19 +98,19 @@ describe("SlideEditor crop mode (SUI-FEATURE-230 rev 4)", () => {
     expect(slider()).toHaveAttribute("aria-valuenow", "1");
     fireEvent.blur(percent(), { relatedTarget: slider() });
     expect(slider()).toHaveAttribute("aria-valuenow", "5");
-    expect(percent()).toHaveValue(500);
+    expect(percent()).toHaveValue("500");
     fireEvent.change(percent(), { target: { value: "150" } });
     fireEvent.change(percent(), { target: { value: "1500" } });
     expect(slider()).toHaveAttribute("aria-valuenow", "1.5");
     fireEvent.keyDown(percent(), { key: "Enter" });
     expect(slider()).toHaveAttribute("aria-valuenow", "5");
-    expect(percent()).toHaveValue(500);
+    expect(percent()).toHaveValue("500");
     fireEvent.change(percent(), { target: { value: "40" } });
     fireEvent.blur(percent(), { relatedTarget: slider() });
     expect(slider()).toHaveAttribute("aria-valuenow", "1");
-    expect(percent()).toHaveValue(100);
-    expect(percent()).toHaveAttribute("min", "100");
-    expect(percent()).toHaveAttribute("max", "500");
+    expect(percent()).toHaveValue("100");
+    expect(percent()).toHaveAttribute("aria-valuemin", "100");
+    expect(percent()).toHaveAttribute("aria-valuemax", "500");
   });
 
   // Rev 4 step sizes: the slider's arrows 1 %, + and − on the canvas 10 %.
@@ -129,7 +129,7 @@ describe("SlideEditor crop mode (SUI-FEATURE-230 rev 4)", () => {
     setZoom("300");
     fireEvent.keyDown(canvas(), { key: "+" });
     expect(slider()).toHaveAttribute("aria-valuetext", "310%");
-    expect(percent()).toHaveValue(310);
+    expect(percent()).toHaveValue("310");
     fireEvent.keyDown(canvas(), { key: "-" });
     expect(slider()).toHaveAttribute("aria-valuetext", "300%");
   });
@@ -147,7 +147,7 @@ describe("SlideEditor crop mode (SUI-FEATURE-230 rev 4)", () => {
     }
     expect(slider()).toHaveAttribute("aria-valuetext", "250%");
     // The shift scales with the zoom: 100 × 250 / 300.
-    expect(offsetX).toHaveValue(83.33);
+    expect(offsetX).toHaveValue("83.33");
   });
 
   // The typed text goes once the zoom changes elsewhere: Undo ends cropping, the wheel zooms.
@@ -159,11 +159,11 @@ describe("SlideEditor crop mode (SUI-FEATURE-230 rev 4)", () => {
     expect(canvas()).not.toHaveAttribute("data-cropping");
     fireEvent.keyDown(canvas(), { key: "Enter" });
     expect(slider()).toHaveAttribute("aria-valuetext", "100%");
-    expect(percent()).toHaveValue(100);
+    expect(percent()).toHaveValue("100");
     fireEvent.change(percent(), { target: { value: "250" } });
     fireEvent.wheel(canvas(), { deltaY: -100 });
     expect(slider()).toHaveAttribute("aria-valuetext", "275%");
-    expect(percent()).toHaveValue(275);
+    expect(percent()).toHaveValue("275");
   });
 
   // #495 CX1: leaving the field for a control outside cropping keeps the clamped zoom, not the one
@@ -185,10 +185,10 @@ describe("SlideEditor crop mode (SUI-FEATURE-230 rev 4)", () => {
     fireEvent.change(percent(), { target: { value: "250" } });
     fireEvent.change(percent(), { target: { value: "900" } });
     fireEvent.wheel(canvas(), { deltaY: -100 });
-    expect(percent()).toHaveValue(275);
+    expect(percent()).toHaveValue("275");
     fireEvent.wheel(canvas(), { deltaY: 100 });
     expect(slider()).toHaveAttribute("aria-valuetext", "250%");
-    expect(percent()).toHaveValue(250);
+    expect(percent()).toHaveValue("250");
     fireEvent.blur(percent(), { relatedTarget: slider() });
     expect(slider()).toHaveAttribute("aria-valuetext", "250%");
   });
@@ -208,7 +208,7 @@ describe("SlideEditor crop mode (SUI-FEATURE-230 rev 4)", () => {
     fireEvent.blur(percent(), { relatedTarget: slider() });
     expect(slider()).toHaveAttribute("aria-valuetext", "500%");
     // 100 × 500 / 300.
-    expect(offsetX).toHaveValue(166.67);
+    expect(offsetX).toHaveValue("166.67");
   });
 
   // #495 review: a press on the canvas takes the focus from the % field, which clamps what was typed;
@@ -261,7 +261,7 @@ describe("SlideEditor crop mode (SUI-FEATURE-230 rev 4)", () => {
     pressCanvas(20);
     fireEvent.keyDown(canvas(), { key: "Enter" });
     expect(slider()).toHaveAttribute("aria-valuetext", "500%");
-    expect(screen.getByTestId("slide-editor-crop-offsetX")).toHaveValue(166.67);
+    expect(screen.getByTestId("slide-editor-crop-offsetX")).toHaveValue("166.67");
   });
 
   // #495 review: Enter and an arrow step end the typing, so a later typing never zooms from the crop
@@ -277,83 +277,32 @@ describe("SlideEditor crop mode (SUI-FEATURE-230 rev 4)", () => {
     fireEvent.keyDown(percent(), { key: "Enter" });
     fireEvent.change(percent(), { target: { value: "200" } });
     expect(slider()).toHaveAttribute("aria-valuetext", "200%");
-    expect(offsetX).toHaveValue(0);
+    expect(offsetX).toHaveValue("0");
     fireEvent.change(offsetX, { target: { value: "50" } });
     fireEvent.blur(offsetX, { relatedTarget: percent() });
     fireEvent.change(percent(), { target: { value: "100" } });
     fireEvent.keyDown(percent(), { key: "ArrowUp" });
-    fireEvent.change(percent(), { target: { value: "101" } });
     expect(slider()).toHaveAttribute("aria-valuetext", "101%");
-    expect(offsetX).toHaveValue(0);
+    expect(offsetX).toHaveValue("0");
   });
 
-  // #500 (Codex CX1): a click on the field's native spinner is a step, not typing: it zooms from the
-  // crop as it is, so a shift that typing 100 % dropped does not come back.
-  it("ends the typing on a spinner step", () => {
+  // #451 review (GL-UI-037, GL-UI-060): text that is not a number stays in the % field once it is
+  // left, marked invalid, with an error that names the right form; a number clears it.
+  it("keeps text that is not a zoom with its error when the % field is left", () => {
     renderEditor();
     startCrop();
-    setZoom("300");
-    const offsetX = screen.getByTestId<HTMLInputElement>("slide-editor-crop-offsetX");
-    fireEvent.change(offsetX, { target: { value: "100" } });
-    fireEvent.blur(offsetX, { relatedTarget: percent() });
-    fireEvent.change(percent(), { target: { value: "100" } });
-    fireEvent.pointerDown(percent(), { button: 0, pointerId: 1 });
-    fireEvent.change(percent(), { target: { value: "101" } });
-    expect(slider()).toHaveAttribute("aria-valuetext", "101%");
-    expect(offsetX).toHaveValue(0);
-  });
-
-  // #500 review: a press that changes nothing (a caret click) is no step, so leaving still zooms from
-  // the crop the typing started with and keeps the shift, scaled.
-  it("keeps the shift when a caret click comes between typing and leaving", () => {
-    renderEditor();
-    startCrop();
-    setZoom("300");
-    const offsetX = screen.getByTestId<HTMLInputElement>("slide-editor-crop-offsetX");
-    fireEvent.change(offsetX, { target: { value: "100" } });
-    fireEvent.blur(offsetX, { relatedTarget: percent() });
-    for (const typed of ["", "1", "10", "100", "1000"]) {
-      fireEvent.change(percent(), { target: { value: typed } });
-    }
-    fireEvent.pointerDown(percent(), { button: 0, pointerId: 1 });
-    fireEvent.pointerUp(percent(), { button: 0, pointerId: 1 });
+    fireEvent.change(percent(), { target: { value: "abc" } });
     fireEvent.blur(percent(), { relatedTarget: slider() });
-    expect(slider()).toHaveAttribute("aria-valuetext", "500%");
-    expect(offsetX).toHaveValue(166.67);
-  });
-
-  // #500 review: a held spinner repeats; every change of the press is a step, so typing after it
-  // starts from the crop the hold ended on.
-  it("steps on every change of a held spinner", () => {
-    renderEditor();
-    startCrop();
-    setZoom("300");
-    const offsetX = screen.getByTestId<HTMLInputElement>("slide-editor-crop-offsetX");
-    fireEvent.change(offsetX, { target: { value: "100" } });
-    fireEvent.blur(offsetX, { relatedTarget: percent() });
-    fireEvent.pointerDown(percent(), { button: 0, pointerId: 1 });
-    fireEvent.change(percent(), { target: { value: "299" } });
-    fireEvent.change(percent(), { target: { value: "100" } });
-    fireEvent.pointerUp(percent(), { button: 0, pointerId: 1 });
-    fireEvent.change(percent(), { target: { value: "300" } });
-    expect(slider()).toHaveAttribute("aria-valuetext", "300%");
-    expect(offsetX).toHaveValue(0);
-  });
-
-  // #500 review: only a primary press steps; a change after a right-button press (a context-menu
-  // paste) is typing.
-  it("does not step on a right-button press", () => {
-    renderEditor();
-    startCrop();
-    setZoom("300");
-    const offsetX = screen.getByTestId<HTMLInputElement>("slide-editor-crop-offsetX");
-    fireEvent.change(offsetX, { target: { value: "100" } });
-    fireEvent.blur(offsetX, { relatedTarget: percent() });
-    fireEvent.change(percent(), { target: { value: "100" } });
-    fireEvent.pointerDown(percent(), { button: 2, pointerId: 1 });
-    fireEvent.change(percent(), { target: { value: "250" } });
-    // 100 × 250 / 300: typing still zooms from the 300 % it started with.
-    expect(offsetX).toHaveValue(83.33);
+    expect(percent()).toHaveValue("abc");
+    const error = screen.getByTestId("slide-editor-crop-zoom-error");
+    expect(error).toHaveTextContent("Enter a number, such as 1.5.");
+    expect(percent()).toHaveAttribute("aria-invalid", "true");
+    expect(percent()).toHaveAttribute("aria-errormessage", error.id);
+    expect(slider()).toHaveAttribute("aria-valuetext", "100%");
+    fireEvent.change(percent(), { target: { value: "200" } });
+    expect(screen.queryByTestId("slide-editor-crop-zoom-error")).toBeNull();
+    expect(percent()).not.toHaveAttribute("aria-invalid");
+    expect(slider()).toHaveAttribute("aria-valuetext", "200%");
   });
 
   // #496: Esc after typing in the % field drops the crop; the field leaving to the canvas sets its

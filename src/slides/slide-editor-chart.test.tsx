@@ -50,40 +50,126 @@ describe("ChartData", () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
-  it("in German says a thousands point is why a value is refused", async () => {
-    await i18n.changeLanguage("de");
+  // #451 (GL-UI-037): in German and Spanish a point and a comma are both the decimal sign, in
+  // English only the point; one separator is always the decimal sign, and nothing is grouped.
+  it.each([
+    ["de", "1,5", 1.5],
+    ["de", "1.5", 1.5],
+    ["de", "1.000", 1],
+    ["es", "1,5", 1.5],
+    ["es", "1.5", 1.5],
+    ["es", "1.000", 1],
+    ["en", "1.5", 1.5],
+    ["en", "1.000", 1],
+  ])("in %s takes %s as %d", async (lng, typed, number) => {
+    await i18n.changeLanguage(lng);
     const onChange = vi.fn<(next: typeof chart) => void>();
     render(<ChartData chart={chart} revision={0} readOnly={false} onChange={onChange} />);
-    fireEvent.change(value(0, 0), { target: { value: "1.000" } });
-    expect(screen.getByTestId("slide-editor-chart-error-0")).toHaveTextContent(
-      "Q1 – Sales: Gib eine Zahl ohne Tausenderpunkt ein, etwa 1,5.",
-    );
-    expect(onChange).not.toHaveBeenCalled();
-    fireEvent.change(value(0, 0), { target: { value: "1,5" } });
+    fireEvent.change(value(0, 0), { target: { value: typed } });
     expect(screen.queryByTestId("slide-editor-chart-error-0")).toBeNull();
+    expect(onChange.mock.lastCall![0].series[0]!.values[0]).toBe(number);
+  });
+
+  // #378, #451: a separator the language does not take (a comma in English, two in any language)
+  // names the right form; a decimal number too large for a number says so; anything else gets the
+  // generic message.
+  it.each([
+    [
+      "en",
+      "1,5",
+      "Q1 – Sales: enter the number with one decimal point and no comma, such as 1000.5.",
+    ],
+    [
+      "en",
+      "1,000.5",
+      "Q1 – Sales: enter the number with one decimal point and no comma, such as 1000.5.",
+    ],
+    [
+      "en",
+      "1.5e309",
+      "Q1 – Sales: the number is too large for the chart. Enter a smaller one, such as 1.5.",
+    ],
+    ["en", "1x", "Q1 – Sales: enter a number, such as 1.5."],
+    [
+      "de",
+      "1.000,5",
+      "Q1 – Sales: Gib die Zahl mit nur einem Dezimalzeichen und ohne Tausendertrennung ein, etwa 1000,5.",
+    ],
+    [
+      "de",
+      "1.5e309",
+      "Q1 – Sales: Die Zahl ist zu groß für das Diagramm. Gib eine kleinere ein, etwa 1,5.",
+    ],
+    ["de", "1x", "Q1 – Sales: Gib eine Zahl ein, etwa 1,5."],
+    [
+      "es",
+      "1.000,5",
+      "Q1 – Sales: introduce el número con un solo signo decimal y sin separador de miles, como 1000,5.",
+    ],
+    [
+      "es",
+      "1,5e309",
+      "Q1 – Sales: el número es demasiado grande para el gráfico. Introduce uno más pequeño, como 1,5.",
+    ],
+    ["es", "1x", "Q1 – Sales: introduce un número, como 1,5."],
+  ])("in %s says why %s is refused", async (lng, typed, message) => {
+    await i18n.changeLanguage(lng);
+    const onChange = vi.fn();
+    render(<ChartData chart={chart} revision={0} readOnly={false} onChange={onChange} />);
+    fireEvent.change(value(0, 0), { target: { value: typed } });
+    expect(screen.getByTestId("slide-editor-chart-error-0")).toHaveTextContent(message);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  // #451 (GL-UI-037): the numpad's decimal key types the language's sign, whatever its key reports;
+  // the stored number is shown with that sign.
+  it.each([
+    ["de", ".", "1,"],
+    ["es", ".", "1,"],
+    ["en", ",", "1."],
+  ])("in %s the numpad's decimal key (key %s) types %s", async (lng, key, text) => {
+    await i18n.changeLanguage(lng);
+    const onChange = vi.fn<(next: typeof chart) => void>();
+    render(<ChartData chart={chart} revision={0} readOnly={false} onChange={onChange} />);
+    fireEvent.change(value(0, 0), { target: { value: "1" } });
+    fireEvent.keyDown(value(0, 0), { key, code: "NumpadDecimal" });
+    expect(value(0, 0)).toHaveValue(text);
+    fireEvent.change(value(0, 0), { target: { value: `${text}5` } });
     expect(onChange.mock.lastCall![0].series[0]!.values[0]).toBe(1.5);
   });
 
-  // #378: only the other language's separator gets the separator message; a decimal number too
-  // large for a number gets the generic one.
-  it("says a separator is why only when the value has the one the language forbids", async () => {
-    const { unmount } = render(
-      <ChartData chart={chart} revision={0} readOnly={false} onChange={() => {}} />,
-    );
-    fireEvent.change(value(0, 0), { target: { value: "1,5" } });
-    expect(screen.getByTestId("slide-editor-chart-error-0")).toHaveTextContent(
-      "Q1 – Sales: enter a number with a decimal point, such as 1.5.",
-    );
-    fireEvent.change(value(0, 0), { target: { value: "1.5e309" } });
-    expect(screen.getByTestId("slide-editor-chart-error-0")).toHaveTextContent(
-      "Q1 – Sales: enter a number, such as 1.5.",
-    );
-    unmount();
+  // #451 review: a read-only chart takes no numpad key.
+  it("a read-only chart value ignores the numpad's decimal key", async () => {
     await i18n.changeLanguage("de");
+    const onChange = vi.fn();
+    const big = { ...chart, series: [{ ...chart.series[0]!, values: [125, 5] }] };
+    render(<ChartData chart={big} revision={0} readOnly onChange={onChange} />);
+    fireEvent.keyDown(value(0, 0), { key: ".", code: "NumpadDecimal" });
+    expect(value(0, 0)).toHaveValue("125");
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["de", "2,5"],
+    ["es", "2,5"],
+    ["en", "2.5"],
+  ])("in %s shows a stored value as %s", async (lng, shown) => {
+    await i18n.changeLanguage(lng);
+    const decimal = { ...chart, series: [{ ...chart.series[0]!, values: [2.5, 5] }] };
+    render(<ChartData chart={decimal} revision={0} readOnly={false} onChange={() => {}} />);
+    expect(value(0, 0)).toHaveValue(shown);
+  });
+
+  it("names one reason for a row only when all its values share it", () => {
     render(<ChartData chart={chart} revision={0} readOnly={false} onChange={() => {}} />);
-    fireEvent.change(value(0, 0), { target: { value: "1,5e309" } });
+    fireEvent.change(value(0, 0), { target: { value: "1e309" } });
+    fireEvent.change(value(1, 0), { target: { value: "-1e309" } });
     expect(screen.getByTestId("slide-editor-chart-error-0")).toHaveTextContent(
-      "Q1 – Sales: Gib eine Zahl ein, etwa 1,5.",
+      "Q1 – Sales and Series 2: the number is too large for the chart. Enter a smaller one, such as 1.5.",
+    );
+    fireEvent.change(value(1, 0), { target: { value: "1x" } });
+    expect(screen.getByTestId("slide-editor-chart-error-0")).toHaveTextContent(
+      "Q1 – Sales and Series 2: enter a number, such as 1.5.",
     );
   });
 

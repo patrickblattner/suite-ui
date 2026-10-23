@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — #451, GL-UI-037 rev 2, SUI-FEATURE-233 rev 6: one number parser, `parseDecimal`
+
+- **New export `parseDecimal` (#451):** `@suite/ui/ui/decimal-number` (also in `@suite/ui/ui/index`) exports `parseDecimal(text, language)`, `formatDecimal(value, language)`, `decimalSign(language)`, `numpadDecimal(event, language)` and the type `DecimalInvalid`. It is the one parser for number entry per `GL-UI-037`: in de and es a point and a comma are both the decimal sign ("1.5" = "1,5"), in en only the point; nothing is grouped, so one separator is always decimal ("1.000" = 1) and two ("1.000,5", "1,000.5") are refused as `separator`. A decimal number too large for a number is `tooLarge`, anything else `other`.
+- **Chart values and `NumberField`/`NumberInput` (#451):** both read what is typed through `parseDecimal` and show the stored number with the UI language's decimal sign. The numpad's decimal key (`code` `NumpadDecimal`) types that sign whatever the key reports. A refused value stays as typed with an error that says why and names the right form, for example "Enter the number with one decimal point and no comma, such as 1000.5." An overflowing chart value now says the number is too large.
+- **`NumberInput` is a text field (#451):** it was `type="number"`, which cannot hold a comma. It now has `role="spinbutton"` with `aria-valuenow`/`-valuemin`/`-valuemax`, and the arrow keys step by `step` within `min` and `max`; the native spinner is gone. It takes a new optional `onInvalid(why)`; a `NumberField` uses it to show its error (test id `${testId}-error`).
+- **Tests (#451):** unit tests cover the GL-UI-037 cases for the parser, chart values and `NumberField` in de, es and en: accepted forms, refused forms with their messages, the numpad key, display, and the export.
+
+**Migration:** apps read their own number fields through `parseDecimal` and show numbers through `formatDecimal` instead of `Number()`/`String()`; on a keydown they pass the event to `numpadDecimal`. Tests that read a `NumberInput`'s value as a number (`toHaveValue(12)`) now read text (`toHaveValue("12")`), and `min`/`max` are now `aria-valuemin`/`aria-valuemax`.
+
 ## Unreleased — #449, SUI-FEATURE-251 rev 2: the locked look mixes with the surface it sits on
 
 - **`--surface` token (#449):** a new package token for the colour of the surface a control sits on, defaulting to `--background`.

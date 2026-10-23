@@ -606,9 +606,16 @@ export const de: SuiteStrings = {
       chartCategoryHeader: "Kategorie",
       chartCategoryName: "Name der Kategorie {{n}}",
       chartSeriesName: "Name der Reihe {{n}}",
+      numberNotANumber: "Gib eine Zahl ein, etwa 1,5.",
+      numberSeparator:
+        "Gib die Zahl mit nur einem Dezimalzeichen und ohne Tausendertrennung ein, etwa 1000,5.",
+      numberTooLarge: "Die Zahl ist zu groß. Gib eine kleinere ein, etwa 1,5.",
       chartValue: "{{series}}, {{category}}",
       chartNotANumber: "{{category}} – {{names}}: Gib eine Zahl ein, etwa 1,5.",
-      chartSeparator: "{{category}} – {{names}}: Gib eine Zahl ohne Tausenderpunkt ein, etwa 1,5.",
+      chartSeparator:
+        "{{category}} – {{names}}: Gib die Zahl mit nur einem Dezimalzeichen und ohne Tausendertrennung ein, etwa 1000,5.",
+      chartTooLarge:
+        "{{category}} – {{names}}: Die Zahl ist zu groß für das Diagramm. Gib eine kleinere ein, etwa 1,5.",
       chartNotInPie: "Im Kreisdiagramm nicht gezeigt",
       chartNegativeInPie: "Ein Kreisdiagramm lässt Werte unter 0 weg.",
       chartRemoveCategory: "{{name}} entfernen",
