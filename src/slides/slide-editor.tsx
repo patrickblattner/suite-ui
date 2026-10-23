@@ -179,6 +179,7 @@ import {
   type SlideViewProps,
 } from "./slide-view.js";
 import { type SlideHistory, useSlideHistory } from "./use-slide-history.js";
+import { adoptBrand, mediaIds, mediaLabel, withMedia } from "./editor-adopt.js";
 import { elementClipboard, keepInClipboard } from "./element-clipboard-internal.js";
 
 export interface SlideEditorProps extends Pick<
@@ -206,6 +207,11 @@ export interface SlideEditorProps extends Pick<
   // The app's media picker (`SUI-FEATURE-232`, `GL-UI-002`): the Add drawer's "Media" entry opens it
   // and inserts the chosen medium as an image; `undefined` is a cancel. Without it there is no entry.
   pickMedia?: () => Promise<PickedMedia | undefined>;
+  // The app's media entries for a paste from another document (`SUI-FEATURE-106`): called once per
+  // paste with the media ids `resolveMedia` does not resolve; the app makes their entries and answers
+  // old id → new id (an id it leaves out stays). Without it, or when it fails, the paste goes in anyway
+  // and a hint names each medium not brought along.
+  adoptMedia?: (ids: string[]) => Promise<Record<string, string>>;
   // The app's own layouts and their masters (`SUI-FEATURE-192`), offered beside the document's: one
   // in use is copied into the document with its master, so the document draws without the app.
   layouts?: readonly SlideLayoutInput[];
@@ -658,6 +664,7 @@ export function SlideEditor({
   formats,
   onTransfer,
   pickMedia,
+  adoptMedia,
   layouts,
   masters,
   brand,
@@ -696,6 +703,7 @@ export function SlideEditor({
       formats={formats}
       onTransfer={onTransfer}
       pickMedia={pickMedia}
+      adoptMedia={adoptMedia}
       appLayouts={layouts}
       appMasters={masters}
       view={view}
@@ -759,6 +767,7 @@ function Editor({
   formats,
   onTransfer,
   pickMedia,
+  adoptMedia,
   appLayouts: layoutsProp,
   appMasters: mastersProp,
   view,
@@ -776,6 +785,7 @@ function Editor({
   formats: SlideEditorProps["formats"];
   onTransfer: SlideEditorProps["onTransfer"];
   pickMedia: SlideEditorProps["pickMedia"];
+  adoptMedia: SlideEditorProps["adoptMedia"];
   view: ViewProps;
   headerRef: SlideEditorProps["headerRef"];
   testId: string | undefined;
@@ -1422,14 +1432,24 @@ function Editor({
   };
   // The element clipboard (`SUI-FEATURE-191`): copy, cut and duplicate take the whole selection, a
   // locked element too; cut removes only its unlocked part. A paste or duplicate the page cannot take
-  // is refused with a toast. Each change is one step, the copies selected after it.
+  // is refused with a toast. Each change is one step, the copies selected after it. The clipboard
+  // keeps this editor's brand set and which copies filled a title placeholder, for a paste into
+  // another document (`SUI-FEATURE-106`).
   const copySelection = () => {
     if (selected.length === 0) return;
+    const titles = new Set<string>();
+    const visit = (element: SlideElement) => {
+      if (element.placeholderRole === "title") titles.add(element.id);
+      if (element.type === "group") element.children.forEach(visit);
+    };
+    selected.forEach(visit);
     keepInClipboard(
       copyElements(
         elements,
         selected.map((element) => element.id),
       ),
+      view.brand,
+      titles,
     );
   };
   const cutSelection = () => {
@@ -1443,7 +1463,6 @@ function Editor({
     apply(() => result.document);
     setSelection(result.ids);
   };
-  const paste = () => placeCopies(pasteElements(history.document, page, elementClipboard.elements));
   const duplicate = () =>
     placeCopies(
       duplicateElements(
@@ -1848,6 +1867,49 @@ function Editor({
   React.useEffect(() => {
     latestInsert.current = insertEntry;
   });
+  // A paste takes the brand keys this document lacks to its own brand set's, and asks the app for the
+  // media it cannot resolve; it lands once the app answers, on the document as it is then, as one
+  // step. A medium still unresolved after that pastes anyway, its image a placeholder, and is named in
+  // a hint by its image's alt text or name; one the app's answer renames counts as brought along.
+  const landPaste = (
+    copies: readonly SlideElement[],
+    unresolved: readonly string[],
+    remap: Record<string, string>,
+  ) => {
+    const missing = unresolved.filter(
+      (id) => !Object.hasOwn(remap, id) && view.resolveMedia?.(id) === undefined,
+    );
+    const result = pasteElements(history.document, page, withMedia(copies, remap));
+    placeCopies(result);
+    if (result.ids.length > 0 && missing.length > 0) {
+      toast.warning(
+        t("slides.editor.mediaNotAdopted", {
+          count: missing.length,
+          names: missing.map((id) => mediaLabel(copies, id)).join(", "),
+          interpolation: { escapeValue: false },
+        }),
+      );
+    }
+  };
+  const latestLandPaste = React.useRef(landPaste);
+  React.useEffect(() => {
+    latestLandPaste.current = landPaste;
+  });
+  const paste = () => {
+    const { elements: copied, brand, titles } = elementClipboard;
+    const copies = adoptBrand(copied, brand, view.brand, titles);
+    const resolve = view.resolveMedia;
+    const unresolved =
+      resolve === undefined ? [] : mediaIds(copies).filter((id) => resolve(id) === undefined);
+    if (unresolved.length === 0 || adoptMedia === undefined) {
+      landPaste(copies, unresolved, {});
+      return;
+    }
+    adoptMedia(unresolved).then(
+      (remap) => latestLandPaste.current(copies, unresolved, remap),
+      () => latestLandPaste.current(copies, unresolved, {}),
+    );
+  };
   // The app's picker: a cancel inserts nothing; a picker that fails, or a medium the page cannot
   // take, is named in an error toast with what to do next.
   const pickFromMedia =
@@ -3321,6 +3383,9 @@ function Editor({
                 <ContextMenuContent data-testid="slide-editor-menu">
                   {menuEntry("cut", selected.length > 0, CUT_SHORTCUT, cutSelection)}
                   {menuEntry("copy", selected.length > 0, COPY_SHORTCUT, copySelection)}
+                  {/* The entry calls paste only when chosen; paste reads its ref only once the app
+                      answers `adoptMedia`, never while rendering. */}
+                  {/* eslint-disable-next-line react-hooks/refs */}
                   {menuEntry("paste", clipboardFilled, PASTE_SHORTCUT, paste)}
                   {menuEntry("duplicate", selected.length > 0, DUPLICATE_SHORTCUT, duplicate)}
                 </ContextMenuContent>
