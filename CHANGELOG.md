@@ -1,16 +1,26 @@
 # Changelog
 
-## Unreleased — #530, SUI-FEATURE-191 rev 7: arrow keys pressed during a drag are no longer undone
+## 0.173.1 — #488, GL-UI-010 rev 8: SlideEditor pane headings and section gaps
+
+- **Pane headings (#488):** the section headings of the Pages and Library panes and the legends of the transfer dialog now use `text-base font-semibold`, like the PropertyPanel (#425). The document tab puts `gap-4` between its top-level sections instead of `gap-6`. Heading to first content stays 8 px.
+
+**Migration:** none for the API; no `data-testid`, strings or baselines change. A test that compares the exact class string of these headings or of the document tab wrapper updates it.
+
+## 0.173.1 — #530, SUI-FEATURE-191 rev 8: arrow keys pressed during a drag are no longer undone
 
 - **Arrow keys during a drag (#530):** Arrow and Shift+Arrow pressed while an element is being dragged, resized or rotated now join the #527 order and move the selection once the drag ends, kept or cancelled with Esc, each as its own history step on the document the drag left. Before, the release put back the drag's preview, drawn from the document before the move, and the move vanished. During a frame selection the arrows still move the selection shown at once.
 - **Tests (#530):** arrows during a kept drag (two steps Undo takes back one by one), `Ctrl+D` then Shift+Arrow during an Esc-cancelled drag (the copy moves, the original stays), arrows during a frame selection.
 
-## Unreleased — #527, SUI-FEATURE-191 rev 6: clipboard keys and Delete pressed during a drag are no longer lost
+**Migration:** none.
+
+## 0.173.1 — #527, SUI-FEATURE-191 rev 6: clipboard keys and Delete pressed during a drag are no longer lost
 
 - **Clipboard keys and Delete during a drag (#527):** `Cmd/Ctrl+C`, `X`, `V`, `D` and `Delete`/`Backspace` pressed while an element is being dragged, resized or rotated now take effect once the drag ends, kept or cancelled with Esc, in the order they were pressed, each as its own history step on the document the drag left. A paste whose `adoptMedia` answer arrives meanwhile joins the same order (#525). Before, the release put back the drag's preview, drawn from the document before the edit, and a cut, duplicate or delete vanished; `X` then `V` in one drag pasted nothing back; and a copy or cut during a cancelled drag took the dragged, not the kept, position. During a frame selection, which draws no preview, the keys act at once on the selection shown.
 - **Tests (#527):** cut and duplicate during a kept and an Esc-cancelled drag, copy during a cancelled one, `X` then `V` in one drag, `Delete` during a drag, `X` during a cancelled frame selection; for the #525 paste hold, a second paste while one waits is ignored and a held paste lands after Esc.
 
-## Unreleased — #486, SUI-FEATURE-103 rev 2: Button `busy` wins over the call site's `disabled` and `aria-disabled`
+**Migration:** none.
+
+## 0.173.1 — #486, SUI-FEATURE-103 rev 2: Button `busy` wins over the call site's `disabled` and `aria-disabled`
 
 - **Button (#486):** while `busy`, a call site's `disabled` no longer renders the `disabled` attribute, so the focus stays on the running button; the run's `aria-disabled="true"` lock holds instead, and `disabled` applies again once `busy` ends. `aria-disabled="true"` and `aria-busy="true"` are now set after the passed-through props, so a call-site `aria-disabled={false}` (or `aria-busy`) can no longer undo the lock during a run. Applies to every building block that passes `busy` through.
 - **Hints (#486):** `Hint` and `IconButtonTooltip` show no `disabledText` while the wrapped button is `busy`; a run is no lock with a reason. Report a run only through `busy`, never folded into `aria-disabled`.
@@ -18,11 +28,13 @@
 
 **Migration:** app tests that expect a running button to be `disabled` because the call site also passed `disabled` check `aria-disabled="true"` instead.
 
-## Unreleased — #525, SUI-FEATURE-106 rev 2: a paste awaiting `adoptMedia` survives a drag; no `resolveMedia` resolves nothing
+## 0.173.1 — #525, SUI-FEATURE-106 rev 2: a paste awaiting `adoptMedia` survives a drag; no `resolveMedia` resolves nothing
 
 - **Paste during a drag (#525):** a paste whose `adoptMedia` answer arrives while an element is being dragged, resized or rotated now lands once the drag ends (kept or cancelled with Esc). Before, the drag's release put back the document as it was when the drag began and the paste was lost. A paste in the meantime is ignored.
 - **Paste without `resolveMedia` (#525):** an editor without `resolveMedia` treats every pasted medium as unresolved, as its page draws them: `adoptMedia` is asked for all of them, and any still unresolved is named in the hint. Before, such a paste skipped `adoptMedia` and the hint while the images showed the missing-media placeholder.
 - **Tests (#525):** editor tests for both cases (`slide-editor-clipboard.test.tsx`).
+
+**Migration:** none.
 
 ## 0.173.0 — #466, SUI-FEATURE-191 rev 5, SUI-FEATURE-106 rev 2: copy/paste of locked elements, layout roles, group children, and into another document
 
