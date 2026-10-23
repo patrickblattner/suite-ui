@@ -547,7 +547,7 @@ export const es: SuiteStrings = {
         "100 % llena el marco; hasta 500 % muestra una parte cada vez menor de la imagen.",
       cropOffsetValueHint: "Píxeles desde el centro del marco; 0 centra la imagen.",
       animationEntranceValueHint:
-        "«{{fade}}» aparece poco a poco, «{{slide}}» entra por un borde, «{{zoom}}» crece; «{{none}}» lo muestra ya.",
+        "«{{fade}}» aparece poco a poco, «{{slide}}» entra por un borde, «{{zoom}}» crece; «{{none}}» lo muestra al inicio.",
       animationExitValueHint:
         "«{{fade}}» desaparece poco a poco, «{{slide}}» sale por un borde, «{{zoom}}» se encoge; «{{none}}» no lo mueve.",
       animationFromValueHint: "El elemento empieza fuera de este borde y se desliza a su sitio.",

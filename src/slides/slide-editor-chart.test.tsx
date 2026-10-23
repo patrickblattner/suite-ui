@@ -88,7 +88,7 @@ describe("ChartData", () => {
   });
 
   // #387 (SUI-FEATURE-250): a limit lock names the limit on the focusable button; read-only claims
-  // no limit as its reason and stays plainly disabled, as the panel's other read-only controls.
+  // the unlock as its reason, and a click on a locked button changes nothing.
   it("names the limit when it locks; a read-only chart says to unlock it (#440)", () => {
     const single = { ...chart, series: [chart.series[0]!] };
     const { unmount } = render(
@@ -98,7 +98,8 @@ describe("ChartData", () => {
     expect(remove).toHaveAttribute("aria-disabled", "true");
     expect(remove).toHaveAccessibleDescription("A chart needs at least one series.");
     unmount();
-    render(<ChartData chart={chart} revision={0} readOnly onChange={() => {}} />);
+    const onChange = vi.fn();
+    render(<ChartData chart={chart} revision={0} readOnly onChange={onChange} />);
     for (const id of [
       "slide-editor-chart-remove-series-0",
       "slide-editor-chart-remove-category-0",
@@ -108,7 +109,9 @@ describe("ChartData", () => {
       const button = screen.getByTestId(id);
       expect(button).toHaveAttribute("aria-disabled", "true");
       expect(button).toHaveAccessibleDescription("Unlock the element to change its chart.");
+      fireEvent.click(button);
     }
+    expect(onChange).not.toHaveBeenCalled();
   });
 
   // #436 (GL-UI-017): a locked chart's type buttons say how to unlock it, as its other buttons.
