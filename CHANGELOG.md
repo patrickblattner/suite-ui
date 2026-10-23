@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — #527, SUI-FEATURE-191 rev 6: clipboard keys and Delete pressed during a drag are no longer lost
+
+- **Clipboard keys and Delete during a drag (#527):** `Cmd/Ctrl+C`, `X`, `V`, `D` and `Delete`/`Backspace` pressed while an element is being dragged, resized or rotated now take effect once the drag ends, kept or cancelled with Esc, in the order they were pressed, each as its own history step on the document the drag left. A paste whose `adoptMedia` answer arrives meanwhile joins the same order (#525). Before, the release put back the drag's preview, drawn from the document before the edit, and a cut, duplicate or delete vanished; `X` then `V` in one drag pasted nothing back; and a copy or cut during a cancelled drag took the dragged, not the kept, position. During a frame selection, which draws no preview, the keys act at once on the selection shown.
+- **Tests (#527):** cut and duplicate during a kept and an Esc-cancelled drag, copy during a cancelled one, `X` then `V` in one drag, `Delete` during a drag, `X` during a cancelled frame selection; for the #525 paste hold, a second paste while one waits is ignored and a held paste lands after Esc.
+
 ## Unreleased — #486, SUI-FEATURE-103 rev 2: Button `busy` wins over the call site's `disabled` and `aria-disabled`
 
 - **Button (#486):** while `busy`, a call site's `disabled` no longer renders the `disabled` attribute, so the focus stays on the running button; the run's `aria-disabled="true"` lock holds instead, and `disabled` applies again once `busy` ends. `aria-disabled="true"` and `aria-busy="true"` are now set after the passed-through props, so a call-site `aria-disabled={false}` (or `aria-busy`) can no longer undo the lock during a run. Applies to every building block that passes `busy` through.

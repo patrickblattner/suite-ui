@@ -425,6 +425,157 @@ describe("SlideEditor element clipboard", () => {
     expect(elements[1]).toMatchObject({ media: { id: "photo-copy" } });
   });
 
+  it("ignores a second paste while one waits for a drag to end (#525)", async () => {
+    let answer: (remap: Record<string, string>) => void = () => {};
+    const adoptMedia = vi.fn(
+      () => new Promise<Record<string, string>>((resolve) => (answer = resolve)),
+    );
+    const onSave = copyThenOpenOther("photo", {
+      document: { ...DOC, pages: [{ id: "other", background, elements: [shape("a", 0, 0)] }] },
+      adoptMedia,
+      resolveMedia: (id: string) => (id === "photo-copy" ? "blob:photo" : undefined),
+    });
+    key("v");
+    fireEvent.pointerDown(canvas(), { ...at(50, 50), button: 0, pointerId: 1 });
+    fireEvent.pointerMove(canvas(), at(250, 50));
+    answer({ photo: "photo-copy" });
+    await Promise.resolve();
+    await Promise.resolve();
+    key("v");
+    expect(adoptMedia).toHaveBeenCalledTimes(1);
+    fireEvent.pointerUp(canvas(), at(250, 50));
+    const elements = await saved(onSave);
+    expect(elements.map(({ type, x }) => ({ type, x }))).toEqual([
+      { type: "shape", x: 200 },
+      { type: "image", x: 40 },
+    ]);
+  });
+
+  it("lands a paste held by a drag once Esc cancels the drag (#525)", async () => {
+    let answer: (remap: Record<string, string>) => void = () => {};
+    const onSave = copyThenOpenOther("photo", {
+      document: { ...DOC, pages: [{ id: "other", background, elements: [shape("a", 0, 0)] }] },
+      adoptMedia: () => new Promise((resolve) => (answer = resolve)),
+      resolveMedia: (id: string) => (id === "photo-copy" ? "blob:photo" : undefined),
+    });
+    key("v");
+    fireEvent.pointerDown(canvas(), { ...at(50, 50), button: 0, pointerId: 1 });
+    fireEvent.pointerMove(canvas(), at(250, 50));
+    answer({ photo: "photo-copy" });
+    await Promise.resolve();
+    await Promise.resolve();
+    fireEvent.keyDown(canvas(), { key: "Escape" });
+    fireEvent.pointerUp(canvas(), at(250, 50));
+    fireEvent.click(screen.getByTestId("drawer-layers"));
+    await waitFor(() => expect(screen.getAllByTestId("slide-editor-layer")).toHaveLength(2));
+    const elements = await saved(onSave);
+    expect(elements.map(({ type, x }) => ({ type, x }))).toEqual([
+      { type: "shape", x: 0 },
+      { type: "image", x: 40 },
+    ]);
+  });
+
+  // Drags a from (50, 50) to (450, 50), pressing keys on the way and cancelling with Esc if asked.
+  const dragA = (press: () => void, cancel = false) => {
+    fireEvent.pointerDown(canvas(), { ...at(50, 50), button: 0, pointerId: 1 });
+    fireEvent.pointerMove(canvas(), at(250, 50));
+    press();
+    fireEvent.pointerMove(canvas(), at(450, 50));
+    if (cancel) fireEvent.keyDown(canvas(), { key: "Escape" });
+    fireEvent.pointerUp(canvas(), at(450, 50));
+  };
+  const layerCount = () => {
+    if (screen.queryByTestId("slide-editor-layers") === null)
+      fireEvent.click(screen.getByTestId("drawer-layers"));
+    return screen.getAllByTestId("slide-editor-layer").length;
+  };
+
+  it("cuts with Ctrl+X pressed during a drag once it ends, one step each (#527)", async () => {
+    const onSave = renderEditor();
+    dragA(() => key("x"));
+    expect(layerCount()).toBe(6);
+    expect(elementClipboard.elements).toMatchObject([{ type: "shape", x: 400, y: 0 }]);
+    key("z");
+    expect(layerCount()).toBe(7);
+    const elements = await saved(onSave);
+    expect(elements[0]).toMatchObject({ id: "a", x: 400 });
+  });
+
+  it("duplicates with Ctrl+D pressed during a drag once it ends, one step each (#527)", async () => {
+    const onSave = renderEditor();
+    dragA(() => key("d"));
+    expect(layerCount()).toBe(8);
+    key("z");
+    expect(layerCount()).toBe(7);
+    key("y");
+    const elements = await saved(onSave);
+    expect(elements.slice(0, 2).map(({ x, y }) => ({ x, y }))).toEqual([
+      { x: 400, y: 0 },
+      { x: 410, y: 10 },
+    ]);
+  });
+
+  it("cuts with Ctrl+X pressed during a drag Esc cancels, from where it was (#527)", async () => {
+    const onSave = renderEditor();
+    dragA(() => key("x"), true);
+    expect(layerCount()).toBe(6);
+    expect(elementClipboard.elements).toMatchObject([{ type: "shape", x: 0, y: 0 }]);
+    const elements = await saved(onSave);
+    expect(elements.map((e) => e.id)).not.toContain("a");
+  });
+
+  it("duplicates with Ctrl+D pressed during a drag Esc cancels, the copy selected (#527)", async () => {
+    const onSave = renderEditor();
+    dragA(() => key("d"), true);
+    expect(layerCount()).toBe(8);
+    const selected = screen
+      .getAllByTestId("slide-editor-layer-select")
+      .filter((b) => b.ariaPressed === "true");
+    expect(selected).toHaveLength(1);
+    const elements = await saved(onSave);
+    expect(elements.slice(0, 2).map(({ x, y }) => ({ x, y }))).toEqual([
+      { x: 0, y: 0 },
+      { x: 10, y: 10 },
+    ]);
+  });
+
+  it("pastes back what Ctrl+X cut when Ctrl+V follows in the same drag (#527)", async () => {
+    const onSave = renderEditor();
+    dragA(() => {
+      key("x");
+      key("v");
+    });
+    const elements = await saved(onSave);
+    expect(elements.map((e) => e.id)).not.toContain("a");
+    expect(elements.at(-1)).toMatchObject({ type: "shape", x: 400, y: 0 });
+  });
+
+  it("copies with Ctrl+C during a drag Esc cancels from where it was, as a cut does (#527)", () => {
+    renderEditor();
+    dragA(() => key("c"), true);
+    expect(elementClipboard.elements).toMatchObject([{ type: "shape", x: 0, y: 0 }]);
+  });
+
+  it("deletes with Delete pressed during a drag once it ends (#527)", async () => {
+    const onSave = renderEditor();
+    dragA(() => fireEvent.keyDown(canvas(), { key: "Delete" }));
+    const elements = await saved(onSave);
+    expect(elements.map((e) => e.id)).toEqual(["b", "pair", "photo", "words"]);
+  });
+
+  it("cuts with Ctrl+X during a frame selection what it shows, Esc or not (#527)", async () => {
+    const onSave = renderEditor();
+    click(50, 50);
+    fireEvent.pointerDown(canvas(), { ...at(250, 200), button: 0, pointerId: 1 });
+    fireEvent.pointerMove(canvas(), at(350, 50));
+    key("x");
+    fireEvent.keyDown(canvas(), { key: "Escape" });
+    fireEvent.pointerUp(canvas(), at(350, 50));
+    expect(elementClipboard.elements).toMatchObject([{ type: "shape", x: 300, y: 0 }]);
+    const elements = await saved(onSave);
+    expect(elements.map((e) => e.id)).toEqual(["a", "pair", "photo", "words"]);
+  });
+
   it("asks the app for every medium when the target resolves none (#525)", async () => {
     const warning = vi.spyOn(toast, "warning");
     const adoptMedia = vi.fn(() => Promise.resolve({}));

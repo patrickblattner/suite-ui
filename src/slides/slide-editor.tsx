@@ -1872,18 +1872,26 @@ function Editor({
   // step. A medium that still does not resolve after that, renamed by the app or not, pastes anyway,
   // its image a placeholder, and a hint names it by its image's alt text or name (one with neither is
   // counted). A paste while one waits for the app is ignored; one the editor closes on never lands.
-  // One that comes in during a drag waits for the drag to end, kept or cancelled: the drag's preview
-  // is drawn from the document as it began and would take the paste back (#525).
-  const heldPaste = React.useRef<(() => void) | undefined>(undefined);
+  // Copy, cut, paste, duplicate and Delete keyed during a drag with a preview wait for it to end,
+  // kept or cancelled, and so does a paste the app answers meanwhile: the release would put back the
+  // preview, drawn from the document as the drag began (#525, #527). They land in the order they
+  // came, one a render, each on what the one before left. A frame selection draws no preview: under
+  // it they act at once.
+  const held = React.useRef<(() => void)[]>([]);
+  const pastePending = React.useRef(false);
+  const [heldTurn, setHeldTurn] = React.useState(0);
+  const holdForDrag = (edit: () => void) => {
+    if (drag === undefined || drag.kind === "marquee") return false;
+    held.current.push(edit);
+    return true;
+  };
   const landPaste = (
     copies: readonly SlideElement[],
     unresolved: readonly string[],
     remap: Record<string, string>,
   ) => {
-    if (drag !== undefined) {
-      heldPaste.current = () => latestLandPaste.current(copies, unresolved, remap);
-      return;
-    }
+    if (holdForDrag(() => latestLandPaste.current(copies, unresolved, remap))) return;
+    pastePending.current = false;
     const missing = unresolved.filter(
       (id) => view.resolveMedia?.(Object.hasOwn(remap, id) ? remap[id]! : id) === undefined,
     );
@@ -1908,13 +1916,6 @@ function Editor({
   React.useEffect(() => {
     latestLandPaste.current = landPaste;
   });
-  React.useEffect(() => {
-    if (drag !== undefined || heldPaste.current === undefined) return;
-    const land = heldPaste.current;
-    heldPaste.current = undefined;
-    land();
-  }, [drag]);
-  const pastePending = React.useRef(false);
   const closed = React.useRef(false);
   React.useEffect(() => {
     closed.current = false;
@@ -1923,7 +1924,7 @@ function Editor({
     };
   }, []);
   const paste = () => {
-    if (pastePending.current || heldPaste.current !== undefined) return;
+    if (pastePending.current || holdForDrag(() => latestHeld.current.paste())) return;
     const { elements: copied, brand, titles } = elementClipboard;
     const copies = adoptBrand(copied, brand, view.brand, titles);
     // Without `resolveMedia` no medium resolves: the page draws each one as missing (#525).
@@ -1934,10 +1935,35 @@ function Editor({
     }
     pastePending.current = true;
     const land = (remap: Record<string, string>) => {
-      pastePending.current = false;
       if (!closed.current) latestLandPaste.current(copies, unresolved, remap);
     };
     adoptMedia(unresolved).then(land, () => land({}));
+  };
+  const latestHeld = React.useRef({
+    cut: cutSelection,
+    copy: copySelection,
+    paste,
+    duplicate,
+    remove: removeSelected,
+  });
+  React.useEffect(() => {
+    latestHeld.current = {
+      cut: cutSelection,
+      copy: copySelection,
+      paste,
+      duplicate,
+      remove: removeSelected,
+    };
+  });
+  React.useEffect(() => {
+    if (drag !== undefined) return;
+    const edit = held.current.shift();
+    if (edit === undefined) return;
+    edit();
+    setHeldTurn((turn) => turn + 1);
+  }, [drag, heldTurn]);
+  const heldKey = (edit: keyof typeof latestHeld.current, run: () => void) => () => {
+    if (!holdForDrag(() => latestHeld.current[edit]())) run();
   };
   // The app's picker: a cancel inserts nothing; a picker that fails, or a medium the page cannot
   // take, is named in an error toast with what to do next.
@@ -2115,7 +2141,12 @@ function Editor({
     }
     const command = (event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey;
     const clipboardKey = command
-      ? { x: cutSelection, c: copySelection, v: paste, d: duplicate }[event.key.toLowerCase()]
+      ? {
+          x: heldKey("cut", cutSelection),
+          c: heldKey("copy", copySelection),
+          v: paste,
+          d: heldKey("duplicate", duplicate),
+        }[event.key.toLowerCase()]
       : undefined;
     if (clipboardKey !== undefined) {
       event.preventDefault();
@@ -2141,7 +2172,7 @@ function Editor({
     }
     if ((event.key === "Delete" || event.key === "Backspace") && editable.length > 0) {
       event.preventDefault();
-      removeSelected();
+      heldKey("remove", removeSelected)();
       return;
     }
     const step = event.shiftKey ? 10 : 1;
