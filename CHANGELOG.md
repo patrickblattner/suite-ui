@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.172.1 — #520: a long malformed number is rejected in linear time
+
+- **Number parsing (#520):** `parseDecimal` no longer backtracks quadratically on a long malformed paste (40,000 digits and an "x" took over 2 s, now well under 1 ms). What it accepts and rejects, and why, is unchanged (`GL-UI-037`).
+- **Tests (#520):** a unit test rejects 40,000-character malformed input within 50 ms.
+
+**Migration:** none.
+
 ## 0.172.0 — #519, SUI-FEATURE-104 rev 2, SUI-FEATURE-105 rev 2: EditorHeader tools, status, read-only, page head
 
 - **`tools` (#519):** `EditorHeader` takes `tools?: EditorHeaderTool[]` (`{ id, label, icon, onClick, pressed?, disabledText? }`, type exported). They stand first in the right group as `icon-sm` buttons named by `label` (accessible name and tooltip), followed by a separator: tools · separator · Preview · ⋯ · next · separator · Undo · Redo · status · state · Reset · Save. `pressed` makes a toggle with `aria-pressed` and the package's pressed fill; `disabledText` locks it with `aria-disabled` and names the reason. At narrow width they fold with Preview (stage 3) into the one ⋯, ahead of the other folded tools; a pressed tool becomes a checkbox entry (`RowMenuItem` gains `checked?`).

@@ -61,6 +61,14 @@ describe("parseDecimal", () => {
     expect(formatDecimal(1.5, "es-ES")).toBe("1,5");
   });
 
+  it("rejects a long malformed paste fast (#520)", () => {
+    const start = performance.now();
+    expect(parseDecimal(`${"1".repeat(40_000)}x`, "de")).toEqual({ invalid: "other" });
+    expect(parseDecimal(`${"1.".repeat(20_000)}x`, "de")).toEqual({ invalid: "other" });
+    expect(parseDecimal(`${"1.".repeat(20_000)}1`, "de")).toEqual({ invalid: "separator" });
+    expect(performance.now() - start).toBeLessThan(50);
+  });
+
   it("is a public export of the package's ui index", () => {
     expect(ui.parseDecimal).toBe(parseDecimal);
     expect(ui.formatDecimal).toBe(formatDecimal);

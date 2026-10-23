@@ -12,7 +12,9 @@ const DECIMAL_COMMA = new Set(["de", "es"]);
 // "Infinity" or "1_000", which `Number` would take, are not numbers here.
 const DECIMAL = /^[+-]?(\d+([.,]\d*)?|[.,]\d+)(e[+-]?\d+)?$/i;
 // Digits with more than one separator: grouped ("1.000,5") or with a second decimal sign ("1.2.3").
-const GROUPED = /^[+-]?[\d.,]*\d[\d.,]*(e[+-]?\d+)?$/i;
+// The lookahead asks for a digit without a second run over the digits, so a long paste is rejected
+// in linear time (a `[\d.,]*\d[\d.,]*` backtracks quadratically).
+const GROUPED = /^[+-]?(?=[.,]*\d)[\d.,]+(e[+-]?\d+)?$/i;
 
 // The decimal sign of a UI language, by its primary subtag ("de-CH" is "de"): a comma in German and
 // Spanish, a point otherwise.
