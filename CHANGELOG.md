@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.171.6 — #435, GL-UI-017 rev 6: Field and SettingsField hint on the control
+
+- **Hint on the control (#435):** a `Field` or `SettingsField` with a `hint` and no `valueHint` now carries that hint on its package control too (Input, Textarea, a Select's trigger, Combobox, TimezoneCombobox): hovering the control opens it, and it is the control's description in place of the label's hidden help, read once. A `valueHint` still wins. Help, warning and error keep their wiring.
+- **Checkbox and Switch (#435):** as the control of a hinted `Field`, `SettingsField` or `SettingsToggleField`, a Checkbox or Switch carries the label's hint, the same text on both carriers. The options of a `group` field take none of the field's hints; each has its own text.
+- **The caller's own Hint wins (#435):** a control the caller already wraps in a `Hint` of its own takes no field hint: one bubble, and its description stays that Hint's text alone.
+- **Grid type hint (#435):** the en hint of the grid type says "Sets which type of grid is drawn.", in the label's term.
+- **Tests (#435):** unit tests cover the label's hint on an input, a Select's trigger, an invalid input, a Checkbox and a Switch (in `SettingsField` and `SettingsToggleField`), a caller's own `Hint` winning, group options left out, and on a `Field` with help text, the value hint winning.
+
+**Migration:** none. A control inside a hinted field without a value hint (and without a `Hint` of its own) now opens the hint on hover; its `aria-describedby` points to the hint's own description, with the same text, instead of `${htmlFor}-help`.
+
 ## 0.171.5 — #434, GL-UI-017 rev 6: hints on GridFields and CanvasZoom
 
 - **GridFields (#434):** every label of the grid group (type, step, number of columns, gutter, margin, row step) carries its hint, and every field a value hint saying what it counts and in which unit, or what each type does; the value hint is the field's whole description (`aria-describedby`), without the px unit beside it, which the hint already names. Where "No grid" is offered (`allowNone`), the type's value hint names it too. Each hint is one sentence. In de, en and es.

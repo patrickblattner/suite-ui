@@ -7,7 +7,8 @@ type SettingsFieldProps = {
   label: string;
   // The id of the input; with `group` the id of the option group.
   htmlFor: string;
-  // The explanation of the field, as a hover hint on the label (`GL-UI-017`).
+  // The explanation of the field, as a hover hint on the label (`GL-UI-017`); without `valueHint` the
+  // input carries it too (`Field hint`).
   hint?: string;
   // What the value counts, its unit, the effect of a choice, as the input's own hint (`Field valueHint`).
   valueHint?: string;

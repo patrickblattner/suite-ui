@@ -38,3 +38,28 @@ describe("Field warning", () => {
     expect(screen.getByText("Not a number.")).toBeInTheDocument();
   });
 });
+
+// #435 (`GL-UI-017` §Label und Feld sind zwei Träger): the control carries the label's hint when the
+// field has no value hint of its own; a value hint wins.
+describe("Field hint on the control", () => {
+  it("the control is described by the label's hint, the label keeps its help", () => {
+    render(
+      <Field label="Order" htmlFor="order" hint="When it plays." help="Counted from 1.">
+        <Input id="order" aria-describedby="order-help order-description" />
+      </Field>,
+    );
+    expect(screen.getByLabelText("Order")).toHaveAccessibleDescription(
+      "Counted from 1. When it plays.",
+    );
+    expect(document.getElementById("order-help")).toHaveTextContent("When it plays.");
+  });
+
+  it("a value hint wins over the label's hint", () => {
+    render(
+      <Field label="Order" htmlFor="order" hint="When it plays." valueHint="1 plays first.">
+        <Input id="order" aria-describedby="order-help" />
+      </Field>,
+    );
+    expect(screen.getByLabelText("Order")).toHaveAccessibleDescription("1 plays first.");
+  });
+});

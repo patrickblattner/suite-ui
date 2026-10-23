@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { cn } from "../lib/cn.js";
 import { ariaKeyShortcuts } from "../lib/keyboard.js";
 import { lockedWithReason } from "./button-lock-internal.js";
+import { FieldValueHintContext } from "./field-value-hint-context.js";
 import { helpIdFor } from "./label-with-help.js";
 import { usePressKeepsClosed } from "./press-keeps-closed.js";
 import { type Shortcut, ShortcutChip, shortcutVariants } from "./shortcut-chip-internal.js";
@@ -226,38 +227,41 @@ function Hint({
 
   return (
     <OverflowReportContext.Provider value={setInnerClipped}>
-      <TooltipProvider>
-        <TooltipPrimitive.Root {...press.root}>
-          <TooltipTrigger
-            asChild
-            onFocus={keepClosedOnFocus}
-            {...press.trigger}
-            onPointerMove={
-              !carried && children.props.busy === true ? keepClosedOnPointer : undefined
-            }
-          >
-            <PassThrough {...passThrough} ref={ref}>
-              {trigger}
-            </PassThrough>
-          </TooltipTrigger>
-          <TooltipContent>
-            {clipped ? (
-              <>
-                <span className="block">{fullText}</span>
-                <span className="mt-1 block opacity-90" data-slot="tooltip-hint">
+      {/* A control in a Hint of its own takes no field hint: the caller's Hint wins (#435). */}
+      <FieldValueHintContext.Provider value={undefined}>
+        <TooltipProvider>
+          <TooltipPrimitive.Root {...press.root}>
+            <TooltipTrigger
+              asChild
+              onFocus={keepClosedOnFocus}
+              {...press.trigger}
+              onPointerMove={
+                !carried && children.props.busy === true ? keepClosedOnPointer : undefined
+              }
+            >
+              <PassThrough {...passThrough} ref={ref}>
+                {trigger}
+              </PassThrough>
+            </TooltipTrigger>
+            <TooltipContent>
+              {clipped ? (
+                <>
+                  <span className="block">{fullText}</span>
+                  <span className="mt-1 block opacity-90" data-slot="tooltip-hint">
+                    {shown}
+                    {chip}
+                  </span>
+                </>
+              ) : (
+                <>
                   {shown}
                   {chip}
-                </span>
-              </>
-            ) : (
-              <>
-                {shown}
-                {chip}
-              </>
-            )}
-          </TooltipContent>
-        </TooltipPrimitive.Root>
-      </TooltipProvider>
+                </>
+              )}
+            </TooltipContent>
+          </TooltipPrimitive.Root>
+        </TooltipProvider>
+      </FieldValueHintContext.Provider>
       {describes ? <DescriptionText id={id} text={shown} /> : null}
     </OverflowReportContext.Provider>
   );

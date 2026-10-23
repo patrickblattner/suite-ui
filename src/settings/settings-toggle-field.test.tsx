@@ -47,4 +47,19 @@ describe("SettingsToggleField", () => {
       "Sends a mail.",
     );
   });
+
+  // #435, GL-UI-017: label and Checkbox or Switch carry the same text.
+  it.each([
+    ["checkbox", <Checkbox key="c" id="notify" aria-describedby="notify-help" />],
+    ["switch", <Switch key="s" id="notify" aria-describedby="notify-help" />],
+  ] as const)("the %s carries the label's hint as its description, read once", (role, control) => {
+    render(
+      <SettingsToggleField label="Notify" htmlFor="notify" hint="Sends a mail on every change.">
+        {control}
+      </SettingsToggleField>,
+    );
+    const toggle = screen.getByRole(role, { name: "Notify" });
+    expect(toggle).toHaveAccessibleDescription("Sends a mail on every change.");
+    expect(toggle.getAttribute("aria-describedby")).not.toContain("notify-help");
+  });
 });

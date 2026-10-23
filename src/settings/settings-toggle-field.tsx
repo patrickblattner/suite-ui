@@ -1,5 +1,6 @@
 import type * as React from "react";
 
+import { FieldValueHintContext } from "../ui/field-value-hint-context.js";
 import { Label } from "../ui/label.js";
 import { LabelWithHelp } from "../ui/label-with-help.js";
 
@@ -7,7 +8,8 @@ type SettingsToggleFieldProps = {
   label: string;
   // The id of the Checkbox or Switch.
   htmlFor: string;
-  // The explanation of the field, as a hover hint on the label (`GL-UI-017`).
+  // The explanation of the field, as a hover hint on the label and on the Checkbox or Switch, the same
+  // text on both carriers (`GL-UI-017`).
   hint?: string;
   // The help text under the row, under the id `${htmlFor}-description`.
   help?: React.ReactNode;
@@ -26,7 +28,7 @@ function SettingsToggleField({ label, htmlFor, hint, help, children }: SettingsT
       data-slot="settings-toggle-field"
     >
       <div className="flex" data-slot="settings-toggle-field-control">
-        {children}
+        <FieldValueHintContext.Provider value={hint}>{children}</FieldValueHintContext.Provider>
       </div>
       {hint !== undefined ? (
         <LabelWithHelp htmlFor={htmlFor} help={hint} className="leading-none">

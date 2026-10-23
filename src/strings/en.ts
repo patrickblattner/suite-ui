@@ -413,7 +413,7 @@ export const en = {
     guides: "Guides",
     snap: "Snap",
     snapOn: "Snap is on",
-    kindHint: "Sets which kind of grid is drawn.",
+    kindHint: "Sets which type of grid is drawn.",
     kindValueHint:
       "Square draws lines at an even step both ways, Columns a set number of columns with gutters.",
     kindValueHintNone:

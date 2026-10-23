@@ -4,10 +4,12 @@ import { describe, expect, it, vi } from "vitest";
 
 import { Checkbox } from "../ui/checkbox.js";
 import { Combobox } from "../ui/combobox.js";
+import { Hint } from "../ui/hint.js";
 import { Input } from "../ui/input.js";
 import { RadioGroup, RadioGroupItem } from "../ui/radio-group.js";
 import { TimezoneCombobox } from "../ui/timezone-combobox.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select.js";
+import { Switch } from "../ui/switch.js";
 import { Textarea } from "../ui/textarea.js";
 import { SettingsField } from "./settings-field.js";
 import { SettingsSection } from "./settings-section.js";
@@ -374,6 +376,104 @@ describe("SettingsField valueHint", () => {
       </SettingsField>,
     );
     expect(screen.getByRole("textbox")).not.toHaveAttribute("aria-describedby");
+  });
+
+  // #435: label and control are two carriers; without a value hint the control carries the label's.
+  it("without a value hint the input carries the label's hint, read once with its help", () => {
+    render(
+      <SettingsField
+        label="Name"
+        htmlFor="name"
+        hint="The name of this instance."
+        help="Shown in lists."
+      >
+        <Input id="name" aria-describedby="name-help name-description" />
+      </SettingsField>,
+    );
+    const input = screen.getByRole("textbox", { name: "Name" });
+    expect(input).toHaveAccessibleDescription("Shown in lists. The name of this instance.");
+    expect(hover(input)).toBe("The name of this instance.");
+    expect(hover(screen.getByText("Name"))).toBe("The name of this instance.");
+    expect(document.getElementById("name-help")).toHaveTextContent("The name of this instance.");
+  });
+
+  it("without a value hint a Select's trigger carries the label's hint, read once", () => {
+    render(
+      <SettingsField label="Interval" htmlFor="interval" hint="How often to sync.">
+        <Select value="hourly">
+          <SelectTrigger id="interval" aria-describedby="interval-help">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="hourly">Hourly</SelectItem>
+          </SelectContent>
+        </Select>
+      </SettingsField>,
+    );
+    const trigger = screen.getByRole("combobox");
+    expect(trigger).toHaveAccessibleDescription("How often to sync.");
+    expect(hover(trigger)).toBe("How often to sync.");
+  });
+
+  it("without a value hint an invalid input keeps the label's hint and points to the error", () => {
+    render(
+      <SettingsField
+        label="Name"
+        htmlFor="name"
+        hint="The name of this instance."
+        error="Enter a name."
+      >
+        <Input id="name" aria-describedby="name-help" />
+      </SettingsField>,
+    );
+    const input = screen.getByRole("textbox", { name: "Name" });
+    expect(input).toHaveAccessibleDescription("The name of this instance.");
+    expect(input).toHaveAttribute("aria-errormessage", "name-error");
+  });
+  // #435: a control the caller wraps in a Hint of its own keeps that Hint alone, one bubble, one
+  // description.
+  it("a caller's own Hint around the input wins over the label's hint", () => {
+    render(
+      <SettingsField label="Name" htmlFor="name" hint="The name of this instance.">
+        <Hint text="Shown in lists.">
+          <Input id="name" aria-describedby="name-help" />
+        </Hint>
+      </SettingsField>,
+    );
+    const input = screen.getByRole("textbox", { name: "Name" });
+    expect(input).toHaveAccessibleDescription("Shown in lists.");
+    expect(hover(input)).toBe("Shown in lists.");
+    expect(document.querySelectorAll("[data-slot=tooltip-content]")).toHaveLength(1);
+  });
+
+  // #435, GL-UI-017: a Checkbox or Switch carries the same text as its label.
+  it.each([
+    ["checkbox", <Checkbox key="c" id="notify" aria-describedby="notify-help" />],
+    ["switch", <Switch key="s" id="notify" aria-describedby="notify-help" />],
+  ] as const)("a %s as the field's control carries the label's hint", (role, control) => {
+    render(
+      <SettingsField label="Notify" htmlFor="notify" hint="Sends a mail on every change.">
+        {control}
+      </SettingsField>,
+    );
+    const toggle = screen.getByRole(role, { name: "Notify" });
+    expect(toggle).toHaveAccessibleDescription("Sends a mail on every change.");
+    expect(hover(toggle)).toBe("Sends a mail on every change.");
+  });
+
+  it("the options of a group take none of the group's hints", () => {
+    render(
+      <SettingsField
+        label="Channels"
+        htmlFor="channels"
+        group
+        hint="Where alerts go."
+        valueHint="Each channel sends on its own."
+      >
+        <Checkbox id="channel-mail" aria-label="Mail" />
+      </SettingsField>,
+    );
+    expect(screen.getByRole("checkbox", { name: "Mail" })).not.toHaveAttribute("aria-describedby");
   });
 });
 
