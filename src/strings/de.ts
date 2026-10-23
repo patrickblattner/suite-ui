@@ -356,6 +356,8 @@ export const de: SuiteStrings = {
     fit: "Einpassen",
     actual: "100 %",
     zoom: "Zoom",
+    fitHint: "Zoomt die Arbeitsfläche so, dass sie in den sichtbaren Bereich passt.",
+    actualHint: "Zeigt die Arbeitsfläche in ihrer tatsächlichen Größe.",
     selected: "Ausgewählt: {{name}}",
     tab: {
       content: "Inhalt",
@@ -394,6 +396,23 @@ export const de: SuiteStrings = {
     guides: "Hilfslinien",
     snap: "Einrasten",
     snapOn: "Einrasten ist an",
+    kindHint: "Legt fest, welche Art von Raster gezeichnet wird.",
+    kindValueHint:
+      "Quadratisch zeichnet Linien in gleichem Abstand in beide Richtungen, Spalten eine feste Anzahl Spalten mit Abständen.",
+    kindValueHintNone:
+      "Kein Raster zeichnet keine Linien, Quadratisch Linien in gleichem Abstand, Spalten eine feste Anzahl Spalten.",
+    stepHint: "Die Größe jedes Rasterquadrats.",
+    stepValueHint: "Der Abstand zwischen zwei Linien, in Pixeln.",
+    countHint: "In wie viele Spalten das Raster die Breite teilt.",
+    countValueHint: "Die Anzahl Spalten, von {{min}} bis {{max}}.",
+    gapHint: "Der Platz, der zwischen zwei benachbarten Spalten frei bleibt.",
+    gapValueHint: "Die Breite des Abstands zwischen zwei Spalten, in Pixeln.",
+    marginHint: "Der Platz, der am linken und rechten Rand frei bleibt.",
+    marginValueHint: "Die Breite des freien Platzes an jedem Rand, in Pixeln.",
+    rowStepHint:
+      "Fügt waagrechte Linien über die Spalten hinzu; bleibt das Feld leer, gibt es keine.",
+    rowStepValueHint:
+      "Der Abstand zwischen zwei waagrechten Linien, in Pixeln; bleibt das Feld leer, gibt es keine.",
   },
   upload: {
     drop: "Dateien hier ablegen",

@@ -372,6 +372,8 @@ export const en = {
     fit: "Fit",
     actual: "100 %",
     zoom: "Zoom",
+    fitHint: "Zooms the canvas so it fits the visible area.",
+    actualHint: "Shows the canvas at its actual size.",
     selected: "Selected: {{name}}",
     tab: {
       content: "Content",
@@ -411,6 +413,23 @@ export const en = {
     guides: "Guides",
     snap: "Snap",
     snapOn: "Snap is on",
+    kindHint: "Sets which kind of grid is drawn.",
+    kindValueHint:
+      "Square draws lines at an even step both ways, Columns a set number of columns with gutters.",
+    kindValueHintNone:
+      "No grid draws no lines, Square lines at an even step both ways, Columns a set number of columns.",
+    stepHint: "The size of each grid square.",
+    stepValueHint: "The distance between two lines, in pixels.",
+    countHint: "How many columns the grid divides the width into.",
+    countValueHint: "The number of columns, from {{min}} to {{max}}.",
+    gapHint: "The space left between two neighbouring columns.",
+    gapValueHint: "The width of the space between two columns, in pixels.",
+    marginHint: "The space kept free at the left and right edges.",
+    marginValueHint: "The width of the free space at each edge, in pixels.",
+    rowStepHint:
+      "Adds horizontal lines across the columns; leave it empty for no horizontal lines.",
+    rowStepValueHint:
+      "The distance between two horizontal lines, in pixels; leave it empty for no horizontal lines.",
   },
   upload: {
     drop: "Drop files here",

@@ -349,6 +349,8 @@ export const es: SuiteStrings = {
     fit: "Ajustar",
     actual: "100 %",
     zoom: "Zoom",
+    fitHint: "Ajusta el zoom del lienzo para que quepa en el área visible.",
+    actualHint: "Muestra el lienzo a su tamaño real.",
     selected: "Seleccionado: {{name}}",
     tab: {
       content: "Contenido",
@@ -387,6 +389,22 @@ export const es: SuiteStrings = {
     guides: "Guías",
     snap: "Ajustar",
     snapOn: "Ajuste activado",
+    kindHint: "Define qué tipo de cuadrícula se dibuja.",
+    kindValueHint:
+      "Cuadrada dibuja líneas a igual distancia en ambos sentidos, Columnas un número fijo de columnas separadas.",
+    kindValueHintNone:
+      "Sin cuadrícula no dibuja líneas, Cuadrada líneas a igual distancia, Columnas un número fijo de columnas.",
+    stepHint: "El tamaño de cada cuadrado de la cuadrícula.",
+    stepValueHint: "La distancia entre dos líneas, en píxeles.",
+    countHint: "En cuántas columnas divide la cuadrícula el ancho.",
+    countValueHint: "El número de columnas, de {{min}} a {{max}}.",
+    gapHint: "El espacio que queda libre entre dos columnas vecinas.",
+    gapValueHint: "El ancho del espacio entre dos columnas, en píxeles.",
+    marginHint: "El espacio que queda libre en los bordes izquierdo y derecho.",
+    marginValueHint: "El ancho del espacio libre en cada borde, en píxeles.",
+    rowStepHint: "Añade líneas horizontales sobre las columnas; si lo dejas vacío, no hay ninguna.",
+    rowStepValueHint:
+      "La distancia entre dos líneas horizontales, en píxeles; si lo dejas vacío, no hay ninguna.",
   },
   upload: {
     drop: "Suelta los archivos aquí",

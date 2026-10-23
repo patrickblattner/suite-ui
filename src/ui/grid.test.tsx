@@ -12,7 +12,7 @@ import {
   GridToggle,
   type GridToggleValue,
 } from "./grid.js";
-import type { GridDefinition } from "./grid-core.js";
+import { GRID_COLUMNS_MAX, GRID_COLUMNS_MIN, type GridDefinition } from "./grid-core.js";
 
 beforeEach(() => {
   vi.stubGlobal(
@@ -63,16 +63,17 @@ describe("GridFields (SUI-FEATURE-087)", () => {
     ] as const) {
       const input = screen.getByRole("spinbutton", { name });
       expect(input).toHaveValue(value);
-      expect(input).toHaveAccessibleDescription("px");
+      // GL-UI-017: the value hint (which names the pixels) is the whole description, not the unit.
+      expect(input.getAttribute("aria-describedby")).not.toMatch(/-unit/);
     }
     // The count is no length: no unit.
     const count = screen.getByRole("spinbutton", { name: "Number of columns" });
     expect(count).toHaveValue(12);
-    expect(count).not.toHaveAttribute("aria-describedby");
+    expect(count.getAttribute("aria-describedby")).not.toMatch(/-unit/);
     expect(screen.getByTestId("grid-fields").querySelectorAll("[id$='-unit']")).toHaveLength(3);
     const rowStep = screen.getByRole("spinbutton", { name: "Row step (optional)" });
     expect(rowStep).toHaveValue(null);
-    expect(rowStep).toHaveAccessibleDescription("px");
+    expect(rowStep.getAttribute("aria-describedby")).not.toMatch(/-unit/);
     expect(screen.getByRole("spinbutton", { name: "Number of columns" })).toHaveAttribute(
       "min",
       "1",
@@ -196,7 +197,7 @@ describe("GridFields (SUI-FEATURE-087)", () => {
     await i18n.changeLanguage(lng);
     render(<Fields />);
     for (const label of labels)
-      expect(screen.getByText(label, { selector: "label" })).toBeInTheDocument();
+      expect(screen.getByText(label, { selector: "label > span" })).toBeInTheDocument();
   });
 });
 
@@ -348,6 +349,55 @@ describe("GridFields on Field (SUI-FEATURE-087 rev 6)", () => {
     const error = screen.getByTestId("grid-count-error");
     expect(error).toHaveAttribute("data-slot", "field-error");
     expect(error.id).toBe(`${count.id}-error`);
+  });
+});
+
+// #434, GL-UI-017 rev 6: every label carries its hint as the label help, every field its value hint
+// as its whole description; in every UI language.
+describe("GridFields hints (GL-UI-017)", () => {
+  const FIELDS = [
+    ["kind", "combobox"],
+    ["step", "spinbutton"],
+    ["count", "spinbutton"],
+    ["gap", "spinbutton"],
+    ["margin", "spinbutton"],
+    ["rowStep", "spinbutton"],
+  ] as const;
+
+  it.each(["de", "en", "es"])("%s: every label and field carries its own hint", async (lng) => {
+    await i18n.changeLanguage(lng);
+    const seen = new Set<string>();
+    for (const initial of [COLUMNS, { kind: "step", step: 8 } as const]) {
+      const { unmount } = render(<Fields initial={initial} />);
+      for (const [field, role] of FIELDS) {
+        const control = screen
+          .queryAllByRole(role)
+          .find((element) => element.id.endsWith(`-${field}`));
+        if (control === undefined) continue;
+        seen.add(field);
+        const hint = i18n.t(`suite:grid.${field}Hint`);
+        const valueHint = i18n.t(`suite:grid.${field}ValueHint`, {
+          min: GRID_COLUMNS_MIN,
+          max: GRID_COLUMNS_MAX,
+        });
+        for (const key of [`grid.${field}Hint`, `grid.${field}ValueHint`])
+          expect(i18n.getResource(lng, "suite", key)).toEqual(expect.any(String));
+        expect(document.getElementById(`${control.id}-help`)).toHaveTextContent(hint);
+        expect(control).toHaveAccessibleDescription(valueHint);
+      }
+      unmount();
+    }
+    expect([...seen].sort()).toEqual(FIELDS.map(([field]) => field).sort());
+  });
+
+  // "No grid" is a choice once allowNone offers it, so the type's value hint names it too.
+  it.each(["de", "en", "es"])("%s: with allowNone the type hint covers No grid", async (lng) => {
+    await i18n.changeLanguage(lng);
+    render(<Fields allowNone />);
+    const kind = screen.getByTestId("grid-kind");
+    const valueHint = i18n.t("suite:grid.kindValueHintNone");
+    expect(valueHint).toContain(i18n.t("suite:grid.none"));
+    expect(kind).toHaveAccessibleDescription(valueHint);
   });
 });
 

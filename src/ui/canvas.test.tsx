@@ -431,4 +431,16 @@ describe("CanvasZoom (SUI-FEATURE-070)", () => {
     expect(screen.getByTestId("canvas-zoom-actual")).toHaveTextContent(actual);
     expect(screen.getByTestId("canvas-zoom-level").textContent?.replace(/\s/g, " ")).toBe(level);
   });
+
+  // #434, GL-UI-017 rev 6: each zoom button carries its hint, as its description, in every language.
+  it.each(["de", "en", "es"])("%s: every zoom button carries its own hint", async (lng) => {
+    await i18n.changeLanguage(lng);
+    render(<Zoom />);
+    for (const value of ["fit", "actual"] as const) {
+      expect(i18n.getResource(lng, "suite", `canvas.${value}Hint`)).toEqual(expect.any(String));
+      expect(screen.getByTestId(`canvas-zoom-${value}`)).toHaveAccessibleDescription(
+        i18n.t(`suite:canvas.${value}Hint`),
+      );
+    }
+  });
 });

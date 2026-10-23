@@ -6,6 +6,7 @@ import { cn } from "../lib/cn.js";
 import { useEscapeLayer } from "../lib/escape-layers.js";
 import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
 import { Button } from "./button.js";
+import { Hint } from "./hint.js";
 import { IconButtonTooltip } from "./tooltip.js";
 
 // An element on the canvas: its box in frame coordinates after zoom, and the name it shows.
@@ -305,7 +306,8 @@ type CanvasZoomProps = {
 
 // The canvas zoom (`GL-UI-040`, `SUI-FEATURE-070`): "Fit" · "100 %" and the current level as text. It
 // stands in the `PreviewToolbar` among its further tools, between status and device. A radio group
-// like the device switch: only the chosen mode is in the tab order, and the arrow keys move it.
+// like the device switch: only the chosen mode is in the tab order, and the arrow keys move it. Each
+// button carries its hint (`GL-UI-017`).
 function CanvasZoom({ zoom, mode, onMode }: CanvasZoomProps) {
   const { t, i18n } = useTranslation("suite");
   const onKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
@@ -327,20 +329,21 @@ function CanvasZoom({ zoom, mode, onMode }: CanvasZoomProps) {
         onKeyDown={onKeyDown}
       >
         {MODES.map((value) => (
-          <Button
-            key={value}
-            type="button"
-            variant="outline"
-            size="sm"
-            role="radio"
-            aria-checked={mode === value}
-            tabIndex={mode === value ? 0 : -1}
-            className={PRESSED_FILL_CLASS}
-            onClick={() => onMode(value)}
-            data-testid={`canvas-zoom-${value}`}
-          >
-            {t(`canvas.${value}`)}
-          </Button>
+          <Hint key={value} text={t(`canvas.${value}Hint`)}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              role="radio"
+              aria-checked={mode === value}
+              tabIndex={mode === value ? 0 : -1}
+              className={PRESSED_FILL_CLASS}
+              onClick={() => onMode(value)}
+              data-testid={`canvas-zoom-${value}`}
+            >
+              {t(`canvas.${value}`)}
+            </Button>
+          </Hint>
         ))}
       </div>
       <span

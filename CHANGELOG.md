@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.171.5 — #434, GL-UI-017 rev 6: hints on GridFields and CanvasZoom
+
+- **GridFields (#434):** every label of the grid group (type, step, number of columns, gutter, margin, row step) carries its hint, and every field a value hint saying what it counts and in which unit, or what each type does; the value hint is the field's whole description (`aria-describedby`), without the px unit beside it, which the hint already names. Where "No grid" is offered (`allowNone`), the type's value hint names it too. Each hint is one sentence. In de, en and es.
+- **CanvasZoom (#434):** "Fit" and "100 %" each carry a hint saying what the press does, as the button's description. In de, en and es.
+- **Tests (#434):** unit tests check, in every language, that each grid label and field and each zoom button has its hint, and that with `allowNone` the type's hint names "No grid".
+
+**Migration:** none. Tests that found a GridFields label by `selector: "label"` find its text in the label's inner span now.
+
 ## 0.171.4 — #500, SUI-FEATURE-230 rev 4: spinner step in the crop zoom % field
 
 - **Spinner is a step (#500, Codex CX1):** a click on the native spinner of the crop zoom % field, and every repeat while it is held, now zooms from the crop as it is and ends the typing, like an arrow key; a press that changes nothing (a caret click) or a right-button press stays out of it; before, it counted as typing and brought back a shift that typing 100 % had dropped (300 % with a shift, type 100, spinner up: the shift returned at 101 %).

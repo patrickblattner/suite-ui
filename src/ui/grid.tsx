@@ -62,7 +62,8 @@ type GridFieldsProps = {
 // and the optional row step, each label above its field (`GL-UI-010`), every length in px with its unit.
 // The app places it where the value lives. Out of bounds or not a whole number, an entry is not taken:
 // the field keeps the text until it is fixed, and says its bound once the person leaves it. Switching
-// the type and back restores that type's last definition.
+// the type and back restores that type's last definition. Every label and field carries its hint, the
+// field's describing its value (`GL-UI-017`).
 function GridFields({ value, onChange, allowNone = false, hidden = [] }: GridFieldsProps) {
   const { t } = useTranslation("suite");
   const id = React.useId();
@@ -134,7 +135,13 @@ function GridFields({ value, onChange, allowNone = false, hidden = [] }: GridFie
       data-testid="grid-fields"
     >
       {hidden.includes("kind") ? null : (
-        <Field label={t("grid.kind")} htmlFor={`${id}-kind`} labelClassName="whitespace-nowrap">
+        <Field
+          label={t("grid.kind")}
+          htmlFor={`${id}-kind`}
+          hint={t("grid.kindHint")}
+          valueHint={t(allowNone ? "grid.kindValueHintNone" : "grid.kindValueHint")}
+          labelClassName="whitespace-nowrap"
+        >
           <Select
             value={value?.kind ?? "none"}
             onValueChange={(kind) => {
@@ -174,6 +181,8 @@ function GridFields({ value, onChange, allowNone = false, hidden = [] }: GridFie
               key={field}
               label={t(`grid.${field}`)}
               htmlFor={fieldId}
+              hint={t(`grid.${field}Hint`)}
+              valueHint={t(`grid.${field}ValueHint`, BOUNDS[field])}
               error={message ?? undefined}
               errorTestId={`grid-${field}-error`}
               labelClassName="whitespace-nowrap"
@@ -192,7 +201,6 @@ function GridFields({ value, onChange, allowNone = false, hidden = [] }: GridFie
                   if (draft !== undefined && !left.includes(field))
                     setLeft((current) => [...current, field]);
                 }}
-                aria-describedby={unit ? `${fieldId}-unit` : undefined}
                 className={unit ? "pr-9" : undefined}
                 data-testid={`grid-${field}`}
               />
