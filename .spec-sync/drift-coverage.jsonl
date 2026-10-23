@@ -589,3 +589,10 @@
 {"ts":"2026-10-23T06:51:27.813Z","key":"SUI-FEATURE-233","from":3,"to":5,"disposition":"ticket","ref":"451"}
 {"ts":"2026-10-23T06:57:36.645Z","key":"GL-UI-037","from":null,"to":2,"disposition":"ticket","ref":"451"}
 {"ts":"2026-10-23T06:57:36.645Z","key":"SUI-FEATURE-233","from":5,"to":6,"disposition":"ticket","ref":"451"}
+{"ts":"2026-10-23T08:23:49.048Z","key":"GL-UI-010","from":7,"to":8,"disposition":"ticket","ref":"515"}
+{"ts":"2026-10-23T08:23:57.707Z","key":"SUI-FEATURE-251","from":2,"to":3,"disposition":"ticket","ref":"449"}
+{"ts":"2026-10-23T08:24:07.079Z","key":"GL-SEC-002","from":6,"to":7,"disposition":"editorial","ref":"no code impact: @suite/ui holds no provider connections or publishing calls; test-target marking applies to apps"}
+{"ts":"2026-10-23T08:24:15.783Z","key":"GL-TEST-024","from":8,"to":9,"disposition":"editorial","ref":"no code impact: @suite/ui has no database seed or example world; the gallery fixtures are component demos, not seeded system events"}
+{"ts":"2026-10-23T08:24:22.868Z","key":"GL-TEST-003","from":null,"to":3,"disposition":"editorial","ref":"no code impact: cross-app seed exchange; @suite/ui exchanges no data with other apps"}
+{"ts":"2026-10-23T08:24:34.161Z","key":"GL-ARCH-001","from":null,"to":3,"disposition":"editorial","ref":"no code impact: cross-app record ownership and deletion events; @suite/ui owns and shares no records"}
+{"ts":"2026-10-23T08:24:45.642Z","key":"GL-ARCH-002","from":null,"to":2,"disposition":"editorial","ref":"no code impact: app-to-app integration switches and outbox; @suite/ui binds no partner application"}
