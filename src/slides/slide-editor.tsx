@@ -795,8 +795,20 @@ function Editor({
   >(undefined);
   // The medium of the dimmed crop rest that did not load: no rest for it.
   const [brokenCropSrc, setBrokenCropSrc] = React.useState<string | undefined>(undefined);
-  // The crop zoom the % field set last (see `cropZoomRevision`).
-  const [cropZoomByField, setCropZoomByField] = React.useState<number | undefined>(undefined);
+  // The crop zoom % field's run (see `cropZoomRevision`): a count of the crop changes made elsewhere,
+  // the crop the field set last, and the crop its typing started from.
+  const [cropZoomRun, setCropZoomRun] = React.useState<{
+    count: number;
+    crop?: ImageCrop;
+    from?: ImageCrop;
+  }>({ count: 0 });
+  // The crop the % field set in this event, over the crop it changed: leaving the field applies its
+  // clamped zoom, and when the same blur ends cropping, the crop fields hand it to `endCrop` before it
+  // renders (#495).
+  const cropByField = React.useRef<{ before: ImageCrop; crop: ImageCrop } | undefined>(undefined);
+  // Whether the key last pressed in the % field steps it (an arrow key): the change it makes is a step,
+  // not typing.
+  const cropZoomStep = React.useRef(false);
   // Text editing on the canvas (`SUI-FEATURE-161` §Text): the text field or table cell being
   // edited, while the selection it began with stands, and the range of its text the panel's format
   // applies to. Each editing is a session of its own: what is typed in it folds into one step.
@@ -1511,11 +1523,16 @@ function Editor({
     // While cropping, a press on the image (its dimmed rest included) shifts it in its frame; a
     // press beside it applies the crop and ends cropping, one step Undo takes back (`SUI-FEATURE-230`).
     if (cropping !== undefined) {
+      // The focus taken above left the % field, which set its clamped zoom in this event: the press
+      // starts from it, not from the crop rendered before (#495).
+      const byField = cropByField.current;
+      cropByField.current = undefined;
+      const crop = byField?.before === cropping.crop ? byField.crop : cropping.crop;
       if (cropWhole === undefined) return;
       if (onCropImage(point)) {
-        setDrag({ kind: "crop", start: point, crop: cropping.crop, rotation: cropWhole.rotation });
+        setDrag({ kind: "crop", start: point, crop, rotation: cropWhole.rotation });
       } else {
-        endCrop(true);
+        endCrop(true, crop);
       }
       return;
     }
@@ -1835,12 +1852,13 @@ function Editor({
         };
 
   // Ends cropping: `keep` takes the crop into the document as one step (clamped to the frame as it
-  // is now), else it is dropped. The canvas keeps the focus.
-  const endCrop = (keep: boolean) => {
+  // is now), else it is dropped. `kept` is a crop set in the same event, not yet rendered. The canvas
+  // keeps the focus.
+  const endCrop = (keep: boolean, kept?: ImageCrop) => {
     if (cropping === undefined) return;
     const image = findElement(elements, cropping.id)?.element;
     if (keep && image !== undefined) {
-      const crop = clampCrop(image.width, image.height, cropping.crop);
+      const crop = clampCrop(image.width, image.height, kept ?? cropping.crop);
       apply((current) => withCrop(current, page, cropping.id, crop));
     }
     setCropping(undefined);
@@ -1852,7 +1870,7 @@ function Editor({
   // going to the header's Undo or Redo, or to its ⋯ and into its menu (with Undo and Redo when they
   // are folded), leaves it to them: Undo takes it back, Redo does nothing, Save keeps it. Focus in the
   // panel's crop fields, or on its tabs (the way to them from Content), keeps cropping.
-  const keepCropOnLeave = (event: React.FocusEvent) => {
+  const keepCropOnLeave = (event: React.FocusEvent, kept?: ImageCrop) => {
     const next = event.relatedTarget;
     if (
       next instanceof Element &&
@@ -1862,7 +1880,7 @@ function Editor({
         inHeaderMenu(next))
     )
       return;
-    endCrop(true);
+    endCrop(true, kept);
   };
   // Esc in the crop bar or the panel's crop fields drops the crop, before any outer `Esc` layer, and
   // gives the canvas the focus back.
@@ -2293,28 +2311,52 @@ function Editor({
   // While cropping, the panel sets the crop too, without a drag (`SUI-FEATURE-230`, WCAG 2.5.7): a zoom
   // slider about the frame's centre and the shift in the image's own px, each clamped as a drag is.
   // Focus moving between them and the canvas keeps cropping; Esc in them drops the crop.
-  // The zoom typed in the % field, clamped; the field remembers it, so its typed text stands while the
-  // zoom is its own and goes once Undo, the wheel, a key or the slider changed it (`NumberInput`
-  // `revision`, as a `NumberField` keys it to `travels`).
-  const zoomCropTo = (zoom: number) => {
+  // The zoom typed in the % field, clamped, from the crop its typing started with, so a prefix it
+  // passed through (100 on the way to 1000) leaves no trace in the shift (#495). The
+  // field's typed text stands while the crop is its own and goes for good once Undo, the wheel, a key,
+  // the slider or a shift changed it: each change elsewhere counts on, so a zoom that comes back never
+  // brings back what was typed (`NumberInput` `revision`, as a `NumberField` keys it to `travels`).
+  // A step by the field's arrow keys zooms from the crop as it is, and `ends` (leaving, Enter) closes
+  // the typing: either way the next typing starts from the crop then, never from an older one (#495).
+  const zoomCropTo = (zoom: number, ends = false) => {
     if (cropping === undefined || croppedImage === undefined) return;
     const { width, height } = croppedImage;
-    const crop = zoomCrop(width, height, cropping.crop, zoom / cropping.crop.zoom);
+    const stepped = cropZoomStep.current;
+    cropZoomStep.current = false;
+    const from = stepped ? cropping.crop : (cropZoomRun.from ?? cropping.crop);
+    const crop = zoomCrop(width, height, from, zoom / from.zoom);
     setCropping({ ...cropping, crop });
-    setCropZoomByField(crop.zoom);
+    setCropZoomRun({ count: cropZoomRun.count, crop, from: ends || stepped ? undefined : from });
+    cropByField.current = { before: cropping.crop, crop };
   };
+  // Deliberate setState during render (React's "adjust state on a prop change"): a crop the field did
+  // not set counts on at once, so the field's revision changes in this very render.
+  if (cropping !== undefined && cropping.crop !== cropZoomRun.crop)
+    setCropZoomRun({ count: cropZoomRun.count + 1, crop: cropping.crop });
   const cropZoomRevision =
-    cropping === undefined
-      ? ""
-      : `${travels}:${cropping.id}:${cropping.crop.zoom === cropZoomByField ? "field" : cropping.crop.zoom}`;
+    cropping === undefined ? "" : `${travels}:${cropping.id}:${cropZoomRun.count}`;
   const cropFields =
     cropping === undefined || croppedImage === undefined ? null : (
       <section
         className="flex flex-col gap-2"
         data-crop-fields=""
         data-testid="slide-editor-crop-fields"
-        onBlur={keepCropOnLeave}
-        onKeyDown={dropCropOnEscape}
+        onBlur={(event) => {
+          // Leaving a crop field ends the % field's typing: the next starts from the crop then.
+          setCropZoomRun((run) => ({ ...run, from: undefined }));
+          const byField = cropByField.current;
+          // Focus going to the canvas leaves the field's crop to the canvas press that took it.
+          if (event.relatedTarget !== canvas.current) cropByField.current = undefined;
+          keepCropOnLeave(event, byField?.before === cropping.crop ? byField.crop : undefined);
+        }}
+        onKeyDown={(event) => {
+          if (
+            event.target instanceof HTMLElement &&
+            event.target.id === "slide-editor-crop-zoom-percent"
+          )
+            cropZoomStep.current = event.key === "ArrowUp" || event.key === "ArrowDown";
+          dropCropOnEscape(event);
+        }}
       >
         <h3 className="text-base font-semibold">{t("slides.editor.cropFields")}</h3>
         <div className="flex flex-col gap-4">
@@ -2358,6 +2400,7 @@ function Editor({
                 the shift; leaving the field or Enter clamps what is typed, as every other way of
                 zooming stops at 500 %. */}
             <NumberInput
+              id="slide-editor-crop-zoom-percent"
               value={cropping.crop.zoom * 100}
               unit="%"
               size="sm"
@@ -2369,7 +2412,7 @@ function Editor({
               onValue={(percent) => {
                 if (percent >= 100 && percent <= CROP_ZOOM_MAX * 100) zoomCropTo(percent / 100);
               }}
-              onLeave={(percent) => zoomCropTo(percent / 100)}
+              onLeave={(percent) => zoomCropTo(percent / 100, true)}
               className="w-24 shrink-0"
               testId="slide-editor-crop-zoom-input"
             />

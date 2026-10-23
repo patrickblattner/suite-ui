@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.171.2 — #495, Codex review v0.171.0: crop zoom % field
+
+- **Leaving for outside (#495, Codex CX1):** typing a zoom past 500 % in the crop zoom % field and then moving the focus outside cropping (a drawer button, the header) keeps the clamped 500 %; before, cropping ended with the zoom from before the field was left.
+- **Typed text stays gone (#495, Codex CX2):** text typed in the field that gave way to the wheel, a key, the slider or a shift no longer comes back when the zoom returns to the value typed before, and leaving the field then changes nothing.
+- **Past 500 % keeps the shift (#495, from #493):** typing 1000 passes through 100 %, which drops the shift; leaving the field now zooms from the crop typing started with, so it ends at 500 % with the shift kept, scaled.
+- **Canvas press keeps the typed zoom (#495):** typing a zoom and then pressing beside the image (apply) or on it (drag) starts from the field's clamped zoom; before, it started from the zoom before typing. Enter and an arrow step in the field end the typing, so a shift dropped on the way does not come back.
+
+**Migration:** none. `NumberField` and `NumberInput` are unchanged.
+
 ## 0.171.1 — #432, SUI-FEATURE-097: focus return after the view → edit hand-off
 
 - **Focus return (#432, GL-UI-007):** when a view panel's Edit opens an edit panel, the closing view hands its return target to that panel; closing the edit panel puts the focus back on the element that opened the view, not on the page body (the view's Edit is gone by then).

@@ -166,6 +166,127 @@ describe("SlideEditor crop mode (SUI-FEATURE-230 rev 4)", () => {
     expect(percent()).toHaveValue(275);
   });
 
+  // #495 CX1: leaving the field for a control outside cropping keeps the clamped zoom, not the one
+  // before it.
+  it("keeps the clamped zoom when the % field is left for a drawer", () => {
+    renderEditor();
+    startCrop();
+    fireEvent.change(percent(), { target: { value: "900" } });
+    fireEvent.blur(percent(), { relatedTarget: screen.getByTestId("drawer-layers") });
+    expect(canvas()).not.toHaveAttribute("data-cropping");
+    fireEvent.keyDown(canvas(), { key: "Enter" });
+    expect(slider()).toHaveAttribute("aria-valuetext", "500%");
+  });
+
+  // #495 CX2: text typed and given way to the wheel stays gone when the wheel comes back to the zoom.
+  it("does not bring typed text back when the zoom returns to the typed zoom", () => {
+    renderEditor();
+    startCrop();
+    fireEvent.change(percent(), { target: { value: "250" } });
+    fireEvent.change(percent(), { target: { value: "900" } });
+    fireEvent.wheel(canvas(), { deltaY: -100 });
+    expect(percent()).toHaveValue(275);
+    fireEvent.wheel(canvas(), { deltaY: 100 });
+    expect(slider()).toHaveAttribute("aria-valuetext", "250%");
+    expect(percent()).toHaveValue(250);
+    fireEvent.blur(percent(), { relatedTarget: slider() });
+    expect(slider()).toHaveAttribute("aria-valuetext", "250%");
+  });
+
+  // #495 (from #493): typing 1000 passes through 100, which drops the shift; leaving zooms from the
+  // 300 % typing started with, so it clamps to 500 % with the shift kept, scaled.
+  it("keeps the shift when a zoom past 500 % is typed digit by digit", () => {
+    renderEditor();
+    startCrop();
+    setZoom("300");
+    const offsetX = screen.getByTestId<HTMLInputElement>("slide-editor-crop-offsetX");
+    fireEvent.change(offsetX, { target: { value: "100" } });
+    fireEvent.blur(offsetX, { relatedTarget: percent() });
+    for (const typed of ["", "1", "10", "100", "1000"]) {
+      fireEvent.change(percent(), { target: { value: typed } });
+    }
+    fireEvent.blur(percent(), { relatedTarget: slider() });
+    expect(slider()).toHaveAttribute("aria-valuetext", "500%");
+    // 100 × 500 / 300.
+    expect(offsetX).toHaveValue(166.67);
+  });
+
+  // #495 review: a press on the canvas takes the focus from the % field, which clamps what was typed;
+  // the press starts from that clamped zoom, beside the image (apply) and on it (shift) alike.
+  const pressCanvas = (x: number, moveTo?: number) => {
+    fireEvent.pointerDown(canvas(), {
+      clientX: x * 0.25,
+      clientY: 450 * 0.25,
+      button: 0,
+      pointerId: 1,
+    });
+    const end = (moveTo ?? x) * 0.25;
+    if (moveTo !== undefined) {
+      fireEvent.pointerMove(canvas(), { clientX: end, clientY: 450 * 0.25, pointerId: 1 });
+    }
+    fireEvent.pointerUp(canvas(), { clientX: end, clientY: 450 * 0.25, pointerId: 1 });
+  };
+  it("applies the clamped zoom when a press beside the image leaves the % field", () => {
+    renderEditor();
+    startCrop();
+    percent().focus();
+    fireEvent.change(percent(), { target: { value: "900" } });
+    pressCanvas(20);
+    expect(canvas()).not.toHaveAttribute("data-cropping");
+    fireEvent.keyDown(canvas(), { key: "Enter" });
+    expect(slider()).toHaveAttribute("aria-valuetext", "500%");
+  });
+
+  it("shifts from the clamped zoom when a press on the image leaves the % field", () => {
+    renderEditor();
+    startCrop();
+    percent().focus();
+    fireEvent.change(percent(), { target: { value: "900" } });
+    pressCanvas(120, 140);
+    expect(canvas()).toHaveAttribute("data-cropping", "photo");
+    expect(slider()).toHaveAttribute("aria-valuetext", "500%");
+  });
+
+  it("keeps the shift of 300 % when 1000 is typed and a press beside the image applies it", () => {
+    renderEditor();
+    startCrop();
+    setZoom("300");
+    const offsetX = screen.getByTestId<HTMLInputElement>("slide-editor-crop-offsetX");
+    fireEvent.change(offsetX, { target: { value: "100" } });
+    fireEvent.blur(offsetX, { relatedTarget: percent() });
+    percent().focus();
+    for (const typed of ["", "1", "10", "100", "1000"]) {
+      fireEvent.change(percent(), { target: { value: typed } });
+    }
+    pressCanvas(20);
+    fireEvent.keyDown(canvas(), { key: "Enter" });
+    expect(slider()).toHaveAttribute("aria-valuetext", "500%");
+    expect(screen.getByTestId("slide-editor-crop-offsetX")).toHaveValue(166.67);
+  });
+
+  // #495 review: Enter and an arrow step end the typing, so a later typing never zooms from the crop
+  // before it and brings back a shift that a zoom to 100 % dropped.
+  it("ends the typing on Enter and on an arrow step", () => {
+    renderEditor();
+    startCrop();
+    setZoom("300");
+    const offsetX = screen.getByTestId<HTMLInputElement>("slide-editor-crop-offsetX");
+    fireEvent.change(offsetX, { target: { value: "100" } });
+    fireEvent.blur(offsetX, { relatedTarget: percent() });
+    fireEvent.change(percent(), { target: { value: "100" } });
+    fireEvent.keyDown(percent(), { key: "Enter" });
+    fireEvent.change(percent(), { target: { value: "200" } });
+    expect(slider()).toHaveAttribute("aria-valuetext", "200%");
+    expect(offsetX).toHaveValue(0);
+    fireEvent.change(offsetX, { target: { value: "50" } });
+    fireEvent.blur(offsetX, { relatedTarget: percent() });
+    fireEvent.change(percent(), { target: { value: "100" } });
+    fireEvent.keyDown(percent(), { key: "ArrowUp" });
+    fireEvent.change(percent(), { target: { value: "101" } });
+    expect(slider()).toHaveAttribute("aria-valuetext", "101%");
+    expect(offsetX).toHaveValue(0);
+  });
+
   // Codex CX1 review: with a border, a press on the frame shifts the image on every side; beside it,
   // it applies the crop. Frame 40–200 px wide, the whole image drawn 10 px further right (50–210).
   it("shifts a bordered image from any edge of its frame", () => {
