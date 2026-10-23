@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — #531, GL-UI-010 rev 8: SlideEditor pane body text and Animation subgroup legends
+
+- **Pane typography (#531):** the Library hint and result count and the Pages pane's inline hint now use the body size `text-sm` instead of `text-xs` (still muted). The Entrance/Exit legends of the Animation section are subgroup titles at `text-sm font-semibold`; the "Animation" section heading stays `text-base font-semibold`. Heading or legend to first content stays 8 px.
+
+**Migration:** none for the API; no `data-testid` or strings change. 6 gallery baselines change, `slide-editor-menu-{de,en,es}-{light,dark}.png`; a test that compares the exact class string of these elements updates it.
+
 ## 0.173.1 — #488, GL-UI-010 rev 8: SlideEditor pane headings and section gaps
 
 - **Pane headings (#488):** the section headings of the Pages and Library panes and the legends of the transfer dialog now use `text-base font-semibold`, like the PropertyPanel (#425). The document tab puts `gap-4` between its top-level sections instead of `gap-6`. Heading to first content stays 8 px.

@@ -217,7 +217,7 @@ export function PageSorter({
                 <span className="truncate text-sm tabular-nums">
                   {t("slides.editor.pageNumber", { n })}
                   {one.hidden ? (
-                    <span className="ml-2 text-xs text-muted-foreground">
+                    <span className="ml-2 text-sm text-muted-foreground">
                       {t("slides.editor.pageHidden")}
                     </span>
                   ) : null}

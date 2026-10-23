@@ -223,7 +223,7 @@ export function ElementLibrary({
   );
   return (
     <div className="flex flex-col gap-4" data-testid="slide-editor-library">
-      <p className="text-xs text-muted-foreground">{t("slides.editor.libraryHint")}</p>
+      <p className="text-sm text-muted-foreground">{t("slides.editor.libraryHint")}</p>
       <section className="flex flex-col gap-2" aria-labelledby={`${searchId}-shapes`}>
         <h3 id={`${searchId}-shapes`} className="text-base font-semibold">
           {t("slides.editor.libraryShapes")}
@@ -337,7 +337,7 @@ export function ElementLibrary({
           />
         </Hint>
         <p
-          className="text-xs text-muted-foreground"
+          className="text-sm text-muted-foreground"
           role="status"
           data-testid="slide-editor-library-count"
         >

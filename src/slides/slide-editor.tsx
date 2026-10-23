@@ -400,7 +400,7 @@ function AnimationFields({
   };
   return (
     <fieldset className="flex flex-col gap-4" data-testid={id}>
-      <legend className="mb-2 text-base font-semibold">{t(`slides.editor.${kind}`)}</legend>
+      <legend className="mb-2 text-sm font-semibold">{t(`slides.editor.${kind}`)}</legend>
       <div className="grid grid-cols-2 gap-4" data-tooltip-row="">
         <Field
           label={t("slides.editor.animationEffect")}
