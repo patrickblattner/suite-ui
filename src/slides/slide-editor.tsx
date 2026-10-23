@@ -1875,10 +1875,12 @@ function Editor({
   // Copy, cut, paste, duplicate, Delete and the arrow keys keyed during a drag with a preview wait
   // for it to end, kept or cancelled, and so does a paste the app answers meanwhile: the release
   // would put back the preview, drawn from the document as the drag began (#525, #527, #530). They land in the order they
-  // came, one a render, each on what the one before left. A frame selection draws no preview: under
-  // it they act at once.
+  // came, one a render, each on what the one before left; behind a paste that waits for the app,
+  // once it landed (#533). A frame selection draws no preview: under it they act at once.
   const held = React.useRef<(() => void)[]>([]);
   const pastePending = React.useRef(false);
+  // Holds the commands of the paste's own drag only: a later drag ends the hold (#533).
+  const heldBehindPaste = React.useRef<"held" | "released" | false>(false);
   const [heldTurn, setHeldTurn] = React.useState(0);
   const holdForDrag = (edit: () => void) => {
     if (drag === undefined || drag.kind === "marquee") return false;
@@ -1890,7 +1892,15 @@ function Editor({
     unresolved: readonly string[],
     remap: Record<string, string>,
   ) => {
-    if (holdForDrag(() => latestLandPaste.current(copies, unresolved, remap))) return;
+    if (heldBehindPaste.current) {
+      heldBehindPaste.current = false;
+      setHeldTurn((turn) => turn + 1);
+    }
+    // Ahead of what was held behind it, as it was pressed before them (#533).
+    if (drag !== undefined && drag.kind !== "marquee") {
+      held.current.unshift(() => latestLandPaste.current(copies, unresolved, remap));
+      return;
+    }
     pastePending.current = false;
     const missing = unresolved.filter(
       (id) => view.resolveMedia?.(Object.hasOwn(remap, id) ? remap[id]! : id) === undefined,
@@ -1971,11 +1981,19 @@ function Editor({
     };
   });
   React.useEffect(() => {
-    if (drag !== undefined) return;
+    if (drag !== undefined) {
+      if (heldBehindPaste.current === "held") heldBehindPaste.current = "released";
+      return;
+    }
+    if (heldBehindPaste.current === "released") heldBehindPaste.current = false;
+    if (heldBehindPaste.current) return;
     const edit = held.current.shift();
     if (edit === undefined) return;
+    const waiting = pastePending.current;
     edit();
-    setHeldTurn((turn) => turn + 1);
+    // A paste that starts waiting for the app holds the rest until it lands (#533).
+    if (!waiting && pastePending.current) heldBehindPaste.current = "held";
+    else setHeldTurn((turn) => turn + 1);
   }, [drag, heldTurn]);
   const heldKey =
     (edit: Exclude<keyof typeof latestHeld.current, "nudge">, run: () => void) => () => {

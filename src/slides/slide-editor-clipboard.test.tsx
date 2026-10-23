@@ -475,6 +475,127 @@ describe("SlideEditor element clipboard", () => {
     ]);
   });
 
+  it("deletes with Delete after Ctrl+V during a drag what the paste landed, once adoptMedia answers (#533)", async () => {
+    let answer: (remap: Record<string, string>) => void = () => {};
+    const onSave = copyThenOpenOther("photo", {
+      document: { ...DOC, pages: [{ id: "other", background, elements: [shape("a", 0, 0)] }] },
+      adoptMedia: () => new Promise((resolve) => (answer = resolve)),
+      resolveMedia: (id: string) => (id === "photo-copy" ? "blob:photo" : undefined),
+    });
+    fireEvent.pointerDown(canvas(), { ...at(50, 50), button: 0, pointerId: 1 });
+    fireEvent.pointerMove(canvas(), at(250, 50));
+    key("v");
+    fireEvent.keyDown(canvas(), { key: "Delete" });
+    fireEvent.pointerMove(canvas(), at(450, 50));
+    fireEvent.pointerUp(canvas(), at(450, 50));
+    answer({ photo: "photo-copy" });
+    await waitFor(async () =>
+      expect((await saved(onSave)).map(({ type, x }) => ({ type, x }))).toEqual([
+        { type: "shape", x: 400 },
+      ]),
+    );
+    key("z");
+    expect((await saved(onSave)).map(({ type, x }) => ({ type, x }))).toEqual([
+      { type: "shape", x: 400 },
+      { type: "image", x: 40 },
+    ]);
+  });
+
+  it("keeps a held Delete behind a held paste adoptMedia answers during the next drag (#533)", async () => {
+    let answer: (remap: Record<string, string>) => void = () => {};
+    const onSave = copyThenOpenOther("photo", {
+      document: { ...DOC, pages: [{ id: "other", background, elements: [shape("a", 0, 0)] }] },
+      adoptMedia: () => new Promise((resolve) => (answer = resolve)),
+      resolveMedia: (id: string) => (id === "photo-copy" ? "blob:photo" : undefined),
+    });
+    fireEvent.pointerDown(canvas(), { ...at(50, 50), button: 0, pointerId: 1 });
+    fireEvent.pointerMove(canvas(), at(250, 50));
+    key("v");
+    fireEvent.keyDown(canvas(), { key: "Delete" });
+    fireEvent.pointerUp(canvas(), at(250, 50));
+    fireEvent.pointerDown(canvas(), { ...at(250, 50), button: 0, pointerId: 1 });
+    fireEvent.pointerMove(canvas(), at(450, 50));
+    answer({ photo: "photo-copy" });
+    await Promise.resolve();
+    await Promise.resolve();
+    fireEvent.pointerUp(canvas(), at(450, 50));
+    await waitFor(async () =>
+      expect((await saved(onSave)).map(({ type, x }) => ({ type, x }))).toEqual([
+        { type: "shape", x: 400 },
+      ]),
+    );
+  });
+
+  it("deletes with Delete during a later drag while a held paste's adoptMedia never answers (#533)", async () => {
+    const onSave = copyThenOpenOther("photo", {
+      document: { ...DOC, pages: [{ id: "other", background, elements: [shape("a", 0, 0)] }] },
+      adoptMedia: () => new Promise(() => {}),
+      resolveMedia: (id: string) => (id === "photo-copy" ? "blob:photo" : undefined),
+    });
+    fireEvent.pointerDown(canvas(), { ...at(50, 50), button: 0, pointerId: 1 });
+    fireEvent.pointerMove(canvas(), at(250, 50));
+    key("v");
+    fireEvent.pointerUp(canvas(), at(250, 50));
+    fireEvent.pointerDown(canvas(), { ...at(250, 50), button: 0, pointerId: 1 });
+    fireEvent.pointerMove(canvas(), at(450, 50));
+    fireEvent.keyDown(canvas(), { key: "Delete" });
+    fireEvent.pointerUp(canvas(), at(450, 50));
+    expect(await saved(onSave)).toEqual([]);
+  });
+
+  it("moves and deletes with the keys of a later drag while a held paste's adoptMedia never answers (#533)", async () => {
+    const onSave = copyThenOpenOther("photo", {
+      document: {
+        ...DOC,
+        pages: [{ id: "other", background, elements: [shape("a", 0, 0), shape("b", 600, 0)] }],
+      },
+      adoptMedia: () => new Promise(() => {}),
+      resolveMedia: (id: string) => (id === "photo-copy" ? "blob:photo" : undefined),
+    });
+    fireEvent.pointerDown(canvas(), { ...at(50, 50), button: 0, pointerId: 1 });
+    fireEvent.pointerMove(canvas(), at(250, 50));
+    key("v");
+    fireEvent.pointerUp(canvas(), at(250, 50));
+    fireEvent.pointerDown(canvas(), { ...at(650, 50), button: 0, pointerId: 1 });
+    fireEvent.pointerMove(canvas(), at(850, 50));
+    fireEvent.keyDown(canvas(), { key: "ArrowRight" });
+    fireEvent.keyDown(canvas(), { key: "Delete" });
+    fireEvent.pointerUp(canvas(), at(850, 50));
+    expect((await saved(onSave)).map((e) => e.id)).toEqual(["a"]);
+    key("z");
+    expect((await saved(onSave)).map(({ id, x }) => ({ id, x }))).toEqual([
+      { id: "a", x: 200 },
+      { id: "b", x: 801 },
+    ]);
+  });
+
+  it("leaves no Delete of a later drag behind a held paste's adoptMedia that never answers (#533)", async () => {
+    const onSave = copyThenOpenOther("photo", {
+      document: {
+        ...DOC,
+        pages: [{ id: "other", background, elements: [shape("a", 0, 0), shape("b", 600, 0)] }],
+      },
+      adoptMedia: () => new Promise(() => {}),
+      resolveMedia: (id: string) => (id === "photo-copy" ? "blob:photo" : undefined),
+    });
+    fireEvent.pointerDown(canvas(), { ...at(50, 50), button: 0, pointerId: 1 });
+    fireEvent.pointerMove(canvas(), at(250, 50));
+    key("v");
+    fireEvent.keyDown(canvas(), { key: "Delete" });
+    fireEvent.pointerUp(canvas(), at(250, 50));
+    fireEvent.pointerDown(canvas(), { ...at(650, 50), button: 0, pointerId: 1 });
+    fireEvent.pointerMove(canvas(), at(850, 50));
+    fireEvent.keyDown(canvas(), { key: "Delete" });
+    fireEvent.pointerUp(canvas(), at(850, 50));
+    // The held Delete of the first drag takes what the second selected; the second's finds nothing.
+    expect((await saved(onSave)).map((e) => e.id)).toEqual(["a"]);
+    // A third drag must not set off a Delete left over from the second.
+    fireEvent.pointerDown(canvas(), { ...at(250, 50), button: 0, pointerId: 1 });
+    fireEvent.pointerMove(canvas(), at(450, 50));
+    fireEvent.pointerUp(canvas(), at(450, 50));
+    expect((await saved(onSave)).map(({ id, x }) => ({ id, x }))).toEqual([{ id: "a", x: 400 }]);
+  });
+
   // Drags a from (50, 50) to (450, 50), pressing keys on the way and cancelling with Esc if asked.
   const dragA = (press: () => void, cancel = false) => {
     fireEvent.pointerDown(canvas(), { ...at(50, 50), button: 0, pointerId: 1 });

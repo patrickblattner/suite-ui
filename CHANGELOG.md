@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — #533, SUI-FEATURE-191 rev 8: commands held behind a paste that waits for the app
+
+- **Held paste order (#533):** a `Ctrl+V` pressed during a drag whose media the app still adopts (`adoptMedia`) now holds the commands pressed after it in the same drag until it has landed, inserted and selected. Before, the queue moved on at once, so a `Delete` pressed after the paste removed the dragged element and the pasted image stayed. A paste the app answers during a later drag lands first when that drag ends, ahead of what was held behind it. The hold covers only the paste's own drag: a later drag ends it, so its commands still land when the app never answers, and a late answer lands as a plain paste. Each command stays its own history step; a second paste while one waits is still ignored (#525).
+- **Tests (#533):** `Ctrl+V` then `Delete` during a drag with `adoptMedia` answering after the release (the paste is deleted, Undo brings it back); the same with the answer arriving during a second drag; `Delete`, and Arrow then `Delete`, during a later drag while `adoptMedia` never answers, none of them left held.
+
+**Migration:** none.
+
 ## Unreleased — #531, GL-UI-010 rev 8: SlideEditor pane body text and Animation subgroup legends
 
 - **Pane typography (#531):** the Library hint and result count and the Pages pane's inline hint now use the body size `text-sm` instead of `text-xs` (still muted). The Entrance/Exit legends of the Animation section are subgroup titles at `text-sm font-semibold`; the "Animation" section heading stays `text-base font-semibold`. Heading or legend to first content stays 8 px.
