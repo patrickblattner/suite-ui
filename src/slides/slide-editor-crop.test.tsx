@@ -287,6 +287,75 @@ describe("SlideEditor crop mode (SUI-FEATURE-230 rev 4)", () => {
     expect(offsetX).toHaveValue(0);
   });
 
+  // #500 (Codex CX1): a click on the field's native spinner is a step, not typing: it zooms from the
+  // crop as it is, so a shift that typing 100 % dropped does not come back.
+  it("ends the typing on a spinner step", () => {
+    renderEditor();
+    startCrop();
+    setZoom("300");
+    const offsetX = screen.getByTestId<HTMLInputElement>("slide-editor-crop-offsetX");
+    fireEvent.change(offsetX, { target: { value: "100" } });
+    fireEvent.blur(offsetX, { relatedTarget: percent() });
+    fireEvent.change(percent(), { target: { value: "100" } });
+    fireEvent.pointerDown(percent(), { button: 0, pointerId: 1 });
+    fireEvent.change(percent(), { target: { value: "101" } });
+    expect(slider()).toHaveAttribute("aria-valuetext", "101%");
+    expect(offsetX).toHaveValue(0);
+  });
+
+  // #500 review: a press that changes nothing (a caret click) is no step, so leaving still zooms from
+  // the crop the typing started with and keeps the shift, scaled.
+  it("keeps the shift when a caret click comes between typing and leaving", () => {
+    renderEditor();
+    startCrop();
+    setZoom("300");
+    const offsetX = screen.getByTestId<HTMLInputElement>("slide-editor-crop-offsetX");
+    fireEvent.change(offsetX, { target: { value: "100" } });
+    fireEvent.blur(offsetX, { relatedTarget: percent() });
+    for (const typed of ["", "1", "10", "100", "1000"]) {
+      fireEvent.change(percent(), { target: { value: typed } });
+    }
+    fireEvent.pointerDown(percent(), { button: 0, pointerId: 1 });
+    fireEvent.pointerUp(percent(), { button: 0, pointerId: 1 });
+    fireEvent.blur(percent(), { relatedTarget: slider() });
+    expect(slider()).toHaveAttribute("aria-valuetext", "500%");
+    expect(offsetX).toHaveValue(166.67);
+  });
+
+  // #500 review: a held spinner repeats; every change of the press is a step, so typing after it
+  // starts from the crop the hold ended on.
+  it("steps on every change of a held spinner", () => {
+    renderEditor();
+    startCrop();
+    setZoom("300");
+    const offsetX = screen.getByTestId<HTMLInputElement>("slide-editor-crop-offsetX");
+    fireEvent.change(offsetX, { target: { value: "100" } });
+    fireEvent.blur(offsetX, { relatedTarget: percent() });
+    fireEvent.pointerDown(percent(), { button: 0, pointerId: 1 });
+    fireEvent.change(percent(), { target: { value: "299" } });
+    fireEvent.change(percent(), { target: { value: "100" } });
+    fireEvent.pointerUp(percent(), { button: 0, pointerId: 1 });
+    fireEvent.change(percent(), { target: { value: "300" } });
+    expect(slider()).toHaveAttribute("aria-valuetext", "300%");
+    expect(offsetX).toHaveValue(0);
+  });
+
+  // #500 review: only a primary press steps; a change after a right-button press (a context-menu
+  // paste) is typing.
+  it("does not step on a right-button press", () => {
+    renderEditor();
+    startCrop();
+    setZoom("300");
+    const offsetX = screen.getByTestId<HTMLInputElement>("slide-editor-crop-offsetX");
+    fireEvent.change(offsetX, { target: { value: "100" } });
+    fireEvent.blur(offsetX, { relatedTarget: percent() });
+    fireEvent.change(percent(), { target: { value: "100" } });
+    fireEvent.pointerDown(percent(), { button: 2, pointerId: 1 });
+    fireEvent.change(percent(), { target: { value: "250" } });
+    // 100 × 250 / 300: typing still zooms from the 300 % it started with.
+    expect(offsetX).toHaveValue(83.33);
+  });
+
   // #496: Esc after typing in the % field drops the crop; the field leaving to the canvas sets its
   // zoom on the way, which must not bring cropping back.
   it("drops the crop on Esc after typing in the zoom % field", () => {

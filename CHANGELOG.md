@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.171.4 — #500, SUI-FEATURE-230 rev 4: spinner step in the crop zoom % field
+
+- **Spinner is a step (#500, Codex CX1):** a click on the native spinner of the crop zoom % field, and every repeat while it is held, now zooms from the crop as it is and ends the typing, like an arrow key; a press that changes nothing (a caret click) or a right-button press stays out of it; before, it counted as typing and brought back a shift that typing 100 % had dropped (300 % with a shift, type 100, spinner up: the shift returned at 101 %).
+- **Tests (#500):** unit tests cover a spinner step after typing 100 % over a shifted 300 %, a held spinner followed by typing, a caret click before leaving (shift kept, scaled) and a right-button press (still typing).
+
+**Migration:** none.
+
 ## 0.171.3 — #496, SUI-FEATURE-230 rev 4: Esc after typing in the crop zoom % field
 
 - **Esc drops the crop (#496):** Esc in the crop zoom % field after typing a zoom now ends cropping as it does without typing; before, the field leaving for the canvas set its zoom on the way and brought cropping back.

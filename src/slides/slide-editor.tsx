@@ -2318,13 +2318,14 @@ function Editor({
   // field's typed text stands while the crop is its own and goes for good once Undo, the wheel, a key,
   // the slider or a shift changed it: each change elsewhere counts on, so a zoom that comes back never
   // brings back what was typed (`NumberInput` `revision`, as a `NumberField` keys it to `travels`).
-  // A step by the field's arrow keys zooms from the crop as it is, and `ends` (leaving, Enter) closes
-  // the typing: either way the next typing starts from the crop then, never from an older one (#495).
+  // A step by the field's arrow keys or its spinner (each change while a primary press on the field
+  // lasts, held auto-repeat included) zooms from the crop as it is, and `ends` (leaving, Enter) closes
+  // the typing from where it started: either way the next typing starts from the crop then, never from
+  // an older one (#495, #500).
   const zoomCropTo = (zoom: number, ends = false) => {
     if (cropping === undefined || croppedImage === undefined) return;
     const { width, height } = croppedImage;
-    const stepped = cropZoomStep.current;
-    cropZoomStep.current = false;
+    const stepped = !ends && cropZoomStep.current;
     const from = stepped ? cropping.crop : (cropZoomRun.from ?? cropping.crop);
     const crop = zoomCrop(width, height, from, zoom / from.zoom);
     setCropping({ ...cropping, crop });
@@ -2359,6 +2360,17 @@ function Editor({
             cropZoomStep.current = event.key === "ArrowUp" || event.key === "ArrowDown";
           dropCropOnEscape(event);
         }}
+        onPointerDown={(event) => {
+          if (
+            event.button === 0 &&
+            event.target instanceof HTMLElement &&
+            event.target.id === "slide-editor-crop-zoom-percent"
+          )
+            cropZoomStep.current = true;
+        }}
+        onKeyUp={() => (cropZoomStep.current = false)}
+        onPointerUp={() => (cropZoomStep.current = false)}
+        onPointerCancel={() => (cropZoomStep.current = false)}
       >
         <h3 className="text-base font-semibold">{t("slides.editor.cropFields")}</h3>
         <div className="flex flex-col gap-4">
