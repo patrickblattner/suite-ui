@@ -769,10 +769,6 @@ export const en = {
       duplicateHint: "Puts a copy of the selection just right of and below it.",
       duplicateUnavailable: "Duplicate: possible once an unlocked element is selected.",
       pasteRefused: "The page can’t take that many elements. Remove some and try again.",
-      mediaNotAdopted_one:
-        "Pasted, but the medium {{names}} could not be brought along. Its image shows a placeholder until you replace it.",
-      mediaNotAdopted_other:
-        "Pasted, but the media {{names}} could not be brought along. Their images show a placeholder until you replace them.",
       pages: "Pages",
       pageNumber: "Page {{n}}",
       showPage: "Show page {{n}}",
