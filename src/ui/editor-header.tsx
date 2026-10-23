@@ -201,6 +201,9 @@ function EditorHeader({
     }
   }, [dirty, saving, canUndo, canRedo]);
   const clean = !dirty && !saving;
+  // Reset is locked while nothing differs from the saved state or while the save runs, and names why.
+  const resetLock = !dirty || saving;
+  const resetLockReason = saving ? t("editor.resetSavingHint") : t("editor.resetCleanHint");
   const saveLock = {
     ...(clean ? { "aria-disabled": true } : {}),
     onClick: clean ? undefined : onSave,
@@ -233,7 +236,8 @@ function EditorHeader({
       label: t("actions.reset"),
       icon: <RotateCcwIcon aria-hidden="true" />,
       onSelect: () => setConfirming(true),
-      disabled: !dirty || saving,
+      disabled: resetLock,
+      ...(resetLock ? { hint: resetLockReason } : {}),
       "data-testid": "editor-menu-reset",
     });
   }
@@ -423,17 +427,19 @@ function EditorHeader({
           </span>
         )}
         {folded("reset") ? null : (
-          <Button
-            type="button"
-            variant="outline"
-            size="default"
-            {...(!dirty || saving ? { "aria-disabled": true } : {})}
-            onClick={() => setConfirming(true)}
-            data-testid="editor-reset"
-          >
-            <RotateCcwIcon aria-hidden="true" />
-            {t("actions.reset")}
-          </Button>
+          <Hint text={t("editor.resetHint")} disabledText={resetLockReason}>
+            <Button
+              type="button"
+              variant="outline"
+              size="default"
+              {...(resetLock ? { "aria-disabled": true } : {})}
+              onClick={() => setConfirming(true)}
+              data-testid="editor-reset"
+            >
+              <RotateCcwIcon aria-hidden="true" />
+              {t("actions.reset")}
+            </Button>
+          </Hint>
         )}
         {/* Without a lifecycle the ⋯ stands directly left of Save. */}
         {lifecycle === undefined ? menu : null}

@@ -205,6 +205,41 @@ describe("EditorHeader", () => {
       expect(screen.getByTestId(id)).toHaveAttribute("aria-keyshortcuts");
     }
   });
+
+  // #517, GL-UX-001 Q5: a locked Reset names why; usable, it says what it does.
+  it.each([
+    [
+      "de",
+      "Verwirft den Entwurf — verfügbar, sobald du etwas geändert hast.",
+      "Verwirft den Entwurf — gesperrt, solange gespeichert wird.",
+      "Verwirft den Entwurf und kehrt zum gespeicherten Stand zurück.",
+    ],
+    [
+      "en",
+      "Discards the draft — available once you have changed something.",
+      "Discards the draft — locked while it is being saved.",
+      "Discards the draft and returns to the saved state.",
+    ],
+    [
+      "es",
+      "Descarta el borrador — disponible en cuanto cambies algo.",
+      "Descarta el borrador — bloqueado mientras se guarda.",
+      "Descarta el borrador y vuelve al estado guardado.",
+    ],
+  ])("%s: a locked Reset reads %s / %s", async (lng, clean, saving, usable) => {
+    await i18n.changeLanguage(lng);
+    renderHeader();
+    expect(screen.getByTestId("editor-reset")).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByTestId("editor-reset")).toHaveAccessibleDescription(clean);
+    cleanup();
+    renderHeader({ dirty: true, saving: true });
+    expect(screen.getByTestId("editor-reset")).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByTestId("editor-reset")).toHaveAccessibleDescription(saving);
+    cleanup();
+    renderHeader({ dirty: true });
+    expect(screen.getByTestId("editor-reset")).not.toHaveAttribute("aria-disabled");
+    expect(screen.getByTestId("editor-reset")).toHaveAccessibleDescription(usable);
+  });
 });
 
 // `SUI-FEATURE-069`: the lifecycle slot, in the structured form of `SUI-FEATURE-090`.
@@ -664,6 +699,64 @@ describe("EditorHeader at narrow width", () => {
       expect(entry).not.toHaveAttribute("aria-keyshortcuts");
       expect(entry.querySelector("kbd")).toBeNull();
     }
+  });
+
+  // #454 review, GL-UI-006 §Sichtbarkeit: the usable Redo keeps its chip beside a locked Undo, and a
+  // locked entry gets its chip back once it is usable again.
+  it("folded, the usable Redo keeps its chip, and the chip returns after locked to unlocked", () => {
+    available = 500;
+    const props = {
+      title: "Spring newsletter",
+      onBack: vi.fn(),
+      onUndo: vi.fn(),
+      onRedo: vi.fn(),
+      dirty: false,
+      saving: false,
+      onSave: vi.fn(),
+      onReset: vi.fn(),
+    };
+    const { rerender } = render(<EditorHeader {...props} canUndo={false} canRedo />);
+    let menu = openMenu();
+    const redo = within(menu).getByTestId("editor-menu-redo");
+    expect(redo).not.toHaveAttribute("aria-disabled");
+    expect(redo).toHaveAttribute("aria-keyshortcuts");
+    expect(redo.querySelector("kbd")).not.toBeNull();
+    expect(within(menu).getByTestId("editor-menu-undo").querySelector("kbd")).toBeNull();
+    fireEvent.keyDown(menu, { key: "Escape" });
+    rerender(<EditorHeader {...props} canUndo canRedo />);
+    menu = openMenu();
+    const undo = within(menu).getByTestId("editor-menu-undo");
+    expect(undo).not.toHaveAttribute("aria-disabled");
+    expect(undo).toHaveAttribute("aria-keyshortcuts", "Control+Z Meta+Z");
+    expect(undo.querySelector("kbd")).not.toBeNull();
+    expect(undo).not.toHaveAccessibleDescription();
+  });
+
+  // #517, GL-UX-001 Q5: folded and locked, Reset names why, as the header button.
+  it.each([
+    ["de", "Verwirft den Entwurf — verfügbar, sobald du etwas geändert hast."],
+    ["en", "Discards the draft — available once you have changed something."],
+    ["es", "Descarta el borrador — disponible en cuanto cambies algo."],
+  ])("%s: the folded locked Reset reads %s", async (lng, reason) => {
+    await i18n.changeLanguage(lng);
+    available = 700;
+    renderHeader({ lifecycle: lifecycle() });
+    const reset = within(openMenu()).getByTestId("editor-menu-reset");
+    expect(reset).toHaveAttribute("aria-disabled", "true");
+    expect(reset).toHaveAccessibleDescription(reason);
+  });
+
+  it("folded, a Reset locked by a running save names that, and a usable one names nothing", () => {
+    available = 700;
+    renderHeader({ dirty: true, saving: true, lifecycle: lifecycle() });
+    expect(within(openMenu()).getByTestId("editor-menu-reset")).toHaveAccessibleDescription(
+      "Discards the draft — locked while it is being saved.",
+    );
+    cleanup();
+    renderHeader({ dirty: true, lifecycle: lifecycle() });
+    const reset = within(openMenu()).getByTestId("editor-menu-reset");
+    expect(reset).not.toHaveAttribute("aria-disabled");
+    expect(reset).not.toHaveAccessibleDescription();
   });
 
   it("an icon-only locked next step keeps its name and describes its reason", () => {
