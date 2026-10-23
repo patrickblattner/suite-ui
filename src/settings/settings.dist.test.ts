@@ -27,7 +27,7 @@ describe("Settings class strings", () => {
   const forms = [
     "flex gap-2",
     "flex min-h-0 flex-1 flex-col gap-4",
-    "relative min-h-0 flex-1 overflow-y-auto pb-4",
+    "relative min-h-0 flex-1 scroll-py-2 overflow-y-auto pb-4",
     // SUI-FEATURE-042: the option group of a SettingsField and the head of a SettingsSection.
     "flex w-full max-w-xl flex-col gap-2",
     "flex items-start justify-between gap-4 border-b border-border pb-4",

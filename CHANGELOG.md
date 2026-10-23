@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — #462, SUI-FEATURE-101 rev 3, GL-UI-028 rev 5, GL-UI-013 rev 5: keyboard focus never rests under a toast
+
+- **Toaster (#462):** when keyboard focus lands on an element that a visible toast covers, wholly or in part (its focus ring included, 4 px around it as in forced colours), `<Toaster>` closes all toasts, the keyboard counterpart of the click that dismisses them all; the live region has announced them already. Only keyboard focus counts, as `:focus-visible` tells it; focus after a pointer press is unchanged, and focus on a toast's own action or close button closes none.
+- **Scroll containers (#462):** the sidebar nav, the edit panel and media detail shell (both columns), the property panel, the drawer rail, the dialog body, the tile grid and the settings scaffold now carry `scroll-padding` of 0.5 rem, so a focused node scrolled into view keeps its whole ring visible, also the last Tab stop of a sidebar.
+- **Tests (#462):** unit tests cover Tab onto an element one of two toasts covers (both close) and onto its ring, Tab onto an uncovered element, a pointer press under a toast and Tab into the toast's action; gallery tests focus the uncovered search field and then Tab onto the FilterBar control under a held toast on the list page (`?toast=1`), and Tab to the last stop of a scrolling sidebar nav at 360 px height.
+
+**Migration:** none for the API. A test that compares the exact class string of one of these scroll containers adds `scroll-py-2` (`@panel-split:scroll-py-2` on the split column); the frozen markup of `DataTableShell` and `PageScroll` is unchanged. An app that closed a toast itself before tabbing to a control under it (or a test that dismissed the toast first) can drop that; the package does it. Apps build nothing of their own for it (`GL-UI-004`).
+
 ## Unreleased — #461, GL-UI-006 rev 4: a locked shortcut control offers no shortcut
 
 - **Locked without a reason of its own (#461):** `IconButtonTooltip` and `Hint` now drop the shortcut chip and `aria-keyshortcuts` whenever the wrapped control is `disabled` or `aria-disabled`, also without `disabledText`. Before, they dropped them only with `disabledText`. This is the case of a surface or toolbar locked as a whole whose hint names the reason once: its Undo/Redo pass `disabled` and no `disabledText`, so they carry no reason of their own, have no focusable wrapper (`Tab` skips them) and offer no shortcut; usable again, chip and `aria-keyshortcuts` return. The `disabledText` path is unchanged.

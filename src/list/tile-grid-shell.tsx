@@ -8,7 +8,7 @@ import type { RowGrid } from "./use-row-grid.js";
 
 const SKELETON_TILE_COUNT = 6;
 
-const SCROLL_CLASS = "relative min-h-6 flex-1 overflow-auto [scrollbar-gutter:stable]";
+const SCROLL_CLASS = "relative min-h-6 flex-1 scroll-py-2 overflow-auto [scrollbar-gutter:stable]";
 
 const GRID_CLASS = "grid grid-cols-[repeat(auto-fill,minmax(12rem,1fr))] gap-4";
 

@@ -117,7 +117,7 @@ function DrawerRail({ items, open, onOpen, styleSave }: DrawerRailProps) {
           <h2 id={`${id}-title`} className="border-b px-4 py-3 text-sm font-medium">
             {t(`canvas.drawer.${current.id}`)}
           </h2>
-          <div className="min-h-0 flex-1 overflow-y-auto p-4">{current.content}</div>
+          <div className="min-h-0 flex-1 scroll-py-2 overflow-y-auto p-4">{current.content}</div>
           {current.id === "style" && styleSave !== undefined ? (
             <div className="flex flex-col gap-2 border-t p-4" data-testid="drawer-style-footer">
               <Hint text={t("canvas.styleSaveHint")} disabledText={t("canvas.styleSaveCleanHint")}>

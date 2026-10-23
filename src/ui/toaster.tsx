@@ -179,11 +179,59 @@ function dismissAllOnToastClick(event: React.MouseEvent<HTMLElement>): void {
   toast.dismiss();
 }
 
+// The focus ring (`focus-ring`, styles.css) reaches 4 px beyond the element at most: 3 px of ring,
+// and in forced colours the 2 px outline at 2 px offset. A toast over the ring covers the focus too.
+const FOCUS_RING_PX = 4;
+
+/**
+ * Keyboard focus never rests under a toast (`GL-UI-028`, `GL-UI-013`, `SUI-FEATURE-101` rev 3): when
+ * it lands on an element that a visible toast covers, wholly or in part, ring included, all toasts
+ * close, the counterpart of the click that dismisses them all (sonner puts no toast id on the DOM,
+ * and in the collapsed stack the toasts behind would cover the element anyway); the live region has
+ * announced them already.
+ * Only keyboard focus counts, as `:focus-visible` tells it (the pointer accepts the cover), and
+ * focus inside the toasts, on an action or the close button, closes none. A toast without a box (not laid out) covers nothing.
+ */
+function useDismissToastsUnderFocus(): void {
+  React.useEffect(() => {
+    const onFocusIn = (event: FocusEvent) => {
+      const target = event.target;
+      if (
+        !(target instanceof Element) ||
+        !target.matches(":focus-visible") ||
+        target.closest("[data-sonner-toaster]")
+      )
+        return;
+      const focus = target.getBoundingClientRect();
+      const toasts = document.querySelectorAll(
+        "[data-sonner-toast]:not([data-removed=true]):not([data-visible=false])",
+      );
+      const covered = Array.from(toasts).some((item) => {
+        const box = item.getBoundingClientRect();
+        return (
+          box.width > 0 &&
+          box.height > 0 &&
+          box.left < focus.right + FOCUS_RING_PX &&
+          focus.left - FOCUS_RING_PX < box.right &&
+          box.top < focus.bottom + FOCUS_RING_PX &&
+          focus.top - FOCUS_RING_PX < box.bottom
+        );
+      });
+      if (covered) toast.dismiss();
+    };
+    document.addEventListener("focusin", onFocusIn);
+    return () => {
+      document.removeEventListener("focusin", onFocusIn);
+    };
+  }, []);
+}
+
 type ToasterAppProps = Omit<ToasterProps, "position" | "offset" | "mobileOffset">;
 
 // `theme` follows the app: pass its resolved theme ("light" or "dark").
 function Toaster({ theme = "light", ...props }: ToasterAppProps) {
   const { t } = useTranslation("suite");
+  useDismissToastsUnderFocus();
   // The symbol shows the variant; its name is read before the message, so the variant does not rest
   // on colour and symbol alone (`GL-UI-060`).
   const named = (icon: React.ReactNode, name: string) => (

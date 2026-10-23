@@ -1082,7 +1082,7 @@ describe("EditPanel", () => {
       );
       const body = screen.getByTestId("edit-panel-body");
       expect(body.className).toBe(
-        "relative min-h-0 flex-1 overflow-y-auto p-6 [scrollbar-gutter:stable]",
+        "relative min-h-0 flex-1 scroll-py-2 overflow-y-auto p-6 [scrollbar-gutter:stable]",
       );
       expect(screen.queryByTestId("edit-panel-preview")).toBeNull();
     });

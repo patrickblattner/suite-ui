@@ -255,7 +255,7 @@ function AppSidebar({
         {/* `relative`: the frame of the active entry's bar, which sits at its left edge. */}
         <div
           className={cn(
-            "relative min-h-0 flex-1 overflow-y-auto px-2 py-2",
+            "relative min-h-0 flex-1 scroll-py-2 overflow-y-auto px-2 py-2",
             !isOpen && "flex flex-col items-center [scrollbar-gutter:auto]",
           )}
         >

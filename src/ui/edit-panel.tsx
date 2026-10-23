@@ -309,7 +309,7 @@ function EditPanel({
             {preview === undefined ? (
               <div
                 data-testid={`${testIdPrefix}-body`}
-                className="relative min-h-0 flex-1 overflow-y-auto p-6 [scrollbar-gutter:stable]"
+                className="relative min-h-0 flex-1 scroll-py-2 overflow-y-auto p-6 [scrollbar-gutter:stable]"
               >
                 {children}
               </div>
@@ -325,7 +325,7 @@ function EditPanel({
               <div data-slot="edit-panel-split" className="@container min-h-0 flex-1">
                 <div
                   data-testid={`${testIdPrefix}-body`}
-                  className="relative flex h-full flex-col gap-6 overflow-y-auto p-6 [scrollbar-gutter:stable] @panel-split:grid @panel-split:grid-cols-[minmax(0,3fr)_minmax(20rem,2fr)] @panel-split:overflow-hidden @panel-split:pe-0 @panel-split:[scrollbar-gutter:auto]"
+                  className="relative flex h-full scroll-py-2 flex-col gap-6 overflow-y-auto p-6 [scrollbar-gutter:stable] @panel-split:grid @panel-split:grid-cols-[minmax(0,3fr)_minmax(20rem,2fr)] @panel-split:overflow-hidden @panel-split:pe-0 @panel-split:[scrollbar-gutter:auto]"
                 >
                   <div
                     data-slot="edit-panel-preview"
@@ -336,7 +336,7 @@ function EditPanel({
                   </div>
                   <div
                     data-slot="edit-panel-fields"
-                    className="relative @panel-split:-my-1.5 @panel-split:-ms-1.5 @panel-split:min-h-0 @panel-split:overflow-y-auto @panel-split:py-1.5 @panel-split:ps-1.5 @panel-split:pe-[var(--page-gutter)] @panel-split:[scrollbar-gutter:stable]"
+                    className="relative @panel-split:-my-1.5 @panel-split:-ms-1.5 @panel-split:min-h-0 @panel-split:scroll-py-2 @panel-split:overflow-y-auto @panel-split:py-1.5 @panel-split:ps-1.5 @panel-split:pe-[var(--page-gutter)] @panel-split:[scrollbar-gutter:stable]"
                   >
                     {children}
                   </div>

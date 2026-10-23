@@ -102,11 +102,17 @@ function SettingsScaffold({
   ) : null;
   const content =
     state !== null ? (
-      <div className="relative min-h-0 flex-1 overflow-y-auto pb-4" data-testid={scrollTestId}>
+      <div
+        className="relative min-h-0 flex-1 scroll-py-2 overflow-y-auto pb-4"
+        data-testid={scrollTestId}
+      >
         {state}
       </div>
     ) : body !== undefined ? (
-      <div className="relative min-h-0 flex-1 overflow-y-auto pb-4" data-testid={scrollTestId}>
+      <div
+        className="relative min-h-0 flex-1 scroll-py-2 overflow-y-auto pb-4"
+        data-testid={scrollTestId}
+      >
         <div className="flex flex-col gap-6" data-testid="settings-column">
           {body}
         </div>
@@ -120,12 +126,18 @@ function SettingsScaffold({
         data-testid="settings-tabs"
       >
         {tabs.list}
-        <div className="relative min-h-0 flex-1 overflow-y-auto pb-4" data-testid={scrollTestId}>
+        <div
+          className="relative min-h-0 flex-1 scroll-py-2 overflow-y-auto pb-4"
+          data-testid={scrollTestId}
+        >
           {tabs.panels}
         </div>
       </Tabs>
     ) : (
-      <div className="relative min-h-0 flex-1 overflow-y-auto pb-4" data-testid={scrollTestId}>
+      <div
+        className="relative min-h-0 flex-1 scroll-py-2 overflow-y-auto pb-4"
+        data-testid={scrollTestId}
+      >
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-2" data-testid="settings-grid">
           <div className="flex min-w-0 flex-col gap-4" data-testid="settings-column-left">
             {left}

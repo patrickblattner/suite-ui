@@ -455,7 +455,7 @@ function MediaDetailShell({
             <div data-slot="media-detail-split" className="@container min-h-0 flex-1">
               <div
                 data-testid="media-detail-body"
-                className="relative flex h-full flex-col gap-6 overflow-y-auto p-6 [scrollbar-gutter:stable] @panel-split:grid @panel-split:grid-cols-[minmax(0,3fr)_minmax(20rem,2fr)] @panel-split:overflow-hidden @panel-split:pe-0 @panel-split:[scrollbar-gutter:auto]"
+                className="relative flex h-full scroll-py-2 flex-col gap-6 overflow-y-auto p-6 [scrollbar-gutter:stable] @panel-split:grid @panel-split:grid-cols-[minmax(0,3fr)_minmax(20rem,2fr)] @panel-split:overflow-hidden @panel-split:pe-0 @panel-split:[scrollbar-gutter:auto]"
               >
                 <div
                   data-slot="media-detail-preview-column"
@@ -561,7 +561,7 @@ function MediaDetailShell({
                 </div>
                 <div
                   data-slot="media-detail-details"
-                  className="relative flex flex-col gap-6 @panel-split:-my-1.5 @panel-split:-ms-1.5 @panel-split:min-h-0 @panel-split:overflow-y-auto @panel-split:py-1.5 @panel-split:ps-1.5 @panel-split:pe-[var(--page-gutter)] @panel-split:[scrollbar-gutter:stable]"
+                  className="relative flex flex-col gap-6 @panel-split:-my-1.5 @panel-split:-ms-1.5 @panel-split:min-h-0 @panel-split:scroll-py-2 @panel-split:overflow-y-auto @panel-split:py-1.5 @panel-split:ps-1.5 @panel-split:pe-[var(--page-gutter)] @panel-split:[scrollbar-gutter:stable]"
                 >
                   <SheetTitle className="text-lg leading-none">{t("media.details")}</SheetTitle>
                   {SLOTS.map((slot) =>

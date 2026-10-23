@@ -610,6 +610,70 @@ test("full-screen editor: leaving the editor restores the app shell's toast offs
   await expect.poll(root).toBe("");
 });
 
+// `SUI-FEATURE-101` rev 3 (`GL-UI-028`, `GL-UI-013`): a success toast lies over the FilterBar's right
+// end. Focus on an uncovered control closes nothing; Tab onto the first control it covers closes all
+// toasts, so the control and its ring are unobscured.
+test("toast: Tab onto a FilterBar control under the toast closes all toasts", async ({ page }) => {
+  await page.goto("/?page=list&toast=1");
+  const success = page.locator("[data-sonner-toast][data-type=success]");
+  await expect(success).toBeVisible();
+  // The toast slides in; its box is taken once it rests.
+  let toastBox = await box(success);
+  await expect
+    .poll(async () => {
+      const previous = toastBox;
+      toastBox = await box(success);
+      return toastBox.y === previous.y;
+    })
+    .toBe(true);
+  // The ring reaches 4 px beyond the control.
+  const covers = (control: { x: number; y: number; width: number; height: number }) =>
+    toastBox.x < control.x + control.width + 4 &&
+    control.x - 4 < toastBox.x + toastBox.width &&
+    toastBox.y < control.y + control.height + 4 &&
+    control.y - 4 < toastBox.y + toastBox.height;
+  const controls = await page
+    .getByTestId("filterbar")
+    .locator("input:visible, button:visible")
+    .all();
+  const boxes = await Promise.all(controls.map(box));
+  const first = boxes.findIndex(covers);
+  expect(first).toBeGreaterThan(0);
+  const covered = controls[first]!;
+  expect(covers(boxes[0]!)).toBe(false);
+
+  // Focus on the uncovered search field: the toast stays, also after its exit animation's time.
+  await page.getByTestId("filter-haystack").focus();
+  await page.waitForTimeout(600);
+  await expect(page.locator("[data-sonner-toast][data-removed=false]")).toHaveCount(1);
+
+  for (let i = 0; i < first; i++) await page.keyboard.press("Tab");
+  await expect(covered).toBeFocused();
+  await expect(page.locator("[data-sonner-toast]")).toHaveCount(0);
+  expect(await covered.evaluate((el) => el.matches(":focus-visible"))).toBe(true);
+});
+
+// `GL-UI-013` rev 5: the last Tab stop of a scrolled sidebar is shown whole, its ring included.
+test("sidebar: the last Tab stop of a scrolling nav shows the whole node and its ring", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 360 });
+  await page.goto("/?page=shell&route=/dashboard&lng=en");
+  const nav = page.getByTestId("nav-primary");
+  const scroller = nav.locator("xpath=..");
+  expect(await scroller.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+  const stops = scroller.locator("a[href]:visible, button:visible");
+  const count = await stops.count();
+  await stops.first().focus();
+  for (let i = 1; i < count; i++) await page.keyboard.press("Tab");
+  const last = stops.last();
+  await expect(last).toBeFocused();
+  const frame = await box(scroller);
+  const node = await box(last);
+  expect(node.y - 3).toBeGreaterThanOrEqual(frame.y);
+  expect(node.y + node.height + 3).toBeLessThanOrEqual(frame.y + frame.height);
+});
+
 test("the open time zone list grows the dialog", async ({ page }) => {
   await page.goto("/?page=dialog");
   const dialog = page.getByTestId("form-dialog");
@@ -11639,6 +11703,11 @@ for (const lng of ["de", "en", "es"]) {
     await page.getByTestId("slide-editor-library-chart").click();
     const panel = page.getByTestId("slide-editor-chart");
     await panel.scrollIntoViewIfNeeded();
+    // The name mid-panel, so the bubble's height has room above the viewport's bottom edge whatever
+    // the panel's scroll padding (#462).
+    await panel
+      .getByTestId("slide-editor-chart-category-1")
+      .evaluate((input) => input.scrollIntoView({ block: "center" }));
     const { name, bubble, tip, field } = await clippedCategoryBubble(page, panel);
     // Right next to the name, past the arrow, its top edge 4 px above the name's.
     expect(Math.abs(tip.x - (field.x + field.width + 18))).toBeLessThanOrEqual(1);

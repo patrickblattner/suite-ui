@@ -77,7 +77,10 @@ function PropertyPanel({ path, tabs, activeTab, onTab }: PropertyPanelProps) {
             ))}
           </TabsList>
         </div>
-        <div className="min-h-0 flex-1 overflow-y-auto p-4" data-testid="property-panel-body">
+        <div
+          className="min-h-0 flex-1 scroll-py-2 overflow-y-auto p-4"
+          data-testid="property-panel-body"
+        >
           {ordered.map(({ id, content }) => (
             <TabsContent key={id} value={id}>
               {content}

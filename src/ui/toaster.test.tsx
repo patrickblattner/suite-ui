@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import * as React from "react";
 import { toast as sonnerToast } from "sonner";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -96,6 +96,109 @@ describe("Toaster", () => {
       });
     },
   );
+});
+
+// `SUI-FEATURE-101` rev 3: keyboard focus never rests under a toast; the pointer keeps its behaviour.
+describe("Toaster: focus under a toast", () => {
+  const rect = (left: number, top: number, width: number, height: number) =>
+    DOMRect.fromRect({ x: left, y: top, width, height });
+
+  // The toast at 900–1260 × 60–120 with its action inside; `covered` lies under it by default, `free`
+  // beside it.
+  // Whether the focus counts as keyboard focus: jsdom's `:focus-visible` follows no input modality.
+  let focusVisible = true;
+  // eslint-disable-next-line @typescript-eslint/unbound-method
+  const matches = Element.prototype.matches;
+
+  async function renderCovered(coveredBox = rect(1000, 80, 80, 32)) {
+    focusVisible = true;
+    vi.spyOn(Element.prototype, "matches").mockImplementation(function (
+      this: Element,
+      selector: string,
+    ) {
+      return selector === ":focus-visible" ? focusVisible : matches.call(this, selector);
+    });
+    vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (
+      this: Element,
+    ) {
+      if (this.matches("[data-sonner-toast]")) return rect(900, 60, 360, 60);
+      if (this.closest("[data-sonner-toast]")) return rect(1180, 74, 60, 24);
+      if (this.matches("[data-testid=covered]")) return coveredBox;
+      return rect(10, 10, 80, 32);
+    });
+    render(
+      <>
+        <button type="button" data-testid="free">
+          Free
+        </button>
+        <button type="button" data-testid="covered">
+          Covered
+        </button>
+        <Toaster />
+      </>,
+    );
+    act(() => {
+      toast.success("Saved", { action: { label: "Undo", onClick: () => undefined } });
+    });
+    await screen.findByText("Saved");
+    return () => document.querySelector("[data-sonner-toast]");
+  }
+
+  const settle = () => act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+
+  afterEach(() => {
+    act(() => {
+      toast.dismiss();
+    });
+  });
+
+  it("closes all toasts when Tab lands on an element one of them covers", async () => {
+    await renderCovered();
+    act(() => {
+      toast.info("Synced");
+    });
+    await screen.findByText("Synced");
+    fireEvent.keyDown(document.body, { key: "Tab" });
+    act(() => screen.getByTestId("covered").focus());
+    await vi.waitFor(() =>
+      expect(document.querySelectorAll("[data-sonner-toast][data-removed=false]")).toHaveLength(0),
+    );
+  });
+
+  it("closes the toasts when one covers only the focus ring", async () => {
+    // Just below the toast: only the ring's 4 px reach under it.
+    const item = await renderCovered(rect(800, 122, 120, 32));
+    fireEvent.keyDown(document.body, { key: "Tab" });
+    act(() => screen.getByTestId("covered").focus());
+    await vi.waitFor(() => expect(item()?.getAttribute("data-removed") ?? "true").toBe("true"));
+  });
+
+  it("keeps the toast when Tab lands on an element no toast covers", async () => {
+    const item = await renderCovered();
+    fireEvent.keyDown(document.body, { key: "Tab" });
+    act(() => screen.getByTestId("free").focus());
+    await settle();
+    expect(item()).toHaveAttribute("data-removed", "false");
+  });
+
+  it("keeps the toast when a pointer press moves the focus under it", async () => {
+    const item = await renderCovered();
+    // A pointer press leaves the focus without `:focus-visible`.
+    focusVisible = false;
+    const covered = screen.getByTestId("covered");
+    fireEvent.pointerDown(covered);
+    act(() => covered.focus());
+    await settle();
+    expect(item()).toHaveAttribute("data-removed", "false");
+  });
+
+  it("keeps the toast when Tab reaches its own action", async () => {
+    const item = await renderCovered();
+    fireEvent.keyDown(document.body, { key: "Tab" });
+    act(() => screen.getByRole("button", { name: "Undo" }).focus());
+    await settle();
+    expect(item()).toHaveAttribute("data-removed", "false");
+  });
 });
 
 describe("useEditorShellToastOffset", () => {

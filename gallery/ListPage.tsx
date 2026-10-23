@@ -1,6 +1,9 @@
 import { CopyIcon } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+// sonner's own toast: the package's `toast` caps every duration at 12 s, and the gallery holds the
+// toast for the test.
+import { toast } from "sonner";
 
 import { DataTableShell } from "../src/list/data-table-shell.js";
 import { dynamicFilter, FilterBar, staticFilter } from "../src/list/filter-bar.js";
@@ -14,6 +17,7 @@ import { TablePagination } from "../src/list/table-pagination.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../src/ui/select.js";
 import { TableCell, TableHead, TableRow } from "../src/ui/table.js";
 import { Tabs, TabsList, TabsTrigger } from "../src/ui/tabs.js";
+import { Toaster } from "../src/ui/toaster.js";
 
 // App-side labels: field names and options come from the app, not from the `suite` namespace.
 const LABELS = {
@@ -98,6 +102,9 @@ const ACTIONS = new URLSearchParams(window.location.search).get("actions") === "
 // `?filters=node` passes the filters as one node, ordered by the page, with a third filter so the
 // controls group wraps at narrow widths; without it a list of one dynamic and one static filter.
 const NODE_FILTERS = new URLSearchParams(window.location.search).get("filters") === "node";
+// `?toast=1` mounts the Toaster with a held success toast whose description reaches down over the
+// FilterBar's right end (`SUI-FEATURE-101`).
+const TOAST = new URLSearchParams(window.location.search).get("toast") === "1";
 const NOTE =
   "Rescheduled after the venue changed; attendees were notified by mail, the waitlist moved up and the catering order was adjusted to the new room and time.";
 
@@ -285,6 +292,17 @@ export function ListPage() {
     </form>
   );
 
+  useEffect(() => {
+    // A fixed id, so the second effect run of StrictMode updates the toast instead of doubling it.
+    if (TOAST) {
+      toast.success("Event saved", {
+        id: "saved",
+        duration: Infinity,
+        description: "Attendees were notified by mail and the waitlist moved up.",
+      });
+    }
+  }, []);
+
   return (
     <PageScroll floor={FLOOR}>
       <div className="flex min-h-0 flex-1 flex-col gap-4">
@@ -301,6 +319,7 @@ export function ListPage() {
           table
         )}
       </div>
+      {TOAST && <Toaster />}
     </PageScroll>
   );
 }
