@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — #528, SUI-FEATURE-103 rev 3: a run's end keeps the focus on a disabled button (minor)
+
+- **Button `busy` with `disabled` (#528):** when the run ends while the button holds the focus, the call site's `disabled` no longer drops the focus to `<body>` (`GL-UI-050`): the button keeps the `aria-disabled="true"` lock — no `disabled` attribute, the focus stays, click, `Enter`, `Space`, a press and the form's submit fire nothing — and wears the locked look, the same half-tone as the disabled one. Once the focus leaves (Tab away), the real `disabled` attribute applies. Without the focus on the button, `disabled` applies as soon as the run ends, as before. Before, `disabled` applied the moment the run ended and the focus fell to `<body>`.
+- **Disabled-reason hint after the run (#528):** a `Hint` or `IconButtonTooltip` with `disabledText` around a `disabled` button shows its reason again once the run has ended, the focus still on the button.
+- **Tests (#528):** unit tests for the focus held after the run (no `disabled`, `aria-disabled="true"`, focus kept, nothing fires, `disabled` after Tab away; fails on the rev-2 code), for `disabled` at once without the focus and after a focus that left during the run, for the held look, and for the reason of `Hint` and `IconButtonTooltip` after the run.
+
+**Migration:** none for the API; no string, `data-testid` or baseline changes. A test that expects `toBeDisabled()` right after a run ends on a focused `disabled` button moves the focus away first.
+
 ## Unreleased — #521, SUI-FEATURE-104 rev 3: the read-only text folds to an eye at narrow width (patch)
 
 - **EditorHeader `readOnly` (#521):** the read-only text stands in the state's place and now folds with it as `SUI-FEATURE-090` step 4: once Preview (with the header tools) is folded and the header still overflows, "Nur lesen"/"Read only"/"Solo lectura" becomes lucide `EyeIcon` (16 px, muted foreground) in a focusable `role="status"` sign, the full text as tooltip and screen-reader text — before Back folds to its arrow and before the title drops below its 18-character floor. It is never truncated and never moves into the ⋯ menu. Before, the text stayed full width and Back and the title folded first.

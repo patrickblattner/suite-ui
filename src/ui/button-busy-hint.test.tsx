@@ -1,4 +1,4 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { hintOf } from "../list/test-utils.js";
@@ -70,6 +70,41 @@ describe("hints of a running button (as on main)", () => {
     expect(button).toHaveAttribute("aria-disabled", "true");
     expect(hintOf(button).hover1500).toBe("Saves the settings");
     expect(document.body.textContent).not.toContain("Possible once a field changed");
+  });
+
+  // SUI-FEATURE-103 rev 3 AC2: after the run, with the focus still on the button, the reason shows.
+  it("a Hint with disabledText shows the reason after the run (disabled)", () => {
+    const view = (busy: boolean) => (
+      <Hint text="Saves the settings" disabledText="Possible once a field changed">
+        <Button variant="success" size="default" busy={busy} disabled>
+          Save
+        </Button>
+      </Hint>
+    );
+    const { rerender } = render(view(true));
+    const button = screen.getByRole("button", { name: "Save" });
+    act(() => button.focus());
+    rerender(view(false));
+    expect(button).toHaveFocus();
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(hintOf(button).hover1500).toBe("Possible once a field changed");
+  });
+
+  it("IconButtonTooltip shows the reason after the run (disabled)", () => {
+    const view = (busy: boolean) => (
+      <IconButtonTooltip label="Send Ada" disabledText="Possible once online">
+        <Button variant="outline" size="icon-xs" busy={busy} disabled>
+          <span aria-hidden="true">→</span>
+        </Button>
+      </IconButtonTooltip>
+    );
+    const { rerender } = render(view(true));
+    const button = screen.getByRole("button", { name: "Send Ada" });
+    act(() => button.focus());
+    rerender(view(false));
+    expect(button).toHaveFocus();
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(hintOf(button).hover1500).toBe("Possible once online");
   });
 
   it.each([
