@@ -30,6 +30,52 @@ test.beforeEach(async ({ page }) => {
   await page.clock.setFixedTime(T0);
 });
 
+// `ADR-TEST-016` rev 5: the pointer belongs to the scene. Every capture parks it first, on the
+// first viewport corner whose element is no control and no hoverable row, so no accidental hover
+// reaches the image; only assertions and a hover that is the subject of the shot stand between this
+// step and the capture. `src/gallery-park.test.ts` holds every `toHaveScreenshot` to it.
+const HOVERABLE = [
+  "a, button, input, select, textarea, summary, label, tr",
+  "[tabindex]:not([tabindex='-1']), [data-slot=tooltip-trigger]",
+  ...[
+    "button",
+    "link",
+    "menuitem",
+    "option",
+    "tab",
+    "checkbox",
+    "radio",
+    "switch",
+    "slider",
+    "combobox",
+    "textbox",
+    "row",
+    "gridcell",
+    "treeitem",
+  ].map((role) => `[role=${role}]`),
+].join(", ");
+
+async function parkPointer(page: Page) {
+  const { width, height } = page.viewportSize()!;
+  const corners = [
+    [width - 1, height - 1],
+    [width - 1, 0],
+    [0, height - 1],
+    [0, 0],
+  ] as const;
+  for (const [x, y] of corners) {
+    const hoverable = await page.evaluate(
+      ([px, py, selector]) => document.elementFromPoint(px, py)?.closest(selector) != null,
+      [x, y, HOVERABLE] as const,
+    );
+    if (!hoverable) {
+      await page.mouse.move(x, y);
+      return;
+    }
+  }
+  throw new Error("parkPointer: every viewport corner lies on a control");
+}
+
 // Every page of the gallery and the element that tells it has rendered.
 const PAGES: [name: string, ready: (page: Page) => Locator][] = [
   ["components", (page) => page.getByTestId("section-structure")],
@@ -67,6 +113,7 @@ for (const lng of LANGUAGES) {
       await page.goto(`/?lng=${lng}&theme=${theme}`);
       await expect(page.getByTestId("gallery-language")).toHaveValue(lng);
       await expect(page.locator("html")).toHaveAttribute("lang", lng);
+      await parkPointer(page);
       await expect(page).toHaveScreenshot(`gallery-${lng}-${theme}.png`, { fullPage: true });
     });
 
@@ -74,6 +121,7 @@ for (const lng of LANGUAGES) {
       await page.goto(`/?page=tokens&lng=${lng}&theme=${theme}`);
       await expect(page.getByTestId("token-warn-text")).toBeVisible();
       await expect(page.locator("html")).toHaveAttribute("lang", lng);
+      await parkPointer(page);
       await expect(page).toHaveScreenshot(`tokens-${lng}-${theme}.png`, { fullPage: true });
     });
 
@@ -81,6 +129,9 @@ for (const lng of LANGUAGES) {
       test(`${name} ${lng} ${theme}`, async ({ page }) => {
         await page.goto(`/?page=${name}&lng=${lng}&theme=${theme}`);
         await expect(page.locator("html")).toHaveAttribute("lang", lng);
+        await expect(ready(page)).toBeVisible();
+        await parkPointer(page);
+        // The parked pointer may wake what hides without input (the slide player's bar).
         await expect(ready(page)).toBeVisible();
         await expect(page).toHaveScreenshot(`${name}-${lng}-${theme}.png`, { fullPage: true });
       });
@@ -93,6 +144,7 @@ for (const lng of LANGUAGES) {
       await scroller.evaluate((el) => el.scrollTo(0, el.scrollHeight));
       await expect(page.getByTestId("list-row").last()).toBeInViewport();
       await expect(page.getByTestId("pagination-summary")).toBeInViewport();
+      await parkPointer(page);
       await expect(page).toHaveScreenshot(`list-bottom-${lng}-${theme}.png`, { fullPage: true });
     });
 
@@ -101,6 +153,7 @@ for (const lng of LANGUAGES) {
       await expect(page.locator("html")).toHaveAttribute("lang", lng);
       await page.getByTestId("dialog-timezone").fill("zur");
       await expect(page.getByRole("option", { name: "Europe/Zurich" })).toBeVisible();
+      await parkPointer(page);
       await expect(page).toHaveScreenshot(`dialog-timezone-open-${lng}-${theme}.png`, {
         fullPage: true,
       });
@@ -110,7 +163,7 @@ for (const lng of LANGUAGES) {
     test(`crop editor ${lng} ${theme}`, async ({ page }) => {
       await openCropEditor(page, `&lng=${lng}&theme=${theme}`);
       await expect(page.locator("html")).toHaveAttribute("lang", lng);
-      await page.mouse.move(1900, 1060);
+      await parkPointer(page);
       await expect(page).toHaveScreenshot(`crop-editor-${lng}-${theme}.png`);
     });
 
@@ -118,7 +171,7 @@ for (const lng of LANGUAGES) {
     test(`media detail shell ${lng} ${theme}`, async ({ page }) => {
       await openMediaDetail(page, `&lng=${lng}&theme=${theme}`);
       await expect(page.locator("html")).toHaveAttribute("lang", lng);
-      await page.mouse.move(1900, 1060);
+      await parkPointer(page);
       await expect(page).toHaveScreenshot(`media-detail-${lng}-${theme}.png`, { fullPage: true });
     });
 
@@ -131,7 +184,7 @@ for (const lng of LANGUAGES) {
         await page.setViewportSize({ width, height: 1080 });
         await openMediaPanel(page, `&lng=${lng}&theme=${theme}`);
         await expect(page.locator("html")).toHaveAttribute("lang", lng);
-        await page.mouse.move(width - 20, 1060);
+        await parkPointer(page);
         await expect(page).toHaveScreenshot(`edit-panel-preview-${state}-${lng}-${theme}.png`, {
           fullPage: true,
         });
@@ -142,7 +195,7 @@ for (const lng of LANGUAGES) {
     test(`edit panel view ${lng} ${theme}`, async ({ page }) => {
       await openViewModePanel(page, `&lng=${lng}&theme=${theme}`);
       await expect(page.locator("html")).toHaveAttribute("lang", lng);
-      await page.mouse.move(1900, 1060);
+      await parkPointer(page);
       await expect(page).toHaveScreenshot(`edit-panel-view-${lng}-${theme}.png`, {
         fullPage: true,
       });
@@ -162,6 +215,7 @@ for (const lng of LANGUAGES) {
         "aria-disabled",
         "true",
       );
+      await parkPointer(page);
       await expect(page).toHaveScreenshot(`slide-editor-menu-${lng}-${theme}.png`);
     });
   }
@@ -1465,20 +1519,20 @@ for (const theme of THEMES) {
       "aria-disabled",
       "true",
     );
-    await page.mouse.move(0, 0);
+    await parkPointer(page);
     await expect(page.getByTestId("settings-footer")).toHaveScreenshot(
       `locked-save-settings-footer-${theme}.png`,
     );
     await page.goto(`/?page=components&lng=en&theme=${theme}`);
     const editorSave = page.getByTestId("editor-header-saved").getByTestId("editor-save");
     await expect(editorSave).toHaveAttribute("aria-disabled", "true");
-    await page.mouse.move(0, 0);
+    await parkPointer(page);
     await expect(editorSave).toHaveScreenshot(`locked-save-editor-header-${theme}.png`);
     // The demo opens with a changed style: saving it locks the Save.
     const drawerSave = page.getByTestId("canvas-editor").getByTestId("drawer-style-save");
     await drawerSave.click();
     await expect(drawerSave).toHaveAttribute("aria-disabled", "true");
-    await page.mouse.move(0, 0);
+    await parkPointer(page);
     await expect(
       page.getByTestId("canvas-editor").getByTestId("drawer-style-footer"),
     ).toHaveScreenshot(`locked-save-drawer-rail-${theme}.png`);
@@ -3470,7 +3524,7 @@ for (const lng of LANGUAGES) {
         await expect(page.getByTestId("app-sidebar")).toBeVisible();
         await open(page);
         // No hint tooltip in the capture: the pointer rests outside every control.
-        await page.mouse.move(1900, 1060);
+        await parkPointer(page);
         await expect(page).toHaveScreenshot(`${name}-${lng}-${theme}.png`, { fullPage: true });
       });
     }
@@ -3515,6 +3569,9 @@ for (const [width, height] of WIDTHS) {
         await page.setViewportSize({ width, height });
         await page.goto(`/?${query}lng=de&theme=${theme}`);
         await expect(page.locator("html")).toHaveAttribute("lang", "de");
+        await expect(ready(page)).toBeVisible();
+        await parkPointer(page);
+        // The parked pointer may wake what hides without input (the slide player's bar).
         await expect(ready(page)).toBeVisible();
         await expect(page).toHaveScreenshot(`${name}-de-${theme}-${width}.png`, { fullPage: true });
       });
