@@ -230,48 +230,51 @@ function coveredByToast(element: Element): boolean {
  * Only keyboard focus counts, as `:focus-visible` tells it (the pointer accepts the cover), and
  * focus inside the toasts, on an action or the close button, closes none.
  */
-function useDismissToastsUnderFocus(): void {
+function useDismissToastsUnderFocus(toasts: React.RefObject<HTMLElement | null>): void {
   React.useEffect(() => {
+    // One timer for all: a toast that mounts restarts it, a dismissal clears it, so no earlier
+    // toast's timer cuts a later one short.
+    let timer: ReturnType<typeof setTimeout> | undefined;
     const dismissIfCovered = (target: EventTarget | null) => {
       const focus = keyboardFocus(target);
-      if (focus !== null && coveredByToast(focus)) toast.dismiss();
+      if (focus === null || !coveredByToast(focus)) return;
+      clearTimeout(timer);
+      toast.dismiss();
     };
     const onFocusIn = (event: FocusEvent) => {
       dismissIfCovered(event.target);
     };
+    // An `Esc` an open layer (menu, popover, sheet) already took closes only that layer.
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") dismissIfCovered(document.activeElement);
+      if (event.key === "Escape" && !event.defaultPrevented)
+        dismissIfCovered(document.activeElement);
     };
-    const timers = new Set<ReturnType<typeof setTimeout>>();
-    const mounts =
-      typeof MutationObserver === "undefined"
-        ? null
-        : new MutationObserver((records) => {
-            const added = records.some((record) =>
-              Array.from(record.addedNodes).some(
-                (node) =>
-                  node instanceof Element &&
-                  (node.matches("[data-sonner-toast]") ||
-                    node.querySelector("[data-sonner-toast]") !== null),
-              ),
-            );
-            if (!added) return;
-            const timer = setTimeout(() => {
-              timers.delete(timer);
-              dismissIfCovered(document.activeElement);
-            }, TOAST_OVER_FOCUS_MS);
-            timers.add(timer);
-          });
-    mounts?.observe(document.body, { childList: true, subtree: true });
+    const mounts = new MutationObserver((records) => {
+      const added = records.some((record) =>
+        Array.from(record.addedNodes).some(
+          (node) =>
+            node instanceof Element &&
+            (node.matches("[data-sonner-toast]") ||
+              node.querySelector("[data-sonner-toast]") !== null),
+        ),
+      );
+      if (!added) return;
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        dismissIfCovered(document.activeElement);
+      }, TOAST_OVER_FOCUS_MS);
+    });
+    // Only the toaster's own subtree: sonner renders its section there, the toasts inside it.
+    if (toasts.current !== null) mounts.observe(toasts.current, { childList: true, subtree: true });
     document.addEventListener("focusin", onFocusIn);
     document.addEventListener("keydown", onKeyDown);
     return () => {
-      mounts?.disconnect();
-      for (const timer of timers) clearTimeout(timer);
+      mounts.disconnect();
+      clearTimeout(timer);
       document.removeEventListener("focusin", onFocusIn);
       document.removeEventListener("keydown", onKeyDown);
     };
-  }, []);
+  }, [toasts]);
 }
 
 type ToasterAppProps = Omit<ToasterProps, "position" | "offset" | "mobileOffset">;
@@ -279,7 +282,8 @@ type ToasterAppProps = Omit<ToasterProps, "position" | "offset" | "mobileOffset"
 // `theme` follows the app: pass its resolved theme ("light" or "dark").
 function Toaster({ theme = "light", ...props }: ToasterAppProps) {
   const { t } = useTranslation("suite");
-  useDismissToastsUnderFocus();
+  const toasts = React.useRef<HTMLDivElement>(null);
+  useDismissToastsUnderFocus(toasts);
   // The symbol shows the variant; its name is read before the message, so the variant does not rest
   // on colour and symbol alone (`GL-UI-060`).
   const named = (icon: React.ReactNode, name: string) => (
@@ -289,7 +293,7 @@ function Toaster({ theme = "light", ...props }: ToasterAppProps) {
     </>
   );
   return (
-    <div onClick={dismissAllOnToastClick}>
+    <div ref={toasts} onClick={dismissAllOnToastClick}>
       <Sonner
         theme={theme}
         className="toaster group"

@@ -3,6 +3,7 @@ import * as React from "react";
 import { toast as sonnerToast } from "sonner";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { Popover, PopoverContent, PopoverTrigger } from "./popover.js";
 import { toast, Toaster, toastDurationFor, useEditorShellToastOffset } from "./toaster.js";
 
 afterEach(() => {
@@ -110,8 +111,13 @@ describe("Toaster: focus under a toast", () => {
   // eslint-disable-next-line @typescript-eslint/unbound-method
   const matches = Element.prototype.matches;
 
-  // `focused` names the element that holds the keyboard focus before the toast appears.
-  async function renderCovered(coveredBox = rect(1000, 80, 80, 32), focused?: "covered" | "free") {
+  // `focused` names the element that holds the keyboard focus before the toast appears; `wrap` puts
+  // the covered button in a layer.
+  async function renderCovered(
+    coveredBox = rect(1000, 80, 80, 32),
+    focused?: "covered" | "free",
+    wrap: (covered: React.ReactNode) => React.ReactNode = (covered) => covered,
+  ) {
     focusVisible = true;
     vi.spyOn(Element.prototype, "matches").mockImplementation(function (
       this: Element,
@@ -132,9 +138,11 @@ describe("Toaster: focus under a toast", () => {
         <button type="button" data-testid="free">
           Free
         </button>
-        <button type="button" data-testid="covered">
-          Covered
-        </button>
+        {wrap(
+          <button type="button" data-testid="covered">
+            Covered
+          </button>,
+        )}
         <Toaster />
       </>,
     );
@@ -223,6 +231,36 @@ describe("Toaster: focus under a toast", () => {
       timeout: 500,
     });
     expect(covered).toHaveFocus();
+  });
+
+  it("gives a toast that appears later over the focus its own 1000 ms", async () => {
+    const first = await renderCovered(undefined, "covered");
+    await wait(600);
+    act(() => {
+      toast.info("Synced");
+    });
+    await screen.findByText("Synced");
+    const second = () =>
+      screen.getByText("Synced").closest("[data-sonner-toast]")?.getAttribute("data-removed");
+    // 1300 ms after the first toast, 700 ms after the second: the first one's timer is gone.
+    await wait(700);
+    expect(second()).toBe("false");
+    expect(first()).toHaveAttribute("data-removed", "false");
+  });
+
+  it("leaves the toasts open when an open layer takes the Esc", async () => {
+    const item = await renderCovered(undefined, undefined, (covered) => (
+      <Popover defaultOpen>
+        <PopoverTrigger>Open</PopoverTrigger>
+        <PopoverContent>{covered}</PopoverContent>
+      </Popover>
+    ));
+    const covered = screen.getByTestId("covered");
+    act(() => covered.focus());
+    fireEvent.keyDown(covered, { key: "Escape" });
+    await vi.waitFor(() => expect(screen.queryByTestId("covered")).toBeNull());
+    await settle();
+    expect(item()).toHaveAttribute("data-removed", "false");
   });
 
   it("keeps the normal duration of a toast away from the focus, also on Esc", async () => {
