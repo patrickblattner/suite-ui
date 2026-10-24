@@ -1,9 +1,12 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import i18n from "i18next";
 import { useState } from "react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
+import { Input } from "../ui/input.js";
+import { RadioGroup, RadioGroupItem } from "../ui/radio-group.js";
 import { TabsContent, TabsList, TabsTrigger } from "../ui/tabs.js";
+import { SettingsField } from "./settings-field.js";
 import { SettingsScaffold } from "./settings-scaffold.js";
 
 afterEach(async () => {
@@ -409,5 +412,90 @@ describe("SettingsScaffold single column and states (SUI-FEATURE-041)", () => {
     expect(screen.getByTestId("settings-general-save")).toHaveAttribute("aria-disabled", "true");
     fireEvent.submit(screen.getByTestId("settings-general-form"));
     expect(save).not.toHaveBeenCalled();
+  });
+});
+
+// #541 (GL-UI-038 §Absenden): Save locked by an invalid entry still submits the form, so its fields
+// show their errors and the first takes the focus; nothing is saved.
+describe("SettingsScaffold submit of an invalid form", () => {
+  function InvalidPage({ onSave, group = false }: { onSave: () => void; group?: boolean }) {
+    const [city, setCity] = useState("");
+    return (
+      <SettingsScaffold
+        pageKey="general"
+        title="General"
+        subtitle="The name of this instance."
+        left={
+          <>
+            {group ? (
+              <SettingsField label="Mode" htmlFor="mode" group error="Choose a mode.">
+                <RadioGroup aria-label="Mode">
+                  <RadioGroupItem value="a" aria-label="A" data-testid="mode-a" />
+                  <RadioGroupItem value="b" aria-label="B" />
+                </RadioGroup>
+              </SettingsField>
+            ) : null}
+            <SettingsField label="Name" htmlFor="name" error="Enter a name.">
+              <Input id="name" defaultValue="" />
+            </SettingsField>
+            <SettingsField
+              label="City"
+              htmlFor="city"
+              error={city === "" ? "Enter a city." : undefined}
+            >
+              <Input id="city" value={city} onChange={(event) => setCity(event.target.value)} />
+            </SettingsField>
+          </>
+        }
+        form={{ dirty: true, valid: false, onSave, onReset: () => {} }}
+      />
+    );
+  }
+
+  it("a click on the locked Save shows every error and focuses the first field", async () => {
+    const onSave = vi.fn();
+    render(<InvalidPage onSave={onSave} />);
+    expect(screen.queryByText("Enter a name.")).toBeNull();
+    const save = screen.getByTestId("settings-general-save");
+    expect(save).toHaveAttribute("aria-disabled", "true");
+    expect(save).not.toBeDisabled();
+    act(() => save.focus());
+    fireEvent.click(save);
+    expect(screen.getByText("Enter a name.")).toBeInTheDocument();
+    expect(screen.getByText("Enter a city.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByLabelText("Name")).toHaveFocus());
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("Enter in a field submits past the locked Save the same way", async () => {
+    const onSave = vi.fn();
+    render(<InvalidPage onSave={onSave} />);
+    const city = screen.getByLabelText("City");
+    act(() => city.focus());
+    // Enter in a field clicks the form's submit button, the locked Save.
+    fireEvent.click(screen.getByTestId("settings-general-save"));
+    expect(screen.getByText("Enter a name.")).toBeInTheDocument();
+    expect(screen.getByText("Enter a city.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByLabelText("Name")).toHaveFocus());
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("with a group first, the focus goes to its first option", async () => {
+    // The radio's indicator measures itself.
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    onTestFinished(() => {
+      vi.unstubAllGlobals();
+    });
+    render(<InvalidPage onSave={vi.fn()} group />);
+    fireEvent.click(screen.getByTestId("settings-general-save"));
+    expect(screen.getByText("Choose a mode.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("mode-a")).toHaveFocus());
   });
 });

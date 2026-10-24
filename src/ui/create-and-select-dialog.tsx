@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "./dialog.js";
+import { FieldSubmitContext, useFieldSubmits } from "./field-error.js";
 import { Hint } from "./hint.js";
 import { useLeaveConfirm } from "./leave-guard.js";
 
@@ -78,6 +79,8 @@ function CreateAndSelectDialog<T extends ComboboxOption = ComboboxOption>({
   const [dirty, setDirty] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [duplicate, setDuplicate] = React.useState<T | null>(null);
+  // A submit shows every field's error and focuses the first invalid field (`GL-UI-038`).
+  const [submits, submitted] = useFieldSubmits();
   const { guard, dialog } = useLeaveConfirm({ dirty: open && dirty, busy: open && busy });
   // The running submit: a close or unmount moves it on, so a result that arrives after the call site
   // closed the dialog, also one opened again since, selects nothing.
@@ -173,6 +176,7 @@ function CreateAndSelectDialog<T extends ComboboxOption = ComboboxOption>({
             onSubmit={(event) => {
               event.preventDefault();
               event.stopPropagation();
+              if (!busy) submitted(event.currentTarget);
               void submit();
             }}
           >
@@ -180,7 +184,9 @@ function CreateAndSelectDialog<T extends ComboboxOption = ComboboxOption>({
               <DialogTitle>{title}</DialogTitle>
             </DialogHeader>
             <DialogBody className="flex flex-col gap-4">
-              {children({ name: "name", defaultValue: initialName })}
+              <FieldSubmitContext.Provider value={submits}>
+                {children({ name: "name", defaultValue: initialName })}
+              </FieldSubmitContext.Provider>
               {/* A status, neither error nor warning (`SUI-FEATURE-093` rev 4): muted, with an info
                   icon, the button beside it. The live region stands while the dialog is open and
                   only fills on a duplicate, so screen readers announce it; empty, it takes no place

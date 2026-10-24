@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { cn } from "../lib/cn.js";
 import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
 import { Button } from "./button.js";
-import { formatDecimal, numpadDecimal, parseDecimal } from "./decimal-number.js";
+import { formatDecimal, numpadDecimal, parseDecimal, takesDecimal } from "./decimal-number.js";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -81,8 +81,6 @@ function GridFields({
   const id = React.useId();
   // The texts of the fields whose entry is invalid or not yet left; every other field shows the value.
   const [drafts, setDrafts] = React.useState<Partial<Record<GridNumberField, string>>>({});
-  // The invalid fields the person has left: only they show their error.
-  const [left, setLeft] = React.useState<readonly GridNumberField[]>([]);
   // The last definition of each type, to come back to.
   const [last, setLast] = React.useState<Partial<Record<GridDefinition["kind"], GridDefinition>>>(
     value === null ? {} : { [value.kind]: value },
@@ -96,7 +94,6 @@ function GridFields({
     // A value from outside (undo, another document) replaces what is being typed.
     if (JSON.stringify(value) !== JSON.stringify(sent)) {
       setDrafts({});
-      setLeft([]);
     }
   }
   const send = (next: GridDefinition | null) => {
@@ -118,7 +115,7 @@ function GridFields({
   };
 
   const setNumber = (field: GridNumberField, text: string) => {
-    if (value === null) return;
+    if (value === null || !takesDecimal(text)) return;
     if (error(field, text) !== null) {
       setDrafts((current) => ({ ...current, [field]: text }));
       return;
@@ -131,7 +128,6 @@ function GridFields({
       else rest[field] = text;
       return rest;
     });
-    setLeft((current) => current.filter((other) => other !== field));
     const next: Partial<Record<GridNumberField, number>> = { ...value };
     if (number === undefined) delete next[field];
     else next[field] = number;
@@ -161,7 +157,6 @@ function GridFields({
             value={value?.kind ?? "none"}
             onValueChange={(kind) => {
               setDrafts({});
-              setLeft([]);
               const type = kind as GridDefinition["kind"];
               send(kind === "none" ? null : (last[type] ?? START[type]));
             }}
@@ -190,7 +185,9 @@ function GridFields({
           const text =
             drafts[field] ?? (current === undefined ? "" : formatDecimal(current, language));
           const draft = drafts[field];
-          const message = draft === undefined || !left.includes(field) ? null : error(field, draft);
+          // `Field` shows it once the field is left, and takes it back once the entry is valid
+          // (`GL-UI-038`).
+          const message = draft === undefined ? null : error(field, draft);
           const unit = IN_PX.includes(field);
           return (
             <Field
@@ -242,7 +239,6 @@ function GridFields({
                       delete rest[field];
                       return rest;
                     });
-                  else if (!left.includes(field)) setLeft((current) => [...current, field]);
                 }}
                 className={unit ? "pr-9" : undefined}
                 data-testid={`grid-${field}`}

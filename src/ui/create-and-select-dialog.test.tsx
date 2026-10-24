@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { Combobox, type ComboboxOption } from "./combobox.js";
 import { CreateAndSelectDialog, type CreateResult } from "./create-and-select-dialog.js";
+import { Field } from "./field.js";
 import { Input } from "./input.js";
 
 function Harness({
@@ -417,4 +418,36 @@ it("a native field set by code makes Cancel ask Discard changes?", () => {
   act(() => screen.getByTestId("set-role").click());
   fireEvent.click(screen.getByTestId("create-and-select-cancel"));
   expect(screen.getByRole("dialog", { name: "Discard changes?" })).toBeInTheDocument();
+});
+
+// #541 (GL-UI-038 §Absenden): a submit shows every field's error and focuses the first invalid field.
+describe("CreateAndSelectDialog field errors", () => {
+  it("a submit shows the untouched fields' errors and focuses the first", async () => {
+    render(
+      <CreateAndSelectDialog
+        open
+        onOpenChange={() => {}}
+        title="Create contact"
+        initialName=""
+        onCreate={() => new Promise<CreateResult<ComboboxOption>>(() => {})}
+        onSelect={() => {}}
+      >
+        {(nameField) => (
+          <>
+            <Field label="Email" htmlFor="email" error="Enter an email.">
+              <Input id="email" name="email" />
+            </Field>
+            <Field label="Name" htmlFor="name" error="Enter a name.">
+              <Input id="name" {...nameField} />
+            </Field>
+          </>
+        )}
+      </CreateAndSelectDialog>,
+    );
+    expect(screen.queryByText("Enter an email.")).toBeNull();
+    fireEvent.submit(screen.getByLabelText("Name").closest("form")!);
+    expect(screen.getByText("Enter an email.")).toBeInTheDocument();
+    expect(screen.getByText("Enter a name.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByLabelText("Email")).toHaveFocus());
+  });
 });

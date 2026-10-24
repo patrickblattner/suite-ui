@@ -44,14 +44,13 @@ function SettingsField({
   group = false,
   children,
 }: SettingsFieldProps) {
-  const invalid = error !== undefined && error !== "";
   // The group, not its options, carries the hint, the value hint (inserted by `Field`, #539) and then
   // the help text as its description, each read once (#505, #508); the error replaces the help text and
-  // is reached by `aria-errormessage`.
+  // is reached by `aria-errormessage`, both while it shows (`Field`).
   const groupDescribedBy =
     [
       hint !== undefined ? helpIdFor(htmlFor) : undefined,
-      !invalid && help !== undefined ? `${htmlFor}-description` : undefined,
+      help !== undefined ? `${htmlFor}-description` : undefined,
     ]
       .filter((id) => id !== undefined)
       .join(" ") || undefined;
@@ -73,8 +72,6 @@ function SettingsField({
               role: "group",
               "aria-labelledby": `${htmlFor}-label`,
               "aria-describedby": groupDescribedBy,
-              "aria-invalid": invalid ? true : undefined,
-              "aria-errormessage": invalid ? `${htmlFor}-error` : undefined,
               className: "flex w-full max-w-xl flex-col gap-2",
               "data-slot": "settings-field-group",
             }

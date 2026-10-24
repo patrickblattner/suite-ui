@@ -7,6 +7,7 @@ import { cn } from "../lib/cn.js";
 import { PANEL_SURFACE_CLASS, usePanelGeometry } from "../lib/panel-geometry.js";
 import { Button } from "./button.js";
 import { FIELD_SELECTOR } from "./dialog.js";
+import { FieldSubmitContext, submitLocked, useFieldSubmits } from "./field-error.js";
 import { Hint } from "./hint.js";
 import { useLeaveConfirm } from "./leave-guard.js";
 import { Sheet, SheetDescription, SheetTitle } from "./sheet.js";
@@ -182,6 +183,13 @@ function EditPanel({
 
   const geometry = usePanelGeometry();
   const Body = view ? "div" : "form";
+  // A submit shows every field's error and focuses the first invalid field (`GL-UI-038`).
+  const [submits, submitted] = useFieldSubmits();
+  const fields = (
+    <FieldSubmitContext.Provider value={view ? null : submits}>
+      {children}
+    </FieldSubmitContext.Provider>
+  );
 
   return (
     <Sheet
@@ -300,7 +308,9 @@ function EditPanel({
                     // React bubbles a submit through the portal: an outer `<form>` the panel stands
                     // in must never submit along (`SUI-FEATURE-094`).
                     event.stopPropagation();
-                    if (busy || submitDisabled || onSubmit === undefined) return;
+                    if (busy) return;
+                    submitted(event.currentTarget as HTMLElement);
+                    if (submitDisabled || onSubmit === undefined) return;
                     run(onSubmit);
                   },
                 })}
@@ -311,7 +321,7 @@ function EditPanel({
                 data-testid={`${testIdPrefix}-body`}
                 className="relative min-h-0 flex-1 scroll-py-2 overflow-y-auto p-6 [scrollbar-gutter:stable]"
               >
-                {children}
+                {fields}
               </div>
             ) : (
               // The split follows the panel's own width, not the window's: the container is the area
@@ -338,7 +348,7 @@ function EditPanel({
                     data-slot="edit-panel-fields"
                     className="relative @panel-split:-my-1.5 @panel-split:-ms-1.5 @panel-split:min-h-0 @panel-split:scroll-py-2 @panel-split:overflow-y-auto @panel-split:py-1.5 @panel-split:ps-1.5 @panel-split:pe-[var(--page-gutter)] @panel-split:[scrollbar-gutter:stable]"
                   >
-                    {children}
+                    {fields}
                   </div>
                 </div>
               </div>
@@ -416,7 +426,10 @@ function EditPanel({
                     size="default"
                     ref={submit}
                     busy={busy}
-                    disabled={submitDisabled}
+                    {...(submitDisabled ? { "aria-disabled": true } : {})}
+                    onClickCapture={(event) => {
+                      if (submitDisabled) submitLocked(event);
+                    }}
                     data-testid={`${testIdPrefix}-submit`}
                   >
                     {submitKind === "save" ? <SaveIcon aria-hidden="true" /> : null}

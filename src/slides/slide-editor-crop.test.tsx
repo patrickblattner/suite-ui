@@ -312,9 +312,9 @@ describe("SlideEditor crop mode (SUI-FEATURE-230 rev 4)", () => {
   it("keeps text that is not a zoom with its error when the % field is left", () => {
     renderEditor();
     startCrop();
-    fireEvent.change(percent(), { target: { value: "abc" } });
+    fireEvent.change(percent(), { target: { value: "1e" } });
     fireEvent.blur(percent(), { relatedTarget: slider() });
-    expect(percent()).toHaveValue("abc");
+    expect(percent()).toHaveValue("1e");
     const error = screen.getByTestId("slide-editor-crop-zoom-error");
     expect(error).toHaveTextContent("Enter a number, such as 1.5.");
     expect(percent()).toHaveAttribute("aria-invalid", "true");

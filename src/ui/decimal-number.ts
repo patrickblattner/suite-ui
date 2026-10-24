@@ -39,6 +39,13 @@ export function parseDecimal(text: string, language: string | undefined): Parsed
   return Number.isFinite(value) ? { value } : { invalid: "tooLarge" };
 }
 
+// Whether a number field takes what is typed: only the characters a number is written with (digits,
+// separators, sign, exponent, spaces). Anything else, a letter among them, is not taken and so never
+// shown as an error (`GL-UI-038` §Was nicht darunter fällt).
+export function takesDecimal(text: string): boolean {
+  return /^[\d\s+\-.,e]*$/i.test(text);
+}
+
 // A number as a field shows it: with the UI language's decimal sign.
 export function formatDecimal(value: number, language: string | undefined): string {
   return String(value).replace(".", decimalSign(language));

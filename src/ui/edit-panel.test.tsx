@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { SidebarProvider, useSidebar } from "../shell/sidebar-provider.js";
 import { EditPanel, type EditPanelProps } from "./edit-panel.js";
+import { Field } from "./field.js";
 import { Input } from "./input.js";
 import { TagInput } from "./tag-input.js";
 
@@ -1227,5 +1228,79 @@ describe("EditPanel mode=view", () => {
     fireEvent.click(screen.getByTestId("edit-panel-cancel"));
     await waitFor(() => expect(screen.queryByTestId("edit-panel")).toBeNull());
     await waitFor(() => expect(trigger).toHaveFocus());
+  });
+});
+
+// #541 (GL-UI-038): in a panel, a field shows its error once the person has typed and left it, or on
+// submit; a submit shows every error at once and focuses the first invalid field.
+describe("EditPanel field errors", () => {
+  function Form({
+    onSubmit = () => {},
+    locked = false,
+  }: {
+    onSubmit?: () => void;
+    locked?: boolean;
+  }) {
+    const [name, setName] = useState("");
+    const [city, setCity] = useState("");
+    return (
+      <EditPanel
+        open
+        onOpenChange={() => {}}
+        title="Channel"
+        onSubmit={onSubmit}
+        submitDisabled={locked}
+        submitDisabledHint="Fill in every field."
+      >
+        <Field label="Name" htmlFor="name" error={name === "" ? "Enter a name." : undefined}>
+          <Input id="name" value={name} onChange={(event) => setName(event.target.value)} />
+        </Field>
+        <Field label="City" htmlFor="city" error={city === "" ? "Enter a city." : undefined}>
+          <Input id="city" value={city} onChange={(event) => setCity(event.target.value)} />
+        </Field>
+      </EditPanel>
+    );
+  }
+
+  it("entered and left without input, a required field shows its error only on submit", () => {
+    render(<Form />);
+    const name = screen.getByLabelText("Name");
+    fireEvent.focus(name);
+    fireEvent.blur(name);
+    expect(screen.queryByText("Enter a name.")).toBeNull();
+    expect(name).not.toHaveAttribute("aria-invalid");
+  });
+
+  it("cleared, shows no error while typing and its error once left", () => {
+    render(<Form />);
+    const name = screen.getByLabelText("Name");
+    fireEvent.focus(name);
+    fireEvent.change(name, { target: { value: "A" } });
+    fireEvent.change(name, { target: { value: "" } });
+    expect(screen.queryByText("Enter a name.")).toBeNull();
+    fireEvent.blur(name);
+    expect(screen.getByText("Enter a name.")).toBeInTheDocument();
+  });
+
+  it("a Save locked by the call site still shows the errors, and submits nothing", async () => {
+    const onSubmit = vi.fn();
+    render(<Form onSubmit={onSubmit} locked />);
+    const save = screen.getByTestId("edit-panel-submit");
+    expect(save).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(save);
+    expect(screen.getByText("Enter a name.")).toBeInTheDocument();
+    expect(screen.getByText("Enter a city.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByLabelText("Name")).toHaveFocus());
+    expect(onSubmit).not.toHaveBeenCalled();
+  });
+
+  it("a submit with two invalid fields shows both errors and focuses the first", async () => {
+    render(<Form />);
+    const city = screen.getByLabelText("City");
+    city.focus();
+    fireEvent.submit(city.closest("form")!);
+    expect(screen.getByText("Enter a name.")).toBeInTheDocument();
+    expect(screen.getByText("Enter a city.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByLabelText("Name")).toHaveFocus());
   });
 });

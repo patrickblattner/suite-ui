@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "../ui/button.js";
 import { useFocusAfterRun } from "../ui/focus-return.js";
 import { Hint } from "../ui/hint.js";
+import { submitLocked } from "../ui/field-error.js";
 
 // The left button: Reset, or Cancel (`outline`) in its place, usable while `cancelable`, also without
 // a change (`SUI-FEATURE-088`).
@@ -28,8 +29,10 @@ type SaveResetButtonsProps = {
 // the dimmed colour of their action; while a save runs, Save keeps its full colour and shows the
 // working sign in place of its icon. Save locks itself with `aria-disabled` and a trigger lock while
 // the form is clean, so it keeps the focus after a save (`GL-UI-050`, `SUI-FEATURE-120`). Locked with a
-// reason (an invalid entry, a page that did not load) it is `disabled` and hands the focus on: within
-// the row, else to the page's main content.
+// reason (an invalid entry, a page that did not load) it is locked the same way and hands the focus on
+// after a save: within the row, else to the page's main content. Clicked or reached by Enter in a field
+// while locked with a reason, it still submits its form, which shows every field's error and saves
+// nothing (`GL-UI-038` §Absenden).
 function SaveResetButtons({
   stem,
   dirty,
@@ -86,9 +89,11 @@ function SaveResetButtons({
           type={onSave === undefined ? "submit" : "button"}
           variant="success"
           size="default"
-          disabled={!valid}
-          {...(clean ? { "aria-disabled": true } : {})}
+          {...(clean || !valid ? { "aria-disabled": true } : {})}
           busy={saving}
+          onClickCapture={(event) => {
+            if (!valid) submitLocked(event);
+          }}
           onClick={(event) => {
             // Cancels the click and with it the submit of the form, Enter in a field included.
             if (clean) event.preventDefault();

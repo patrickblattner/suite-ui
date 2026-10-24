@@ -19,6 +19,7 @@ import { isTextField } from "../lib/keyboard.js";
 import { type RowUsage, useRowActionButtons } from "../list/row-actions.js";
 import { PANEL_SURFACE_CLASS, usePanelGeometry } from "../lib/panel-geometry.js";
 import { Button } from "./button.js";
+import { FieldSubmitContext, useFieldSubmits } from "./field-error.js";
 import { Hint } from "./hint.js";
 import { useLeaveConfirm } from "./leave-guard.js";
 import { Sheet, SheetTitle } from "./sheet.js";
@@ -360,6 +361,8 @@ function MediaDetailShell({
   const geometry = usePanelGeometry();
   const returnFocus = React.useRef<HTMLElement | null>(null);
   const preview = React.useRef<HTMLDivElement>(null);
+  // A submit shows every field's error and focuses the first invalid field (`GL-UI-038`).
+  const [submits, submitted] = useFieldSubmits();
   const pickSlot = React.useRef<HTMLSpanElement>(null);
   const { guard, dialog } = useLeaveConfirm({
     dirty: open && dirty,
@@ -449,6 +452,7 @@ function MediaDetailShell({
             className="flex min-h-0 flex-1 flex-col"
             onSubmit={(event) => {
               event.preventDefault();
+              if (!saving) submitted(event.currentTarget);
               if (dirty && !saving) void onSave();
             }}
           >
@@ -567,7 +571,9 @@ function MediaDetailShell({
                   {SLOTS.map((slot) =>
                     slots[slot] === undefined ? null : (
                       <div key={slot} data-slot={`media-detail-${slot}`}>
-                        {slots[slot]}
+                        <FieldSubmitContext.Provider value={submits}>
+                          {slots[slot]}
+                        </FieldSubmitContext.Provider>
                       </div>
                     ),
                   )}

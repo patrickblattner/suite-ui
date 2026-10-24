@@ -63,6 +63,8 @@ test("slide editor X: the de and es separator errors stay short in their column"
     const origin = (await editor.getByTestId("slide-editor-canvas").boundingBox())!;
     await page.mouse.click(origin.x + 140, origin.y + 130);
     await editor.getByTestId("slide-editor-x").fill("1.000,5");
+    // The error shows once the field is left (`GL-UI-038`).
+    await editor.getByTestId("slide-editor-x").press("Tab");
     const error = editor.getByTestId("slide-editor-x-error");
     await expect(error).toContainText(STRINGS[lng].slides.editor.numberSeparator);
     return lines(error);

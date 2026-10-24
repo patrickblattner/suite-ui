@@ -1,7 +1,7 @@
-import type * as React from "react";
+import * as React from "react";
 
 import { cn } from "../lib/cn.js";
-import { FieldError, FieldErrorContext } from "./field-error.js";
+import { FieldError, FieldErrorContext, FieldSubmitContext } from "./field-error.js";
 import { FieldValueHintContext } from "./field-value-hint-context.js";
 import { InlineMessage } from "./inline-message.js";
 import { Label } from "./label.js";
@@ -65,7 +65,25 @@ function Field({
   const labelId = `${htmlFor}-label`;
   const errorId = `${htmlFor}-error`;
   // An empty text is no error.
-  const invalid = error !== undefined && error !== "";
+  const current = error === "" ? undefined : error;
+  // When the error shows (`GL-UI-038`): late, once the person has typed and left the control typed in,
+  // or the form is submitted; early gone, as soon as what is typed is valid. A different error typed
+  // waits for the control to be left. Outside a form, an error that does not come from typing (a
+  // server error, a value from elsewhere) shows at once.
+  const submits = React.useContext(FieldSubmitContext);
+  // The control the person types in, until it is left.
+  const [typedIn, setTypedIn] = React.useState<EventTarget | null>(null);
+  const [armed, setArmed] = React.useState(submits === null);
+  const [shown, setShown] = React.useState(submits === null ? current : undefined);
+  const [seenSubmits, setSeenSubmits] = React.useState(submits);
+  const editing = typedIn !== null;
+  if (submits !== seenSubmits) {
+    setSeenSubmits(submits);
+    setArmed(true);
+    setShown(current);
+  } else if (armed && !editing && shown !== current) setShown(current);
+  else if (editing && shown !== undefined && shown !== current) setShown(undefined);
+  const invalid = shown !== undefined;
   const group = control?.role === "group" || control?.role === "radiogroup";
   // The options of a group each carry their own text, never the group's hints.
   const controlHint = group ? undefined : (valueHint ?? hint);
@@ -79,6 +97,22 @@ function Field({
     const ids = (control?.["aria-describedby"] ?? "").split(" ").filter((id) => id !== "");
     if (!ids.includes(valueHintId)) ids.splice(ids.indexOf(helpIdFor(htmlFor)) + 1, 0, valueHintId);
     groupControl = { ...control, "aria-describedby": ids.join(" ") };
+  }
+  // A group carries the error it shows itself, in place of the help text; its options are marked
+  // through the context.
+  if (group) {
+    const describedBy = invalid
+      ? groupControl?.["aria-describedby"]
+          ?.split(" ")
+          .filter((id) => id !== `${htmlFor}-description`)
+          .join(" ")
+      : groupControl?.["aria-describedby"];
+    groupControl = {
+      ...groupControl,
+      "aria-describedby": describedBy === "" ? undefined : describedBy,
+      "aria-invalid": invalid ? true : undefined,
+      "aria-errormessage": invalid ? errorId : undefined,
+    };
   }
   return (
     <div className={cn("flex flex-col gap-2", className)} data-slot="field" {...props}>
@@ -113,7 +147,30 @@ function Field({
           {valueHint}
         </span>
       ) : null}
-      <div {...groupControl}>
+      <div
+        {...groupControl}
+        onBlur={(event) => {
+          groupControl?.onBlur?.(event);
+          if (typedIn === null) return;
+          // Left: the control typed in, or the field for good (a control that types elsewhere).
+          if (event.target !== typedIn && event.currentTarget.contains(event.relatedTarget)) return;
+          setArmed(true);
+          setTypedIn(null);
+        }}
+        onInput={(event) => {
+          groupControl?.onInput?.(event);
+          setTypedIn(event.target);
+        }}
+        onChange={(event) => {
+          groupControl?.onChange?.(event);
+          setTypedIn(event.target);
+        }}
+        onKeyDown={(event) => {
+          groupControl?.onKeyDown?.(event);
+          // The numpad's decimal key types its sign itself and fires no `input` (`numpadDecimal`).
+          if (event.code === "NumpadDecimal" && event.defaultPrevented) setTypedIn(event.target);
+        }}
+      >
         <FieldErrorContext.Provider value={invalid ? errorId : null}>
           <FieldValueHintContext.Provider value={controlHint}>
             {children}
@@ -122,7 +179,7 @@ function Field({
       </div>
       {invalid ? (
         <FieldError id={errorId} className={messageClassName} data-testid={errorTestId}>
-          {error}
+          {shown}
         </FieldError>
       ) : warning !== undefined && warning !== "" ? (
         <InlineMessage

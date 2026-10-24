@@ -125,6 +125,36 @@ describe("GridFields (SUI-FEATURE-087)", () => {
     expect(count).not.toHaveAttribute("aria-invalid");
   });
 
+  // #541 (GL-UI-038): a grid field times its error as a `NumberField` does.
+  it("cleared, shows its error once left and takes it back on the valid keypress", () => {
+    const onChange = vi.fn();
+    render(<Fields onChange={onChange} />);
+    const count = screen.getByRole("spinbutton", { name: "Number of columns" });
+    fireEvent.focus(count);
+    fireEvent.change(count, { target: { value: "" } });
+    expect(screen.queryByTestId("grid-count-error")).toBeNull();
+    expect(count).not.toHaveAttribute("aria-invalid");
+    fireEvent.blur(count);
+    expect(screen.getByTestId("grid-count-error")).toHaveTextContent("From 1 to 24");
+    fireEvent.focus(count);
+    fireEvent.change(count, { target: { value: "8" } });
+    expect(screen.queryByTestId("grid-count-error")).toBeNull();
+    expect(count).not.toHaveAttribute("aria-invalid");
+    expect(onChange).toHaveBeenLastCalledWith({ ...COLUMNS, count: 8 });
+  });
+
+  it("does not take a letter and shows no error for it", () => {
+    const onChange = vi.fn();
+    render(<Fields onChange={onChange} />);
+    const count = screen.getByRole("spinbutton", { name: "Number of columns" });
+    fireEvent.focus(count);
+    fireEvent.change(count, { target: { value: "12x" } });
+    expect(count).toHaveValue("12");
+    fireEvent.blur(count);
+    expect(screen.queryByTestId("grid-count-error")).toBeNull();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
   it("a negative gutter names its lower bound, a fraction asks for whole pixels", async () => {
     await i18n.changeLanguage("de");
     const onChange = vi.fn();

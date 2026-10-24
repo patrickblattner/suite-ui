@@ -7,6 +7,7 @@ import {
   formatDecimal,
   numpadDecimal,
   parseDecimal,
+  takesDecimal,
 } from "../ui/decimal-number.js";
 import { Field } from "../ui/field.js";
 import { helpIdFor } from "../ui/label-with-help.js";
@@ -164,6 +165,7 @@ export function NumberInput({
   const setText = (next: string | null) =>
     setTyped(next === null ? null : { text: next, revision });
   const type = (next: string) => {
+    if (!takesDecimal(next)) return;
     setText(next);
     const number = parseDecimal(next, language);
     if (number.invalid === undefined) onValue(number.value);
@@ -209,7 +211,6 @@ export function NumberInput({
         }}
         onBlur={leave}
         className="pr-8"
-        {...(why !== null && { "aria-invalid": true })}
         data-testid={testId}
       />
       <span className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-sm text-muted-foreground">

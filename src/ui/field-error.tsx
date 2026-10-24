@@ -25,4 +25,52 @@ function useFieldErrorAttributes(): { "aria-invalid"?: true; "aria-errormessage"
   return errorId === null ? {} : { "aria-invalid": true, "aria-errormessage": errorId };
 }
 
-export { FieldError, FieldErrorContext, type FieldErrorProps, useFieldErrorAttributes };
+// What takes the focus in an invalid field.
+const FOCUSABLE =
+  'input:not([disabled]):not([type="hidden"]), textarea:not([disabled]), select:not([disabled]), button:not([disabled]), [tabindex]:not([tabindex="-1"]), [contenteditable="true"]';
+
+// The submits of the form around a field (`GL-UI-038`): their count, or null outside a form. A submit
+// shows every field's error at once.
+const FieldSubmitContext = React.createContext<number | null>(null);
+
+// The submit count a form passes to `FieldSubmitContext`, and what it calls on every submit with
+// itself. After the submit's render the focus goes to the form's first invalid field (`GL-UI-038`
+// §Absenden).
+function useFieldSubmits(): [number, (form: HTMLElement) => void] {
+  const [submit, setSubmit] = React.useState<{ count: number; form: HTMLElement | null }>({
+    count: 0,
+    form: null,
+  });
+  React.useEffect(() => {
+    const invalid = submit.form?.querySelector<HTMLElement>('[aria-invalid="true"]');
+    // A group is no focus stop itself: its first focusable control takes the focus.
+    const target = invalid?.matches(FOCUSABLE)
+      ? invalid
+      : invalid?.querySelector<HTMLElement>(FOCUSABLE);
+    target?.focus();
+  }, [submit]);
+  const submitted = React.useCallback(
+    (form: HTMLElement) => setSubmit((current) => ({ count: current.count + 1, form })),
+    [],
+  );
+  return [submit.count, submitted];
+}
+
+// The click on a submit control locked with a reason (an invalid entry), as a button handler's
+// `onClickCapture`: the lock cancels the click, yet the form is submitted, so it shows every field's
+// error (`GL-UI-038` §Absenden); the form's own check keeps it from saving. Enter in a field clicks
+// the same control.
+function submitLocked(event: React.MouseEvent<HTMLButtonElement>) {
+  event.preventDefault();
+  event.currentTarget.form?.requestSubmit();
+}
+
+export {
+  FieldError,
+  FieldErrorContext,
+  type FieldErrorProps,
+  FieldSubmitContext,
+  submitLocked,
+  useFieldErrorAttributes,
+  useFieldSubmits,
+};

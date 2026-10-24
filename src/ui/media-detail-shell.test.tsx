@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { SidebarProvider, useSidebar } from "../shell/sidebar-provider.js";
 import { EditPanel } from "./edit-panel.js";
+import { Field } from "./field.js";
 import { Input } from "./input.js";
 import {
   type MediaDetailKind,
@@ -860,5 +861,29 @@ describe("MediaDetailShell: allowed source schemes (SUI-FEATURE-089)", () => {
     const frame = screen.getByTestId("media-detail-preview").querySelector("iframe");
     expect(frame).toHaveAttribute("referrerpolicy", "no-referrer");
     expect(frame).not.toHaveAttribute("sandbox");
+  });
+});
+
+// #541 (GL-UI-038 §Absenden): a submit shows every field's error and focuses the first invalid field.
+describe("MediaDetailShell field errors", () => {
+  it("a submit shows the untouched fields' errors and focuses the first", async () => {
+    renderShell({
+      dirty: true,
+      fields: (
+        <>
+          <Field label="Title" htmlFor="title" error="Enter a title.">
+            <Input id="title" />
+          </Field>
+          <Field label="Alt" htmlFor="alt" error="Describe the image.">
+            <Input id="alt" />
+          </Field>
+        </>
+      ),
+    });
+    expect(screen.queryByText("Enter a title.")).toBeNull();
+    fireEvent.submit(screen.getByLabelText("Alt").closest("form")!);
+    expect(screen.getByText("Enter a title.")).toBeInTheDocument();
+    expect(screen.getByText("Describe the image.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByLabelText("Title")).toHaveFocus());
   });
 });

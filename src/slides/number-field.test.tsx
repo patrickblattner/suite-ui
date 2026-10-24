@@ -54,20 +54,22 @@ describe("NumberField", () => {
     ["es", "1.000,5", "Escribe p. ej. 1000,5, sin separador de miles."],
     ["en", "1e309", "The number is too large. Enter a smaller one, such as 1.5."],
     ["de", "1,5e309", "Die Zahl ist zu groß. Gib eine kleinere ein, etwa 1,5."],
-    ["es", "abc", "Introduce un número, como 1,5."],
+    ["es", "1e", "Introduce un número, como 1,5."],
   ])("in %s refuses %s and says why", async (lng, typed, message) => {
     await i18n.changeLanguage(lng);
     const onValue = renderField();
     const input = screen.getByTestId("size");
     fireEvent.change(input, { target: { value: typed } });
+    // While typing, no error yet (`GL-UI-038`).
+    expect(screen.queryByTestId("size-error")).toBeNull();
+    expect(input).not.toHaveAttribute("aria-invalid");
+    // Left, it stays as typed with its error.
+    fireEvent.blur(input);
+    expect(input).toHaveValue(typed);
     const error = screen.getByTestId("size-error");
     expect(error).toHaveTextContent(message);
     expect(input).toHaveAttribute("aria-invalid", "true");
     expect(input).toHaveAttribute("aria-errormessage", error.id);
-    // Left, it stays as typed with its error.
-    fireEvent.blur(input);
-    expect(input).toHaveValue(typed);
-    expect(screen.getByTestId("size-error")).toBeInTheDocument();
     expect(onValue).not.toHaveBeenCalled();
   });
 
@@ -128,9 +130,9 @@ describe("NumberField", () => {
   });
 });
 
-// #451 review: a `NumberInput` without an error channel (`onInvalid`) marks text that is not a
-// number invalid while it is typed, and goes back to the stored number when left, so it never
-// stands unexplained.
+// #451 review: a `NumberInput` without an error channel (`onInvalid`) goes back to the stored number
+// when left, so text that is not a number never stands unexplained; while it is typed it is no error
+// (`GL-UI-038`).
 describe("NumberInput", () => {
   it("without onInvalid, goes back to the stored number when left", () => {
     const onValue = vi.fn();
@@ -138,11 +140,77 @@ describe("NumberInput", () => {
       <NumberInput value={3} unit="px" onValue={onValue} revision={0} testId="n" aria-label="N" />,
     );
     const input = screen.getByTestId("n");
-    fireEvent.change(input, { target: { value: "abc" } });
-    expect(input).toHaveAttribute("aria-invalid", "true");
+    fireEvent.change(input, { target: { value: "1e" } });
+    expect(input).toHaveValue("1e");
+    expect(input).not.toHaveAttribute("aria-invalid");
     fireEvent.blur(input);
     expect(input).toHaveValue("3");
     expect(input).not.toHaveAttribute("aria-invalid");
+    expect(onValue).not.toHaveBeenCalled();
+  });
+});
+
+// #541 (GL-UI-038): an error shows late, once the field is left, and goes early, as soon as what is
+// typed is valid; what a number is not written with is not taken.
+describe("NumberField error timing", () => {
+  it("cleared, shows no error while focused and its error once left", () => {
+    renderField();
+    const input = screen.getByTestId("size");
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "" } });
+    expect(screen.queryByTestId("size-error")).toBeNull();
+    expect(input).not.toHaveAttribute("aria-invalid");
+    fireEvent.blur(input);
+    expect(screen.getByTestId("size-error")).toHaveTextContent("Enter a number");
+    expect(input).toHaveAttribute("aria-invalid", "true");
+  });
+
+  it("takes the error back with the keypress that makes the value valid", () => {
+    const onValue = renderField();
+    const input = screen.getByTestId("size");
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "" } });
+    fireEvent.blur(input);
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "5" } });
+    expect(screen.queryByTestId("size-error")).toBeNull();
+    expect(input).not.toHaveAttribute("aria-invalid");
+    expect(onValue).toHaveBeenLastCalledWith(5);
+  });
+
+  it("shows a new, different error only once the field is left", () => {
+    renderField();
+    const input = screen.getByTestId("size");
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "" } });
+    fireEvent.blur(input);
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "1,5,5" } });
+    expect(screen.queryByTestId("size-error")).toBeNull();
+    fireEvent.blur(input);
+    expect(screen.getByTestId("size-error")).toHaveTextContent("one decimal point");
+  });
+
+  it("counts the numpad's decimal key as typing: its error waits for the field to be left", () => {
+    renderField();
+    const input = screen.getByTestId<HTMLInputElement>("size");
+    fireEvent.focus(input);
+    input.setSelectionRange(0, 1);
+    fireEvent.keyDown(input, { key: ".", code: "NumpadDecimal" });
+    expect(input).toHaveValue(".");
+    expect(screen.queryByTestId("size-error")).toBeNull();
+    fireEvent.blur(input);
+    expect(screen.getByTestId("size-error")).toBeInTheDocument();
+  });
+
+  it("does not take a letter and shows no error for it", () => {
+    const onValue = renderField();
+    const input = screen.getByTestId("size");
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "3a" } });
+    expect(input).toHaveValue("3");
+    fireEvent.blur(input);
+    expect(screen.queryByTestId("size-error")).toBeNull();
     expect(onValue).not.toHaveBeenCalled();
   });
 });
