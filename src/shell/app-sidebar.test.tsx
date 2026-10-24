@@ -69,6 +69,49 @@ describe("AppSidebar", () => {
     expect(within(entries).getByTestId("nav-users")).toHaveTextContent("Users");
   });
 
+  // `SUI-FEATURE-107` AC1–AC3: a keyboard press (click `detail` 0) on a section moves the focus to the
+  // section's active first entry, the back link back to the section's entry; a pointer press moves none.
+  describe.each([false, true])("focus after a list switch (collapsed: %s)", (collapsed) => {
+    function renderAt(route: string) {
+      renderSidebar(route);
+      if (collapsed) fireEvent.click(screen.getByTestId("sidebar-trigger"));
+      expect(screen.getByTestId("app-sidebar")).toHaveAttribute(
+        "data-state",
+        collapsed ? "collapsed" : "expanded",
+      );
+    }
+    afterEach(() => {
+      if (collapsed) fireEvent.click(screen.getByTestId("sidebar-trigger"));
+    });
+
+    it("a section opened by keyboard focuses its active first entry", () => {
+      renderAt("/dashboard");
+      const section = screen.getByTestId("nav-section-settings");
+      act(() => section.focus());
+      fireEvent.click(section, { detail: 0 });
+      const first = screen.getByTestId("nav-settings-general");
+      expect(first).toHaveAttribute("aria-current", "page");
+      expect(first).toHaveFocus();
+    });
+
+    it("the back link by keyboard focuses the entry of the section just left", () => {
+      renderAt("/settings/ai");
+      const back = screen.getByTestId("nav-back");
+      act(() => back.focus());
+      fireEvent.click(back, { detail: 0 });
+      expect(screen.getByTestId("nav-section-settings")).toHaveFocus();
+    });
+
+    it("a pointer press on a section or the back link moves no focus", () => {
+      renderAt("/dashboard");
+      fireEvent.click(screen.getByTestId("nav-section-settings"), { detail: 1 });
+      expect(screen.getByTestId("nav-settings-general")).not.toHaveFocus();
+      fireEvent.click(screen.getByTestId("nav-back"), { detail: 1 });
+      expect(screen.getByTestId("nav-section-settings")).not.toHaveFocus();
+      expect(document.activeElement).toBe(document.body);
+    });
+  });
+
   it("the instance name leads to the dashboard", () => {
     renderSidebar("/ideas");
     fireEvent.click(screen.getByTestId("sidebar-instance-name"));

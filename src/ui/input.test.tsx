@@ -64,6 +64,8 @@ describe("date and time fields", () => {
       render(<Input type={type} aria-label="When" />);
       const input = screen.getByLabelText("When");
       expect(input).toHaveClass("[&:focus-within:not([data-pointer-focus])]:focus-ring");
+      // `SUI-FEATURE-107`: no browser outline on the calendar button beside the field's ring.
+      expect(input).toHaveClass("[&::-webkit-calendar-picker-indicator]:outline-none");
       expect(input).not.toHaveClass("focus-visible:focus-ring");
       expect(input).not.toHaveAttribute("data-pointer-focus");
 

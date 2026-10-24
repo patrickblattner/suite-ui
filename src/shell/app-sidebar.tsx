@@ -94,6 +94,19 @@ function AppSidebar({
     pathname,
   );
 
+  // The focus after a list switch by keyboard (`SUI-FEATURE-107`, `GL-UI-050`): the switch unmounts the
+  // pressed control, so the focus goes to the active first entry of the opened section, or back to the
+  // entry of the section just left, never to `<body>` or the back link. A pointer press (`detail` > 0)
+  // arms nothing.
+  const focusAfterSwitch = React.useRef<string | null>(null);
+  const activeSectionKey = activeSection?.key;
+  React.useEffect(() => {
+    const selector = focusAfterSwitch.current;
+    if (selector === null) return;
+    focusAfterSwitch.current = null;
+    element?.querySelector<HTMLElement>(selector)?.focus();
+  }, [activeSectionKey, element]);
+
   // Collapsed, an entry shows only its icon, so its hint names it first.
   function hintFor(label: string, hintKey: string | undefined): string | undefined {
     const description = hintKey !== undefined ? i18n.t(hintKey) : undefined;
@@ -182,7 +195,14 @@ function AppSidebar({
             data-testid={`nav-section-${section.key}`}
             aria-label={isOpen ? undefined : label}
             // The route change alone switches the sidebar into the section.
-            onClick={() => first && void navigate(first.to)}
+            onClick={(event) => {
+              if (!first) return;
+              if (event.detail === 0) {
+                focusAfterSwitch.current =
+                  '[data-testid="nav-section-entries"] [aria-current="page"]';
+              }
+              void navigate(first.to);
+            }}
             className={cn(rowClass, !isOpen && "justify-center px-0")}
           >
             <Icon className="size-4 shrink-0" aria-hidden="true" />
@@ -277,7 +297,12 @@ function AppSidebar({
                     type="button"
                     data-testid="nav-back"
                     aria-label={t("nav.backToDashboard")}
-                    onClick={() => void navigate(homePath)}
+                    onClick={(event) => {
+                      if (event.detail === 0) {
+                        focusAfterSwitch.current = `[data-testid="nav-section-${activeSection.key}"]`;
+                      }
+                      void navigate(homePath);
+                    }}
                     className={cn(rowClass, "font-medium", !isOpen && "justify-center px-0")}
                   >
                     <ChevronLeftIcon className="size-4 shrink-0" aria-hidden="true" />
