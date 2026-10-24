@@ -1,10 +1,11 @@
-import { ArchiveIcon, CopyIcon, XIcon } from "lucide-react";
+import { ArchiveIcon, CopyIcon, Trash2Icon, XIcon } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { MemoryRouter } from "react-router-dom";
 
 import { RowActions, type RowActionSet } from "../src/list/row-actions.js";
 import { cn } from "../src/lib/cn.js";
+import { ConfirmDeleteDialog } from "../src/ui/confirm-delete-dialog.js";
 import { ConfirmDialog } from "../src/ui/confirm-dialog.js";
 import { PreviewFrame } from "../src/ui/preview-frame.js";
 import { type PreviewDevice, PreviewToolbar } from "../src/ui/preview-toolbar.js";
@@ -29,6 +30,8 @@ const LABELS = {
     discard: "Discard draft",
     archived: "Home archived.",
     restored: "Home restored.",
+    deleteText: "The page and its drafts are removed for good.",
+    deleted: "Home deleted.",
     post: "Post",
     page: "Page",
     news: "Spring newsletter",
@@ -49,6 +52,8 @@ const LABELS = {
     discard: "Entwurf verwerfen",
     archived: "Startseite archiviert.",
     restored: "Startseite wiederhergestellt.",
+    deleteText: "Die Seite und ihre Entwürfe werden endgültig entfernt.",
+    deleted: "Startseite gelöscht.",
     post: "Beitrag",
     page: "Seite",
     news: "Frühlings-Newsletter",
@@ -69,6 +74,8 @@ const LABELS = {
     discard: "Descartar borrador",
     archived: "Inicio archivado.",
     restored: "Inicio restaurado.",
+    deleteText: "La página y sus borradores se eliminan para siempre.",
+    deleted: "Inicio eliminado.",
     post: "Entrada",
     page: "Página",
     news: "Boletín de primavera",
@@ -80,7 +87,8 @@ const LABELS = {
 
 const CONTENT_LANGUAGES = ["de", "en", "es"] as const;
 // `?receipt=1` puts the row with its menu first and full width, so its ⋯ lies under the toast column
-// and the Archive receipt appears over the focus returned to it (`SUI-FEATURE-101` rev 4).
+// and a receipt appears over the focus returned to it; its last entry is then Delete, whose receipt
+// has no action, beside Archive, whose receipt offers Undo (`SUI-FEATURE-101` rev 5).
 const RECEIPT = new URLSearchParams(window.location.search).get("receipt") === "1";
 
 // The column widths the narrow toolbar is shown at (`SUI-FEATURE-067` AC 5).
@@ -150,6 +158,7 @@ function RowWithMenu() {
   const { t, i18n } = useTranslation("suite");
   const labels = LABELS[i18n.language as keyof typeof LABELS] ?? LABELS.en;
   const [archiving, setArchiving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const archive = () => {
     setArchiving(false);
     toast.success(labels.archived, {
@@ -170,12 +179,19 @@ function RowWithMenu() {
           onSelect: () => setArchiving(true),
         },
         // A loss is red and stands last, after a separator.
-        {
-          label: labels.discard,
-          icon: <XIcon aria-hidden="true" />,
-          onSelect: () => {},
-          destructive: true,
-        },
+        RECEIPT
+          ? {
+              label: t("actions.delete"),
+              icon: <Trash2Icon aria-hidden="true" />,
+              onSelect: () => setDeleting(true),
+              destructive: true,
+            }
+          : {
+              label: labels.discard,
+              icon: <XIcon aria-hidden="true" />,
+              onSelect: () => {},
+              destructive: true,
+            },
       ],
     },
   };
@@ -204,6 +220,17 @@ function RowWithMenu() {
         confirmLabel={labels.archive}
         confirmHint={labels.archiveHint}
         data-testid="archive-confirm"
+      />
+      <ConfirmDeleteDialog
+        open={deleting}
+        onOpenChange={setDeleting}
+        onConfirm={() => {
+          setDeleting(false);
+          toast.success(labels.deleted);
+        }}
+        object={labels.entry}
+        description={labels.deleteText}
+        data-testid="delete-confirm"
       />
     </div>
   );

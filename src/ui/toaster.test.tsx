@@ -112,12 +112,18 @@ describe("Toaster: focus under a toast", () => {
   const matches = Element.prototype.matches;
 
   // `focused` names the element that holds the keyboard focus before the toast appears; `wrap` puts
-  // the covered button in a layer.
-  async function renderCovered(
+  // the covered button in a layer; `action` gives the toast its Undo.
+  async function renderCovered({
     coveredBox = rect(1000, 80, 80, 32),
-    focused?: "covered" | "free",
-    wrap: (covered: React.ReactNode) => React.ReactNode = (covered) => covered,
-  ) {
+    focused,
+    wrap = (covered) => covered,
+    action = true,
+  }: {
+    coveredBox?: DOMRect;
+    focused?: "covered" | "free";
+    wrap?: (covered: React.ReactNode) => React.ReactNode;
+    action?: boolean;
+  } = {}) {
     focusVisible = true;
     vi.spyOn(Element.prototype, "matches").mockImplementation(function (
       this: Element,
@@ -148,7 +154,10 @@ describe("Toaster: focus under a toast", () => {
     );
     if (focused) act(() => screen.getByTestId(focused).focus());
     act(() => {
-      toast.success("Saved", { action: { label: "Undo", onClick: () => undefined } });
+      toast.success(
+        "Saved",
+        action ? { action: { label: "Undo", onClick: () => undefined } } : undefined,
+      );
     });
     await screen.findByText("Saved");
     return () => document.querySelector("[data-sonner-toast]");
@@ -177,7 +186,7 @@ describe("Toaster: focus under a toast", () => {
 
   it("closes the toasts when one covers only the focus ring", async () => {
     // Just below the toast: only the ring's 4 px reach under it.
-    const item = await renderCovered(rect(800, 122, 120, 32));
+    const item = await renderCovered({ coveredBox: rect(800, 122, 120, 32) });
     fireEvent.keyDown(document.body, { key: "Tab" });
     act(() => screen.getByTestId("covered").focus());
     await vi.waitFor(() => expect(item()?.getAttribute("data-removed") ?? "true").toBe("true"));
@@ -214,7 +223,7 @@ describe("Toaster: focus under a toast", () => {
   const wait = (ms: number) => act(() => new Promise((resolve) => setTimeout(resolve, ms)));
 
   it("keeps a toast that appears over the focus 1000 ms, then closes all", async () => {
-    const item = await renderCovered(undefined, "covered");
+    const item = await renderCovered({ focused: "covered", action: false });
     await wait(700);
     expect(item()).toHaveAttribute("data-removed", "false");
     await vi.waitFor(() => expect(item()?.getAttribute("data-removed") ?? "true").toBe("true"), {
@@ -224,7 +233,7 @@ describe("Toaster: focus under a toast", () => {
   });
 
   it("closes a toast over the focus on Esc before 1000 ms, the focus stays", async () => {
-    const item = await renderCovered(undefined, "covered");
+    const item = await renderCovered({ focused: "covered", action: false });
     const covered = screen.getByTestId("covered");
     fireEvent.keyDown(covered, { key: "Escape" });
     await vi.waitFor(() => expect(item()?.getAttribute("data-removed") ?? "true").toBe("true"), {
@@ -234,7 +243,7 @@ describe("Toaster: focus under a toast", () => {
   });
 
   it("gives a toast that appears later over the focus its own 1000 ms", async () => {
-    const first = await renderCovered(undefined, "covered");
+    const first = await renderCovered({ focused: "covered", action: false });
     await wait(600);
     act(() => {
       toast.info("Synced");
@@ -249,12 +258,14 @@ describe("Toaster: focus under a toast", () => {
   });
 
   it("leaves the toasts open when an open layer takes the Esc", async () => {
-    const item = await renderCovered(undefined, undefined, (covered) => (
-      <Popover defaultOpen>
-        <PopoverTrigger>Open</PopoverTrigger>
-        <PopoverContent>{covered}</PopoverContent>
-      </Popover>
-    ));
+    const item = await renderCovered({
+      wrap: (covered) => (
+        <Popover defaultOpen>
+          <PopoverTrigger>Open</PopoverTrigger>
+          <PopoverContent>{covered}</PopoverContent>
+        </Popover>
+      ),
+    });
     const covered = screen.getByTestId("covered");
     act(() => covered.focus());
     fireEvent.keyDown(covered, { key: "Escape" });
@@ -265,10 +276,41 @@ describe("Toaster: focus under a toast", () => {
 
   it("keeps the normal duration of a toast away from the focus, also on Esc", async () => {
     // The success toast's own duration: 2000 ms plus 50 ms for its one word.
-    const item = await renderCovered(undefined, "free");
+    const item = await renderCovered({ focused: "free" });
     fireEvent.keyDown(screen.getByTestId("free"), { key: "Escape" });
     await wait(1300);
     expect(item()).toHaveAttribute("data-removed", "false");
+  });
+  // `SUI-FEATURE-101` rev 5: a toast with an action keeps its duration over the focus.
+  it("keeps a toast with an action that appears over the focus past 1000 ms", async () => {
+    const item = await renderCovered({ focused: "covered" });
+    await wait(1300);
+    expect(item()).toHaveAttribute("data-removed", "false");
+  });
+
+  it("names the action and Alt+T in the live region", async () => {
+    const item = await renderCovered({ focused: "covered" });
+    expect(item()?.querySelector("[data-title] .sr-only")).toHaveTextContent("Undo with Alt+T");
+    expect(item()?.closest("[aria-live=polite]")).not.toBeNull();
+  });
+
+  it("closes a toast with an action on the next keyboard move under it", async () => {
+    const item = await renderCovered({ focused: "covered" });
+    act(() => screen.getByTestId("free").focus());
+    await settle();
+    expect(item()).toHaveAttribute("data-removed", "false");
+    act(() => screen.getByTestId("covered").focus());
+    await vi.waitFor(() => expect(item()?.getAttribute("data-removed") ?? "true").toBe("true"), {
+      timeout: 500,
+    });
+  });
+
+  it("closes a toast with an action over the focus on Esc", async () => {
+    const item = await renderCovered({ focused: "covered" });
+    fireEvent.keyDown(screen.getByTestId("covered"), { key: "Escape" });
+    await vi.waitFor(() => expect(item()?.getAttribute("data-removed") ?? "true").toBe("true"), {
+      timeout: 500,
+    });
   });
 });
 

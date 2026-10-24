@@ -33,6 +33,8 @@ export const en = {
     // The others of the page's operations, in the compact status slot's name (`SUI-FEATURE-051`).
     more_one: "{{n}} more",
     more_other: "{{n}} more",
+    // A toast action's key route: sonner's hotkey focuses the toasts (`SUI-FEATURE-101` rev 5).
+    actionKey: "{{action}} with Alt+T",
   },
   // The word before an `InlineMessage` text that only screen readers read (`SUI-FEATURE-096`).
   inline: {
