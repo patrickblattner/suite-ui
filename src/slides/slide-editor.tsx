@@ -2527,8 +2527,10 @@ function Editor({
         data-crop-fields=""
         data-testid="slide-editor-crop-fields"
         onBlur={(event) => {
-          // Leaving a crop field ends the % field's typing: the next starts from the crop then.
+          // Leaving a crop field ends the % field's typing: the next starts from the crop then. An
+          // arrow key whose keyup lands elsewhere leaves no step mark behind either (#502).
           setCropZoomRun((run) => ({ ...run, from: undefined }));
+          cropZoomStep.current = false;
           const byField = cropByField.current;
           // Focus going to the canvas leaves the field's crop to the canvas press that took it.
           if (event.relatedTarget !== canvas.current) cropByField.current = undefined;

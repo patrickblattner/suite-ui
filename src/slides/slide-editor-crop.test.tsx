@@ -286,6 +286,26 @@ describe("SlideEditor crop mode (SUI-FEATURE-230 rev 4)", () => {
     expect(offsetX).toHaveValue("0");
   });
 
+  // #502: an arrow key in the % field whose keyup never reaches it leaves no step mark once focus
+  // leaves, so a later paste counts as typing and zooms from the crop it started with.
+  it("counts a paste as typing after an arrow key left the % field without its keyup", () => {
+    renderEditor();
+    startCrop();
+    setZoom("300");
+    const offsetX = screen.getByTestId<HTMLInputElement>("slide-editor-crop-offsetX");
+    fireEvent.change(offsetX, { target: { value: "100" } });
+    fireEvent.blur(offsetX, { relatedTarget: percent() });
+    fireEvent.keyDown(percent(), { key: "ArrowDown" });
+    expect(slider()).toHaveAttribute("aria-valuetext", "299%");
+    fireEvent.blur(percent(), { relatedTarget: slider() });
+    // Pasted 100, then 200: as typing, both zoom from 299 %, so the shift is kept, scaled.
+    fireEvent.change(percent(), { target: { value: "100" } });
+    fireEvent.change(percent(), { target: { value: "200" } });
+    expect(slider()).toHaveAttribute("aria-valuetext", "200%");
+    // 100 × 299 / 300 × 200 / 299.
+    expect(offsetX).toHaveValue("66.67");
+  });
+
   // #451 review (GL-UI-037, GL-UI-060): text that is not a number stays in the % field once it is
   // left, marked invalid, with an error that names the right form; a number clears it.
   it("keeps text that is not a zoom with its error when the % field is left", () => {

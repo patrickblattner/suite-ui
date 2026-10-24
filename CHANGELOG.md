@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — #502, SUI-FEATURE-230: leaving the crop fields clears the % field's step mark
+
+- **Crop zoom step mark (#502):** an arrow key in the crop zoom % field marks the change it makes as a step, and its keyup cleared the mark. A keyup that never reached the crop fields (focus moved away while the key was held) left the mark set, so a later paste into the field counted as a step and zoomed from the crop as it was instead of from the crop its typing started with. Leaving the crop fields now clears the mark.
+- **Tests (#502):** ArrowDown on the % field without its keyup, focus leaves, then a paste of 100 and 200 counts as typing: the zoom is 200 % with the shift kept, scaled.
+
+**Migration:** none; no API, `data-testid`, strings or baselines change.
+
 ## Unreleased — #493, SUI-FEATURE-230: no unreachable crop rest beside a bordered image
 
 - **Crop rest of a bordered image (#493):** the view draws a bordered image shifted by its border, so the image's last two border widths on the right and at the bottom never show at any crop. In crop mode the `SlideEditor` left them in the dimmed rest, a strip one border wide past the frame's right and bottom edge at 100 % that no drag, slider, field or key could bring in. The dimmed rest and the area where a press shifts the image now leave them out: at 100 % a bordered image shows no rest, zoomed its rest is the same on all four sides. The cut-out of the frame stays whole, so the border stays in view on all four sides. A press on the old strip applies the crop as any press beside the image does. The view itself is left as it is, because the ticket's scope keeps the crop result and bordered images outside crop mode unchanged.
