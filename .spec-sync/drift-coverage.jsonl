@@ -622,3 +622,4 @@
 {"ts":"2026-10-24T09:44:18.109Z","key":"PROC-RUN-010","from":7,"to":8,"disposition":"editorial","ref":"host path casing ~/docker in ops runbooks; no code impact in suite-ui"}
 {"ts":"2026-10-24T09:44:18.109Z","key":"PROC-RUN-011","from":7,"to":8,"disposition":"editorial","ref":"host path casing ~/docker in ops runbooks; no code impact in suite-ui"}
 {"ts":"2026-10-24T10:44:15.558Z","key":"SUI-FEATURE-101","from":4,"to":5,"disposition":"ticket","ref":"524"}
+{"ts":"2026-10-24T11:26:28.624Z","key":"SUI-FEATURE-107","from":2,"to":3,"disposition":"ticket","ref":"529"}
