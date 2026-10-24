@@ -11,8 +11,6 @@ type SettingsFieldProps = {
   // The explanation of the field, as a hover hint on the label (`GL-UI-017`); without `valueHint` the
   // input carries it too (`Field hint`).
   hint?: string;
-  // What the value counts, its unit, the effect of a choice, as the input's own hint (`Field valueHint`).
-  valueHint?: string;
   // The help text under the input, under the id `${htmlFor}-description`.
   help?: React.ReactNode;
   // The field is invalid: this text, which says how to fix it, stands under the input in place of the
@@ -20,11 +18,21 @@ type SettingsFieldProps = {
   error?: string;
   // `short` for a number, a time or a port: the input ends at 12rem instead of 36rem.
   size?: "default" | "short";
-  // The children are an option group (radios, several checkboxes), named by the label.
-  group?: boolean;
   // The input, or with `group` the options.
   children: React.ReactNode;
-};
+} & (
+  | {
+      // What the value counts, its unit, the effect of a choice, as the input's own hint (`Field valueHint`).
+      valueHint?: string;
+      group?: false;
+    }
+  | {
+      // The children are an option group (radios, several checkboxes), named by the label. Its options
+      // each carry their own text, so the field takes no `valueHint` (#507).
+      group: true;
+      valueHint?: never;
+    }
+);
 
 // One field of a settings page (`SUI-FEATURE-042`): the label above the input, the help text under it,
 // 8 px apart. The input fills its frame up to 36rem (`short` up to 12rem); label and help text end at

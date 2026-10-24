@@ -15,6 +15,21 @@ import { Textarea } from "../ui/textarea.js";
 import { SettingsField } from "./settings-field.js";
 import { SettingsSection } from "./settings-section.js";
 
+// #507: an option group takes no `valueHint`, its options carry their own text. The marked line must
+// stay a type error, or `npm run typecheck` fails on the unused directive.
+export const valueHintOnlyWithoutGroup = [
+  <SettingsField key="input" label="Port" htmlFor="port" valueHint="1 to 65535.">
+    <input id="port" />
+  </SettingsField>,
+  <SettingsField key="group" label="Mode" htmlFor="mode" group hint="How it runs.">
+    <input type="radio" aria-label="A" />
+  </SettingsField>,
+  // @ts-expect-error a group takes no valueHint
+  <SettingsField key="group-hinted" label="Mode" htmlFor="mode" group valueHint="Dropped.">
+    <input type="radio" aria-label="A" />
+  </SettingsField>,
+];
+
 describe("SettingsField", () => {
   it("labels the input and shows the help text under it", () => {
     render(
@@ -512,15 +527,10 @@ describe("SettingsField valueHint", () => {
     expect(hover(toggle)).toBe("Sends a mail on every change.");
   });
 
-  it("the options of a group take none of the group's hints", () => {
+  // A group takes no valueHint at all (#507, `valueHintOnlyWithoutGroup`).
+  it("the options of a group do not take the group's hint", () => {
     render(
-      <SettingsField
-        label="Channels"
-        htmlFor="channels"
-        group
-        hint="Where alerts go."
-        valueHint="Each channel sends on its own."
-      >
+      <SettingsField label="Channels" htmlFor="channels" group hint="Where alerts go.">
         <Checkbox id="channel-mail" aria-label="Mail" />
       </SettingsField>,
     );

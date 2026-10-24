@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — #507, GL-UI-017: a SettingsField group takes no valueHint
+
+- **SettingsField group (#507):** a `valueHint` on a `SettingsField` with `group` reached nobody, because the options of a group take no field hint. `SettingsFieldProps` now rejects `valueHint` together with `group` at type level, so the text can no longer be written and lost. Without `group` nothing changes.
+- **Tests (#507):** a type test fails the typecheck if `group` and `valueHint` are accepted together again.
+
+**Migration:** a caller passing `valueHint` to a `SettingsField` with `group` no longer compiles; drop the `valueHint` and put the text on the options. No strings, `data-testid`s or baselines change.
+
 ## Unreleased — #502, SUI-FEATURE-230: leaving the crop fields clears the % field's step mark
 
 - **Crop zoom step mark (#502):** an arrow key in the crop zoom % field marks the change it makes as a step, and its keyup cleared the mark. A keyup that never reached the crop fields (focus moved away while the key was held) left the mark set, so a later paste into the field counted as a step and zoomed from the crop as it was instead of from the crop its typing started with. Leaving the crop fields now clears the mark.
