@@ -1127,17 +1127,28 @@ function Editor({
   })();
   // An insert the document refuses is named in an error toast and nothing changes: a page at its
   // element limit (Codex #362 CX1) says so, any other broken rule gets the generic error. The toast
-  // has one id, so repeated presses replace it rather than stack (#365).
+  // has one id, so repeated presses replace it rather than stack (#365). `count` picks the singular
+  // or plural form of keys that have both (#540): for the limit, the elements in groups counted.
   const insertFits = (
     next: SlideDocument,
-    { refused = "slides.editor.insertRefused", failed = "slides.editor.insertFailed" } = {},
+    {
+      refused = "slides.editor.insertRefused",
+      failed = "slides.editor.insertFailed",
+      count,
+    }: { refused?: string; failed?: string; count?: { refused: number; failed: number } } = {},
   ) => {
     const result = safeParseSlideDocument(next);
     if (result.ok) return true;
     const full = result.error.issues.some((issue) => issue.code === "too-many-elements");
-    toast.error(t(full ? refused : failed), {
-      id: INSERT_REFUSED_TOAST,
-    });
+    toast.error(
+      t(
+        full ? refused : failed,
+        count === undefined ? {} : { count: full ? count.refused : count.failed },
+      ),
+      {
+        id: INSERT_REFUSED_TOAST,
+      },
+    );
     return false;
   };
   // Put on the page of the document as it is when it lands (a picked medium arrives later). The
@@ -1485,6 +1496,16 @@ function Editor({
     copySelection(of);
     removeSelected(of);
   };
+  // The copies with the elements in their groups, as the element limit counts them; a duplicate of
+  // an element in a group lies in that group.
+  const counted = (result: { document: SlideDocument; ids: string[] }) => {
+    const ids = new Set(result.ids);
+    let count = 0;
+    eachElement(result.document.pages[page]?.elements ?? [], (element) => {
+      if (ids.has(element.id)) eachElement([element], () => (count += 1));
+    });
+    return count;
+  };
   const placeCopies = (result: { document: SlideDocument; ids: string[] }) => {
     // Copies, not a choice of element, so the generic error's advice does not apply (#514).
     if (
@@ -1492,6 +1513,7 @@ function Editor({
       !insertFits(result.document, {
         refused: "slides.editor.pasteRefused",
         failed: "slides.editor.pasteFailed",
+        count: { refused: counted(result), failed: result.ids.length },
       })
     ) {
       return;

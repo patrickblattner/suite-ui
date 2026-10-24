@@ -774,8 +774,10 @@ export const en = {
       duplicate: "Duplicate",
       duplicateHint: "Puts a copy of the selection just right of and below it.",
       duplicateUnavailable: "Duplicate: possible once an element is selected.",
-      pasteRefused: "The page can’t take that many elements. Remove some and try again.",
-      pasteFailed: "These elements can’t be placed on the page.",
+      pasteRefused_one: "The page can’t take another element. Remove one and try again.",
+      pasteRefused_other: "The page can’t take that many elements. Remove some and try again.",
+      pasteFailed_one: "This element can’t be placed on the page. The page is unchanged.",
+      pasteFailed_other: "These elements can’t be placed on the page. The page is unchanged.",
       mediaNotAdopted_one:
         "Pasted, but the media item {{names}} could not be brought along. Its image shows a placeholder until you replace it.",
       mediaNotAdopted_other:

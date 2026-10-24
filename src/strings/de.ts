@@ -759,9 +759,12 @@ export const de: SuiteStrings = {
       duplicate: "Duplizieren",
       duplicateHint: "Setzt eine Kopie der Auswahl leicht nach rechts unten versetzt darüber.",
       duplicateUnavailable: "Duplizieren: möglich, sobald ein Element ausgewählt ist.",
-      pasteRefused:
+      pasteRefused_one:
+        "Die Seite fasst kein weiteres Element. Entferne eines und versuche es erneut.",
+      pasteRefused_other:
         "So viele Elemente passen nicht auf die Seite. Entferne einige und versuche es erneut.",
-      pasteFailed: "Diese Elemente können nicht auf die Seite.",
+      pasteFailed_one: "Dieses Element kann nicht auf die Seite. Die Seite bleibt unverändert.",
+      pasteFailed_other: "Diese Elemente können nicht auf die Seite. Die Seite bleibt unverändert.",
       mediaNotAdopted_one:
         "Eingefügt, aber das Medium {{names}} konnte nicht übernommen werden. Sein Bild zeigt einen Platzhalter, bis du es ersetzt.",
       mediaNotAdopted_other:

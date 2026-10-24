@@ -1022,13 +1022,50 @@ describe("SlideEditor element clipboard", () => {
       key("v");
       key("d");
       expect(error).toHaveBeenCalledTimes(2);
+      // A group of two counts as three elements, as the limit counts them (#540).
       expect(error).toHaveBeenLastCalledWith(
         "The page can’t take that many elements. Remove some and try again.",
         expect.anything(),
       );
       expect(screen.getAllByTestId("slide-editor-layer")).toHaveLength(7);
+      limits.maxElements = 7;
+      click(50, 50);
+      key("d");
+      expect(error).toHaveBeenLastCalledWith(
+        "The page can’t take another element. Remove one and try again.",
+        expect.anything(),
+      );
+      expect(screen.getAllByTestId("slide-editor-layer")).toHaveLength(7);
     } finally {
       limits.maxElements = max;
+    }
+  });
+
+  it("names one or several elements it cannot place and that the page is unchanged (#540)", () => {
+    const error = vi.spyOn(toast, "error").mockReturnValue(1);
+    const limits = SLIDE_LIMITS as { maxGroupDepth: number };
+    const depth = limits.maxGroupDepth;
+    renderEditor();
+    // From here the page's group breaks a rule other than the element limit.
+    limits.maxGroupDepth = 0;
+    try {
+      click(50, 50);
+      key("d");
+      expect(error).toHaveBeenLastCalledWith(
+        "This element can’t be placed on the page. The page is unchanged.",
+        expect.anything(),
+      );
+      click(350, 50, true);
+      key("c");
+      key("v");
+      expect(error).toHaveBeenLastCalledWith(
+        "These elements can’t be placed on the page. The page is unchanged.",
+        expect.anything(),
+      );
+      fireEvent.click(screen.getByTestId("drawer-layers"));
+      expect(screen.getAllByTestId("slide-editor-layer")).toHaveLength(7);
+    } finally {
+      limits.maxGroupDepth = depth;
     }
   });
 

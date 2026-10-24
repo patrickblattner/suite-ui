@@ -124,9 +124,10 @@ describe("SlideEditor insert refused by a broken rule (#446)", () => {
     fireEvent.keyDown(canvas, { key: "c", ctrlKey: true });
     state.refuse = true;
     fireEvent.keyDown(canvas, { key: "v", ctrlKey: true });
-    expect(error).toHaveBeenCalledWith("These elements can’t be placed on the page.", {
-      id: "slide-editor-insert-refused",
-    });
+    expect(error).toHaveBeenCalledWith(
+      "This element can’t be placed on the page. The page is unchanged.",
+      { id: "slide-editor-insert-refused" },
+    );
     expect(error.mock.calls[0]![0]).not.toMatch(/Choose another/);
     expect(screen.getAllByTestId("editor-undo")[0]).toHaveAttribute("aria-disabled", "true");
     error.mockRestore();
