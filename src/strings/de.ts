@@ -624,6 +624,7 @@ export const de: SuiteStrings = {
       chartTooLarge:
         "{{category}} – {{names}}: Die Zahl ist zu groß für das Diagramm. Gib eine kleinere ein, etwa 1,5.",
       chartNotInPie: "Im Kreisdiagramm nicht gezeigt",
+      chartNotInPieShort: "Nicht im Kreis",
       chartNegativeInPie: "Ein Kreisdiagramm lässt Werte unter 0 weg.",
       chartRemoveCategory: "{{name}} entfernen",
       chartRemoveSeries: "{{name}} entfernen",

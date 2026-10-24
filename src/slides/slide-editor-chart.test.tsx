@@ -200,6 +200,40 @@ describe("ChartData", () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
+  // #536: in a pie the series not drawn show a short note; the whole sentence is the name field's
+  // description, beside its hint. The first series has neither.
+  it("marks the series a pie leaves out briefly and describes them in full (#536)", async () => {
+    for (const [lng, short, full] of [
+      ["en", "Not in pie", "Not shown in a pie chart"],
+      ["de", "Nicht im Kreis", "Im Kreisdiagramm nicht gezeigt"],
+      ["es", "Fuera del circular", "No se muestra en un gráfico circular"],
+    ] as const) {
+      await i18n.changeLanguage(lng);
+      const { unmount } = render(
+        <ChartData
+          chart={{ ...chart, chart: "pie" }}
+          revision={0}
+          readOnly={false}
+          onChange={() => {}}
+        />,
+      );
+      expect(screen.queryByTestId("slide-editor-chart-not-in-pie-0")).toBeNull();
+      const note = screen.getByTestId("slide-editor-chart-not-in-pie-1");
+      expect(note).toHaveTextContent(short);
+      expect(note).toHaveAttribute("aria-hidden", "true");
+      const name = screen.getByTestId("slide-editor-chart-series-1");
+      expect(name.getAttribute("aria-describedby")!.split(" ")).toHaveLength(2);
+      expect(name).toHaveAccessibleDescription(expect.stringContaining(full));
+      expect(screen.getByTestId("slide-editor-chart-series-0")).not.toHaveAccessibleDescription(
+        expect.stringContaining(full),
+      );
+      // A description, never part of a column header's name (`GL-UI-017`).
+      for (const header of screen.getAllByRole("columnheader"))
+        expect(header).not.toHaveAccessibleName(expect.stringContaining(full));
+      unmount();
+    }
+  });
+
   // #436 (GL-UI-017): a locked chart's type buttons say how to unlock it, as its other buttons.
   it("a read-only chart's type buttons say to unlock the element (#436)", () => {
     render(<ChartData chart={chart} revision={0} readOnly onChange={() => {}} />);

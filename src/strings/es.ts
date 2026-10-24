@@ -617,6 +617,7 @@ export const es: SuiteStrings = {
       chartTooLarge:
         "{{category}} – {{names}}: el número es demasiado grande para el gráfico. Introduce uno más pequeño, como 1,5.",
       chartNotInPie: "No se muestra en un gráfico circular",
+      chartNotInPieShort: "Fuera del circular",
       chartNegativeInPie: "Un gráfico circular omite los valores por debajo de 0.",
       chartRemoveCategory: "Quitar {{name}}",
       chartRemoveSeries: "Quitar {{name}}",

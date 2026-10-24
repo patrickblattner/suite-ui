@@ -129,6 +129,7 @@ export function ChartData({
   const [shape, setShape] = React.useState(0);
   const typedRevision = `${revision}:${shape}`;
   const negative = React.useId();
+  const notInPie = React.useId();
   // The value fields that are not a number, as "column:row" with why. Below the table, outside its
   // rows, each row with one says so once, naming its category and the series that are not numbers,
   // so the text is neither squeezed into a value's column nor read as a row of data (#368).
@@ -237,7 +238,8 @@ export function ChartData({
           </Hint>
         ))}
       </div>
-      {/* Wider than the panel with more series, the table scrolls sideways (`SUI-FEATURE-233`). */}
+      {/* Wider than the panel with more than two series, the table scrolls sideways
+          (`SUI-FEATURE-233`). */}
       <div className="overflow-x-auto" data-testid="slide-editor-chart-scroll">
         <table
           className="border-separate border-spacing-1 text-sm"
@@ -268,6 +270,7 @@ export function ChartData({
                           step(`series:${index}`),
                         )
                       }
+                      aria-describedby={pie && index > 0 ? notInPie : undefined}
                       className="h-8 w-20 px-2"
                       data-testid={`slide-editor-chart-series-${index}`}
                     />
@@ -298,12 +301,15 @@ export function ChartData({
                         <Trash2Icon aria-hidden="true" />
                       </Button>
                     </IconButtonTooltip>
+                    {/* Short enough for two lines in the column (#536); the whole sentence, below
+                        the table, is the name field's description. */}
                     {pie && index > 0 ? (
                       <span
+                        aria-hidden="true"
                         className="text-sm text-muted-foreground"
                         data-testid={`slide-editor-chart-not-in-pie-${index}`}
                       >
-                        {t("slides.editor.chartNotInPie")}
+                        {t("slides.editor.chartNotInPieShort")}
                       </span>
                     ) : null}
                   </div>
@@ -330,8 +336,10 @@ export function ChartData({
                         )
                       }
                       // All as wide as the column, whatever their names, so the remove buttons
-                      // line up and the values do not move while a name is typed (#379).
-                      className="h-8 min-w-28 flex-1 px-2"
+                      // line up and the values do not move while a name is typed (#379). From `md`,
+                      // at the 14 px text, 100 px, so the table with two series fits the panel
+                      // without scrolling (#536); below, at 16 px, the default names need 112 px.
+                      className="h-8 min-w-28 flex-1 px-2 md:min-w-25"
                       data-testid={`slide-editor-chart-category-${row}`}
                     />
                     <IconButtonTooltip
@@ -396,6 +404,12 @@ export function ChartData({
           </tbody>
         </table>
       </div>
+      {/* Outside the table, so it is never part of a column header's name (`GL-UI-017`, #536). */}
+      {pie && chart.series.length > 1 ? (
+        <span id={notInPie} hidden>
+          {t("slides.editor.chartNotInPie")}
+        </span>
+      ) : null}
       {rowErrors.map(({ row, text }) => (
         <FieldError
           key={row}

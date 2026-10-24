@@ -642,6 +642,7 @@ export const en = {
       chartTooLarge:
         "{{category}} – {{names}}: the number is too large for the chart. Enter a smaller one, such as 1.5.",
       chartNotInPie: "Not shown in a pie chart",
+      chartNotInPieShort: "Not in pie",
       chartNegativeInPie: "A pie chart leaves out values below 0.",
       chartRemoveCategory: "Remove {{name}}",
       chartRemoveSeries: "Remove {{name}}",

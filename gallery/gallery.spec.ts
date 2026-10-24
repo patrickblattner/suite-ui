@@ -248,6 +248,28 @@ for (const lng of LANGUAGES) {
       await parkPointer(page);
       await expect(dialog).toHaveScreenshot(`slide-editor-transfer-dialog-${lng}-${theme}.png`);
     });
+
+    // #536: a new chart as a pie — its second series marked as not drawn in at most two lines of
+    // its 80 px column, the table within the panel's width, no sideways scroll.
+    test(`slide editor chart panel in a pie ${lng} ${theme}`, async ({ page }) => {
+      await page.goto(`/?page=slide-editor&lng=${lng}&theme=${theme}`);
+      await expect(page.locator("html")).toHaveAttribute("lang", lng);
+      const { editor } = await openEditor(page, false);
+      await editor.getByTestId("drawer-add").click();
+      await editor.getByTestId("slide-editor-library-chart").click();
+      const panel = editor.getByTestId("slide-editor-chart");
+      await panel.getByTestId("slide-editor-chart-type-pie").click();
+      const note = panel.getByTestId("slide-editor-chart-not-in-pie-1");
+      await expect(note).toBeVisible();
+      const lines = await note.evaluate(
+        (el) => el.getBoundingClientRect().height / parseFloat(getComputedStyle(el).lineHeight),
+      );
+      expect(lines).toBeLessThanOrEqual(2);
+      const scroll = panel.getByTestId("slide-editor-chart-scroll");
+      expect(await scroll.evaluate((el) => el.scrollWidth - el.clientWidth)).toBe(0);
+      await parkPointer(page);
+      await expect(panel).toHaveScreenshot(`slide-editor-chart-pie-${lng}-${theme}.png`);
+    });
   }
 }
 
@@ -11842,8 +11864,10 @@ test("slide editor: a chart's type changes and back without losing data", async 
   await typeInto(page, panel.getByTestId("slide-editor-chart-value-0-1"), "-2");
   await pie.click();
   await expect(pie).toHaveAttribute("aria-checked", "true");
-  await expect(panel.getByTestId("slide-editor-chart-not-in-pie-1")).toHaveText(
-    "Not shown in a pie chart",
+  // Short in the column; the whole sentence describes the series' name field (#536).
+  await expect(panel.getByTestId("slide-editor-chart-not-in-pie-1")).toHaveText("Not in pie");
+  await expect(panel.getByTestId("slide-editor-chart-series-1")).toHaveAccessibleDescription(
+    /Not shown in a pie chart/,
   );
   // Running text at the body size (GL-UI-010 rev 9, #534).
   await expect(panel.getByTestId("slide-editor-chart-not-in-pie-1")).toHaveCSS("font-size", "14px");
