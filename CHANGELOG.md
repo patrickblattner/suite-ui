@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — #524, SUI-FEATURE-101 rev 4: a toast that appears over the keyboard focus closes after 1000 ms (minor)
+
+- **Toaster (#524):** a toast that appears while the keyboard focus (`:focus-visible`) rests on an element it covers, ring included (typically the receipt after a confirm dialog hands the focus back to its trigger), stays 1000 ms, so the live region announces it and it is briefly seen, then `<Toaster>` closes all toasts as it does when focus lands under one. `Esc` closes them earlier and leaves the focus where it is. A toast away from the focus keeps its normal duration, and `Esc` then closes nothing.
+- **Tests (#524):** unit tests cover a toast appearing over the focus (open at 700 ms, closed by 1000 ms, focus kept), `Esc` before that, and a toast away from the focus that keeps its duration also on `Esc`; a gallery test runs ⋯ → Archive → confirm by keyboard on the preview page (`?receipt=1`, the row full width under the toast column) and checks the receipt over the ⋯, in the live region, closed after 1000 ms and, in a second round, on `Esc`, the focus on the ⋯ both times.
+
+**Migration:** none. Apps build nothing of their own for it (`GL-UI-004`).
+
 ## Unreleased — #529, SUI-FEATURE-107 rev 3: keyboard focus after a sidebar section switch; no browser outline on the calendar button (minor)
 
 - **AppSidebar section switch (#529):** a section (Tools, Administration, Settings, or one in `primary`) opened by keyboard (`Enter`/`Space`) puts the focus on its active first entry (`aria-current="page"`); the next `Tab` goes to the second entry. The back link opened by keyboard puts the focus on the entry of the section just left in the primary nav (`GL-UI-050`). Before, the pressed control left the DOM and the focus fell to `<body>`. Expanded, collapsed and in the overlay alike; a pointer press moves no focus.

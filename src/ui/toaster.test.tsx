@@ -110,7 +110,8 @@ describe("Toaster: focus under a toast", () => {
   // eslint-disable-next-line @typescript-eslint/unbound-method
   const matches = Element.prototype.matches;
 
-  async function renderCovered(coveredBox = rect(1000, 80, 80, 32)) {
+  // `focused` names the element that holds the keyboard focus before the toast appears.
+  async function renderCovered(coveredBox = rect(1000, 80, 80, 32), focused?: "covered" | "free") {
     focusVisible = true;
     vi.spyOn(Element.prototype, "matches").mockImplementation(function (
       this: Element,
@@ -137,6 +138,7 @@ describe("Toaster: focus under a toast", () => {
         <Toaster />
       </>,
     );
+    if (focused) act(() => screen.getByTestId(focused).focus());
     act(() => {
       toast.success("Saved", { action: { label: "Undo", onClick: () => undefined } });
     });
@@ -197,6 +199,37 @@ describe("Toaster: focus under a toast", () => {
     fireEvent.keyDown(document.body, { key: "Tab" });
     act(() => screen.getByRole("button", { name: "Undo" }).focus());
     await settle();
+    expect(item()).toHaveAttribute("data-removed", "false");
+  });
+
+  // `SUI-FEATURE-101` rev 4: a toast that appears over the keyboard focus.
+  const wait = (ms: number) => act(() => new Promise((resolve) => setTimeout(resolve, ms)));
+
+  it("keeps a toast that appears over the focus 1000 ms, then closes all", async () => {
+    const item = await renderCovered(undefined, "covered");
+    await wait(700);
+    expect(item()).toHaveAttribute("data-removed", "false");
+    await vi.waitFor(() => expect(item()?.getAttribute("data-removed") ?? "true").toBe("true"), {
+      timeout: 1000,
+    });
+    expect(screen.getByTestId("covered")).toHaveFocus();
+  });
+
+  it("closes a toast over the focus on Esc before 1000 ms, the focus stays", async () => {
+    const item = await renderCovered(undefined, "covered");
+    const covered = screen.getByTestId("covered");
+    fireEvent.keyDown(covered, { key: "Escape" });
+    await vi.waitFor(() => expect(item()?.getAttribute("data-removed") ?? "true").toBe("true"), {
+      timeout: 500,
+    });
+    expect(covered).toHaveFocus();
+  });
+
+  it("keeps the normal duration of a toast away from the focus, also on Esc", async () => {
+    // The success toast's own duration: 2000 ms plus 50 ms for its one word.
+    const item = await renderCovered(undefined, "free");
+    fireEvent.keyDown(screen.getByTestId("free"), { key: "Escape" });
+    await wait(1300);
     expect(item()).toHaveAttribute("data-removed", "false");
   });
 });

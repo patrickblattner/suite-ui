@@ -707,6 +707,52 @@ test("toast: Tab onto a FilterBar control under the toast closes all toasts", as
   expect(await covered.evaluate((el) => el.matches(":focus-visible"))).toBe(true);
 });
 
+// `SUI-FEATURE-101` rev 4 AC 5: by keyboard ⋯ → Archive → confirm, the focus returns to the ⋯ and
+// the receipt appears over it, in the live region. It stays 1000 ms, then closes; `Esc` closes it
+// earlier. The focus stays on the ⋯ throughout.
+test("toast: the receipt over the returned focus closes after 1000 ms, Esc earlier", async ({
+  page,
+}) => {
+  await page.goto("/?page=preview&lng=en&receipt=1");
+  const trigger = page
+    .getByTestId("preview-row-menu")
+    .getByTestId("row-menu-actions")
+    .getByTestId("row-menu");
+  const receipt = page.locator("[data-sonner-toast]").filter({ hasText: "Home archived." });
+  for (const close of ["time", "Escape"]) {
+    await trigger.focus();
+    await page.keyboard.press("Enter");
+    await page.getByRole("menu").getByRole("menuitem", { name: "Archive" }).focus();
+    await page.keyboard.press("Enter");
+    await page.getByTestId("archive-confirm-confirm").focus();
+    await page.keyboard.press("Enter");
+    await expect(trigger).toBeFocused();
+    expect(await trigger.evaluate((el) => el.matches(":focus-visible"))).toBe(true);
+    await expect(receipt).toBeVisible();
+    await expect(page.locator("[aria-live=polite] [data-sonner-toast]")).toHaveCount(1);
+    // The receipt rests over the ⋯.
+    await page.waitForTimeout(500);
+    const toastBox = await box(receipt);
+    const node = await box(trigger);
+    expect(
+      toastBox.x < node.x + node.width &&
+        node.x < toastBox.x + toastBox.width &&
+        toastBox.y < node.y + node.height &&
+        node.y < toastBox.y + toastBox.height,
+    ).toBe(true);
+    if (close === "Escape") {
+      await page.keyboard.press("Escape");
+      // Before the 1000 ms are up: well inside the exit animation's time.
+      await expect(page.locator("[data-sonner-toast]")).toHaveCount(0, { timeout: 400 });
+    } else {
+      await expect(receipt).toHaveAttribute("data-removed", "false");
+      // 1000 ms from its appearance plus the exit animation; 500 ms of them have passed.
+      await expect(page.locator("[data-sonner-toast]")).toHaveCount(0, { timeout: 1200 });
+    }
+    await expect(trigger, close).toBeFocused();
+  }
+});
+
 // `GL-UI-013` rev 5: the last Tab stop of a scrolled sidebar is shown whole, its ring included.
 test("sidebar: the last Tab stop of a scrolling nav shows the whole node and its ring", async ({
   page,
