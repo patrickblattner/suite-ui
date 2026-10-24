@@ -83,7 +83,9 @@ function useFoldSteps(
         return;
       const control = node.querySelector<HTMLElement>(`[data-testid="${id}"]`);
       const takes = control !== null && !(control as HTMLButtonElement).disabled;
-      (takes ? control : lost.current?.(node, control))?.focus();
+      if (takes) control.focus();
+      // A control whose other form takes no focus (a sign unfolded to plain text) counts as locked.
+      if (document.activeElement !== control) lost.current?.(node, control)?.focus();
     });
   }, []);
 

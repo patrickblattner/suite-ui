@@ -2649,7 +2649,8 @@ test("editor header: read-only text becomes an eye at 390 px", async ({ page }) 
 
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(mode).toHaveAttribute("data-compact");
-  await expect(mode).toHaveAttribute("role", "status");
+  // #546: the text never changes, so the fold inserts no live region.
+  await expect(mode).not.toHaveAttribute("role");
   await expect(mode).toHaveText("Nur lesen");
   await expect(mode.locator("svg.lucide-eye")).toBeVisible();
   const bar = header.locator("[data-slot=editor-header]");

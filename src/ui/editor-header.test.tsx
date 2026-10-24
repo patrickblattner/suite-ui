@@ -1521,7 +1521,6 @@ describe("EditorHeader at narrow width", () => {
       expect(screen.getByTestId("editor-back")).toHaveTextContent(/\S/);
       const sign = screen.getByTestId("editor-read-only");
       expect(sign).toHaveAttribute("data-compact");
-      expect(sign).toHaveAttribute("role", "status");
       expect(sign).toHaveAttribute("tabindex", "0");
       expect(sign).toHaveTextContent(text);
       expect(sign.querySelector("svg.lucide-eye")).toHaveClass("size-4", "text-muted-foreground");
@@ -1548,4 +1547,53 @@ describe("EditorHeader at narrow width", () => {
       "false",
     );
   });
+
+  // #546: the read-only text never changes; a fold must not insert it as a fresh live region.
+  it("read-only, neither the text nor its sign is a live region", () => {
+    renderHeader({ readOnly: true, tools: headerTools(false), lifecycle: lifecycle() });
+    expect(screen.getByTestId("editor-read-only")).not.toHaveAttribute("role");
+    available = 250;
+    resize();
+    const sign = screen.getByTestId("editor-read-only");
+    expect(sign).toHaveAttribute("data-compact");
+    expect(sign).not.toHaveAttribute("role");
+    expect(document.querySelector("[data-slot=editor-header] [role=status]")).toBeNull();
+  });
+
+  // #546: without tools and Preview the read-only text's fold is the header's first step.
+  it("read-only without tools or Preview folds the text at its first step", () => {
+    available = 200;
+    renderHeader({ readOnly: true });
+    expect(document.querySelector("[data-slot=editor-header]")).toHaveAttribute("data-shrink", "1");
+    expect(screen.getByTestId("editor-read-only")).toHaveAttribute("data-compact");
+    expect(screen.getByTestId("editor-back")).toHaveTextContent(/\S/);
+  });
+
+  // #546, GL-UI-050: a focused sign that a resize unfolds to plain text hands the focus on in the
+  // header instead of dropping it on <body>.
+  it.each([
+    ["state", "editor-state", { dirty: true, lifecycle: lifecycle() }, 500],
+    [
+      "read-only",
+      "editor-read-only",
+      { readOnly: true, tools: headerTools(false), lifecycle: lifecycle() },
+      250,
+    ],
+  ] as const)(
+    "a focused %s sign unfolded by a resize keeps the focus in the header",
+    async (_, id, props, narrow) => {
+      available = narrow;
+      renderHeader(props);
+      const sign = screen.getByTestId(id);
+      expect(sign).toHaveAttribute("data-compact");
+      sign.focus();
+      available = 2000;
+      resize();
+      expect(screen.getByTestId(id)).not.toHaveAttribute("data-compact");
+      await waitFor(() => expect(document.activeElement).not.toBe(document.body));
+      const header = document.querySelector("[data-slot=editor-header]");
+      expect(header?.contains(document.activeElement)).toBe(true);
+      expect(active()).not.toBe("editor-back");
+    },
+  );
 });

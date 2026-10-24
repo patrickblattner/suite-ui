@@ -107,6 +107,42 @@ function nextFocusTarget(header: HTMLElement, from: Element | null): HTMLElement
   return fallbackTarget(header.querySelector("[data-slot=editor-actions]"), from);
 }
 
+// The state's place folded to its sign (`SUI-FEATURE-090` stage 4), for the state and the read-only
+// text alike: focusable, with the text as tooltip and for screen readers. `live` keeps the form's
+// live-region policy, so a fold neither adds nor drops an announcement.
+function CompactSign({
+  text,
+  live,
+  dirty,
+  testId,
+  children,
+}: {
+  text: string;
+  live: boolean;
+  dirty?: boolean;
+  testId: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span
+          {...(live ? { role: "status" } : {})}
+          tabIndex={0}
+          data-dirty={dirty}
+          data-compact=""
+          className="flex size-6 items-center justify-center rounded-md focus-visible:focus-ring"
+          data-testid={testId}
+        >
+          {children}
+          <span className="sr-only">{text}</span>
+        </span>
+      </TooltipTrigger>
+      <TooltipContent>{text}</TooltipContent>
+    </Tooltip>
+  );
+}
+
 // The one header of every editor page (`GL-UI-034`, `SUI-FEATURE-064`): Back and the title on the
 // left; on the right Undo, Redo, the state ("Saved" or "Draft · unsaved"), Reset and Save. Reset and
 // Save are locked while nothing differs from the saved state; Reset asks first. Ctrl/Cmd+Z and
@@ -118,7 +154,8 @@ function nextFocusTarget(header: HTMLElement, from: Element | null): HTMLElement
 // `SUI-FEATURE-104`: the editor's `tools` lead the right group, behind a separator of their own; a
 // running operation's `status` stands left of the state. `readOnly` drops every write control (Undo,
 // Redo, the state, Reset, Save, the next step, the record's menu) and names the mode instead of the
-// state; at narrow width that text folds like the state, to an eye (rev 3). `SUI-FEATURE-105`: the title is the page's `h1`, `subtitle` one muted line under it.
+// state; at narrow width that text folds like the state, to an eye (rev 3). `SUI-FEATURE-105`: the
+// title is the page's `h1`, `subtitle` one muted line under it.
 //
 // `SUI-FEATURE-090`: the header measures its own width. While it overflows one line it folds a step
 // (`Fold`); each step remembers the width it needed, and once the header is that wide again it steps
@@ -154,7 +191,7 @@ function EditorHeader({
     onRedo: canRedo && !readOnly ? onRedo : undefined,
   });
   // The header tools fold with Preview. Read-only, only what it shows can fold; the read-only text
-  // stands in the state's place and folds as its step 4.
+  // stands in the state's place and folds as `SUI-FEATURE-090` stage 4 (here the second step).
   const foldsPreview = lifecycle?.preview !== undefined || headerTools.length > 0;
   const folds: Fold[] = readOnly
     ? [...(foldsPreview ? ["preview" as const] : []), "state", "back", "title"]
@@ -490,22 +527,10 @@ function EditorHeader({
           </div>
         )}
         {readOnly && folded("state") ? (
-          // Shrunk to its sign, the read-only text keeps its text as the tooltip and for screen readers.
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span
-                role="status"
-                tabIndex={0}
-                data-compact=""
-                className="flex size-6 items-center justify-center rounded-md focus-visible:focus-ring"
-                data-testid="editor-read-only"
-              >
-                <EyeIcon aria-hidden="true" className="size-4 text-muted-foreground" />
-                <span className="sr-only">{stateText}</span>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent>{stateText}</TooltipContent>
-          </Tooltip>
+          // The read-only text never changes, so neither form is a live region.
+          <CompactSign text={stateText} live={false} testId="editor-read-only">
+            <EyeIcon aria-hidden="true" className="size-4 text-muted-foreground" />
+          </CompactSign>
         ) : readOnly ? (
           <span
             className="text-sm whitespace-nowrap text-muted-foreground"
@@ -514,32 +539,16 @@ function EditorHeader({
             {stateText}
           </span>
         ) : folded("state") ? (
-          // Shrunk to its mark, the state keeps its text as the tooltip and for screen readers.
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <span
-                role="status"
-                tabIndex={0}
-                data-dirty={dirty}
-                data-compact=""
-                className="flex size-6 items-center justify-center rounded-md focus-visible:focus-ring"
-                data-testid="editor-state"
-              >
-                {/* Shape and colour both tell the state (WCAG 1.4.1): saved a hollow green ring,
-                    a draft a filled amber dot. */}
-                <span
-                  aria-hidden="true"
-                  data-mark={dirty ? "dot" : "ring"}
-                  className={cn(
-                    "size-2 rounded-full",
-                    dirty ? "bg-warn" : "border-2 border-success",
-                  )}
-                />
-                <span className="sr-only">{stateText}</span>
-              </span>
-            </TooltipTrigger>
-            <TooltipContent>{stateText}</TooltipContent>
-          </Tooltip>
+          // Shrunk to its mark, the state stays announced politely, as its text.
+          <CompactSign text={stateText} live dirty={dirty} testId="editor-state">
+            {/* Shape and colour both tell the state (WCAG 1.4.1): saved a hollow green ring,
+                a draft a filled amber dot. */}
+            <span
+              aria-hidden="true"
+              data-mark={dirty ? "dot" : "ring"}
+              className={cn("size-2 rounded-full", dirty ? "bg-warn" : "border-2 border-success")}
+            />
+          </CompactSign>
         ) : (
           // A change of state is announced politely.
           <span
