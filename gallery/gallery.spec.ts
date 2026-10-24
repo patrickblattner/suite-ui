@@ -12077,6 +12077,18 @@ test("slide editor: the Animation section ends the Layout tab with its defaults"
       .getByTestId("slide-editor-layout")
       .evaluate((tab) => tab.lastElementChild?.getAttribute("data-testid")),
   ).toBe("slide-editor-animation");
+  // #515 (`GL-UI-010` rev 8 §Titel & Metadaten): the section title 16 px, its sub-group titles
+  // "Entrance" and "Exit" one step below, 14 px, both semibold.
+  const font = (el: Element) => [getComputedStyle(el).fontSize, getComputedStyle(el).fontWeight];
+  expect(await section.getByRole("heading", { name: "Animation" }).evaluate(font)).toEqual([
+    "16px",
+    "600",
+  ]);
+  for (const kind of ["entrance", "exit"]) {
+    const title = section.getByTestId(`slide-editor-${kind}`).locator("legend");
+    await expect(title).toHaveAttribute("data-slot", "subgroup-title");
+    expect(await title.evaluate(font)).toEqual(["14px", "600"]);
+  }
   await page.locator("#slide-editor-entrance-effect").click();
   await page.getByRole("option", { name: "Fade in", exact: true }).click();
   await expect(section.getByTestId("slide-editor-entrance-duration")).toHaveValue("500");

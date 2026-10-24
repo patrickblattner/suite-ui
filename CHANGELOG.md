@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — #515, GL-UI-010 rev 8: one shared sub-group title one step below the section title
+
+- **New export `SubgroupTitle` (#515):** `@suite/ui/ui/subgroup-title` (and the `ui` barrel) exports `SubgroupTitle`, the title of a sub-group inside a section: `text-sm font-semibold` (14 px), one step below the section title's `text-base font-semibold` (16 px). An `h4` by default; `asChild` gives the style to another element, such as a `legend`. Apps use it instead of styling sub-group titles at the call site.
+- **SlideEditor (#515):** the "Entrance" and "Exit" titles under "Animation" in the property panel are `SubgroupTitle`s (their `legend` kept); the "Animation" heading above stays.
+- **Tests (#515):** a unit test for `SubgroupTitle` (h4, `asChild` on a legend); the gallery checks the Animation section title at 16 px and its Entrance/Exit titles at 14 px, all semibold.
+
+**Migration:** none; the sub-group titles looked the same before, so no baseline changes. No string or `data-testid` changes; the legends gain `data-slot="subgroup-title"`.
+
 ## Unreleased — #542, GL-UI-016: a field's bubble covers no neighbouring control beside a column of fields (#543 delivered here)
 
 - **Neighbours as obstacles (#542):** the fields and loose controls of a column on a lone `Field`'s line no longer join its group nor bound its side: they are obstacles, as another bar's controls are, and the bubble stands in the nearest gap that holds it. Beside the field where the gap before them does (a column 444 px away), past them where it does not (24 px). Before, a column's field on the line pulled the bubble across any distance, and a column's button there left no side, so it stood at the field, over the column.
