@@ -411,6 +411,7 @@ export const en = {
     range: "From {{min}} to {{max}}",
     atLeast: "At least {{min}} px",
     whole: "Whole pixels only",
+    separator: "Enter a whole number, such as {{example}}.",
     coupledHint: "Shows the grid and snaps to it.",
     guidesHint: "Shows the guides.",
     options: "Grid options",

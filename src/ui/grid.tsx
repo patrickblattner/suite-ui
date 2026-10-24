@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { cn } from "../lib/cn.js";
 import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
 import { Button } from "./button.js";
+import { formatDecimal, numpadDecimal, parseDecimal } from "./decimal-number.js";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -63,11 +64,13 @@ type GridFieldsProps = {
 // The app places it where the value lives. Out of bounds or not a whole number, an entry is not taken:
 // the field keeps the text until it is fixed, and says its bound once the person leaves it. Switching
 // the type and back restores that type's last definition. Every label and field carries its hint, the
-// field's describing its value (`GL-UI-017`).
+// field's describing its value (`GL-UI-017`). What is typed is read in the UI language (`GL-UI-037`):
+// in German and Spanish "1,5" is a fraction like "1.5", and more than one separator names the right form.
 function GridFields({ value, onChange, allowNone = false, hidden = [] }: GridFieldsProps) {
-  const { t } = useTranslation("suite");
+  const { t, i18n } = useTranslation("suite");
+  const language = i18n.resolvedLanguage;
   const id = React.useId();
-  // The texts of the fields whose entry is invalid; every other field shows the value.
+  // The texts of the fields whose entry is invalid or not yet left; every other field shows the value.
   const [drafts, setDrafts] = React.useState<Partial<Record<GridNumberField, string>>>({});
   // The invalid fields the person has left: only they show their error.
   const [left, setLeft] = React.useState<readonly GridNumberField[]>([]);
@@ -95,12 +98,11 @@ function GridFields({ value, onChange, allowNone = false, hidden = [] }: GridFie
   const error = (field: GridNumberField, text: string): string | null => {
     const { min, max } = BOUNDS[field];
     if (field === "rowStep" && text.trim() === "") return null;
-    const number = Number(text);
-    const outside =
-      text.trim() === "" ||
-      Number.isNaN(number) ||
-      number < min ||
-      (max !== undefined && number > max);
+    const parsed = parseDecimal(text, language);
+    if (parsed.invalid === "separator")
+      return t("grid.separator", { example: Math.min(max ?? 1000, 1000) });
+    const number = parsed.value;
+    const outside = number === undefined || number < min || (max !== undefined && number > max);
     if (outside)
       return max === undefined ? t("grid.atLeast", { min }) : t("grid.range", { min, max });
     return Number.isInteger(number) ? null : t("grid.whole");
@@ -112,15 +114,18 @@ function GridFields({ value, onChange, allowNone = false, hidden = [] }: GridFie
       setDrafts((current) => ({ ...current, [field]: text }));
       return;
     }
+    // A number typed other than it is shown ("1," on the way to "1,5") stays as typed until left.
+    const number = parseDecimal(text, language).value;
     setDrafts((current) => {
       const rest = { ...current };
-      delete rest[field];
+      if (number === undefined || formatDecimal(number, language) === text) delete rest[field];
+      else rest[field] = text;
       return rest;
     });
     setLeft((current) => current.filter((other) => other !== field));
     const next: Partial<Record<GridNumberField, number>> = { ...value };
-    if (text.trim() === "") delete next[field];
-    else next[field] = Number(text);
+    if (number === undefined) delete next[field];
+    else next[field] = number;
     send(next as GridDefinition);
   };
 
@@ -172,7 +177,8 @@ function GridFields({ value, onChange, allowNone = false, hidden = [] }: GridFie
         .map((field) => {
           const fieldId = `${id}-${field}`;
           const current = (value as Partial<Record<GridNumberField, number>> | null)?.[field];
-          const text = drafts[field] ?? (current === undefined ? "" : String(current));
+          const text =
+            drafts[field] ?? (current === undefined ? "" : formatDecimal(current, language));
           const draft = drafts[field];
           const message = draft === undefined || !left.includes(field) ? null : error(field, draft);
           const unit = IN_PX.includes(field);
@@ -190,16 +196,43 @@ function GridFields({ value, onChange, allowNone = false, hidden = [] }: GridFie
             >
               <Input
                 id={fieldId}
-                type="number"
                 inputMode="numeric"
-                step={1}
-                min={BOUNDS[field].min}
-                max={BOUNDS[field].max}
+                role="spinbutton"
+                aria-valuenow={
+                  draft === undefined || error(field, draft) === null ? current : undefined
+                }
+                aria-valuemin={BOUNDS[field].min}
+                aria-valuemax={BOUNDS[field].max}
                 value={text}
                 onChange={(event) => setNumber(field, event.target.value)}
+                onKeyDown={(event) => {
+                  const next = numpadDecimal(event, language);
+                  if (next !== null) setNumber(field, next);
+                  else if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+                    // The arrows step to the next whole number within the bounds, as a native number
+                    // field would; an empty field steps to the minimum.
+                    event.preventDefault();
+                    const { min, max } = BOUNDS[field];
+                    const from =
+                      text.trim() === "" ? undefined : parseDecimal(text, language).value;
+                    const stepped =
+                      from === undefined
+                        ? min
+                        : event.key === "ArrowUp"
+                          ? Math.floor(from) + 1
+                          : Math.ceil(from) - 1;
+                    setNumber(field, String(Math.min(max ?? Infinity, Math.max(min, stepped))));
+                  }
+                }}
                 onBlur={() => {
-                  if (draft !== undefined && !left.includes(field))
-                    setLeft((current) => [...current, field]);
+                  if (draft === undefined) return;
+                  if (error(field, draft) === null)
+                    setDrafts((current) => {
+                      const rest = { ...current };
+                      delete rest[field];
+                      return rest;
+                    });
+                  else if (!left.includes(field)) setLeft((current) => [...current, field]);
                 }}
                 className={unit ? "pr-9" : undefined}
                 data-testid={`grid-${field}`}

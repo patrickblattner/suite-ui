@@ -50,16 +50,8 @@ describe("NumberField", () => {
 
   it.each([
     ["en", "1,5", "Enter the number with one decimal point and no comma, such as 1000.5."],
-    [
-      "de",
-      "1.000,5",
-      "Gib die Zahl mit nur einem Dezimalzeichen und ohne Tausendertrennung ein, etwa 1000,5.",
-    ],
-    [
-      "es",
-      "1.000,5",
-      "Introduce el número con un solo signo decimal y sin separador de miles, como 1000,5.",
-    ],
+    ["de", "1.000,5", "Tippe etwa 1000,5, ohne Tausendertrennung."],
+    ["es", "1.000,5", "Escribe p. ej. 1000,5, sin separador de miles."],
     ["en", "1e309", "The number is too large. Enter a smaller one, such as 1.5."],
     ["de", "1,5e309", "Die Zahl ist zu groß. Gib eine kleinere ein, etwa 1,5."],
     ["es", "abc", "Introduce un número, como 1,5."],

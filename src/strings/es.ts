@@ -387,6 +387,7 @@ export const es: SuiteStrings = {
     range: "De {{min}} a {{max}}",
     atLeast: "Como mínimo {{min}} px",
     whole: "Solo píxeles enteros",
+    separator: "Introduce un número entero, como {{example}}.",
     coupledHint: "Muestra la cuadrícula y se ajusta a ella.",
     guidesHint: "Muestra las guías.",
     options: "Opciones de cuadrícula",
@@ -605,8 +606,7 @@ export const es: SuiteStrings = {
       chartCategoryName: "Nombre de la categoría {{n}}",
       chartSeriesName: "Nombre de la serie {{n}}",
       numberNotANumber: "Introduce un número, como 1,5.",
-      numberSeparator:
-        "Introduce el número con un solo signo decimal y sin separador de miles, como 1000,5.",
+      numberSeparator: "Escribe p. ej. 1000,5, sin separador de miles.",
       numberTooLarge: "El número es demasiado grande. Introduce uno más pequeño, como 1,5.",
       chartValue: "{{series}}, {{category}}",
       chartNotANumber: "{{category}} – {{names}}: introduce un número, como 1,5.",

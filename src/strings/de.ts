@@ -394,6 +394,7 @@ export const de: SuiteStrings = {
     range: "Von {{min}} bis {{max}}",
     atLeast: "Mindestens {{min}} px",
     whole: "Nur ganze Pixel",
+    separator: "Gib eine ganze Zahl ein, etwa {{example}}.",
     coupledHint: "Blendet das Raster ein und rastet daran ein.",
     guidesHint: "Blendet die Hilfslinien ein.",
     options: "Rasteroptionen",
@@ -612,8 +613,7 @@ export const de: SuiteStrings = {
       chartCategoryName: "Name der Kategorie {{n}}",
       chartSeriesName: "Name der Reihe {{n}}",
       numberNotANumber: "Gib eine Zahl ein, etwa 1,5.",
-      numberSeparator:
-        "Gib die Zahl mit nur einem Dezimalzeichen und ohne Tausendertrennung ein, etwa 1000,5.",
+      numberSeparator: "Tippe etwa 1000,5, ohne Tausendertrennung.",
       numberTooLarge: "Die Zahl ist zu groß. Gib eine kleinere ein, etwa 1,5.",
       chartValue: "{{series}}, {{category}}",
       chartNotANumber: "{{category}} – {{names}}: Gib eine Zahl ein, etwa 1,5.",

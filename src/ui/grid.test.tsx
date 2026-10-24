@@ -13,6 +13,9 @@ import {
   type GridToggleValue,
 } from "./grid.js";
 import { GRID_COLUMNS_MAX, GRID_COLUMNS_MIN, type GridDefinition } from "./grid-core.js";
+import { de } from "../strings/de.js";
+import { en } from "../strings/en.js";
+import { es } from "../strings/es.js";
 
 beforeEach(() => {
   vi.stubGlobal(
@@ -58,8 +61,8 @@ describe("GridFields (SUI-FEATURE-087)", () => {
     expect(screen.getByRole("group", { name: "Grid" })).toBeInTheDocument();
     expect(screen.getByRole("combobox", { name: "Grid type" })).toHaveTextContent("Columns");
     for (const [name, value] of [
-      ["Gutter", 24],
-      ["Margin", 0],
+      ["Gutter", "24"],
+      ["Margin", "0"],
     ] as const) {
       const input = screen.getByRole("spinbutton", { name });
       expect(input).toHaveValue(value);
@@ -68,18 +71,18 @@ describe("GridFields (SUI-FEATURE-087)", () => {
     }
     // The count is no length: no unit.
     const count = screen.getByRole("spinbutton", { name: "Number of columns" });
-    expect(count).toHaveValue(12);
+    expect(count).toHaveValue("12");
     expect(count.getAttribute("aria-describedby")).not.toMatch(/-unit/);
     expect(screen.getByTestId("grid-fields").querySelectorAll("[id$='-unit']")).toHaveLength(3);
     const rowStep = screen.getByRole("spinbutton", { name: "Row step (optional)" });
-    expect(rowStep).toHaveValue(null);
+    expect(rowStep).toHaveValue("");
     expect(rowStep.getAttribute("aria-describedby")).not.toMatch(/-unit/);
     expect(screen.getByRole("spinbutton", { name: "Number of columns" })).toHaveAttribute(
-      "min",
+      "aria-valuemin",
       "1",
     );
     expect(screen.getByRole("spinbutton", { name: "Number of columns" })).toHaveAttribute(
-      "max",
+      "aria-valuemax",
       "24",
     );
   });
@@ -87,7 +90,7 @@ describe("GridFields (SUI-FEATURE-087)", () => {
   it("square: only the step", () => {
     render(<Fields initial={{ kind: "step", step: 10 }} />);
     expect(screen.getAllByRole("spinbutton")).toHaveLength(1);
-    expect(screen.getByRole("spinbutton", { name: "Step" })).toHaveValue(10);
+    expect(screen.getByRole("spinbutton", { name: "Step" })).toHaveValue("10");
   });
 
   // AC 3
@@ -163,7 +166,7 @@ describe("GridFields (SUI-FEATURE-087)", () => {
     // Undo, or another document.
     rerender(<GridFields value={{ ...COLUMNS, count: 4 }} onChange={() => {}} />);
     expect(screen.queryByTestId("grid-count-error")).toBeNull();
-    expect(count).toHaveValue(4);
+    expect(count).toHaveValue("4");
     expect(count).not.toHaveAttribute("aria-invalid");
   });
 
@@ -224,6 +227,132 @@ function Toggle({
     />
   );
 }
+
+// GL-UI-037 rev 2 (#516): the grid's number fields read what is typed through the shared parser.
+describe("GridFields number entry (GL-UI-037)", () => {
+  const SEPARATOR = { de, en, es } as const;
+  const gutter = () => screen.getByTestId("grid-gap");
+
+  it.each([
+    ["de", "8,0", 8],
+    ["es", "8,0", 8],
+    ["en", "8.0", 8],
+    // One separator is always the decimal sign, never a thousands group.
+    ["de", "1.000", 1],
+    ["es", "1,000", 1],
+    ["en", "1.000", 1],
+  ])("in %s takes %s as %d", async (lng, text, number) => {
+    await i18n.changeLanguage(lng);
+    const onChange = vi.fn();
+    render(<Fields onChange={onChange} />);
+    fireEvent.change(gutter(), { target: { value: text } });
+    expect(onChange).toHaveBeenLastCalledWith({ ...COLUMNS, gap: number });
+    // Left, the field shows the number as it is stored.
+    fireEvent.blur(gutter());
+    expect(gutter()).toHaveValue(String(number));
+    expect(screen.queryByTestId("grid-gap-error")).toBeNull();
+  });
+
+  it.each([
+    ["en", "8,0"],
+    ["de", "1.000,5"],
+    ["es", "1.000,5"],
+    ["en", "1,000.5"],
+    ["de", "1,2,3"],
+  ])("in %s refuses %s, naming the right form", async (lng, text) => {
+    await i18n.changeLanguage(lng);
+    const onChange = vi.fn();
+    render(<Fields onChange={onChange} />);
+    fireEvent.change(gutter(), { target: { value: text } });
+    fireEvent.blur(gutter());
+    expect(onChange).not.toHaveBeenCalled();
+    expect(gutter()).toHaveValue(text);
+    expect(gutter()).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByTestId("grid-gap-error")).toHaveTextContent(
+      SEPARATOR[lng as keyof typeof SEPARATOR].grid.separator.replace("{{example}}", "1000"),
+    );
+  });
+
+  it("the separator example fits the column count's bounds", async () => {
+    await i18n.changeLanguage("de");
+    render(<Fields onChange={vi.fn()} />);
+    const count = screen.getByTestId("grid-count");
+    fireEvent.change(count, { target: { value: "1.2,3" } });
+    fireEvent.blur(count);
+    expect(screen.getByTestId("grid-count-error")).toHaveTextContent(
+      de.grid.separator.replace("{{example}}", String(GRID_COLUMNS_MAX)),
+    );
+  });
+
+  it.each(["de", "es"])("in %s a decimal comma is a fraction: whole pixels only", async (lng) => {
+    await i18n.changeLanguage(lng);
+    render(<Fields />);
+    fireEvent.change(gutter(), { target: { value: "2,5" } });
+    fireEvent.blur(gutter());
+    expect(screen.getByTestId("grid-gap-error")).toHaveTextContent(
+      SEPARATOR[lng as "de" | "es"].grid.whole,
+    );
+  });
+
+  it.each([
+    ["de", ","],
+    ["es", ","],
+    ["en", "."],
+  ])("in %s the numpad's decimal key types %s", async (lng, sign) => {
+    await i18n.changeLanguage(lng);
+    render(<Fields />);
+    const input = gutter();
+    fireEvent.change(input, { target: { value: "8" } });
+    // The key prints the other sign on this layout; the field types the UI language's.
+    fireEvent.keyDown(input, { key: sign === "," ? "." : ",", code: "NumpadDecimal" });
+    expect(input).toHaveValue(`8${sign}`);
+  });
+
+  it("keeps a number typed on its way (8,) until the field is left", async () => {
+    await i18n.changeLanguage("de");
+    const onChange = vi.fn();
+    render(<Fields onChange={onChange} />);
+    fireEvent.change(gutter(), { target: { value: "8," } });
+    expect(gutter()).toHaveValue("8,");
+    expect(onChange).toHaveBeenLastCalledWith({ ...COLUMNS, gap: 8 });
+    fireEvent.blur(gutter());
+    expect(gutter()).toHaveValue("8");
+  });
+
+  it("the arrow keys step by one within the bounds", () => {
+    const onChange = vi.fn();
+    render(<Fields initial={{ ...COLUMNS, count: GRID_COLUMNS_MAX }} onChange={onChange} />);
+    const count = screen.getByTestId("grid-count");
+    fireEvent.keyDown(count, { key: "ArrowDown" });
+    expect(onChange).toHaveBeenLastCalledWith({ ...COLUMNS, count: GRID_COLUMNS_MAX - 1 });
+    fireEvent.keyDown(count, { key: "ArrowUp" });
+    fireEvent.keyDown(count, { key: "ArrowUp" });
+    expect(onChange).toHaveBeenLastCalledWith({ ...COLUMNS, count: GRID_COLUMNS_MAX });
+    expect(count).toHaveAttribute("aria-valuenow", String(GRID_COLUMNS_MAX));
+  });
+
+  it.each([
+    ["2,6", "ArrowUp", 3],
+    ["2,4", "ArrowDown", 2],
+    ["2,5", "ArrowUp", 3],
+  ])("from %s, %s steps to the next whole number %i", async (text, key, expected) => {
+    await i18n.changeLanguage("de");
+    const onChange = vi.fn();
+    render(<Fields onChange={onChange} />);
+    fireEvent.change(gutter(), { target: { value: text } });
+    fireEvent.keyDown(gutter(), { key });
+    expect(gutter()).toHaveValue(String(expected));
+  });
+
+  it("an empty field steps to its minimum", () => {
+    const onChange = vi.fn();
+    render(<Fields onChange={onChange} />);
+    const count = screen.getByTestId("grid-count");
+    fireEvent.change(count, { target: { value: "" } });
+    fireEvent.keyDown(count, { key: "ArrowUp" });
+    expect(count).toHaveValue(String(GRID_COLUMNS_MIN));
+  });
+});
 
 describe("GridToggle (SUI-FEATURE-087)", () => {
   // AC 4
