@@ -32,8 +32,8 @@ test.beforeEach(async ({ page }) => {
 
 // `ADR-TEST-016` rev 5: the pointer belongs to the scene. Every capture parks it first, on the
 // first viewport corner whose element is no control and no hoverable row, so no accidental hover
-// reaches the image; a hover that is the subject of a shot is set after this step. `src/gallery-
-// park.test.ts` holds every `toHaveScreenshot` to it.
+// reaches the image; only assertions and a hover that is the subject of the shot stand between this
+// step and the capture. `src/gallery-park.test.ts` holds every `toHaveScreenshot` to it.
 const HOVERABLE = [
   "a, button, input, select, textarea, summary, label, tr",
   "[tabindex]:not([tabindex='-1']), [data-slot=tooltip-trigger]",
@@ -131,6 +131,8 @@ for (const lng of LANGUAGES) {
         await expect(page.locator("html")).toHaveAttribute("lang", lng);
         await expect(ready(page)).toBeVisible();
         await parkPointer(page);
+        // The parked pointer may wake what hides without input (the slide player's bar).
+        await expect(ready(page)).toBeVisible();
         await expect(page).toHaveScreenshot(`${name}-${lng}-${theme}.png`, { fullPage: true });
       });
     }
@@ -3569,6 +3571,8 @@ for (const [width, height] of WIDTHS) {
         await expect(page.locator("html")).toHaveAttribute("lang", "de");
         await expect(ready(page)).toBeVisible();
         await parkPointer(page);
+        // The parked pointer may wake what hides without input (the slide player's bar).
+        await expect(ready(page)).toBeVisible();
         await expect(page).toHaveScreenshot(`${name}-de-${theme}-${width}.png`, { fullPage: true });
       });
     }
