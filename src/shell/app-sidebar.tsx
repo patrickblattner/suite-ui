@@ -102,9 +102,10 @@ function AppSidebar({
 
   // The focus after a list switch by keyboard (`SUI-FEATURE-107`, `GL-UI-050`): the switch unmounts the
   // pressed control, so the focus goes to the active first entry of the opened section, or back to the
-  // entry of the section just left, never to `<body>` or the back link. A pointer press (`detail` > 0)
-  // arms nothing. Held with its target path and dropped on any route change, so a blocked navigation
-  // leaves nothing armed for a later switch.
+  // entry of the section just left, never to `<body>` or the back link. Expanded and collapsed, a
+  // pointer press (`detail` > 0) arms nothing; in the modal overlay every press arms it, whatever the
+  // input, and the ring still follows `:focus-visible` (rev 4). Held with its target path and dropped
+  // on any route change, so a blocked navigation leaves nothing armed for a later switch.
   const focusAfterSwitch = React.useRef<{ to: string; selector: string } | null>(null);
   React.useEffect(() => {
     const target = focusAfterSwitch.current;
@@ -203,7 +204,7 @@ function AppSidebar({
             onClick={(event) => {
               if (!first) return;
               focusAfterSwitch.current =
-                event.detail === 0
+                event.detail === 0 || overlayOpen
                   ? {
                       to: first.to,
                       selector: '[data-testid="nav-section-entries"] [aria-current="page"]',
@@ -306,7 +307,7 @@ function AppSidebar({
                     aria-label={t("nav.backToDashboard")}
                     onClick={(event) => {
                       focusAfterSwitch.current =
-                        event.detail === 0
+                        event.detail === 0 || overlayOpen
                           ? {
                               to: homePath,
                               selector: `[data-testid="nav-section-${activeSection.key}"]`,

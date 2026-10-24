@@ -193,16 +193,18 @@ describe("sidebar overlay below md (SUI-FEATURE-110)", () => {
     expect(screen.getByTestId("nav-section-settings")).toHaveFocus();
   });
 
-  it("a section and the back link by pointer keep it open; a section entry then closes it", () => {
+  // rev 4: the overlay is modal, so a pointer, touch or screen-reader press (`detail` >= 1) moves the
+  // focus like the keyboard does; never `<body>`.
+  it("a section and the back link by pointer keep it open and move the focus along", () => {
     narrow(true);
     render(<Shell />);
     openOverlay();
     fireEvent.click(screen.getByTestId("nav-section-settings"), { detail: 1 });
     expect(sidebar()).toHaveAttribute("data-overlay", "open");
-    expect(screen.getByTestId("nav-settings-general")).not.toHaveFocus();
+    expect(screen.getByTestId("nav-settings-general")).toHaveFocus();
     fireEvent.click(screen.getByTestId("nav-back"), { detail: 1 });
     expect(sidebar()).toHaveAttribute("data-overlay", "open");
-    expect(screen.getByTestId("nav-section-settings")).not.toHaveFocus();
+    expect(screen.getByTestId("nav-section-settings")).toHaveFocus();
     fireEvent.click(screen.getByTestId("nav-section-settings"), { detail: 1 });
     fireEvent.click(screen.getByTestId("nav-settings-ai"));
     expect(screen.getByTestId("location")).toHaveTextContent("/settings/ai");

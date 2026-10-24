@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — #549, SUI-FEATURE-107 rev 4: in the Sidebar overlay, a section and the back link move the focus for every input (minor)
+
+- **Sidebar overlay (#549):** below `md`, the section button and the back link now set the focus as for the keyboard (the active first entry of the opened section, or the entry of the section just left) whatever the input: pointer, touch and screen-reader activation (a VoiceOver double tap arrives as a click with `detail >= 1`) included. The modal overlay no longer leaves the focus on `<body>`. The ring still follows `:focus-visible`, so none shows after a pointer or touch press.
+- **Unchanged (#549):** expanded and collapsed, a pointer press still sets no focus, also after a keyboard switch a leave guard blocked.
+- **Tests (#549):** unit test for the pointer press in the overlay (section and back link move the focus, overlay stays open); gallery test for AC4 (overlay, pointer click on Settings and the back link: focus on the first entry and on the Settings entry, no `:focus-visible`, no ring).
+
+**Migration:** none; no API, string, `data-testid` or baseline changes.
+
 ## Unreleased — #557, GL-UI-007/GL-UI-050: Cancel in the leave dialog no longer reactivates the tab trigger that asked (patch)
 
 - **Tabs (#557):** a `TabsTrigger` activates on focus only when the focus moves within its own tab list (arrow keys, Home, End); a press activates it as before. A focus from outside the list — a dialog returning it on close (`GL-UI-050`) — leaves the selection as it is. Before, a guarded page whose tab switch asked (no `ignoreSearchParams`) looped: Cancel returned the focus to the trigger, its automatic activation switched again, and the leave dialog reopened. Now Cancel closes the dialog, the focus is on the trigger, the original tab and the draft stay. A caller's own `onFocus` still runs first; preventing its default skips the activation as before.

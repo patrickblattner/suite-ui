@@ -4306,13 +4306,43 @@ for (const mode of ["expanded", "collapsed", "overlay"] as const) {
     await page.keyboard.press("Enter");
     await expect(page.getByTestId("nav-primary")).toBeVisible();
     await expect(section).toBeFocused();
-    if (mode === "overlay") await expect(sidebar).toHaveAttribute("data-overlay", "open");
-    // A pointer press moves no focus onto the opened list.
+    if (mode === "overlay") {
+      // The pointer case in the overlay has its own test below (rev 4).
+      await expect(sidebar).toHaveAttribute("data-overlay", "open");
+      return;
+    }
+    // Expanded and collapsed, a pointer press moves no focus onto the opened list.
     await section.click();
     await expect(entries.first()).toHaveAttribute("aria-current", "page");
     await expect(entries.first()).not.toBeFocused();
   });
 }
+
+// `SUI-FEATURE-107` rev 4 AC4: the overlay is modal, so a pointer press (`detail` >= 1) on Settings and
+// on the back link moves the focus like Enter does, never to `<body>`; the ring follows
+// `:focus-visible`, so none shows after the pointer.
+test("shell: pointer focus follows the section switch in the overlay, without a ring", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/?page=shell&route=/dashboard&lng=en");
+  const sidebar = page.getByTestId("app-sidebar");
+  await page.getByTestId("sidebar-overlay-trigger").click();
+  await expect(sidebar).toHaveAttribute("data-overlay", "open");
+  const noRing = (el: Element) =>
+    !el.matches(":focus-visible") && getComputedStyle(el).boxShadow === "none";
+  const section = page.getByTestId("nav-section-settings");
+  await section.click();
+  const first = page.getByTestId("nav-section-entries").locator("a").first();
+  await expect(first).toHaveAttribute("aria-current", "page");
+  await expect(first).toBeFocused();
+  expect(await first.evaluate(noRing)).toBe(true);
+  await page.getByTestId("nav-back").click();
+  await expect(page.getByTestId("nav-primary")).toBeVisible();
+  await expect(section).toBeFocused();
+  expect(await section.evaluate(noRing)).toBe(true);
+  await expect(sidebar).toHaveAttribute("data-overlay", "open");
+});
 
 // `GL-UI-020` §Versionszeile / §Abnahme: one line, flush with the nav text, directly above the
 // separator to the user block; gone while collapsed.
