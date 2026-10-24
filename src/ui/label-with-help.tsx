@@ -25,6 +25,7 @@ function LabelWithHelp({
   id,
   htmlFor,
   help,
+  description = help,
   className,
   children,
 }: {
@@ -32,6 +33,10 @@ function LabelWithHelp({
   id?: string;
   htmlFor: string;
   help: string;
+  // The hidden description under `${htmlFor}-help`, when it differs from the hover hint; `null` renders
+  // none. A group's label shows the label's hint and the group's value hint on hover, but describes by
+  // the label's hint alone: the group references its value hint itself (`GL-UI-017` §Gruppen, #539).
+  description?: string | null;
   className?: string;
   children: React.ReactNode;
 }) {
@@ -55,11 +60,11 @@ function LabelWithHelp({
           </TooltipPrimitive.Root>
         </TooltipProvider>
       </label>
-      {typeof document === "undefined"
+      {typeof document === "undefined" || description === null
         ? null
         : createPortal(
             <span id={helpIdFor(htmlFor)} hidden>
-              {help}
+              {description}
             </span>,
             document.body,
           )}

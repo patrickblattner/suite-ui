@@ -5,11 +5,12 @@ import { FieldError, FieldErrorContext } from "./field-error.js";
 import { FieldValueHintContext } from "./field-value-hint-context.js";
 import { InlineMessage } from "./inline-message.js";
 import { Label } from "./label.js";
-import { LabelWithHelp } from "./label-with-help.js";
+import { helpIdFor, LabelWithHelp } from "./label-with-help.js";
 
 type FieldProps = Omit<React.ComponentProps<"div">, "children"> & {
   label: React.ReactNode;
-  // The id of the control, or of the option group a `control` with `role="group"` carries.
+  // The id of the control, or of the option group a `control` with `role="group"` or `"radiogroup"`
+  // carries.
   htmlFor: string;
   // The explanation of the field, as a hover hint on the label (`GL-UI-017`); without `valueHint` the
   // package control inside carries it too, unless the control is an option group (#435).
@@ -17,6 +18,8 @@ type FieldProps = Omit<React.ComponentProps<"div">, "children"> & {
   // What the value counts, its unit, the effect of a choice: the hint of the package control inside
   // (Input, Textarea, a Select's trigger, Combobox, TimezoneCombobox) and its description (`GL-UI-017` §Label und Feld sind zwei
   // Träger). One control per hinted field takes it; another control carries its own `Hint`, which wins.
+  // With an option group it describes the group, after the label's hint, under the id
+  // `${htmlFor}-value-hint` (#539).
   valueHint?: string | undefined;
   // The help text under the control, under the id `${htmlFor}-description`.
   help?: React.ReactNode;
@@ -63,11 +66,35 @@ function Field({
   const errorId = `${htmlFor}-error`;
   // An empty text is no error.
   const invalid = error !== undefined && error !== "";
+  const group = control?.role === "group" || control?.role === "radiogroup";
   // The options of a group each carry their own text, never the group's hints.
-  const controlHint = control?.role === "group" ? undefined : (valueHint ?? hint);
+  const controlHint = group ? undefined : (valueHint ?? hint);
+  // The group carries its value hint as its description, right after the label's hint, read once
+  // (`GL-UI-017` §Label und Feld sind zwei Träger, #539).
+  const valueHintId = `${htmlFor}-value-hint`;
+  // An empty text is no hint.
+  const groupValueHint = group && valueHint !== undefined && valueHint !== "";
+  let groupControl = control;
+  if (groupValueHint) {
+    const ids = (control?.["aria-describedby"] ?? "").split(" ").filter((id) => id !== "");
+    if (!ids.includes(valueHintId)) ids.splice(ids.indexOf(helpIdFor(htmlFor)) + 1, 0, valueHintId);
+    groupControl = { ...control, "aria-describedby": ids.join(" ") };
+  }
   return (
     <div className={cn("flex flex-col gap-2", className)} data-slot="field" {...props}>
-      {hint !== undefined ? (
+      {groupValueHint ? (
+        // A group has no field surface: its label shows the value hint on hover, after the label's
+        // own hint (`GL-UI-017` rev 9 §Gruppen, #539).
+        <LabelWithHelp
+          id={labelId}
+          htmlFor={htmlFor}
+          help={hint === undefined ? valueHint : `${hint} ${valueHint}`}
+          description={hint ?? null}
+          className={cn(labelClassName, "leading-none")}
+        >
+          {label}
+        </LabelWithHelp>
+      ) : hint !== undefined ? (
         <LabelWithHelp
           id={labelId}
           htmlFor={htmlFor}
@@ -81,7 +108,12 @@ function Field({
           {label}
         </Label>
       )}
-      <div {...control}>
+      {groupValueHint ? (
+        <span id={valueHintId} hidden>
+          {valueHint}
+        </span>
+      ) : null}
+      <div {...groupControl}>
         <FieldErrorContext.Provider value={invalid ? errorId : null}>
           <FieldValueHintContext.Provider value={controlHint}>
             {children}

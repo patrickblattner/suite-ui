@@ -15,21 +15,6 @@ import { Textarea } from "../ui/textarea.js";
 import { SettingsField } from "./settings-field.js";
 import { SettingsSection } from "./settings-section.js";
 
-// #507: an option group takes no `valueHint`, its options carry their own text. The marked line must
-// stay a type error, or `npm run typecheck` fails on the unused directive.
-export const valueHintOnlyWithoutGroup = [
-  <SettingsField key="input" label="Port" htmlFor="port" valueHint="1 to 65535.">
-    <input id="port" />
-  </SettingsField>,
-  <SettingsField key="group" label="Mode" htmlFor="mode" group hint="How it runs.">
-    <input type="radio" aria-label="A" />
-  </SettingsField>,
-  // @ts-expect-error a group takes no valueHint
-  <SettingsField key="group-hinted" label="Mode" htmlFor="mode" group valueHint="Dropped.">
-    <input type="radio" aria-label="A" />
-  </SettingsField>,
-];
-
 describe("SettingsField", () => {
   it("labels the input and shows the help text under it", () => {
     render(
@@ -573,14 +558,72 @@ describe("SettingsField valueHint", () => {
     expect(hover(toggle)).toBe("Sends a mail on every change.");
   });
 
-  // A group takes no valueHint at all (#507, `valueHintOnlyWithoutGroup`).
-  it("the options of a group do not take the group's hint", () => {
+  // #539 (`GL-UI-017` rev 7, reverses #507): a group's value hint says what the options do; it
+  // describes the group after the hint and before the help text, each read once, and no option.
+  it("with group describes the group by its value hint, after the hint, read once", () => {
     render(
-      <SettingsField label="Channels" htmlFor="channels" group hint="Where alerts go.">
+      <SettingsField
+        label="Mode"
+        htmlFor="mode"
+        group
+        hint="How it runs."
+        valueHint="Fast skips the checks."
+        help="Applies on restart."
+      >
+        <RadioGroup defaultValue="a">
+          <RadioGroupItem value="a" aria-label="Fast" />
+          <RadioGroupItem value="b" aria-label="Safe" />
+        </RadioGroup>
+      </SettingsField>,
+    );
+    const group = screen.getByRole("group", { name: "Mode" });
+    expect(group).toHaveAttribute("aria-describedby", "mode-help mode-value-hint mode-description");
+    expect(group).toHaveAccessibleDescription(
+      "How it runs. Fast skips the checks. Applies on restart.",
+    );
+    for (const radio of screen.getAllByRole("radio")) {
+      expect(radio).not.toHaveAttribute("aria-describedby");
+    }
+    expect(screen.getByRole("radiogroup")).not.toHaveAttribute("aria-describedby");
+    // GL-UI-017 rev 9 §Gruppen: the group has no field surface, its label shows the value hint.
+    expect(hover(screen.getByText("Mode"))).toBe("How it runs. Fast skips the checks.");
+    expect(document.getElementById("mode-help")).toHaveTextContent(/^How it runs\.$/);
+  });
+
+  it("with group and a value hint but no hint describes the group by the value hint", () => {
+    render(
+      <SettingsField label="Channels" htmlFor="channels" group valueHint="Each sends on its own.">
         <Checkbox id="channel-mail" aria-label="Mail" />
       </SettingsField>,
     );
+    const group = screen.getByRole("group", { name: "Channels" });
+    expect(group).toHaveAttribute("aria-describedby", "channels-value-hint");
+    expect(group).toHaveAccessibleDescription("Each sends on its own.");
     expect(screen.getByRole("checkbox", { name: "Mail" })).not.toHaveAttribute("aria-describedby");
+    expect(hover(screen.getByText("Channels"))).toBe("Each sends on its own.");
+    expect(document.getElementById("channels-help")).toBeNull();
+  });
+
+  // Each radio keeps its own text as its hint, never the group's hints.
+  it("each radio of a group carries its own text as its hint", () => {
+    render(
+      <SettingsField
+        label="Mode"
+        htmlFor="mode"
+        group
+        hint="How it runs."
+        valueHint="Fast skips the checks."
+      >
+        <RadioGroup defaultValue="a">
+          <Hint text="Fast">
+            <RadioGroupItem value="a" aria-label="Fast" />
+          </Hint>
+        </RadioGroup>
+      </SettingsField>,
+    );
+    const radio = screen.getByRole("radio", { name: "Fast" });
+    expect(hover(radio)).toBe("Fast");
+    expect(radio).not.toHaveAccessibleDescription(/Fast skips|How it runs/);
   });
 });
 

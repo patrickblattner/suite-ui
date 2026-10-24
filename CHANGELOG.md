@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — #539, GL-UI-017 rev 7/9: a radio group's value hint describes the group (minor)
+
+- **SettingsField group (#539):** `valueHint` is accepted again together with `group`. It says what the options do and describes the group (`aria-describedby`) after the label's hint and before the help text, each read once; the options carry none of it, each radio keeps its own text as its hint.
+- **Field (#539):** a `valueHint` on a field whose `control` is an option group (`role="group"` or `"radiogroup"`) is no longer dropped: it stands in a hidden element under the id `${htmlFor}-value-hint`, which the group's `aria-describedby` references right after the label's hint (`${htmlFor}-help`), or first without one; an empty `valueHint` adds nothing. This covers `SettingsField`, `GridFields` and every other `Field` caller. A group has no field surface, so its label is the visible hover carrier (`GL-UI-017` rev 9 §Gruppen): it shows the label's hint followed by the value hint, after `--tooltip-hint-delay`; its hidden `${htmlFor}-help` keeps the label's hint alone (none without one), so the group still reads each hint once. `LabelWithHelp` takes an optional `description` for that (`null`: no hidden description).
+- **Tests (#539):** unit tests for the group description order (hint, value hint, help), a value hint without a hint, no repeat, a `radiogroup` control, an empty value hint, the group label's hover showing the value hint, no option described by the group's hints, and a radio's own hint; the #507 type test is removed.
+
+**Migration:** reverses #507 — `SettingsFieldProps` accepts `valueHint` with `group` again (no longer a type error); a group's `valueHint` now reaches screen readers as the group's description. No strings, `data-testid`s or baselines change.
+
 ## Unreleased — #538, SUI-FEATURE-230 rev 5: a bordered image lies in the frame less its border, cropped evenly (minor)
 
 - **SlideView (#538):** an image with a border of width b lies in the area inside the border, (w − 2b) × (h − 2b); its crop (zoom, offset) refers to that area, so opposite sides are cut evenly. Before, the image was laid out at w × h from the inner top-left corner, so 2b px of it were cut off on the right and at the bottom and none on the left and top.

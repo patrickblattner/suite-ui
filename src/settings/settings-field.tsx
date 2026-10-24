@@ -18,21 +18,14 @@ type SettingsFieldProps = {
   error?: string;
   // `short` for a number, a time or a port: the input ends at 12rem instead of 36rem.
   size?: "default" | "short";
+  // What the value counts, its unit, the effect of a choice, as the input's own hint (`Field valueHint`);
+  // with `group` what the options do, as the group's description after the hint (#539).
+  valueHint?: string;
+  // The children are an option group (radios, several checkboxes), named by the label.
+  group?: boolean;
   // The input, or with `group` the options.
   children: React.ReactNode;
-} & (
-  | {
-      // What the value counts, its unit, the effect of a choice, as the input's own hint (`Field valueHint`).
-      valueHint?: string;
-      group?: false;
-    }
-  | {
-      // The children are an option group (radios, several checkboxes), named by the label. Its options
-      // each carry their own text, so the field takes no `valueHint` (#507).
-      group: true;
-      valueHint?: never;
-    }
-);
+};
 
 // One field of a settings page (`SUI-FEATURE-042`): the label above the input, the help text under it,
 // 8 px apart. The input fills its frame up to 36rem (`short` up to 12rem); label and help text end at
@@ -52,8 +45,9 @@ function SettingsField({
   children,
 }: SettingsFieldProps) {
   const invalid = error !== undefined && error !== "";
-  // The group, not its options, carries the hint and then the help text as its description, each read
-  // once (#505, #508); the error replaces the help text and is reached by `aria-errormessage`.
+  // The group, not its options, carries the hint, the value hint (inserted by `Field`, #539) and then
+  // the help text as its description, each read once (#505, #508); the error replaces the help text and
+  // is reached by `aria-errormessage`.
   const groupDescribedBy =
     [
       hint !== undefined ? helpIdFor(htmlFor) : undefined,

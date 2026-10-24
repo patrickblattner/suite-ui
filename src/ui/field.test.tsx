@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { Field } from "./field.js";
@@ -61,5 +61,147 @@ describe("Field hint on the control", () => {
       </Field>,
     );
     expect(screen.getByLabelText("Order")).toHaveAccessibleDescription("1 plays first.");
+  });
+});
+
+// #539 (`GL-UI-017` rev 7): with an option group the value hint describes the group, after the
+// label's hint, read once; the options carry none of it.
+describe("Field value hint on a group", () => {
+  it("joins the value hint to the group's description after the label's hint", () => {
+    render(
+      <Field
+        label="Mode"
+        htmlFor="mode"
+        hint="How it runs."
+        valueHint="Fast skips the checks."
+        help="Applies on restart."
+        control={{ role: "group", "aria-describedby": "mode-help mode-description" }}
+      >
+        <Input aria-label="Fast" />
+      </Field>,
+    );
+    const group = screen.getByRole("group");
+    expect(group).toHaveAttribute("aria-describedby", "mode-help mode-value-hint mode-description");
+    expect(group).toHaveAccessibleDescription(
+      "How it runs. Fast skips the checks. Applies on restart.",
+    );
+    expect(screen.getByLabelText("Fast")).not.toHaveAttribute("aria-describedby");
+  });
+
+  it("without a label hint the value hint leads, and is never added twice", () => {
+    render(
+      <Field
+        label="Mode"
+        htmlFor="mode"
+        valueHint="Fast skips the checks."
+        control={{ role: "group", "aria-describedby": "mode-value-hint" }}
+      >
+        <Input aria-label="Fast" />
+      </Field>,
+    );
+    expect(screen.getByRole("group")).toHaveAttribute("aria-describedby", "mode-value-hint");
+  });
+
+  it("a radiogroup control takes the value hint as a group does", () => {
+    render(
+      <Field
+        label="Mode"
+        htmlFor="mode"
+        hint="How it runs."
+        valueHint="Fast skips the checks."
+        control={{ role: "radiogroup", "aria-describedby": "mode-help" }}
+      >
+        <Input aria-label="Fast" />
+      </Field>,
+    );
+    const group = screen.getByRole("radiogroup");
+    expect(group).toHaveAttribute("aria-describedby", "mode-help mode-value-hint");
+    expect(group).toHaveAccessibleDescription("How it runs. Fast skips the checks.");
+    expect(screen.getByLabelText("Fast")).not.toHaveAttribute("aria-describedby");
+  });
+
+  it("an empty value hint adds nothing to the group", () => {
+    render(
+      <Field
+        label="Mode"
+        htmlFor="mode"
+        hint="How it runs."
+        valueHint=""
+        control={{ role: "group", "aria-describedby": "mode-help" }}
+      >
+        <Input aria-label="Fast" />
+      </Field>,
+    );
+    expect(screen.getByRole("group")).toHaveAttribute("aria-describedby", "mode-help");
+    expect(document.getElementById("mode-value-hint")).toBeNull();
+  });
+
+  it("a field without a group renders no value hint element", () => {
+    render(
+      <Field label="Order" htmlFor="order" valueHint="1 plays first.">
+        <Input id="order" />
+      </Field>,
+    );
+    expect(document.getElementById("order-value-hint")).toBeNull();
+  });
+});
+
+// GL-UI-017 rev 9 §Gruppen (#539): a group has no field surface, so its label shows the value hint on
+// hover, after the label's hint; the description stays on the group, each hint read once.
+describe("Field group label hover", () => {
+  function hover(element: Element): string | null | undefined {
+    vi.useFakeTimers();
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    try {
+      fireEvent.pointerMove(element, { pointerType: "mouse" });
+      act(() => {
+        vi.advanceTimersByTime(1500);
+      });
+      return document.querySelector("[data-slot=tooltip-content]")?.textContent;
+    } finally {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    }
+  }
+
+  it.each(["group", "radiogroup"])("the label of a %s shows its value hint", (role) => {
+    render(
+      <Field
+        label="Mode"
+        htmlFor="mode"
+        hint="How it runs."
+        valueHint="Fast skips the checks."
+        control={{ role, "aria-describedby": "mode-help" }}
+      >
+        <Input aria-label="Fast" />
+      </Field>,
+    );
+    expect(hover(screen.getByText("Mode"))).toBe("How it runs. Fast skips the checks.");
+    const group = screen.getByRole(role);
+    expect(group).toHaveAttribute("aria-describedby", "mode-help mode-value-hint");
+    expect(group).toHaveAccessibleDescription("How it runs. Fast skips the checks.");
+  });
+
+  it("without a label hint the label shows the value hint alone", () => {
+    render(
+      <Field
+        label="Mode"
+        htmlFor="mode"
+        valueHint="Fast skips the checks."
+        control={{ role: "group" }}
+      >
+        <Input aria-label="Fast" />
+      </Field>,
+    );
+    expect(hover(screen.getByText("Mode"))).toBe("Fast skips the checks.");
+    expect(document.getElementById("mode-help")).toBeNull();
+    expect(screen.getByRole("group")).toHaveAttribute("aria-describedby", "mode-value-hint");
   });
 });
