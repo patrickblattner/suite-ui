@@ -1,11 +1,12 @@
 import { act, createEvent, fireEvent, render, screen } from "@testing-library/react";
 import i18n from "i18next";
 import { Tooltip as TooltipPrimitive } from "radix-ui";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { leaveTooltip } from "../list/test-utils.js";
 import { Button } from "./button.js";
+import { Card, CardContent } from "./card.js";
 import { EditPanel } from "./edit-panel.js";
 import { Field } from "./field.js";
 import { Hint } from "./hint.js";
@@ -1335,9 +1336,10 @@ describe("tooltip placement in a row", () => {
   });
 
   // #438: a neighbour counts by its fields on the line, never by its box: a lone field beside a tall
-  // column of fields, none of them on its line, is in no row and its bubble stands at the field. The
-  // column's own control on that line (a panel's button) makes no pair of it either.
-  it("a lone field beside a tall column of fields is in no row", async () => {
+  // column of fields, none of them on its line, pairs with none of them. #542: the column's own control
+  // on that line (a panel's button) is an obstacle: no gap before it holds the bubble, so it stands
+  // past it, never over it.
+  it("a lone field beside a tall column's button at its height stands past the button", async () => {
     layOut(1000, { bubble: [0, 100] });
     const boxes: Record<string, [left: number, width: number, top: number, height: number]> = {
       "field-lone": [0, 140, 60, 50],
@@ -1385,13 +1387,13 @@ describe("tooltip placement in a row", () => {
     );
     const bubble = await placedBubble("input-lone");
     expect(bubble).toHaveAttribute("data-side", "right");
-    // At the field, 8 px right of its input (0 + 140): no pair beside it.
-    expect((bubble?.parentElement as HTMLElement).style.transform).toMatch(/^translate\(148px,/);
+    // Past the column's button (150 + 140) and 8 px apart: 298, its 100 px clear of the button.
+    expect((bubble?.parentElement as HTMLElement).style.transform).toMatch(/^translate\(298px,/);
   });
 
   // #511: a column of fields is a layout of its own, never a field's wrapper: a lone field beside it
-  // is grouped with the column's field at its height only, never with the page's whole layout, and
-  // its bubble, 24 px past the lone field and 320 px wide, stands past that field, not over it.
+  // keeps clear of the column's field at its height only, never of the page's whole layout, and its
+  // bubble, 24 px past the lone field and 320 px wide, stands past that field, not over it (#542).
   it("a lone field beside a column of fields stands past the column's field at its height", async () => {
     layOut(1000, { bubble: [0, 320] });
     const boxes: Record<string, [left: number, width: number, top: number, height: number]> = {
@@ -1439,6 +1441,367 @@ describe("tooltip placement in a row", () => {
     expect(bubble).toHaveAttribute("data-side", "right");
     // Past the column's field at its height (164 + 140) and 8 px apart: 312, its 320 px clear of it.
     expect((bubble?.parentElement as HTMLElement).style.transform).toMatch(/^translate\(312px,/);
+  });
+
+  // #542: the column's field at the lone field's height, the column standing left of it, has the
+  // lone field as an obstacle: its bubble, 24 px before it and 320 px wide, stands past the lone field.
+  it("a column's field beside a lone field on its right stands past the lone field", async () => {
+    layOut(1000, { bubble: [0, 320] });
+    const boxes: Record<string, [left: number, width: number, top: number, height: number]> = {
+      column: [0, 140, 60, 290],
+      "field-r0": [0, 140, 60, 50],
+      "input-r0": [0, 140, 76, 32],
+      "field-r1": [0, 140, 120, 50],
+      "field-r2": [0, 140, 240, 50],
+      "field-lone": [164, 140, 60, 50],
+      "input-lone": [164, 140, 76, 32],
+    };
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      const bubble =
+        this.dataset.slot === "tooltip-content" ||
+        this.hasAttribute("data-radix-popper-content-wrapper");
+      if (bubble) return new DOMRect(0, 0, 320, 32);
+      const [left, width, top, height] = boxes[this.dataset.testid ?? ""] ?? [0, 0, 0, 0];
+      return new DOMRect(left, top, width, height);
+    });
+    render(
+      <div>
+        <div data-testid="column">
+          {[0, 1, 2].map((index) => (
+            <Field
+              key={index}
+              label={`r${index}`}
+              htmlFor={`r${index}`}
+              valueHint={`r${index} value`}
+              data-testid={`field-r${index}`}
+            >
+              <Input id={`r${index}`} data-testid={`input-r${index}`} />
+            </Field>
+          ))}
+        </div>
+        <div>
+          <Field label="lone" htmlFor="lone" valueHint="lone value" data-testid="field-lone">
+            <Input id="lone" data-testid="input-lone" />
+          </Field>
+        </div>
+      </div>,
+    );
+    const bubble = await placedBubble("input-r0");
+    expect(bubble).toHaveAttribute("data-side", "right");
+    // Past the lone field (164 + 140) and 8 px apart: 312, its 320 px clear of it.
+    expect((bubble?.parentElement as HTMLElement).style.transform).toMatch(/^translate\(312px,/);
+  });
+
+  // #542: a control of the column outside its fields at the lone field's height (a button beside the
+  // column's field) is an obstacle too, never a bound that leaves no side: the bubble, 320 px wide,
+  // stands past the button.
+  it("a lone field beside a column's field and button at its height stands past the button", async () => {
+    layOut(1000, { bubble: [0, 320] });
+    const boxes: Record<string, [left: number, width: number, top: number, height: number]> = {
+      "field-lone": [0, 140, 60, 50],
+      "input-lone": [0, 140, 76, 32],
+      column: [164, 236, 60, 290],
+      "field-r0": [164, 140, 60, 50],
+      "input-r0": [164, 140, 76, 32],
+      "field-r1": [164, 140, 120, 50],
+      "field-r2": [164, 140, 240, 50],
+      "column-button": [328, 72, 76, 32],
+    };
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      const bubble =
+        this.dataset.slot === "tooltip-content" ||
+        this.hasAttribute("data-radix-popper-content-wrapper");
+      if (bubble) return new DOMRect(0, 0, 320, 32);
+      const [left, width, top, height] = boxes[this.dataset.testid ?? ""] ?? [0, 0, 0, 0];
+      return new DOMRect(left, top, width, height);
+    });
+    render(
+      <div>
+        <div>
+          <Field label="lone" htmlFor="lone" valueHint="lone value" data-testid="field-lone">
+            <Input id="lone" data-testid="input-lone" />
+          </Field>
+        </div>
+        <div data-testid="column">
+          {[0, 1, 2].map((index) => (
+            <Field
+              key={index}
+              label={`r${index}`}
+              htmlFor={`r${index}`}
+              valueHint={`r${index} value`}
+              data-testid={`field-r${index}`}
+            >
+              <Input id={`r${index}`} data-testid={`input-r${index}`} />
+            </Field>
+          ))}
+          <Button variant="outline" size="default" data-testid="column-button">
+            Apply
+          </Button>
+        </div>
+      </div>,
+    );
+    const bubble = await placedBubble("input-lone");
+    expect(bubble).toHaveAttribute("data-side", "right");
+    // Past the button (328 + 72) and 8 px apart: 408, its 320 px clear of the column's field and button.
+    expect((bubble?.parentElement as HTMLElement).style.transform).toMatch(/^translate\(408px,/);
+  });
+
+  // #542: the neighbours on a field's line beside a column (its fields, its loose controls, a field
+  // beyond it) are obstacles, never members of the field's group: the bubble, 320 px wide, stands in
+  // the nearest gap that holds it, at the field where the gap before them does.
+  function layOutBoxes(
+    viewport: number,
+    boxes: Record<string, [left: number, width: number, top: number, height: number]>,
+  ) {
+    layOut(viewport, { bubble: [0, 320] });
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      const bubble =
+        this.dataset.slot === "tooltip-content" ||
+        this.hasAttribute("data-radix-popper-content-wrapper");
+      if (bubble) return new DOMRect(0, 0, 320, 32);
+      const [left, width, top, height] = boxes[this.dataset.testid ?? ""] ?? [0, 0, 0, 0];
+      return new DOMRect(left, top, width, height);
+    });
+  }
+  const column = (name: string, button?: ReactNode) => (
+    <div data-testid={`column-${name}`}>
+      {[0, 1, 2].map((index) => (
+        <Field
+          key={index}
+          label={`${name}${index}`}
+          htmlFor={`${name}${index}`}
+          valueHint={`${name}${index} value`}
+          data-testid={`field-${name}${index}`}
+        >
+          <Input id={`${name}${index}`} data-testid={`input-${name}${index}`} />
+        </Field>
+      ))}
+      {button}
+    </div>
+  );
+  const lone = (
+    <div>
+      <Field label="lone" htmlFor="lone" valueHint="lone value" data-testid="field-lone">
+        <Input id="lone" data-testid="input-lone" />
+      </Field>
+    </div>
+  );
+  const at = async (testId: string) => {
+    const bubble = await placedBubble(testId);
+    expect(bubble).toHaveAttribute("data-side", "right");
+    return (bubble?.parentElement as HTMLElement).style.transform;
+  };
+
+  it("a lone field stands its bubble in the gap before a column's field far beside it", async () => {
+    layOutBoxes(1000, {
+      "field-lone": [0, 140, 60, 50],
+      "input-lone": [0, 140, 76, 32],
+      "field-c0": [600, 140, 60, 50],
+      "input-c0": [600, 140, 76, 32],
+      "field-c1": [600, 140, 120, 50],
+      "field-c2": [600, 140, 240, 50],
+    });
+    render(
+      <div>
+        {lone}
+        {column("c")}
+      </div>,
+    );
+    // At the field, 8 px right of its input (0 + 140): the gap up to the column's input (600 - 8)
+    // holds 444 px.
+    expect(await at("input-lone")).toMatch(/^translate\(148px,/);
+  });
+
+  it("a lone field stands its bubble in the gap before a column's button far beside it", async () => {
+    layOutBoxes(1400, {
+      "field-lone": [0, 140, 60, 50],
+      "input-lone": [0, 140, 76, 32],
+      "field-c0": [700, 140, 120, 50],
+      "field-c1": [700, 140, 180, 50],
+      "field-c2": [700, 140, 240, 50],
+      "button-c": [900, 72, 76, 32],
+    });
+    render(
+      <div>
+        {lone}
+        {column(
+          "c",
+          <Button variant="outline" size="default" data-testid="button-c">
+            Apply
+          </Button>,
+        )}
+      </div>,
+    );
+    expect(await at("input-lone")).toMatch(/^translate\(148px,/);
+  });
+
+  it("a stacked card's field stands its bubble in the gap before a card far beside it", async () => {
+    layOutBoxes(1400, {
+      "field-a0": [0, 140, 60, 50],
+      "input-a0": [0, 140, 76, 32],
+      "field-a1": [0, 140, 120, 50],
+      "field-a2": [0, 140, 240, 50],
+      "field-b0": [600, 140, 60, 50],
+      "input-b0": [600, 140, 76, 32],
+      "field-b1": [600, 140, 120, 50],
+      "field-b2": [600, 140, 240, 50],
+    });
+    render(
+      <div>
+        {column("a")}
+        {column("b")}
+      </div>,
+    );
+    expect(await at("input-a0")).toMatch(/^translate\(148px,/);
+  });
+
+  // The climb past a field's own layout ends at the nearest ancestor with a control on its line: a
+  // stacked form in the page's main region pairs with no field of a sidebar beside it, which is an
+  // obstacle 952 px away.
+  it("a stacked form's field stands its bubble at the field beside a far sidebar field", async () => {
+    layOutBoxes(1600, {
+      "field-a0": [0, 140, 60, 50],
+      "input-a0": [0, 140, 76, 32],
+      "field-a1": [0, 140, 120, 50],
+      "field-a2": [0, 140, 240, 50],
+      "button-a": [0, 72, 300, 32],
+      "field-side": [1100, 140, 60, 50],
+      "input-side": [1100, 140, 76, 32],
+    });
+    render(
+      <div>
+        <main>
+          {column(
+            "a",
+            <Button variant="outline" size="default" data-testid="button-a">
+              Save
+            </Button>,
+          )}
+        </main>
+        <aside>
+          <Field label="side" htmlFor="side" valueHint="side value" data-testid="field-side">
+            <Input id="side" data-testid="input-side" />
+          </Field>
+        </aside>
+      </div>,
+    );
+    expect(await at("input-a0")).toMatch(/^translate\(148px,/);
+  });
+
+  // A column's own control at a lone field's height, 24 px left of it, keeps its bubble off the lone
+  // field: no gap before it holds the bubble, so it stands past it.
+  it("a column's button beside a lone field stands its bubble past the lone field", async () => {
+    layOutBoxes(1000, {
+      "field-c0": [0, 140, 0, 50],
+      "field-c1": [0, 140, 120, 50],
+      "field-c2": [0, 140, 240, 50],
+      "button-c": [0, 72, 76, 32],
+      "field-lone": [164, 140, 60, 50],
+      "input-lone": [164, 140, 76, 32],
+    });
+    render(
+      <div>
+        {column(
+          "c",
+          <IconButtonTooltip label="Apply all">
+            <Button variant="ghost" size="icon" aria-label="Apply all" data-testid="button-c">
+              A
+            </Button>
+          </IconButtonTooltip>,
+        )}
+        {lone}
+      </div>,
+    );
+    // Past the lone field's input (164 + 140) and 8 px apart: 312.
+    expect(await at("button-c")).toMatch(/^translate\(312px,/);
+  });
+
+  // #542: a column wrapped once more (an app's extra div, the package's Card > CardContent) still
+  // keeps its field's bubble off a lone field 24 px beside it: the climb goes on to the nearest
+  // ancestor with a control on the line.
+  const wrappedColumnBoxes: Record<
+    string,
+    [left: number, width: number, top: number, height: number]
+  > = {
+    "field-c0": [0, 140, 60, 50],
+    "input-c0": [0, 140, 76, 32],
+    "field-c1": [0, 140, 120, 50],
+    "field-c2": [0, 140, 240, 50],
+    "field-lone": [164, 140, 60, 50],
+    "input-lone": [164, 140, 76, 32],
+  };
+
+  it("a wrapped column's field beside a lone field stands its bubble past the lone field", async () => {
+    layOutBoxes(1000, wrappedColumnBoxes);
+    render(
+      <div>
+        <div>{column("c")}</div>
+        {lone}
+      </div>,
+    );
+    // Past the lone field's input (164 + 140) and 8 px apart: 312.
+    expect(await at("input-c0")).toMatch(/^translate\(312px,/);
+  });
+
+  it("a card's field beside a lone field stands its bubble past the lone field", async () => {
+    layOutBoxes(1000, wrappedColumnBoxes);
+    render(
+      <div>
+        <Card>
+          <CardContent>{column("c")}</CardContent>
+        </Card>
+        {lone}
+      </div>,
+    );
+    expect(await at("input-c0")).toMatch(/^translate\(312px,/);
+  });
+
+  // #543: a direct field pair follows the same rule: the partner is an obstacle, never a member of
+  // the field's group. A far partner leaves the bubble in the gap before it, a close one past it.
+  const pair = (
+    <div>
+      {(["a", "b"] as const).map((id) => (
+        <Field
+          key={id}
+          label={id}
+          htmlFor={id}
+          valueHint={`${id} value`}
+          data-testid={`field-${id}`}
+        >
+          <Input id={id} data-testid={`input-${id}`} />
+        </Field>
+      ))}
+    </div>
+  );
+
+  it("a field pair's far partner leaves the bubble in the gap before it", async () => {
+    layOutBoxes(1000, {
+      "field-a": [0, 140, 60, 50],
+      "input-a": [0, 140, 76, 32],
+      "field-b": [560, 140, 60, 50],
+      "input-b": [560, 140, 76, 32],
+    });
+    render(pair);
+    // At the field, 8 px right of its input (0 + 140): the gap up to the partner (560 - 8) holds 404 px.
+    expect(await at("input-a")).toMatch(/^translate\(148px,/);
+  });
+
+  it("a field pair's close partner stands the bubble past it", async () => {
+    layOutBoxes(1000, {
+      "field-a": [0, 140, 60, 50],
+      "input-a": [0, 140, 76, 32],
+      "field-b": [164, 140, 60, 50],
+      "input-b": [164, 140, 76, 32],
+    });
+    render(pair);
+    // Past the partner's input (164 + 140) and 8 px apart: 312.
+    expect(await at("input-a")).toMatch(/^translate\(312px,/);
   });
 
   // #441: a control of another bar at the bubble's height (a canvas's floating actions beside a panel)
