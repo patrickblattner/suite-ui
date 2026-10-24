@@ -31,6 +31,8 @@ export const de: SuiteStrings = {
     recovered: "Wiederhergestellt",
     more_one: "1 weiterer",
     more_other: "{{n}} weitere",
+    // A toast action's key route: sonner's hotkey focuses the toasts (`SUI-FEATURE-101` rev 5).
+    actionKey: "{{action}} mit Alt+T",
   },
   inline: {
     error: "Fehler:",

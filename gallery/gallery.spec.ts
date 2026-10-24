@@ -707,6 +707,124 @@ test("toast: Tab onto a FilterBar control under the toast closes all toasts", as
   expect(await covered.evaluate((el) => el.matches(":focus-visible"))).toBe(true);
 });
 
+// `SUI-FEATURE-101` rev 5 AC 5: by keyboard ⋯ → Delete → confirm, the focus returns to the ⋯ and
+// the receipt, which has no action, appears over it, in the live region. It stays 1000 ms, then
+// closes; `Esc` closes it earlier. The focus stays on the ⋯ throughout.
+test("toast: the receipt over the returned focus closes after 1000 ms, Esc earlier", async ({
+  page,
+}) => {
+  await page.goto("/?page=preview&lng=en&receipt=1");
+  const trigger = page
+    .getByTestId("preview-row-menu")
+    .getByTestId("row-menu-actions")
+    .getByTestId("row-menu");
+  const receipt = page.locator("[data-sonner-toast]").filter({ hasText: "Home deleted." });
+  for (const close of ["time", "Escape"]) {
+    await trigger.focus();
+    await page.keyboard.press("Enter");
+    await page.getByRole("menu").getByRole("menuitem", { name: "Delete" }).focus();
+    await page.keyboard.press("Enter");
+    await page.getByTestId("delete-confirm-confirm").focus();
+    await page.keyboard.press("Enter");
+    await expect(trigger).toBeFocused();
+    expect(await trigger.evaluate((el) => el.matches(":focus-visible"))).toBe(true);
+    await expect(receipt).toBeVisible();
+    await expect(page.locator("[aria-live=polite] [data-sonner-toast]")).toHaveCount(1);
+    // The receipt rests over the ⋯.
+    await page.waitForTimeout(500);
+    const toastBox = await box(receipt);
+    const node = await box(trigger);
+    expect(
+      toastBox.x < node.x + node.width &&
+        node.x < toastBox.x + toastBox.width &&
+        toastBox.y < node.y + node.height &&
+        node.y < toastBox.y + toastBox.height,
+    ).toBe(true);
+    if (close === "Escape") {
+      await page.keyboard.press("Escape");
+      // Before the 1000 ms are up: well inside the exit animation's time.
+      await expect(page.locator("[data-sonner-toast]")).toHaveCount(0, { timeout: 400 });
+    } else {
+      await expect(receipt).toHaveAttribute("data-removed", "false");
+      // 1000 ms from its appearance plus the exit animation; 500 ms of them have passed.
+      await expect(page.locator("[data-sonner-toast]")).toHaveCount(0, { timeout: 1200 });
+    }
+    await expect(trigger, close).toBeFocused();
+  }
+});
+
+// `SUI-FEATURE-101` rev 5 AC 6: by keyboard ⋯ → Archive → confirm, the receipt with Undo appears
+// over the returned focus and keeps its normal duration; the live region names Undo and Alt+T.
+// Alt+T, then Enter on Undo undoes the archive; a Tab onto a covered element or `Esc` closes it at once.
+test("toast: the receipt with Undo over the returned focus stays, Alt+T reaches Undo", async ({
+  page,
+}) => {
+  await page.goto("/?page=preview&lng=en&receipt=1");
+  const trigger = page
+    .getByTestId("preview-row-menu")
+    .getByTestId("row-menu-actions")
+    .getByTestId("row-menu");
+  const toasts = page.locator("[data-sonner-toast]");
+  const receipt = toasts.filter({ hasText: "Home archived." });
+  const covers = async (element: Locator) => {
+    const toastBox = await box(receipt);
+    const node = await box(element);
+    return (
+      toastBox.x < node.x + node.width + 4 &&
+      node.x - 4 < toastBox.x + toastBox.width &&
+      toastBox.y < node.y + node.height + 4 &&
+      node.y - 4 < toastBox.y + toastBox.height
+    );
+  };
+  for (const round of ["undo", "Tab", "Escape"]) {
+    await expect(toasts).toHaveCount(0, { timeout: 5000 });
+    await trigger.focus();
+    await page.keyboard.press("Enter");
+    await page.getByRole("menu").getByRole("menuitem", { name: "Archive" }).focus();
+    await page.keyboard.press("Enter");
+    await page.getByTestId("archive-confirm-confirm").focus();
+    await page.keyboard.press("Enter");
+    await expect(trigger).toBeFocused();
+    await expect(receipt).toBeVisible();
+    await expect(page.locator("[aria-live=polite] [data-sonner-toast]")).toHaveCount(1);
+    await expect(receipt).toContainText("Undo with Alt+T");
+    await expect(receipt.getByRole("button", { name: "Undo" })).toBeVisible();
+    await page.waitForTimeout(500);
+    expect(await covers(trigger)).toBe(true);
+    if (round === "undo") {
+      // Past the 1000 ms a receipt without an action gets: this one keeps its own duration.
+      await page.waitForTimeout(800);
+      await expect(receipt).toHaveAttribute("data-removed", "false");
+      await page.keyboard.press("Alt+T");
+      const undo = receipt.getByRole("button", { name: "Undo" });
+      for (
+        let step = 0;
+        step < 5 && !(await undo.evaluate((el) => el === document.activeElement));
+        step++
+      )
+        await page.keyboard.press("Tab");
+      await expect(undo).toBeFocused();
+      await page.keyboard.press("Enter");
+      await expect(toasts.filter({ hasText: "Home restored." })).toBeVisible();
+      continue;
+    }
+    if (round === "Tab") {
+      // The first keyboard move onto an element under it closes it; one beside it leaves it open.
+      await page.keyboard.press("Shift+Tab");
+      const moved = page.locator(":focus");
+      if (!(await covers(moved))) {
+        await expect(receipt).toHaveAttribute("data-removed", "false");
+        await page.keyboard.press("Tab");
+        await expect(trigger).toBeFocused();
+      }
+    } else {
+      await page.keyboard.press("Escape");
+      await expect(trigger).toBeFocused();
+    }
+    await expect(toasts).toHaveCount(0, { timeout: 400 });
+  }
+});
+
 // `GL-UI-013` rev 5: the last Tab stop of a scrolled sidebar is shown whole, its ring included.
 test("sidebar: the last Tab stop of a scrolling nav shows the whole node and its ring", async ({
   page,

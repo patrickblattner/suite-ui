@@ -54,18 +54,37 @@ function withDuration(
 // sonner's `toast` with the four variants timed by `toastDurationFor`; everything else (the plain
 // call, `dismiss`, `promise`, `loading`, `custom`) is sonner's own. Typed as sonner's `toast` so the
 // emitted declaration can name it (the inferred type references sonner's unexported types, TS4023).
+// A toast with an action names it in the live region with its key route, sonner's hotkey Alt+T that
+// focuses the toasts (`SUI-FEATURE-101` rev 5).
+function ActionKeyHint({ message, action }: { message: Message; action: string }) {
+  const { t } = useTranslation("suite");
+  return (
+    <>
+      <span>{typeof message === "function" ? message() : message}</span>{" "}
+      <span className="sr-only">{t("status.actionKey", { action })}</span>
+    </>
+  );
+}
+
+function withActionHint(message: Message, opts?: ExternalToast): Message {
+  const action = opts?.action;
+  if (typeof action !== "object" || action === null || !("label" in action)) return message;
+  if (typeof action.label !== "string") return message;
+  return <ActionKeyHint message={message} action={action.label} />;
+}
+
 const toast: typeof sonnerToast = Object.assign(
-  (message: Message, opts?: ExternalToast) => sonnerToast(message, opts),
+  (message: Message, opts?: ExternalToast) => sonnerToast(withActionHint(message, opts), opts),
   {
     ...sonnerToast,
     success: (message: Message, opts?: ExternalToast) =>
-      sonnerToast.success(message, withDuration(message, "success", opts)),
+      sonnerToast.success(withActionHint(message, opts), withDuration(message, "success", opts)),
     error: (message: Message, opts?: ExternalToast) =>
-      sonnerToast.error(message, withDuration(message, "error", opts)),
+      sonnerToast.error(withActionHint(message, opts), withDuration(message, "error", opts)),
     warning: (message: Message, opts?: ExternalToast) =>
-      sonnerToast.warning(message, withDuration(message, "warning", opts)),
+      sonnerToast.warning(withActionHint(message, opts), withDuration(message, "warning", opts)),
     info: (message: Message, opts?: ExternalToast) =>
-      sonnerToast.info(message, withDuration(message, "info", opts)),
+      sonnerToast.info(withActionHint(message, opts), withDuration(message, "info", opts)),
   },
 );
 
@@ -183,47 +202,101 @@ function dismissAllOnToastClick(event: React.MouseEvent<HTMLElement>): void {
 // and in forced colours the 2 px outline at 2 px offset. A toast over the ring covers the focus too.
 const FOCUS_RING_PX = 4;
 
+// A toast that appears over the keyboard focus stays this long, then closes (`SUI-FEATURE-101` rev 4).
+const TOAST_OVER_FOCUS_MS = 1000;
+const VISIBLE_TOASTS = "[data-sonner-toast]:not([data-removed=true]):not([data-visible=false])";
+
+// The element holding keyboard focus, as `:focus-visible` tells it, outside the toasts; else null.
+function keyboardFocus(target: EventTarget | null): Element | null {
+  if (
+    !(target instanceof Element) ||
+    !target.matches(":focus-visible") ||
+    target.closest("[data-sonner-toaster]")
+  )
+    return null;
+  return target;
+}
+
+// Whether a visible toast covers the element, wholly or in part, its ring included. A toast without
+// a box (not laid out) covers nothing.
+function coveredByToast(element: Element): boolean {
+  const focus = element.getBoundingClientRect();
+  const toasts = document.querySelectorAll(VISIBLE_TOASTS);
+  return Array.from(toasts).some((item) => {
+    const box = item.getBoundingClientRect();
+    return (
+      box.width > 0 &&
+      box.height > 0 &&
+      box.left < focus.right + FOCUS_RING_PX &&
+      focus.left - FOCUS_RING_PX < box.right &&
+      box.top < focus.bottom + FOCUS_RING_PX &&
+      focus.top - FOCUS_RING_PX < box.bottom
+    );
+  });
+}
+
 /**
- * Keyboard focus never rests under a toast (`GL-UI-028`, `GL-UI-013`, `SUI-FEATURE-101` rev 3): when
+ * Keyboard focus never rests under a toast (`GL-UI-028`, `GL-UI-013`, `SUI-FEATURE-101` rev 5): when
  * it lands on an element that a visible toast covers, wholly or in part, ring included, all toasts
  * close, the counterpart of the click that dismisses them all (sonner puts no toast id on the DOM,
  * and in the collapsed stack the toasts behind would cover the element anyway); the live region has
  * announced them already.
+ * A toast that appears over the focused element (focus back on the trigger after a confirm, then
+ * the receipt) stays `TOAST_OVER_FOCUS_MS`, so it is announced and briefly seen, then all close the
+ * same way; it is judged once it has slid in, at that time. `Esc` closes them earlier and leaves the
+ * focus where it is. A toast away from the focus keeps its normal duration. While a toast with an
+ * action shows, none closes after `TOAST_OVER_FOCUS_MS` (rev 5): it keeps its duration, and the next
+ * keyboard focus move under it or `Esc` closes it.
  * Only keyboard focus counts, as `:focus-visible` tells it (the pointer accepts the cover), and
- * focus inside the toasts, on an action or the close button, closes none. A toast without a box (not laid out) covers nothing.
+ * focus inside the toasts, on an action or the close button, closes none.
  */
-function useDismissToastsUnderFocus(): void {
+function useDismissToastsUnderFocus(toasts: React.RefObject<HTMLElement | null>): void {
   React.useEffect(() => {
+    // One timer for all: a toast that mounts restarts it, a dismissal clears it, so no earlier
+    // toast's timer cuts a later one short.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const dismissIfCovered = (target: EventTarget | null) => {
+      const focus = keyboardFocus(target);
+      if (focus === null || !coveredByToast(focus)) return;
+      clearTimeout(timer);
+      toast.dismiss();
+    };
     const onFocusIn = (event: FocusEvent) => {
-      const target = event.target;
-      if (
-        !(target instanceof Element) ||
-        !target.matches(":focus-visible") ||
-        target.closest("[data-sonner-toaster]")
-      )
-        return;
-      const focus = target.getBoundingClientRect();
-      const toasts = document.querySelectorAll(
-        "[data-sonner-toast]:not([data-removed=true]):not([data-visible=false])",
+      dismissIfCovered(event.target);
+    };
+    // An `Esc` an open layer (menu, popover, sheet) already took closes only that layer.
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !event.defaultPrevented)
+        dismissIfCovered(document.activeElement);
+    };
+    const mounts = new MutationObserver((records) => {
+      const added = records.some((record) =>
+        Array.from(record.addedNodes).some(
+          (node) =>
+            node instanceof Element &&
+            (node.matches("[data-sonner-toast]") ||
+              node.querySelector("[data-sonner-toast]") !== null),
+        ),
       );
-      const covered = Array.from(toasts).some((item) => {
-        const box = item.getBoundingClientRect();
-        return (
-          box.width > 0 &&
-          box.height > 0 &&
-          box.left < focus.right + FOCUS_RING_PX &&
-          focus.left - FOCUS_RING_PX < box.right &&
-          box.top < focus.bottom + FOCUS_RING_PX &&
-          focus.top - FOCUS_RING_PX < box.bottom
-        );
-      });
-      if (covered) toast.dismiss();
-    };
+      if (!added) return;
+      clearTimeout(timer);
+      // A toast with an action keeps its duration, so its action stays reachable (rev 5).
+      timer = setTimeout(() => {
+        if (document.querySelector(`${VISIBLE_TOASTS} [data-action]`) === null)
+          dismissIfCovered(document.activeElement);
+      }, TOAST_OVER_FOCUS_MS);
+    });
+    // Only the toaster's own subtree: sonner renders its section there, the toasts inside it.
+    if (toasts.current !== null) mounts.observe(toasts.current, { childList: true, subtree: true });
     document.addEventListener("focusin", onFocusIn);
+    document.addEventListener("keydown", onKeyDown);
     return () => {
+      mounts.disconnect();
+      clearTimeout(timer);
       document.removeEventListener("focusin", onFocusIn);
+      document.removeEventListener("keydown", onKeyDown);
     };
-  }, []);
+  }, [toasts]);
 }
 
 type ToasterAppProps = Omit<ToasterProps, "position" | "offset" | "mobileOffset">;
@@ -231,7 +304,8 @@ type ToasterAppProps = Omit<ToasterProps, "position" | "offset" | "mobileOffset"
 // `theme` follows the app: pass its resolved theme ("light" or "dark").
 function Toaster({ theme = "light", ...props }: ToasterAppProps) {
   const { t } = useTranslation("suite");
-  useDismissToastsUnderFocus();
+  const toasts = React.useRef<HTMLDivElement>(null);
+  useDismissToastsUnderFocus(toasts);
   // The symbol shows the variant; its name is read before the message, so the variant does not rest
   // on colour and symbol alone (`GL-UI-060`).
   const named = (icon: React.ReactNode, name: string) => (
@@ -241,7 +315,7 @@ function Toaster({ theme = "light", ...props }: ToasterAppProps) {
     </>
   );
   return (
-    <div onClick={dismissAllOnToastClick}>
+    <div ref={toasts} onClick={dismissAllOnToastClick}>
       <Sonner
         theme={theme}
         className="toaster group"
