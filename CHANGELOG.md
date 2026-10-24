@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #549, SUI-FEATURE-107 rev 4: in the Sidebar overlay, a section and the back link move the focus for every input (minor)
+## 0.174.0 — #549, SUI-FEATURE-107 rev 4: in the Sidebar overlay, a section and the back link move the focus for every input
 
 - **Sidebar overlay (#549):** below `md`, the section button and the back link now set the focus as for the keyboard (the active first entry of the opened section, or the entry of the section just left) whatever the input: pointer, touch and screen-reader activation (a VoiceOver double tap arrives as a click with `detail >= 1`) included. The modal overlay no longer leaves the focus on `<body>`. The ring still follows `:focus-visible`, so none shows after a pointer or touch press.
 - **Unchanged (#549):** expanded and collapsed, a pointer press still sets no focus, also after a keyboard switch a leave guard blocked.
@@ -8,14 +8,14 @@
 
 **Migration:** none; no API, string, `data-testid` or baseline changes.
 
-## Unreleased — #557, GL-UI-007/GL-UI-050: Cancel in the leave dialog no longer reactivates the tab trigger that asked (patch)
+## 0.174.0 — #557, GL-UI-007/GL-UI-050: Cancel in the leave dialog no longer reactivates the tab trigger that asked
 
 - **Tabs (#557):** a `TabsTrigger` activates on focus only when the focus moves within its own tab list (arrow keys, Home, End); a press activates it as before. A focus from outside the list — a dialog returning it on close (`GL-UI-050`) — leaves the selection as it is. Before, a guarded page whose tab switch asked (no `ignoreSearchParams`) looped: Cancel returned the focus to the trigger, its automatic activation switched again, and the leave dialog reopened. Now Cancel closes the dialog, the focus is on the trigger, the original tab and the draft stay. A caller's own `onFocus` still runs first; preventing its default skips the activation as before.
 - **Tests (#557):** unit tests: a focus from outside the tab list does not activate, an arrow key and a press do. Gallery (`?harness=leave-guard`, `/detail-plain`): field changed, tab switch by click and by `ArrowRight`, Cancel → no dialog, focus on the trigger, still on the original tab and `?tab=`, draft kept.
 
 **Migration:** none for pointer and keyboard use. Code that activated a tab by calling `.focus()` on its trigger from outside the list must set the value instead. No strings, `data-testid`s or baselines change.
 
-## Unreleased — #548, SUI-FEATURE-103 rev 3 / GL-UI-050: the busy button's focus hold survives a window switch, a missed blur and a late `disabled` (patch)
+## 0.174.0 — #548, SUI-FEATURE-103 rev 3 / GL-UI-050: the busy button's focus hold survives a window switch, a missed blur and a late `disabled`
 
 - **Window switch (#548):** a blur with no `relatedTarget` while the document has lost the focus and the button is still its active element (a switch to another window or tab) no longer ends the hold; back in the page, the focus is still on the button.
 - **Real focus at the run's end (#548):** when a run ends, the hold checks `document.activeElement`; a blur that never reached the button no longer leaves it held with `aria-disabled` instead of `disabled`.
@@ -25,14 +25,14 @@
 
 **Migration:** none; no API, string, `data-testid` or baseline changes.
 
-## Unreleased — #547, SUI-FEATURE-109 rev 2: the leave guard can let a same-path search/hash change pass (minor)
+## 0.174.0 — #547, SUI-FEATURE-109 rev 2: the leave guard can let a same-path search/hash change pass
 
 - **Leave guard (#547):** `useLeaveGuard` takes a new option `ignoreSearchParams` (boolean, default `false`). Set, a route change that keeps the `pathname` and changes only `search` or `hash` passes the dirty page without the question, by push or by replace (a tab switch over `setSearchParams({ tab }, { replace: true })`), also as browser back/forward to an entry of the same pathname; under `BrowserRouter`, `MemoryRouter` and data routers alike. Any other `pathname` asks as before, the option set or not, browser back/forward to another path included; `navigate(-n)` from the app counts as another path. A change to the very same URL passes too (a tab control that reports its value on press and again on focus repeats it); a form submission to the page's own route still asks (data routers), as its action may redirect away. While the page works (`busy`, a running Save) nothing passes, as before. Without the option nothing changes.
 - **Tests (#547):** unit tests under `MemoryRouter`, `BrowserRouter`, `createMemoryRouter` and `createBrowserRouter`: same pathname with another `search` or `hash` passes with the option, push and replace; another pathname is held, push and replace; without the option the same-path changes are held; the same URL passes with the option; a foreign POST to the page's own route whose action redirects asks with and without the option; browser back/forward to the same pathname passes with the option, back to another one asks; without the option browser back to the same pathname asks, Cancel keeps the address, Discard goes back. Gallery (`?harness=leave-guard`, new routes `/detail` with the option and `/detail-plain` without): a `?tab=` switch passes with URL and tab state together; a link, the guarded Back and browser back to another path ask; without the option the `?tab=` switch asks.
 
 **Migration:** additive; existing call sites behave as before. Set `ignoreSearchParams` only where nothing is lost when only the search parameters change: the changed state lives outside the component that unmounts (a server draft, a store) and is back after switching back, as with tabs over `?tab=`. Never set it where a search parameter selects another entry (`?id=`), where the changed state would be gone. Under a data router a search-only change still re-runs the route's loaders, and a loader that redirects then leaves the page without the question. No strings, `data-testid`s (the gallery harness only) or baselines change.
 
-## Unreleased — #544, GL-UI-016: a tall bubble beside a narrow input reaches over the next field's label box; the row is looked up once per open (patch)
+## 0.174.0 — #544, GL-UI-016: a tall bubble beside a narrow input reaches over the next field's label box; the row is looked up once per open
 
 - **Label text, not its box (#544):** where a field's neighbours are obstacles (an `apart` neighbour on its line), a label below the field's line counts by its text, no longer by its full-width box: a multi-line bubble beside a narrow input stays at the field over the empty part of the next stacked field's label box, instead of standing past it. A partner's label on the field's own line still counts whole: the bubble stands past it (#543).
 - **One lookup per open (#544):** the bubble looks up its element's row once when it opens, no longer on every render while it stays open; finding a field's row climbs its ancestors and reads their layout.
@@ -41,7 +41,7 @@
 
 **Migration:** none; no API, string, `data-testid` or baseline changes.
 
-## Unreleased — #539, GL-UI-017 rev 7/9: a radio group's value hint describes the group (minor)
+## 0.174.0 — #539, GL-UI-017 rev 7/9: a radio group's value hint describes the group
 
 - **SettingsField group (#539):** `valueHint` is accepted again together with `group`. It says what the options do and describes the group (`aria-describedby`) after the label's hint and before the help text, each read once; the options carry none of it, each radio keeps its own text as its hint.
 - **Field (#539):** a `valueHint` on a field whose `control` is an option group (`role="group"` or `"radiogroup"`) is no longer dropped: it stands in a hidden element under the id `${htmlFor}-value-hint`, which the group's `aria-describedby` references right after the label's hint (`${htmlFor}-help`), or first without one; an empty `valueHint` adds nothing. This covers `SettingsField`, `GridFields` and every other `Field` caller. A group has no field surface, so its label is the visible hover carrier (`GL-UI-017` rev 9 §Gruppen): it shows the label's hint followed by the value hint, after `--tooltip-hint-delay`; its hidden `${htmlFor}-help` keeps the label's hint alone (none without one), so the group still reads each hint once. `LabelWithHelp` takes an optional `description` for that (`null`: no hidden description).
@@ -49,7 +49,7 @@
 
 **Migration:** reverses #507 — `SettingsFieldProps` accepts `valueHint` with `group` again (no longer a type error); a group's `valueHint` now reaches screen readers as the group's description. No strings, `data-testid`s or baselines change.
 
-## Unreleased — #538, SUI-FEATURE-230 rev 5: a bordered image lies in the frame less its border, cropped evenly (minor)
+## 0.174.0 — #538, SUI-FEATURE-230 rev 5: a bordered image lies in the frame less its border, cropped evenly
 
 - **SlideView (#538):** an image with a border of width b lies in the area inside the border, (w − 2b) × (h − 2b); its crop (zoom, offset) refers to that area, so opposite sides are cut evenly. Before, the image was laid out at w × h from the inner top-left corner, so 2b px of it were cut off on the right and at the bottom and none on the left and top.
 - **SlideEditor crop mode (#538):** the dimmed rest, the press target and the zoom/offset clamp (wheel, keys, drag, slider, % field, offset fields and their named reach) follow the same area. The #493 editor-only workaround — the rest shifted by b, its reach inset and the extra clip layer `slide-editor-crop-reach` — is removed. A crop stored past the new reach opens in crop mode clamped, as the view draws it (rest, fields and drag start agree); left untouched, it stays in the document as stored and makes no change. New export `cropArea(element)` in the editor ops gives the area (`clampCrop`, `zoomCrop` and `panCrop` take its width and height).
@@ -57,7 +57,7 @@
 
 **Migration:** a bordered image now shows (w − 2b) × (h − 2b) of its picture scaled to fit, instead of w × h cut off on the right and bottom; the offset range of a bordered image shrinks accordingly; a stored offset past the new range is drawn at its limit (the view clamps the crop to the area), never with a gap. Removed `data-testid` `slide-editor-crop-reach`. Baselines: 10 changed, only by the showcase's bordered photo — `slides-{de,en,es}-{light,dark}.png`, `slides-de-{light,dark}-{390,1440}.png`.
 
-## Unreleased — #536, SUI-FEATURE-233: the chart data panel in a pie fits the PropertyPanel; a short note for the series not drawn (patch)
+## 0.174.0 — #536, SUI-FEATURE-233: the chart data panel in a pie fits the PropertyPanel; a short note for the series not drawn
 
 - **Chart data panel, pie (#536):** the series a pie leaves out show the short note "Not in pie" / "Nicht im Kreis" / "Fuera del circular" (new string `slides.editor.chartNotInPieShort`), at most two lines in the 80 px series column. The whole sentence (`slides.editor.chartNotInPie`, unchanged) is the series name field's accessible description beside its hint; the visible note is `aria-hidden`. Before, the note wrapped to 3 lines (en, de) or 4 (es) and "Kreisdiagramm" widened the column.
 - **Chart data table width (#536):** the category name fields are at least 100 px wide from `md` (was 112 px; below `md`, at the 16 px text, still 112 px), so the table with two series fits the 307 px panel body without scrolling sideways in en, de and es (was 316 px, de in a pie 335 px). With more series it still scrolls (`SUI-FEATURE-233`).
@@ -65,7 +65,7 @@
 
 **Migration:** none for the API. Strings: new `slides.editor.chartNotInPieShort` (de, en, es); `slides.editor.chartNotInPie` is now the series name field's description, no longer visible. Baselines: 6 new — `slide-editor-chart-pie-{de,en,es}-{light,dark}.png`; 10 changed, only by the new `slides.editor.chartNotInPieShort` row in the gallery's string table — `gallery-{de,en,es}-{light,dark}.png`, `gallery-de-{light,dark}-{390,1440}.png` (30 px taller at 1920 and 1440, 93 px at 390).
 
-## Unreleased — #535, SUI-FEATURE-106 rev 5: commands wait behind a paste awaiting `adoptMedia`, at most 10 s, with busy feedback (minor)
+## 0.174.0 — #535, SUI-FEATURE-106 rev 5: commands wait behind a paste awaiting `adoptMedia`, at most 10 s, with busy feedback
 
 - **Paste queue (#535):** every command pressed while a paste waits for `adoptMedia` — copy, cut, paste, duplicate, Delete/Backspace, Arrow/Shift+Arrow, Undo/Redo, by key, from the canvas menu or the toolbar — now waits behind it and runs afterwards in the order pressed, inside and outside a drag. The end of a drag no longer releases the queue (the #533 rule is removed); gestures (drag, frame selection) never wait. A second paste while one waits is queued instead of ignored. Each held command acts on what was meant when it was pressed: the selection then, or, with no selection made by hand since (every press on the canvas counts — an element, the same one again, a resize, rotate or column handle, a right click on an element), what the command before it leaves selected — after a paste, its pasted elements. The canvas menu's Cut, Copy and Duplicate are enabled when they would act on such pasted elements, nothing selected yet, as the keys are. An element no longer there drops out. Commands held by a drag alone (#527, #530) follow the same rule.
 - **10 s limit (#535):** a paste whose `adoptMedia` gives no answer within 10 s counts as failed: it is inserted with the missing-media placeholder and the hint naming the medium, as one history step, and the queue moves on; a later answer is discarded.
@@ -74,14 +74,14 @@
 
 **Migration:** none for the API. New string `slides.editor.adoptingMedia` (de "Medien werden übernommen …", en "Bringing the media along …", es "Trayendo los medios …"); new `data-testid` `slide-editor-adopting`. Without `adoptMedia` nothing changes. Baselines: 10 changed, only by the new `slides.editor.adoptingMedia` row in the gallery's string table — `gallery-{de,en,es}-{light,dark}.png`, `gallery-de-{light,dark}-{390,1440}.png`; each grows by that one row (30 px at 1920 and 1440, 72 px at 390), every other row pixel-identical to the previous baseline.
 
-## Unreleased — #537, SUI-FEATURE-108 rev 3: TagInput passes ref, id, ARIA attributes and native handlers to its text field (minor)
+## 0.174.0 — #537, SUI-FEATURE-108 rev 3: TagInput passes ref, id, ARIA attributes and native handlers to its text field
 
 - **TagInput (#537):** `ref` (`React.forwardRef`), `id`, `name`, every `aria-*` and `data-*` attribute and the native handlers (`onFocus`, `onBlur`, `onKeyDown`, `onKeyUp`, `onPaste` …) reach the inner text field, as on `Input`. Inside a `Hint` the field now carries the hint as its description, and `ref.current.focus()` focuses it. The own handlers run first, the passed ones after, so Enter/comma still add and Backspace still removes the last chip. A passed `aria-describedby` is kept with the `Hint`'s id, each id once. `className` and `testId` still style and name the frame; a passed `data-testid` names the text field. A passed `aria-invalid` marks the text field and reddens the frame, as an invalid surrounding field does. The pointer handlers (`onPointerMove`, `onPointerLeave`, `onPointerDown`, `onPointerDownCapture`, `onClick`) and a `Hint`'s trigger ref (`triggerRef`, `TagInput.hintTriggerRef`, as on `Slider`) sit on the frame, so a `Hint` opens over the chips too; `ref` stays the text field's. `defaultValue` and `defaultChecked` are not accepted.
 - **Tests (#537):** unit tests for the `Hint` description, `ref` focus, `id`/`name`/`aria-*`/`data-*` on the field, a passed `aria-describedby` joined with the hint's, passed `onFocus`/`onBlur`/`onKeyDown` called with Enter still adding, a passed `onKeyDown` calling `preventDefault()` that stops neither Enter nor Backspace, a passed `aria-invalid` on field and frame, a `Hint` opened by a hover over a chip, and `onKeyUp`/`onPaste`.
 
 **Migration:** none; additive — without the new props nothing changes. A `Hint` around a `TagInput` now works: before, its ref, handlers and description were dropped and the bubble had no anchor; now the frame anchors and opens it and the text field carries the description. No string, `data-testid` or baseline changes.
 
-## Unreleased — #532, GL-UI-010: the grid of the SlideEditor document tab is its own section (patch)
+## 0.174.0 — #532, GL-UI-010: the grid of the SlideEditor document tab is its own section
 
 - **SlideEditor document tab (#532):** the grid fields stand in their own section under a visible `h3` "Grid" (`text-base font-semibold`, the existing `grid.label` text), 8 px above the first field, 16 px below the pages. Before, they followed the pages list at the field spacing, named only by an `aria-label`, and read as part of Pages.
 - **GridFields `labelledBy` (#532):** a new optional prop, the id of a visible heading that names the group (`aria-labelledby`); without it the group keeps its own `aria-label`, as before.
@@ -89,7 +89,7 @@
 
 **Migration:** none for the API (one new optional prop); no string or `data-testid` changes beyond the new `slide-editor-grid` on the section. Baselines: 18 new, none changed — `slide-editor-document-tab-{de,en,es}-{light,dark}.png`, `slide-editor-library-tab-{de,en,es}-{light,dark}.png`, `slide-editor-transfer-dialog-{de,en,es}-{light,dark}.png`.
 
-## Unreleased — #524, SUI-FEATURE-101 rev 5: a toast that appears over the keyboard focus closes after 1000 ms unless it has an action (minor)
+## 0.174.0 — #524, SUI-FEATURE-101 rev 5: a toast that appears over the keyboard focus closes after 1000 ms unless it has an action
 
 - **Toaster (#524):** a toast that appears while the keyboard focus (`:focus-visible`) rests on an element it covers, ring included (typically the receipt after a confirm dialog hands the focus back to its trigger), stays 1000 ms, so the live region announces it and it is briefly seen, then `<Toaster>` closes all toasts as it does when focus lands under one. `Esc` closes them earlier and leaves the focus where it is. A toast away from the focus keeps its normal duration, and `Esc` then closes nothing. While a toast with an action (such as Undo) shows, none closes after 1000 ms: it keeps its normal duration so its action stays reachable, and the next keyboard focus move onto an element it covers, or `Esc`, closes it. An `Esc` an open layer (menu, popover, sheet) already handled closes only that layer. One timer serves all toasts, so an earlier toast's timer never cuts a later one short.
 - **`toast` (#524):** a toast with an action names it and its key route in the live region ("Undo with Alt+T"; new string `status.actionKey` in de, en, es). Alt+T is sonner's hotkey that focuses the toasts.
@@ -97,7 +97,7 @@
 
 **Migration:** none. Apps build nothing of their own for it (`GL-UI-004`).
 
-## Unreleased — #529, SUI-FEATURE-107 rev 3: keyboard focus after a sidebar section switch; no browser outline on the calendar button (minor)
+## 0.174.0 — #529, SUI-FEATURE-107 rev 3: keyboard focus after a sidebar section switch; no browser outline on the calendar button
 
 - **AppSidebar section switch (#529):** a section (Tools, Administration, Settings, or one in `primary`) opened by keyboard (`Enter`/`Space`) puts the focus on its active first entry (`aria-current="page"`); the next `Tab` goes to the second entry. The back link opened by keyboard puts the focus on the entry of the section just left in the primary nav (`GL-UI-050`). Before, the pressed control left the DOM and the focus fell to `<body>`. Expanded, collapsed and in the overlay alike; a pointer press moves no focus.
 - **Overlay below `md` (#529):** a section press and the back link are list switches inside the open overlay: it stays open across their navigation (keyboard and pointer). It still closes on an entry link, the instance name, `Esc`, the scrim and any other route change. Before, both closed it.
@@ -106,7 +106,7 @@
 
 **Migration:** none; no API, string or `data-testid` changes, no baseline changes.
 
-## Unreleased — #528, SUI-FEATURE-103 rev 3: a run's end keeps the focus on a disabled button (minor)
+## 0.174.0 — #528, SUI-FEATURE-103 rev 3: a run's end keeps the focus on a disabled button
 
 - **Button `busy` with `disabled` (#528):** when the run ends while the button holds the focus, the call site's `disabled` no longer drops the focus to `<body>` (`GL-UI-050`): the button keeps the `aria-disabled="true"` lock — no `disabled` attribute, the focus stays, click, `Enter`, `Space`, a press and the form's submit fire nothing — and wears the locked look, the same half-tone as the disabled one. Once the focus leaves (Tab away), the real `disabled` attribute applies. Without the focus on the button, `disabled` applies as soon as the run ends, as before. Before, `disabled` applied the moment the run ended and the focus fell to `<body>`.
 - **Disabled-reason hint after the run (#528):** a `Hint` or `IconButtonTooltip` with `disabledText` around a `disabled` button shows its reason again once the run has ended, the focus still on the button.
@@ -114,14 +114,14 @@
 
 **Migration:** none for the API; no string, `data-testid` or baseline changes. A test that expects `toBeDisabled()` right after a run ends on a focused `disabled` button moves the focus away first.
 
-## Unreleased — #521, SUI-FEATURE-104 rev 3: the read-only text folds to an eye at narrow width (patch)
+## 0.174.0 — #521, SUI-FEATURE-104 rev 3: the read-only text folds to an eye at narrow width
 
 - **EditorHeader `readOnly` (#521):** the read-only text stands in the state's place and now folds with it as `SUI-FEATURE-090` step 4: once Preview (with the header tools) is folded and the header still overflows, "Nur lesen"/"Read only"/"Solo lectura" becomes lucide `EyeIcon` (16 px, muted foreground) in a focusable `role="status"` sign, the full text as tooltip and screen-reader text — before Back folds to its arrow and before the title drops below its 18-character floor. It is never truncated and never moves into the ⋯ menu. Before, the text stayed full width and Back and the title folded first.
 - **Tests (#521):** unit tests (en, de) for the eye with tooltip text and status at a width where Back and the title's 18-character floor still stand, and for the text with room; a gallery test at 1440 px (text) and 390 px (eye, tooltip "Nur lesen", not in the ⋯), and that from 390 to 900 px Back or the title never fold while the text still stands.
 
 **Migration:** none; no API, string or `data-testid` changes (the sign keeps `data-testid="editor-read-only"`, compact with `data-compact`). Baselines: `editor-bar-de-light-390.png` and `editor-bar-de-dark-390.png` change — the read-only header shows the eye in place of "Nur lesen"; every other baseline (1440 and 1920 px included) is unchanged.
 
-## Unreleased — #515, GL-UI-010 rev 8: one shared sub-group title one step below the section title
+## 0.174.0 — #515, GL-UI-010 rev 8: one shared sub-group title one step below the section title
 
 - **New export `SubgroupTitle` (#515):** `@suite/ui/ui/subgroup-title` (and the `ui` barrel) exports `SubgroupTitle`, the title of a sub-group inside a section: `text-sm font-semibold` (14 px), one step below the section title's `text-base font-semibold` (16 px). An `h4` by default; `asChild` gives the style to another element, such as a `legend`. Apps use it instead of styling sub-group titles at the call site.
 - **SlideEditor (#515):** the "Entrance" and "Exit" titles under "Animation" in the property panel are `SubgroupTitle`s (their `legend` kept); the "Animation" heading above stays.
@@ -130,7 +130,7 @@
 
 **Migration:** none; the sub-group titles looked the same before, so no baseline changes. No string or `data-testid` changes; the legends gain `data-slot="subgroup-title"`.
 
-## Unreleased — #542, GL-UI-016: a field's bubble covers no neighbouring control beside a column of fields (#543 delivered here)
+## 0.174.0 — #542, GL-UI-016: a field's bubble covers no neighbouring control beside a column of fields (#543 delivered here)
 
 - **Neighbours as obstacles (#542):** the fields and loose controls of a column on a lone `Field`'s line no longer join its group nor bound its side: they are obstacles, as another bar's controls are, and the bubble stands in the nearest gap that holds it. Beside the field where the gap before them does (a column 460 px from the field), past them where it does not (24 px). Before, a column's field on the line pulled the bubble across any distance, and a column's button there left no side, so it stood at the field, over the column.
 - **Direct field pairs (#543):** a partner field on a `Field`'s line is an obstacle by the same rule, no longer a member of its group: a far partner (420 px from the field) leaves the bubble at the field, in the gap before it; a close partner (10 px, 24 px) stands it past the partner, as before. Before, any partner on the line pulled the bubble past it across any distance.
@@ -139,7 +139,7 @@
 
 **Migration:** none for the API; no `data-testid`, string or baseline changes (the gallery's field-pair baselines did not move). Bar and marked-group placements are unchanged; a lone field beside a column of fields, or beside a far partner field, stands its bubble in the gap before it where it fits, instead of past it.
 
-## Unreleased — #516, GL-UI-037 rev 2: the grid's number fields use the shared decimal parser
+## 0.174.0 — #516, GL-UI-037 rev 2: the grid's number fields use the shared decimal parser
 
 - **Grid number fields (#516):** `GridFields` read its step, column count, gutter, margin and row step with `Number` in native `type="number"` inputs, so a German or Spanish "8,0" was not a number and a grouped "1.000,5" got the field's bound as its error. They now read what is typed through `parseDecimal` and show the value through `formatDecimal`: in de/es a point and a comma are both the decimal sign, in en only the point; one separator is always the decimal sign ("1.000" is 1); more than one is refused with the new `grid.separator` (de/en/es), which names the right form with a whole-number example inside the field's bounds ("such as 1000", "such as 24" for the column count), since the fields take whole numbers only. A fraction still asks for whole pixels, a number outside the bounds still names them. A number typed on its way ("8,") stays as typed until the field is left.
 - **Numpad key in the grid (#516):** the numpad's decimal key types the UI language's decimal sign in the grid fields, as in every other package number field.
@@ -149,7 +149,7 @@
 
 **Migration:** none for the API. `GridFields`' inputs are no longer `type="number"`: a test that reads them by `toHaveValue(<number>)` or by the `min`/`max` attributes reads the text value and `aria-valuemin`/`aria-valuemax` instead; their role (`spinbutton`) and `data-testid`s stay. Strings: `grid.separator` is new (de/en/es) and takes an `{{example}}` value; `slides.editor.numberSeparator` (de, es) changes text. Baselines: the gallery's full-page shots change with the new `grid.separator` row and the shorter `numberSeparator` texts in their strings table: `gallery-{de,en,es}-{light,dark}.png` and `gallery-de-{light,dark}-{390,1440}.png`; the grid page's pixels stay.
 
-## Unreleased — #511, GL-UI-016/GL-UI-017: Hint and RadioGroup follow-ups from the #438 reviews
+## 0.174.0 — #511, GL-UI-016/GL-UI-017: Hint and RadioGroup follow-ups from the #438 reviews
 
 - **Transfer formats (#511):** the `SlideEditor` transfer dialog's format options carry `data-tooltip-row` like its scope options, so an option's bubble stands beside the labels it would reach and covers no other format's label.
 - **RadioGroup Home/End (#511):** in the package `RadioGroup`, Home/End and PageUp/PageDown, which radix lets move the focus to the first or last option, now check that option as the arrow keys do, so focus and checked option never part.
@@ -161,7 +161,7 @@
 
 **Migration:** none for the API; no `data-testid` changes. One `es` string changes (`slides.editor.animationEntranceValueHint`), so 2 gallery baselines change, `gallery-es-{light,dark}.png` (the string list, regenerated on top of #514).
 
-## Unreleased — #514, follow-ups of #446: element library app grid, error advice, one shape order
+## 0.174.0 — #514, follow-ups of #446: element library app grid, error advice, one shape order
 
 - **App entries grid (#514):** the app's entries in the element library (`slide-editor-library-app`) were one tab stop each. They now use the same roving grid as the shapes and the icons: one tab stop, the arrows move inside the two columns, Home and End go to the first and last, an arrow past the edge does nothing. The grid is a `group` named by its heading.
 - **Shapes grid order (#514):** the shapes grid's arrow keys walked a separate key list (`SHAPE_GRID`) beside the rendered buttons. Both now come from one list of entries, so an added or reordered entry cannot put an arrow key on the wrong button.
@@ -172,56 +172,56 @@
 
 **Migration:** none for the API. Strings: `slides.editor.placeholderFillFailed` changes text, `slides.editor.pasteFailed` is new. The app entries are no longer separate tab stops; their `data-testid`s stay. Baselines: the gallery's full-page shots (de/en/es, light/dark, and de at 390 and 1440 px) grow by the new `pasteFailed` row and the longer `placeholderFillFailed` text in its strings table.
 
-## Unreleased — #508, GL-UI-017: a SettingsField group is described by its help text
+## 0.174.0 — #508, GL-UI-017: a SettingsField group is described by its help text
 
 - **SettingsField group help (#508):** the `help` text under a `SettingsField` with `group` (`${htmlFor}-description`) was not on the group's `aria-describedby`, so a screen reader in focus mode skipped it: Tab lands on an option, and the caller cannot reach the group element. The group's `aria-describedby` now lists the hint id (`${htmlFor}-help`, if a `hint` is set) first and `${htmlFor}-description` second, each read once; the options still carry neither. With `error` the error replaces the help text and stays on `aria-errormessage` only. Without `group` nothing changes.
 - **Tests (#508):** a group with `help`, with and without `hint`, is described by hint and help text in that order; with `error` the help id leaves `aria-describedby`.
 
 **Migration:** none; no API, strings, `data-testid`s or baselines change. A group with `help` now announces the help text as its description.
 
-## Unreleased — #507, GL-UI-017: a SettingsField group takes no valueHint
+## 0.174.0 — #507, GL-UI-017: a SettingsField group takes no valueHint
 
 - **SettingsField group (#507):** a `valueHint` on a `SettingsField` with `group` reached nobody, because the options of a group take no field hint. `SettingsFieldProps` now rejects `valueHint` together with `group` at type level, so the text can no longer be written and lost. Without `group` nothing changes.
 - **Tests (#507):** a type test fails the typecheck if `group` and `valueHint` are accepted together again.
 
 **Migration:** a caller passing `valueHint` to a `SettingsField` with `group` no longer compiles; drop the `valueHint` and put the text on the options. No strings, `data-testid`s or baselines change.
 
-## Unreleased — #502, SUI-FEATURE-230: leaving the crop fields clears the % field's step mark
+## 0.174.0 — #502, SUI-FEATURE-230: leaving the crop fields clears the % field's step mark
 
 - **Crop zoom step mark (#502):** an arrow key in the crop zoom % field marks the change it makes as a step, and its keyup cleared the mark. A keyup that never reached the crop fields (focus moved away while the key was held) left the mark set, so a later paste into the field counted as a step and zoomed from the crop as it was instead of from the crop its typing started with. Leaving the crop fields now clears the mark.
 - **Tests (#502):** ArrowDown on the % field without its keyup, focus leaves, then a paste of 100 and 200 counts as typing: the zoom is 200 % with the shift kept, scaled.
 
 **Migration:** none; no API, `data-testid`, strings or baselines change.
 
-## Unreleased — #493, SUI-FEATURE-230: no unreachable crop rest beside a bordered image
+## 0.174.0 — #493, SUI-FEATURE-230: no unreachable crop rest beside a bordered image
 
 - **Crop rest of a bordered image (#493):** the view draws a bordered image shifted by its border, so the image's last two border widths on the right and at the bottom never show at any crop. In crop mode the `SlideEditor` left them in the dimmed rest, a strip one border wide past the frame's right and bottom edge at 100 % that no drag, slider, field or key could bring in. The dimmed rest and the area where a press shifts the image now leave them out: at 100 % a bordered image shows no rest, zoomed its rest is the same on all four sides. The cut-out of the frame stays whole, so the border stays in view on all four sides. A press on the old strip applies the crop as any press beside the image does. The view itself is left as it is, because the ticket's scope keeps the crop result and bordered images outside crop mode unchanged.
 - **Tests (#493):** a bordered image at 100 % shows no rest and a press on the old strip applies the crop; at 200 % its rest is even on all four sides. The gallery reads the right and bottom border at 100 % and at 150 % with the image shifted to its right and bottom end: still the border colour.
 
 **Migration:** none for the API; no strings change and no baselines change. The dimmed rest gains an inner layer, `data-testid="slide-editor-crop-reach"`, which clips it to the part a crop can bring in.
 
-## Unreleased — #490, SUI-FEATURE-270 rev 3: TagInput takes the field error state
+## 0.174.0 — #490, SUI-FEATURE-270 rev 3: TagInput takes the field error state
 
 - **TagInput error state (#490):** inside `SettingsField error`, `TagInput` now takes the field error through `useFieldErrorAttributes`, as `Input` does: its text field carries `aria-invalid="true"` and `aria-errormessage` on the `FieldError`, and the outer frame, which also carries the focus, takes the red border (`border-destructive`, marked `data-invalid`). Invalid with and without focus, it matches an invalid `Input` (border and ring). Without an error nothing changes.
 - **Tests (#490):** `SettingsField error` with `TagInput` marks the text field and the frame and unmarks both once the error is gone; the gallery compares an invalid `TagInput` with an invalid `Input`, with and without focus.
 
 **Migration:** none for the API; no `data-testid` or strings change. The gallery's FieldError demo gains an invalid `TagInput`, so 10 gallery baselines change, `components-{de,en,es}-{light,dark}.png` and `components-de-{light,dark}-{390,1440}.png`; the FieldError demo checks now count 7 fields instead of 6.
 
-## Unreleased — #534, GL-UI-010 rev 9: chart panel hints, errors and the crop hint at body size
+## 0.174.0 — #534, GL-UI-010 rev 9: chart panel hints, errors and the crop hint at body size
 
 - **Running-text size (#534):** the chart panel's hint sentences, its row errors and its negative-values-in-pie hint, and the crop toolbar's gesture hint now use the body size `text-sm` instead of `text-xs` (muted and destructive colours unchanged). The placeholder label chip on the canvas stays `text-xs`. Label to field and field to help or error text stay 8 px.
 - **Tests (#534):** the gallery checks that the crop hint, the chart row error and both pie hints render at 14 px.
 
 **Migration:** none for the API; no `data-testid` or strings change. No gallery baselines change. The gallery check on the chart row error (#368) now allows at most two lines at the body line height (`< 3 * 20` instead of `< 2 * 20`).
 
-## Unreleased — #533, SUI-FEATURE-191 rev 8: commands held behind a paste that waits for the app
+## 0.174.0 — #533, SUI-FEATURE-191 rev 8: commands held behind a paste that waits for the app
 
 - **Held paste order (#533):** a `Ctrl+V` pressed during a drag whose media the app still adopts (`adoptMedia`) now holds the commands pressed after it in the same drag until it has landed, inserted and selected. Before, the queue moved on at once, so a `Delete` pressed after the paste removed the dragged element and the pasted image stayed. A paste the app answers during a later drag lands first when that drag ends, ahead of what was held behind it. The hold covers only the paste's own drag: a later drag ends it, so its commands still land when the app never answers, and a late answer lands as a plain paste. Each command stays its own history step; a second paste while one waits is still ignored (#525).
 - **Tests (#533):** `Ctrl+V` then `Delete` during a drag with `adoptMedia` answering after the release (the paste is deleted, Undo brings it back); the same with the answer arriving during a second drag; `Delete`, and Arrow then `Delete`, during a later drag while `adoptMedia` never answers, none of them left held.
 
 **Migration:** none.
 
-## Unreleased — #531, GL-UI-010 rev 8: SlideEditor pane body text and Animation subgroup legends
+## 0.174.0 — #531, GL-UI-010 rev 8: SlideEditor pane body text and Animation subgroup legends
 
 - **Pane typography (#531):** the Library hint and result count and the Pages pane's inline hint now use the body size `text-sm` instead of `text-xs` (still muted). The Entrance/Exit legends of the Animation section are subgroup titles at `text-sm font-semibold`; the "Animation" section heading stays `text-base font-semibold`. Heading or legend to first content stays 8 px.
 
