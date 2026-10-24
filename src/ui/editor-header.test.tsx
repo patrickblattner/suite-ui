@@ -680,7 +680,7 @@ describe("EditorHeader at narrow width", () => {
   const natural = (header: Element) =>
     [...header.querySelectorAll("[data-testid]")].reduce((sum, el) => {
       const id = el.getAttribute("data-testid") ?? "";
-      if (id === "editor-state")
+      if (id === "editor-state" || id === "editor-read-only")
         return sum + (el.hasAttribute("data-compact") ? 24 : stateWidth(el.textContent ?? ""));
       // Icon-only (steps 5 to 7).
       const size = el.getAttribute("data-size");
@@ -1495,6 +1495,47 @@ describe("EditorHeader at narrow width", () => {
       expect(onClick).not.toHaveBeenCalled();
     },
   );
+
+  // SUI-FEATURE-104 rev 3, AC 8: read-only, the text in the state's place folds as step 4 — to an
+  // eye with its text as tooltip and status — before Back and the title's floor; never into the ⋯.
+  it.each([
+    ["en", "Read only"],
+    ["de", "Nur lesen"],
+  ])(
+    "%s read-only at narrow width the text becomes an eye before the title shrinks",
+    async (lng, text) => {
+      await i18n.changeLanguage(lng);
+      available = 250;
+      renderHeader({
+        readOnly: true,
+        title: "Autumn campaign landing page",
+        tools: headerTools(false),
+        lifecycle: lifecycle(),
+      });
+      const header = document.querySelector("[data-slot=editor-header]");
+      // Preview and the state's step folded; Back and the title not yet.
+      expect(header).toHaveAttribute("data-shrink", "2");
+      expect(header?.querySelector("[data-slot=editor-title] > span")).toHaveTextContent(
+        "Autumn campaign la…",
+      );
+      expect(screen.getByTestId("editor-back")).toHaveTextContent(/\S/);
+      const sign = screen.getByTestId("editor-read-only");
+      expect(sign).toHaveAttribute("data-compact");
+      expect(sign).toHaveAttribute("role", "status");
+      expect(sign).toHaveAttribute("tabindex", "0");
+      expect(sign).toHaveTextContent(text);
+      expect(sign.querySelector("svg.lucide-eye")).toHaveClass("size-4", "text-muted-foreground");
+      expect(within(openMenu()).queryByText(text)).toBeNull();
+    },
+  );
+
+  it("read-only with room the text stays text", () => {
+    renderHeader({ readOnly: true, tools: headerTools(false), lifecycle: lifecycle() });
+    const text = screen.getByTestId("editor-read-only");
+    expect(text).not.toHaveAttribute("data-compact");
+    expect(text).toHaveTextContent("Read only");
+    expect(text.querySelector("svg")).toBeNull();
+  });
 
   it("read-only, folded tools stand in a ⋯ of their own, without the record's entries", () => {
     available = 200;

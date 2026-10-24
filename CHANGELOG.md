@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — #521, SUI-FEATURE-104 rev 3: the read-only text folds to an eye at narrow width (patch)
+
+- **EditorHeader `readOnly` (#521):** the read-only text stands in the state's place and now folds with it as `SUI-FEATURE-090` step 4: once Preview (with the header tools) is folded and the header still overflows, "Nur lesen"/"Read only"/"Solo lectura" becomes lucide `EyeIcon` (16 px, muted foreground) in a focusable `role="status"` sign, the full text as tooltip and screen-reader text — before Back folds to its arrow and before the title drops below its 18-character floor. It is never truncated and never moves into the ⋯ menu. Before, the text stayed full width and Back and the title folded first.
+- **Tests (#521):** unit tests (en, de) for the eye with tooltip text and status at a width where Back and the title's 18-character floor still stand, and for the text with room; a gallery test at 1440 px (text) and 390 px (eye, tooltip "Nur lesen", not in the ⋯), and that from 390 to 900 px Back or the title never fold while the text still stands.
+
+**Migration:** none; no API, string or `data-testid` changes (the sign keeps `data-testid="editor-read-only"`, compact with `data-compact`). Baselines: `editor-bar-de-light-390.png` and `editor-bar-de-dark-390.png` change — the read-only header shows the eye in place of "Nur lesen"; every other baseline (1440 and 1920 px included) is unchanged.
+
 ## Unreleased — #515, GL-UI-010 rev 8: one shared sub-group title one step below the section title
 
 - **New export `SubgroupTitle` (#515):** `@suite/ui/ui/subgroup-title` (and the `ui` barrel) exports `SubgroupTitle`, the title of a sub-group inside a section: `text-sm font-semibold` (14 px), one step below the section title's `text-base font-semibold` (16 px). An `h4` by default; `asChild` gives the style to another element, such as a `legend`. Apps use it instead of styling sub-group titles at the call site.
