@@ -5,6 +5,7 @@ import {
   type Blocker,
   type BlockerFunction,
   NavigationType,
+  parsePath,
   type RouterNavigateOptions,
   type To,
   UNSAFE_DataRouterContext as DataRouterContext,
@@ -44,7 +45,25 @@ type PendingLeave = {
   // (`onDiscard`) along: it runs only once the change goes, so a submission that fails meanwhile
   // leaves the draft as it is (`SUI-FEATURE-172`).
   confirm?: ((discard?: () => void) => void) | undefined;
+  // A route change known to keep the `pathname`, changing only `search` or `hash`: a guard with
+  // `ignoreSearchParams` lets it pass while dirty (`SUI-FEATURE-109`). Unknown (a `go` from the app)
+  // and a submission count as another path.
+  samePath?: boolean | undefined;
 };
+
+type PathParts = { pathname: string };
+
+// A change from `from` to `to` keeps the pathname, changing at most `search` or `hash`
+// (`SUI-FEATURE-109`). A target without a pathname keeps the current one, as the history does. A change
+// to the very same URL counts too: it leaves nothing (a tab control that reports its new value twice,
+// on press and on focus, repeats the same change). Where the current location is not known, it counts
+// as another path.
+function searchOnly(from: PathParts | undefined, to: To): boolean {
+  if (from === undefined) return false;
+  return (
+    ((typeof to === "string" ? parsePath(to) : to).pathname ?? from.pathname) === from.pathname
+  );
+}
 
 function isThenable(value: unknown): value is PromiseLike<unknown> {
   return typeof (value as { then?: unknown } | null)?.then === "function";
@@ -344,16 +363,23 @@ function wrapNavigator(navigator: RouterNavigator, win: Window): NavigatorHolds 
   // The key of the entry the app stands on: a browser `POP` is taken while the history already
   // shows its target, so it is noted when a change lands, not read when one is held.
   let at = locationKey(navigator);
+  // The location of that entry, noted alike: a held step compares its target against it.
+  let here = locationPath(navigator);
   // `again` goes on only while its change is the latest one held on this navigator and the app still
   // stands where it was held: a late apply (`SUI-FEATURE-094`) drops a change the user left or
   // replaced. The location is read when `again` comes, not noted: once no hold remains the navigator
   // is unwrapped, and a change the user makes then passes no wrapper.
-  const through = (leave: () => void, stay?: () => void, again?: () => void) => {
+  const through = (
+    leave: () => void,
+    stay?: () => void,
+    again?: () => void,
+    samePath?: boolean,
+  ) => {
     const change = (heldChanges.get(navigator) ?? 0) + 1;
     heldChanges.set(navigator, change);
     const from = at;
     const current = () => change === heldChanges.get(navigator) && locationKey(navigator) === from;
-    runHolds([...holds], leave, { stay, again: again && (() => current() && again()) });
+    runHolds([...holds], leave, { stay, again: again && (() => current() && again()), samePath });
   };
   const push = navigator.push.bind(navigator);
   const replace = navigator.replace.bind(navigator);
@@ -365,6 +391,7 @@ function wrapNavigator(navigator: RouterNavigator, win: Window): NavigatorHolds 
     index = historyIndex(win.history.state);
     passTo = null;
     at = locationKey(navigator);
+    here = locationPath(navigator);
   };
   // `again` goes through the navigator's methods as they are then: the holds active by then ask.
   navigator.push = (...args) =>
@@ -375,6 +402,7 @@ function wrapNavigator(navigator: RouterNavigator, win: Window): NavigatorHolds 
       },
       undefined,
       () => navigator.push(...args),
+      searchOnly(here, args[0]),
     );
   navigator.replace = (...args) =>
     through(
@@ -384,6 +412,7 @@ function wrapNavigator(navigator: RouterNavigator, win: Window): NavigatorHolds 
       },
       undefined,
       () => navigator.replace(...args),
+      searchOnly(here, args[0]),
     );
   // `skip` counts the pops that put the address back; `passTo` is the entry a step that already
   // passed every hold lands on, so its own `popstate` passes too.
@@ -398,6 +427,7 @@ function wrapNavigator(navigator: RouterNavigator, win: Window): NavigatorHolds 
         go(delta);
         // A memory history has gone already; a browser one notes it with its `popstate`.
         at = locationKey(navigator);
+        here = locationPath(navigator);
       },
       undefined,
       () => navigator.go(delta),
@@ -414,20 +444,46 @@ function wrapNavigator(navigator: RouterNavigator, win: Window): NavigatorHolds 
       passTo = null;
       index = to;
       at = locationKey(navigator);
+      here = locationPath(navigator);
       return;
     }
     const delta = to - index;
-    event.stopImmediatePropagation();
-    skip += 1;
-    win.history.go(-delta);
+    // The history shows the step's target already; its location is read before the address is put
+    // back.
+    const target = locationPath(navigator);
+    const samePath = target !== undefined && searchOnly(here, target);
+    const holdBack = () => {
+      event.stopImmediatePropagation();
+      skip += 1;
+      win.history.go(-delta);
+    };
+    // A step that keeps the pathname is asked first (`SUI-FEATURE-109`): one every hold lets pass at
+    // once goes on as it came, as putting the address back and stepping again would land elsewhere.
+    let held = !samePath;
+    let passed = false;
+    if (held) holdBack();
     through(
       () => {
+        if (!held) {
+          passed = true;
+          return;
+        }
         passing(delta);
         win.history.go(delta);
       },
       undefined,
       () => navigator.go(delta),
+      samePath,
     );
+    if (!samePath) return;
+    if (passed) {
+      index = to;
+      at = locationKey(navigator);
+      here = locationPath(navigator);
+      return;
+    }
+    held = true;
+    holdBack();
   };
   handlers.add(onPopState);
 
@@ -447,6 +503,11 @@ const heldChanges = new WeakMap<RouterNavigator, number>();
 // `BrowserRouter` and `MemoryRouter` pass their history as the navigator; it knows its location.
 function locationKey(navigator: RouterNavigator): string | undefined {
   return (navigator as { location?: { key?: string } }).location?.key;
+}
+
+function locationPath(navigator: RouterNavigator): PathParts | undefined {
+  const pathname = (navigator as { location?: { pathname?: string } }).location?.pathname;
+  return pathname === undefined ? undefined : { pathname };
 }
 
 // Adds `hold` to the navigator's holds; the undo removes exactly this one, in any order, and unwraps
@@ -475,10 +536,11 @@ function holdNavigator(navigator: RouterNavigator, hold: Hold, win: Window): () 
 // on through the blocker's own `proceed`, with all it came with (a submission's data, a browser
 // step, the basename). It goes once no guard holds, nothing is blocked and no change waits.
 // `owns`: the submission a form's submit event (`form`) starts, or one marked so, is the surface's own
-// Save (`SUI-FEATURE-170`); for it, `blocks(true)` leaves its unsaved changes out.
+// Save (`SUI-FEATURE-170`); for it, `blocks(true)` leaves its unsaved changes out. `samePath`: the
+// change keeps the pathname (`SUI-FEATURE-109`).
 type RouterHold = {
   hold: Hold;
-  blocks: (own: boolean) => boolean;
+  blocks: (own: boolean, samePath: boolean) => boolean;
   owns: (form: EventTarget | null) => boolean;
   // While the surface lets a way out of its own go (a `guard` it confirmed), the route change that
   // way starts, with the reset of its Discard; taken once by the change it starts.
@@ -502,6 +564,8 @@ type BlockedChange = {
   answered: boolean;
   owners: Set<Hold>;
   source: { form: EventTarget | null; submitter: HTMLElement | null };
+  // It keeps the pathname, changing at most `search` or `hash`, and submits nothing (`SUI-FEATURE-109`).
+  samePath: boolean;
   // The resets of the Discards that confirmed it before, run once it goes.
   discards?: Discards | undefined;
   // The holds it passes without asking: the ones that confirmed it before.
@@ -717,7 +781,7 @@ function holdRouter(router: DataRouter, hold: RouterHold): () => void {
 function collectBlocking(
   router: DataRouter,
   entry: RouterHolds,
-  { historyAction, nextLocation }: BlockerStep,
+  { historyAction, currentLocation, nextLocation }: BlockerStep,
 ): boolean {
   const calling = entry.calling;
   const link = calling !== null && !isSubmission(calling.opts) ? calling : null;
@@ -733,6 +797,7 @@ function collectBlocking(
       answered: true,
       owners: new Set(),
       source: { form: null, submitter: null },
+      samePath: false,
     };
     return true;
   }
@@ -776,7 +841,12 @@ function collectBlocking(
     passing.add(hold);
     if (discard !== undefined) (discards ??= new Map()).set(hold, discard);
   }
-  entry.blocking = blockingNow(entry, owners).filter((hold) => !passing.has(hold));
+  // A submission is never only a search change, even to the current route: its action may redirect.
+  const samePath =
+    !(calling !== null && isSubmission(calling.opts)) &&
+    entry.submitting === null &&
+    searchOnly(currentLocation, nextLocation);
+  entry.blocking = blockingNow(entry, owners, samePath).filter((hold) => !passing.has(hold));
   const carrier = restarting?.carrier ?? null;
   const blocks =
     entry.blocking.length > 0 ||
@@ -794,6 +864,7 @@ function collectBlocking(
       answered: false,
       owners,
       source: restarting?.source ?? { form: entry.submitting, submitter: entry.submitter },
+      samePath,
       discards,
       passing,
       replaced: replaced ?? undefined,
@@ -849,8 +920,10 @@ function windowIndex(router: DataRouter, location: { key: string }): number | nu
 }
 
 // The holds that want a change blocked now, innermost last; for `owners` it is their own Save.
-function blockingNow(entry: RouterHolds, owners: ReadonlySet<Hold>): Hold[] {
-  return entry.holds.filter((hold) => hold.blocks(owners.has(hold.hold))).map((hold) => hold.hold);
+function blockingNow(entry: RouterHolds, owners: ReadonlySet<Hold>, samePath: boolean): Hold[] {
+  return entry.holds
+    .filter((hold) => hold.blocks(owners.has(hold.hold), samePath))
+    .map((hold) => hold.hold);
 }
 
 // The ways out the surfaces let go now, with the resets of their Discards; each is taken once.
@@ -920,7 +993,7 @@ function runBlocked(router: DataRouter, entry: RouterHolds) {
         (hold) => !(submitting(router) && (entry.saving.has(hold) || blocked.owners.has(hold))),
       ),
       proceed,
-      { stay: reset, again, afterSubmission: submitting(router) },
+      { stay: reset, again, afterSubmission: submitting(router), samePath: blocked.samePath },
       (hold, discard) => {
         confirmed.add(hold);
         // A surface asked again (`again`) counts with its latest answer, once.
@@ -934,7 +1007,7 @@ function runBlocked(router: DataRouter, entry: RouterHolds) {
   const again = (): void => {
     if (!current()) return;
     if (blocked.owners.size === 0) {
-      pass(blockingNow(entry, blocked.owners));
+      pass(blockingNow(entry, blocked.owners, blocked.samePath));
       return;
     }
     blocker.reset();
@@ -1118,6 +1191,8 @@ type LeaveConfirmOptions = {
   open?: boolean | undefined;
   // The dialog's focus target on close into a working surface (`LeaveConfirmDialog`).
   workingFocus?: (() => HTMLElement | null) | undefined;
+  // A dirty surface lets a route change pass that keeps the pathname (`SUI-FEATURE-109`).
+  ignoreSearchParams?: boolean | undefined;
 };
 
 // The shared core of the edit panel and `useLeaveGuard`: `guard` leaves at once when clean, holds the
@@ -1134,6 +1209,7 @@ function useLeaveConfirm({
   applies,
   open = true,
   workingFocus,
+  ignoreSearchParams = false,
 }: LeaveConfirmOptions) {
   const [pending, setPending] = React.useState<PendingLeave | null>(null);
   // The open dialog's held leave, for a way out that arrives while it asks; set with the state, so a
@@ -1143,9 +1219,9 @@ function useLeaveConfirm({
     asking.current = next;
     setPending(next);
   };
-  const latest = React.useRef({ dirty, busy, onSave, onDiscard });
+  const latest = React.useRef({ dirty, busy, onSave, onDiscard, ignoreSearchParams });
   React.useEffect(() => {
-    latest.current = { dirty, busy, onSave, onDiscard };
+    latest.current = { dirty, busy, onSave, onDiscard, ignoreSearchParams };
   });
   const releasing = React.useRef(false);
   // The way out `release` lets go now, until the route change it starts takes it.
@@ -1177,7 +1253,10 @@ function useLeaveConfirm({
       // Its Discard holds while a change waits: a further way out asks nothing, it takes that
       // change's place (`SUI-FEATURE-172`).
       next.leave();
-    } else if (latest.current.dirty) {
+    } else if (
+      latest.current.dirty &&
+      !(latest.current.ignoreSearchParams && next.samePath === true)
+    ) {
       ask(next);
     } else {
       next.leave();
@@ -1322,9 +1401,9 @@ function useLeaveConfirm({
         ? undefined
         : {
             hold,
-            blocks: (own) =>
+            blocks: (own, samePath) =>
               !releasing.current &&
-              ((!own && latest.current.dirty) ||
+              ((!own && latest.current.dirty && !(latest.current.ignoreSearchParams && samePath)) ||
                 latest.current.busy ||
                 work.current !== null ||
                 submitting(router)),
@@ -1402,6 +1481,12 @@ type LeaveGuardOptions = {
   // Discard runs it as the held leave goes on; after a router submission the leave waited for, only
   // once it goes (`SUI-FEATURE-172`, see `useLeaveConfirm`).
   onDiscard?: (() => void) | undefined;
+  // Lets a route change pass without asking that keeps the `pathname` and changes only `search` or
+  // `hash` (a tab switch over `?tab=`, also by replace); another pathname, browser back and forward to
+  // one included, still asks (`SUI-FEATURE-109`). A change to the very same URL passes too; a form
+  // submission to the page's own route still asks, as its action may redirect away. Set it only where the changed state survives such a
+  // switch (a server draft, a store), never where a search parameter selects another entry (`?id=`).
+  ignoreSearchParams?: boolean | undefined;
 };
 
 /**
@@ -1416,8 +1501,21 @@ type LeaveGuardOptions = {
  * without the question; any other submission on the changed page asks. Unregistered, the Save form
  * asks too, and Discard then posts it.
  */
-function useLeaveGuard({ dirty, busy = false, onLeave, onSave, onDiscard }: LeaveGuardOptions) {
-  const { guard, dialog, saveForm, ownSave } = useLeaveConfirm({ dirty, busy, onSave, onDiscard });
+function useLeaveGuard({
+  dirty,
+  busy = false,
+  onLeave,
+  onSave,
+  onDiscard,
+  ignoreSearchParams,
+}: LeaveGuardOptions) {
+  const { guard, dialog, saveForm, ownSave } = useLeaveConfirm({
+    dirty,
+    busy,
+    onSave,
+    onDiscard,
+    ignoreSearchParams,
+  });
   const leave = React.useRef(onLeave);
   React.useEffect(() => {
     leave.current = onLeave;

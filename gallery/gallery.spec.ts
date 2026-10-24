@@ -3199,6 +3199,73 @@ test("leave guard (BrowserRouter): a guarded Back with a draft leaves after Disc
   await expectNoDialog(page);
 });
 
+// #547 (`SUI-FEATURE-109`): a detail page whose tabs follow `?tab=`, its field changed.
+async function openHarnessDetail(page: Page, plain = false) {
+  await page.goto("/?harness=leave-guard");
+  await expect(page.getByTestId("harness-list")).toBeVisible();
+  await page.getByTestId(plain ? "harness-open-detail-plain" : "harness-open-detail").click();
+  await expect(page.getByTestId(plain ? "harness-detail-plain" : "harness-detail")).toBeVisible();
+  await page.getByTestId("harness-value").fill("draft");
+}
+
+const tabOf = (page: Page) => new URL(page.url()).searchParams.get("tab");
+
+test("leave guard ignoreSearchParams: a ?tab= switch passes; URL and tab switch together", async ({
+  page,
+}) => {
+  await openHarnessDetail(page);
+  await page.getByTestId("harness-tab-notes").click();
+  await expect(page.getByTestId("harness-tab-notes")).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByTestId("harness-notes")).toBeVisible();
+  expect(tabOf(page)).toBe("notes");
+  expect(pathOf(page)).toBe("/detail");
+  await expectNoDialog(page);
+  await page.getByTestId("harness-tab-general").click();
+  await expect(page.getByTestId("harness-tab-general")).toHaveAttribute("aria-selected", "true");
+  expect(tabOf(page)).toBe("general");
+  await expect(page.getByTestId("harness-value")).toHaveValue("draft");
+  await expectNoDialog(page);
+});
+
+test("leave guard ignoreSearchParams: another path still asks (click, Back, browser back)", async ({
+  page,
+}) => {
+  await openHarnessDetail(page);
+  await page.getByTestId("harness-tab-notes").click();
+  await expect.poll(() => tabOf(page)).toBe("notes");
+
+  await page.getByTestId("harness-open").click();
+  await expect(page.getByTestId("leave-guard")).toBeVisible();
+  await page.getByTestId("leave-guard-cancel").click();
+  await expectNoDialog(page);
+  expect(pathOf(page)).toBe("/detail");
+
+  await page.getByTestId("harness-back").click();
+  await expect(page.getByTestId("leave-guard")).toBeVisible();
+  await page.getByTestId("leave-guard-cancel").click();
+  await expectNoDialog(page);
+  expect(pathOf(page)).toBe("/detail");
+
+  await page.goBack();
+  await expect(page.getByTestId("leave-guard")).toBeVisible();
+  await expect.poll(() => pathOf(page)).toBe("/detail");
+  expect(tabOf(page)).toBe("notes");
+  await page.getByTestId("leave-guard-discard").click();
+  await expect(page.getByTestId("harness-list")).toBeVisible();
+  expect(pathOf(page)).toBe("/");
+});
+
+test("leave guard without ignoreSearchParams: a ?tab= switch asks as before", async ({ page }) => {
+  await openHarnessDetail(page, true);
+  await page.getByTestId("harness-tab-notes").click();
+  await expect(page.getByTestId("leave-guard")).toBeVisible();
+  expect(tabOf(page)).toBe("general");
+  await expect(page.getByTestId("harness-tab-general")).toHaveAttribute("aria-selected", "true");
+  await page.getByTestId("leave-guard-discard").click();
+  await expect(page.getByTestId("harness-tab-notes")).toHaveAttribute("aria-selected", "true");
+  expect(tabOf(page)).toBe("notes");
+});
+
 // #235 (Q&A #3872, `GL-UI-007`): in the media panel `Esc` opens the leave dialog, and the next `Esc`
 // is Abbrechen: only the dialog closes, it does not come back, and the panel keeps its draft.
 // The second `Esc` right after the first, before the dialog has taken the key: still Abbrechen.

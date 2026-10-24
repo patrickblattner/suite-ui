@@ -1,9 +1,18 @@
 import { useState } from "react";
-import { BrowserRouter, Link, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import {
+  BrowserRouter,
+  Link,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+  useSearchParams,
+} from "react-router-dom";
 
 import { Button } from "../src/ui/button.js";
 import { Input } from "../src/ui/input.js";
 import { useLeaveGuard } from "../src/ui/leave-guard.js";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../src/ui/tabs.js";
 
 // `?harness=leave-guard` (#235): the leave guard under a real `BrowserRouter` (no data router), as the
 // apps run it. Two routes with the same form; browser back and forward, `navigate(-1)` and the guard's
@@ -38,6 +47,18 @@ function Form({ name }: { name: string }) {
         <Link to={{ search: `${location.search}&panel=1` }} data-testid="harness-open-here">
           Open here
         </Link>
+        <Link
+          to={{ pathname: "/detail", search: `${location.search}&tab=general` }}
+          data-testid="harness-open-detail"
+        >
+          Open detail
+        </Link>
+        <Link
+          to={{ pathname: "/detail-plain", search: `${location.search}&tab=general` }}
+          data-testid="harness-open-detail-plain"
+        >
+          Open detail without the option
+        </Link>
         <Button
           variant="outline"
           size="default"
@@ -61,11 +82,86 @@ function Form({ name }: { name: string }) {
   );
 }
 
+// A detail page whose tabs follow `?tab=` (SUI-FEATURE-109). The field's value lives above the tabs,
+// so it survives a tab switch: with `ignoreSearchParams` the switch passes without asking.
+function TabbedDetail({
+  name,
+  ignoreSearchParams,
+}: {
+  name: string;
+  ignoreSearchParams?: boolean;
+}) {
+  const [value, setValue] = useState("");
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [params, setParams] = useSearchParams();
+  const { guard, dialog } = useLeaveGuard({
+    dirty: value !== "",
+    onLeave: () => void navigate(-1),
+    onSave: () => true,
+    onDiscard: () => setValue(""),
+    ignoreSearchParams,
+  });
+  return (
+    <main className="flex flex-col gap-4 p-6" data-testid={`harness-${name}`}>
+      <h1 className="text-xl font-semibold">{name}</h1>
+      <Tabs
+        value={params.get("tab") ?? "general"}
+        onValueChange={(tab) =>
+          setParams(
+            (prev) => {
+              prev.set("tab", tab);
+              return prev;
+            },
+            { replace: true },
+          )
+        }
+      >
+        <TabsList>
+          <TabsTrigger value="general" data-testid="harness-tab-general">
+            General
+          </TabsTrigger>
+          <TabsTrigger value="notes" data-testid="harness-tab-notes">
+            Notes
+          </TabsTrigger>
+        </TabsList>
+        <TabsContent value="general">
+          <Input
+            aria-label="Value"
+            value={value}
+            onChange={(event) => setValue(event.target.value)}
+            data-testid="harness-value"
+          />
+        </TabsContent>
+        <TabsContent value="notes" data-testid="harness-notes">
+          Notes
+        </TabsContent>
+      </Tabs>
+      <div className="flex gap-2">
+        <Link to={{ pathname: "/item", search: location.search }} data-testid="harness-open">
+          Open item
+        </Link>
+        <Button
+          variant="outline"
+          size="default"
+          onClick={() => guard(() => void navigate(-1))}
+          data-testid="harness-back"
+        >
+          Back
+        </Button>
+      </div>
+      {dialog}
+    </main>
+  );
+}
+
 export function LeaveGuardHarness() {
   return (
     <BrowserRouter>
       <Routes>
         <Route path="/item" element={<Form key="item" name="item" />} />
+        <Route path="/detail" element={<TabbedDetail name="detail" ignoreSearchParams />} />
+        <Route path="/detail-plain" element={<TabbedDetail name="detail-plain" />} />
         <Route path="*" element={<Form key="list" name="list" />} />
       </Routes>
     </BrowserRouter>
