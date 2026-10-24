@@ -1,4 +1,11 @@
-import { ArrowLeftIcon, Redo2Icon, RotateCcwIcon, SaveIcon, Undo2Icon } from "lucide-react";
+import {
+  ArrowLeftIcon,
+  EyeIcon,
+  Redo2Icon,
+  RotateCcwIcon,
+  SaveIcon,
+  Undo2Icon,
+} from "lucide-react";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 
@@ -111,7 +118,7 @@ function nextFocusTarget(header: HTMLElement, from: Element | null): HTMLElement
 // `SUI-FEATURE-104`: the editor's `tools` lead the right group, behind a separator of their own; a
 // running operation's `status` stands left of the state. `readOnly` drops every write control (Undo,
 // Redo, the state, Reset, Save, the next step, the record's menu) and names the mode instead of the
-// state. `SUI-FEATURE-105`: the title is the page's `h1`, `subtitle` one muted line under it.
+// state; at narrow width that text folds like the state, to an eye (rev 3). `SUI-FEATURE-105`: the title is the page's `h1`, `subtitle` one muted line under it.
 //
 // `SUI-FEATURE-090`: the header measures its own width. While it overflows one line it folds a step
 // (`Fold`); each step remembers the width it needed, and once the header is that wide again it steps
@@ -146,10 +153,11 @@ function EditorHeader({
     onUndo: canUndo && !readOnly ? onUndo : undefined,
     onRedo: canRedo && !readOnly ? onRedo : undefined,
   });
-  // The header tools fold with Preview. Read-only, only what it shows can fold.
+  // The header tools fold with Preview. Read-only, only what it shows can fold; the read-only text
+  // stands in the state's place and folds as its step 4.
   const foldsPreview = lifecycle?.preview !== undefined || headerTools.length > 0;
   const folds: Fold[] = readOnly
-    ? [...(foldsPreview ? ["preview" as const] : []), "back", "title"]
+    ? [...(foldsPreview ? ["preview" as const] : []), "state", "back", "title"]
     : [
         "undo",
         "reset",
@@ -172,7 +180,7 @@ function EditorHeader({
     setRenderedTitle(text);
   }, [title]);
   const titleText = typeof title === "string" ? title : renderedTitle;
-  const stateText = t(dirty ? "editor.draft" : "editor.saved");
+  const stateText = t(readOnly ? "editor.readOnly" : dirty ? "editor.draft" : "editor.saved");
   // What the header shows: a new language, state text, title floor or lifecycle label folds it
   // afresh, so a shorter text (after Save, or in another language) unfolds again without a resize.
   // Only the title's longest floor counts: typing in a live-bound title refolds nothing.
@@ -481,12 +489,29 @@ function EditorHeader({
             {status}
           </div>
         )}
-        {readOnly ? (
+        {readOnly && folded("state") ? (
+          // Shrunk to its sign, the read-only text keeps its text as the tooltip and for screen readers.
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span
+                role="status"
+                tabIndex={0}
+                data-compact=""
+                className="flex size-6 items-center justify-center rounded-md focus-visible:focus-ring"
+                data-testid="editor-read-only"
+              >
+                <EyeIcon aria-hidden="true" className="size-4 text-muted-foreground" />
+                <span className="sr-only">{stateText}</span>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>{stateText}</TooltipContent>
+          </Tooltip>
+        ) : readOnly ? (
           <span
             className="text-sm whitespace-nowrap text-muted-foreground"
             data-testid="editor-read-only"
           >
-            {t("editor.readOnly")}
+            {stateText}
           </span>
         ) : folded("state") ? (
           // Shrunk to its mark, the state keeps its text as the tooltip and for screen readers.

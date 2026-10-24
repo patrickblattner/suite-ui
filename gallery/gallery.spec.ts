@@ -2454,6 +2454,43 @@ test("editor header: tools, status and read-only", async ({ page }) => {
   await expect(readOnly.getByTestId("gallery-upload-status")).toBeVisible();
 });
 
+// `SUI-FEATURE-104` rev 3, AC 8: at 390 px the read-only text folds like the state (`SUI-FEATURE-090`
+// step 4) to an eye with its text as tooltip and status, before Back and the title shrink; at 1440 px
+// it stays text.
+test("editor header: read-only text becomes an eye at 390 px", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/?page=editor-bar&lng=de");
+  const header = page.getByTestId("editor-header-read-only");
+  const mode = header.getByTestId("editor-read-only");
+  await expect(mode).toHaveText("Nur lesen");
+  await expect(mode).not.toHaveAttribute("data-compact");
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(mode).toHaveAttribute("data-compact");
+  await expect(mode).toHaveAttribute("role", "status");
+  await expect(mode).toHaveText("Nur lesen");
+  await expect(mode.locator("svg.lucide-eye")).toBeVisible();
+  const bar = header.locator("[data-slot=editor-header]");
+  expect(await bar.evaluate((node) => node.scrollWidth - node.clientWidth)).toBeLessThanOrEqual(0);
+  // Read-only the steps are Preview (1), the text (2), Back (3), the title's floor (4): at no width
+  // between does Back or the title fold while the text still stands.
+  for (let width = 390; width <= 900; width += 10) {
+    await page.setViewportSize({ width, height: 844 });
+    const [shrink, compact] = await bar.evaluate((node) => [
+      node.getAttribute("data-shrink") ?? "",
+      node.querySelector("[data-testid=editor-read-only][data-compact]") !== null,
+    ]);
+    expect(compact, `${width} px, step ${shrink}`).toBe(Number(shrink) >= 2);
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(mode).toHaveAttribute("data-compact");
+  await mode.hover();
+  await expect(page.getByRole("tooltip")).toHaveText("Nur lesen");
+  await page.mouse.move(0, 0);
+  await header.getByTestId("editor-menu").click();
+  await expect(page.getByRole("menu").getByText("Nur lesen")).toHaveCount(0);
+});
+
 // `SUI-FEATURE-105`: each header renders one `h1` and, when set, its subtitle directly under it; at
 // 390 px both stay visible and truncate with their full text as the tooltip.
 test("editor header: title as h1, subtitle under it, both truncated at 390 px", async ({
