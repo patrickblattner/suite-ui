@@ -1,10 +1,13 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import { CalendarIcon, FileTextIcon, ListIcon, NewspaperIcon } from "lucide-react";
+import * as React from "react";
 import i18n from "i18next";
+import { createMemoryRouter, RouterProvider, useBlocker } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AppSidebar } from "./app-sidebar.js";
 import type { NavModel } from "./nav.js";
+import { SidebarProvider } from "./sidebar-provider.js";
 import type { VersionInfo } from "./version-line.js";
 import { ShellHarness, TEST_NAV } from "./test-utils.js";
 
@@ -67,6 +70,93 @@ describe("AppSidebar", () => {
     expect(within(entries).getByTestId("nav-back")).toHaveTextContent("Administration");
     expect(within(entries).getByTestId("nav-users")).toHaveAttribute("aria-current", "page");
     expect(within(entries).getByTestId("nav-users")).toHaveTextContent("Users");
+  });
+
+  // `SUI-FEATURE-107` AC1–AC3: a keyboard press (click `detail` 0) on a section moves the focus to the
+  // section's active first entry, the back link back to the section's entry; a pointer press moves none.
+  describe.each([false, true])("focus after a list switch (collapsed: %s)", (collapsed) => {
+    function renderAt(route: string) {
+      renderSidebar(route);
+      if (collapsed) fireEvent.click(screen.getByTestId("sidebar-trigger"));
+      expect(screen.getByTestId("app-sidebar")).toHaveAttribute(
+        "data-state",
+        collapsed ? "collapsed" : "expanded",
+      );
+    }
+    afterEach(() => {
+      if (collapsed) fireEvent.click(screen.getByTestId("sidebar-trigger"));
+    });
+
+    it("a section opened by keyboard focuses its active first entry", () => {
+      renderAt("/dashboard");
+      const section = screen.getByTestId("nav-section-settings");
+      act(() => section.focus());
+      fireEvent.click(section, { detail: 0 });
+      const first = screen.getByTestId("nav-settings-general");
+      expect(first).toHaveAttribute("aria-current", "page");
+      expect(first).toHaveFocus();
+    });
+
+    it("the back link by keyboard focuses the entry of the section just left", () => {
+      renderAt("/settings/ai");
+      const back = screen.getByTestId("nav-back");
+      act(() => back.focus());
+      fireEvent.click(back, { detail: 0 });
+      expect(screen.getByTestId("nav-section-settings")).toHaveFocus();
+    });
+
+    it("a pointer press on a section or the back link moves no focus", () => {
+      renderAt("/dashboard");
+      fireEvent.click(screen.getByTestId("nav-section-settings"), { detail: 1 });
+      expect(screen.getByTestId("nav-settings-general")).not.toHaveFocus();
+      fireEvent.click(screen.getByTestId("nav-back"), { detail: 1 });
+      expect(screen.getByTestId("nav-section-settings")).not.toHaveFocus();
+      expect(document.activeElement).toBe(document.body);
+    });
+  });
+
+  it("a keyboard switch a leave guard blocked (Stay) arms no focus for a later pointer switch", () => {
+    let block = true;
+    // Stands in for the leave guard: the user answers Stay, so the blocked navigation is reset.
+    function StayGuard() {
+      const blocker = useBlocker(() => block);
+      React.useEffect(() => {
+        if (blocker.state === "blocked") blocker.reset();
+      }, [blocker]);
+      return null;
+    }
+    const router = createMemoryRouter(
+      [
+        {
+          path: "*",
+          element: (
+            <SidebarProvider storageKey="test.sidebar.open">
+              <AppSidebar
+                instanceName="Test instance"
+                nav={TEST_NAV}
+                isAllowed={() => true}
+                onHelp={() => {}}
+                version={{ info: null }}
+                userMenu={<div data-testid="user-block" />}
+              />
+              <StayGuard />
+            </SidebarProvider>
+          ),
+        },
+      ],
+      { initialEntries: ["/dashboard"] },
+    );
+    render(<RouterProvider router={router} />);
+    const section = screen.getByTestId("nav-section-settings");
+    act(() => section.focus());
+    fireEvent.click(section, { detail: 0 });
+    expect(router.state.location.pathname).toBe("/dashboard");
+    act(() => section.blur());
+    block = false;
+    fireEvent.click(section, { detail: 1 });
+    expect(router.state.location.pathname).toBe("/settings/general");
+    expect(screen.getByTestId("nav-settings-general")).not.toHaveFocus();
+    expect(document.activeElement).toBe(document.body);
   });
 
   it("the instance name leads to the dashboard", () => {

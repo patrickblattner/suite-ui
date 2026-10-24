@@ -40,7 +40,9 @@ function Input({
           "data-[size=default]:h-9 data-[size=sm]:h-8",
           picker
             ? // An invalid field keeps its destructive border under focus, as non-picker fields do (#484).
-              "[&:focus-within:not([data-pointer-focus]):not([aria-invalid=true])]:border-ring [&:focus-within:not([data-pointer-focus])]:focus-ring"
+              // The calendar button draws no browser outline of its own: the field's ring stands for it
+              // (`SUI-FEATURE-107`).
+              "[&:focus-within:not([data-pointer-focus]):not([aria-invalid=true])]:border-ring [&:focus-within:not([data-pointer-focus])]:focus-ring [&::-webkit-calendar-picker-indicator]:outline-none"
             : "focus-visible:border-ring focus-visible:focus-ring",
           "aria-invalid:border-destructive",
           className,

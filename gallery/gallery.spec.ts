@@ -3996,6 +3996,44 @@ test("shell: ‹ Settings leads to the dashboard and restores the primary nav", 
   await expect(page.getByTestId("page-title")).toHaveText("Dashboard");
 });
 
+// `SUI-FEATURE-107` AC1–AC3: Settings opened by Enter puts the focus on its active first entry, the
+// next Tab on the second entry; the back link by Enter puts it on the Settings entry. Expanded,
+// collapsed and in the overlay alike; the overlay stays open across both switches (rev 3).
+for (const mode of ["expanded", "collapsed", "overlay"] as const) {
+  test(`shell: keyboard focus follows the section switch, ${mode}`, async ({ page }) => {
+    if (mode === "overlay") await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/?page=shell&route=/dashboard&lng=en");
+    const sidebar = page.getByTestId("app-sidebar");
+    if (mode === "collapsed") await page.getByTestId("sidebar-trigger").click();
+    if (mode === "overlay") {
+      await page.getByTestId("sidebar-overlay-trigger").focus();
+      await page.keyboard.press("Enter");
+      await expect(sidebar).toHaveAttribute("data-overlay", "open");
+    }
+    await expect(sidebar).toHaveAttribute(
+      "data-state",
+      mode === "collapsed" ? "collapsed" : "expanded",
+    );
+    const section = page.getByTestId("nav-section-settings");
+    await section.focus();
+    await page.keyboard.press("Enter");
+    const entries = page.getByTestId("nav-section-entries").locator("a");
+    await expect(entries.first()).toHaveAttribute("aria-current", "page");
+    await expect(entries.first()).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(entries.nth(1)).toBeFocused();
+    await page.getByTestId("nav-back").focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByTestId("nav-primary")).toBeVisible();
+    await expect(section).toBeFocused();
+    if (mode === "overlay") await expect(sidebar).toHaveAttribute("data-overlay", "open");
+    // A pointer press moves no focus onto the opened list.
+    await section.click();
+    await expect(entries.first()).toHaveAttribute("aria-current", "page");
+    await expect(entries.first()).not.toBeFocused();
+  });
+}
+
 // `GL-UI-020` §Versionszeile / §Abnahme: one line, flush with the nav text, directly above the
 // separator to the user block; gone while collapsed.
 for (const lng of LANGUAGES) {
@@ -13966,6 +14004,17 @@ test("date fields: the calendar button keeps the focus ring on the field", async
     await expect
       .poll(() => field.evaluate((el) => getComputedStyle(el).boxShadow), { message: type })
       .toContain(`${ring} 0px 0px 0px 3px`);
+    // `SUI-FEATURE-107`: the calendar button draws no browser outline; its corner of the field looks
+    // the same as while a segment holds the focus.
+    const { x, y, width, height } = await box(field);
+    const corner = { x: x + width - 32, y: y + 3, width: 29, height: height - 6 };
+    await parkPointer(page);
+    const onButton = await page.screenshot({ clip: corner, animations: "disabled" });
+    await page.keyboard.press("Shift+Tab");
+    expect(await onCalendarButton(), type).toBe(false);
+    const onSegment = await page.screenshot({ clip: corner, animations: "disabled" });
+    expect(onButton.equals(onSegment), type).toBe(true);
+    await page.keyboard.press("Tab");
     await page.keyboard.press("Tab");
   }
   // #484: Tab into an invalid date field keeps its destructive border under the focus ring.

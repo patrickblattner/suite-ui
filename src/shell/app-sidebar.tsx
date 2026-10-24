@@ -82,10 +82,16 @@ function AppSidebar({
     if (overlayOpen) element?.querySelector<HTMLElement>("button, a[href], input")?.focus();
   }, [overlayOpen, element]);
   const shownPath = React.useRef(pathname);
+  // A section press and the back link switch the list inside the open overlay: their navigation keeps
+  // it open (`SUI-FEATURE-107` rev 3). Held as the target path, so a blocked navigation keeps nothing
+  // open later.
+  const switchingTo = React.useRef<string | null>(null);
   React.useEffect(() => {
     if (shownPath.current === pathname) return;
     shownPath.current = pathname;
-    if (overlayOpen) closeOverlay();
+    const keep = switchingTo.current === pathname;
+    switchingTo.current = null;
+    if (overlayOpen && !keep) closeOverlay();
   }, [pathname, overlayOpen, closeOverlay]);
 
   const visible = allowedModel(nav, isAllowed);
@@ -93,6 +99,18 @@ function AppSidebar({
     [...visible.primary.filter(isNavSection), ...visible.sections],
     pathname,
   );
+
+  // The focus after a list switch by keyboard (`SUI-FEATURE-107`, `GL-UI-050`): the switch unmounts the
+  // pressed control, so the focus goes to the active first entry of the opened section, or back to the
+  // entry of the section just left, never to `<body>` or the back link. A pointer press (`detail` > 0)
+  // arms nothing. Held with its target path and dropped on any route change, so a blocked navigation
+  // leaves nothing armed for a later switch.
+  const focusAfterSwitch = React.useRef<{ to: string; selector: string } | null>(null);
+  React.useEffect(() => {
+    const target = focusAfterSwitch.current;
+    focusAfterSwitch.current = null;
+    if (target?.to === pathname) element?.querySelector<HTMLElement>(target.selector)?.focus();
+  }, [pathname, element]);
 
   // Collapsed, an entry shows only its icon, so its hint names it first.
   function hintFor(label: string, hintKey: string | undefined): string | undefined {
@@ -182,7 +200,18 @@ function AppSidebar({
             data-testid={`nav-section-${section.key}`}
             aria-label={isOpen ? undefined : label}
             // The route change alone switches the sidebar into the section.
-            onClick={() => first && void navigate(first.to)}
+            onClick={(event) => {
+              if (!first) return;
+              focusAfterSwitch.current =
+                event.detail === 0
+                  ? {
+                      to: first.to,
+                      selector: '[data-testid="nav-section-entries"] [aria-current="page"]',
+                    }
+                  : null;
+              switchingTo.current = first.to;
+              void navigate(first.to);
+            }}
             className={cn(rowClass, !isOpen && "justify-center px-0")}
           >
             <Icon className="size-4 shrink-0" aria-hidden="true" />
@@ -212,9 +241,7 @@ function AppSidebar({
         onKeyDown={trapTab}
         onClick={(event) => {
           if (!overlayOpen || !(event.target instanceof Element)) return;
-          const leads = event.target.closest(
-            "a[href], [data-testid=sidebar-instance-name], [data-testid=nav-back]",
-          );
+          const leads = event.target.closest("a[href], [data-testid=sidebar-instance-name]");
           if (leads !== null) closeOverlay();
         }}
         data-testid="app-sidebar"
@@ -277,7 +304,17 @@ function AppSidebar({
                     type="button"
                     data-testid="nav-back"
                     aria-label={t("nav.backToDashboard")}
-                    onClick={() => void navigate(homePath)}
+                    onClick={(event) => {
+                      focusAfterSwitch.current =
+                        event.detail === 0
+                          ? {
+                              to: homePath,
+                              selector: `[data-testid="nav-section-${activeSection.key}"]`,
+                            }
+                          : null;
+                      switchingTo.current = homePath;
+                      void navigate(homePath);
+                    }}
                     className={cn(rowClass, "font-medium", !isOpen && "justify-center px-0")}
                   >
                     <ChevronLeftIcon className="size-4 shrink-0" aria-hidden="true" />
