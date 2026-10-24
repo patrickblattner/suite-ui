@@ -78,8 +78,10 @@ function Field({
   const [seenSubmits, setSeenSubmits] = React.useState(submits);
   const editing = typedIn !== null;
   if (submits !== seenSubmits) {
+    // A submit ends the typing: an error returned after it shows as it arrives (#561).
     setSeenSubmits(submits);
     setArmed(true);
+    setTypedIn(null);
     setShown(current);
   } else if (armed && !editing && shown !== current) setShown(current);
   else if (editing && shown !== undefined && shown !== current) setShown(undefined);

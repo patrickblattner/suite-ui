@@ -3304,7 +3304,8 @@ function Editor({
           onBack={() => guard(onBack)}
           // While cropping, Undo takes back the crop being set, also with nothing in the history (#349).
           canUndo={history.canUndo || cropping !== undefined || adopting !== undefined}
-          canRedo={history.canRedo && cropping === undefined}
+          // A waiting paste queues Redo too, behind an Undo it may hold (`SUI-FEATURE-106`, #561).
+          canRedo={(history.canRedo || adopting !== undefined) && cropping === undefined}
           onUndo={() => travelKey("undo")}
           onRedo={() => travelKey("redo")}
           dirty={dirty}

@@ -14,6 +14,8 @@ import {
   type ToasterProps,
 } from "sonner";
 
+import { cn } from "../lib/cn.js";
+
 type ToastVariant = "info" | "success" | "warning" | "error";
 
 // Reading time (`GL-UI-029`): the variant's base duration, which is also its floor, plus ~50 ms per
@@ -73,18 +75,40 @@ function withActionHint(message: Message, opts?: ExternalToast): Message {
   return <ActionKeyHint message={message} action={action.label} />;
 }
 
+// A toast with an action, sonner's object form or an own element, carries this class: the
+// dismissal under the focus reads it (`SUI-FEATURE-101` rev 6, #561).
+const ACTION_TOAST_CLASS = "suite-toast-action";
+
+function withActionMark(opts?: ExternalToast): ExternalToast | undefined {
+  if (opts?.action === undefined || opts.action === null) return opts;
+  return { ...opts, className: cn(opts.className, ACTION_TOAST_CLASS) };
+}
+
 const toast: typeof sonnerToast = Object.assign(
-  (message: Message, opts?: ExternalToast) => sonnerToast(withActionHint(message, opts), opts),
+  (message: Message, opts?: ExternalToast) =>
+    sonnerToast(withActionHint(message, opts), withActionMark(opts)),
   {
     ...sonnerToast,
     success: (message: Message, opts?: ExternalToast) =>
-      sonnerToast.success(withActionHint(message, opts), withDuration(message, "success", opts)),
+      sonnerToast.success(
+        withActionHint(message, opts),
+        withActionMark(withDuration(message, "success", opts)),
+      ),
     error: (message: Message, opts?: ExternalToast) =>
-      sonnerToast.error(withActionHint(message, opts), withDuration(message, "error", opts)),
+      sonnerToast.error(
+        withActionHint(message, opts),
+        withActionMark(withDuration(message, "error", opts)),
+      ),
     warning: (message: Message, opts?: ExternalToast) =>
-      sonnerToast.warning(withActionHint(message, opts), withDuration(message, "warning", opts)),
+      sonnerToast.warning(
+        withActionHint(message, opts),
+        withActionMark(withDuration(message, "warning", opts)),
+      ),
     info: (message: Message, opts?: ExternalToast) =>
-      sonnerToast.info(withActionHint(message, opts), withDuration(message, "info", opts)),
+      sonnerToast.info(
+        withActionHint(message, opts),
+        withActionMark(withDuration(message, "info", opts)),
+      ),
   },
 );
 
@@ -282,7 +306,7 @@ function useDismissToastsUnderFocus(toasts: React.RefObject<HTMLElement | null>)
       clearTimeout(timer);
       // A toast with an action keeps its duration, so its action stays reachable (rev 5).
       timer = setTimeout(() => {
-        if (document.querySelector(`${VISIBLE_TOASTS} [data-action]`) === null)
+        if (document.querySelector(`${VISIBLE_TOASTS}.${ACTION_TOAST_CLASS}`) === null)
           dismissIfCovered(document.activeElement);
       }, TOAST_OVER_FOCUS_MS);
     });

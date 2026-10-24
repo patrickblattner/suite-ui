@@ -101,6 +101,7 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
     onChange,
     placeholder,
     disabled = false,
+    readOnly = false,
     id,
     testId = "tag-input",
     className,
@@ -144,7 +145,7 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
     () => (suggestions === undefined ? [] : matchSuggestions(suggestions, value, typed)),
     [suggestions, value, typed],
   );
-  const open = focused && !dismissed && !disabled && matches.length > 0;
+  const open = focused && !dismissed && !disabled && !readOnly && matches.length > 0;
   // Only an entry that starts with the text is chosen by default; one that merely contains it ("tur" →
   // "Kultur") waits for the arrows (`SUI-FEATURE-100` rev 4). -1 is "nothing chosen".
   const startsWith = matches[0]?.toLowerCase().startsWith(typed.trim().toLowerCase()) === true;
@@ -166,7 +167,9 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
 
   const raw = { interpolation: { escapeValue: false } };
 
+  // Read-only, the field shows its tags and changes none of them (#561).
   const remove = (tag: string) => {
+    if (readOnly) return;
     onChange(value.filter((other) => other !== tag));
     setAnnouncement(t("tags.removed", { tag, ...raw }));
   };
@@ -179,6 +182,7 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
 
   // Takes the typed text over; `picked` replaces the text after the last comma.
   const commit = (picked?: string) => {
+    if (readOnly) return;
     const known = new Set(value.map((tag) => tag.toLowerCase()));
     const added: string[] = [];
     const parts = draft.split(",");
@@ -287,7 +291,7 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
               <RemovableChip
                 label={tag}
                 removeLabel={t("tags.remove", { tag, interpolation: { escapeValue: false } })}
-                disabled={disabled}
+                disabled={disabled || readOnly}
                 onRemove={() => {
                   removed.current = index;
                   remove(tag);
@@ -307,6 +311,7 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
         value={draft}
         placeholder={value.length === 0 ? placeholder : undefined}
         disabled={disabled}
+        readOnly={readOnly}
         {...(suggestions === undefined
           ? {}
           : {

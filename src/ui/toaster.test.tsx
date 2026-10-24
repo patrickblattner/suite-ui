@@ -122,7 +122,8 @@ describe("Toaster: focus under a toast", () => {
     coveredBox?: DOMRect;
     focused?: "covered" | "free";
     wrap?: (covered: React.ReactNode) => React.ReactNode;
-    action?: boolean;
+    // `true` is sonner's object form, any other node an own element.
+    action?: React.ReactNode;
   } = {}) {
     focusVisible = true;
     vi.spyOn(Element.prototype, "matches").mockImplementation(function (
@@ -156,7 +157,11 @@ describe("Toaster: focus under a toast", () => {
     act(() => {
       toast.success(
         "Saved",
-        action ? { action: { label: "Undo", onClick: () => undefined } } : undefined,
+        action === true
+          ? { action: { label: "Undo", onClick: () => undefined } }
+          : action === false
+            ? undefined
+            : { action },
       );
     });
     await screen.findByText("Saved");
@@ -285,6 +290,20 @@ describe("Toaster: focus under a toast", () => {
   it("keeps a toast with an action that appears over the focus past 1000 ms", async () => {
     const item = await renderCovered({ focused: "covered" });
     await wait(1300);
+    expect(item()).toHaveAttribute("data-removed", "false");
+  });
+
+  it("keeps a toast with its own action element that appears over the focus past 1000 ms (#561)", async () => {
+    const item = await renderCovered({
+      focused: "covered",
+      action: (
+        <button type="button" data-testid="own-action">
+          Undo
+        </button>
+      ),
+    });
+    await wait(1300);
+    expect(screen.getByTestId("own-action")).toBeInTheDocument();
     expect(item()).toHaveAttribute("data-removed", "false");
   });
 

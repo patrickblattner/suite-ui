@@ -672,6 +672,24 @@ describe("SlideEditor element clipboard", () => {
     ]);
   });
 
+  it("runs Redo pressed behind a queued Undo, with an empty history, once the paste lands (#561)", async () => {
+    let answer: (remap: Record<string, string>) => void = () => {};
+    const onSave = copyThenOpenOther("photo", {
+      adoptMedia: () => new Promise((resolve) => (answer = resolve)),
+      resolveMedia: (id: string) => (id === "photo-copy" ? "blob:photo" : undefined),
+    });
+    key("v");
+    key("z");
+    key("y");
+    // The queue drains in one act: paste, Undo takes it back, Redo brings it again.
+    await act(async () => {
+      answer({ photo: "photo-copy" });
+      await Promise.resolve();
+    });
+    expect(layerCount()).toBe(1);
+    expect((await saved(onSave)).map(({ type }) => type)).toEqual(["image"]);
+  });
+
   it("lands the paste, then Delete on it, leaving b a later drag moved (SUI-FEATURE-106 AC4)", async () => {
     let answer: (remap: Record<string, string>) => void = () => {};
     const onSave = copyThenOpenOther("photo", {

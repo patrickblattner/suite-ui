@@ -598,6 +598,22 @@ describe("TagInput passes props to its text field", () => {
     expect(chips()).toEqual(["a"]);
   });
 
+  // #561: a read-only field shows its tags and changes none of them.
+  it("read-only, keeps its tags on Backspace, Enter, comma, blur and with ×", () => {
+    const onChange = vi.fn();
+    render(<TagInput value={["protected"]} onChange={onChange} readOnly />);
+    expect(field()).toHaveAttribute("readonly");
+    fireEvent.keyDown(field(), { key: "Backspace" });
+    // A text that reached the field anyway (set from outside) is not taken over either.
+    type("new");
+    fireEvent.keyDown(field(), { key: "Enter" });
+    fireEvent.keyDown(field(), { key: "," });
+    fireEvent.blur(field());
+    fireEvent.click(screen.getByRole("button", { name: "Remove tag protected" }));
+    expect(onChange).not.toHaveBeenCalled();
+    expect(chips()).toEqual(["protected"]);
+  });
+
   it("onKeyUp and onPaste reach the text field", () => {
     const onKeyUp = vi.fn();
     const onPaste = vi.fn();
