@@ -318,7 +318,8 @@ describe("SlideEditor crop mode (SUI-FEATURE-230 rev 4)", () => {
   });
 
   // Codex CX1 review: with a border, a press on the frame shifts the image on every side; beside it,
-  // it applies the crop. Frame 40–200 px wide, the whole image drawn 10 px further right (50–210).
+  // it applies the crop. Frame 40–200 px wide, the whole image drawn 10 px further right (50–210),
+  // its last 20 px never shown (#493).
   it("shifts a bordered image from any edge of its frame", () => {
     renderEditor(10);
     startCrop();
@@ -333,7 +334,7 @@ describe("SlideEditor crop mode (SUI-FEATURE-230 rev 4)", () => {
     };
     press(42);
     expect(canvas()).toHaveAttribute("data-cropping", "photo");
-    press(205);
+    press(198);
     expect(canvas()).toHaveAttribute("data-cropping", "photo");
     press(30);
     expect(canvas()).not.toHaveAttribute("data-cropping");
@@ -361,5 +362,43 @@ describe("SlideEditor crop mode (SUI-FEATURE-230 rev 4)", () => {
     // The cut-out is the frame with its border, 160 × 100, which starts 10 px before the image.
     expect(rest.style.clipPath).toContain(`M ${-10 * 0.25} ${-10 * 0.25} H ${150 * 0.25}`);
     expect(rest.style.clipPath).toContain(`V ${90 * 0.25}`);
+  });
+
+  // #493: the view draws a bordered image shifted by its border, so its last two border widths on
+  // the right and at the bottom never show; the rest leaves them out, the same on all four sides.
+  it("shows no rest of a bordered image at 100 %", () => {
+    renderEditor(10);
+    startCrop();
+    // At 100 %: the rest is the whole image (160 × 100) less 20 px right and below, so 140 × 80, all
+    // of it within the cut-out (−10, −10 to 150, 90): nothing of it shows. The cut-out stays whole,
+    // so the border stays in view (the gallery checks its pixels).
+    const rest = screen.getByTestId("slide-editor-crop-rest");
+    expect(rest.style.clipPath).toContain(`M 0 0 H ${160 * 0.25} V ${100 * 0.25} H 0 Z`);
+    expect(screen.getByTestId("slide-editor-crop-reach").style.clipPath).toBe(
+      `inset(0 ${20 * 0.25}px ${20 * 0.25}px 0)`,
+    );
+    // A press on the old strip beside the frame (200–210 px) applies the crop.
+    fireEvent.pointerDown(canvas(), {
+      clientX: 205 * 0.25,
+      clientY: 450 * 0.25,
+      button: 0,
+      pointerId: 1,
+    });
+    fireEvent.pointerUp(canvas(), { clientX: 205 * 0.25, clientY: 450 * 0.25, pointerId: 1 });
+    expect(canvas()).not.toHaveAttribute("data-cropping");
+  });
+
+  it("shows an even rest of a bordered image when zoomed", () => {
+    renderEditor(10);
+    startCrop();
+    const rest = () => screen.getByTestId("slide-editor-crop-rest");
+    // At 200 %: the image 320 × 200, its rest 300 × 180 around the cut-out at (70, 40) to (230, 140),
+    // 70 px on the left and right, 40 px above and below.
+    setZoom("200");
+    expect(screen.getByTestId("slide-editor-crop-reach").style.clipPath).toBe(
+      `inset(0 ${20 * 0.25}px ${20 * 0.25}px 0)`,
+    );
+    expect(rest().style.clipPath).toContain(`M ${70 * 0.25} ${40 * 0.25} H ${230 * 0.25}`);
+    expect(rest().style.clipPath).toContain(`V ${140 * 0.25}`);
   });
 });

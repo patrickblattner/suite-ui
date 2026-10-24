@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — #493, SUI-FEATURE-230: no unreachable crop rest beside a bordered image
+
+- **Crop rest of a bordered image (#493):** the view draws a bordered image shifted by its border, so the image's last two border widths on the right and at the bottom never show at any crop. In crop mode the `SlideEditor` left them in the dimmed rest, a strip one border wide past the frame's right and bottom edge at 100 % that no drag, slider, field or key could bring in. The dimmed rest and the area where a press shifts the image now leave them out: at 100 % a bordered image shows no rest, zoomed its rest is the same on all four sides. The cut-out of the frame stays whole, so the border stays in view on all four sides. A press on the old strip applies the crop as any press beside the image does. The view itself is left as it is, because the ticket's scope keeps the crop result and bordered images outside crop mode unchanged.
+- **Tests (#493):** a bordered image at 100 % shows no rest and a press on the old strip applies the crop; at 200 % its rest is even on all four sides. The gallery reads the right and bottom border at 100 % and at 150 % with the image shifted to its right and bottom end: still the border colour.
+
+**Migration:** none for the API; no strings change and no baselines change. The dimmed rest gains an inner layer, `data-testid="slide-editor-crop-reach"`, which clips it to the part a crop can bring in.
+
 ## Unreleased — #490, SUI-FEATURE-270 rev 3: TagInput takes the field error state
 
 - **TagInput error state (#490):** inside `SettingsField error`, `TagInput` now takes the field error through `useFieldErrorAttributes`, as `Input` does: its text field carries `aria-invalid="true"` and `aria-errormessage` on the `FieldError`, and the outer frame, which also carries the focus, takes the red border (`border-destructive`, marked `data-invalid`). Invalid with and without focus, it matches an invalid `Input` (border and ring). Without an error nothing changes.

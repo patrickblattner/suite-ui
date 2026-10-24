@@ -1221,13 +1221,27 @@ function Editor({
           offsetX: cropping.crop.offsetX + cropBorder,
           offsetY: cropping.crop.offsetY + cropBorder,
         });
-  // A press on the image being cropped: on the whole image or on its frame with the border, which a
-  // border's shift leaves partly beside the whole image (left and top as right and bottom, #426).
+  // The part of the whole image a crop can bring into view: shifted by the border, the image's last two
+  // border widths on the right and at the bottom never show, so this is the whole image less them,
+  // which is the unshifted whole image less a border on each side: an equal rest about the frame (#493).
+  const cropReach = (() => {
+    if (croppedImage === undefined || cropping === undefined) return undefined;
+    const { box, rotation } = croppedImageBox(placedBox(elements, croppedImage), cropping.crop);
+    const inset = {
+      x: box.x + cropBorder,
+      y: box.y + cropBorder,
+      width: box.width - 2 * cropBorder,
+      height: box.height - 2 * cropBorder,
+    };
+    return { box: inset, rotation };
+  })();
+  // A press on the image being cropped: on the part of it a crop can bring in or on its frame with the
+  // border, which a border's shift leaves partly beside that part (left and top as right and bottom, #426).
   const onCropImage = (point: Point) =>
-    cropWhole !== undefined &&
+    cropReach !== undefined &&
     croppedImage !== undefined &&
-    (containsPoint(cropWhole.box, cropWhole.rotation, point) ||
-      containsPoint(placedBox(elements, croppedImage).box, cropWhole.rotation, point));
+    (containsPoint(cropReach.box, cropReach.rotation, point) ||
+      containsPoint(placedBox(elements, croppedImage).box, cropReach.rotation, point));
   const croppedWidth = croppedImage?.width;
   const croppedHeight = croppedImage?.height;
   React.useEffect(() => {
@@ -1365,6 +1379,9 @@ function Editor({
             src: cropSrc,
             flipped: croppedImage.flipped,
             clip: `path(evenodd, "${outer} ${hole}")`,
+            // The rest shown is the part a crop can bring in: the image less its last two border
+            // widths on the right and at the bottom, which no crop shows (#493).
+            reach: `inset(0 ${2 * cropBorder * zoom}px ${2 * cropBorder * zoom}px 0)`,
           };
         })();
   // Where the dimmed rest may show, around the page: the canvas area's content with its padding (`p-6`),
@@ -3383,19 +3400,25 @@ function Editor({
                     }}
                     data-testid="slide-editor-crop-rest"
                   >
-                    <img
-                      src={cropRest.src}
-                      alt=""
-                      draggable={false}
-                      className="size-full max-w-none object-cover"
-                      style={{ transform: cropRest.flipped ? "scaleX(-1)" : undefined }}
-                      onError={() => setBrokenCropSrc(cropRest.src)}
-                    />
-                    {/* Darkened as the package's `CropEditor` darkens what lies outside its frame. */}
                     <div
-                      className="absolute inset-0 bg-black/50"
-                      data-testid="slide-editor-crop-scrim"
-                    />
+                      className="absolute inset-0"
+                      style={{ clipPath: cropRest.reach }}
+                      data-testid="slide-editor-crop-reach"
+                    >
+                      <img
+                        src={cropRest.src}
+                        alt=""
+                        draggable={false}
+                        className="size-full max-w-none object-cover"
+                        style={{ transform: cropRest.flipped ? "scaleX(-1)" : undefined }}
+                        onError={() => setBrokenCropSrc(cropRest.src)}
+                      />
+                      {/* Darkened as the package's `CropEditor` darkens what lies outside its frame. */}
+                      <div
+                        className="absolute inset-0 bg-black/50"
+                        data-testid="slide-editor-crop-scrim"
+                      />
+                    </div>
                   </div>
                 </div>
               )}

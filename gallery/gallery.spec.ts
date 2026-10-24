@@ -10381,10 +10381,14 @@ for (const theme of THEMES) {
 
 // #426 (Codex CX1): with a border, the dimmed rest continues the image drawn inside the border and the
 // border stays in view: a pixel just inside the border reads the same as before cropping.
+// #493: the rest leaves the right and bottom border in view too, at 100 % and zoomed with the image
+// shifted to its right and bottom end.
 test("slide editor: crop mode lines the rest up with a bordered image", async ({ page }) => {
   await page.goto("/?page=slide-editor&lng=en&picture=border");
-  const { at, centre } = await pictureEditor(page, false);
+  const { editor, at, centre } = await pictureEditor(page, false);
   const border = at(204, 104);
+  const right = at(595, 225);
+  const bottom = at(400, 345);
   const inside = at(214, 114);
   await page.mouse.move(0, 0);
   const red = await pixelAt(page, border.x, border.y);
@@ -10393,11 +10397,24 @@ test("slide editor: crop mode lines the rest up with a bordered image", async ({
   await expect(page.getByTestId("slide-editor-crop-rest")).toBeVisible();
   await page.mouse.move(0, 0);
   expect(await pixelAt(page, border.x, border.y)).toEqual(red);
+  expect(await pixelAt(page, right.x, right.y)).toEqual(red);
+  expect(await pixelAt(page, bottom.x, bottom.y)).toEqual(red);
   expect(await pixelAt(page, inside.x, inside.y)).toEqual(image);
   // The rest starts where the drawn image starts, inside the border.
   const rest = (await page.getByTestId("slide-editor-crop-rest").boundingBox())!;
   expect(rest.x).toBeCloseTo(at(210, 110).x, 0);
   expect(rest.y).toBeCloseTo(at(210, 110).y, 0);
+  // Zoomed, the image shifted as far as it goes towards its right and bottom end.
+  for (let step = 0; step < 5; step += 1) await page.keyboard.press("+");
+  const offsetX = editor.getByTestId("slide-editor-crop-offsetX");
+  const offsetY = editor.getByTestId("slide-editor-crop-offsetY");
+  await offsetX.fill("-999");
+  await offsetY.fill("-999");
+  await offsetX.focus();
+  await expect(offsetY).toHaveValue("-62.5");
+  await page.mouse.move(0, 0);
+  expect(await pixelAt(page, right.x, right.y)).toEqual(red);
+  expect(await pixelAt(page, bottom.x, bottom.y)).toEqual(red);
 });
 
 // SUI-FEATURE-230 (UX review): each offset field names its reach — none at 100 % — and shows the
