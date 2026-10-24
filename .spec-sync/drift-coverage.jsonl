@@ -631,3 +631,5 @@
 {"ts":"2026-10-24T17:01:13.793Z","key":"GL-UI-017","from":7,"to":9,"disposition":"ticket","ref":"553,539"}
 {"ts":"2026-10-24T18:02:12.011Z","key":"GL-UI-017","from":9,"to":10,"disposition":"ticket","ref":"539"}
 {"ts":"2026-10-24T18:02:12.734Z","key":"PROC-REL-040","from":6,"to":7,"disposition":"editorial","ref":"no code impact: suite-ui has no CI workflows or runner gate lock (local mode); cap rule applies to runner-registered repos only"}
+{"ts":"2026-10-24T22:37:26.995Z","key":"SUI-FEATURE-109","from":2,"to":3,"disposition":"ticket","ref":"562"}
+{"ts":"2026-10-24T22:37:27.350Z","key":"SUI-FEATURE-104","from":3,"to":4,"disposition":"ticket","ref":"546"}
