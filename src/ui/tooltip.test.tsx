@@ -1654,8 +1654,12 @@ describe("tooltip placement in a row", () => {
     });
     render(
       <div>
-        {column("a")}
-        {column("b")}
+        <Card>
+          <CardContent>{column("a")}</CardContent>
+        </Card>
+        <Card>
+          <CardContent>{column("b")}</CardContent>
+        </Card>
       </div>,
     );
     expect(await at("input-a0")).toMatch(/^translate\(148px,/);
@@ -1663,7 +1667,7 @@ describe("tooltip placement in a row", () => {
 
   // The climb past a field's own layout ends at the nearest ancestor with a control on its line: a
   // stacked form in the page's main region pairs with no field of a sidebar beside it, which is an
-  // obstacle 952 px away.
+  // obstacle 960 px away.
   it("a stacked form's field stands its bubble at the field beside a far sidebar field", async () => {
     layOutBoxes(1600, {
       "field-a0": [0, 140, 60, 50],
@@ -1802,6 +1806,132 @@ describe("tooltip placement in a row", () => {
     render(pair);
     // Past the partner's input (164 + 140) and 8 px apart: 312.
     expect(await at("input-a")).toMatch(/^translate\(312px,/);
+  });
+
+  // #544: a full-width label of the next stacked field covers nothing past its text. A two-line
+  // bubble beside a narrow input, an apart neighbour (a sidebar field) on its line, reaches over that
+  // label's box and stays at the field.
+  it("a tall bubble beside a narrow input reaches over the next field's label box", async () => {
+    layOutBoxes(1600, {
+      "field-a0": [0, 140, 60, 50],
+      "input-a0": [0, 140, 76, 32],
+      "field-a1": [0, 600, 120, 50],
+      "input-a1": [0, 140, 136, 32],
+      "field-a2": [0, 600, 180, 50],
+      "field-side": [1100, 140, 60, 50],
+      "input-side": [1100, 140, 76, 32],
+    });
+    const read = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect");
+    const box = read.getMockImplementation()!;
+    read.mockImplementation(function (this: HTMLElement) {
+      // The label above a1 spans the column's line; the bubble is two lines tall.
+      if (this instanceof HTMLLabelElement && this.htmlFor === "a1")
+        return new DOMRect(0, 120, 600, 14);
+      const rect = box.call(this);
+      return this.dataset.slot === "tooltip-content" ||
+        this.hasAttribute("data-radix-popper-content-wrapper")
+        ? new DOMRect(0, 0, 320, 80)
+        : rect;
+    });
+    // Its text, a1, takes 20 px of it.
+    Object.defineProperty(Range.prototype, "getBoundingClientRect", {
+      configurable: true,
+      value(this: Range) {
+        const node = this.startContainer;
+        return node instanceof HTMLLabelElement && node.htmlFor === "a1"
+          ? new DOMRect(0, 120, 20, 14)
+          : new DOMRect(0, 0, 0, 0);
+      },
+    });
+    try {
+      render(
+        <div>
+          <main>{column("a")}</main>
+          <aside>
+            <Field label="side" htmlFor="side" valueHint="side value" data-testid="field-side">
+              <Input id="side" data-testid="input-side" />
+            </Field>
+          </aside>
+        </div>,
+      );
+      // At the field, 8 px right of its input (0 + 140); the label's box would push it past (608).
+      expect(await at("input-a0")).toMatch(/^translate\(148px,/);
+    } finally {
+      delete (Range.prototype as Partial<Range>).getBoundingClientRect;
+    }
+  });
+
+  // #544, #543: a partner's label on the field's own line counts whole, not by its text: the bubble
+  // stands past the partner's label box, never over its empty part.
+  it("a partner's label on the field's line counts as its whole box", async () => {
+    layOutBoxes(1200, {
+      "field-a": [0, 140, 60, 50],
+      "input-a": [0, 140, 76, 32],
+      "field-b": [164, 140, 60, 50],
+      "input-b": [164, 140, 76, 32],
+    });
+    const read = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect");
+    const box = read.getMockImplementation()!;
+    read.mockImplementation(function (this: HTMLElement) {
+      // The partner's label spans 600 px of the line.
+      if (this instanceof HTMLLabelElement && this.htmlFor === "b")
+        return new DOMRect(164, 60, 600, 14);
+      return box.call(this);
+    });
+    // Its text, b, takes 20 px of it.
+    Object.defineProperty(Range.prototype, "getBoundingClientRect", {
+      configurable: true,
+      value(this: Range) {
+        const node = this.startContainer;
+        return node instanceof HTMLLabelElement && node.htmlFor === "b"
+          ? new DOMRect(164, 60, 20, 14)
+          : new DOMRect(0, 0, 0, 0);
+      },
+    });
+    try {
+      render(pair);
+      // Past the partner's label box (164 + 600) and 8 px apart: 772, not past its input (312).
+      expect(await at("input-a")).toMatch(/^translate\(772px,/);
+    } finally {
+      delete (Range.prototype as Partial<Range>).getBoundingClientRect;
+    }
+  });
+
+  // #544: the row is looked up once per open: a render of the form while the bubble stays open
+  // climbs no ancestors and reads no field's layout.
+  it("reads no field's layout on a render while the bubble stays open", async () => {
+    layOutBoxes(1000, {
+      "field-a": [0, 140, 60, 50],
+      "input-a": [0, 140, 76, 32],
+      "field-b": [164, 140, 60, 50],
+      "input-b": [164, 140, 76, 32],
+    });
+    const valuedPair = (value: string) => (
+      <div>
+        {(["a", "b"] as const).map((id) => (
+          <Field
+            key={id}
+            label={id}
+            htmlFor={id}
+            valueHint={`${id} value`}
+            data-testid={`field-${id}`}
+          >
+            <Input id={id} data-testid={`input-${id}`} value={value} onChange={() => undefined} />
+          </Field>
+        ))}
+      </div>
+    );
+    const { rerender } = render(valuedPair("1"));
+    expect(await at("input-a")).toMatch(/^translate\(312px,/);
+    const read = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect");
+    read.mockClear();
+    rerender(valuedPair("12"));
+    rerender(valuedPair("123"));
+    expect(document.querySelector("[data-slot=tooltip-content]")).not.toBeNull();
+    const fields = read.mock.contexts.filter(
+      (node) => (node as HTMLElement).dataset.slot === "field",
+    );
+    expect(fields).toHaveLength(0);
   });
 
   // #441: a control of another bar at the bubble's height (a canvas's floating actions beside a panel)

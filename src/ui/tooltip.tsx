@@ -260,6 +260,18 @@ function fieldRowOf(node: Element): Row | null {
   return null;
 }
 
+// What of an obstacle the bubble must not cover. A field's label spans its line above the field, its
+// text only part of it: past the text it covers nothing, so a tall bubble beside a narrow input may
+// reach over the next field's label box (#544). A label on the field's own `line` (a partner's) counts
+// whole: the bubble stands past the partner (#543). jsdom lays out no range: the box counts there.
+function coveredBox(node: Element, line: DOMRect): DOMRect {
+  const box = node.getBoundingClientRect();
+  if (!node.matches("label") || (box.bottom > line.top && box.top < line.bottom)) return box;
+  const range = document.createRange();
+  range.selectNodeContents(node);
+  return typeof range.getBoundingClientRect === "function" ? range.getBoundingClientRect() : box;
+}
+
 // `measured`: whether a field pair may be found, which reads the layout. A closed bubble renders on
 // every render of its form and reads none: only marked bars count there (#441).
 function rowOf(node: Element | null, measured = true): Row | null {
@@ -439,6 +451,7 @@ function useRowPlacement(content: HTMLElement | null, padding: number): RowPlace
     // The controls of the other bars, which the bubble keeps clear of where it stands at their height,
     // and so the row's other controls where they are obstacles, not bounds (#542). A bar behind a
     // modal (aria-hidden, inert) is out of play.
+    const line = (trigger.closest(FIELD) ?? trigger).getBoundingClientRect();
     const bars = [...document.querySelectorAll(TOOLTIP_ROW)]
       .filter(
         (bar) =>
@@ -447,8 +460,8 @@ function useRowPlacement(content: HTMLElement | null, padding: number): RowPlace
           bar.closest("[aria-hidden=true], [inert]") === null,
       )
       .flatMap((bar) => [...bar.querySelectorAll(ROW_CONTROL)])
-      .concat(found.apart === true ? others : [])
       .map((node) => node.getBoundingClientRect())
+      .concat(found.apart === true ? others.map((node) => coveredBox(node, line)) : [])
       .filter((rect) => rect.width > 0);
     // The popper places the bubble on whole pixels: the bounds round inward, the rooms down.
     const whole = (gaps: Gap[], arrow: number) =>
@@ -701,8 +714,9 @@ function TooltipContent({
     [ref],
   );
   const trigger = React.useContext(TriggerNodeContext)?.trigger ?? null;
-  // The bubble's node exists only while it is open.
-  const inRow = rowOf(trigger, content !== null) !== null;
+  // The bubble's node exists only while it is open. Looked up once per open, not on each render while
+  // it stays open: finding a field's row climbs its ancestors and reads their layout (#544).
+  const inRow = React.useMemo(() => rowOf(trigger, content !== null) !== null, [trigger, content]);
   const row = useRowPlacement(
     content,
     typeof collisionPadding === "number" ? collisionPadding : SIDE_OFFSET,
