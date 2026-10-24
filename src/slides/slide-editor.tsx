@@ -45,6 +45,7 @@ import { useLeaveGuard } from "../ui/leave-guard.js";
 import { PropertyPanel } from "../ui/property-panel.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select.js";
 import { Slider } from "../ui/slider.js";
+import { SubgroupTitle } from "../ui/subgroup-title.js";
 import { toast } from "../ui/toaster.js";
 import { IconButtonTooltip, OverflowTooltip } from "../ui/tooltip.js";
 import { DELETE_SHORTCUT } from "../ui/use-edit-shortcuts.js";
@@ -400,7 +401,9 @@ function AnimationFields({
   };
   return (
     <fieldset className="flex flex-col gap-4" data-testid={id}>
-      <legend className="mb-2 text-sm font-semibold">{t(`slides.editor.${kind}`)}</legend>
+      <SubgroupTitle asChild>
+        <legend className="mb-2">{t(`slides.editor.${kind}`)}</legend>
+      </SubgroupTitle>
       <div className="grid grid-cols-2 gap-4" data-tooltip-row="">
         <Field
           label={t("slides.editor.animationEffect")}

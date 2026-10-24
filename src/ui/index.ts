@@ -47,6 +47,7 @@ export * from "./sheet.js";
 export * from "./skeleton.js";
 export * from "./slider.js";
 export * from "./status-chip.js";
+export * from "./subgroup-title.js";
 export * from "./switch.js";
 export * from "./table.js";
 export * from "./tabs.js";
