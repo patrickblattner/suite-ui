@@ -186,7 +186,9 @@ describe("SettingsActionRow", () => {
   });
 
   // SUI-FEATURE-103 AC3: a dirty Save that is saving is locked with `aria-disabled` for the run, and
-  // keeps the focus; an invalid entry's `disabled` waits until the run ends.
+  // keeps the focus. Save sits in a Hint with `disabledText`, so `lockedWithReason` turns an invalid
+  // entry's `disabled` into `aria-disabled` too; the run still describes Save with its plain hint,
+  // not the invalid-entry reason.
   it.each([true, false])("a dirty Save that is saving is aria-disabled (valid %s)", (valid) => {
     const onSave = vi.fn();
     render(
@@ -203,6 +205,7 @@ describe("SettingsActionRow", () => {
     expect(save).toBeEnabled();
     expect(save).toHaveAttribute("aria-disabled", "true");
     expect(save).toHaveAttribute("aria-busy", "true");
+    expect(save).toHaveAccessibleDescription("Saves the changes on this page.");
     save.focus();
     fireEvent.click(save, { detail: 1 });
     expect(onSave).not.toHaveBeenCalled();
