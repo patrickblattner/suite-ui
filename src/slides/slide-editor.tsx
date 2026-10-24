@@ -3254,11 +3254,20 @@ function Editor({
                       );
                     }}
                   />
-                  <GridFields
-                    value={grid}
-                    allowNone
-                    onChange={(value) => apply((current) => ({ ...current, grid: value }), "grid")}
-                  />
+                  {/* Its own section under its heading, apart from the pages (`GL-UI-010`). */}
+                  <section className="flex flex-col gap-2" data-testid="slide-editor-grid">
+                    <h3 id="slide-editor-grid-title" className="text-base font-semibold">
+                      {t("grid.label")}
+                    </h3>
+                    <GridFields
+                      value={grid}
+                      allowNone
+                      labelledBy="slide-editor-grid-title"
+                      onChange={(value) =>
+                        apply((current) => ({ ...current, grid: value }), "grid")
+                      }
+                    />
+                  </section>
                 </div>
               ),
             },

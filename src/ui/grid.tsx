@@ -57,6 +57,9 @@ type GridFieldsProps = {
   allowNone?: boolean;
   // The fields the app does not lead; their values stay as they are.
   hidden?: readonly GridField[];
+  // The id of a visible heading that names the group, where the app gives it one; otherwise the
+  // group is named by its own label.
+  labelledBy?: string;
 };
 
 // The field group "Grid" (`SUI-FEATURE-087`): the type, then the step or the columns, gutter, margin
@@ -66,7 +69,13 @@ type GridFieldsProps = {
 // the type and back restores that type's last definition. Every label and field carries its hint, the
 // field's describing its value (`GL-UI-017`). What is typed is read in the UI language (`GL-UI-037`):
 // in German and Spanish "1,5" is a fraction like "1.5", and more than one separator names the right form.
-function GridFields({ value, onChange, allowNone = false, hidden = [] }: GridFieldsProps) {
+function GridFields({
+  value,
+  onChange,
+  allowNone = false,
+  hidden = [],
+  labelledBy,
+}: GridFieldsProps) {
   const { t, i18n } = useTranslation("suite");
   const language = i18n.resolvedLanguage;
   const id = React.useId();
@@ -135,7 +144,8 @@ function GridFields({ value, onChange, allowNone = false, hidden = [] }: GridFie
   return (
     <div
       role="group"
-      aria-label={t("grid.label")}
+      aria-label={labelledBy === undefined ? t("grid.label") : undefined}
+      aria-labelledby={labelledBy}
       className="flex flex-col gap-4"
       data-testid="grid-fields"
     >
