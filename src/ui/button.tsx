@@ -2,6 +2,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { Loader2Icon } from "lucide-react";
 import { Slot } from "radix-ui";
 import type * as React from "react";
+import { useState } from "react";
 
 import { cn } from "../lib/cn.js";
 
@@ -161,9 +162,18 @@ function Button(props: ButtonProps) {
   const Comp = asChild ? Slot.Root : "button";
   const ariaDisabled = rest["aria-disabled"] === true || rest["aria-disabled"] === "true";
   // `asChild` hands its single child to Slot, so the working state does not apply in that shape.
-  const locked = (busy || ariaDisabled) && !asChild;
   const working = (busy || loading) && !asChild;
   const running = busy && !asChild;
+  // A run that ends while the button holds the focus keeps a call site's `disabled` as the lock until
+  // the focus leaves (`SUI-FEATURE-103` rev 3): the attribute would drop the focus to `<body>` right
+  // after the run (`GL-UI-050`). Without the focus on the button, `disabled` applies at once.
+  const [focused, setFocused] = useState(false);
+  const [focusedInRun, setFocusedInRun] = useState(false);
+  if (running && focused && !focusedInRun) setFocusedInRun(true);
+  // A run that ended without `disabled` holds nothing later on.
+  if (!running && focusedInRun && disabled !== true) setFocusedInRun(false);
+  const holding = !running && focusedInRun && disabled === true && !asChild;
+  const locked = (busy || ariaDisabled || holding) && !asChild;
 
   return (
     <Comp
@@ -171,11 +181,12 @@ function Button(props: ButtonProps) {
       data-variant={variant}
       data-size={size}
       // While it runs, the call site's `disabled` waits: the attribute would drop the focus to `<body>`
-      // (`SUI-FEATURE-103`); the run's lock holds instead, and `disabled` applies again once it ends.
-      {...(disabled !== undefined && !running ? { disabled } : {})}
+      // (`SUI-FEATURE-103`); the run's lock holds instead, and `disabled` applies again once it ends
+      // and the focus has left the button.
+      {...(disabled !== undefined && !running && !holding ? { disabled } : {})}
       className={cn(
         buttonVariants({ variant, size }),
-        locked && !busy && disabled !== true && [LOCKED_LOOK[variant], LOCKED_FORCED],
+        locked && !busy && (disabled !== true || holding) && [LOCKED_LOOK[variant], LOCKED_FORCED],
         // "Runs" and "does not work" never share a look: a running button that is also `disabled`
         // keeps its full colour. Its `disabled:` variants match the `:disabled` state, so a button
         // disabled through a `<fieldset disabled>` dims as well (#471).
@@ -220,7 +231,13 @@ function Button(props: ButtonProps) {
       onFocus={(event: React.FocusEvent<HTMLButtonElement>) => {
         // The disabled button took no focus, so focus opens no hint while it runs.
         if (locked && busy) event.preventDefault();
+        setFocused(true);
         rest.onFocus?.(event);
+      }}
+      onBlur={(event: React.FocusEvent<HTMLButtonElement>) => {
+        setFocused(false);
+        setFocusedInRun(false);
+        rest.onBlur?.(event);
       }}
     >
       {asChild ? (

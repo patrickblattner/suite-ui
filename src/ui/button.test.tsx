@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { PlusIcon } from "lucide-react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -357,8 +357,8 @@ describe("Button", () => {
   });
 
   // SUI-FEATURE-103 AC1: the call site's `disabled` waits while the button runs; it applies again once
-  // the run ends.
-  it("busy with disabled: no disabled attribute, keeps the focus, fires nothing; disabled after", () => {
+  // the run ends and the focus has left the button (rev 3).
+  it("busy with disabled: no disabled attribute, keeps the focus, fires nothing; disabled once the focus leaves", () => {
     const onClick = vi.fn();
     const onSubmit = vi.fn((event: { preventDefault: () => void }) => event.preventDefault());
     const view = (busy: boolean) => (
@@ -373,6 +373,7 @@ describe("Button", () => {
         >
           Save
         </Button>
+        <button type="button">Next</button>
       </form>
     );
     const { rerender } = render(view(true));
@@ -380,7 +381,7 @@ describe("Button", () => {
     expect(button).not.toHaveAttribute("disabled");
     expect(button).toHaveAttribute("aria-disabled", "true");
     expect(button).toHaveAttribute("aria-busy", "true");
-    button.focus();
+    act(() => button.focus());
     expect(button).toHaveFocus();
     expect(fireEvent.mouseDown(button)).toBe(false);
     fireEvent.click(button, { detail: 0 });
@@ -390,8 +391,66 @@ describe("Button", () => {
     expect(onSubmit).not.toHaveBeenCalled();
     expect(button).toHaveFocus();
     rerender(view(false));
-    expect(button).toBeDisabled();
+    // The run ended with the focus on the button: the lock holds in its `aria-disabled` form.
+    expect(button).not.toHaveAttribute("disabled");
+    expect(button).toHaveAttribute("aria-disabled", "true");
     expect(button).not.toHaveAttribute("aria-busy");
+    expect(button).toHaveFocus();
+    expect(fireEvent.mouseDown(button)).toBe(false);
+    fireEvent.click(button, { detail: 0 });
+    fireEvent.click(button, { detail: 1 });
+    button.click();
+    expect(onClick).not.toHaveBeenCalled();
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(button).toHaveFocus();
+    // Tab away: the call site's `disabled` applies.
+    act(() => screen.getByRole("button", { name: "Next" }).focus());
+    expect(button).toBeDisabled();
+    expect(button).not.toHaveAttribute("aria-disabled");
+  });
+
+  it("busy with disabled: without the focus on it, disabled applies as soon as the run ends", () => {
+    const view = (busy: boolean) => (
+      <Button variant="success" size="default" busy={busy} disabled>
+        Save
+      </Button>
+    );
+    const { rerender } = render(view(true));
+    const button = screen.getByRole("button", { name: "Save" });
+    rerender(view(false));
+    expect(button).toBeDisabled();
+    expect(button).not.toHaveAttribute("aria-disabled");
+  });
+
+  it("busy with disabled: a focus that left during the run holds nothing after it", () => {
+    const view = (busy: boolean) => (
+      <>
+        <Button variant="success" size="default" busy={busy} disabled>
+          Save
+        </Button>
+        <button type="button">Next</button>
+      </>
+    );
+    const { rerender } = render(view(true));
+    const button = screen.getByRole("button", { name: "Save" });
+    act(() => button.focus());
+    act(() => screen.getByRole("button", { name: "Next" }).focus());
+    rerender(view(false));
+    expect(button).toBeDisabled();
+  });
+
+  it("busy with disabled: the held button wears the locked look, as the disabled one does", () => {
+    const view = (busy: boolean) => (
+      <Button variant="success" size="default" busy={busy} disabled>
+        Save
+      </Button>
+    );
+    const { rerender } = render(view(true));
+    const button = screen.getByRole("button", { name: "Save" });
+    act(() => button.focus());
+    rerender(view(false));
+    expect(button.className).toContain("aria-disabled:bg-success/50");
+    expect(button.className).not.toContain("aria-busy:cursor-progress");
   });
 
   // SUI-FEATURE-103 AC2: a call site's `aria-disabled={false}` cannot undo the run's lock.
