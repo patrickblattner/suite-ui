@@ -82,10 +82,16 @@ function AppSidebar({
     if (overlayOpen) element?.querySelector<HTMLElement>("button, a[href], input")?.focus();
   }, [overlayOpen, element]);
   const shownPath = React.useRef(pathname);
+  // A section press and the back link switch the list inside the open overlay: their navigation keeps
+  // it open (`SUI-FEATURE-107` rev 3). Held as the target path, so a blocked navigation keeps nothing
+  // open later.
+  const switchingTo = React.useRef<string | null>(null);
   React.useEffect(() => {
     if (shownPath.current === pathname) return;
     shownPath.current = pathname;
-    if (overlayOpen) closeOverlay();
+    const keep = switchingTo.current === pathname;
+    switchingTo.current = null;
+    if (overlayOpen && !keep) closeOverlay();
   }, [pathname, overlayOpen, closeOverlay]);
 
   const visible = allowedModel(nav, isAllowed);
@@ -201,6 +207,7 @@ function AppSidebar({
                 focusAfterSwitch.current =
                   '[data-testid="nav-section-entries"] [aria-current="page"]';
               }
+              switchingTo.current = first.to;
               void navigate(first.to);
             }}
             className={cn(rowClass, !isOpen && "justify-center px-0")}
@@ -232,9 +239,7 @@ function AppSidebar({
         onKeyDown={trapTab}
         onClick={(event) => {
           if (!overlayOpen || !(event.target instanceof Element)) return;
-          const leads = event.target.closest(
-            "a[href], [data-testid=sidebar-instance-name], [data-testid=nav-back]",
-          );
+          const leads = event.target.closest("a[href], [data-testid=sidebar-instance-name]");
           if (leads !== null) closeOverlay();
         }}
         data-testid="app-sidebar"
@@ -301,6 +306,7 @@ function AppSidebar({
                       if (event.detail === 0) {
                         focusAfterSwitch.current = `[data-testid="nav-section-${activeSection.key}"]`;
                       }
+                      switchingTo.current = homePath;
                       void navigate(homePath);
                     }}
                     className={cn(rowClass, "font-medium", !isOpen && "justify-center px-0")}

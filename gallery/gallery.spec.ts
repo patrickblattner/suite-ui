@@ -3997,16 +3997,23 @@ test("shell: ‹ Settings leads to the dashboard and restores the primary nav", 
 });
 
 // `SUI-FEATURE-107` AC1–AC3: Settings opened by Enter puts the focus on its active first entry, the
-// next Tab on the second entry; the back link by Enter puts it on the Settings entry. Expanded and
-// collapsed alike.
-for (const collapsed of [false, true]) {
-  test(`shell: keyboard focus follows the section switch, collapsed: ${collapsed}`, async ({
-    page,
-  }) => {
+// next Tab on the second entry; the back link by Enter puts it on the Settings entry. Expanded,
+// collapsed and in the overlay alike; the overlay stays open across both switches (rev 3).
+for (const mode of ["expanded", "collapsed", "overlay"] as const) {
+  test(`shell: keyboard focus follows the section switch, ${mode}`, async ({ page }) => {
+    if (mode === "overlay") await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/?page=shell&route=/dashboard&lng=en");
     const sidebar = page.getByTestId("app-sidebar");
-    if (collapsed) await page.getByTestId("sidebar-trigger").click();
-    await expect(sidebar).toHaveAttribute("data-state", collapsed ? "collapsed" : "expanded");
+    if (mode === "collapsed") await page.getByTestId("sidebar-trigger").click();
+    if (mode === "overlay") {
+      await page.getByTestId("sidebar-overlay-trigger").focus();
+      await page.keyboard.press("Enter");
+      await expect(sidebar).toHaveAttribute("data-overlay", "open");
+    }
+    await expect(sidebar).toHaveAttribute(
+      "data-state",
+      mode === "collapsed" ? "collapsed" : "expanded",
+    );
     const section = page.getByTestId("nav-section-settings");
     await section.focus();
     await page.keyboard.press("Enter");
@@ -4019,6 +4026,7 @@ for (const collapsed of [false, true]) {
     await page.keyboard.press("Enter");
     await expect(page.getByTestId("nav-primary")).toBeVisible();
     await expect(section).toBeFocused();
+    if (mode === "overlay") await expect(sidebar).toHaveAttribute("data-overlay", "open");
     // A pointer press moves no focus onto the opened list.
     await section.click();
     await expect(entries.first()).toHaveAttribute("aria-current", "page");

@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — #529, SUI-FEATURE-107 rev 3: keyboard focus after a sidebar section switch; no browser outline on the calendar button (minor)
+
+- **AppSidebar section switch (#529):** a section (Tools, Administration, Settings, or one in `primary`) opened by keyboard (`Enter`/`Space`) puts the focus on its active first entry (`aria-current="page"`); the next `Tab` goes to the second entry. The back link opened by keyboard puts the focus on the entry of the section just left in the primary nav (`GL-UI-050`). Before, the pressed control left the DOM and the focus fell to `<body>`. Expanded, collapsed and in the overlay alike; a pointer press moves no focus.
+- **Overlay below `md` (#529):** a section press and the back link are list switches inside the open overlay: it stays open across their navigation (keyboard and pointer). It still closes on an entry link, the instance name, `Esc`, the scrim and any other route change. Before, both closed it.
+- **Input date and time types (#529):** the browser's calendar or clock button of `date`, `time`, `datetime-local`, `month` and `week` draws no outline of its own when it holds the keyboard focus; the field's token ring (`:focus-within`, 3:1, forced-colors outline) stands for it. Before, Chromium drew its own focus box around the button inside the ring.
+- **Tests (#529):** unit tests for the focus after a keyboard section switch and back (expanded, collapsed), none after a pointer press, the overlay kept open across both switches and closed by an entry link, and the calendar-button class; gallery tests for the focus and the next `Tab` in all three modes, and that the calendar button's corner of each picker field looks the same as while a segment holds the focus (fails without the fix).
+
+**Migration:** none; no API, string or `data-testid` changes, no baseline changes.
+
 ## Unreleased — #528, SUI-FEATURE-103 rev 3: a run's end keeps the focus on a disabled button (minor)
 
 - **Button `busy` with `disabled` (#528):** when the run ends while the button holds the focus, the call site's `disabled` no longer drops the focus to `<body>` (`GL-UI-050`): the button keeps the `aria-disabled="true"` lock — no `disabled` attribute, the focus stays, click, `Enter`, `Space`, a press and the form's submit fire nothing — and wears the locked look, the same half-tone as the disabled one. Once the focus leaves (Tab away), the real `disabled` attribute applies. Without the focus on the button, `disabled` applies as soon as the run ends, as before. Before, `disabled` applied the moment the run ended and the focus fell to `<body>`.

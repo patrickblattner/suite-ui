@@ -174,6 +174,41 @@ describe("sidebar overlay below md (SUI-FEATURE-110)", () => {
     await waitFor(() => expect(trigger()).toHaveFocus());
   });
 
+  // `SUI-FEATURE-107` rev 3: a section press and the back link switch the list inside the overlay.
+  it("a section and the back link by keyboard keep it open and move the focus along", () => {
+    narrow(true);
+    render(<Shell />);
+    openOverlay();
+    const section = screen.getByTestId("nav-section-settings");
+    act(() => section.focus());
+    fireEvent.click(section, { detail: 0 });
+    expect(screen.getByTestId("location")).toHaveTextContent("/settings/general");
+    expect(sidebar()).toHaveAttribute("data-overlay", "open");
+    expect(screen.getByTestId("nav-settings-general")).toHaveFocus();
+    const back = screen.getByTestId("nav-back");
+    act(() => back.focus());
+    fireEvent.click(back, { detail: 0 });
+    expect(screen.getByTestId("location")).toHaveTextContent("/dashboard");
+    expect(sidebar()).toHaveAttribute("data-overlay", "open");
+    expect(screen.getByTestId("nav-section-settings")).toHaveFocus();
+  });
+
+  it("a section and the back link by pointer keep it open; a section entry then closes it", () => {
+    narrow(true);
+    render(<Shell />);
+    openOverlay();
+    fireEvent.click(screen.getByTestId("nav-section-settings"), { detail: 1 });
+    expect(sidebar()).toHaveAttribute("data-overlay", "open");
+    expect(screen.getByTestId("nav-settings-general")).not.toHaveFocus();
+    fireEvent.click(screen.getByTestId("nav-back"), { detail: 1 });
+    expect(sidebar()).toHaveAttribute("data-overlay", "open");
+    expect(screen.getByTestId("nav-section-settings")).not.toHaveFocus();
+    fireEvent.click(screen.getByTestId("nav-section-settings"), { detail: 1 });
+    fireEvent.click(screen.getByTestId("nav-settings-ai"));
+    expect(screen.getByTestId("location")).toHaveTextContent("/settings/ai");
+    expect(sidebar()).toHaveAttribute("data-overlay", "closed");
+  });
+
   it("the sidebar's own toggle closes the overlay and keeps the stored collapse choice", async () => {
     narrow(true);
     render(<Shell />);
