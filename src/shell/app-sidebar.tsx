@@ -103,15 +103,14 @@ function AppSidebar({
   // The focus after a list switch by keyboard (`SUI-FEATURE-107`, `GL-UI-050`): the switch unmounts the
   // pressed control, so the focus goes to the active first entry of the opened section, or back to the
   // entry of the section just left, never to `<body>` or the back link. A pointer press (`detail` > 0)
-  // arms nothing.
-  const focusAfterSwitch = React.useRef<string | null>(null);
-  const activeSectionKey = activeSection?.key;
+  // arms nothing. Held with its target path and dropped on any route change, so a blocked navigation
+  // leaves nothing armed for a later switch.
+  const focusAfterSwitch = React.useRef<{ to: string; selector: string } | null>(null);
   React.useEffect(() => {
-    const selector = focusAfterSwitch.current;
-    if (selector === null) return;
+    const target = focusAfterSwitch.current;
     focusAfterSwitch.current = null;
-    element?.querySelector<HTMLElement>(selector)?.focus();
-  }, [activeSectionKey, element]);
+    if (target?.to === pathname) element?.querySelector<HTMLElement>(target.selector)?.focus();
+  }, [pathname, element]);
 
   // Collapsed, an entry shows only its icon, so its hint names it first.
   function hintFor(label: string, hintKey: string | undefined): string | undefined {
@@ -203,10 +202,13 @@ function AppSidebar({
             // The route change alone switches the sidebar into the section.
             onClick={(event) => {
               if (!first) return;
-              if (event.detail === 0) {
-                focusAfterSwitch.current =
-                  '[data-testid="nav-section-entries"] [aria-current="page"]';
-              }
+              focusAfterSwitch.current =
+                event.detail === 0
+                  ? {
+                      to: first.to,
+                      selector: '[data-testid="nav-section-entries"] [aria-current="page"]',
+                    }
+                  : null;
               switchingTo.current = first.to;
               void navigate(first.to);
             }}
@@ -303,9 +305,13 @@ function AppSidebar({
                     data-testid="nav-back"
                     aria-label={t("nav.backToDashboard")}
                     onClick={(event) => {
-                      if (event.detail === 0) {
-                        focusAfterSwitch.current = `[data-testid="nav-section-${activeSection.key}"]`;
-                      }
+                      focusAfterSwitch.current =
+                        event.detail === 0
+                          ? {
+                              to: homePath,
+                              selector: `[data-testid="nav-section-${activeSection.key}"]`,
+                            }
+                          : null;
                       switchingTo.current = homePath;
                       void navigate(homePath);
                     }}
