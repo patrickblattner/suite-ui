@@ -4,6 +4,7 @@
 
 - **New export `SubgroupTitle` (#515):** `@suite/ui/ui/subgroup-title` (and the `ui` barrel) exports `SubgroupTitle`, the title of a sub-group inside a section: `text-sm font-semibold` (14 px), one step below the section title's `text-base font-semibold` (16 px). An `h4` by default; `asChild` gives the style to another element, such as a `legend`. Apps use it instead of styling sub-group titles at the call site.
 - **SlideEditor (#515):** the "Entrance" and "Exit" titles under "Animation" in the property panel are `SubgroupTitle`s (their `legend` kept); the "Animation" heading above stays.
+- **SettingsBlock (#515):** the block name is a `SubgroupTitle` on its `h3` (`asChild`) instead of its own `text-sm font-semibold`; no visual change.
 - **Tests (#515):** a unit test for `SubgroupTitle` (h4, `asChild` on a legend); the gallery checks the Animation section title at 16 px and its Entrance/Exit titles at 14 px, all semibold.
 
 **Migration:** none; the sub-group titles looked the same before, so no baseline changes. No string or `data-testid` changes; the legends gain `data-slot="subgroup-title"`.

@@ -5,7 +5,8 @@ import { cn } from "../lib/cn.js";
 
 // The title of a sub-group inside a section (such as "Entrance" and "Exit" under "Animation"): one step
 // below the section title's `text-base`, so the nesting reads at a glance (`GL-UI-010` §Titel &
-// Metadaten). An `h4` by default; `asChild` gives the style to another element, such as a `legend`.
+// Metadaten). An `h4` by default, for a sub-group under an `h3` section; under an `h2` section use
+// `asChild` with an `h3`. `asChild` also gives the style to another element, such as a `legend`.
 function SubgroupTitle({
   className,
   asChild = false,

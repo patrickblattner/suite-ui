@@ -1,5 +1,7 @@
 import * as React from "react";
 
+import { SubgroupTitle } from "../ui/subgroup-title.js";
+
 type SettingsBlockProps = {
   // The name of the entry; it names the block for assistive tech.
   name: string;
@@ -24,9 +26,11 @@ function SettingsBlock({ name, purpose, aside, children }: SettingsBlockProps) {
     >
       <div className="flex items-start justify-between gap-4" data-slot="settings-block-header">
         <div className="flex min-w-0 flex-col gap-1">
-          <h3 id={nameId} className="text-sm font-semibold" data-slot="settings-block-name">
-            {name}
-          </h3>
+          <SubgroupTitle asChild>
+            <h3 id={nameId} data-slot="settings-block-name">
+              {name}
+            </h3>
+          </SubgroupTitle>
           <p className="text-sm text-muted-foreground">{purpose}</p>
         </div>
         {aside !== undefined ? (
