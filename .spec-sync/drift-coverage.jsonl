@@ -617,3 +617,7 @@
 {"ts":"2026-10-24T07:30:27.971Z","key":"GL-UI-038","from":null,"to":2,"disposition":"ticket","ref":"541"}
 {"ts":"2026-10-24T07:30:28.407Z","key":"GL-UI-016","from":12,"to":13,"disposition":"editorial","ref":"rev 13 states that a wrapped group stays one group — the behaviour #511 built and pinned (378a045); no code impact"}
 {"ts":"2026-10-24T08:56:36.630Z","key":"GL-OPS-002","from":6,"to":7,"disposition":"editorial","ref":"host path casing ~/backups, ~/docker: suite-ui has no host paths in code, scripts or docs (git grep clean); no code impact"}
+{"ts":"2026-10-24T09:44:17.748Z","key":"SUI-FEATURE-109","from":null,"to":2,"disposition":"ticket","ref":"547"}
+{"ts":"2026-10-24T09:44:18.109Z","key":"PROC-RUN-001","from":12,"to":13,"disposition":"editorial","ref":"host path casing ~/docker in ops runbooks; no code impact in suite-ui"}
+{"ts":"2026-10-24T09:44:18.109Z","key":"PROC-RUN-010","from":7,"to":8,"disposition":"editorial","ref":"host path casing ~/docker in ops runbooks; no code impact in suite-ui"}
+{"ts":"2026-10-24T09:44:18.109Z","key":"PROC-RUN-011","from":7,"to":8,"disposition":"editorial","ref":"host path casing ~/docker in ops runbooks; no code impact in suite-ui"}
