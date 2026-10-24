@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — #557, GL-UI-007/GL-UI-050: Cancel in the leave dialog no longer reactivates the tab trigger that asked (patch)
+
+- **Tabs (#557):** a `TabsTrigger` activates on focus only when the focus moves within its own tab list (arrow keys, Home, End); a press activates it as before. A focus from outside the list — a dialog returning it on close (`GL-UI-050`) — leaves the selection as it is. Before, a guarded page whose tab switch asked (no `ignoreSearchParams`) looped: Cancel returned the focus to the trigger, its automatic activation switched again, and the leave dialog reopened. Now Cancel closes the dialog, the focus is on the trigger, the original tab and the draft stay. A caller's own `onFocus` still runs first; preventing its default skips the activation as before.
+- **Tests (#557):** unit tests: a focus from outside the tab list does not activate, an arrow key and a press do. Gallery (`?harness=leave-guard`, `/detail-plain`): field changed, tab switch by click and by `ArrowRight`, Cancel → no dialog, focus on the trigger, still on the original tab and `?tab=`, draft kept.
+
+**Migration:** none for pointer and keyboard use. Code that activated a tab by calling `.focus()` on its trigger from outside the list must set the value instead. No strings, `data-testid`s or baselines change.
+
 ## Unreleased — #548, SUI-FEATURE-103 rev 3 / GL-UI-050: the busy button's focus hold survives a window switch, a missed blur and a late `disabled` (patch)
 
 - **Window switch (#548):** a blur with no `relatedTarget` while the document has lost the focus and the button is still its active element (a switch to another window or tab) no longer ends the hold; back in the page, the focus is still on the button.

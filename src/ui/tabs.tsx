@@ -50,10 +50,24 @@ function TabsList({
   );
 }
 
-function TabsTrigger({ className, ...props }: React.ComponentProps<typeof TabsPrimitive.Trigger>) {
+// A trigger activates on focus only when the focus moves within its own tab list (arrow keys, Home,
+// End); a press activates it on its own. A focus from outside — a dialog returning it on close
+// (`GL-UI-050`) — leaves the selection as it is: the leave dialog's Cancel would else activate the
+// trigger that asked again and reopen the dialog (#557). Preventing the default skips Radix's activation.
+function TabsTrigger({
+  className,
+  onFocus,
+  ...props
+}: React.ComponentProps<typeof TabsPrimitive.Trigger>) {
   return (
     <TabsPrimitive.Trigger
       data-slot="tabs-trigger"
+      onFocus={(event) => {
+        onFocus?.(event);
+        const list = event.currentTarget.closest('[role="tablist"]');
+        if (!(event.relatedTarget instanceof Node && list?.contains(event.relatedTarget) === true))
+          event.preventDefault();
+      }}
       className={cn(
         "relative inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-2 py-1 text-sm font-medium whitespace-nowrap text-foreground/70 transition-[color,background-color,border-color,box-shadow] group-data-[orientation=vertical]/tabs:w-full group-data-[orientation=vertical]/tabs:justify-start hover:text-foreground focus-visible:border-ring focus-visible:focus-ring disabled:pointer-events-none disabled:opacity-50 group-data-[variant=default]/tabs-list:data-[state=active]:shadow-sm group-data-[variant=line]/tabs-list:data-[state=active]:shadow-none dark:text-muted-foreground dark:hover:text-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
         "group-data-[variant=line]/tabs-list:bg-transparent group-data-[variant=line]/tabs-list:data-[state=active]:bg-transparent dark:group-data-[variant=line]/tabs-list:data-[state=active]:border-transparent dark:group-data-[variant=line]/tabs-list:data-[state=active]:bg-transparent",

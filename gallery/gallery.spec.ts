@@ -3266,6 +3266,29 @@ test("leave guard without ignoreSearchParams: a ?tab= switch asks as before", as
   expect(tabOf(page)).toBe("notes");
 });
 
+// #557 (`GL-UI-007`, `GL-UI-050`): Cancel returns the focus to the tab trigger that asked, and that
+// focus does not activate it again: the dialog stays closed, the original tab and the draft stay.
+for (const path of ["mouse", "keyboard"] as const) {
+  test(`leave guard without ignoreSearchParams: Cancel after a tab switch by ${path} stays`, async ({
+    page,
+  }) => {
+    await openHarnessDetail(page, true);
+    if (path === "mouse") {
+      await page.getByTestId("harness-tab-notes").click();
+    } else {
+      await page.getByTestId("harness-tab-general").focus();
+      await page.keyboard.press("ArrowRight");
+    }
+    await expect(page.getByTestId("leave-guard")).toBeVisible();
+    await page.getByTestId("leave-guard-cancel").click();
+    await expect(page.getByTestId("harness-tab-notes")).toBeFocused();
+    await expectNoDialog(page);
+    await expect(page.getByTestId("harness-tab-general")).toHaveAttribute("aria-selected", "true");
+    expect(tabOf(page)).toBe("general");
+    await expect(page.getByTestId("harness-value")).toHaveValue("draft");
+  });
+}
+
 // #235 (Q&A #3872, `GL-UI-007`): in the media panel `Esc` opens the leave dialog, and the next `Esc`
 // is Abbrechen: only the dialog closes, it does not come back, and the panel keeps its draft.
 // The second `Esc` right after the first, before the dialog has taken the key: still Abbrechen.
