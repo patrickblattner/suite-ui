@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { resolveSlideMedia, SLIDE_BRAND } from "../../gallery/slide-showcase.js";
@@ -28,6 +28,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.unstubAllGlobals();
+  vi.useRealTimers();
 });
 
 // The canvas's "Fit" in jsdom (its area measures 0).
@@ -364,23 +365,22 @@ describe("SlideEditor element clipboard", () => {
     warning.mockRestore();
   });
 
-  it("ignores a second paste while the app is still adopting media (SUI-FEATURE-106)", async () => {
-    let answer: (remap: Record<string, string>) => void = () => {};
+  it("pastes a second Ctrl+V pressed while the app adopts media after the first lands (#535)", async () => {
+    const answers: ((remap: Record<string, string>) => void)[] = [];
     const adoptMedia = vi.fn(
-      () => new Promise<Record<string, string>>((resolve) => (answer = resolve)),
+      () => new Promise<Record<string, string>>((resolve) => answers.push(resolve)),
     );
-    copyThenOpenOther("photo", {
+    const onSave = copyThenOpenOther("photo", {
       adoptMedia,
       resolveMedia: (id: string) => (id === "photo-copy" ? "blob:photo" : undefined),
     });
     key("v");
     key("v");
     expect(adoptMedia).toHaveBeenCalledTimes(1);
-    answer({ photo: "photo-copy" });
-    fireEvent.click(screen.getByTestId("drawer-layers"));
-    await waitFor(() => expect(screen.getAllByTestId("slide-editor-layer")).toHaveLength(1));
-    key("v");
-    expect(adoptMedia).toHaveBeenCalledTimes(2);
+    answers[0]!({ photo: "photo-copy" });
+    await waitFor(() => expect(adoptMedia).toHaveBeenCalledTimes(2));
+    answers[1]!({ photo: "photo-copy" });
+    await waitFor(async () => expect(await saved(onSave)).toHaveLength(2));
   });
 
   it("drops a paste whose adoptMedia answers after the editor closed (SUI-FEATURE-106)", async () => {
@@ -425,10 +425,10 @@ describe("SlideEditor element clipboard", () => {
     expect(elements[1]).toMatchObject({ media: { id: "photo-copy" } });
   });
 
-  it("ignores a second paste while one waits for a drag to end (#525)", async () => {
-    let answer: (remap: Record<string, string>) => void = () => {};
+  it("pastes a second Ctrl+V pressed during a drag after the paste the drag holds (#535)", async () => {
+    const answers: ((remap: Record<string, string>) => void)[] = [];
     const adoptMedia = vi.fn(
-      () => new Promise<Record<string, string>>((resolve) => (answer = resolve)),
+      () => new Promise<Record<string, string>>((resolve) => answers.push(resolve)),
     );
     const onSave = copyThenOpenOther("photo", {
       document: { ...DOC, pages: [{ id: "other", background, elements: [shape("a", 0, 0)] }] },
@@ -438,17 +438,21 @@ describe("SlideEditor element clipboard", () => {
     key("v");
     fireEvent.pointerDown(canvas(), { ...at(50, 50), button: 0, pointerId: 1 });
     fireEvent.pointerMove(canvas(), at(250, 50));
-    answer({ photo: "photo-copy" });
+    answers[0]!({ photo: "photo-copy" });
     await Promise.resolve();
     await Promise.resolve();
     key("v");
     expect(adoptMedia).toHaveBeenCalledTimes(1);
     fireEvent.pointerUp(canvas(), at(250, 50));
-    const elements = await saved(onSave);
-    expect(elements.map(({ type, x }) => ({ type, x }))).toEqual([
-      { type: "shape", x: 200 },
-      { type: "image", x: 40 },
-    ]);
+    await waitFor(() => expect(adoptMedia).toHaveBeenCalledTimes(2));
+    answers[1]!({ photo: "photo-copy" });
+    await waitFor(async () =>
+      expect((await saved(onSave)).map(({ type, x }) => ({ type, x }))).toEqual([
+        { type: "shape", x: 200 },
+        { type: "image", x: 40 },
+        { type: "image", x: 50 },
+      ]),
+    );
   });
 
   it("lands a paste held by a drag once Esc cancels the drag (#525)", async () => {
@@ -526,7 +530,8 @@ describe("SlideEditor element clipboard", () => {
     );
   });
 
-  it("deletes with Delete during a later drag while a held paste's adoptMedia never answers (#533)", async () => {
+  it("deletes with Delete during a later drag once a held paste's adoptMedia stays silent 10 s (#535)", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     const onSave = copyThenOpenOther("photo", {
       document: { ...DOC, pages: [{ id: "other", background, elements: [shape("a", 0, 0)] }] },
       adoptMedia: () => new Promise(() => {}),
@@ -540,10 +545,16 @@ describe("SlideEditor element clipboard", () => {
     fireEvent.pointerMove(canvas(), at(450, 50));
     fireEvent.keyDown(canvas(), { key: "Delete" });
     fireEvent.pointerUp(canvas(), at(450, 50));
-    expect(await saved(onSave)).toEqual([]);
+    // The end of the drag frees nothing: the Delete waits behind the paste.
+    expect((await saved(onSave)).map(({ id, x }) => ({ id, x }))).toEqual([{ id: "a", x: 400 }]);
+    act(() => void vi.advanceTimersByTime(10_000));
+    await waitFor(async () =>
+      expect((await saved(onSave)).map(({ type }) => type)).toEqual(["image"]),
+    );
   });
 
-  it("moves and deletes with the keys of a later drag while a held paste's adoptMedia never answers (#533)", async () => {
+  it("moves and deletes with the keys of a later drag, on what they were pressed on, once a held paste's adoptMedia stays silent 10 s (#535)", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     const onSave = copyThenOpenOther("photo", {
       document: {
         ...DOC,
@@ -561,15 +572,19 @@ describe("SlideEditor element clipboard", () => {
     fireEvent.keyDown(canvas(), { key: "ArrowRight" });
     fireEvent.keyDown(canvas(), { key: "Delete" });
     fireEvent.pointerUp(canvas(), at(850, 50));
-    expect((await saved(onSave)).map((e) => e.id)).toEqual(["a"]);
+    act(() => void vi.advanceTimersByTime(10_000));
+    await waitFor(async () =>
+      expect((await saved(onSave)).map(({ type, x }) => ({ type, x }))).toEqual([
+        { type: "shape", x: 200 },
+        { type: "image", x: 40 },
+      ]),
+    );
     key("z");
-    expect((await saved(onSave)).map(({ id, x }) => ({ id, x }))).toEqual([
-      { id: "a", x: 200 },
-      { id: "b", x: 801 },
-    ]);
+    expect((await saved(onSave)).map(({ x }) => x)).toEqual([200, 801, 40]);
   });
 
-  it("leaves no Delete of a later drag behind a held paste's adoptMedia that never answers (#533)", async () => {
+  it("deletes what each Delete was meant for behind a paste that stays silent 10 s, leaving none held (#535)", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
     const onSave = copyThenOpenOther("photo", {
       document: {
         ...DOC,
@@ -587,13 +602,189 @@ describe("SlideEditor element clipboard", () => {
     fireEvent.pointerMove(canvas(), at(850, 50));
     fireEvent.keyDown(canvas(), { key: "Delete" });
     fireEvent.pointerUp(canvas(), at(850, 50));
-    // The held Delete of the first drag takes what the second selected; the second's finds nothing.
-    expect((await saved(onSave)).map((e) => e.id)).toEqual(["a"]);
-    // A third drag must not set off a Delete left over from the second.
+    act(() => void vi.advanceTimersByTime(10_000));
+    // The first Delete takes the paste, the second b, selected by hand when it was pressed.
+    await waitFor(async () => expect((await saved(onSave)).map((e) => e.id)).toEqual(["a"]));
+    // A third drag must not set off a Delete left over.
     fireEvent.pointerDown(canvas(), { ...at(250, 50), button: 0, pointerId: 1 });
     fireEvent.pointerMove(canvas(), at(450, 50));
     fireEvent.pointerUp(canvas(), at(450, 50));
     expect((await saved(onSave)).map(({ id, x }) => ({ id, x }))).toEqual([{ id: "a", x: 400 }]);
+  });
+
+  it("pastes with placeholder and hint as one step once adoptMedia stays silent 10 s, dropping a later answer (SUI-FEATURE-106 AC3)", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const warning = vi.spyOn(toast, "warning");
+    let answer: (remap: Record<string, string>) => void = () => {};
+    const onSave = copyThenOpenOther("photo", {
+      document: { ...DOC, pages: [{ id: "other", background, elements: [shape("a", 0, 0)] }] },
+      adoptMedia: () => new Promise((resolve) => (answer = resolve)),
+      resolveMedia: (id: string) => (id === "photo-copy" ? "blob:photo" : undefined),
+    });
+    key("v");
+    act(() => void vi.advanceTimersByTime(9_999));
+    expect(warning).not.toHaveBeenCalled();
+    act(() => void vi.advanceTimersByTime(1));
+    expect(warning).toHaveBeenCalledTimes(1);
+    expect(warning.mock.lastCall![0]).toContain("photo");
+    expect(screen.getByText("Image photo not found")).toBeInTheDocument();
+    answer({ photo: "photo-copy" });
+    await Promise.resolve();
+    await Promise.resolve();
+    const elements = await saved(onSave);
+    expect(elements).toHaveLength(2);
+    expect(elements[1]).toMatchObject({ type: "image", media: { id: "photo" } });
+    // The queue is free: Delete acts at once, on the pasted image; one Undo each.
+    fireEvent.keyDown(canvas(), { key: "Delete" });
+    expect(await saved(onSave)).toHaveLength(1);
+    key("z");
+    key("z");
+    expect((await saved(onSave)).map((e) => e.id)).toEqual(["a"]);
+    warning.mockRestore();
+  });
+
+  it("runs Delete, Arrow and Undo pressed outside a drag behind a waiting paste, in order (SUI-FEATURE-106 AC1)", async () => {
+    let answer: (remap: Record<string, string>) => void = () => {};
+    const onSave = copyThenOpenOther("photo", {
+      document: {
+        ...DOC,
+        pages: [{ id: "other", background, elements: [shape("a", 0, 0), shape("b", 600, 0)] }],
+      },
+      adoptMedia: () => new Promise((resolve) => (answer = resolve)),
+      resolveMedia: (id: string) => (id === "photo-copy" ? "blob:photo" : undefined),
+    });
+    click(650, 50);
+    key("v");
+    // Meant for the paste: nothing selected by hand since.
+    fireEvent.keyDown(canvas(), { key: "ArrowRight" });
+    // Meant for b, selected by hand.
+    click(650, 50);
+    fireEvent.keyDown(canvas(), { key: "Delete" });
+    key("z");
+    expect(layerCount()).toBe(2);
+    answer({ photo: "photo-copy" });
+    // Paste, its image moved, b deleted, then Undo brings b back.
+    await waitFor(() => expect(layerCount()).toBe(3));
+    expect((await saved(onSave)).map(({ type, x }) => ({ type, x }))).toEqual([
+      { type: "shape", x: 0 },
+      { type: "shape", x: 600 },
+      { type: "image", x: 41 },
+    ]);
+  });
+
+  it("lands the paste, then Delete on it, leaving b a later drag moved (SUI-FEATURE-106 AC4)", async () => {
+    let answer: (remap: Record<string, string>) => void = () => {};
+    const onSave = copyThenOpenOther("photo", {
+      document: {
+        ...DOC,
+        pages: [{ id: "other", background, elements: [shape("a", 0, 0), shape("b", 600, 0)] }],
+      },
+      adoptMedia: () => new Promise((resolve) => (answer = resolve)),
+      resolveMedia: (id: string) => (id === "photo-copy" ? "blob:photo" : undefined),
+    });
+    fireEvent.pointerDown(canvas(), { ...at(50, 50), button: 0, pointerId: 1 });
+    fireEvent.pointerMove(canvas(), at(250, 50));
+    key("v");
+    fireEvent.keyDown(canvas(), { key: "Delete" });
+    fireEvent.pointerUp(canvas(), at(250, 50));
+    fireEvent.pointerDown(canvas(), { ...at(650, 50), button: 0, pointerId: 1 });
+    fireEvent.pointerMove(canvas(), at(850, 50));
+    fireEvent.pointerUp(canvas(), at(850, 50));
+    answer({ photo: "photo-copy" });
+    await waitFor(async () =>
+      expect((await saved(onSave)).map(({ id, x }) => ({ id, x }))).toEqual([
+        { id: "a", x: 200 },
+        { id: "b", x: 800 },
+      ]),
+    );
+    key("z");
+    expect((await saved(onSave)).map(({ type }) => type)).toEqual(["shape", "shape", "image"]);
+  });
+
+  // The other document with a, its image's paste waiting until `answer` is called.
+  const waitingPaste = () => {
+    let answer: (remap: Record<string, string>) => void = () => {};
+    const onSave = copyThenOpenOther("photo", {
+      document: { ...DOC, pages: [{ id: "other", background, elements: [shape("a", 0, 0)] }] },
+      adoptMedia: () => new Promise((resolve) => (answer = resolve)),
+      resolveMedia: (id: string) => (id === "photo-copy" ? "blob:photo" : undefined),
+    });
+    return { onSave, answer: () => answer({ photo: "photo-copy" }) };
+  };
+
+  it("deletes a with Delete after a's resize handle was pressed during a wait (#535)", async () => {
+    const { onSave, answer } = waitingPaste();
+    click(50, 50);
+    key("v");
+    fireEvent.pointerDown(screen.getByTestId("slide-editor-handle-se"), {
+      ...at(100, 100),
+      button: 0,
+      pointerId: 1,
+    });
+    fireEvent.pointerMove(canvas(), at(150, 150));
+    fireEvent.pointerUp(canvas(), at(150, 150));
+    fireEvent.keyDown(canvas(), { key: "Delete" });
+    answer();
+    await waitFor(() => expect(layerCount()).toBe(1));
+    expect((await saved(onSave)).map(({ type }) => type)).toEqual(["image"]);
+  });
+
+  it.each([
+    ["cut", ["image"], "a"],
+    ["copy", ["shape", "image"], "a"],
+    ["duplicate", ["shape", "shape", "image"], undefined],
+  ] as const)(
+    "%ss a from the canvas menu after a right click on a during a wait (#535)",
+    async (entry, types, clipboard) => {
+      elementClipboard.elements = [];
+      const { onSave, answer } = waitingPaste();
+      click(50, 50);
+      key("v");
+      const kept = elementClipboard.elements;
+      fireEvent.click(within(openMenu(50, 50), entry));
+      answer();
+      await waitFor(() => expect(layerCount()).toBe(types.length));
+      expect((await saved(onSave)).map(({ type }) => type)).toEqual(types);
+      if (clipboard === undefined) expect(elementClipboard.elements).toBe(kept);
+      else expect(elementClipboard.elements.map(({ name }) => name)).toEqual([clipboard]);
+    },
+  );
+
+  it("offers Cut on what a waiting paste pastes, nothing selected, and cuts it once it lands (#535)", async () => {
+    const { onSave, answer } = waitingPaste();
+    click(1200, 600);
+    key("v");
+    const menu = openMenu(1200, 600);
+    expect(screen.getByTestId("slide-editor-menu-cut")).not.toHaveAttribute("aria-disabled");
+    expect(screen.getByTestId("slide-editor-menu-copy")).not.toHaveAttribute("aria-disabled");
+    expect(screen.getByTestId("slide-editor-menu-duplicate")).not.toHaveAttribute("aria-disabled");
+    fireEvent.click(within(menu, "cut"));
+    answer();
+    await waitFor(() => expect(elementClipboard.elements).toMatchObject([{ type: "image" }]));
+    expect((await saved(onSave)).map(({ id }) => id)).toEqual(["a"]);
+  });
+
+  it("says after 300 ms that the media are being adopted, until the paste lands (SUI-FEATURE-106 AC5)", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    let answer: (remap: Record<string, string>) => void = () => {};
+    copyThenOpenOther("photo", {
+      adoptMedia: () => new Promise((resolve) => (answer = resolve)),
+      resolveMedia: (id: string) => (id === "photo-copy" ? "blob:photo" : undefined),
+    });
+    const status = screen.getByTestId("slide-editor-adopting");
+    expect(status).toHaveAttribute("role", "status");
+    key("v");
+    act(() => void vi.advanceTimersByTime(299));
+    expect(canvas()).not.toHaveAttribute("aria-busy");
+    expect(status).toBeEmptyDOMElement();
+    act(() => void vi.advanceTimersByTime(1));
+    expect(canvas()).toHaveAttribute("aria-busy", "true");
+    expect(canvas().className).toContain("cursor-wait");
+    expect(status).toHaveTextContent("Bringing the media along …");
+    answer({ photo: "photo-copy" });
+    await waitFor(() => expect(canvas()).not.toHaveAttribute("aria-busy"));
+    expect(canvas().className).not.toContain("cursor-wait");
+    expect(status).toBeEmptyDOMElement();
   });
 
   // Drags a from (50, 50) to (450, 50), pressing keys on the way and cancelling with Esc if asked.

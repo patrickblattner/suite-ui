@@ -767,6 +767,7 @@ export const de: SuiteStrings = {
         "Eingefügt, aber die Medien {{names}} konnten nicht übernommen werden. Ihre Bilder zeigen einen Platzhalter, bis du sie ersetzt.",
       unnamedMedia_one: "{{count}} ohne Namen",
       unnamedMedia_other: "{{count}} ohne Namen",
+      adoptingMedia: "Medien werden übernommen …",
       pages: "Seiten",
       pageNumber: "Seite {{n}}",
       showPage: "Seite {{n}} zeigen",

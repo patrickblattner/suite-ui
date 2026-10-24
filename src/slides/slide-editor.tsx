@@ -250,6 +250,10 @@ const CUT_SHORTCUT = ["Ctrl+X", "Meta+X"] as const;
 const COPY_SHORTCUT = ["Ctrl+C", "Meta+C"] as const;
 const PASTE_SHORTCUT = ["Ctrl+V", "Meta+V"] as const;
 const DUPLICATE_SHORTCUT = ["Ctrl+D", "Meta+D"] as const;
+// How long a paste waits for `adoptMedia` before it counts as failed, and before the canvas says it
+// is busy (`SUI-FEATURE-106` rev 5).
+const ADOPT_TIMEOUT_MS = 10_000;
+const ADOPT_BUSY_MS = 300;
 // How long a new entrance, exit or transition plays (ms); the most a duration or delay field takes
 // is `ANIMATION_MAX_MS`, shared with the preview.
 const ANIMATION_MS = 500;
@@ -1444,8 +1448,17 @@ function Editor({
     startEditing(id);
   };
   // The selection deleted, the unlocked part of it; a placeholder it filled shows again.
-  const removeSelected = () => {
-    const ids = editable.map((element) => element.id);
+  // The commands below take the selection, or the ids a held command was meant for (#535): of
+  // those, the ones still there.
+  const chosen = (ids?: readonly string[]) =>
+    ids === undefined
+      ? selected
+      : ids.flatMap((id) => {
+          const found = findElement(elements, id);
+          return found === undefined ? [] : [found.element];
+        });
+  const removeSelected = (of?: readonly string[]) => {
+    const ids = chosen(of).flatMap((element) => (element.locked ? [] : [element.id]));
     if (ids.length === 0) return;
     apply((current) => deleteElements(current, page, ids));
     setSelection([]);
@@ -1455,24 +1468,25 @@ function Editor({
   // is refused with a toast. Each change is one step, the copies selected after it. The clipboard
   // keeps this editor's brand set and which copies filled a title placeholder, for a paste into
   // another document (`SUI-FEATURE-106`).
-  const copySelection = () => {
-    if (selected.length === 0) return;
+  const copySelection = (of?: readonly string[]) => {
+    const copied = chosen(of);
+    if (copied.length === 0) return;
     const titles = new Set<string>();
-    eachElement(selected, (element) => {
+    eachElement(copied, (element) => {
       if (element.placeholderRole === "title") titles.add(element.id);
     });
     keepInClipboard(
       copyElements(
         elements,
-        selected.map((element) => element.id),
+        copied.map((element) => element.id),
       ),
       view.brand,
       titles,
     );
   };
-  const cutSelection = () => {
-    copySelection();
-    removeSelected();
+  const cutSelection = (of?: readonly string[]) => {
+    copySelection(of);
+    removeSelected(of);
   };
   const placeCopies = (result: { document: SlideDocument; ids: string[] }) => {
     // Copies, not a choice of element, so the generic error's advice does not apply (#514).
@@ -1487,18 +1501,23 @@ function Editor({
     }
     apply(() => result.document);
     setSelection(result.ids);
+    return result.ids;
   };
-  const duplicate = () =>
+  const duplicate = (of?: readonly string[]) =>
     placeCopies(
       duplicateElements(
         history.document,
         page,
-        selected.map((element) => element.id),
+        chosen(of).map((element) => element.id),
       ),
     );
   // The canvas's menu (`SUI-FEATURE-191`): a right click on an element outside the selection selects
   // it first. Paste reads the clipboard as the menu opens; another editor may have filled it.
   const [clipboardFilled, setClipboardFilled] = React.useState(false);
+  const [menuChained, setMenuChained] = React.useState(false);
+  // Counts the presses on the canvas — an element, a handle, a right click on an element: each picks
+  // a selection by hand, the same one again too (#535).
+  const handPresses = React.useRef(0);
   const selectUnderMenu = (event: React.MouseEvent<HTMLDivElement>) => {
     // While cropping the menu rests, and so does the browser's.
     if (cropping !== undefined) {
@@ -1507,6 +1526,7 @@ function Editor({
     }
     if (editing !== undefined) setEditing(undefined);
     const hit = hitTest(toPage(event));
+    if (hit !== undefined) handPresses.current += 1;
     if (hit !== undefined && !selection.includes(hit.id)) setSelection([hit.id]);
   };
   const menuEntry = (
@@ -1582,6 +1602,7 @@ function Editor({
   // Pointer work on the canvas: select, move, frame-select, resize, rotate.
   const onPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
     if (event.button !== 0) return;
+    handPresses.current += 1;
     event.currentTarget.setPointerCapture(event.pointerId);
     event.currentTarget.focus();
     const point = toPage(event);
@@ -1830,6 +1851,7 @@ function Editor({
   ) => {
     if (single === undefined || single.locked || event.button !== 0) return;
     event.stopPropagation();
+    handPresses.current += 1;
     // The canvas layer takes the pointer for the whole drag, and the focus, so the arrow keys work on
     // after it.
     canvas.current?.setPointerCapture(event.pointerId);
@@ -1864,6 +1886,7 @@ function Editor({
   const startColumn = (event: React.PointerEvent, index: number) => {
     if (single?.type !== "table" || single.locked || event.button !== 0) return;
     event.stopPropagation();
+    handPresses.current += 1;
     canvas.current?.setPointerCapture(event.pointerId);
     canvas.current?.focus();
     const frame = [...groupChain(elements, single.id), asFrame(single)];
@@ -1895,44 +1918,91 @@ function Editor({
   });
   // A paste takes the brand keys this document lacks to its own brand set's, and asks the app for the
   // media it cannot resolve; it lands once the app answers, on the document as it is then, as one
-  // step. A medium that still does not resolve after that, renamed by the app or not, pastes anyway,
-  // its image a placeholder, and a hint names it by its image's alt text or name (one with neither is
-  // counted). A paste while one waits for the app is ignored; one the editor closes on never lands.
-  // Copy, cut, paste, duplicate, Delete and the arrow keys keyed during a drag with a preview wait
-  // for it to end, kept or cancelled, and so does a paste the app answers meanwhile: the release
-  // would put back the preview, drawn from the document as the drag began (#525, #527, #530). They land in the order they
-  // came, one a render, each on what the one before left; behind a paste that waits for the app,
-  // once it landed (#533). A frame selection draws no preview: under it they act at once.
-  const held = React.useRef<(() => void)[]>([]);
+  // step. The app has 10 s: after that the call counts as failed and a later answer is dropped
+  // (`SUI-FEATURE-106` rev 5). A medium that still does not resolve after that, renamed by the app
+  // or not, pastes anyway, its image a placeholder, and a hint names it by its image's alt text or
+  // name (one with neither is counted). One the editor closes on never lands.
+  // Copy, cut, paste, duplicate, Delete, the arrow keys, Undo and Redo pressed during a drag with a
+  // preview, while a paste waits for the app, or behind ones still held, wait (#525, #527, #530,
+  // #535): the release would put back the preview, drawn from the document as the drag began, and
+  // a paste the app answers during a drag waits for it too, ahead of what was held behind it. They
+  // run in the order pressed, one a render, each on what the one before left, once no drag holds
+  // them and no paste waits; the end of a drag never ends a paste's wait. Each acts on what was
+  // meant when it was pressed: the selection then, or, with no selection made by hand since the
+  // command before it was pressed, what that one left selected; of those, the elements still there.
+  // A frame selection draws no preview: under it they act at once, unless a paste waits.
+  type Meant = { ids: readonly string[] | undefined };
+  type Held = {
+    meant: Meant;
+    left: Meant;
+    run: (ids: readonly string[], left: Meant) => readonly string[] | undefined;
+  };
+  const held = React.useRef<Held[]>([]);
   const pastePending = React.useRef(false);
-  // Holds the commands of the paste's own drag only: a later drag ends the hold (#533).
-  const heldBehindPaste = React.useRef<"held" | "released" | false>(false);
+  // What the last command held or waiting leaves selected, and the selection and presses it saw: a
+  // selection other than that one, or a press since, was made by hand. `ran` is set by a held
+  // command (or a landing paste) that ran, so the selection it left is the one seen from the next
+  // render on.
+  const pressChain = React.useRef<
+    { left: Meant; seen: readonly string[]; presses: number } | undefined
+  >(undefined);
+  const ran = React.useRef(false);
+  React.useEffect(() => {
+    if (!ran.current) return;
+    ran.current = false;
+    if (pressChain.current !== undefined) pressChain.current.seen = selection;
+  });
   const [heldTurn, setHeldTurn] = React.useState(0);
-  const holdForDrag = (edit: () => void) => {
-    if (drag === undefined || drag.kind === "marquee") return false;
-    held.current.push(edit);
+  // After 300 ms of waiting the canvas says it is busy (`SUI-FEATURE-106` rev 5).
+  const [adopting, setAdopting] = React.useState<"waiting" | "slow">();
+  const slowTimer = React.useRef<number | undefined>(undefined);
+  const queueBusy = () =>
+    (drag !== undefined && drag.kind !== "marquee") ||
+    pastePending.current ||
+    held.current.length > 0;
+  // Whether a command pressed now would act on what the one before it leaves selected.
+  const chained = () => {
+    const last = pressChain.current;
+    return (
+      queueBusy() &&
+      last !== undefined &&
+      last.seen === selection &&
+      last.presses === handPresses.current
+    );
+  };
+  const hold = (run: Held["run"]) => {
+    if (!queueBusy()) return false;
+    const meant = chained() ? pressChain.current!.left : { ids: selection };
+    const left: Meant = { ids: undefined };
+    held.current.push({ meant, left, run });
+    pressChain.current = { left, seen: selection, presses: handPresses.current };
     return true;
   };
   const landPaste = (
     copies: readonly SlideElement[],
     unresolved: readonly string[],
     remap: Record<string, string>,
+    left: Meant,
   ) => {
-    if (heldBehindPaste.current) {
-      heldBehindPaste.current = false;
-      setHeldTurn((turn) => turn + 1);
-    }
+    pastePending.current = false;
     // Ahead of what was held behind it, as it was pressed before them (#533).
     if (drag !== undefined && drag.kind !== "marquee") {
-      held.current.unshift(() => latestLandPaste.current(copies, unresolved, remap));
-      return;
+      held.current.unshift({
+        meant: { ids: [] },
+        left,
+        run: () => latestLandPaste.current(copies, unresolved, remap, left),
+      });
+      return undefined;
     }
-    pastePending.current = false;
+    window.clearTimeout(slowTimer.current);
+    setAdopting(undefined);
     const missing = unresolved.filter(
       (id) => view.resolveMedia?.(Object.hasOwn(remap, id) ? remap[id]! : id) === undefined,
     );
     const result = pasteElements(history.document, page, withMedia(copies, remap));
-    placeCopies(result);
+    const ids = placeCopies(result);
+    ran.current = true;
+    left.ids = ids ?? [];
     if (result.ids.length > 0 && missing.length > 0) {
       const named = missing.flatMap((id) => mediaLabel(copies, id) ?? []);
       const unnamed = missing.length - named.length;
@@ -1947,6 +2017,8 @@ function Editor({
         }),
       );
     }
+    setHeldTurn((turn) => turn + 1);
+    return ids;
   };
   const latestLandPaste = React.useRef(landPaste);
   React.useEffect(() => {
@@ -1957,33 +2029,47 @@ function Editor({
     closed.current = false;
     return () => {
       closed.current = true;
+      window.clearTimeout(slowTimer.current);
     };
   }, []);
-  const paste = () => {
-    if (pastePending.current || holdForDrag(() => latestHeld.current.paste())) return;
+  // `left` is given when the paste runs held, and takes what it leaves selected.
+  const paste = (left?: Meant) => {
+    if (left === undefined && hold((_, own) => latestHeld.current.paste(own))) return undefined;
+    const own = left ?? { ids: undefined };
     const { elements: copied, brand, titles } = elementClipboard;
     const copies = adoptBrand(copied, brand, view.brand, titles);
     // Without `resolveMedia` no medium resolves: the page draws each one as missing (#525).
     const unresolved = mediaIds(copies).filter((id) => view.resolveMedia?.(id) === undefined);
     if (unresolved.length === 0 || adoptMedia === undefined) {
-      landPaste(copies, unresolved, {});
-      return;
+      return landPaste(copies, unresolved, {}, own);
     }
     pastePending.current = true;
+    if (left === undefined)
+      pressChain.current = { left: own, seen: selection, presses: handPresses.current };
+    setAdopting("waiting");
+    window.clearTimeout(slowTimer.current);
+    slowTimer.current = window.setTimeout(() => setAdopting("slow"), ADOPT_BUSY_MS);
+    let settled = false;
     const land = (remap: Record<string, string>) => {
-      if (!closed.current) latestLandPaste.current(copies, unresolved, remap);
+      if (settled) return;
+      settled = true;
+      window.clearTimeout(timeout);
+      if (!closed.current) latestLandPaste.current(copies, unresolved, remap, own);
     };
+    const timeout = window.setTimeout(() => land({}), ADOPT_TIMEOUT_MS);
     adoptMedia(unresolved).then(land, () => land({}));
+    return undefined;
   };
   // The arrow keys move the selection a step on the screen: in a turned group's frame, the step
   // turned back, for each element in its own groups.
-  const nudge = (move: { x: number; y: number }) => {
+  const nudge = (move: { x: number; y: number }, of?: readonly string[]) => {
     const steps = new Map(
-      editable.map(({ id }) => {
+      chosen(of).flatMap(({ id, locked }) => {
+        if (locked) return [];
         const local = stepIntoGroups(groupChain(elements, id), move);
         const x = Math.round(local.x * 1000) / 1000;
         const y = Math.round(local.y * 1000) / 1000;
-        return [id, { x, y }];
+        return [[id, { x, y }] as const];
       }),
     );
     if (steps.size > 0) apply((current) => moveEach(current, page, steps));
@@ -1995,6 +2081,7 @@ function Editor({
     duplicate,
     remove: removeSelected,
     nudge,
+    travel,
   });
   React.useEffect(() => {
     latestHeld.current = {
@@ -2004,27 +2091,49 @@ function Editor({
       duplicate,
       remove: removeSelected,
       nudge,
+      travel,
     };
   });
   React.useEffect(() => {
-    if (drag !== undefined) {
-      if (heldBehindPaste.current === "held") heldBehindPaste.current = "released";
-      return;
-    }
-    if (heldBehindPaste.current === "released") heldBehindPaste.current = false;
-    if (heldBehindPaste.current) return;
+    if ((drag !== undefined && drag.kind !== "marquee") || pastePending.current) return;
     const edit = held.current.shift();
     if (edit === undefined) return;
-    const waiting = pastePending.current;
-    edit();
+    const ids = edit.meant.ids ?? [];
+    const result = edit.run(ids, edit.left);
+    ran.current = true;
     // A paste that starts waiting for the app holds the rest until it lands (#533).
-    if (!waiting && pastePending.current) heldBehindPaste.current = "held";
-    else setHeldTurn((turn) => turn + 1);
+    if (pastePending.current) return;
+    edit.left.ids ??= result ?? ids;
+    setHeldTurn((turn) => turn + 1);
   }, [drag, heldTurn]);
-  const heldKey =
-    (edit: Exclude<keyof typeof latestHeld.current, "nudge">, run: () => void) => () => {
-      if (!holdForDrag(() => latestHeld.current[edit]())) run();
-    };
+  // The commands' keys, held or at once. A held one gives what it leaves selected, none for the ids
+  // it took.
+  const cutKey = () => {
+    const held = hold((ids) => {
+      latestHeld.current.cut(ids);
+      return [];
+    });
+    if (!held) cutSelection();
+  };
+  const copyKey = () => {
+    if (!hold((ids) => void latestHeld.current.copy(ids))) copySelection();
+  };
+  const duplicateKey = () => {
+    if (!hold((ids) => latestHeld.current.duplicate(ids))) duplicate();
+  };
+  const removeKey = () => {
+    const held = hold((ids) => {
+      latestHeld.current.remove(ids);
+      return [];
+    });
+    if (!held) removeSelected();
+  };
+  const nudgeKey = (move: { x: number; y: number }) => {
+    if (!hold((ids) => void latestHeld.current.nudge(move, ids))) nudge(move);
+  };
+  const travelKey = (step: "undo" | "redo") => {
+    if (!hold(() => void latestHeld.current.travel(step))) travel(step);
+  };
   // The app's picker: a cancel inserts nothing; a picker that fails, or a medium the page cannot
   // take, is named in an error toast with what to do next.
   const pickFromMedia =
@@ -2202,10 +2311,10 @@ function Editor({
     const command = (event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey;
     const clipboardKey = command
       ? {
-          x: heldKey("cut", cutSelection),
-          c: heldKey("copy", copySelection),
-          v: paste,
-          d: heldKey("duplicate", duplicate),
+          x: cutKey,
+          c: copyKey,
+          v: () => void paste(),
+          d: duplicateKey,
         }[event.key.toLowerCase()]
       : undefined;
     if (clipboardKey !== undefined) {
@@ -2230,9 +2339,11 @@ function Editor({
       startEditing(single.id, currentCell);
       return;
     }
-    if ((event.key === "Delete" || event.key === "Backspace") && editable.length > 0) {
+    // Behind a paste that waits, the keys may be meant for what it pastes, nothing selected yet.
+    const queued = pastePending.current || held.current.length > 0;
+    if ((event.key === "Delete" || event.key === "Backspace") && (editable.length > 0 || queued)) {
       event.preventDefault();
-      heldKey("remove", removeSelected)();
+      removeKey();
       return;
     }
     const step = event.shiftKey ? 10 : 1;
@@ -2242,9 +2353,9 @@ function Editor({
       ArrowUp: { x: 0, y: -step },
       ArrowDown: { x: 0, y: step },
     }[event.key];
-    if (move === undefined || editable.length === 0) return;
+    if (move === undefined || (editable.length === 0 && !queued)) return;
     event.preventDefault();
-    if (!holdForDrag(() => latestHeld.current.nudge(move))) nudge(move);
+    nudgeKey(move);
   };
 
   // The page sorter's changes (`SUI-FEATURE-161` §Seiten-Sortierer): one step each, naming the page
@@ -2997,7 +3108,9 @@ function Editor({
         {iconButton(
           t("slides.editor.deleteSelection"),
           <Trash2Icon />,
-          removeSelected,
+          // Called only when pressed: it reads the queue's refs then, never while rendering (#535).
+          // eslint-disable-next-line react-hooks/refs
+          removeKey,
           "action-delete",
           undefined,
           // The canvas's keys for it (`onKeyDown`).
@@ -3168,10 +3281,10 @@ function Editor({
           title={title}
           onBack={() => guard(onBack)}
           // While cropping, Undo takes back the crop being set, also with nothing in the history (#349).
-          canUndo={history.canUndo || cropping !== undefined}
+          canUndo={history.canUndo || cropping !== undefined || adopting !== undefined}
           canRedo={history.canRedo && cropping === undefined}
-          onUndo={() => travel("undo")}
-          onRedo={() => travel("redo")}
+          onUndo={() => travelKey("undo")}
+          onRedo={() => travelKey("redo")}
           dirty={dirty}
           saving={saving}
           onSave={() => void save()}
@@ -3444,7 +3557,11 @@ function Editor({
               )}
               <ContextMenu
                 onOpenChange={(open) => {
-                  if (open) setClipboardFilled(elementClipboard.elements.length > 0);
+                  if (!open) return;
+                  setClipboardFilled(elementClipboard.elements.length > 0);
+                  // Behind a paste that waits, Cut, Copy and Duplicate may be meant for what it
+                  // pastes, nothing selected yet, as the keys are (#535).
+                  setMenuChained(chained());
                 }}
               >
                 <ContextMenuTrigger asChild disabled={cropping !== undefined}>
@@ -3485,6 +3602,7 @@ function Editor({
                         : hovered === undefined
                           ? "cursor-default"
                           : "cursor-move",
+                      adopting === "slow" && "cursor-wait",
                     )}
                     data-slot="slide-editor-canvas"
                     data-cropping={cropping?.id}
@@ -3504,18 +3622,30 @@ function Editor({
                     onContextMenu={selectUnderMenu}
                     onBlur={cropping === undefined ? undefined : keepCropOnLeave}
                     aria-describedby={croppedImage === undefined ? undefined : cropDescription}
+                    aria-busy={adopting === "slow" ? true : undefined}
                   />
                 </ContextMenuTrigger>
                 <ContextMenuContent data-testid="slide-editor-menu">
-                  {menuEntry("cut", selected.length > 0, CUT_SHORTCUT, cutSelection)}
-                  {menuEntry("copy", selected.length > 0, COPY_SHORTCUT, copySelection)}
-                  {/* The entry calls paste only when chosen; paste reads its ref only once the app
-                      answers `adoptMedia`, never while rendering. */}
+                  {/* The entries call their command only when chosen; it reads the queue's refs
+                      then, never while rendering (#535). */}
                   {/* eslint-disable-next-line react-hooks/refs */}
-                  {menuEntry("paste", clipboardFilled, PASTE_SHORTCUT, paste)}
-                  {menuEntry("duplicate", selected.length > 0, DUPLICATE_SHORTCUT, duplicate)}
+                  {menuEntry("cut", selected.length > 0 || menuChained, CUT_SHORTCUT, cutKey)}
+                  {/* eslint-disable-next-line react-hooks/refs */}
+                  {menuEntry("copy", selected.length > 0 || menuChained, COPY_SHORTCUT, copyKey)}
+                  {/* eslint-disable-next-line react-hooks/refs */}
+                  {menuEntry("paste", clipboardFilled, PASTE_SHORTCUT, () => void paste())}
+                  {menuEntry(
+                    "duplicate",
+                    selected.length > 0 || menuChained,
+                    DUPLICATE_SHORTCUT,
+                    // eslint-disable-next-line react-hooks/refs
+                    duplicateKey,
+                  )}
                 </ContextMenuContent>
               </ContextMenu>
+              <span role="status" className="sr-only" data-testid="slide-editor-adopting">
+                {adopting === "slow" ? t("slides.editor.adoptingMedia") : null}
+              </span>
               {/* Over the whole window during a gesture, so nothing under the pointer changes it; the
                   canvas keeps the pointer captured, so every event still goes to it. */}
               {gestureCursor === undefined

@@ -757,6 +757,7 @@ export const es: SuiteStrings = {
         "Pegado, pero los medios {{names}} no se pudieron traer. Sus imágenes muestran un marcador de posición hasta que las reemplaces.",
       unnamedMedia_one: "{{count}} sin nombre",
       unnamedMedia_other: "{{count}} sin nombre",
+      adoptingMedia: "Trayendo los medios …",
       pages: "Páginas",
       pageNumber: "Página {{n}}",
       showPage: "Mostrar la página {{n}}",

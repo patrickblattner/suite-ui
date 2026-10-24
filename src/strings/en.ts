@@ -781,6 +781,7 @@ export const en = {
         "Pasted, but the media items {{names}} could not be brought along. Their images show a placeholder until you replace them.",
       unnamedMedia_one: "{{count}} without a name",
       unnamedMedia_other: "{{count}} without a name",
+      adoptingMedia: "Bringing the media along …",
       pages: "Pages",
       pageNumber: "Page {{n}}",
       showPage: "Show page {{n}}",
