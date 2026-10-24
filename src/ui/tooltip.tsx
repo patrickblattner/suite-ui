@@ -191,51 +191,58 @@ function outermost(node: Element, selector: string, within?: Element): Element |
 // wrapper is climbed only while it holds no other control, and a neighbour counts by its fields on the
 // line, never by its box: a lone field beside a tall column of fields pairs with none of them. A
 // neighbour holding several fields (a column, a card) is a layout of its own, never one field's
-// wrapper: the climb ends there, and the lone field's group is itself with the fields of that layout
-// at its height, never the whole layout, together with the layout's controls outside its fields at
-// that height (a button of the column), with or without a field of it there; the layout's other
-// controls only bound its gaps (#511, #542). A field none of whose neighbouring fields stands on its
-// line sits in such a layout: the climb goes on past it, so a column's field pairs with a lone field
-// beside the column (#542).
-// `group`: the element's group within the row, `null` where the row's own groups apply.
-type Row = { row: Element; group: readonly Element[] | null };
+// wrapper: the climb ends there (#511). Its fields and its controls outside them on the lone field's
+// line are obstacles, never members of the lone field's group: the bubble stands in the nearest gap
+// that holds it, beside the field where the gap before them does, past them where it does not (#542).
+// A field with no neighbouring field on its line, and a control among fields, stands in a layout of
+// its own: its row is that layout's parent, never further, and the controls there on its line are its
+// obstacles. So a column's field, or the column's button, keeps its bubble off a lone field beside the
+// column, and a stacked form pairs with no field across the page (#542).
+// `group`: the element's group within the row, `null` where the row's own groups apply. `apart`: the
+// row's other controls are obstacles the bubble keeps clear of, never bounds of its side.
+type Row = { row: Element; group: readonly Element[] | null; apart?: boolean };
 function fieldRowOf(node: Element): Row | null {
   const field = node.closest(FIELD);
-  if (field === null) return null;
+  const start = field ?? (node.matches(ROW_CONTROL) ? node : null);
+  if (start === null) return null;
+  // A hidden input (a form's own value) is no control a wrapper holds.
+  const control = (node: Element) =>
+    node.matches(ROW_CONTROL) && !node.matches("input[type=hidden]");
   for (
-    let item: Element = field, parent = field.parentElement;
+    let item: Element = start, parent = start.parentElement;
     parent !== null && parent !== document.body;
     item = parent, parent = parent.parentElement
   ) {
     const others = [...parent.children].filter((sibling) => sibling !== item);
     if (others.some((sibling) => sibling.matches(FIELD) || sibling.querySelector(FIELD) !== null)) {
-      const own = field.getBoundingClientRect();
+      const own = start.getBoundingClientRect();
       const onLine = (other: Element) => {
         const rect = other.getBoundingClientRect();
         return rect.width > 0 && rect.bottom > own.top && rect.top < own.bottom;
       };
-      const partners: Element[] = [];
-      const layouts: Element[] = [];
-      const loose: Element[] = [];
-      for (const sibling of others) {
-        const inner = sibling.matches(FIELD) ? [sibling] : [...sibling.querySelectorAll(FIELD)];
-        (inner.length > 1 ? layouts : partners).push(...inner);
-        if (inner.length > 1)
-          loose.push(
-            ...[...sibling.querySelectorAll(ROW_CONTROL)].filter(
+      if (field !== null) {
+        const partners: Element[] = [];
+        const beside: Element[] = [];
+        for (const sibling of others) {
+          const inner = sibling.matches(FIELD) ? [sibling] : [...sibling.querySelectorAll(FIELD)];
+          if (inner.length > 1) {
+            const loose = [...sibling.querySelectorAll(ROW_CONTROL)].filter(
               (control) => control.closest(FIELD) === null,
-            ),
-          );
+            );
+            beside.push(...[...inner, ...loose].filter(onLine));
+          } else partners.push(...inner);
+        }
+        if (beside.length > 0)
+          return { row: parent, group: [field, ...partners.filter(onLine)], apart: true };
+        if (partners.some(onLine)) return { row: parent, group: null };
       }
-      const beside = [...layouts, ...loose].filter(onLine);
-      if (beside.length > 0)
-        return { row: parent, group: [field, ...partners.filter(onLine), ...beside] };
-      if (partners.some(onLine)) return { row: parent, group: null };
-      continue;
+      const outer = parent.parentElement;
+      if (outer === null || outer === document.body) return null;
+      const near = [...outer.querySelectorAll(ROW_CONTROL)].some(
+        (node) => control(node) && !start.contains(node) && !node.contains(start) && onLine(node),
+      );
+      return near ? { row: outer, group: [start], apart: true } : null;
     }
-    // A hidden input (a form's own value) is no control a wrapper holds.
-    const control = (node: Element) =>
-      node.matches(ROW_CONTROL) && !node.matches("input[type=hidden]");
     if (
       others.some(
         (sibling) => control(sibling) || [...sibling.querySelectorAll(ROW_CONTROL)].some(control),
@@ -403,7 +410,7 @@ function useRowPlacement(content: HTMLElement | null, padding: number): RowPlace
       let rightBound = document.documentElement.clientWidth - padding;
       let leftBound = padding;
       let leftField: Element | null = null;
-      for (const node of others) {
+      for (const node of found.apart === true ? [] : others) {
         const rect = node.getBoundingClientRect();
         if (!onLine(rect)) continue;
         if (rect.left >= right) rightBound = Math.min(rightBound, rect.left - SIDE_OFFSET);
@@ -422,8 +429,9 @@ function useRowPlacement(content: HTMLElement | null, padding: number): RowPlace
       const arrowLeft = own.left - left < 1 ? ARROW_SIZE : 0;
       return { left, right, rightBound, leftBound, leftText, arrowRight, arrowLeft };
     };
-    // The controls of the other bars, which the bubble keeps clear of where it stands at their height.
-    // A bar behind a modal (aria-hidden, inert) is out of play.
+    // The controls of the other bars, which the bubble keeps clear of where it stands at their height,
+    // and so the row's other controls where they are obstacles, not bounds (#542). A bar behind a
+    // modal (aria-hidden, inert) is out of play.
     const bars = [...document.querySelectorAll(TOOLTIP_ROW)]
       .filter(
         (bar) =>
@@ -432,6 +440,7 @@ function useRowPlacement(content: HTMLElement | null, padding: number): RowPlace
           bar.closest("[aria-hidden=true], [inert]") === null,
       )
       .flatMap((bar) => [...bar.querySelectorAll(ROW_CONTROL)])
+      .concat(found.apart === true ? others : [])
       .map((node) => node.getBoundingClientRect())
       .filter((rect) => rect.width > 0);
     // The popper places the bubble on whole pixels: the bounds round inward, the rooms down.
