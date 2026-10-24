@@ -218,6 +218,36 @@ for (const lng of LANGUAGES) {
       await parkPointer(page);
       await expect(page).toHaveScreenshot(`slide-editor-menu-${lng}-${theme}.png`);
     });
+
+    // #532: the pane typography and spacing of the open document and library tabs, and of the
+    // transfer dialog (`GL-UI-010`).
+    for (const [tab, drawer] of [
+      ["document", "document"],
+      ["library", "add"],
+    ] as const) {
+      test(`slide editor ${tab} tab ${lng} ${theme}`, async ({ page }) => {
+        await page.goto(`/?page=slide-editor&lng=${lng}&theme=${theme}`);
+        await expect(page.locator("html")).toHaveAttribute("lang", lng);
+        const { editor } = await openEditor(page, false);
+        await editor.getByTestId(`drawer-${drawer}`).click();
+        const pane = editor.getByTestId("drawer");
+        await expect(pane).toHaveAttribute("data-drawer-open", drawer);
+        await expect(pane.locator("[data-slot=slide-view][data-slide-ready=false]")).toHaveCount(0);
+        await parkPointer(page);
+        await expect(pane).toHaveScreenshot(`slide-editor-${tab}-tab-${lng}-${theme}.png`);
+      });
+    }
+
+    test(`slide editor transfer dialog ${lng} ${theme}`, async ({ page }) => {
+      await page.goto(`/?page=slide-editor&lng=${lng}&theme=${theme}`);
+      await expect(page.locator("html")).toHaveAttribute("lang", lng);
+      await openEditor(page, false);
+      await page.getByTestId("slide-editor-transfer").click();
+      const dialog = page.getByTestId("slide-editor-transfer-dialog");
+      await expect(dialog).toBeVisible();
+      await parkPointer(page);
+      await expect(dialog).toHaveScreenshot(`slide-editor-transfer-dialog-${lng}-${theme}.png`);
+    });
   }
 }
 
@@ -11045,6 +11075,24 @@ for (const x of [-60, -300]) {
     }
   });
 }
+
+// #532 (GL-UI-010 §Section-Überschrift → erster Inhalt): the grid of the document tab stands under
+// its 16 px semibold section heading, 8 px above its first field, 16 px below the pages.
+test("slide editor: the document tab's grid has its own section heading", async ({ page }) => {
+  const { editor } = await openEditor(page);
+  await editor.getByTestId("drawer-document").click();
+  const section = editor.getByTestId("slide-editor-grid");
+  const heading = section.getByRole("heading", { level: 3, name: "Grid" });
+  await expect(heading).toHaveCSS("font-size", "16px");
+  await expect(heading).toHaveCSS("font-weight", "600");
+  await expect(section.getByRole("group", { name: "Grid" })).toBeVisible();
+  const title = (await heading.boundingBox())!;
+  const field = (await section.locator("[id$='-kind-label']").boundingBox())!;
+  expect(Math.round(field.y - (title.y + title.height))).toBe(8);
+  const pages = (await editor.getByTestId("slide-editor-pages").boundingBox())!;
+  const box = (await section.boundingBox())!;
+  expect(Math.round(box.y - (pages.y + pages.height))).toBe(16);
+});
 
 // SUI-FEATURE-231 AC1: "Transfer format" shows only when the app has a format other than the
 // document's.

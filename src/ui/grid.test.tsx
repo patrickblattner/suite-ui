@@ -56,6 +56,17 @@ function Fields({
 }
 
 describe("GridFields (SUI-FEATURE-087)", () => {
+  it("takes its name from the app's heading with labelledBy, its own label otherwise (#532)", () => {
+    render(
+      <>
+        <h3 id="grid-title">Alignment grid</h3>
+        <Fields labelledBy="grid-title" />
+      </>,
+    );
+    const group = screen.getByRole("group", { name: "Alignment grid" });
+    expect(group).not.toHaveAttribute("aria-label");
+  });
+
   it("columns: type, count, gutter, margin and row step, labels above, px on the lengths", () => {
     render(<Fields />);
     expect(screen.getByRole("group", { name: "Grid" })).toBeInTheDocument();

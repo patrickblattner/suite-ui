@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — #532, GL-UI-010: the grid of the SlideEditor document tab is its own section (patch)
+
+- **SlideEditor document tab (#532):** the grid fields stand in their own section under a visible `h3` "Grid" (`text-base font-semibold`, the existing `grid.label` text), 8 px above the first field, 16 px below the pages. Before, they followed the pages list at the field spacing, named only by an `aria-label`, and read as part of Pages.
+- **GridFields `labelledBy` (#532):** a new optional prop, the id of a visible heading that names the group (`aria-labelledby`); without it the group keeps its own `aria-label`, as before.
+- **Tests (#532):** unit tests for the section heading naming the grid group in the document tab and for `labelledBy`; a gallery test for the heading's 16 px semibold, 8 px to the first field and 16 px to the pages; gallery shots of the open document and library tabs and of the transfer dialog.
+
+**Migration:** none for the API (one new optional prop); no string or `data-testid` changes beyond the new `slide-editor-grid` on the section. Baselines: 18 new, none changed — `slide-editor-document-tab-{de,en,es}-{light,dark}.png`, `slide-editor-library-tab-{de,en,es}-{light,dark}.png`, `slide-editor-transfer-dialog-{de,en,es}-{light,dark}.png`.
+
 ## Unreleased — #524, SUI-FEATURE-101 rev 5: a toast that appears over the keyboard focus closes after 1000 ms unless it has an action (minor)
 
 - **Toaster (#524):** a toast that appears while the keyboard focus (`:focus-visible`) rests on an element it covers, ring included (typically the receipt after a confirm dialog hands the focus back to its trigger), stays 1000 ms, so the live region announces it and it is briefly seen, then `<Toaster>` closes all toasts as it does when focus lands under one. `Esc` closes them earlier and leaves the focus where it is. A toast away from the focus keeps its normal duration, and `Esc` then closes nothing. While a toast with an action (such as Undo) shows, none closes after 1000 ms: it keeps its normal duration so its action stays reachable, and the next keyboard focus move onto an element it covers, or `Esc`, closes it. An `Esc` an open layer (menu, popover, sheet) already handled closes only that layer. One timer serves all toasts, so an earlier toast's timer never cuts a later one short.

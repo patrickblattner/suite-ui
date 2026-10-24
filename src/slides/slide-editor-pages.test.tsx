@@ -181,3 +181,20 @@ describe("SlideEditor page sorter", () => {
     expect(screen.getByTestId("slide-editor-page-new")).toHaveTextContent("Add page");
   });
 });
+
+// #532 (GL-UI-010 §Titel & Metadaten): the grid is its own section of the document tab, under a
+// visible section heading that names its group.
+describe("SlideEditor document tab grid", () => {
+  it("stands under its own section heading, which names the group", () => {
+    renderEditor();
+    const section = screen.getByTestId("slide-editor-grid");
+    const heading = within(section).getByRole("heading", { level: 3, name: "Grid" });
+    expect(heading).toHaveClass("text-base", "font-semibold");
+    expect(section).toHaveClass("gap-2");
+    const group = within(section).getByRole("group", { name: "Grid" });
+    expect(group).toHaveAttribute("aria-labelledby", heading.id);
+    expect(group).not.toHaveAttribute("aria-label");
+    // Apart from the pages, not inside their section.
+    expect(screen.getByTestId("slide-editor-pages")).not.toContainElement(section);
+  });
+});
