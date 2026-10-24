@@ -300,7 +300,7 @@ export function ChartData({
                     </IconButtonTooltip>
                     {pie && index > 0 ? (
                       <span
-                        className="text-xs text-muted-foreground"
+                        className="text-sm text-muted-foreground"
                         data-testid={`slide-editor-chart-not-in-pie-${index}`}
                       >
                         {t("slides.editor.chartNotInPie")}
@@ -400,7 +400,7 @@ export function ChartData({
         <FieldError
           key={row}
           id={`${errors}-${row}`}
-          className="gap-1 text-xs"
+          className="gap-1"
           data-testid={`slide-editor-chart-error-${row}`}
         >
           {text}
@@ -409,7 +409,7 @@ export function ChartData({
       {hasNegative ? (
         <p
           id={negative}
-          className="text-xs text-muted-foreground"
+          className="text-sm text-muted-foreground"
           data-testid="slide-editor-chart-negative-in-pie"
         >
           {t("slides.editor.chartNegativeInPie")}

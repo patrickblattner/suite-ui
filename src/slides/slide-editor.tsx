@@ -2078,7 +2078,7 @@ function Editor({
         {areaSize.width < CROP_HINT_ROOM ? null : (
           <OverflowTooltip>
             <span
-              className="min-w-0 truncate px-1 text-xs text-muted-foreground"
+              className="min-w-0 truncate px-1 text-sm text-muted-foreground"
               data-testid="slide-editor-crop-hint"
             >
               {t("slides.editor.cropHint")}

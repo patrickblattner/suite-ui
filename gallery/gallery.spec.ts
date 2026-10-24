@@ -10124,6 +10124,8 @@ test("slide editor: crop mode is announced, has a bar, and works by keys and whe
   await expect(bar.getByTestId("slide-editor-crop-hint")).toHaveText(
     "Drag to move · + / − to zoom",
   );
+  // Running text at the body size (GL-UI-010 rev 9, #534).
+  await expect(bar.getByTestId("slide-editor-crop-hint")).toHaveCSS("font-size", "14px");
   await expect(bar.getByRole("button", { name: "Cancel" })).toBeVisible();
   await expect(bar.getByRole("button", { name: "Apply" })).toBeVisible();
   await expect(editor.getByTestId("slide-editor-handles")).toHaveCount(0);
@@ -11403,13 +11405,15 @@ test("slide editor: a chart's data is edited in the panel, key by key, within it
   await expect(value).toHaveAccessibleErrorMessage(
     "Error: Category 1 – Sales: enter a number, such as 1.5.",
   );
+  // Running text at the body size (GL-UI-010 rev 9, #534).
+  await expect(error).toHaveCSS("font-size", "14px");
   // Below the table, outside its rows (no row of data to the ear), not wrapped word by word in the
-  // value's column (#368).
+  // value's column: at most two lines at the body line height (#368, #534).
   await expect(panel.getByTestId("slide-editor-chart-data").getByTestId(/-error-/)).toHaveCount(0);
   const tableBox = (await panel.getByTestId("slide-editor-chart-scroll").boundingBox())!;
   const errorBox = (await error.boundingBox())!;
   expect(errorBox.y).toBeGreaterThanOrEqual(tableBox.y + tableBox.height);
-  expect(errorBox.height).toBeLessThan(2 * 20);
+  expect(errorBox.height).toBeLessThan(3 * 20);
   // A second value of the row that is not a number joins the same message.
   await typeInto(page, panel.getByTestId("slide-editor-chart-value-1-0"), "x");
   await expect(error).toHaveText(
@@ -11499,9 +11503,16 @@ test("slide editor: a chart's type changes and back without losing data", async 
   await expect(panel.getByTestId("slide-editor-chart-not-in-pie-1")).toHaveText(
     "Not shown in a pie chart",
   );
+  // Running text at the body size (GL-UI-010 rev 9, #534).
+  await expect(panel.getByTestId("slide-editor-chart-not-in-pie-1")).toHaveCSS("font-size", "14px");
   await expect(panel.getByTestId("slide-editor-chart-series-1")).toBeVisible();
   await expect(panel.getByTestId("slide-editor-chart-negative-in-pie")).toHaveText(
     "A pie chart leaves out values below 0.",
+  );
+  // Running text at the body size (GL-UI-010 rev 9, #534).
+  await expect(panel.getByTestId("slide-editor-chart-negative-in-pie")).toHaveCSS(
+    "font-size",
+    "14px",
   );
   // The note first, then the field's hint (`GL-UI-017`, #361).
   await expect(panel.getByTestId("slide-editor-chart-value-0-1")).toHaveAccessibleDescription(

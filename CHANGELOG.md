@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — #534, GL-UI-010 rev 9: chart panel hints, errors and the crop hint at body size
+
+- **Running-text size (#534):** the chart panel's hint sentences, its row errors and its negative-values-in-pie hint, and the crop toolbar's gesture hint now use the body size `text-sm` instead of `text-xs` (muted and destructive colours unchanged). The placeholder label chip on the canvas stays `text-xs`. Label to field and field to help or error text stay 8 px.
+- **Tests (#534):** the gallery checks that the crop hint, the chart row error and both pie hints render at 14 px.
+
+**Migration:** none for the API; no `data-testid` or strings change. No gallery baselines change. The gallery check on the chart row error (#368) now allows at most two lines at the body line height (`< 3 * 20` instead of `< 2 * 20`).
+
 ## Unreleased — #533, SUI-FEATURE-191 rev 8: commands held behind a paste that waits for the app
 
 - **Held paste order (#533):** a `Ctrl+V` pressed during a drag whose media the app still adopts (`adoptMedia`) now holds the commands pressed after it in the same drag until it has landed, inserted and selected. Before, the queue moved on at once, so a `Delete` pressed after the paste removed the dragged element and the pasted image stayed. A paste the app answers during a later drag lands first when that drag ends, ahead of what was held behind it. The hold covers only the paste's own drag: a later drag ends it, so its commands still land when the app never answers, and a late answer lands as a plain paste. Each command stays its own history step; a second paste while one waits is still ignored (#525).
