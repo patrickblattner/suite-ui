@@ -1,8 +1,9 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
-import { useState } from "react";
+import { createRef, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "./dialog.js";
+import { Hint } from "./hint.js";
 import { TagInput } from "./tag-input.js";
 
 function Controlled({ initial = [] }: { initial?: string[] }) {
@@ -441,5 +442,169 @@ describe("TagInput suggestions", () => {
     expect(field()).not.toHaveAttribute("role");
     expect(field()).not.toHaveAttribute("aria-expanded");
     expect(screen.queryByRole("listbox")).toBeNull();
+  });
+});
+
+// `SUI-FEATURE-108`: ref, id, ARIA attributes and native handlers reach the text field.
+describe("TagInput passes props to its text field", () => {
+  it("inside a Hint the text field has the hint as its description", () => {
+    render(
+      <Hint text="Comma separates tags">
+        <TagInput value={[]} onChange={() => undefined} />
+      </Hint>,
+    );
+    expect(field()).toHaveAccessibleDescription("Comma separates tags");
+  });
+
+  it("ref points to the text field and focuses it", () => {
+    const ref = createRef<HTMLInputElement>();
+    render(<TagInput ref={ref} value={[]} onChange={() => undefined} />);
+    expect(ref.current).toBe(field());
+    act(() => ref.current?.focus());
+    expect(field()).toHaveFocus();
+  });
+
+  it("id, name, aria-* and data-* stand on the text field", () => {
+    render(
+      <TagInput
+        id="tags"
+        name="tags"
+        aria-label="Tags"
+        aria-describedby="tags-help"
+        data-section="meta"
+        value={[]}
+        onChange={() => undefined}
+      />,
+    );
+    expect(field()).toHaveAttribute("id", "tags");
+    expect(field()).toHaveAttribute("name", "tags");
+    expect(field()).toHaveAttribute("aria-describedby", "tags-help");
+    expect(field()).toHaveAttribute("data-section", "meta");
+    expect(screen.getByRole("textbox", { name: "Tags" })).toBe(field());
+  });
+
+  it("a passed aria-describedby joins the hint's, each id once", () => {
+    render(
+      <>
+        <span id="tags-note">Up to ten</span>
+        <Hint text="Comma separates tags">
+          <TagInput
+            id="tags"
+            aria-describedby="tags-note tags-note"
+            value={[]}
+            onChange={() => undefined}
+          />
+        </Hint>
+      </>,
+    );
+    const ids = field().getAttribute("aria-describedby")?.split(" ") ?? [];
+    expect(ids).toHaveLength(2);
+    expect(ids[0]).toBe("tags-note");
+    expect(field()).toHaveAttribute("id", "tags");
+    expect(field()).toHaveAccessibleDescription("Up to ten Comma separates tags");
+  });
+
+  it("calls passed onFocus, onBlur and onKeyDown; Enter still adds", () => {
+    const onFocus = vi.fn();
+    const onBlur = vi.fn();
+    const onKeyDown = vi.fn();
+    function Wired() {
+      const [tags, setTags] = useState<string[]>([]);
+      return (
+        <TagInput
+          value={tags}
+          onChange={setTags}
+          onFocus={onFocus}
+          onBlur={onBlur}
+          onKeyDown={onKeyDown}
+        />
+      );
+    }
+    render(<Wired />);
+    fireEvent.focus(field());
+    expect(onFocus).toHaveBeenCalledTimes(1);
+    type("news");
+    fireEvent.keyDown(field(), { key: "Enter" });
+    expect(onKeyDown).toHaveBeenCalledTimes(1);
+    expect(chips()).toEqual(["news"]);
+    type("sport");
+    fireEvent.blur(field());
+    expect(onBlur).toHaveBeenCalledTimes(1);
+    expect(chips()).toEqual(["news", "sport"]);
+  });
+
+  it("Enter still adds when the passed onKeyDown calls preventDefault", () => {
+    const onKeyDown = vi.fn((event: { preventDefault: () => void }) => event.preventDefault());
+    function Wired() {
+      const [tags, setTags] = useState<string[]>([]);
+      return <TagInput value={tags} onChange={setTags} onKeyDown={onKeyDown} />;
+    }
+    render(<Wired />);
+    type("news");
+    fireEvent.keyDown(field(), { key: "Enter" });
+    expect(onKeyDown).toHaveBeenCalledTimes(1);
+    expect(chips()).toEqual(["news"]);
+  });
+
+  it("a passed aria-invalid marks the text field and reddens the frame", () => {
+    const { rerender } = render(<TagInput aria-invalid value={[]} onChange={() => undefined} />);
+    expect(field()).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByTestId("tag-input")).toHaveAttribute("data-invalid", "");
+    rerender(<TagInput value={[]} onChange={() => undefined} />);
+    expect(field()).not.toHaveAttribute("aria-invalid");
+    expect(screen.getByTestId("tag-input")).not.toHaveAttribute("data-invalid");
+  });
+
+  it("a Hint opens on a hover over a chip; ref stays the text field's", () => {
+    vi.useFakeTimers();
+    // jsdom has no ResizeObserver; the open bubble measures itself with one.
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    try {
+      const ref = createRef<HTMLInputElement>();
+      render(
+        <Hint text="Comma separates tags">
+          <TagInput ref={ref} value={["news"]} onChange={() => undefined} />
+        </Hint>,
+      );
+      expect(ref.current).toBe(field());
+      fireEvent.pointerMove(screen.getByTestId("tag-input-chip"), { pointerType: "mouse" });
+      act(() => {
+        vi.advanceTimersByTime(1500);
+      });
+      expect(screen.getByRole("tooltip")).toHaveTextContent("Comma separates tags");
+      expect(field()).toHaveAccessibleDescription("Comma separates tags");
+    } finally {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("a passed onKeyDown runs after the own handler and cannot stop Backspace", () => {
+    const onKeyDown = vi.fn((event: { preventDefault: () => void }) => event.preventDefault());
+    function Wired() {
+      const [tags, setTags] = useState(["a", "b"]);
+      return <TagInput value={tags} onChange={setTags} onKeyDown={onKeyDown} />;
+    }
+    render(<Wired />);
+    fireEvent.keyDown(field(), { key: "Backspace" });
+    expect(onKeyDown).toHaveBeenCalledTimes(1);
+    expect(chips()).toEqual(["a"]);
+  });
+
+  it("onKeyUp and onPaste reach the text field", () => {
+    const onKeyUp = vi.fn();
+    const onPaste = vi.fn();
+    render(<TagInput value={[]} onChange={() => undefined} onKeyUp={onKeyUp} onPaste={onPaste} />);
+    fireEvent.keyUp(field(), { key: "a" });
+    fireEvent.paste(field());
+    expect(onKeyUp).toHaveBeenCalledTimes(1);
+    expect(onPaste).toHaveBeenCalledTimes(1);
   });
 });

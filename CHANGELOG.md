@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — #537, SUI-FEATURE-108 rev 3: TagInput passes ref, id, ARIA attributes and native handlers to its text field (minor)
+
+- **TagInput (#537):** `ref` (`React.forwardRef`), `id`, `name`, every `aria-*` and `data-*` attribute and the native handlers (`onFocus`, `onBlur`, `onKeyDown`, `onKeyUp`, `onPaste` …) reach the inner text field, as on `Input`. Inside a `Hint` the field now carries the hint as its description, and `ref.current.focus()` focuses it. The own handlers run first, the passed ones after, so Enter/comma still add and Backspace still removes the last chip. A passed `aria-describedby` is kept with the `Hint`'s id, each id once. `className` and `testId` still style and name the frame; a passed `data-testid` names the text field. A passed `aria-invalid` marks the text field and reddens the frame, as an invalid surrounding field does. The pointer handlers (`onPointerMove`, `onPointerLeave`, `onPointerDown`, `onPointerDownCapture`, `onClick`) and a `Hint`'s trigger ref (`triggerRef`, `TagInput.hintTriggerRef`, as on `Slider`) sit on the frame, so a `Hint` opens over the chips too; `ref` stays the text field's. `defaultValue` and `defaultChecked` are not accepted.
+- **Tests (#537):** unit tests for the `Hint` description, `ref` focus, `id`/`name`/`aria-*`/`data-*` on the field, a passed `aria-describedby` joined with the hint's, passed `onFocus`/`onBlur`/`onKeyDown` called with Enter still adding, a passed `onKeyDown` calling `preventDefault()` that stops neither Enter nor Backspace, a passed `aria-invalid` on field and frame, a `Hint` opened by a hover over a chip, and `onKeyUp`/`onPaste`.
+
+**Migration:** none; additive — without the new props nothing changes. A `Hint` around a `TagInput` now works: before, its ref, handlers and description were dropped and the bubble had no anchor; now the frame anchors and opens it and the text field carries the description. No string, `data-testid` or baseline changes.
+
 ## Unreleased — #532, GL-UI-010: the grid of the SlideEditor document tab is its own section (patch)
 
 - **SlideEditor document tab (#532):** the grid fields stand in their own section under a visible `h3` "Grid" (`text-base font-semibold`, the existing `grid.label` text), 8 px above the first field, 16 px below the pages. Before, they followed the pages list at the field spacing, named only by an `aria-label`, and read as part of Pages.

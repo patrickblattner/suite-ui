@@ -6,7 +6,25 @@ import { usePopupPlacement } from "../lib/popup-placement.js";
 import { useFieldErrorAttributes } from "./field-error.js";
 import { RemovableChip } from "./removable-chip.js";
 
-type TagInputProps = {
+// Further input attributes (`name`, `aria-*`, `data-*`, native handlers) reach the text field, as on
+// `Input` (`SUI-FEATURE-108`); `className` styles the frame.
+type TagInputProps = Omit<
+  React.ComponentPropsWithoutRef<"input">,
+  | "value"
+  | "defaultValue"
+  | "defaultChecked"
+  | "onChange"
+  | "placeholder"
+  | "disabled"
+  | "id"
+  | "className"
+  | "children"
+  | "onPointerMove"
+  | "onPointerLeave"
+  | "onPointerDown"
+  | "onPointerDownCapture"
+  | "onClick"
+> & {
   value: string[];
   onChange: (next: string[]) => void;
   placeholder?: string;
@@ -18,10 +36,25 @@ type TagInputProps = {
   className?: string;
   // Existing tags offered while typing (`SUI-FEATURE-100`); without them the field offers nothing.
   suggestions?: string[];
+  // The hover trigger of a wrapping `Hint` is the whole frame, chips included (`GL-UI-017`, as the
+  // `Slider`, `SUI-FEATURE-057`): its ref and pointer handlers sit on the frame, so the bubble opens over
+  // the chips too. `Hint` passes the ref here (`TagInput.hintTriggerRef`); `ref` stays the text field's.
+  triggerRef?: React.Ref<HTMLDivElement>;
+  onPointerMove?: React.PointerEventHandler<HTMLDivElement>;
+  onPointerLeave?: React.PointerEventHandler<HTMLDivElement>;
+  onPointerDown?: React.PointerEventHandler<HTMLDivElement>;
+  onPointerDownCapture?: React.PointerEventHandler<HTMLDivElement>;
+  onClick?: React.MouseEventHandler<HTMLDivElement>;
 };
 
 // The most entries the suggestion list shows.
 const MAX_SUGGESTIONS = 8;
+
+// The ids of an `aria-describedby`, in order and each once.
+function uniqueIds(describedBy: string | undefined): string | undefined {
+  const ids = [...new Set(describedBy?.split(/\s+/).filter(Boolean))];
+  return ids.length === 0 ? undefined : ids.join(" ");
+}
 
 // The suggestions for the typed text: those that start with it first, then those that contain it,
 // ignoring letter case; tags already chosen are left out.
@@ -58,18 +91,40 @@ function matchSuggestions(suggestions: readonly string[], chosen: readonly strin
 //
 // Inside an invalid field (`SUI-FEATURE-270`) the text field carries the error like `Input`, and the
 // frame, which also carries the focus, takes the red border of an invalid `Input`.
-function TagInput({
-  value,
-  onChange,
-  placeholder,
-  disabled = false,
-  id,
-  testId = "tag-input",
-  className,
-  suggestions,
-}: TagInputProps) {
+//
+// `ref`, `id` and the further input attributes reach the text field (`SUI-FEATURE-108`), so a `Hint` or
+// a form field describes and focuses it. Its own handlers run first, the passed ones after; a passed
+// `aria-describedby` joins the field's ids, each once.
+const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function TagInput(
+  {
+    value,
+    onChange,
+    placeholder,
+    disabled = false,
+    id,
+    testId = "tag-input",
+    className,
+    suggestions,
+    triggerRef,
+    onPointerMove,
+    onPointerLeave,
+    onPointerDown,
+    onPointerDownCapture,
+    onClick,
+    onFocus,
+    onBlur,
+    onKeyDown,
+    "aria-describedby": ariaDescribedBy,
+    "aria-invalid": ariaInvalid,
+    ...inputProps
+  },
+  ref,
+) {
   const { t } = useTranslation("suite");
   const fieldError = useFieldErrorAttributes();
+  // A passed `aria-invalid` and an invalid surrounding field both mark the text field and the frame.
+  const isInvalid =
+    ariaInvalid === true || ariaInvalid === "true" || fieldError["aria-invalid"] === true;
   const [draft, setDraft] = React.useState("");
   // The text as of now: a blur in the same tick as a commit must not take the old text over again.
   const current = React.useRef("");
@@ -168,12 +223,56 @@ function TagInput({
     return () => window.removeEventListener("keydown", onKeyDown, { capture: true });
   }, [open]);
 
+  const ownKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    // An IME is still composing: its Enter or comma belongs to the composition.
+    if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+    if ((event.key === "ArrowDown" || event.key === "ArrowUp") && matches.length > 0) {
+      event.preventDefault();
+      setKeyboard(true);
+      if (!open) {
+        setDismissed(false);
+        return;
+      }
+      const step = event.key === "ArrowDown" ? 1 : -1;
+      const from = choice < 0 && step < 0 ? matches.length : choice;
+      setActive(Math.min(Math.max(from + step, 0), matches.length - 1));
+    } else if ((event.key === "Enter" || event.key === "Tab") && open && choice >= 0) {
+      // A chosen entry owns Enter and Tab: it becomes the chip and the field keeps the focus.
+      // Without one, Enter takes the typed text over and Tab leaves the field.
+      // No ancestor sees this Tab: a dialog's focus scope would move the focus on regardless.
+      event.preventDefault();
+      event.stopPropagation();
+      commit(matches[choice]);
+    } else if ((event.key === "Enter" && draft.trim() !== "") || event.key === ",") {
+      // An empty field leaves Enter to the form, so it still triggers the primary action.
+      event.preventDefault();
+      commit();
+    } else if (event.key === "Backspace" && draft === "") {
+      const last = value.at(-1);
+      if (last !== undefined) remove(last);
+    }
+  };
+
+  // The frame is `root` and a wrapping `Hint`'s trigger at once.
+  const frameRef = React.useCallback(
+    (node: HTMLDivElement | null) => {
+      root.current = node;
+      if (typeof triggerRef === "function") triggerRef(node);
+      else if (triggerRef) triggerRef.current = node;
+    },
+    [triggerRef],
+  );
+
   return (
     <div
-      ref={root}
+      ref={frameRef}
       data-testid={testId}
       data-disabled={disabled || undefined}
-      data-invalid={fieldError["aria-invalid"] === true ? "" : undefined}
+      data-invalid={isInvalid ? "" : undefined}
+      // Disabled, the field opens no hover hint, as the disabled `Slider`.
+      {...(disabled
+        ? {}
+        : { onPointerMove, onPointerLeave, onPointerDown, onPointerDownCapture, onClick })}
       className={cn(
         "relative flex min-h-9 w-full min-w-0 flex-wrap items-center gap-1 rounded-md border border-input bg-transparent px-2 py-1 shadow-xs transition-[color,box-shadow] dark:bg-input/30",
         "focus-within:border-ring focus-within:focus-ring data-[invalid]:border-destructive",
@@ -201,6 +300,9 @@ function TagInput({
       ) : null}
       <input
         {...fieldError}
+        data-testid={`${testId}-input`}
+        {...inputProps}
+        ref={ref}
         id={id}
         value={draft}
         placeholder={value.length === 0 ? placeholder : undefined}
@@ -222,42 +324,22 @@ function TagInput({
           setActive(null);
           setKeyboard(true);
         }}
-        onFocus={() => setFocused(true)}
-        onBlur={() => {
+        onFocus={(event) => {
+          setFocused(true);
+          onFocus?.(event);
+        }}
+        onBlur={(event) => {
           setFocused(false);
           setDismissed(false);
           if (current.current.trim() !== "") commit();
+          onBlur?.(event);
         }}
         onKeyDown={(event) => {
-          // An IME is still composing: its Enter or comma belongs to the composition.
-          if (event.nativeEvent.isComposing || event.keyCode === 229) return;
-          if ((event.key === "ArrowDown" || event.key === "ArrowUp") && matches.length > 0) {
-            event.preventDefault();
-            setKeyboard(true);
-            if (!open) {
-              setDismissed(false);
-              return;
-            }
-            const step = event.key === "ArrowDown" ? 1 : -1;
-            const from = choice < 0 && step < 0 ? matches.length : choice;
-            setActive(Math.min(Math.max(from + step, 0), matches.length - 1));
-          } else if ((event.key === "Enter" || event.key === "Tab") && open && choice >= 0) {
-            // A chosen entry owns Enter and Tab: it becomes the chip and the field keeps the focus.
-            // Without one, Enter takes the typed text over and Tab leaves the field.
-            // No ancestor sees this Tab: a dialog's focus scope would move the focus on regardless.
-            event.preventDefault();
-            event.stopPropagation();
-            commit(matches[choice]);
-          } else if ((event.key === "Enter" && draft.trim() !== "") || event.key === ",") {
-            // An empty field leaves Enter to the form, so it still triggers the primary action.
-            event.preventDefault();
-            commit();
-          } else if (event.key === "Backspace" && draft === "") {
-            const last = value.at(-1);
-            if (last !== undefined) remove(last);
-          }
+          ownKeyDown(event);
+          onKeyDown?.(event);
         }}
-        data-testid={`${testId}-input`}
+        aria-describedby={uniqueIds(ariaDescribedBy)}
+        aria-invalid={isInvalid ? true : ariaInvalid}
         className="h-6 min-w-24 flex-1 bg-transparent px-1 text-base outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed md:text-sm"
       />
       {open ? (
@@ -308,6 +390,9 @@ function TagInput({
       </span>
     </div>
   );
-}
+});
+
+// `Hint` sends its trigger's ref to `triggerRef`, not to `ref`, which stays the text field's.
+const TagInput = Object.assign(TagInputField, { hintTriggerRef: "triggerRef" });
 
 export { TagInput, type TagInputProps };
