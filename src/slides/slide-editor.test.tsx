@@ -615,6 +615,23 @@ describe("SlideEditor extension parts", () => {
     expect(badge.x + badge.width / 2).toBe(400);
   });
 
+  it("makes the app's entries one tab stop the arrows move through (#514)", () => {
+    editor();
+    fireEvent.click(screen.getByTestId("drawer-add"));
+    const app = screen.getByTestId("slide-editor-library-app");
+    const buttons = within(app).getAllByRole("button");
+    expect(buttons.map((button) => button.tabIndex)).toEqual([0, -1]);
+    buttons[0]!.focus();
+    fireEvent.keyDown(buttons[0]!, { key: "ArrowRight" });
+    expect(buttons[1]).toHaveFocus();
+    expect(buttons.map((button) => button.tabIndex)).toEqual([-1, 0]);
+    // An arrow past the edge stays put.
+    fireEvent.keyDown(buttons[1]!, { key: "ArrowRight" });
+    expect(buttons[1]).toHaveFocus();
+    fireEvent.keyDown(buttons[1]!, { key: "Home" });
+    expect(buttons[0]).toHaveFocus();
+  });
+
   it("lays the overlay over the page unscaled, in the editor only", () => {
     const { container } = editor();
     const overlay = screen.getByTestId("app-overlay");

@@ -598,7 +598,8 @@ export const de: SuiteStrings = {
       insertRefused:
         "Die Seite fasst kein weiteres Element. Entferne eines und versuche es erneut.",
       insertFailed: "Dieses Element kann nicht auf die Seite. Wähle ein anderes.",
-      placeholderFillFailed: "Der Text kann nicht in diesen Platzhalter.",
+      placeholderFillFailed:
+        "Der Text kann nicht in diesen Platzhalter. Füge stattdessen über „Hinzufügen“ ein Textfeld ein.",
       libraryChart: "Diagramm",
       chartCategory: "Kategorie {{n}}",
       chartSeries: "Reihe {{n}}",
@@ -757,6 +758,7 @@ export const de: SuiteStrings = {
       duplicateUnavailable: "Duplizieren: möglich, sobald ein Element ausgewählt ist.",
       pasteRefused:
         "So viele Elemente passen nicht auf die Seite. Entferne einige und versuche es erneut.",
+      pasteFailed: "Diese Elemente können nicht auf die Seite.",
       mediaNotAdopted_one:
         "Eingefügt, aber das Medium {{names}} konnte nicht übernommen werden. Sein Bild zeigt einen Platzhalter, bis du es ersetzt.",
       mediaNotAdopted_other:

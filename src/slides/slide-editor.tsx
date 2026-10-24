@@ -1113,8 +1113,7 @@ function Editor({
   // has one id, so repeated presses replace it rather than stack (#365).
   const insertFits = (
     next: SlideDocument,
-    refused = "slides.editor.insertRefused",
-    failed = "slides.editor.insertFailed",
+    { refused = "slides.editor.insertRefused", failed = "slides.editor.insertFailed" } = {},
   ) => {
     const result = safeParseSlideDocument(next);
     if (result.ok) return true;
@@ -1437,7 +1436,7 @@ function Editor({
     const element = intoPlaceholder(made, open);
     const next = insertElement(history.document, page, element);
     // No other element to choose here, so the generic error's advice does not apply (#446).
-    if (!insertFits(next, undefined, "slides.editor.placeholderFillFailed")) return;
+    if (!insertFits(next, { failed: "slides.editor.placeholderFillFailed" })) return;
     apply(() => next);
     startEditing(id);
   };
@@ -1473,7 +1472,14 @@ function Editor({
     removeSelected();
   };
   const placeCopies = (result: { document: SlideDocument; ids: string[] }) => {
-    if (result.ids.length === 0 || !insertFits(result.document, "slides.editor.pasteRefused")) {
+    // Copies, not a choice of element, so the generic error's advice does not apply (#514).
+    if (
+      result.ids.length === 0 ||
+      !insertFits(result.document, {
+        refused: "slides.editor.pasteRefused",
+        failed: "slides.editor.pasteFailed",
+      })
+    ) {
       return;
     }
     apply(() => result.document);

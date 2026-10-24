@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased — #514, follow-ups of #446: element library app grid, error advice, one shape order
+
+- **App entries grid (#514):** the app's entries in the element library (`slide-editor-library-app`) were one tab stop each. They now use the same roving grid as the shapes and the icons: one tab stop, the arrows move inside the two columns, Home and End go to the first and last, an arrow past the edge does nothing. The grid is a `group` named by its heading.
+- **Shapes grid order (#514):** the shapes grid's arrow keys walked a separate key list (`SHAPE_GRID`) beside the rendered buttons. Both now come from one list of entries, so an added or reordered entry cannot put an arrow key on the wrong button.
+- **Placeholder fill error (#514):** `slides.editor.placeholderFillFailed` (de/en/es) now names a next step: insert a text field from Add instead.
+- **Paste error (#514):** a paste or duplicate the document refuses for a reason other than the element limit showed `slides.editor.insertFailed` with its "Choose another one" advice. It now shows the new `slides.editor.pasteFailed` (de/en/es) without that advice.
+- **`insertFits` (#514):** the editor's internal insert check takes its two message keys as an options object (`{ refused, failed }`) instead of positional arguments.
+- **Tests (#514):** the app grid is one tab stop the arrows and Home move through, stopping at the edge; the shapes grid's arrows reach every rendered button in order, Home and End the first and last; a refused paste names `pasteFailed` without "Choose another"; the placeholder fill names its next step.
+
+**Migration:** none for the API. Strings: `slides.editor.placeholderFillFailed` changes text, `slides.editor.pasteFailed` is new. The app entries are no longer separate tab stops; their `data-testid`s stay. Baselines: the gallery's full-page shots (de/en/es, light/dark, and de at 390 and 1440 px) grow by the new `pasteFailed` row and the longer `placeholderFillFailed` text in its strings table.
+
 ## Unreleased — #508, GL-UI-017: a SettingsField group is described by its help text
 
 - **SettingsField group help (#508):** the `help` text under a `SettingsField` with `group` (`${htmlFor}-description`) was not on the group's `aria-describedby`, so a screen reader in focus mode skipped it: Tab lands on an option, and the caller cannot reach the group element. The group's `aria-describedby` now lists the hint id (`${htmlFor}-help`, if a `hint` is set) first and `${htmlFor}-description` second, each read once; the options still carry neither. With `error` the error replaces the help text and stays on `aria-errormessage` only. Without `group` nothing changes.

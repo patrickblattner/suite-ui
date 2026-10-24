@@ -145,13 +145,10 @@ function useRovingGrid(keys: readonly string[]) {
 
 const shapeTestId = (entry: LibraryEntry) =>
   `slide-editor-library-${entry.kind === "shape" ? entry.shape : "line"}`;
-// The shapes grid's entries in their order: the shapes and the line, then text, table and chart.
-const SHAPE_GRID = [
-  ...SHAPES.map(({ entry }) => shapeTestId(entry)),
-  "slide-editor-library-text",
-  "slide-editor-library-table",
-  "slide-editor-library-chart",
-];
+const appTestId = (entry: AppLibraryEntry["entry"]) =>
+  entry.kind === "custom"
+    ? `slide-editor-library-type-${entry.typeId}`
+    : `slide-editor-library-block-${entry.id}`;
 
 // The element library in the editor's Add drawer (`SUI-FEATURE-162` §Element-Bibliothek,
 // `SUI-FEATURE-232`): shapes and a line, the package's icons with a search that filters as you
@@ -179,8 +176,43 @@ export function ElementLibrary({
   const { icons } = useSlideIcons(shown);
   for (const [name, icon] of icons) previews.set(name, icon);
   const searchId = React.useId();
-  // The shapes and the icons are one tab stop each (`useRovingGrid`).
-  const shapeGrid = useRovingGrid(SHAPE_GRID);
+  // The shapes grid's entries in their order: the shapes and the line, then a text field and a
+  // table (`SUI-FEATURE-161` §Text, §Tabellen) and a bar chart with sample data, its names in the
+  // editor's language (`SUI-FEATURE-233`). The grid renders this list and its arrow keys walk it.
+  const shapeEntries: { entry: LibraryEntry; label: string; icon: LucideIcon; testId: string }[] = [
+    ...SHAPES.map(({ entry, icon, label }) => ({
+      entry,
+      label: t(`slides.editor.${label}`),
+      icon,
+      testId: shapeTestId(entry),
+    })),
+    {
+      entry: { kind: "text", text: t("slides.editor.libraryTextSample") },
+      label: t("slides.editor.libraryText"),
+      icon: TypeIcon,
+      testId: "slide-editor-library-text",
+    },
+    {
+      entry: { kind: "table" },
+      label: t("slides.editor.libraryTable"),
+      icon: TableIcon,
+      testId: "slide-editor-library-table",
+    },
+    {
+      entry: {
+        kind: "chart",
+        name: t("slides.editor.libraryChart"),
+        categories: [1, 2, 3].map((n) => t("slides.editor.chartCategory", { n })),
+        series: [1, 2].map((n) => t("slides.editor.chartSeries", { n })),
+      },
+      label: t("slides.editor.libraryChart"),
+      icon: ChartColumnIcon,
+      testId: "slide-editor-library-chart",
+    },
+  ];
+  // The shapes, the app's entries and the icons are one tab stop each (`useRovingGrid`).
+  const shapeGrid = useRovingGrid(shapeEntries.map(({ testId }) => testId));
+  const appGrid = useRovingGrid(appEntries.map(({ entry }) => appTestId(entry)));
   const iconGrid = useRovingGrid(shown);
   const drag = (entry: LibraryEntry) => (event: React.DragEvent) => {
     // An app's entry travels by its id; the drop takes the rest from the app's entries.
@@ -235,42 +267,14 @@ export function ElementLibrary({
           onKeyDown={shapeGrid.onKeyDown}
           data-testid="slide-editor-library-shapes"
         >
-          {SHAPES.map(({ entry, icon: Icon, label }) =>
+          {shapeEntries.map(({ entry, label, icon: Icon, testId }) =>
             entryButton(
               entry,
-              t(`slides.editor.${label}`),
+              label,
               <Icon aria-hidden="true" />,
-              shapeTestId(entry),
-              shapeGrid.roving(shapeTestId(entry)),
+              testId,
+              shapeGrid.roving(testId),
             ),
-          )}
-          {/* A text field and a table (`SUI-FEATURE-161` §Text, §Tabellen). */}
-          {entryButton(
-            { kind: "text", text: t("slides.editor.libraryTextSample") },
-            t("slides.editor.libraryText"),
-            <TypeIcon aria-hidden="true" />,
-            "slide-editor-library-text",
-            shapeGrid.roving("slide-editor-library-text"),
-          )}
-          {entryButton(
-            { kind: "table" },
-            t("slides.editor.libraryTable"),
-            <TableIcon aria-hidden="true" />,
-            "slide-editor-library-table",
-            shapeGrid.roving("slide-editor-library-table"),
-          )}
-          {/* A bar chart with sample data, its names in the editor's language (`SUI-FEATURE-233`). */}
-          {entryButton(
-            {
-              kind: "chart",
-              name: t("slides.editor.libraryChart"),
-              categories: [1, 2, 3].map((n) => t("slides.editor.chartCategory", { n })),
-              series: [1, 2].map((n) => t("slides.editor.chartSeries", { n })),
-            },
-            t("slides.editor.libraryChart"),
-            <ChartColumnIcon aria-hidden="true" />,
-            "slide-editor-library-chart",
-            shapeGrid.roving("slide-editor-library-chart"),
           )}
         </div>
       </section>
@@ -279,7 +283,13 @@ export function ElementLibrary({
           <h3 id={`${searchId}-app`} className="text-base font-semibold">
             {t("slides.editor.libraryApp")}
           </h3>
-          <div className="grid grid-cols-2 gap-1" data-testid="slide-editor-library-app">
+          <div
+            className="grid grid-cols-2 gap-1"
+            role="group"
+            aria-labelledby={`${searchId}-app`}
+            onKeyDown={appGrid.onKeyDown}
+            data-testid="slide-editor-library-app"
+          >
             {appEntries.map(({ entry, label }) =>
               entryButton(
                 entry,
@@ -289,9 +299,8 @@ export function ElementLibrary({
                 ) : (
                   <GroupIcon aria-hidden="true" />
                 ),
-                entry.kind === "custom"
-                  ? `slide-editor-library-type-${entry.typeId}`
-                  : `slide-editor-library-block-${entry.id}`,
+                appTestId(entry),
+                appGrid.roving(appTestId(entry)),
               ),
             )}
           </div>

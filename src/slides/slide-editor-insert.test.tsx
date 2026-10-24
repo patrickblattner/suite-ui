@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SLIDE_BRAND, SLIDE_EDITOR_DOC } from "../../gallery/slide-showcase.js";
@@ -105,12 +105,53 @@ describe("SlideEditor insert refused by a broken rule (#446)", () => {
     });
     state.refuse = true;
     fireEvent.click(screen.getByTestId("slide-editor-placeholder-fill"));
-    expect(error).toHaveBeenCalledWith("The text can’t be placed in this placeholder.", {
-      id: "slide-editor-insert-refused",
-    });
+    expect(error).toHaveBeenCalledWith(
+      "The text can’t be placed in this placeholder. Insert a text field from “Add” instead.",
+      { id: "slide-editor-insert-refused" },
+    );
     expect(error.mock.calls[0]![0]).not.toMatch(/Choose another/);
     expect(screen.queryByTestId("slide-editor-text-field")).toBeNull();
     expect(screen.getByTestId("slide-editor-placeholder")).toBeInTheDocument();
     error.mockRestore();
+  }, 60_000);
+
+  it("names a paste the document refuses without advice to choose another element (#514)", () => {
+    const error = vi.spyOn(toast, "error").mockReturnValue(1);
+    editor();
+    fireEvent.click(screen.getByTestId("drawer-layers"));
+    fireEvent.click(screen.getAllByTestId("slide-editor-layer")[0]!.querySelector("button")!);
+    const canvas = screen.getByTestId("slide-editor-canvas");
+    fireEvent.keyDown(canvas, { key: "c", ctrlKey: true });
+    state.refuse = true;
+    fireEvent.keyDown(canvas, { key: "v", ctrlKey: true });
+    expect(error).toHaveBeenCalledWith("These elements can’t be placed on the page.", {
+      id: "slide-editor-insert-refused",
+    });
+    expect(error.mock.calls[0]![0]).not.toMatch(/Choose another/);
+    expect(screen.getAllByTestId("editor-undo")[0]).toHaveAttribute("aria-disabled", "true");
+    error.mockRestore();
+  }, 60_000);
+});
+
+// The shapes grid's arrow keys walk the entries it renders, so an added or reordered entry cannot
+// put a key on the wrong button (#514).
+describe("SlideEditor shapes grid", () => {
+  it("moves the arrow keys through every rendered entry in order", () => {
+    editor();
+    fireEvent.click(screen.getByTestId("drawer-add"));
+    const buttons = within(screen.getByTestId("slide-editor-library-shapes")).getAllByRole(
+      "button",
+    );
+    expect(buttons.filter((button) => button.tabIndex === 0)).toEqual([buttons[0]]);
+    buttons[0]!.focus();
+    for (const [index, button] of buttons.entries()) {
+      expect(button).toHaveFocus();
+      expect(button.tabIndex).toBe(0);
+      if (index < buttons.length - 1) fireEvent.keyDown(button, { key: "ArrowRight" });
+    }
+    fireEvent.keyDown(buttons.at(-1)!, { key: "Home" });
+    expect(buttons[0]).toHaveFocus();
+    fireEvent.keyDown(buttons[0]!, { key: "End" });
+    expect(buttons.at(-1)).toHaveFocus();
   }, 60_000);
 });

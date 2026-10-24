@@ -616,7 +616,8 @@ export const en = {
       libraryMediaInvalid: "This medium can’t be placed on the page. Choose another one.",
       insertRefused: "The page can’t take another element. Remove one and try again.",
       insertFailed: "This element can’t be placed on the page. Choose another one.",
-      placeholderFillFailed: "The text can’t be placed in this placeholder.",
+      placeholderFillFailed:
+        "The text can’t be placed in this placeholder. Insert a text field from “Add” instead.",
       libraryChart: "Chart",
       chartCategory: "Category {{n}}",
       chartSeries: "Series {{n}}",
@@ -770,6 +771,7 @@ export const en = {
       duplicateHint: "Puts a copy of the selection just right of and below it.",
       duplicateUnavailable: "Duplicate: possible once an element is selected.",
       pasteRefused: "The page can’t take that many elements. Remove some and try again.",
+      pasteFailed: "These elements can’t be placed on the page.",
       mediaNotAdopted_one:
         "Pasted, but the media item {{names}} could not be brought along. Its image shows a placeholder until you replace it.",
       mediaNotAdopted_other:

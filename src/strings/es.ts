@@ -591,7 +591,8 @@ export const es: SuiteStrings = {
       libraryMediaInvalid: "Este medio no se puede colocar en la página. Elige otro.",
       insertRefused: "La página no admite otro elemento. Quita uno e inténtalo de nuevo.",
       insertFailed: "Este elemento no se puede colocar en la página. Elige otro.",
-      placeholderFillFailed: "El texto no se puede colocar en este marcador de posición.",
+      placeholderFillFailed:
+        "El texto no se puede colocar en este marcador de posición. Inserta un campo de texto desde «Añadir».",
       libraryChart: "Gráfico",
       chartCategory: "Categoría {{n}}",
       chartSeries: "Serie {{n}}",
@@ -747,6 +748,7 @@ export const es: SuiteStrings = {
       duplicateHint: "Pone una copia de la selección justo a la derecha y debajo de ella.",
       duplicateUnavailable: "Duplicar: posible cuando haya un elemento seleccionado.",
       pasteRefused: "La página no admite tantos elementos. Quita algunos e inténtalo de nuevo.",
+      pasteFailed: "Estos elementos no se pueden colocar en la página.",
       mediaNotAdopted_one:
         "Pegado, pero el medio {{names}} no se pudo traer. Su imagen muestra un marcador de posición hasta que la reemplaces.",
       mediaNotAdopted_other:
