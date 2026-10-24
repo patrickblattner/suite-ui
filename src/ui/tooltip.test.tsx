@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { leaveTooltip } from "../list/test-utils.js";
 import { Button } from "./button.js";
+import { Card, CardContent } from "./card.js";
 import { EditPanel } from "./edit-panel.js";
 import { Field } from "./field.js";
 import { Hint } from "./hint.js";
@@ -1660,8 +1661,9 @@ describe("tooltip placement in a row", () => {
     expect(await at("input-a0")).toMatch(/^translate\(148px,/);
   });
 
-  // The climb past a field's own layout ends at the layout's parent: a stacked form in the page's
-  // main region pairs with no field of a sidebar beside it.
+  // The climb past a field's own layout ends at the nearest ancestor with a control on its line: a
+  // stacked form in the page's main region pairs with no field of a sidebar beside it, which is an
+  // obstacle 952 px away.
   it("a stacked form's field stands its bubble at the field beside a far sidebar field", async () => {
     layOutBoxes(1600, {
       "field-a0": [0, 140, 60, 50],
@@ -1718,6 +1720,88 @@ describe("tooltip placement in a row", () => {
     );
     // Past the lone field's input (164 + 140) and 8 px apart: 312.
     expect(await at("button-c")).toMatch(/^translate\(312px,/);
+  });
+
+  // #542: a column wrapped once more (an app's extra div, the package's Card > CardContent) still
+  // keeps its field's bubble off a lone field 24 px beside it: the climb goes on to the nearest
+  // ancestor with a control on the line.
+  const wrappedColumnBoxes: Record<
+    string,
+    [left: number, width: number, top: number, height: number]
+  > = {
+    "field-c0": [0, 140, 60, 50],
+    "input-c0": [0, 140, 76, 32],
+    "field-c1": [0, 140, 120, 50],
+    "field-c2": [0, 140, 240, 50],
+    "field-lone": [164, 140, 60, 50],
+    "input-lone": [164, 140, 76, 32],
+  };
+
+  it("a wrapped column's field beside a lone field stands its bubble past the lone field", async () => {
+    layOutBoxes(1000, wrappedColumnBoxes);
+    render(
+      <div>
+        <div>{column("c")}</div>
+        {lone}
+      </div>,
+    );
+    // Past the lone field's input (164 + 140) and 8 px apart: 312.
+    expect(await at("input-c0")).toMatch(/^translate\(312px,/);
+  });
+
+  it("a card's field beside a lone field stands its bubble past the lone field", async () => {
+    layOutBoxes(1000, wrappedColumnBoxes);
+    render(
+      <div>
+        <Card>
+          <CardContent>{column("c")}</CardContent>
+        </Card>
+        {lone}
+      </div>,
+    );
+    expect(await at("input-c0")).toMatch(/^translate\(312px,/);
+  });
+
+  // #543: a direct field pair follows the same rule: the partner is an obstacle, never a member of
+  // the field's group. A far partner leaves the bubble in the gap before it, a close one past it.
+  const pair = (
+    <div>
+      {(["a", "b"] as const).map((id) => (
+        <Field
+          key={id}
+          label={id}
+          htmlFor={id}
+          valueHint={`${id} value`}
+          data-testid={`field-${id}`}
+        >
+          <Input id={id} data-testid={`input-${id}`} />
+        </Field>
+      ))}
+    </div>
+  );
+
+  it("a field pair's far partner leaves the bubble in the gap before it", async () => {
+    layOutBoxes(1000, {
+      "field-a": [0, 140, 60, 50],
+      "input-a": [0, 140, 76, 32],
+      "field-b": [560, 140, 60, 50],
+      "input-b": [560, 140, 76, 32],
+    });
+    render(pair);
+    // At the field, 8 px right of its input (0 + 140): the gap up to the partner (560 - 8) holds 404 px.
+    expect(await at("input-a")).toMatch(/^translate\(148px,/);
+  });
+
+  it("a field pair's close partner stands the bubble past it", async () => {
+    layOutBoxes(1000, {
+      "field-a": [0, 140, 60, 50],
+      "input-a": [0, 140, 76, 32],
+      "field-b": [164, 140, 60, 50],
+      "input-b": [164, 140, 76, 32],
+    });
+    render(pair);
+    // Past the partner's input (164 + 140) and 8 px apart: 312.
+    expect(await at("input-a")).toMatch(/^translate\(312px,/);
   });
 
   // #441: a control of another bar at the bubble's height (a canvas's floating actions beside a panel)

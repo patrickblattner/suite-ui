@@ -194,10 +194,12 @@ function outermost(node: Element, selector: string, within?: Element): Element |
 // wrapper: the climb ends there (#511). Its fields and its controls outside them on the lone field's
 // line are obstacles, never members of the lone field's group: the bubble stands in the nearest gap
 // that holds it, beside the field where the gap before them does, past them where it does not (#542).
-// A field with no neighbouring field on its line, and a control among fields, stands in a layout of
-// its own: its row is that layout's parent, never further, and the controls there on its line are its
-// obstacles. So a column's field, or the column's button, keeps its bubble off a lone field beside the
-// column, and a stacked form pairs with no field across the page (#542).
+// A partner field on the line is an obstacle too: the bubble stands in the gap before a far partner,
+// past a close one (#543). A field with no neighbouring field on its line, and a control among fields,
+// stands in a layout of its own: its row is the nearest ancestor holding a control on its line, and
+// those controls are its obstacles. So a column's field, or the column's button, keeps its bubble off
+// a lone field beside the column however deep the column is wrapped (a Card), and a stacked form's
+// bubble stays at its field beside a far sidebar field (#542).
 // `group`: the element's group within the row, `null` where the row's own groups apply. `apart`: the
 // row's other controls are obstacles the bubble keeps clear of, never bounds of its side.
 type Row = { row: Element; group: readonly Element[] | null; apart?: boolean };
@@ -206,8 +208,8 @@ function fieldRowOf(node: Element): Row | null {
   const start = field ?? (node.matches(ROW_CONTROL) ? node : null);
   if (start === null) return null;
   // A hidden input (a form's own value) is no control a wrapper holds.
-  const control = (node: Element) =>
-    node.matches(ROW_CONTROL) && !node.matches("input[type=hidden]");
+  const control = (candidate: Element) =>
+    candidate.matches(ROW_CONTROL) && !candidate.matches("input[type=hidden]");
   for (
     let item: Element = start, parent = start.parentElement;
     parent !== null && parent !== document.body;
@@ -227,21 +229,26 @@ function fieldRowOf(node: Element): Row | null {
           const inner = sibling.matches(FIELD) ? [sibling] : [...sibling.querySelectorAll(FIELD)];
           if (inner.length > 1) {
             const loose = [...sibling.querySelectorAll(ROW_CONTROL)].filter(
-              (control) => control.closest(FIELD) === null,
+              (other) => other.closest(FIELD) === null,
             );
             beside.push(...[...inner, ...loose].filter(onLine));
           } else partners.push(...inner);
         }
-        if (beside.length > 0)
-          return { row: parent, group: [field, ...partners.filter(onLine)], apart: true };
-        if (partners.some(onLine)) return { row: parent, group: null };
+        if (beside.length > 0 || partners.some(onLine))
+          return { row: parent, group: [field], apart: true };
       }
-      const outer = parent.parentElement;
-      if (outer === null || outer === document.body) return null;
-      const near = [...outer.querySelectorAll(ROW_CONTROL)].some(
-        (node) => control(node) && !start.contains(node) && !node.contains(start) && onLine(node),
-      );
-      return near ? { row: outer, group: [start], apart: true } : null;
+      for (
+        let outer = parent.parentElement;
+        outer !== null && outer !== document.body;
+        outer = outer.parentElement
+      ) {
+        const near = [...outer.querySelectorAll(ROW_CONTROL)].some(
+          (other) =>
+            control(other) && !start.contains(other) && !other.contains(start) && onLine(other),
+        );
+        if (near) return { row: outer, group: [start], apart: true };
+      }
+      return null;
     }
     if (
       others.some(
