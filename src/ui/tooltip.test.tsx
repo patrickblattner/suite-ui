@@ -1441,6 +1441,113 @@ describe("tooltip placement in a row", () => {
     expect((bubble?.parentElement as HTMLElement).style.transform).toMatch(/^translate\(312px,/);
   });
 
+  // #542: the column's field at the lone field's height, the column standing left of it, is grouped
+  // with the lone field: its bubble, 24 px past it and 320 px wide, stands past the lone field.
+  it("a column's field beside a lone field on its right stands past the lone field", async () => {
+    layOut(1000, { bubble: [0, 320] });
+    const boxes: Record<string, [left: number, width: number, top: number, height: number]> = {
+      column: [0, 140, 60, 290],
+      "field-r0": [0, 140, 60, 50],
+      "input-r0": [0, 140, 76, 32],
+      "field-r1": [0, 140, 120, 50],
+      "field-r2": [0, 140, 240, 50],
+      "field-lone": [164, 140, 60, 50],
+      "input-lone": [164, 140, 76, 32],
+    };
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      const bubble =
+        this.dataset.slot === "tooltip-content" ||
+        this.hasAttribute("data-radix-popper-content-wrapper");
+      if (bubble) return new DOMRect(0, 0, 320, 32);
+      const [left, width, top, height] = boxes[this.dataset.testid ?? ""] ?? [0, 0, 0, 0];
+      return new DOMRect(left, top, width, height);
+    });
+    render(
+      <div>
+        <div data-testid="column">
+          {[0, 1, 2].map((index) => (
+            <Field
+              key={index}
+              label={`r${index}`}
+              htmlFor={`r${index}`}
+              valueHint={`r${index} value`}
+              data-testid={`field-r${index}`}
+            >
+              <Input id={`r${index}`} data-testid={`input-r${index}`} />
+            </Field>
+          ))}
+        </div>
+        <div>
+          <Field label="lone" htmlFor="lone" valueHint="lone value" data-testid="field-lone">
+            <Input id="lone" data-testid="input-lone" />
+          </Field>
+        </div>
+      </div>,
+    );
+    const bubble = await placedBubble("input-r0");
+    expect(bubble).toHaveAttribute("data-side", "right");
+    // Past the lone field (164 + 140) and 8 px apart: 312, its 320 px clear of it.
+    expect((bubble?.parentElement as HTMLElement).style.transform).toMatch(/^translate\(312px,/);
+  });
+
+  // #542: a control of the column outside its fields at the lone field's height (a button beside the
+  // column's field) is grouped with them too, never a bound that leaves no side: the bubble, 320 px
+  // wide, stands past the button.
+  it("a lone field beside a column's field and button at its height stands past the button", async () => {
+    layOut(1000, { bubble: [0, 320] });
+    const boxes: Record<string, [left: number, width: number, top: number, height: number]> = {
+      "field-lone": [0, 140, 60, 50],
+      "input-lone": [0, 140, 76, 32],
+      column: [164, 236, 60, 290],
+      "field-r0": [164, 140, 60, 50],
+      "input-r0": [164, 140, 76, 32],
+      "field-r1": [164, 140, 120, 50],
+      "field-r2": [164, 140, 240, 50],
+      "column-button": [328, 72, 76, 32],
+    };
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      const bubble =
+        this.dataset.slot === "tooltip-content" ||
+        this.hasAttribute("data-radix-popper-content-wrapper");
+      if (bubble) return new DOMRect(0, 0, 320, 32);
+      const [left, width, top, height] = boxes[this.dataset.testid ?? ""] ?? [0, 0, 0, 0];
+      return new DOMRect(left, top, width, height);
+    });
+    render(
+      <div>
+        <div>
+          <Field label="lone" htmlFor="lone" valueHint="lone value" data-testid="field-lone">
+            <Input id="lone" data-testid="input-lone" />
+          </Field>
+        </div>
+        <div data-testid="column">
+          {[0, 1, 2].map((index) => (
+            <Field
+              key={index}
+              label={`r${index}`}
+              htmlFor={`r${index}`}
+              valueHint={`r${index} value`}
+              data-testid={`field-r${index}`}
+            >
+              <Input id={`r${index}`} data-testid={`input-r${index}`} />
+            </Field>
+          ))}
+          <Button variant="outline" size="default" data-testid="column-button">
+            Apply
+          </Button>
+        </div>
+      </div>,
+    );
+    const bubble = await placedBubble("input-lone");
+    expect(bubble).toHaveAttribute("data-side", "right");
+    // Past the button (328 + 72) and 8 px apart: 408, its 320 px clear of the column's field and button.
+    expect((bubble?.parentElement as HTMLElement).style.transform).toMatch(/^translate\(408px,/);
+  });
+
   // #441: a control of another bar at the bubble's height (a canvas's floating actions beside a panel)
   // breaks the side into gaps: the bubble stands in the nearest gap that holds it, past that bar.
   it("stands past another bar's control at its height", async () => {

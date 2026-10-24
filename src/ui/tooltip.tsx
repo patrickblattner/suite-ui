@@ -192,7 +192,10 @@ function outermost(node: Element, selector: string, within?: Element): Element |
 // line, never by its box: a lone field beside a tall column of fields pairs with none of them. A
 // neighbour holding several fields (a column, a card) is a layout of its own, never one field's
 // wrapper: the climb ends there, and the lone field's group is itself with the fields of that layout
-// at its height, never the whole layout; the layout's other controls only bound its gaps (#511).
+// at its height, never the whole layout, together with the layout's controls outside its fields at
+// that height (a button beside the column's field); the layout's other controls only bound its gaps
+// (#511, #542). A field none of whose neighbouring fields stands on its line sits in such a layout: the
+// climb goes on past it, so a column's field pairs with a lone field beside the column (#542).
 // `group`: the element's group within the row, `null` where the row's own groups apply.
 type Row = { row: Element; group: readonly Element[] | null };
 function fieldRowOf(node: Element): Row | null {
@@ -212,14 +215,25 @@ function fieldRowOf(node: Element): Row | null {
       };
       const partners: Element[] = [];
       const layouts: Element[] = [];
+      const loose: Element[] = [];
       for (const sibling of others) {
         const inner = sibling.matches(FIELD) ? [sibling] : [...sibling.querySelectorAll(FIELD)];
         (inner.length > 1 ? layouts : partners).push(...inner);
+        if (inner.length > 1)
+          loose.push(
+            ...[...sibling.querySelectorAll(ROW_CONTROL)].filter(
+              (control) => control.closest(FIELD) === null,
+            ),
+          );
       }
       const beside = layouts.filter(onLine);
       if (beside.length > 0)
-        return { row: parent, group: [field, ...partners.filter(onLine), ...beside] };
-      return partners.some(onLine) ? { row: parent, group: null } : null;
+        return {
+          row: parent,
+          group: [field, ...partners.filter(onLine), ...beside, ...loose.filter(onLine)],
+        };
+      if (partners.some(onLine)) return { row: parent, group: null };
+      continue;
     }
     // A hidden input (a form's own value) is no control a wrapper holds.
     const control = (node: Element) =>

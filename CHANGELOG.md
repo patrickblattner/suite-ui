@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — #542, GL-UI-016: a field's bubble covers no neighbouring control beside a column of fields
+
+- **Column left of a lone field (#542):** the field of a column or card at a lone `Field`'s height had no row: its own fields stand none on its line, so the climb ended inside the column and its bubble stood at the field, over the lone field to its right. A field none of whose neighbouring fields stands on its line now climbs past its layout, so it pairs with the lone field and its bubble stands past it.
+- **Control beside the column's field (#542):** a control of that column outside its fields at the lone field's height (a button beside the column's field) bounded the lone field's right gap inside its group, so neither side held the bubble and it stood at the field, over the column's field. Such controls now join the lone field's group with the column's fields at its height, so the bubble stands past them.
+- **Tests (#542):** with a 24 px gap and a 320 px bubble, a column's field left of a lone field stands its bubble past the lone field, and a lone field beside a column's field and button at its height stands it past the button.
+
+**Migration:** none for the API; no `data-testid`, string or baseline changes. Bubbles of fields in a stacked column now pair with a field beside the column at their height and stand past it instead of at the field.
+
 ## Unreleased — #516, GL-UI-037 rev 2: the grid's number fields use the shared decimal parser
 
 - **Grid number fields (#516):** `GridFields` read its step, column count, gutter, margin and row step with `Number` in native `type="number"` inputs, so a German or Spanish "8,0" was not a number and a grouped "1.000,5" got the field's bound as its error. They now read what is typed through `parseDecimal` and show the value through `formatDecimal`: in de/es a point and a comma are both the decimal sign, in en only the point; one separator is always the decimal sign ("1.000" is 1); more than one is refused with the new `grid.separator` (de/en/es), which names the right form with a whole-number example inside the field's bounds ("such as 1000", "such as 24" for the column count), since the fields take whole numbers only. A fraction still asks for whole pixels, a number outside the bounds still names them. A number typed on its way ("8,") stays as typed until the field is left.
