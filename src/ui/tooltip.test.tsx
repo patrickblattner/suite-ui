@@ -1337,7 +1337,9 @@ describe("tooltip placement in a row", () => {
   // #438: a neighbour counts by its fields on the line, never by its box: a lone field beside a tall
   // column of fields, none of them on its line, is in no row and its bubble stands at the field. The
   // column's own control on that line (a panel's button) makes no pair of it either.
-  it("a lone field beside a tall column of fields is in no row", async () => {
+  // #542: a control of the column outside its fields at the lone field's height joins its group
+  // even with none of the column's fields on its line: the bubble stands past it, never over it.
+  it("a lone field beside a tall column's button at its height stands past the button", async () => {
     layOut(1000, { bubble: [0, 100] });
     const boxes: Record<string, [left: number, width: number, top: number, height: number]> = {
       "field-lone": [0, 140, 60, 50],
@@ -1385,8 +1387,8 @@ describe("tooltip placement in a row", () => {
     );
     const bubble = await placedBubble("input-lone");
     expect(bubble).toHaveAttribute("data-side", "right");
-    // At the field, 8 px right of its input (0 + 140): no pair beside it.
-    expect((bubble?.parentElement as HTMLElement).style.transform).toMatch(/^translate\(148px,/);
+    // Past the column's button (150 + 140) and 8 px apart: 298, its 100 px clear of the button.
+    expect((bubble?.parentElement as HTMLElement).style.transform).toMatch(/^translate\(298px,/);
   });
 
   // #511: a column of fields is a layout of its own, never a field's wrapper: a lone field beside it

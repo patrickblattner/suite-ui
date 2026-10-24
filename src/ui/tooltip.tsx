@@ -193,9 +193,10 @@ function outermost(node: Element, selector: string, within?: Element): Element |
 // neighbour holding several fields (a column, a card) is a layout of its own, never one field's
 // wrapper: the climb ends there, and the lone field's group is itself with the fields of that layout
 // at its height, never the whole layout, together with the layout's controls outside its fields at
-// that height (a button beside the column's field); the layout's other controls only bound its gaps
-// (#511, #542). A field none of whose neighbouring fields stands on its line sits in such a layout: the
-// climb goes on past it, so a column's field pairs with a lone field beside the column (#542).
+// that height (a button of the column), with or without a field of it there; the layout's other
+// controls only bound its gaps (#511, #542). A field none of whose neighbouring fields stands on its
+// line sits in such a layout: the climb goes on past it, so a column's field pairs with a lone field
+// beside the column (#542).
 // `group`: the element's group within the row, `null` where the row's own groups apply.
 type Row = { row: Element; group: readonly Element[] | null };
 function fieldRowOf(node: Element): Row | null {
@@ -226,12 +227,9 @@ function fieldRowOf(node: Element): Row | null {
             ),
           );
       }
-      const beside = layouts.filter(onLine);
+      const beside = [...layouts, ...loose].filter(onLine);
       if (beside.length > 0)
-        return {
-          row: parent,
-          group: [field, ...partners.filter(onLine), ...beside, ...loose.filter(onLine)],
-        };
+        return { row: parent, group: [field, ...partners.filter(onLine), ...beside] };
       if (partners.some(onLine)) return { row: parent, group: null };
       continue;
     }
