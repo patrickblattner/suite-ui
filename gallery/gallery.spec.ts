@@ -8331,7 +8331,7 @@ test("GL-UI-060: error messages lead with a symbol, the empty state has none", a
   // `SUI-FEATURE-078` AC 2: every invalid field kind carries its error symbol and text, not just a border.
   await page.goto("/?page=components&lng=en");
   const errors = page.getByTestId("field-errors").locator("[data-slot=field-error]");
-  await expect(errors).toHaveCount(6);
+  await expect(errors).toHaveCount(7);
   for (const error of await errors.all()) {
     expect(await symbolOf(error)).toBe("lucide-circle-x");
     const id = (await error.getAttribute("id")) ?? "";
@@ -8343,6 +8343,33 @@ test("GL-UI-060: error messages lead with a symbol, the empty state has none", a
 
   await page.goto("/?page=settings&layout=body&state=error&lng=en");
   expect(await symbolOf(page.getByTestId("settings-error"))).toBe("lucide-circle-x");
+});
+
+// `SUI-FEATURE-270` AC1, AC2: an invalid TagInput has the red frame of an invalid Input, with and
+// without the focus, and the same ring under the focus.
+test("field error: an invalid TagInput looks like an invalid Input", async ({ page }) => {
+  await page.goto("/?page=components&lng=en");
+  const destructive = await utilityColor(page, "bg-destructive", "backgroundColor");
+  const input = page.locator("#error-input");
+  const frame = page.getByTestId("error-tags");
+  const tags = page.getByTestId("error-tags-input");
+  await expect(tags).toHaveAttribute("aria-invalid", "true");
+  await expect(tags).toHaveAttribute("aria-errormessage", "error-tags-error");
+  const look = (locator: typeof input) =>
+    locator.evaluate((el) => {
+      const style = getComputedStyle(el);
+      return { border: style.borderColor, ring: style.boxShadow };
+    });
+  expect((await look(frame)).border).toBe(destructive);
+  expect(await look(frame)).toEqual(await look(input));
+  await input.focus();
+  await page.waitForTimeout(200);
+  const focused = await look(input);
+  expect(focused.border).toBe(destructive);
+  expect(focused.ring).toContain("3px");
+  await tags.focus();
+  await page.waitForTimeout(200);
+  expect(await look(frame)).toEqual(focused);
 });
 
 // `SUI-FEATURE-096`: each InlineMessage tone has its own symbol, role and word for screen readers; the
@@ -8411,7 +8438,7 @@ test("GL-UI-060: the FieldError demo does not overlap at 390 px", async ({ page 
   await page.goto("/?page=components&lng=en");
   const fields = page.getByTestId("field-errors").locator("[data-slot=settings-field]");
   const boxes = await Promise.all((await fields.all()).map((field) => box(field)));
-  expect(boxes).toHaveLength(6);
+  expect(boxes).toHaveLength(7);
   for (const [index, current] of boxes.entries()) {
     const next = boxes[index + 1];
     if (next !== undefined) expect(next.y).toBeGreaterThanOrEqual(current.y + current.height);

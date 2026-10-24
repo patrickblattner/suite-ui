@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — #490, SUI-FEATURE-270 rev 3: TagInput takes the field error state
+
+- **TagInput error state (#490):** inside `SettingsField error`, `TagInput` now takes the field error through `useFieldErrorAttributes`, as `Input` does: its text field carries `aria-invalid="true"` and `aria-errormessage` on the `FieldError`, and the outer frame, which also carries the focus, takes the red border (`border-destructive`, marked `data-invalid`). Invalid with and without focus, it matches an invalid `Input` (border and ring). Without an error nothing changes.
+- **Tests (#490):** `SettingsField error` with `TagInput` marks the text field and the frame and unmarks both once the error is gone; the gallery compares an invalid `TagInput` with an invalid `Input`, with and without focus.
+
+**Migration:** none for the API; no `data-testid` or strings change. The gallery's FieldError demo gains an invalid `TagInput`, so 10 gallery baselines change, `components-{de,en,es}-{light,dark}.png` and `components-de-{light,dark}-{390,1440}.png`; the FieldError demo checks now count 7 fields instead of 6.
+
 ## Unreleased — #534, GL-UI-010 rev 9: chart panel hints, errors and the crop hint at body size
 
 - **Running-text size (#534):** the chart panel's hint sentences, its row errors and its negative-values-in-pie hint, and the crop toolbar's gesture hint now use the body size `text-sm` instead of `text-xs` (muted and destructive colours unchanged). The placeholder label chip on the canvas stays `text-xs`. Label to field and field to help or error text stay 8 px.

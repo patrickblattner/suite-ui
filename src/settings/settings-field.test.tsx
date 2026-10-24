@@ -10,6 +10,7 @@ import { RadioGroup, RadioGroupItem } from "../ui/radio-group.js";
 import { TimezoneCombobox } from "../ui/timezone-combobox.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select.js";
 import { Switch } from "../ui/switch.js";
+import { TagInput } from "../ui/tag-input.js";
 import { Textarea } from "../ui/textarea.js";
 import { SettingsField } from "./settings-field.js";
 import { SettingsSection } from "./settings-section.js";
@@ -246,6 +247,28 @@ describe("SettingsField", () => {
     const field = screen.getByRole("combobox", { name: "Zone" });
     expect(field).toHaveAttribute("aria-invalid", "true");
     expect(field).toHaveAttribute("aria-errormessage", "zone-error");
+  });
+
+  // `SUI-FEATURE-270` AC1: the tag field takes the field error like `Input`, the red border on its frame.
+  it("marks the tag field's text input and reddens its frame", () => {
+    const view = (error?: string) => (
+      <SettingsField label="Tags" htmlFor="tags" error={error}>
+        <TagInput id="tags" value={["a"]} onChange={() => undefined} />
+      </SettingsField>
+    );
+    const { rerender } = render(view("Add a tag."));
+    expect(screen.getByRole("alert")).toHaveAttribute("id", "tags-error");
+    const input = screen.getByRole("textbox", { name: "Tags" });
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(input).toHaveAttribute("aria-errormessage", "tags-error");
+    const frame = screen.getByTestId("tag-input");
+    expect(frame).toHaveAttribute("data-invalid", "");
+    expect(frame).toHaveClass("data-[invalid]:border-destructive");
+
+    rerender(view());
+    expect(input).not.toHaveAttribute("aria-invalid");
+    expect(input).not.toHaveAttribute("aria-errormessage");
+    expect(frame).not.toHaveAttribute("data-invalid");
   });
 
   it("sets the RadioGroup's options 8 px apart outside a field too", () => {

@@ -682,6 +682,9 @@ function FieldErrors() {
         >
           <TimezoneCombobox id="error-timezone" value="" onValueChange={() => undefined} />
         </SettingsField>
+        <SettingsField label="TagInput" htmlFor="error-tags" error="Add at least one tag.">
+          <TagInput id="error-tags" value={[]} onChange={() => undefined} testId="error-tags" />
+        </SettingsField>
         <SettingsField label="Checkbox" htmlFor="error-checkbox" group error="Accept the terms.">
           <div className="flex items-center gap-2">
             <Checkbox id="error-checkbox-terms" />

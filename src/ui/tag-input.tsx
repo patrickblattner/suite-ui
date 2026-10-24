@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
 import { usePopupPlacement } from "../lib/popup-placement.js";
+import { useFieldErrorAttributes } from "./field-error.js";
 import { RemovableChip } from "./removable-chip.js";
 
 type TagInputProps = {
@@ -54,6 +55,9 @@ function matchSuggestions(suggestions: readonly string[], chosen: readonly strin
 // With nothing chosen Enter takes the typed text over and Tab leaves; the comma and leaving the field
 // always take the typed text. A tag that equals a suggestion but for letter case takes the
 // suggestion's spelling. The list floats like the time zone list (`usePopupPlacement`).
+//
+// Inside an invalid field (`SUI-FEATURE-270`) the text field carries the error like `Input`, and the
+// frame, which also carries the focus, takes the red border of an invalid `Input`.
 function TagInput({
   value,
   onChange,
@@ -65,6 +69,7 @@ function TagInput({
   suggestions,
 }: TagInputProps) {
   const { t } = useTranslation("suite");
+  const fieldError = useFieldErrorAttributes();
   const [draft, setDraft] = React.useState("");
   // The text as of now: a blur in the same tick as a commit must not take the old text over again.
   const current = React.useRef("");
@@ -168,9 +173,10 @@ function TagInput({
       ref={root}
       data-testid={testId}
       data-disabled={disabled || undefined}
+      data-invalid={fieldError["aria-invalid"] === true ? "" : undefined}
       className={cn(
         "relative flex min-h-9 w-full min-w-0 flex-wrap items-center gap-1 rounded-md border border-input bg-transparent px-2 py-1 shadow-xs transition-[color,box-shadow] dark:bg-input/30",
-        "focus-within:border-ring focus-within:focus-ring",
+        "focus-within:border-ring focus-within:focus-ring data-[invalid]:border-destructive",
         "data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50",
         className,
       )}
@@ -194,6 +200,7 @@ function TagInput({
         </ul>
       ) : null}
       <input
+        {...fieldError}
         id={id}
         value={draft}
         placeholder={value.length === 0 ? placeholder : undefined}
