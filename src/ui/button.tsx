@@ -163,6 +163,7 @@ function Button(props: ButtonProps) {
   // `asChild` hands its single child to Slot, so the working state does not apply in that shape.
   const locked = (busy || ariaDisabled) && !asChild;
   const working = (busy || loading) && !asChild;
+  const running = busy && !asChild;
 
   return (
     <Comp
@@ -171,7 +172,7 @@ function Button(props: ButtonProps) {
       data-size={size}
       // While it runs, the call site's `disabled` waits: the attribute would drop the focus to `<body>`
       // (`SUI-FEATURE-103`); the run's lock holds instead, and `disabled` applies again once it ends.
-      {...(disabled !== undefined && !(busy && !asChild) ? { disabled } : {})}
+      {...(disabled !== undefined && !running ? { disabled } : {})}
       className={cn(
         buttonVariants({ variant, size }),
         locked && !busy && disabled !== true && [LOCKED_LOOK[variant], LOCKED_FORCED],
