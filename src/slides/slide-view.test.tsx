@@ -1011,3 +1011,63 @@ describe("SlideView past-page notices of a master", () => {
     );
   });
 });
+
+// SUI-FEATURE-230 rev 5 §Rahmen (#538): a bordered image lies in its frame less the border, and its
+// crop refers to that area: as much of it is hidden on one side as on the opposite one.
+describe("SlideView bordered image", () => {
+  const page = SLIDE_SHOWCASE.pages[0]!;
+  const bordered = async (crop: { zoom: number; offsetX: number; offsetY: number }) => {
+    const document = {
+      ...SLIDE_SHOWCASE,
+      pages: [
+        {
+          ...page,
+          elements: page.elements?.map((element) =>
+            element.id === "photo"
+              ? {
+                  ...element,
+                  crop,
+                  border: { color: { kind: "free", value: "#dc2626" }, width: 10 },
+                }
+              : element,
+          ),
+        },
+      ],
+    } as SlideViewProps["document"];
+    await drawn({ document });
+    const image = screen.getByRole("img", { name: "Hills under a sun" });
+    const [left, top, width, height] = ["left", "top", "width", "height"].map((key) =>
+      parseFloat(image.style.getPropertyValue(key)),
+    ) as [number, number, number, number];
+    // The area inside the border is 580 × 380 (600 × 400 less 10 px on each side).
+    return { left: 0 - left, right: left + width - 580, top: 0 - top, bottom: top + height - 380 };
+  };
+
+  it("hides no image of an unzoomed bordered image", async () => {
+    expect(await bordered({ zoom: 1, offsetX: 0, offsetY: 0 })).toEqual({
+      left: 0,
+      right: 0,
+      top: 0,
+      bottom: 0,
+    });
+  });
+
+  it("hides as much on opposite sides of a zoomed bordered image", async () => {
+    expect(await bordered({ zoom: 1.5, offsetX: 0, offsetY: 0 })).toEqual({
+      left: 145,
+      right: 145,
+      top: 95,
+      bottom: 95,
+    });
+  });
+
+  // A crop stored for the whole frame (before rev 5) reaches past the area's limit: drawn at it.
+  it("draws a crop past the area's reach at its limit, leaving no gap", async () => {
+    expect(await bordered({ zoom: 1.5, offsetX: 150, offsetY: -100 })).toEqual({
+      left: 0,
+      right: 290,
+      top: 190,
+      bottom: 0,
+    });
+  });
+});

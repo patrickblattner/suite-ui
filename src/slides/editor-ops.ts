@@ -959,6 +959,17 @@ export function distributeElements(
 // the frame, which stays as it is.
 export type ImageCrop = { zoom: number; offsetX: number; offsetY: number };
 
+// The area an element's crop refers to (`SUI-FEATURE-230` rev 5 §Rahmen): its frame less a border on
+// each side, where a bordered image lies; `width` and `height` are what the crop functions take.
+export function cropArea(element: SlideElement): { width: number; height: number; border: number } {
+  const border = element.type === "image" ? (element.border?.width ?? 0) : 0;
+  return {
+    width: Math.max(0, element.width - 2 * border),
+    height: Math.max(0, element.height - 2 * border),
+    border,
+  };
+}
+
 // A crop that keeps the image covering its frame: zoomed at least 1, shifted no further than the
 // zoomed image reaches past the frame on each side.
 export function clampCrop(width: number, height: number, crop: ImageCrop): ImageCrop {

@@ -10,6 +10,7 @@ import {
   chartData,
   CROP_ZOOM_MAX,
   clampCrop,
+  cropArea,
   croppedImageBox,
   drawnBox,
   findElement,
@@ -1039,6 +1040,32 @@ describe("image crop", () => {
     });
     // Zoomed 1.5: it reaches 100 px past each side and 50 px past top and bottom.
     expect(clampCrop(400, 200, { zoom: 1.5, offsetX: 130, offsetY: -80 })).toEqual({
+      zoom: 1.5,
+      offsetX: 100,
+      offsetY: -50,
+    });
+  });
+
+  // SUI-FEATURE-230 rev 5 §Rahmen (#538): a bordered image's crop refers to the frame less its border.
+  it("crops a bordered image in the frame less its border", () => {
+    const plain = {
+      type: "image",
+      id: "u",
+      x: 0,
+      y: 0,
+      width: 420,
+      height: 220,
+      media: { id: "m" },
+    };
+    const [image, unbordered] = doc([
+      { ...plain, id: "i", border: { color: { kind: "free", value: "#000000" }, width: 10 } },
+      plain,
+    ]).pages[0]!.elements as [SlideElement, SlideElement];
+    expect(cropArea(image)).toEqual({ width: 400, height: 200, border: 10 });
+    expect(cropArea(unbordered)).toEqual({ width: 420, height: 220, border: 0 });
+    // Zoomed 1.5 in its 400 × 200 area: it reaches 100 px past each side, 50 px past top and bottom.
+    const { width, height } = cropArea(image);
+    expect(clampCrop(width, height, { zoom: 1.5, offsetX: 130, offsetY: -80 })).toEqual({
       zoom: 1.5,
       offsetX: 100,
       offsetY: -50,

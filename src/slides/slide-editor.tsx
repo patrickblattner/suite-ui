@@ -73,6 +73,7 @@ import {
   libraryElement,
   CROP_ZOOM_MAX,
   clampCrop,
+  cropArea,
   croppedImageBox,
   deleteElements,
   type ImageCrop,
@@ -662,6 +663,15 @@ function TransitionFields({
 // panel. Every change of the document is a step of the history (`useSlideHistory`); Save hands the
 // validated document to the app, and leaving with a draft asks first (`GL-UI-007`). `Esc` goes from
 // the inside out: a child's group, no selection, an open drawer, then leaving.
+// An image's crop clamped to the area it refers to, as the view draws it (`SUI-FEATURE-230` rev 5).
+function shownCrop(image: Extract<SlideElement, { type: "image" }>): ImageCrop {
+  const { width, height } = cropArea(image);
+  return clampCrop(width, height, image.crop);
+}
+
+const sameCrop = (a: ImageCrop, b: ImageCrop) =>
+  a.zoom === b.zoom && a.offsetX === b.offsetX && a.offsetY === b.offsetY;
+
 export function SlideEditor({
   document: source,
   title,
@@ -886,14 +896,14 @@ function Editor({
   const cropping =
     cropState?.selection === selection && stored?.type === "image" ? cropState : undefined;
   const document = cropping === undefined ? base : withCrop(base, page, cropping.id, cropping.crop);
+  // The stored crop as cropping starts from it: clamped to the area inside the border, as the view
+  // draws it, so a crop stored for the whole frame (before `SUI-FEATURE-230` rev 5) shows, shifts and
+  // fills the fields within its reach (#538). Unchanged, it is no change.
+  const storedCrop = stored?.type === "image" ? shownCrop(stored) : undefined;
   // A crop being set is a change not yet in the document: the header and the leave guard see it
   // (`GL-UI-007`); leaving the canvas keeps it (see `keepCropOnLeave`).
   const pendingCrop =
-    cropping !== undefined &&
-    stored?.type === "image" &&
-    (cropping.crop.zoom !== stored.crop.zoom ||
-      cropping.crop.offsetX !== stored.crop.offsetX ||
-      cropping.crop.offsetY !== stored.crop.offsetY);
+    cropping !== undefined && storedCrop !== undefined && !sameCrop(cropping.crop, storedCrop);
   const dirty = history.document !== saved || pendingCrop;
   const pageData = document.pages[page] ?? document.pages[0];
   const elements = pageData?.elements ?? [];
@@ -981,12 +991,12 @@ function Editor({
     if (cropping !== undefined) {
       const image = findElement(elements, cropping.id)?.element;
       if (image !== undefined) {
-        const next = withCrop(
-          current,
-          page,
-          cropping.id,
-          clampCrop(image.width, image.height, cropping.crop),
-        );
+        const { width, height } = cropArea(image);
+        const crop = clampCrop(width, height, cropping.crop);
+        const next =
+          storedCrop !== undefined && sameCrop(crop, storedCrop)
+            ? current
+            : withCrop(current, page, cropping.id, crop);
         if (next !== current) apply(() => next);
         current = next;
       }
@@ -1215,41 +1225,30 @@ function Editor({
   // listener of its own: React's wheel listener cannot prevent the scroll).
   const croppedImage =
     cropping === undefined ? undefined : findElement(elements, cropping.id)?.element;
-  // The width of its border: the view draws the image inside it, shifted by it (Codex CX1, #426).
-  const cropBorder = croppedImage?.type === "image" ? (croppedImage.border?.width ?? 0) : 0;
+  // The area its crop refers to: the frame less its border, where the view lays the image
+  // (`SUI-FEATURE-230` rev 5 §Rahmen).
+  const cropFrame = croppedImage === undefined ? undefined : cropArea(croppedImage);
+  const cropBorder = cropFrame?.border ?? 0;
   // The whole image being cropped where it is drawn, its rest outside the frame included: a press
-  // on it shifts the image, a press beside it applies the crop (`SUI-FEATURE-230`).
-  const cropWhole =
-    croppedImage === undefined || cropping === undefined
-      ? undefined
-      : croppedImageBox(placedBox(elements, croppedImage), {
-          ...cropping.crop,
-          offsetX: cropping.crop.offsetX + cropBorder,
-          offsetY: cropping.crop.offsetY + cropBorder,
-        });
-  // The part of the whole image a crop can bring into view: shifted by the border, the image's last two
-  // border widths on the right and at the bottom never show, so this is the whole image less them,
-  // which is the unshifted whole image less a border on each side: an equal rest about the frame (#493).
-  const cropReach = (() => {
-    if (croppedImage === undefined || cropping === undefined) return undefined;
-    const { box, rotation } = croppedImageBox(placedBox(elements, croppedImage), cropping.crop);
-    const inset = {
-      x: box.x + cropBorder,
-      y: box.y + cropBorder,
-      width: box.width - 2 * cropBorder,
-      height: box.height - 2 * cropBorder,
-    };
-    return { box: inset, rotation };
+  // on it shifts the image, a press beside it applies the crop (`SUI-FEATURE-230`). It is zoomed and
+  // shifted about the area inside the border, so its rest is even about the frame.
+  const cropWhole = (() => {
+    if (croppedImage === undefined || cropFrame === undefined || cropping === undefined) {
+      return undefined;
+    }
+    const { box, rotation } = placedBox(elements, croppedImage);
+    const inner = { x: box.x + cropBorder, y: box.y + cropBorder, ...cropFrame };
+    return croppedImageBox({ box: inner, rotation }, cropping.crop);
   })();
-  // A press on the image being cropped: on the part of it a crop can bring in or on its frame with the
-  // border, which a border's shift leaves partly beside that part (left and top as right and bottom, #426).
+  // A press on the image being cropped: on the whole image or on its frame with the border, which lies
+  // beside the whole image at 100 % (#426).
   const onCropImage = (point: Point) =>
-    cropReach !== undefined &&
+    cropWhole !== undefined &&
     croppedImage !== undefined &&
-    (containsPoint(cropReach.box, cropReach.rotation, point) ||
-      containsPoint(placedBox(elements, croppedImage).box, cropReach.rotation, point));
-  const croppedWidth = croppedImage?.width;
-  const croppedHeight = croppedImage?.height;
+    (containsPoint(cropWhole.box, cropWhole.rotation, point) ||
+      containsPoint(placedBox(elements, croppedImage).box, cropWhole.rotation, point));
+  const croppedWidth = cropFrame?.width;
+  const croppedHeight = cropFrame?.height;
   React.useEffect(() => {
     const node = canvas.current;
     if (node === null || croppedWidth === undefined || croppedHeight === undefined) return;
@@ -1363,6 +1362,7 @@ function Editor({
     croppedImage?.type === "image" ? view.resolveMedia?.(croppedImage.media.id) : undefined;
   const cropRest =
     cropWhole === undefined ||
+    cropFrame === undefined ||
     cropping === undefined ||
     croppedImage?.type !== "image" ||
     cropSrc === undefined ||
@@ -1370,8 +1370,8 @@ function Editor({
       ? undefined
       : (() => {
           const { width, height } = cropWhole.box;
-          const left = (width - croppedImage.width) / 2 - cropping.crop.offsetX - cropBorder;
-          const top = (height - croppedImage.height) / 2 - cropping.crop.offsetY - cropBorder;
+          const left = (width - cropFrame.width) / 2 - cropping.crop.offsetX - cropBorder;
+          const top = (height - cropFrame.height) / 2 - cropping.crop.offsetY - cropBorder;
           const [x0, y0] = [left * zoom, top * zoom];
           const [x1, y1] = [(left + croppedImage.width) * zoom, (top + croppedImage.height) * zoom];
           const r =
@@ -1385,9 +1385,6 @@ function Editor({
             src: cropSrc,
             flipped: croppedImage.flipped,
             clip: `path(evenodd, "${outer} ${hole}")`,
-            // The rest shown is the part a crop can bring in: the image less its last two border
-            // widths on the right and at the bottom, which no crop shows (#493).
-            reach: `inset(0 ${2 * cropBorder * zoom}px ${2 * cropBorder * zoom}px 0)`,
           };
         })();
   // Where the dimmed rest may show, around the page: the canvas area's content with its padding (`p-6`),
@@ -1706,7 +1703,7 @@ function Editor({
     if (hit?.type === "image" && !hit.locked) {
       const ids = [hit.id];
       setSelection(ids);
-      setCropping({ id: hit.id, crop: hit.crop, selection: ids });
+      setCropping({ id: hit.id, crop: shownCrop(hit), selection: ids });
       return;
     }
     // A double click on a text field starts editing it, on a table its cell under the pointer
@@ -1759,10 +1756,8 @@ function Editor({
         cropping === undefined ? undefined : findElement(elements, cropping.id)?.element;
       if (image === undefined || cropping === undefined) return;
       const step = { x: point.x - drag.start.x, y: point.y - drag.start.y };
-      setCropping({
-        ...cropping,
-        crop: panCrop(image.width, image.height, drag.crop, step, drag.rotation),
-      });
+      const { width, height } = cropArea(image);
+      setCropping({ ...cropping, crop: panCrop(width, height, drag.crop, step, drag.rotation) });
       return;
     }
     if (drag.kind === "marquee") {
@@ -2165,8 +2160,12 @@ function Editor({
     if (cropping === undefined) return;
     const image = findElement(elements, cropping.id)?.element;
     if (keep && image !== undefined) {
-      const crop = clampCrop(image.width, image.height, kept ?? cropping.crop);
-      apply((current) => withCrop(current, page, cropping.id, crop));
+      const { width, height } = cropArea(image);
+      const crop = clampCrop(width, height, kept ?? cropping.crop);
+      // Left as it started, a crop stored past its reach stays as stored (#538).
+      if (storedCrop === undefined || !sameCrop(crop, storedCrop)) {
+        apply((current) => withCrop(current, page, cropping.id, crop));
+      }
     }
     setCropping(undefined);
     const text = t(keep ? "slides.editor.cropApplied" : "slides.editor.cropCancelled");
@@ -2261,6 +2260,7 @@ function Editor({
     const { id, crop } = state;
     const image = findElement(elements, id)?.element;
     if (image === undefined) return;
+    const { width, height } = cropArea(image);
     const step = event.shiftKey ? 10 : 1;
     const shift = {
       ArrowLeft: { x: -step, y: 0 },
@@ -2280,9 +2280,9 @@ function Editor({
       endCrop(false);
     } else if (shift !== undefined) {
       const rotation = placedBox(elements, image).rotation;
-      setCropping({ ...state, crop: panCrop(image.width, image.height, crop, shift, rotation) });
+      setCropping({ ...state, crop: panCrop(width, height, crop, shift, rotation) });
     } else if (factor !== undefined) {
-      setCropping({ ...state, crop: zoomCrop(image.width, image.height, crop, factor) });
+      setCropping({ ...state, crop: zoomCrop(width, height, crop, factor) });
     } else {
       return;
     }
@@ -2325,7 +2325,7 @@ function Editor({
     // Enter on one selected image starts cropping it, as a double click does.
     if (event.key === "Enter" && single?.type === "image" && !single.locked) {
       event.preventDefault();
-      setCropping({ id: single.id, crop: single.crop, selection });
+      setCropping({ id: single.id, crop: shownCrop(single), selection });
       return;
     }
     // Enter on one selected text field or table starts editing it, as a double click does.
@@ -2625,8 +2625,8 @@ function Editor({
   // `ends` (leaving, Enter) closes the typing from where it started: either way the next typing
   // starts from the crop then, never from an older one (#495, #500).
   const zoomCropTo = (zoom: number, ends = false) => {
-    if (cropping === undefined || croppedImage === undefined) return;
-    const { width, height } = croppedImage;
+    if (cropping === undefined || cropFrame === undefined) return;
+    const { width, height } = cropFrame;
     const stepped = !ends && cropZoomStep.current;
     const from = stepped ? cropping.crop : (cropZoomRun.from ?? cropping.crop);
     const crop = zoomCrop(width, height, from, zoom / from.zoom);
@@ -2641,7 +2641,7 @@ function Editor({
   const cropZoomRevision =
     cropping === undefined ? "" : `${travels}:${cropping.id}:${cropZoomRun.count}`;
   const cropFields =
-    cropping === undefined || croppedImage === undefined ? null : (
+    cropping === undefined || cropFrame === undefined ? null : (
       <section
         className="flex flex-col gap-2"
         data-crop-fields=""
@@ -2695,8 +2695,8 @@ function Editor({
                   setCropping({
                     ...cropping,
                     crop: zoomCrop(
-                      croppedImage.width,
-                      croppedImage.height,
+                      cropFrame.width,
+                      cropFrame.height,
                       cropping.crop,
                       value / cropping.crop.zoom,
                     ),
@@ -2738,8 +2738,8 @@ function Editor({
             ).map(([key, label]) => {
               // How far the zoomed image reaches past the frame on this axis: the clamp's bounds, named
               // under the field (`GL-UX-001`); at 100 % it cannot shift at all.
-              const side = key === "offsetX" ? croppedImage.width : croppedImage.height;
-              const reach = clampCrop(croppedImage.width, croppedImage.height, {
+              const side = key === "offsetX" ? cropFrame.width : cropFrame.height;
+              const reach = clampCrop(cropFrame.width, cropFrame.height, {
                 ...cropping.crop,
                 [key]: side * cropping.crop.zoom,
               })[key];
@@ -2760,7 +2760,7 @@ function Editor({
                   onValue={(value) =>
                     setCropping({
                       ...cropping,
-                      crop: clampCrop(croppedImage.width, croppedImage.height, {
+                      crop: clampCrop(cropFrame.width, cropFrame.height, {
                         ...cropping.crop,
                         [key]: value,
                       }),
@@ -3533,25 +3533,19 @@ function Editor({
                     }}
                     data-testid="slide-editor-crop-rest"
                   >
+                    <img
+                      src={cropRest.src}
+                      alt=""
+                      draggable={false}
+                      className="size-full max-w-none object-cover"
+                      style={{ transform: cropRest.flipped ? "scaleX(-1)" : undefined }}
+                      onError={() => setBrokenCropSrc(cropRest.src)}
+                    />
+                    {/* Darkened as the package's `CropEditor` darkens what lies outside its frame. */}
                     <div
-                      className="absolute inset-0"
-                      style={{ clipPath: cropRest.reach }}
-                      data-testid="slide-editor-crop-reach"
-                    >
-                      <img
-                        src={cropRest.src}
-                        alt=""
-                        draggable={false}
-                        className="size-full max-w-none object-cover"
-                        style={{ transform: cropRest.flipped ? "scaleX(-1)" : undefined }}
-                        onError={() => setBrokenCropSrc(cropRest.src)}
-                      />
-                      {/* Darkened as the package's `CropEditor` darkens what lies outside its frame. */}
-                      <div
-                        className="absolute inset-0 bg-black/50"
-                        data-testid="slide-editor-crop-scrim"
-                      />
-                    </div>
+                      className="absolute inset-0 bg-black/50"
+                      data-testid="slide-editor-crop-scrim"
+                    />
                   </div>
                 </div>
               )}

@@ -10713,10 +10713,48 @@ test("slide editor: crop mode lines the rest up with a bordered image", async ({
   await offsetX.fill("-999");
   await offsetY.fill("-999");
   await offsetX.focus();
-  await expect(offsetY).toHaveValue("-62.5");
+  // Zoomed 150 % in the 380 × 230 area inside the border (`SUI-FEATURE-230` rev 5).
+  await expect(offsetY).toHaveValue("-57.5");
   await page.mouse.move(0, 0);
   expect(await pixelAt(page, right.x, right.y)).toEqual(red);
   expect(await pixelAt(page, bottom.x, bottom.y)).toEqual(red);
+});
+
+// SUI-FEATURE-230 rev 5 AC6 (#538): a bordered image lies in the frame less its border, 380 × 230 at
+// (210, 110); as much of it is hidden left as right and above as below, in the view and in crop mode,
+// unzoomed and zoomed. Measured at the drawn image's edge pixels against the area's.
+test("slide editor: a bordered image is cropped evenly on opposite sides", async ({ page }) => {
+  await page.goto("/?page=slide-editor&lng=en&picture=border");
+  const { editor, image, at, centre } = await pictureEditor(page, false);
+  const [start, end] = [at(210, 110), at(590, 340)];
+  // Left, right, top, bottom: how far the drawn image reaches past the area.
+  const hidden = async (drawn: Locator, sides: number[]) => {
+    const box = (await drawn.boundingBox())!;
+    const past = [
+      start.x - box.x,
+      box.x + box.width - end.x,
+      start.y - box.y,
+      box.y + box.height - end.y,
+    ];
+    past.forEach((side, index) => expect(side).toBeCloseTo(sides[index]!, 0));
+  };
+  // In the view: none hidden.
+  await hidden(image, [0, 0, 0, 0]);
+  // In crop mode at 100 %, the whole image is that area; zoomed 150 %, 95 px left and right, 57.5
+  // above and below.
+  await page.mouse.dblclick(centre.x, centre.y);
+  const rest = page.getByTestId("slide-editor-crop-rest");
+  await expect(rest).toBeVisible();
+  await hidden(rest, [0, 0, 0, 0]);
+  for (let step = 0; step < 5; step += 1) await page.keyboard.press("+");
+  await expect(editor.getByRole("slider", { name: "Zoom" })).toHaveAttribute(
+    "aria-valuetext",
+    "150%",
+  );
+  await hidden(rest, [95, 95, 57.5, 57.5]);
+  await page.keyboard.press("Enter");
+  await expect(rest).toHaveCount(0);
+  await hidden(image, [95, 95, 57.5, 57.5]);
 });
 
 // SUI-FEATURE-230 (UX review): each offset field names its reach — none at 100 % — and shows the

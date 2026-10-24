@@ -5,7 +5,7 @@ import { cn } from "../lib/cn.js";
 import { OverflowTooltip } from "../ui/tooltip.js";
 import type { SlideBrandSet } from "./brand.js";
 import { safeParseSlideDocument, type SlideDocumentError } from "./document.js";
-import { drawnBox, overflowingIds } from "./editor-ops.js";
+import { clampCrop, cropArea, drawnBox, overflowingIds } from "./editor-ops.js";
 import {
   animationOf,
   animationOrders,
@@ -549,8 +549,11 @@ function image(draw: Draw, element: ElementOf<"image">) {
     draw.missingMedia.add(element.media.id);
     return <Stand text={draw.t("slides.missingMedia", { id: element.media.id })} />;
   }
-  const { width: w, height: h } = element;
-  const { zoom, offsetX, offsetY } = element.crop;
+  // The image lies inside the border, in the frame less a border on each side; its crop refers to
+  // that area, so a crop cuts opposite sides evenly (`SUI-FEATURE-230` rev 5 §Rahmen). A crop stored
+  // for the whole frame (before rev 5) is drawn at that area's limit, never leaving a gap.
+  const { width: w, height: h } = cropArea(element);
+  const { zoom, offsetX, offsetY } = clampCrop(w, h, element.crop);
   return (
     <div
       style={{
