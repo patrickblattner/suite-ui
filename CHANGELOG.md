@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased — #511, GL-UI-016/GL-UI-017: Hint and RadioGroup follow-ups from the #438 reviews
+
+- **Transfer formats (#511):** the `SlideEditor` transfer dialog's format options carry `data-tooltip-row` like its scope options, so an option's bubble stands beside the labels it would reach and covers no other format's label.
+- **RadioGroup Home/End (#511):** in the package `RadioGroup`, Home/End and PageUp/PageDown, which radix lets move the focus to the first or last option, now check that option as the arrow keys do, so focus and checked option never part.
+- **Narrowed bubble beside a group (#511):** when a bubble beside a group narrows and grows taller (#445), the group's extent is taken again at that height, so it stands past a lower control of its group it now reaches instead of over it.
+- **Field pairs (#511):** a lone `Field` beside a column or card holding several fields is no longer grouped with the whole page layout when one of those fields stands at its height: such a neighbour is a layout of its own, never a field's wrapper, and the climb ends there. The lone field's group is itself with the layout's fields at its height, so its bubble stands past them; the layout's other controls only bound the gaps.
+- **Strings (#511):** the Spanish entrance-effect value hint is shortened from 120 to 113 characters ("lo muestra ya" for "lo muestra al inicio", as de/en "at once").
+- **Gallery (#511):** the LabelWithHelp demo builds its `aria-describedby` with `helpIdFor`; `?page=slide-editor&formats=three` offers a square format besides, its label longer than the portrait one's.
+- **Tests (#511):** Home/End/PageUp/PageDown check the option; a narrowed bubble's extent is retaken at its height; a lone field 24 px beside a column of fields stands its 320 px bubble past the column's field at its height; the help-id scan covers `gallery/`. The gallery checks that a transfer format's bubble covers no other format's label, and pins that a wrapped page action's bubble on line 2 stands past line 1 and covers no action of either line.
+
+**Migration:** none for the API; no `data-testid` changes. One `es` string changes (`slides.editor.animationEntranceValueHint`), so 2 gallery baselines change, `gallery-es-{light,dark}.png` (the string list, regenerated on top of #514).
+
 ## Unreleased — #514, follow-ups of #446: element library app grid, error advice, one shape order
 
 - **App entries grid (#514):** the app's entries in the element library (`slide-editor-library-app`) were one tab stop each. They now use the same roving grid as the shapes and the icons: one tab stop, the arrows move inside the two columns, Home and End go to the first and last, an arrow past the edge does nothing. The grid is a `group` named by its heading.

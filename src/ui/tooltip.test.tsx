@@ -1389,6 +1389,58 @@ describe("tooltip placement in a row", () => {
     expect((bubble?.parentElement as HTMLElement).style.transform).toMatch(/^translate\(148px,/);
   });
 
+  // #511: a column of fields is a layout of its own, never a field's wrapper: a lone field beside it
+  // is grouped with the column's field at its height only, never with the page's whole layout, and
+  // its bubble, 24 px past the lone field and 320 px wide, stands past that field, not over it.
+  it("a lone field beside a column of fields stands past the column's field at its height", async () => {
+    layOut(1000, { bubble: [0, 320] });
+    const boxes: Record<string, [left: number, width: number, top: number, height: number]> = {
+      "field-lone": [0, 140, 60, 50],
+      "input-lone": [0, 140, 76, 32],
+      column: [164, 140, 60, 290],
+      "field-r0": [164, 140, 60, 50],
+      "input-r0": [164, 140, 76, 32],
+      "field-r1": [164, 140, 120, 50],
+      "field-r2": [164, 140, 240, 50],
+    };
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      const bubble =
+        this.dataset.slot === "tooltip-content" ||
+        this.hasAttribute("data-radix-popper-content-wrapper");
+      if (bubble) return new DOMRect(0, 0, 320, 32);
+      const [left, width, top, height] = boxes[this.dataset.testid ?? ""] ?? [0, 0, 0, 0];
+      return new DOMRect(left, top, width, height);
+    });
+    render(
+      <div>
+        <div>
+          <Field label="lone" htmlFor="lone" valueHint="lone value" data-testid="field-lone">
+            <Input id="lone" data-testid="input-lone" />
+          </Field>
+        </div>
+        <div data-testid="column">
+          {[0, 1, 2].map((index) => (
+            <Field
+              key={index}
+              label={`r${index}`}
+              htmlFor={`r${index}`}
+              valueHint={`r${index} value`}
+              data-testid={`field-r${index}`}
+            >
+              <Input id={`r${index}`} data-testid={`input-r${index}`} />
+            </Field>
+          ))}
+        </div>
+      </div>,
+    );
+    const bubble = await placedBubble("input-lone");
+    expect(bubble).toHaveAttribute("data-side", "right");
+    // Past the column's field at its height (164 + 140) and 8 px apart: 312, its 320 px clear of it.
+    expect((bubble?.parentElement as HTMLElement).style.transform).toMatch(/^translate\(312px,/);
+  });
+
   // #441: a control of another bar at the bubble's height (a canvas's floating actions beside a panel)
   // breaks the side into gaps: the bubble stands in the nearest gap that holds it, past that bar.
   it("stands past another bar's control at its height", async () => {
@@ -1531,6 +1583,51 @@ describe("tooltip placement in a row", () => {
     // Rooms of 684, 434, 234 and 202 px, each taller; 180 px high every control counts and the widest
     // gap is the 152 px between b2 and b3.
     expect(bubble.style.getPropertyValue("--tooltip-room")).toBe("152px");
+  });
+
+  // #511: narrowed, the bubble grows taller and reaches a lower option of its own group: the group's
+  // extent is taken again at that height, so the bubble stands past that option, not over it.
+  it("takes the group's extent again at the narrowed bubble's height", async () => {
+    layOut(1000, { bubble: [0, 900] });
+    const boxes: Record<string, [left: number, width: number, top: number, height: number]> = {
+      row: [0, 1000, 100, 60],
+      "label-x": [0, 90, 100, 16],
+      "text-x": [0, 10, 100, 16],
+      "label-y": [0, 400, 140, 16],
+      "text-y": [0, 10, 140, 16],
+    };
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      if (this.dataset.slot === "tooltip-content") {
+        // 32 px high at its full width, 60 px narrowed: then it reaches label Y from 140.
+        const room = parseFloat(this.style.getPropertyValue("--tooltip-room"));
+        return Number.isNaN(room)
+          ? new DOMRect(0, 96, 900, 32)
+          : new DOMRect(0, 96, Math.min(900, room), 60);
+      }
+      const [left, width, top, height] = boxes[this.dataset.testid ?? ""] ?? [0, 0, 0, 0];
+      return new DOMRect(left, top, width, height);
+    });
+    render(
+      <div data-tooltip-row="" data-testid="row">
+        {(["x", "y"] as const).map((id) => (
+          <label key={id} htmlFor={id} data-testid={`label-${id}`}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span data-testid={`text-${id}`}>{id}</span>
+              </TooltipTrigger>
+              <TooltipContent>{`${id} hint`}</TooltipContent>
+            </Tooltip>
+          </label>
+        ))}
+      </div>,
+    );
+    const bubble = (await placedBubble("text-x")) as HTMLElement;
+    expect(bubble).toHaveAttribute("data-side", "right");
+    // Right of label Y (0 + 400) and 8 px apart, narrowed to the 584 px up to the viewport's 992.
+    expect((bubble.parentElement as HTMLElement).style.transform).toMatch(/^translate\(408px,/);
+    expect(bubble.style.getPropertyValue("--tooltip-room")).toBe("584px");
   });
 
   // #441: a closed hint reads no layout, however often its form renders: a field pair is found only

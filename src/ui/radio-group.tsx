@@ -5,12 +5,25 @@ import { RadioGroup as RadioGroupPrimitive } from "radix-ui";
 import { cn } from "../lib/cn.js";
 import { useFieldErrorAttributes } from "./field-error.js";
 
-const ARROW_KEYS = ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"];
+// The keys that move the focus to another option in radix: the arrow keys, and Home/End and
+// PageUp/PageDown to the first or last one. Each checks the option it focuses, so focus and checked
+// option never part (#511).
+const FOCUS_KEYS = [
+  "ArrowUp",
+  "ArrowDown",
+  "ArrowLeft",
+  "ArrowRight",
+  "Home",
+  "End",
+  "PageUp",
+  "PageDown",
+];
 
-// An arrow key moves the focus to the next option and checks it (WAI-ARIA radio group pattern, #438).
+// A focus key moves the focus to another option and checks it (WAI-ARIA radio group pattern, #438).
 // radix checks on that focus only while the key is still down, but it moves the focus in a timeout:
 // a key released before the timeout ran (a quick tap, a synthesized key press) left the option
-// unchecked. So the group checks an option focused after an arrow key that radix did not check.
+// unchecked; Home/End and PageUp/PageDown it never checks. So the group checks an option focused
+// after a focus key that radix did not check.
 function RadioGroup({
   className,
   onKeyDown,
@@ -20,8 +33,8 @@ function RadioGroup({
   ...props
 }: React.ComponentProps<typeof RadioGroupPrimitive.Root>) {
   const fieldError = useFieldErrorAttributes();
-  // "arrow": an arrow key moved the focus, which has not arrived yet; "checked": radix checked it.
-  const arrow = React.useRef<"none" | "arrow" | "checked">("none");
+  // "moved": a focus key moved the focus, which has not arrived yet; "checked": radix checked it.
+  const focusKey = React.useRef<"none" | "moved" | "checked">("none");
   const presses = React.useRef(0);
   return (
     <RadioGroupPrimitive.Root
@@ -30,28 +43,29 @@ function RadioGroup({
       className={cn("grid gap-2", className)}
       onKeyDown={(event) => {
         onKeyDown?.(event);
-        arrow.current = ARROW_KEYS.includes(event.key) ? "arrow" : "none";
-        if (arrow.current === "none") return;
-        // An arrow that moves no focus (a key across the group's orientation, its end without loop, a
-        // single option) leaves nothing pending: radix's own timeout, which moves the focus, runs first.
+        focusKey.current = FOCUS_KEYS.includes(event.key) ? "moved" : "none";
+        if (focusKey.current === "none") return;
+        // A focus key that moves no focus (a key across the group's orientation, its end without loop,
+        // a single option) leaves nothing pending: radix's own timeout, which moves the focus, runs
+        // first.
         const press = ++presses.current;
         setTimeout(() => {
-          if (presses.current === press && arrow.current === "arrow") arrow.current = "none";
+          if (presses.current === press && focusKey.current === "moved") focusKey.current = "none";
         });
       }}
       onClick={(event) => {
         onClick?.(event);
-        if (arrow.current === "arrow") arrow.current = "checked";
+        if (focusKey.current === "moved") focusKey.current = "checked";
       }}
       onFocus={(event) => {
         onFocus?.(event);
-        const pending = arrow.current === "arrow";
-        arrow.current = "none";
+        const pending = focusKey.current === "moved";
+        focusKey.current = "none";
         if (pending && event.target.getAttribute("role") === "radio") event.target.click();
       }}
       onBlur={(event) => {
         onBlur?.(event);
-        if (!event.currentTarget.contains(event.relatedTarget)) arrow.current = "none";
+        if (!event.currentTarget.contains(event.relatedTarget)) focusKey.current = "none";
       }}
       {...props}
     />

@@ -44,6 +44,34 @@ describe("RadioGroup arrow keys", () => {
     expect(onValueChange.mock.calls).toEqual([["b"], ["a"]]);
   });
 
+  // #511: Home/End and PageUp/PageDown move the focus to an end in radix; they check it alike.
+  it("Home/End and PageUp/PageDown check the option they focus", async () => {
+    const onValueChange = vi.fn<(value: string) => void>();
+    render(
+      <RadioGroup defaultValue="a" aria-label="Mode" onValueChange={onValueChange}>
+        {["a", "b", "c"].map((value) => (
+          <RadioGroupItem key={value} value={value} aria-label={value} />
+        ))}
+      </RadioGroup>,
+    );
+    const [a, c] = [
+      screen.getByRole("radio", { name: "a" }),
+      screen.getByRole("radio", { name: "c" }),
+    ];
+    act(() => a.focus());
+    for (const [key, to] of [
+      ["End", c],
+      ["Home", a],
+      ["PageDown", c],
+      ["PageUp", a],
+    ] as const) {
+      await tap(key);
+      expect(to).toHaveFocus();
+      expect(to).toHaveAttribute("aria-checked", "true");
+    }
+    expect(onValueChange.mock.calls).toEqual([["c"], ["a"], ["c"], ["a"]]);
+  });
+
   it("checks once when radix checks the option itself", async () => {
     const onValueChange = renderGroup();
     act(() => screen.getByRole("radio", { name: "a" }).focus());

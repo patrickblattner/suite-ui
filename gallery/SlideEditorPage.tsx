@@ -227,10 +227,18 @@ const LAYOUTS: SlideLayoutInput[] = [
   },
 ];
 
+// `?formats=three`: a square one besides, its label longer than the portrait one's above it, so the
+// transfer dialog offers two other formats (#511).
 const FORMATS: SlideFormat[] =
   PARAMS.get("formats") === "one"
     ? [SLIDE_EDITOR_DOC.format]
-    : [SLIDE_EDITOR_DOC.format, { name: "Portrait", width: 450, height: 800 }];
+    : [
+        SLIDE_EDITOR_DOC.format,
+        { name: "Portrait", width: 450, height: 800 },
+        ...(PARAMS.get("formats") === "three"
+          ? [{ name: "Square for social media", width: 600, height: 600 }]
+          : []),
+      ];
 
 export function SlideEditorPage() {
   const [saved, setSaved] = useState<SlideDocument | null>(null);

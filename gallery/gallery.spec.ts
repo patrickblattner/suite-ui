@@ -13657,6 +13657,65 @@ function shareNoArea(a: Box, b: Box) {
   );
 }
 
+// #511 (`GL-UI-016` §Lage): the format options are one group of controls, as the scope options: an
+// option's bubble stands past its own label and shares no area with another format's label. Two
+// other formats (`?formats=three`).
+test("slide editor: a transfer format's bubble covers no other format's label", async ({
+  page,
+}) => {
+  await page.goto("/?page=slide-editor&lng=en&formats=three");
+  await openEditor(page, false);
+  const bubble = page.locator("[data-slot=tooltip-content]");
+  await page.getByTestId("slide-editor-transfer").click();
+  const dialog = page.getByTestId("slide-editor-transfer-dialog");
+  const formats = await dialog
+    .getByTestId("slide-editor-transfer-formats")
+    .getByRole("radio")
+    .all();
+  expect(formats).toHaveLength(2);
+  for (const [index, radio] of formats.entries()) {
+    await page.mouse.move(0, 0);
+    await radio.hover();
+    await expect(bubble).toHaveCount(1, { timeout: 5000 });
+    const labelOf = async (option: Locator) =>
+      box(dialog.locator(`label[for="${await option.getAttribute("id")}"]`));
+    // Beside its own label, as the scope options' bubbles, and clear of the other format's.
+    const [over, own] = [await box(bubble), await labelOf(radio)];
+    expect(over.x, `format ${index}`).toBeGreaterThanOrEqual(own.x + own.width);
+    expect(shareNoArea(over, await labelOf(formats[1 - index]!)), `format ${index}`).toBe(true);
+  }
+});
+
+// #511 (`GL-UI-016` §Lage): a page's actions wrap where the drawer leaves them no room for one line.
+// Raised 4 px beside a line-2 action, the bubble reaches line 1, 2 px above: line 1's actions count
+// in the row's extent, so the bubble stands past line 1 and covers no action of either line.
+test("slide editor: a wrapped page action's bubble stands past both lines", async ({ page }) => {
+  const { editor } = await openEditor(page);
+  await editor.getByTestId("drawer-document").click();
+  const row = editor.locator("[data-tooltip-row]:has([data-testid=slide-editor-page-up])").first();
+  // Three actions of 24 px, 2 px apart, to a line.
+  await row.evaluate((node) => ((node as HTMLElement).style.width = "90px"));
+  const actions = await row.locator("button").all();
+  const boxes = await Promise.all(actions.map((action) => box(action)));
+  const lines = [...new Set(boxes.map((rect) => Math.round(rect.y)))].sort((a, b) => a - b);
+  expect(lines).toHaveLength(2);
+  const lineOne = boxes.filter((rect) => Math.round(rect.y) === lines[0]);
+  const lineTwoRight = Math.max(
+    ...boxes.filter((rect) => Math.round(rect.y) === lines[1]).map((rect) => rect.x + rect.width),
+  );
+  const lineOneRight = Math.max(...lineOne.map((rect) => rect.x + rect.width));
+  expect(lineOneRight).toBeGreaterThan(lineTwoRight);
+  const hide = row.getByTestId("slide-editor-page-hide");
+  expect(Math.round((await box(hide)).y)).toBe(lines[1]);
+  const bubble = page.locator("[data-slot=tooltip-content]");
+  await page.mouse.move(0, 0);
+  await hide.hover();
+  await expect(bubble).toHaveCount(1, { timeout: 5000 });
+  const over = await box(bubble);
+  expect(over.x).toBeGreaterThanOrEqual(lineOneRight + 8 - 1);
+  for (const rect of boxes) expect(shareNoArea(over, rect)).toBe(true);
+});
+
 // #441: at 1440 px the panel's bubbles stand left of it, over the canvas; there they cover no button
 // of the selection's floating actions, and a right-column label's bubble covers neither the left
 // label nor its input: the label line counts both labels.

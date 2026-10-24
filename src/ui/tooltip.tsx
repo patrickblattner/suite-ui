@@ -189,8 +189,13 @@ function outermost(node: Element, selector: string, within?: Element): Element |
 // nothing (`GL-UI-016` §Lage, #441). The pair is looked for at the nearest level where other fields
 // stand: the field's own siblings, or those of a wrapper an app puts around each field (#438). A
 // wrapper is climbed only while it holds no other control, and a neighbour counts by its fields on the
-// line, never by its box: a lone field beside a tall column of fields pairs with none of them.
-function fieldRowOf(node: Element): Element | null {
+// line, never by its box: a lone field beside a tall column of fields pairs with none of them. A
+// neighbour holding several fields (a column, a card) is a layout of its own, never one field's
+// wrapper: the climb ends there, and the lone field's group is itself with the fields of that layout
+// at its height, never the whole layout; the layout's other controls only bound its gaps (#511).
+// `group`: the element's group within the row, `null` where the row's own groups apply.
+type Row = { row: Element; group: readonly Element[] | null };
+function fieldRowOf(node: Element): Row | null {
   const field = node.closest(FIELD);
   if (field === null) return null;
   for (
@@ -199,16 +204,22 @@ function fieldRowOf(node: Element): Element | null {
     item = parent, parent = parent.parentElement
   ) {
     const others = [...parent.children].filter((sibling) => sibling !== item);
-    const fields = others.flatMap((sibling) =>
-      sibling.matches(FIELD) ? [sibling] : [...sibling.querySelectorAll(FIELD)],
-    );
-    if (fields.length > 0) {
+    if (others.some((sibling) => sibling.matches(FIELD) || sibling.querySelector(FIELD) !== null)) {
       const own = field.getBoundingClientRect();
-      const paired = fields.some((other) => {
+      const onLine = (other: Element) => {
         const rect = other.getBoundingClientRect();
         return rect.width > 0 && rect.bottom > own.top && rect.top < own.bottom;
-      });
-      return paired ? parent : null;
+      };
+      const partners: Element[] = [];
+      const layouts: Element[] = [];
+      for (const sibling of others) {
+        const inner = sibling.matches(FIELD) ? [sibling] : [...sibling.querySelectorAll(FIELD)];
+        (inner.length > 1 ? layouts : partners).push(...inner);
+      }
+      const beside = layouts.filter(onLine);
+      if (beside.length > 0)
+        return { row: parent, group: [field, ...partners.filter(onLine), ...beside] };
+      return partners.some(onLine) ? { row: parent, group: null } : null;
     }
     // A hidden input (a form's own value) is no control a wrapper holds.
     const control = (node: Element) =>
@@ -225,9 +236,11 @@ function fieldRowOf(node: Element): Element | null {
 
 // `measured`: whether a field pair may be found, which reads the layout. A closed bubble renders on
 // every render of its form and reads none: only marked bars count there (#441).
-function rowOf(node: Element | null, measured = true): Element | null {
+function rowOf(node: Element | null, measured = true): Row | null {
   if (node === null) return null;
-  return outermost(node, TOOLTIP_ROW) ?? (measured ? fieldRowOf(node) : null);
+  const bar = outermost(node, TOOLTIP_ROW);
+  if (bar !== null) return { row: bar, group: null };
+  return measured ? fieldRowOf(node) : null;
 }
 
 // The arrow radix adds to the side offset (`size-2.5`). It shows only where the bubble stands right next
@@ -335,59 +348,68 @@ function useRowPlacement(content: HTMLElement | null, padding: number): RowPlace
   }
   React.useLayoutEffect(() => {
     if (trigger === null || content === null) return;
-    const row = rowOf(trigger);
+    const found = rowOf(trigger);
     const own = trigger.getBoundingClientRect();
     const bubble = content.getBoundingClientRect();
     const width = bubble.width;
-    if (row === null) {
+    if (found === null) {
       const near = atElement(own, width, padding);
       // Measuring the DOM before paint is what layout effects are for.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       if (near !== null) setPlacement(near);
       return;
     }
+    const { row } = found;
     const marked = row.querySelector(TOOLTIP_GROUP) !== null;
-    const group = marked ? (outermost(trigger, TOOLTIP_GROUP, row) ?? trigger) : row;
+    const group = found.group ?? [
+      marked ? (outermost(trigger, TOOLTIP_GROUP, row) ?? trigger) : row,
+    ];
+    const inGroup = (node: Element) => group.some((member) => member.contains(node));
     const onLine = (rect: DOMRect) =>
       rect.width > 0 && rect.bottom > own.top && rect.top < own.bottom;
     const controls = [...row.querySelectorAll(ROW_CONTROL)].filter(
       (node) => !trigger.contains(node) && !node.contains(trigger),
     );
-    const mine = controls
-      .filter((node) => group.contains(node))
-      .map((node) => node.getBoundingClientRect());
+    const mine = controls.filter(inGroup).map((node) => node.getBoundingClientRect());
     // A label's hint sits on the label's text: the label's whole box is the element's in its group.
     const label = trigger.closest("label[for]")?.getBoundingClientRect() ?? own;
+    const others = controls.filter((node) => !inGroup(node));
     // The group's extent counts each of its controls the bubble would reach at its height, raised
     // beside the element: in a group of stacked options (a radio group) also the option below (#438).
-    // The popper rounds the bubble's top to a whole pixel, either way.
-    const bubbleTop = own.top - ALIGN_RAISE;
-    const reached = mine.filter(
-      (rect) =>
-        rect.width > 0 &&
-        rect.bottom > Math.floor(bubbleTop) &&
-        rect.top < Math.ceil(bubbleTop) + bubble.height,
-    );
-    const left = Math.min(own.left, label.left, ...reached.map((rect) => rect.left));
-    const right = Math.max(own.right, label.right, ...reached.map((rect) => rect.right));
-    const others = controls.filter((node) => !group.contains(node));
-    let rightBound = document.documentElement.clientWidth - padding;
-    let leftBound = padding;
-    let leftField: Element | null = null;
-    for (const node of others) {
-      const rect = node.getBoundingClientRect();
-      if (!onLine(rect)) continue;
-      if (rect.left >= right) rightBound = Math.min(rightBound, rect.left - SIDE_OFFSET);
-      if (rect.right <= left && rect.right + SIDE_OFFSET > leftBound) {
-        leftBound = rect.right + SIDE_OFFSET;
-        leftField = node;
+    // The popper rounds the bubble's top to a whole pixel, either way. A bubble that narrows grows
+    // taller and may reach more of them: the extent is taken at each height it is chosen at (#511).
+    const extentAt = (height: number) => {
+      const bubbleTop = own.top - ALIGN_RAISE;
+      const reached = mine.filter(
+        (rect) =>
+          rect.width > 0 &&
+          rect.bottom > Math.floor(bubbleTop) &&
+          rect.top < Math.ceil(bubbleTop) + height,
+      );
+      const left = Math.min(own.left, label.left, ...reached.map((rect) => rect.left));
+      const right = Math.max(own.right, label.right, ...reached.map((rect) => rect.right));
+      let rightBound = document.documentElement.clientWidth - padding;
+      let leftBound = padding;
+      let leftField: Element | null = null;
+      for (const node of others) {
+        const rect = node.getBoundingClientRect();
+        if (!onLine(rect)) continue;
+        if (rect.left >= right) rightBound = Math.min(rightBound, rect.left - SIDE_OFFSET);
+        if (rect.right <= left && rect.right + SIDE_OFFSET > leftBound) {
+          leftBound = rect.right + SIDE_OFFSET;
+          leftField = node;
+        }
       }
-    }
-    const leftText =
-      leftField?.matches(TEXT_FIELD) === true ? (leftField as HTMLInputElement) : null;
-    if (leftText !== null) {
-      leftBound = textEnd(leftText) + TEXT_CLEARANCE;
-    }
+      const leftText =
+        leftField?.matches(TEXT_FIELD) === true ? (leftField as HTMLInputElement) : null;
+      if (leftText !== null) {
+        leftBound = textEnd(leftText) + TEXT_CLEARANCE;
+      }
+      // Right next to its element the bubble keeps the arrow's length more.
+      const arrowRight = right - own.right < 1 ? ARROW_SIZE : 0;
+      const arrowLeft = own.left - left < 1 ? ARROW_SIZE : 0;
+      return { left, right, rightBound, leftBound, leftText, arrowRight, arrowLeft };
+    };
     // The controls of the other bars, which the bubble keeps clear of where it stands at their height.
     // A bar behind a modal (aria-hidden, inert) is out of play.
     const bars = [...document.querySelectorAll(TOOLTIP_ROW)]
@@ -400,9 +422,6 @@ function useRowPlacement(content: HTMLElement | null, padding: number): RowPlace
       .flatMap((bar) => [...bar.querySelectorAll(ROW_CONTROL)])
       .map((node) => node.getBoundingClientRect())
       .filter((rect) => rect.width > 0);
-    // Right next to its element the bubble keeps the arrow's length more.
-    const arrowRight = right - own.right < 1 ? ARROW_SIZE : 0;
-    const arrowLeft = own.left - left < 1 ? ARROW_SIZE : 0;
     // The popper places the bubble on whole pixels: the bounds round inward, the rooms down.
     const whole = (gaps: Gap[], arrow: number) =>
       gaps.map((gap, index) => ({
@@ -413,6 +432,8 @@ function useRowPlacement(content: HTMLElement | null, padding: number): RowPlace
     // The side and gap for a bubble of `height`: the bars' controls count over the height it takes
     // where it ends up, raised off the viewport's bottom as the lift below raises it.
     const choose = (height: number) => {
+      const extent = extentAt(height);
+      const { left, right, rightBound, leftBound, arrowRight, arrowLeft } = extent;
       const raised = own.top - ALIGN_RAISE;
       const bottom = document.documentElement.clientHeight - padding;
       const top =
@@ -442,7 +463,7 @@ function useRowPlacement(content: HTMLElement | null, padding: number): RowPlace
       const fits = width <= gapRight.room || width <= gapLeft.room;
       const side: RowPlacement["side"] =
         width <= gapRight.room || (!fits && gapRight.room >= gapLeft.room) ? "right" : "left";
-      return { fits, side, chosen: side === "right" ? gapRight : gapLeft };
+      return { fits, side, chosen: side === "right" ? gapRight : gapLeft, extent };
     };
     let choice = choose(bubble.height);
     // Narrowed to its gap it wraps and grows taller: chosen again at the height it takes there, until
@@ -464,7 +485,8 @@ function useRowPlacement(content: HTMLElement | null, padding: number): RowPlace
       if (before === "") content.style.removeProperty("--tooltip-room");
       else content.style.setProperty("--tooltip-room", before);
     }
-    const { fits, side, chosen } = choice;
+    const { fits, side, chosen, extent } = choice;
+    const { left, leftText, arrowRight, arrowLeft } = extent;
     const room = chosen.room;
     const fallback = !fits && room < ROW_MIN_WIDTH;
     const over =

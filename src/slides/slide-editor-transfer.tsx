@@ -108,6 +108,8 @@ export function TransferFormat({
               value={chosen}
               onValueChange={setChosen}
               onKeyDown={enterConfirms}
+              // One group of controls, as the scope options below (`GL-UI-016` §Lage, #511).
+              data-tooltip-row=""
               data-testid="slide-editor-transfer-formats"
             >
               {formats.map((format, index) => (

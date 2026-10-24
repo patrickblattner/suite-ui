@@ -44,7 +44,7 @@ import { InlineMessage } from "../src/ui/inline-message.js";
 import { InlineStatus } from "../src/ui/inline-status.js";
 import { Input } from "../src/ui/input.js";
 import { Label } from "../src/ui/label.js";
-import { LabelWithHelp } from "../src/ui/label-with-help.js";
+import { helpIdFor, LabelWithHelp } from "../src/ui/label-with-help.js";
 import {
   type OperationHandle,
   type OperationStart,
@@ -615,7 +615,11 @@ function Fields() {
           <LabelWithHelp htmlFor="input-filled" help="The name shown in lists">
             LabelWithHelp
           </LabelWithHelp>
-          <Input id="input-filled" defaultValue="Filled" aria-describedby="input-filled-help" />
+          <Input
+            id="input-filled"
+            defaultValue="Filled"
+            aria-describedby={helpIdFor("input-filled")}
+          />
         </div>
         <div className="flex flex-col gap-2">
           <Label htmlFor="input-disabled">Disabled</Label>
