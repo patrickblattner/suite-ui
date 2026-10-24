@@ -613,3 +613,6 @@
 {"ts":"2026-10-23T23:53:48.021Z","key":"SUI-FEATURE-106","from":2,"to":5,"disposition":"ticket","ref":"535"}
 {"ts":"2026-10-24T00:45:18.079Z","key":"SUI-FEATURE-108","from":null,"to":2,"disposition":"ticket","ref":"537"}
 {"ts":"2026-10-24T02:06:26.935Z","key":"SUI-FEATURE-230","from":4,"to":5,"disposition":"ticket","ref":"538"}
+{"ts":"2026-10-24T07:30:27.549Z","key":"GL-UI-017","from":6,"to":7,"disposition":"ticket","ref":"539"}
+{"ts":"2026-10-24T07:30:27.971Z","key":"GL-UI-038","from":null,"to":2,"disposition":"ticket","ref":"541"}
+{"ts":"2026-10-24T07:30:28.407Z","key":"GL-UI-016","from":12,"to":13,"disposition":"editorial","ref":"rev 13 states that a wrapped group stays one group — the behaviour #511 built and pinned (378a045); no code impact"}
