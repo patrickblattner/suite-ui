@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
 import { usePopupPlacement } from "../lib/popup-placement.js";
+import { Badge } from "./badge.js";
 import { useFieldErrorAttributes } from "./field-error.js";
 import { RemovableChip } from "./removable-chip.js";
 
@@ -247,7 +248,7 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
       event.preventDefault();
       event.stopPropagation();
       commit(matches[choice]);
-    } else if ((event.key === "Enter" && draft.trim() !== "") || event.key === ",") {
+    } else if (!readOnly && ((event.key === "Enter" && draft.trim() !== "") || event.key === ",")) {
       // An empty field leaves Enter to the form, so it still triggers the primary action.
       event.preventDefault();
       commit();
@@ -288,16 +289,23 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
         <ul role="list" className="contents">
           {value.map((tag, index) => (
             <li key={tag} className="flex">
-              <RemovableChip
-                label={tag}
-                removeLabel={t("tags.remove", { tag, interpolation: { escapeValue: false } })}
-                disabled={disabled || readOnly}
-                onRemove={() => {
-                  removed.current = index;
-                  remove(tag);
-                }}
-                testId={testId}
-              />
+              {readOnly ? (
+                // A chip without removal is a `Badge` (`SUI-FEATURE-007`, `GL-UI-011`, #561).
+                <Badge variant="secondary" className="h-6" data-testid={`${testId}-chip`}>
+                  {tag}
+                </Badge>
+              ) : (
+                <RemovableChip
+                  label={tag}
+                  removeLabel={t("tags.remove", { tag, interpolation: { escapeValue: false } })}
+                  disabled={disabled}
+                  onRemove={() => {
+                    removed.current = index;
+                    remove(tag);
+                  }}
+                  testId={testId}
+                />
+              )}
             </li>
           ))}
         </ul>
@@ -309,7 +317,7 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
         ref={ref}
         id={id}
         value={draft}
-        placeholder={value.length === 0 ? placeholder : undefined}
+        placeholder={value.length === 0 && !readOnly ? placeholder : undefined}
         disabled={disabled}
         readOnly={readOnly}
         {...(suggestions === undefined

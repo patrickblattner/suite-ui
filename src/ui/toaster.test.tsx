@@ -118,12 +118,15 @@ describe("Toaster: focus under a toast", () => {
     focused,
     wrap = (covered) => covered,
     action = true,
+    show = (options) => toast.success("Saved", options),
   }: {
     coveredBox?: DOMRect;
     focused?: "covered" | "free";
     wrap?: (covered: React.ReactNode) => React.ReactNode;
     // `true` is sonner's object form, any other node an own element.
     action?: React.ReactNode;
+    // How the toast is raised: the wrapped `toast.success` by default.
+    show?: (options: Parameters<typeof toast.success>[1]) => void;
   } = {}) {
     focusVisible = true;
     vi.spyOn(Element.prototype, "matches").mockImplementation(function (
@@ -155,8 +158,7 @@ describe("Toaster: focus under a toast", () => {
     );
     if (focused) act(() => screen.getByTestId(focused).focus());
     act(() => {
-      toast.success(
-        "Saved",
+      show(
         action === true
           ? { action: { label: "Undo", onClick: () => undefined } }
           : action === false
@@ -305,6 +307,30 @@ describe("Toaster: focus under a toast", () => {
     await wait(1300);
     expect(screen.getByTestId("own-action")).toBeInTheDocument();
     expect(item()).toHaveAttribute("data-removed", "false");
+  });
+
+  it("keeps a toast sonner raises unwrapped with an action past 1000 ms (#561)", async () => {
+    const item = await renderCovered({
+      focused: "covered",
+      show: (options) => toast.message("Saved", options),
+    });
+    await wait(1300);
+    expect(item()).toHaveAttribute("data-removed", "false");
+  });
+
+  it("closes a toast whose action sonner does not draw after 1000 ms (#561)", async () => {
+    const item = await renderCovered({ focused: "covered", action: "Undo" });
+    await vi.waitFor(() => expect(item()?.getAttribute("data-removed") ?? "true").toBe("true"), {
+      timeout: 1500,
+    });
+  });
+
+  it("names an own action element and Alt+T in the live region (#561)", async () => {
+    const item = await renderCovered({
+      focused: "covered",
+      action: <button type="button">Undo</button>,
+    });
+    expect(item()?.querySelector("[data-title] .sr-only")).toHaveTextContent("Action with Alt+T");
   });
 
   it("names the action and Alt+T in the live region", async () => {
