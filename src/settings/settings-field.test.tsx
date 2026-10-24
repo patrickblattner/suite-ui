@@ -120,6 +120,52 @@ describe("SettingsField", () => {
     expect(screen.getByRole("group", { name: "Mode" })).not.toHaveAttribute("aria-describedby");
   });
 
+  // #508: the group carries the help text too, after the hint, each read once.
+  it.each([false, true])("with group describes the group by its help text (hint: %s)", (hinted) => {
+    const { rerender } = render(
+      <SettingsField
+        label="Mode"
+        htmlFor="mode"
+        group
+        hint={hinted ? "How it runs." : undefined}
+        help="Applies to new sessions."
+      >
+        <RadioGroup defaultValue="a">
+          <RadioGroupItem value="a" aria-label="A" />
+        </RadioGroup>
+      </SettingsField>,
+    );
+    const group = screen.getByRole("group", { name: "Mode" });
+    expect(group).toHaveAttribute(
+      "aria-describedby",
+      hinted ? "mode-help mode-description" : "mode-description",
+    );
+    expect(group).toHaveAccessibleDescription(
+      hinted ? "How it runs. Applies to new sessions." : "Applies to new sessions.",
+    );
+    expect(screen.getByRole("radio")).not.toHaveAttribute("aria-describedby");
+    expect(screen.getByRole("radiogroup")).not.toHaveAttribute("aria-describedby");
+
+    // The error replaces the help text: the group points to it by aria-errormessage only.
+    rerender(
+      <SettingsField
+        label="Mode"
+        htmlFor="mode"
+        group
+        hint={hinted ? "How it runs." : undefined}
+        help="Applies to new sessions."
+        error="Choose a mode."
+      >
+        <RadioGroup defaultValue="a">
+          <RadioGroupItem value="a" aria-label="A" />
+        </RadioGroup>
+      </SettingsField>,
+    );
+    if (hinted) expect(group).toHaveAttribute("aria-describedby", "mode-help");
+    else expect(group).not.toHaveAttribute("aria-describedby");
+    expect(group).toHaveAttribute("aria-errormessage", "mode-error");
+  });
+
   // SUI-FEATURE-078 AC1–3: icon and text under the field in place of the help text, wired to the input.
   it("shows the error with its symbol in place of the help text and marks the input", () => {
     const { rerender } = render(

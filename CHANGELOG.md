@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — #508, GL-UI-017: a SettingsField group is described by its help text
+
+- **SettingsField group help (#508):** the `help` text under a `SettingsField` with `group` (`${htmlFor}-description`) was not on the group's `aria-describedby`, so a screen reader in focus mode skipped it: Tab lands on an option, and the caller cannot reach the group element. The group's `aria-describedby` now lists the hint id (`${htmlFor}-help`, if a `hint` is set) first and `${htmlFor}-description` second, each read once; the options still carry neither. With `error` the error replaces the help text and stays on `aria-errormessage` only. Without `group` nothing changes.
+- **Tests (#508):** a group with `help`, with and without `hint`, is described by hint and help text in that order; with `error` the help id leaves `aria-describedby`.
+
+**Migration:** none; no API, strings, `data-testid`s or baselines change. A group with `help` now announces the help text as its description.
+
 ## Unreleased — #507, GL-UI-017: a SettingsField group takes no valueHint
 
 - **SettingsField group (#507):** a `valueHint` on a `SettingsField` with `group` reached nobody, because the options of a group take no field hint. `SettingsFieldProps` now rejects `valueHint` together with `group` at type level, so the text can no longer be written and lost. Without `group` nothing changes.
