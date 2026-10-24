@@ -33,14 +33,17 @@ test.beforeEach(async ({ page }) => {
 // `ADR-TEST-016` rev 5: the pointer belongs to the scene. Every capture parks it first, on the
 // first viewport corner whose element is no control and no hoverable row, so no accidental hover
 // reaches the image; only assertions and a hover that is the subject of the shot stand between this
-// step and the capture. `src/gallery-park.test.ts` holds every `toHaveScreenshot` to it.
+// step and the capture. `src/gallery-park.test.ts` holds every capture (`toHaveScreenshot` and the
+// raw `screenshot()` probes) to it.
 const HOVERABLE = [
   "a, button, input, select, textarea, summary, label, tr",
-  "[tabindex]:not([tabindex='-1']), [data-slot=tooltip-trigger]",
+  "[tabindex]:not([tabindex='-1']), [data-slot=tooltip-trigger], [draggable=true], [contenteditable]",
   ...[
     "button",
     "link",
     "menuitem",
+    "menuitemcheckbox",
+    "menuitemradio",
     "option",
     "tab",
     "checkbox",
@@ -49,6 +52,8 @@ const HOVERABLE = [
     "slider",
     "combobox",
     "textbox",
+    "searchbox",
+    "spinbutton",
     "row",
     "gridcell",
     "treeitem",
@@ -77,7 +82,8 @@ async function parkPointer(page: Page) {
 }
 
 // Every page of the gallery and the element that tells it has rendered.
-const PAGES: [name: string, ready: (page: Page) => Locator][] = [
+// A page whose ready state hides without input names, third, the state the parked pointer wakes.
+const PAGES: [name: string, ready: (page: Page) => Locator, woken?: (page: Page) => Locator][] = [
   ["components", (page) => page.getByTestId("section-structure")],
   ["list", (page) => page.getByTestId("pagination")],
   ["tiles", (page) => page.getByTestId("tiles-error-error-retry")],
@@ -99,7 +105,11 @@ const PAGES: [name: string, ready: (page: Page) => Locator][] = [
   // SUI-FEATURE-160: the drawn slides once every view has its fonts and icons.
   ["slides", (page) => page.locator("[data-testid=slide-fit-off][data-slide-ready=true]")],
   // The player once its bar has hidden itself: a still scene without input.
-  ["slide-player", (page) => page.locator("[data-slot=slide-player-bar][data-shown=false]")],
+  [
+    "slide-player",
+    (page) => page.locator("[data-slot=slide-player-bar][data-shown=false]"),
+    (page) => page.locator("[data-slot=slide-player-bar][data-shown=true]"),
+  ],
   [
     "slide-editor",
     (page) =>
@@ -125,14 +135,16 @@ for (const lng of LANGUAGES) {
       await expect(page).toHaveScreenshot(`tokens-${lng}-${theme}.png`, { fullPage: true });
     });
 
-    for (const [name, ready] of PAGES) {
+    for (const [name, ready, woken] of PAGES) {
       test(`${name} ${lng} ${theme}`, async ({ page }) => {
         await page.goto(`/?page=${name}&lng=${lng}&theme=${theme}`);
         await expect(page.locator("html")).toHaveAttribute("lang", lng);
         await expect(ready(page)).toBeVisible();
         await parkPointer(page);
-        // The parked pointer may wake what hides without input (the slide player's bar).
-        await expect(ready(page)).toBeVisible();
+        // The parked pointer wakes what hides without input (the slide player's bar): the woken
+        // state is committed first, then it has hidden again.
+        await expect((woken ?? ready)(page)).toBeAttached();
+        await expect(ready(page)).toBeVisible({ timeout: 6000 });
         await expect(page).toHaveScreenshot(`${name}-${lng}-${theme}.png`, { fullPage: true });
       });
     }
@@ -451,7 +463,7 @@ const AXE_PAGES: [
       },
     ],
   ],
-  ...PAGES,
+  ...PAGES.map(([name, ready]): [string, (page: Page) => Locator] => [name, ready]),
   ["list", (page) => page.getByTestId("list-tabs"), "&slots=tabs"],
   [
     "list",
@@ -1512,7 +1524,6 @@ for (const theme of ["light", "dark"] as const) {
       .locator("[data-testid^=button-disabled-]")
       .evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-variant")!));
     expect(variants.length).toBeGreaterThan(0);
-    await page.mouse.move(0, 0);
     for (const variant of variants) {
       const disabled = page.getByTestId(`button-disabled-${variant}`);
       const locked = page.getByTestId(`button-locked-${variant}`);
@@ -1531,6 +1542,7 @@ for (const theme of ["light", "dark"] as const) {
       expect((await box(locked)).width).toBeCloseTo((await box(disabled)).width, 0);
       // Equal up to 1 per channel: the rasterizer antialiases the rounded corners of two boxes at
       // different x a shade apart (a few corner pixels), never the fill, label or border.
+      await parkPointer(page);
       const [a, b] = [
         await disabled.screenshot({ animations: "disabled" }),
         await locked.screenshot({ animations: "disabled" }),
@@ -1593,7 +1605,7 @@ for (const theme of THEMES) {
       await page.goto(`/?page=${pageName}&lng=en&theme=${theme}`);
       if (drawer !== null) await page.getByTestId(drawer).first().click();
       await page.locator(selector).first().waitFor({ state: "attached" });
-      await page.mouse.move(0, 0);
+      await parkPointer(page);
       const seen = await page.evaluate(
         ([sel, tok, list, labels, fills]) => {
           const canvas = document.createElement("canvas");
@@ -3761,25 +3773,32 @@ const WIDTHS = [
   [390, 844],
   [1440, 900],
 ] as const;
-const WIDTH_PAGES: (readonly [name: string, query: string, ready: (page: Page) => Locator])[] = [
+const WIDTH_PAGES: (readonly [
+  name: string,
+  query: string,
+  ready: (page: Page) => Locator,
+  woken?: (page: Page) => Locator,
+])[] = [
   ["gallery", "", (page) => page.getByTestId("gallery-language")],
   ["tokens", "page=tokens&", (page) => page.getByTestId("token-warn-text")],
-  ...PAGES.map(([name, ready]) => [name, `page=${name}&`, ready] as const),
+  ...PAGES.map(([name, ready, woken]) => [name, `page=${name}&`, ready, woken] as const),
   // Below `md` the sidebar is a closed overlay (`SUI-FEATURE-110`), so the frame tells it has rendered.
   ["shell", "page=shell&route=/dashboard&", (page) => page.getByTestId("page-title")],
 ];
 
 for (const [width, height] of WIDTHS) {
   for (const theme of THEMES) {
-    for (const [name, query, ready] of WIDTH_PAGES) {
+    for (const [name, query, ready, woken] of WIDTH_PAGES) {
       test(`${name} de ${theme} at ${width} px`, async ({ page }) => {
         await page.setViewportSize({ width, height });
         await page.goto(`/?${query}lng=de&theme=${theme}`);
         await expect(page.locator("html")).toHaveAttribute("lang", "de");
         await expect(ready(page)).toBeVisible();
         await parkPointer(page);
-        // The parked pointer may wake what hides without input (the slide player's bar).
-        await expect(ready(page)).toBeVisible();
+        // The parked pointer wakes what hides without input (the slide player's bar): the woken
+        // state is committed first, then it has hidden again.
+        await expect((woken ?? ready)(page)).toBeAttached();
+        await expect(ready(page)).toBeVisible({ timeout: 6000 });
         await expect(page).toHaveScreenshot(`${name}-de-${theme}-${width}.png`, { fullPage: true });
       });
     }
@@ -5460,8 +5479,10 @@ for (const query of ["", "&actions=1"]) {
   });
 }
 
-// The colour of one screen pixel, read back from a 1×1 screenshot.
-async function pixelAt(page: Page, x: number, y: number) {
+// The colour of one screen pixel, read back from a 1×1 screenshot. The probe parks the pointer first
+// unless the pointer is its subject (`park` false): a hover or a held drag (`ADR-TEST-016` rev 5).
+async function pixelAt(page: Page, x: number, y: number, park = true) {
+  if (park) await parkPointer(page);
   const png = await page.screenshot({ clip: { x, y, width: 1, height: 1 } });
   return page.evaluate(async (base64) => {
     const image = new Image();
@@ -7707,12 +7728,12 @@ test("sticky actions: overflow sticks with an edge shadow, the cell follows the 
   await scroller.evaluate((el) => el.scrollTo(200, 0));
   const row = page.getByTestId("list-row").first();
   const first = row.locator("td").first();
-  const probe = async () => {
+  const probe = async (park = true) => {
     const b = await box(cell);
     const y = Math.round(b.y + 2);
     return [
-      await pixelAt(page, Math.round(b.x - 40), y),
-      await pixelAt(page, Math.round(b.x + 2), y),
+      await pixelAt(page, Math.round(b.x - 40), y, park),
+      await pixelAt(page, Math.round(b.x + 2), y, park),
     ];
   };
   const [plainFirst, plainActions] = await probe();
@@ -7730,9 +7751,10 @@ test("sticky actions: overflow sticks with an edge shadow, the cell follows the 
   ).toEqual({ ground: "rgba(0, 0, 0, 0)", animations: 0 });
   await page.mouse.move(0, 0);
   await row.evaluate((el) => el.setAttribute("data-grid-row", ""));
-  // The row fades its colour in (`transition-colors`): wait until both probes settle on it.
+  // The row fades its colour in (`transition-colors`): wait until both probes settle on it. The
+  // hover is the probes' subject, so they keep the pointer where it is.
   const follows = async () => {
-    const [row, actions] = await probe();
+    const [row, actions] = await probe(false);
     return (
       JSON.stringify(row) !== JSON.stringify(plainFirst) &&
       JSON.stringify(actions) === JSON.stringify(row)
@@ -8449,8 +8471,14 @@ for (const theme of THEMES) {
   }
 }
 
-// The RGB of the screen pixels in a box of the page, row by row, read from a screenshot.
-async function pixelsOf(page: Page, clip: { x: number; y: number; width: number; height: number }) {
+// The RGB of the screen pixels in a box of the page, row by row, read from a screenshot; `park` as
+// for `pixelAt`.
+async function pixelsOf(
+  page: Page,
+  clip: { x: number; y: number; width: number; height: number },
+  park = true,
+) {
+  if (park) await parkPointer(page);
   const png = (await page.screenshot({ clip })).toString("base64");
   return page.evaluate(async (data) => {
     const image = new Image();
@@ -9673,6 +9701,7 @@ test("slide export: PNG equal to the editor view, PDF with real text", async ({ 
   const view = page.getByTestId("slide-editor-view");
   await expect(view).toHaveAttribute("data-slide-ready", "true");
   await page.waitForFunction(() => [...document.images].every((image) => image.complete));
+  await parkPointer(page);
   const editor = await view.screenshot({ animations: "disabled" });
   expect(Buffer.from(png[0]!).equals(editor)).toBe(true);
   // SUI-FEATURE-163 AC1: the photo is drawn under the gallery's image filter, the stamp by its type.
@@ -12492,13 +12521,18 @@ for (const theme of THEMES) {
       // there is the guide's colour, not the ring's.
       const line = (await guide.boundingBox())!;
       const frame = (await editor.getByTestId("canvas-selection").boundingBox())!;
+      // Mid-drag: the held pointer is the subject, the probe leaves it in place.
       const shown = (
-        await pixelsOf(page, {
-          x: Math.floor(line.x),
-          y: Math.floor(frame.y + frame.height / 2),
-          width: 1,
-          height: 1,
-        })
+        await pixelsOf(
+          page,
+          {
+            x: Math.floor(line.x),
+            y: Math.floor(frame.y + frame.height / 2),
+            width: 1,
+            height: 1,
+          },
+          false,
+        )
       )[0]![0]!;
       const wanted = await page.evaluate((color) => {
         const context = document.createElement("canvas").getContext("2d")!;
@@ -12515,14 +12549,19 @@ for (const theme of THEMES) {
     await page.goto(`/?page=slide-editor&lng=en&theme=${theme}`);
     const again = await openEditor(page, false);
     await again.select(140, 130);
+    // Read mid-drag: the held pointer is the subject, the probe leaves it in place.
     const badgeAt = async () => {
       const badge = (await editor.getByTestId("canvas-name").boundingBox())!;
-      return pixelsOf(page, {
-        x: Math.round(badge.x),
-        y: Math.round(badge.y),
-        width: Math.floor(badge.width),
-        height: Math.floor(badge.height),
-      });
+      return pixelsOf(
+        page,
+        {
+          x: Math.round(badge.x),
+          y: Math.round(badge.y),
+          width: Math.floor(badge.width),
+          height: Math.floor(badge.height),
+        },
+        false,
+      );
     };
     let plain: number[][][] = [];
     await page.keyboard.down("Alt");
@@ -14240,6 +14279,7 @@ test("date fields: the calendar button keeps the focus ring on the field", async
     const onButton = await page.screenshot({ clip: corner, animations: "disabled" });
     await page.keyboard.press("Shift+Tab");
     expect(await onCalendarButton(), type).toBe(false);
+    await parkPointer(page);
     const onSegment = await page.screenshot({ clip: corner, animations: "disabled" });
     expect(onButton.equals(onSegment), type).toBe(true);
     await page.keyboard.press("Tab");
