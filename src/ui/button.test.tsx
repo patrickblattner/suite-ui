@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { PlusIcon } from "lucide-react";
-import { useState } from "react";
+import { Profiler, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { Button } from "./button.js";
@@ -452,6 +452,132 @@ describe("Button", () => {
     expect(button.className).toContain("aria-disabled:bg-success/50");
     expect(button.className).not.toContain("aria-busy:cursor-progress");
   });
+
+  // #548: a switch to another window or tab blurs the button, but the focus stays on it in the page.
+  it("busy with disabled: a window switch during the run does not end the hold", () => {
+    const view = (busy: boolean) => (
+      <>
+        <Button variant="success" size="default" busy={busy} disabled>
+          Save
+        </Button>
+        <button type="button">Next</button>
+      </>
+    );
+    const { rerender } = render(view(true));
+    const button = screen.getByRole("button", { name: "Save" });
+    act(() => button.focus());
+    const hasFocus = vi.spyOn(document, "hasFocus").mockReturnValue(false);
+    try {
+      fireEvent.blur(button, { relatedTarget: null });
+      rerender(view(false));
+    } finally {
+      hasFocus.mockRestore();
+    }
+    expect(button).toHaveFocus();
+    expect(button).not.toHaveAttribute("disabled");
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    act(() => screen.getByRole("button", { name: "Next" }).focus());
+    expect(button).toBeDisabled();
+  });
+
+  // #548: the real focus decides at the run's end, so a blur that never arrived holds nothing.
+  it("busy with disabled: a missed blur does not leave the button held after the run", () => {
+    const view = (busy: boolean) => (
+      <Button variant="success" size="default" busy={busy} disabled>
+        Save
+      </Button>
+    );
+    const { rerender } = render(view(true));
+    const button = screen.getByRole("button", { name: "Save" });
+    // A focus event with no blur after it: the button never held the real focus.
+    fireEvent.focus(button);
+    expect(button).not.toHaveFocus();
+    rerender(view(false));
+    expect(button).toBeDisabled();
+    expect(button).not.toHaveAttribute("aria-disabled");
+  });
+
+  // #548: a call site that derives `disabled` from state the run changed passes it a render late.
+  it("busy ends, disabled a render later: the focus stays via the hold", () => {
+    const view = (busy: boolean, disabled: boolean) => (
+      <>
+        <Button variant="success" size="default" busy={busy} disabled={disabled}>
+          Save
+        </Button>
+        <button type="button">Next</button>
+      </>
+    );
+    const { rerender } = render(view(true, false));
+    const button = screen.getByRole("button", { name: "Save" });
+    act(() => button.focus());
+    rerender(view(false, false));
+    expect(button).not.toHaveAttribute("aria-disabled");
+    rerender(view(false, true));
+    expect(button).toHaveFocus();
+    expect(button).not.toHaveAttribute("disabled");
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    act(() => screen.getByRole("button", { name: "Next" }).focus());
+    expect(button).toBeDisabled();
+  });
+
+  // #548 review: the hold that outlasts the run checks the real focus again when `disabled` arrives,
+  // so a blur React never saw after the run leaves no lock on an unfocused button.
+  it("busy ends, a missed blur, disabled later: disabled applies", () => {
+    const view = (busy: boolean, disabled: boolean) => (
+      <>
+        <Button variant="success" size="default" busy={busy} disabled={disabled}>
+          Save
+        </Button>
+        <button type="button">Next</button>
+      </>
+    );
+    const { rerender } = render(view(true, false));
+    const button = screen.getByRole("button", { name: "Save" });
+    act(() => button.focus());
+    rerender(view(false, false));
+    // The focus leaves without React seeing the blur.
+    const swallow = (event: Event) => event.stopPropagation();
+    window.addEventListener("focusout", swallow, true);
+    window.addEventListener("blur", swallow, true);
+    try {
+      act(() => screen.getByRole("button", { name: "Next" }).focus());
+    } finally {
+      window.removeEventListener("focusout", swallow, true);
+      window.removeEventListener("blur", swallow, true);
+    }
+    expect(button).not.toHaveFocus();
+    rerender(view(false, true));
+    expect(button).toBeDisabled();
+    expect(button).not.toHaveAttribute("aria-disabled");
+    expect(button.className).not.toContain("aria-disabled:bg-success/50");
+  });
+
+  // #548: only a button that can run tracks its focus; any other one does not re-render on it.
+  it.each([
+    ["without busy", {}, 0],
+    ["asChild with busy", { asChild: true, busy: false }, 0],
+    ["with busy", { busy: false }, 2],
+  ] as const)(
+    "focus and blur re-render the button %s as often as it tracks the focus",
+    (_, extra, renders) => {
+      const onRender = vi.fn();
+      render(
+        <>
+          <Profiler id="button" onRender={onRender}>
+            <Button variant="success" size="default" {...extra}>
+              {"asChild" in extra ? <button type="button">Save</button> : "Save"}
+            </Button>
+          </Profiler>
+          <button type="button">Next</button>
+        </>,
+      );
+      const button = screen.getByRole("button", { name: "Save" });
+      onRender.mockClear();
+      act(() => button.focus());
+      act(() => screen.getByRole("button", { name: "Next" }).focus());
+      expect(onRender).toHaveBeenCalledTimes(renders);
+    },
+  );
 
   // SUI-FEATURE-103 AC2: a call site's `aria-disabled={false}` cannot undo the run's lock.
   it.each([false, "false"] as const)(

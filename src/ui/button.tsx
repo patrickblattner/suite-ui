@@ -2,7 +2,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { Loader2Icon } from "lucide-react";
 import { Slot } from "radix-ui";
 import type * as React from "react";
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 import { cn } from "../lib/cn.js";
 
@@ -167,12 +167,24 @@ function Button(props: ButtonProps) {
   // A run that ends while the button holds the focus keeps a call site's `disabled` as the lock until
   // the focus leaves (`SUI-FEATURE-103` rev 3): the attribute would drop the focus to `<body>` right
   // after the run (`GL-UI-050`). Without the focus on the button, `disabled` applies at once.
+  // The hold lasts as long as the focus stays, so a `disabled` that arrives a render after the run
+  // (a call site that derives it from state the run changed) is held as well. Only a button that can
+  // run tracks its focus; any other one does not re-render on focus or blur.
+  const tracksFocus = guardsRepeatClick && !asChild;
   const [focused, setFocused] = useState(false);
   const [focusedInRun, setFocusedInRun] = useState(false);
+  const focusedElement = useRef<HTMLButtonElement | null>(null);
   if (running && focused && !focusedInRun) setFocusedInRun(true);
-  // A run that ended without `disabled` holds nothing later on.
-  if (!running && focusedInRun && disabled !== true) setFocusedInRun(false);
   const holding = !running && focusedInRun && disabled === true && !asChild;
+  // At the run's end, and whenever the hold starts, the real focus decides, not the events alone: a
+  // blur that never arrived must not leave the button held.
+  useLayoutEffect(() => {
+    if (running || !focusedInRun) return;
+    if (focusedElement.current !== document.activeElement) {
+      setFocused(false);
+      setFocusedInRun(false);
+    }
+  }, [running, focusedInRun, holding]);
   const locked = (busy || ariaDisabled || holding) && !asChild;
 
   return (
@@ -231,12 +243,23 @@ function Button(props: ButtonProps) {
       onFocus={(event: React.FocusEvent<HTMLButtonElement>) => {
         // The disabled button took no focus, so focus opens no hint while it runs.
         if (locked && busy) event.preventDefault();
-        setFocused(true);
+        if (tracksFocus) {
+          focusedElement.current = event.currentTarget;
+          setFocused(true);
+        }
         rest.onFocus?.(event);
       }}
       onBlur={(event: React.FocusEvent<HTMLButtonElement>) => {
-        setFocused(false);
-        setFocusedInRun(false);
+        // A switch to another window or tab blurs the button without moving the focus off it in the
+        // page (it stays the active element): the hold stays, and the focus is back on return.
+        const leftWindow =
+          event.relatedTarget === null &&
+          !document.hasFocus() &&
+          document.activeElement === event.currentTarget;
+        if (tracksFocus && !leftWindow) {
+          setFocused(false);
+          setFocusedInRun(false);
+        }
         rest.onBlur?.(event);
       }}
     >

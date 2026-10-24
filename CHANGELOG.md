@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased — #548, SUI-FEATURE-103 rev 3 / GL-UI-050: the busy button's focus hold survives a window switch, a missed blur and a late `disabled` (patch)
+
+- **Window switch (#548):** a blur with no `relatedTarget` while the document has lost the focus and the button is still its active element (a switch to another window or tab) no longer ends the hold; back in the page, the focus is still on the button.
+- **Real focus at the run's end (#548):** when a run ends, the hold checks `document.activeElement`; a blur that never reached the button no longer leaves it held with `aria-disabled` instead of `disabled`.
+- **Late `disabled` (#548):** the hold lasts as long as the focus stays on the button, so a `disabled` that arrives a render after `busy` ends (a call site deriving it from state the run changed) keeps the focus as well; before, a run that ended without `disabled` dropped the hold at once.
+- **Fewer renders (#548):** only a button that declares `busy` and is not `asChild` tracks its focus; any other `Button` no longer re-renders on focus or blur.
+- **Tests (#548):** unit tests for the window switch, a missed blur, a late `disabled`, the render count on focus/blur (plain, `asChild`, busy-capable), a `Hint` around a busy disabled button (the hold path; the `disabledText` tests go through `lockedWithReason` and never reached it) and a run that ends without `disabled`.
+
+**Migration:** none; no API, string, `data-testid` or baseline changes.
+
 ## Unreleased — #547, SUI-FEATURE-109 rev 2: the leave guard can let a same-path search/hash change pass (minor)
 
 - **Leave guard (#547):** `useLeaveGuard` takes a new option `ignoreSearchParams` (boolean, default `false`). Set, a route change that keeps the `pathname` and changes only `search` or `hash` passes the dirty page without the question, by push or by replace (a tab switch over `setSearchParams({ tab }, { replace: true })`), also as browser back/forward to an entry of the same pathname; under `BrowserRouter`, `MemoryRouter` and data routers alike. Any other `pathname` asks as before, the option set or not, browser back/forward to another path included; `navigate(-n)` from the app counts as another path. A change to the very same URL passes too (a tab control that reports its value on press and again on focus repeats it); a form submission to the page's own route still asks (data routers), as its action may redirect away. While the page works (`busy`, a running Save) nothing passes, as before. Without the option nothing changes.

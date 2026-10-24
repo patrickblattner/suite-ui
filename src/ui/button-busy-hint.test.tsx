@@ -90,6 +90,51 @@ describe("hints of a running button (as on main)", () => {
     expect(hintOf(button).hover1500).toBe("Possible once a field changed");
   });
 
+  // #548: with `disabledText` the button's `disabled` turns into the `aria-disabled` lock before it
+  // reaches the button (`lockedWithReason`), so the two tests above and below never touch the hold.
+  // A hint without a reason leaves `disabled` to the button: the hold keeps the focus after the run.
+  it("a Hint around a busy disabled button: the hold keeps the focus after the run", () => {
+    const view = (busy: boolean) => (
+      <>
+        <Hint text="Saves the settings">
+          <Button variant="success" size="default" busy={busy} disabled>
+            Save
+          </Button>
+        </Hint>
+        <button type="button">Next</button>
+      </>
+    );
+    const { rerender } = render(view(true));
+    const button = screen.getByRole("button", { name: "Save" });
+    act(() => button.focus());
+    rerender(view(false));
+    expect(button).toHaveFocus();
+    expect(button).not.toHaveAttribute("disabled");
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    act(() => screen.getByRole("button", { name: "Next" }).focus());
+    expect(button).toBeDisabled();
+    expect(button).not.toHaveAttribute("aria-disabled");
+  });
+
+  // #548: a run that ends without `disabled` leaves a usable button that names its action.
+  it("a Hint with disabledText shows the action after a run that ends without disabled", () => {
+    const view = (busy: boolean) => (
+      <Hint text="Saves the settings" disabledText="Possible once a field changed">
+        <Button variant="success" size="default" busy={busy}>
+          Save
+        </Button>
+      </Hint>
+    );
+    const { rerender } = render(view(true));
+    const button = screen.getByRole("button", { name: "Save" });
+    act(() => button.focus());
+    rerender(view(false));
+    expect(button).toHaveFocus();
+    expect(button).not.toHaveAttribute("aria-disabled");
+    expect(button).not.toBeDisabled();
+    expect(hintOf(button).hover1500).toBe("Saves the settings");
+  });
+
   it("IconButtonTooltip shows the reason after the run (disabled)", () => {
     const view = (busy: boolean) => (
       <IconButtonTooltip label="Send Ada" disabledText="Possible once online">
