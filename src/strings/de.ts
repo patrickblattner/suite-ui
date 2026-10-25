@@ -826,6 +826,8 @@ export const de: SuiteStrings = {
       gridUnavailable: "Raster in der Dokument-Schublade festlegen.",
       distributeNeedsThree: "Zum Verteilen mindestens drei Elemente wählen",
       saveFailed: "Nicht gespeichert: Das Dokument verletzt eine Regel ({{issue}}).",
+      saveRejected:
+        "Nicht gespeichert: Das Speichern ist fehlgeschlagen. Deine Änderungen sind noch da. Versuche es erneut.",
       type: {
         text: "Text",
         image: "Bild",

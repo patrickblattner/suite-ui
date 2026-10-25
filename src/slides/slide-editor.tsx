@@ -831,6 +831,8 @@ function Editor({
   const [saveError, setSaveError] = React.useState<string | undefined>(undefined);
   // The last save failed: a route change held during it is dropped (`SUI-FEATURE-150` rev 7).
   const [saveFailed, setSaveFailed] = React.useState(false);
+  // The last `onSave` rejected: the host's own handling did not run, so the editor names it (#584).
+  const [saveRejected, setSaveRejected] = React.useState(false);
   const [pageState, setPageState] = React.useState(0);
   const [selection, setSelectionState] = React.useState<string[]>([]);
   // How often the history went back or forth: a number field keeps what is typed until then.
@@ -916,6 +918,9 @@ function Editor({
   const pendingCrop =
     cropping !== undefined && storedCrop !== undefined && !sameCrop(cropping.crop, storedCrop);
   const dirty = history.document !== saved || pendingCrop;
+  // "Your changes are still here" never stands without changes: Reset or undoing back to the saved
+  // state ends it (#584).
+  if (saveRejected && !dirty) setSaveRejected(false);
   const pageData = document.pages[page] ?? document.pages[0];
   const elements = pageData?.elements ?? [];
   const { width: pageWidth, height: pageHeight } = document.format;
@@ -997,6 +1002,7 @@ function Editor({
   // Save and the leave question (`GL-UI-007`). A draft the schema refuses is not handed on; its
   // first issue is named under the header.
   const save = async () => {
+    setSaveRejected(false);
     // A crop being set is part of what is saved: kept first, as Enter does (#349).
     let current = history.document;
     if (cropping !== undefined) {
@@ -1030,6 +1036,11 @@ function Editor({
       setSaved(current);
       succeeded = true;
       return true;
+    } catch {
+      // A rejection is a failed save, never an unhandled rejection; unlike `false` the host's own
+      // handling did not run, so the editor says so, without the exception's text (#584).
+      setSaveRejected(true);
+      return false;
     } finally {
       // In the same update that ends `saving`, so the guard reads the result with it.
       setSaveFailed(!succeeded);
@@ -3417,13 +3428,15 @@ function Editor({
           </span>
         )}
       </div>
-      {saveError === undefined ? null : (
+      {saveError === undefined && !saveRejected ? null : (
         <p
           role="alert"
           className="border-b bg-destructive-soft px-4 py-2 text-sm text-destructive-soft-foreground"
           data-testid="slide-editor-save-error"
         >
-          {t("slides.editor.saveFailed", { issue: saveError })}
+          {saveError === undefined
+            ? t("slides.editor.saveRejected")
+            : t("slides.editor.saveFailed", { issue: saveError })}
         </p>
       )}
       <div className="flex min-h-0 flex-1">

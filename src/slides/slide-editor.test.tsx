@@ -59,6 +59,53 @@ describe("SlideEditor Save", () => {
     expect(onBack).not.toHaveBeenCalled();
   });
 
+  // #584: the rejection's text goes when the next save starts.
+  it("clears the rejected-save text when the next save starts", async () => {
+    const onSave = vi
+      .fn<() => Promise<unknown>>()
+      .mockRejectedValueOnce(new Error("offline"))
+      .mockReturnValueOnce(new Promise(() => {}));
+    render(
+      <SlideEditor
+        document={SLIDE_EDITOR_DOC}
+        title="Deck"
+        brand={SLIDE_BRAND}
+        onSave={onSave}
+        onBack={() => {}}
+      />,
+    );
+    makeDraft();
+    fireEvent.click(screen.getAllByTestId("editor-save")[0]!);
+    expect(await screen.findByTestId("slide-editor-save-error")).toHaveTextContent(
+      "Not saved: saving failed. Your changes are still here. Try again.",
+    );
+    fireEvent.click(screen.getAllByTestId("editor-save")[0]!);
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2));
+    expect(screen.queryByTestId("slide-editor-save-error")).toBeNull();
+  });
+
+  // #584: "your changes are still here" never stands without changes; Reset ends it.
+  it("clears the rejected-save text when Reset makes the draft clean", async () => {
+    render(
+      <SlideEditor
+        document={SLIDE_EDITOR_DOC}
+        title="Deck"
+        brand={SLIDE_BRAND}
+        onSave={() => Promise.reject(new Error("offline"))}
+        onBack={() => {}}
+      />,
+    );
+    makeDraft();
+    fireEvent.click(screen.getAllByTestId("editor-save")[0]!);
+    expect(await screen.findByTestId("slide-editor-save-error")).toBeInTheDocument();
+    fireEvent.click(screen.getAllByTestId("editor-reset")[0]!);
+    fireEvent.click(await screen.findByTestId("editor-reset-confirm-confirm"));
+    await waitFor(() =>
+      expect(screen.getAllByTestId("editor-state")[0]).toHaveTextContent("Saved"),
+    );
+    expect(screen.queryByTestId("slide-editor-save-error")).toBeNull();
+  });
+
   it("marks the draft saved when onSave returns true", async () => {
     const onSave = vi.fn(() => Promise.resolve(true as const));
     render(
@@ -127,6 +174,36 @@ describe("SlideEditor: a route change during the save", () => {
     expect(screen.getByTestId("path")).toHaveTextContent("/editor");
     expect(screen.queryByTestId("leave-guard")).toBeNull();
     expect(screen.getAllByTestId("editor-state")[0]).toHaveTextContent("Draft");
+    // `false` is the host's own failure, reported by the host: the editor adds no text (#584).
+    expect(screen.queryByTestId("slide-editor-save-error")).toBeNull();
+  });
+
+  // #584: a rejecting onSave fails the same way, without an unhandled rejection.
+  it("a rejected save keeps the user on the editor without a dialog", async () => {
+    const unhandled = vi.fn();
+    process.on("unhandledRejection", unhandled);
+    try {
+      let settle: () => void = () => {};
+      renderSaving(
+        () => new Promise((_resolve, reject) => (settle = () => reject(new Error("offline")))),
+      );
+      await pause();
+      await act(async () => {
+        settle();
+        await Promise.resolve();
+      });
+      await pause();
+      expect(screen.getByTestId("path")).toHaveTextContent("/editor");
+      expect(screen.queryByTestId("leave-guard")).toBeNull();
+      expect(screen.getAllByTestId("editor-state")[0]).toHaveTextContent("Draft");
+      expect(unhandled).not.toHaveBeenCalled();
+      expect(screen.getByTestId("slide-editor-save-error")).toHaveTextContent(
+        "Not saved: saving failed. Your changes are still here. Try again.",
+      );
+      expect(screen.getByTestId("slide-editor-save-error")).not.toHaveTextContent("offline");
+    } finally {
+      process.off("unhandledRejection", unhandled);
+    }
   });
 
   it("a successful save lands at the clicked target", async () => {

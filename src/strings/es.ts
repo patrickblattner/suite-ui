@@ -817,6 +817,7 @@ export const es: SuiteStrings = {
       gridUnavailable: "Define una cuadrícula en el cajón del documento.",
       distributeNeedsThree: "Selecciona al menos tres elementos para distribuir",
       saveFailed: "No se ha guardado: el documento incumple una regla ({{issue}}).",
+      saveRejected: "No se ha podido guardar. Tus cambios siguen aquí. Inténtalo de nuevo.",
       type: {
         text: "Texto",
         image: "Imagen",

@@ -839,6 +839,7 @@ export const en = {
       gridUnavailable: "Set a grid in the document drawer.",
       distributeNeedsThree: "Select at least three elements to distribute",
       saveFailed: "Not saved: the document breaks a rule ({{issue}}).",
+      saveRejected: "Not saved: saving failed. Your changes are still here. Try again.",
       type: {
         text: "Text",
         image: "Image",
