@@ -83,7 +83,9 @@ function Form({ name }: { name: string }) {
 }
 
 // A detail page whose tabs follow `?tab=` (SUI-FEATURE-109). The field's value lives above the tabs,
-// so it survives a tab switch: with `ignoreSearchParams` the switch passes without asking.
+// so it survives a tab switch: with `ignoreSearchParams` the switch passes without asking. Its Save
+// runs until "Finish save" ends it (`busy` meanwhile), so a switch during a running save is measured
+// too (rev 3).
 function TabbedDetail({
   name,
   ignoreSearchParams,
@@ -92,11 +94,14 @@ function TabbedDetail({
   ignoreSearchParams?: boolean;
 }) {
   const [value, setValue] = useState("");
+  const [finishSave, setFinishSave] = useState<(() => void) | null>(null);
+  const [saved, setSaved] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const [params, setParams] = useSearchParams();
   const { guard, dialog } = useLeaveGuard({
     dirty: value !== "",
+    busy: finishSave !== null,
     onLeave: () => void navigate(-1),
     onSave: () => true,
     onDiscard: () => setValue(""),
@@ -149,6 +154,32 @@ function TabbedDetail({
         >
           Back
         </Button>
+        <Button
+          variant="default"
+          size="default"
+          busy={finishSave !== null}
+          onClick={() => {
+            setSaved(false);
+            void new Promise<void>((resolve) => setFinishSave(() => resolve)).then(() => {
+              setFinishSave(null);
+              setSaved(true);
+            });
+          }}
+          data-testid="harness-save"
+        >
+          Save
+        </Button>
+        <Button
+          variant="outline"
+          size="default"
+          onClick={() => finishSave?.()}
+          data-testid="harness-finish-save"
+        >
+          Finish save
+        </Button>
+        <span data-testid="harness-save-state">
+          {finishSave !== null ? "saving" : saved ? "saved" : "idle"}
+        </span>
       </div>
       {dialog}
     </main>

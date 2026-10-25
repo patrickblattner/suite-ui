@@ -46,7 +46,7 @@ type PendingLeave = {
   // leaves the draft as it is (`SUI-FEATURE-172`).
   confirm?: ((discard?: () => void) => void) | undefined;
   // A route change known to keep the `pathname`, changing only `search` or `hash`: a guard with
-  // `ignoreSearchParams` lets it pass while dirty (`SUI-FEATURE-109`). Unknown (a `go` from the app)
+  // `ignoreSearchParams` lets it pass while dirty or busy (`SUI-FEATURE-109`). Unknown (a `go` from the app)
   // and a submission count as another path.
   samePath?: boolean | undefined;
 };
@@ -577,9 +577,11 @@ type BlockedChange = {
 // surface, its latest answer, run once the change goes.
 type Discards = Map<Hold, () => void>;
 // A confirmed change that waits for the router's running submission (`SUI-FEATURE-150`), with the
-// holds that confirmed it and the resets of their Discards; `ended` once the submission has.
+// holds that confirmed it and the resets of their Discards; `ended` once the submission has. `from`:
+// the submission's own location as the change began to wait (`RouterHolds.submission`).
 type WaitingChange = BlockedChange & {
   carrier: BlockedBlocker;
+  from: BlockerStep["currentLocation"] | null;
   confirmed: Set<Hold>;
   discards: Discards;
   ended: boolean;
@@ -605,6 +607,9 @@ type RouterHolds = {
   submitter: HTMLElement | null;
   submitted: EventTarget | null;
   waiting: WaitingChange | null;
+  // The own location of the router submission running now: where it ends unless redirected. Every
+  // redirect makes a new one, also one that submits anew (307/308), which keeps the submission's own.
+  submission: BlockerStep["currentLocation"] | null;
   // A change started anew after a submission: the blocked state that carries it on, the holds that
   // confirmed it, which it passes, and for a browser step the entry it goes to. It counts only for
   // that change: the next one asked, and for a browser step only when it goes to that entry. A
@@ -658,6 +663,7 @@ function routerEntry(router: DataRouter): RouterHolds {
       submitter: null,
       submitted: null,
       waiting: null,
+      submission: null,
       restarting: null,
       stepping: null,
       saving: new Set(),
@@ -724,6 +730,9 @@ function holdRouter(router: DataRouter, hold: RouterHold): () => void {
     document.addEventListener("submit", onSubmit, true);
     const settle = () => {
       if (entry.run !== null && heldBlocker(router) !== entry.run) entry.run = null;
+      const { location } = router.state.navigation;
+      if (!submitting(router) || location === undefined) entry.submission = null;
+      else if (!redirected(location)) entry.submission = location;
       // Both count only while a submission runs; once it ended, the router reset every blocker.
       if (router.state.navigation.state === "idle") {
         entry.saving = new Set();
@@ -971,7 +980,14 @@ function runBlocked(router: DataRouter, entry: RouterHolds) {
   const proceed = () => {
     if (!current()) return;
     if (submitting(router)) {
-      entry.waiting = { ...blocked, carrier, confirmed, discards, ended: false };
+      entry.waiting = {
+        ...blocked,
+        carrier,
+        confirmed,
+        discards,
+        ended: false,
+        from: entry.submission,
+      };
     } else {
       runAll(discards);
       entry.proceeded = blocked;
@@ -1022,6 +1038,11 @@ function runBlocked(router: DataRouter, entry: RouterHolds) {
   pass(entry.blocking);
 }
 
+// react-router marks the location of a redirect it follows.
+function redirected(location: BlockerStep["currentLocation"]): boolean {
+  return (location.state as { _isRedirect?: unknown } | null)?._isRedirect === true;
+}
+
 // A form submission of the router still runs: its action, or the loads that follow it.
 function submitting(router: DataRouter): boolean {
   const { navigation } = router.state;
@@ -1067,6 +1088,13 @@ function finishWaiting(router: DataRouter, entry: RouterHolds) {
 // submission ended: a stand-in change, blocked at once, makes that state valid again, so the change
 // goes on as it came (a submission's data, its history action, the basename once).
 function restart(router: DataRouter, entry: RouterHolds, waiting: WaitingChange) {
+  // A change that keeps the pathname and is known to submit nothing (a tab switch, a browser step)
+  // goes only where the submission ended at its own location: a redirect, which makes a new one,
+  // wins, to another path as to the very same URL, also when the change came while the redirect
+  // loaded or submitted anew (`SUI-FEATURE-109` rev 4). A submit whose options went unseen may look
+  // the same; it goes on as any other way.
+  const plain = waiting.link !== null || waiting.step === NavigationType.Pop;
+  if (waiting.samePath && plain && router.state.location.key !== waiting.from?.key) return;
   const { index } = waiting;
   if (waiting.step === NavigationType.Pop && index !== null) {
     const at = windowIndex(router, router.state.location);
@@ -1191,7 +1219,7 @@ type LeaveConfirmOptions = {
   open?: boolean | undefined;
   // The dialog's focus target on close into a working surface (`LeaveConfirmDialog`).
   workingFocus?: (() => HTMLElement | null) | undefined;
-  // A dirty surface lets a route change pass that keeps the pathname (`SUI-FEATURE-109`).
+  // A dirty or busy surface lets a route change pass that keeps the pathname (`SUI-FEATURE-109`).
   ignoreSearchParams?: boolean | undefined;
 };
 
@@ -1237,11 +1265,14 @@ function useLeaveConfirm({
   // Whether a change this surface confirmed with Discard waits now under a data router.
   const discardWaits = React.useRef<() => boolean>(() => false);
   const hold = React.useCallback((next: PendingLeave) => {
+    // A change that keeps the pathname passes the option's surface, dirty or busy: it leaves nothing,
+    // and a running save goes on (`SUI-FEATURE-109` rev 4).
+    const keeps = latest.current.ignoreSearchParams && next.samePath === true;
     if (releasing.current) {
       next.leave();
     } else if (work.current !== null) {
       waiting.current = next;
-    } else if (latest.current.busy) {
+    } else if (latest.current.busy && !keeps) {
       // The router holds the change until its submission has ended, and asks this surface again then.
       if (next.afterSubmission === true) next.leave();
       else next.stay?.();
@@ -1253,10 +1284,7 @@ function useLeaveConfirm({
       // Its Discard holds while a change waits: a further way out asks nothing, it takes that
       // change's place (`SUI-FEATURE-172`).
       next.leave();
-    } else if (
-      latest.current.dirty &&
-      !(latest.current.ignoreSearchParams && next.samePath === true)
-    ) {
+    } else if (latest.current.dirty && !keeps) {
       ask(next);
     } else {
       next.leave();
@@ -1401,12 +1429,16 @@ function useLeaveConfirm({
         ? undefined
         : {
             hold,
-            blocks: (own, samePath) =>
-              !releasing.current &&
-              ((!own && latest.current.dirty && !(latest.current.ignoreSearchParams && samePath)) ||
-                latest.current.busy ||
-                work.current !== null ||
-                submitting(router)),
+            blocks: (own, samePath) => {
+              const keeps = latest.current.ignoreSearchParams && samePath;
+              return (
+                !releasing.current &&
+                ((!own && latest.current.dirty && !keeps) ||
+                  (latest.current.busy && !keeps) ||
+                  work.current !== null ||
+                  submitting(router))
+              );
+            },
             owns: (form) => marking.current || (form !== null && form === saveForm.current),
             released: () => {
               const way = letGo.current;
@@ -1482,8 +1514,10 @@ type LeaveGuardOptions = {
   // once it goes (`SUI-FEATURE-172`, see `useLeaveConfirm`).
   onDiscard?: (() => void) | undefined;
   // Lets a route change pass without asking that keeps the `pathname` and changes only `search` or
-  // `hash` (a tab switch over `?tab=`, also by replace); another pathname, browser back and forward to
-  // one included, still asks (`SUI-FEATURE-109`). A change to the very same URL passes too; a form
+  // `hash` (a tab switch over `?tab=`, also by replace), also while `busy`, and the save goes on; during
+  // a router form submission (not a fetcher) it waits until that ends, and a redirect of it wins
+  // (`SUI-FEATURE-150`); another pathname, browser back and forward to one included, still asks, and while `busy` stays
+  // held (`SUI-FEATURE-109`). A change to the very same URL passes too; a form
   // submission to the page's own route still asks, as its action may redirect away. Set it only where the changed state survives such a
   // switch (a server draft, a store), never where a search parameter selects another entry (`?id=`).
   ignoreSearchParams?: boolean | undefined;

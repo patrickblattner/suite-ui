@@ -3346,6 +3346,39 @@ test("leave guard without ignoreSearchParams: a ?tab= switch asks as before", as
   expect(tabOf(page)).toBe("notes");
 });
 
+// #562 (`SUI-FEATURE-109` rev 3): during a running save a `?tab=` switch passes at once and the save
+// completes; another path stays held while it runs.
+test.describe("leave guard ignoreSearchParams during a running save (#562)", () => {
+  test("a ?tab= switch passes at once; the save completes", async ({ page }) => {
+    await openHarnessDetail(page);
+    await page.getByTestId("harness-save").click();
+    await expect(page.getByTestId("harness-save-state")).toHaveText("saving");
+    await page.getByTestId("harness-tab-notes").click();
+    await expect(page.getByTestId("harness-tab-notes")).toHaveAttribute("aria-selected", "true");
+    await expect(page.getByTestId("harness-notes")).toBeVisible();
+    expect(tabOf(page)).toBe("notes");
+    expect(pathOf(page)).toBe("/detail");
+    await expectNoDialog(page);
+    await expect(page.getByTestId("harness-save-state")).toHaveText("saving");
+    await page.getByTestId("harness-finish-save").click();
+    await expect(page.getByTestId("harness-save-state")).toHaveText("saved");
+    expect(tabOf(page)).toBe("notes");
+  });
+
+  test("another path stays held while the save runs", async ({ page }) => {
+    await openHarnessDetail(page);
+    await page.getByTestId("harness-save").click();
+    await page.getByTestId("harness-open").click();
+    await page.goBack();
+    await expect.poll(() => pathOf(page)).toBe("/detail");
+    await expect(page.getByTestId("harness-detail")).toBeVisible();
+    await expectNoDialog(page);
+    await expect(page.getByTestId("harness-save-state")).toHaveText("saving");
+    await page.getByTestId("harness-finish-save").click();
+    await expect(page.getByTestId("harness-save-state")).toHaveText("saved");
+  });
+});
+
 // #557 (`GL-UI-007`, `GL-UI-050`): Cancel returns the focus to the tab trigger that asked, and that
 // focus does not activate it again: the dialog stays closed, the original tab and the draft stay.
 for (const path of ["mouse", "keyboard"] as const) {
