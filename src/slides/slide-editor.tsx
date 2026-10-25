@@ -16,6 +16,7 @@ import {
   EyeIcon,
   EyeOffIcon,
   GroupIcon,
+  Loader2Icon,
   LockIcon,
   LockOpenIcon,
   Trash2Icon,
@@ -1973,7 +1974,7 @@ function Editor({
     if (pressChain.current !== undefined) pressChain.current.seen = selection;
   });
   const [heldTurn, setHeldTurn] = React.useState(0);
-  // After 300 ms of waiting the canvas says it is busy (`SUI-FEATURE-106` rev 5).
+  // After 300 ms of waiting the canvas says it is busy, in a status line too (`SUI-FEATURE-106` rev 6).
   const [adopting, setAdopting] = React.useState<"waiting" | "slow">();
   const slowTimer = React.useRef<number | undefined>(undefined);
   const queueBusy = () =>
@@ -2066,6 +2067,10 @@ function Editor({
     pastePending.current = true;
     if (left === undefined)
       pressChain.current = { left: own, seen: selection, presses: handPresses.current };
+    // Nothing stays selected while it waits; what it pastes is once it lands (`SUI-FEATURE-106`
+    // rev 6). The selection it leaves is no hand's, so a command pressed now still means the paste.
+    setSelection([]);
+    ran.current = true;
     setAdopting("waiting");
     window.clearTimeout(slowTimer.current);
     slowTimer.current = window.setTimeout(() => setAdopting("slow"), ADOPT_BUSY_MS);
@@ -3622,7 +3627,7 @@ function Editor({
                         : hovered === undefined
                           ? "cursor-default"
                           : "cursor-move",
-                      adopting === "slow" && "cursor-wait",
+                      adopting === "slow" && "cursor-progress",
                     )}
                     data-slot="slide-editor-canvas"
                     data-cropping={cropping?.id}
@@ -3663,8 +3668,21 @@ function Editor({
                   )}
                 </ContextMenuContent>
               </ContextMenu>
-              <span role="status" className="sr-only" data-testid="slide-editor-adopting">
-                {adopting === "slow" ? t("slides.editor.adoptingMedia") : null}
+              <span
+                role="status"
+                className={cn(
+                  "pointer-events-none absolute bottom-2 left-2",
+                  adopting === "slow" &&
+                    "flex items-center gap-1.5 rounded-md border bg-background px-2 py-1 text-xs text-muted-foreground shadow-sm",
+                )}
+                data-testid="slide-editor-adopting"
+              >
+                {adopting === "slow" ? (
+                  <>
+                    <Loader2Icon aria-hidden="true" className="size-3.5 shrink-0 animate-spin" />
+                    {t("slides.editor.adoptingMedia")}
+                  </>
+                ) : null}
               </span>
               {/* Over the whole window during a gesture, so nothing under the pointer changes it; the
                   canvas keeps the pointer captured, so every event still goes to it. */}

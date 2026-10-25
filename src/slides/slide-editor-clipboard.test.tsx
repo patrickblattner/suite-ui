@@ -732,8 +732,9 @@ describe("SlideEditor element clipboard", () => {
 
   it("deletes a with Delete after a's resize handle was pressed during a wait (#535)", async () => {
     const { onSave, answer } = waitingPaste();
-    click(50, 50);
     key("v");
+    // The wait drops the selection's handles (`SUI-FEATURE-106` AC6): a is selected by hand first.
+    click(50, 50);
     fireEvent.pointerDown(screen.getByTestId("slide-editor-handle-se"), {
       ...at(100, 100),
       button: 0,
@@ -797,12 +798,31 @@ describe("SlideEditor element clipboard", () => {
     expect(status).toBeEmptyDOMElement();
     act(() => void vi.advanceTimersByTime(1));
     expect(canvas()).toHaveAttribute("aria-busy", "true");
-    expect(canvas().className).toContain("cursor-wait");
+    expect(canvas().className).toContain("cursor-progress");
     expect(status).toHaveTextContent("Bringing the media along …");
+    // Seen, not only heard: no screen-reader-only class, a spinning icon at the bottom left.
+    expect(status.className).not.toContain("sr-only");
+    expect(status.className).toContain("bottom-2");
+    expect(status.className).toContain("left-2");
+    expect(status.querySelector("svg.animate-spin")).not.toBeNull();
     answer({ photo: "photo-copy" });
     await waitFor(() => expect(canvas()).not.toHaveAttribute("aria-busy"));
-    expect(canvas().className).not.toContain("cursor-wait");
+    expect(canvas().className).not.toContain("cursor-progress");
     expect(status).toBeEmptyDOMElement();
+  });
+
+  it("drops the selection's handles while a paste waits and selects what it pasted once it lands (SUI-FEATURE-106 AC6)", async () => {
+    const { onSave, answer } = waitingPaste();
+    click(50, 50);
+    expect(screen.getByTestId("slide-editor-handle-se")).toBeInTheDocument();
+    key("v");
+    expect(screen.queryByTestId("slide-editor-handle-se")).toBeNull();
+    answer();
+    await waitFor(() => expect(layerCount()).toBe(2));
+    expect(screen.getByTestId("slide-editor-handle-se")).toBeInTheDocument();
+    // The image is selected, not a: Delete takes it.
+    fireEvent.keyDown(canvas(), { key: "Delete" });
+    expect((await saved(onSave)).map(({ id }) => id)).toEqual(["a"]);
   });
 
   // Drags a from (50, 50) to (450, 50), pressing keys on the way and cancelling with Esc if asked.
