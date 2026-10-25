@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — #573, SUI-FEATURE-109 rev 4 AC 6: the leave guard fails safe without react-router's private redirect mark (patch)
+
+- **Leave guard (#573, follow-up #562):** a submission's own location is now the first one it runs at; any later location during the same submission counts as a redirect's, so a waiting same-path change (a `?tab=` switch, a browser step) is dropped after a redirect of the submission even if react-router no longer sets its private `location.state._isRedirect`. The mark is still read where the guard first sees a submission at a redirect; the code comment names it as private API and points at the canary tests.
+- **Tests (#573):** in `leave-guard.search-params.test.tsx`, a canary that fails once react-router stops marking a redirect location, and runs with the mark stripped (302 and 307): a `?tab=` change during the load of a same-path redirect is dropped and the app lands at the redirect target. A regression test: after the last guard unmounted during a submission, a `?tab=` change held during a later submission without a redirect still goes on (the guard forgets the old submission's location at teardown).
+
+**Migration:** none.
+
 ## Unreleased — #584, SUI-FEATURE-150 / GL-UI-027: a rejecting `onSave` of the slide editor is a failed save (patch)
 
 - **Slide editor (#584, found in #572):** a promise from `onSave` that rejects now counts as a failed save, as a result other than `true` does: `saving` ends, `saveFailed` is set in the same update, the draft stays and a route change held during the save is dropped, with no "Save changes?" over it. Since the host's own handling did not run, the editor names it in its save-error line (`role="alert"`, `slide-editor-save-error`): "Not saved: saving failed. Your changes are still here. Try again." / "Nicht gespeichert: Das Speichern ist fehlgeschlagen. Deine Änderungen sind noch da. Versuche es erneut." / "No se ha podido guardar. Tus cambios siguen aquí. Inténtalo de nuevo.", never the exception's text; it goes when the next save starts and when the draft is clean again (Reset, or undo back to the saved state). A `false` result stays as it was (no text in the editor; the host reports it). Before, the rejection escaped as an unhandled rejection and nothing was shown.

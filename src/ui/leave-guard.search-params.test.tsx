@@ -717,3 +717,171 @@ describe.each(["createMemoryRouter", "createBrowserRouter"] as const)(
     );
   },
 );
+
+// The guard reads react-router's private `location.state._isRedirect` (`SUI-FEATURE-109` rev 4 AC 6,
+// #573). Canary: the first test fails once react-router stops setting it; the second proves the
+// guard fails safe without it: a same-path change that waits through a same-path redirect is
+// dropped, never replayed over it.
+describe("leave guard and react-router's redirect mark (SUI-FEATURE-109 rev 4, #573)", () => {
+  // A 307 submits the redirect target anew; only the first action redirects.
+  function redirectingRouter(status = 302) {
+    let finish = () => {};
+    const loaded = new Promise<void>((resolve) => (finish = resolve));
+    let loads = 0;
+    let actions = 0;
+    function SubmittingDetail() {
+      const location = useLocation();
+      const navigate = useNavigate();
+      const busy = useNavigation().state !== "idle";
+      useLeaveGuard({ dirty: false, busy, onLeave: () => {}, ignoreSearchParams: true });
+      return (
+        <>
+          <span data-testid="path">{location.pathname + location.search}</span>
+          <Form method="post">
+            <button type="submit" data-testid="save">
+              Save
+            </button>
+          </Form>
+          <button
+            type="button"
+            onClick={() => void navigate({ search: "?tab=b" }, { replace: true })}
+            data-testid="tab"
+          >
+            Tab
+          </button>
+        </>
+      );
+    }
+    const router = createMemoryRouter(
+      [
+        {
+          path: "/detail",
+          element: <SubmittingDetail />,
+          // The redirect target's load waits until the test lets it end.
+          loader: async () => {
+            if (loads++ > 0) await loaded;
+            return null;
+          },
+          action: () => (actions++ > 0 ? null : redirect("/detail?saved=1", status)),
+        },
+      ],
+      { initialEntries: ["/detail?tab=a"] },
+    );
+    return { router, finish };
+  }
+
+  async function redirectLoading(router: ReturnType<typeof createMemoryRouter>) {
+    render(<RouterProvider router={router} />);
+    await waitFor(() => expect(path()).toBe("/detail?tab=a"));
+    fireEvent.click(screen.getByTestId("save"));
+    await waitFor(() => {
+      expect(router.state.navigation.state).toBe("loading");
+      expect(router.state.navigation.location?.search).toBe("?saved=1");
+    });
+  }
+
+  it("canary: react-router still marks the location of a redirect it follows", async () => {
+    const { router, finish } = redirectingRouter();
+    await redirectLoading(router);
+    const state = router.state.navigation.location?.state as { _isRedirect?: unknown } | null;
+    expect(state?._isRedirect).toBe(true);
+    act(() => finish());
+    await waitFor(() => expect(path()).toBe("/detail?saved=1"));
+  });
+
+  it.each([302, 307])(
+    "without the mark, a redirect (status %s) of the submission still wins over a waiting same-path change",
+    async (status) => {
+      const { router, finish } = redirectingRouter(status);
+      // Strips the mark before the guard sees any state, as a react-router without it would.
+      router.subscribe(({ navigation }) => {
+        const state = navigation.location?.state as { _isRedirect?: unknown } | null;
+        if (state !== null && state !== undefined) delete state._isRedirect;
+      });
+      await redirectLoading(router);
+      expect(router.state.navigation.location?.state).not.toHaveProperty("_isRedirect");
+      fireEvent.click(screen.getByTestId("tab"));
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(path()).toBe("/detail?tab=a");
+      act(() => finish());
+      await waitFor(() => expect(path()).toBe("/detail?saved=1"));
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      expect(path()).toBe("/detail?saved=1");
+      expect(router.state.location.search).toBe("?saved=1");
+    },
+  );
+});
+
+// The last guard unmounted while a submission ran leaves no trace of it (#573): a later submission
+// without a redirect counts from its own location, so a ?tab= change held during it goes on.
+it("a ?tab= change held during a submission goes on after the last guard unmounted mid-submission before (#573)", async () => {
+  let finish = () => {};
+  let finished: Promise<void> = Promise.resolve();
+  const hold = () => {
+    finished = new Promise<void>((resolve) => (finish = resolve));
+  };
+  function Guard() {
+    const busy = useNavigation().state !== "idle";
+    useLeaveGuard({ dirty: false, busy, onLeave: () => {}, ignoreSearchParams: true });
+    return null;
+  }
+  function SubmittingDetail() {
+    const location = useLocation();
+    const navigate = useNavigate();
+    const [guarded, setGuarded] = useState(true);
+    return (
+      <>
+        {guarded && <Guard />}
+        <span data-testid="path">{location.pathname + location.search}</span>
+        <Form method="post">
+          <button type="submit" data-testid="save">
+            Save
+          </button>
+        </Form>
+        <button type="button" onClick={() => setGuarded((on) => !on)} data-testid="toggle">
+          Toggle
+        </button>
+        <button
+          type="button"
+          onClick={() => void navigate({ search: "?tab=b" }, { replace: true })}
+          data-testid="tab"
+        >
+          Tab
+        </button>
+      </>
+    );
+  }
+  const router = createMemoryRouter(
+    [
+      {
+        path: "/detail",
+        element: <SubmittingDetail />,
+        action: async () => {
+          await finished;
+          return null;
+        },
+      },
+    ],
+    { initialEntries: ["/detail?tab=a"] },
+  );
+  render(<RouterProvider router={router} />);
+  await waitFor(() => expect(path()).toBe("/detail?tab=a"));
+  // The first submission: the last guard unmounts while it runs.
+  hold();
+  fireEvent.click(screen.getByTestId("save"));
+  await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+  fireEvent.click(screen.getByTestId("toggle"));
+  act(() => finish());
+  await waitFor(() => expect(router.state.navigation.state).toBe("idle"));
+  fireEvent.click(screen.getByTestId("toggle"));
+  // The second submission, without a redirect, with a ?tab= change held during it.
+  hold();
+  fireEvent.click(screen.getByTestId("save"));
+  await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+  fireEvent.click(screen.getByTestId("tab"));
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  expect(path()).toBe("/detail?tab=a");
+  act(() => finish());
+  await waitFor(() => expect(path()).toBe("/detail?tab=b"));
+  expect(router.state.location.search).toBe("?tab=b");
+});

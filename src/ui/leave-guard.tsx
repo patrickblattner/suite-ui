@@ -731,8 +731,10 @@ function holdRouter(router: DataRouter, hold: RouterHold): () => void {
     const settle = () => {
       if (entry.run !== null && heldBlocker(router) !== entry.run) entry.run = null;
       const { location } = router.state.navigation;
+      // Only the first location a submission runs at is its own: any later one is a redirect's, also
+      // where the router's mark of it is missing, so a waiting change never replays over a redirect.
       if (!submitting(router) || location === undefined) entry.submission = null;
-      else if (!redirected(location)) entry.submission = location;
+      else if (entry.submission === null && !redirected(location)) entry.submission = location;
       // Both count only while a submission runs; once it ended, the router reset every blocker.
       if (router.state.navigation.state === "idle") {
         entry.saving = new Set();
@@ -769,6 +771,8 @@ function holdRouter(router: DataRouter, hold: RouterHold): () => void {
       document.removeEventListener("submit", onSubmit, true);
       // A `navigate` wrapped in after this one keeps it inside.
       if (router.navigate === guarded) router.navigate = own;
+      // Unseen from here on, a running submission may end: the next guard starts with none.
+      entry.submission = null;
       entry.settle = null;
     };
     const unsubscribe = router.subscribe(settle);
@@ -1038,7 +1042,11 @@ function runBlocked(router: DataRouter, entry: RouterHolds) {
   pass(entry.blocking);
 }
 
-// react-router marks the location of a redirect it follows.
+// react-router marks the location of a redirect it follows with `state._isRedirect`: private API
+// (present in 7.0.0 to 7.18.4). The guard needs it only where it first sees a submission at a
+// redirect; otherwise the first location counts (`RouterHolds.submission`). Canary tests in
+// leave-guard.search-params.test.tsx: one fails once react-router stops setting the mark, one proves
+// a redirect still wins with the mark stripped.
 function redirected(location: BlockerStep["currentLocation"]): boolean {
   return (location.state as { _isRedirect?: unknown } | null)?._isRedirect === true;
 }
