@@ -7952,17 +7952,17 @@ test("sticky actions: overflow sticks with an edge shadow, the cell follows the 
   ).toEqual({ ground: "rgba(0, 0, 0, 0)", animations: 0 });
   await page.mouse.move(0, 0);
   await row.evaluate((el) => el.setAttribute("data-grid-row", ""));
-  // The row fades its colour in (`transition-colors`): wait until both probes settle on it. The
-  // hover is the probes' subject, so they keep the pointer where it is.
-  const follows = async () => {
-    const [row, actions] = await probe(false);
+  // The row fades its colour in (`transition-colors`): wait until both probes settle on it. Where
+  // the hover is the probes' subject, they keep the pointer where it is; the selected row parks it.
+  const follows = async (park = true) => {
+    const [row, actions] = await probe(park);
     return (
       JSON.stringify(row) !== JSON.stringify(plainFirst) &&
       JSON.stringify(actions) === JSON.stringify(row)
     );
   };
   await first.hover();
-  await expect.poll(follows).toBe(true);
+  await expect.poll(() => follows(false)).toBe(true);
   await page.mouse.move(0, 0);
   await row.evaluate((el) => el.setAttribute("data-state", "selected"));
   await expect.poll(follows).toBe(true);
