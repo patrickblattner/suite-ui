@@ -12202,6 +12202,22 @@ test("slide editor: a chart's type changes and back without losing data", async 
   await expect(pie).toHaveAttribute("aria-checked", "true");
 });
 
+// GL-UI-017 "description, never name" (#553): an emptied series or category header is named by its
+// default name, never by its remove button or the pie note.
+test("slide editor: a chart's emptied headers are named by their default names", async ({
+  page,
+}) => {
+  const { editor, library } = await openLibrary(page);
+  await library.getByTestId("slide-editor-library-chart").click();
+  const panel = editor.getByTestId("slide-editor-chart");
+  await panel.getByTestId("slide-editor-chart-type-pie").click();
+  await panel.getByTestId("slide-editor-chart-series-1").fill("");
+  await panel.getByTestId("slide-editor-chart-category-1").fill("");
+  const table = panel.getByTestId("slide-editor-chart-data");
+  await expect(table.getByRole("columnheader").nth(2)).toHaveAccessibleName("Series 2");
+  await expect(table.getByRole("rowheader").nth(1)).toHaveAccessibleName("Category 2");
+});
+
 // #366: a value typed and taken back with the field's own text undo leaves no step behind: the
 // header's Undo then takes back the step before it, the chart's insertion.
 test("slide editor: a value taken back in its field leaves no undo step", async ({ page }) => {

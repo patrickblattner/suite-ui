@@ -237,6 +237,26 @@ describe("ChartData", () => {
     }
   });
 
+  // #553 (GL-UI-017 "description, never name"): a header is named by its series or category alone,
+  // an emptied one by its default name; never by its remove button or the pie note.
+  it("names each series and category header by its name alone, emptied by its default (#553)", async () => {
+    await i18n.changeLanguage("en");
+    render(
+      <ChartData
+        chart={{ ...chart, chart: "pie", categories: ["Q1", " "] }}
+        revision={0}
+        readOnly={false}
+        onChange={() => {}}
+      />,
+    );
+    const [, sales, second] = screen.getAllByRole("columnheader");
+    expect(sales).toHaveAccessibleName("Sales");
+    expect(second).toHaveAccessibleName("Series 2");
+    const [q1, emptied] = screen.getAllByRole("rowheader");
+    expect(q1).toHaveAccessibleName("Q1");
+    expect(emptied).toHaveAccessibleName("Category 2");
+  });
+
   // #436 (GL-UI-017): a locked chart's type buttons say how to unlock it, as its other buttons.
   it("a read-only chart's type buttons say to unlock the element (#436)", () => {
     render(<ChartData chart={chart} revision={0} readOnly onChange={() => {}} />);

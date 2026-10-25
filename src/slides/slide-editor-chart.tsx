@@ -131,7 +131,6 @@ export function ChartData({
   const typedRevision = `${revision}:${shape}`;
   const negative = React.useId();
   const notInPie = React.useId();
-  const seriesNameId = React.useId();
   // The value fields that are not a number, as "column:row" with why. Below the table, outside its
   // rows, each row with one says so once, naming its category and the series that are not numbers,
   // so the text is neither squeezed into a value's column nor read as a row of data (#368).
@@ -257,12 +256,13 @@ export function ChartData({
                 {t("slides.editor.chartCategoryHeader")}
               </th>
               {chart.series.map((series, index) => (
-                // Named by its series name alone: the pie note below is the name field's status
-                // line, a description, never part of the header's name (`GL-UI-017`, #553).
+                // Named by its series name alone, emptied by its default name: the remove button and
+                // the pie note, the name field's status line, are never part of the header's name
+                // (`GL-UI-017`, #553).
                 <th
                   key={index}
                   scope="col"
-                  aria-labelledby={`${seriesNameId}-${index}`}
+                  aria-label={seriesName(index)}
                   className="w-20 text-left align-top font-normal"
                 >
                   <div className="flex flex-col items-start gap-0.5">
@@ -279,7 +279,6 @@ export function ChartData({
                           step(`series:${index}`),
                         )
                       }
-                      id={`${seriesNameId}-${index}`}
                       status={pie && index > 0 ? `${notInPie}-${index}` : undefined}
                       className="h-8 w-20 px-2"
                       data-testid={`slide-editor-chart-series-${index}`}
@@ -330,7 +329,12 @@ export function ChartData({
           <tbody>
             {chart.categories.map((category, row) => (
               <tr key={row} data-tooltip-row="">
-                <th scope="row" className="text-left align-top font-normal">
+                {/* Named by its category alone, as the series headers (`GL-UI-017`, #553). */}
+                <th
+                  scope="row"
+                  aria-label={categoryName(row)}
+                  className="text-left align-top font-normal"
+                >
                   <div className="flex items-center gap-1">
                     <NameField
                       aria-label={t("slides.editor.chartCategoryName", { n: row + 1 })}
