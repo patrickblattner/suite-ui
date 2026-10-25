@@ -146,11 +146,19 @@ function actionToastDurationFor(
 }
 
 // The close timers of the toasts with an action, by toast id: they close by this package's timer,
-// not sonner's, which pauses only while the stack is expanded. While pointer or focus is in the
-// toaster every timer stands still; afterwards it goes on with the time left (rev 6).
-type ActionClose = { left: number; since: number; timer?: ReturnType<typeof setTimeout> };
+// not sonner's, which pauses only while the stack is expanded. Each timer belongs to the toaster
+// that shows its toast (sonner's `toasterId`, the `<Toaster>`'s `id`; none for the default one):
+// while pointer or focus is in that toaster it stands still, afterwards it goes on with the time
+// left (rev 6). Pointer or focus in another toaster leaves it running.
+type ActionClose = {
+  toaster: string | undefined;
+  left: number;
+  since: number;
+  timer?: ReturnType<typeof setTimeout>;
+};
 const actionCloses = new Map<string | number, ActionClose>();
-let actionClosesPaused = false;
+// The `<Toaster>` instances pointer or focus is in, each with the toaster id whose toasts it shows.
+const pausedToasters = new Map<object, string | undefined>();
 // The toasts this timer closed: their close is an auto close, so `onAutoClose` runs, not `onDismiss`.
 const autoClosed = new Set<string | number>();
 
@@ -168,11 +176,25 @@ function cancelActionClose(id: string | number): void {
   actionCloses.delete(id);
 }
 
-function pauseActionCloses(paused: boolean): void {
-  if (paused === actionClosesPaused) return;
-  actionClosesPaused = paused;
+// sonner treats an empty toaster id as none.
+function toasterKey(id: string | undefined): string | undefined {
+  return id === "" ? undefined : id;
+}
+
+function isPaused(close: ActionClose): boolean {
+  return Array.from(pausedToasters.values()).includes(close.toaster);
+}
+
+// Pauses or resumes one `<Toaster>` instance: only the timers of the toasts it shows change.
+function pauseActionCloses(instance: object, toaster: string | undefined, paused: boolean): void {
+  if (paused === pausedToasters.has(instance)) return;
+  const was = new Map(Array.from(actionCloses, ([id, close]) => [id, isPaused(close)]));
+  if (paused) pausedToasters.set(instance, toasterKey(toaster));
+  else pausedToasters.delete(instance);
   for (const [id, close] of actionCloses) {
-    if (paused) {
+    const now = isPaused(close);
+    if (now === was.get(id)) continue;
+    if (now) {
       clearTimeout(close.timer);
       close.left -= Date.now() - close.since;
     } else runActionClose(id, close);
@@ -181,15 +203,20 @@ function pauseActionCloses(paused: boolean): void {
 
 type Show = (message: Message, opts?: ExternalToast) => string | number;
 
-// sonner's own default duration (its unexported `TOAST_LIFETIME`).
-const SONNER_DURATION_MS = 4000;
+// The toaster id of the live toast with this id, if any.
+function toasterIdOf(id: string | number | undefined): string | undefined {
+  if (id === undefined) return undefined;
+  const live = sonnerToast.getToasts().find((item) => item.id === id);
+  return live !== undefined && "toasterId" in live ? live.toasterId : undefined;
+}
 
 // Raises a toast through sonner's `show`; a variant times it by `toastDurationFor`. A toast with an
 // action gets its key hint and its mark, and closes after `actionToastDurationFor` by its own timer;
 // a loading one (`timed` false) stays until it is replaced, as in sonner. A call that replaces a
 // toast by its id drops that toast's timer; sonner merges the replacement into the toast, so one
 // without a variant that replaces a timed action toast gets a duration of its own again, else the
-// action toast's `Infinity` would keep it open for good.
+// action toast's `Infinity` would keep it open for good: its own, or none, so sonner takes the
+// Toaster's configured duration (its default 4000 ms).
 function raise(
   show: Show,
   variant: ToastVariant | undefined,
@@ -201,15 +228,15 @@ function raise(
   if (opts?.id !== undefined) cancelActionClose(opts.id);
   if (!rendersAction(opts?.action)) {
     if (variant !== undefined) return show(message, withDuration(message, variant, opts));
-    return show(
-      message,
-      replaced && timed ? { ...opts, duration: opts?.duration ?? SONNER_DURATION_MS } : opts,
-    );
+    // The explicit `duration` key, even when undefined, is what overrides the merged `Infinity`.
+    return show(message, replaced && timed ? { ...opts, duration: opts?.duration } : opts);
   }
   const action = actionLabel(opts?.action);
   const hinted = <ActionKeyHint message={message} action={action} />;
   const marked = { ...opts, className: cn(opts?.className, ACTION_TOAST_CLASS) };
   if (!timed) return show(hinted, marked);
+  // A replacement without a toaster id stays in the toaster of the toast it replaces (sonner merges).
+  const toaster = opts?.toasterId ?? toasterIdOf(opts?.id);
   // A toast dismissed earlier (Esc, a keyboard move under it, its close button) drops its timer; one
   // its timer closed reports an auto close, as sonner's own timer would.
   const id = show(hinted, {
@@ -222,11 +249,12 @@ function raise(
     },
   });
   const close = {
+    toaster: toasterKey(toaster),
     left: actionToastDurationFor(message, variant ?? "info", action, opts?.duration),
     since: 0,
   };
   actionCloses.set(id, close);
-  if (!actionClosesPaused) runActionClose(id, close);
+  if (!isPaused(close)) runActionClose(id, close);
   return id;
 }
 
@@ -492,10 +520,10 @@ let returningFocus = false;
  * A move out of the toasts to an element, a pointer press or a Tab after entering by Tab, keeps the
  * focus where it lands, as without toasts (`SUI-FEATURE-101`: pointer use is unchanged): sonner's
  * own return to its remembered element is undone.
- * Meanwhile the close timers of the toasts with an action stand still while pointer or focus is in
- * the toaster (`SUI-FEATURE-101` rev 6).
+ * Meanwhile the close timers of the toasts with an action this toaster shows (`id`, sonner's toaster
+ * id) stand still while pointer or focus is in it (`SUI-FEATURE-101` rev 6).
  */
-function useToasterFocus(toasts: React.RefObject<HTMLElement | null>): void {
+function useToasterFocus(toasts: React.RefObject<HTMLElement | null>, id?: string): void {
   React.useEffect(() => {
     const wrapper = toasts.current;
     if (wrapper === null) return;
@@ -511,8 +539,10 @@ function useToasterFocus(toasts: React.RefObject<HTMLElement | null>): void {
     // of ours is running, whose own focusout is no move of the user's.
     let moving: HTMLElement | null = null;
     let giving = false;
+    // The instance's own pause state: its key is this effect run.
+    const instance = {};
     const pause = () => {
-      pauseActionCloses(pointer || wrapper.contains(document.activeElement));
+      pauseActionCloses(instance, id, pointer || wrapper.contains(document.activeElement));
     };
     // A return for a leaving toast is quiet: the dismissal under the focus lets it pass.
     const giveBack = (quiet: boolean) => {
@@ -627,9 +657,9 @@ function useToasterFocus(toasts: React.RefObject<HTMLElement | null>): void {
       wrapper.removeEventListener("keydown", onKeyDown);
       wrapper.removeEventListener("pointerenter", onPointerEnter);
       wrapper.removeEventListener("pointerleave", onPointerLeave);
-      pauseActionCloses(false);
+      pauseActionCloses(instance, id, false);
     };
-  }, [toasts]);
+  }, [toasts, id]);
 }
 
 type ToasterAppProps = Omit<ToasterProps, "position" | "offset" | "mobileOffset">;
@@ -639,7 +669,7 @@ function Toaster({ theme = "light", ...props }: ToasterAppProps) {
   const { t } = useTranslation("suite");
   const toasts = React.useRef<HTMLDivElement>(null);
   useDismissToastsUnderFocus(toasts);
-  useToasterFocus(toasts);
+  useToasterFocus(toasts, props.id);
   // The symbol shows the variant; its name is read before the message, so the variant does not rest
   // on colour and symbol alone (`GL-UI-060`).
   const named = (icon: React.ReactNode, name: string) => (

@@ -687,6 +687,71 @@ describe("toast with an action: duration", () => {
     advance(1);
     expect(dismiss).toHaveBeenCalledWith(id);
   });
+
+  it("pauses only the toasts of the toaster the pointer is in (#563)", () => {
+    render(
+      <>
+        <Toaster />
+        <Toaster id="b" />
+      </>,
+    );
+    const dismiss = watchDismiss();
+    let inA: string | number = "";
+    let inB: string | number = "";
+    act(() => {
+      inA = toast.success("Archived", { action: undo });
+      inB = toast.success("Moved", { action: undo, toasterId: "b" });
+    });
+    const [wrapperA] = Array.from(document.querySelectorAll("section"), (s) => s.parentElement);
+    fireEvent.pointerEnter(wrapperA as HTMLElement);
+    advance(8000);
+    expect(dismiss).toHaveBeenCalledWith(inB);
+    expect(dismiss).not.toHaveBeenCalledWith(inA);
+    fireEvent.pointerLeave(wrapperA as HTMLElement);
+    advance(8000);
+    expect(dismiss).toHaveBeenCalledWith(inA);
+  });
+
+  // sonner merges the replacement into the toast, so it stays in its toaster.
+  it("keeps a toast replaced by its id without a toaster id in its toaster's pause (#563)", () => {
+    render(
+      <>
+        <Toaster />
+        <Toaster id="b" />
+      </>,
+    );
+    const dismiss = watchDismiss();
+    act(() => {
+      toast.success("Archived", { id: "x", action: undo, toasterId: "b" });
+      toast.success("Moved", { id: "x", action: undo });
+    });
+    const [wrapperA, wrapperB] = Array.from(
+      document.querySelectorAll("section"),
+      (s) => s.parentElement as HTMLElement,
+    );
+    fireEvent.pointerEnter(wrapperB as HTMLElement);
+    advance(20000);
+    expect(dismiss).not.toHaveBeenCalledWith("x");
+    fireEvent.pointerLeave(wrapperB as HTMLElement);
+    fireEvent.pointerEnter(wrapperA as HTMLElement);
+    advance(8000);
+    expect(dismiss).toHaveBeenCalledWith("x");
+  });
+
+  it("gives a replaced action toast the Toaster's configured duration (#563)", () => {
+    render(<Toaster duration={2000} />);
+    useAllFakeTimers();
+    act(() => {
+      toast.success("Archived", { id: "d", action: undo });
+    });
+    advance(1);
+    act(() => {
+      toast("Restored", { id: "d" });
+    });
+    advance(1);
+    for (let step = 0; step < 6; step++) advance(500);
+    expect(screen.queryByText("Restored")).toBeNull();
+  });
 });
 
 describe("useEditorShellToastOffset", () => {
