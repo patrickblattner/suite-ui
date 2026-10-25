@@ -1,4 +1,5 @@
 import { act, createEvent, fireEvent, render, screen } from "@testing-library/react";
+import { Tabs as TabsPrimitive } from "radix-ui";
 import * as React from "react";
 import { getI18n } from "react-i18next";
 import { toast as sonnerToast } from "sonner";
@@ -495,11 +496,101 @@ describe("Toaster: focus under a toast", () => {
     act(() => screen.getByRole("button", { name: "Undo" }).focus());
     focusVisible = false;
     const free = screen.getByTestId("free");
+    // sonner's return is prevented, not undone: the element before takes no passing focus (#564).
+    const focused: (string | null)[] = [];
+    const log = (event: FocusEvent) => {
+      focused.push((event.target as Element).getAttribute("data-testid"));
+    };
+    document.addEventListener("focusin", log);
+    fireEvent.pointerDown(free);
+    act(() => free.focus());
+    fireEvent.pointerUp(free);
+    await settle();
+    document.removeEventListener("focusin", log);
+    expect(free).toHaveFocus();
+    expect(focused).toEqual(["free"]);
+    // The element before can take the focus again.
+    act(() => screen.getByTestId("covered").focus());
+    expect(screen.getByTestId("covered")).toHaveFocus();
+  });
+
+  it("returns the focus that leaves for nothing after a press that has ended (#564)", async () => {
+    await renderCovered({ focused: "covered" });
+    // A press that moves no focus, then a focus move without keys (a screen reader's browse mode).
+    fireEvent.pointerDown(document.body);
+    fireEvent.pointerUp(document.body);
+    fireEvent.click(document.body);
+    const undo = screen.getByRole("button", { name: "Undo" });
+    act(() => undo.focus());
+    act(() => undo.blur());
+    expect(screen.getByTestId("covered")).toHaveFocus();
+  });
+
+  it("keeps an own focus property of the element before after holding it (#564)", async () => {
+    await renderCovered();
+    const covered = screen.getByTestId("covered");
+    const own = vi.fn(function (this: HTMLElement, options?: FocusOptions) {
+      HTMLElement.prototype.focus.call(this, options);
+    });
+    Object.defineProperty(covered, "focus", { value: own, configurable: true, writable: true });
+    act(() => covered.focus());
+    act(() => screen.getByRole("button", { name: "Undo" }).focus());
+    focusVisible = false;
+    const free = screen.getByTestId("free");
+    fireEvent.pointerDown(free);
+    act(() => free.focus());
+    fireEvent.pointerUp(free);
+    expect(free).toHaveFocus();
+    expect(Object.getOwnPropertyDescriptor(covered, "focus")).toMatchObject({
+      value: own,
+      writable: true,
+    });
+  });
+
+  it("activates no auto-activating tab before by a pointer press outside the toasts (#564)", async () => {
+    // Radix activates an unselected tab on every focus: the app holds the selection on Two.
+    const changes: string[] = [];
+    await renderCovered({
+      wrap: (covered) => (
+        <>
+          {covered}
+          <TabsPrimitive.Root value="two" onValueChange={(value) => changes.push(value)}>
+            <TabsPrimitive.List>
+              <TabsPrimitive.Trigger value="one">One</TabsPrimitive.Trigger>
+              <TabsPrimitive.Trigger value="two">Two</TabsPrimitive.Trigger>
+            </TabsPrimitive.List>
+          </TabsPrimitive.Root>
+        </>
+      ),
+    });
+    act(() => screen.getByRole("tab", { name: "One" }).focus());
+    act(() => screen.getByRole("button", { name: "Undo" }).focus());
+    changes.length = 0;
+    focusVisible = false;
+    const free = screen.getByTestId("free");
     fireEvent.pointerDown(free);
     act(() => free.focus());
     fireEvent.pointerUp(free);
     await settle();
     expect(free).toHaveFocus();
+    expect(changes).toEqual([]);
+  });
+
+  it("leaves the focus on nothing after a pointer press on the page's empty area (#564)", async () => {
+    const item = await renderCovered({ focused: "covered" });
+    altT();
+    const undo = screen.getByRole("button", { name: "Undo" });
+    act(() => undo.focus());
+    const focus = vi.spyOn(HTMLElement.prototype, "focus");
+    fireEvent.pointerDown(document.body);
+    // A press on no focusable element: the focus goes to nothing (`relatedTarget` null).
+    act(() => undo.blur());
+    fireEvent.pointerUp(document.body);
+    await settle();
+    expect(document.activeElement).toBe(document.body);
+    expect(focus).not.toHaveBeenCalled();
+    // The receipt stays: no keyboard focus lands under it.
+    expect(item()).toHaveAttribute("data-removed", "false");
   });
 
   it("closes a toast with an action on the next keyboard move under it", async () => {
@@ -682,6 +773,24 @@ describe("toast with an action: duration", () => {
     advance(20000);
     expect(dismiss).not.toHaveBeenCalledWith(id);
     act(() => screen.getByTestId("outside").focus());
+    advance(4999);
+    expect(dismiss).not.toHaveBeenCalledWith(id);
+    advance(1);
+    expect(dismiss).toHaveBeenCalledWith(id);
+  });
+
+  it("goes on when a pointer press on the empty area takes the focus from the toaster to nothing (#564)", () => {
+    const { dismiss, id } = renderToaster();
+    advance(3000);
+    // From nothing: no element before to hold.
+    const undoButton = screen.getByRole("button", { name: "Undo" });
+    act(() => undoButton.focus());
+    advance(20000);
+    expect(dismiss).not.toHaveBeenCalledWith(id);
+    fireEvent.pointerDown(document.body);
+    act(() => undoButton.blur());
+    fireEvent.pointerUp(document.body);
+    fireEvent.click(document.body);
     advance(4999);
     expect(dismiss).not.toHaveBeenCalledWith(id);
     advance(1);

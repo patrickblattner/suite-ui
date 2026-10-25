@@ -513,13 +513,15 @@ let returningFocus = false;
  * `GL-UI-050` from target 2 on are not built; without it the focus stays where the browser puts
  * it). It goes back when a toast takes the focus along as it leaves (Enter on its action, its timer,
  * a dismissal): once the toast is marked removed, still in the DOM, or once its node is gone (Chrome
- * fires no blur then). It goes back as well when the focus leaves the toasts for nothing, and, when
+ * fires no blur then). It goes back as well when the focus leaves the toasts for nothing but a pointer
+ * press (Tab past the page's last stop), and, when
  * it came in by Alt+T, on Tab past the last toast stop or Shift+Tab before the first, which would
  * otherwise leave the toasts for the page's ends; with its ring (`focusVisible`) when the focus in
  * the toasts showed one, where sonner's own return to the same element would come without it.
- * A move out of the toasts to an element, a pointer press or a Tab after entering by Tab, keeps the
- * focus where it lands, as without toasts (`SUI-FEATURE-101`: pointer use is unchanged): sonner's
- * own return to its remembered element is undone.
+ * A move out of the toasts to an element, a pointer press (on an element or on the page's empty area,
+ * where the focus goes to nothing) or a Tab after entering by Tab, keeps the focus where it lands, as
+ * without toasts (`SUI-FEATURE-101`: pointer use is unchanged): sonner's own return to its remembered
+ * element is prevented, so that element takes no passing focus.
  * Meanwhile the close timers of the toasts with an action this toaster shows (`id`, sonner's toaster
  * id) stand still while pointer or focus is in it (`SUI-FEATURE-101` rev 6).
  */
@@ -533,11 +535,13 @@ function useToasterFocus(toasts: React.RefObject<HTMLElement | null>, id?: strin
     // Whether the focus came in by sonner's hotkey, which focuses the list itself.
     let hotkey = false;
     let pointer = false;
-    // Whether the last input was a pointer press, for the ring of a move the user made.
+    // Whether a pointer press is under way, up to the focus change it makes or its click: a focus that
+    // leaves the toasts for nothing then went to the page's empty area, a move of the user's.
     let pressing = false;
-    // The element a move out of the toasts goes to, while sonner's return runs; and whether a return
-    // of ours is running, whose own focusout is no move of the user's.
-    let moving: HTMLElement | null = null;
+    // The element sonner returns to, held still while its return runs on a move of the user's, with
+    // its own `focus` property, if it had one; and whether a return of ours is running, whose own
+    // focusout is no move of the user's.
+    let held: { element: HTMLElement; own: PropertyDescriptor | undefined } | null = null;
     let giving = false;
     // The instance's own pause state: its key is this effect run.
     const instance = {};
@@ -556,6 +560,7 @@ function useToasterFocus(toasts: React.RefObject<HTMLElement | null>, id?: strin
       returningFocus = false;
     };
     const onFocusIn = (event: FocusEvent) => {
+      pressing = false;
       const target = event.target as Element;
       if (!wrapper.contains(target)) {
         before = null;
@@ -575,24 +580,28 @@ function useToasterFocus(toasts: React.RefObject<HTMLElement | null>, id?: strin
     const onFocusOut = (event: FocusEvent) => {
       const to = event.relatedTarget;
       if (giving || (to instanceof Node && wrapper.contains(to))) return;
-      if (to instanceof HTMLElement) {
+      if (to instanceof HTMLElement || pressing) {
+        pressing = false;
+        // sonner's return to the element it remembered (the one in `before`) is held off, not undone
+        // afterwards: that element takes no passing focus, which would activate a tab or blur a field.
+        const target = before;
         before = null;
-        moving = to;
-        // sonner's return that follows is no move of the user's either.
-        returningFocus = true;
+        if (target !== null) {
+          held = { element: target, own: Object.getOwnPropertyDescriptor(target, "focus") };
+          Object.defineProperty(target, "focus", { value: () => undefined, configurable: true });
+        } else pause();
         return;
       }
       giveBack(false);
       pause();
     };
-    // On the document, so it runs after sonner's return: the focus goes where the user moved it.
+    // On the document, so it runs after sonner's return: the held element can take focus again.
     const afterFocusOut = () => {
-      const to = moving;
-      if (to === null) return;
-      moving = null;
-      returningFocus = false;
-      if (to.isConnected && document.activeElement !== to)
-        to.focus({ preventScroll: true, focusVisible: !pressing });
+      const target = held;
+      if (target === null) return;
+      held = null;
+      if (target.own === undefined) Reflect.deleteProperty(target.element, "focus");
+      else Object.defineProperty(target.element, "focus", target.own);
       pause();
     };
     const onKeyDown = (event: KeyboardEvent) => {
@@ -612,7 +621,7 @@ function useToasterFocus(toasts: React.RefObject<HTMLElement | null>, id?: strin
     const onPointerDown = () => {
       pressing = true;
     };
-    const onAnyKeyDown = () => {
+    const endPress = () => {
       pressing = false;
     };
     const onPointerEnter = () => {
@@ -642,17 +651,20 @@ function useToasterFocus(toasts: React.RefObject<HTMLElement | null>, id?: strin
     document.addEventListener("focusin", onFocusIn);
     document.addEventListener("focusout", afterFocusOut);
     document.addEventListener("pointerdown", onPointerDown, true);
-    document.addEventListener("keydown", onAnyKeyDown, true);
+    document.addEventListener("keydown", endPress, true);
+    document.addEventListener("click", endPress, true);
     wrapper.addEventListener("focusout", onFocusOut);
     wrapper.addEventListener("keydown", onKeyDown);
     wrapper.addEventListener("pointerenter", onPointerEnter);
     wrapper.addEventListener("pointerleave", onPointerLeave);
     return () => {
+      afterFocusOut();
       leaving.disconnect();
       document.removeEventListener("focusin", onFocusIn);
       document.removeEventListener("focusout", afterFocusOut);
       document.removeEventListener("pointerdown", onPointerDown, true);
-      document.removeEventListener("keydown", onAnyKeyDown, true);
+      document.removeEventListener("keydown", endPress, true);
+      document.removeEventListener("click", endPress, true);
       wrapper.removeEventListener("focusout", onFocusOut);
       wrapper.removeEventListener("keydown", onKeyDown);
       wrapper.removeEventListener("pointerenter", onPointerEnter);

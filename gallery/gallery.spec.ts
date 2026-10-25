@@ -855,8 +855,8 @@ test("toast: the receipt over the returned focus closes after 1000 ms, Esc earli
 test("toast: the receipt with Undo over the returned focus stays, Alt+T reaches Undo", async ({
   page,
 }) => {
-  // Six rounds, one of them waits out the receipt's 8000 ms.
-  test.setTimeout(60_000);
+  // Eight rounds, three of them wait out the receipt's 8000 ms.
+  test.setTimeout(90_000);
   await page.goto("/?page=preview&lng=en&receipt=1");
   const trigger = page
     .getByTestId("preview-row-menu")
@@ -895,7 +895,19 @@ test("toast: the receipt with Undo over the returned focus stays, Alt+T reaches 
     .getByTestId("row-menu-actions")
     .getByTestId("row-edit");
   const beside = page.getByTestId("preview-row-menu").getByTestId("row-edit").last();
-  for (const round of ["undo", "past", "Tab", "click", "Shift+Tab", "Escape", "time"]) {
+  // Every element the focus enters from now on, by its test id.
+  const logFocus = () =>
+    page.evaluate(() => {
+      const record = window as unknown as { focusLog?: (string | null)[] };
+      if (record.focusLog === undefined)
+        document.addEventListener("focusin", (event) => {
+          record.focusLog?.push((event.target as Element).getAttribute("data-testid"));
+        });
+      record.focusLog = [];
+    });
+  const focusLog = () =>
+    page.evaluate(() => (window as unknown as { focusLog: (string | null)[] }).focusLog);
+  for (const round of ["undo", "past", "Tab", "click", "empty", "Shift+Tab", "Escape", "time"]) {
     await expect(toasts).toHaveCount(0, { timeout: 9000 });
     await trigger.focus();
     await page.keyboard.press("Enter");
@@ -942,12 +954,41 @@ test("toast: the receipt with Undo over the returned focus stays, Alt+T reaches 
       await page.keyboard.press("Shift+Tab");
       await expect(trigger).toBeFocused();
     } else if (round === "click") {
-      // A pointer press outside the toasts keeps the focus where it puts it, as without toasts.
+      // A pointer press outside the toasts keeps the focus where it puts it, as without toasts; the
+      // ⋯ takes no passing focus on the way (#564).
       await reachUndo();
+      await logFocus();
       await beside.click();
       await expect(beside).toBeFocused();
       await page.waitForTimeout(300);
       await expect(beside).toBeFocused();
+      expect(await focusLog()).toEqual(["row-edit"]);
+      continue;
+    } else if (round === "empty") {
+      // A press on the page's empty area puts the focus on nothing, as without toasts: the ⋯ takes
+      // none, so no ring, and the receipt stays (#564). Safari focuses no button on a press either.
+      await reachUndo();
+      await logFocus();
+      const spot = await page.evaluate(() => {
+        for (let y = window.innerHeight - 8; y > 0; y -= 16)
+          for (let x = 8; x < window.innerWidth; x += 16) {
+            const hit = document.elementFromPoint(x, y);
+            if (
+              hit !== null &&
+              hit.closest(
+                "button, a, input, select, textarea, label, [tabindex], [data-sonner-toaster]",
+              ) === null
+            )
+              return { x, y };
+          }
+        return null;
+      });
+      expect(spot).not.toBeNull();
+      await page.mouse.click(spot!.x, spot!.y);
+      await page.waitForTimeout(300);
+      expect(await page.evaluate(() => document.activeElement === document.body)).toBe(true);
+      expect(await focusLog()).toEqual([]);
+      await expect(receipt).toHaveAttribute("data-removed", "false");
       continue;
     } else if (round === "Shift+Tab") {
       // The first keyboard move onto an element under it closes it.
