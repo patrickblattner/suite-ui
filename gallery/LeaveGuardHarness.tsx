@@ -85,7 +85,8 @@ function Form({ name }: { name: string }) {
 // A detail page whose tabs follow `?tab=` (SUI-FEATURE-109). The field's value lives above the tabs,
 // so it survives a tab switch: with `ignoreSearchParams` the switch passes without asking. Its Save
 // runs until "Finish save" ends it (`busy` meanwhile), so a switch during a running save is measured
-// too (rev 3).
+// too (rev 3); "Fail save" ends it failed (`saveFailed`, `SUI-FEATURE-150` rev 7). A saved value is the
+// loaded one then, so the page is unchanged after a success.
 function TabbedDetail({
   name,
   ignoreSearchParams,
@@ -94,17 +95,20 @@ function TabbedDetail({
   ignoreSearchParams?: boolean;
 }) {
   const [value, setValue] = useState("");
-  const [finishSave, setFinishSave] = useState<(() => void) | null>(null);
+  const [loaded, setLoaded] = useState("");
+  const [finishSave, setFinishSave] = useState<((ok: boolean) => void) | null>(null);
   const [saved, setSaved] = useState(false);
+  const [failed, setFailed] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const [params, setParams] = useSearchParams();
   const { guard, dialog } = useLeaveGuard({
-    dirty: value !== "",
+    dirty: value !== loaded,
     busy: finishSave !== null,
+    saveFailed: failed,
     onLeave: () => void navigate(-1),
     onSave: () => true,
-    onDiscard: () => setValue(""),
+    onDiscard: () => setValue(loaded),
     ignoreSearchParams,
   });
   return (
@@ -160,9 +164,14 @@ function TabbedDetail({
           busy={finishSave !== null}
           onClick={() => {
             setSaved(false);
-            void new Promise<void>((resolve) => setFinishSave(() => resolve)).then(() => {
+            setFailed(false);
+            const saving = value;
+            void new Promise<boolean>((resolve) => setFinishSave(() => resolve)).then((ok) => {
               setFinishSave(null);
-              setSaved(true);
+              if (ok) {
+                setLoaded(saving);
+                setSaved(true);
+              } else setFailed(true);
             });
           }}
           data-testid="harness-save"
@@ -172,13 +181,21 @@ function TabbedDetail({
         <Button
           variant="outline"
           size="default"
-          onClick={() => finishSave?.()}
+          onClick={() => finishSave?.(true)}
           data-testid="harness-finish-save"
         >
           Finish save
         </Button>
+        <Button
+          variant="outline"
+          size="default"
+          onClick={() => finishSave?.(false)}
+          data-testid="harness-fail-save"
+        >
+          Fail save
+        </Button>
         <span data-testid="harness-save-state">
-          {finishSave !== null ? "saving" : saved ? "saved" : "idle"}
+          {finishSave !== null ? "saving" : saved ? "saved" : failed ? "failed" : "idle"}
         </span>
       </div>
       {dialog}

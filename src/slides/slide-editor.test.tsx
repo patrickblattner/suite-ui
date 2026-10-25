@@ -1,5 +1,6 @@
 import * as React from "react";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { Link, MemoryRouter, Route, Routes, useLocation } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { resolveSlideMedia, SLIDE_BRAND, SLIDE_EDITOR_DOC } from "../../gallery/slide-showcase.js";
@@ -74,6 +75,71 @@ describe("SlideEditor Save", () => {
     await waitFor(() =>
       expect(screen.getAllByTestId("editor-state")[0]).toHaveTextContent("Saved"),
     );
+  });
+});
+
+// #572 (`SUI-FEATURE-150` rev 7): a click to another path during the save waits for it; a failed
+// save drops it, and no "Save changes?" comes over the error. After a success it lands there.
+describe("SlideEditor: a route change during the save", () => {
+  function Where() {
+    return <span data-testid="path">{useLocation().pathname}</span>;
+  }
+  function renderSaving(onSave: () => Promise<unknown>) {
+    render(
+      <MemoryRouter initialEntries={["/editor"]}>
+        <Where />
+        <Link to="/list" data-testid="other">
+          List
+        </Link>
+        <Routes>
+          <Route
+            path="/editor"
+            element={
+              <SlideEditor
+                document={SLIDE_EDITOR_DOC}
+                title="Deck"
+                brand={SLIDE_BRAND}
+                onSave={onSave}
+                onBack={() => {}}
+              />
+            }
+          />
+          <Route path="/list" element={null} />
+        </Routes>
+      </MemoryRouter>,
+    );
+    makeDraft();
+    fireEvent.click(screen.getAllByTestId("editor-save")[0]!);
+    fireEvent.click(screen.getByTestId("other"));
+  }
+  const pause = () => act(() => new Promise((done) => window.setTimeout(done, 30)));
+
+  it("a failed save keeps the user on the editor without a dialog", async () => {
+    let settle: () => void = () => {};
+    renderSaving(() => new Promise((resolve) => (settle = () => resolve(false))));
+    await pause();
+    expect(screen.getByTestId("path")).toHaveTextContent("/editor");
+    await act(async () => {
+      settle();
+      await Promise.resolve();
+    });
+    await pause();
+    expect(screen.getByTestId("path")).toHaveTextContent("/editor");
+    expect(screen.queryByTestId("leave-guard")).toBeNull();
+    expect(screen.getAllByTestId("editor-state")[0]).toHaveTextContent("Draft");
+  });
+
+  it("a successful save lands at the clicked target", async () => {
+    let settle: () => void = () => {};
+    renderSaving(() => new Promise((resolve) => (settle = () => resolve(true))));
+    await pause();
+    expect(screen.getByTestId("path")).toHaveTextContent("/editor");
+    await act(async () => {
+      settle();
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/list"));
+    expect(screen.queryByTestId("leave-guard")).toBeNull();
   });
 });
 

@@ -656,6 +656,90 @@ describe("useEditorLeaveGuard", () => {
     await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/list"));
     expect(save).toHaveBeenCalledTimes(1);
   });
+
+  // #572 (`SUI-FEATURE-150` rev 7): a route change during the editor's own save waits for it; a
+  // failed save (`saveFailed`) drops it, and no "Save changes?" comes over the error.
+  describe("a route change during the save", () => {
+    function SavingEditor() {
+      const navigate = useNavigate();
+      const location = useLocation();
+      const [draft, setDraft] = useState("changed");
+      const [loaded, setLoaded] = useState("");
+      const [finish, setFinish] = useState<((ok: boolean) => void) | null>(null);
+      const [failed, setFailed] = useState(false);
+      const { dialog } = useEditorLeaveGuard({
+        dirty: draft !== loaded,
+        saving: finish !== null,
+        saveFailed: failed,
+        onBack: () => void navigate("/list"),
+        onSave: () => true,
+        onReset: () => setDraft(loaded),
+      });
+      const save = () => {
+        setFailed(false);
+        void new Promise<boolean>((resolve) => setFinish(() => resolve)).then((ok) => {
+          setFinish(null);
+          if (ok) setLoaded(draft);
+          else setFailed(true);
+        });
+      };
+      return (
+        <>
+          <span data-testid="path">{location.pathname}</span>
+          {failed && <span data-testid="error">Not saved</span>}
+          <button type="button" data-testid="save" onClick={save}>
+            Save
+          </button>
+          <button type="button" data-testid="ok" onClick={() => finish?.(true)}>
+            ok
+          </button>
+          <button type="button" data-testid="fail" onClick={() => finish?.(false)}>
+            fail
+          </button>
+          <button type="button" data-testid="other" onClick={() => void navigate("/list")}>
+            Other
+          </button>
+          {dialog}
+        </>
+      );
+    }
+    function renderSaving() {
+      render(
+        <MemoryRouter initialEntries={["/editor"]}>
+          <Routes>
+            <Route path="/editor" element={<SavingEditor />} />
+            <Route path="/list" element={<span data-testid="path">/list</span>} />
+          </Routes>
+        </MemoryRouter>,
+      );
+      fireEvent.click(screen.getByTestId("save"));
+      fireEvent.click(screen.getByTestId("other"));
+    }
+    const pause = () => act(() => new Promise((done) => window.setTimeout(done, 30)));
+
+    it("saved: the held change lands at its target", async () => {
+      renderSaving();
+      await pause();
+      expect(screen.getByTestId("path")).toHaveTextContent("/editor");
+      expect(screen.queryByTestId("leave-guard")).toBeNull();
+      fireEvent.click(screen.getByTestId("ok"));
+      await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/list"));
+      expect(screen.queryByTestId("leave-guard")).toBeNull();
+    });
+
+    it("saveFailed: the held change is dropped, no dialog over the error", async () => {
+      renderSaving();
+      await pause();
+      fireEvent.click(screen.getByTestId("fail"));
+      expect(await screen.findByTestId("error")).toBeInTheDocument();
+      await pause();
+      expect(screen.getByTestId("path")).toHaveTextContent("/editor");
+      expect(screen.queryByTestId("leave-guard")).toBeNull();
+      // The draft is still unsaved: the next way out asks.
+      fireEvent.click(screen.getByTestId("other"));
+      expect(await screen.findByTestId("leave-guard")).toBeInTheDocument();
+    });
+  });
 });
 
 // `SUI-FEATURE-090`: the header folds what does not fit into its one ⋯. jsdom has no layout, so the

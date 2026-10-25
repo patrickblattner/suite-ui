@@ -724,6 +724,9 @@ function NextStep({
 type EditorLeaveGuardOptions = {
   dirty: boolean;
   saving?: boolean;
+  // The save failed: set it in the same update that turns `saving` false, clear it when the next save
+  // starts. A route change held during the save is then dropped (`SUI-FEATURE-150` rev 7).
+  saveFailed?: boolean | undefined;
   // Back to the list: what `Esc` does, and what a held Back carries out.
   onBack: () => void;
   // Returning `true` (or a promise of it) reports a successful save: the held way out then goes on.
@@ -741,11 +744,19 @@ type EditorLeaveGuardOptions = {
 function useEditorLeaveGuard({
   dirty,
   saving = false,
+  saveFailed,
   onBack,
   onSave,
   onReset,
 }: EditorLeaveGuardOptions) {
-  return useLeaveGuard({ dirty, busy: saving, onLeave: onBack, onSave, onDiscard: onReset });
+  return useLeaveGuard({
+    dirty,
+    busy: saving,
+    saveFailed,
+    onLeave: onBack,
+    onSave,
+    onDiscard: onReset,
+  });
 }
 
 export {

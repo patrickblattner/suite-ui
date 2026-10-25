@@ -302,11 +302,13 @@ describe.each(["BrowserRouter", "createBrowserRouter"] as const)(
 
 // SUI-FEATURE-109 rev 4 (#562): while the page's own save runs (`busy`), a change that keeps the
 // pathname passes at once with the option, under every router alike, and the save goes on; another
-// pathname stays held until the result (`SUI-FEATURE-150`). Without the option nothing passes.
+// pathname stays held until the result and goes on after a success, dropped after `saveFailed`
+// (`SUI-FEATURE-150` rev 7). Without the option nothing passes.
 function SavingDetail({ ignoreSearchParams }: { ignoreSearchParams: boolean }) {
   const [value, setValue] = useState("");
-  const [saving, setSaving] = useState<(() => void) | null>(null);
+  const [saving, setSaving] = useState<((ok: boolean) => void) | null>(null);
   const [saved, setSaved] = useState(false);
+  const [failed, setFailed] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { dialog } = useLeaveGuard({
@@ -315,11 +317,14 @@ function SavingDetail({ ignoreSearchParams }: { ignoreSearchParams: boolean }) {
     onLeave: () => void navigate(-1),
     onSave: () => true,
     ignoreSearchParams,
+    saveFailed: failed,
   });
   const save = () => {
-    void new Promise<void>((resolve) => setSaving(() => resolve)).then(() => {
+    setFailed(false);
+    void new Promise<boolean>((resolve) => setSaving(() => resolve)).then((ok) => {
       setSaving(null);
-      setSaved(true);
+      if (ok) setSaved(true);
+      else setFailed(true);
     });
   };
   return (
@@ -331,12 +336,17 @@ function SavingDetail({ ignoreSearchParams }: { ignoreSearchParams: boolean }) {
         data-testid="name"
       />
       <span data-testid="path">{location.pathname + location.search + location.hash}</span>
-      <span data-testid="state">{saving !== null ? "saving" : saved ? "saved" : "idle"}</span>
+      <span data-testid="state">
+        {saving !== null ? "saving" : saved ? "saved" : failed ? "failed" : "idle"}
+      </span>
       <button type="button" onClick={save} data-testid="save">
         Save
       </button>
-      <button type="button" onClick={() => saving?.()} data-testid="finish">
+      <button type="button" onClick={() => saving?.(true)} data-testid="finish">
         Finish
+      </button>
+      <button type="button" onClick={() => saving?.(false)} data-testid="fail">
+        Fail
       </button>
       <button type="button" onClick={() => void navigate({ search: "?tab=b" })} data-testid="tab">
         Tab
@@ -421,25 +431,50 @@ describe.each(kinds)(
       expect(screen.getByTestId("name")).toHaveValue("changed");
     });
 
-    it("set: another pathname stays held while the save runs", async () => {
+    it.each([true, false])(
+      "option %s: another pathname stays held while the save runs and lands there after it",
+      async (option) => {
+        await renderSaving(kind, option);
+        fireEvent.click(screen.getByTestId("other"));
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        expect(path()).toBe("/detail?tab=a");
+        expect(screen.queryByTestId("other-page")).toBeNull();
+        expect(screen.queryByTestId("leave-guard")).toBeNull();
+        expect(state()).toBe("saving");
+        fireEvent.click(screen.getByTestId("finish"));
+        expect(await screen.findByTestId("other-page")).toBeInTheDocument();
+        expect(screen.queryByTestId("leave-guard")).toBeNull();
+      },
+    );
+
+    // SUI-FEATURE-150 rev 7: `saveFailed` with `busy` ending drops the held change; the page stays.
+    it("saveFailed: the held change to another pathname is dropped, the page stays", async () => {
       await renderSaving(kind, true);
       fireEvent.click(screen.getByTestId("other"));
+      await new Promise((resolve) => setTimeout(resolve, 50));
+      fireEvent.click(screen.getByTestId("fail"));
+      await waitFor(() => expect(state()).toBe("failed"));
       await new Promise((resolve) => setTimeout(resolve, 50));
       expect(path()).toBe("/detail?tab=a");
       expect(screen.queryByTestId("other-page")).toBeNull();
       expect(screen.queryByTestId("leave-guard")).toBeNull();
-      expect(state()).toBe("saving");
-      fireEvent.click(screen.getByTestId("finish"));
-      await waitFor(() => expect(state()).toBe("saved"));
+      expect(screen.getByTestId("name")).toHaveValue("changed");
+      // The page stays guarded as it is: its unsaved changes ask on the next way out.
+      fireEvent.click(screen.getByTestId("other"));
+      expect(await screen.findByTestId("leave-guard")).toBeInTheDocument();
     });
 
-    it("unset: the same pathname does not pass while the save runs", async () => {
+    it("unset: the same pathname does not pass while the save runs; it lands after it", async () => {
       await renderSaving(kind, false);
       fireEvent.click(screen.getByTestId("tab"));
       await new Promise((resolve) => setTimeout(resolve, 50));
       expect(path()).toBe("/detail?tab=a");
       expect(screen.queryByTestId("leave-guard")).toBeNull();
       expect(state()).toBe("saving");
+      // #572 (SUI-FEATURE-150 rev 7): held, not dropped; it goes once the save succeeded.
+      fireEvent.click(screen.getByTestId("finish"));
+      await waitFor(() => expect(path()).toBe("/detail?tab=b"));
+      expect(screen.queryByTestId("leave-guard")).toBeNull();
     });
   },
 );
@@ -447,7 +482,7 @@ describe.each(kinds)(
 describe.each(["BrowserRouter", "createBrowserRouter"] as const)(
   "leave guard ignoreSearchParams: browser back during a running save under %s (SUI-FEATURE-109 rev 4)",
   (kind) => {
-    it("set: back to the same pathname passes; back to another pathname stays held", async () => {
+    it("set: back to the same pathname passes; back to another pathname stays held, then goes", async () => {
       await renderSaving(kind, true, true);
       fireEvent.click(screen.getByTestId("tab"));
       await waitFor(() => expect(path()).toBe("/detail?tab=b"));
@@ -463,7 +498,9 @@ describe.each(["BrowserRouter", "createBrowserRouter"] as const)(
       expect(screen.queryByTestId("other-page")).toBeNull();
       expect(state()).toBe("saving");
       fireEvent.click(screen.getByTestId("finish"));
-      await waitFor(() => expect(state()).toBe("saved"));
+      // SUI-FEATURE-150 rev 7: after the save the held step lands at its entry.
+      expect(await screen.findByTestId("other-page")).toBeInTheDocument();
+      expect(window.location.pathname).toBe("/other");
     });
   },
 );

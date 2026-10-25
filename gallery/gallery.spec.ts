@@ -3441,7 +3441,7 @@ test.describe("leave guard ignoreSearchParams during a running save (#562)", () 
     expect(tabOf(page)).toBe("notes");
   });
 
-  test("another path stays held while the save runs", async ({ page }) => {
+  test("another path stays held while the save runs, then goes", async ({ page }) => {
     await openHarnessDetail(page);
     await page.getByTestId("harness-save").click();
     await page.getByTestId("harness-open").click();
@@ -3451,7 +3451,42 @@ test.describe("leave guard ignoreSearchParams during a running save (#562)", () 
     await expectNoDialog(page);
     await expect(page.getByTestId("harness-save-state")).toHaveText("saving");
     await page.getByTestId("harness-finish-save").click();
-    await expect(page.getByTestId("harness-save-state")).toHaveText("saved");
+    // #572 (`SUI-FEATURE-150` rev 7): the latest held way, browser back, goes after the save.
+    await expect(page.getByTestId("harness-list")).toBeVisible();
+    await expectNoDialog(page);
+  });
+});
+
+// #572 (`SUI-FEATURE-150` rev 7): a click to another path during the page's own fetch save is held
+// silently and lands at its target after the save; with `saveFailed` it is dropped and the page stays.
+test.describe("leave guard: a route change waits for the page's own save (#572)", () => {
+  test("lands at the target after a successful save", async ({ page }) => {
+    await openHarnessDetail(page);
+    await page.getByTestId("harness-save").click();
+    await page.getByTestId("harness-open").click();
+    await expectNoDialog(page);
+    expect(pathOf(page)).toBe("/detail");
+    await expect(page.getByTestId("harness-save-state")).toHaveText("saving");
+    await page.getByTestId("harness-finish-save").click();
+    await expect(page.getByTestId("harness-item")).toBeVisible();
+    expect(pathOf(page)).toBe("/item");
+    await expectNoDialog(page);
+  });
+
+  test("stays with saveFailed", async ({ page }) => {
+    await openHarnessDetail(page);
+    await page.getByTestId("harness-save").click();
+    await page.getByTestId("harness-open").click();
+    await expectNoDialog(page);
+    await page.getByTestId("harness-fail-save").click();
+    await expect(page.getByTestId("harness-save-state")).toHaveText("failed");
+    await expectNoDialog(page);
+    await expect(page.getByTestId("harness-item")).toHaveCount(0);
+    await expect.poll(() => pathOf(page)).toBe("/detail");
+    await expect(page.getByTestId("harness-value")).toHaveValue("draft");
+    // The draft is still unsaved: the page's own Back asks.
+    await page.getByTestId("harness-back").click();
+    await expect(page.getByTestId("leave-guard")).toBeVisible();
   });
 });
 

@@ -1929,13 +1929,36 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
     },
   );
 
-  it("dirty and working: a route change is blocked without a prompt", () => {
-    renderPage(undefined, { busy: true });
+  it("dirty and working: a route change is held without a prompt; Esc is dropped", async () => {
+    function Working() {
+      const [busy, setBusy] = useState(true);
+      return (
+        <DetailPage busy={busy}>
+          <button type="button" data-testid="end-busy" onClick={() => setBusy(false)} />
+        </DetailPage>
+      );
+    }
+    render(
+      <MemoryRouter initialEntries={["/list", "/detail"]} initialIndex={1}>
+        <Where />
+        <Routes>
+          <Route path="/detail" element={<Working />} />
+          <Route path="*" element={null} />
+        </Routes>
+      </MemoryRouter>,
+    );
     edit();
     fireEvent.click(screen.getByTestId("go"));
     escape(screen.getByLabelText("Name"));
     expect(screen.getByTestId("path")).toHaveTextContent("/detail");
     expect(screen.queryByTestId("leave-guard")).toBeNull();
+    // #572 (SUI-FEATURE-150 rev 7): once the save ended, the held change goes through the page's
+    // guard as it is then (still changed here: it asks); the dropped Esc never runs later.
+    fireEvent.click(screen.getByTestId("end-busy"));
+    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+    await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/elsewhere"));
+    await act(() => new Promise((done) => window.setTimeout(done, 30)));
+    expect(screen.getByTestId("path")).toHaveTextContent("/elsewhere");
   });
 
   it("a rejected save keeps the page and hands the focus back", async () => {
@@ -4718,9 +4741,11 @@ describe("a page's own Save under a data router (SUI-FEATURE-170)", () => {
     const [open, setOpen] = useState(false);
     const [term, setTerm] = useState("");
     const [saveShown, setSaveShown] = useState(true);
+    // The page's own fetch save, until "end-busy" ends it (`SUI-FEATURE-150` rev 7).
+    const [working, setWorking] = useState(busy);
     const { guard, dialog, saveForm, ownSave } = useLeaveGuard({
       dirty: name !== loaded,
-      busy,
+      busy: working,
       onLeave: () => void navigate("/list"),
       onSave: () => true,
     });
@@ -4751,6 +4776,7 @@ describe("a page's own Save under a data router (SUI-FEATURE-170)", () => {
           )}
         </Form>
         <button type="button" data-testid="hide-save" onClick={() => setSaveShown(false)} />
+        <button type="button" data-testid="end-busy" onClick={() => setWorking(false)} />
         <button
           type="submit"
           form="own-form"
@@ -5032,6 +5058,13 @@ describe("a page's own Save under a data router (SUI-FEATURE-170)", () => {
     fireEvent.click(screen.getByTestId("own-save"));
     await pause();
     expect({ asks: asks(), posted: posted.length }).toEqual({ asks: false, posted: 0 });
+    // #572 (`SUI-FEATURE-150` rev 7): once the fetch save ended, the held Save is submitted anew
+    // from its form, once, with the values as they are then.
+    fireEvent.click(screen.getByTestId("end-busy"));
+    await waitFor(() => expect(posted).toHaveLength(1));
+    expect(posted[0]?.get("name")).toBe("Changed");
+    await pause();
+    expect({ asks: asks(), posted: posted.length }).toEqual({ asks: false, posted: 1 });
   });
 
   // Another method, so it is no second submit of the running one (SUI-FEATURE-150 rev 6).

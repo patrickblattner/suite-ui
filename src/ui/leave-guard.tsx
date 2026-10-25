@@ -1221,10 +1221,15 @@ type LeaveConfirmOptions = {
   workingFocus?: (() => HTMLElement | null) | undefined;
   // A dirty or busy surface lets a route change pass that keeps the pathname (`SUI-FEATURE-109`).
   ignoreSearchParams?: boolean | undefined;
+  // `busy` is the page's own save: a route change meanwhile waits for it instead of being dropped,
+  // and goes on once `busy` ends, unless `saveFailed` (`SUI-FEATURE-150` rev 7).
+  holdBusy?: boolean | undefined;
+  saveFailed?: boolean | undefined;
 };
 
 // The shared core of the edit panel and `useLeaveGuard`: `guard` leaves at once when clean, holds the
-// leave for the dialog when dirty and drops it while the call site's `busy` action works; route
+// leave for the dialog when dirty and drops it while the call site's `busy` action works (a page's
+// own save, `holdBusy`, holds a route change until it ended instead); route
 // changes in the app, browser back and forward included, are held the same way while dirty or
 // working. A confirmed leave passes the hold. `run` runs the surface's save or apply: one that
 // returns a promise makes the surface work until it settles (`working`), as Save in the dialog does,
@@ -1238,6 +1243,8 @@ function useLeaveConfirm({
   open = true,
   workingFocus,
   ignoreSearchParams = false,
+  holdBusy = false,
+  saveFailed = false,
 }: LeaveConfirmOptions) {
   const [pending, setPending] = React.useState<PendingLeave | null>(null);
   // The open dialog's held leave, for a way out that arrives while it asks; set with the state, so a
@@ -1247,9 +1254,17 @@ function useLeaveConfirm({
     asking.current = next;
     setPending(next);
   };
-  const latest = React.useRef({ dirty, busy, onSave, onDiscard, ignoreSearchParams });
+  const latest = React.useRef({
+    dirty,
+    busy,
+    onSave,
+    onDiscard,
+    ignoreSearchParams,
+    holdBusy,
+    saveFailed,
+  });
   React.useEffect(() => {
-    latest.current = { dirty, busy, onSave, onDiscard, ignoreSearchParams };
+    latest.current = { dirty, busy, onSave, onDiscard, ignoreSearchParams, holdBusy, saveFailed };
   });
   const releasing = React.useRef(false);
   // The way out `release` lets go now, until the route change it starts takes it.
@@ -1259,6 +1274,9 @@ function useLeaveConfirm({
   const work = React.useRef<object | null>(null);
   const [working, setWorking] = React.useState(false);
   const waiting = React.useRef<PendingLeave | null>(null);
+  // The route change that waits for the page's own `busy` save (`holdBusy`); the latest replaces an
+  // older one.
+  const busyWaiting = React.useRef<PendingLeave | null>(null);
 
   // Whether the router runs this surface's own Save now; set once its router hold is.
   const savingNow = React.useRef<() => boolean>(() => false);
@@ -1275,6 +1293,8 @@ function useLeaveConfirm({
     } else if (latest.current.busy && !keeps) {
       // The router holds the change until its submission has ended, and asks this surface again then.
       if (next.afterSubmission === true) next.leave();
+      // The page's own save holds a route change silently until it ended (`SUI-FEATURE-150` rev 7).
+      else if (latest.current.holdBusy && next.again !== undefined) busyWaiting.current = next;
       else next.stay?.();
     } else if (savingNow.current()) {
       // The surface's own Save runs: the way out asks nothing, it goes to the router, which holds it
@@ -1380,6 +1400,9 @@ function useLeaveConfirm({
     asking.current = null;
     setPending(null);
     way?.stay?.();
+    const held = busyWaiting.current;
+    busyWaiting.current = null;
+    held?.stay?.();
   }, []);
   React.useEffect(() => {
     if (open) return;
@@ -1395,6 +1418,17 @@ function useLeaveConfirm({
     },
     [drop],
   );
+  // The page's own save ended: the route change that waited for it goes anew through the holds as
+  // they are then, so an unchanged page lets it pass to its target; after `saveFailed` it is dropped
+  // and the page stays with its error (`SUI-FEATURE-150` rev 7).
+  React.useEffect(() => {
+    if (busy) return;
+    const way = busyWaiting.current;
+    busyWaiting.current = null;
+    if (way === null) return;
+    if (latest.current.saveFailed) way.stay?.();
+    else way.again?.();
+  }, [busy]);
 
   // Outside a data router the navigator of `BrowserRouter`/`MemoryRouter` takes every in-app route
   // change (links, the navigation, `navigate()`); while held its methods ask first.
@@ -1503,8 +1537,16 @@ function useLeaveConfirm({
 type LeaveGuardOptions = {
   // Against the loaded state, as for the Save/Reset pair; `isDirty` compares by value.
   dirty: boolean;
-  // An action works (`GL-UI-027`): nothing leaves.
+  // An action works (`GL-UI-027`): nothing leaves. A route change to another `pathname` meanwhile
+  // (a fetch, mutation or fetcher save) is held, without a dialog on an unchanged page, and goes on to
+  // its target once `busy` ends (`SUI-FEATURE-150` rev 7); `Esc` and the page's own ways are dropped.
+  // A successful save must make `dirty` read clean in the same render that turns `busy` false, else
+  // the held change asks "Save changes?" first.
   busy?: boolean;
+  // Set in the same update that turns `busy` false when the save failed, and cleared when the next
+  // save starts: the held route change is dropped, the page stays and shows its error. Without it the
+  // end of `busy` counts as a success.
+  saveFailed?: boolean | undefined;
   // Back to the list (the same page, filters, sort and focused row are the app's route state).
   onLeave: () => void;
   // Leave it out where the page has no save target (`SUI-FEATURE-092`): the dialog then asks
@@ -1517,7 +1559,7 @@ type LeaveGuardOptions = {
   // `hash` (a tab switch over `?tab=`, also by replace), also while `busy`, and the save goes on; during
   // a router form submission (not a fetcher) it waits until that ends, and a redirect of it wins
   // (`SUI-FEATURE-150`); another pathname, browser back and forward to one included, still asks, and while `busy` stays
-  // held (`SUI-FEATURE-109`). A change to the very same URL passes too; a form
+  // held until the save ended (`SUI-FEATURE-109`, `SUI-FEATURE-150` rev 7). A change to the very same URL passes too; a form
   // submission to the page's own route still asks, as its action may redirect away. Set it only where the changed state survives such a
   // switch (a server draft, a store), never where a search parameter selects another entry (`?id=`).
   ignoreSearchParams?: boolean | undefined;
@@ -1542,6 +1584,7 @@ function useLeaveGuard({
   onSave,
   onDiscard,
   ignoreSearchParams,
+  saveFailed,
 }: LeaveGuardOptions) {
   const { guard, dialog, saveForm, ownSave } = useLeaveConfirm({
     dirty,
@@ -1549,6 +1592,8 @@ function useLeaveGuard({
     onSave,
     onDiscard,
     ignoreSearchParams,
+    holdBusy: true,
+    saveFailed,
   });
   const leave = React.useRef(onLeave);
   React.useEffect(() => {

@@ -829,6 +829,8 @@ function Editor({
   const [saved, setSaved] = React.useState(initial);
   const [saving, setSaving] = React.useState(false);
   const [saveError, setSaveError] = React.useState<string | undefined>(undefined);
+  // The last save failed: a route change held during it is dropped (`SUI-FEATURE-150` rev 7).
+  const [saveFailed, setSaveFailed] = React.useState(false);
   const [pageState, setPageState] = React.useState(0);
   const [selection, setSelectionState] = React.useState<string[]>([]);
   // How often the history went back or forth: a number field keeps what is typed until then.
@@ -1018,14 +1020,19 @@ function Editor({
       return false;
     }
     setSaveError(undefined);
+    setSaveFailed(false);
     setSaving(true);
+    let succeeded = false;
     try {
       const ok = await onSave(result.document);
       // Only `true` is success (`GL-UI-007`); anything else keeps the draft.
       if (ok !== true) return false;
       setSaved(current);
+      succeeded = true;
       return true;
     } finally {
+      // In the same update that ends `saving`, so the guard reads the result with it.
+      setSaveFailed(!succeeded);
       setSaving(false);
     }
   };
@@ -1233,6 +1240,7 @@ function Editor({
   const { guard, dialog } = useEditorLeaveGuard({
     dirty,
     saving,
+    saveFailed,
     onBack,
     onSave: save,
     onReset: reset,
