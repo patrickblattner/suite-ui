@@ -6882,8 +6882,26 @@ test("target size: every icon button, indicator control and hint trigger hits at
   for (const name of TARGET_PAGES) {
     await page.goto(`/?page=${name}&lng=en`);
     await page.waitForLoadState("networkidle");
-    // Overlays settle their open animation before the boxes are read.
-    await page.waitForTimeout(500);
+    // The toasts are added after mount; wait for all five before the settle poll.
+    if (name === "toast") {
+      await expect(page.locator("[data-sonner-toast][data-mounted=true]")).toHaveCount(5);
+    }
+    // Overlays and toasts settle their open/restack animations before the boxes are read;
+    // infinite animations (spin, pulse) never finish and are excluded.
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          document
+            .getAnimations()
+            .every(
+              (a) =>
+                a.playState === "finished" ||
+                a.playState === "idle" ||
+                a.effect?.getComputedTiming().endTime === Infinity,
+            ),
+        ),
+      )
+      .toBe(true);
     const result = await hitAreaViolations(page, TARGET_SELECTOR);
     measured.push(...result.measured.map((label) => `${name}: ${label}`));
     small.push(...result.small.map((label) => `${name}: ${label}`));
