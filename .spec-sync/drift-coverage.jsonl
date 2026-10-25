@@ -643,3 +643,6 @@
 {"ts":"2026-10-25T12:23:51.182Z","key":"GL-UI-019","from":8,"to":9,"disposition":"ticket","ref":"577"}
 {"ts":"2026-10-25T12:28:24.255Z","key":"GL-UI-010","from":9,"to":10,"disposition":"ticket","ref":"577"}
 {"ts":"2026-10-25T12:28:24.613Z","key":"GL-TEST-027","from":5,"to":6,"disposition":"editorial","ref":"suite-ui exempt (Repos without CI deliver neither); #569/#578 closed not applicable, no code impact"}
+{"ts":"2026-10-25T15:02:00.533Z","key":"SUI-FEATURE-110","from":3,"to":4,"disposition":"ticket","ref":"580"}
+{"ts":"2026-10-25T15:02:07.845Z","key":"SUI-FEATURE-106","from":7,"to":8,"disposition":"ticket","ref":"568"}
+{"ts":"2026-10-25T15:02:25.240Z","key":"GL-UI-010","from":10,"to":11,"disposition":"editorial","ref":"rev 11 codifies the sr-only panel heading already built by #567 (a0be91d); no further code impact"}
