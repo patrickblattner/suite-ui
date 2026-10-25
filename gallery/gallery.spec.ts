@@ -258,7 +258,20 @@ for (const lng of LANGUAGES) {
       const dialog = page.getByTestId("slide-editor-transfer-dialog");
       await expect(dialog).toBeVisible();
       await parkPointer(page);
-      await expect(dialog).toHaveScreenshot(`slide-editor-transfer-dialog-${lng}-${theme}.png`);
+      // #551: the dialog's box rounded inwards — an element shot rounds a fractional edge outwards
+      // and takes a row of the slide canvas behind it along.
+      const box = (await dialog.boundingBox())!;
+      const x = Math.ceil(box.x);
+      const y = Math.ceil(box.y);
+      const clip = {
+        x,
+        y,
+        width: Math.floor(box.x + box.width) - x,
+        height: Math.floor(box.y + box.height) - y,
+      };
+      await expect(page).toHaveScreenshot(`slide-editor-transfer-dialog-${lng}-${theme}.png`, {
+        clip,
+      });
     });
 
     // #536: a new chart as a pie — its second series marked as not drawn in at most two lines of
@@ -9458,9 +9471,9 @@ test("package headings: DrawerRail title and HelpMarkdown h2 keep their own type
   await page.goto("/?page=components&lng=en");
   const drawerTitle = page.getByTestId("canvas-editor").getByTestId("drawer").locator("h2").first();
   await expect(drawerTitle).toBeVisible();
-  // `text-sm font-medium`
-  await expect(drawerTitle).toHaveCSS("font-size", "14px");
-  await expect(drawerTitle).toHaveCSS("font-weight", "500");
+  // `text-base font-semibold` (#551: not below its sections' h3)
+  await expect(drawerTitle).toHaveCSS("font-size", "16px");
+  await expect(drawerTitle).toHaveCSS("font-weight", "600");
   await page.goto("/?page=help&lng=en");
   const helpHeading = page.getByTestId("help-content").locator("h2").first();
   await expect(helpHeading).toBeVisible();
@@ -11592,6 +11605,20 @@ test("slide editor: library entries read by name, carry hints and keep the searc
   await expect(library).toHaveCount(0);
   await editor.getByTestId("drawer-add").click();
   await expect(editor.getByTestId("slide-editor-library-search")).toHaveValue("arrow-right");
+});
+
+// #551, GL-UI-016 §Overflow-Tooltip: a tile whose label the 300 px drawer cuts ("A arrow d…") still
+// gives the full label — in its name and in its hint bubble.
+test("slide editor: a library tile with a cut label shows the full label", async ({ page }) => {
+  const { library } = await openLibrary(page);
+  const tile = library.getByTestId("slide-editor-library-icon-a-arrow-down");
+  const label = tile.locator("span.truncate");
+  expect(await label.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
+  await expect(tile).toHaveAccessibleName("A arrow down");
+  await tile.hover();
+  const bubble = page.getByRole("tooltip");
+  await expect(bubble).toContainText("A arrow down");
+  await expect(bubble).toContainText("Inserts A arrow down at the page’s centre.");
 });
 
 // #294 inc 3 review: a drop that is not an entry of the library — broken data, an unknown kind, an

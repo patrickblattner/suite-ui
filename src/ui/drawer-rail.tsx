@@ -114,7 +114,7 @@ function DrawerRail({ items, open, onOpen, styleSave }: DrawerRailProps) {
           data-testid="drawer"
           data-drawer-open={current.id}
         >
-          <h2 id={`${id}-title`} className="border-b px-4 py-3 text-sm font-medium">
+          <h2 id={`${id}-title`} className="border-b px-4 py-3 text-base font-semibold">
             {t(`canvas.drawer.${current.id}`)}
           </h2>
           <div className="min-h-0 flex-1 scroll-py-2 overflow-y-auto p-4">{current.content}</div>

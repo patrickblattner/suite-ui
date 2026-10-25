@@ -666,3 +666,45 @@ describe("SlideEditor extension parts", () => {
     expect(screen.getByTestId("property-path-current")).toHaveTextContent("Badge");
   });
 });
+
+// #551: the section heading ids are per editor instance, so two mounted editors never share one and
+// each section stays labelled by its own heading.
+describe("SlideEditor heading ids", () => {
+  it("are unique with two editors mounted", () => {
+    const editors = [0, 1].map(
+      () =>
+        render(
+          <SlideEditor
+            document={SLIDE_EDITOR_DOC}
+            title="Deck"
+            brand={SLIDE_BRAND}
+            onSave={() => true}
+            onBack={() => {}}
+          />,
+        ).container,
+    );
+    const headings = editors.flatMap((editor) => {
+      const view = within(editor);
+      fireEvent.click(view.getByTestId("drawer-layers"));
+      fireEvent.click(view.getAllByTestId("slide-editor-layer-select")[0]!);
+      fireEvent.mouseDown(view.getByRole("tab", { name: "Layout" }), { button: 0 });
+      const animation = view.getByRole("region", { name: "Animation", exact: true });
+      const animationTitle = within(animation).getByRole("heading", {
+        level: 3,
+        name: "Animation",
+      });
+      expect(animation).toHaveAttribute("aria-labelledby", animationTitle.id);
+      fireEvent.click(view.getByTestId("drawer-document"));
+      const grid = view.getByTestId("slide-editor-grid");
+      const gridTitle = within(grid).getByRole("heading", { level: 3, name: "Grid" });
+      expect(within(grid).getByRole("group", { name: "Grid" })).toHaveAttribute(
+        "aria-labelledby",
+        gridTitle.id,
+      );
+      return [animationTitle.id, gridTitle.id];
+    });
+    expect(headings.every(Boolean)).toBe(true);
+    expect(new Set(headings).size).toBe(4);
+    expect(document.querySelectorAll('[id^="slide-editor-"][id$="-title"]')).toHaveLength(0);
+  });
+});
