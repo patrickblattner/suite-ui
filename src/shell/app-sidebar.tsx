@@ -37,6 +37,18 @@ type AppSidebarProps = {
   userMenu: React.ReactNode;
 };
 
+// The location-state key of a sidebar list switch: its id, so the focus after it follows only that
+// switch's own route change.
+const SWITCH_STATE = "suiteSidebarSwitch";
+
+// An id unique across mounts and reloads: the history keeps the ids of earlier switches, so a counter
+// that starts anew would meet them again on Back or Forward. `randomUUID` needs a secure context.
+function switchId(): string {
+  return typeof crypto.randomUUID === "function"
+    ? crypto.randomUUID()
+    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
 const rowClass =
   "relative flex w-full cursor-pointer items-center gap-2 rounded-md px-3 py-2 text-sm text-muted-foreground outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:focus-ring";
 
@@ -63,7 +75,8 @@ function AppSidebar({
 }: AppSidebarProps) {
   const { t, i18n } = useTranslation("suite");
   const { isOpen, isOverlay, overlayOpen, closeOverlay } = useSidebar();
-  const { pathname } = useLocation();
+  const location = useLocation();
+  const { pathname } = location;
   const navigate = useNavigate();
   const [element, setElement] = React.useState<HTMLElement | null>(null);
 
@@ -104,14 +117,31 @@ function AppSidebar({
   // pressed control, so the focus goes to the active first entry of the opened section, or back to the
   // entry of the section just left, never to `<body>` or the back link. Expanded and collapsed, a
   // pointer press (`detail` > 0) arms nothing; in the modal overlay every press arms it, whatever the
-  // input, and the ring still follows `:focus-visible` (rev 4). Held with its target path and dropped
-  // on any route change, so a blocked navigation leaves nothing armed for a later switch.
-  const focusAfterSwitch = React.useRef<{ to: string; selector: string } | null>(null);
+  // input, and the ring still follows `:focus-visible` (rev 4). Held with its id and dropped on the
+  // next route change, its own or any other. It moves the focus only on the route change of its own switch, known by the
+  // id the switch carries in its location state: a leave guard that holds the switch and goes on
+  // (Leave) still focuses the target, one that drops it (Stay) leaves an id no later route change to
+  // the same path carries.
+  const focusAfterSwitch = React.useRef<{ id: string; selector: string } | null>(null);
   React.useEffect(() => {
     const target = focusAfterSwitch.current;
     focusAfterSwitch.current = null;
-    if (target?.to === pathname) element?.querySelector<HTMLElement>(target.selector)?.focus();
-  }, [pathname, element]);
+    const state = location.state as { [SWITCH_STATE]?: unknown } | null;
+    if (target !== null && state?.[SWITCH_STATE] === target.id) {
+      element?.querySelector<HTMLElement>(target.selector)?.focus();
+    }
+    // Every route change consumes it, a same-path one included; `location` is read for the state that
+    // came with it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.key, element]);
+
+  // Switches the list to `to`, with the focus after the switch on `selector` when armed.
+  function switchTo(to: string, selector: string | null) {
+    const id = switchId();
+    focusAfterSwitch.current = selector !== null ? { id, selector } : null;
+    switchingTo.current = to;
+    void navigate(to, { state: { [SWITCH_STATE]: id } });
+  }
 
   // Collapsed, an entry shows only its icon, so its hint names it first.
   function hintFor(label: string, hintKey: string | undefined): string | undefined {
@@ -203,15 +233,12 @@ function AppSidebar({
             // The route change alone switches the sidebar into the section.
             onClick={(event) => {
               if (!first) return;
-              focusAfterSwitch.current =
+              switchTo(
+                first.to,
                 event.detail === 0 || overlayOpen
-                  ? {
-                      to: first.to,
-                      selector: '[data-testid="nav-section-entries"] [aria-current="page"]',
-                    }
-                  : null;
-              switchingTo.current = first.to;
-              void navigate(first.to);
+                  ? '[data-testid="nav-section-entries"] [aria-current="page"]'
+                  : null,
+              );
             }}
             className={cn(rowClass, !isOpen && "justify-center px-0")}
           >
@@ -306,15 +333,12 @@ function AppSidebar({
                     data-testid="nav-back"
                     aria-label={t("nav.backToDashboard")}
                     onClick={(event) => {
-                      focusAfterSwitch.current =
+                      switchTo(
+                        homePath,
                         event.detail === 0 || overlayOpen
-                          ? {
-                              to: homePath,
-                              selector: `[data-testid="nav-section-${activeSection.key}"]`,
-                            }
-                          : null;
-                      switchingTo.current = homePath;
-                      void navigate(homePath);
+                          ? `[data-testid="nav-section-${activeSection.key}"]`
+                          : null,
+                      );
                     }}
                     className={cn(rowClass, "font-medium", !isOpen && "justify-center px-0")}
                   >

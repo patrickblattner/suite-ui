@@ -22,6 +22,8 @@ export default defineConfig({
   // Headless Chromium hides scrollbars, yet `scrollbar-gutter: stable` still reserves their width, so
   // a sticky column there sees a reserved gutter without a bar. Tests tagged `@scrollbars` measure
   // geometry that depends on a real bar and run with classic scrollbars shown; they take no screenshots.
+  // Tests tagged `@touch` also run in WebKit on an iPhone with a touch tap (`SUI-FEATURE-107` AC5):
+  // iOS Safari is the main platform of the sidebar overlay.
   projects: [
     { name: "gallery", grepInvert: /@scrollbars/ },
     {
@@ -29,6 +31,7 @@ export default defineConfig({
       grep: /@scrollbars/,
       use: { launchOptions: { ignoreDefaultArgs: ["--hide-scrollbars"] } },
     },
+    { name: "webkit-touch", grep: /@touch/, use: { ...devices["iPhone 15"] } },
   ],
   expect: {
     toHaveScreenshot: {

@@ -4424,24 +4424,27 @@ for (const mode of ["expanded", "collapsed", "overlay"] as const) {
 
 // `SUI-FEATURE-107` rev 4 AC4: the overlay is modal, so a pointer press (`detail` >= 1) on Settings and
 // on the back link moves the focus like Enter does, never to `<body>`; the ring follows
-// `:focus-visible`, so none shows after the pointer.
-test("shell: pointer focus follows the section switch in the overlay, without a ring", async ({
+// `:focus-visible`, so none shows after the pointer. AC5: `@touch` runs it in WebKit on an iPhone too,
+// there with a touch tap.
+test("shell: pointer focus follows the section switch in the overlay, without a ring @touch", async ({
   page,
+  hasTouch,
 }) => {
+  const press = (target: Locator) => (hasTouch ? target.tap() : target.click());
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/?page=shell&route=/dashboard&lng=en");
   const sidebar = page.getByTestId("app-sidebar");
-  await page.getByTestId("sidebar-overlay-trigger").click();
+  await press(page.getByTestId("sidebar-overlay-trigger"));
   await expect(sidebar).toHaveAttribute("data-overlay", "open");
   const noRing = (el: Element) =>
     !el.matches(":focus-visible") && getComputedStyle(el).boxShadow === "none";
   const section = page.getByTestId("nav-section-settings");
-  await section.click();
+  await press(section);
   const first = page.getByTestId("nav-section-entries").locator("a").first();
   await expect(first).toHaveAttribute("aria-current", "page");
   await expect(first).toBeFocused();
   expect(await first.evaluate(noRing)).toBe(true);
-  await page.getByTestId("nav-back").click();
+  await press(page.getByTestId("nav-back"));
   await expect(page.getByTestId("nav-primary")).toBeVisible();
   await expect(section).toBeFocused();
   expect(await section.evaluate(noRing)).toBe(true);

@@ -1,13 +1,14 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { CalendarIcon, FileTextIcon, ListIcon, NewspaperIcon } from "lucide-react";
 import * as React from "react";
 import i18n from "i18next";
-import { createMemoryRouter, RouterProvider, useBlocker } from "react-router-dom";
+import { createMemoryRouter, RouterProvider, useBlocker, useNavigate } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { useLeaveConfirm } from "../ui/leave-guard.js";
 import { AppSidebar } from "./app-sidebar.js";
 import type { NavModel } from "./nav.js";
-import { SidebarProvider } from "./sidebar-provider.js";
+import { SidebarOverlayTrigger, SidebarProvider } from "./sidebar-provider.js";
 import type { VersionInfo } from "./version-line.js";
 import { ShellHarness, TEST_NAV } from "./test-utils.js";
 
@@ -157,6 +158,208 @@ describe("AppSidebar", () => {
     expect(router.state.location.pathname).toBe("/settings/general");
     expect(screen.getByTestId("nav-settings-general")).not.toHaveFocus();
     expect(document.activeElement).toBe(document.body);
+  });
+
+  // #560: a switch the leave guard holds focuses its target once it goes on (Leave), as without the
+  // guard (`GL-UI-050`); one it drops (Stay) moves no focus on a later route change to the same path.
+  describe.each([
+    ["keyboard, expanded", false, 0],
+    ["pointer, overlay", true, 1],
+  ])("a switch the leave guard holds (%s)", (_, overlay, detail) => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+      localStorage.clear();
+    });
+
+    function DirtyPage() {
+      const [dirty, setDirty] = React.useState(true);
+      const { dialog } = useLeaveConfirm({ dirty, busy: false });
+      return (
+        <>
+          <button type="button" data-testid="clean" onClick={() => setDirty(false)} />
+          {dialog}
+        </>
+      );
+    }
+
+    function renderGuarded() {
+      if (overlay) {
+        vi.stubGlobal(
+          "matchMedia",
+          vi.fn((query: string) => ({
+            matches: true,
+            media: query,
+            addEventListener: () => {},
+            removeEventListener: () => {},
+          })),
+        );
+      }
+      const router = createMemoryRouter(
+        [
+          {
+            path: "*",
+            element: (
+              <SidebarProvider storageKey="test.sidebar.open">
+                <SidebarOverlayTrigger />
+                <AppSidebar
+                  instanceName="Test instance"
+                  nav={TEST_NAV}
+                  isAllowed={() => true}
+                  version={{ info: null }}
+                  userMenu={<div data-testid="user-block" />}
+                />
+                <DirtyPage />
+              </SidebarProvider>
+            ),
+          },
+        ],
+        { initialEntries: ["/settings/ai"] },
+      );
+      render(<RouterProvider router={router} />);
+      if (overlay) {
+        fireEvent.click(screen.getByTestId("sidebar-overlay-trigger"));
+        expect(screen.getByTestId("app-sidebar")).toHaveAttribute("data-overlay", "open");
+      }
+      const back = screen.getByTestId("nav-back");
+      act(() => back.focus());
+      fireEvent.click(back, { detail });
+      expect(screen.getByTestId("leave-guard")).toBeInTheDocument();
+      expect(router.state.location.pathname).toBe("/settings/ai");
+      return router;
+    }
+
+    it("Leave: the switch goes on and the focus moves to its target", async () => {
+      const router = renderGuarded();
+      fireEvent.click(screen.getByTestId("leave-guard-discard"));
+      await waitFor(() => expect(router.state.location.pathname).toBe("/dashboard"));
+      await waitFor(() => expect(screen.queryByTestId("leave-guard")).toBeNull());
+      await waitFor(() => expect(screen.getByTestId("nav-section-settings")).toHaveFocus());
+    });
+
+    it("Stay: a later route change to the same path moves no focus", async () => {
+      const router = renderGuarded();
+      fireEvent.click(screen.getByTestId("leave-guard-cancel"));
+      await waitFor(() => expect(screen.queryByTestId("leave-guard")).toBeNull());
+      expect(router.state.location.pathname).toBe("/settings/ai");
+      fireEvent.click(screen.getByTestId("clean"));
+      act(() => (document.activeElement as HTMLElement | null)?.blur());
+      await act(() => router.navigate("/dashboard"));
+      expect(screen.getByTestId("nav-section-settings")).not.toHaveFocus();
+    });
+  });
+
+  it("Leave under a history router (no data router): the held switch still focuses its target", async () => {
+    function DirtyPage() {
+      const { dialog } = useLeaveConfirm({ dirty: true, busy: false });
+      return dialog;
+    }
+    render(
+      <ShellHarness route="/settings/ai">
+        <AppSidebar
+          instanceName="Test instance"
+          nav={TEST_NAV}
+          isAllowed={() => true}
+          userMenu={<div data-testid="user-block" />}
+        />
+        <DirtyPage />
+      </ShellHarness>,
+    );
+    const back = screen.getByTestId("nav-back");
+    act(() => back.focus());
+    fireEvent.click(back, { detail: 0 });
+    expect(screen.getByTestId("leave-guard")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("leave-guard-discard"));
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/dashboard"));
+    await waitFor(() => expect(screen.getByTestId("nav-section-settings")).toHaveFocus());
+  });
+
+  it("Stay under a history router: a later route change to the same path moves no focus", async () => {
+    function DirtyPage() {
+      const [dirty, setDirty] = React.useState(true);
+      const { dialog } = useLeaveConfirm({ dirty, busy: false });
+      const navigate = useNavigate();
+      return (
+        <>
+          <button type="button" data-testid="clean" onClick={() => setDirty(false)} />
+          <button type="button" data-testid="go-home" onClick={() => void navigate("/dashboard")} />
+          {dialog}
+        </>
+      );
+    }
+    render(
+      <ShellHarness route="/settings/ai">
+        <AppSidebar
+          instanceName="Test instance"
+          nav={TEST_NAV}
+          isAllowed={() => true}
+          userMenu={<div data-testid="user-block" />}
+        />
+        <DirtyPage />
+      </ShellHarness>,
+    );
+    const back = screen.getByTestId("nav-back");
+    act(() => back.focus());
+    fireEvent.click(back, { detail: 0 });
+    fireEvent.click(screen.getByTestId("leave-guard-cancel"));
+    await waitFor(() => expect(screen.queryByTestId("leave-guard")).toBeNull());
+    expect(screen.getByTestId("location")).toHaveTextContent("/settings/ai");
+    fireEvent.click(screen.getByTestId("clean"));
+    act(() => (document.activeElement as HTMLElement | null)?.blur());
+    fireEvent.click(screen.getByTestId("go-home"));
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/dashboard"));
+    expect(screen.getByTestId("nav-section-settings")).not.toHaveFocus();
+  });
+
+  it("Back onto an entry with the switch id of an earlier mount moves no focus", async () => {
+    function DirtyPage() {
+      const [dirty, setDirty] = React.useState(true);
+      const { dialog } = useLeaveConfirm({ dirty, busy: false });
+      return (
+        <>
+          <button type="button" data-testid="clean" onClick={() => setDirty(false)} />
+          {dialog}
+        </>
+      );
+    }
+    // The history from before a reload: the dashboard entry carries the id an earlier mount's first
+    // switch had while ids were counted from 1.
+    const router = createMemoryRouter(
+      [
+        {
+          path: "*",
+          element: (
+            <SidebarProvider storageKey="test.sidebar.open">
+              <AppSidebar
+                instanceName="Test instance"
+                nav={TEST_NAV}
+                isAllowed={() => true}
+                version={{ info: null }}
+                userMenu={<div data-testid="user-block" />}
+              />
+              <DirtyPage />
+            </SidebarProvider>
+          ),
+        },
+      ],
+      {
+        initialEntries: [
+          { pathname: "/dashboard", state: { suiteSidebarSwitch: 1 } },
+          "/settings/ai",
+        ],
+        initialIndex: 1,
+      },
+    );
+    render(<RouterProvider router={router} />);
+    const back = screen.getByTestId("nav-back");
+    act(() => back.focus());
+    fireEvent.click(back, { detail: 0 });
+    fireEvent.click(screen.getByTestId("leave-guard-cancel"));
+    await waitFor(() => expect(screen.queryByTestId("leave-guard")).toBeNull());
+    fireEvent.click(screen.getByTestId("clean"));
+    act(() => (document.activeElement as HTMLElement | null)?.blur());
+    await act(() => router.navigate(-1));
+    expect(router.state.location.pathname).toBe("/dashboard");
+    expect(screen.getByTestId("nav-section-settings")).not.toHaveFocus();
   });
 
   it("the instance name leads to the dashboard", () => {
