@@ -82,19 +82,20 @@ const PassThrough = React.forwardRef<HTMLElement, AnyProps>(function PassThrough
   return React.cloneElement(child, merged);
 });
 
-// The element's own describedby ids first, the hint id last, each once. The label help of the same
-// field (`LabelWithHelp`) is dropped: the hint takes its place as the field's description
-// (`GL-UI-017` §Assistive Tech), so the field is never described twice.
+// The element's own describedby ids first, then the hint id, then a status line, each once. The label
+// help of the same field (`LabelWithHelp`) is dropped: the hint takes its place as the field's
+// description (`GL-UI-017` §Assistive Tech), so the field is never described twice.
 function describedBy(
   existing: string | undefined,
   fieldId: string | undefined,
   id: string,
+  status: string | undefined,
 ): string {
   const labelHelp = fieldId === undefined ? undefined : helpIdFor(fieldId);
   const own = (existing ?? "")
     .split(/\s+/)
-    .filter((part) => part !== "" && part !== id && part !== labelHelp);
-  return [...new Set(own), id].join(" ");
+    .filter((part) => part !== "" && part !== id && part !== labelHelp && part !== status);
+  return [...new Set(own), id, ...(status === undefined ? [] : [status])].join(" ");
 }
 
 // The hint text is a description, never part of a name: it lives hidden outside every subtree of the
@@ -147,6 +148,9 @@ type HintProps = {
   // The control's keyboard shortcut, as on `IconButtonTooltip` (`SUI-FEATURE-210`): the key hint
   // behind the text of a usable control and `aria-keyshortcuts` with every variant.
   shortcut?: Shortcut | undefined;
+  // The id of a visible status line about the field's value, described after the hint (`GL-UI-017`
+  // §Zustandszeile): only text on screen, never an error.
+  status?: string | undefined;
   children: React.ReactElement<HintChildProps>;
 } & Omit<React.HTMLAttributes<HTMLElement>, "children"> & { ref?: React.Ref<HTMLElement> };
 
@@ -173,6 +177,7 @@ function Hint({
   carrierClassName,
   describe = true,
   shortcut,
+  status,
   children: ownChildren,
   ...passThrough
 }: HintProps) {
@@ -207,7 +212,12 @@ function Hint({
   let trigger: React.ReactElement<HintChildProps> = children;
   if (describes && !(carried && disabled)) {
     trigger = React.cloneElement(trigger, {
-      "aria-describedby": describedBy(children.props["aria-describedby"], children.props.id, id),
+      "aria-describedby": describedBy(
+        children.props["aria-describedby"],
+        children.props.id,
+        id,
+        status,
+      ),
     });
   }
   // Locked, the control offers no shortcut, as `IconButtonTooltip` (#380).

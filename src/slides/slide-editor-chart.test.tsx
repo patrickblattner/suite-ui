@@ -200,13 +200,14 @@ describe("ChartData", () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
-  // #536: in a pie the series not drawn show a short note; the whole sentence is the name field's
-  // description, beside its hint. The first series has neither.
-  it("marks the series a pie leaves out briefly and describes them in full (#536)", async () => {
-    for (const [lng, short, full] of [
-      ["en", "Not in pie", "Not shown in a pie chart"],
-      ["de", "Nicht im Kreis", "Im Kreisdiagramm nicht gezeigt"],
-      ["es", "Fuera del circular", "No se muestra en un gráfico circular"],
+  // #536: in a pie the series not drawn show a short note. #553 (GL-UI-017 rev 8 §Zustandszeile):
+  // that visible note is the name field's status line, described after its hint; no hidden text,
+  // and never part of a column header's name. The first series has neither.
+  it("marks the series a pie leaves out and describes them by the visible note (#536, #553)", async () => {
+    for (const [lng, short] of [
+      ["en", "Not in pie"],
+      ["de", "Nicht im Kreis"],
+      ["es", "Fuera del circular"],
     ] as const) {
       await i18n.changeLanguage(lng);
       const { unmount } = render(
@@ -217,19 +218,21 @@ describe("ChartData", () => {
           onChange={() => {}}
         />,
       );
+      const hint = i18n.t("slides.editor.chartSeriesNameHint", { ns: "suite" });
       expect(screen.queryByTestId("slide-editor-chart-not-in-pie-0")).toBeNull();
       const note = screen.getByTestId("slide-editor-chart-not-in-pie-1");
       expect(note).toHaveTextContent(short);
-      expect(note).toHaveAttribute("aria-hidden", "true");
+      expect(note).not.toHaveAttribute("aria-hidden");
+      expect(note).toBeVisible();
       const name = screen.getByTestId("slide-editor-chart-series-1");
-      expect(name.getAttribute("aria-describedby")!.split(" ")).toHaveLength(2);
-      expect(name).toHaveAccessibleDescription(expect.stringContaining(full));
-      expect(screen.getByTestId("slide-editor-chart-series-0")).not.toHaveAccessibleDescription(
-        expect.stringContaining(full),
-      );
+      const ids = name.getAttribute("aria-describedby")!.split(" ");
+      expect(ids).toHaveLength(2);
+      expect(ids[1]).toBe(note.id);
+      expect(name).toHaveAccessibleDescription(`${hint} ${short}`);
+      expect(screen.getByTestId("slide-editor-chart-series-0")).toHaveAccessibleDescription(hint);
       // A description, never part of a column header's name (`GL-UI-017`).
       for (const header of screen.getAllByRole("columnheader"))
-        expect(header).not.toHaveAccessibleName(expect.stringContaining(full));
+        expect(header).not.toHaveAccessibleName(expect.stringContaining(short));
       unmount();
     }
   });

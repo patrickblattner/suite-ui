@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — #553, GL-UI-017 rev 8: the chart series field describes the visible pie note (patch)
+
+- **Accessibility (#553, retrofit #536):** in a pie, the name field of a series left out is described by its hint, then the visible short note ("Not in pie" / "Nicht im Kreis" / "Fuera del circular"), which is no longer `aria-hidden`; the hidden full sentence and its string `slides.editor.chartNotInPie` are gone. Each series column header is named by its name field alone (`aria-labelledby`), so the note never becomes part of the header's name. `Hint` takes a `status` id, described after the hint (GL-UI-017 §Zustandszeile).
+- **Tests (#553):** unit test for the description (hint + visible note) in en/de/es and the column header names without it; the gallery chart-type test checks the same in the browser. Baselines unchanged: the note renders as before.
+
 ## Unreleased — #552, SUI-FEATURE-106 rev 6: a waiting paste drops the selection and shows a visible status line (patch)
 
 - **Selection (#552, rev 6 AC 6):** when a paste starts waiting for `adoptMedia`, the editor drops the selection at once (no handles); once it lands, the pasted elements are selected. Commands pressed during the wait still act on what the paste pastes.

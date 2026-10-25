@@ -24,10 +24,11 @@ const TYPES = ["bar", "line", "pie"] as const;
 // is never remounted (and the focus kept) while typing.
 function NameField({
   hint,
+  status,
   ...props
-}: React.ComponentProps<typeof Input> & { value: string; hint: string }) {
+}: React.ComponentProps<typeof Input> & { value: string; hint: string; status?: string }) {
   return (
-    <Hint text={hint}>
+    <Hint text={hint} status={status}>
       <Input {...props} />
     </Hint>
   );
@@ -130,6 +131,7 @@ export function ChartData({
   const typedRevision = `${revision}:${shape}`;
   const negative = React.useId();
   const notInPie = React.useId();
+  const seriesNameId = React.useId();
   // The value fields that are not a number, as "column:row" with why. Below the table, outside its
   // rows, each row with one says so once, naming its category and the series that are not numbers,
   // so the text is neither squeezed into a value's column nor read as a row of data (#368).
@@ -255,7 +257,14 @@ export function ChartData({
                 {t("slides.editor.chartCategoryHeader")}
               </th>
               {chart.series.map((series, index) => (
-                <th key={index} scope="col" className="w-20 text-left align-top font-normal">
+                // Named by its series name alone: the pie note below is the name field's status
+                // line, a description, never part of the header's name (`GL-UI-017`, #553).
+                <th
+                  key={index}
+                  scope="col"
+                  aria-labelledby={`${seriesNameId}-${index}`}
+                  className="w-20 text-left align-top font-normal"
+                >
                   <div className="flex flex-col items-start gap-0.5">
                     <NameField
                       aria-label={t("slides.editor.chartSeriesName", { n: index + 1 })}
@@ -270,7 +279,8 @@ export function ChartData({
                           step(`series:${index}`),
                         )
                       }
-                      aria-describedby={pie && index > 0 ? notInPie : undefined}
+                      id={`${seriesNameId}-${index}`}
+                      status={pie && index > 0 ? `${notInPie}-${index}` : undefined}
                       className="h-8 w-20 px-2"
                       data-testid={`slide-editor-chart-series-${index}`}
                     />
@@ -301,11 +311,11 @@ export function ChartData({
                         <Trash2Icon aria-hidden="true" />
                       </Button>
                     </IconButtonTooltip>
-                    {/* Short enough for two lines in the column (#536); the whole sentence, below
-                        the table, is the name field's description. */}
+                    {/* Short enough for two lines in the column (#536); the name field's status
+                        line, after its hint (`GL-UI-017` §Zustandszeile, #553). */}
                     {pie && index > 0 ? (
                       <span
-                        aria-hidden="true"
+                        id={`${notInPie}-${index}`}
                         className="text-sm text-muted-foreground"
                         data-testid={`slide-editor-chart-not-in-pie-${index}`}
                       >
@@ -404,12 +414,6 @@ export function ChartData({
           </tbody>
         </table>
       </div>
-      {/* Outside the table, so it is never part of a column header's name (`GL-UI-017`, #536). */}
-      {pie && chart.series.length > 1 ? (
-        <span id={notInPie} hidden>
-          {t("slides.editor.chartNotInPie")}
-        </span>
-      ) : null}
       {rowErrors.map(({ row, text }) => (
         <FieldError
           key={row}
