@@ -732,8 +732,9 @@ describe("SlideEditor element clipboard", () => {
 
   it("deletes a with Delete after a's resize handle was pressed during a wait (#535)", async () => {
     const { onSave, answer } = waitingPaste();
-    click(50, 50);
     key("v");
+    // The wait drops the selection's handles (`SUI-FEATURE-106` AC6): a is selected by hand first.
+    click(50, 50);
     fireEvent.pointerDown(screen.getByTestId("slide-editor-handle-se"), {
       ...at(100, 100),
       button: 0,
@@ -745,6 +746,26 @@ describe("SlideEditor element clipboard", () => {
     answer();
     await waitFor(() => expect(layerCount()).toBe(1));
     expect((await saved(onSave)).map(({ type }) => type)).toEqual(["image"]);
+  });
+
+  it("deletes a with Delete after a's resize handle was pressed behind a held Ctrl+D (#535)", async () => {
+    const { onSave, answer } = waitingPaste();
+    key("v");
+    click(50, 50);
+    key("d");
+    // The press on a's handle picks a again by hand: Delete is meant for a, not the duplicate.
+    fireEvent.pointerDown(screen.getByTestId("slide-editor-handle-se"), {
+      ...at(100, 100),
+      button: 0,
+      pointerId: 1,
+    });
+    fireEvent.pointerUp(canvas(), at(100, 100));
+    fireEvent.keyDown(canvas(), { key: "Delete" });
+    answer();
+    await waitFor(() => expect(layerCount()).toBe(2));
+    const elements = await saved(onSave);
+    expect(elements.map(({ type }) => type).sort()).toEqual(["image", "shape"]);
+    expect(elements.map(({ id }) => id)).not.toContain("a");
   });
 
   it.each([
@@ -797,12 +818,62 @@ describe("SlideEditor element clipboard", () => {
     expect(status).toBeEmptyDOMElement();
     act(() => void vi.advanceTimersByTime(1));
     expect(canvas()).toHaveAttribute("aria-busy", "true");
-    expect(canvas().className).toContain("cursor-wait");
-    expect(status).toHaveTextContent("Bringing the media along …");
+    expect(canvas().className).toContain("cursor-progress");
+    expect(status).toHaveTextContent("Importing media …");
+    // Seen, not only heard: the operation spinner at the work area's bottom left, outside the
+    // scrolling area and so off the page, above the handles drawn in it.
+    expect(status.className).not.toContain("sr-only");
+    expect(status.className).toContain("bottom-2");
+    expect(status.className).toContain("left-2");
+    expect(status.className).toContain("z-10");
+    expect(status.closest(".overflow-auto")).toBeNull();
+    expect(status.querySelector("[data-testid=operation-spinner]")).not.toBeNull();
     answer({ photo: "photo-copy" });
     await waitFor(() => expect(canvas()).not.toHaveAttribute("aria-busy"));
-    expect(canvas().className).not.toContain("cursor-wait");
+    expect(canvas().className).not.toContain("cursor-progress");
     expect(status).toBeEmptyDOMElement();
+  });
+
+  it.each([
+    ["stays silent 10 s", () => new Promise<Record<string, string>>(() => {})],
+    [
+      "fails after 300 ms",
+      () =>
+        new Promise<Record<string, string>>((_, reject) =>
+          window.setTimeout(() => reject(new Error("offline")), 500),
+        ),
+    ],
+  ] as const)(
+    "ends the busy canvas, its cursor and status line once adoptMedia %s (SUI-FEATURE-106 AC5)",
+    async (_, adoptMedia) => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      const warning = vi.spyOn(toast, "warning");
+      copyThenOpenOther("photo", { adoptMedia, resolveMedia: () => undefined });
+      const status = screen.getByTestId("slide-editor-adopting");
+      key("v");
+      act(() => void vi.advanceTimersByTime(300));
+      expect(canvas()).toHaveAttribute("aria-busy", "true");
+      await act(async () => void (await vi.advanceTimersByTimeAsync(10_000)));
+      expect(warning).toHaveBeenCalledTimes(1);
+      expect(canvas()).not.toHaveAttribute("aria-busy");
+      expect(canvas().className).not.toContain("cursor-progress");
+      expect(status).toBeEmptyDOMElement();
+      warning.mockRestore();
+    },
+  );
+
+  it("drops the selection's handles while a paste waits and selects what it pasted once it lands (SUI-FEATURE-106 AC6)", async () => {
+    const { onSave, answer } = waitingPaste();
+    click(50, 50);
+    expect(screen.getByTestId("slide-editor-handle-se")).toBeInTheDocument();
+    key("v");
+    expect(screen.queryByTestId("slide-editor-handle-se")).toBeNull();
+    answer();
+    await waitFor(() => expect(layerCount()).toBe(2));
+    expect(screen.getByTestId("slide-editor-handle-se")).toBeInTheDocument();
+    // The image is selected, not a: Delete takes it.
+    fireEvent.keyDown(canvas(), { key: "Delete" });
+    expect((await saved(onSave)).map(({ id }) => id)).toEqual(["a"]);
   });
 
   // Drags a from (50, 50) to (450, 50), pressing keys on the way and cancelling with Esc if asked.

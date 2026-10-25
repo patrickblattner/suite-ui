@@ -231,6 +231,24 @@ for (const lng of LANGUAGES) {
       await expect(page).toHaveScreenshot(`slide-editor-menu-${lng}-${theme}.png`);
     });
 
+    // `SUI-FEATURE-106` rev 6 (#552): a paste waiting for the app's media, past 300 ms: no
+    // selection, the busy canvas and the status line at the work area's bottom left, off the page.
+    test(`slide editor paste wait ${lng} ${theme}`, async ({ page }) => {
+      await page.goto(`/?page=slide-editor&paste=wait&lng=${lng}&theme=${theme}`);
+      await expect(page.locator("html")).toHaveAttribute("lang", lng);
+      const editor = page.getByTestId("slide-editor");
+      await expect(editor.locator("[data-slot=slide-view][data-slide-ready=true]")).toBeAttached();
+      const canvas = editor.getByTestId("slide-editor-canvas");
+      await canvas.focus();
+      await canvas.press("Control+v");
+      await expect(canvas).toHaveAttribute("aria-busy", "true");
+      await expect(editor.getByTestId("slide-editor-adopting")).not.toBeEmpty();
+      await parkPointer(page);
+      await expect(page).toHaveScreenshot(`slide-editor-paste-wait-${lng}-${theme}.png`, {
+        animations: "disabled",
+      });
+    });
+
     // #532: the pane typography and spacing of the open document and library tabs, and of the
     // transfer dialog (`GL-UI-010`).
     for (const [tab, drawer] of [

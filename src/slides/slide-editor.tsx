@@ -42,6 +42,7 @@ import { GridFields, GridOverlay, GridToggle } from "../ui/grid.js";
 import { Hint } from "../ui/hint.js";
 import { helpIdFor } from "../ui/label-with-help.js";
 import { useLeaveGuard } from "../ui/leave-guard.js";
+import { OperationIndicator } from "../ui/operation-status.js";
 import { PropertyPanel } from "../ui/property-panel.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select.js";
 import { Slider } from "../ui/slider.js";
@@ -1973,7 +1974,7 @@ function Editor({
     if (pressChain.current !== undefined) pressChain.current.seen = selection;
   });
   const [heldTurn, setHeldTurn] = React.useState(0);
-  // After 300 ms of waiting the canvas says it is busy (`SUI-FEATURE-106` rev 5).
+  // After 300 ms of waiting the canvas says it is busy, in a status line too (`SUI-FEATURE-106` rev 6).
   const [adopting, setAdopting] = React.useState<"waiting" | "slow">();
   const slowTimer = React.useRef<number | undefined>(undefined);
   const queueBusy = () =>
@@ -2066,6 +2067,10 @@ function Editor({
     pastePending.current = true;
     if (left === undefined)
       pressChain.current = { left: own, seen: selection, presses: handPresses.current };
+    // Nothing stays selected while it waits; what it pastes is once it lands (`SUI-FEATURE-106`
+    // rev 6). The selection it leaves is no hand's, so a command pressed now still means the paste.
+    setSelection([]);
+    ran.current = true;
     setAdopting("waiting");
     window.clearTimeout(slowTimer.current);
     slowTimer.current = window.setTimeout(() => setAdopting("slow"), ADOPT_BUSY_MS);
@@ -3414,7 +3419,7 @@ function Editor({
           open={drawer}
           onOpen={setDrawer}
         />
-        <div className="flex min-w-0 flex-1 flex-col">
+        <div className="relative flex min-w-0 flex-1 flex-col">
           <div className="flex flex-wrap items-center gap-2 border-b px-2 py-1" data-tooltip-row="">
             <IconButtonTooltip label={t("slides.editor.previousPage")}>
               <Button
@@ -3622,7 +3627,7 @@ function Editor({
                         : hovered === undefined
                           ? "cursor-default"
                           : "cursor-move",
-                      adopting === "slow" && "cursor-wait",
+                      adopting === "slow" && "cursor-progress",
                     )}
                     data-slot="slide-editor-canvas"
                     data-cropping={cropping?.id}
@@ -3663,9 +3668,6 @@ function Editor({
                   )}
                 </ContextMenuContent>
               </ContextMenu>
-              <span role="status" className="sr-only" data-testid="slide-editor-adopting">
-                {adopting === "slow" ? t("slides.editor.adoptingMedia") : null}
-              </span>
               {/* Over the whole window during a gesture, so nothing under the pointer changes it; the
                   canvas keeps the pointer captured, so every event still goes to it. */}
               {gestureCursor === undefined
@@ -3898,6 +3900,24 @@ function Editor({
                   })()}
             </div>
           </div>
+          {/* At the work area's visible bottom left, not on the page: it neither scrolls with the
+              slide nor lies under the handles (`SUI-FEATURE-106` rev 6, `GL-UI-033`). */}
+          <span
+            role="status"
+            className={cn(
+              "pointer-events-none absolute bottom-2 left-2 z-10",
+              adopting === "slow" &&
+                "flex items-center gap-2 rounded-md border bg-background px-2 py-1 text-xs text-muted-foreground shadow-sm",
+            )}
+            data-testid="slide-editor-adopting"
+          >
+            {adopting === "slow" ? (
+              <>
+                <OperationIndicator />
+                {t("slides.editor.adoptingMedia")}
+              </>
+            ) : null}
+          </span>
         </div>
         <PropertyPanel
           path={path}
