@@ -2,7 +2,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { Loader2Icon } from "lucide-react";
 import { Slot } from "radix-ui";
 import type * as React from "react";
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { cn } from "../lib/cn.js";
 
@@ -185,6 +185,23 @@ function Button(props: ButtonProps) {
       setFocusedInRun(false);
     }
   }, [running, focusedInRun, holding]);
+  // A hold that outlasts a window switch sees no blur when code moves the focus while the window is
+  // away (#558): the return to the window and any focus move in the page check the real focus again.
+  useEffect(() => {
+    if (!holding) return;
+    const check = () => {
+      if (focusedElement.current !== document.activeElement) {
+        setFocused(false);
+        setFocusedInRun(false);
+      }
+    };
+    window.addEventListener("focus", check);
+    document.addEventListener("focusin", check);
+    return () => {
+      window.removeEventListener("focus", check);
+      document.removeEventListener("focusin", check);
+    };
+  }, [holding]);
   const locked = (busy || ariaDisabled || holding) && !asChild;
 
   return (

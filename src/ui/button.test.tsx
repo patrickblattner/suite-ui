@@ -552,6 +552,89 @@ describe("Button", () => {
     expect(button.className).not.toContain("aria-disabled:bg-success/50");
   });
 
+  // #558: a hold that survived a window switch sees no blur when code moves the focus while the
+  // window is away; the next `focusin` in the page, or the return to the window, ends it.
+  it.each([
+    ["a document focusin", ["focusout", "blur"], false],
+    ["the return to the window", ["focusout", "blur", "focusin"], true],
+  ] as const)(
+    "busy with disabled, window away, focus moved by code: %s ends the hold",
+    (_, swallowed, returns) => {
+      const view = (busy: boolean) => (
+        <>
+          <Button variant="success" size="default" busy={busy} disabled>
+            Save
+          </Button>
+          <button type="button">Next</button>
+        </>
+      );
+      const { rerender } = render(view(true));
+      const button = screen.getByRole("button", { name: "Save" });
+      act(() => button.focus());
+      const hasFocus = vi.spyOn(document, "hasFocus").mockReturnValue(false);
+      const swallow = (event: Event) => event.stopPropagation();
+      try {
+        fireEvent.blur(button, { relatedTarget: null });
+        rerender(view(false));
+        expect(button).toHaveAttribute("aria-disabled", "true");
+        for (const type of swallowed) window.addEventListener(type, swallow, true);
+        try {
+          act(() => screen.getByRole("button", { name: "Next" }).focus());
+        } finally {
+          for (const type of swallowed) window.removeEventListener(type, swallow, true);
+        }
+      } finally {
+        hasFocus.mockRestore();
+      }
+      if (returns) {
+        // The swallowed `focusin` left the hold on until the window regains the focus.
+        expect(button).toHaveAttribute("aria-disabled", "true");
+        act(() => {
+          window.dispatchEvent(new FocusEvent("focus"));
+        });
+      }
+      expect(button).not.toHaveFocus();
+      expect(button).toBeDisabled();
+      expect(button).not.toHaveAttribute("aria-disabled");
+    },
+  );
+
+  // #558: the hold's focus listeners exist only while it holds.
+  it("busy with disabled: the hold listens for focus only while it holds", () => {
+    const view = (busy: boolean) => (
+      <>
+        <Button variant="success" size="default" busy={busy} disabled>
+          Save
+        </Button>
+        <button type="button">Next</button>
+      </>
+    );
+    const added = vi.spyOn(document, "addEventListener");
+    const removed = vi.spyOn(document, "removeEventListener");
+    const windowAdded = vi.spyOn(window, "addEventListener");
+    const windowRemoved = vi.spyOn(window, "removeEventListener");
+    const count = (spy: { mock: { calls: unknown[][] } }, type: string) =>
+      spy.mock.calls.filter(([called]) => called === type).length;
+    try {
+      const { rerender } = render(view(true));
+      const button = screen.getByRole("button", { name: "Save" });
+      act(() => button.focus());
+      expect(count(added, "focusin")).toBe(0);
+      expect(count(windowAdded, "focus")).toBe(0);
+      rerender(view(false));
+      expect(count(added, "focusin")).toBe(1);
+      expect(count(windowAdded, "focus")).toBe(1);
+      act(() => screen.getByRole("button", { name: "Next" }).focus());
+      expect(count(removed, "focusin")).toBe(1);
+      expect(count(windowRemoved, "focus")).toBe(1);
+    } finally {
+      added.mockRestore();
+      removed.mockRestore();
+      windowAdded.mockRestore();
+      windowRemoved.mockRestore();
+    }
+  });
+
   // #548: only a button that can run tracks its focus; any other one does not re-render on it.
   it.each([
     ["without busy", {}, 0],
