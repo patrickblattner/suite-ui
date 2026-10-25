@@ -641,3 +641,5 @@
 {"ts":"2026-10-25T11:35:48.355Z","key":"GL-UI-016","from":13,"to":14,"disposition":"ticket","ref":"576"}
 {"ts":"2026-10-25T12:20:40.846Z","key":"PROC-DEV-003","from":3,"to":5,"disposition":"editorial","ref":"process only: scope of the owner-triggered /ux-audit (stage 4), no code impact in suite-ui"}
 {"ts":"2026-10-25T12:23:51.182Z","key":"GL-UI-019","from":8,"to":9,"disposition":"ticket","ref":"577"}
+{"ts":"2026-10-25T12:28:24.255Z","key":"GL-UI-010","from":9,"to":10,"disposition":"ticket","ref":"577"}
+{"ts":"2026-10-25T12:28:24.613Z","key":"GL-TEST-027","from":5,"to":6,"disposition":"editorial","ref":"suite-ui exempt (Repos without CI deliver neither); #569/#578 closed not applicable, no code impact"}
