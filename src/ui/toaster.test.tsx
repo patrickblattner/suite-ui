@@ -1,7 +1,14 @@
 import { act, createEvent, fireEvent, render, screen } from "@testing-library/react";
 import * as React from "react";
+import { getI18n } from "react-i18next";
 import { toast as sonnerToast } from "sonner";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+// `getI18n` as a mock that keeps the real one, so a test can take the i18next instance away.
+vi.mock("react-i18next", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("react-i18next")>();
+  return { ...actual, getI18n: vi.fn(actual.getI18n) };
+});
 
 import { Popover, PopoverContent, PopoverTrigger } from "./popover.js";
 import { toast, Toaster, toastDurationFor, useEditorShellToastOffset } from "./toaster.js";
@@ -331,13 +338,15 @@ describe("Toaster: focus under a toast", () => {
       action: <button type="button">Undo</button>,
     });
     expect(item()?.querySelector("[data-title] .sr-only")).toHaveTextContent(
-      "Alt+T leads to the action",
+      "Alt+T, then Tab: the action",
     );
   });
 
   it("names the action and Alt+T in the live region", async () => {
     const item = await renderCovered({ focused: "covered" });
-    expect(item()?.querySelector("[data-title] .sr-only")).toHaveTextContent("Alt+T leads to Undo");
+    expect(item()?.querySelector("[data-title] .sr-only")).toHaveTextContent(
+      "Alt+T, then Tab: Undo",
+    );
     expect(item()?.closest("[aria-live=polite]")).not.toBeNull();
   });
 
@@ -354,7 +363,9 @@ describe("Toaster: focus under a toast", () => {
     ["the plain call", (options: Parameters<typeof toast.success>[1]) => toast("Saved", options)],
   ])("names the action and Alt+T for %s (#550)", async (_route, show) => {
     const item = await renderCovered({ show });
-    expect(item()?.querySelector("[data-title] .sr-only")).toHaveTextContent("Alt+T leads to Undo");
+    expect(item()?.querySelector("[data-title] .sr-only")).toHaveTextContent(
+      "Alt+T, then Tab: Undo",
+    );
   });
 
   it("names a label that is no text generically (#550)", async () => {
@@ -362,16 +373,21 @@ describe("Toaster: focus under a toast", () => {
       show: () => toast.success("Saved", { action: { label: <b>Undo</b>, onClick: () => {} } }),
     });
     expect(item()?.querySelector("[data-title] .sr-only")).toHaveTextContent(
-      "Alt+T leads to the action",
+      "Alt+T, then Tab: the action",
     );
   });
 
-  it("takes the hint out of the toast's text while the focus is inside the toasts (#550)", async () => {
-    const item = await renderCovered();
-    expect(item()?.closest("[data-sonner-toaster]")).toHaveClass("group/toaster");
-    expect(item()?.querySelector("[data-title] .sr-only")).toHaveClass(
-      "group-focus-within/toaster:hidden",
-    );
+  it("takes the hint out of the toast's text for good once the focus entered the toasts (#550)", async () => {
+    const item = await renderCovered({ focused: "free" });
+    const hint = () => item()?.querySelector("[data-title] .sr-only");
+    expect(hint()).not.toBeNull();
+    act(() => screen.getByRole("button", { name: "Undo" }).focus());
+    expect(hint()).toBeNull();
+    // Back outside, it does not return to the live region to be read again.
+    act(() => screen.getByTestId("free").focus());
+    await settle();
+    expect(hint()).toBeNull();
+    expect(item()?.querySelector("[data-title]")).toHaveTextContent("Saved");
   });
 
   // #550, `GL-UI-050`: the focus that entered the toasts goes back where it came from.
@@ -419,16 +435,71 @@ describe("Toaster: focus under a toast", () => {
     expect(focus.mock.calls[0]?.[0]).toMatchObject({ focusVisible: true });
   });
 
+  // sonner's hotkey: it focuses the toasts' list.
+  const altT = () => {
+    fireEvent.keyDown(document, { key: "t", code: "KeyT", altKey: true });
+  };
+  const pressTab = (element: HTMLElement, shiftKey = false) => {
+    const tab = createEvent.keyDown(element, { key: "Tab", shiftKey, cancelable: true });
+    act(() => {
+      fireEvent(element, tab);
+    });
+    return tab.defaultPrevented;
+  };
+
   it("returns the focus on Tab past the last toast control instead of leaving the page (#550)", async () => {
+    await renderCovered({ focused: "covered" });
+    altT();
+    expect(document.activeElement).toHaveAttribute("data-sonner-toaster");
+    const undo = screen.getByRole("button", { name: "Undo" });
+    act(() => undo.focus());
+    expect(pressTab(undo)).toBe(true);
+    expect(screen.getByTestId("covered")).toHaveFocus();
+  });
+
+  it("returns the focus on Shift+Tab before the first toast stop after Alt+T (#550)", async () => {
+    const item = await renderCovered({ focused: "covered" });
+    altT();
+    const first = item() as HTMLElement;
+    act(() => first.focus());
+    expect(pressTab(first, true)).toBe(true);
+    expect(screen.getByTestId("covered")).toHaveFocus();
+  });
+
+  it("counts an own focusable element as a Tab stop of the toasts (#550)", async () => {
+    await renderCovered({
+      focused: "covered",
+      action: (
+        <span tabIndex={0} data-testid="own-action">
+          Undo
+        </span>
+      ),
+    });
+    altT();
+    const own = screen.getByTestId("own-action");
+    act(() => own.focus());
+    expect(pressTab(own)).toBe(true);
+    expect(screen.getByTestId("covered")).toHaveFocus();
+  });
+
+  it("lets Tab leave the toasts as usual when the focus came in by Tab, not Alt+T (#550)", async () => {
     await renderCovered({ focused: "covered" });
     const undo = screen.getByRole("button", { name: "Undo" });
     act(() => undo.focus());
-    const tab = createEvent.keyDown(undo, { key: "Tab", cancelable: true });
-    act(() => {
-      fireEvent(undo, tab);
-    });
-    expect(tab.defaultPrevented).toBe(true);
-    expect(screen.getByTestId("covered")).toHaveFocus();
+    expect(pressTab(undo)).toBe(false);
+  });
+
+  it("leaves the focus where a pointer press outside the toasts puts it (#550)", async () => {
+    await renderCovered({ focused: "covered" });
+    altT();
+    act(() => screen.getByRole("button", { name: "Undo" }).focus());
+    focusVisible = false;
+    const free = screen.getByTestId("free");
+    fireEvent.pointerDown(free);
+    act(() => free.focus());
+    fireEvent.pointerUp(free);
+    await settle();
+    expect(free).toHaveFocus();
   });
 
   it("closes a toast with an action on the next keyboard move under it", async () => {
@@ -462,6 +533,25 @@ describe("toast with an action: duration", () => {
     return vi.spyOn(sonnerToast, "dismiss").mockImplementation((id) => id ?? 0);
   }
 
+  // sonner's own timers and frames too, for the tests that let sonner close a toast.
+  function useAllFakeTimers() {
+    vi.useFakeTimers({
+      toFake: [
+        "setTimeout",
+        "clearTimeout",
+        "Date",
+        "requestAnimationFrame",
+        "cancelAnimationFrame",
+      ],
+    });
+  }
+
+  const advance = (ms: number) => {
+    act(() => {
+      vi.advanceTimersByTime(ms);
+    });
+  };
+
   afterEach(() => {
     vi.useRealTimers();
   });
@@ -478,7 +568,7 @@ describe("toast with an action: duration", () => {
   });
 
   it("lasts the reading time with the key hint once that is longer", () => {
-    // 2000 ms success base plus 50 ms for each of 118 words and the hint's 4 ("Alt+T leads to
+    // 2000 ms success base plus 50 ms for each of 118 words and the hint's 4 ("Alt+T, then Tab:
     // Undo"): 8100 ms. Without the hint it would be 7900 ms, below the floor.
     const dismiss = watchDismiss();
     vi.spyOn(sonnerToast, "success").mockReturnValue("b");
@@ -510,6 +600,50 @@ describe("toast with an action: duration", () => {
     expect(dismiss).not.toHaveBeenCalledWith("r");
   });
 
+  // sonner merges a replacement into the toast, so the action toast's `Infinity` would survive.
+  it.each(["the plain call", "toast.message"] as const)(
+    "gives a toast that %s replaces without an action a duration again",
+    (route) => {
+      render(<Toaster />);
+      useAllFakeTimers();
+      act(() => {
+        toast.success("Archived", { id: "p", action: undo });
+      });
+      // sonner renders a new toast after a timeout.
+      advance(1);
+      act(() => {
+        if (route === "toast.message") toast.message("Restored", { id: "p" });
+        else toast("Restored", { id: "p" });
+      });
+      advance(1);
+      expect(screen.getByText("Restored")).toBeInTheDocument();
+      // Past sonner's default and the action floor: it has closed by itself.
+      for (let step = 0; step < 30; step++) advance(500);
+      expect(screen.queryByText("Restored")).toBeNull();
+    },
+  );
+
+  it("never throws without an i18next instance (#550)", () => {
+    watchDismiss();
+    vi.mocked(getI18n).mockReturnValueOnce(undefined as never);
+    vi.spyOn(sonnerToast, "success").mockReturnValue("n");
+    expect(() => toast.success("Archived", { action: undo })).not.toThrow();
+  });
+
+  it("calls onAutoClose, not onDismiss, when its own timer closes it (#550)", () => {
+    render(<Toaster />);
+    useAllFakeTimers();
+    const onAutoClose = vi.fn();
+    const onDismiss = vi.fn();
+    act(() => {
+      toast.success("Archived", { action: undo, onAutoClose, onDismiss });
+    });
+    advance(8000);
+    advance(500);
+    expect(onAutoClose).toHaveBeenCalledTimes(1);
+    expect(onDismiss).not.toHaveBeenCalled();
+  });
+
   function renderToaster() {
     render(
       <>
@@ -527,12 +661,6 @@ describe("toast with an action: duration", () => {
     const wrapper = document.querySelector("section")?.parentElement as HTMLElement;
     return { dismiss, wrapper, id };
   }
-
-  const advance = (ms: number) => {
-    act(() => {
-      vi.advanceTimersByTime(ms);
-    });
-  };
 
   it("stands still while the pointer is in the toaster, then goes on with the time left", () => {
     const { dismiss, wrapper, id } = renderToaster();

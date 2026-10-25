@@ -34,10 +34,10 @@ export const en = {
     more_one: "{{n}} more",
     more_other: "{{n}} more",
     // A toast action's key route: sonner's hotkey focuses the toasts (`SUI-FEATURE-101` rev 5).
-    // It says that Alt+T reaches the action, not that it triggers it (#550).
-    actionKey: "Alt+T leads to {{action}}",
+    // The real key path: Alt+T focuses the toasts, Tab reaches the action (#550).
+    actionKey: "Alt+T, then Tab: {{action}}",
     // An action without a text label, as an own element (`SUI-FEATURE-101` rev 6, #561).
-    actionKeyUnnamed: "Alt+T leads to the action",
+    actionKeyUnnamed: "Alt+T, then Tab: the action",
   },
   // The word before an `InlineMessage` text that only screen readers read (`SUI-FEATURE-096`).
   inline: {

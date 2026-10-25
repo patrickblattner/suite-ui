@@ -845,8 +845,8 @@ test("toast: the receipt with Undo over the returned focus stays, Alt+T reaches 
   };
   const ring = (element: Locator) => element.evaluate((el) => el.matches(":focus-visible"));
   const undo = receipt.getByRole("button", { name: "Undo" });
-  const hint = receipt.getByText("Alt+T leads to Undo");
-  // Alt+T focuses the toasts, Tab reaches Undo.
+  const hint = receipt.getByText("Alt+T, then Tab: Undo");
+  // Alt+T focuses the toasts, Tab reaches Undo (the toast, then its Undo).
   const reachUndo = async () => {
     await page.keyboard.press("Alt+T");
     for (
@@ -863,7 +863,8 @@ test("toast: the receipt with Undo over the returned focus stays, Alt+T reaches 
     .getByTestId("preview-row-menu")
     .getByTestId("row-menu-actions")
     .getByTestId("row-edit");
-  for (const round of ["undo", "past", "Tab", "Shift+Tab", "Escape", "time"]) {
+  const beside = page.getByTestId("preview-row-menu").getByTestId("row-edit").last();
+  for (const round of ["undo", "past", "Tab", "click", "Shift+Tab", "Escape", "time"]) {
     await expect(toasts).toHaveCount(0, { timeout: 9000 });
     await trigger.focus();
     await page.keyboard.press("Enter");
@@ -874,7 +875,7 @@ test("toast: the receipt with Undo over the returned focus stays, Alt+T reaches 
     await expect(trigger).toBeFocused();
     await expect(receipt).toBeVisible();
     await expect(page.locator("[aria-live=polite] [data-sonner-toast]")).toHaveCount(1);
-    // The hint says that Alt+T reaches Undo, not that it undoes (#550).
+    // The hint names the key path to Undo, not a key that undoes (#550).
     await expect(hint).toBeVisible();
     await expect(undo).toBeVisible();
     await page.waitForTimeout(500);
@@ -909,6 +910,14 @@ test("toast: the receipt with Undo over the returned focus stays, Alt+T reaches 
       await expect(receipt).toHaveAttribute("data-removed", "false");
       await page.keyboard.press("Shift+Tab");
       await expect(trigger).toBeFocused();
+    } else if (round === "click") {
+      // A pointer press outside the toasts keeps the focus where it puts it, as without toasts.
+      await reachUndo();
+      await beside.click();
+      await expect(beside).toBeFocused();
+      await page.waitForTimeout(300);
+      await expect(beside).toBeFocused();
+      continue;
     } else if (round === "Shift+Tab") {
       // The first keyboard move onto an element under it closes it.
       expect(await covers(before)).toBe(true);
