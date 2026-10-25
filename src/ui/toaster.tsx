@@ -15,6 +15,7 @@ import {
 } from "sonner";
 
 import { cn } from "../lib/cn.js";
+import { captureOpener, type Opener, returnFocus } from "./focus-return.js";
 
 type ToastVariant = "info" | "success" | "warning" | "error";
 
@@ -509,15 +510,16 @@ let returningFocus = false;
 
 /**
  * The focus that enters the toasts (Alt+T, Tab) goes back where it came from (`GL-UI-050`, #550):
- * to the element focused before it entered, as long as that element still exists (the fallbacks of
- * `GL-UI-050` from target 2 on are not built; without it the focus stays where the browser puts
- * it). It goes back when a toast takes the focus along as it leaves (Enter on its action, its timer,
- * a dismissal): once the toast is marked removed, still in the DOM, or once its node is gone (Chrome
- * fires no blur then). It goes back as well when the focus leaves the toasts for nothing but a pointer
- * press (Tab past the page's last stop), and, when
- * it came in by Alt+T, on Tab past the last toast stop or Shift+Tab before the first, which would
- * otherwise leave the toasts for the page's ends; with its ring (`focusVisible`) when the focus in
- * the toasts showed one, where sonner's own return to the same element would come without it.
+ * to the element focused before it entered; when that element is gone or takes no focus, to
+ * `GL-UI-050`'s fallback (its group's next usable control, then the surface's main content, then its
+ * container), never to `<body>` (`SUI-FEATURE-101` rev 7, #565). It goes back when a toast takes the
+ * focus along as it leaves (Enter on its action, its timer, a dismissal): once the toast is marked
+ * removed, still in the DOM, or once its node is gone (Chrome fires no blur then). It goes back as
+ * well when the focus leaves the toasts for nothing but a pointer press or a switch to another window
+ * or tab (Tab past the page's last stop), and, when it came in by Alt+T, on Tab past the last toast
+ * stop or Shift+Tab before the first, which would otherwise leave the toasts for the page's ends;
+ * with its ring (`focusVisible`) when the focus in the toasts showed one, the fallback as well, where
+ * sonner's own return to the same element would come without it.
  * A move out of the toasts to an element, a pointer press (on an element or on the page's empty area,
  * where the focus goes to nothing) or a Tab after entering by Tab, keeps the focus where it lands, as
  * without toasts (`SUI-FEATURE-101`: pointer use is unchanged): sonner's own return to its remembered
@@ -530,6 +532,8 @@ function useToasterFocus(toasts: React.RefObject<HTMLElement | null>, id?: strin
     const wrapper = toasts.current;
     if (wrapper === null) return;
     let before: HTMLElement | null = null;
+    // Where `before` stood as the focus entered (group, neighbours, containers), for the fallback.
+    let opener: Opener | null = null;
     // Whether the focus in the toasts shows its ring: the return shows it then, and only then.
     let ring = false;
     // Whether the focus came in by sonner's hotkey, which focuses the list itself.
@@ -551,11 +555,14 @@ function useToasterFocus(toasts: React.RefObject<HTMLElement | null>, id?: strin
     // A return for a leaving toast is quiet: the dismissal under the focus lets it pass.
     const giveBack = (quiet: boolean) => {
       const target = before;
+      const from = opener;
       before = null;
-      if (target === null || !target.isConnected || document.activeElement === target) return;
+      opener = null;
+      if (target === null || document.activeElement === target) return;
       returningFocus = quiet;
       giving = true;
-      target.focus({ preventScroll: true, focusVisible: ring });
+      if (target.isConnected) target.focus({ preventScroll: true, focusVisible: ring });
+      if (document.activeElement !== target) returnFocus(from, ring);
       giving = false;
       returningFocus = false;
     };
@@ -564,6 +571,7 @@ function useToasterFocus(toasts: React.RefObject<HTMLElement | null>, id?: strin
       const target = event.target as Element;
       if (!wrapper.contains(target)) {
         before = null;
+        opener = null;
         hotkey = false;
       } else {
         ring = target.matches(":focus-visible");
@@ -571,6 +579,7 @@ function useToasterFocus(toasts: React.RefObject<HTMLElement | null>, id?: strin
         const from = event.relatedTarget;
         if (before === null && from instanceof HTMLElement && !wrapper.contains(from)) {
           before = from;
+          opener = captureOpener(from);
           hotkey = list;
         } else if (list) hotkey = true;
       }
@@ -586,12 +595,16 @@ function useToasterFocus(toasts: React.RefObject<HTMLElement | null>, id?: strin
         // afterwards: that element takes no passing focus, which would activate a tab or blur a field.
         const target = before;
         before = null;
+        opener = null;
         if (target !== null) {
           held = { element: target, own: Object.getOwnPropertyDescriptor(target, "focus") };
           Object.defineProperty(target, "focus", { value: () => undefined, configurable: true });
         } else pause();
         return;
       }
+      // A switch to another window or tab blurs the focus without a move of the user's in the page: it
+      // stays in the toasts and comes back there.
+      if (!document.hasFocus()) return;
       giveBack(false);
       pause();
     };

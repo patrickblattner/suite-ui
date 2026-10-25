@@ -250,10 +250,15 @@ function focusableFallback(target: HTMLElement): HTMLElement {
   return target;
 }
 
-/** Focuses `target` and tells whether it took the focus (a node that cannot take it does not). */
-function place(target: HTMLElement | null): boolean {
+/**
+ * Focuses `target` and tells whether it took the focus (a node that cannot take it does not). With
+ * `focusVisible` the ring is set as given, else the browser decides.
+ */
+function place(target: HTMLElement | null, focusVisible?: boolean): boolean {
   if (target === null) return false;
-  target.focus({ preventScroll: true });
+  const options: FocusOptions =
+    focusVisible === undefined ? { preventScroll: true } : { preventScroll: true, focusVisible };
+  target.focus(options);
   if (document.activeElement !== target) return false;
   // A dialog closing over another one (a confirm inside a dialog) returns the focus while radix still
   // pauses the outer dialog's focus trap: the trap misses this focus and keeps the element focused
@@ -263,25 +268,25 @@ function place(target: HTMLElement | null): boolean {
     setTimeout(() => {
       if (document.activeElement !== target || !target.isConnected) return;
       target.blur();
-      target.focus({ preventScroll: true });
+      target.focus(options);
     });
   }
   return true;
 }
 
 /** Places the focus on the first of `targets` that takes it. */
-function placeFirst(targets: readonly HTMLElement[]): boolean {
-  return targets.some((target) => place(target));
+function placeFirst(targets: readonly HTMLElement[], focusVisible?: boolean): boolean {
+  return targets.some((target) => place(target, focusVisible));
 }
 
 /**
  * Returns the focus as `GL-UI-050` says; each tier counts only if its target took the focus, else the
  * next one is tried. A list entry that is gone hands over to the entry in its place, else the list
  * frame (`SUI-FEATURE-056`). Without an opener (nothing had the focus) the main content takes it.
- * Returns whether it placed the focus.
+ * Returns whether it placed the focus. `focusVisible` sets the ring on the target, as for `place`.
  */
-function returnFocus(opener: Opener | null): boolean {
-  if (opener === null) return place(mainTarget(null));
+function returnFocus(opener: Opener | null, focusVisible?: boolean): boolean {
+  if (opener === null) return place(mainTarget(null), focusVisible);
   const { group, entry } = opener;
   let { trigger } = opener;
   // A refold may have swapped the trigger for a new node of the same control (`useFoldSteps`).
@@ -289,19 +294,19 @@ function returnFocus(opener: Opener | null): boolean {
   if (!trigger.isConnected && id !== null && group?.isConnected) {
     trigger = group.querySelector<HTMLElement>(`[data-testid="${CSS.escape(id)}"]`) ?? trigger;
   }
-  if (isUsable(trigger) && place(trigger)) return true;
+  if (isUsable(trigger) && place(trigger, focusVisible)) return true;
   // Tier 2 tries every candidate in turn before it falls to the main content.
   if (trigger.isConnected) {
-    if (placeFirst(groupTargets(group, trigger))) return true;
+    if (placeFirst(groupTargets(group, trigger), focusVisible)) return true;
   } else if (group?.isConnected) {
     const after = opener.after.filter((control) => isUsable(control));
     const before = opener.before.filter((control) => isUsable(control)).reverse();
-    if (placeFirst([...after, ...before, ...groupTargets(group, null)])) return true;
+    if (placeFirst([...after, ...before, ...groupTargets(group, null)], focusVisible)) return true;
   } else if (entry !== null && entry.frame.isConnected) {
     focusListEntry(entry.frame, entry.index);
     if (entry.frame.contains(document.activeElement)) return true;
   }
-  if (place(mainTarget(group ?? trigger, opener.surface))) return true;
+  if (place(mainTarget(group ?? trigger, opener.surface), focusVisible)) return true;
   // Tier 4: the container the dialog was opened from, the nearest that takes the focus; never
   // `<body>`.
   return opener.containers.some(
@@ -309,7 +314,7 @@ function returnFocus(opener: Opener | null): boolean {
       node.isConnected &&
       !behindModal(node) &&
       node.closest("[hidden], [inert]") === null &&
-      place(focusableFallback(node)),
+      place(focusableFallback(node), focusVisible),
   );
 }
 

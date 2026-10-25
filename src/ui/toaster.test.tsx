@@ -137,6 +137,9 @@ describe("Toaster: focus under a toast", () => {
     show?: (options: Parameters<typeof toast.success>[1]) => void;
   } = {}) {
     focusVisible = true;
+    // jsdom's `hasFocus` turns false once the focus goes to nothing; a browser's stays true while the
+    // window has the focus.
+    vi.spyOn(document, "hasFocus").mockReturnValue(true);
     vi.spyOn(Element.prototype, "matches").mockImplementation(function (
       this: Element,
       selector: string,
@@ -465,6 +468,141 @@ describe("Toaster: focus under a toast", () => {
     act(() => first.focus());
     expect(pressTab(first, true)).toBe(true);
     expect(screen.getByTestId("covered")).toHaveFocus();
+  });
+
+  // #565, `SUI-FEATURE-101` rev 7 AC 8: the element before is gone → `GL-UI-050`, never `<body>`.
+  const inToolbar = (covered: React.ReactNode) => (
+    <div role="toolbar">
+      {covered}
+      <button type="button" data-testid="next">
+        Next
+      </button>
+    </div>
+  );
+
+  // Takes a node React renders at the top out of the DOM; the returned call puts it back for unmount.
+  const detach = (node: HTMLElement) => {
+    const parent = node.parentNode as Node;
+    const next = node.nextSibling;
+    node.remove();
+    return () => {
+      parent.insertBefore(node, next);
+    };
+  };
+
+  it("returns the focus to the group's next control on Tab past the last toast control when the element before is gone (#565)", async () => {
+    await renderCovered({ focused: "covered", wrap: inToolbar });
+    altT();
+    const undo = screen.getByRole("button", { name: "Undo" });
+    act(() => undo.focus());
+    screen.getByTestId("covered").remove();
+    expect(pressTab(undo)).toBe(true);
+    expect(screen.getByTestId("next")).toHaveFocus();
+  });
+
+  it("returns the focus to the group's next control on Shift+Tab before the first toast stop when the element before is gone (#565)", async () => {
+    const item = await renderCovered({ focused: "covered", wrap: inToolbar });
+    altT();
+    const first = item() as HTMLElement;
+    act(() => first.focus());
+    screen.getByTestId("covered").remove();
+    expect(pressTab(first, true)).toBe(true);
+    expect(screen.getByTestId("next")).toHaveFocus();
+  });
+
+  it("returns the focus to the main content, never to <body>, when the element before and its group are gone (#565)", async () => {
+    render(
+      <main>
+        <p>Content</p>
+      </main>,
+    );
+    await renderCovered({ focused: "covered", wrap: inToolbar });
+    altT();
+    const undo = screen.getByRole("button", { name: "Undo" });
+    act(() => undo.focus());
+    const restore = detach(screen.getByRole("toolbar"));
+    expect(pressTab(undo)).toBe(true);
+    expect(document.activeElement).toBe(screen.getByRole("main"));
+    restore();
+  });
+
+  it("returns the focus to the container it came from, never to <body>, without group or main content (#565)", async () => {
+    await renderCovered({ focused: "covered" });
+    const container = screen.getByTestId("covered").parentElement;
+    altT();
+    const first = screen
+      .getByRole("button", { name: "Undo" })
+      .closest("[data-sonner-toast]") as HTMLElement;
+    act(() => first.focus());
+    const restore = detach(screen.getByTestId("covered"));
+    expect(pressTab(first, true)).toBe(true);
+    expect(document.activeElement).not.toBe(document.body);
+    expect(document.activeElement).toBe(container);
+    restore();
+  });
+
+  it("falls back to the group's next control when the toast holding the focus leaves and the element before is gone (#565)", async () => {
+    await renderCovered({ focused: "covered", wrap: inToolbar });
+    altT();
+    act(() => screen.getByRole("button", { name: "Undo" }).focus());
+    screen.getByTestId("covered").remove();
+    act(() => {
+      toast.dismiss();
+    });
+    await vi.waitFor(() => expect(screen.getByTestId("next")).toHaveFocus());
+  });
+
+  it("falls back to the group's next control when the focus leaves for nothing and the element before is gone (#565)", async () => {
+    await renderCovered({ focused: "covered", wrap: inToolbar });
+    const undo = screen.getByRole("button", { name: "Undo" });
+    act(() => undo.focus());
+    screen.getByTestId("covered").remove();
+    act(() => undo.blur());
+    expect(screen.getByTestId("next")).toHaveFocus();
+  });
+
+  it("falls back to the group's next control when the element before is there but takes no focus (#565)", async () => {
+    await renderCovered({ focused: "covered", wrap: inToolbar });
+    altT();
+    const undo = screen.getByRole("button", { name: "Undo" });
+    act(() => undo.focus());
+    screen.getByTestId<HTMLButtonElement>("covered").disabled = true;
+    expect(pressTab(undo)).toBe(true);
+    expect(screen.getByTestId("next")).toHaveFocus();
+  });
+
+  it.each([true, false])(
+    "gives the fallback the ring only when the focus in the toasts showed one (ring %s, #565)",
+    async (ring) => {
+      await renderCovered({ focused: "covered", wrap: inToolbar });
+      const undo = screen.getByRole("button", { name: "Undo" });
+      focusVisible = ring;
+      act(() => undo.focus());
+      screen.getByTestId("covered").remove();
+      const focus = vi.spyOn(HTMLElement.prototype, "focus");
+      act(() => undo.blur());
+      const next = screen.getByTestId("next");
+      expect(next).toHaveFocus();
+      const call = focus.mock.contexts.indexOf(next);
+      expect(focus.mock.calls[call]?.[0]).toMatchObject({ focusVisible: ring });
+    },
+  );
+
+  it("keeps the focus in the toasts when a switch to another window blurs it (#565)", async () => {
+    await renderCovered({ focused: "covered", wrap: inToolbar });
+    altT();
+    const undo = screen.getByRole("button", { name: "Undo" });
+    act(() => undo.focus());
+    screen.getByTestId("covered").remove();
+    vi.spyOn(document, "hasFocus").mockReturnValue(false);
+    // The browser blurs without moving `document.activeElement`: only the focusout arrives.
+    const focus = vi.spyOn(HTMLElement.prototype, "focus");
+    act(() => {
+      fireEvent.focusOut(undo, { relatedTarget: null });
+    });
+    // No return of ours: the fallback takes no focus.
+    expect(focus.mock.contexts).not.toContain(screen.getByTestId("next"));
+    expect(undo).toHaveFocus();
   });
 
   it("counts an own focusable element as a Tab stop of the toasts (#550)", async () => {
