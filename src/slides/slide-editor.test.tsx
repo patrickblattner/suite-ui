@@ -688,7 +688,7 @@ describe("SlideEditor heading ids", () => {
       fireEvent.click(view.getByTestId("drawer-layers"));
       fireEvent.click(view.getAllByTestId("slide-editor-layer-select")[0]!);
       fireEvent.mouseDown(view.getByRole("tab", { name: "Layout" }), { button: 0 });
-      const animation = view.getByRole("region", { name: "Animation", exact: true });
+      const animation = view.getByRole("region", { name: "Animation" });
       const animationTitle = within(animation).getByRole("heading", {
         level: 3,
         name: "Animation",
