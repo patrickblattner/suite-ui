@@ -395,6 +395,8 @@ function AnimationFields({
 }) {
   const { t } = useTranslation("suite");
   const id = `slide-editor-${kind}`;
+  // Per instance, so two mounted editors never share a field id (#566); `id` names the test ids.
+  const fieldId = React.useId();
   const withEffect = (effect: string): AnimationStep | undefined => {
     if (effect === "none") return undefined;
     const next: AnimationStep = {
@@ -413,7 +415,7 @@ function AnimationFields({
       <div className="grid grid-cols-2 gap-4" data-tooltip-row="">
         <Field
           label={t("slides.editor.animationEffect")}
-          htmlFor={`${id}-effect`}
+          htmlFor={`${fieldId}-effect`}
           hint={t("slides.editor.animationEffectHint")}
           // Each option's effect, under its own name (`GL-UI-017`).
           valueHint={t(
@@ -435,8 +437,8 @@ function AnimationFields({
             onValueChange={(effect) => onStep(withEffect(effect))}
           >
             <SelectTrigger
-              id={`${id}-effect`}
-              aria-describedby={helpIdFor(`${id}-effect`)}
+              id={`${fieldId}-effect`}
+              aria-describedby={helpIdFor(`${fieldId}-effect`)}
               fieldName={t("slides.editor.animationEffect")}
               className="w-full"
               data-testid={`${id}-effect`}
@@ -458,7 +460,7 @@ function AnimationFields({
             label={t(
               kind === "entrance" ? "slides.editor.animationFrom" : "slides.editor.animationTo",
             )}
-            htmlFor={`${id}-direction`}
+            htmlFor={`${fieldId}-direction`}
             hint={t(
               kind === "entrance"
                 ? "slides.editor.animationFromHint"
@@ -478,8 +480,8 @@ function AnimationFields({
               }
             >
               <SelectTrigger
-                id={`${id}-direction`}
-                aria-describedby={helpIdFor(`${id}-direction`)}
+                id={`${fieldId}-direction`}
+                aria-describedby={helpIdFor(`${fieldId}-direction`)}
                 fieldName={t(
                   kind === "entrance" ? "slides.editor.animationFrom" : "slides.editor.animationTo",
                 )}
@@ -505,7 +507,7 @@ function AnimationFields({
             {(["duration", "delay"] as const).map((key) => (
               <NumberField
                 key={key}
-                id={`${id}-${key}`}
+                id={`${fieldId}-${key}`}
                 label={t(`slides.editor.animation${key[0]!.toUpperCase()}${key.slice(1)}`)}
                 hint={t(`slides.editor.animation${key[0]!.toUpperCase()}${key.slice(1)}Hint`)}
                 valueHint={t("slides.editor.msValueHint")}
@@ -528,7 +530,7 @@ function AnimationFields({
               />
             ))}
             <NumberField
-              id={`${id}-order`}
+              id={`${fieldId}-order`}
               label={t("slides.editor.animationOrder")}
               hint={t("slides.editor.animationOrderHint")}
               valueHint={t("slides.editor.animationOrderValueHint")}
@@ -580,6 +582,8 @@ function TransitionFields({
   onTransition: (transition: SlidePage["transition"], merge?: string) => void;
 }) {
   const { t } = useTranslation("suite");
+  // Per instance, so two mounted editors never share a field id (#566).
+  const id = React.useId();
   return (
     <section className="flex flex-col gap-2" data-testid="slide-editor-transition">
       <h3 className="text-base font-semibold">{t("slides.editor.transition")}</h3>
@@ -587,7 +591,7 @@ function TransitionFields({
         <div className="grid grid-cols-2 gap-4" data-tooltip-row="">
           <Field
             label={t("slides.editor.transitionType")}
-            htmlFor="slide-editor-transition-type"
+            htmlFor={`${id}-type`}
             hint={t("slides.editor.transitionTypeHint")}
             valueHint={t("slides.editor.transitionTypeValueHint", {
               none: t("slides.editor.transitionNone"),
@@ -611,8 +615,8 @@ function TransitionFields({
               }
             >
               <SelectTrigger
-                id="slide-editor-transition-type"
-                aria-describedby={helpIdFor("slide-editor-transition-type")}
+                id={`${id}-type`}
+                aria-describedby={helpIdFor(`${id}-type`)}
                 fieldName={t("slides.editor.transitionType")}
                 className="w-full"
                 data-testid="slide-editor-transition-type"
@@ -630,7 +634,7 @@ function TransitionFields({
           </Field>
           {transition.type === "none" ? null : (
             <NumberField
-              id="slide-editor-transition-duration"
+              id={`${id}-duration`}
               label={t("slides.editor.animationDuration")}
               hint={t("slides.editor.transitionDurationHint")}
               valueHint={t("slides.editor.msValueHint")}
@@ -1236,6 +1240,8 @@ function Editor({
   // Per instance, so two mounted editors never share a heading id.
   const animationTitle = React.useId();
   const gridTitle = React.useId();
+  // The same for the crop, layout and page fields (#566).
+  const fieldId = React.useId();
   // While cropping, the wheel zooms the image about the frame's centre instead of scrolling (a
   // listener of its own: React's wheel listener cannot prevent the scroll).
   const croppedImage =
@@ -2690,7 +2696,7 @@ function Editor({
         onKeyDownCapture={(event) => {
           if (
             event.target instanceof HTMLElement &&
-            event.target.id === "slide-editor-crop-zoom-percent"
+            event.target.id === `${fieldId}-crop-zoom-percent`
           )
             cropZoomStep.current = event.key === "ArrowUp" || event.key === "ArrowDown";
         }}
@@ -2701,7 +2707,7 @@ function Editor({
         <div className="flex flex-col gap-4">
           <Field
             label={t("slides.editor.cropZoom")}
-            htmlFor="slide-editor-crop-zoom"
+            htmlFor={`${fieldId}-crop-zoom`}
             hint={t("slides.editor.cropZoomHint")}
             valueHint={t("slides.editor.cropZoomValueHint")}
             error={cropZoomInvalid === null ? undefined : t(NUMBER_ERROR[cropZoomInvalid])}
@@ -2711,9 +2717,9 @@ function Editor({
             {/* A slider is no field control: it carries its value hint itself (`Field valueHint`). */}
             <Hint text={t("slides.editor.cropZoomValueHint")}>
               <Slider
-                id="slide-editor-crop-zoom"
-                aria-labelledby="slide-editor-crop-zoom-label"
-                aria-describedby={helpIdFor("slide-editor-crop-zoom")}
+                id={`${fieldId}-crop-zoom`}
+                aria-labelledby={`${fieldId}-crop-zoom-label`}
+                aria-describedby={helpIdFor(`${fieldId}-crop-zoom`)}
                 value={cropping.crop.zoom}
                 min={1}
                 max={CROP_ZOOM_MAX}
@@ -2741,7 +2747,7 @@ function Editor({
                 the shift; leaving the field or Enter clamps what is typed, as every other way of
                 zooming stops at 500 %. */}
             <NumberInput
-              id="slide-editor-crop-zoom-percent"
+              id={`${fieldId}-crop-zoom-percent`}
               value={cropping.crop.zoom * 100}
               unit="%"
               size="sm"
@@ -2779,7 +2785,7 @@ function Editor({
                 // clamp keeps the image covering its frame.
                 <NumberField
                   key={key}
-                  id={`slide-editor-crop-${key}`}
+                  id={`${fieldId}-crop-${key}`}
                   label={t(`slides.editor.${label}`)}
                   hint={t(`slides.editor.${label}Hint`)}
                   valueHint={t("slides.editor.cropOffsetValueHint")}
@@ -2823,7 +2829,7 @@ function Editor({
           {(["x", "y", "width", "height"] as const).map((key) => (
             <NumberField
               key={`${single.id}-${key}`}
-              id={`slide-editor-${key}`}
+              id={`${fieldId}-${key}`}
               label={t(`slides.editor.${key}`)}
               hint={t(`slides.editor.${key}Hint`)}
               valueHint={t(`slides.editor.${key}ValueHint`)}
@@ -2871,7 +2877,7 @@ function Editor({
           ))}
           <NumberField
             key={`${single.id}-rotation`}
-            id="slide-editor-rotation"
+            id={`${fieldId}-rotation`}
             label={t("slides.editor.rotation")}
             hint={t("slides.editor.rotationHint")}
             valueHint={t("slides.editor.rotationValueHint")}
@@ -2994,7 +3000,7 @@ function Editor({
       {selected.length === 0 && pageData !== undefined && offered.length > 0 ? (
         <Field
           label={t("slides.editor.pageLayout")}
-          htmlFor="slide-editor-page-layout"
+          htmlFor={`${fieldId}-page-layout`}
           hint={t("slides.editor.pageLayoutHint")}
           valueHint={t("slides.editor.pageLayoutValueHint", {
             none: t("slides.editor.noLayout"),
@@ -3010,8 +3016,8 @@ function Editor({
             }}
           >
             <SelectTrigger
-              id="slide-editor-page-layout"
-              aria-describedby={helpIdFor("slide-editor-page-layout")}
+              id={`${fieldId}-page-layout`}
+              aria-describedby={helpIdFor(`${fieldId}-page-layout`)}
               fieldName={t("slides.editor.pageLayout")}
               className="w-full"
               data-testid="slide-editor-page-layout"

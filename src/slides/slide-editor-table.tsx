@@ -109,6 +109,8 @@ export function TableFields({
   onCell: (cell: CellAt) => void;
 }) {
   const { t } = useTranslation("suite");
+  // Per instance, so two mounted editors never share a field id (#566).
+  const id = React.useId();
   const rows = table.rows.length;
   const columns = table.columnWidths.length;
   const current = table.rows[cell.row]?.[cell.column];
@@ -213,7 +215,7 @@ export function TableFields({
           {(["row", "column"] as const).map((key) => (
             <NumberField
               key={key}
-              id={`slide-editor-table-cell-${key}`}
+              id={`${id}-cell-${key}`}
               label={t(key === "row" ? "slides.editor.tableRow" : "slides.editor.tableColumn")}
               hint={t(
                 key === "row" ? "slides.editor.tableRowHint" : "slides.editor.tableColumnHint",
@@ -239,7 +241,7 @@ export function TableFields({
           ))}
           <NumberField
             key={`width-${cell.column}`}
-            id="slide-editor-table-column-width"
+            id={`${id}-column-width`}
             label={t("slides.editor.tableColumnWidth")}
             hint={t("slides.editor.tableColumnWidthHint")}
             valueHint={t("slides.editor.tableColumnWidthValueHint")}
@@ -270,7 +272,7 @@ export function TableFields({
         <div className="grid grid-cols-2 gap-4" data-tooltip-row="">
           <Field
             label={t("slides.editor.tableCellFill")}
-            htmlFor="slide-editor-table-fill"
+            htmlFor={`${id}-fill`}
             hint={t("slides.editor.tableCellFillHint")}
             valueHint={t("slides.editor.tableCellFillValueHint", {
               none: t("slides.editor.tableNoFill"),
@@ -292,8 +294,8 @@ export function TableFields({
               }
             >
               <SelectTrigger
-                id="slide-editor-table-fill"
-                aria-describedby={helpIdFor("slide-editor-table-fill")}
+                id={`${id}-fill`}
+                aria-describedby={helpIdFor(`${id}-fill`)}
                 fieldName={t("slides.editor.tableCellFill")}
                 className="w-full"
                 data-testid="slide-editor-table-fill"
@@ -317,7 +319,7 @@ export function TableFields({
           </Field>
           <Field
             label={t("slides.editor.tableVerticalAlign")}
-            htmlFor="slide-editor-table-valign"
+            htmlFor={`${id}-valign`}
             hint={t("slides.editor.tableVerticalAlignHint")}
             valueHint={t("slides.editor.tableVerticalAlignValueHint")}
           >
@@ -334,8 +336,8 @@ export function TableFields({
               }
             >
               <SelectTrigger
-                id="slide-editor-table-valign"
-                aria-describedby={helpIdFor("slide-editor-table-valign")}
+                id={`${id}-valign`}
+                aria-describedby={helpIdFor(`${id}-valign`)}
                 fieldName={t("slides.editor.tableVerticalAlign")}
                 className="w-full"
                 data-testid="slide-editor-table-valign"

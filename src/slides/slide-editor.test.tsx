@@ -708,3 +708,177 @@ describe("SlideEditor heading ids", () => {
     expect(document.querySelectorAll('[id^="slide-editor-"][id$="-title"]')).toHaveLength(0);
   });
 });
+
+// #566: the field ids are per editor instance too, so with two editors mounted every label and
+// description points into its own editor and no id is in the document twice.
+describe("SlideEditor field ids", () => {
+  // The crop slider unobserves its size when the crop ends.
+  beforeEach(() => {
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+  });
+
+  const [first, ...rest] = SLIDE_EDITOR_DOC.pages;
+  const doc = {
+    ...SLIDE_EDITOR_DOC,
+    pages: [
+      {
+        ...first!,
+        transition: { type: "fade" as const, duration: 400 },
+        elements: first!.elements?.map((element) =>
+          element.id === "a"
+            ? {
+                ...element,
+                animation: {
+                  entrance: {
+                    effect: "slide" as const,
+                    direction: "left" as const,
+                    duration: 300,
+                    order: 1,
+                  },
+                },
+              }
+            : element,
+        ),
+      },
+      ...rest,
+    ],
+  };
+  const LAYOUT = {
+    id: "app-title",
+    name: "Title",
+    elements: [
+      {
+        id: "ph",
+        type: "placeholder" as const,
+        role: "title" as const,
+        x: 0,
+        y: 0,
+        width: 300,
+        height: 60,
+      },
+    ],
+  };
+
+  // Each label's control and each aria-labelledby/-describedby target: in the document, and either
+  // inside `editor` or a portal (a field's help) no other editor points at.
+  const expectOwnReferences = (editors: HTMLElement[]) => {
+    const refsOf = (editor: HTMLElement) =>
+      [...editor.querySelectorAll("label[for], [aria-labelledby], [aria-describedby]")].flatMap(
+        (element) =>
+          ["for", "aria-labelledby", "aria-describedby"].flatMap(
+            (name) => element.getAttribute(name)?.split(/\s+/).filter(Boolean) ?? [],
+          ),
+      );
+    const refs = editors.map(refsOf);
+    editors.forEach((editor, index) => {
+      for (const id of refs[index]!) {
+        const target = document.getElementById(id);
+        expect(target, id).not.toBeNull();
+        if (editor.contains(target)) continue;
+        expect(
+          editors.some((other) => other.contains(target)),
+          id,
+        ).toBe(false);
+        expect(
+          refs.filter((other) => other.includes(id)),
+          id,
+        ).toHaveLength(1);
+      }
+    });
+    const ids = [...document.querySelectorAll("[id]")].map((element) => element.id);
+    expect(ids.filter((id, index) => ids.indexOf(id) !== index)).toEqual([]);
+  };
+
+  it("are unique with two editors mounted, and every reference stays in its editor", () => {
+    const editors = [0, 1].map(
+      () =>
+        render(
+          <SlideEditor
+            document={doc}
+            title="Deck"
+            brand={SLIDE_BRAND}
+            layouts={[LAYOUT]}
+            resolveMedia={resolveSlideMedia}
+            onSave={() => true}
+            onBack={() => {}}
+          />,
+        ).container,
+    );
+    const views = editors.map((editor) => within(editor));
+    const each = (step: (view: (typeof views)[number]) => void) => views.forEach(step);
+    const select = (view: (typeof views)[number], id: string) =>
+      fireEvent.click(
+        within(
+          view.getAllByTestId("slide-editor-layer").find((layer) => layer.dataset.layerId === id)!,
+        ).getByTestId("slide-editor-layer-select"),
+      );
+    const shows = (...testIds: string[]) =>
+      each((view) =>
+        testIds.forEach((testId) => expect(view.getByTestId(testId)).toBeInTheDocument()),
+      );
+
+    // The page: its transition and layout.
+    shows(
+      "slide-editor-transition-type",
+      "slide-editor-transition-duration",
+      "slide-editor-page-layout",
+    );
+    expectOwnReferences(editors);
+
+    // An element's box, rotation and animation.
+    each((view) => {
+      fireEvent.click(view.getByTestId("drawer-layers"));
+      select(view, "a");
+      fireEvent.mouseDown(view.getByRole("tab", { name: "Layout" }), { button: 0 });
+    });
+    shows(
+      "slide-editor-x",
+      "slide-editor-rotation",
+      "slide-editor-entrance-effect",
+      "slide-editor-entrance-direction",
+      "slide-editor-entrance-duration",
+      "slide-editor-entrance-order",
+      "slide-editor-exit-effect",
+    );
+    expectOwnReferences(editors);
+
+    // The crop fields.
+    each((view) => {
+      fireEvent.click(view.getByTestId("slide-editor-next-page"));
+      select(view, "picture");
+      fireEvent.keyDown(view.getByTestId("slide-editor-canvas"), { key: "Enter" });
+    });
+    shows("slide-editor-crop-zoom", "slide-editor-crop-zoom-input", "slide-editor-crop-offsetX");
+    expectOwnReferences(editors);
+    each((view) => {
+      expect(view.getByRole("slider", { name: "Zoom" })).toBeInTheDocument();
+      fireEvent.keyDown(view.getByTestId("slide-editor-canvas"), { key: "Escape" });
+    });
+
+    // A text's format and a table's cell.
+    each((view) => {
+      select(view, "caption");
+      fireEvent.mouseDown(view.getByTestId("property-tab-content"), { button: 0 });
+    });
+    shows("slide-editor-text-font", "slide-editor-text-size", "slide-editor-text-color");
+    expectOwnReferences(editors);
+    each((view) => {
+      select(view, "facts");
+      fireEvent.mouseDown(view.getByTestId("property-tab-content"), { button: 0 });
+    });
+    shows(
+      "slide-editor-table-cell-row",
+      "slide-editor-table-column-width",
+      "slide-editor-table-fill",
+      "slide-editor-table-valign",
+    );
+    expectOwnReferences(editors);
+  });
+});

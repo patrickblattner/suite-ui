@@ -12584,8 +12584,8 @@ test("slide editor: the animation fields write the document", async ({ page }) =
     if (message.type() === "error") errors.push(message.text());
   });
   const { editor } = await openEditor(page);
-  const choose = async (id: string, option: string) => {
-    await page.locator(`[id="${id}"]`).click();
+  const choose = async (testId: string, option: string) => {
+    await page.getByTestId(testId).click();
     await page.getByRole("option", { name: option, exact: true }).click();
   };
   type Step = { effect: string; direction?: string; duration: number; order: number };
@@ -12606,13 +12606,13 @@ test("slide editor: the animation fields write the document", async ({ page }) =
   const undo = editor.getByTestId("editor-undo");
 
   // Nothing selected: the page's transition. "None" sets 0, a type again 500; one step each.
-  const type = page.locator("#slide-editor-transition-type");
+  const type = page.getByTestId("slide-editor-transition-type");
   await choose("slide-editor-transition-type", "Cross-fade");
   const duration = editor.getByTestId("slide-editor-transition-duration");
   await expect(duration).toHaveValue("500");
   await typeInto(page, duration, "0");
-  await expect(page.locator("#slide-editor-transition-duration-description")).toHaveText(
-    "With 0 ms the page changes without the transition.",
+  await expect(duration).toHaveAccessibleDescription(
+    /With 0 ms the page changes without the transition\./,
   );
   await undo.click();
   await expect(duration).toHaveValue("500");
@@ -12636,7 +12636,7 @@ test("slide editor: the animation fields write the document", async ({ page }) =
   await choose("slide-editor-entrance-direction", "Right");
   // Switching from slide drops the direction.
   await choose("slide-editor-entrance-effect", "Fade in");
-  await expect(page.locator("#slide-editor-entrance-direction")).toHaveCount(0);
+  await expect(page.getByTestId("slide-editor-entrance-direction")).toHaveCount(0);
   // The order shows from 1 and is stored from 0.
   const order = editor.getByTestId("slide-editor-entrance-order");
   await typeInto(page, order, "3");
@@ -12652,9 +12652,10 @@ test("slide editor: the animation fields write the document", async ({ page }) =
   await typeInto(page, order, "3");
   await page.keyboard.press("Tab");
   // A duration of 0 is noted.
-  await typeInto(page, editor.getByTestId("slide-editor-entrance-duration"), "0");
-  await expect(page.locator("#slide-editor-entrance-duration-description")).toHaveText(
-    "With 0 ms the element appears without the effect.",
+  const entranceDuration = editor.getByTestId("slide-editor-entrance-duration");
+  await typeInto(page, entranceDuration, "0");
+  await expect(entranceDuration).toHaveAccessibleDescription(
+    /With 0 ms the element appears without the effect\./,
   );
   await page.keyboard.press("Tab");
   // The exit: at or before the entrance it is warned, after it not.
@@ -12731,7 +12732,7 @@ test("slide editor: the Animation section ends the Layout tab with its defaults"
     await expect(title).toHaveAttribute("data-slot", "subgroup-title");
     expect(await title.evaluate(font)).toEqual(["14px", "600"]);
   }
-  await page.locator("#slide-editor-entrance-effect").click();
+  await page.getByTestId("slide-editor-entrance-effect").click();
   await page.getByRole("option", { name: "Fade in", exact: true }).click();
   await expect(section.getByTestId("slide-editor-entrance-duration")).toHaveValue("500");
   await expect(section.getByTestId("slide-editor-entrance-delay")).toHaveValue("0");
@@ -14151,11 +14152,16 @@ test("slide editor: every field and text button carries its hint", async ({ page
   // A field: its label hint, the start of the control's description (a note under the field follows).
   // A field (#437, `GL-UI-017` §Label und Feld sind zwei Träger): the label carries its hint, the
   // control its own value hint, which is its description, never the label's.
-  const field = async (id: string) => {
-    const help = page.locator(`[id="${id}-help"]`);
+  const field = async (testId: string) => {
+    // Found by its test id, its ids being per editor (#566); a slider's id sits on its thumb.
+    const wrapper = page.getByTestId(testId);
+    const control =
+      (await wrapper.getAttribute("data-slot")) === "slider"
+        ? wrapper.getByRole("slider")
+        : wrapper;
+    const help = page.locator(`[id="${await control.getAttribute("id")}-help"]`);
     await expect(help).toHaveText(/\S/);
     const text = (await help.textContent()) ?? "";
-    const control = page.locator(`[id="${id}"]`);
     await expect(control).toHaveAccessibleDescription(/\S/);
     await expect(control).not.toHaveAccessibleDescription(
       new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
@@ -14163,8 +14169,8 @@ test("slide editor: every field and text button carries its hint", async ({ page
   };
   const described = (testId: string) =>
     expect(page.getByTestId(testId).first()).toHaveAccessibleDescription(/\S/);
-  const choose = async (id: string, option: string) => {
-    await page.locator(`[id="${id}"]`).click();
+  const choose = async (testId: string, option: string) => {
+    await page.getByTestId(testId).click();
     await page.getByRole("option", { name: option }).click();
   };
 
@@ -14222,7 +14228,7 @@ test("slide editor: every field and text button carries its hint", async ({ page
   for (const id of ["x", "y", "width", "height", "rotation"]) await field(`slide-editor-${id}`);
   // Hovering the field itself opens its value hint.
   await page.mouse.move(0, 0);
-  await page.locator("#slide-editor-x").hover();
+  await page.getByTestId("slide-editor-x").hover();
   await expect(page.getByRole("tooltip")).toHaveText(
     "Pixels; 0 puts the element at the left edge of the page.",
   );
@@ -14232,12 +14238,12 @@ test("slide editor: every field and text button carries its hint", async ({ page
     ["height", "width"],
   ] as const) {
     await page.mouse.move(0, 0);
-    await page.locator(`#slide-editor-${id}`).hover();
+    await page.getByTestId(`slide-editor-${id}`).hover();
     const bubble = page.locator("[data-slot=tooltip-content]");
     await expect(bubble).toHaveCount(1, { timeout: 5000 });
     const over = await box(bubble);
     for (const other of [id, neighbour]) {
-      const control = await box(page.locator(`#slide-editor-${other}`));
+      const control = await box(page.getByTestId(`slide-editor-${other}`));
       const apart =
         over.x >= control.x + control.width ||
         over.x + over.width <= control.x ||
@@ -14448,14 +14454,17 @@ test("slide editor at 1440: panel hints cover neither the floating actions nor t
   const { editor } = await openEditor(page, false);
   await editor.getByTestId("drawer-layers").click();
   await editor.getByTestId("slide-editor-layer-select").first().click();
-  await page.locator("#slide-editor-entrance-effect").click();
+  await page.getByTestId("slide-editor-entrance-effect").click();
   await page.getByRole("option").nth(2).click();
   const actions = await page.getByTestId("slide-editor-actions").getByRole("button").all();
   expect(actions.length).toBeGreaterThan(0);
+  // The fields' ids are per editor (#566): a label by its control's id.
+  const label = async (id: string) =>
+    `label[for="${await page.getByTestId(`slide-editor-${id}`).getAttribute("id")}"]`;
   for (const target of [
-    page.locator('label[for="slide-editor-entrance-delay"] > span'),
-    page.locator("#slide-editor-entrance-delay"),
-    page.locator("#slide-editor-entrance-duration"),
+    page.locator(`${await label("entrance-delay")} > span`),
+    page.getByTestId("slide-editor-entrance-delay"),
+    page.getByTestId("slide-editor-entrance-duration"),
   ]) {
     const over = await hintBubble(page, target);
     for (const action of actions) expect(shareNoArea(over, await box(action))).toBe(true);
@@ -14464,10 +14473,10 @@ test("slide editor at 1440: panel hints cover neither the floating actions nor t
     ["y", "x"],
     ["entrance-delay", "entrance-duration"],
   ] as const) {
-    const over = await hintBubble(page, page.locator(`label[for="slide-editor-${id}"] > span`));
+    const over = await hintBubble(page, page.locator(`${await label(id)} > span`));
     for (const other of [
-      page.locator(`label[for="slide-editor-${neighbour}"]`),
-      page.locator(`#slide-editor-${neighbour}`),
+      page.locator(await label(neighbour)),
+      page.getByTestId(`slide-editor-${neighbour}`),
     ]) {
       expect(shareNoArea(over, await box(other)), `${id} label bubble over ${neighbour}`).toBe(
         true,
@@ -14486,7 +14495,7 @@ test("slide editor at 1440: the size fields' hints leave the crop actions free",
   const apply = editor.getByTestId("slide-editor-crop-apply");
   await expect(apply).toBeVisible();
   for (const id of ["width", "height"]) {
-    const over = await hintBubble(page, page.locator(`#slide-editor-${id}`));
+    const over = await hintBubble(page, page.getByTestId(`slide-editor-${id}`));
     expect(shareNoArea(over, await box(apply)), `${id} bubble over Apply`).toBe(true);
   }
 });

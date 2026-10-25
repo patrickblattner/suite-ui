@@ -521,6 +521,8 @@ export function TextFormatFields({
   onBody: (patch: Partial<Pick<TextBody, "align" | "list">>) => void;
 }) {
   const { t } = useTranslation("suite");
+  // Per instance, so two mounted editors never share a field id (#566); `idPrefix` names the test ids.
+  const id = React.useId();
   const { start, end } = formatSpan(body, range);
   const { format, mixed } = formatOfRange(body.runs, start, end);
   const font = format.font ?? (mixed.has("font") ? undefined : DEFAULT_FONT);
@@ -564,7 +566,7 @@ export function TextFormatFields({
         <div className="grid grid-cols-2 gap-4" data-tooltip-row="">
           <Field
             label={t("slides.editor.textFont")}
-            htmlFor={`${idPrefix}-font`}
+            htmlFor={`${id}-font`}
             hint={t("slides.editor.textFontHint")}
             valueHint={t("slides.editor.textFontValueHint")}
           >
@@ -574,8 +576,8 @@ export function TextFormatFields({
               onValueChange={(key) => onFormat({ font: { kind: "brand", key } })}
             >
               <SelectTrigger
-                id={`${idPrefix}-font`}
-                aria-describedby={helpIdFor(`${idPrefix}-font`)}
+                id={`${id}-font`}
+                aria-describedby={helpIdFor(`${id}-font`)}
                 fieldName={t("slides.editor.textFont")}
                 className="w-full"
                 data-testid={`${idPrefix}-font`}
@@ -600,7 +602,7 @@ export function TextFormatFields({
           {/* Keyed by the range only: a size typed into it changes the size it shows (#308). */}
           <NumberField
             key={`${start}-${end}`}
-            id={`${idPrefix}-size`}
+            id={`${id}-size`}
             label={t("slides.editor.textSize")}
             hint={t("slides.editor.textSizeHint")}
             valueHint={t("slides.editor.textSizeValueHint")}
@@ -617,7 +619,7 @@ export function TextFormatFields({
           />
           <Field
             label={t("slides.editor.textColor")}
-            htmlFor={`${idPrefix}-color`}
+            htmlFor={`${id}-color`}
             hint={t("slides.editor.textColorHint")}
             valueHint={t("slides.editor.textColorValueHint")}
           >
@@ -629,8 +631,8 @@ export function TextFormatFields({
               }
             >
               <SelectTrigger
-                id={`${idPrefix}-color`}
-                aria-describedby={helpIdFor(`${idPrefix}-color`)}
+                id={`${id}-color`}
+                aria-describedby={helpIdFor(`${id}-color`)}
                 fieldName={t("slides.editor.textColor")}
                 className="w-full"
                 data-testid={`${idPrefix}-color`}
