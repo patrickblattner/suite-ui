@@ -265,6 +265,9 @@ export function ElementLibrary({
           role="group"
           aria-labelledby={`${searchId}-shapes`}
           onKeyDown={shapeGrid.onKeyDown}
+          // Closely packed tiles, one group: a tile's bubble stands beside the whole grid, never
+          // over the neighbouring tile (`GL-UI-016` §Lage, #567).
+          data-tooltip-row=""
           data-testid="slide-editor-library-shapes"
         >
           {shapeEntries.map(({ entry, label, icon: Icon, testId }) =>
@@ -288,6 +291,7 @@ export function ElementLibrary({
             role="group"
             aria-labelledby={`${searchId}-app`}
             onKeyDown={appGrid.onKeyDown}
+            data-tooltip-row=""
             data-testid="slide-editor-library-app"
           >
             {appEntries.map(({ entry, label }) =>
@@ -364,6 +368,7 @@ export function ElementLibrary({
           role="group"
           aria-labelledby={`${searchId}-icons`}
           onKeyDown={iconGrid.onKeyDown}
+          data-tooltip-row=""
           data-testid="slide-editor-library-icons"
         >
           {shown.map((name) => {

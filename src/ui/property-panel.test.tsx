@@ -92,6 +92,14 @@ describe("PropertyPanel (SUI-FEATURE-071)", () => {
     expect(screen.getByTestId("property-path-current")).toHaveTextContent("Spring newsletter");
   });
 
+  // #567 (`GL-UI-010`): the pane's own heading, an h2 above its sections' h3 titles, not drawn.
+  it("carries a visually hidden h2 naming the pane", () => {
+    render(<Panel />);
+    const heading = screen.getByRole("heading", { level: 2, name: "Properties" });
+    expect(heading).toHaveClass("sr-only");
+    expect(screen.getAllByRole("heading")).toEqual([heading]);
+  });
+
   // AC 3
   it.each([
     ["de", ["Inhalt", "Anordnung", "Hintergrund"]],

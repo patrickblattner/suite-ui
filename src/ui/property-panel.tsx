@@ -41,6 +41,9 @@ function PropertyPanel({ path, tabs, activeTab, onTab }: PropertyPanelProps) {
         className="min-h-0 flex-1 gap-0"
       >
         <div className="flex flex-col gap-3 border-b p-4" data-testid="property-panel-head">
+          {/* The pane's own heading, above its sections' h3 titles (`GL-UI-010`, #567); the head
+              shows the path and tabs only, so it is not drawn. */}
+          <h2 className="sr-only">{t("canvas.properties")}</h2>
           <ol className="flex min-w-0 flex-wrap items-center gap-1 text-sm">
             {path.map((step, index) => (
               <li key={index} className="flex min-w-0 items-center gap-1">

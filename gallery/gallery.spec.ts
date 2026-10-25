@@ -14454,6 +14454,33 @@ test("slide editor: a transfer format's bubble covers no other format's label", 
   }
 });
 
+// #567 (`GL-UI-016` §Lage): the library's tiles are one group of closely packed controls; a tile's
+// bubble stands beside the whole grid and shares no area with its neighbouring tile, nor any other.
+// The gallery's editor has no app entries; their grid's mark is checked in the unit tests.
+test("slide editor: a library tile's bubble covers no neighbouring tile", async ({ page }) => {
+  const { editor } = await openEditor(page);
+  await editor.getByTestId("drawer-add").click();
+  const bubble = page.locator("[data-slot=tooltip-content]");
+  for (const name of ["shapes", "icons"]) {
+    const tiles = await editor
+      .getByTestId(`slide-editor-library-${name}`)
+      .getByRole("button")
+      .all();
+    expect(tiles.length, name).toBeGreaterThan(2);
+    // The first row: a left tile and its right neighbour.
+    for (const index of [0, 1]) {
+      await page.mouse.move(0, 0);
+      await tiles[index]!.hover();
+      await expect(bubble).toHaveCount(1, { timeout: 5000 });
+      const over = await box(bubble);
+      const boxes = await Promise.all(tiles.map((tile) => box(tile)));
+      for (const [other, rect] of boxes.entries()) {
+        expect(shareNoArea(over, rect), `${name}: tile ${index} over tile ${other}`).toBe(true);
+      }
+    }
+  }
+});
+
 // #511 (`GL-UI-016` §Lage): a page's actions wrap where the drawer leaves them no room for one line.
 // Raised 4 px beside a line-2 action, the bubble reaches line 1, 2 px above: line 1's actions count
 // in the row's extent, so the bubble stands past line 1 and covers no action of either line.

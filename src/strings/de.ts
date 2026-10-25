@@ -368,6 +368,7 @@ export const de: SuiteStrings = {
     fitHint: "Zoomt die Arbeitsfläche so, dass sie in den sichtbaren Bereich passt.",
     actualHint: "Zeigt die Arbeitsfläche in ihrer tatsächlichen Größe.",
     selected: "Ausgewählt: {{name}}",
+    properties: "Eigenschaften",
     tab: {
       content: "Inhalt",
       layout: "Anordnung",

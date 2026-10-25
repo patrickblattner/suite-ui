@@ -384,6 +384,7 @@ export const en = {
     fitHint: "Zooms the canvas so it fits the visible area.",
     actualHint: "Shows the canvas at its actual size.",
     selected: "Selected: {{name}}",
+    properties: "Properties",
     tab: {
       content: "Content",
       layout: "Layout",

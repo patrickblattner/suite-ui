@@ -361,6 +361,7 @@ export const es: SuiteStrings = {
     fitHint: "Ajusta el zoom del lienzo para que quepa en el área visible.",
     actualHint: "Muestra el lienzo a su tamaño real.",
     selected: "Seleccionado: {{name}}",
+    properties: "Propiedades",
     tab: {
       content: "Contenido",
       layout: "Disposición",

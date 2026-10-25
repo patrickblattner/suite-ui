@@ -632,6 +632,18 @@ describe("SlideEditor extension parts", () => {
     expect(buttons[0]).toHaveFocus();
   });
 
+  // #567 (`GL-UI-016` §Lage): every grid of library tiles is one tooltip group, the app's included
+  // (the gallery's editor has no app entries, so the overlap itself is measured on the others).
+  it("marks every library tile grid as one tooltip group", () => {
+    editor();
+    fireEvent.click(screen.getByTestId("drawer-add"));
+    for (const grid of ["shapes", "app", "icons"]) {
+      expect(screen.getByTestId(`slide-editor-library-${grid}`), grid).toHaveAttribute(
+        "data-tooltip-row",
+      );
+    }
+  });
+
   it("lays the overlay over the page unscaled, in the editor only", () => {
     const { container } = editor();
     const overlay = screen.getByTestId("app-overlay");
@@ -706,6 +718,45 @@ describe("SlideEditor heading ids", () => {
     expect(headings.every(Boolean)).toBe(true);
     expect(new Set(headings).size).toBe(4);
     expect(document.querySelectorAll('[id^="slide-editor-"][id$="-title"]')).toHaveLength(0);
+  });
+});
+
+// #567 (`GL-UI-010`): the properties pane's section titles stand under an h2 of the pane itself,
+// with no level skipped, for the page (its transition) and for a selected element (its animation).
+describe("SlideEditor property pane headings", () => {
+  const levels = () => {
+    const pane = screen.getByTestId("property-panel");
+    return within(pane)
+      .getAllByRole("heading")
+      .map((heading) => Number(heading.tagName.slice(1)));
+  };
+  const expectNoGap = (found: number[]) => {
+    expect(found[0]).toBe(2);
+    found.forEach((level, index) => {
+      if (index > 0) expect(level - found[index - 1]!).toBeLessThanOrEqual(1);
+    });
+  };
+
+  it("puts the page transition's h3 under the pane's own h2", () => {
+    render(
+      <SlideEditor
+        document={SLIDE_EDITOR_DOC}
+        title="Deck"
+        brand={SLIDE_BRAND}
+        onSave={() => true}
+        onBack={() => {}}
+      />,
+    );
+    const pane = within(screen.getByTestId("property-panel"));
+    expect(pane.getByRole("heading", { level: 2, name: "Properties" })).toBeInTheDocument();
+    expect(pane.getByRole("heading", { level: 3, name: "Page transition" })).toBeInTheDocument();
+    expectNoGap(levels());
+
+    fireEvent.click(screen.getByTestId("drawer-layers"));
+    fireEvent.click(screen.getAllByTestId("slide-editor-layer-select")[0]!);
+    fireEvent.mouseDown(screen.getByRole("tab", { name: "Layout" }), { button: 0 });
+    expect(pane.getByRole("heading", { level: 3, name: "Animation" })).toBeInTheDocument();
+    expectNoGap(levels());
   });
 });
 
