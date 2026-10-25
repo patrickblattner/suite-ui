@@ -118,6 +118,15 @@ describe("DrawerRail (SUI-FEATURE-071)", () => {
     expect(drawer.parentElement).toBe(screen.getByTestId("drawer-rail"));
   });
 
+  // #551, GL-UI-010 §Titel & Metadaten: the pane title (h2) is not smaller than the section titles
+  // (h3, `text-base font-semibold`) its content carries.
+  it("the drawer title reads as a section title, not below its sections", () => {
+    render(<Rail initial="add" />);
+    const title = screen.getByRole("heading", { level: 2 });
+    expect(title).toHaveClass("text-base", "font-semibold");
+    expect(title.className).not.toMatch(/\btext-(xs|sm)\b|\bfont-medium\b/);
+  });
+
   // AC 6
   it.each([
     ["de", "Stil speichern", "Gilt für alles, was dieses Brand-Kit nutzt"],

@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased — #551, GL-UI-010/GL-UI-016: SlideEditor panes — drawer title, unique heading ids, library tile labels, dialog shot crop (patch)
+
+- **Drawer title (#551, `GL-UI-010` §Titel & Metadaten):** the `DrawerRail` pane title (h2) is `text-base font-semibold`, no longer `text-sm font-medium` below the `text-base font-semibold` h3 sections it holds.
+- **Heading ids (#551):** the SlideEditor's Animation and Grid section headings take their ids from `React.useId`, so two mounted editors no longer share `slide-editor-animation-title` / `slide-editor-grid-title`; each section stays labelled by its own heading.
+- **Library tiles (#551, `GL-UI-016`):** a tile whose label the drawer cuts ("A arrow d…") keeps its full label as its name and in its hint bubble — now covered by a gallery test.
+- **Gallery (#551):** the transfer-dialog shots clip the dialog's box rounded inwards, so no row of the slide canvas shows at the top edge.
+- **Tests (#551):** unit tests for the drawer title type and for unique heading ids with two editors mounted; gallery test for the cut library label.
+
+**Migration:** the removed ids `slide-editor-animation-title` and `slide-editor-grid-title` were never `data-testid`s; code that selected them must use the heading role. Baselines: `components-*` and `pressed-*` (all, the DrawerRail demo), `slide-editor-document-tab-*`, `slide-editor-library-tab-*` (drawer title) and `slide-editor-transfer-dialog-*` (crop). No API, string or `data-testid` changes.
+
 ## Unreleased — #550, SUI-FEATURE-101 rev 6 / GL-UI-050: a toast with an action lasts at least 8000 ms and gives the focus back (minor)
 
 - **Duration (#550, rev 6 AC 7):** a toast with an action lasts max(8000 ms, reading time of all the live region reads, the screen-reader-only key hint included), on every route: the four variants, the plain call and `toast.message`. While the pointer or the focus is in the toaster its timer stands still; afterwards it goes on with the time left. It closes by the package's own timer (sonner gets `duration: Infinity`); `onAutoClose` still runs when that timer closes it, `onDismiss` when it is dismissed. A plain call or `toast.message` that replaces such a toast by its id without an action gets a duration again (sonner's 4000 ms or its own), so it no longer stays open for good. Without an i18next instance the hint counts no words; nothing throws. A loading toast with an action stays until it is replaced, as before.

@@ -1232,6 +1232,9 @@ function Editor({
   const frame = React.useRef<HTMLDivElement>(null);
   const canvas = React.useRef<HTMLDivElement>(null);
   const cropDescription = React.useId();
+  // Per instance, so two mounted editors never share a heading id.
+  const animationTitle = React.useId();
+  const gridTitle = React.useId();
   // While cropping, the wheel zooms the image about the frame's centre instead of scrolling (a
   // listener of its own: React's wheel listener cannot prevent the scroll).
   const croppedImage =
@@ -3072,10 +3075,10 @@ function Editor({
       {single === undefined ? null : (
         <section
           className="flex flex-col gap-2"
-          aria-labelledby="slide-editor-animation-title"
+          aria-labelledby={animationTitle}
           data-testid="slide-editor-animation"
         >
-          <h3 id="slide-editor-animation-title" className="text-base font-semibold">
+          <h3 id={animationTitle} className="text-base font-semibold">
             {t("slides.editor.animation")}
           </h3>
           <div className="flex flex-col gap-4">
@@ -3392,13 +3395,13 @@ function Editor({
                   />
                   {/* Its own section under its heading, apart from the pages (`GL-UI-010`). */}
                   <section className="flex flex-col gap-2" data-testid="slide-editor-grid">
-                    <h3 id="slide-editor-grid-title" className="text-base font-semibold">
+                    <h3 id={gridTitle} className="text-base font-semibold">
                       {t("grid.label")}
                     </h3>
                     <GridFields
                       value={grid}
                       allowNone
-                      labelledBy="slide-editor-grid-title"
+                      labelledBy={gridTitle}
                       onChange={(value) =>
                         apply((current) => ({ ...current, grid: value }), "grid")
                       }
