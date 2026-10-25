@@ -63,6 +63,10 @@ beforeAll(() => {
   writeFileSync(join(start, ".gitignore"), ".spec-sync/\nnode_modules/\n");
   // No template: without its sample hooks there is less to copy per test.
   gitIn(start, "init", "-q", "--template=", "-b", "main");
+  // Commit and push start a detached `git maintenance run --auto` that outlives the git call and
+  // holds .git/objects/maintenance.lock while a copy or cleanup walks the repo (#556). The setting
+  // travels with every copy of the starting repo.
+  gitIn(start, "config", "maintenance.auto", "false");
   gitIn(start, "add", ".");
   gitIn(start, "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "init");
   gitIn(start, "update-ref", "refs/remotes/origin/main", "HEAD");
@@ -216,6 +220,7 @@ describe("release:tag review", () => {
     chmodSync(join(bin, "npx"), 0o755);
     const origin = join(repo, ".origin.git");
     execFileSync("git", ["init", "-q", "--bare", origin]);
+    gitIn(origin, "config", "maintenance.auto", "false");
     git("remote", "add", "origin", origin);
     const run = spawnSync(process.execPath, ["scripts/release.ts", "tag"], {
       cwd: repo,
