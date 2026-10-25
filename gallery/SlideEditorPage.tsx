@@ -1,5 +1,7 @@
 import { useRef, useState } from "react";
 
+import { safeParseSlideDocument } from "../src/slides/document.js";
+import { keepInClipboard } from "../src/slides/element-clipboard-internal.js";
 import { SlideEditor } from "../src/slides/slide-editor.js";
 import type { SlideExtensions } from "../src/slides/slide-view.js";
 import type { PickedMedia } from "../src/slides/slide-editor-library.js";
@@ -16,7 +18,7 @@ import {
 } from "../src/ui/dialog.js";
 import { Toaster, useEditorShellToastOffset } from "../src/ui/toaster.js";
 import type { SlideDocument, SlideFormat, SlideLayoutInput } from "../src/slides/schema.js";
-import { SLIDE_EDITOR_DOC } from "./slide-showcase.js";
+import { SLIDE_BRAND, SLIDE_EDITOR_DOC } from "./slide-showcase.js";
 import { GALLERY_SLIDE_PROPS, imageFilter } from "./SlidesPage.js";
 
 // `SUI-FEATURE-161` (increment A): the editor over a small deck, framed like an app's editor route.
@@ -94,6 +96,19 @@ const PICTURE_DOC =
 // `SUI-FEATURE-232`: the app's media picker, here a small dialog offering the gallery's photo
 // (`?media=none`: the app has none, so the editor shows no media entry; `?media=fail`: the picker
 // fails; `?media=bad`: it hands back a medium whose alt text is past the schema's limit).
+// `SUI-FEATURE-106` rev 6 (`?paste=wait`): the clipboard holds the deck's picture as copied from
+// another document, its medium one this deck lacks, and the app never answers `adoptMedia`: a paste
+// waits for good, its status line shown.
+const PASTE_WAITS = PARAMS.get("paste") === "wait";
+if (PASTE_WAITS) {
+  const parsed = safeParseSlideDocument(SLIDE_EDITOR_DOC);
+  const picture = parsed.ok
+    ? parsed.document.pages[1]?.elements.find((element) => element.id === "picture")
+    : undefined;
+  if (picture?.type === "image") {
+    keepInClipboard([{ ...picture, media: { id: "elsewhere" } }], SLIDE_BRAND, new Set());
+  }
+}
 const MEDIA = PARAMS.get("media") !== "none";
 const MEDIA_FAILS = PARAMS.get("media") === "fail";
 const MEDIA_BAD = PARAMS.get("media") === "bad";
@@ -314,6 +329,9 @@ export function SlideEditorPage() {
             formats={FORMATS}
             layouts={LAYOUTS}
             onTransfer={(document, { overflowIds }) => setCopy({ document, overflowIds })}
+            {...(PASTE_WAITS
+              ? { adoptMedia: () => new Promise<Record<string, string>>(() => {}) }
+              : {})}
             {...(MEDIA
               ? {
                   pickMedia: () =>

@@ -748,6 +748,26 @@ describe("SlideEditor element clipboard", () => {
     expect((await saved(onSave)).map(({ type }) => type)).toEqual(["image"]);
   });
 
+  it("deletes a with Delete after a's resize handle was pressed behind a held Ctrl+D (#535)", async () => {
+    const { onSave, answer } = waitingPaste();
+    key("v");
+    click(50, 50);
+    key("d");
+    // The press on a's handle picks a again by hand: Delete is meant for a, not the duplicate.
+    fireEvent.pointerDown(screen.getByTestId("slide-editor-handle-se"), {
+      ...at(100, 100),
+      button: 0,
+      pointerId: 1,
+    });
+    fireEvent.pointerUp(canvas(), at(100, 100));
+    fireEvent.keyDown(canvas(), { key: "Delete" });
+    answer();
+    await waitFor(() => expect(layerCount()).toBe(2));
+    const elements = await saved(onSave);
+    expect(elements.map(({ type }) => type).sort()).toEqual(["image", "shape"]);
+    expect(elements.map(({ id }) => id)).not.toContain("a");
+  });
+
   it.each([
     ["cut", ["image"], "a"],
     ["copy", ["shape", "image"], "a"],
@@ -799,17 +819,48 @@ describe("SlideEditor element clipboard", () => {
     act(() => void vi.advanceTimersByTime(1));
     expect(canvas()).toHaveAttribute("aria-busy", "true");
     expect(canvas().className).toContain("cursor-progress");
-    expect(status).toHaveTextContent("Bringing the media along …");
-    // Seen, not only heard: no screen-reader-only class, a spinning icon at the bottom left.
+    expect(status).toHaveTextContent("Importing media …");
+    // Seen, not only heard: the operation spinner at the work area's bottom left, outside the
+    // scrolling area and so off the page, above the handles drawn in it.
     expect(status.className).not.toContain("sr-only");
     expect(status.className).toContain("bottom-2");
     expect(status.className).toContain("left-2");
-    expect(status.querySelector("svg.animate-spin")).not.toBeNull();
+    expect(status.className).toContain("z-10");
+    expect(status.closest(".overflow-auto")).toBeNull();
+    expect(status.querySelector("[data-testid=operation-spinner]")).not.toBeNull();
     answer({ photo: "photo-copy" });
     await waitFor(() => expect(canvas()).not.toHaveAttribute("aria-busy"));
     expect(canvas().className).not.toContain("cursor-progress");
     expect(status).toBeEmptyDOMElement();
   });
+
+  it.each([
+    ["stays silent 10 s", () => new Promise<Record<string, string>>(() => {})],
+    [
+      "fails after 300 ms",
+      () =>
+        new Promise<Record<string, string>>((_, reject) =>
+          window.setTimeout(() => reject(new Error("offline")), 500),
+        ),
+    ],
+  ] as const)(
+    "ends the busy canvas, its cursor and status line once adoptMedia %s (SUI-FEATURE-106 AC5)",
+    async (_, adoptMedia) => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      const warning = vi.spyOn(toast, "warning");
+      copyThenOpenOther("photo", { adoptMedia, resolveMedia: () => undefined });
+      const status = screen.getByTestId("slide-editor-adopting");
+      key("v");
+      act(() => void vi.advanceTimersByTime(300));
+      expect(canvas()).toHaveAttribute("aria-busy", "true");
+      await act(async () => void (await vi.advanceTimersByTimeAsync(10_000)));
+      expect(warning).toHaveBeenCalledTimes(1);
+      expect(canvas()).not.toHaveAttribute("aria-busy");
+      expect(canvas().className).not.toContain("cursor-progress");
+      expect(status).toBeEmptyDOMElement();
+      warning.mockRestore();
+    },
+  );
 
   it("drops the selection's handles while a paste waits and selects what it pasted once it lands (SUI-FEATURE-106 AC6)", async () => {
     const { onSave, answer } = waitingPaste();

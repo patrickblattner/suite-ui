@@ -3,10 +3,11 @@
 ## Unreleased — #552, SUI-FEATURE-106 rev 6: a waiting paste drops the selection and shows a visible status line (patch)
 
 - **Selection (#552, rev 6 AC 6):** when a paste starts waiting for `adoptMedia`, the editor drops the selection at once (no handles); once it lands, the pasted elements are selected. Commands pressed during the wait still act on what the paste pastes.
-- **Feedback (#552, rev 6 AC 5):** after 300 ms of waiting the canvas takes `cursor: progress` (was `cursor-wait`) next to `aria-busy="true"`, and the `role="status"` message "Medien werden übernommen …" / "Bringing the media along …" / "Trayendo los medios …" is now a visible line with a loading icon at the bottom left of the canvas, no longer screen-reader only. All of it ends with the paste.
-- **Tests (#552):** unit tests for the visible status line and the progress cursor, and for the dropped handles and the pasted selection.
+- **Feedback (#552, rev 6 AC 5):** after 300 ms of waiting the canvas takes `cursor: progress` (was `cursor-wait`) next to `aria-busy="true"`, and the `role="status"` message "Medien werden übernommen …" / "Importing media …" / "Importando medios …" is now a visible line with the operation spinner (`OperationIndicator`) at the visible bottom left of the work area: it does not scroll with the slide, stays off the page in the margin and draws above the handles. All of it ends with the paste, also after 10 s of silence or a failed `adoptMedia`.
+- **Gallery (#552):** `?page=slide-editor&paste=wait` holds a paste on `adoptMedia` for good; new baselines `slide-editor-paste-wait-{de,en,es}-{light,dark}`.
+- **Tests (#552):** unit tests for the visible status line, its place and spinner, the progress cursor and their end after a silent or failed `adoptMedia`; for the dropped handles and the pasted selection; and for a handle press behind a held Ctrl+D during the wait.
 
-**Migration:** none; no API or string changes. Without `adoptMedia` nothing changes (AC 7); no baseline shows a waiting paste.
+**Migration:** the string `slides.editor.adoptingMedia` changes wording in en and es. Without `adoptMedia` nothing changes (AC 7); baselines: the gallery string table `gallery-{en,es}-{light,dark}` (the new wording), six new ones; all others unchanged.
 
 ## Unreleased — #551, GL-UI-010/GL-UI-016: SlideEditor panes — drawer title, unique heading ids, library tile labels, dialog shot crop (patch)
 
