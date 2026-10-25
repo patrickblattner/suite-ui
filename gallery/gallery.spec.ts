@@ -7952,20 +7952,32 @@ test("sticky actions: overflow sticks with an edge shadow, the cell follows the 
   ).toEqual({ ground: "rgba(0, 0, 0, 0)", animations: 0 });
   await page.mouse.move(0, 0);
   await row.evaluate((el) => el.setAttribute("data-grid-row", ""));
-  // The row fades its colour in (`transition-colors`): wait until both probes settle on it. The
-  // hover is the probes' subject, so they keep the pointer where it is.
-  const follows = async () => {
-    const [row, actions] = await probe(false);
+  // The row fades its colour in (`transition-colors`): wait until both probes settle on it. Where
+  // the hover is the probes' subject, they keep the pointer where it is; the selected row parks it.
+  // Given the colour the row ends on, the probes wait for it, not for any reading on the way there.
+  const follows = async (park = true, settled?: number[]) => {
+    const [row, actions] = await probe(park);
     return (
       JSON.stringify(row) !== JSON.stringify(plainFirst) &&
-      JSON.stringify(actions) === JSON.stringify(row)
+      JSON.stringify(actions) === JSON.stringify(row) &&
+      (settled === undefined || row!.every((channel, c) => Math.abs(channel - settled[c]!) <= 2))
     );
   };
   await first.hover();
-  await expect.poll(follows).toBe(true);
+  await expect.poll(() => follows(false)).toBe(true);
   await page.mouse.move(0, 0);
   await row.evaluate((el) => el.setAttribute("data-state", "selected"));
-  await expect.poll(follows).toBe(true);
+  // Selected, the row settles on `bg-muted` (opaque), the ground the actions cell shows too.
+  const muted = await page.evaluate(
+    (fill) => {
+      const context = document.createElement("canvas").getContext("2d")!;
+      context.fillStyle = fill;
+      context.fillRect(0, 0, 1, 1);
+      return [...context.getImageData(0, 0, 1, 1).data.slice(0, 3)];
+    },
+    await utilityColor(page, "bg-muted", "backgroundColor"),
+  );
+  await expect.poll(() => follows(true, muted)).toBe(true);
 
   await scroller.evaluate((el) => el.scrollTo(el.scrollWidth, 0));
   await expect(scroller).not.toHaveAttribute("data-actions-shadow");
