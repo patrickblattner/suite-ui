@@ -1834,31 +1834,114 @@ describe("tooltip placement in a row", () => {
         : rect;
     });
     // Its text, a1, takes 20 px of it.
-    Object.defineProperty(Range.prototype, "getBoundingClientRect", {
-      configurable: true,
-      value(this: Range) {
-        const node = this.startContainer;
-        return node instanceof HTMLLabelElement && node.htmlFor === "a1"
-          ? new DOMRect(0, 120, 20, 14)
-          : new DOMRect(0, 0, 0, 0);
-      },
+    vi.spyOn(Range.prototype, "getBoundingClientRect").mockImplementation(function (this: Range) {
+      const node = this.startContainer;
+      return node instanceof HTMLLabelElement && node.htmlFor === "a1"
+        ? new DOMRect(0, 120, 20, 14)
+        : new DOMRect(0, 0, 0, 0);
     });
-    try {
-      render(
-        <div>
-          <main>{column("a")}</main>
-          <aside>
-            <Field label="side" htmlFor="side" valueHint="side value" data-testid="field-side">
-              <Input id="side" data-testid="input-side" />
-            </Field>
-          </aside>
-        </div>,
-      );
-      // At the field, 8 px right of its input (0 + 140); the label's box would push it past (608).
-      expect(await at("input-a0")).toMatch(/^translate\(148px,/);
-    } finally {
-      delete (Range.prototype as Partial<Range>).getBoundingClientRect;
-    }
+    render(
+      <div>
+        <main>{column("a")}</main>
+        <aside>
+          <Field label="side" htmlFor="side" valueHint="side value" data-testid="field-side">
+            <Input id="side" data-testid="input-side" />
+          </Field>
+        </aside>
+      </div>,
+    );
+    // At the field, 8 px right of its input (0 + 140); the label's box would push it past (608).
+    expect(await at("input-a0")).toMatch(/^translate\(148px,/);
+  });
+
+  // #554: a truncated label's text runs on past its box under the ellipsis; it covers only as far
+  // as its box.
+  it("a truncated label of the next field counts no wider than its box", async () => {
+    layOutBoxes(1600, {
+      "field-a0": [0, 140, 60, 50],
+      "input-a0": [0, 140, 76, 32],
+      "field-a1": [0, 600, 120, 50],
+      "input-a1": [0, 140, 136, 32],
+      "field-a2": [0, 600, 180, 50],
+      "field-side": [1100, 140, 60, 50],
+      "input-side": [1100, 140, 76, 32],
+    });
+    const read = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect");
+    const box = read.getMockImplementation()!;
+    read.mockImplementation(function (this: HTMLElement) {
+      // The label above a1 is cut to 100 px; the bubble is two lines tall.
+      if (this instanceof HTMLLabelElement && this.htmlFor === "a1")
+        return new DOMRect(0, 120, 100, 14);
+      const rect = box.call(this);
+      return this.dataset.slot === "tooltip-content" ||
+        this.hasAttribute("data-radix-popper-content-wrapper")
+        ? new DOMRect(0, 0, 320, 80)
+        : rect;
+    });
+    // Its text runs on to 400 px.
+    vi.spyOn(Range.prototype, "getBoundingClientRect").mockImplementation(function (this: Range) {
+      const node = this.startContainer;
+      return node instanceof HTMLLabelElement && node.htmlFor === "a1"
+        ? new DOMRect(0, 120, 400, 14)
+        : new DOMRect(0, 0, 0, 0);
+    });
+    render(
+      <div>
+        <main>{column("a")}</main>
+        <aside>
+          <Field label="side" htmlFor="side" valueHint="side value" data-testid="field-side">
+            <Input id="side" data-testid="input-side" />
+          </Field>
+        </aside>
+      </div>,
+    );
+    // At the field, 8 px right of its input (0 + 140): past the label's box (100), short of the
+    // text's run (400), which would push it past (408).
+    expect(await at("input-a0")).toMatch(/^translate\(148px,/);
+  });
+
+  // #554: an empty label lays out no text; it covers nothing, not its box.
+  it("an empty label of the next field covers nothing", async () => {
+    layOutBoxes(1600, {
+      "field-a0": [0, 140, 60, 50],
+      "input-a0": [0, 140, 76, 32],
+      "field-a1": [0, 600, 120, 50],
+      "input-a1": [0, 140, 136, 32],
+      "field-a2": [0, 600, 180, 50],
+      "field-side": [1100, 140, 60, 50],
+      "input-side": [1100, 140, 76, 32],
+    });
+    const read = vi.spyOn(HTMLElement.prototype, "getBoundingClientRect");
+    const box = read.getMockImplementation()!;
+    read.mockImplementation(function (this: HTMLElement) {
+      // The label above a1 stands under the bubble; the bubble is two lines tall.
+      if (this instanceof HTMLLabelElement && this.htmlFor === "a1")
+        return new DOMRect(200, 120, 100, 14);
+      const rect = box.call(this);
+      return this.dataset.slot === "tooltip-content" ||
+        this.hasAttribute("data-radix-popper-content-wrapper")
+        ? new DOMRect(0, 0, 320, 80)
+        : rect;
+    });
+    // It holds no text: the range lays out nothing, left of the box.
+    vi.spyOn(Range.prototype, "getBoundingClientRect").mockImplementation(function (this: Range) {
+      const node = this.startContainer;
+      return node instanceof HTMLLabelElement && node.htmlFor === "a1"
+        ? new DOMRect(0, 0, 0, 0)
+        : new DOMRect(0, 0, 0, 0);
+    });
+    render(
+      <div>
+        <main>{column("a")}</main>
+        <aside>
+          <Field label="side" htmlFor="side" valueHint="side value" data-testid="field-side">
+            <Input id="side" data-testid="input-side" />
+          </Field>
+        </aside>
+      </div>,
+    );
+    // At the field, 8 px right of its input (0 + 140), over the empty label's box (200 to 300).
+    expect(await at("input-a0")).toMatch(/^translate\(148px,/);
   });
 
   // #544, #543: a partner's label on the field's own line counts whole, not by its text: the bubble
@@ -1879,22 +1962,15 @@ describe("tooltip placement in a row", () => {
       return box.call(this);
     });
     // Its text, b, takes 20 px of it.
-    Object.defineProperty(Range.prototype, "getBoundingClientRect", {
-      configurable: true,
-      value(this: Range) {
-        const node = this.startContainer;
-        return node instanceof HTMLLabelElement && node.htmlFor === "b"
-          ? new DOMRect(164, 60, 20, 14)
-          : new DOMRect(0, 0, 0, 0);
-      },
+    vi.spyOn(Range.prototype, "getBoundingClientRect").mockImplementation(function (this: Range) {
+      const node = this.startContainer;
+      return node instanceof HTMLLabelElement && node.htmlFor === "b"
+        ? new DOMRect(164, 60, 20, 14)
+        : new DOMRect(0, 0, 0, 0);
     });
-    try {
-      render(pair);
-      // Past the partner's label box (164 + 600) and 8 px apart: 772, not past its input (312).
-      expect(await at("input-a")).toMatch(/^translate\(772px,/);
-    } finally {
-      delete (Range.prototype as Partial<Range>).getBoundingClientRect;
-    }
+    render(pair);
+    // Past the partner's label box (164 + 600) and 8 px apart: 772, not past its input (312).
+    expect(await at("input-a")).toMatch(/^translate\(772px,/);
   });
 
   // #544: the row is looked up once per open: a render of the form while the bubble stays open
@@ -1932,6 +2008,8 @@ describe("tooltip placement in a row", () => {
       (node) => (node as HTMLElement).dataset.slot === "field",
     );
     expect(fields).toHaveLength(0);
+    // The bubble still stands where it opened.
+    expect(await at("input-a")).toMatch(/^translate\(312px,/);
   });
 
   // #441: a control of another bar at the bubble's height (a canvas's floating actions beside a panel)

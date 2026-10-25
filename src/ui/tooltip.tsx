@@ -263,13 +263,21 @@ function fieldRowOf(node: Element): Row | null {
 // What of an obstacle the bubble must not cover. A field's label spans its line above the field, its
 // text only part of it: past the text it covers nothing, so a tall bubble beside a narrow input may
 // reach over the next field's label box (#544). A label on the field's own `line` (a partner's) counts
-// whole: the bubble stands past the partner (#543). jsdom lays out no range: the box counts there.
+// whole: the bubble stands past the partner (#543). A truncated label's text runs on past its box
+// under the ellipsis: it counts only as far as the box (#554).
 function coveredBox(node: Element, line: DOMRect): DOMRect {
   const box = node.getBoundingClientRect();
   if (!node.matches("label") || (box.bottom > line.top && box.top < line.bottom)) return box;
   const range = document.createRange();
   range.selectNodeContents(node);
-  return typeof range.getBoundingClientRect === "function" ? range.getBoundingClientRect() : box;
+  const text = range.getBoundingClientRect();
+  const left = Math.max(text.left, box.left);
+  return new DOMRect(
+    left,
+    text.top,
+    Math.max(0, Math.min(text.right, box.right) - left),
+    text.height,
+  );
 }
 
 // `measured`: whether a field pair may be found, which reads the layout. A closed bubble renders on
