@@ -19,7 +19,8 @@ const CAPTURE = /\.toHaveScreenshot\(\s*([^,)]*)|\.screenshot\(/;
 // hover that is the subject of the shot (`ADR-TEST-016` rev 5).
 const still = (statement: string) =>
   (/^await expect(\s*\.(soft|poll))?\s*\(/.test(statement) && !CAPTURE.test(statement)) ||
-  (/^await [^;]*\.hover\([^;]*\)$/.test(statement) && !/click|mouse|tap|drag/.test(statement));
+  (/^await [^;]*\.hover\([^;]*\)$/.test(statement) &&
+    !/click|mouse|tap|drag|check|Checked/.test(statement));
 
 // The index just past the string or template literal opening at `at`, nested `${…}` included.
 function skipString(text: string, at: number): number {
@@ -61,9 +62,9 @@ function skipRegExp(text: string, at: number): number {
 }
 
 // The statements of a source: split on `;` outside strings, template literals, regular expression
-// literals and comments, with the comments dropped.
+// literals and comments, with the comments dropped; each with the offset of the `;` that ends it.
 function statements(text: string) {
-  const result: string[] = [];
+  const result: { statement: string; end: number }[] = [];
   let current = "";
   for (let i = 0; i < text.length; i++) {
     const char = text[i]!;
@@ -81,12 +82,12 @@ function statements(text: string) {
       current += text.slice(i, end);
       i = end - 1;
     } else if (char === ";") {
-      result.push(current.trim());
+      result.push({ statement: current.trim(), end: i });
       current = "";
     } else current += char;
   }
-  result.push(current.trim());
-  return result.filter(Boolean);
+  result.push({ statement: current.trim(), end: text.length });
+  return result.filter(({ statement }) => statement);
 }
 
 // The captures without the park step before them, or with anything but `still` statements in
@@ -104,26 +105,31 @@ function crossesBlock(code: string) {
   return depth !== 0;
 }
 
-// Whether a statement is a park step: an unconditional one, or one that hangs on a parameter of the
-// function it opens and defaults to true (`if (park) await parkPointer(page)`), whose callers
-// passing it false `unheld` holds to a hover or a drag (#555).
-function parks(statement: string) {
+// Whether a statement is a park step: an unconditional one, or one of a park helper's (`guards`, the
+// ends of the guarded park steps `parse` found), whose callers passing it false `unheld` holds to a
+// hover or a drag (#555).
+function parks({ statement, end }: { statement: string; end: number }, guards: Set<number>) {
   if (!statement.endsWith(PARK)) return false;
   const before = statement.slice(0, -PARK.length).trimEnd();
-  const guard = /\bif\s*\(\s*(\w+)\s*\)$/.exec(before);
-  if (guard) return new RegExp(`[(,]\\s*${guard[1]}\\s*=\\s*true\\s*[,)]`).test(before);
+  if (/\bif\s*\(\s*\w+\s*\)$/.test(before)) return guards.has(end);
   return !/(\)|else|&&|\|\||\?|:)$/.test(before);
 }
 
 function unparked(text: string) {
   const misses: string[] = [];
   const list = statements(text);
-  list.forEach((statement, index) => {
+  const { guards } = parse(text);
+  list.forEach(({ statement }, index) => {
     const captures = [...statement.matchAll(new RegExp(CAPTURE, "g"))];
     if (captures.length === 0) return;
     let park = index - 1;
-    while (park >= 0 && !parks(list[park]!)) park--;
-    const parked = park >= 0 && list.slice(park + 1, index).every(still);
+    while (park >= 0 && !parks(list[park]!, guards)) park--;
+    const parked =
+      park >= 0 &&
+      list
+        .slice(park + 1, index)
+        .map((item) => item.statement)
+        .every(still);
     for (const match of captures) {
       if (parked && !crossesBlock(statement.slice(0, match.index))) continue;
       const line = statement.lastIndexOf("\n", match.index) + 1;
@@ -198,42 +204,51 @@ type Fn = {
   params: { name: string; fallback?: string }[];
   open: number;
   end: number;
+  // The block the name is bound in: its uses are the ones there not bound again closer in.
+  scope: readonly [number, number];
 };
 
-// The named functions of a source: `function name(…) {…}` and `const name = async (…) => …`.
+// The block of a source holding `at`: from its `{` to its `}`, or the whole source.
+function block(code: string, at: number) {
+  let depth = 0;
+  for (let i = at - 1; i >= 0; i--) {
+    if (code[i] === "}") depth++;
+    else if (code[i] === "{" && depth-- === 0) return [i, close(code, i + 1)] as const;
+  }
+  return [0, code.length] as const;
+}
+
+// The named functions of a source: `function name(…) {…}`, `const name = async (…) => …` and
+// `const name = async function (…) {…}`.
 function functions(code: string) {
   const result: Fn[] = [];
   for (const match of code.matchAll(
-    /\bfunction\s+(\w+)\s*\(|\b(?:const|let)\s+(\w+)\s*=\s*(?:async\s*)?\(/g,
+    /\b(?:function\s+(\w+)|(?:const|let)\s+(\w+)\s*=\s*(?:async\s*)?(function\b\s*\w*)?)\s*\(/g,
   )) {
     const open = match.index + match[0].length - 1;
     const { end: shut, list } = items(code, open);
     const after = code.slice(shut + 1);
-    const head = match[1] ? /^[^{;]*\{/.exec(after) : /^\s*(?::[^=;{]*)?=>\s*/.exec(after);
+    const plain = match[1] !== undefined || match[3] !== undefined;
+    const head = plain ? /^[^{;]*\{/.exec(after) : /^\s*(?::[^=;{]*)?=>\s*/.exec(after);
     if (!head) continue;
     const body = shut + 1 + head[0].length;
     // A function body opens with its head; an arrow's opens after it, or is an expression.
-    const block = !match[1] && code[body] === "{";
-    const end = match[1] || block ? close(code, block ? body + 1 : body) : close(code, body, true);
+    const braced = !plain && code[body] === "{";
+    const end = plain || braced ? close(code, braced ? body + 1 : body) : close(code, body, true);
     const params = list.map((param) => {
       const [, name = "", fallback] = /^(\w+)\??\s*(?::[^=]*)?(?:=\s*([^]*))?$/.exec(param) ?? [];
       return { name, fallback: fallback?.trim() };
     });
-    result.push({ name: (match[1] ?? match[2])!, params, open, end });
+    const name = (match[1] ?? match[2])!;
+    result.push({ name, params, open, end, scope: block(code, match.index) });
   }
   return result;
 }
 
-// What moves the pointer, and where a test opens: a probe that keeps the pointer where it is runs
-// right after a hover, with nothing of these in between.
-const POINTER =
-  /\.hover\(|\bmouse\.|\.(?:click|dblclick|tap|dragTo)\(|\bdrag\(|parkPointer\(|\btest(?:\.\w+)*\(/g;
-
-// The calls of a park helper passing its park parameter false (or anything but true) where the
-// pointer is not the probe's subject (`ADR-TEST-016` rev 5, #555): accepted only right after a
-// `.hover(` or inside a drag callback, directly or through the closure the call sits in. A function
-// forwarding its own `park = true` parameter becomes a park helper in turn.
-function unheld(text: string) {
+// One parse of a source for both checks: its named functions, its park helpers (a function whose
+// park step hangs on a parameter defaulting to true, `if (park) await parkPointer(page)`, with that
+// parameter's index) and the ends of those guarded park steps.
+function parse(text: string) {
   const code = blank(text);
   const fns = functions(code);
   const enclosing = (at: number) =>
@@ -242,50 +257,76 @@ function unheld(text: string) {
       .sort((a, b) => a.end - a.open - (b.end - b.open))[0];
   const param = (fn: Fn | undefined, name: string) =>
     fn?.params.findIndex((p) => p.name === name && p.fallback === "true") ?? -1;
+  // The uses of a function's name that are bound to it, not to a function of that name closer in.
+  const uses = (fn: Fn) =>
+    [...code.matchAll(new RegExp(`(?<![\\w$.])${fn.name}\\b`, "g"))]
+      .map((match) => match.index)
+      .filter((at) => !/(?:function|const|let)\s+$/.test(code.slice(0, at)))
+      .filter(
+        (at) =>
+          fns
+            .filter((f) => f.name === fn.name && f.scope[0] <= at && at <= f.scope[1])
+            .sort((a, b) => a.scope[1] - a.scope[0] - (b.scope[1] - b.scope[0]))[0] === fn,
+      );
+  const helpers = new Map<Fn, number>();
+  const guards = new Set<number>();
+  for (const match of code.matchAll(/\bif\s*\(\s*(\w+)\s*\)\s*await parkPointer\(page\)\s*;/g)) {
+    const fn = enclosing(match.index);
+    if (param(fn, match[1]!) < 0) continue;
+    helpers.set(fn!, param(fn, match[1]!));
+    guards.add(match.index + match[0].length - 1);
+  }
+  return { code, enclosing, param, uses, helpers, guards };
+}
+
+// What moves the pointer, and where a test opens: a probe that keeps the pointer where it is runs
+// right after a hover, with nothing of these in between.
+const POINTER =
+  /\.hover\(|\bmouse\.|\.(?:click|dblclick|tap|dragTo|check|uncheck|setChecked)\(|\bdrag(?:AndDrop)?\(|parkPointer\(|\btest(?:\.\w+)*\(/g;
+
+// The calls of a park helper passing its park parameter false (or anything but true) where the
+// pointer is not the probe's subject (`ADR-TEST-016` rev 5, #555): accepted only right after an
+// unconditional `.hover(` in the same block, or inside a drag callback before any other pointer
+// step, directly or through the closure the call sits in. A function forwarding its own
+// `park = true` parameter becomes a park helper in turn.
+function unheld(text: string) {
+  const { code, enclosing, param, uses, helpers } = parse(text);
+  const pointer = (from: number, to: number) => [...code.slice(from, to).matchAll(POINTER)];
   const drags = [...code.matchAll(/\bdrag\s*\(/g)].map((match) => {
     const open = match.index + match[0].length - 1;
     return [open, close(code, open + 1)] as const;
   });
-  const uses = (name: string) =>
-    [...code.matchAll(new RegExp(`(?<![\\w$.])${name}\\b`, "g"))]
-      .map((match) => match.index)
-      .filter((at) => !/(?:function|const|let)\s+$/.test(code.slice(0, at)));
   const hovered = (at: number) => {
-    const last = [...code.slice(0, at).matchAll(POINTER)].at(-1);
+    const last = pointer(0, at).at(-1);
     if (last?.[0] !== ".hover(") return false;
-    let depth = 0;
-    for (const char of code.slice(last.index, at))
-      if (char === "{") depth++;
-      else if (char === "}" && --depth < 0) return false;
-    return true;
+    const start = Math.max(...[";", "{", "}"].map((c) => code.lastIndexOf(c, last.index)));
+    if (/\b(?:if|else|for|while|do)\b|&&|\|\||\?(?!\.)/.test(code.slice(start + 1, last.index)))
+      return false;
+    return !crossesBlock(code.slice(last.index, at));
   };
-  const held = (at: number, seen: Set<string>): boolean => {
-    if (drags.some(([open, end]) => open < at && at < end)) return true;
+  const held = (at: number, seen: Set<Fn>): boolean => {
+    if (drags.some(([open, end]) => open < at && at < end && pointer(open, at).length === 0))
+      return true;
     const fn = enclosing(at);
     if (fn === undefined) return hovered(at);
-    if (seen.has(fn.name)) return false;
-    const calls = uses(fn.name).filter((use) => use < fn.open || use > fn.end);
-    return calls.length > 0 && calls.every((use) => held(use, new Set([...seen, fn.name])));
+    if (seen.has(fn)) return false;
+    const calls = uses(fn).filter((use) => use < fn.open || use > fn.end);
+    return calls.length > 0 && calls.every((use) => held(use, new Set([...seen, fn])));
   };
 
-  const helpers = new Map<string, number>();
-  for (const match of code.matchAll(/\bif\s*\(\s*(\w+)\s*\)\s*await parkPointer\(page\)/g)) {
-    const fn = enclosing(match.index);
-    if (param(fn, match[1]!) >= 0) helpers.set(fn!.name, param(fn, match[1]!));
-  }
   const misses: string[] = [];
   const queue = [...helpers.keys()];
-  for (const name of queue) {
-    for (const at of uses(name)) {
+  for (const helper of queue) {
+    for (const at of uses(helper)) {
       const open = code.indexOf("(", at);
-      if (!/^\s*$/.test(code.slice(at + name.length, open))) continue;
+      if (!/^\s*$/.test(code.slice(at + helper.name.length, open))) continue;
       const { end, list } = items(code, open);
-      const arg = list[helpers.get(name)!];
+      const arg = list[helpers.get(helper)!];
       if (arg === undefined || arg === "true") continue;
       const fn = enclosing(at);
       if (param(fn, arg) >= 0) {
-        if (!helpers.has(fn!.name)) queue.push(fn!.name);
-        helpers.set(fn!.name, param(fn, arg));
+        if (!helpers.has(fn!)) queue.push(fn!);
+        helpers.set(fn!, param(fn, arg));
       } else if (!held(at, new Set())) misses.push(text.slice(at, end + 1).replace(/\s+/g, " "));
     }
   }
@@ -371,10 +412,15 @@ describe("gallery captures park the pointer", () => {
       "async function other(page: Page, x = true) {\n  if (y) await parkPointer(page);\n  return tile.screenshot({ clip: c });\n}";
     const either =
       "if (open && park) await parkPointer(page);\nawait expect(page).toHaveScreenshot(`n.png`);";
-    expect(unparked([helper, never, foreign, either].join("\n"))).toEqual([
+    // `park = true` in the head, but of an inner arrow, not a parameter of `snap`: its callers are
+    // not held, so its park step does not count either.
+    const inner =
+      "async function snap(page: Page, pick = (park = true) => park) {\n  if (park) await parkPointer(page);\n  return grid.screenshot({ clip: d });\n}";
+    expect(unparked([helper, never, foreign, either, inner].join("\n"))).toEqual([
       "return pane.screenshot()",
       "return tile.screenshot()",
       "`n.png`",
+      "return grid.screenshot()",
     ]);
   });
 
@@ -395,13 +441,35 @@ describe("gallery captures park the pointer", () => {
     const bare = "const d = await pixelAt(page, 6, false);";
     const loose =
       "const late = () => pixelAt(page, 7, false);\nawait tile.hover();\nawait late();\nawait page.mouse.move(0, 0);\nawait expect.poll(late).toBe(1);";
+    // A loop opened after the hover clicks before its next pass.
+    const loop =
+      "await tile.hover();\nfor (const t of tabs) {\n  await pixelAt(page, 9, false);\n  await t.click();\n}";
+    const checked = "await tile.hover();\nawait box.check();\nawait pixelAt(page, 10, false);";
+    const dropped =
+      "await tile.hover();\nawait page.dragAndDrop(`#a`, `#b`);\nawait pixelAt(page, 11, false);";
+    const maybe = "if (x) await tile.hover();\nawait pixelAt(page, 12, false);";
+    const released =
+      "await drag(from, to, async () => {\n  await page.mouse.up();\n  await pixelAt(page, 13, false);\n});";
+    // A helper written as a function expression is a helper all the same.
+    const expression =
+      "const shoot = async function (park = true) {\n  if (park) await parkPointer(page);\n  return page.screenshot({ clip });\n};\nawait tab.click();\nawait shoot(false);";
     const moved = "await page.mouse.move(0, 0);\nawait probe(false);";
+    // Another test's own `probe` is not the helper of that name.
+    const other =
+      "test(`other`, async () => {\n  const probe = (el: number) => el;\n  probe(cell);\n});";
     const code = [helper, hovered, dragged, closure, forwarded, closedHover, clicked, bare, loose];
-    expect(unheld([...code, moved].join("\n"))).toEqual([
+    const more = [loop, checked, dropped, maybe, released, expression, moved, other];
+    expect(unheld([...code, ...more].join("\n"))).toEqual([
       "pixelAt(page, 8, false)",
       "pixelAt(page, 5, false)",
       "pixelAt(page, 6, false)",
       "pixelAt(page, 7, false)",
+      "pixelAt(page, 9, false)",
+      "pixelAt(page, 10, false)",
+      "pixelAt(page, 11, false)",
+      "pixelAt(page, 12, false)",
+      "pixelAt(page, 13, false)",
+      "shoot(false)",
       "probe(false)",
     ]);
   });
