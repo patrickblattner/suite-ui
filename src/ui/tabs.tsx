@@ -1,22 +1,65 @@
-import type * as React from "react";
+import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { Tabs as TabsPrimitive } from "radix-ui";
 
 import { cn } from "../lib/cn.js";
 
+// What the triggers need for their tab stop (the focused trigger while the focus is in the list, else
+// the selected one) and to hold back the activation of a focus from outside (see `TabsTrigger`).
+const TabsFocusContext = React.createContext<{
+  value: string;
+  focused: string | null;
+  setFocused: (value: string | null) => void;
+  automatic: boolean;
+  holdBack: (value: string) => void;
+} | null>(null);
+
 function Tabs({
   className,
   orientation = "horizontal",
+  value: valueProp,
+  defaultValue,
+  onValueChange,
+  activationMode,
   ...props
 }: React.ComponentProps<typeof TabsPrimitive.Root>) {
+  const [uncontrolled, setUncontrolled] = React.useState(defaultValue ?? "");
+  const [focused, setFocused] = React.useState<string | null>(null);
+  const heldBack = React.useRef<string | null>(null);
+  const value = valueProp ?? uncontrolled;
+  // Radix activates right after the trigger's own focus handler, in the same event.
+  const holdBack = React.useCallback((held: string) => {
+    heldBack.current = held;
+    queueMicrotask(() => {
+      heldBack.current = null;
+    });
+  }, []);
+  const automatic = activationMode !== "manual";
+  const focusContext = React.useMemo(
+    () => ({ value, focused, setFocused, automatic, holdBack }),
+    [value, focused, automatic, holdBack],
+  );
   return (
-    <TabsPrimitive.Root
-      data-slot="tabs"
-      data-orientation={orientation}
-      orientation={orientation}
-      className={cn("group/tabs flex gap-2 data-[orientation=horizontal]:flex-col", className)}
-      {...props}
-    />
+    <TabsFocusContext.Provider value={focusContext}>
+      <TabsPrimitive.Root
+        data-slot="tabs"
+        data-orientation={orientation}
+        orientation={orientation}
+        className={cn("group/tabs flex gap-2 data-[orientation=horizontal]:flex-col", className)}
+        value={value}
+        activationMode={activationMode}
+        onValueChange={(next) => {
+          if (heldBack.current === next) {
+            // Held back once: a press that focuses the trigger first still activates it next.
+            heldBack.current = null;
+            return;
+          }
+          if (valueProp === undefined) setUncontrolled(next);
+          onValueChange?.(next);
+        }}
+        {...props}
+      />
+    </TabsFocusContext.Provider>
   );
 }
 
@@ -53,20 +96,47 @@ function TabsList({
 // A trigger activates on focus only when the focus moves within its own tab list (arrow keys, Home,
 // End); a press activates it on its own. A focus from outside — a dialog returning it on close
 // (`GL-UI-050`) — leaves the selection as it is: the leave dialog's Cancel would else activate the
-// trigger that asked again and reopen the dialog (#557). Preventing the default skips Radix's activation.
+// trigger that asked again and reopen the dialog (#557). `Tabs` drops that one activation, so Radix's
+// roving focus still follows (#559); a caller's `onFocus` that prevents the default skips both. While
+// the focus is in the list the focused trigger is the tab stop, once it leaves the selected one is, so
+// re-entering the list lands on it (WAI-ARIA tabs, #559).
 function TabsTrigger({
   className,
   onFocus,
+  onBlur,
+  tabIndex,
   ...props
 }: React.ComponentProps<typeof TabsPrimitive.Trigger>) {
+  const focusContext = React.useContext(TabsFocusContext);
   return (
     <TabsPrimitive.Trigger
       data-slot="tabs-trigger"
+      tabIndex={
+        tabIndex ??
+        (focusContext === null
+          ? undefined
+          : (focusContext.focused ?? focusContext.value) === props.value
+            ? 0
+            : -1)
+      }
       onFocus={(event) => {
         onFocus?.(event);
-        const list = event.currentTarget.closest('[role="tablist"]');
-        if (!(event.relatedTarget instanceof Node && list?.contains(event.relatedTarget) === true))
-          event.preventDefault();
+        if (focusContext === null) return;
+        focusContext.setFocused(props.value);
+        // Hold back only an activation Radix makes on this focus; a press activates after it.
+        if (
+          !event.defaultPrevented &&
+          props.disabled !== true &&
+          focusContext.automatic &&
+          focusContext.value !== props.value &&
+          !inList(event.currentTarget, event.relatedTarget)
+        )
+          focusContext.holdBack(props.value);
+      }}
+      onBlur={(event) => {
+        onBlur?.(event);
+        if (focusContext !== null && !inList(event.currentTarget, event.relatedTarget))
+          focusContext.setFocused(null);
       }}
       className={cn(
         "relative inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 rounded-md border border-transparent px-2 py-1 text-sm font-medium whitespace-nowrap text-foreground/70 transition-[color,background-color,border-color,box-shadow] group-data-[orientation=vertical]/tabs:w-full group-data-[orientation=vertical]/tabs:justify-start hover:text-foreground focus-visible:border-ring focus-visible:focus-ring disabled:pointer-events-none disabled:opacity-50 group-data-[variant=default]/tabs-list:data-[state=active]:shadow-sm group-data-[variant=line]/tabs-list:data-[state=active]:shadow-none dark:text-muted-foreground dark:hover:text-foreground [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
@@ -78,6 +148,10 @@ function TabsTrigger({
       {...props}
     />
   );
+}
+
+function inList(trigger: Element, other: EventTarget | null) {
+  return other instanceof Node && trigger.closest('[role="tablist"]')?.contains(other) === true;
 }
 
 function TabsContent({ className, ...props }: React.ComponentProps<typeof TabsPrimitive.Content>) {

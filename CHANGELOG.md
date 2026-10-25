@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — #559, GL-UI-050 follow-up #557: the tab stop follows the focus again, re-entry lands on the selected tab (patch)
+
+- **Tabs (#559):** a focus from outside the tab list no longer prevents its default; `Tabs` drops that one activation itself, so Radix's roving focus updates as before #557. While the focus is in the list the focused trigger is the tab stop, once it leaves the selected one is: after Cancel in the leave dialog, Tab out to the panel and Shift+Tab back lands on the selected tab, and Tab from a trigger before the selected one leaves the list (WAI-ARIA tabs). Only an activation Radix makes on that focus is held back, so a press from outside activates also with `activationMode="manual"` or a caller's `preventDefault`. A focus with no previous focus (window refocus) does not activate; a press activates, also when it moves the focus in from outside; a caller's `onFocus` that prevents the default still skips the activation. An own `tabIndex` on a `TabsTrigger` wins.
+- **Tests (#559):** unit tests for the not-prevented focus, the window refocus, the caller's `preventDefault`, a press from outside (also manual and prevented), the tab stop and an uncontrolled `Tabs`; gallery (`/detail-plain`, mouse and keyboard): after Cancel, Tab and Shift+Tab land on the selected tab; Tab from a returned focus before the selected tab leaves the list.
+
+**Migration:** none. No strings, `data-testid`s or baselines change.
+
 ## Unreleased — #553, GL-UI-017 rev 8: the chart series field describes the visible pie note (patch)
 
 - **Accessibility (#553, retrofit #536):** in a pie, the name field of a series left out is described by its hint, then the visible short note ("Not in pie" / "Nicht im Kreis" / "Fuera del circular"), which is no longer `aria-hidden`; the hidden full sentence and its string `slides.editor.chartNotInPie` are gone. Each series column header and each category row header is named by its name alone (`aria-label`, an emptied one by its default name "Series n" / "Category n"), so neither its remove button nor the note becomes part of the header's name. `Hint` takes a `status` id, described after the hint and also where the hint itself is not attached (GL-UI-017 §Zustandszeile).

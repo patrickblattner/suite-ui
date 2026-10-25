@@ -3366,8 +3366,32 @@ for (const path of ["mouse", "keyboard"] as const) {
     await expect(page.getByTestId("harness-tab-general")).toHaveAttribute("aria-selected", "true");
     expect(tabOf(page)).toBe("general");
     await expect(page.getByTestId("harness-value")).toHaveValue("draft");
+    // #559 (WAI-ARIA tabs): Tab out to the panel and Shift+Tab back lands on the selected tab.
+    await page.keyboard.press("Tab");
+    await expect(page.getByRole("tabpanel")).toBeFocused();
+    await page.keyboard.press("Shift+Tab");
+    await expect(page.getByTestId("harness-tab-general")).toBeFocused();
+    await expectNoDialog(page);
   });
 }
+
+// #559 (WAI-ARIA tabs): a focus returned from outside onto an unselected trigger before the selected
+// one makes it the tab stop: Tab leaves the list for the panel, Shift+Tab re-enters on the selected tab.
+test("tabs: Tab from a returned focus before the selected tab leaves the list", async ({
+  page,
+}) => {
+  await openHarnessDetail(page);
+  await page.getByTestId("harness-tab-notes").click();
+  await expect(page.getByTestId("harness-tab-notes")).toHaveAttribute("aria-selected", "true");
+  await page.keyboard.press("Tab");
+  await expect(page.getByTestId("harness-notes")).toBeFocused();
+  await page.getByTestId("harness-tab-general").focus();
+  await expect(page.getByTestId("harness-tab-notes")).toHaveAttribute("aria-selected", "true");
+  await page.keyboard.press("Tab");
+  await expect(page.getByTestId("harness-notes")).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(page.getByTestId("harness-tab-notes")).toBeFocused();
+});
 
 // #235 (Q&A #3872, `GL-UI-007`): in the media panel `Esc` opens the leave dialog, and the next `Esc`
 // is Abbrechen: only the dialog closes, it does not come back, and the panel keeps its draft.
