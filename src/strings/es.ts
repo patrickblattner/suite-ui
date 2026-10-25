@@ -619,7 +619,6 @@ export const es: SuiteStrings = {
         "{{category}} – {{names}}: introduce el número con un solo signo decimal y sin separador de miles, como 1000,5.",
       chartTooLarge:
         "{{category}} – {{names}}: el número es demasiado grande para el gráfico. Introduce uno más pequeño, como 1,5.",
-      chartNotInPie: "No se muestra en un gráfico circular",
       chartNotInPieShort: "Fuera del circular",
       chartNegativeInPie: "Un gráfico circular omite los valores por debajo de 0.",
       chartRemoveCategory: "Quitar {{name}}",

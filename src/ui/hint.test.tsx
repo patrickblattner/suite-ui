@@ -66,6 +66,42 @@ describe("Hint", () => {
     expect(screen.getByRole("button", { name: "Close" })).not.toHaveAttribute("aria-describedby");
   });
 
+  // #553 (GL-UI-017 §Zustandszeile): a visible status line is described after the hint.
+  it("describes a status line after the hint: own ids, hint, status, each once", () => {
+    render(
+      <>
+        <span id="note">Not in pie</span>
+        <Hint text="The series name" status="note">
+          <Input aria-label="Name" aria-describedby="own note" />
+        </Hint>
+      </>,
+    );
+    const ids = screen.getByRole("textbox", { name: "Name" }).getAttribute("aria-describedby")!;
+    const [own, hint, status, ...rest] = ids.split(" ");
+    expect([own, status, rest]).toEqual(["own", "note", []]);
+    expect(document.getElementById(hint ?? "")).toHaveTextContent("The series name");
+  });
+
+  it("describes a status line where the hint is not attached", () => {
+    render(
+      <>
+        <span id="note">Not in pie</span>
+        <Hint text="Close" status="note">
+          <Button variant="ghost" size="icon" aria-label="Close" />
+        </Hint>
+        <Hint text="The name" disabledText="Possible once a field changed" status="note">
+          <Input aria-label="Locked" disabled />
+        </Hint>
+      </>,
+    );
+    expect(screen.getByRole("button", { name: "Close" })).toHaveAttribute(
+      "aria-describedby",
+      "note",
+    );
+    const span = screen.getByRole("textbox", { name: "Locked" }).parentElement as HTMLElement;
+    expect(span).toHaveAccessibleDescription("Possible once a field changed Not in pie");
+  });
+
   it("keeps the control's own data-state", () => {
     render(
       <Hint text="Turns it on">

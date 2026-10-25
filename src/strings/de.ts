@@ -626,7 +626,6 @@ export const de: SuiteStrings = {
         "{{category}} – {{names}}: Gib die Zahl mit nur einem Dezimalzeichen und ohne Tausendertrennung ein, etwa 1000,5.",
       chartTooLarge:
         "{{category}} – {{names}}: Die Zahl ist zu groß für das Diagramm. Gib eine kleinere ein, etwa 1,5.",
-      chartNotInPie: "Im Kreisdiagramm nicht gezeigt",
       chartNotInPieShort: "Nicht im Kreis",
       chartNegativeInPie: "Ein Kreisdiagramm lässt Werte unter 0 weg.",
       chartRemoveCategory: "{{name}} entfernen",

@@ -12149,11 +12149,15 @@ test("slide editor: a chart's type changes and back without losing data", async 
   await typeInto(page, panel.getByTestId("slide-editor-chart-value-0-1"), "-2");
   await pie.click();
   await expect(pie).toHaveAttribute("aria-checked", "true");
-  // Short in the column; the whole sentence describes the series' name field (#536).
+  // Short in the column (#536); the visible note describes the series' name field after its hint,
+  // never the column header's name (GL-UI-017 rev 8, #553).
   await expect(panel.getByTestId("slide-editor-chart-not-in-pie-1")).toHaveText("Not in pie");
   await expect(panel.getByTestId("slide-editor-chart-series-1")).toHaveAccessibleDescription(
-    /Not shown in a pie chart/,
+    "The name of this series, shown in the chart's legend. Not in pie",
   );
+  await expect(
+    panel.getByTestId("slide-editor-chart-data").getByRole("columnheader").nth(2),
+  ).not.toHaveAccessibleName(/Not in pie/);
   // Running text at the body size (GL-UI-010 rev 9, #534).
   await expect(panel.getByTestId("slide-editor-chart-not-in-pie-1")).toHaveCSS("font-size", "14px");
   await expect(panel.getByTestId("slide-editor-chart-series-1")).toBeVisible();
@@ -12196,6 +12200,22 @@ test("slide editor: a chart's type changes and back without losing data", async 
   await page.keyboard.press("ArrowLeft");
   await expect(pie).toBeFocused();
   await expect(pie).toHaveAttribute("aria-checked", "true");
+});
+
+// GL-UI-017 "description, never name" (#553): an emptied series or category header is named by its
+// default name, never by its remove button or the pie note.
+test("slide editor: a chart's emptied headers are named by their default names", async ({
+  page,
+}) => {
+  const { editor, library } = await openLibrary(page);
+  await library.getByTestId("slide-editor-library-chart").click();
+  const panel = editor.getByTestId("slide-editor-chart");
+  await panel.getByTestId("slide-editor-chart-type-pie").click();
+  await panel.getByTestId("slide-editor-chart-series-1").fill("");
+  await panel.getByTestId("slide-editor-chart-category-1").fill("");
+  const table = panel.getByTestId("slide-editor-chart-data");
+  await expect(table.getByRole("columnheader").nth(2)).toHaveAccessibleName("Series 2");
+  await expect(table.getByRole("rowheader").nth(1)).toHaveAccessibleName("Category 2");
 });
 
 // #366: a value typed and taken back with the field's own text undo leaves no step behind: the
