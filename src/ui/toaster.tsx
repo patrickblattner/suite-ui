@@ -163,6 +163,23 @@ const pausedToasters = new Map<object, string | undefined>();
 // The toasts this timer closed: their close is an auto close, so `onAutoClose` runs, not `onDismiss`.
 const autoClosed = new Set<string | number>();
 
+// The caller's own values of what the wrapper sets on a toast with an action: its class (the mark
+// goes on top) and its handlers (the wrapper's dismiss handler runs them).
+type Own = Pick<ExternalToast, "className" | "onDismiss" | "onAutoClose">;
+// The toasts with an action the wrapper marked, by toast id, with the caller's own values merged
+// across replacements as sonner merges them: a replacement that shows no action gets them back.
+const marks = new Map<string | number, Own>();
+
+// The own values a call or a live toast sets; a key it leaves out is not there.
+function ownOf(opts: Own | undefined): Own {
+  const own: Own = {};
+  if (opts === undefined) return own;
+  if ("className" in opts) own.className = opts.className;
+  if ("onDismiss" in opts) own.onDismiss = opts.onDismiss;
+  if ("onAutoClose" in opts) own.onAutoClose = opts.onAutoClose;
+  return own;
+}
+
 function runActionClose(id: string | number, close: ActionClose): void {
   close.since = Date.now();
   close.timer = setTimeout(() => {
@@ -175,6 +192,18 @@ function runActionClose(id: string | number, close: ActionClose): void {
 function cancelActionClose(id: string | number): void {
   clearTimeout(actionCloses.get(id)?.timer);
   actionCloses.delete(id);
+}
+
+type ShownToast = Parameters<NonNullable<ExternalToast["onDismiss"]>>[0];
+
+// A toast with an action dismissed earlier (Esc, a keyboard move under it, its close button) drops its
+// timer; one its timer closed reports an auto close, as sonner's own timer would.
+function dismissMarked(item: ShownToast): void {
+  cancelActionClose(item.id);
+  const own = marks.get(item.id);
+  marks.delete(item.id);
+  if (autoClosed.delete(item.id)) own?.onAutoClose?.(item);
+  else own?.onDismiss?.(item);
 }
 
 // sonner treats an empty toaster id as none.
@@ -204,20 +233,100 @@ function pauseActionCloses(instance: object, toaster: string | undefined, paused
 
 type Show = (message: Message, opts?: ExternalToast) => string | number;
 
-// The toaster id of the live toast with this id, if any.
-function toasterIdOf(id: string | number | undefined): string | undefined {
-  if (id === undefined) return undefined;
-  const live = sonnerToast.getToasts().find((item) => item.id === id);
-  return live !== undefined && "toasterId" in live ? live.toasterId : undefined;
+type Prepared = {
+  opts: ExternalToast | undefined;
+  // Whether the toast shows an action: it then takes no variant's duration.
+  action: boolean;
+  // The message as sonner shows it: with the key hint when the toast shows an action.
+  wrap: (message: Message) => Message;
+  // Runs once sonner shows the toast, with its id.
+  shown: (id: string | number) => void;
+};
+
+/**
+ * Prepares a call to sonner (`SUI-FEATURE-101` rev 7). sonner merges a call that replaces a toast by
+ * its id into that toast, so the toast keeps the action it shows unless the call sets `action`
+ * itself; after every call it is a toast with an action exactly when it shows one (#582). Such a
+ * toast gets its key hint and its mark and, unless loading (`timed` false: it stays until it is
+ * replaced, as in sonner), closes after `actionToastDurationFor` by its own timer, its `Infinity`
+ * keeping sonner's timer off. A call that replaces a toast drops that toast's timer; one that shows
+ * no action and replaces a marked toast gets the caller's own class, handlers and duration back, the
+ * explicit keys, even when undefined, overriding the wrapper's that sonner's merge would hand on.
+ * Without a duration sonner takes the Toaster's configured one (its default 4000 ms). A marked toast
+ * whose dismissal sonner has not shown yet is no longer live, yet sonner merges a call into it all the
+ * same: the call counts as a new toast, so it takes the caller's own values and sets `action` too.
+ */
+function prepare(
+  variant: ToastVariant | undefined,
+  message: unknown,
+  opts: ExternalToast | undefined,
+  timed: boolean,
+): Prepared {
+  const id = opts?.id;
+  if (id !== undefined) {
+    cancelActionClose(id);
+    autoClosed.delete(id);
+  }
+  const found =
+    id === undefined ? undefined : sonnerToast.getToasts().find((item) => item.id === id);
+  const live = found !== undefined && !("dismiss" in found) ? found : undefined;
+  const marked = id === undefined ? undefined : marks.get(id);
+  const own = live === undefined ? ownOf(opts) : { ...(marked ?? ownOf(live)), ...ownOf(opts) };
+  const action = opts !== undefined && "action" in opts ? opts.action : live?.action;
+  if (!rendersAction(action)) {
+    if (id !== undefined) marks.delete(id);
+    return {
+      opts:
+        marked === undefined
+          ? opts
+          : {
+              ...opts,
+              action: opts?.action,
+              className: own.className,
+              onDismiss: own.onDismiss,
+              onAutoClose: own.onAutoClose,
+              duration: opts?.duration,
+            },
+      action: false,
+      wrap: (shown) => shown,
+      shown: () => undefined,
+    };
+  }
+  const label = actionLabel(action);
+  const markedOpts = {
+    ...opts,
+    className: cn(own.className, ACTION_TOAST_CLASS),
+    onDismiss: dismissMarked,
+  };
+  const wrap = (shown: Message) => <ActionKeyHint message={shown} action={label} />;
+  if (!timed) {
+    return {
+      opts: markedOpts,
+      action: true,
+      wrap,
+      shown: (shown) => {
+        marks.set(shown, own);
+      },
+    };
+  }
+  // A replacement without a toaster id stays in the toaster of the toast it replaces (sonner merges).
+  const toaster = toasterKey(opts?.toasterId ?? live?.toasterId);
+  const left = actionToastDurationFor(message, variant ?? "info", label, opts?.duration);
+  return {
+    opts: { ...markedOpts, duration: Number.POSITIVE_INFINITY },
+    action: true,
+    wrap,
+    shown: (shown) => {
+      marks.set(shown, own);
+      const close = { toaster, left, since: 0 };
+      actionCloses.set(shown, close);
+      if (!isPaused(close)) runActionClose(shown, close);
+    },
+  };
 }
 
-// Raises a toast through sonner's `show`; a variant times it by `toastDurationFor`. A toast with an
-// action gets its key hint and its mark, and closes after `actionToastDurationFor` by its own timer;
-// a loading one (`timed` false) stays until it is replaced, as in sonner. A call that replaces a
-// toast by its id drops that toast's timer; sonner merges the replacement into the toast, so one
-// without a variant that replaces a timed action toast gets a duration of its own again, else the
-// action toast's `Infinity` would keep it open for good: its own, or none, so sonner takes the
-// Toaster's configured duration (its default 4000 ms).
+// Raises a toast through sonner's `show`; a variant times a toast without an action by
+// `toastDurationFor`.
 function raise(
   show: Show,
   variant: ToastVariant | undefined,
@@ -225,46 +334,99 @@ function raise(
   opts?: ExternalToast,
   timed = true,
 ): string | number {
-  const replaced = opts?.id !== undefined && actionCloses.has(opts.id);
-  if (opts?.id !== undefined) cancelActionClose(opts.id);
-  if (!rendersAction(opts?.action)) {
-    if (variant !== undefined) return show(message, withDuration(message, variant, opts));
-    // The explicit `duration` key, even when undefined, is what overrides the merged `Infinity`.
-    return show(message, replaced && timed ? { ...opts, duration: opts?.duration } : opts);
-  }
-  const action = actionLabel(opts?.action);
-  const hinted = <ActionKeyHint message={message} action={action} />;
-  const marked = { ...opts, className: cn(opts?.className, ACTION_TOAST_CLASS) };
-  if (!timed) return show(hinted, marked);
-  // A replacement without a toaster id stays in the toaster of the toast it replaces (sonner merges).
-  const toaster = opts?.toasterId ?? toasterIdOf(opts?.id);
-  // A toast dismissed earlier (Esc, a keyboard move under it, its close button) drops its timer; one
-  // its timer closed reports an auto close, as sonner's own timer would.
-  const id = show(hinted, {
-    ...marked,
-    duration: Number.POSITIVE_INFINITY,
-    onDismiss: (item) => {
-      cancelActionClose(item.id);
-      if (autoClosed.delete(item.id)) opts?.onAutoClose?.(item);
-      else opts?.onDismiss?.(item);
-    },
-  });
-  const close = {
-    toaster: toasterKey(toaster),
-    left: actionToastDurationFor(message, variant ?? "info", action, opts?.duration),
-    since: 0,
-  };
-  actionCloses.set(id, close);
-  if (!isPaused(close)) runActionClose(id, close);
+  const prepared = prepare(variant, message, opts, timed);
+  const shownOpts =
+    !prepared.action && timed && variant !== undefined
+      ? withDuration(message, variant, prepared.opts)
+      : prepared.opts;
+  const id = show(prepared.wrap(message), shownOpts);
+  prepared.shown(id);
   return id;
 }
 
-// sonner's `toast` with the four variants timed by `toastDurationFor`; the plain call,
-// `toast.message` and `toast.loading` go through the same wrapper, so a toast with an action gets
-// its key hint and its duration on every route but two: `toast.custom` draws its own element and no
-// action of sonner's, and `toast.promise` is sonner's own, its action without hint or own duration.
-// `dismiss` is sonner's. Typed as sonner's `toast` so the emitted declaration can name it (the
-// inferred type references sonner's unexported types, TS4023).
+type PromiseArgs<T> = Parameters<typeof sonnerToast.promise<T>>;
+type PromiseResult<T> = NonNullable<PromiseArgs<T>[1]>["success"];
+
+let promiseIds = 0;
+
+// sonner's `toast.promise` through `prepare`: its loading state as `toast.loading`, its result as the
+// variant's call that replaces it by its id. The toast gets an id of its own when the caller gives
+// none, so the result finds it; without a loading state the result is a toast of its own, as in
+// sonner. sonner shows the result once it has awaited a `description` function, so the result's timer
+// starts only then. sonner shows a promise that resolves to a React element as it is, in place of its
+// loading state; when that state was marked, the element is raised anew right after, by its id.
+function promiseToast<T>(promise: PromiseArgs<T>[0], data?: PromiseArgs<T>[1]) {
+  if (data === undefined) return sonnerToast.promise(promise, data);
+  const { loading, success, error, description, finally: settled, ...rest } = data;
+  let element: React.ReactElement | undefined;
+  const watched = Promise.resolve(typeof promise === "function" ? promise() : promise).then(
+    (value) => {
+      if (React.isValidElement(value)) element = value;
+      return value;
+    },
+  );
+  promiseIds += 1;
+  const id =
+    loading !== undefined && rest.id !== undefined
+      ? rest.id
+      : `suite-promise-${String(promiseIds)}`;
+  let pending: (() => void) | undefined;
+  const start = () => {
+    pending?.();
+    pending = undefined;
+  };
+  const result = (variant: "success" | "error", outcome: PromiseResult<T>) =>
+    outcome === undefined
+      ? undefined
+      : async (value: T) => {
+          const out: unknown = typeof outcome === "function" ? await outcome(value) : outcome;
+          const settings = (
+            typeof out === "object" && out !== null && !React.isValidElement(out)
+              ? out
+              : { message: out }
+          ) as ExternalToast & { message: React.ReactNode };
+          const prepared = prepare(variant, settings.message, { ...settings, id }, true);
+          pending = () => {
+            prepared.shown(id);
+          };
+          if (typeof description !== "function") start();
+          return {
+            ...prepared.opts,
+            id,
+            message: prepared.wrap(settings.message) as React.ReactNode,
+          };
+        };
+  const loadingState =
+    loading === undefined ? undefined : prepare(undefined, loading, { ...rest, id }, false);
+  const shownId = sonnerToast.promise(watched, {
+    ...rest,
+    ...loadingState?.opts,
+    id,
+    loading: loadingState === undefined ? loading : (loadingState.wrap(loading) as React.ReactNode),
+    success: result("success", success),
+    error: result("error", error),
+    description:
+      typeof description === "function"
+        ? async (value: T) => {
+            const text = await description(value);
+            start();
+            return text;
+          }
+        : description,
+    finally: async () => {
+      if (element !== undefined && marks.has(id)) raise(sonnerToast, undefined, element, { id });
+      await settled?.();
+    },
+  });
+  loadingState?.shown(id);
+  return shownId;
+}
+
+// sonner's `toast` with the four variants timed by `toastDurationFor`; every route goes through
+// `prepare`, so a toast that shows an action gets its key hint and its duration on each of them,
+// `toast.custom` (its own element, sonner's action below it) and `toast.promise` (its loading state
+// and its result) too. `dismiss` is sonner's. Typed as sonner's `toast` so the emitted declaration
+// can name it (the inferred type references sonner's unexported types, TS4023).
 const toast: typeof sonnerToast = Object.assign(
   (message: Message, opts?: ExternalToast) => raise(sonnerToast, undefined, message, opts),
   {
@@ -281,6 +443,16 @@ const toast: typeof sonnerToast = Object.assign(
       raise(sonnerToast.message, undefined, message, opts),
     loading: (message: Message, opts?: ExternalToast) =>
       raise(sonnerToast.loading, undefined, message, opts, false),
+    custom: (jsx: Parameters<typeof sonnerToast.custom>[0], data?: ExternalToast) => {
+      const prepared = prepare(undefined, undefined, data, true);
+      const id = sonnerToast.custom(
+        (shown) => prepared.wrap(jsx(shown)) as React.ReactElement,
+        prepared.opts,
+      );
+      prepared.shown(id);
+      return id;
+    },
+    promise: promiseToast,
   },
 );
 
@@ -547,10 +719,15 @@ function useToasterFocus(toasts: React.RefObject<HTMLElement | null>, id?: strin
     // focusout is no move of the user's.
     let held: { element: HTMLElement; own: PropertyDescriptor | undefined } | null = null;
     let giving = false;
-    // The instance's own pause state: its key is this effect run.
+    // The instance's own pause state: its key is this effect run. A hidden document pauses it too, as
+    // it does sonner's own timer: time in another browser tab is no time on screen (#582).
     const instance = {};
     const pause = () => {
-      pauseActionCloses(instance, id, pointer || wrapper.contains(document.activeElement));
+      pauseActionCloses(
+        instance,
+        id,
+        pointer || wrapper.contains(document.activeElement) || document.hidden,
+      );
     };
     // A return for a leaving toast is quiet: the dismissal under the focus lets it pass.
     const giveBack = (quiet: boolean) => {
@@ -661,6 +838,8 @@ function useToasterFocus(toasts: React.RefObject<HTMLElement | null>, id?: strin
       attributes: true,
       attributeFilter: ["data-removed"],
     });
+    pause();
+    document.addEventListener("visibilitychange", pause);
     document.addEventListener("focusin", onFocusIn);
     document.addEventListener("focusout", afterFocusOut);
     document.addEventListener("pointerdown", onPointerDown, true);
@@ -673,6 +852,7 @@ function useToasterFocus(toasts: React.RefObject<HTMLElement | null>, id?: strin
     return () => {
       afterFocusOut();
       leaving.disconnect();
+      document.removeEventListener("visibilitychange", pause);
       document.removeEventListener("focusin", onFocusIn);
       document.removeEventListener("focusout", afterFocusOut);
       document.removeEventListener("pointerdown", onPointerDown, true);

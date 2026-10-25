@@ -1,4 +1,4 @@
-import { act, createEvent, fireEvent, render, screen } from "@testing-library/react";
+import { act, createEvent, fireEvent, render, screen, within } from "@testing-library/react";
 import { Tabs as TabsPrimitive } from "radix-ui";
 import * as React from "react";
 import { getI18n } from "react-i18next";
@@ -831,7 +831,7 @@ describe("toast with an action: duration", () => {
 
   // sonner merges a replacement into the toast, so the action toast's `Infinity` would survive.
   it.each(["the plain call", "toast.message"] as const)(
-    "gives a toast that %s replaces without an action a duration again",
+    "gives a toast that %s replaces with its action removed a duration again",
     (route) => {
       render(<Toaster />);
       useAllFakeTimers();
@@ -841,8 +841,8 @@ describe("toast with an action: duration", () => {
       // sonner renders a new toast after a timeout.
       advance(1);
       act(() => {
-        if (route === "toast.message") toast.message("Restored", { id: "p" });
-        else toast("Restored", { id: "p" });
+        if (route === "toast.message") toast.message("Restored", { id: "p", action: undefined });
+        else toast("Restored", { id: "p", action: undefined });
       });
       advance(1);
       expect(screen.getByText("Restored")).toBeInTheDocument();
@@ -993,11 +993,301 @@ describe("toast with an action: duration", () => {
     });
     advance(1);
     act(() => {
-      toast("Restored", { id: "d" });
+      toast("Restored", { id: "d", action: undefined });
     });
     advance(1);
     for (let step = 0; step < 6; step++) advance(500);
     expect(screen.queryByText("Restored")).toBeNull();
+  });
+
+  // The toast's `li`, the one sonner shows the text in.
+  const toastOf = (text: string) => screen.getByText(text).closest("li");
+  // The key hint inside that toast: toasts other tests left in sonner's state may carry one too.
+  const hintIn = (text: string) =>
+    within(toastOf(text) as HTMLElement).queryByText("Alt+T, then Tab: Undo");
+
+  // `SUI-FEATURE-101` rev 7 AC 6: after every replacement it is a toast with an action exactly when it
+  // shows one, inherited by sonner's merge or its own.
+  it("keeps a toast that replaces an action toast after a loading one a toast with an action (#582)", () => {
+    render(<Toaster />);
+    useAllFakeTimers();
+    act(() => {
+      toast.success("Archived", { id: "i", action: undo });
+    });
+    advance(1);
+    act(() => {
+      toast.loading("Restoring", { id: "i" });
+    });
+    advance(1);
+    expect(hintIn("Restoring")).toBeInTheDocument();
+    act(() => {
+      toast.message("Restored", { id: "i" });
+    });
+    advance(1);
+    for (let step = 0; step < 15; step++) advance(500);
+    expect(toastOf("Restored")).not.toHaveAttribute("data-removed", "true");
+    expect(toastOf("Restored")).toHaveClass("suite-toast-action");
+    expect(screen.getByRole("button", { name: "Undo" })).toBeInTheDocument();
+    expect(hintIn("Restored")).toBeInTheDocument();
+    for (let step = 0; step < 4; step++) advance(500);
+    expect(screen.queryByText("Restored")).toBeNull();
+  });
+
+  // A loading toast in between keeps the action toast's `Infinity`; the timed call after it drops it.
+  it("gives a toast that removes the action after a loading one its duration and no mark (#582)", () => {
+    render(<Toaster />);
+    useAllFakeTimers();
+    const onDismiss = vi.fn();
+    const onAutoClose = vi.fn();
+    act(() => {
+      toast.success("Archived", { id: "l", action: undo, onDismiss, onAutoClose });
+    });
+    advance(1);
+    act(() => {
+      toast.loading("Restoring", { id: "l" });
+    });
+    advance(1);
+    act(() => {
+      toast.message("Restored", { id: "l", action: undefined });
+    });
+    advance(1);
+    expect(toastOf("Restored")).not.toHaveClass("suite-toast-action");
+    expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
+    expect(hintIn("Restored")).toBeNull();
+    // Sonner's default 4000 ms, well below the action floor.
+    for (let step = 0; step < 10; step++) advance(500);
+    expect(screen.queryByText("Restored")).toBeNull();
+    // The caller's own handlers, merged on by sonner, not the wrapper's: sonner's timer runs
+    // `onAutoClose`.
+    expect(onAutoClose).toHaveBeenCalledTimes(1);
+    expect(onDismiss).not.toHaveBeenCalled();
+  });
+
+  // The wrapper's dismiss handler goes with the action: sonner's merge hands on the caller's own.
+  it("runs the caller's onDismiss when a toast whose action was removed is dismissed (#582)", () => {
+    render(<Toaster />);
+    useAllFakeTimers();
+    const onDismiss = vi.fn();
+    act(() => {
+      toast.success("Archived", { id: "o", action: undo, onDismiss });
+    });
+    advance(1);
+    act(() => {
+      toast.message("Restored", { id: "o", action: undefined });
+    });
+    advance(1);
+    act(() => {
+      toast.dismiss("o");
+    });
+    for (let step = 0; step < 4; step++) advance(500);
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it("runs the onDismiss of the call that replaced an action toast, not the replaced one's (#582)", () => {
+    render(<Toaster />);
+    useAllFakeTimers();
+    const first = vi.fn();
+    const second = vi.fn();
+    act(() => {
+      toast.success("Archived", { id: "h", action: undo, onDismiss: first });
+    });
+    advance(1);
+    act(() => {
+      toast.success("Moved", { id: "h", action: undo, onDismiss: second });
+    });
+    advance(1);
+    act(() => {
+      toast.dismiss("h");
+    });
+    for (let step = 0; step < 4; step++) advance(500);
+    expect(second).toHaveBeenCalledTimes(1);
+    expect(first).not.toHaveBeenCalled();
+  });
+
+  // sonner cancels a dismissal it has not shown yet and merges the next call with that id into the toast.
+  it("gives a call right after the dismissal of an action toast its own duration and no mark (#582)", () => {
+    render(<Toaster />);
+    useAllFakeTimers();
+    const onAutoClose = vi.fn();
+    act(() => {
+      toast.success("Archived", { id: "f", action: undo });
+    });
+    advance(1);
+    act(() => {
+      toast.dismiss("f");
+      toast.message("Restored", { id: "f", action: undefined, onAutoClose });
+    });
+    advance(1);
+    expect(toastOf("Restored")).not.toHaveClass("suite-toast-action");
+    expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
+    for (let step = 0; step < 10; step++) advance(500);
+    expect(screen.queryByText("Restored")).toBeNull();
+    expect(onAutoClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("drops the timer of a toast toast.custom replaces by its id (#582)", () => {
+    render(<Toaster />);
+    useAllFakeTimers();
+    act(() => {
+      toast.success("Archived", { id: "c", action: undo });
+    });
+    advance(1);
+    act(() => {
+      toast.custom(() => <div>Custom</div>, { id: "c", duration: 12000 });
+    });
+    advance(1);
+    for (let step = 0; step < 22; step++) advance(500);
+    expect(toastOf("Custom")).not.toHaveAttribute("data-removed", "true");
+    for (let step = 0; step < 4; step++) advance(500);
+    expect(screen.queryByText("Custom")).toBeNull();
+  });
+
+  it("keeps a toast.custom that replaces an action toast a toast with an action (#582)", () => {
+    render(<Toaster />);
+    useAllFakeTimers();
+    act(() => {
+      toast.success("Archived", { id: "k", action: undo });
+    });
+    advance(1);
+    act(() => {
+      toast.custom(() => <div>Custom</div>, { id: "k" });
+    });
+    advance(1);
+    for (let step = 0; step < 15; step++) advance(500);
+    expect(toastOf("Custom")).not.toHaveAttribute("data-removed", "true");
+    expect(toastOf("Custom")).toHaveClass("suite-toast-action");
+    expect(hintIn("Custom")).toBeInTheDocument();
+    for (let step = 0; step < 4; step++) advance(500);
+    expect(screen.queryByText("Custom")).toBeNull();
+  });
+
+  it("keeps a toast.promise resolving to an element in place of an action toast one with an action (#582)", async () => {
+    render(<Toaster />);
+    useAllFakeTimers();
+    let resolve: (value: React.ReactElement) => void = () => undefined;
+    act(() => {
+      toast.success("Archived", { id: "e", action: undo });
+    });
+    advance(1);
+    act(() => {
+      void toast.promise(
+        new Promise<React.ReactElement>((done) => {
+          resolve = done;
+        }),
+        { id: "e", loading: "Restoring" },
+      );
+    });
+    advance(1);
+    await act(async () => {
+      resolve(<b>Done</b>);
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    advance(1);
+    for (let step = 0; step < 15; step++) advance(500);
+    expect(toastOf("Done")).not.toHaveAttribute("data-removed", "true");
+    expect(toastOf("Done")).toHaveClass("suite-toast-action");
+    expect(hintIn("Done")).toBeInTheDocument();
+    for (let step = 0; step < 4; step++) advance(500);
+    expect(screen.queryByText("Done")).toBeNull();
+  });
+
+  it("keeps a toast.promise that replaces an action toast a toast with an action (#582)", async () => {
+    render(<Toaster />);
+    useAllFakeTimers();
+    let resolve: (value: string) => void = () => undefined;
+    act(() => {
+      toast.success("Archived", { id: "q", action: undo });
+    });
+    advance(1);
+    act(() => {
+      void toast.promise(
+        new Promise<string>((done) => {
+          resolve = done;
+        }),
+        { id: "q", loading: "Restoring", success: "Restored" },
+      );
+    });
+    advance(1);
+    advance(20000);
+    // A dismissed loading toast stays in the tree, marked removed.
+    expect(toastOf("Restoring")).not.toHaveAttribute("data-removed", "true");
+    await act(async () => {
+      resolve("ok");
+      await Promise.resolve();
+    });
+    advance(1);
+    for (let step = 0; step < 15; step++) advance(500);
+    expect(toastOf("Restored")).not.toHaveAttribute("data-removed", "true");
+    expect(toastOf("Restored")).toHaveClass("suite-toast-action");
+    expect(hintIn("Restored")).toBeInTheDocument();
+    for (let step = 0; step < 4; step++) advance(500);
+    expect(screen.queryByText("Restored")).toBeNull();
+  });
+
+  // A promise toast without an id of the caller's gets `suite-promise-<n>`; the returned id names it.
+  // sonner returns the id boxed with `unwrap` (an object, as for its own numbers); its string dismisses.
+  it("returns an id for a toast.promise without one that dismisses that toast (#582)", () => {
+    render(<Toaster />);
+    useAllFakeTimers();
+    let shown: unknown;
+    act(() => {
+      shown = toast.promise(new Promise<string>(() => undefined), { loading: "Restoring" });
+    });
+    advance(1);
+    const id = (shown as string).valueOf();
+    expect(id).toMatch(/^suite-promise-\d+$/);
+    expect(toastOf("Restoring")).not.toHaveAttribute("data-removed", "true");
+    act(() => {
+      toast.dismiss(id);
+    });
+    for (let step = 0; step < 10; step++) advance(500);
+    expect(screen.queryByText("Restoring")).toBeNull();
+  });
+
+  it("starts the timer of an action toast raised while the document is hidden once visible (#582)", () => {
+    render(<Toaster />);
+    const dismiss = watchDismiss();
+    const hidden = vi.spyOn(document, "hidden", "get").mockReturnValue(true);
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    let id: string | number = "";
+    act(() => {
+      id = toast.success("Archived", { action: undo });
+    });
+    advance(20000);
+    expect(dismiss).not.toHaveBeenCalledWith(id);
+    hidden.mockReturnValue(false);
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    advance(7999);
+    expect(dismiss).not.toHaveBeenCalledWith(id);
+    advance(1);
+    expect(dismiss).toHaveBeenCalledWith(id);
+  });
+
+  // Sonner's own timer stands still while the document is hidden; an action toast's timer too.
+  it("stands still while the document is hidden, then goes on with the time left (#582)", () => {
+    const { dismiss, id } = renderToaster();
+    const hidden = vi.spyOn(document, "hidden", "get");
+    const setHidden = (value: boolean) => {
+      hidden.mockReturnValue(value);
+      act(() => {
+        document.dispatchEvent(new Event("visibilitychange"));
+      });
+    };
+    advance(3000);
+    setHidden(true);
+    advance(20000);
+    expect(dismiss).not.toHaveBeenCalledWith(id);
+    setHidden(false);
+    advance(4999);
+    expect(dismiss).not.toHaveBeenCalledWith(id);
+    advance(1);
+    expect(dismiss).toHaveBeenCalledWith(id);
+    hidden.mockRestore();
   });
 });
 
