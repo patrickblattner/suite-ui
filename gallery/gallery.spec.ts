@@ -259,14 +259,14 @@ for (const lng of LANGUAGES) {
       await expect(dialog).toBeVisible();
       // #551: the dialog's box rounded inwards — an element shot rounds a fractional edge outwards
       // and takes a row of the slide canvas behind it along.
-      const box = (await dialog.boundingBox())!;
-      const x = Math.ceil(box.x);
-      const y = Math.ceil(box.y);
+      const edges = await box(dialog);
+      const x = Math.ceil(edges.x);
+      const y = Math.ceil(edges.y);
       const clip = {
         x,
         y,
-        width: Math.floor(box.x + box.width) - x,
-        height: Math.floor(box.y + box.height) - y,
+        width: Math.floor(edges.x + edges.width) - x,
+        height: Math.floor(edges.y + edges.height) - y,
       };
       await parkPointer(page);
       await expect(page).toHaveScreenshot(`slide-editor-transfer-dialog-${lng}-${theme}.png`, {
@@ -11617,8 +11617,11 @@ test("slide editor: a library tile with a cut label shows the full label", async
   await expect(tile).toHaveAccessibleName("A arrow down");
   await tile.hover();
   const bubble = page.getByRole("tooltip");
-  await expect(bubble).toContainText("A arrow down");
-  await expect(bubble).toContainText("Inserts A arrow down at the page’s centre.");
+  // The full label is the bubble's own first line, above the hint (which names the label too).
+  await expect(bubble.locator("span.block").first()).toHaveText("A arrow down");
+  await expect(bubble.locator("[data-slot=tooltip-hint]")).toContainText(
+    "Inserts A arrow down at the page’s centre.",
+  );
 });
 
 // #294 inc 3 review: a drop that is not an entry of the library — broken data, an unknown kind, an
