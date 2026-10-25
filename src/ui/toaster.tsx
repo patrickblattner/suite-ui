@@ -196,6 +196,32 @@ function cancelActionClose(id: string | number): void {
 
 type ShownToast = Parameters<NonNullable<ExternalToast["onDismiss"]>>[0];
 
+type ActionObject = Extract<NonNullable<ExternalToast["action"]>, { onClick: unknown }>;
+
+// The caller's action behind each one the wrapper handed sonner: a replacement that keeps the action
+// wraps the caller's again, not the wrapper's.
+const callerActions = new WeakMap<ActionObject, ActionObject>();
+
+// sonner closes a toast on a click on its action object without running its dismiss handler, so the
+// click drops the wrapper's timer itself (#585); an own element closes nothing on a click.
+function closingAction(
+  action: ExternalToast["action"],
+  id: () => string | number | undefined,
+): ActionObject | undefined {
+  if (typeof action !== "object" || action === null || !("onClick" in action)) return undefined;
+  const caller = callerActions.get(action) ?? action;
+  const wrapped: ActionObject = {
+    ...caller,
+    onClick: (event) => {
+      caller.onClick(event);
+      const shown = id();
+      if (!event.defaultPrevented && shown !== undefined) cancelActionClose(shown);
+    },
+  };
+  callerActions.set(wrapped, caller);
+  return wrapped;
+}
+
 // A toast with an action dismissed earlier (Esc, a keyboard move under it, its close button) drops its
 // timer; one its timer closed reports an auto close, as sonner's own timer would.
 function dismissMarked(item: ShownToast): void {
@@ -293,8 +319,11 @@ function prepare(
     };
   }
   const label = actionLabel(action);
+  let shownId = id;
+  const clicked = closingAction(action, () => shownId);
   const markedOpts = {
     ...opts,
+    ...(clicked === undefined ? {} : { action: clicked }),
     className: cn(own.className, ACTION_TOAST_CLASS),
     onDismiss: dismissMarked,
   };
@@ -305,6 +334,7 @@ function prepare(
       action: true,
       wrap,
       shown: (shown) => {
+        shownId = shown;
         marks.set(shown, own);
       },
     };
@@ -317,6 +347,7 @@ function prepare(
     action: true,
     wrap,
     shown: (shown) => {
+      shownId = shown;
       marks.set(shown, own);
       const close = { toaster, left, since: 0 };
       actionCloses.set(shown, close);
@@ -413,9 +444,11 @@ function promiseToast<T>(promise: PromiseArgs<T>[0], data?: PromiseArgs<T>[1]) {
             return text;
           }
         : description,
-    finally: async () => {
+    // Not async: sonner drops what this returns, so a caller's `finally` that throws must throw here,
+    // where sonner's chain makes `unwrap()` reject (#585).
+    finally: () => {
       if (element !== undefined && marks.has(id)) raise(sonnerToast, undefined, element, { id });
-      await settled?.();
+      return settled?.();
     },
   });
   loadingState?.shown(id);
@@ -425,8 +458,9 @@ function promiseToast<T>(promise: PromiseArgs<T>[0], data?: PromiseArgs<T>[1]) {
 // sonner's `toast` with the four variants timed by `toastDurationFor`; every route goes through
 // `prepare`, so a toast that shows an action gets its key hint and its duration on each of them,
 // `toast.custom` (its own element, sonner's action below it) and `toast.promise` (its loading state
-// and its result) too. `dismiss` is sonner's. Typed as sonner's `toast` so the emitted declaration
-// can name it (the inferred type references sonner's unexported types, TS4023).
+// and its result) too. `dismiss` is sonner's; it also takes the id `toast.promise` returns, which
+// sonner boxes with `unwrap` and its own `dismiss` does not match (#585). Typed as sonner's `toast` so
+// the emitted declaration can name it (the inferred type references sonner's unexported types, TS4023).
 const toast: typeof sonnerToast = Object.assign(
   (message: Message, opts?: ExternalToast) => raise(sonnerToast, undefined, message, opts),
   {
@@ -453,6 +487,12 @@ const toast: typeof sonnerToast = Object.assign(
       return id;
     },
     promise: promiseToast,
+    dismiss: (id?: string | number) => {
+      const shown: unknown = id;
+      return sonnerToast.dismiss(
+        shown instanceof String || shown instanceof Number ? shown.valueOf() : id,
+      );
+    },
   },
 );
 

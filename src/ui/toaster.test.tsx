@@ -75,8 +75,12 @@ describe("toast", () => {
     expect(toastDurationFor(<span>x</span>, "info")).toBe(1000);
   });
 
-  it("keeps sonner's dismiss", () => {
-    expect(toast.dismiss).toBe(sonnerToast.dismiss);
+  it("hands sonner's dismiss the id as it is, a boxed one unboxed (#585)", () => {
+    const dismiss = vi.spyOn(sonnerToast, "dismiss").mockImplementation((id) => id ?? 0);
+    toast.dismiss();
+    toast.dismiss("a");
+    toast.dismiss(Object.assign(new String("b"), { unwrap: () => undefined }) as unknown as string);
+    expect(dismiss.mock.calls).toEqual([[undefined], ["a"], ["b"]]);
   });
 });
 
@@ -1226,24 +1230,155 @@ describe("toast with an action: duration", () => {
   });
 
   // A promise toast without an id of the caller's gets `suite-promise-<n>`; the returned id names it.
-  // sonner returns the id boxed with `unwrap` (an object, as for its own numbers); its string dismisses.
-  it("returns an id for a toast.promise without one that dismisses that toast (#582)", () => {
+  // sonner returns the id boxed with `unwrap`; the wrapper's dismiss takes it as it is (#585).
+  it.each([
+    ["without an id", undefined, /^suite-promise-\d+$/],
+    ["with the caller's id", "mine", /^mine$/],
+    // A number comes back as a Number box.
+    ["with the caller's numeric id", 7, /^7$/],
+  ] as const)(
+    "returns an id for a toast.promise %s that dismisses that toast (#582, #585)",
+    (_case, given, pattern) => {
+      render(<Toaster />);
+      useAllFakeTimers();
+      let shown: ReturnType<typeof toast.promise> | undefined;
+      act(() => {
+        shown = toast.promise(new Promise<string>(() => undefined), {
+          id: given,
+          loading: "Restoring",
+        });
+      });
+      advance(1);
+      expect(String((shown as unknown as string).valueOf())).toMatch(pattern);
+      expect(toastOf("Restoring")).not.toHaveAttribute("data-removed", "true");
+      act(() => {
+        toast.dismiss(shown as unknown as string);
+      });
+      for (let step = 0; step < 10; step++) advance(500);
+      expect(screen.queryByText("Restoring")).toBeNull();
+    },
+  );
+
+  // sonner drops what the wrapper's `finally` returns; the caller's throw goes into `unwrap()`.
+  it("rejects unwrap() when the caller's finally throws (#585)", async () => {
+    render(<Toaster />);
+    const thrown = new Error("finally");
+    let shown: ReturnType<typeof toast.promise> | undefined;
+    act(() => {
+      shown = toast.promise(Promise.resolve("ok"), {
+        loading: "Restoring",
+        success: "Restored",
+        finally: () => {
+          throw thrown;
+        },
+      });
+    });
+    await expect(shown?.unwrap()).rejects.toBe(thrown);
+  });
+
+  // sonner closes the toast on an action click without its dismiss handler (#585).
+  // An action that prevents the default keeps its toast open: the timer goes on and closes it.
+  it("keeps the timer of a toast whose action click prevents the default (#585)", () => {
     render(<Toaster />);
     useAllFakeTimers();
-    let shown: unknown;
     act(() => {
-      shown = toast.promise(new Promise<string>(() => undefined), { loading: "Restoring" });
+      toast.success("Kept open", {
+        id: "z",
+        action: {
+          label: "Undo",
+          onClick: (event) => {
+            event.preventDefault();
+          },
+        },
+      });
     });
     advance(1);
-    const id = (shown as string).valueOf();
-    expect(id).toMatch(/^suite-promise-\d+$/);
-    expect(toastOf("Restoring")).not.toHaveAttribute("data-removed", "true");
-    act(() => {
-      toast.dismiss(id);
-    });
-    for (let step = 0; step < 10; step++) advance(500);
-    expect(screen.queryByText("Restoring")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    for (let step = 0; step < 15; step++) advance(500);
+    expect(toastOf("Kept open")).not.toHaveAttribute("data-removed", "true");
+    for (let step = 0; step < 4; step++) advance(500);
+    expect(screen.queryByText("Kept open")).toBeNull();
   });
+
+  it("drops the timer of a toast whose action is clicked; a toast that reuses its id reports onDismiss (#585)", () => {
+    render(<Toaster />);
+    useAllFakeTimers();
+    const dismiss = vi.spyOn(sonnerToast, "dismiss");
+    act(() => {
+      toast.success("Archived", { id: "u", action: undo });
+    });
+    advance(1);
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    for (let step = 0; step < 40; step++) advance(500);
+    expect(dismiss).not.toHaveBeenCalledWith("u");
+    const onDismiss = vi.fn();
+    const onAutoClose = vi.fn();
+    act(() => {
+      toast.success("Archived again", { id: "u", action: undo, onDismiss, onAutoClose });
+    });
+    advance(1);
+    // What Esc on a toast over the focus calls.
+    act(() => {
+      toast.dismiss();
+    });
+    for (let step = 0; step < 4; step++) advance(500);
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+    expect(onAutoClose).not.toHaveBeenCalled();
+  });
+
+  // The timer has closed the toast and sonner has not shown that yet: the call merges into it.
+  it("reports onDismiss for an action toast raised by its id right after its timer closed it (#585)", () => {
+    render(<Toaster />);
+    useAllFakeTimers();
+    act(() => {
+      toast.success("Archived", { id: "w", action: undo });
+    });
+    advance(1);
+    advance(7999);
+    const onDismiss = vi.fn();
+    const onAutoClose = vi.fn();
+    act(() => {
+      vi.advanceTimersByTime(1);
+      toast.success("Archived again", { id: "w", action: undo, onDismiss, onAutoClose });
+    });
+    advance(1);
+    act(() => {
+      toast.dismiss("w");
+    });
+    for (let step = 0; step < 4; step++) advance(500);
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+    expect(onAutoClose).not.toHaveBeenCalled();
+  });
+
+  // A call with neither `action` nor `onAutoClose` right after the dismissal: sonner's merge would
+  // hand on the action and the replaced toast's onAutoClose.
+  it.each([
+    ["without its own onAutoClose", false],
+    ["with its own onAutoClose", true],
+  ] as const)(
+    "gives a call %s right after the dismissal of an action toast no action and not the replaced onAutoClose (#585)",
+    (_case, ownClose) => {
+      render(<Toaster />);
+      useAllFakeTimers();
+      const replaced = vi.fn();
+      const onAutoClose = vi.fn();
+      act(() => {
+        toast.success("Archived", { id: "g", action: undo, onAutoClose: replaced });
+      });
+      advance(1);
+      act(() => {
+        toast.dismiss("g");
+        toast.message("Restored", { id: "g", ...(ownClose ? { onAutoClose } : {}) });
+      });
+      advance(1);
+      expect(toastOf("Restored")).not.toHaveClass("suite-toast-action");
+      expect(screen.queryByRole("button", { name: "Undo" })).toBeNull();
+      for (let step = 0; step < 10; step++) advance(500);
+      expect(screen.queryByText("Restored")).toBeNull();
+      expect(replaced).not.toHaveBeenCalled();
+      expect(onAutoClose).toHaveBeenCalledTimes(ownClose ? 1 : 0);
+    },
+  );
 
   it("starts the timer of an action toast raised while the document is hidden once visible (#582)", () => {
     render(<Toaster />);
