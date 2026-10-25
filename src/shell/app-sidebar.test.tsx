@@ -3,7 +3,7 @@ import { CalendarIcon, FileTextIcon, ListIcon, NewspaperIcon } from "lucide-reac
 import * as React from "react";
 import i18n from "i18next";
 import { createMemoryRouter, RouterProvider, useBlocker, useNavigate } from "react-router-dom";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { useLeaveConfirm } from "../ui/leave-guard.js";
 import { AppSidebar } from "./app-sidebar.js";
@@ -234,6 +234,10 @@ describe("AppSidebar", () => {
       await waitFor(() => expect(router.state.location.pathname).toBe("/dashboard"));
       await waitFor(() => expect(screen.queryByTestId("leave-guard")).toBeNull());
       await waitFor(() => expect(screen.getByTestId("nav-section-settings")).toHaveFocus());
+      // #571: the switch that goes on keeps the overlay open (`SUI-FEATURE-107`).
+      if (overlay) {
+        expect(screen.getByTestId("app-sidebar")).toHaveAttribute("data-overlay", "open");
+      }
     });
 
     it("Stay: a later route change to the same path moves no focus", async () => {
@@ -241,10 +245,19 @@ describe("AppSidebar", () => {
       fireEvent.click(screen.getByTestId("leave-guard-cancel"));
       await waitFor(() => expect(screen.queryByTestId("leave-guard")).toBeNull());
       expect(router.state.location.pathname).toBe("/settings/ai");
+      // #571: Stay leaves the list as it was, the overlay open and the focus back on the back link.
+      if (overlay) {
+        expect(screen.getByTestId("app-sidebar")).toHaveAttribute("data-overlay", "open");
+      }
+      await waitFor(() => expect(screen.getByTestId("nav-back")).toHaveFocus());
       fireEvent.click(screen.getByTestId("clean"));
       act(() => (document.activeElement as HTMLElement | null)?.blur());
       await act(() => router.navigate("/dashboard"));
       expect(screen.getByTestId("nav-section-settings")).not.toHaveFocus();
+      // #571: the dropped switch keeps nothing open, so that route change closes the overlay.
+      if (overlay) {
+        expect(screen.getByTestId("app-sidebar")).not.toHaveAttribute("data-overlay", "open");
+      }
     });
   });
 
@@ -253,8 +266,22 @@ describe("AppSidebar", () => {
       const { dialog } = useLeaveConfirm({ dirty: true, busy: false });
       return dialog;
     }
+    onTestFinished(() => {
+      vi.unstubAllGlobals();
+      localStorage.clear();
+    });
+    vi.stubGlobal(
+      "matchMedia",
+      vi.fn((query: string) => ({
+        matches: true,
+        media: query,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+      })),
+    );
     render(
       <ShellHarness route="/settings/ai">
+        <SidebarOverlayTrigger />
         <AppSidebar
           instanceName="Test instance"
           nav={TEST_NAV}
@@ -264,6 +291,8 @@ describe("AppSidebar", () => {
         <DirtyPage />
       </ShellHarness>,
     );
+    fireEvent.click(screen.getByTestId("sidebar-overlay-trigger"));
+    expect(screen.getByTestId("app-sidebar")).toHaveAttribute("data-overlay", "open");
     const back = screen.getByTestId("nav-back");
     act(() => back.focus());
     fireEvent.click(back, { detail: 0 });
@@ -271,6 +300,8 @@ describe("AppSidebar", () => {
     fireEvent.click(screen.getByTestId("leave-guard-discard"));
     await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/dashboard"));
     await waitFor(() => expect(screen.getByTestId("nav-section-settings")).toHaveFocus());
+    // #571: the switch that goes on keeps the overlay open (`SUI-FEATURE-107`).
+    expect(screen.getByTestId("app-sidebar")).toHaveAttribute("data-overlay", "open");
   });
 
   it("Stay under a history router: a later route change to the same path moves no focus", async () => {

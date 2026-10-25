@@ -37,8 +37,8 @@ type AppSidebarProps = {
   userMenu: React.ReactNode;
 };
 
-// The location-state key of a sidebar list switch: its id, so the focus after it follows only that
-// switch's own route change.
+// The location-state key of a sidebar list switch: its id, so the focus after it and the open overlay
+// kept through it follow only that switch's own route change.
 const SWITCH_STATE = "suiteSidebarSwitch";
 
 // An id unique across mounts and reloads: the history keeps the ids of earlier switches, so a counter
@@ -96,16 +96,20 @@ function AppSidebar({
   }, [overlayOpen, element]);
   const shownPath = React.useRef(pathname);
   // A section press and the back link switch the list inside the open overlay: their navigation keeps
-  // it open (`SUI-FEATURE-107` rev 3). Held as the target path, so a blocked navigation keeps nothing
-  // open later.
+  // it open (`SUI-FEATURE-107` rev 3). Held as the switch id its location state carries, so only the
+  // route change of that switch keeps it open: one a leave guard drops (Stay) leaves an id no later
+  // route change carries, and every route change consumes it, a same-path one included.
   const switchingTo = React.useRef<string | null>(null);
   React.useEffect(() => {
+    const id = switchingTo.current;
+    switchingTo.current = null;
     if (shownPath.current === pathname) return;
     shownPath.current = pathname;
-    const keep = switchingTo.current === pathname;
-    switchingTo.current = null;
-    if (overlayOpen && !keep) closeOverlay();
-  }, [pathname, overlayOpen, closeOverlay]);
+    const state = location.state as { [SWITCH_STATE]?: unknown } | null;
+    if (overlayOpen && (id === null || state?.[SWITCH_STATE] !== id)) closeOverlay();
+    // `location` is read for the state that came with the route change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.key]);
 
   const visible = allowedModel(nav, isAllowed);
   const activeSection = sectionForPath(
@@ -139,7 +143,7 @@ function AppSidebar({
   function switchTo(to: string, selector: string | null) {
     const id = switchId();
     focusAfterSwitch.current = selector !== null ? { id, selector } : null;
-    switchingTo.current = to;
+    switchingTo.current = id;
     void navigate(to, { state: { [SWITCH_STATE]: id } });
   }
 
