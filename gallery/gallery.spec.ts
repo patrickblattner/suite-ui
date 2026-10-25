@@ -257,7 +257,6 @@ for (const lng of LANGUAGES) {
       await page.getByTestId("slide-editor-transfer").click();
       const dialog = page.getByTestId("slide-editor-transfer-dialog");
       await expect(dialog).toBeVisible();
-      await parkPointer(page);
       // #551: the dialog's box rounded inwards — an element shot rounds a fractional edge outwards
       // and takes a row of the slide canvas behind it along.
       const box = (await dialog.boundingBox())!;
@@ -269,6 +268,7 @@ for (const lng of LANGUAGES) {
         width: Math.floor(box.x + box.width) - x,
         height: Math.floor(box.y + box.height) - y,
       };
+      await parkPointer(page);
       await expect(page).toHaveScreenshot(`slide-editor-transfer-dialog-${lng}-${theme}.png`, {
         clip,
       });
