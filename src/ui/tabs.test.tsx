@@ -152,3 +152,40 @@ describe("TabsTrigger", () => {
     );
   });
 });
+
+// #570 (`GL-UI-050`): only a move to another trigger of the same list keeps the focused tab stop.
+describe("TabsTrigger tab stop and entry", () => {
+  it("resets the tab stop when the focus leaves through the list container", () => {
+    renderTabs(vi.fn());
+    act(() => screen.getByRole("button", { name: "Outside" }).focus());
+    act(() => screen.getByRole("tab", { name: "Notes" }).focus());
+    // A press in the list's padding focuses the list itself (Radix gives it tabIndex 0).
+    fireEvent.mouseDown(screen.getByRole("tablist"));
+    act(() => screen.getByRole("tablist").focus());
+    act(() => screen.getByRole("button", { name: "Outside" }).focus());
+    expect(screen.getByRole("tab", { name: "General" })).toHaveAttribute("tabindex", "0");
+    expect(screen.getByRole("tab", { name: "Notes" })).toHaveAttribute("tabindex", "-1");
+  });
+
+  it("does not activate the trigger the entry focus lands on when the selected one is disabled", () => {
+    const onValueChange = vi.fn();
+    render(
+      <>
+        <button type="button">Outside</button>
+        <Tabs value="general" onValueChange={onValueChange}>
+          <TabsList>
+            <TabsTrigger value="general" disabled>
+              General
+            </TabsTrigger>
+            <TabsTrigger value="notes">Notes</TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </>,
+    );
+    act(() => screen.getByRole("button", { name: "Outside" }).focus());
+    // Tab from outside reaches the list first; Radix moves the entry focus on to a focusable trigger.
+    act(() => screen.getByRole("tablist").focus());
+    expect(screen.getByRole("tab", { name: "Notes" })).toHaveFocus();
+    expect(onValueChange).not.toHaveBeenCalled();
+  });
+});

@@ -93,13 +93,14 @@ function TabsList({
   );
 }
 
-// A trigger activates on focus only when the focus moves within its own tab list (arrow keys, Home,
-// End); a press activates it on its own. A focus from outside — a dialog returning it on close
+// A trigger activates on focus only when the focus moves to it from another trigger of its own tab list
+// (arrow keys, Home, End) — not from the list container, where a Tab entry passes through (#570); a press activates it on its own. A focus from outside — a dialog returning it on close
 // (`GL-UI-050`) — leaves the selection as it is: the leave dialog's Cancel would else activate the
 // trigger that asked again and reopen the dialog (#557). `Tabs` drops that one activation, so Radix's
 // roving focus still follows (#559); a caller's `onFocus` that prevents the default skips both. While
 // the focus is in the list the focused trigger is the tab stop, once it leaves the selected one is, so
-// re-entering the list lands on it (WAI-ARIA tabs, #559).
+// re-entering the list lands on it (WAI-ARIA tabs, #559); a blur to the list container counts as leaving
+// it, since the list's own blur runs no handler (#570).
 function TabsTrigger({
   className,
   onFocus,
@@ -129,13 +130,13 @@ function TabsTrigger({
           props.disabled !== true &&
           focusContext.automatic &&
           focusContext.value !== props.value &&
-          !inList(event.currentTarget, event.relatedTarget)
+          !isSiblingTab(event.currentTarget, event.relatedTarget)
         )
           focusContext.holdBack(props.value);
       }}
       onBlur={(event) => {
         onBlur?.(event);
-        if (focusContext !== null && !inList(event.currentTarget, event.relatedTarget))
+        if (focusContext !== null && !isSiblingTab(event.currentTarget, event.relatedTarget))
           focusContext.setFocused(null);
       }}
       className={cn(
@@ -150,8 +151,12 @@ function TabsTrigger({
   );
 }
 
-function inList(trigger: Element, other: EventTarget | null) {
-  return other instanceof Node && trigger.closest('[role="tablist"]')?.contains(other) === true;
+function isSiblingTab(trigger: Element, other: EventTarget | null) {
+  return (
+    other instanceof Element &&
+    other.getAttribute("role") === "tab" &&
+    other.closest('[role="tablist"]') === trigger.closest('[role="tablist"]')
+  );
 }
 
 function TabsContent({ className, ...props }: React.ComponentProps<typeof TabsPrimitive.Content>) {
