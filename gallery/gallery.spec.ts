@@ -817,12 +817,15 @@ test("toast: the receipt over the returned focus closes after 1000 ms, Esc earli
   }
 });
 
-// `SUI-FEATURE-101` rev 5 AC 6: by keyboard ⋯ → Archive → confirm, the receipt with Undo appears
-// over the returned focus and keeps its normal duration; the live region names Undo and Alt+T.
-// Alt+T, then Enter on Undo undoes the archive; a Tab onto a covered element or `Esc` closes it at once.
+// `SUI-FEATURE-101` rev 6 AC 6: by keyboard ⋯ → Archive → confirm, the receipt with Undo appears
+// over the returned focus and stays at least 8000 ms; the live region names Undo and Alt+T. Alt+T,
+// then Enter on Undo undoes the archive and the focus is back on the ⋯ (#550, `GL-UI-050`); so is it
+// after a Tab past Undo, with its ring. A Tab onto a covered element or `Esc` closes it at once.
 test("toast: the receipt with Undo over the returned focus stays, Alt+T reaches Undo", async ({
   page,
 }) => {
+  // Six rounds, one of them waits out the receipt's 8000 ms.
+  test.setTimeout(60_000);
   await page.goto("/?page=preview&lng=en&receipt=1");
   const trigger = page
     .getByTestId("preview-row-menu")
@@ -840,8 +843,28 @@ test("toast: the receipt with Undo over the returned focus stays, Alt+T reaches 
       node.y - 4 < toastBox.y + toastBox.height
     );
   };
-  for (const round of ["undo", "Tab", "Escape"]) {
-    await expect(toasts).toHaveCount(0, { timeout: 5000 });
+  const ring = (element: Locator) => element.evaluate((el) => el.matches(":focus-visible"));
+  const undo = receipt.getByRole("button", { name: "Undo" });
+  const hint = receipt.getByText("Alt+T leads to Undo");
+  // Alt+T focuses the toasts, Tab reaches Undo.
+  const reachUndo = async () => {
+    await page.keyboard.press("Alt+T");
+    for (
+      let step = 0;
+      step < 5 && !(await undo.evaluate((el) => el === document.activeElement));
+      step++
+    )
+      await page.keyboard.press("Tab");
+    await expect(undo).toBeFocused();
+  };
+  // Beside the ⋯: before it its row's Edit, under the receipt; after it the preview header's Edit,
+  // below the receipt.
+  const before = page
+    .getByTestId("preview-row-menu")
+    .getByTestId("row-menu-actions")
+    .getByTestId("row-edit");
+  for (const round of ["undo", "past", "Tab", "Shift+Tab", "Escape", "time"]) {
+    await expect(toasts).toHaveCount(0, { timeout: 9000 });
     await trigger.focus();
     await page.keyboard.press("Enter");
     await page.getByRole("menu").getByRole("menuitem", { name: "Archive" }).focus();
@@ -851,36 +874,53 @@ test("toast: the receipt with Undo over the returned focus stays, Alt+T reaches 
     await expect(trigger).toBeFocused();
     await expect(receipt).toBeVisible();
     await expect(page.locator("[aria-live=polite] [data-sonner-toast]")).toHaveCount(1);
-    await expect(receipt).toContainText("Undo with Alt+T");
-    await expect(receipt.getByRole("button", { name: "Undo" })).toBeVisible();
+    // The hint says that Alt+T reaches Undo, not that it undoes (#550).
+    await expect(hint).toBeVisible();
+    await expect(undo).toBeVisible();
     await page.waitForTimeout(500);
     expect(await covers(trigger)).toBe(true);
     if (round === "undo") {
       // Past the 1000 ms a receipt without an action gets: this one keeps its own duration.
       await page.waitForTimeout(800);
       await expect(receipt).toHaveAttribute("data-removed", "false");
-      await page.keyboard.press("Alt+T");
-      const undo = receipt.getByRole("button", { name: "Undo" });
-      for (
-        let step = 0;
-        step < 5 && !(await undo.evaluate((el) => el === document.activeElement));
-        step++
-      )
-        await page.keyboard.press("Tab");
-      await expect(undo).toBeFocused();
+      await reachUndo();
+      // With the focus inside, the hint is not read again.
+      await expect(hint).toBeHidden();
       await page.keyboard.press("Enter");
+      // The focus is back on the ⋯ at once, never on <body>.
+      await expect(trigger).toBeFocused({ timeout: 100 });
+      expect(await ring(trigger)).toBe(true);
       await expect(toasts.filter({ hasText: "Home restored." })).toBeVisible();
       continue;
     }
-    if (round === "Tab") {
-      // The first keyboard move onto an element under it closes it; one beside it leaves it open.
+    if (round === "past") {
+      // Undo is the last Tab stop: the next Tab leaves the toasts, the ⋯ gets the focus and its ring.
+      await reachUndo();
+      await page.keyboard.press("Tab");
+      await expect(trigger).toBeFocused();
+      expect(await ring(trigger)).toBe(true);
+    } else if (round === "Tab") {
+      // A move beside it leaves it open; the move back onto the ⋯ under it closes it.
+      await page.keyboard.press("Tab");
+      const after = page.locator(":focus");
+      await expect(after).toHaveAttribute("data-testid", "row-edit");
+      expect(await covers(after)).toBe(false);
+      await page.waitForTimeout(300);
+      await expect(receipt).toHaveAttribute("data-removed", "false");
       await page.keyboard.press("Shift+Tab");
-      const moved = page.locator(":focus");
-      if (!(await covers(moved))) {
-        await expect(receipt).toHaveAttribute("data-removed", "false");
-        await page.keyboard.press("Tab");
-        await expect(trigger).toBeFocused();
-      }
+      await expect(trigger).toBeFocused();
+    } else if (round === "Shift+Tab") {
+      // The first keyboard move onto an element under it closes it.
+      expect(await covers(before)).toBe(true);
+      await page.keyboard.press("Shift+Tab");
+      await expect(before).toBeFocused();
+    } else if (round === "time") {
+      // At least 8000 ms from its appearance, 500 ms of them have passed; then it closes by itself.
+      await page.waitForTimeout(7000);
+      await expect(receipt).toHaveAttribute("data-removed", "false");
+      await expect(toasts).toHaveCount(0, { timeout: 2500 });
+      await expect(trigger).toBeFocused();
+      continue;
     } else {
       await page.keyboard.press("Escape");
       await expect(trigger).toBeFocused();

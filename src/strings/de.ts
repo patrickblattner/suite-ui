@@ -32,9 +32,10 @@ export const de: SuiteStrings = {
     more_one: "1 weiterer",
     more_other: "{{n}} weitere",
     // A toast action's key route: sonner's hotkey focuses the toasts (`SUI-FEATURE-101` rev 5).
-    actionKey: "{{action}} mit Alt+T",
+    // It says that Alt+T reaches the action, not that it triggers it (#550).
+    actionKey: "Alt+T führt zu {{action}}",
     // An action without a text label, as an own element (`SUI-FEATURE-101` rev 6, #561).
-    actionKeyUnnamed: "Aktion mit Alt+T",
+    actionKeyUnnamed: "Alt+T führt zur Aktion",
   },
   inline: {
     error: "Fehler:",

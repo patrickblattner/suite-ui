@@ -6,7 +6,7 @@ import {
   TriangleAlertIcon,
 } from "lucide-react";
 import * as React from "react";
-import { useTranslation } from "react-i18next";
+import { getI18n, useTranslation } from "react-i18next";
 import {
   type ExternalToast,
   Toaster as Sonner,
@@ -53,20 +53,24 @@ function withDuration(
   return { ...opts, duration: toastDurationFor(message, variant, opts?.duration) };
 }
 
-// sonner's `toast` with the four variants timed by `toastDurationFor`; everything else (the plain
-// call, `dismiss`, `promise`, `loading`, `custom`) is sonner's own. Typed as sonner's `toast` so the
-// emitted declaration can name it (the inferred type references sonner's unexported types, TS4023).
-// A toast with an action names it in the live region with its key route, sonner's hotkey Alt+T that
-// focuses the toasts (`SUI-FEATURE-101` rev 5). An action without a text label (an own element) is
-// named generically.
+// The key route sonner's hotkey Alt+T gives a toast's action: it focuses the toasts, from where Tab
+// reaches the action (`SUI-FEATURE-101` rev 5). An action without a text label (an own element, a
+// node as label) is named generically (#561, #550).
+function actionKeyText(
+  t: (key: string, options?: Record<string, unknown>) => string,
+  action?: string,
+) {
+  return action === undefined ? t("status.actionKeyUnnamed") : t("status.actionKey", { action });
+}
+
+// A toast with an action names it in the live region with its key route. Once the focus is inside
+// the toasts the route is there already, so the hint leaves the toast's text and is not read again.
 function ActionKeyHint({ message, action }: { message: Message; action: string | undefined }) {
   const { t } = useTranslation("suite");
   return (
     <>
       <span>{typeof message === "function" ? message() : message}</span>{" "}
-      <span className="sr-only">
-        {action === undefined ? t("status.actionKeyUnnamed") : t("status.actionKey", { action })}
-      </span>
+      <span className="sr-only group-focus-within/toaster:hidden">{actionKeyText(t, action)}</span>
     </>
   );
 }
@@ -79,48 +83,132 @@ function rendersAction(action: ExternalToast["action"]): boolean {
   );
 }
 
-function withActionHint(message: Message, opts?: ExternalToast): Message {
-  const action = opts?.action;
-  if (!rendersAction(action)) return message;
+// The action's text label; undefined for an own element or a node as label.
+function actionLabel(action: ExternalToast["action"]): string | undefined {
   const label =
     typeof action === "object" && action !== null && "label" in action ? action.label : undefined;
-  return <ActionKeyHint message={message} action={typeof label === "string" ? label : undefined} />;
+  return typeof label === "string" ? label : undefined;
 }
 
 // A toast with an action, sonner's object form or an own element, carries this class: the
 // dismissal under the focus reads it (`SUI-FEATURE-101` rev 6, #561).
 const ACTION_TOAST_CLASS = "suite-toast-action";
 
-function withActionMark(opts?: ExternalToast): ExternalToast | undefined {
-  if (opts === undefined || !rendersAction(opts.action)) return opts;
-  return { ...opts, className: cn(opts.className, ACTION_TOAST_CLASS) };
+// A toast with an action stays at least this long, so its action stays reachable (`SUI-FEATURE-101`
+// rev 6).
+const ACTION_TOAST_MIN_MS = 8000;
+
+/**
+ * The duration of a toast with an action (`SUI-FEATURE-101` rev 6): the larger of
+ * `ACTION_TOAST_MIN_MS` and the reading time (`toastDurationFor`) of all the live region reads, the
+ * message and the screen-reader-only key hint. A call without a variant (the plain call,
+ * `toast.message`) reads at the info base.
+ */
+function actionToastDurationFor(
+  message: unknown,
+  variant: ToastVariant,
+  action?: string,
+  duration?: number,
+): number {
+  const hint = actionKeyText(
+    (key, options) => getI18n().t(key, { ns: "suite", ...options }),
+    action,
+  );
+  const text = typeof message === "string" ? `${message} ${hint}` : hint;
+  return Math.max(ACTION_TOAST_MIN_MS, toastDurationFor(text, variant, duration));
 }
 
+// The close timers of the toasts with an action, by toast id: they close by this package's timer,
+// not sonner's, which pauses only while the stack is expanded. While pointer or focus is in the
+// toaster every timer stands still; afterwards it goes on with the time left (rev 6).
+type ActionClose = { left: number; since: number; timer?: ReturnType<typeof setTimeout> };
+const actionCloses = new Map<string | number, ActionClose>();
+let actionClosesPaused = false;
+
+function runActionClose(id: string | number, close: ActionClose): void {
+  close.since = Date.now();
+  close.timer = setTimeout(() => {
+    actionCloses.delete(id);
+    sonnerToast.dismiss(id);
+  }, close.left);
+}
+
+function cancelActionClose(id: string | number): void {
+  clearTimeout(actionCloses.get(id)?.timer);
+  actionCloses.delete(id);
+}
+
+function pauseActionCloses(paused: boolean): void {
+  if (paused === actionClosesPaused) return;
+  actionClosesPaused = paused;
+  for (const [id, close] of actionCloses) {
+    if (paused) {
+      clearTimeout(close.timer);
+      close.left -= Date.now() - close.since;
+    } else runActionClose(id, close);
+  }
+}
+
+type Show = (message: Message, opts?: ExternalToast) => string | number;
+
+// Raises a toast through sonner's `show`; a variant times it by `toastDurationFor`. A toast with an
+// action gets its key hint and its mark, and closes after `actionToastDurationFor` by its own timer;
+// a loading one (`timed` false) stays until it is replaced, as in sonner. A call that replaces a
+// toast by its id drops that toast's timer.
+function raise(
+  show: Show,
+  variant: ToastVariant | undefined,
+  message: Message,
+  opts?: ExternalToast,
+  timed = true,
+): string | number {
+  if (opts?.id !== undefined) cancelActionClose(opts.id);
+  if (!rendersAction(opts?.action))
+    return show(message, variant === undefined ? opts : withDuration(message, variant, opts));
+  const action = actionLabel(opts?.action);
+  const hinted = <ActionKeyHint message={message} action={action} />;
+  const marked = { ...opts, className: cn(opts?.className, ACTION_TOAST_CLASS) };
+  if (!timed) return show(hinted, marked);
+  // A toast dismissed earlier (Esc, a keyboard move under it, its close button) drops its timer.
+  const id = show(hinted, {
+    ...marked,
+    duration: Number.POSITIVE_INFINITY,
+    onDismiss: (item) => {
+      cancelActionClose(item.id);
+      opts?.onDismiss?.(item);
+    },
+  });
+  const close = {
+    left: actionToastDurationFor(message, variant ?? "info", action, opts?.duration),
+    since: 0,
+  };
+  actionCloses.set(id, close);
+  if (!actionClosesPaused) runActionClose(id, close);
+  return id;
+}
+
+// sonner's `toast` with the four variants timed by `toastDurationFor`; the plain call,
+// `toast.message` and `toast.loading` go through the same wrapper, so a toast with an action gets
+// its key hint and its duration on every route but two: `toast.custom` draws its own element and no
+// action of sonner's, and `toast.promise` is sonner's own, its action without hint or own duration.
+// `dismiss` is sonner's. Typed as sonner's `toast` so the emitted declaration can name it (the
+// inferred type references sonner's unexported types, TS4023).
 const toast: typeof sonnerToast = Object.assign(
-  (message: Message, opts?: ExternalToast) =>
-    sonnerToast(withActionHint(message, opts), withActionMark(opts)),
+  (message: Message, opts?: ExternalToast) => raise(sonnerToast, undefined, message, opts),
   {
     ...sonnerToast,
     success: (message: Message, opts?: ExternalToast) =>
-      sonnerToast.success(
-        withActionHint(message, opts),
-        withActionMark(withDuration(message, "success", opts)),
-      ),
+      raise(sonnerToast.success, "success", message, opts),
     error: (message: Message, opts?: ExternalToast) =>
-      sonnerToast.error(
-        withActionHint(message, opts),
-        withActionMark(withDuration(message, "error", opts)),
-      ),
+      raise(sonnerToast.error, "error", message, opts),
     warning: (message: Message, opts?: ExternalToast) =>
-      sonnerToast.warning(
-        withActionHint(message, opts),
-        withActionMark(withDuration(message, "warning", opts)),
-      ),
+      raise(sonnerToast.warning, "warning", message, opts),
     info: (message: Message, opts?: ExternalToast) =>
-      sonnerToast.info(
-        withActionHint(message, opts),
-        withActionMark(withDuration(message, "info", opts)),
-      ),
+      raise(sonnerToast.info, "info", message, opts),
+    message: (message: Message, opts?: ExternalToast) =>
+      raise(sonnerToast.message, undefined, message, opts),
+    loading: (message: Message, opts?: ExternalToast) =>
+      raise(sonnerToast.loading, undefined, message, opts, false),
   },
 );
 
@@ -298,7 +386,7 @@ function useDismissToastsUnderFocus(toasts: React.RefObject<HTMLElement | null>)
       toast.dismiss();
     };
     const onFocusIn = (event: FocusEvent) => {
-      dismissIfCovered(event.target);
+      if (!returningFocus) dismissIfCovered(event.target);
     };
     // An `Esc` an open layer (menu, popover, sheet) already took closes only that layer.
     const onKeyDown = (event: KeyboardEvent) => {
@@ -340,6 +428,112 @@ function useDismissToastsUnderFocus(toasts: React.RefObject<HTMLElement | null>)
   }, [toasts]);
 }
 
+// The Tab stops in the toasts: each toast, its buttons and links.
+const TABBABLE = "[data-sonner-toast], button:not(:disabled), a[href]";
+
+// Set while `useToasterFocus` gives a leaving toast's focus back: that is no move of the user's, so
+// the dismissal under the focus lets it pass (a toast the action raised keeps its time, rev 4).
+let returningFocus = false;
+
+/**
+ * The focus that enters the toasts (Alt+T, Tab) goes back where it came from (`GL-UI-050`, #550):
+ * the element focused before it entered, never `<body>`. It goes back when a toast takes the focus
+ * along as it leaves (Enter on its action, its timer, a dismissal): once the toast is marked
+ * removed, still in the DOM, or once its node is gone (Chrome fires no blur then). It goes back as
+ * well on Tab past the last toast control, which would otherwise leave the page, and when the focus
+ * leaves the toasts for elsewhere or for nothing; with its ring (`focusVisible`) when the focus in
+ * the toasts showed one, where sonner's own return to the same element would come without it.
+ * Meanwhile the close timers of the toasts with an action stand still while pointer or focus is in
+ * the toaster (`SUI-FEATURE-101` rev 6).
+ */
+function useToasterFocus(toasts: React.RefObject<HTMLElement | null>): void {
+  React.useEffect(() => {
+    const wrapper = toasts.current;
+    if (wrapper === null) return;
+    let before: HTMLElement | null = null;
+    // Whether the focus in the toasts shows its ring: the return shows it then, and only then.
+    let ring = false;
+    let pointer = false;
+    const pause = () => {
+      pauseActionCloses(pointer || wrapper.contains(document.activeElement));
+    };
+    // A return for a leaving toast is quiet: the dismissal under the focus lets it pass.
+    const giveBack = (quiet: boolean) => {
+      const target = before;
+      before = null;
+      if (target === null || !target.isConnected || document.activeElement === target) return;
+      returningFocus = quiet;
+      target.focus({ preventScroll: true, focusVisible: ring });
+      returningFocus = false;
+    };
+    const onFocusIn = (event: FocusEvent) => {
+      const target = event.target as Element;
+      if (!wrapper.contains(target)) {
+        before = null;
+      } else {
+        ring = target.matches(":focus-visible");
+        const from = event.relatedTarget;
+        if (before === null && from instanceof HTMLElement && !wrapper.contains(from))
+          before = from;
+      }
+      pause();
+    };
+    const onFocusOut = (event: FocusEvent) => {
+      if (event.relatedTarget instanceof Node && wrapper.contains(event.relatedTarget)) return;
+      giveBack(false);
+      pause();
+    };
+    // Tab past the last toast control would leave the page when the toaster ends the document; it
+    // goes back instead, the page keeps the focus.
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Tab" || event.shiftKey || before === null) return;
+      const stops = wrapper.querySelectorAll(TABBABLE);
+      if (stops.length === 0 || stops[stops.length - 1] !== document.activeElement) return;
+      event.preventDefault();
+      giveBack(false);
+    };
+    const onPointerEnter = () => {
+      pointer = true;
+      pause();
+    };
+    const onPointerLeave = () => {
+      pointer = false;
+      pause();
+    };
+    const leaving = new MutationObserver(() => {
+      const active = document.activeElement;
+      if (
+        active === null ||
+        active === document.body ||
+        active.closest("[data-sonner-toast][data-removed=true]") !== null
+      )
+        giveBack(true);
+      pause();
+    });
+    leaving.observe(wrapper, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["data-removed"],
+    });
+    document.addEventListener("focusin", onFocusIn);
+    // On the wrapper, so it runs before sonner's own return, which React handles at its root.
+    wrapper.addEventListener("focusout", onFocusOut);
+    wrapper.addEventListener("keydown", onKeyDown);
+    wrapper.addEventListener("pointerenter", onPointerEnter);
+    wrapper.addEventListener("pointerleave", onPointerLeave);
+    return () => {
+      leaving.disconnect();
+      document.removeEventListener("focusin", onFocusIn);
+      wrapper.removeEventListener("focusout", onFocusOut);
+      wrapper.removeEventListener("keydown", onKeyDown);
+      wrapper.removeEventListener("pointerenter", onPointerEnter);
+      wrapper.removeEventListener("pointerleave", onPointerLeave);
+      pauseActionCloses(false);
+    };
+  }, [toasts]);
+}
+
 type ToasterAppProps = Omit<ToasterProps, "position" | "offset" | "mobileOffset">;
 
 // `theme` follows the app: pass its resolved theme ("light" or "dark").
@@ -347,6 +541,7 @@ function Toaster({ theme = "light", ...props }: ToasterAppProps) {
   const { t } = useTranslation("suite");
   const toasts = React.useRef<HTMLDivElement>(null);
   useDismissToastsUnderFocus(toasts);
+  useToasterFocus(toasts);
   // The symbol shows the variant; its name is read before the message, so the variant does not rest
   // on colour and symbol alone (`GL-UI-060`).
   const named = (icon: React.ReactNode, name: string) => (
@@ -359,7 +554,8 @@ function Toaster({ theme = "light", ...props }: ToasterAppProps) {
     <div ref={toasts} onClick={dismissAllOnToastClick}>
       <Sonner
         theme={theme}
-        className="toaster group"
+        // `group/toaster`: the key hint leaves the toast's text while the focus is inside.
+        className="toaster group group/toaster"
         icons={{
           success: named(
             <CircleCheckIcon aria-hidden="true" className="size-4" />,
