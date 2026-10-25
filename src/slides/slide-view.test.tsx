@@ -1016,7 +1016,13 @@ describe("SlideView past-page notices of a master", () => {
 // crop refers to that area: as much of it is hidden on one side as on the opposite one.
 describe("SlideView bordered image", () => {
   const page = SLIDE_SHOWCASE.pages[0]!;
-  const bordered = async (crop: { zoom: number; offsetX: number; offsetY: number }) => {
+  const bordered = async (
+    crop: { zoom: number; offsetX: number; offsetY: number },
+    color: { kind: "free"; value: string } | { kind: "brand"; key: string } = {
+      kind: "free",
+      value: "#dc2626",
+    },
+  ) => {
     const document = {
       ...SLIDE_SHOWCASE,
       pages: [
@@ -1027,7 +1033,7 @@ describe("SlideView bordered image", () => {
               ? {
                   ...element,
                   crop,
-                  border: { color: { kind: "free", value: "#dc2626" }, width: 10 },
+                  border: { color, width: 10 },
                 }
               : element,
           ),
@@ -1059,6 +1065,21 @@ describe("SlideView bordered image", () => {
       top: 95,
       bottom: 95,
     });
+  });
+
+  // #561: a border whose colour does not resolve still takes its width, transparent, so the image
+  // fills the area inside it.
+  it("keeps the border's width transparent when its colour does not resolve", async () => {
+    expect(
+      await bordered({ zoom: 1, offsetX: 0, offsetY: 0 }, { kind: "brand", key: "nope" }),
+    ).toEqual({
+      left: 0,
+      right: 0,
+      top: 0,
+      bottom: 0,
+    });
+    const frame = screen.getByRole("img", { name: "Hills under a sun" }).parentElement!;
+    expect(frame.style.border).toBe("10px solid transparent");
   });
 
   // A crop stored for the whole frame (before rev 5) reaches past the area's limit: drawn at it.

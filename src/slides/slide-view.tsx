@@ -563,7 +563,12 @@ function image(draw: Draw, element: ElementOf<"image">) {
         overflow: "hidden",
         boxSizing: "border-box",
         borderRadius: px(element.cornerRadius),
-        border: borderOf(draw, element.border),
+        // A border whose colour does not resolve keeps its width, transparent: the image stays in
+        // the area `cropArea` gives (#561).
+        border:
+          element.border === undefined
+            ? undefined
+            : (borderOf(draw, element.border) ?? `${px(element.border.width)} solid transparent`),
         boxShadow: shadowOf(draw, element.shadow),
       }}
     >

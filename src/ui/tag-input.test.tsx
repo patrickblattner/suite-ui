@@ -598,6 +598,40 @@ describe("TagInput passes props to its text field", () => {
     expect(chips()).toEqual(["a"]);
   });
 
+  // #561: a read-only field shows its tags and changes none of them.
+  it("read-only, keeps its tags on Backspace, Enter, comma and blur", () => {
+    const onChange = vi.fn();
+    render(<TagInput value={["protected"]} onChange={onChange} readOnly />);
+    expect(field()).toHaveAttribute("readonly");
+    fireEvent.keyDown(field(), { key: "Backspace" });
+    // A text that reached the field anyway (set from outside) is not taken over either.
+    type("new");
+    fireEvent.keyDown(field(), { key: "Enter" });
+    fireEvent.keyDown(field(), { key: "," });
+    fireEvent.blur(field());
+    expect(onChange).not.toHaveBeenCalled();
+    expect(chips()).toEqual(["protected"]);
+  });
+
+  it("read-only, shows its tags as badges without ×", () => {
+    render(<TagInput value={["protected"]} onChange={() => undefined} readOnly />);
+    expect(chips()).toEqual(["protected"]);
+    expect(screen.getByTestId("tag-input-chip")).toHaveAttribute("data-slot", "badge");
+    expect(screen.queryByRole("button", { name: "Remove tag protected" })).toBeNull();
+  });
+
+  it("read-only and empty, shows no placeholder", () => {
+    render(<TagInput value={[]} onChange={() => undefined} placeholder="Add tags" readOnly />);
+    expect(field()).not.toHaveAttribute("placeholder");
+  });
+
+  it("read-only, leaves Enter to the form even with text in the field", () => {
+    render(<TagInput value={[]} onChange={() => undefined} readOnly />);
+    type("new");
+    // `fireEvent` answers false when a handler called preventDefault.
+    expect(fireEvent.keyDown(field(), { key: "Enter" })).toBe(true);
+  });
+
   it("onKeyUp and onPaste reach the text field", () => {
     const onKeyUp = vi.fn();
     const onPaste = vi.fn();

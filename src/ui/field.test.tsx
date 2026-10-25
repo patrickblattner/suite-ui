@@ -1,7 +1,9 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
+import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { Field } from "./field.js";
+import { FieldSubmitContext, useFieldSubmits } from "./field-error.js";
 import { Input } from "./input.js";
 
 afterEach(() => {
@@ -203,5 +205,38 @@ describe("Field group label hover", () => {
     expect(hover(screen.getByText("Mode"))).toBe("Fast skips the checks.");
     expect(document.getElementById("mode-help")).toBeNull();
     expect(screen.getByRole("group")).toHaveAttribute("aria-describedby", "mode-value-hint");
+  });
+});
+
+// #561 (GL-UI-038): a submit ends the typing, so an error the app returns after it shows at once,
+// the focus still in the control.
+describe("Field error after a submit", () => {
+  it("shows a server error returned after a keyboard submit while the control keeps the focus (#561)", () => {
+    function Form({ error }: { error?: string }) {
+      const [submits, submitted] = useFieldSubmits();
+      const [name, setName] = useState("");
+      return (
+        <FieldSubmitContext.Provider value={submits}>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              submitted(event.currentTarget);
+            }}
+          >
+            <Field label="Name" htmlFor="name" error={error}>
+              <Input id="name" value={name} onChange={(event) => setName(event.target.value)} />
+            </Field>
+          </form>
+        </FieldSubmitContext.Provider>
+      );
+    }
+    const { rerender } = render(<Form />);
+    const name = screen.getByLabelText("Name");
+    act(() => name.focus());
+    fireEvent.change(name, { target: { value: "Taken" } });
+    fireEvent.submit(name.closest("form")!);
+    rerender(<Form error="This name is taken." />);
+    expect(name).toHaveFocus();
+    expect(screen.getByText("This name is taken.")).toBeInTheDocument();
   });
 });

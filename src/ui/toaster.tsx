@@ -14,6 +14,8 @@ import {
   type ToasterProps,
 } from "sonner";
 
+import { cn } from "../lib/cn.js";
+
 type ToastVariant = "info" | "success" | "warning" | "error";
 
 // Reading time (`GL-UI-029`): the variant's base duration, which is also its floor, plus ~50 ms per
@@ -55,36 +57,70 @@ function withDuration(
 // call, `dismiss`, `promise`, `loading`, `custom`) is sonner's own. Typed as sonner's `toast` so the
 // emitted declaration can name it (the inferred type references sonner's unexported types, TS4023).
 // A toast with an action names it in the live region with its key route, sonner's hotkey Alt+T that
-// focuses the toasts (`SUI-FEATURE-101` rev 5).
-function ActionKeyHint({ message, action }: { message: Message; action: string }) {
+// focuses the toasts (`SUI-FEATURE-101` rev 5). An action without a text label (an own element) is
+// named generically.
+function ActionKeyHint({ message, action }: { message: Message; action: string | undefined }) {
   const { t } = useTranslation("suite");
   return (
     <>
       <span>{typeof message === "function" ? message() : message}</span>{" "}
-      <span className="sr-only">{t("status.actionKey", { action })}</span>
+      <span className="sr-only">
+        {action === undefined ? t("status.actionKeyUnnamed") : t("status.actionKey", { action })}
+      </span>
     </>
+  );
+}
+
+// Whether sonner draws the action: an own element, or its object form with a label (#561).
+function rendersAction(action: ExternalToast["action"]): boolean {
+  if (React.isValidElement(action)) return true;
+  return (
+    typeof action === "object" && action !== null && "label" in action && action.label !== undefined
   );
 }
 
 function withActionHint(message: Message, opts?: ExternalToast): Message {
   const action = opts?.action;
-  if (typeof action !== "object" || action === null || !("label" in action)) return message;
-  if (typeof action.label !== "string") return message;
-  return <ActionKeyHint message={message} action={action.label} />;
+  if (!rendersAction(action)) return message;
+  const label =
+    typeof action === "object" && action !== null && "label" in action ? action.label : undefined;
+  return <ActionKeyHint message={message} action={typeof label === "string" ? label : undefined} />;
+}
+
+// A toast with an action, sonner's object form or an own element, carries this class: the
+// dismissal under the focus reads it (`SUI-FEATURE-101` rev 6, #561).
+const ACTION_TOAST_CLASS = "suite-toast-action";
+
+function withActionMark(opts?: ExternalToast): ExternalToast | undefined {
+  if (opts === undefined || !rendersAction(opts.action)) return opts;
+  return { ...opts, className: cn(opts.className, ACTION_TOAST_CLASS) };
 }
 
 const toast: typeof sonnerToast = Object.assign(
-  (message: Message, opts?: ExternalToast) => sonnerToast(withActionHint(message, opts), opts),
+  (message: Message, opts?: ExternalToast) =>
+    sonnerToast(withActionHint(message, opts), withActionMark(opts)),
   {
     ...sonnerToast,
     success: (message: Message, opts?: ExternalToast) =>
-      sonnerToast.success(withActionHint(message, opts), withDuration(message, "success", opts)),
+      sonnerToast.success(
+        withActionHint(message, opts),
+        withActionMark(withDuration(message, "success", opts)),
+      ),
     error: (message: Message, opts?: ExternalToast) =>
-      sonnerToast.error(withActionHint(message, opts), withDuration(message, "error", opts)),
+      sonnerToast.error(
+        withActionHint(message, opts),
+        withActionMark(withDuration(message, "error", opts)),
+      ),
     warning: (message: Message, opts?: ExternalToast) =>
-      sonnerToast.warning(withActionHint(message, opts), withDuration(message, "warning", opts)),
+      sonnerToast.warning(
+        withActionHint(message, opts),
+        withActionMark(withDuration(message, "warning", opts)),
+      ),
     info: (message: Message, opts?: ExternalToast) =>
-      sonnerToast.info(withActionHint(message, opts), withDuration(message, "info", opts)),
+      sonnerToast.info(
+        withActionHint(message, opts),
+        withActionMark(withDuration(message, "info", opts)),
+      ),
   },
 );
 
@@ -282,7 +318,12 @@ function useDismissToastsUnderFocus(toasts: React.RefObject<HTMLElement | null>)
       clearTimeout(timer);
       // A toast with an action keeps its duration, so its action stays reachable (rev 5).
       timer = setTimeout(() => {
-        if (document.querySelector(`${VISIBLE_TOASTS} [data-action]`) === null)
+        // The wrapper's mark, or sonner's own action button for a toast it did not wrap.
+        if (
+          document.querySelector(
+            `${VISIBLE_TOASTS}.${ACTION_TOAST_CLASS}, ${VISIBLE_TOASTS} [data-action]`,
+          ) === null
+        )
           dismissIfCovered(document.activeElement);
       }, TOAST_OVER_FOCUS_MS);
     });

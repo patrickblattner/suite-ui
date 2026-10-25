@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
 import { usePopupPlacement } from "../lib/popup-placement.js";
+import { Badge } from "./badge.js";
 import { useFieldErrorAttributes } from "./field-error.js";
 import { RemovableChip } from "./removable-chip.js";
 
@@ -101,6 +102,7 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
     onChange,
     placeholder,
     disabled = false,
+    readOnly = false,
     id,
     testId = "tag-input",
     className,
@@ -144,7 +146,7 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
     () => (suggestions === undefined ? [] : matchSuggestions(suggestions, value, typed)),
     [suggestions, value, typed],
   );
-  const open = focused && !dismissed && !disabled && matches.length > 0;
+  const open = focused && !dismissed && !disabled && !readOnly && matches.length > 0;
   // Only an entry that starts with the text is chosen by default; one that merely contains it ("tur" →
   // "Kultur") waits for the arrows (`SUI-FEATURE-100` rev 4). -1 is "nothing chosen".
   const startsWith = matches[0]?.toLowerCase().startsWith(typed.trim().toLowerCase()) === true;
@@ -166,7 +168,9 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
 
   const raw = { interpolation: { escapeValue: false } };
 
+  // Read-only, the field shows its tags and changes none of them (#561).
   const remove = (tag: string) => {
+    if (readOnly) return;
     onChange(value.filter((other) => other !== tag));
     setAnnouncement(t("tags.removed", { tag, ...raw }));
   };
@@ -179,6 +183,7 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
 
   // Takes the typed text over; `picked` replaces the text after the last comma.
   const commit = (picked?: string) => {
+    if (readOnly) return;
     const known = new Set(value.map((tag) => tag.toLowerCase()));
     const added: string[] = [];
     const parts = draft.split(",");
@@ -243,7 +248,7 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
       event.preventDefault();
       event.stopPropagation();
       commit(matches[choice]);
-    } else if ((event.key === "Enter" && draft.trim() !== "") || event.key === ",") {
+    } else if (!readOnly && ((event.key === "Enter" && draft.trim() !== "") || event.key === ",")) {
       // An empty field leaves Enter to the form, so it still triggers the primary action.
       event.preventDefault();
       commit();
@@ -284,16 +289,23 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
         <ul role="list" className="contents">
           {value.map((tag, index) => (
             <li key={tag} className="flex">
-              <RemovableChip
-                label={tag}
-                removeLabel={t("tags.remove", { tag, interpolation: { escapeValue: false } })}
-                disabled={disabled}
-                onRemove={() => {
-                  removed.current = index;
-                  remove(tag);
-                }}
-                testId={testId}
-              />
+              {readOnly ? (
+                // A chip without removal is a `Badge` (`SUI-FEATURE-007`, `GL-UI-011`, #561).
+                <Badge variant="secondary" className="h-6" data-testid={`${testId}-chip`}>
+                  {tag}
+                </Badge>
+              ) : (
+                <RemovableChip
+                  label={tag}
+                  removeLabel={t("tags.remove", { tag, interpolation: { escapeValue: false } })}
+                  disabled={disabled}
+                  onRemove={() => {
+                    removed.current = index;
+                    remove(tag);
+                  }}
+                  testId={testId}
+                />
+              )}
             </li>
           ))}
         </ul>
@@ -305,8 +317,9 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
         ref={ref}
         id={id}
         value={draft}
-        placeholder={value.length === 0 ? placeholder : undefined}
+        placeholder={value.length === 0 && !readOnly ? placeholder : undefined}
         disabled={disabled}
+        readOnly={readOnly}
         {...(suggestions === undefined
           ? {}
           : {
