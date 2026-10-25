@@ -803,36 +803,81 @@ describe("SlideEditor element clipboard", () => {
     expect((await saved(onSave)).map(({ id }) => id)).toEqual(["a"]);
   });
 
-  it("says after 300 ms that the media are being adopted, until the paste lands (SUI-FEATURE-106 AC5)", async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true });
-    let answer: (remap: Record<string, string>) => void = () => {};
-    copyThenOpenOther("photo", {
-      adoptMedia: () => new Promise((resolve) => (answer = resolve)),
-      resolveMedia: (id: string) => (id === "photo-copy" ? "blob:photo" : undefined),
-    });
-    const status = screen.getByTestId("slide-editor-adopting");
-    expect(status).toHaveAttribute("role", "status");
-    key("v");
-    act(() => void vi.advanceTimersByTime(299));
-    expect(canvas()).not.toHaveAttribute("aria-busy");
-    expect(status).toBeEmptyDOMElement();
-    act(() => void vi.advanceTimersByTime(1));
-    expect(canvas()).toHaveAttribute("aria-busy", "true");
-    expect(canvas().className).toContain("cursor-progress");
-    expect(status).toHaveTextContent("Importing media …");
-    // Seen, not only heard: the operation spinner at the work area's bottom left, outside the
-    // scrolling area and so off the page, above the handles drawn in it.
-    expect(status.className).not.toContain("sr-only");
-    expect(status.className).toContain("bottom-2");
-    expect(status.className).toContain("left-2");
-    expect(status.className).toContain("z-10");
-    expect(status.closest(".overflow-auto")).toBeNull();
-    expect(status.querySelector("[data-testid=operation-spinner]")).not.toBeNull();
-    answer({ photo: "photo-copy" });
-    await waitFor(() => expect(canvas()).not.toHaveAttribute("aria-busy"));
-    expect(canvas().className).not.toContain("cursor-progress");
-    expect(status).toBeEmptyDOMElement();
-  });
+  it.each([
+    ["spinner and label where the head has the room", true],
+    ["the spinner alone, the label its hint, where it has not", false],
+  ] as const)(
+    "says after 300 ms in the head's status slot that the media are being adopted, until the paste lands: %s (SUI-FEATURE-106 AC5)",
+    async (_, roomy) => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      // jsdom lays nothing out: the head's title, its floor and the label's measure get widths here.
+      const rect = Object.getOwnPropertyDescriptor(Element.prototype, "getBoundingClientRect")!
+        .value as (this: Element) => DOMRect;
+      const widths: Record<string, number> = {
+        "editor-title": 600,
+        "slide-editor-adopting-measure": 120,
+      };
+      const box = vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (
+        this: Element,
+      ) {
+        const slot =
+          this.getAttribute("data-slot") ??
+          (this.parentElement?.getAttribute("data-slot") === "editor-title" &&
+          this === this.parentElement.firstElementChild
+            ? "editor-title-floor"
+            : "");
+        const width = roomy ? (widths[slot] ?? (slot === "editor-title-floor" ? 100 : 0)) : 0;
+        return width === 0 ? rect.call(this) : new DOMRect(0, 0, width, 20);
+      });
+      let answer: (remap: Record<string, string>) => void = () => {};
+      copyThenOpenOther("photo", {
+        adoptMedia: () => new Promise((resolve) => (answer = resolve)),
+        resolveMedia: (id: string) => (id === "photo-copy" ? "blob:photo" : undefined),
+      });
+      expect(screen.queryByTestId("slide-editor-adopting")).toBeNull();
+      key("v");
+      // The live region is there before its text, so the text is announced once.
+      const status = screen.getByTestId("slide-editor-adopting");
+      expect(status).toHaveAttribute("role", "status");
+      expect(status).toHaveAttribute("aria-live", "polite");
+      act(() => void vi.advanceTimersByTime(299));
+      expect(canvas()).not.toHaveAttribute("aria-busy");
+      expect(status).toBeEmptyDOMElement();
+      // Nothing in the head's row yet, not even an empty slot taking a gap.
+      expect(document.querySelector("[data-slot=editor-status]")).toBeNull();
+      act(() => void vi.advanceTimersByTime(1));
+      expect(canvas()).toHaveAttribute("aria-busy", "true");
+      expect(canvas().className).toContain("cursor-progress");
+      expect(status).toHaveTextContent("Importing media …");
+      // Seen, not only heard: in the head's status slot (`GL-UI-033`), nothing of it on the work area
+      // (rev 7); the live region stays outside the slot's row.
+      const slot = screen.getByTestId("slide-editor-adopting-status");
+      expect(slot.closest("[data-slot=editor-status]")).not.toBeNull();
+      expect(status.closest("[data-slot=editor-header]")).toBeNull();
+      expect(slot.querySelector("[data-testid=operation-spinner]")).not.toBeNull();
+      if (roomy) {
+        expect(slot.querySelector("[data-testid=operation-label]")).toHaveTextContent(
+          "Importing media …",
+        );
+      } else {
+        expect(slot.querySelector("[data-testid=operation-label]")).toBeNull();
+        expect(slot.querySelector("[role=img]")).toHaveAttribute("aria-label", "Importing media …");
+        expect(slot.querySelector("[role=img]")).toHaveAttribute("tabindex", "0");
+      }
+      expect(
+        screen
+          .getAllByRole("status", { hidden: true })
+          .filter((node) => node.textContent === "Importing media …"),
+      ).toEqual([status]);
+      expect(screen.getAllByTestId("operation-spinner")).toHaveLength(1);
+      answer({ photo: "photo-copy" });
+      await waitFor(() => expect(canvas()).not.toHaveAttribute("aria-busy"));
+      expect(canvas().className).not.toContain("cursor-progress");
+      expect(screen.queryByTestId("slide-editor-adopting-status")).toBeNull();
+      expect(screen.queryByTestId("slide-editor-adopting")).toBeNull();
+      box.mockRestore();
+    },
+  );
 
   it.each([
     ["stays silent 10 s", () => new Promise<Record<string, string>>(() => {})],
@@ -849,15 +894,15 @@ describe("SlideEditor element clipboard", () => {
       vi.useFakeTimers({ shouldAdvanceTime: true });
       const warning = vi.spyOn(toast, "warning");
       copyThenOpenOther("photo", { adoptMedia, resolveMedia: () => undefined });
-      const status = screen.getByTestId("slide-editor-adopting");
       key("v");
       act(() => void vi.advanceTimersByTime(300));
       expect(canvas()).toHaveAttribute("aria-busy", "true");
+      expect(screen.getByTestId("slide-editor-adopting")).toHaveTextContent("Importing media …");
       await act(async () => void (await vi.advanceTimersByTimeAsync(10_000)));
       expect(warning).toHaveBeenCalledTimes(1);
       expect(canvas()).not.toHaveAttribute("aria-busy");
       expect(canvas().className).not.toContain("cursor-progress");
-      expect(status).toBeEmptyDOMElement();
+      expect(screen.queryByTestId("slide-editor-adopting-status")).toBeNull();
       warning.mockRestore();
     },
   );

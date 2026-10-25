@@ -42,7 +42,7 @@ import { GridFields, GridOverlay, GridToggle } from "../ui/grid.js";
 import { Hint } from "../ui/hint.js";
 import { helpIdFor } from "../ui/label-with-help.js";
 import { useLeaveGuard } from "../ui/leave-guard.js";
-import { OperationIndicator } from "../ui/operation-status.js";
+import { OperationIndicator, OperationLabel } from "../ui/operation-status.js";
 import { PropertyPanel } from "../ui/property-panel.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select.js";
 import { Slider } from "../ui/slider.js";
@@ -256,6 +256,9 @@ const DUPLICATE_SHORTCUT = ["Ctrl+D", "Meta+D"] as const;
 // is busy (`SUI-FEATURE-106` rev 5).
 const ADOPT_TIMEOUT_MS = 10_000;
 const ADOPT_BUSY_MS = 300;
+// The operation spinner (`size-4`) and the head row's gap (`gap-2`), for the status's room.
+const SPINNER_PX = 16;
+const ROW_GAP_PX = 8;
 // How long a new entrance, exit or transition plays (ms); the most a duration or delay field takes
 // is `ANIMATION_MAX_MS`, shared with the preview.
 const ANIMATION_MS = 500;
@@ -1980,9 +1983,43 @@ function Editor({
     if (pressChain.current !== undefined) pressChain.current.seen = selection;
   });
   const [heldTurn, setHeldTurn] = React.useState(0);
-  // After 300 ms of waiting the canvas says it is busy, in a status line too (`SUI-FEATURE-106` rev 6).
+  // After 300 ms of waiting the canvas says it is busy, the head's status slot why (`SUI-FEATURE-106` rev 7).
   const [adopting, setAdopting] = React.useState<"waiting" | "slow">();
   const slowTimer = React.useRef<number | undefined>(undefined);
+  // Whether the head has the room for spinner and label beside its title's floor; measured while the
+  // paste waits, with the room the status takes counted back in, so the choice does not flip on itself.
+  const [adoptingFits, setAdoptingFits] = React.useState(true);
+  const adoptingBox = React.useRef<HTMLSpanElement>(null);
+  React.useLayoutEffect(() => {
+    const head = adoptingBox.current?.parentElement?.querySelector("[data-slot=editor-header]");
+    // Read from the paste's start, so the slot shows the right form from its first frame.
+    if (adopting === undefined || !head) return;
+    const measure = () => {
+      const title = head.querySelector("[data-slot=editor-title]");
+      const floor = title?.firstElementChild;
+      const label = adoptingBox.current?.querySelector("[data-slot=slide-editor-adopting-measure]");
+      if (!title || !floor || !label) return;
+      // The slot's own width and its row gap (`gap-2`) are free again without the status.
+      const slot = head.querySelector("[data-slot=editor-status]");
+      const taken = slot === null ? 0 : slot.getBoundingClientRect().width + ROW_GAP_PX;
+      // The floor stretches over the title's grid column; its text is what the title cannot give up.
+      const text = floor.ownerDocument.createRange();
+      text.selectNodeContents(floor);
+      const floorWidth = (
+        typeof text.getBoundingClientRect === "function" ? text : floor
+      ).getBoundingClientRect().width;
+      const room = title.getBoundingClientRect().width - floorWidth + taken;
+      // Spinner, gap and label, plus the slot's row gap.
+      const needed = SPINNER_PX + ROW_GAP_PX + label.getBoundingClientRect().width + ROW_GAP_PX;
+      // Wrapped onto its own line (every fold spent, #221), the head has no room to spare.
+      setAdoptingFits(head.classList.contains("flex-wrap") ? false : room >= needed);
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(head);
+    return () => observer.disconnect();
+  }, [adopting]);
   const queueBusy = () =>
     (drag !== undefined && drag.kind !== "marquee") ||
     pastePending.current ||
@@ -3326,7 +3363,50 @@ function Editor({
           saving={saving}
           onSave={() => void save()}
           onReset={reset}
+          // From 300 ms on the head's status slot shows why (`SUI-FEATURE-106` rev 7, `GL-UI-033`):
+          // spinner and label where the head has the room, else the spinner alone with the label as
+          // its hint (`SUI-FEATURE-104`), so the head neither folds further nor wraps.
+          {...(adopting === "slow"
+            ? {
+                status: (
+                  <span
+                    className="flex items-center gap-2"
+                    data-testid="slide-editor-adopting-status"
+                  >
+                    {adoptingFits ? (
+                      <>
+                        <OperationIndicator />
+                        <OperationLabel label={t("slides.editor.adoptingMedia")} />
+                      </>
+                    ) : (
+                      <Hint text={t("slides.editor.adoptingMedia")} describe={false}>
+                        <span
+                          role="img"
+                          aria-label={t("slides.editor.adoptingMedia")}
+                          tabIndex={0}
+                          className="relative inline-flex rounded-full outline-none after:absolute after:top-1/2 after:left-1/2 after:size-6 after:-translate-x-1/2 after:-translate-y-1/2 focus-visible:focus-ring"
+                        >
+                          <OperationIndicator />
+                        </span>
+                      </Hint>
+                    )}
+                  </span>
+                ),
+              }
+            : {})}
         />
+        {/* Outside the head's row, from the paste's start: the live region is there before its text,
+            so it announces it once; beside it the label's width, read for the room it needs. */}
+        {adopting === undefined ? null : (
+          <span ref={adoptingBox} className="sr-only">
+            <span role="status" aria-live="polite" data-testid="slide-editor-adopting">
+              {adopting === "slow" ? t("slides.editor.adoptingMedia") : null}
+            </span>
+            <span aria-hidden="true" className="text-sm" data-slot="slide-editor-adopting-measure">
+              {t("slides.editor.adoptingMedia")}
+            </span>
+          </span>
+        )}
       </div>
       {saveError === undefined ? null : (
         <p
@@ -3425,7 +3505,7 @@ function Editor({
           open={drawer}
           onOpen={setDrawer}
         />
-        <div className="relative flex min-w-0 flex-1 flex-col">
+        <div className="flex min-w-0 flex-1 flex-col">
           <div className="flex flex-wrap items-center gap-2 border-b px-2 py-1" data-tooltip-row="">
             <IconButtonTooltip label={t("slides.editor.previousPage")}>
               <Button
@@ -3906,24 +3986,6 @@ function Editor({
                   })()}
             </div>
           </div>
-          {/* At the work area's visible bottom left, not on the page: it neither scrolls with the
-              slide nor lies under the handles (`SUI-FEATURE-106` rev 6, `GL-UI-033`). */}
-          <span
-            role="status"
-            className={cn(
-              "pointer-events-none absolute bottom-2 left-2 z-10",
-              adopting === "slow" &&
-                "flex items-center gap-2 rounded-md border bg-background px-2 py-1 text-xs text-muted-foreground shadow-sm",
-            )}
-            data-testid="slide-editor-adopting"
-          >
-            {adopting === "slow" ? (
-              <>
-                <OperationIndicator />
-                {t("slides.editor.adoptingMedia")}
-              </>
-            ) : null}
-          </span>
         </div>
         <PropertyPanel
           path={path}

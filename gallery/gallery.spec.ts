@@ -231,23 +231,58 @@ for (const lng of LANGUAGES) {
       await expect(page).toHaveScreenshot(`slide-editor-menu-${lng}-${theme}.png`);
     });
 
-    // `SUI-FEATURE-106` rev 6 (#552): a paste waiting for the app's media, past 300 ms: no
-    // selection, the busy canvas and the status line at the work area's bottom left, off the page.
+    // `SUI-FEATURE-106` rev 7 (#552, #568): a paste waiting for the app's media, past 300 ms: no
+    // selection, the busy canvas and the status in the head's status slot, nothing on the work area.
     test(`slide editor paste wait ${lng} ${theme}`, async ({ page }) => {
       await page.goto(`/?page=slide-editor&paste=wait&lng=${lng}&theme=${theme}`);
       await expect(page.locator("html")).toHaveAttribute("lang", lng);
       const editor = page.getByTestId("slide-editor");
       await expect(editor.locator("[data-slot=slide-view][data-slide-ready=true]")).toBeAttached();
       const canvas = editor.getByTestId("slide-editor-canvas");
+      const head = editor.locator("[data-slot=editor-header]");
+      const before = { head: await head.boundingBox(), canvas: await canvas.boundingBox() };
       await canvas.focus();
       await canvas.press("Control+v");
       await expect(canvas).toHaveAttribute("aria-busy", "true");
       await expect(editor.getByTestId("slide-editor-adopting")).not.toBeEmpty();
+      // The status changes neither the head's height nor where the work area's content lies (AC 5).
+      expect({ head: await head.boundingBox(), canvas: await canvas.boundingBox() }).toEqual(
+        before,
+      );
       await parkPointer(page);
       await expect(page).toHaveScreenshot(`slide-editor-paste-wait-${lng}-${theme}.png`, {
         animations: "disabled",
       });
     });
+
+    // `SUI-FEATURE-106` rev 7, `SUI-FEATURE-104` (#568): narrower, the status takes its compact form
+    // where the label has no room; the head keeps its height, the work area its place, Save stays in
+    // view and the status visible.
+    for (const width of theme === "light" ? [390, 420, 768] : []) {
+      test(`slide editor paste wait keeps the head at ${width} px ${lng}`, async ({ page }) => {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto(`/?page=slide-editor&paste=wait&lng=${lng}&theme=${theme}`);
+        await expect(page.locator("html")).toHaveAttribute("lang", lng);
+        const editor = page.getByTestId("slide-editor");
+        await expect(
+          editor.locator("[data-slot=slide-view][data-slide-ready=true]"),
+        ).toBeAttached();
+        const canvas = editor.getByTestId("slide-editor-canvas");
+        const head = editor.locator("[data-slot=editor-header]");
+        const before = { head: await head.boundingBox(), canvas: await canvas.boundingBox() };
+        await canvas.focus();
+        await canvas.press("Control+v");
+        await expect(canvas).toHaveAttribute("aria-busy", "true");
+        await expect(editor.getByTestId("slide-editor-adopting")).not.toBeEmpty();
+        await expect(editor.getByTestId("operation-spinner")).toBeInViewport({ ratio: 1 });
+        // Save inside the head, not cut off at its edge.
+        const save = (await editor.getByTestId("editor-save").boundingBox())!;
+        expect(save.x + save.width).toBeLessThanOrEqual(before.head!.x + before.head!.width);
+        expect({ head: await head.boundingBox(), canvas: await canvas.boundingBox() }).toEqual(
+          before,
+        );
+      });
+    }
 
     // #532: the pane typography and spacing of the open document and library tabs, and of the
     // transfer dialog (`GL-UI-010`).

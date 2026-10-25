@@ -96,9 +96,9 @@ const PICTURE_DOC =
 // `SUI-FEATURE-232`: the app's media picker, here a small dialog offering the gallery's photo
 // (`?media=none`: the app has none, so the editor shows no media entry; `?media=fail`: the picker
 // fails; `?media=bad`: it hands back a medium whose alt text is past the schema's limit).
-// `SUI-FEATURE-106` rev 6 (`?paste=wait`): the clipboard holds the deck's picture as copied from
+// `SUI-FEATURE-106` rev 7 (`?paste=wait`): the clipboard holds the deck's picture as copied from
 // another document, its medium one this deck lacks, and the app never answers `adoptMedia`: a paste
-// waits for good, its status line shown.
+// waits for good, its status shown in the head's status slot.
 const PASTE_WAITS = PARAMS.get("paste") === "wait";
 if (PASTE_WAITS) {
   const parsed = safeParseSlideDocument(SLIDE_EDITOR_DOC);
