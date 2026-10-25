@@ -501,7 +501,7 @@ export function toggledFormat(
 // colour from the brand set, and the field's alignment and list. A format applies to the selected text
 // while editing (the whole field without a selection), the field's alignment and list to the field.
 export function TextFormatFields({
-  idPrefix,
+  testIdPrefix,
   body,
   range,
   brand,
@@ -510,7 +510,7 @@ export function TextFormatFields({
   onFormat,
   onBody,
 }: {
-  idPrefix: string;
+  testIdPrefix: string;
   body: TextBody;
   range: TextRange | undefined;
   brand: SlideBrandSet;
@@ -521,7 +521,7 @@ export function TextFormatFields({
   onBody: (patch: Partial<Pick<TextBody, "align" | "list">>) => void;
 }) {
   const { t } = useTranslation("suite");
-  // Per instance, so two mounted editors never share a field id (#566); `idPrefix` names the test ids.
+  // Per instance, so two mounted editors never share a field id (#566); `testIdPrefix` names the test ids.
   const id = React.useId();
   const { start, end } = formatSpan(body, range);
   const { format, mixed } = formatOfRange(body.runs, start, end);
@@ -552,7 +552,7 @@ export function TextFormatFields({
         // The text keeps its selection while editing.
         onMouseDown={(event) => event.preventDefault()}
         onClick={onClick}
-        data-testid={`${idPrefix}-${testId}`}
+        data-testid={`${testIdPrefix}-${testId}`}
       >
         {icon}
       </Button>
@@ -560,7 +560,7 @@ export function TextFormatFields({
   );
   const mixedText = t("slides.editor.textMixed");
   return (
-    <section className="flex flex-col gap-2" data-testid={`${idPrefix}-format`}>
+    <section className="flex flex-col gap-2" data-testid={`${testIdPrefix}-format`}>
       <h3 className="text-base font-semibold">{t("slides.editor.textFormat")}</h3>
       <div className="flex flex-col gap-4">
         <div className="grid grid-cols-2 gap-4" data-tooltip-row="">
@@ -580,7 +580,7 @@ export function TextFormatFields({
                 aria-describedby={helpIdFor(`${id}-font`)}
                 fieldName={t("slides.editor.textFont")}
                 className="w-full"
-                data-testid={`${idPrefix}-font`}
+                data-testid={`${testIdPrefix}-font`}
               >
                 <SelectValue
                   placeholder={mixed.has("font") ? mixedText : t("slides.editor.textOwnFont")}
@@ -615,7 +615,7 @@ export function TextFormatFields({
                 onFormat({ size: Math.min(MAX_TEXT_SIZE, Math.round(size * 100) / 100) }, "size");
               }
             }}
-            testId={`${idPrefix}-size`}
+            testId={`${testIdPrefix}-size`}
           />
           <Field
             label={t("slides.editor.textColor")}
@@ -635,7 +635,7 @@ export function TextFormatFields({
                 aria-describedby={helpIdFor(`${id}-color`)}
                 fieldName={t("slides.editor.textColor")}
                 className="w-full"
-                data-testid={`${idPrefix}-color`}
+                data-testid={`${testIdPrefix}-color`}
               >
                 <SelectValue
                   placeholder={mixed.has("fill") ? mixedText : t("slides.editor.textOwnColor")}

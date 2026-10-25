@@ -397,8 +397,9 @@ function AnimationFields({
   onStep: (step: AnimationStep | undefined, merge?: string) => void;
 }) {
   const { t } = useTranslation("suite");
-  const id = `slide-editor-${kind}`;
-  // Per instance, so two mounted editors never share a field id (#566); `id` names the test ids.
+  const testId = `slide-editor-${kind}`;
+  // Per instance, so two mounted editors never share a field id (#566); `testId` names the test ids
+  // and the undo-merge keys.
   const fieldId = React.useId();
   const withEffect = (effect: string): AnimationStep | undefined => {
     if (effect === "none") return undefined;
@@ -411,7 +412,7 @@ function AnimationFields({
     return next;
   };
   return (
-    <fieldset className="flex flex-col gap-4" data-testid={id}>
+    <fieldset className="flex flex-col gap-4" data-testid={testId}>
       <SubgroupTitle asChild>
         <legend className="mb-2">{t(`slides.editor.${kind}`)}</legend>
       </SubgroupTitle>
@@ -444,7 +445,7 @@ function AnimationFields({
               aria-describedby={helpIdFor(`${fieldId}-effect`)}
               fieldName={t("slides.editor.animationEffect")}
               className="w-full"
-              data-testid={`${id}-effect`}
+              data-testid={`${testId}-effect`}
             >
               <SelectValue />
             </SelectTrigger>
@@ -489,7 +490,7 @@ function AnimationFields({
                   kind === "entrance" ? "slides.editor.animationFrom" : "slides.editor.animationTo",
                 )}
                 className="w-full"
-                data-testid={`${id}-direction`}
+                data-testid={`${testId}-direction`}
               >
                 <SelectValue />
               </SelectTrigger>
@@ -526,10 +527,10 @@ function AnimationFields({
                 onValue={(value) =>
                   onStep(
                     { ...step, [key]: clamp(Math.round(value), 0, ANIMATION_MAX_MS) },
-                    `${id}:${key}`,
+                    `${testId}:${key}`,
                   )
                 }
-                testId={`${id}-${key}`}
+                testId={`${testId}-${key}`}
               />
             ))}
             <NumberField
@@ -550,7 +551,7 @@ function AnimationFields({
                       { order: otherOrder + 1 },
                     )
               }
-              warningTestId={`${id}-order-warning`}
+              warningTestId={`${testId}-order-warning`}
               value={step.order + 1}
               unit=""
               readOnly={readOnly}
@@ -561,10 +562,10 @@ function AnimationFields({
                     ...step,
                     order: clamp(Math.round(value), 1, 2 * SLIDE_LIMITS.maxElements) - 1,
                   },
-                  `${id}:order`,
+                  `${testId}:order`,
                 )
               }
-              testId={`${id}-order`}
+              testId={`${testId}-order`}
             />
           </>
         )}
@@ -2637,7 +2638,7 @@ function Editor({
   const textFields =
     single === undefined || textBody === undefined ? null : (
       <TextFormatFields
-        idPrefix="slide-editor-text"
+        testIdPrefix="slide-editor-text"
         body={textBody}
         range={formatRangeOf}
         brand={view.brand}

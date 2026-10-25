@@ -110,7 +110,7 @@ function Choices() {
       </div>
       <div className="w-80 max-w-full">
         <TextFormatFields
-          idPrefix="pressed-text"
+          testIdPrefix="pressed-text"
           body={TEXT}
           range={undefined}
           brand={SLIDE_BRAND}

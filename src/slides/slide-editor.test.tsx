@@ -817,15 +817,18 @@ describe("SlideEditor field ids", () => {
     ],
   };
 
-  // Each label's control and each aria-labelledby/-describedby target: in the document, and either
+  // Each label's control and each aria-labelledby/-describedby/-errormessage target: in the document, and either
   // inside `editor` or a portal (a field's help) no other editor points at.
   const expectOwnReferences = (editors: HTMLElement[]) => {
     const refsOf = (editor: HTMLElement) =>
-      [...editor.querySelectorAll("label[for], [aria-labelledby], [aria-describedby]")].flatMap(
-        (element) =>
-          ["for", "aria-labelledby", "aria-describedby"].flatMap(
-            (name) => element.getAttribute(name)?.split(/\s+/).filter(Boolean) ?? [],
-          ),
+      [
+        ...editor.querySelectorAll(
+          "label[for], [aria-labelledby], [aria-describedby], [aria-errormessage]",
+        ),
+      ].flatMap((element) =>
+        ["for", "aria-labelledby", "aria-describedby", "aria-errormessage"].flatMap(
+          (name) => element.getAttribute(name)?.split(/\s+/).filter(Boolean) ?? [],
+        ),
       );
     const refs = editors.map(refsOf);
     editors.forEach((editor, index) => {
@@ -898,6 +901,14 @@ describe("SlideEditor field ids", () => {
       "slide-editor-entrance-order",
       "slide-editor-exit-effect",
     );
+    expectOwnReferences(editors);
+    // A refused duration: its error is referenced in its own editor.
+    each((view) => {
+      const duration = view.getByTestId("slide-editor-entrance-duration");
+      fireEvent.change(duration, { target: { value: "1e" } });
+      fireEvent.blur(duration);
+      expect(duration).toHaveAttribute("aria-errormessage");
+    });
     expectOwnReferences(editors);
 
     // The crop fields.

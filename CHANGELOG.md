@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — #574, GL-UI-017: the slide editor's test-id-only props are named for what they set (minor)
+
+- **Slide editor (#574, follow-up #566):** `TextFormatFields` takes `testIdPrefix` instead of `idPrefix`; since #566 it sets only the `data-testid`s of the format fields (the field ids are per instance). Inside `AnimationFields` the test-id stem is named `testId` alike. Nothing changes on screen.
+- **Tests (#574):** the two-editor test "SlideEditor field ids" also checks that every `aria-errormessage` points into its own editor, with a refused animation duration in both.
+
+**Migration:** `TextFormatFields` `idPrefix` → `testIdPrefix` (same value, it sets only `data-testid`s). No strings, `data-testid`s or baselines change.
+
 ## 0.175.0 — #568, SUI-FEATURE-106 rev 7: the waiting paste's status moves into the editor head's status slot
 
 - **Feedback (#568, retrofit #552):** after 300 ms of waiting for `adoptMedia`, "Medien werden übernommen …" / "Importing media …" / "Importando medios …" now shows in the `EditorHeader` status slot (`status`, `SUI-FEATURE-104`) as the `GL-UI-033` operation spinner and label, left of the state. Where the head lacks the room for the label beside its title's floor, the slot shows the compact form instead: the spinner alone, focusable, named by the label and carrying it as its hint, so the head keeps its height and Save its place (390/420 px). The slot appears only from 300 ms on, so a quicker paste moves nothing in the head. The screen-reader-only `role="status"` (`aria-live="polite"`) sits in the head outside its row, is there from the paste's start and announces the text once. The visible line at the work area's bottom left (#552) is gone: nothing lies on or at the work area, its content does not move. `aria-busy="true"` and `cursor: progress` on the canvas stay; all of it ends with the paste, also after 10 s of silence or a failed `adoptMedia`.
