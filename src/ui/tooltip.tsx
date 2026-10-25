@@ -272,7 +272,12 @@ function coveredBox(node: Element, line: DOMRect): DOMRect {
   range.selectNodeContents(node);
   const text = range.getBoundingClientRect();
   const left = Math.max(text.left, box.left);
-  return new DOMRect(left, text.top, Math.min(text.right, box.right) - left, text.height);
+  return new DOMRect(
+    left,
+    text.top,
+    Math.max(0, Math.min(text.right, box.right) - left),
+    text.height,
+  );
 }
 
 // `measured`: whether a field pair may be found, which reads the layout. A closed bubble renders on
