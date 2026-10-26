@@ -947,32 +947,69 @@ describe("Toaster: focus under a toast", () => {
   });
 
   // #591, `GL-UI-050`: the entry outlives a change of the Toaster's id, as sonner's record does.
-  it("returns the focus to the element before when the focused toast leaves after a change of the Toaster's id (#591)", async () => {
-    await renderCovered({
+  // The toast of the new id keeps sonner's list mounted, so its own return on unmount masks nothing
+  // (#592).
+  const afterIdChange = (wrap?: (covered: React.ReactNode) => React.ReactNode) =>
+    renderCovered({
       focused: "covered",
       toasterId: "a",
-      show: (options) => toast.success("Saved", { ...options, toasterId: "a" }),
+      wrap,
+      show: (options) => {
+        toast.success("Saved", { ...options, toasterId: "a" });
+        toast.info("Other", { toasterId: "b" });
+      },
     });
+  const changeId = async () => {
+    act(() => setToasterId("b"));
+    await screen.findByText("Other");
+    await vi.waitFor(() => expect(screen.queryByText("Saved")).toBeNull());
+  };
+
+  it("returns the focus to the element before when the focused toast leaves after a change of the Toaster's id (#591)", async () => {
+    await afterIdChange();
     const covered = screen.getByTestId("covered");
     act(() => screen.getByRole("button", { name: "Undo" }).focus());
-    act(() => setToasterId("b"));
-    await vi.waitFor(() => expect(screen.queryByText("Saved")).toBeNull());
+    await changeId();
     await vi.waitFor(() => expect(covered).toHaveFocus());
   });
 
   it("falls back to the group's next control, never to <body>, when the focused toast leaves after a change of the Toaster's id and the element before is gone (#591)", async () => {
-    await renderCovered({
-      focused: "covered",
-      toasterId: "a",
-      wrap: inToolbar,
-      show: (options) => toast.success("Saved", { ...options, toasterId: "a" }),
-    });
+    await afterIdChange(inToolbar);
     act(() => screen.getByRole("button", { name: "Undo" }).focus());
     screen.getByTestId("covered").remove();
-    act(() => setToasterId("b"));
-    await vi.waitFor(() => expect(screen.queryByText("Saved")).toBeNull());
+    await changeId();
     await vi.waitFor(() => expect(screen.getByTestId("next")).toHaveFocus());
   });
+
+  // #592, `GL-UI-050` step 3: neither the element before nor a neighbour in its group is left.
+  it("returns the focus to the main content, never to <body>, when the focused toast leaves after a change of the Toaster's id and the element before and its group are gone (#592)", async () => {
+    render(
+      <main>
+        <p>Content</p>
+      </main>,
+    );
+    await afterIdChange(inToolbar);
+    act(() => screen.getByRole("button", { name: "Undo" }).focus());
+    const restore = detach(screen.getByRole("toolbar"));
+    await changeId();
+    await vi.waitFor(() => expect(document.activeElement).toBe(screen.getByRole("main")));
+    restore();
+  });
+
+  it.each([true, false])(
+    "gives the return after a change of the Toaster's id the ring only when the toast was entered by keyboard (ring %s, #592)",
+    async (ring) => {
+      await afterIdChange();
+      const covered = screen.getByTestId("covered");
+      focusVisible = ring;
+      act(() => screen.getByRole("button", { name: "Undo" }).focus());
+      const focus = vi.spyOn(HTMLElement.prototype, "focus");
+      await changeId();
+      await vi.waitFor(() => expect(covered).toHaveFocus());
+      const call = focus.mock.contexts.indexOf(covered);
+      expect(focus.mock.calls[call]?.[0]).toMatchObject({ focusVisible: ring });
+    },
+  );
 
   it("closes a toast with an action on the next keyboard move under it", async () => {
     const item = await renderCovered({ focused: "covered" });
