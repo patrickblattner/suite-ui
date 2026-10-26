@@ -1,3 +1,5 @@
+import type { SlideIssueCode } from "../slides/schema.js";
+
 // English is the source language of the `suite` namespace: its keys define the key set that `de`
 // and `es` must match, and its wording is what they translate.
 export const en = {
@@ -838,7 +840,28 @@ export const en = {
       format: "{{name}} · {{width}} × {{height}} px",
       gridUnavailable: "Set a grid in the document drawer.",
       distributeNeedsThree: "Select at least three elements to distribute",
-      saveFailed: "Not saved: the document breaks a rule ({{issue}}).",
+      saveFailed: "Not saved: {{rule}} Undo your recent changes, then save again.",
+      // The rule a draft breaks, one sentence for every issue code (#586).
+      saveRule: {
+        "invalid-type": "a value is of the wrong kind.",
+        "invalid-value": "a value is not allowed.",
+        "invalid-format": "a value is not in the expected form.",
+        "too-small": "a value is too small or too short.",
+        "too-big": "a value is too large or too long.",
+        "duplicate-id": "two parts of the document are marked as the same part.",
+        "unknown-layout": "a page uses a layout that is missing.",
+        "unknown-master": "a layout builds on a template that is missing.",
+        "row-cells": "a table row has more or fewer cells than the table has columns.",
+        "series-values": "a chart series has more or fewer values than the chart has categories.",
+        "duplicate-pattern": "two series of a chart have the same pattern.",
+        "group-depth": "groups are placed inside each other too deeply.",
+        "too-many-elements": "a page holds more elements than allowed.",
+        "missing-version": "the document does not say which version it is.",
+        "invalid-version": "the document's version cannot be read.",
+        "unknown-version": "the document's version is unknown.",
+        "newer-version": "the document comes from a newer version of the app.",
+        "migration-failed": "the document could not be brought up to date.",
+      } satisfies Record<SlideIssueCode, string>,
       saveRejected: "Not saved: saving failed. Your changes are still here. Try again.",
       type: {
         text: "Text",

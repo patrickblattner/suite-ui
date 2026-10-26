@@ -136,6 +136,7 @@ import {
   type SlideDocumentInput,
   type SlideElement,
   type SlideFormat,
+  type SlideIssueCode,
   type SlideLayout,
   slideLayoutSchema,
   type SlideLayoutInput,
@@ -828,7 +829,7 @@ function Editor({
     id === undefined ? current : withLayout(current, id, appLayouts, appMasters);
   const [saved, setSaved] = React.useState(initial);
   const [saving, setSaving] = React.useState(false);
-  const [saveError, setSaveError] = React.useState<string | undefined>(undefined);
+  const [saveError, setSaveError] = React.useState<SlideIssueCode | undefined>(undefined);
   // The last save failed: a route change held during it is dropped (`SUI-FEATURE-150` rev 7).
   const [saveFailed, setSaveFailed] = React.useState(false);
   // The last `onSave` rejected: the host's own handling did not run, so the editor names it (#584).
@@ -919,8 +920,9 @@ function Editor({
     cropping !== undefined && storedCrop !== undefined && !sameCrop(cropping.crop, storedCrop);
   const dirty = history.document !== saved || pendingCrop;
   // "Your changes are still here" never stands without changes: Reset or undoing back to the saved
-  // state ends it (#584).
+  // state ends it (#584), and so a broken rule, which the saved state does not break (#586).
   if (saveRejected && !dirty) setSaveRejected(false);
+  if (saveError !== undefined && !dirty) setSaveError(undefined);
   const pageData = document.pages[page] ?? document.pages[0];
   const elements = pageData?.elements ?? [];
   const { width: pageWidth, height: pageHeight } = document.format;
@@ -999,8 +1001,8 @@ function Editor({
     }
   };
 
-  // Save and the leave question (`GL-UI-007`). A draft the schema refuses is not handed on; its
-  // first issue is named under the header.
+  // Save and the leave question (`GL-UI-007`). A draft the schema refuses is not handed on; the rule
+  // of its first issue is named under the header in plain words, never its code or path (#586).
   const save = async () => {
     setSaveRejected(false);
     // A crop being set is part of what is saved: kept first, as Enter does (#349).
@@ -1021,8 +1023,7 @@ function Editor({
     }
     const result = safeParseSlideDocument(current);
     if (!result.ok) {
-      const issue = result.error.issues[0];
-      setSaveError(issue === undefined ? result.error.code : `${issue.code} · ${issue.path}`);
+      setSaveError(result.error.issues[0]?.code ?? "invalid-value");
       return false;
     }
     setSaveError(undefined);
@@ -3460,7 +3461,7 @@ function Editor({
         >
           {saveError === undefined
             ? t("slides.editor.saveRejected")
-            : t("slides.editor.saveFailed", { issue: saveError })}
+            : t("slides.editor.saveFailed", { rule: t(`slides.editor.saveRule.${saveError}`) })}
         </p>
       )}
       <div className="flex min-h-0 flex-1">

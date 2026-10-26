@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — #586, GL-UI-016 / GL-UI-017: the slide editor's schema save error names the broken rule in plain words (patch)
+
+- **Slide editor (#586, found in #584):** a draft the schema refuses on Save no longer shows the first issue's technical `code · path` ("Not saved: the document breaks a rule (row-cells · pages.0…)"). The line under the header now names the rule in plain words and what to do: "Not saved: a table row has more or fewer cells than the table has columns. Undo your recent changes, then save again." One sentence per issue code (`slides.editor.saveRule.<code>`, en/de/es); the strings type requires one for every `SlideIssueCode`. Like the rejected-save text (#584), the line goes when Reset or undoing makes the draft clean again.
+- **Tests (#586):** `slide-editor-save-rule.test.tsx`: a schema violation on Save shows the plain message and neither the issue code, its path nor its technical detail; a pasted text past the length limit, the real path to the refusal, shows the too-big sentence; undoing back to the saved state removes the line.
+
+**Migration:** `slides.editor.saveFailed` takes `{{rule}}` instead of `{{issue}}`; an app that overrides it moves to the new placeholder. New keys `slides.editor.saveRule.*`. The gallery's strings-table baselines change; no `data-testid`s change.
+
 ## Unreleased — #583, SUI-FEATURE-150 rev 7: the page's own ways out wait for its busy save (patch)
 
 - **Leave guard (#583, follow-up #572):** while a page's own save runs (`useLeaveGuard`'s / `useEditorLeaveGuard`'s `busy` / `saving`), its own ways out wrapped in `guard` (Back, Previous/Next) and an `Esc` that leaves the page are now held silently, as a route change to another pathname already was; before, they were dropped. Once `busy` turns `false` without `saveFailed` the held way goes anew through the guard as the page is then: an unchanged page lands at its target, a page still changed asks "Save changes?". With `saveFailed: true` it is dropped and the page stays with its error. The latest way out held replaces an earlier one. The edit panel and other `useLeaveConfirm` surfaces are unchanged: their `busy` still drops a way out (`SUI-FEATURE-171`).

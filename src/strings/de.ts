@@ -825,7 +825,31 @@ export const de: SuiteStrings = {
       format: "{{name}} · {{width}} × {{height}} px",
       gridUnavailable: "Raster in der Dokument-Schublade festlegen.",
       distributeNeedsThree: "Zum Verteilen mindestens drei Elemente wählen",
-      saveFailed: "Nicht gespeichert: Das Dokument verletzt eine Regel ({{issue}}).",
+      saveFailed:
+        "Nicht gespeichert: {{rule}} Mache deine letzten Änderungen rückgängig und speichere erneut.",
+      // The rule a draft breaks, by its issue code (#586).
+      saveRule: {
+        "invalid-type": "Ein Wert hat die falsche Art.",
+        "invalid-value": "Ein Wert ist nicht erlaubt.",
+        "invalid-format": "Ein Wert hat nicht die erwartete Form.",
+        "too-small": "Ein Wert ist zu klein oder zu kurz.",
+        "too-big": "Ein Wert ist zu groß oder zu lang.",
+        "duplicate-id": "Zwei Teile des Dokuments sind als derselbe Teil markiert.",
+        "unknown-layout": "Eine Seite verwendet ein Layout, das fehlt.",
+        "unknown-master": "Ein Layout baut auf einer Vorlage auf, die fehlt.",
+        "row-cells":
+          "Eine Tabellenzeile hat mehr oder weniger Zellen, als die Tabelle Spalten hat.",
+        "series-values":
+          "Eine Diagrammreihe hat mehr oder weniger Werte, als das Diagramm Kategorien hat.",
+        "duplicate-pattern": "Zwei Reihen eines Diagramms haben dasselbe Muster.",
+        "group-depth": "Gruppen sind zu tief ineinander verschachtelt.",
+        "too-many-elements": "Eine Seite enthält mehr Elemente als erlaubt.",
+        "missing-version": "Das Dokument sagt nicht, welche Version es hat.",
+        "invalid-version": "Die Version des Dokuments ist nicht lesbar.",
+        "unknown-version": "Die Version des Dokuments ist unbekannt.",
+        "newer-version": "Das Dokument stammt aus einer neueren Version der App.",
+        "migration-failed": "Das Dokument ließ sich nicht auf den neuen Stand bringen.",
+      },
       saveRejected:
         "Nicht gespeichert: Das Speichern ist fehlgeschlagen. Deine Änderungen sind noch da. Versuche es erneut.",
       type: {
