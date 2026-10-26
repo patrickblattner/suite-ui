@@ -661,3 +661,7 @@
 {"ts":"2026-10-26T11:21:49.313Z","key":"SUI-FEATURE-112","from":null,"to":2,"disposition":"ticket","ref":"608"}
 {"ts":"2026-10-26T11:22:02.175Z","key":"SUI-FEATURE-113","from":null,"to":2,"disposition":"ticket","ref":"609"}
 {"ts":"2026-10-26T11:22:17.262Z","key":"SUI-FEATURE-114","from":null,"to":2,"disposition":"ticket","ref":"610"}
+{"ts":"2026-10-26T21:42:42.761Z","key":"PROC-DEV-034","from":6,"to":7,"disposition":"editorial","ref":"pause lock lives in the worker-harness role-guard hook (toolkit), no suite-ui code impact"}
+{"ts":"2026-10-26T21:42:51.885Z","key":"PROC-REL-030","from":4,"to":5,"disposition":"editorial","ref":"static rule-test files in the fast set apply only under GATE_MODE=remote; suite-ui runs local mode (local profile keeps unit)"}
+{"ts":"2026-10-26T21:43:14.537Z","key":"SUI-FEATURE-115","from":null,"to":2,"disposition":"ticket","ref":"611"}
+{"ts":"2026-10-26T21:43:27.136Z","key":"SUI-FEATURE-101","from":7,"to":8,"disposition":"ticket","ref":"614"}
