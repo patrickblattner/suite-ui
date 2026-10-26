@@ -260,6 +260,18 @@ describe("OverflowTooltip on keyboard focus", () => {
     expect(bubble()).toHaveTextContent(LONG);
   });
 
+  // #590: a scroll in the frames after the focus does not extend them; a user's scroll begun at once,
+  // one event a frame, still closes it.
+  it("a scroll that starts with the focus and goes on still cancels it", () => {
+    tabTo(renderTile());
+    for (let frame = 0; frame < 6; frame++) {
+      fireEvent.scroll(window);
+      wait(16);
+    }
+    wait(1500);
+    expect(bubble()).toBeNull();
+  });
+
   it("a container that only a script focuses (tabindex -1, no item role) is no holder", () => {
     render(
       <ul tabIndex={-1} data-testid="list">
@@ -520,21 +532,21 @@ describe("keyboard bubble placement", () => {
     Reflect.deleteProperty(document.documentElement, "clientHeight");
   });
 
-  it("stands beside the focused holder, never over it", async () => {
+  // A holder (`tile`) around a clipped name, in a viewport `viewport` px wide; boxes are [left, width]
+  // at one height. Opens the bubble by `open` and returns its content and the popper's placed left edge.
+  async function placed(
+    viewport: number,
+    boxes: Record<string, [number, number]>,
+    open: (tile: HTMLElement) => void,
+  ) {
     Object.defineProperty(document.documentElement, "clientWidth", {
       configurable: true,
-      value: 1000,
+      value: viewport,
     });
     Object.defineProperty(document.documentElement, "clientHeight", {
       configurable: true,
       value: 800,
     });
-    // The tile is wider than its clipped name: the bubble stands past the tile, not past the name.
-    const boxes: Record<string, [number, number]> = {
-      tile: [0, 300],
-      name: [12, 200],
-      bubble: [0, 100],
-    };
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (
       this: HTMLElement,
     ) {
@@ -549,14 +561,14 @@ describe("keyboard bubble placement", () => {
     vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockImplementation(function (
       this: HTMLElement,
     ) {
-      return popperSize(this, 100);
+      return popperSize(this, boxes.bubble?.[1] ?? 0);
     });
     vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(function (
       this: HTMLElement,
     ) {
       return popperSize(this, 32);
     });
-    render(
+    const view = render(
       <button type="button" data-testid="tile">
         <OverflowTooltip>
           <span className="truncate" data-testid="name">
@@ -565,7 +577,7 @@ describe("keyboard bubble placement", () => {
         </OverflowTooltip>
       </button>,
     );
-    tabTo(screen.getByTestId("tile"));
+    open(screen.getByTestId("tile"));
     wait(1500);
     // The popper positions in promises.
     for (let round = 0; round < 12; round++) {
@@ -575,9 +587,54 @@ describe("keyboard bubble placement", () => {
       });
     }
     const content = document.querySelector<HTMLElement>("[data-slot=tooltip-content]");
-    expect(content).toHaveAttribute("data-side", "right");
-    // Placed beside the tile: the room right of it (1000 - 8 - 300 - 8), not of the name; the gallery
-    // measures the geometry itself.
-    expect(content?.style.getPropertyValue("--tooltip-room")).toBe("684px");
+    const wrapper = document.querySelector<HTMLElement>("[data-radix-popper-content-wrapper]");
+    const left = Number(/translate\((-?[\d.]+)px/.exec(wrapper?.style.transform ?? "")?.[1]);
+    const result = {
+      side: content?.dataset.side,
+      room: content?.style.getPropertyValue("--tooltip-room"),
+      left,
+    };
+    view.unmount();
+    return result;
+  }
+
+  const byKeyboard = (tile: HTMLElement) => tabTo(tile);
+  const byPointer = () => {
+    fireEvent.pointerMove(screen.getByTestId("name"), { pointerType: "mouse" });
+  };
+
+  // GL-UI-016 rev 17 (Q&A #4645, #590): the keyboard bubble stands at the clipped text, where the
+  // pointer's stands, not beside the focused holder; the text stays free, the rest of the holder may be
+  // covered.
+  it("stands at the clipped text, where the pointer's bubble stands, not beside the holder", async () => {
+    // The holder is wider than its clipped name: the bubble stands past the name, inside the holder.
+    const boxes: Record<string, [number, number]> = {
+      tile: [0, 300],
+      name: [12, 200],
+      bubble: [0, 100],
+    };
+    const keyboard = await placed(1000, boxes, byKeyboard);
+    expect(keyboard.side).toBe("right");
+    // No fallback: the side beside the name has room, so radix places it at the usual gap.
+    expect(keyboard.room).toBe("");
+    // Past the name's right edge (212), before the holder's (300): never over the text.
+    expect(keyboard.left).toBeGreaterThanOrEqual(212);
+    expect(keyboard.left).toBeLessThan(300);
+    expect(await placed(1000, boxes, byPointer)).toEqual(keyboard);
+  });
+
+  it("falls back to the place at the text only when neither side of the text has 120 px", async () => {
+    // A holder as wide as the window, its name leaving under 120 px on either side.
+    const boxes: Record<string, [number, number]> = {
+      tile: [0, 400],
+      name: [40, 300],
+      bubble: [0, 300],
+    };
+    const keyboard = await placed(400, boxes, byKeyboard);
+    // At the text itself, on the side with more room (the right: 52 px against 22), narrowed to
+    // nothing under 120 px, never cut off.
+    expect(keyboard.side).toBe("right");
+    expect(keyboard.room).toBe("300px");
+    expect(await placed(400, boxes, byPointer)).toEqual(keyboard);
   });
 });

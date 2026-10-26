@@ -64,10 +64,6 @@ function holderOf(node: HTMLElement | null, inside: boolean): HTMLElement | null
   return node.closest<HTMLElement>(FOCUSABLE);
 }
 
-// The focused holder a keyboard bubble keeps clear of, where it is not the bubble's own element; the
-// bubble's placement reads it (`TooltipContent`).
-const KeyboardHolderContext = React.createContext<HTMLElement | null>(null);
-
 // The members of each holder that show clipped text on its keyboard focus, by their element: an
 // `OverflowTooltip` or a `Hint`. `read` gives a member's clipped full texts at the moment the delay
 // has run ([] while it fits).
@@ -89,9 +85,12 @@ function inDocumentOrder(nodes: Iterable<HTMLElement>): HTMLElement[] {
 // on the holder (its activation, a click), a scroll and the focus leaving close it, also while it
 // waits; a press on a bubble is left to that bubble, which closes itself (#593). The scroll the
 // focus itself causes (Tab onto an element out of view) does not count: scrolls count once two frames
-// have passed without one. `due`: this member shows the keyboard bubble. `holder`: the element the
-// bubble keeps clear of, where it is not the member's own element. `close` resets it, for the root's
-// close. `enabled: false` takes no part; `inside` as for `holderOf`.
+// have passed since the focus; a scroll in those frames does not extend them, so a scroll begun at
+// once still closes it (#590). The bubble stands where the member's pointer bubble does, not beside
+// the holder (rev 17, Q&A #4645): an `OverflowTooltip` at its clipped text, a `Hint` at its trigger,
+// the control whose text is clipped. `due`: this member shows the keyboard
+// bubble. `close` resets it, for the root's close. `enabled: false` takes no part; `inside` as for
+// `holderOf`.
 function useOpenOnKeyboardFocus({
   node,
   enabled,
@@ -102,7 +101,7 @@ function useOpenOnKeyboardFocus({
   enabled: boolean;
   read: () => string[];
   inside?: boolean;
-}): { due: boolean; lines: string[]; holder: HTMLElement | null; close: () => void } {
+}): { due: boolean; lines: string[]; close: () => void } {
   const [lines, setLines] = React.useState<string[] | null>(null);
   const holder = React.useMemo(() => holderOf(node, inside), [node, inside]);
   // Read when the delay has run, so the latest one counts without rejoining.
@@ -118,16 +117,14 @@ function useOpenOnKeyboardFocus({
     membersOf.set(holder, members);
     let timer = 0;
     let frame = 0;
-    // Two frames without a scroll: the focus's own scroll into view has ended.
+    // Two frames after the focus: the focus's own scroll into view has ended.
     const settle = () => {
-      window.cancelAnimationFrame(frame);
       frame = window.requestAnimationFrame(() => {
         frame = window.requestAnimationFrame(() => (frame = 0));
       });
     };
     const onScroll = () => {
-      if (frame !== 0) settle();
-      else stop();
+      if (frame === 0) stop();
     };
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") stop();
@@ -196,19 +193,7 @@ function useOpenOnKeyboardFocus({
   }, [node, holder, enabled]);
   const close = React.useCallback(() => setLines(null), []);
   const due = enabled && lines !== null;
-  return {
-    due,
-    lines: due ? lines : [],
-    holder: holder === node || node?.contains(holder) === true ? null : holder,
-    close,
-  };
+  return { due, lines: due ? lines : [], close };
 }
 
-export {
-  inDocumentOrder,
-  KeyboardHolderContext,
-  overflowOf,
-  TOOLTIP_HINT_DELAY,
-  TOOLTIP_OPEN,
-  useOpenOnKeyboardFocus,
-};
+export { inDocumentOrder, overflowOf, TOOLTIP_HINT_DELAY, TOOLTIP_OPEN, useOpenOnKeyboardFocus };

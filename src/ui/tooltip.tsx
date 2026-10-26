@@ -4,8 +4,8 @@ import * as React from "react";
 import { cn } from "../lib/cn.js";
 import { ariaKeyShortcuts } from "../lib/keyboard.js";
 import { lockedWithReason } from "./button-lock-internal.js";
+import { FullTexts } from "./full-texts-internal.js";
 import {
-  KeyboardHolderContext,
   overflowOf,
   TOOLTIP_HINT_DELAY,
   TOOLTIP_OPEN,
@@ -416,32 +416,6 @@ function inTile(own: DOMRect, tile: DOMRect): RowPlacement {
   };
 }
 
-// Opened by the keyboard focus of the element that holds its text (a tile), the bubble stands beside
-// that element, never over it (`GL-UI-016` rev 16): on the right at the usual gap where its width
-// fits, else on the left, else on the side with more room, narrowed to it. Where neither side holds
-// 120 px (a tile as wide as a narrow window) it stands at its text as any bubble there does.
-function besideHolder(
-  own: DOMRect,
-  box: DOMRect,
-  width: number,
-  padding: number,
-): RowPlacement | null {
-  const viewport = document.documentElement.clientWidth;
-  const roomRight = Math.floor(viewport - padding - box.right - SIDE_OFFSET);
-  const roomLeft = Math.floor(box.left - SIDE_OFFSET - padding);
-  if (Math.max(roomRight, roomLeft) < ROW_MIN_WIDTH) return atElement(own, width, padding);
-  const right = width <= roomRight || (width > roomLeft && roomRight >= roomLeft);
-  return {
-    side: right ? "right" : "left",
-    sideOffset: right ? box.right + SIDE_OFFSET - own.right : own.left - box.left + SIDE_OFFSET,
-    fallback: false,
-    adjacent: false,
-    room: right ? roomRight : roomLeft,
-    lift: 0,
-    field: null,
-  };
-}
-
 // Inside a bar the bubble stands beside the element's group, at the element's height, in the nearest
 // gap that holds it, so it covers no neighbouring control (`GL-UI-016` rev 10 §Lage): right of the
 // group up to the next control of the bar (or the viewport), else left of it. A text field that takes
@@ -451,13 +425,9 @@ function besideHolder(
 // protection yields. The controls of other bars at the bubble's height (a canvas's floating actions
 // beside a panel) break a side into several gaps; it takes the nearest that holds it, else the widest
 // (#441). Outside a bar, and beside the element, it stands at the element when no side holds 120 px.
-// `around`: the focused element holding the text, whose whole box counts as the element's
-// (`besideHolder`). Measured when the bubble mounts, before it paints.
-function useRowPlacement(
-  content: HTMLElement | null,
-  padding: number,
-  around: HTMLElement | null,
-): RowPlacement | null {
+// A keyboard bubble opened by a holder's focus stands here as well, at its clipped text (rev 17).
+// Measured when the bubble mounts, before it paints.
+function useRowPlacement(content: HTMLElement | null, padding: number): RowPlacement | null {
   const trigger = React.useContext(TriggerNodeContext)?.trigger ?? null;
   const [placement, setPlacement] = React.useState<RowPlacement | null>(null);
   const [lift, setLift] = React.useState(0);
@@ -480,10 +450,7 @@ function useRowPlacement(
     const bubble = content.getBoundingClientRect();
     const width = bubble.width;
     if (found === null) {
-      const near =
-        around === null
-          ? atElement(own, width, padding)
-          : besideHolder(own, around.getBoundingClientRect(), width, padding);
+      const near = atElement(own, width, padding);
       if (near !== null) setPlacement(near);
       return;
     }
@@ -496,13 +463,11 @@ function useRowPlacement(
     const onLine = (rect: DOMRect) =>
       rect.width > 0 && rect.bottom > own.top && rect.top < own.bottom;
     const controls = [...row.querySelectorAll(ROW_CONTROL)].filter(
-      (node) =>
-        !trigger.contains(node) && !node.contains(trigger) && around?.contains(node) !== true,
+      (node) => !trigger.contains(node) && !node.contains(trigger),
     );
     const mine = controls.filter(inGroup).map((node) => node.getBoundingClientRect());
-    // A label's hint sits on the label's text: the label's whole box is the element's in its group,
-    // as the focused holder's is for its keyboard bubble.
-    const label = (around ?? trigger.closest("label[for]"))?.getBoundingClientRect() ?? own;
+    // A label's hint sits on the label's text: the label's whole box is the element's in its group.
+    const label = trigger.closest("label[for]")?.getBoundingClientRect() ?? own;
     const others = controls.filter((node) => !inGroup(node));
     // The group's extent counts each of its controls the bubble would reach at its height, raised
     // beside the element: in a group of stacked options (a radio group) also the option below (#438).
@@ -675,7 +640,7 @@ function useRowPlacement(
             field: over ? leftText : null,
           },
     );
-  }, [trigger, content, padding, around]);
+  }, [trigger, content, padding]);
   // The bubble's height settles once it narrows to its side, so it is measured as it resizes.
   React.useEffect(() => {
     // Over its tile the bubble grows upward, off the viewport's bottom edge.
@@ -815,7 +780,6 @@ function TooltipContent({
   const row = useRowPlacement(
     content,
     typeof collisionPadding === "number" ? collisionPadding : SIDE_OFFSET,
-    React.useContext(KeyboardHolderContext),
   );
   // Over a text field's empty end the bubble keeps clear of the text as it was when placed: typed or
   // pasted text would grow under it, so a change of the value closes it (#269).
@@ -966,22 +930,10 @@ function OverflowTooltip({
         <TooltipTrigger asChild onFocus={keepClosedOnFocus} {...press.trigger}>
           {child}
         </TooltipTrigger>
-        <KeyboardHolderContext.Provider value={focus.due ? focus.holder : null}>
-          <TooltipContent>{focus.due ? <FullTexts lines={focus.lines} /> : full}</TooltipContent>
-        </KeyboardHolderContext.Provider>
+        <TooltipContent>{focus.due ? <FullTexts lines={focus.lines} /> : full}</TooltipContent>
       </TooltipPrimitive.Root>
     </TooltipProvider>
   );
-}
-
-// The clipped full texts of one element's keyboard bubble, each on its own line (`GL-UI-016` rev 16),
-// apart as a hint's full text is from its description.
-function FullTexts({ lines }: { lines: readonly string[] }) {
-  return lines.map((line, index) => (
-    <span key={index} className={cn("block", index > 0 && "mt-1")}>
-      {line}
-    </span>
-  ));
 }
 
 // An icon button's hint opens on hover only (`SUI-FEATURE-074`): opened by focus, also when the focus

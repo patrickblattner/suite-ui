@@ -6,9 +6,9 @@ import { cn } from "../lib/cn.js";
 import { ariaKeyShortcuts } from "../lib/keyboard.js";
 import { lockedWithReason } from "./button-lock-internal.js";
 import { FieldValueHintContext } from "./field-value-hint-context.js";
+import { FullTexts } from "./full-texts-internal.js";
 import {
   inDocumentOrder,
-  KeyboardHolderContext,
   overflowOf,
   useOpenOnKeyboardFocus,
 } from "./keyboard-focus-open-internal.js";
@@ -126,15 +126,6 @@ function keepClosedOnFocus(event: React.FocusEvent): void {
 // (`SUI-FEATURE-120`): its hint stays closed on hover until the run ends.
 function keepClosedOnPointer(event: React.PointerEvent): void {
   event.preventDefault();
-}
-
-// The clipped full texts, each on its own line, apart as the description is from them.
-function FullLines({ lines }: { lines: readonly string[] }) {
-  return lines.map((line, index) => (
-    <span key={index} className={cn("block", index > 0 && "mt-1")}>
-      {line}
-    </span>
-  ));
 }
 
 type HintChildProps = {
@@ -319,26 +310,24 @@ function Hint({
                 {trigger}
               </PassThrough>
             </TooltipTrigger>
-            <KeyboardHolderContext.Provider value={byKeyboard ? focus.holder : null}>
-              <TooltipContent>
-                {byKeyboard ? (
-                  <FullLines lines={focus.lines} />
-                ) : clipped ? (
-                  <>
-                    <FullLines lines={fullLines} />
-                    <span className="mt-1 block opacity-90" data-slot="tooltip-hint">
-                      {shown}
-                      {chip}
-                    </span>
-                  </>
-                ) : (
-                  <>
+            <TooltipContent>
+              {byKeyboard ? (
+                <FullTexts lines={focus.lines} />
+              ) : clipped ? (
+                <>
+                  <FullTexts lines={fullLines} />
+                  <span className="mt-1 block opacity-90" data-slot="tooltip-hint">
                     {shown}
                     {chip}
-                  </>
-                )}
-              </TooltipContent>
-            </KeyboardHolderContext.Provider>
+                  </span>
+                </>
+              ) : (
+                <>
+                  {shown}
+                  {chip}
+                </>
+              )}
+            </TooltipContent>
           </TooltipPrimitive.Root>
         </TooltipProvider>
       </FieldValueHintContext.Provider>

@@ -4262,6 +4262,36 @@ for (const by of ["keyboard", "pointer"]) {
   });
 }
 
+// `GL-UI-016` rev 17 §Lage bei Fokus auf dem Vorfahren (Q&A #4645, #590): Tab onto the select puts the
+// bubble at its clipped value, where the pointer's stands: past the value's edge, the value free; the
+// rest of the trigger (its chevron) may be covered.
+test("select: the keyboard bubble of a clipped value stands at the value, as the pointer's", async ({
+  page,
+}) => {
+  await page.goto("/?page=components&lng=en");
+  const trigger = page.getByTestId("select-named-clipped");
+  const value = trigger.locator("[data-slot=select-value]");
+  const bubble = page.locator("[data-slot=tooltip-content]");
+  const text = "A value too long for its trigger";
+  await value.hover();
+  await expect(page.getByRole("tooltip")).toHaveText(text, { timeout: 5000 });
+  const byPointer = await box(bubble);
+  await page.mouse.move(0, 0);
+  await expect(bubble).toHaveCount(0);
+  await trigger.focus();
+  await page.keyboard.press("Shift+Tab");
+  await page.keyboard.press("Tab");
+  await expect(trigger).toBeFocused();
+  await expect(page.getByRole("tooltip")).toHaveText(text, { timeout: 5000 });
+  const byKeyboard = await box(bubble);
+  const own = await box(value);
+  const holder = await box(trigger);
+  expect(byKeyboard).toEqual(byPointer);
+  // The bubble's edge against the text's: beside the value, not beside the whole trigger.
+  expect(byKeyboard.x).toBeGreaterThanOrEqual(own.x + own.width);
+  expect(byKeyboard.x).toBeLessThan(holder.x + holder.width);
+});
+
 // `SUI-FEATURE-023`: a textarea of fixed height is a framed scroll surface; the bar's place is
 // reserved, so the text lines are as wide with overflow as without, and padding stays beside the bar.
 test("textarea: stable scrollbar gutter, same line width with and without overflow", async ({
