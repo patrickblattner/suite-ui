@@ -1,4 +1,5 @@
 import * as React from "react";
+import { flushSync } from "react-dom";
 
 // The width the bar's content needs. `scrollWidth` misses content that only reaches into the bar's
 // end padding, so the last part's edge is held against the padding as well.
@@ -212,9 +213,19 @@ function useFoldSteps(
             measure(root);
           });
     mutation?.observe(root, { childList: true });
+    // A window resize settles the bar before the frame's layout, so a sudden narrowing never paints a
+    // step it is about to leave; stepping from the observers instead would leave their notifications
+    // undelivered. Once what the settle started is laid out (an app's own refold on the bar's
+    // settled step), the bar measures again (#598).
+    const settleNow = () => {
+      flushSync(() => measure(root));
+      queueMicrotask(() => flushSync(() => measure(root)));
+    };
+    window.addEventListener("resize", settleNow);
     return () => {
       resize.disconnect();
       mutation?.disconnect();
+      window.removeEventListener("resize", settleNow);
     };
   }, [root, measure]);
 

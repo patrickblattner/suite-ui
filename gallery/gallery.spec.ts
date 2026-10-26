@@ -60,6 +60,17 @@ const HOVERABLE = [
   ].map((role) => `[role=${role}]`),
 ].join(", ");
 
+// The messages of the `error` events the window sees from the next load on: a "ResizeObserver loop"
+// error reaches neither `pageerror` nor the console (#598).
+async function collectWindowErrors(page: Page) {
+  await page.addInitScript(() => {
+    const errors: string[] = [];
+    (window as unknown as { windowErrors: string[] }).windowErrors = errors;
+    window.addEventListener("error", (event) => errors.push(String(event.message)));
+  });
+  return () => page.evaluate(() => (window as unknown as { windowErrors: string[] }).windowErrors);
+}
+
 async function parkPointer(page: Page) {
   const { width, height } = page.viewportSize()!;
   const corners = [
@@ -363,6 +374,57 @@ for (const lng of LANGUAGES) {
         expect({ head: await head.boundingBox(), canvas: await canvas.boundingBox() }).toEqual(
           fresh,
         );
+      });
+    }
+
+    // #598 (`SUI-FEATURE-104`): a sudden narrowing from 1920 to 500 px during the wait settles in the
+    // frame it starts: no frame shows more folds than the settled head, and the head never wraps.
+    if (theme === "light") {
+      test(`slide editor paste wait jumps 1920 → 500 px without spent frames ${lng}`, async ({
+        browser,
+      }) => {
+        // A page of its own, without the fixed clock: it takes no screenshot, and the fixed clock hides
+        // a spent frame the running one shows (the bar's measure once the app refolded, #598).
+        await using context = await browser.newContext();
+        const page = await context.newPage();
+        const errors = await collectWindowErrors(page);
+        await page.goto(`/?page=slide-editor&paste=wait&lng=${lng}&theme=${theme}`);
+        await expect(page.locator("html")).toHaveAttribute("lang", lng);
+        const editor = page.getByTestId("slide-editor");
+        await expect(
+          editor.locator("[data-slot=slide-view][data-slide-ready=true]"),
+        ).toBeAttached();
+        const canvas = editor.getByTestId("slide-editor-canvas");
+        const head = editor.locator("[data-slot=editor-header]");
+        const height = (await head.boundingBox())!.height;
+        await canvas.focus();
+        await canvas.press("Control+v");
+        await expect(editor.getByTestId("operation-label")).toBeVisible();
+        // Each frame's head as its animation frame reads it: laid out at the frame's width, before its
+        // resize observers run.
+        await head.evaluate((node) => {
+          const frames: { folds: number; height: number }[] = [];
+          (window as unknown as { frames598: typeof frames }).frames598 = frames;
+          const read = () => {
+            frames.push({
+              folds: Number(node.getAttribute("data-shrink")),
+              height: node.getBoundingClientRect().height,
+            });
+            requestAnimationFrame(read);
+          };
+          requestAnimationFrame(read);
+        });
+        await page.setViewportSize({ width: 500, height: 900 });
+        await expect(editor.getByTestId("operation-label")).toHaveCount(0);
+        await page.evaluate(() => new Promise((done) => setTimeout(done, 500)));
+        const settled = Number(await head.getAttribute("data-shrink"));
+        const frames = await page.evaluate(
+          () => (window as unknown as { frames598: { folds: number; height: number }[] }).frames598,
+        );
+        expect(Math.max(...frames.map((frame) => frame.folds))).toBe(settled);
+        expect(Math.max(...frames.map((frame) => frame.height))).toBe(height);
+        // Settled before the observers run, the head leaves none of their notifications undelivered.
+        expect(await errors()).toEqual([]);
       });
     }
 
@@ -3133,6 +3195,32 @@ for (const lng of LANGUAGES) {
         () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
       ),
     ).toBeLessThanOrEqual(0);
+  });
+}
+
+// #598: a width sweep across fold boundaries folds without a "ResizeObserver loop" error on the
+// window — `pageerror` and the console do not see it.
+for (const [target, bar] of [
+  ["editor-bar", "[data-slot=editor-header]"],
+  ["preview", "[data-shrink]"],
+] as const) {
+  test(`fold steps: a width sweep raises no window error on ${target}`, async ({ page }) => {
+    const errors = await collectWindowErrors(page);
+    await page.goto(`/?page=${target}&lng=de`);
+    await expect(page.locator(bar).first()).toBeVisible();
+    const steps = () =>
+      page.locator(bar).evaluateAll((nodes) => nodes.map((n) => n.getAttribute("data-shrink")));
+    const seen = new Set<string>();
+    for (const width of [1400, 1100, 900, 800, 700, 600, 500, 420, 1920, 600, 1920, 450]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.evaluate(
+        () => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))),
+      );
+      seen.add((await steps()).join());
+    }
+    // The sweep crossed fold boundaries.
+    expect(seen.size).toBeGreaterThan(1);
+    expect(await errors()).toEqual([]);
   });
 }
 

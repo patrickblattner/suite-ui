@@ -22,7 +22,7 @@ import {
   UngroupIcon,
 } from "lucide-react";
 import * as React from "react";
-import { createPortal } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
@@ -2060,8 +2060,9 @@ function Editor({
     };
     measure();
     // Read whenever the head settles, on its width, its height or a fold step: it marks its bare step
-    // each time. Read in between, the head may still stand at a step it is about to leave.
-    const settling = new MutationObserver(measure);
+    // each time. Read in between, the head may still stand at a step it is about to leave. The form it
+    // takes is laid out before the paint, so the head never shows the full label it gives up (#598).
+    const settling = new MutationObserver(() => flushSync(measure));
     settling.observe(head, { attributes: true, attributeFilter: ["data-bare-shrink"] });
     return () => settling.disconnect();
   }, [adopting]);
