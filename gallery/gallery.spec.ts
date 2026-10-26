@@ -321,29 +321,45 @@ for (const lng of LANGUAGES) {
     // at the last width shows — the folds the full label itself caused give it no room. Each path
     // loads at its first width; the first two pass 1920 px (the full label) and narrow to their last,
     // the others widen to a width where a fresh load is compact, after a narrowing or at a jump: the
-    // folds the narrower width left give the label no room either.
+    // folds the narrower width left give the label no room either. #601: the last two on a dirty deck,
+    // widened to a width where a fresh dirty load is compact and a clean one shows the label.
     const narrowed = { de: 600, en: 500, es: 600 }[lng];
     const compact = { de: 900, en: 760, es: 860 }[lng];
-    for (const widths of theme === "light"
-      ? [
-          [1920, narrowed],
-          [500, 1920, 700],
-          [compact, narrowed, compact],
-          [540, compact],
-        ]
+    const dirtyCompact = { de: 1040, en: 800, es: 920 }[lng];
+    for (const [widths, dirty] of theme === "light"
+      ? ([
+          [[1920, narrowed], false],
+          [[500, 1920, 700], false],
+          [[compact, narrowed, compact], false],
+          [[540, compact], false],
+          [[dirtyCompact, narrowed, dirtyCompact], true],
+          [[540, dirtyCompact], true],
+        ] as const)
       : []) {
       const width = widths.at(-1)!;
-      test(`slide editor paste wait resized ${widths.join(" → ")} px ${lng}`, async ({ page }) => {
+      test(`slide editor paste wait resized ${widths.join(" → ")} px${dirty ? " dirty" : ""} ${lng}`, async ({
+        page,
+      }) => {
         const editor = page.getByTestId("slide-editor");
         const canvas = editor.getByTestId("slide-editor-canvas");
         const head = editor.locator("[data-slot=editor-header]");
         const titleText = editor.locator("[data-slot=editor-title-text]");
-        const wait = async () => {
+        const wait = async (onDirtyDeck = dirty) => {
           await page.goto(`/?page=slide-editor&paste=wait&lng=${lng}&theme=${theme}`);
           await expect(page.locator("html")).toHaveAttribute("lang", lng);
           await expect(
             editor.locator("[data-slot=slide-view][data-slide-ready=true]"),
           ).toBeAttached();
+          if (onDirtyDeck) {
+            // One step on the deck, the stamp moved by an arrow; the paste then lifts the selection.
+            const stamp = (await editor.locator("[data-slide-element=stamp]").boundingBox())!;
+            await page.mouse.click(stamp.x + stamp.width / 2, stamp.y + stamp.height / 2);
+            await canvas.press("ArrowRight");
+            await expect(head.locator("[data-dirty]").first()).toHaveAttribute(
+              "data-dirty",
+              "true",
+            );
+          }
           const before = { head: await head.boundingBox(), canvas: await canvas.boundingBox() };
           await canvas.focus();
           await canvas.press("Control+v");
@@ -351,12 +367,17 @@ for (const lng of LANGUAGES) {
           return before;
         };
         await page.setViewportSize({ width, height: 900 });
+        if (dirty) {
+          // A clean deck at this width shows the label: only the dirty state makes it compact.
+          await wait(false);
+          await expect(editor.getByTestId("operation-label")).toBeVisible();
+        }
         const fresh = await wait();
         await expect(editor.getByTestId("operation-label")).toHaveCount(0);
         const freshTitle = (await titleText.boundingBox())!.width;
         const freshFolds = (await head.getAttribute("data-shrink"))!;
 
-        await page.setViewportSize({ width: widths[0]!, height: 900 });
+        await page.setViewportSize({ width: widths[0], height: 900 });
         await wait();
         for (const step of widths.slice(1)) {
           await page.setViewportSize({ width: step, height: 900 });
