@@ -652,3 +652,6 @@
 {"ts":"2026-10-26T01:05:47.044Z","key":"GL-UI-016","from":16,"to":17,"disposition":"ticket","ref":"590"}
 {"ts":"2026-10-26T01:46:28.371Z","key":"GL-UI-016","from":17,"to":19,"disposition":"ticket","ref":"589"}
 {"ts":"2026-10-26T01:46:33.474Z","key":"GL-UI-050","from":6,"to":7,"disposition":"editorial","ref":"rev 7 codifies the container step that returnFocus already implements since #565 (Q4650); no code change"}
+{"ts":"2026-10-26T05:30:39.601Z","key":"GL-UI-016","from":17,"to":20,"disposition":"ticket","ref":"596"}
+{"ts":"2026-10-26T05:30:40.049Z","key":"SUI-FEATURE-110","from":4,"to":5,"disposition":"ticket","ref":"597"}
+{"ts":"2026-10-26T05:30:40.505Z","key":"PROC-FLOW-002","from":6,"to":7,"disposition":"editorial","ref":"process: night/weekly window release follows the harness window file, not the clock; no code impact"}
