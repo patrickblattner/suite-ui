@@ -792,9 +792,11 @@ function CloseOnRest({ content }: { content: HTMLElement | null }) {
 // the focused element keeps it, never <body> (`GL-UI-050`, #593, #595); over the empty end of a text
 // field it focuses that field (rev 11 §Lage).
 // The prevented press reaches no handler that skips a prevented event (a select that opens on
-// pointerdown, #593), and still the document's listeners that close an open list. Its click stops
-// there: the bubble is a portal, and in the React tree the element's ancestors (a tile that opens)
-// would hear it.
+// pointerdown, #593). It leaves other open layers open (rev 20, #596) where they let it: the
+// package's lists skip a press on a bubble, and radix's Popover and Dialog wait for the click of a
+// primary-button press, which stops here. A non-modal DropdownMenu and a right-button press still
+// close their layer. The click stops because the bubble is a portal, and in the React tree the
+// element's ancestors (a tile that opens) would hear it.
 function TooltipContent({
   ref,
   className,

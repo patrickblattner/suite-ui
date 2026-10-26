@@ -104,10 +104,14 @@ function TimezoneCombobox({
     close();
   };
 
-  // A pointer press outside closes the list and discards the typed text.
+  // A pointer press outside closes the list and discards the typed text. A press on a tooltip bubble
+  // belongs to the bubble alone and leaves the list open (`GL-UI-016` §Schließen, #596).
   React.useEffect(() => {
     if (!open) return;
     const onPointerDown = (event: PointerEvent) => {
+      if (event.target instanceof Element && event.target.closest("[data-slot=tooltip-content]")) {
+        return;
+      }
       if (!rootRef.current?.contains(event.target as Node)) close();
     };
     // Escape closes the list only, not a surrounding dialog: radix listens on the document in the

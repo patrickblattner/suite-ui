@@ -11,6 +11,7 @@ import { EditPanel } from "./edit-panel.js";
 import { Field } from "./field.js";
 import { Hint } from "./hint.js";
 import { Input } from "./input.js";
+import { Popover, PopoverContent, PopoverTrigger } from "./popover.js";
 import {
   IconButtonTooltip,
   OverflowTooltip,
@@ -2405,6 +2406,46 @@ describe("tooltip click on the bubble", () => {
     );
     fireEvent.click(screen.getByText("Description", { selector: "[data-slot=tooltip-content]" }));
     expect(onClick).not.toHaveBeenCalled();
+  });
+
+  // `GL-UI-016` rev 20 §Schließen (#596): a press on a bubble closes no other open layer; a press
+  // anywhere else outside the popover still closes it.
+  it("a press on a bubble beside an open non-modal popover keeps the popover open", () => {
+    const onOpenChange = vi.fn();
+    const page = (bubble: boolean) => (
+      <>
+        <Popover defaultOpen onOpenChange={onOpenChange}>
+          <PopoverTrigger>Open</PopoverTrigger>
+          <PopoverContent>Popover content</PopoverContent>
+        </Popover>
+        {bubble ? (
+          <Tooltip defaultOpen>
+            <TooltipTrigger>Trigger</TooltipTrigger>
+            <TooltipContent>Description</TooltipContent>
+          </Tooltip>
+        ) : null}
+        <div data-testid="elsewhere" />
+      </>
+    );
+    // The bubble opens once the popover has taken the focus; radix listens for a press outside the
+    // popover one tick after each render.
+    const { rerender } = render(page(false));
+    rerender(page(true));
+    act(() => {
+      vi.advanceTimersByTime(0);
+    });
+    const bubble = screen.getByText("Description", { selector: "[data-slot=tooltip-content]" });
+    fireEvent.pointerDown(bubble, { pointerType: "mouse" });
+    fireEvent.pointerUp(bubble, { pointerType: "mouse" });
+    fireEvent.click(bubble);
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    expect(onOpenChange).not.toHaveBeenCalled();
+    expect(screen.getByText("Popover content")).toBeInTheDocument();
+    const elsewhere = screen.getByTestId("elsewhere");
+    fireEvent.pointerDown(elsewhere, { pointerType: "mouse" });
+    fireEvent.pointerUp(elsewhere, { pointerType: "mouse" });
+    fireEvent.click(elsewhere);
+    expect(onOpenChange).toHaveBeenCalledWith(false);
   });
 });
 

@@ -1201,24 +1201,31 @@ test("the open time zone list floats over the content below", async ({ page }) =
   expect(popup.x).toBeCloseTo(fieldBox.x, 0);
 });
 
-// `GL-UI-016` §Schließen (#593): a press on another element's bubble is a press outside the open
-// list, so the list closes with the bubble.
-test("a press on a tooltip bubble closes the open time zone list", async ({ page }) => {
-  await page.goto("/?page=components&lng=en");
-  const field = page.getByTestId("timezone-value");
-  await field.click();
-  await expect(page.getByTestId("timezone-value-options")).toBeVisible();
-  await page.getByTestId("hint-save").hover();
-  const bubble = page.locator("[data-slot=tooltip-content]");
-  await expect(page.getByRole("tooltip")).toHaveText("Saves the draft", { timeout: 5000 });
-  const tip = await box(bubble);
-  await page.mouse.move(tip.x + tip.width / 2, tip.y + tip.height / 2);
-  await page.mouse.down();
-  await page.mouse.up();
-  await expect(bubble).toHaveCount(0);
-  await expect(page.getByTestId("timezone-value-options")).toBeHidden();
-  await expect(field).toHaveAttribute("aria-expanded", "false");
-});
+// `GL-UI-016` rev 20 §Schließen (#596): a press on a bubble belongs to the bubble alone. It closes
+// the bubble and no other open layer: the open time zone list stays open.
+for (const [hover, text] of [
+  ["hint-save", "Saves the draft"],
+  ["select-named-clipped", "A value too long for its trigger"],
+] as const) {
+  test(`a press on the ${hover} bubble keeps the open time zone list open`, async ({ page }) => {
+    await page.goto("/?page=components&lng=en");
+    const field = page.getByTestId("timezone-value");
+    await field.click();
+    const list = page.getByTestId("timezone-value-options");
+    await expect(list).toBeVisible();
+    const target = page.getByTestId(hover);
+    await (hover === "hint-save" ? target : target.locator("[data-slot=select-value]")).hover();
+    const bubble = page.locator("[data-slot=tooltip-content]");
+    await expect(page.getByRole("tooltip")).toHaveText(text, { timeout: 5000 });
+    const tip = await box(bubble);
+    await page.mouse.move(tip.x + tip.width / 2, tip.y + tip.height / 2);
+    await page.mouse.down();
+    await page.mouse.up();
+    await expect(bubble).toHaveCount(0);
+    await expect(list).toBeVisible();
+    await expect(field).toHaveAttribute("aria-expanded", "true");
+  });
+}
 
 test("Tab focus does not open the time zone list; ArrowDown does", async ({ page }) => {
   await page.goto("/?page=dialog");

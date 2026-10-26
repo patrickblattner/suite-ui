@@ -69,6 +69,24 @@ describe("TimezoneCombobox", () => {
     expect(onValueChange).not.toHaveBeenCalled();
   });
 
+  // `GL-UI-016` rev 20 §Schließen (#596): a press on a tooltip bubble belongs to the bubble alone;
+  // the open list stays. A press anywhere else outside closes it.
+  it("a press on a tooltip bubble keeps the list open; a press elsewhere closes it", () => {
+    render(
+      <>
+        <Field initial="Europe/Berlin" onValueChange={vi.fn()} />
+        <div data-slot="tooltip-content" data-testid="bubble" />
+        <div data-testid="elsewhere" />
+      </>,
+    );
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "zur" } });
+    expect(screen.getByRole("listbox")).toBeInTheDocument();
+    fireEvent.pointerDown(screen.getByTestId("bubble"));
+    expect(screen.getByRole("listbox")).toBeInTheDocument();
+    fireEvent.pointerDown(screen.getByTestId("elsewhere"));
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+  });
+
   it("hint: the field is described by the hint text", () => {
     render(<TimezoneCombobox value="UTC" onValueChange={vi.fn()} hint="The zone of every date" />);
     const input = screen.getByRole("combobox");

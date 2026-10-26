@@ -212,4 +212,22 @@ describe("Combobox", () => {
     });
     expect(screen.getAllByRole("option").map((node) => node.textContent)).toEqual(["Ada Lovelace"]);
   });
+
+  // `GL-UI-016` rev 20 §Schließen (#596): a press on a tooltip bubble belongs to the bubble alone;
+  // the open list stays. A press anywhere else outside closes it.
+  it("a press on a tooltip bubble keeps the list open", () => {
+    render(
+      <>
+        <Field />
+        <div data-slot="tooltip-content" data-testid="bubble" />
+        <div data-testid="elsewhere" />
+      </>,
+    );
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "a" } });
+    expect(screen.getByRole("listbox")).toBeInTheDocument();
+    fireEvent.pointerDown(screen.getByTestId("bubble"));
+    expect(screen.getByRole("listbox")).toBeInTheDocument();
+    fireEvent.pointerDown(screen.getByTestId("elsewhere"));
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+  });
 });
