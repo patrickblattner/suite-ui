@@ -1745,6 +1745,131 @@ describe("toast with an action: duration", () => {
     expect(marks.has("m")).toBe(false);
   });
 
+  // sonner closes the toast on a cancel click as on an action click, without its dismiss handler, so
+  // the click drops the wrapper's mark and timer too (#602); the caller's cancel still runs.
+  it("drops the mark and the timer of an action toast whose cancel is clicked (#602)", () => {
+    render(<Toaster />);
+    useAllFakeTimers();
+    const dismiss = vi.spyOn(sonnerToast, "dismiss");
+    const set = vi.spyOn(Map.prototype, "set");
+    const cancelled = vi.fn();
+    act(() => {
+      toast.success("Archived", {
+        id: "c",
+        action: undo,
+        cancel: { label: "Keep", onClick: cancelled },
+        className: "cancel-class",
+      });
+    });
+    const index = set.mock.calls.findIndex(
+      ([key, value]) =>
+        key === "c" &&
+        typeof value === "object" &&
+        value !== null &&
+        (value as { className?: unknown }).className === "cancel-class",
+    );
+    const marks = set.mock.contexts[index] as Map<unknown, unknown>;
+    set.mockRestore();
+    expect(marks.has("c")).toBe(true);
+    advance(1);
+    fireEvent.click(screen.getByRole("button", { name: "Keep" }));
+    expect(cancelled).toHaveBeenCalledTimes(1);
+    expect(marks.has("c")).toBe(false);
+    for (let step = 0; step < 40; step++) advance(500);
+    expect(dismiss).not.toHaveBeenCalledWith("c");
+  });
+
+  // sonner closes the toast on a cancel click even when the click prevents the default; a toast shown
+  // with only a cancel and replaced by its id with an action gets the cancel it keeps wrapped (#602).
+  it.each([
+    ["whose cancel click prevents the default", true],
+    ["shown with only a cancel and replaced by its id with an action", false],
+  ] as const)(
+    "drops the mark and the timer of an action toast %s on a cancel click (#602)",
+    (_case, prevents) => {
+      render(<Toaster />);
+      useAllFakeTimers();
+      const dismiss = vi.spyOn(sonnerToast, "dismiss");
+      const set = vi.spyOn(Map.prototype, "set");
+      const cancel = {
+        label: "Keep",
+        onClick: (event: React.MouseEvent<HTMLButtonElement>) => {
+          if (prevents) event.preventDefault();
+        },
+      };
+      act(() => {
+        if (prevents) {
+          toast.success("Archived", { id: "p", action: undo, cancel, className: "own-class" });
+        } else {
+          toast.message("Archived", { id: "p", cancel });
+          toast.success("Archived", { id: "p", action: undo, className: "own-class" });
+        }
+      });
+      const index = set.mock.calls.findIndex(
+        ([key, value]) =>
+          key === "p" &&
+          typeof value === "object" &&
+          value !== null &&
+          (value as { className?: unknown }).className === "own-class",
+      );
+      const marks = set.mock.contexts[index] as Map<unknown, unknown>;
+      set.mockRestore();
+      expect(marks.has("p")).toBe(true);
+      advance(1);
+      fireEvent.click(screen.getByRole("button", { name: "Keep" }));
+      expect(marks.has("p")).toBe(false);
+      for (let step = 0; step < 40; step++) advance(500);
+      expect(dismiss).not.toHaveBeenCalledWith("p");
+    },
+  );
+
+  // sonner raises the result of a toast.promise without a loading state by the id the wrapper hands
+  // it; the caller's id replaces an earlier result instead of stacking a second one (#602).
+  it("replaces the result of a toast.promise without a loading state by the caller's id (#602)", async () => {
+    render(<Toaster />);
+    useAllFakeTimers();
+    let shown: ReturnType<typeof toast.promise> | undefined;
+    act(() => {
+      shown = toast.promise(Promise.resolve("ok"), { id: "saved", success: "Saved once" });
+    });
+    expect(String((shown as unknown as string).valueOf())).toBe("saved");
+    await act(async () => {
+      await shown?.unwrap();
+    });
+    advance(1);
+    expect(toastOf("Saved once")).not.toHaveAttribute("data-removed", "true");
+    act(() => {
+      shown = toast.promise(Promise.resolve("ok"), { id: "saved", success: "Saved twice" });
+    });
+    await act(async () => {
+      await shown?.unwrap();
+    });
+    advance(1);
+    expect(screen.queryByText("Saved once")).toBeNull();
+    expect(toastOf("Saved twice")).not.toHaveAttribute("data-removed", "true");
+  });
+
+  // sonner matches ids strictly: a numeric caller id comes back as a Number box that dismisses (#602).
+  it("returns a toast.promise without a loading state with a numeric id a handle that dismisses its result (#602)", async () => {
+    render(<Toaster />);
+    useAllFakeTimers();
+    let shown: ReturnType<typeof toast.promise> | undefined;
+    act(() => {
+      shown = toast.promise(Promise.resolve("ok"), { id: 9, success: "Saved by number" });
+    });
+    expect((shown as unknown as object) instanceof Number).toBe(true);
+    await act(async () => {
+      await shown?.unwrap();
+    });
+    advance(1);
+    expect(toastOf("Saved by number")).not.toHaveAttribute("data-removed", "true");
+    act(() => {
+      toast.dismiss(shown as unknown as number);
+    });
+    for (let step = 0; step < 4; step++) advance(500);
+    expect(screen.queryByText("Saved by number")).toBeNull();
+  });
+
   // The timer has closed the toast and sonner has not shown that yet: the call merges into it.
   it("reports onDismiss for an action toast raised by its id right after its timer closed it (#585)", () => {
     render(<Toaster />);

@@ -205,10 +205,12 @@ const callerActions = new WeakMap<ActionObject, ActionObject>();
 
 // sonner closes a toast on a click on its action object without running its dismiss handler, so the
 // click drops the wrapper's timer (#585) and its mark (#587) itself; an own element closes nothing on
-// a click.
+// a click. Its cancel object closes the toast the same way, even when the click prevents the default
+// (`always`, #602).
 function closingAction(
   action: ExternalToast["action"],
   id: () => string | number | undefined,
+  always = false,
 ): ActionObject | undefined {
   if (typeof action !== "object" || action === null || !("onClick" in action)) return undefined;
   const caller = callerActions.get(action) ?? action;
@@ -217,7 +219,7 @@ function closingAction(
     onClick: (event) => {
       caller.onClick(event);
       const shown = id();
-      if (event.defaultPrevented || shown === undefined) return;
+      if ((event.defaultPrevented && !always) || shown === undefined) return;
       cancelActionClose(shown);
       marks.delete(shown);
     },
@@ -327,9 +329,12 @@ function prepare(
   const label = actionLabel(action);
   let shownId = id;
   const clicked = closingAction(action, () => shownId);
+  const cancel = opts !== undefined && "cancel" in opts ? opts.cancel : live?.cancel;
+  const cancelled = closingAction(cancel, () => shownId, true);
   const markedOpts = {
     ...opts,
     ...(clicked === undefined ? {} : { action: clicked }),
+    ...(cancelled === undefined ? {} : { cancel: cancelled }),
     className: cn(own.className, ACTION_TOAST_CLASS),
     onDismiss: dismissMarked,
   };
@@ -389,12 +394,15 @@ let promiseIds = 0;
 // sonner's `toast.promise` through `prepare`: its loading state as `toast.loading`, its result as the
 // variant's call that replaces it by its id. The toast gets an id of its own when the caller gives
 // none, so the result finds it; without a loading state the result is a toast of its own, as in
-// sonner. sonner shows the result once it has awaited a `description` function, so the result's timer
+// sonner, unless the caller gives an id: it then replaces the toast with that id (#602), and a slower
+// earlier promise with the same id can overwrite a newer result, as sonner's do with a loading state.
+// sonner shows the result once it has awaited a `description` function, so the result's timer
 // starts only then. sonner shows a promise that resolves to a React element as it is, in place of its
 // loading state; when that state was marked, the element is raised anew right after, by its id.
 // sonner returns no id without a loading state; the wrapper returns the result's id, boxed with
-// `unwrap` as sonner boxes it (#587). sonner would show an element without a loading state under an id
-// of its own, so the wrapper shows it by its id and hands sonner a value it shows nothing for (#587).
+// `unwrap` as sonner boxes it, a number as a Number (#587, #602). sonner would show an element without
+// a loading state under an id of its own, so the wrapper shows it by its id and hands sonner a value it
+// shows nothing for (#587).
 // `unwrap()` also waits for the caller's `finally` and rejects with its rejection; without `unwrap()`
 // that rejection surfaces as unhandled, as a `finally` that throws does (#587).
 function promiseToast<T>(promise: PromiseArgs<T>[0], data?: PromiseArgs<T>[1]) {
@@ -415,10 +423,7 @@ function promiseToast<T>(promise: PromiseArgs<T>[0], data?: PromiseArgs<T>[1]) {
     },
   );
   promiseIds += 1;
-  const id =
-    loading !== undefined && rest.id !== undefined
-      ? rest.id
-      : `suite-promise-${String(promiseIds)}`;
+  const id = rest.id ?? `suite-promise-${String(promiseIds)}`;
   let settledOut: Promise<void> | undefined;
   let unwrapped = false;
   let pending: (() => void) | undefined;
@@ -489,7 +494,7 @@ function promiseToast<T>(promise: PromiseArgs<T>[0], data?: PromiseArgs<T>[1]) {
       },
     );
   };
-  return Object.assign(loading === undefined ? new String(id) : shownId, {
+  return Object.assign(loading === undefined ? (Object(id) as object) : shownId, {
     unwrap,
   }) as typeof shownId;
 }
