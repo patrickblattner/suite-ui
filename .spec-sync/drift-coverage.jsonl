@@ -646,3 +646,6 @@
 {"ts":"2026-10-25T15:02:00.533Z","key":"SUI-FEATURE-110","from":3,"to":4,"disposition":"ticket","ref":"580"}
 {"ts":"2026-10-25T15:02:07.845Z","key":"SUI-FEATURE-106","from":7,"to":8,"disposition":"ticket","ref":"568"}
 {"ts":"2026-10-25T15:02:25.240Z","key":"GL-UI-010","from":10,"to":11,"disposition":"editorial","ref":"rev 11 codifies the sr-only panel heading already built by #567 (a0be91d); no further code impact"}
+{"ts":"2026-10-25T22:00:46.712Z","key":"GL-UI-016","from":14,"to":15,"disposition":"ticket","ref":"576"}
+{"ts":"2026-10-25T22:01:02.268Z","key":"GL-UI-020","from":12,"to":13,"disposition":"ticket","ref":"577"}
+{"ts":"2026-10-25T23:39:05.895Z","key":"GL-UI-016","from":14,"to":16,"disposition":"ticket","ref":"576"}
