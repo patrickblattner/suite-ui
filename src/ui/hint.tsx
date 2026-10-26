@@ -6,6 +6,12 @@ import { cn } from "../lib/cn.js";
 import { ariaKeyShortcuts } from "../lib/keyboard.js";
 import { lockedWithReason } from "./button-lock-internal.js";
 import { FieldValueHintContext } from "./field-value-hint-context.js";
+import {
+  inDocumentOrder,
+  KeyboardHolderContext,
+  overflowOf,
+  useOpenOnKeyboardFocus,
+} from "./keyboard-focus-open-internal.js";
 import { helpIdFor } from "./label-with-help.js";
 import { usePressKeepsClosed } from "./press-keeps-closed.js";
 import { type Shortcut, ShortcutChip, shortcutVariants } from "./shortcut-chip-internal.js";
@@ -122,6 +128,15 @@ function keepClosedOnPointer(event: React.PointerEvent): void {
   event.preventDefault();
 }
 
+// The clipped full texts, each on its own line, apart as the description is from them.
+function FullLines({ lines }: { lines: readonly string[] }) {
+  return lines.map((line, index) => (
+    <span key={index} className={cn("block", index > 0 && "mt-1")}>
+      {line}
+    </span>
+  ));
+}
+
 type HintChildProps = {
   id?: string;
   "aria-describedby"?: string;
@@ -169,8 +184,11 @@ type HintProps = {
 // working.
 //
 // A control whose own text is clipped (it carries `truncate`) gets both in one bubble (`GL-UI-016`): the
-// full text on top, the description below. So does a clipped `OverflowTooltip` inside it (the value of
-// a select trigger), which then opens no bubble of its own: one element, one tooltip.
+// full text on top, the description below. So does each clipped `OverflowTooltip` inside it (the value
+// of a select trigger), which then opens no bubble of its own: one element, one tooltip, a line for
+// each full text in document order. Keyboard focus opens the bubble only while a text is clipped, and
+// then it shows the full texts alone: the description reaches the focus through `aria-describedby`
+// (`GL-UI-016` rev 16, `GL-UI-017`).
 function Hint({
   text,
   disabledText,
@@ -188,10 +206,39 @@ function Hint({
   // Measured only while the bubble is open: a closed hint reads no layout (#438).
   const overflow = useIsOverflowing(press.root.open);
   const ownRef = passThrough.ref;
-  const ref = React.useMemo(() => composeRefs(ownRef, overflow.ref), [ownRef, overflow.ref]);
-  const [innerClipped, setInnerClipped] = React.useState("");
-  const fullText = overflow.isOverflowing && overflow.text !== "" ? overflow.text : innerClipped;
-  const clipped = fullText !== "";
+  const [node, setNode] = React.useState<HTMLElement | null>(null);
+  const ref = React.useMemo(
+    () => composeRefs(ownRef, overflow.ref, setNode),
+    [ownRef, overflow.ref],
+  );
+  // The clipped full text of each `OverflowTooltip` inside, by its element.
+  const [inner, setInner] = React.useState<ReadonlyMap<HTMLElement, string>>(() => new Map());
+  const report = React.useCallback((reporter: HTMLElement, full: string) => {
+    setInner((prev) => {
+      if ((prev.get(reporter) ?? "") === full) return prev;
+      const next = new Map(prev);
+      if (full === "") next.delete(reporter);
+      else next.set(reporter, full);
+      return next;
+    });
+  }, []);
+  const innerLines = React.useMemo(
+    () => inDocumentOrder(inner.keys()).map((reporter) => inner.get(reporter) ?? ""),
+    [inner],
+  );
+  const fullLines = overflow.isOverflowing && overflow.text !== "" ? [overflow.text] : innerLines;
+  const clipped = fullLines.length > 0;
+  // The keyboard reads its own clipping once the delay has run, the layout only then.
+  const focus = useOpenOnKeyboardFocus({
+    node,
+    enabled: true,
+    inside: true,
+    read: () => {
+      const own = node === null ? null : overflowOf(node);
+      return own?.isOverflowing === true && own.text !== "" ? [own.text] : innerLines;
+    },
+  });
+  const byKeyboard = focus.due && !press.root.open;
 
   const disabled = children.props.disabled === true;
   // A control locked with `aria-disabled` keeps the focus and pointer events, so it owns its
@@ -249,11 +296,17 @@ function Hint({
   }
 
   return (
-    <OverflowReportContext.Provider value={setInnerClipped}>
+    <OverflowReportContext.Provider value={report}>
       {/* A control in a Hint of its own takes no field hint: the caller's Hint wins (#435). */}
       <FieldValueHintContext.Provider value={undefined}>
         <TooltipProvider>
-          <TooltipPrimitive.Root {...press.root}>
+          <TooltipPrimitive.Root
+            open={press.root.open || focus.due}
+            onOpenChange={(next) => {
+              if (!next) focus.close();
+              press.root.onOpenChange(next);
+            }}
+          >
             <TooltipTrigger
               asChild
               onFocus={keepClosedOnFocus}
@@ -266,22 +319,26 @@ function Hint({
                 {trigger}
               </PassThrough>
             </TooltipTrigger>
-            <TooltipContent>
-              {clipped ? (
-                <>
-                  <span className="block">{fullText}</span>
-                  <span className="mt-1 block opacity-90" data-slot="tooltip-hint">
+            <KeyboardHolderContext.Provider value={byKeyboard ? focus.holder : null}>
+              <TooltipContent>
+                {byKeyboard ? (
+                  <FullLines lines={focus.lines} />
+                ) : clipped ? (
+                  <>
+                    <FullLines lines={fullLines} />
+                    <span className="mt-1 block opacity-90" data-slot="tooltip-hint">
+                      {shown}
+                      {chip}
+                    </span>
+                  </>
+                ) : (
+                  <>
                     {shown}
                     {chip}
-                  </span>
-                </>
-              ) : (
-                <>
-                  {shown}
-                  {chip}
-                </>
-              )}
-            </TooltipContent>
+                  </>
+                )}
+              </TooltipContent>
+            </KeyboardHolderContext.Provider>
           </TooltipPrimitive.Root>
         </TooltipProvider>
       </FieldValueHintContext.Provider>

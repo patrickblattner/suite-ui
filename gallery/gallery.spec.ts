@@ -3100,6 +3100,51 @@ test("media tile: a long name ends in an ellipsis, the tooltip shows it whole", 
   );
 });
 
+// `GL-UI-016` rev 16 §Overflow-Tooltip bei Tastaturfokus (#576): Tab onto the tile with the clipped
+// name shows its full text after the hint delay; Tab onto a tile whose name fits shows nothing.
+test("media tile: Tab onto a clipped name shows the full text, onto a fitting one nothing", async ({
+  page,
+}) => {
+  const grid = await mediaTiles(page);
+  const tiles = grid.getByTestId("media-tile");
+  const long = "a-very-long-file-name-from-the-summer-campaign-2026-final-version-approved.jpg";
+  await tiles.nth(2).focus();
+  await page.keyboard.press("Tab");
+  await expect(tiles.nth(3)).toBeFocused();
+  await expect(tiles.nth(3).locator(".truncate")).toHaveCSS("text-overflow", "ellipsis");
+  await expect(page.getByRole("tooltip")).toHaveText(long, { timeout: 5000 });
+  // Beside the focused tile, never over it.
+  const tile = await tiles.nth(3).boundingBox();
+  const bubble = await page.locator("[data-slot=tooltip-content]").boundingBox();
+  expect(bubble!.x).toBeGreaterThanOrEqual(tile!.x + tile!.width);
+  await page.keyboard.press("Tab");
+  await expect(tiles.nth(4)).toBeFocused();
+  await expect(page.getByRole("tooltip")).toHaveCount(0);
+  // The clock for "nothing opens": a hover on the clipped name, begun after the focus, opens its
+  // bubble after the same hint delay; by then the fitting tile's focus has shown nothing.
+  await tiles.nth(3).locator(".truncate").hover();
+  await expect(page.getByRole("tooltip")).toHaveText(long, { timeout: 5000 });
+  await expect(page.getByRole("tooltip")).toHaveCount(1);
+  await expect(tiles.nth(4)).toBeFocused();
+});
+
+// The browser scrolls a tile out of view into it on Tab; that scroll does not cancel the bubble.
+test("media tile: Tab onto a clipped name below the fold shows the full text", async ({ page }) => {
+  const grid = await mediaTiles(page);
+  const tiles = grid.getByTestId("media-tile");
+  const box = await tiles.nth(3).boundingBox();
+  await page.setViewportSize({ width: 1920, height: Math.floor(box!.y) - 20 });
+  await tiles.nth(2).evaluate((node) => (node as HTMLElement).focus({ preventScroll: true }));
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.keyboard.press("Tab");
+  await expect(tiles.nth(3)).toBeFocused();
+  expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
+  await expect(page.getByRole("tooltip")).toHaveText(
+    "a-very-long-file-name-from-the-summer-campaign-2026-final-version-approved.jpg",
+    { timeout: 5000 },
+  );
+});
+
 test("media tile: Tab reaches the tile with the focus ring, Enter and click open it", async ({
   page,
 }) => {

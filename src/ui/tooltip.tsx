@@ -4,15 +4,20 @@ import * as React from "react";
 import { cn } from "../lib/cn.js";
 import { ariaKeyShortcuts } from "../lib/keyboard.js";
 import { lockedWithReason } from "./button-lock-internal.js";
+import {
+  KeyboardHolderContext,
+  overflowOf,
+  TOOLTIP_HINT_DELAY,
+  TOOLTIP_OPEN,
+  useOpenOnKeyboardFocus,
+} from "./keyboard-focus-open-internal.js";
 import { usePressKeepsClosed } from "./press-keeps-closed.js";
 import { type Shortcut, ShortcutChip, shortcutVariants } from "./shortcut-chip-internal.js";
 
 // One tooltip behaviour (`GL-UI-016`/`GL-UI-017`): every tooltip, the overflow tooltip included, opens
 // after the one hint delay and closes at once — once the pointer has left both element and bubble, on
 // click, focus change, scroll and `Esc`. The pointer moving from the element straight onto the bubble
-// keeps it open (hoverable, WCAG 1.4.13, `GL-UI-016` rev 5). Radix needs a numeric delay, so this mirrors
-// `--tooltip-hint-delay` in styles.css. Apps set no delay of their own.
-const TOOLTIP_HINT_DELAY = 1500;
+// keeps it open (hoverable, WCAG 1.4.13, `GL-UI-016` rev 5). The delay is `TOOLTIP_HINT_DELAY`.
 // How long the pointer may rest on another control on its way from the element to the bubble before
 // the bubble closes (`GL-UI-016` rev 7 §Schließen).
 const TOOLTIP_REST_CLOSE = 300;
@@ -114,9 +119,6 @@ function TooltipTrigger({
     />
   );
 }
-
-// Radix closes every open bubble on this document event; a bubble opening dispatches it.
-const TOOLTIP_OPEN = "tooltip.open";
 
 // A focus change closes the bubble (`SUI-FEATURE-049` AC2): the focus landing anywhere outside the
 // trigger and the bubble, not only the trigger's blur, which radix alone listens to and which a
@@ -373,6 +375,32 @@ function atElement(own: DOMRect, width: number, padding: number): RowPlacement |
   };
 }
 
+// Opened by the keyboard focus of the element that holds its text (a tile), the bubble stands beside
+// that element, never over it (`GL-UI-016` rev 16): on the right at the usual gap where its width
+// fits, else on the left, else on the side with more room, narrowed to it. Where neither side holds
+// 120 px (a tile as wide as a narrow window) it stands at its text as any bubble there does.
+function besideHolder(
+  own: DOMRect,
+  box: DOMRect,
+  width: number,
+  padding: number,
+): RowPlacement | null {
+  const viewport = document.documentElement.clientWidth;
+  const roomRight = Math.floor(viewport - padding - box.right - SIDE_OFFSET);
+  const roomLeft = Math.floor(box.left - SIDE_OFFSET - padding);
+  if (Math.max(roomRight, roomLeft) < ROW_MIN_WIDTH) return atElement(own, width, padding);
+  const right = width <= roomRight || (width > roomLeft && roomRight >= roomLeft);
+  return {
+    side: right ? "right" : "left",
+    sideOffset: right ? box.right + SIDE_OFFSET - own.right : own.left - box.left + SIDE_OFFSET,
+    fallback: false,
+    adjacent: false,
+    room: right ? roomRight : roomLeft,
+    lift: 0,
+    field: null,
+  };
+}
+
 // Inside a bar the bubble stands beside the element's group, at the element's height, in the nearest
 // gap that holds it, so it covers no neighbouring control (`GL-UI-016` rev 10 §Lage): right of the
 // group up to the next control of the bar (or the viewport), else left of it. A text field that takes
@@ -382,8 +410,13 @@ function atElement(own: DOMRect, width: number, padding: number): RowPlacement |
 // protection yields. The controls of other bars at the bubble's height (a canvas's floating actions
 // beside a panel) break a side into several gaps; it takes the nearest that holds it, else the widest
 // (#441). Outside a bar, and beside the element, it stands at the element when no side holds 120 px.
-// Measured when the bubble mounts, before it paints.
-function useRowPlacement(content: HTMLElement | null, padding: number): RowPlacement | null {
+// `around`: the focused element holding the text, whose whole box counts as the element's
+// (`besideHolder`). Measured when the bubble mounts, before it paints.
+function useRowPlacement(
+  content: HTMLElement | null,
+  padding: number,
+  around: HTMLElement | null,
+): RowPlacement | null {
   const trigger = React.useContext(TriggerNodeContext)?.trigger ?? null;
   const [placement, setPlacement] = React.useState<RowPlacement | null>(null);
   const [lift, setLift] = React.useState(0);
@@ -399,7 +432,10 @@ function useRowPlacement(content: HTMLElement | null, padding: number): RowPlace
     const bubble = content.getBoundingClientRect();
     const width = bubble.width;
     if (found === null) {
-      const near = atElement(own, width, padding);
+      const near =
+        around === null
+          ? atElement(own, width, padding)
+          : besideHolder(own, around.getBoundingClientRect(), width, padding);
       // Measuring the DOM before paint is what layout effects are for.
       // eslint-disable-next-line react-hooks/set-state-in-effect
       if (near !== null) setPlacement(near);
@@ -414,11 +450,13 @@ function useRowPlacement(content: HTMLElement | null, padding: number): RowPlace
     const onLine = (rect: DOMRect) =>
       rect.width > 0 && rect.bottom > own.top && rect.top < own.bottom;
     const controls = [...row.querySelectorAll(ROW_CONTROL)].filter(
-      (node) => !trigger.contains(node) && !node.contains(trigger),
+      (node) =>
+        !trigger.contains(node) && !node.contains(trigger) && around?.contains(node) !== true,
     );
     const mine = controls.filter(inGroup).map((node) => node.getBoundingClientRect());
-    // A label's hint sits on the label's text: the label's whole box is the element's in its group.
-    const label = trigger.closest("label[for]")?.getBoundingClientRect() ?? own;
+    // A label's hint sits on the label's text: the label's whole box is the element's in its group,
+    // as the focused holder's is for its keyboard bubble.
+    const label = (around ?? trigger.closest("label[for]"))?.getBoundingClientRect() ?? own;
     const others = controls.filter((node) => !inGroup(node));
     // The group's extent counts each of its controls the bubble would reach at its height, raised
     // beside the element: in a group of stacked options (a radio group) also the option below (#438).
@@ -591,7 +629,7 @@ function useRowPlacement(content: HTMLElement | null, padding: number): RowPlace
             field: over ? leftText : null,
           },
     );
-  }, [trigger, content, padding]);
+  }, [trigger, content, padding, around]);
   // The bubble's height settles once it narrows to its side, so it is measured as it resizes.
   React.useEffect(() => {
     if (placement === null || placement.fallback) return;
@@ -728,6 +766,7 @@ function TooltipContent({
   const row = useRowPlacement(
     content,
     typeof collisionPadding === "number" ? collisionPadding : SIDE_OFFSET,
+    React.useContext(KeyboardHolderContext),
   );
   // Over a text field's empty end the bubble keeps clear of the text as it was when placed: typed or
   // pasted text would grow under it, so a change of the value closes it (#269).
@@ -808,16 +847,8 @@ function useIsOverflowing(active = true) {
   const [measurement, setMeasurement] = React.useState({ isOverflowing: false, text: "" });
 
   const measure = React.useCallback(() => {
-    if (!active || node === null || node.clientWidth === 0) return;
-    const next = {
-      isOverflowing: node.scrollWidth > node.clientWidth,
-      text:
-        node instanceof HTMLInputElement && node.type === "password"
-          ? ""
-          : node instanceof HTMLInputElement || node instanceof HTMLTextAreaElement
-            ? node.value
-            : (node.textContent ?? ""),
-    };
+    const next = !active || node === null ? null : overflowOf(node);
+    if (next === null) return;
     setMeasurement((prev) =>
       prev.isOverflowing === next.isOverflowing && prev.text === next.text ? prev : next,
     );
@@ -834,12 +865,12 @@ function useIsOverflowing(active = true) {
     return () => observer.disconnect();
   }, [active, measure, node]);
 
-  return { ref: setNode, ...measurement };
+  return { ref: setNode, node, ...measurement };
 }
 
-// The clipped full text of an `OverflowTooltip` inside a `Hint` ("" while it fits); the hint shows it
-// in its own bubble.
-type ReportOverflow = (full: string) => void;
+// The clipped full text of each `OverflowTooltip` inside a `Hint`, by its element ("" while it fits);
+// the hint shows them in its own bubble, one line each in document order (`GL-UI-016` rev 16).
+type ReportOverflow = (node: HTMLElement, full: string) => void;
 const OverflowReportContext = React.createContext<ReportOverflow | null>(null);
 
 // Wraps one clipping element (it carries `truncate`) and shows its full text while it is clipped. `text` is optional: without it the text is read back from the element.
@@ -852,32 +883,57 @@ function OverflowTooltip({
   text?: string;
   children: React.ReactElement<{ ref?: React.Ref<HTMLElement> }>;
 }) {
-  const { ref, isOverflowing, text: measured } = useIsOverflowing();
+  const { ref, node, isOverflowing, text: measured } = useIsOverflowing();
   const report = React.useContext(OverflowReportContext);
   const child = React.cloneElement(children, { ref });
   const full = text ?? measured;
   const clipped = isOverflowing ? full : "";
   // A press keeps the bubble closed until the pointer leaves (#190).
   const press = usePressKeepsClosed();
+  // Only a clipped text opens on keyboard focus; inside a `Hint` the hint does (rev 16).
+  const focus = useOpenOnKeyboardFocus({
+    node,
+    enabled: report === null && clipped !== "",
+    read: () => [clipped],
+  });
 
   React.useLayoutEffect(() => {
-    if (report === null) return;
-    report(clipped);
-    return () => report("");
-  }, [report, clipped]);
+    if (report === null || node === null) return;
+    report(node, clipped);
+    return () => report(node, "");
+  }, [report, node, clipped]);
 
   if (report !== null || clipped === "") return child;
 
   return (
     <TooltipProvider>
-      <TooltipPrimitive.Root {...press.root}>
-        <TooltipTrigger asChild {...press.trigger}>
+      <TooltipPrimitive.Root
+        open={press.root.open || focus.due}
+        onOpenChange={(next) => {
+          if (!next) focus.close();
+          press.root.onOpenChange(next);
+        }}
+      >
+        {/* Radix opens on focus at once; the focus opens it only by keyboard, after the delay. */}
+        <TooltipTrigger asChild onFocus={keepClosedOnFocus} {...press.trigger}>
           {child}
         </TooltipTrigger>
-        <TooltipContent>{full}</TooltipContent>
+        <KeyboardHolderContext.Provider value={focus.due ? focus.holder : null}>
+          <TooltipContent>{focus.due ? <FullTexts lines={focus.lines} /> : full}</TooltipContent>
+        </KeyboardHolderContext.Provider>
       </TooltipPrimitive.Root>
     </TooltipProvider>
   );
+}
+
+// The clipped full texts of one element's keyboard bubble, each on its own line (`GL-UI-016` rev 16),
+// apart as a hint's full text is from its description.
+function FullTexts({ lines }: { lines: readonly string[] }) {
+  return lines.map((line, index) => (
+    <span key={index} className={cn("block", index > 0 && "mt-1")}>
+      {line}
+    </span>
+  ));
 }
 
 // An icon button's hint opens on hover only (`SUI-FEATURE-074`): opened by focus, also when the focus
