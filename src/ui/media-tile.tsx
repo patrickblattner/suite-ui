@@ -96,6 +96,8 @@ function MediaTile({
   const shared = {
     "data-slot": "media-tile",
     "data-testid": testId,
+    // The name's tooltip stands inside this tile, never over a neighbour (`GL-UI-016` rev 19, #589).
+    "data-tooltip-tile": "",
     "aria-labelledby": `${id}-name`,
     "aria-describedby": describedBy || undefined,
     ...(entry === undefined

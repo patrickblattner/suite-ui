@@ -323,9 +323,13 @@ function textEnd(field: HTMLInputElement | HTMLTextAreaElement): number {
 // `lift`: how far the bubble rises above its usual top edge so that it is not cut off at the bottom
 // of the viewport; radix's own shift is off beside a group, together with its flip.
 // `field`: the text field whose empty end the bubble stands over, which a press on it focuses.
+// `alignOffset`, `width`: over its tile (`side: "top"`) the bubble's left edge from its element's and
+// its fixed width (`inTile`).
 type RowPlacement = {
-  side: "right" | "left";
+  side: "right" | "left" | "top";
   sideOffset: number;
+  alignOffset?: number;
+  width?: number;
   fallback: boolean;
   adjacent: boolean;
   room: number;
@@ -370,6 +374,43 @@ function atElement(own: DOMRect, width: number, padding: number): RowPlacement |
     fallback: false,
     adjacent: false,
     room,
+    lift: 0,
+    field: null,
+  };
+}
+
+// A tile (a media tile) is a control of its own, never a group with its neighbours (`GL-UI-016` rev 19
+// §Lage, Kacheln, #589). A text's bubble stands beside the text where its own tile holds 120 px there,
+// 8 px clear of the tile's edge; else inside its tile over the tile's remaining area: the tile's
+// width less 8 px a side, wrapping, its bottom edge 4 px above the text, growing upward out of the
+// tile where the tile is too short above the text. So it never covers its text or a neighbouring
+// tile, whatever the grid's width; on hover and on keyboard focus alike.
+const TOOLTIP_TILE = "[data-tooltip-tile]";
+function inTile(own: DOMRect, tile: DOMRect): RowPlacement {
+  const gap = SIDE_OFFSET + ARROW_SIZE;
+  const roomRight = Math.floor(tile.right - SIDE_OFFSET - own.right - gap);
+  const roomLeft = Math.floor(own.left - gap - tile.left - SIDE_OFFSET);
+  if (Math.max(roomRight, roomLeft) >= ROW_MIN_WIDTH) {
+    const right = roomRight >= roomLeft;
+    return {
+      side: right ? "right" : "left",
+      sideOffset: SIDE_OFFSET,
+      fallback: false,
+      adjacent: true,
+      room: right ? roomRight : roomLeft,
+      lift: 0,
+      field: null,
+    };
+  }
+  const width = Math.floor(tile.width - 2 * SIDE_OFFSET);
+  return {
+    side: "top",
+    sideOffset: ALIGN_RAISE,
+    alignOffset: tile.left + SIDE_OFFSET - own.left,
+    width,
+    fallback: false,
+    adjacent: false,
+    room: width,
     lift: 0,
     field: null,
   };
@@ -427,6 +468,13 @@ function useRowPlacement(
   }
   React.useLayoutEffect(() => {
     if (trigger === null || content === null) return;
+    const tile = trigger.closest(TOOLTIP_TILE);
+    if (tile !== null) {
+      // Measuring the DOM before paint is what layout effects are for.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setPlacement(inTile(trigger.getBoundingClientRect(), tile.getBoundingClientRect()));
+      return;
+    }
     const found = rowOf(trigger);
     const own = trigger.getBoundingClientRect();
     const bubble = content.getBoundingClientRect();
@@ -436,8 +484,6 @@ function useRowPlacement(
         around === null
           ? atElement(own, width, padding)
           : besideHolder(own, around.getBoundingClientRect(), width, padding);
-      // Measuring the DOM before paint is what layout effects are for.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       if (near !== null) setPlacement(near);
       return;
     }
@@ -632,7 +678,8 @@ function useRowPlacement(
   }, [trigger, content, padding, around]);
   // The bubble's height settles once it narrows to its side, so it is measured as it resizes.
   React.useEffect(() => {
-    if (placement === null || placement.fallback) return;
+    // Over its tile the bubble grows upward, off the viewport's bottom edge.
+    if (placement === null || placement.fallback || placement.side === "top") return;
     if (trigger === null || content === null || typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(() => {
       const top = trigger.getBoundingClientRect().top - ALIGN_RAISE;
@@ -791,7 +838,7 @@ function TooltipContent({
         // the row's; the fallback beside the element flips again, as outside a row. At the element
         // itself, in a narrow window, it neither flips nor shifts (#441).
         avoidCollisions={row === null ? !inRow : row.fallback}
-        alignOffset={-ALIGN_RAISE}
+        alignOffset={row?.alignOffset ?? -ALIGN_RAISE}
         collisionPadding={collisionPadding}
         className={cn(
           "z-50 max-w-[min(var(--container-xs),var(--radix-tooltip-content-available-width,var(--container-xs)),var(--tooltip-room,var(--container-xs)))] origin-(--radix-tooltip-content-transform-origin) rounded-md bg-primary px-3 py-1.5 text-xs text-balance text-primary-foreground",
@@ -805,6 +852,7 @@ function TooltipContent({
             : ({
                 ...style,
                 "--tooltip-room": `${row.room}px`,
+                ...(row.width !== undefined && { width: row.width, maxWidth: row.width }),
                 translate: row.lift === 0 ? undefined : `0 -${row.lift}px`,
               } as React.CSSProperties)
         }

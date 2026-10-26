@@ -3141,10 +3141,11 @@ test("media tile: Tab onto a clipped name shows the full text, onto a fitting on
   await expect(tiles.nth(3)).toBeFocused();
   await expect(tiles.nth(3).locator(".truncate")).toHaveCSS("text-overflow", "ellipsis");
   await expect(page.getByRole("tooltip")).toHaveText(long, { timeout: 5000 });
-  // Beside the focused tile, never over it.
+  // Inside the focused tile, above its name (`GL-UI-016` rev 19, #589).
   const tile = await tiles.nth(3).boundingBox();
   const bubble = await page.locator("[data-slot=tooltip-content]").boundingBox();
-  expect(bubble!.x).toBeGreaterThanOrEqual(tile!.x + tile!.width);
+  expect(bubble!.x).toBeGreaterThanOrEqual(tile!.x);
+  expect(bubble!.x + bubble!.width).toBeLessThanOrEqual(tile!.x + tile!.width);
   await page.keyboard.press("Tab");
   await expect(tiles.nth(4)).toBeFocused();
   await expect(page.getByRole("tooltip")).toHaveCount(0);
@@ -3172,6 +3173,59 @@ test("media tile: Tab onto a clipped name below the fold shows the full text", a
     { timeout: 5000 },
   );
 });
+
+// `GL-UI-016` rev 19 §Lage, Kacheln (#589): a tile is no group with its neighbours. The clipped
+// name of a tile in the middle of a full line (1280 px) and of a lone line (1920 px) finds no 120 px
+// beside it in its tile, so its bubble stands over the tile's preview: the tile's width less 8 px a
+// side, its bottom edge 4 px above the name, over no other tile and not over the name — on hover and
+// on keyboard focus alike.
+for (const width of [1280, 1920]) {
+  test(`media tile: the overflow tooltip stands inside its tile at ${width} px, by pointer and keyboard`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 1080 });
+    const grid = await mediaTiles(page);
+    const tiles = grid.getByTestId("media-tile");
+    const rects = await tiles.evaluateAll((nodes) =>
+      nodes.map((node) => {
+        const rect = node.getBoundingClientRect();
+        return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+      }),
+    );
+    const own = rects[3]!;
+    // A full line: a neighbour on each side of the tile on its line.
+    const line = rects.filter((rect) => rect.y === own.y);
+    expect(line.some((rect) => rect.x < own.x)).toBe(true);
+    expect(line.some((rect) => rect.x > own.x)).toBe(true);
+    const others = rects.filter((_, index) => index !== 3);
+    const name = await box(tiles.nth(3).locator(".truncate"));
+    const bubble = page.locator("[data-slot=tooltip-content]");
+    const expectInTile = async () => {
+      const at = await box(bubble);
+      for (const tile of others)
+        expect(
+          at.x < tile.x + tile.width &&
+            tile.x < at.x + at.width &&
+            at.y < tile.y + tile.height &&
+            tile.y < at.y + at.height,
+          "bubble over a neighbouring tile",
+        ).toBe(false);
+      expect(Math.abs(at.y + at.height + 4 - name.y)).toBeLessThanOrEqual(1);
+      expect(Math.abs(at.x - (own.x + 8))).toBeLessThanOrEqual(1);
+      expect(Math.abs(at.width - (own.width - 16))).toBeLessThanOrEqual(1);
+    };
+    await tiles.nth(3).locator(".truncate").hover();
+    await expect(page.getByRole("tooltip")).toBeVisible({ timeout: 5000 });
+    await expectInTile();
+    await page.mouse.move(0, 0);
+    await expect(page.getByRole("tooltip")).toHaveCount(0);
+    await tiles.nth(2).focus();
+    await page.keyboard.press("Tab");
+    await expect(tiles.nth(3)).toBeFocused();
+    await expect(page.getByRole("tooltip")).toBeVisible({ timeout: 5000 });
+    await expectInTile();
+  });
+}
 
 test("media tile: Tab reaches the tile with the focus ring, Enter and click open it", async ({
   page,
