@@ -14,7 +14,7 @@ import { cn } from "../lib/cn.js";
 import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
 import { Button } from "./button.js";
 import { ConfirmDeleteDialog } from "./confirm-delete-dialog.js";
-import { fallbackTarget } from "./focus-return.js";
+import { captureOpener, fallbackTarget, type Opener, returnFocus } from "./focus-return.js";
 import { Hint } from "./hint.js";
 import { type LeaveSave, useLeaveGuard } from "./leave-guard.js";
 import {
@@ -261,6 +261,23 @@ function EditorHeader({
     },
     [attach],
   );
+  // A status that goes while it holds the focus (its operation ended) hands it on in `GL-UI-050`'s
+  // order from where it stood, with or without a fold step (#600). Its place is noted while it still
+  // stands there; which control is usable is read once the update that removed it is laid out.
+  const statusOpener = React.useRef<Opener | null>(null);
+  const statusSlot = React.useCallback((node: HTMLDivElement) => {
+    return () => {
+      const active = document.activeElement;
+      if (active !== null && node.contains(active)) statusOpener.current = captureOpener(active);
+    };
+  }, []);
+  const statusGone = status === undefined;
+  React.useLayoutEffect(() => {
+    const opener = statusOpener.current;
+    statusOpener.current = null;
+    const active = document.activeElement;
+    if (opener !== null && (active === null || active === document.body)) returnFocus(opener);
+  }, [statusGone]);
   const folded = (step: Fold) => {
     const index = folds.indexOf(step);
     return index !== -1 && index < shrink;
@@ -543,7 +560,7 @@ function EditorHeader({
           </>
         )}
         {status === undefined ? null : (
-          <div data-slot="editor-status" className="flex shrink-0 items-center">
+          <div ref={statusSlot} data-slot="editor-status" className="flex shrink-0 items-center">
             {status}
           </div>
         )}

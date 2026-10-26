@@ -990,6 +990,49 @@ describe("SlideEditor element clipboard", () => {
     box.mockRestore();
   });
 
+  it("hands the focus of the compact spinner to Reset once the paste ends on a dirty deck, with no fold step (GL-UI-050, #600)", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    // No room for the label: the status shows the compact spinner.
+    const rect = Object.getOwnPropertyDescriptor(Element.prototype, "getBoundingClientRect")!
+      .value as (this: Element) => DOMRect;
+    const box = vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (
+      this: Element,
+    ) {
+      const slot = this.getAttribute("data-slot");
+      if (slot === "editor-header") return new DOMRect(0, 0, 1200, 60);
+      if (slot === "editor-title") return new DOMRect(0, 0, 150, 20);
+      if (slot === "slide-editor-adopting-measure") return new DOMRect(0, 0, 120, 20);
+      if (this.parentElement?.getAttribute("data-slot") === "editor-title")
+        return new DOMRect(0, 0, 100, 20);
+      return rect.call(this);
+    });
+    let answer: (remap: Record<string, string>) => void = () => {};
+    copyThenOpenOther("photo", {
+      adoptMedia: () => new Promise((resolve) => (answer = resolve)),
+      resolveMedia: () => undefined,
+    });
+    // A first paste lands: the deck is dirty.
+    key("v");
+    answer({});
+    await waitFor(() => expect(screen.queryByTestId("slide-editor-adopting")).toBeNull());
+    expect(screen.getByTestId("editor-reset")).toBeEnabled();
+    key("v");
+    act(() => void vi.advanceTimersByTime(300));
+    const spinner = screen
+      .getByTestId("slide-editor-adopting-status")
+      .querySelector<HTMLElement>("[role=img]")!;
+    act(() => spinner.focus());
+    expect(spinner).toHaveFocus();
+    const shrink = document.querySelector("[data-slot=editor-header]")!.getAttribute("data-shrink");
+    answer({});
+    await waitFor(() => expect(screen.queryByTestId("slide-editor-adopting-status")).toBeNull());
+    expect(document.querySelector("[data-slot=editor-header]")!.getAttribute("data-shrink")).toBe(
+      shrink,
+    );
+    await waitFor(() => expect(screen.getByTestId("editor-reset")).toHaveFocus());
+    box.mockRestore();
+  });
+
   it.each([
     ["stays silent 10 s", () => new Promise<Record<string, string>>(() => {})],
     [

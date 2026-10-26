@@ -1031,6 +1031,79 @@ describe("EditorHeader at narrow width", () => {
     watch.disconnect();
   });
 
+  // `GL-UI-050` (#600): the focused status goes when its operation ends; its place in the group is
+  // what the focus moves on from, with or without a fold step.
+  it.each([
+    ["without a fold step", 2000],
+    // Just wide enough for the bare header: the status takes a fold step, its end gives it back.
+    ["with a fold step", 530],
+  ])(
+    "a focused status that goes hands the focus to the next control after it, %s (#600)",
+    async (_, width) => {
+      const rect = Object.getOwnPropertyDescriptor(Element.prototype, "getBoundingClientRect")!
+        .value as (this: Element) => DOMRect;
+      vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (
+        this: Element,
+      ) {
+        if (this.getAttribute("data-slot") !== "editor-status") return rect.call(this);
+        return new DOMRect(0, 0, 24, 20);
+      });
+      const header = (status: boolean) => (
+        <EditorHeader
+          title="Spring newsletter"
+          canUndo
+          canRedo
+          dirty
+          saving={false}
+          onBack={() => {}}
+          onUndo={() => {}}
+          onRedo={() => {}}
+          onSave={() => {}}
+          onReset={() => {}}
+          {...(status ? { status: <span tabIndex={0} data-testid="test-status-compact" /> } : {})}
+        />
+      );
+      const head = () => document.querySelector("[data-slot=editor-header]")!;
+      available = width;
+      const { rerender } = render(header(false));
+      const bare = head().getAttribute("data-shrink");
+      rerender(header(true));
+      resize();
+      const folded = head().getAttribute("data-shrink");
+      if (width < 2000) expect(Number(folded)).toBeGreaterThan(Number(bare));
+      else expect(folded).toBe(bare);
+      act(() => screen.getByTestId("test-status-compact").focus());
+      rerender(header(false));
+      resize();
+      expect(head().getAttribute("data-shrink")).toBe(bare);
+      await waitFor(() => expect(document.activeElement).toBe(screen.getByTestId("editor-reset")));
+    },
+  );
+
+  it("a focused status that goes as its paste makes a clean deck dirty hands the focus to a control usable after that update (#600)", () => {
+    // While the first paste waits, Reset and Save are locked and Redo queues; the update that ends
+    // the wait locks Redo and frees Reset.
+    const header = (waiting: boolean) => (
+      <EditorHeader
+        title="Spring newsletter"
+        canUndo={waiting}
+        canRedo={waiting}
+        dirty={!waiting}
+        saving={false}
+        onBack={() => {}}
+        onUndo={() => {}}
+        onRedo={() => {}}
+        onSave={() => {}}
+        onReset={() => {}}
+        {...(waiting ? { status: <span tabIndex={0} data-testid="test-status-compact" /> } : {})}
+      />
+    );
+    const { rerender } = render(header(true));
+    act(() => screen.getByTestId("test-status-compact").focus());
+    rerender(header(false));
+    expect(document.activeElement).toBe(screen.getByTestId("editor-reset"));
+  });
+
   it("watches the header and its action group, so a language switch re-measures", () => {
     const { unmount } = render(
       <EditorHeader
