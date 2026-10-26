@@ -759,17 +759,22 @@ function useToasterFocus(toasts: React.RefObject<HTMLElement | null>, id?: strin
     within: false,
     last: null,
   });
+  // The entry of the focus into the toasts. Like sonner's record it outlives a change of `id`, so a
+  // focused toast that leaves after it still returns the focus (#591).
+  const entered = React.useRef<{
+    before: Focusable | null;
+    // Where `before` stood as the focus entered (group, neighbours, containers), for the fallback.
+    opener: Opener | null;
+    // Whether the focus in the toasts shows its ring: the return shows it then, and only then.
+    ring: boolean;
+    // Whether the focus came in by sonner's hotkey, which focuses the list itself.
+    hotkey: boolean;
+  }>({ before: null, opener: null, ring: false, hotkey: false });
   React.useEffect(() => {
     const record = sonner.current;
+    const entry = entered.current;
     const wrapper = toasts.current;
     if (wrapper === null) return;
-    let before: Focusable | null = null;
-    // Where `before` stood as the focus entered (group, neighbours, containers), for the fallback.
-    let opener: Opener | null = null;
-    // Whether the focus in the toasts shows its ring: the return shows it then, and only then.
-    let ring = false;
-    // Whether the focus came in by sonner's hotkey, which focuses the list itself.
-    let hotkey = false;
     let pointer = false;
     // Whether a pointer press is under way, up to the focus change it makes or its click: a focus that
     // leaves the toasts for nothing then went to the page's empty area, a move of the user's.
@@ -780,7 +785,7 @@ function useToasterFocus(toasts: React.RefObject<HTMLElement | null>, id?: strin
     const held: { element: Focusable; own: PropertyDescriptor | undefined }[] = [];
     let giving = false;
     const hold = (element: Focusable) => {
-      if (held.some((entry) => entry.element === element)) return;
+      if (held.some((item) => item.element === element)) return;
       held.push({ element, own: Object.getOwnPropertyDescriptor(element, "focus") });
       Object.defineProperty(element, "focus", { value: () => undefined, configurable: true });
     };
@@ -812,15 +817,15 @@ function useToasterFocus(toasts: React.RefObject<HTMLElement | null>, id?: strin
     };
     // A return for a leaving toast is quiet: the dismissal under the focus lets it pass.
     const giveBack = (quiet: boolean) => {
-      const target = before;
-      const from = opener;
-      before = null;
-      opener = null;
+      const target = entry.before;
+      const from = entry.opener;
+      entry.before = null;
+      entry.opener = null;
       if (target === null || document.activeElement === target) return;
       returningFocus = quiet;
       giving = true;
-      if (target.isConnected) target.focus({ preventScroll: true, focusVisible: ring });
-      if (document.activeElement !== target) returnFocus(from, ring);
+      if (target.isConnected) target.focus({ preventScroll: true, focusVisible: entry.ring });
+      if (document.activeElement !== target) returnFocus(from, entry.ring);
       giving = false;
       returningFocus = false;
     };
@@ -828,9 +833,9 @@ function useToasterFocus(toasts: React.RefObject<HTMLElement | null>, id?: strin
       pressing = false;
       const target = event.target as Element;
       if (!wrapper.contains(target)) {
-        before = null;
-        opener = null;
-        hotkey = false;
+        entry.before = null;
+        entry.opener = null;
+        entry.hotkey = false;
       } else {
         if (
           !record.within &&
@@ -840,14 +845,14 @@ function useToasterFocus(toasts: React.RefObject<HTMLElement | null>, id?: strin
           record.within = true;
           record.last = event.relatedTarget;
         }
-        ring = target.matches(":focus-visible");
+        entry.ring = target.matches(":focus-visible");
         const list = target.matches("[data-sonner-toaster]");
         const from = event.relatedTarget;
-        if (before === null && isFocusable(from) && !wrapper.contains(from)) {
-          before = from;
-          opener = captureOpener(from);
-          hotkey = list;
-        } else if (list) hotkey = true;
+        if (entry.before === null && isFocusable(from) && !wrapper.contains(from)) {
+          entry.before = from;
+          entry.opener = captureOpener(from);
+          entry.hotkey = list;
+        } else if (list) entry.hotkey = true;
       }
       pause();
     };
@@ -863,9 +868,9 @@ function useToasterFocus(toasts: React.RefObject<HTMLElement | null>, id?: strin
         pressing = false;
         // sonner's return to the element it remembered (the one in `before`) is held off, not undone
         // afterwards: that element takes no passing focus, which would activate a tab or blur a field.
-        const target = before;
-        before = null;
-        opener = null;
+        const target = entry.before;
+        entry.before = null;
+        entry.opener = null;
         if (target !== null) hold(target);
         holdSonner(event, null);
         if (held.length === 0) pause();
@@ -892,7 +897,7 @@ function useToasterFocus(toasts: React.RefObject<HTMLElement | null>, id?: strin
       pause();
     };
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Tab" || !hotkey || before === null) return;
+      if (event.key !== "Tab" || !entry.hotkey || entry.before === null) return;
       // Filtered from all elements, so they come in document order whatever the selector engine.
       const stops = Array.from(wrapper.querySelectorAll("*")).filter((element) =>
         element.matches(TABBABLE),
@@ -919,7 +924,7 @@ function useToasterFocus(toasts: React.RefObject<HTMLElement | null>, id?: strin
       pointer = false;
       pause();
     };
-    const leaving = new MutationObserver(() => {
+    const onLeave = () => {
       const active = document.activeElement;
       if (
         active === null ||
@@ -933,14 +938,16 @@ function useToasterFocus(toasts: React.RefObject<HTMLElement | null>, id?: strin
         record.last = null;
       }
       pause();
-    });
+    };
+    const leaving = new MutationObserver(onLeave);
     leaving.observe(wrapper, {
       childList: true,
       subtree: true,
       attributes: true,
       attributeFilter: ["data-removed"],
     });
-    pause();
+    // A toast that left as `id` changed went unseen: the run before was disconnected first (#591).
+    onLeave();
     document.addEventListener("visibilitychange", pause);
     document.addEventListener("focusin", onFocusIn);
     document.addEventListener("focusout", afterFocusOut);
