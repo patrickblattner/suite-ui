@@ -1515,6 +1515,124 @@ describe("toast with an action: duration", () => {
     await expect(shown?.unwrap()).rejects.toBe(thrown);
   });
 
+  // Collects the unhandled rejections while `run` goes, in place of vitest's own listeners.
+  async function unhandledDuring(run: () => Promise<void>): Promise<unknown[]> {
+    const seen: unknown[] = [];
+    const collect = (reason: unknown) => {
+      seen.push(reason);
+    };
+    const others = process.listeners("unhandledRejection");
+    process.removeAllListeners("unhandledRejection");
+    process.on("unhandledRejection", collect);
+    try {
+      await run();
+      await new Promise((done) => setTimeout(done, 20));
+    } finally {
+      process.off("unhandledRejection", collect);
+      for (const listener of others) process.on("unhandledRejection", listener);
+    }
+    return seen;
+  }
+
+  // sonner drops the promise an async `finally` returns; its rejection goes into `unwrap()` (#587).
+  it("rejects unwrap() when the caller's async finally rejects, with no unhandled rejection (#587)", async () => {
+    render(<Toaster />);
+    const thrown = new Error("finally");
+    const seen = await unhandledDuring(async () => {
+      let shown: ReturnType<typeof toast.promise> | undefined;
+      act(() => {
+        shown = toast.promise(Promise.resolve("ok"), {
+          loading: "Restoring",
+          success: "Restored",
+          finally: async () => {
+            await Promise.resolve();
+            throw thrown;
+          },
+        });
+      });
+      await expect(shown?.unwrap()).rejects.toBe(thrown);
+    });
+    expect(seen).toEqual([]);
+  });
+
+  // Without `unwrap()` the rejection surfaces as unhandled, as a `finally` that throws does (#587).
+  it.each([
+    ["rejects", true],
+    ["throws", false],
+  ] as const)(
+    "surfaces a caller's finally that %s as unhandled without unwrap() (#587)",
+    async (_case, async) => {
+      render(<Toaster />);
+      const thrown = new Error("finally");
+      const seen = await unhandledDuring(async () => {
+        act(() => {
+          void toast.promise(Promise.resolve("ok"), {
+            success: "Stored",
+            finally: async
+              ? async () => {
+                  await Promise.resolve();
+                  throw thrown;
+                }
+              : () => {
+                  throw thrown;
+                },
+          });
+        });
+        await Promise.resolve();
+      });
+      expect(seen).toEqual([thrown]);
+    },
+  );
+
+  // sonner would show the element under an id of its own; the wrapper shows it by its id (#587).
+  it("returns an id for a toast.promise without a loading state resolving to an element that dismisses it (#587)", async () => {
+    render(<Toaster />);
+    useAllFakeTimers();
+    const element = <span>Element result</span>;
+    let shown: ReturnType<typeof toast.promise> | undefined;
+    act(() => {
+      shown = toast.promise(Promise.resolve(element), { success: "Not shown" });
+    });
+    await act(async () => {
+      await expect(shown?.unwrap()).resolves.toBe(element);
+    });
+    advance(1);
+    expect(toastOf("Element result")).not.toHaveAttribute("data-removed", "true");
+    expect(screen.queryByText("Not shown")).toBeNull();
+    expect(
+      sonnerToast
+        .getToasts()
+        .filter((item) => "title" in item && item.title === element)
+        .map((item) => item.id),
+    ).toEqual([(shown as unknown as string).valueOf()]);
+    act(() => {
+      toast.dismiss(shown as unknown as string);
+    });
+    for (let step = 0; step < 4; step++) advance(500);
+    expect(screen.queryByText("Element result")).toBeNull();
+  });
+
+  // sonner returns no id without a loading state; the wrapper returns the result's (#587).
+  it("returns an id for a toast.promise without a loading state that dismisses its result (#587)", async () => {
+    render(<Toaster />);
+    useAllFakeTimers();
+    let shown: ReturnType<typeof toast.promise> | undefined;
+    act(() => {
+      shown = toast.promise(Promise.resolve("ok"), { success: "Saved" });
+    });
+    expect(String((shown as unknown as string).valueOf())).toMatch(/^suite-promise-\d+$/);
+    await act(async () => {
+      await shown?.unwrap();
+    });
+    advance(1);
+    expect(toastOf("Saved")).not.toHaveAttribute("data-removed", "true");
+    act(() => {
+      toast.dismiss(shown as unknown as string);
+    });
+    for (let step = 0; step < 4; step++) advance(500);
+    expect(screen.queryByText("Saved")).toBeNull();
+  });
+
   // sonner closes the toast on an action click without its dismiss handler (#585).
   // An action that prevents the default keeps its toast open: the timer goes on and closes it.
   it("keeps the timer of a toast whose action click prevents the default (#585)", () => {
@@ -1563,6 +1681,31 @@ describe("toast with an action: duration", () => {
     for (let step = 0; step < 4; step++) advance(500);
     expect(onDismiss).toHaveBeenCalledTimes(1);
     expect(onAutoClose).not.toHaveBeenCalled();
+  });
+
+  // sonner closes the toast on an action click without its dismiss handler, so the click drops the
+  // wrapper's mark itself (#587). The marks map is internal: the test finds it as the map that takes
+  // the toast's own values (its class) when the toast is shown.
+  it("drops the mark of a toast whose action is clicked (#587)", () => {
+    render(<Toaster />);
+    useAllFakeTimers();
+    const set = vi.spyOn(Map.prototype, "set");
+    act(() => {
+      toast.success("Archived", { id: "m", action: undo, className: "clicked-class" });
+    });
+    const index = set.mock.calls.findIndex(
+      ([key, value]) =>
+        key === "m" &&
+        typeof value === "object" &&
+        value !== null &&
+        (value as { className?: unknown }).className === "clicked-class",
+    );
+    const marks = set.mock.contexts[index] as Map<unknown, unknown>;
+    set.mockRestore();
+    expect(marks.has("m")).toBe(true);
+    advance(1);
+    fireEvent.click(screen.getByRole("button", { name: "Undo" }));
+    expect(marks.has("m")).toBe(false);
   });
 
   // The timer has closed the toast and sonner has not shown that yet: the call merges into it.

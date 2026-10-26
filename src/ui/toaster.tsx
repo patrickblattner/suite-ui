@@ -12,6 +12,7 @@ import {
   Toaster as Sonner,
   toast as sonnerToast,
   type ToasterProps,
+  type ToastT,
 } from "sonner";
 
 import { cn } from "../lib/cn.js";
@@ -203,7 +204,8 @@ type ActionObject = Extract<NonNullable<ExternalToast["action"]>, { onClick: unk
 const callerActions = new WeakMap<ActionObject, ActionObject>();
 
 // sonner closes a toast on a click on its action object without running its dismiss handler, so the
-// click drops the wrapper's timer itself (#585); an own element closes nothing on a click.
+// click drops the wrapper's timer (#585) and its mark (#587) itself; an own element closes nothing on
+// a click.
 function closingAction(
   action: ExternalToast["action"],
   id: () => string | number | undefined,
@@ -215,7 +217,9 @@ function closingAction(
     onClick: (event) => {
       caller.onClick(event);
       const shown = id();
-      if (!event.defaultPrevented && shown !== undefined) cancelActionClose(shown);
+      if (event.defaultPrevented || shown === undefined) return;
+      cancelActionClose(shown);
+      marks.delete(shown);
     },
   };
   callerActions.set(wrapped, caller);
@@ -293,9 +297,11 @@ function prepare(
     cancelActionClose(id);
     autoClosed.delete(id);
   }
-  const found =
-    id === undefined ? undefined : sonnerToast.getToasts().find((item) => item.id === id);
-  const live = found !== undefined && !("dismiss" in found) ? found : undefined;
+  // sonner's `getToasts` holds only the toasts not dismissed, though its type names both (#587).
+  const live =
+    id === undefined
+      ? undefined
+      : sonnerToast.getToasts().find((item): item is ToastT => item.id === id);
   const marked = id === undefined ? undefined : marks.get(id);
   const own = live === undefined ? ownOf(opts) : { ...(marked ?? ownOf(live)), ...ownOf(opts) };
   const action = opts !== undefined && "action" in opts ? opts.action : live?.action;
@@ -386,14 +392,26 @@ let promiseIds = 0;
 // sonner. sonner shows the result once it has awaited a `description` function, so the result's timer
 // starts only then. sonner shows a promise that resolves to a React element as it is, in place of its
 // loading state; when that state was marked, the element is raised anew right after, by its id.
+// sonner returns no id without a loading state; the wrapper returns the result's id, boxed with
+// `unwrap` as sonner boxes it (#587). sonner would show an element without a loading state under an id
+// of its own, so the wrapper shows it by its id and hands sonner a value it shows nothing for (#587).
+// `unwrap()` also waits for the caller's `finally` and rejects with its rejection; without `unwrap()`
+// that rejection surfaces as unhandled, as a `finally` that throws does (#587).
 function promiseToast<T>(promise: PromiseArgs<T>[0], data?: PromiseArgs<T>[1]) {
   if (data === undefined) return sonnerToast.promise(promise, data);
   const { loading, success, error, description, finally: settled, ...rest } = data;
   let element: React.ReactElement | undefined;
+  const routed = {} as T;
   const watched = Promise.resolve(typeof promise === "function" ? promise() : promise).then(
     (value) => {
-      if (React.isValidElement(value)) element = value;
-      return value;
+      if (!React.isValidElement(value)) return value;
+      element = value;
+      if (loading !== undefined) return value;
+      // sonner (2.0.8) reads `success` only once the promise settles, so clearing it here keeps sonner
+      // from raising a result over the element.
+      options.success = undefined;
+      raise(sonnerToast, undefined, value, { id });
+      return routed;
     },
   );
   promiseIds += 1;
@@ -401,6 +419,8 @@ function promiseToast<T>(promise: PromiseArgs<T>[0], data?: PromiseArgs<T>[1]) {
     loading !== undefined && rest.id !== undefined
       ? rest.id
       : `suite-promise-${String(promiseIds)}`;
+  let settledOut: Promise<void> | undefined;
+  let unwrapped = false;
   let pending: (() => void) | undefined;
   const start = () => {
     pending?.();
@@ -429,7 +449,7 @@ function promiseToast<T>(promise: PromiseArgs<T>[0], data?: PromiseArgs<T>[1]) {
         };
   const loadingState =
     loading === undefined ? undefined : prepare(undefined, loading, { ...rest, id }, false);
-  const shownId = sonnerToast.promise(watched, {
+  const options: NonNullable<PromiseArgs<T>[1]> = {
     ...rest,
     ...loadingState?.opts,
     id,
@@ -445,14 +465,33 @@ function promiseToast<T>(promise: PromiseArgs<T>[0], data?: PromiseArgs<T>[1]) {
           }
         : description,
     // Not async: sonner drops what this returns, so a caller's `finally` that throws must throw here,
-    // where sonner's chain makes `unwrap()` reject (#585).
+    // where sonner's chain makes `unwrap()` reject (#585); one that rejects goes into `unwrap` (#587).
     finally: () => {
       if (element !== undefined && marks.has(id)) raise(sonnerToast, undefined, element, { id });
-      return settled?.();
+      settledOut = Promise.resolve(settled?.());
+      // `unwrap()` called before this takes the rejection; otherwise the rejection stays unhandled.
+      if (unwrapped) settledOut.catch(() => undefined);
     },
-  });
+  };
+  const shownId = sonnerToast.promise(watched, options);
   loadingState?.shown(id);
-  return shownId;
+  const sonnerUnwrap = shownId.unwrap;
+  const unwrap = () => {
+    unwrapped = true;
+    return sonnerUnwrap().then(
+      async (value) => {
+        await settledOut;
+        return value === routed ? (element as T) : value;
+      },
+      async (reason: unknown) => {
+        await settledOut;
+        throw reason;
+      },
+    );
+  };
+  return Object.assign(loading === undefined ? new String(id) : shownId, {
+    unwrap,
+  }) as typeof shownId;
 }
 
 // sonner's `toast` with the four variants timed by `toastDurationFor`; every route goes through
