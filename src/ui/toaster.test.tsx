@@ -131,6 +131,7 @@ describe("Toaster: focus under a toast", () => {
     wrap = (covered) => covered,
     action = true,
     show = (options) => toast.success("Saved", options),
+    toasterId,
   }: {
     coveredBox?: DOMRect;
     focused?: "covered" | "free";
@@ -139,6 +140,8 @@ describe("Toaster: focus under a toast", () => {
     action?: React.ReactNode;
     // How the toast is raised: the wrapped `toast.success` by default.
     show?: (options: Parameters<typeof toast.success>[1]) => void;
+    // The `<Toaster>`'s `id`; `setToasterId` changes it later.
+    toasterId?: string;
   } = {}) {
     focusVisible = true;
     // jsdom's `hasFocus` turns false once the focus goes to nothing; a browser's stays true while the
@@ -168,7 +171,7 @@ describe("Toaster: focus under a toast", () => {
             Covered
           </button>,
         )}
-        <Toaster />
+        <IdToaster initial={toasterId} />
       </>,
     );
     if (focused) act(() => screen.getByTestId(focused).focus());
@@ -186,6 +189,14 @@ describe("Toaster: focus under a toast", () => {
   }
 
   const settle = () => act(() => new Promise((resolve) => setTimeout(resolve, 50)));
+
+  // A `<Toaster>` whose `id` a test changes with `setToasterId`, without remounting it.
+  let setToasterId: (id: string | undefined) => void = () => undefined;
+  function IdToaster({ initial }: { initial: string | undefined }) {
+    const [id, setId] = React.useState(initial);
+    setToasterId = setId;
+    return <Toaster id={id} />;
+  }
 
   afterEach(() => {
     act(() => {
@@ -733,6 +744,206 @@ describe("Toaster: focus under a toast", () => {
     expect(focus).not.toHaveBeenCalled();
     // The receipt stays: no keyboard focus lands under it.
     expect(item()).toHaveAttribute("data-removed", "false");
+  });
+
+  // #575: the ids of the elements the focus enters during `run`.
+  const focusLogOf = async (run: () => void) => {
+    const focused: (string | null)[] = [];
+    const log = (event: FocusEvent) => {
+      focused.push((event.target as Element).getAttribute("data-testid"));
+    };
+    document.addEventListener("focusin", log);
+    run();
+    await settle();
+    document.removeEventListener("focusin", log);
+    return focused;
+  };
+  // A pointer press outside the toasts moves the focus to `target`.
+  const pressOutside = (target: HTMLElement) => {
+    focusVisible = false;
+    return focusLogOf(() => {
+      fireEvent.pointerDown(target);
+      act(() => target.focus());
+      fireEvent.pointerUp(target);
+    });
+  };
+  // An entry whose toast node went without a blur: sonner's record of it stays on `covered`.
+  const staleEntry = async () => {
+    const undo = screen.getByRole("button", { name: "Undo" });
+    act(() => undo.focus());
+    const restore = detach(undo);
+    await vi.waitFor(() => expect(screen.getByTestId("covered")).toHaveFocus());
+    return restore;
+  };
+
+  it("gives an SVG element before no passing focus on a pointer press outside the toasts (#575)", async () => {
+    await renderCovered({
+      wrap: (covered) => (
+        <>
+          {covered}
+          <svg tabIndex={0} data-testid="icon" />
+        </>
+      ),
+    });
+    const icon = screen.getByTestId("icon");
+    act(() => icon.focus());
+    act(() => screen.getByRole("button", { name: "Undo" }).focus());
+    const free = screen.getByTestId("free");
+    expect(await pressOutside(free)).toEqual(["free"]);
+    expect(free).toHaveFocus();
+    act(() => icon.focus());
+    expect(icon).toHaveFocus();
+  });
+
+  it("gives the toast sonner remembers no passing focus when it has dismissible: false and was entered by Tab (#575)", async () => {
+    const item = await renderCovered({
+      focused: "covered",
+      show: (options) => toast.success("Saved", { ...options, dismissible: false }),
+    });
+    const first = item() as HTMLElement;
+    expect(first).toHaveAttribute("data-dismissible", "false");
+    // sonner skips the toast as the focus enters; on the move into it, it remembers the toast.
+    act(() => first.focus());
+    act(() => screen.getByRole("button", { name: "Undo" }).focus());
+    const free = screen.getByTestId("free");
+    expect(await pressOutside(free)).toEqual(["free"]);
+    expect(free).toHaveFocus();
+  });
+
+  it("gives the section sonner remembers no passing focus when the focus came in by it (#575)", async () => {
+    await renderCovered({ focused: "covered" });
+    const section = screen.getByRole("button", { name: "Undo" }).closest("section") as HTMLElement;
+    act(() => section.focus());
+    act(() => screen.getByRole("button", { name: "Undo" }).focus());
+    const free = screen.getByTestId("free");
+    expect(await pressOutside(free)).toEqual(["free"]);
+    expect(free).toHaveFocus();
+  });
+
+  it("gives the element of an earlier entry no passing focus after its node went without a blur (#575)", async () => {
+    const item = await renderCovered({ focused: "covered", wrap: inToolbar });
+    const restore = await staleEntry();
+    act(() => screen.getByTestId("free").focus());
+    act(() => (item() as HTMLElement).focus());
+    const next = screen.getByTestId("next");
+    expect(await pressOutside(next)).toEqual(["next"]);
+    expect(next).toHaveFocus();
+    restore();
+  });
+
+  it("returns the focus to the element before, not to sonner's stale one, on Tab past the last toast control after Alt+T (#575)", async () => {
+    await renderCovered({ focused: "covered" });
+    const restore = await staleEntry();
+    restore();
+    const free = screen.getByTestId("free");
+    act(() => free.focus());
+    altT();
+    const undo = screen.getByRole("button", { name: "Undo" });
+    act(() => undo.focus());
+    const log = await focusLogOf(() => {
+      expect(pressTab(undo)).toBe(true);
+    });
+    expect(log).toEqual(["free"]);
+    expect(free).toHaveFocus();
+  });
+
+  it("returns the focus to the element before, not to sonner's stale one, when it leaves for nothing (#575)", async () => {
+    await renderCovered({ focused: "covered" });
+    const restore = await staleEntry();
+    restore();
+    const free = screen.getByTestId("free");
+    act(() => free.focus());
+    const undo = screen.getByRole("button", { name: "Undo" });
+    act(() => undo.focus());
+    const log = await focusLogOf(() => {
+      act(() => undo.blur());
+    });
+    expect(log).toEqual(["free"]);
+    expect(free).toHaveFocus();
+  });
+
+  it("leaves the focus on an SVG element a Tab out of the toasts moves it to (#575)", async () => {
+    await renderCovered({
+      focused: "covered",
+      wrap: (covered) => (
+        <>
+          {covered}
+          <svg tabIndex={0} data-testid="icon" />
+        </>
+      ),
+    });
+    act(() => screen.getByRole("button", { name: "Undo" }).focus());
+    const icon = screen.getByTestId("icon");
+    expect(await focusLogOf(() => act(() => icon.focus()))).toEqual(["icon"]);
+    expect(icon).toHaveFocus();
+  });
+
+  it("falls back to the group's next control when the SVG element before is gone (#575)", async () => {
+    await renderCovered({
+      wrap: (covered) =>
+        inToolbar(
+          <>
+            {covered}
+            <svg tabIndex={0} data-testid="icon" />
+          </>,
+        ),
+    });
+    act(() => screen.getByTestId("icon").focus());
+    altT();
+    const undo = screen.getByRole("button", { name: "Undo" });
+    act(() => undo.focus());
+    const restore = detach(screen.getByTestId("icon"));
+    expect(pressTab(undo)).toBe(true);
+    expect(screen.getByTestId("next")).toHaveFocus();
+    restore();
+  });
+
+  it("forgets sonner's record once its list is gone, so the next entry's toast takes no passing focus (#575)", async () => {
+    await renderCovered({ focused: "covered", wrap: inToolbar });
+    const restore = await staleEntry();
+    restore();
+    act(() => {
+      toast.dismiss();
+    });
+    await vi.waitFor(() => expect(document.querySelector("[data-sonner-toaster]")).toBeNull());
+    act(() => {
+      toast.success("Again", {
+        dismissible: false,
+        action: { label: "Redo", onClick: () => undefined },
+      });
+    });
+    await screen.findByText("Again");
+    act(() => screen.getByTestId("free").focus());
+    act(() => (document.querySelector("[data-sonner-toast]") as HTMLElement).focus());
+    act(() => screen.getByRole("button", { name: "Redo" }).focus());
+    const next = screen.getByTestId("next");
+    expect(await pressOutside(next)).toEqual(["next"]);
+    expect(next).toHaveFocus();
+  });
+
+  it("keeps sonner's record across a change of the Toaster's id, so its section takes no passing focus (#575)", async () => {
+    await renderCovered({
+      focused: "covered",
+      toasterId: "a",
+      show: (options) => {
+        toast.success("Saved", { ...options, toasterId: "a" });
+        toast.success("Other", {
+          toasterId: "b",
+          action: { label: "Redo", onClick: () => undefined },
+        });
+      },
+    });
+    const undo = screen.getByRole("button", { name: "Undo" });
+    // sonner remembers the section; its record lives on the Toaster, not on the `id`.
+    act(() => (undo.closest("section") as HTMLElement).focus());
+    act(() => undo.focus());
+    act(() => setToasterId("b"));
+    await screen.findByText("Other");
+    act(() => screen.getByTestId("free").focus());
+    act(() => screen.getByRole("button", { name: "Redo" }).focus());
+    const covered = screen.getByTestId("covered");
+    expect(await pressOutside(covered)).toEqual(["covered"]);
+    expect(covered).toHaveFocus();
   });
 
   it("closes a toast with an action on the next keyboard move under it", async () => {

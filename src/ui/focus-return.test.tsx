@@ -169,6 +169,44 @@ describe("focus return after a dialog (GL-UI-050)", () => {
     await waitFor(() => expect(trigger).toHaveFocus());
   });
 
+  it("tier 1: a dialog opened from a focusable SVG element returns the focus to it, not to its group (#575)", async () => {
+    function SvgSurface() {
+      const [isOpen, setOpen] = useState(false);
+      return (
+        <main>
+          <div role="toolbar" aria-label="Tools">
+            <Button variant="outline" size="default" data-testid="g1">
+              G1
+            </Button>
+            <svg tabIndex={0} data-testid="trigger" onClick={() => setOpen(true)} />
+            <Button variant="outline" size="default" data-testid="g2">
+              G2
+            </Button>
+          </div>
+          <Dialog open={isOpen} onOpenChange={setOpen}>
+            <DialogContent data-testid="dialog">
+              <DialogTitle>Confirm</DialogTitle>
+              <DialogDescription>Sure?</DialogDescription>
+              <Button
+                variant="outline"
+                size="default"
+                onClick={() => setOpen(false)}
+                data-testid="cancel"
+              >
+                Cancel
+              </Button>
+            </DialogContent>
+          </Dialog>
+        </main>
+      );
+    }
+    render(<SvgSurface />);
+    const trigger = open();
+    fireEvent.click(await screen.findByTestId("cancel"));
+    await waitFor(() => expect(focused()).toBe("trigger"));
+    expect(trigger).toHaveFocus();
+  });
+
   it("tier 1: a dialog opened from a menu returns the focus to the menu trigger", async () => {
     render(<Surface fromMenu after={[{ id: "next" }]} />);
     const trigger = screen.getByTestId("trigger");

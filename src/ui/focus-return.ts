@@ -71,7 +71,8 @@ function candidates(group: Element): HTMLElement[] {
 
 /** What opened a dialog, noted while the focus is still where the person acted. */
 type Opener = {
-  trigger: HTMLElement;
+  // An SVG element too (`tabindex` on an `<svg>`): its group and containers count as for any control.
+  trigger: HTMLElement | SVGElement;
   group: HTMLElement | null;
   // The group's controls around the trigger at opening, locked ones included, for a trigger that is
   // gone by the close; whether they are usable is decided then (a confirm may unlock one).
@@ -86,8 +87,9 @@ type Opener = {
 };
 
 /** The control that opened a dialog: the active element, or the trigger of the menu it is an entry of. */
-function triggerOf(active: Element | null): HTMLElement | null {
-  if (!(active instanceof HTMLElement) || active === document.body) return null;
+function triggerOf(active: Element | null): HTMLElement | SVGElement | null {
+  if (!(active instanceof HTMLElement || active instanceof SVGElement) || active === document.body)
+    return null;
   const menu = active.closest("[role=menu]");
   if (menu === null) return active;
   const id = menu.getAttribute("aria-labelledby");
@@ -164,7 +166,7 @@ function captureOpener(focused: Element | null = document.activeElement): Opener
   };
 }
 
-function ancestors(element: HTMLElement): HTMLElement[] {
+function ancestors(element: Element): HTMLElement[] {
   const chain: HTMLElement[] = [];
   for (let node = element.parentElement; node && node !== document.body; node = node.parentElement)
     chain.push(node);
@@ -254,7 +256,7 @@ function focusableFallback(target: HTMLElement): HTMLElement {
  * Focuses `target` and tells whether it took the focus (a node that cannot take it does not). With
  * `focusVisible` the ring is set as given, else the browser decides.
  */
-function place(target: HTMLElement | null, focusVisible?: boolean): boolean {
+function place(target: HTMLElement | SVGElement | null, focusVisible?: boolean): boolean {
   if (target === null) return false;
   const options: FocusOptions =
     focusVisible === undefined ? { preventScroll: true } : { preventScroll: true, focusVisible };
@@ -294,7 +296,12 @@ function returnFocus(opener: Opener | null, focusVisible?: boolean): boolean {
   if (!trigger.isConnected && id !== null && group?.isConnected) {
     trigger = group.querySelector<HTMLElement>(`[data-testid="${CSS.escape(id)}"]`) ?? trigger;
   }
-  if (isUsable(trigger) && place(trigger, focusVisible)) return true;
+  // An SVG trigger (`tabindex` on an `<svg>`) is usable while connected and neither hidden nor inert.
+  const usable =
+    trigger instanceof SVGElement
+      ? trigger.isConnected && trigger.closest("[hidden], [inert]") === null
+      : isUsable(trigger);
+  if (usable && place(trigger, focusVisible)) return true;
   // Tier 2 tries every candidate in turn before it falls to the main content.
   if (trigger.isConnected) {
     if (placeFirst(groupTargets(group, trigger), focusVisible)) return true;

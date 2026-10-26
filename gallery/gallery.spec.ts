@@ -883,6 +883,57 @@ test("toast: the receipt over the returned focus closes after 1000 ms, Esc earli
   }
 });
 
+// The preview with `?receipt=1` (`SUI-FEATURE-101`): its ⋯ under the toast column, the receipt of an
+// archive with its Undo, and the steps both receipt tests take.
+function receiptPreview(page: Page) {
+  const trigger = page
+    .getByTestId("preview-row-menu")
+    .getByTestId("row-menu-actions")
+    .getByTestId("row-menu");
+  const toasts = page.locator("[data-sonner-toast]");
+  const receipt = toasts.filter({ hasText: "Home archived." });
+  const undo = receipt.getByRole("button", { name: "Undo" });
+  return {
+    trigger,
+    toasts,
+    receipt,
+    undo,
+    // By keyboard ⋯ → Archive → confirm: the focus is back on the ⋯ as the receipt appears.
+    archive: async () => {
+      await trigger.focus();
+      await page.keyboard.press("Enter");
+      await page.getByRole("menu").getByRole("menuitem", { name: "Archive" }).focus();
+      await page.keyboard.press("Enter");
+      await page.getByTestId("archive-confirm-confirm").focus();
+      await page.keyboard.press("Enter");
+      await expect(trigger).toBeFocused();
+    },
+    // Alt+T focuses the toasts, Tab reaches Undo (the toast, then its Undo).
+    reachUndo: async () => {
+      await page.keyboard.press("Alt+T");
+      for (
+        let step = 0;
+        step < 5 && !(await undo.evaluate((el) => el === document.activeElement));
+        step++
+      )
+        await page.keyboard.press("Tab");
+      await expect(undo).toBeFocused();
+    },
+    // Every element the focus enters from now on, by its test id.
+    logFocus: () =>
+      page.evaluate(() => {
+        const record = window as unknown as { focusLog?: (string | null)[] };
+        if (record.focusLog === undefined)
+          document.addEventListener("focusin", (event) => {
+            record.focusLog?.push((event.target as Element).getAttribute("data-testid"));
+          });
+        record.focusLog = [];
+      }),
+    focusLog: () =>
+      page.evaluate(() => (window as unknown as { focusLog: (string | null)[] }).focusLog),
+  };
+}
+
 // `SUI-FEATURE-101` rev 6 AC 6: by keyboard ⋯ → Archive → confirm, the receipt with Undo appears
 // over the returned focus and stays at least 8000 ms; the live region names Undo and Alt+T. Alt+T,
 // then Enter on Undo undoes the archive and the focus is back on the ⋯ (#550, `GL-UI-050`); so is it
@@ -890,15 +941,11 @@ test("toast: the receipt over the returned focus closes after 1000 ms, Esc earli
 test("toast: the receipt with Undo over the returned focus stays, Alt+T reaches Undo", async ({
   page,
 }) => {
-  // Eight rounds, three of them wait out the receipt's 8000 ms.
+  // Seven rounds, three of them wait out the receipt's 8000 ms.
   test.setTimeout(90_000);
   await page.goto("/?page=preview&lng=en&receipt=1");
-  const trigger = page
-    .getByTestId("preview-row-menu")
-    .getByTestId("row-menu-actions")
-    .getByTestId("row-menu");
-  const toasts = page.locator("[data-sonner-toast]");
-  const receipt = toasts.filter({ hasText: "Home archived." });
+  const { trigger, toasts, receipt, undo, archive, reachUndo, logFocus, focusLog } =
+    receiptPreview(page);
   const covers = async (element: Locator) => {
     const toastBox = await box(receipt);
     const node = await box(element);
@@ -910,19 +957,7 @@ test("toast: the receipt with Undo over the returned focus stays, Alt+T reaches 
     );
   };
   const ring = (element: Locator) => element.evaluate((el) => el.matches(":focus-visible"));
-  const undo = receipt.getByRole("button", { name: "Undo" });
   const hint = receipt.getByText("Alt+T, then Tab: Undo");
-  // Alt+T focuses the toasts, Tab reaches Undo (the toast, then its Undo).
-  const reachUndo = async () => {
-    await page.keyboard.press("Alt+T");
-    for (
-      let step = 0;
-      step < 5 && !(await undo.evaluate((el) => el === document.activeElement));
-      step++
-    )
-      await page.keyboard.press("Tab");
-    await expect(undo).toBeFocused();
-  };
   // Beside the ⋯: before it its row's Edit, under the receipt; after it the preview header's Edit,
   // below the receipt.
   const before = page
@@ -930,27 +965,9 @@ test("toast: the receipt with Undo over the returned focus stays, Alt+T reaches 
     .getByTestId("row-menu-actions")
     .getByTestId("row-edit");
   const beside = page.getByTestId("preview-row-menu").getByTestId("row-edit").last();
-  // Every element the focus enters from now on, by its test id.
-  const logFocus = () =>
-    page.evaluate(() => {
-      const record = window as unknown as { focusLog?: (string | null)[] };
-      if (record.focusLog === undefined)
-        document.addEventListener("focusin", (event) => {
-          record.focusLog?.push((event.target as Element).getAttribute("data-testid"));
-        });
-      record.focusLog = [];
-    });
-  const focusLog = () =>
-    page.evaluate(() => (window as unknown as { focusLog: (string | null)[] }).focusLog);
-  for (const round of ["undo", "past", "Tab", "click", "empty", "Shift+Tab", "Escape", "time"]) {
+  for (const round of ["undo", "past", "Tab", "click", "Shift+Tab", "Escape", "time"]) {
     await expect(toasts).toHaveCount(0, { timeout: 9000 });
-    await trigger.focus();
-    await page.keyboard.press("Enter");
-    await page.getByRole("menu").getByRole("menuitem", { name: "Archive" }).focus();
-    await page.keyboard.press("Enter");
-    await page.getByTestId("archive-confirm-confirm").focus();
-    await page.keyboard.press("Enter");
-    await expect(trigger).toBeFocused();
+    await archive();
     await expect(receipt).toBeVisible();
     await expect(page.locator("[aria-live=polite] [data-sonner-toast]")).toHaveCount(1);
     // The hint names the key path to Undo, not a key that undoes (#550).
@@ -999,32 +1016,6 @@ test("toast: the receipt with Undo over the returned focus stays, Alt+T reaches 
       await expect(beside).toBeFocused();
       expect(await focusLog()).toEqual(["row-edit"]);
       continue;
-    } else if (round === "empty") {
-      // A press on the page's empty area puts the focus on nothing, as without toasts: the ⋯ takes
-      // none, so no ring, and the receipt stays (#564). Safari focuses no button on a press either.
-      await reachUndo();
-      await logFocus();
-      const spot = await page.evaluate(() => {
-        for (let y = window.innerHeight - 8; y > 0; y -= 16)
-          for (let x = 8; x < window.innerWidth; x += 16) {
-            const hit = document.elementFromPoint(x, y);
-            if (
-              hit !== null &&
-              hit.closest(
-                "button, a, input, select, textarea, label, [tabindex], [data-sonner-toaster]",
-              ) === null
-            )
-              return { x, y };
-          }
-        return null;
-      });
-      expect(spot).not.toBeNull();
-      await page.mouse.click(spot!.x, spot!.y);
-      await page.waitForTimeout(300);
-      expect(await page.evaluate(() => document.activeElement === document.body)).toBe(true);
-      expect(await focusLog()).toEqual([]);
-      await expect(receipt).toHaveAttribute("data-removed", "false");
-      continue;
     } else if (round === "Shift+Tab") {
       // The first keyboard move onto an element under it closes it.
       expect(await covers(before)).toBe(true);
@@ -1043,6 +1034,43 @@ test("toast: the receipt with Undo over the returned focus stays, Alt+T reaches 
     }
     await expect(toasts).toHaveCount(0, { timeout: 400 });
   }
+});
+
+// `SUI-FEATURE-101` rev 7 (#564, #575): after Alt+T onto Undo, a press on the page's empty area puts
+// the focus on nothing, as without toasts: the ⋯ takes none, so no ring, and the receipt stays.
+// `@touch` runs it in WebKit on an iPhone too, with a touch tap: Safari focuses nothing on a press.
+test("toast: a press on the page's empty area after Alt+T leaves the focus on nothing @touch", async ({
+  page,
+  hasTouch,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/?page=preview&lng=en&receipt=1");
+  const { receipt, undo, archive, reachUndo, logFocus, focusLog } = receiptPreview(page);
+  await archive();
+  await expect(undo).toBeVisible();
+  await reachUndo();
+  await logFocus();
+  const spot = await page.evaluate(() => {
+    for (let y = window.innerHeight - 8; y > 0; y -= 16)
+      for (let x = 8; x < window.innerWidth; x += 16) {
+        const hit = document.elementFromPoint(x, y);
+        if (
+          hit !== null &&
+          hit.closest(
+            "button, a, input, select, textarea, label, [tabindex], [data-sonner-toaster]",
+          ) === null
+        )
+          return { x, y };
+      }
+    return null;
+  });
+  expect(spot).not.toBeNull();
+  if (hasTouch) await page.touchscreen.tap(spot!.x, spot!.y);
+  else await page.mouse.click(spot!.x, spot!.y);
+  await page.waitForTimeout(300);
+  expect(await page.evaluate(() => document.activeElement === document.body)).toBe(true);
+  expect(await focusLog()).toEqual([]);
+  await expect(receipt).toHaveAttribute("data-removed", "false");
 });
 
 // `GL-UI-013` rev 5: the last Tab stop of a scrolled sidebar is shown whole, its ring included.

@@ -720,6 +720,11 @@ const TABBABLE =
 // the dismissal under the focus lets it pass (a toast the action raised keeps its time, rev 4).
 let returningFocus = false;
 
+// An element that takes the focus: an HTML element, or an SVG one (`tabindex` on an `<svg>`).
+type Focusable = HTMLElement | SVGElement;
+const isFocusable = (node: unknown): node is Focusable =>
+  node instanceof HTMLElement || node instanceof SVGElement;
+
 /**
  * The focus that enters the toasts (Alt+T, Tab) goes back where it came from (`GL-UI-050`, #550):
  * to the element focused before it entered; when that element is gone or takes no focus, to
@@ -735,15 +740,30 @@ let returningFocus = false;
  * A move out of the toasts to an element, a pointer press (on an element or on the page's empty area,
  * where the focus goes to nothing) or a Tab after entering by Tab, keeps the focus where it lands, as
  * without toasts (`SUI-FEATURE-101`: pointer use is unchanged): sonner's own return to its remembered
- * element is prevented, so that element takes no passing focus.
+ * element is prevented, so that element takes no passing focus. sonner remembers its element on its
+ * own, and it can differ from the one before (a toast with `dismissible: false` it skips as the focus
+ * enters, so it remembers that toast once the focus moves on into it; the section around its lists;
+ * an element left from an entry whose toast node went without a blur): that one is held as well,
+ * unless the focus goes to it, so a return of sonner's never pulls the focus elsewhere. One return of
+ * sonner's cannot be held: the one it makes as its list unmounts (the last toast gone), outside any
+ * focusout; after it, its record is empty, and so is the toaster's copy.
  * Meanwhile the close timers of the toasts with an action this toaster shows (`id`, sonner's toaster
  * id) stand still while pointer or focus is in it (`SUI-FEATURE-101` rev 6).
  */
 function useToasterFocus(toasts: React.RefObject<HTMLElement | null>, id?: string): void {
+  // The toaster's copy of sonner's own record of the entry (its list's `isFocusWithinRef` and
+  // `lastFocusedElementRef`), kept by its rules: set as the focus enters a list, unless on a toast
+  // with `dismissible: false`; cleared, and returned to, as the focus leaves that list or the list
+  // unmounts. sonner keeps its record across a change of `id`, so the copy outlives the effect.
+  const sonner = React.useRef<{ within: boolean; last: EventTarget | null }>({
+    within: false,
+    last: null,
+  });
   React.useEffect(() => {
+    const record = sonner.current;
     const wrapper = toasts.current;
     if (wrapper === null) return;
-    let before: HTMLElement | null = null;
+    let before: Focusable | null = null;
     // Where `before` stood as the focus entered (group, neighbours, containers), for the fallback.
     let opener: Opener | null = null;
     // Whether the focus in the toasts shows its ring: the return shows it then, and only then.
@@ -757,8 +777,29 @@ function useToasterFocus(toasts: React.RefObject<HTMLElement | null>, id?: strin
     // The element sonner returns to, held still while its return runs on a move of the user's, with
     // its own `focus` property, if it had one; and whether a return of ours is running, whose own
     // focusout is no move of the user's.
-    let held: { element: HTMLElement; own: PropertyDescriptor | undefined } | null = null;
+    const held: { element: Focusable; own: PropertyDescriptor | undefined }[] = [];
     let giving = false;
+    const hold = (element: Focusable) => {
+      if (held.some((entry) => entry.element === element)) return;
+      held.push({ element, own: Object.getOwnPropertyDescriptor(element, "focus") });
+      Object.defineProperty(element, "focus", { value: () => undefined, configurable: true });
+    };
+    // The list a focusout leaves, as sonner's `onBlur` sees it; null when the focus stays in it.
+    const leftList = (event: FocusEvent) => {
+      const list = (event.target as Element).closest("[data-sonner-toaster]");
+      const to = event.relatedTarget;
+      return list !== null && !(to instanceof Node && list.contains(to)) ? list : null;
+    };
+    // Holds sonner's return as the focus leaves its list, unless it returns to where the focus goes.
+    const holdSonner = (event: FocusEvent, goes: EventTarget | null) => {
+      if (
+        record.within &&
+        leftList(event) !== null &&
+        isFocusable(record.last) &&
+        record.last !== goes
+      )
+        hold(record.last);
+    };
     // The instance's own pause state: its key is this effect run. A hidden document pauses it too, as
     // it does sonner's own timer: time in another browser tab is no time on screen (#582).
     const instance = {};
@@ -791,10 +832,18 @@ function useToasterFocus(toasts: React.RefObject<HTMLElement | null>, id?: strin
         opener = null;
         hotkey = false;
       } else {
+        if (
+          !record.within &&
+          target.closest("[data-sonner-toaster]") !== null &&
+          !(target instanceof HTMLElement && target.dataset.dismissible === "false")
+        ) {
+          record.within = true;
+          record.last = event.relatedTarget;
+        }
         ring = target.matches(":focus-visible");
         const list = target.matches("[data-sonner-toaster]");
         const from = event.relatedTarget;
-        if (before === null && from instanceof HTMLElement && !wrapper.contains(from)) {
+        if (before === null && isFocusable(from) && !wrapper.contains(from)) {
           before = from;
           opener = captureOpener(from);
           hotkey = list;
@@ -805,33 +854,41 @@ function useToasterFocus(toasts: React.RefObject<HTMLElement | null>, id?: strin
     // On the wrapper, so it runs before sonner's own return, which React handles at its root.
     const onFocusOut = (event: FocusEvent) => {
       const to = event.relatedTarget;
-      if (giving || (to instanceof Node && wrapper.contains(to))) return;
-      if (to instanceof HTMLElement || pressing) {
+      if (to instanceof Node && wrapper.contains(to)) return;
+      if (giving) {
+        holdSonner(event, to);
+        return;
+      }
+      if (isFocusable(to) || pressing) {
         pressing = false;
         // sonner's return to the element it remembered (the one in `before`) is held off, not undone
         // afterwards: that element takes no passing focus, which would activate a tab or blur a field.
         const target = before;
         before = null;
         opener = null;
-        if (target !== null) {
-          held = { element: target, own: Object.getOwnPropertyDescriptor(target, "focus") };
-          Object.defineProperty(target, "focus", { value: () => undefined, configurable: true });
-        } else pause();
+        if (target !== null) hold(target);
+        holdSonner(event, null);
+        if (held.length === 0) pause();
         return;
       }
       // A switch to another window or tab blurs the focus without a move of the user's in the page: it
       // stays in the toasts and comes back there.
       if (!document.hasFocus()) return;
       giveBack(false);
+      holdSonner(event, document.activeElement);
       pause();
     };
     // On the document, so it runs after sonner's return: the held element can take focus again.
-    const afterFocusOut = () => {
-      const target = held;
-      if (target === null) return;
-      held = null;
-      if (target.own === undefined) Reflect.deleteProperty(target.element, "focus");
-      else Object.defineProperty(target.element, "focus", target.own);
+    const afterFocusOut = (event?: FocusEvent) => {
+      if (event !== undefined && record.within && leftList(event) !== null) {
+        record.within = false;
+        record.last = null;
+      }
+      if (held.length === 0) return;
+      for (const { element, own } of held.splice(0)) {
+        if (own === undefined) Reflect.deleteProperty(element, "focus");
+        else Object.defineProperty(element, "focus", own);
+      }
       pause();
     };
     const onKeyDown = (event: KeyboardEvent) => {
@@ -870,6 +927,11 @@ function useToasterFocus(toasts: React.RefObject<HTMLElement | null>, id?: strin
         active.closest("[data-sonner-toast][data-removed=true]") !== null
       )
         giveBack(true);
+      // With its last list gone, sonner has made its own return and emptied its record.
+      if (wrapper.querySelector("[data-sonner-toaster]") === null) {
+        record.within = false;
+        record.last = null;
+      }
       pause();
     });
     leaving.observe(wrapper, {
