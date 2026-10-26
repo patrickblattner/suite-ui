@@ -277,7 +277,13 @@ function AppSidebar({
         onClick={(event) => {
           if (!overlayOpen || !(event.target instanceof Element)) return;
           const leads = event.target.closest("a[href], [data-testid=sidebar-instance-name]");
-          if (leads !== null) closeOverlay();
+          if (leads === null) return;
+          // Opening a link in a new tab or window (or downloading it) is not activation: the page
+          // stays (rev 5 AC7). Browsers send a middle click as `auxclick`; the button check is defensive.
+          const newTab =
+            event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey;
+          if (newTab && leads.matches("a[href]")) return;
+          closeOverlay();
         }}
         data-testid="app-sidebar"
         aria-label={t("nav.label")}

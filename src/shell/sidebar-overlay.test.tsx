@@ -625,6 +625,47 @@ describe("sidebar overlay below md (SUI-FEATURE-110)", () => {
     await waitFor(() => expect(trigger()).toHaveFocus());
   });
 
+  // `SUI-FEATURE-110` rev 5 AC7: opening in a new tab or window is not activation. A plain click
+  // still closes it: "a navigation closes it and returns the focus to the trigger" above.
+  it.each([
+    ["a Cmd click", { metaKey: true }],
+    ["a Ctrl click", { ctrlKey: true }],
+    ["a Shift click", { shiftKey: true }],
+    ["an Alt click", { altKey: true }],
+    ["a middle click", { button: 1 }],
+  ])("%s on an entry link keeps it open and the focus on the entry", (_, init) => {
+    // The router leaves these to the browser; jsdom cannot open another document.
+    const stay = (event: MouseEvent) => event.preventDefault();
+    document.addEventListener("click", stay);
+    try {
+      narrow(true);
+      render(<Shell />);
+      openOverlay();
+      const entry = screen.getByTestId("nav-ideas");
+      act(() => entry.focus());
+      fireEvent.click(entry, init);
+      expect(screen.getByTestId("location")).toHaveTextContent("/dashboard");
+      expect(sidebar()).toHaveAttribute("data-overlay", "open");
+      expect(entry).toHaveFocus();
+    } finally {
+      document.removeEventListener("click", stay);
+    }
+  });
+
+  // A browser sends a middle click as `auxclick`, not as `click`.
+  it("a middle click as auxclick on an entry link keeps it open and the focus on the entry", () => {
+    narrow(true);
+    render(<Shell />);
+    openOverlay();
+    const entry = screen.getByTestId("nav-ideas");
+    act(() => entry.focus());
+    // Testing Library has no `auxClick` helper.
+    fireEvent(entry, new MouseEvent("auxclick", { bubbles: true, cancelable: true, button: 1 }));
+    expect(screen.getByTestId("location")).toHaveTextContent("/dashboard");
+    expect(sidebar()).toHaveAttribute("data-overlay", "open");
+    expect(entry).toHaveFocus();
+  });
+
   it("Esc in the open user menu closes only the menu, a second Esc the overlay", async () => {
     narrow(true);
     render(
