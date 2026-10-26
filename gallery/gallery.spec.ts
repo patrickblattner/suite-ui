@@ -883,15 +883,10 @@ test("toast: Tab onto a FilterBar control under the toast closes all toasts", as
   await page.goto("/?page=list&toast=1");
   const success = page.locator("[data-sonner-toast][data-type=success]");
   await expect(success).toBeVisible();
-  // The toast slides in; its box is taken once it rests.
-  let toastBox = await box(success);
-  await expect
-    .poll(async () => {
-      const previous = toastBox;
-      toastBox = await box(success);
-      return toastBox.y === previous.y;
-    })
-    .toBe(true);
+  // The toast slides in; its box is taken once it rests. It starts its slide-in only once mounted;
+  // two equal reads in a row can fall before the slide starts.
+  await expect(success).toHaveAttribute("data-mounted", "true");
+  const toastBox = (await settledBox(success))!;
   // The ring reaches 4 px beyond the control.
   const covers = (control: { x: number; y: number; width: number; height: number }) =>
     toastBox.x < control.x + control.width + 4 &&
