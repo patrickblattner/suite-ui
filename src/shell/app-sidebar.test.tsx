@@ -399,6 +399,21 @@ describe("AppSidebar", () => {
     expect(screen.getByTestId("location")).toHaveTextContent("/dashboard");
   });
 
+  // `GL-UI-019` rev 9: a neutral block, the primary colour only in the initial square; the same
+  // token classes serve light and dark.
+  it("the instance name is a neutral block with the initial in a primary square", () => {
+    renderSidebar("/ideas");
+    const block = screen.getByTestId("sidebar-instance-name");
+    expect(block).toHaveAccessibleName("Test instance");
+    expect(block).toHaveClass("border", "bg-card", "text-foreground", "font-semibold");
+    expect(block).toHaveClass("hover:bg-accent", "hover:text-accent-foreground");
+    expect(block.className).not.toMatch(/instance-name|bg-primary|dark:/);
+    const initial = within(block).getByTestId("sidebar-instance-initial");
+    expect(initial).toHaveTextContent(/^T$/);
+    expect(initial).toHaveClass("bg-primary", "text-primary-foreground");
+    expect(initial).toHaveAttribute("aria-hidden", "true");
+  });
+
   // `SUI-FEATURE-102`: a focused entry scrolls fully into view, its ring clear of the area's edges.
   it("a keyboard-focused entry scrolls into view inside the padded nav area", () => {
     const scrolled = vi.fn();

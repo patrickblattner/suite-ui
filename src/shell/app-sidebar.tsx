@@ -17,6 +17,7 @@ import {
   type NavSection,
   sectionForPath,
 } from "./nav.js";
+import { InitialSquare } from "./initial-square.js";
 import { SIDEBAR_ID, SidebarTrigger, useSidebar } from "./sidebar-provider.js";
 import { type VersionInfo, VersionLine } from "./version-line.js";
 
@@ -295,14 +296,16 @@ function AppSidebar({
           data-tooltip-row=""
         >
           {isOpen && (
-            <Hint text={`${instanceName}: ${t("nav.home")}`}>
+            <Hint text={t("nav.home")}>
               <button
                 type="button"
                 data-testid="sidebar-instance-name"
                 onClick={() => void navigate(homePath)}
-                className="min-w-0 flex-1 cursor-pointer truncate rounded-md bg-instance-name px-3 py-2 text-left font-medium text-instance-name-foreground outline-none transition-colors hover:bg-instance-name-hover focus-visible:focus-ring"
+                className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 rounded-md border bg-card px-2 py-1.5 text-left font-semibold text-foreground outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:focus-ring"
               >
-                {instanceName}
+                {/* Neutral block (`GL-UI-019`): the primary colour only in the initial square. */}
+                <InitialSquare name={instanceName} testId="sidebar-instance-initial" />
+                <span className="truncate">{instanceName}</span>
               </button>
             </Hint>
           )}

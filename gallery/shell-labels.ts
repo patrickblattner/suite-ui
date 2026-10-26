@@ -1,5 +1,7 @@
 // App-side texts of the gallery shell: the app's own label keys (namespace `translation`) and the
 // record data on screen. The visible-text check allows exactly these besides the `suite` namespace.
+import { initialOf } from "../src/shell/initial-square.js";
+
 export const SHELL_LABELS = {
   en: {
     nav: {
@@ -66,6 +68,10 @@ export function shellTexts(lng: keyof typeof SHELL_LABELS): string[] {
     Object.values(tree).flatMap((value) =>
       typeof value === "string" ? [value] : flatten(value as object),
     );
-  const initial = SHELL_DATA.userName.charAt(0);
-  return [...flatten(SHELL_LABELS[lng]), ...flatten(SHELL_DATA), initial];
+  const initials = [initialOf(SHELL_DATA.userName), initialOf(SHELL_DATA.instanceName)];
+  return [
+    ...flatten(SHELL_LABELS[lng]),
+    ...flatten(SHELL_DATA),
+    ...initials.filter((initial) => initial !== undefined),
+  ];
 }

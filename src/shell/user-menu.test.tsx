@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import { describe, expect, it, vi } from "vitest";
 
 import { userMenuOrderViolations } from "../testing/index.js";
+import { InitialSquare } from "./initial-square.js";
 import { SidebarTrigger } from "./sidebar-provider.js";
 import { ShellHarness } from "./test-utils.js";
 import { UserMenu, UserMenuItem } from "./user-menu.js";
@@ -48,6 +49,23 @@ describe("UserMenu", () => {
     renderMenu();
     expect(screen.getByTestId("user-menu-name")).toHaveTextContent("ada");
     expect(screen.getByTestId("user-menu-role")).toHaveTextContent("Admin");
+  });
+
+  // `GL-UI-020` rev 13: the avatar is the initial square of the instance-name block (`GL-UI-019`),
+  // primary with its contrast colour from tokens only.
+  it("shows the user's initial in the shared primary square", () => {
+    renderMenu();
+    const avatar = screen.getByTestId("user-menu-avatar");
+    expect(avatar).toHaveTextContent(/^A$/);
+    expect(avatar).toHaveAttribute("aria-hidden", "true");
+    expect(avatar).toHaveClass("size-6", "rounded-sm", "bg-primary", "text-primary-foreground");
+    render(<InitialSquare name="Suite" testId="instance-square" />);
+    expect(screen.getByTestId("instance-square").className).toBe(avatar.className);
+  });
+
+  it("shows no avatar square for a blank name", () => {
+    renderMenu({ name: " " });
+    expect(screen.queryByTestId("user-menu-avatar")).not.toBeInTheDocument();
   });
 
   it("lists the entries in the fixed order with the app entry before Log out", () => {

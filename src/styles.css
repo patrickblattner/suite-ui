@@ -113,9 +113,6 @@
   --info-soft: oklch(0.94 0.04 256);
   --info-soft-foreground: oklch(0.43 0.15 256);
 
-  --instance-name: oklch(0.55 0.18 256);
-  --instance-name-foreground: oklch(0.985 0 0);
-
   /* Hover steps of the filled surfaces: their own lightness step of the same hue (|ΔL| ≥ 0.10), in
      the direction that raises the contrast to the unchanged `-foreground` — never opacity. */
   --primary-hover: oklch(0.1 0.006 285.9);
@@ -123,7 +120,6 @@
   --success-hover: oklch(0.42 0.17 152);
   --warn-hover: oklch(0.45 0.17 70);
   --destructive-hover: oklch(0.467 0.245 27.3);
-  --instance-name-hover: oklch(0.44 0.18 256);
 
   /* Tag palette: a fixed, ordered set of chip colors, each with a readable `-foreground`. Fills
      with near-white text sit at the lightest lightness that keeps it at AA (hue and chroma kept);
@@ -210,17 +206,12 @@
   --info-soft: oklch(0.3 0.07 256);
   --info-soft-foreground: oklch(0.85 0.08 256);
 
-  /* The instance name carries dark text in dark, so its hover goes lighter. */
-  --instance-name: oklch(0.7 0.16 256);
-  --instance-name-foreground: oklch(0.16 0.004 285.9);
-
   /* primary is the light surface here and goes darker; secondary lifts off the dark ground. */
   --primary-hover: oklch(0.875 0 0);
   --secondary-hover: oklch(0.384 0.006 286);
   --success-hover: oklch(0.42 0.17 152);
   --warn-hover: oklch(0.45 0.17 70);
   --destructive-hover: oklch(0.47 0.191 22.2);
-  --instance-name-hover: oklch(0.81 0.16 256);
 
   --tag-slate: oklch(0.55 0.03 256);
   --tag-slate-foreground: oklch(0.985 0 0);
@@ -313,9 +304,6 @@
   --color-destructive-soft-foreground: var(--destructive-soft-foreground);
   --color-info-soft: var(--info-soft);
   --color-info-soft-foreground: var(--info-soft-foreground);
-  --color-instance-name: var(--instance-name);
-  --color-instance-name-foreground: var(--instance-name-foreground);
-  --color-instance-name-hover: var(--instance-name-hover);
 
   --color-tag-slate: var(--tag-slate);
   --color-tag-slate-foreground: var(--tag-slate-foreground);

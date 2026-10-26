@@ -170,9 +170,14 @@ describe("styles.css tokens", () => {
     for (const name of ["destructive-text", "success-text", "warn-text"]) {
       expect(checked).toContain(name);
     }
-    for (const fill of ["success", "warn", "destructive", "instance-name"]) {
+    for (const fill of ["success", "warn", "destructive"]) {
       expect(checked).toContain(`${fill}-foreground`);
     }
+  });
+
+  // GL-UI-010 rev 11 / GL-UI-019 rev 9: no colour token of its own for the instance name.
+  it("carries no --instance-name token in either theme", () => {
+    expect(css).not.toMatch(/--(color-)?instance-name/);
   });
 
   // SUI-FEATURE-044 AC1: the text of every soft badge on its own ground, in both themes; the AA

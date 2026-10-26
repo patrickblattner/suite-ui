@@ -17,6 +17,7 @@ import { useEscapeLayer } from "../lib/escape-layers.js";
 import { SUITE_LANGUAGES, type SuiteLanguage } from "../strings/types.js";
 import { Hint } from "../ui/hint.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select.js";
+import { InitialSquare } from "./initial-square.js";
 import { useOptionalSidebar } from "./sidebar-provider.js";
 
 export type Appearance = "system" | "light" | "dark";
@@ -340,18 +341,15 @@ function UserMenu({
           data-testid="user-menu-trigger"
           aria-label={collapsed ? name : undefined}
           className={cn(
-            "flex w-full cursor-pointer items-center gap-2 rounded-md px-2 py-2 text-left outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:focus-ring",
+            // The transparent border puts the avatar and the name on the x of the framed
+            // instance-name block's square and name in the head (`GL-UI-019`).
+            "flex w-full cursor-pointer items-center gap-2 rounded-md border border-transparent px-2 py-2 text-left outline-none transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:focus-ring",
             // The avatar alone in the flow sits on the axis of the toggle above it.
             collapsed && "relative justify-center px-0",
             isOpen && "bg-accent text-accent-foreground",
           )}
         >
-          <span
-            aria-hidden="true"
-            className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-instance-name text-sm font-medium text-instance-name-foreground"
-          >
-            {name.charAt(0).toUpperCase()}
-          </span>
+          <InitialSquare name={name} testId="user-menu-avatar" />
           {!collapsed && (
             <span className="grid flex-1 leading-tight">
               <span className="truncate text-sm font-medium" data-testid="user-menu-name">
