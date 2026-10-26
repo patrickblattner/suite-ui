@@ -819,11 +819,12 @@ function TooltipContent({
   const trigger = React.useContext(TriggerNodeContext)?.trigger ?? null;
   // The bubble's node exists only while it is open. Looked up once per open, not on each render while
   // it stays open: finding a field's row climbs its ancestors and reads their layout (#544).
-  // A table or list row is known from that render too: there it places the bubble itself (`inLine`).
+  // A table or list row is known from that render too: there it places the bubble itself (`inLine`),
+  // as in a tile (`inTile`, #594).
   const inRow = React.useMemo(
     () =>
       rowOf(trigger, content !== null) !== null ||
-      (content !== null && trigger?.closest(TOOLTIP_LINE) != null),
+      (content !== null && trigger?.closest(`${TOOLTIP_LINE}, ${TOOLTIP_TILE}`) != null),
     [trigger, content],
   );
   const row = useRowPlacement(

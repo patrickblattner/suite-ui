@@ -3242,6 +3242,15 @@ test("media tile: Tab onto a clipped name shows the full text, onto a fitting on
   const bubble = await page.locator("[data-slot=tooltip-content]").boundingBox();
   expect(bubble!.x).toBeGreaterThanOrEqual(tile!.x);
   expect(bubble!.x + bubble!.width).toBeLessThanOrEqual(tile!.x + tile!.width);
+  // The clipped name it shows stays uncovered (`GL-UI-016` §Lage, #594).
+  const name = await box(tiles.nth(3).locator(".truncate"));
+  expect(
+    bubble!.x < name.x + name.width &&
+      name.x < bubble!.x + bubble!.width &&
+      bubble!.y < name.y + name.height &&
+      name.y < bubble!.y + bubble!.height,
+    "bubble over the clipped name",
+  ).toBe(false);
   await page.keyboard.press("Tab");
   await expect(tiles.nth(4)).toBeFocused();
   await expect(page.getByRole("tooltip")).toHaveCount(0);

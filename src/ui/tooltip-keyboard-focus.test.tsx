@@ -796,4 +796,133 @@ describe("keyboard bubble placement", () => {
       expect(clamped.maxWidth).toBe("762px");
     }
   });
+
+  // A line of three tiles (`data-tooltip-tile`), the middle one the focusable holder of a clipped
+  // name; boxes are [left, top, width, height] in a 1000 px viewport, the bubble 184 px wide and
+  // `height` px tall. Opens it by `open` and returns where the popper placed it.
+  async function placedInTile(
+    height: number,
+    boxes: Record<string, [number, number, number, number]>,
+    open: (tile: HTMLElement) => void,
+  ) {
+    Object.defineProperty(document.documentElement, "clientWidth", {
+      configurable: true,
+      value: 1000,
+    });
+    Object.defineProperty(document.documentElement, "clientHeight", {
+      configurable: true,
+      value: 800,
+    });
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      const isBubble =
+        this.dataset.slot === "tooltip-content" ||
+        this.hasAttribute("data-radix-popper-content-wrapper");
+      const [left, top, width, tall] = isBubble
+        ? [0, 0, 184, height]
+        : (boxes[this.dataset.testid ?? ""] ?? [0, 0, 0, 0]);
+      return new DOMRect(left, top, width, tall);
+    });
+    const popperSize = (node: HTMLElement, size: number) =>
+      node.hasAttribute("data-radix-popper-content-wrapper") ? size : 0;
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return popperSize(this, 184);
+    });
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return popperSize(this, height);
+    });
+    const view = render(
+      <div>
+        <button type="button" data-tooltip-tile="" data-testid="before" />
+        <button type="button" data-tooltip-tile="" data-testid="tile">
+          <OverflowTooltip>
+            <span className="truncate" data-testid="name">
+              {LONG}
+            </span>
+          </OverflowTooltip>
+        </button>
+        <button type="button" data-tooltip-tile="" data-testid="after" />
+      </div>,
+    );
+    open(screen.getByTestId("tile"));
+    wait(1500);
+    for (let round = 0; round < 12; round++) {
+      await act(async () => {
+        vi.advanceTimersByTime(16);
+        await Promise.resolve();
+      });
+    }
+    const content = document.querySelector<HTMLElement>("[data-slot=tooltip-content]");
+    const wrapper = document.querySelector<HTMLElement>("[data-radix-popper-content-wrapper]");
+    const [, x, y] =
+      /translate\((-?[\d.]+)px, (-?[\d.]+)px/.exec(wrapper?.style.transform ?? "") ?? [];
+    const result = { side: content?.dataset.side, x: Number(x), y: Number(y) };
+    view.unmount();
+    return result;
+  }
+
+  const tileByPointer = () => {
+    fireEvent.pointerMove(screen.getByTestId("name"), { pointerType: "mouse" });
+  };
+  const opens = [(tile: HTMLElement) => tabTo(tile), tileByPointer];
+
+  // GL-UI-016 rev 19 §Lage, Kacheln (#589, #594): a tile that holds 120 px beside its text keeps the
+  // bubble beside the text, inside the tile, the text free.
+  it("in a tile with 120 px beside its text the bubble stands beside the text, inside the tile", async () => {
+    const boxes: Record<string, [number, number, number, number]> = {
+      before: [0, 100, 400, 180],
+      tile: [416, 100, 400, 180],
+      after: [832, 100, 160, 180],
+      // 262 px beside the name inside its tile: 816 less 8, the name's right edge, gap and arrow.
+      name: [428, 244, 100, 20],
+    };
+    for (const open of opens) {
+      const placed = await placedInTile(32, boxes, open);
+      expect(placed.side).toBe("right");
+      // Past the name's right edge (528), its far edge 8 px or more inside the tile's (816).
+      expect(placed.x).toBeGreaterThanOrEqual(528);
+      expect(placed.x + 184).toBeLessThanOrEqual(808);
+    }
+  });
+
+  // A short tile under a long name: no 120 px beside the text, so the bubble stands over the tile, its
+  // bottom 4 px above the name, growing upward out of the tile, over no neighbour sideways.
+  it("in a short tile the bubble grows upward out of it, off its name and its neighbours", async () => {
+    const boxes: Record<string, [number, number, number, number]> = {
+      before: [0, 300, 200, 60],
+      tile: [216, 300, 200, 60],
+      after: [432, 300, 200, 60],
+      name: [228, 324, 176, 20],
+    };
+    for (const open of opens) {
+      const placed = await placedInTile(80, boxes, open);
+      expect(placed.side).toBe("top");
+      // The tile's width less 8 px a side: 224..408, inside the tile, off both neighbours.
+      expect(placed.x).toBe(224);
+      // Bottom edge 4 px above the name (324), so above the tile's top (300): grown upward.
+      expect(placed.y + 80).toBe(320);
+      expect(placed.y).toBeLessThan(300);
+    }
+  });
+
+  // #594 AC 4 (as #605 for rows): the first position, computed before the tile's placement is known,
+  // must not resolve after it and stand. Room on the right of the name would let that first one stand
+  // beside the tile, over its neighbour.
+  it("a tile bubble's final position survives the popper's first computation", async () => {
+    const boxes: Record<string, [number, number, number, number]> = {
+      before: [0, 300, 200, 60],
+      tile: [216, 300, 200, 60],
+      after: [432, 300, 200, 60],
+      name: [228, 324, 176, 20],
+    };
+    for (const open of opens) {
+      const placed = await placedInTile(32, boxes, open);
+      expect(placed).toEqual({ side: "top", x: 224, y: 288 });
+    }
+  });
 });
