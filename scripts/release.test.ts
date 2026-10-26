@@ -21,13 +21,19 @@ const script = fileURLToPath(new URL("./release.ts", import.meta.url));
 let repo: string;
 
 const gitIn = (cwd: string, ...args: string[]) =>
-  execFileSync("git", args, { cwd, encoding: "utf8", stdio: "pipe" }).trim();
+  execFileSync("git", args, {
+    cwd,
+    encoding: "utf8",
+    stdio: "pipe",
+    timeout: SPAWN_TIMEOUT,
+  }).trim();
 const git = (...args: string[]) => gitIn(repo, ...args);
 
 const tag = (...args: string[]) => {
   const run = spawnSync(process.execPath, ["scripts/release.ts", "tag", ...args], {
     cwd: repo,
     encoding: "utf8",
+    timeout: SPAWN_TIMEOUT,
   });
   return { status: run.status, out: run.stdout + run.stderr };
 };
@@ -47,6 +53,13 @@ const writeRecord = (record: object, dir = repo) => {
 // file system work only. Built once, the starting repo gets a timeout that matches spawning a
 // handful of git processes on a loaded machine.
 const HOOK_SPAWN_TIMEOUT = 60_000;
+// The tests are spawn-bound the same way (#604): each runs a serial chain of 7–12 processes (git,
+// node with the script, npm ls) and does no work of its own. Alone they take 0.25–1.6 s; under two
+// concurrent merge gates the file took 62–69 s instead of 18 s and three of them passed the 5 s
+// default. A test's timeout matches the hooks'. A synchronous test is only failed once it returns, so
+// each spawn ends itself well below that: a hung process is killed and its test fails.
+vi.setConfig({ testTimeout: HOOK_SPAWN_TIMEOUT });
+const SPAWN_TIMEOUT = 20_000;
 const fresh = (prefix: string) => mkdtempSync(join(tmpdir(), prefix));
 const copyOf = (template: string) => {
   const dir = fresh("suite-ui-release-");
@@ -219,13 +232,14 @@ describe("release:tag review", () => {
     );
     chmodSync(join(bin, "npx"), 0o755);
     const origin = join(repo, ".origin.git");
-    execFileSync("git", ["init", "-q", "--bare", origin]);
+    execFileSync("git", ["init", "-q", "--bare", origin], { timeout: SPAWN_TIMEOUT });
     gitIn(origin, "config", "maintenance.auto", "false");
     git("remote", "add", "origin", origin);
     const run = spawnSync(process.execPath, ["scripts/release.ts", "tag"], {
       cwd: repo,
       encoding: "utf8",
       env: { ...process.env, PATH: `${bin}:${process.env.PATH}` },
+      timeout: SPAWN_TIMEOUT,
     });
     const args = existsSync(join(repo, "npx-args"))
       ? readFileSync(join(repo, "npx-args"), "utf8").trim()
@@ -405,6 +419,7 @@ describe("gate:record", () => {
     const run = spawnSync(process.execPath, ["scripts/release.ts", "record", "--issue", "1"], {
       cwd: repo,
       encoding: "utf8",
+      timeout: SPAWN_TIMEOUT,
     });
     return { status: run.status, err: run.stderr };
   };
@@ -415,7 +430,7 @@ describe("gate:record", () => {
     const run = spawnSync(
       process.execPath,
       ["scripts/release.ts", "record", "--profile", "local"],
-      { cwd: repo, encoding: "utf8" },
+      { cwd: repo, encoding: "utf8", timeout: SPAWN_TIMEOUT },
     );
     expect(run.status).toBe(1);
     expect(run.stderr).toContain(

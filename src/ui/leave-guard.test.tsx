@@ -65,6 +65,15 @@ afterEach(async () => {
   await i18n.changeLanguage("en");
 });
 
+// jsdom runs each history.go/back/forward as two chained 0 ms timer tasks. Timers of equal delay run
+// in order, but a stalled event loop lets a fixed 30 ms timer expire before the chain's second task
+// is even scheduled, so the 30 ms are followed by 0 ms hops on the same timer list (#604); eight
+// hops cover up to four chained traversals.
+async function waitPastTraversal() {
+  await new Promise((done) => window.setTimeout(done, 30));
+  for (let hop = 0; hop < 8; hop += 1) await new Promise((done) => window.setTimeout(done, 0));
+}
+
 const escape = (target: Element = document.activeElement ?? document.body) =>
   fireEvent.keyDown(target, { key: "Escape" });
 
@@ -610,7 +619,7 @@ describe("EditPanel leave guard: focus, keys and routes (GL-UI-007)", () => {
       fireEvent.click(screen.getByTestId("edit-panel-submit"));
       expect(screen.getByTestId("edit-panel-submit")).toHaveAttribute("aria-busy", "true");
       fireEvent.click(screen.getByTestId("nav"));
-      await act(() => new Promise((done) => window.setTimeout(done, 30)));
+      await act(() => waitPastTraversal());
       expect(screen.getByTestId("path")).toHaveTextContent("/list");
       expect(screen.queryByTestId("leave-guard")).toBeNull();
       await settleAndWait(() => saved.settle(true));
@@ -842,7 +851,7 @@ function expectDialogWorking() {
 const settleAndWait = (settle: () => void) =>
   act(() => {
     settle();
-    return new Promise((done) => window.setTimeout(done, 30));
+    return waitPastTraversal();
   });
 
 describe("Apply on a route leave (SUI-FEATURE-094 AC5)", () => {
@@ -993,7 +1002,7 @@ describe("Apply on a route leave (SUI-FEATURE-094 AC5)", () => {
       await waitFor(() => expect(router.state.location.pathname).toBe("/start"));
       act(() => window.history.forward());
       await waitFor(() => expect(router.state.location.pathname).toBe("/list"));
-      fireEvent.click(screen.getByTestId("row"));
+      fireEvent.click(await screen.findByTestId("row"));
       edit();
       fireEvent.click(screen.getByTestId("edit-panel-submit"));
       await waitFor(() => expect(screen.queryByTestId("edit-panel")).toBeNull());
@@ -1060,7 +1069,7 @@ describe("Apply on a route leave (SUI-FEATURE-094 AC5)", () => {
     await act(() => router.navigate("/other"));
     act(() => window.history.back());
     await waitFor(() => expect(router.state.location.pathname).toBe("/list"));
-    fireEvent.click(screen.getByTestId("row"));
+    fireEvent.click(await screen.findByTestId("row"));
     edit();
     act(() => window.history.forward());
     fireEvent.click(await screen.findByTestId("leave-guard-save"));
@@ -1124,7 +1133,7 @@ describe("Apply on a route leave (SUI-FEATURE-094 AC5)", () => {
       expectApplyWorking();
       escape(screen.getByTestId("leave-guard-save"));
       escape(screen.getByLabelText("Name"));
-      await act(() => new Promise((done) => window.setTimeout(done, 30)));
+      await act(() => waitPastTraversal());
       expectDialogWorking();
       expect(screen.getByTestId("edit-panel")).toBeInTheDocument();
       expect(router.state.location.pathname).toBe("/list");
@@ -1138,7 +1147,7 @@ describe("Apply on a route leave (SUI-FEATURE-094 AC5)", () => {
       expect(router.state.location.pathname).toBe("/list");
       fireEvent.click(screen.getByTestId("leave-guard-save"));
       await waitFor(() => expect(router.state.location.pathname).toBe("/other"));
-      await act(() => new Promise((done) => window.setTimeout(done, 30)));
+      await act(() => waitPastTraversal());
       expect(screen.queryByTestId("leave-guard")).toBeNull();
     },
   );
@@ -1303,7 +1312,7 @@ describe("Apply on a route leave (SUI-FEATURE-094 AC5)", () => {
       expect(screen.getByLabelText("Name")).toHaveValue("Changed");
       expect(screen.queryByTestId("leave-guard")).toBeNull();
       expect(router.state.location.pathname).toBe("/list");
-      await act(() => new Promise((done) => window.setTimeout(done, 30)));
+      await act(() => waitPastTraversal());
       expect(router.state.location.pathname).toBe("/list");
     },
   );
@@ -1364,7 +1373,7 @@ describe("Apply on a route leave (SUI-FEATURE-094 AC5)", () => {
       fireEvent.click(screen.getByTestId("edit-panel-submit"));
       expectApplyWorking();
       fireEvent.click(screen.getByTestId("nav"));
-      await act(() => new Promise((done) => window.setTimeout(done, 30)));
+      await act(() => waitPastTraversal());
       expect(screen.queryByTestId("leave-guard")).toBeNull();
       expect(screen.getByRole("heading", { name: "Term" })).toBeInTheDocument();
       expect(screen.getByTestId("path")).toHaveTextContent("/list");
@@ -1378,7 +1387,7 @@ describe("Apply on a route leave (SUI-FEATURE-094 AC5)", () => {
       expect(screen.getByTestId("path")).toHaveTextContent("/list");
       fireEvent.click(screen.getByTestId("leave-guard-save"));
       await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/other"));
-      await act(() => new Promise((done) => window.setTimeout(done, 30)));
+      await act(() => waitPastTraversal());
       expect(screen.queryByTestId("leave-guard")).toBeNull();
     },
   );
@@ -1409,7 +1418,7 @@ describe("Apply on a route leave (SUI-FEATURE-094 AC5)", () => {
       fireEvent.click(screen.getByTestId("edit-panel-submit"));
       fireEvent.click(screen.getByTestId("nav"));
       await settleAndWait(() => applied.settle(false));
-      await act(() => new Promise((done) => window.setTimeout(done, 30)));
+      await act(() => waitPastTraversal());
       expect(screen.getByRole("heading", { name: "Term" })).toBeInTheDocument();
       expect(screen.getByTestId("edit-panel-submit")).not.toHaveAttribute("aria-busy");
       expect(screen.getByTestId("path")).toHaveTextContent("/list");
@@ -1732,7 +1741,7 @@ function AlwaysDirty() {
 
 describe("data router: the shared blocker passes on (review #276)", () => {
   async function stillHeld(router: ReturnType<typeof createMemoryRouter>, id: string, at: string) {
-    fireEvent.click(screen.getByTestId(`edit-${id}`));
+    fireEvent.click(await screen.findByTestId(`edit-${id}`));
     fireEvent.click(screen.getByTestId(`nav-${id}`));
     await screen.findByTestId("leave-guard");
     expect(router.state.location.pathname).toBe(at);
@@ -1958,7 +1967,7 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
     fireEvent.click(screen.getByTestId("end-busy"));
     fireEvent.click(await screen.findByTestId("leave-guard-discard"));
     await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/list"));
-    await act(() => new Promise((done) => window.setTimeout(done, 30)));
+    await act(() => waitPastTraversal());
     expect(screen.getByTestId("path")).toHaveTextContent("/list");
   });
 
@@ -2034,7 +2043,7 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
       ["Next", () => fireEvent.click(screen.getByTestId("next")), "/detail/3"],
       ["Esc", () => escape(screen.getByLabelText("Name")), "/list"],
     ] as const;
-    const pause = () => act(() => new Promise((done) => window.setTimeout(done, 30)));
+    const pause = () => act(() => waitPastTraversal());
     function renderSaving(way: () => void) {
       render(
         <MemoryRouter initialEntries={["/detail/2"]}>
@@ -2102,7 +2111,8 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
         expect(router.state.location.pathname).toBe("/detail/2");
         expect(screen.queryByTestId("leave-guard")).toBeNull();
         fireEvent.click(screen.getByTestId("ok"));
-        await waitFor(() => expect(router.state.location.pathname).toBe("/list"));
+        await waitFor(() => expect(screen.queryByLabelText("Name")).toBeNull());
+        expect(router.state.location.pathname).toBe("/list");
         expect(screen.queryByTestId("leave-guard")).toBeNull();
       });
 
@@ -2153,7 +2163,7 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
     fireEvent.keyDown(screen.getByTestId("leave-guard"), { key: "Enter" });
     escape(screen.getByLabelText("Name"));
     fireEvent.click(screen.getByTestId("back"));
-    await act(() => new Promise((done) => window.setTimeout(done, 30)));
+    await act(() => waitPastTraversal());
     expectDialogWorking();
     expect(save).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId("path")).toHaveTextContent("/detail");
@@ -2426,7 +2436,7 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
     return { action, seen, settle: acted.settle };
   }
 
-  const pause = () => act(() => new Promise((done) => window.setTimeout(done, 30)));
+  const pause = () => act(() => waitPastTraversal());
 
   it.each([
     ["discard", "redirects"],
@@ -2450,7 +2460,7 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
       expect(router.state.location.pathname).toBe("/detail");
       expect(screen.queryByTestId("leave-guard")).toBeNull();
       await settleAndWait(settle);
-      await waitFor(() => expect(router.state.location.pathname).toBe("/elsewhere"));
+      await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/elsewhere"));
       expect(router.state.historyAction).toBe("PUSH");
       // The page confirmed the leave already: it does not ask again, though still dirty.
       expect(screen.queryByTestId("leave-guard")).toBeNull();
@@ -2594,7 +2604,7 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
       // SUI-FEATURE-172: input during the wait falls under that Discard; no second question.
       fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Again" } });
       await settleAndWait(settle);
-      await waitFor(() => expect(router.state.location.pathname).toBe("/elsewhere"));
+      await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/elsewhere"));
       expect(onDiscard).toHaveBeenCalledTimes(1);
       // The reset is read when it runs: it sees the input made during the wait.
       expect(onDiscard).toHaveBeenCalledWith("Again");
@@ -2837,7 +2847,7 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
       await settleAndWait(settle);
       await pause();
       if (ok) {
-        await waitFor(() => expect(router.state.location.pathname).toBe("/list"));
+        await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/list"));
         expect(onDiscard).toHaveBeenCalledTimes(answer === "discard" ? 1 : 0);
         expect(screen.queryByTestId("leave-guard")).toBeNull();
       } else {
@@ -3256,7 +3266,7 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
     await waitFor(() => expect(router.state.navigation.state).toBe("loading"));
     expect(router.state.navigation.formMethod).toBe("GET");
     fireEvent.click(screen.getByTestId("go"));
-    await waitFor(() => expect(router.state.location.pathname).toBe("/elsewhere"));
+    await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/elsewhere"));
     expect(screen.queryByTestId("leave-guard")).toBeNull();
   });
 
@@ -3825,8 +3835,7 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
     fireEvent.click(screen.getByTestId("go"));
     fireEvent.click(await screen.findByTestId("leave-guard-discard"));
     await settleAndWait(settle);
-    await waitFor(() => expect(router.state.location.pathname).toBe("/app/elsewhere"));
-    expect(screen.getByTestId("path")).toHaveTextContent("/elsewhere");
+    await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/elsewhere"));
   });
 
   // Review #303 (code H): under a memory router the window's history state is not the router's; a
@@ -4067,7 +4076,7 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
       // An entry ahead of the first, for a later browser forward.
       await act(() => router.navigate("/next"));
       act(() => window.history.back());
-      await waitFor(() => expect(router.state.location.pathname).toBe("/detail"));
+      await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/detail"));
     } else {
       await act(() => router.navigate("/list"));
       await act(() => router.navigate("/detail"));
@@ -4126,7 +4135,7 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
     await pause();
     expect(router.state.navigation.state).toBe("idle");
     act(() => window.history.go(-1));
-    await waitFor(() => expect(router.state.location.pathname).toBe("/list"));
+    await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/list"));
     expect(screen.queryByTestId("leave-guard")).toBeNull();
     expect(onDiscard).toHaveBeenCalledTimes(1);
     router.dispose();
@@ -4231,7 +4240,7 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
 
     escape(screen.getByLabelText("Name"));
     fireEvent.click(screen.getByTestId("leave-guard-discard"));
-    await waitFor(() => expect(router.state.location.pathname).toBe("/list"));
+    await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/list"));
     expect(screen.queryByTestId("leave-guard")).toBeNull();
   });
 });
@@ -4269,7 +4278,7 @@ describe("browser back held by a panel under BrowserRouter (review #277)", () =>
       answer,
     );
     // The pop that puts the address back arrives first.
-    await act(() => new Promise((done) => window.setTimeout(done, 30)));
+    await act(() => waitPastTraversal());
     fireEvent.click(screen.getByTestId("leave-guard-save"));
   }
 
@@ -5066,7 +5075,7 @@ describe("a page's own Save under a data router (SUI-FEATURE-170)", () => {
     return { router, posted, loggedOut };
   }
 
-  const pause = () => act(() => new Promise((done) => window.setTimeout(done, 30)));
+  const pause = () => act(() => waitPastTraversal());
   const asks = () => screen.queryByTestId("leave-guard") !== null;
 
   it.each(["own-save", "own-submit"])(
@@ -5440,7 +5449,7 @@ describe("data router: no guard blocker stays behind a submission that went on",
     fireEvent.click(screen.getByTestId("logout"));
     fireEvent.click(await screen.findByTestId("leave-guard-save"));
     await waitFor(() => expect(router.state.navigation.formAction).toBe("/logout"));
-    expect(screen.queryByLabelText("Entry")).toBeNull();
+    await waitFor(() => expect(screen.queryByLabelText("Entry")).toBeNull());
     await settleAndWait(out.settle);
     await waitFor(() => expect(router.state.location.pathname).toBe("/bye"));
     expect(ops.at(-1)).toBe("delete");
@@ -5502,10 +5511,10 @@ describe("EditPanel busy without a promise (SUI-FEATURE-171 AC4)", () => {
       fireEvent.click(screen.getByTestId("edit-panel-submit"));
       expect(screen.getByTestId("edit-panel-submit")).toHaveAttribute("aria-busy", "true");
       fireEvent.click(screen.getByTestId("nav"));
-      await act(() => new Promise((done) => window.setTimeout(done, 30)));
+      await act(() => waitPastTraversal());
       expect(screen.getByTestId("path")).toHaveTextContent("/list");
       fireEvent.click(screen.getByTestId("done"));
-      await act(() => new Promise((done) => window.setTimeout(done, 30)));
+      await act(() => waitPastTraversal());
       expect(screen.getByTestId("edit-panel-submit")).not.toHaveAttribute("aria-busy");
       expect(screen.getByTestId("edit-panel")).toBeInTheDocument();
       expect(screen.getByTestId("path")).toHaveTextContent("/list");
@@ -5520,7 +5529,7 @@ describe("EditPanel busy without a promise (SUI-FEATURE-171 AC4)", () => {
       fireEvent.click(screen.getByTestId("edit-panel-submit"));
       expect(screen.getByTestId("edit-panel-submit")).toHaveAttribute("aria-busy", "true");
       fireEvent.click(screen.getByTestId("nav"));
-      await act(() => new Promise((done) => window.setTimeout(done, 30)));
+      await act(() => waitPastTraversal());
       expect(screen.getByTestId("path")).toHaveTextContent("/list");
       await settleAndWait(() => submitted.settle(true));
       await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/other"));
