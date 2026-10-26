@@ -7,6 +7,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { leaveTooltip } from "../list/test-utils.js";
 import { Button } from "./button.js";
 import { Card, CardContent } from "./card.js";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "./context-menu.js";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "./dropdown-menu.js";
 import { EditPanel } from "./edit-panel.js";
 import { Field } from "./field.js";
 import { Hint } from "./hint.js";
@@ -2435,9 +2447,9 @@ describe("tooltip click on the bubble", () => {
       vi.advanceTimersByTime(0);
     });
     const bubble = screen.getByText("Description", { selector: "[data-slot=tooltip-content]" });
+    // A real browser fires no click on a bubble gone at pointerdown (the gallery test, #612).
     fireEvent.pointerDown(bubble, { pointerType: "mouse" });
     fireEvent.pointerUp(bubble, { pointerType: "mouse" });
-    fireEvent.click(bubble);
     expect(screen.queryByRole("tooltip")).toBeNull();
     expect(onOpenChange).not.toHaveBeenCalled();
     expect(screen.getByText("Popover content")).toBeInTheDocument();
@@ -2446,6 +2458,115 @@ describe("tooltip click on the bubble", () => {
     fireEvent.pointerUp(elsewhere, { pointerType: "mouse" });
     fireEvent.click(elsewhere);
     expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+
+  // #612: a non-modal menu closes on the pointerdown itself, a Popover on a press of another button;
+  // neither counts a press on a bubble, and after one no outside press waits for the next click.
+  const layers = [
+    {
+      name: "a press on a bubble keeps a non-modal DropdownMenu open",
+      button: 0,
+      layer: (onOpenChange: (open: boolean) => void) => (
+        <DropdownMenu defaultOpen modal={false} onOpenChange={onOpenChange}>
+          <DropdownMenuTrigger>Menu</DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem>Layer content</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ),
+    },
+    {
+      name: "a press on a bubble keeps a non-modal ContextMenu open",
+      button: 0,
+      layer: (onOpenChange: (open: boolean) => void) => (
+        <ContextMenu modal={false} onOpenChange={onOpenChange}>
+          <ContextMenuTrigger data-testid="context-area">Area</ContextMenuTrigger>
+          <ContextMenuContent>
+            <ContextMenuItem>Layer content</ContextMenuItem>
+          </ContextMenuContent>
+        </ContextMenu>
+      ),
+    },
+    ...[0, 2].map((button) => ({
+      name: `a ${button === 0 ? "left" : "right"} press on a bubble keeps a Popover open`,
+      button,
+      layer: (onOpenChange: (open: boolean) => void) => (
+        <Popover defaultOpen onOpenChange={onOpenChange}>
+          <PopoverTrigger>Open</PopoverTrigger>
+          <PopoverContent>Layer content</PopoverContent>
+        </Popover>
+      ),
+    })),
+  ];
+  for (const { name, button, layer } of layers) {
+    it(`${name}; a press elsewhere closes it`, () => {
+      const onOpenChange = vi.fn();
+      const page = (bubble: boolean) => (
+        <>
+          {layer(onOpenChange)}
+          {bubble ? (
+            <Tooltip defaultOpen>
+              <TooltipTrigger>Trigger</TooltipTrigger>
+              <TooltipContent>Description</TooltipContent>
+            </Tooltip>
+          ) : null}
+          <div data-testid="elsewhere" />
+        </>
+      );
+      const { rerender } = render(page(false));
+      const area = screen.queryByTestId("context-area");
+      if (area !== null) fireEvent.contextMenu(area, { clientX: 10, clientY: 10 });
+      expect(screen.getByText("Layer content")).toBeInTheDocument();
+      onOpenChange.mockClear();
+      rerender(page(true));
+      act(() => {
+        vi.advanceTimersByTime(0);
+      });
+      const bubble = screen.getByText("Description", { selector: "[data-slot=tooltip-content]" });
+      fireEvent.pointerDown(bubble, { pointerType: "mouse", button });
+      fireEvent.pointerUp(bubble, { pointerType: "mouse", button });
+      expect(screen.queryByRole("tooltip")).toBeNull();
+      // The next click, here a programmatic one, finds no outside press left pending.
+      fireEvent.click(screen.getByTestId("elsewhere"));
+      act(() => {
+        vi.advanceTimersByTime(0);
+      });
+      expect(onOpenChange).not.toHaveBeenCalled();
+      expect(screen.getByText("Layer content")).toBeInTheDocument();
+      const elsewhere = screen.getByTestId("elsewhere");
+      fireEvent.pointerDown(elsewhere, { pointerType: "mouse", button });
+      fireEvent.pointerUp(elsewhere, { pointerType: "mouse", button });
+      fireEvent.click(elsewhere);
+      expect(onOpenChange).toHaveBeenCalledWith(false);
+    });
+  }
+
+  // #612: a press stopped on its way leaves the close it set for the window to the bubble, which
+  // drops it once it closes otherwise.
+  it("a press stopped by an ancestor leaves no close behind once the bubble closes otherwise", () => {
+    const add = vi.spyOn(window, "addEventListener");
+    const remove = vi.spyOn(window, "removeEventListener");
+    const { unmount } = render(
+      <div onPointerDown={(event) => event.stopPropagation()}>
+        <Tooltip defaultOpen>
+          <TooltipTrigger>Trigger</TooltipTrigger>
+          <TooltipContent>Description</TooltipContent>
+        </Tooltip>
+      </div>,
+    );
+    const bubble = screen.getByText("Description", { selector: "[data-slot=tooltip-content]" });
+    fireEvent.pointerDown(bubble, { pointerType: "mouse" });
+    fireEvent.pointerDown(bubble, { pointerType: "mouse" });
+    const pending = add.mock.calls.filter(([type]) => type === "pointerdown");
+    expect(pending).toHaveLength(1);
+    expect(screen.getByRole("tooltip")).toBeInTheDocument();
+    leaveTooltip(screen.getByText("Trigger"));
+    act(() => {
+      vi.runOnlyPendingTimers();
+    });
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    expect(remove).toHaveBeenCalledWith("pointerdown", pending[0]?.[1]);
+    unmount();
   });
 });
 

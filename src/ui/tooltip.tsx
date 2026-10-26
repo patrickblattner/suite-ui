@@ -1,5 +1,9 @@
 import { Tooltip as TooltipPrimitive } from "radix-ui";
+// `DismissableLayer.Branch` is not public; radix-ui ships it in `internal`, reached through the
+// package's `./*` export (#612).
+import { DismissableLayer } from "radix-ui/internal";
 import * as React from "react";
+import { flushSync } from "react-dom";
 
 import { cn } from "../lib/cn.js";
 import { ariaKeyShortcuts } from "../lib/keyboard.js";
@@ -838,11 +842,12 @@ function CloseOnRest({ content }: { content: HTMLElement | null }) {
 // the focused element keeps it, never <body> (`GL-UI-050`, #593, #595); over the empty end of a text
 // field it focuses that field (rev 11 §Lage).
 // The prevented press reaches no handler that skips a prevented event (a select that opens on
-// pointerdown, #593). It leaves other open layers open (rev 20, #596) where they let it: the
-// package's lists skip a press on a bubble, and radix's Popover and Dialog wait for the click of a
-// primary-button press, which stops here. A non-modal DropdownMenu and a right-button press still
-// close their layer. The click stops because the bubble is a portal, and in the React tree the
-// element's ancestors (a tile that opens) would hear it.
+// pointerdown, #593). It leaves other open layers open (rev 20, #596): the package's lists skip a
+// press on a bubble, and the bubble is a branch of radix's layers, so no layer counts a press on it,
+// with any button, as outside, nor keeps one pending for the next click (#612). It closes once the
+// press has passed the document, where radix listens (closed at once, its node would leave the
+// branches before), still in that event, before the next frame. The click stops because the bubble
+// is a portal, and in the React tree the element's ancestors (a tile that opens) would hear it.
 function TooltipContent({
   ref,
   className,
@@ -865,6 +870,18 @@ function TooltipContent({
     [ref],
   );
   const trigger = React.useContext(TriggerNodeContext)?.trigger ?? null;
+  // The close a press on the bubble leaves for the window; dropped once the bubble closes otherwise,
+  // where a handler on the way stopped the press (#612).
+  const pendingClose = React.useRef<(() => void) | null>(null);
+  React.useEffect(() => {
+    if (content === null) return;
+    return () => {
+      if (pendingClose.current !== null) {
+        window.removeEventListener("pointerdown", pendingClose.current);
+      }
+      pendingClose.current = null;
+    };
+  }, [content]);
   // The bubble's node exists only while it is open. Looked up once per open, not on each render while
   // it stays open: finding a field's row climbs its ancestors and reads their layout (#544).
   // A table or list row is known from that render too: there it places the bubble itself (`inLine`),
@@ -890,58 +907,67 @@ function TooltipContent({
   }, [field]);
   return (
     <TooltipPrimitive.Portal>
-      <TooltipPrimitive.Content
-        data-slot="tooltip-content"
-        side={row?.side ?? "right"}
-        align="start"
-        sideOffset={row?.sideOffset ?? SIDE_OFFSET}
-        // In a row the side is chosen by the row: a flip would keep the offset of the side it left and
-        // land beside the element, over its neighbours. Without room the bubble narrows instead (#183).
-        // A marked bar is known from the first render, a field pair from the render that opens the
-        // bubble (it is looked up only while open), so no placement computed with a flip arrives after
-        // the row's; the fallback beside the element flips again, as outside a row. At the element
-        // itself, in a narrow window, it neither flips nor shifts (#441).
-        avoidCollisions={row === null ? !inRow : row.fallback}
-        alignOffset={row?.alignOffset ?? -ALIGN_RAISE}
-        collisionPadding={collisionPadding}
-        className={cn(
-          "z-50 max-w-[min(var(--container-xs),var(--radix-tooltip-content-available-width,var(--container-xs)),var(--tooltip-room,var(--container-xs)))] origin-(--radix-tooltip-content-transform-origin) rounded-md bg-primary px-3 py-1.5 text-xs text-balance text-primary-foreground",
-          className,
-        )}
-        // The gap beside a group it stands in, which it narrows to, and its rise off the viewport's
-        // bottom edge, on the bubble itself so the popper need not place it anew.
-        style={
-          row === null || row.fallback
-            ? style
-            : ({
-                ...style,
-                "--tooltip-room": `${row.room}px`,
-                ...(row.width !== undefined && { width: row.width, maxWidth: row.width }),
-                ...(row.wide === true && { maxWidth: row.room }),
-                translate: row.lift === 0 ? undefined : `0 -${row.lift}px`,
-              } as React.CSSProperties)
-        }
-        {...props}
-        ref={composedRef}
-        onPointerDown={(event) => {
-          onPointerDown?.(event);
-          event.preventDefault();
-          document.dispatchEvent(new CustomEvent(TOOLTIP_OPEN));
-          row?.field?.focus();
-        }}
-        onClick={(event) => {
-          onClick?.(event);
-          event.stopPropagation();
-        }}
-      >
-        {children}
-        <CloseOnFocusOutside />
-        <CloseOnRest content={content} />
-        {inRow || row !== null ? <CloseOnResize /> : null}
-        {row === null || (row.adjacent && row.lift === 0) ? (
-          <TooltipPrimitive.Arrow className="z-50 size-2.5 translate-y-[calc(-50%_-_2px)] rotate-45 rounded-[2px] bg-primary fill-primary" />
-        ) : null}
-      </TooltipPrimitive.Content>
+      <DismissableLayer.Branch asChild>
+        <TooltipPrimitive.Content
+          data-slot="tooltip-content"
+          side={row?.side ?? "right"}
+          align="start"
+          sideOffset={row?.sideOffset ?? SIDE_OFFSET}
+          // In a row the side is chosen by the row: a flip would keep the offset of the side it left and
+          // land beside the element, over its neighbours. Without room the bubble narrows instead (#183).
+          // A marked bar is known from the first render, a field pair from the render that opens the
+          // bubble (it is looked up only while open), so no placement computed with a flip arrives after
+          // the row's; the fallback beside the element flips again, as outside a row. At the element
+          // itself, in a narrow window, it neither flips nor shifts (#441).
+          avoidCollisions={row === null ? !inRow : row.fallback}
+          alignOffset={row?.alignOffset ?? -ALIGN_RAISE}
+          collisionPadding={collisionPadding}
+          className={cn(
+            "z-50 max-w-[min(var(--container-xs),var(--radix-tooltip-content-available-width,var(--container-xs)),var(--tooltip-room,var(--container-xs)))] origin-(--radix-tooltip-content-transform-origin) rounded-md bg-primary px-3 py-1.5 text-xs text-balance text-primary-foreground",
+            className,
+          )}
+          // The gap beside a group it stands in, which it narrows to, and its rise off the viewport's
+          // bottom edge, on the bubble itself so the popper need not place it anew.
+          style={
+            row === null || row.fallback
+              ? style
+              : ({
+                  ...style,
+                  "--tooltip-room": `${row.room}px`,
+                  ...(row.width !== undefined && { width: row.width, maxWidth: row.width }),
+                  ...(row.wide === true && { maxWidth: row.room }),
+                  translate: row.lift === 0 ? undefined : `0 -${row.lift}px`,
+                } as React.CSSProperties)
+          }
+          {...props}
+          ref={composedRef}
+          onPointerDown={(event) => {
+            onPointerDown?.(event);
+            event.preventDefault();
+            if (pendingClose.current === null) {
+              const close = () => {
+                pendingClose.current = null;
+                flushSync(() => document.dispatchEvent(new CustomEvent(TOOLTIP_OPEN)));
+              };
+              pendingClose.current = close;
+              window.addEventListener("pointerdown", close, { once: true });
+            }
+            row?.field?.focus();
+          }}
+          onClick={(event) => {
+            onClick?.(event);
+            event.stopPropagation();
+          }}
+        >
+          {children}
+          <CloseOnFocusOutside />
+          <CloseOnRest content={content} />
+          {inRow || row !== null ? <CloseOnResize /> : null}
+          {row === null || (row.adjacent && row.lift === 0) ? (
+            <TooltipPrimitive.Arrow className="z-50 size-2.5 translate-y-[calc(-50%_-_2px)] rotate-45 rounded-[2px] bg-primary fill-primary" />
+          ) : null}
+        </TooltipPrimitive.Content>
+      </DismissableLayer.Branch>
     </TooltipPrimitive.Portal>
   );
 }

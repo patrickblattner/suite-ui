@@ -6656,6 +6656,32 @@ test("tooltip: a click on the bubble closes it", async ({ page }) => {
   await page.mouse.up();
 });
 
+// GL-UI-016 §Schließen (#612): a press on a bubble, with either button, closes no other open layer
+// and leaves no outside press pending, so the next programmatic click keeps the popover open too.
+for (const button of ["left", "right"] as const) {
+  test(`tooltip: a ${button} press on a bubble keeps the open version info, also through the next click`, async ({
+    page,
+  }) => {
+    await page.goto("/?page=shell&route=/dashboard&lng=en");
+    await page.getByTestId("version-line").click();
+    const info = page.getByTestId("version-info");
+    await expect(info).toHaveAttribute("data-mode", "pinned");
+    await page.getByTestId("sidebar-trigger").hover();
+    const bubble = page.locator("[data-slot=tooltip-content]");
+    await expect(bubble).toBeVisible({ timeout: 3000 });
+    const tip = await box(bubble);
+    await page.mouse.move(tip.x + tip.width / 2, tip.y + tip.height / 2, { steps: 4 });
+    await page.mouse.down({ button });
+    await expect(bubble).toHaveCount(0, { timeout: 100 });
+    await page.mouse.up({ button });
+    await expect(info).toBeVisible();
+    await page.getByTestId("page-title").evaluate((title) => (title as HTMLElement).click());
+    await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 50)));
+    await expect(info).toBeVisible();
+    await expect(info).toHaveAttribute("data-mode", "pinned");
+  });
+}
+
 // GL-UI-016 rev 6–8 (#259): in a row of controls the open bubble covers no neighbour and stands at
 // the element's height (its top edge 4 px above the element's).
 async function openRowBubble(page: Page, hovered: Locator, neighbour: Locator) {
