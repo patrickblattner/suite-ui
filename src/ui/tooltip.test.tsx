@@ -973,7 +973,8 @@ describe("tooltip placement in a row", () => {
     fireEvent(bubble!, press);
     expect(screen.queryByRole("tooltip")).toBeNull();
     expect(screen.getByTestId("search")).not.toHaveFocus();
-    expect(press.defaultPrevented).toBe(false);
+    // It moves no focus either: a focused element keeps it (`GL-UI-050`, #595).
+    expect(press.defaultPrevented).toBe(true);
   });
 
   it("a press on a bubble over no text field focuses nothing", async () => {
@@ -984,7 +985,7 @@ describe("tooltip placement in a row", () => {
     fireEvent(bubble!, press);
     expect(screen.queryByRole("tooltip")).toBeNull();
     expect(document.body).toHaveFocus();
-    expect(press.defaultPrevented).toBe(false);
+    expect(press.defaultPrevented).toBe(true);
   });
 
   // #263 (Codex review #265): the placement is measured on open; a resized window would leave the
@@ -1052,7 +1053,7 @@ describe("tooltip placement in a row", () => {
     expect(bubble?.getAttribute("style") ?? "").not.toContain("--tooltip-room");
     const press = createEvent.pointerDown(bubble!, { pointerType: "mouse" });
     fireEvent(bubble!, press);
-    expect(press.defaultPrevented).toBe(false);
+    expect(screen.getByTestId("search")).not.toHaveFocus();
   });
 
   // #269: the text end is measured when the bubble is placed; typing under it closes it.

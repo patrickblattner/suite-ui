@@ -1124,6 +1124,25 @@ test("the open time zone list floats over the content below", async ({ page }) =
   expect(popup.x).toBeCloseTo(fieldBox.x, 0);
 });
 
+// `GL-UI-016` §Schließen (#593): a press on another element's bubble is a press outside the open
+// list, so the list closes with the bubble.
+test("a press on a tooltip bubble closes the open time zone list", async ({ page }) => {
+  await page.goto("/?page=components&lng=en");
+  const field = page.getByTestId("timezone-value");
+  await field.click();
+  await expect(page.getByTestId("timezone-value-options")).toBeVisible();
+  await page.getByTestId("hint-save").hover();
+  const bubble = page.locator("[data-slot=tooltip-content]");
+  await expect(page.getByRole("tooltip")).toHaveText("Saves the draft", { timeout: 5000 });
+  const tip = await box(bubble);
+  await page.mouse.move(tip.x + tip.width / 2, tip.y + tip.height / 2);
+  await page.mouse.down();
+  await page.mouse.up();
+  await expect(bubble).toHaveCount(0);
+  await expect(page.getByTestId("timezone-value-options")).toBeHidden();
+  await expect(field).toHaveAttribute("aria-expanded", "false");
+});
+
 test("Tab focus does not open the time zone list; ArrowDown does", async ({ page }) => {
   await page.goto("/?page=dialog");
   const field = page.getByTestId("dialog-timezone");
@@ -3227,6 +3246,34 @@ for (const width of [1280, 1920]) {
   });
 }
 
+// `GL-UI-016` rev 19 §Schließen, `GL-UI-050` rev 7 (#593): a click on the bubble inside its tile
+// closes it and does not open the tile; a tile focused by the keyboard keeps the focus, never <body>.
+for (const by of ["keyboard", "pointer"]) {
+  test(`media tile: a click on the ${by}-opened bubble in the tile closes it, the tile keeps focus and stays closed`, async ({
+    page,
+  }) => {
+    const grid = await mediaTiles(page);
+    const tiles = grid.getByTestId("media-tile");
+    const opened = await grid.getByTestId("media-tiles-opened").textContent();
+    if (by === "keyboard") {
+      await tiles.nth(2).focus();
+      await page.keyboard.press("Tab");
+      await expect(tiles.nth(3)).toBeFocused();
+    } else {
+      await tiles.nth(3).locator(".truncate").hover();
+    }
+    const bubble = page.locator("[data-slot=tooltip-content]");
+    await expect(bubble).toBeVisible({ timeout: 5000 });
+    const tip = await box(bubble);
+    await page.mouse.move(tip.x + tip.width / 2, tip.y + tip.height / 2);
+    await page.mouse.down();
+    await page.mouse.up();
+    await expect(bubble).toHaveCount(0);
+    if (by === "keyboard") await expect(tiles.nth(3)).toBeFocused();
+    await expect(grid.getByTestId("media-tiles-opened")).toHaveText(opened ?? "");
+  });
+}
+
 test("media tile: Tab reaches the tile with the focus ring, Enter and click open it", async ({
   page,
 }) => {
@@ -4105,6 +4152,38 @@ test("select: field name and value at the leading edge, chevron right", async ({
   await clipped.hover();
   await expect(page.getByRole("tooltip")).toHaveText("A value too long for its trigger");
 });
+
+// `GL-UI-016` §Schließen (#593): a press on the bubble closes it and never reaches its element: the
+// select, which opens on pointerdown, stays closed — for a bubble opened by the keyboard or the pointer.
+for (const by of ["keyboard", "pointer"]) {
+  test(`select: a click on the ${by}-opened bubble of a clipped value closes it, the select stays closed`, async ({
+    page,
+  }) => {
+    await page.goto("/?page=components&lng=en");
+    const trigger = page.getByTestId("select-named-clipped");
+    if (by === "keyboard") {
+      await trigger.focus();
+      await page.keyboard.press("Shift+Tab");
+      await page.keyboard.press("Tab");
+      await expect(trigger).toBeFocused();
+    } else {
+      await trigger.locator("[data-slot=select-value]").hover();
+    }
+    const bubble = page.locator("[data-slot=tooltip-content]");
+    await expect(page.getByRole("tooltip")).toHaveText("A value too long for its trigger", {
+      timeout: 5000,
+    });
+    const tip = await box(bubble);
+    await page.mouse.move(tip.x + tip.width / 2, tip.y + tip.height / 2);
+    await page.mouse.down();
+    await page.mouse.up();
+    await expect(bubble).toHaveCount(0);
+    await expect(page.getByRole("listbox")).toHaveCount(0);
+    await expect(trigger).toHaveAttribute("aria-expanded", "false");
+    // `GL-UI-050` (#595): the focused select keeps the focus, never <body>.
+    if (by === "keyboard") await expect(trigger).toBeFocused();
+  });
+}
 
 // `SUI-FEATURE-023`: a textarea of fixed height is a framed scroll surface; the bar's place is
 // reserved, so the text lines are as wide with overflow as without, and padding stays beside the bar.
@@ -12614,6 +12693,32 @@ test("slide editor: chart category names keep one stable width", async ({ page }
   }
   expect(new Set(widths).size).toBe(1);
   expect(new Set(trash).size).toBe(1);
+});
+
+// `GL-UI-016` §Schließen, `GL-UI-050` (#595): Tab onto a category name too long for its field opens
+// its full text; a click on that bubble closes it, the field keeps the focus and its value.
+test("slide editor: a click on the keyboard bubble of a clipped category name keeps the focus", async ({
+  page,
+}) => {
+  const { editor, library } = await openLibrary(page);
+  await library.getByTestId("slide-editor-library-chart").click();
+  const field = editor
+    .getByTestId("slide-editor-chart")
+    .getByTestId("slide-editor-chart-category-0");
+  const long = "A category name far too long for its field";
+  await typeInto(page, field, long);
+  await page.keyboard.press("Shift+Tab");
+  await page.keyboard.press("Tab");
+  await expect(field).toBeFocused();
+  const bubble = page.locator("[data-slot=tooltip-content]");
+  await expect(page.getByRole("tooltip")).toContainText(long, { timeout: 5000 });
+  const tip = await box(bubble);
+  await page.mouse.move(tip.x + tip.width / 2, tip.y + tip.height / 2);
+  await page.mouse.down();
+  await page.mouse.up();
+  await expect(bubble).toHaveCount(0);
+  await expect(field).toBeFocused();
+  await expect(field).toHaveValue(long);
 });
 
 // #294 inc 4: invalid text stays with its cell: another chart, or a row removed above, drops it.

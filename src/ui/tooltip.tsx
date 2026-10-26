@@ -780,11 +780,13 @@ function CloseOnRest({ content }: { content: HTMLElement | null }) {
 // row (`useRowPlacement`). Where neither side has room for its full width (a narrow viewport), it
 // narrows to the room left on its side and wraps, staying inside the viewport (#183). Apps set no
 // placement of their own. The bubble is hoverable, so a press can land on it: that press closes it at
-// once (`GL-UI-016` §Schließen), with the event radix uses to close the others; over the empty end of
-// a text field it also focuses that field (rev 11 §Lage), in place of the focus the press would move
-// to the page. Its click stops there:
-// the bubble is a portal, and in the React tree the element's ancestors (a tile that opens) would
-// hear it.
+// once (`GL-UI-016` §Schließen), with the event radix uses to close the others. It moves no focus, so
+// the focused element keeps it, never <body> (`GL-UI-050`, #593, #595); over the empty end of a text
+// field it focuses that field (rev 11 §Lage).
+// The prevented press reaches no handler that skips a prevented event (a select that opens on
+// pointerdown, #593), and still the document's listeners that close an open list. Its click stops
+// there: the bubble is a portal, and in the React tree the element's ancestors (a tile that opens)
+// would hear it.
 function TooltipContent({
   ref,
   className,
@@ -860,11 +862,9 @@ function TooltipContent({
         ref={composedRef}
         onPointerDown={(event) => {
           onPointerDown?.(event);
+          event.preventDefault();
           document.dispatchEvent(new CustomEvent(TOOLTIP_OPEN));
-          if (row?.field != null) {
-            event.preventDefault();
-            row.field.focus();
-          }
+          row?.field?.focus();
         }}
         onClick={(event) => {
           onClick?.(event);

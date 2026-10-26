@@ -85,8 +85,9 @@ function inDocumentOrder(nodes: Iterable<HTMLElement>): HTMLElement[] {
 // shows nothing on focus and gets no tab stop of its own. Every member of a holder counts: the first
 // in document order with clipped text opens one bubble with every clipped full text of the holder,
 // each on its own line in document order (`lines`); the others stay closed. Opening, it closes every
-// other bubble, as radix's own open does. A press, `Esc`, `Enter` or `Space` on the holder (its
-// activation, a click), a scroll and the focus leaving close it, also while it waits; the scroll the
+// other bubble, as radix's own open does. A press anywhere but on a bubble, `Esc`, `Enter` or `Space`
+// on the holder (its activation, a click), a scroll and the focus leaving close it, also while it
+// waits; a press on a bubble is left to that bubble, which closes itself (#593). The scroll the
 // focus itself causes (Tab onto an element out of view) does not count: scrolls count once two frames
 // have passed without one. `due`: this member shows the keyboard bubble. `holder`: the element the
 // bubble keeps clear of, where it is not the member's own element. `close` resets it, for the root's
@@ -138,13 +139,21 @@ function useOpenOnKeyboardFocus({
         stop();
       }
     };
+    // A press on the bubble itself is the bubble's: it closes it and keeps the focus (#593). Closed
+    // here, the bubble would leave before the press reached it, and the press would land on <body>.
+    const onPress = (event: PointerEvent) => {
+      if (event.target instanceof Element && event.target.closest("[data-slot=tooltip-content]")) {
+        return;
+      }
+      stop();
+    };
     const listen = (on: boolean) => {
       if (on) {
-        window.addEventListener("pointerdown", stop, { capture: true });
+        window.addEventListener("pointerdown", onPress, { capture: true });
         window.addEventListener("scroll", onScroll, { capture: true });
         window.addEventListener("keydown", onKey, { capture: true });
       } else {
-        window.removeEventListener("pointerdown", stop, { capture: true });
+        window.removeEventListener("pointerdown", onPress, { capture: true });
         window.removeEventListener("scroll", onScroll, { capture: true });
         window.removeEventListener("keydown", onKey, { capture: true });
       }
