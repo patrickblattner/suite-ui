@@ -756,6 +756,8 @@ describe("EditorHeader at narrow width", () => {
     "editor-redo": 32,
     "editor-reset": 120,
     "editor-save": 100,
+    "test-status-full": 200,
+    "test-status-compact": 24,
   };
   let available = 2000;
   // The state text's width: fixed by default, by its length where a test needs texts to differ.
@@ -893,6 +895,140 @@ describe("EditorHeader at narrow width", () => {
     resize();
     expect(screen.queryByTestId("editor-menu")).toBeNull();
     expect(screen.getByTestId("editor-undo")).toBeInTheDocument();
+  });
+
+  it("folds for a status that appears and gives the folds back once it narrows, the open ⋯ staying open (#581)", () => {
+    // The status slot is as wide as what it holds.
+    const rect = Object.getOwnPropertyDescriptor(Element.prototype, "getBoundingClientRect")!
+      .value as (this: Element) => DOMRect;
+    vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (
+      this: Element,
+    ) {
+      if (this.getAttribute("data-slot") !== "editor-status") return rect.call(this);
+      return new DOMRect(0, 0, natural(this) - 60, 20);
+    });
+    const header = (status?: "full" | "compact") => (
+      <EditorHeader
+        title="Spring newsletter"
+        canUndo
+        canRedo
+        dirty={false}
+        saving={false}
+        onBack={() => {}}
+        onUndo={() => {}}
+        onRedo={() => {}}
+        onSave={() => {}}
+        onReset={() => {}}
+        {...(status === undefined
+          ? {}
+          : { status: <span data-testid={`test-status-${status}`}>Busy</span> })}
+      />
+    );
+    const shrink = () =>
+      document.querySelector("[data-slot=editor-header]")!.getAttribute("data-shrink");
+    available = 390;
+    // What a fresh header with the compact status folds.
+    const fresh = render(header("compact"));
+    const compactFolds = shrink();
+    fresh.unmount();
+
+    const { rerender } = render(header());
+    const menu = openMenu();
+    rerender(header("full"));
+    resize();
+    expect(Number(shrink())).toBeGreaterThan(Number(compactFolds));
+    expect(menu).toBeInTheDocument();
+    expect(screen.getByRole("menu")).toBe(menu);
+    // Narrowed, the status gives back what it took, step by step from where the header stands.
+    rerender(header("compact"));
+    resize();
+    expect(shrink()).toBe(compactFolds);
+    expect(screen.getByRole("menu")).toBe(menu);
+  });
+
+  it("marks the step it would stand at without the status each time it settles (#581)", () => {
+    const rect = Object.getOwnPropertyDescriptor(Element.prototype, "getBoundingClientRect")!
+      .value as (this: Element) => DOMRect;
+    vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (
+      this: Element,
+    ) {
+      if (this.getAttribute("data-slot") !== "editor-status") return rect.call(this);
+      return new DOMRect(0, 0, natural(this) - 60, 20);
+    });
+    const header = (status: boolean) => (
+      <EditorHeader
+        title="Spring newsletter"
+        canUndo
+        canRedo
+        dirty={false}
+        saving={false}
+        onBack={() => {}}
+        onUndo={() => {}}
+        onRedo={() => {}}
+        onSave={() => {}}
+        onReset={() => {}}
+        {...(status ? { status: <span data-testid="test-status-full">Busy</span> } : {})}
+      />
+    );
+    available = 390;
+    const { rerender } = render(header(false));
+    const head = document.querySelector("[data-slot=editor-header]")!;
+    const bare = head.getAttribute("data-shrink");
+    expect(head).toHaveAttribute("data-bare-shrink", bare);
+    rerender(header(true));
+    resize();
+    expect(Number(head.getAttribute("data-shrink"))).toBeGreaterThan(Number(bare));
+    expect(head).toHaveAttribute("data-bare-shrink", bare);
+  });
+
+  it("already folded before a status comes and goes, never steps back past where it stood (#581)", () => {
+    const rect = Object.getOwnPropertyDescriptor(Element.prototype, "getBoundingClientRect")!
+      .value as (this: Element) => DOMRect;
+    vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (
+      this: Element,
+    ) {
+      if (this.getAttribute("data-slot") !== "editor-status") return rect.call(this);
+      return new DOMRect(0, 0, natural(this) - 60, 20);
+    });
+    const header = (status: boolean) => (
+      <EditorHeader
+        title="Spring newsletter"
+        canUndo
+        canRedo
+        dirty
+        saving={false}
+        onBack={() => {}}
+        onUndo={() => {}}
+        onRedo={() => {}}
+        onSave={() => {}}
+        onReset={() => {}}
+        {...(status ? { status: <span data-testid="test-status-full">Busy</span> } : {})}
+      />
+    );
+    available = 500;
+    const { rerender } = render(header(false));
+    const head = document.querySelector("[data-slot=editor-header]")!;
+    expect(head).toHaveAttribute("data-shrink", "1");
+    // Every step the header passes through: each change's old value.
+    const changes: MutationRecord[] = [];
+    const watch = new MutationObserver((records) => changes.push(...records));
+    watch.observe(head, {
+      attributes: true,
+      attributeFilter: ["data-shrink"],
+      attributeOldValue: true,
+    });
+    const menu = openMenu();
+    rerender(header(true));
+    resize();
+    expect(Number(head.getAttribute("data-shrink"))).toBeGreaterThan(1);
+    rerender(header(false));
+    resize();
+    changes.push(...watch.takeRecords());
+    expect(head).toHaveAttribute("data-shrink", "1");
+    expect(changes.length).toBeGreaterThan(0);
+    expect(changes.map((change) => change.oldValue)).not.toContain("0");
+    expect(screen.getByRole("menu")).toBe(menu);
+    watch.disconnect();
   });
 
   it("watches the header and its action group, so a language switch re-measures", () => {

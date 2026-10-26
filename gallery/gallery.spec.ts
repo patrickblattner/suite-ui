@@ -284,6 +284,88 @@ for (const lng of LANGUAGES) {
       });
     }
 
+    // #581: an open ⋯ stays open while the status appears in the head.
+    for (const width of theme === "light" ? [500, 600] : []) {
+      test(`slide editor paste wait keeps an open menu at ${width} px ${lng}`, async ({ page }) => {
+        await page.setViewportSize({ width, height: 900 });
+        await page.goto(`/?page=slide-editor&paste=wait&lng=${lng}&theme=${theme}`);
+        await expect(page.locator("html")).toHaveAttribute("lang", lng);
+        const editor = page.getByTestId("slide-editor");
+        await expect(
+          editor.locator("[data-slot=slide-view][data-slide-ready=true]"),
+        ).toBeAttached();
+        const canvas = editor.getByTestId("slide-editor-canvas");
+        await canvas.focus();
+        await canvas.press("Control+v");
+        await editor.getByTestId("editor-menu").click();
+        const menu = page.getByRole("menu");
+        await expect(menu).toBeVisible();
+        await expect(editor.getByTestId("slide-editor-adopting")).not.toBeEmpty();
+        await page.waitForTimeout(500);
+        await expect(menu).toBeVisible();
+      });
+    }
+
+    // #581: resized during the wait, the status takes the form and the head the folds a fresh load
+    // at the last width shows — the folds the full label itself caused give it no room. Each path
+    // loads at its first width; the first two pass 1920 px (the full label) and narrow to their last,
+    // the others widen to a width where a fresh load is compact, after a narrowing or at a jump: the
+    // folds the narrower width left give the label no room either.
+    const narrowed = { de: 600, en: 500, es: 600 }[lng];
+    const compact = { de: 900, en: 760, es: 860 }[lng];
+    for (const widths of theme === "light"
+      ? [
+          [1920, narrowed],
+          [500, 1920, 700],
+          [compact, narrowed, compact],
+          [540, compact],
+        ]
+      : []) {
+      const width = widths.at(-1)!;
+      test(`slide editor paste wait resized ${widths.join(" → ")} px ${lng}`, async ({ page }) => {
+        const editor = page.getByTestId("slide-editor");
+        const canvas = editor.getByTestId("slide-editor-canvas");
+        const head = editor.locator("[data-slot=editor-header]");
+        const titleText = editor.locator("[data-slot=editor-title-text]");
+        const wait = async () => {
+          await page.goto(`/?page=slide-editor&paste=wait&lng=${lng}&theme=${theme}`);
+          await expect(page.locator("html")).toHaveAttribute("lang", lng);
+          await expect(
+            editor.locator("[data-slot=slide-view][data-slide-ready=true]"),
+          ).toBeAttached();
+          const before = { head: await head.boundingBox(), canvas: await canvas.boundingBox() };
+          await canvas.focus();
+          await canvas.press("Control+v");
+          await expect(editor.getByTestId("slide-editor-adopting")).not.toBeEmpty();
+          return before;
+        };
+        await page.setViewportSize({ width, height: 900 });
+        const fresh = await wait();
+        await expect(editor.getByTestId("operation-label")).toHaveCount(0);
+        const freshTitle = (await titleText.boundingBox())!.width;
+        const freshFolds = (await head.getAttribute("data-shrink"))!;
+
+        await page.setViewportSize({ width: widths[0]!, height: 900 });
+        await wait();
+        for (const step of widths.slice(1)) {
+          await page.setViewportSize({ width: step, height: 900 });
+          if (step === 1920) await expect(editor.getByTestId("operation-label")).toBeVisible();
+          // Laid out at each width before the next.
+          await page.evaluate(
+            () => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))),
+          );
+        }
+        await expect(editor.getByTestId("operation-label")).toHaveCount(0);
+        // The compact form gives back the folds the full label took.
+        await expect(head).toHaveAttribute("data-shrink", freshFolds);
+        await expect(editor.getByTestId("operation-spinner")).toBeInViewport({ ratio: 1 });
+        expect((await titleText.boundingBox())!.width).toBeGreaterThanOrEqual(freshTitle);
+        expect({ head: await head.boundingBox(), canvas: await canvas.boundingBox() }).toEqual(
+          fresh,
+        );
+      });
+    }
+
     // #532: the pane typography and spacing of the open document and library tabs, and of the
     // transfer dialog (`GL-UI-010`).
     for (const [tab, drawer] of [

@@ -20,7 +20,11 @@ function required(node: HTMLElement): number {
  * It re-measures when the bar's box or any of its direct children's boxes changes (a folded
  * control, a font), and once per fold step; never on a render that changes nothing. `content` names
  * what the bar shows (its language, its texts): when it changes, the remembered widths are stale, so
- * the bar starts over from no fold and folds again as far as it needs.
+ * the bar starts over from no fold and folds again as far as it needs. `extra` reads the width of
+ * content that comes, goes or changes width without a refold (a running operation's status): each
+ * step remembers its width without it and is held against that plus `extra` as it is then, so the bar
+ * steps only where it needs to. Each time the bar settles on the step it shows, `settled` gets the
+ * step it would stand at without that content: the steps that content holds are the difference.
  *
  * A step can swap the control that has the focus for another one (a folded button, the ⋯, a control
  * that moves line). The bar keeps track of its control that owns the focus — the focused control, or
@@ -33,6 +37,8 @@ function useFoldSteps(
   maxSteps: number,
   content = "",
   fallback?: (bar: HTMLElement, from: HTMLElement | null) => HTMLElement | null,
+  extra?: (bar: HTMLElement) => number,
+  settled?: (bar: HTMLElement, bare: number) => void,
 ): {
   attach: (node: HTMLElement | null) => void;
   steps: number;
@@ -45,8 +51,14 @@ function useFoldSteps(
   const needed = React.useRef<number[]>([]);
   const focused = React.useRef<string | null>(null);
   const lost = React.useRef(fallback);
+  const apart = React.useRef(extra);
+  const rest = React.useRef(settled);
+  // The step the bar's layout shows; a step taken is shown once its render is laid out.
+  const shown = React.useRef(0);
   React.useLayoutEffect(() => {
     lost.current = fallback;
+    apart.current = extra;
+    rest.current = settled;
   });
 
   // The bar's control that owns the focus, kept from `focusin`; `focused` is the one noted for a step.
@@ -125,16 +137,22 @@ function useFoldSteps(
       const step = current.current;
       let next = step;
       const width = required(node);
+      const aside = apart.current?.(node) ?? 0;
       if (width > node.clientWidth) {
         if (step < max.current) {
-          needed.current[step] = width;
+          needed.current[step] = width - aside;
           next = step + 1;
         }
-      } else if (step > 0 && node.clientWidth >= (needed.current[step - 1] ?? 0)) {
+      } else if (step > 0 && node.clientWidth >= (needed.current[step - 1] ?? 0) + aside) {
         next = step - 1;
       }
       if (next === step) {
         settle(node);
+        // Read off a layout that still shows an earlier step, the bar is not settled yet.
+        if (step !== shown.current) return;
+        let bare = step;
+        while (bare > 0 && node.clientWidth >= (needed.current[bare - 1] ?? 0)) bare -= 1;
+        rest.current?.(node, bare);
         return;
       }
       noteFocus(node);
@@ -170,6 +188,7 @@ function useFoldSteps(
 
   // Once per step: the folded layout may still overflow, or already fit one step back.
   React.useLayoutEffect(() => {
+    shown.current = steps;
     if (root !== null) measure(root);
   }, [root, steps, maxSteps, measure]);
 

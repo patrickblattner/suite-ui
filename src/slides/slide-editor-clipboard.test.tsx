@@ -880,6 +880,117 @@ describe("SlideEditor element clipboard", () => {
   );
 
   it.each([
+    ["folds a step further", (head: Element) => head.setAttribute("data-shrink", "3")],
+    ["grows taller", (head: Element) => head.setAttribute("data-tall", "")],
+  ] as const)(
+    "keeps the status compact for the rest of the wait once the head %s than it stood without it (#581)",
+    async (_, narrow) => {
+      vi.useFakeTimers({ shouldAdvanceTime: true });
+      // The head has the room for the label; it reports its fold step and height as laid out.
+      const rect = Object.getOwnPropertyDescriptor(Element.prototype, "getBoundingClientRect")!
+        .value as (this: Element) => DOMRect;
+      const box = vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (
+        this: Element,
+      ) {
+        const slot = this.getAttribute("data-slot");
+        if (slot === "editor-header")
+          return new DOMRect(0, 0, 1200, this.hasAttribute("data-tall") ? 120 : 60);
+        if (slot === "editor-title") return new DOMRect(0, 0, 600, 20);
+        if (slot === "slide-editor-adopting-measure") return new DOMRect(0, 0, 120, 20);
+        if (this.parentElement?.getAttribute("data-slot") === "editor-title")
+          return new DOMRect(0, 0, 100, 20);
+        return rect.call(this);
+      });
+      let answer: (remap: Record<string, string>) => void = () => {};
+      copyThenOpenOther("photo", {
+        adoptMedia: () => new Promise((resolve) => (answer = resolve)),
+        resolveMedia: () => undefined,
+      });
+      key("v");
+      act(() => void vi.advanceTimersByTime(300));
+      const label = () =>
+        screen
+          .getByTestId("slide-editor-adopting-status")
+          .querySelector("[data-testid=operation-label]");
+      expect(label()).toHaveTextContent("Importing media …");
+      const head = document.querySelector("[data-slot=editor-header]")!;
+      // Narrowed while the full label shows: the room its folds or its line free is not the head's.
+      // jsdom lays nothing out: the head settles by writing its bare step anew.
+      await act(async () => {
+        narrow(head);
+        head.setAttribute("data-bare-shrink", "0");
+        await Promise.resolve();
+      });
+      expect(label()).toBeNull();
+      expect(
+        screen.getByTestId("slide-editor-adopting-status").querySelector("[role=img]"),
+      ).not.toBeNull();
+      // Widened again, it stays compact until the paste ends.
+      await act(async () => {
+        head.setAttribute("data-shrink", "0");
+        head.removeAttribute("data-tall");
+        head.setAttribute("data-bare-shrink", "0");
+        await Promise.resolve();
+      });
+      expect(label()).toBeNull();
+      // The next paste's wait starts afresh: the head has the room again, so the label shows.
+      answer({});
+      await waitFor(() => expect(screen.queryByTestId("slide-editor-adopting")).toBeNull());
+      key("v");
+      act(() => void vi.advanceTimersByTime(300));
+      expect(label()).toHaveTextContent("Importing media …");
+      box.mockRestore();
+    },
+  );
+
+  it("reads no room off a head the compact status still holds folded, so a widened wait keeps the form a fresh load shows (#581)", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    // Narrow at first: the title has no room for the label beside its floor.
+    let titleWidth = 150;
+    const rect = Object.getOwnPropertyDescriptor(Element.prototype, "getBoundingClientRect")!
+      .value as (this: Element) => DOMRect;
+    const box = vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (
+      this: Element,
+    ) {
+      const slot = this.getAttribute("data-slot");
+      if (slot === "editor-header") return new DOMRect(0, 0, 1200, 60);
+      if (slot === "editor-title") return new DOMRect(0, 0, titleWidth, 20);
+      if (slot === "slide-editor-adopting-measure") return new DOMRect(0, 0, 120, 20);
+      if (this.parentElement?.getAttribute("data-slot") === "editor-title")
+        return new DOMRect(0, 0, 100, 20);
+      return rect.call(this);
+    });
+    copyThenOpenOther("photo", {
+      adoptMedia: () => new Promise(() => {}),
+      resolveMedia: () => undefined,
+    });
+    key("v");
+    act(() => void vi.advanceTimersByTime(300));
+    const status = () => screen.getByTestId("slide-editor-adopting-status");
+    expect(status().querySelector("[role=img]")).not.toBeNull();
+    const head = document.querySelector("[data-slot=editor-header]")!;
+    // Widened, the head settles still folded beyond its bare step: the compact form holds those
+    // folds, so the title's room is not the head's.
+    await act(async () => {
+      titleWidth = 600;
+      head.setAttribute("data-shrink", "3");
+      head.setAttribute("data-bare-shrink", "1");
+      await Promise.resolve();
+    });
+    expect(status().querySelector("[data-testid=operation-label]")).toBeNull();
+    // Back at its bare step with that room, the head takes the label, as a fresh load there does.
+    await act(async () => {
+      head.setAttribute("data-shrink", "1");
+      head.setAttribute("data-bare-shrink", "1");
+      await Promise.resolve();
+    });
+    expect(status().querySelector("[data-testid=operation-label]")).toHaveTextContent(
+      "Importing media …",
+    );
+    box.mockRestore();
+  });
+
+  it.each([
     ["stays silent 10 s", () => new Promise<Record<string, string>>(() => {})],
     [
       "fails after 300 ms",

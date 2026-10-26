@@ -107,6 +107,20 @@ function nextFocusTarget(header: HTMLElement, from: Element | null): HTMLElement
   return fallbackTarget(header.querySelector("[data-slot=editor-actions]"), from);
 }
 
+// The width the running operation's status takes in the header: its slot and the row gap before it.
+function statusWidth(header: HTMLElement): number {
+  const slot = header.querySelector("[data-slot=editor-status]");
+  if (slot === null) return 0;
+  const gap = parseFloat(getComputedStyle(slot.parentElement ?? slot).columnGap || "0");
+  return slot.getBoundingClientRect().width + gap;
+}
+
+// Written anew each time the header settles, beside `data-shrink`: the step it would stand at without
+// the status, so the app can tell the folds its status holds from those the width needs (#581).
+function markBareSteps(header: HTMLElement, bare: number) {
+  header.setAttribute("data-bare-shrink", String(bare));
+}
+
 // The state's place folded to its sign (`SUI-FEATURE-090` stage 4), for the state and the read-only
 // text alike: focusable, with the text as tooltip and for screen readers. `live` keeps the form's
 // live-region policy, so a fold neither adds nor drops an announcement.
@@ -231,7 +245,14 @@ function EditorHeader({
   ].join("\u0000");
   // A control a refold locked or took away (the ⋯ when its tools unfold) hands the focus on in
   // `GL-UI-050`'s order from where it stood; a Save swapped between icon and text takes it back.
-  const { attach, steps: shrink } = useFoldSteps(folds.length, content, nextFocusTarget);
+  // The status counts apart, so one that narrows or goes gives back the folds it took (#581).
+  const { attach, steps: shrink } = useFoldSteps(
+    folds.length,
+    content,
+    nextFocusTarget,
+    statusWidth,
+    markBareSteps,
+  );
   const header = React.useRef<HTMLElement | null>(null);
   const setHeader = React.useCallback(
     (node: HTMLElement | null) => {

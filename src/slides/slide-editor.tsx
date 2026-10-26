@@ -2008,13 +2008,40 @@ function Editor({
   const slowTimer = React.useRef<number | undefined>(undefined);
   // Whether the head has the room for spinner and label beside its title's floor; measured while the
   // paste waits, with the room the status takes counted back in, so the choice does not flip on itself.
+  // Room the status's own folds freed counts for nothing (#581): it is read only once the head has
+  // settled, and only while the head stands at the step it needs without the status. Once the full
+  // label holds folds or makes the head taller than it stood without it, the status keeps its compact
+  // form until the paste ends.
   const [adoptingFits, setAdoptingFits] = React.useState(true);
   const adoptingBox = React.useRef<HTMLSpanElement>(null);
+  // The height the head needs without the full label, as last read.
+  const bareHeight = React.useRef(0);
   React.useLayoutEffect(() => {
     const head = adoptingBox.current?.parentElement?.querySelector("[data-slot=editor-header]");
     // Read from the paste's start, so the slot shows the right form from its first frame.
     if (adopting === undefined || !head) return;
+    // The folds the status holds beyond the step the head would stand at without it.
+    const statusFolds = () => {
+      const folds = Number(head.getAttribute("data-shrink") ?? 0);
+      return folds - Number(head.getAttribute("data-bare-shrink") ?? folds);
+    };
+    let latched = false;
     const measure = () => {
+      if (latched) return;
+      const height = head.getBoundingClientRect().height;
+      const full = head.querySelector(
+        "[data-testid=slide-editor-adopting-status] [data-testid=operation-label]",
+      );
+      if (full !== null && (statusFolds() > 0 || height > bareHeight.current)) {
+        latched = true;
+        setAdoptingFits(false);
+        return;
+      }
+      // With the label, a head no taller than it stood would without it be no taller either.
+      bareHeight.current = height;
+      // A head the compact form holds folded counts the room those folds free: the full label would
+      // hold them too.
+      if (statusFolds() > 0) return;
       const title = head.querySelector("[data-slot=editor-title]");
       const floor = title?.firstElementChild;
       const label = adoptingBox.current?.querySelector("[data-slot=slide-editor-adopting-measure]");
@@ -2025,20 +2052,17 @@ function Editor({
       // The floor stretches over the title's grid column; its text is what the title cannot give up.
       const text = floor.ownerDocument.createRange();
       text.selectNodeContents(floor);
-      const floorWidth = (
-        typeof text.getBoundingClientRect === "function" ? text : floor
-      ).getBoundingClientRect().width;
-      const room = title.getBoundingClientRect().width - floorWidth + taken;
+      const room = title.getBoundingClientRect().width - text.getBoundingClientRect().width + taken;
       // Spinner, gap and label, plus the slot's row gap.
       const needed = SPINNER_PX + ROW_GAP_PX + label.getBoundingClientRect().width + ROW_GAP_PX;
-      // Wrapped onto its own line (every fold spent, #221), the head has no room to spare.
-      setAdoptingFits(head.classList.contains("flex-wrap") ? false : room >= needed);
+      setAdoptingFits(room >= needed);
     };
     measure();
-    if (typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(measure);
-    observer.observe(head);
-    return () => observer.disconnect();
+    // Read whenever the head settles, on its width, its height or a fold step: it marks its bare step
+    // each time. Read in between, the head may still stand at a step it is about to leave.
+    const settling = new MutationObserver(measure);
+    settling.observe(head, { attributes: true, attributeFilter: ["data-bare-shrink"] });
+    return () => settling.disconnect();
   }, [adopting]);
   const queueBusy = () =>
     (drag !== undefined && drag.kind !== "marquee") ||
