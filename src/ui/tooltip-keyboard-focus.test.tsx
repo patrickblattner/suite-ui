@@ -637,4 +637,163 @@ describe("keyboard bubble placement", () => {
     expect(keyboard.room).toBe("300px");
     expect(await placed(400, boxes, byPointer)).toEqual(keyboard);
   });
+
+  // Three 48 px rows; the middle one is the focusable holder of two clipped cells on one line. The
+  // bubble is `height` px tall; `moved` replaces boxes. Opens it by `open` and returns where the popper
+  // placed it.
+  async function placedInRow(
+    height: number,
+    open: (row: HTMLElement) => void,
+    moved: Record<string, [number, number, number, number]> = {},
+  ) {
+    Object.defineProperty(document.documentElement, "clientWidth", {
+      configurable: true,
+      value: 1000,
+    });
+    Object.defineProperty(document.documentElement, "clientHeight", {
+      configurable: true,
+      value: 800,
+    });
+    // [left, top, width, height]
+    const boxes: Record<string, [number, number, number, number]> = {
+      above: [0, 52, 600, 48],
+      row: [0, 100, 600, 48],
+      below: [0, 148, 600, 48],
+      first: [12, 114, 200, 20],
+      second: [240, 114, 200, 20],
+      bubble: [0, 0, 220, height],
+      ...moved,
+    };
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      const isBubble =
+        this.dataset.slot === "tooltip-content" ||
+        this.hasAttribute("data-radix-popper-content-wrapper");
+      const [left, top, width, tall] = boxes[isBubble ? "bubble" : (this.dataset.testid ?? "")] ?? [
+        0, 0, 0, 0,
+      ];
+      return new DOMRect(left, top, width, tall);
+    });
+    const popperSize = (node: HTMLElement, size: number) =>
+      node.hasAttribute("data-radix-popper-content-wrapper") ? size : 0;
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return popperSize(this, 220);
+    });
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return popperSize(this, height);
+    });
+    const view = render(
+      <div role="grid">
+        <div role="row" data-testid="above" />
+        <div role="row" tabIndex={0} data-testid="row">
+          <OverflowTooltip>
+            <span className="truncate" data-testid="first">
+              {LONG}
+            </span>
+          </OverflowTooltip>
+          <OverflowTooltip>
+            <span className="truncate" data-testid="second">
+              {`second-${LONG}`}
+            </span>
+          </OverflowTooltip>
+        </div>
+        <div role="row" data-testid="below" />
+      </div>,
+    );
+    open(screen.getByTestId("row"));
+    wait(1500);
+    for (let round = 0; round < 12; round++) {
+      await act(async () => {
+        vi.advanceTimersByTime(16);
+        await Promise.resolve();
+      });
+    }
+    const content = document.querySelector<HTMLElement>("[data-slot=tooltip-content]");
+    const wrapper = document.querySelector<HTMLElement>("[data-radix-popper-content-wrapper]");
+    const [, x, y] =
+      /translate\((-?[\d.]+)px, (-?[\d.]+)px/.exec(wrapper?.style.transform ?? "") ?? [];
+    const result = {
+      lines: lineTexts(),
+      side: content?.dataset.side,
+      maxWidth: content?.style.maxWidth,
+      x: Number(x),
+      y: Number(y),
+    };
+    view.unmount();
+    return result;
+  }
+
+  const rowByPointer = () => {
+    fireEvent.pointerMove(screen.getByTestId("first"), { pointerType: "mouse" });
+  };
+
+  // GL-UI-016 rev 21 §Lage, Höher als die Zeile (Q&A #4677, #605): a bubble taller than its row's band
+  // stays beside the text, top flush with the row, widened to the room on its side.
+  it("a multi-line bubble in a row stands beside the text, flush with the row's top, widened", async () => {
+    const keyboard = await placedInRow(48, (row) => tabTo(row));
+    expect(keyboard.lines).toEqual([LONG, `second-${LONG}`]);
+    expect(keyboard.side).toBe("right");
+    // Beside the first clipped cell (right edge 212), its text free.
+    expect(keyboard.x).toBeGreaterThanOrEqual(212);
+    // Top flush with the row (100): off the row above, and at 48 px off the row below (148).
+    expect(keyboard.y).toBe(100);
+    // The room on its side: 1000 less the 8 px padding, the text's right edge and gap and arrow.
+    expect(keyboard.maxWidth).toBe("762px");
+    const pointer = await placedInRow(48, rowByPointer);
+    expect({ ...pointer, lines: [] }).toEqual({ ...keyboard, lines: [] });
+  });
+
+  it("a bubble still taller than its row grows downward over the next rows, never above", async () => {
+    const keyboard = await placedInRow(80, (row) => tabTo(row));
+    expect(keyboard.x).toBeGreaterThanOrEqual(212);
+    expect(keyboard.y).toBe(100);
+    const pointer = await placedInRow(80, rowByPointer);
+    expect(pointer.x).toBeGreaterThanOrEqual(212);
+    expect(pointer.y).toBe(100);
+  });
+
+  it("a bubble that fits its row's band stands 4 px above its text, not widened", async () => {
+    for (const open of [(row: HTMLElement) => tabTo(row), rowByPointer]) {
+      const placed = await placedInRow(28, open);
+      expect(placed.side).toBe("right");
+      expect(placed.y).toBe(110);
+      expect(placed.maxWidth).toBe("");
+    }
+  });
+
+  it("without room on the right a multi-line bubble stands left, widened to the room there", async () => {
+    // The text ends 20 px before the viewport's edge: 774 px on its left, none on its right.
+    for (const open of [(row: HTMLElement) => tabTo(row), rowByPointer]) {
+      const placed = await placedInRow(48, open, { first: [800, 114, 180, 20] });
+      expect(placed.side).toBe("left");
+      expect(placed.y).toBe(100);
+      expect(placed.maxWidth).toBe("774px");
+    }
+  });
+
+  // GL-UI-016 §Lage, nie abgeschnitten: a row reaching past the viewport's top keeps its bubble inside.
+  it("a bubble in a row reaching past the viewport's top is never cut off", async () => {
+    const moved: Record<string, [number, number, number, number]> = {
+      above: [0, -58, 600, 48],
+      row: [0, -10, 600, 48],
+      below: [0, 38, 600, 48],
+      first: [12, 4, 200, 20],
+      second: [240, 4, 200, 20],
+    };
+    for (const open of [(row: HTMLElement) => tabTo(row), rowByPointer]) {
+      // Taller than the row's band, and fitting it: either way at the viewport's 8 px padding.
+      expect((await placedInRow(48, open, moved)).y).toBe(8);
+      expect((await placedInRow(28, open, moved)).y).toBe(8);
+      // Fitting the band only before it moves down to the padding (8..46 reaches past the row's
+      // bottom, 38): taller than the row there, so widened, growing downward.
+      const clamped = await placedInRow(38, open, moved);
+      expect(clamped.y).toBe(8);
+      expect(clamped.maxWidth).toBe("762px");
+    }
+  });
 });

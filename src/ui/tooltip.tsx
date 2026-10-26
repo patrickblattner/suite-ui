@@ -324,12 +324,14 @@ function textEnd(field: HTMLInputElement | HTMLTextAreaElement): number {
 // of the viewport; radix's own shift is off beside a group, together with its flip.
 // `field`: the text field whose empty end the bubble stands over, which a press on it focuses.
 // `alignOffset`, `width`: over its tile (`side: "top"`) the bubble's left edge from its element's and
-// its fixed width (`inTile`).
+// its fixed width (`inTile`); beside a table or list row's text its top edge from the text's (`inLine`).
+// `wide`: it widens to `room`, past its usual cap (`inLine`).
 type RowPlacement = {
   side: "right" | "left" | "top";
   sideOffset: number;
   alignOffset?: number;
   width?: number;
+  wide?: boolean;
   fallback: boolean;
   adjacent: boolean;
   room: number;
@@ -355,14 +357,22 @@ function gapsAway(edge: number, bound: number, blocks: readonly [number, number]
   return gaps;
 }
 
+// The room beside an element on each side, up to the viewport's padding, less the gap and the arrow.
+function sideRooms(own: DOMRect, padding: number): { roomRight: number; roomLeft: number } {
+  const viewport = document.documentElement.clientWidth;
+  const gap = SIDE_OFFSET + ARROW_SIZE;
+  return {
+    roomRight: Math.floor(viewport - padding - own.right - gap),
+    roomLeft: Math.floor(own.left - gap - padding),
+  };
+}
+
 // No side of the element has room even for the narrowest bubble (a narrow window, `GL-UI-016` §Lage):
 // it stands at the element itself, on the side with more room, its far edge at the viewport's, never
 // narrower than 120 px and never cut off. `null` while one side holds 120 px: radix places it there.
 function atElement(own: DOMRect, width: number, padding: number): RowPlacement | null {
   const viewport = document.documentElement.clientWidth;
-  const gap = SIDE_OFFSET + ARROW_SIZE;
-  const roomRight = Math.floor(viewport - padding - own.right - gap);
-  const roomLeft = Math.floor(own.left - gap - padding);
+  const { roomRight, roomLeft } = sideRooms(own, padding);
   if (Math.max(roomRight, roomLeft) >= ROW_MIN_WIDTH) return null;
   const room = Math.floor(Math.min(width, viewport - 2 * padding));
   const right = roomRight >= roomLeft;
@@ -416,6 +426,36 @@ function inTile(own: DOMRect, tile: DOMRect): RowPlacement {
   };
 }
 
+// Beside a text in a table or list row the bubble stands as beside any element, its top 4 px above
+// the text's, on the side that holds it. Taller than the band the row leaves it there (`GL-UI-016`
+// rev 21 §Lage, Höher als die Zeile, #605), it moves up into the row, its top flush with the row's,
+// and widens to the room on its side so it wraps less: so it never covers the row above. Still taller
+// than the row, it grows downward over the following rows, the one exception to "never neighbouring
+// rows"; its text stays free. On hover and on keyboard focus alike. Placed here, never by radix's flip
+// and shift: a first position computed with them resolves after this one and would stand. Where the
+// row reaches past the viewport's top, the bubble stays inside it, never cut off.
+const TOOLTIP_LINE = "tr, [role=row], [role=option]";
+function inLine(own: DOMRect, line: DOMRect, bubble: DOMRect, padding: number): RowPlacement {
+  const { roomRight, roomLeft } = sideRooms(own, padding);
+  const right = roomRight >= bubble.width || roomRight >= roomLeft;
+  const room = right ? roomRight : roomLeft;
+  // Never cut off at the viewport's top, where the row reaches past it: the band is checked there.
+  const raised = Math.max(own.top - ALIGN_RAISE, padding);
+  const fits = bubble.width <= room && raised >= line.top && raised + bubble.height <= line.bottom;
+  const top = fits ? raised : Math.max(line.top, padding);
+  return {
+    side: right ? "right" : "left",
+    sideOffset: SIDE_OFFSET,
+    alignOffset: top - own.top,
+    wide: !fits,
+    fallback: false,
+    adjacent: true,
+    room,
+    lift: 0,
+    field: null,
+  };
+}
+
 // Inside a bar the bubble stands beside the element's group, at the element's height, in the nearest
 // gap that holds it, so it covers no neighbouring control (`GL-UI-016` rev 10 §Lage): right of the
 // group up to the next control of the bar (or the viewport), else left of it. A text field that takes
@@ -450,7 +490,10 @@ function useRowPlacement(content: HTMLElement | null, padding: number): RowPlace
     const bubble = content.getBoundingClientRect();
     const width = bubble.width;
     if (found === null) {
-      const near = atElement(own, width, padding);
+      const line = trigger.closest(TOOLTIP_LINE);
+      const near =
+        atElement(own, width, padding) ??
+        (line === null ? null : inLine(own, line.getBoundingClientRect(), bubble, padding));
       if (near !== null) setPlacement(near);
       return;
     }
@@ -647,7 +690,7 @@ function useRowPlacement(content: HTMLElement | null, padding: number): RowPlace
     if (placement === null || placement.fallback || placement.side === "top") return;
     if (trigger === null || content === null || typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(() => {
-      const top = trigger.getBoundingClientRect().top - ALIGN_RAISE;
+      const top = trigger.getBoundingClientRect().top + (placement.alignOffset ?? -ALIGN_RAISE);
       const overflow = top + content.getBoundingClientRect().height;
       const room = document.documentElement.clientHeight - padding;
       setLift(Math.min(Math.max(0, overflow - room), Math.max(0, top - padding)));
@@ -776,7 +819,13 @@ function TooltipContent({
   const trigger = React.useContext(TriggerNodeContext)?.trigger ?? null;
   // The bubble's node exists only while it is open. Looked up once per open, not on each render while
   // it stays open: finding a field's row climbs its ancestors and reads their layout (#544).
-  const inRow = React.useMemo(() => rowOf(trigger, content !== null) !== null, [trigger, content]);
+  // A table or list row is known from that render too: there it places the bubble itself (`inLine`).
+  const inRow = React.useMemo(
+    () =>
+      rowOf(trigger, content !== null) !== null ||
+      (content !== null && trigger?.closest(TOOLTIP_LINE) != null),
+    [trigger, content],
+  );
   const row = useRowPlacement(
     content,
     typeof collisionPadding === "number" ? collisionPadding : SIDE_OFFSET,
@@ -819,6 +868,7 @@ function TooltipContent({
                 ...style,
                 "--tooltip-room": `${row.room}px`,
                 ...(row.width !== undefined && { width: row.width, maxWidth: row.width }),
+                ...(row.wide === true && { maxWidth: row.room }),
                 translate: row.lift === 0 ? undefined : `0 -${row.lift}px`,
               } as React.CSSProperties)
         }
