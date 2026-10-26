@@ -323,11 +323,12 @@ function textEnd(field: HTMLInputElement | HTMLTextAreaElement): number {
 // `lift`: how far the bubble rises above its usual top edge so that it is not cut off at the bottom
 // of the viewport; radix's own shift is off beside a group, together with its flip.
 // `field`: the text field whose empty end the bubble stands over, which a press on it focuses.
-// `alignOffset`, `width`: over its tile (`side: "top"`) the bubble's left edge from its element's and
-// its fixed width (`inTile`); beside a table or list row's text its top edge from the text's (`inLine`).
+// `alignOffset`, `width`: over or under its tile's text (`side: "top"`, `"bottom"`) the bubble's left
+// edge from its element's and its fixed width (`inTile`); beside a table or list row's text its top
+// edge from the text's (`inLine`).
 // `wide`: it widens to `room`, past its usual cap (`inLine`).
 type RowPlacement = {
-  side: "right" | "left" | "top";
+  side: "right" | "left" | "top" | "bottom";
   sideOffset: number;
   alignOffset?: number;
   width?: number;
@@ -395,11 +396,24 @@ function atElement(own: DOMRect, width: number, padding: number): RowPlacement |
 // width less 8 px a side, wrapping, its bottom edge 4 px above the text, growing upward out of the
 // tile where the tile is too short above the text. So it never covers its text or a neighbouring
 // tile, whatever the grid's width; on hover and on keyboard focus alike.
+// Never cut off (`SUI-FEATURE-115`, #611): a tile reaching past the viewport's left or right edge
+// counts with its visible part only. Where the bubble over the text would reach past the viewport's
+// top or bottom, it stands below the text instead, its top 4 px under it, over the rest of its tile
+// and the tile below. Where it fits neither, or the visible part leaves under 120 px, it stands at
+// the element as outside a tile (`fallback`). `heightAt` is the bubble's height at a width.
 const TOOLTIP_TILE = "[data-tooltip-tile]";
-function inTile(own: DOMRect, tile: DOMRect): RowPlacement {
+function inTile(
+  own: DOMRect,
+  tile: DOMRect,
+  bubbleWidth: number,
+  heightAt: (width: number) => number,
+  padding: number,
+): RowPlacement {
+  const left = Math.max(tile.left, 0);
+  const right = Math.min(tile.right, document.documentElement.clientWidth);
   const gap = SIDE_OFFSET + ARROW_SIZE;
-  const roomRight = Math.floor(tile.right - SIDE_OFFSET - own.right - gap);
-  const roomLeft = Math.floor(own.left - gap - tile.left - SIDE_OFFSET);
+  const roomRight = Math.floor(right - SIDE_OFFSET - own.right - gap);
+  const roomLeft = Math.floor(own.left - gap - left - SIDE_OFFSET);
   if (Math.max(roomRight, roomLeft) >= ROW_MIN_WIDTH) {
     const right = roomRight >= roomLeft;
     return {
@@ -412,11 +426,28 @@ function inTile(own: DOMRect, tile: DOMRect): RowPlacement {
       field: null,
     };
   }
-  const width = Math.floor(tile.width - 2 * SIDE_OFFSET);
+  const width = Math.floor(right - left - 2 * SIDE_OFFSET);
+  const height = width >= ROW_MIN_WIDTH ? heightAt(width) : 0;
+  const above = own.top - ALIGN_RAISE - height >= padding;
+  const below =
+    own.bottom + ALIGN_RAISE + height <= document.documentElement.clientHeight - padding;
+  if (width < ROW_MIN_WIDTH || !(above || below)) {
+    return (
+      atElement(own, bubbleWidth, padding) ?? {
+        side: "right",
+        sideOffset: SIDE_OFFSET,
+        fallback: true,
+        adjacent: true,
+        room: bubbleWidth,
+        lift: 0,
+        field: null,
+      }
+    );
+  }
   return {
-    side: "top",
+    side: above ? "top" : "bottom",
     sideOffset: ALIGN_RAISE,
-    alignOffset: tile.left + SIDE_OFFSET - own.left,
+    alignOffset: left + SIDE_OFFSET - own.left,
     width,
     fallback: false,
     adjacent: false,
@@ -481,8 +512,22 @@ function useRowPlacement(content: HTMLElement | null, padding: number): RowPlace
     const tile = trigger.closest(TOOLTIP_TILE);
     if (tile !== null) {
       // Measuring the DOM before paint is what layout effects are for.
+      const heightAt = (width: number) => {
+        const { width: before, maxWidth } = content.style;
+        content.style.width = content.style.maxWidth = `${width}px`;
+        const height = content.getBoundingClientRect().height;
+        Object.assign(content.style, { width: before, maxWidth });
+        return height;
+      };
+      const placed = inTile(
+        trigger.getBoundingClientRect(),
+        tile.getBoundingClientRect(),
+        content.getBoundingClientRect().width,
+        heightAt,
+        padding,
+      );
       // eslint-disable-next-line react-hooks/set-state-in-effect
-      setPlacement(inTile(trigger.getBoundingClientRect(), tile.getBoundingClientRect()));
+      setPlacement(placed);
       return;
     }
     const found = rowOf(trigger);
@@ -686,8 +731,9 @@ function useRowPlacement(content: HTMLElement | null, padding: number): RowPlace
   }, [trigger, content, padding]);
   // The bubble's height settles once it narrows to its side, so it is measured as it resizes.
   React.useEffect(() => {
-    // Over its tile the bubble grows upward, off the viewport's bottom edge.
-    if (placement === null || placement.fallback || placement.side === "top") return;
+    // Over or under its tile's text the bubble was placed at its height there, inside the viewport.
+    if (placement === null || placement.fallback) return;
+    if (placement.side === "top" || placement.side === "bottom") return;
     if (trigger === null || content === null || typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(() => {
       const top = trigger.getBoundingClientRect().top + (placement.alignOffset ?? -ALIGN_RAISE);

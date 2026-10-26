@@ -532,12 +532,13 @@ describe("keyboard bubble placement", () => {
     Reflect.deleteProperty(document.documentElement, "clientHeight");
   });
 
-  // A holder (`tile`) around a clipped name, in a viewport `viewport` px wide; boxes are [left, width]
-  // at one height. Opens the bubble by `open` and returns its content and the popper's placed left edge.
-  async function placed(
+  // Mocks the layout of a viewport `viewport` px wide and 800 px tall: each element's box by `boxOf`,
+  // told whether it is the bubble (its content or the popper's wrapper), and the popper's `size`
+  // [width, height], by which radix places it.
+  function mockLayout(
     viewport: number,
-    boxes: Record<string, [number, number]>,
-    open: (tile: HTMLElement) => void,
+    boxOf: (node: HTMLElement, isBubble: boolean) => DOMRect,
+    [width, height]: [number, number],
   ) {
     Object.defineProperty(document.documentElement, "clientWidth", {
       configurable: true,
@@ -550,24 +551,59 @@ describe("keyboard bubble placement", () => {
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (
       this: HTMLElement,
     ) {
-      const isBubble =
+      return boxOf(
+        this,
         this.dataset.slot === "tooltip-content" ||
-        this.hasAttribute("data-radix-popper-content-wrapper");
-      const [left, width] = boxes[isBubble ? "bubble" : (this.dataset.testid ?? "")] ?? [0, 0];
-      return new DOMRect(left, 100, width, width === 0 ? 0 : 32);
+          this.hasAttribute("data-radix-popper-content-wrapper"),
+      );
     });
     const popperSize = (node: HTMLElement, size: number) =>
       node.hasAttribute("data-radix-popper-content-wrapper") ? size : 0;
     vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockImplementation(function (
       this: HTMLElement,
     ) {
-      return popperSize(this, boxes.bubble?.[1] ?? 0);
+      return popperSize(this, width);
     });
     vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(function (
       this: HTMLElement,
     ) {
-      return popperSize(this, 32);
+      return popperSize(this, height);
     });
+  }
+
+  // Opens the bubble on `holder` by `open` and returns its content and where the popper placed it,
+  // which it does in promises.
+  async function opened(holder: HTMLElement, open: (holder: HTMLElement) => void) {
+    open(holder);
+    wait(1500);
+    for (let round = 0; round < 12; round++) {
+      await act(async () => {
+        vi.advanceTimersByTime(16);
+        await Promise.resolve();
+      });
+    }
+    const content = document.querySelector<HTMLElement>("[data-slot=tooltip-content]");
+    const wrapper = document.querySelector<HTMLElement>("[data-radix-popper-content-wrapper]");
+    const [, x, y] =
+      /translate\((-?[\d.]+)px, (-?[\d.]+)px/.exec(wrapper?.style.transform ?? "") ?? [];
+    return { content, x: Number(x), y: Number(y) };
+  }
+
+  // A holder (`tile`) around a clipped name, in a viewport `viewport` px wide; boxes are [left, width]
+  // at one height. Opens the bubble by `open` and returns its content and the popper's placed left edge.
+  async function placed(
+    viewport: number,
+    boxes: Record<string, [number, number]>,
+    open: (tile: HTMLElement) => void,
+  ) {
+    mockLayout(
+      viewport,
+      (node, isBubble) => {
+        const [left, width] = boxes[isBubble ? "bubble" : (node.dataset.testid ?? "")] ?? [0, 0];
+        return new DOMRect(left, 100, width, width === 0 ? 0 : 32);
+      },
+      [boxes.bubble?.[1] ?? 0, 32],
+    );
     const view = render(
       <button type="button" data-testid="tile">
         <OverflowTooltip>
@@ -577,18 +613,7 @@ describe("keyboard bubble placement", () => {
         </OverflowTooltip>
       </button>,
     );
-    open(screen.getByTestId("tile"));
-    wait(1500);
-    // The popper positions in promises.
-    for (let round = 0; round < 12; round++) {
-      await act(async () => {
-        vi.advanceTimersByTime(16);
-        await Promise.resolve();
-      });
-    }
-    const content = document.querySelector<HTMLElement>("[data-slot=tooltip-content]");
-    const wrapper = document.querySelector<HTMLElement>("[data-radix-popper-content-wrapper]");
-    const left = Number(/translate\((-?[\d.]+)px/.exec(wrapper?.style.transform ?? "")?.[1]);
+    const { content, x: left } = await opened(screen.getByTestId("tile"), open);
     const result = {
       side: content?.dataset.side,
       room: content?.style.getPropertyValue("--tooltip-room"),
@@ -646,14 +671,6 @@ describe("keyboard bubble placement", () => {
     open: (row: HTMLElement) => void,
     moved: Record<string, [number, number, number, number]> = {},
   ) {
-    Object.defineProperty(document.documentElement, "clientWidth", {
-      configurable: true,
-      value: 1000,
-    });
-    Object.defineProperty(document.documentElement, "clientHeight", {
-      configurable: true,
-      value: 800,
-    });
     // [left, top, width, height]
     const boxes: Record<string, [number, number, number, number]> = {
       above: [0, 52, 600, 48],
@@ -664,29 +681,12 @@ describe("keyboard bubble placement", () => {
       bubble: [0, 0, 220, height],
       ...moved,
     };
-    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (
-      this: HTMLElement,
-    ) {
-      const isBubble =
-        this.dataset.slot === "tooltip-content" ||
-        this.hasAttribute("data-radix-popper-content-wrapper");
-      const [left, top, width, tall] = boxes[isBubble ? "bubble" : (this.dataset.testid ?? "")] ?? [
-        0, 0, 0, 0,
-      ];
-      return new DOMRect(left, top, width, tall);
-    });
-    const popperSize = (node: HTMLElement, size: number) =>
-      node.hasAttribute("data-radix-popper-content-wrapper") ? size : 0;
-    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockImplementation(function (
-      this: HTMLElement,
-    ) {
-      return popperSize(this, 220);
-    });
-    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(function (
-      this: HTMLElement,
-    ) {
-      return popperSize(this, height);
-    });
+    mockLayout(
+      1000,
+      (node, isBubble) =>
+        new DOMRect(...(boxes[isBubble ? "bubble" : (node.dataset.testid ?? "")] ?? [0, 0, 0, 0])),
+      [220, height],
+    );
     const view = render(
       <div role="grid">
         <div role="row" data-testid="above" />
@@ -705,24 +705,13 @@ describe("keyboard bubble placement", () => {
         <div role="row" data-testid="below" />
       </div>,
     );
-    open(screen.getByTestId("row"));
-    wait(1500);
-    for (let round = 0; round < 12; round++) {
-      await act(async () => {
-        vi.advanceTimersByTime(16);
-        await Promise.resolve();
-      });
-    }
-    const content = document.querySelector<HTMLElement>("[data-slot=tooltip-content]");
-    const wrapper = document.querySelector<HTMLElement>("[data-radix-popper-content-wrapper]");
-    const [, x, y] =
-      /translate\((-?[\d.]+)px, (-?[\d.]+)px/.exec(wrapper?.style.transform ?? "") ?? [];
+    const { content, x, y } = await opened(screen.getByTestId("row"), open);
     const result = {
       lines: lineTexts(),
       side: content?.dataset.side,
       maxWidth: content?.style.maxWidth,
-      x: Number(x),
-      y: Number(y),
+      x,
+      y,
     };
     view.unmount();
     return result;
@@ -805,37 +794,14 @@ describe("keyboard bubble placement", () => {
     boxes: Record<string, [number, number, number, number]>,
     open: (tile: HTMLElement) => void,
   ) {
-    Object.defineProperty(document.documentElement, "clientWidth", {
-      configurable: true,
-      value: 1000,
-    });
-    Object.defineProperty(document.documentElement, "clientHeight", {
-      configurable: true,
-      value: 800,
-    });
-    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (
-      this: HTMLElement,
-    ) {
-      const isBubble =
-        this.dataset.slot === "tooltip-content" ||
-        this.hasAttribute("data-radix-popper-content-wrapper");
-      const [left, top, width, tall] = isBubble
-        ? [0, 0, 184, height]
-        : (boxes[this.dataset.testid ?? ""] ?? [0, 0, 0, 0]);
-      return new DOMRect(left, top, width, tall);
-    });
-    const popperSize = (node: HTMLElement, size: number) =>
-      node.hasAttribute("data-radix-popper-content-wrapper") ? size : 0;
-    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockImplementation(function (
-      this: HTMLElement,
-    ) {
-      return popperSize(this, 184);
-    });
-    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(function (
-      this: HTMLElement,
-    ) {
-      return popperSize(this, height);
-    });
+    mockLayout(
+      1000,
+      (node, isBubble) =>
+        new DOMRect(
+          ...(isBubble ? [0, 0, 184, height] : (boxes[node.dataset.testid ?? ""] ?? [0, 0, 0, 0])),
+        ),
+      [184, height],
+    );
     const view = render(
       <div>
         <button type="button" data-tooltip-tile="" data-testid="before" />
@@ -849,19 +815,8 @@ describe("keyboard bubble placement", () => {
         <button type="button" data-tooltip-tile="" data-testid="after" />
       </div>,
     );
-    open(screen.getByTestId("tile"));
-    wait(1500);
-    for (let round = 0; round < 12; round++) {
-      await act(async () => {
-        vi.advanceTimersByTime(16);
-        await Promise.resolve();
-      });
-    }
-    const content = document.querySelector<HTMLElement>("[data-slot=tooltip-content]");
-    const wrapper = document.querySelector<HTMLElement>("[data-radix-popper-content-wrapper]");
-    const [, x, y] =
-      /translate\((-?[\d.]+)px, (-?[\d.]+)px/.exec(wrapper?.style.transform ?? "") ?? [];
-    const result = { side: content?.dataset.side, x: Number(x), y: Number(y) };
+    const { content, x, y } = await opened(screen.getByTestId("tile"), open);
+    const result = { side: content?.dataset.side, width: content?.style.width, x, y };
     view.unmount();
     return result;
   }
@@ -922,7 +877,84 @@ describe("keyboard bubble placement", () => {
     };
     for (const open of opens) {
       const placed = await placedInTile(32, boxes, open);
-      expect(placed).toEqual({ side: "top", x: 224, y: 288 });
+      expect(placed).toEqual({ side: "top", width: "184px", x: 224, y: 288 });
+    }
+  });
+
+  // SUI-FEATURE-115 AC 1 (#611): the name 14 px under the viewport's top leaves no room above it for an
+  // 80 px bubble, so it stands 4 px under the name, as wide as above, fully visible, the name free.
+  it("a tile bubble with no room above its name stands under it, never cut off", async () => {
+    const boxes: Record<string, [number, number, number, number]> = {
+      before: [0, -30, 200, 60],
+      tile: [216, -30, 200, 60],
+      after: [432, -30, 200, 60],
+      name: [228, 14, 176, 20],
+    };
+    for (const open of opens) {
+      const placed = await placedInTile(80, boxes, open);
+      expect(placed).toEqual({ side: "bottom", width: "184px", x: 224, y: 38 });
+    }
+  });
+
+  // SUI-FEATURE-115 AC 2 (#611): a tile reaching past the viewport's left or right edge holds the
+  // bubble in its visible part less 8 px a side, off the neighbour.
+  it("a tile bubble past the viewport's side edge stands in the tile's visible part", async () => {
+    const pastLeft: Record<string, [number, number, number, number]> = {
+      tile: [-100, 300, 300, 60],
+      after: [216, 300, 200, 60],
+      name: [-88, 324, 276, 20],
+    };
+    const pastRight: Record<string, [number, number, number, number]> = {
+      before: [584, 300, 200, 60],
+      tile: [800, 300, 300, 60],
+      name: [812, 324, 276, 20],
+    };
+    for (const open of opens) {
+      // Visible 0..200: from 8 px right of the viewport's edge to 8 px before the tile's right edge.
+      expect(await placedInTile(80, pastLeft, open)).toEqual({
+        side: "top",
+        width: "184px",
+        x: 8,
+        y: 240,
+      });
+      // Visible 800..1000: from 8 px inside the tile's left edge to 8 px before the viewport's.
+      expect(await placedInTile(80, pastRight, open)).toEqual({
+        side: "top",
+        width: "184px",
+        x: 808,
+        y: 240,
+      });
+    }
+  });
+
+  // SUI-FEATURE-115 AC 3 (#611): under 136 px of the tile visible, or room neither above nor under
+  // the name, the bubble stands at the element as outside a tile (GL-UI-016), not cut off.
+  it("a tile bubble with no room in the tile's visible part falls back to the element", async () => {
+    const narrow: Record<string, [number, number, number, number]> = {
+      tile: [-100, 300, 230, 60],
+      after: [146, 300, 200, 60],
+      name: [-88, 324, 206, 20],
+    };
+    const short: Record<string, [number, number, number, number]> = {
+      before: [0, 300, 200, 60],
+      tile: [216, 300, 200, 60],
+      after: [432, 300, 200, 60],
+      name: [228, 324, 176, 20],
+    };
+    for (const open of opens) {
+      const beside = await placedInTile(80, narrow, open);
+      expect(beside.side).toBe("right");
+      expect(beside.width).toBe("");
+      // Right of the name (its right edge 118), inside the viewport.
+      expect(beside.x).toBeGreaterThanOrEqual(118);
+      expect(beside.x + 184).toBeLessThanOrEqual(1000);
+      // 500 px tall: neither 4 px above the name (324) nor under it (344) inside the 800 px viewport.
+      const tall = await placedInTile(500, short, open);
+      expect(tall.side).toBe("right");
+      expect(tall.width).toBe("");
+      expect(tall.x).toBeGreaterThanOrEqual(404);
+      expect(tall.y).toBeGreaterThanOrEqual(0);
+      expect(tall.y + 500).toBeLessThanOrEqual(800);
     }
   });
 });

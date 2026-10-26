@@ -3427,6 +3427,92 @@ for (const width of [1280, 1920]) {
   });
 }
 
+// `SUI-FEATURE-115` (#611): a tile at the viewport's edge keeps its bubble whole. Scrolled so its name
+// stands 14 px under the viewport's top, the bubble stands 4 px under the name, as wide as above;
+// pushed 60 px past the viewport's left edge (a tile here is too narrow to keep
+// 136 px visible at 100 px), it fills the tile's visible part less 8 px a side.
+// Never over another tile or the name — on hover and on keyboard focus alike.
+test("media tile: the overflow tooltip at the viewport's top and left edge is never cut off", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 600 });
+  const grid = await mediaTiles(page);
+  const tiles = grid.getByTestId("media-tile");
+  const name = tiles.nth(3).locator(".truncate");
+  const bubble = page.locator("[data-slot=tooltip-content]");
+  const expectWhole = async (left: number, right: number) => {
+    const at = await box(bubble);
+    const text = await box(name);
+    const others = await tiles.evaluateAll((nodes) =>
+      nodes
+        .filter((_, index) => index !== 3)
+        .map((node) => {
+          const rect = node.getBoundingClientRect();
+          return { x: rect.x, y: rect.y, width: rect.width, height: rect.height };
+        }),
+    );
+    expect(at.y).toBeGreaterThanOrEqual(0);
+    expect(Math.abs(at.x - (left + 8))).toBeLessThanOrEqual(1);
+    expect(Math.abs(at.x + at.width - (right - 8))).toBeLessThanOrEqual(1);
+    for (const other of [...others, text])
+      expect(
+        at.x < other.x + other.width &&
+          other.x < at.x + at.width &&
+          at.y < other.y + other.height &&
+          other.y < at.y + at.height,
+        "bubble over a neighbouring tile or the name",
+      ).toBe(false);
+    return { at, text };
+  };
+  const show = async (by: "pointer" | "keyboard") => {
+    await page.mouse.move(0, 0);
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    await expect(page.getByRole("tooltip")).toHaveCount(0);
+    if (by === "pointer") {
+      // Near the name's right end, which stays in view past the left edge.
+      const text = await box(name);
+      await page.mouse.move(text.x + text.width - 10, text.y + text.height / 2);
+    } else {
+      // A key, then the focus without the scroll a Tab onto a tile partly out of view would make.
+      await page.keyboard.press("Shift");
+      await tiles.nth(3).evaluate((node) => (node as HTMLElement).focus({ preventScroll: true }));
+      await expect(tiles.nth(3)).toBeFocused();
+    }
+    await expect(page.getByRole("tooltip")).toBeVisible({ timeout: 5000 });
+  };
+
+  for (const by of ["pointer", "keyboard"] as const) {
+    // The top edge: the name 14 px under the viewport's top.
+    await page.evaluate(() => window.scrollTo(0, 0));
+    const top = (await box(name)).y;
+    await page.evaluate((y) => window.scrollTo(0, y), top - 14);
+    expect(Math.round((await box(name)).y)).toBe(14);
+    await show(by);
+    const own = await box(tiles.nth(3));
+    const { at, text } = await expectWhole(own.x, own.x + own.width);
+    expect(Math.abs(at.y - (text.y + text.height + 4))).toBeLessThanOrEqual(1);
+    await page.keyboard.press("Escape");
+
+    // The left edge: the tile 60 px past it, its name mid-view.
+    await page.evaluate((y) => window.scrollTo(0, y), top - 300);
+    await page.mouse.move(0, 0);
+    await grid.evaluate((node) => (node.style.transform = ""));
+    const x = (await box(tiles.nth(3))).x;
+    await grid.evaluate(
+      (node, shift) => (node.style.transform = `translateX(${shift}px)`),
+      -x - 60,
+    );
+    const past = await box(tiles.nth(3));
+    expect(Math.round(past.x)).toBe(-60);
+    // At least 136 px of it visible: otherwise the bubble falls back to the element.
+    expect(past.x + past.width).toBeGreaterThanOrEqual(136);
+    await show(by);
+    await expectWhole(0, past.x + past.width);
+    await page.keyboard.press("Escape");
+    await grid.evaluate((node) => (node.style.transform = ""));
+  }
+});
+
 // `GL-UI-016` rev 19 §Schließen, `GL-UI-050` rev 7 (#593): a click on the bubble inside its tile
 // closes it and does not open the tile; a tile focused by the keyboard keeps the focus, never <body>.
 for (const by of ["keyboard", "pointer"]) {
