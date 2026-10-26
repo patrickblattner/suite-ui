@@ -1229,15 +1229,16 @@ type LeaveConfirmOptions = {
   workingFocus?: (() => HTMLElement | null) | undefined;
   // A dirty or busy surface lets a route change pass that keeps the pathname (`SUI-FEATURE-109`).
   ignoreSearchParams?: boolean | undefined;
-  // `busy` is the page's own save: a route change meanwhile waits for it instead of being dropped,
-  // and goes on once `busy` ends, unless `saveFailed` (`SUI-FEATURE-150` rev 7).
+  // `busy` is the page's own save: a route change, and the page's own way out, meanwhile wait for it
+  // instead of being dropped, and go on once `busy` ends, unless `saveFailed` (`SUI-FEATURE-150` rev 7).
+  // The latest way held replaces an earlier one, which is dropped.
   holdBusy?: boolean | undefined;
   saveFailed?: boolean | undefined;
 };
 
 // The shared core of the edit panel and `useLeaveGuard`: `guard` leaves at once when clean, holds the
 // leave for the dialog when dirty and drops it while the call site's `busy` action works (a page's
-// own save, `holdBusy`, holds a route change until it ended instead); route
+// own save, `holdBusy`, holds it and a route change until it ended instead); route
 // changes in the app, browser back and forward included, are held the same way while dirty or
 // working. A confirmed leave passes the hold. `run` runs the surface's save or apply: one that
 // returns a promise makes the surface work until it settles (`working`), as Save in the dialog does,
@@ -1301,9 +1302,13 @@ function useLeaveConfirm({
     } else if (latest.current.busy && !keeps) {
       // The router holds the change until its submission has ended, and asks this surface again then.
       if (next.afterSubmission === true) next.leave();
-      // The page's own save holds a route change silently until it ended (`SUI-FEATURE-150` rev 7).
-      else if (latest.current.holdBusy && next.again !== undefined) busyWaiting.current = next;
-      else next.stay?.();
+      // The page's own save holds a route change, and its own way out, silently until it ended
+      // (`SUI-FEATURE-150` rev 7).
+      else if (latest.current.holdBusy && next.again !== undefined) {
+        // The way it replaces is dropped: a route change it held resets (a newer one's reset is void).
+        busyWaiting.current?.stay?.();
+        busyWaiting.current = next;
+      } else next.stay?.();
     } else if (savingNow.current()) {
       // The surface's own Save runs: the way out asks nothing, it goes to the router, which holds it
       // until the Save ended and asks this surface again then (`SUI-FEATURE-170`).
@@ -1318,6 +1323,15 @@ function useLeaveConfirm({
       next.leave();
     }
   }, []);
+  // A surface's own way out (Back, Previous/Next, `Esc`). With `holdBusy` it has `again`, as a route
+  // change does: the page's own save holds it, and once that ended it goes anew through `hold`
+  // (`SUI-FEATURE-150` rev 7).
+  const ownWay = React.useCallback(
+    function way(leave: () => void): PendingLeave {
+      return latest.current.holdBusy ? { leave, again: () => hold(way(leave)) } : { leave };
+    },
+    [hold],
+  );
   // While the dialog asks, a surface's own way out (its `Esc` reaching the panel before the dialog
   // took the key, Q&A #3872) is Abbrechen, as the dialog's own `Esc` is: it closes the dialog and
   // never opens it again (`GL-UI-007`). While the dialog's Save works, nothing closes it.
@@ -1325,14 +1339,14 @@ function useLeaveConfirm({
     (leave: () => void) => {
       const asked = asking.current;
       if (asked === null) {
-        hold({ leave });
+        hold(ownWay(leave));
         return;
       }
       if (work.current !== null) return;
       asked.stay?.();
       ask(null);
     },
-    [hold],
+    [hold, ownWay],
   );
   // A Discard's reset (`onDiscard`, read when it runs) goes with the way out. A route change that a
   // data router holds during a submission takes it along and runs it only once it goes, after the
@@ -1547,7 +1561,7 @@ type LeaveGuardOptions = {
   dirty: boolean;
   // An action works (`GL-UI-027`): nothing leaves. A route change to another `pathname` meanwhile
   // (a fetch, mutation or fetcher save) is held, without a dialog on an unchanged page, and goes on to
-  // its target once `busy` ends (`SUI-FEATURE-150` rev 7); `Esc` and the page's own ways are dropped.
+  // its target once `busy` ends (`SUI-FEATURE-150` rev 7); `Esc` and the page's own ways are held alike.
   // A successful save must make `dirty` read clean in the same render that turns `busy` false, else
   // the held change asks "Save changes?" first.
   busy?: boolean;

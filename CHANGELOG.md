@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — #583, SUI-FEATURE-150 rev 7: the page's own ways out wait for its busy save (patch)
+
+- **Leave guard (#583, follow-up #572):** while a page's own save runs (`useLeaveGuard`'s / `useEditorLeaveGuard`'s `busy` / `saving`), its own ways out wrapped in `guard` (Back, Previous/Next) and an `Esc` that leaves the page are now held silently, as a route change to another pathname already was; before, they were dropped. Once `busy` turns `false` without `saveFailed` the held way goes anew through the guard as the page is then: an unchanged page lands at its target, a page still changed asks "Save changes?". With `saveFailed: true` it is dropped and the page stays with its error. The latest way out held replaces an earlier one. The edit panel and other `useLeaveConfirm` surfaces are unchanged: their `busy` still drops a way out (`SUI-FEATURE-171`).
+- **Tests (#583):** Back, Previous, Next and Esc during the page's own busy save are held without a dialog and land at their target after the save succeeded; with `saveFailed` each is dropped, the error stays and the next way out asks. The #572 test of a held route change and Esc now lands at the Esc's target.
+
+**Migration:** none. A page whose Back or Previous/Next was ignored while it saved now leaves once the save succeeded. No strings, `data-testid`s or baselines change.
+
 ## Unreleased — #577, GL-UI-019 rev 9 / GL-UI-010 rev 11: a neutral instance-name block with the initial in a primary square (minor)
 
 - **Sidebar (#577):** the instance-name block in the sidebar head is no longer a filled colour block. It stands on the sidebar's card ground with a fine `border` frame, the name in `foreground`, semibold; left of it a small square (`size-6`, `rounded-sm`) in `primary` shows the instance name's first letter in `primary-foreground`. Hover tints it like a nav entry (`accent`); the click still leads to the dashboard, and collapsed the head still shows the toggle alone. Light and dark are built the same, from tokens only. Its hint now says only what happens next ("Opens the dashboard." / „Öffnet das Dashboard." / "Abre el panel."), no longer the visible name before it.

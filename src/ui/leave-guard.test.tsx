@@ -1929,7 +1929,7 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
     },
   );
 
-  it("dirty and working: a route change is held without a prompt; Esc is dropped", async () => {
+  it("dirty and working: a route change and Esc are held without a prompt", async () => {
     function Working() {
       const [busy, setBusy] = useState(true);
       return (
@@ -1952,13 +1952,175 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
     escape(screen.getByLabelText("Name"));
     expect(screen.getByTestId("path")).toHaveTextContent("/detail");
     expect(screen.queryByTestId("leave-guard")).toBeNull();
-    // #572 (SUI-FEATURE-150 rev 7): once the save ended, the held change goes through the page's
-    // guard as it is then (still changed here: it asks); the dropped Esc never runs later.
+    // #572, #583 (SUI-FEATURE-150 rev 7): once the save ended, the latest held way, the Esc, goes
+    // through the page's guard as it is then (still changed here: it asks); the change it replaced
+    // never runs later.
     fireEvent.click(screen.getByTestId("end-busy"));
     fireEvent.click(await screen.findByTestId("leave-guard-discard"));
-    await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/elsewhere"));
+    await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/list"));
     await act(() => new Promise((done) => window.setTimeout(done, 30)));
-    expect(screen.getByTestId("path")).toHaveTextContent("/elsewhere");
+    expect(screen.getByTestId("path")).toHaveTextContent("/list");
+  });
+
+  // #583 (SUI-FEATURE-150 rev 7): the page's own ways out (Back, Previous/Next, Esc) during its own
+  // `busy` save are held silently; after a success they land at their target, after `saveFailed`
+  // they are dropped and the error stays.
+  describe("the page's own ways out during its busy save", () => {
+    function SavingPage() {
+      const navigate = useNavigate();
+      const [loaded, setLoaded] = useState("Main");
+      const [name, setName] = useState("Main");
+      const [finish, setFinish] = useState<((ok: boolean) => void) | null>(null);
+      const [failed, setFailed] = useState(false);
+      const { guard, dialog } = useLeaveGuard({
+        dirty: isDirty(loaded, name),
+        busy: finish !== null,
+        saveFailed: failed,
+        onLeave: () => void navigate("/list"),
+        onSave: () => true,
+      });
+      const save = () => {
+        setFailed(false);
+        void new Promise<boolean>((resolve) => setFinish(() => resolve)).then((ok) => {
+          setFinish(null);
+          if (ok) setLoaded(name);
+          else setFailed(true);
+        });
+      };
+      return (
+        <>
+          <Input aria-label="Name" value={name} onChange={(event) => setName(event.target.value)} />
+          {failed && <span data-testid="error">Not saved</span>}
+          <button type="button" data-testid="save" onClick={save}>
+            Save
+          </button>
+          <button type="button" data-testid="ok" onClick={() => finish?.(true)}>
+            ok
+          </button>
+          <button type="button" data-testid="fail" onClick={() => finish?.(false)}>
+            fail
+          </button>
+          <button
+            type="button"
+            data-testid="back"
+            onClick={() => guard(() => void navigate("/list"))}
+          >
+            Back
+          </button>
+          <button
+            type="button"
+            data-testid="previous"
+            onClick={() => guard(() => void navigate("/detail/1"))}
+          >
+            Previous
+          </button>
+          <button
+            type="button"
+            data-testid="next"
+            onClick={() => guard(() => void navigate("/detail/3"))}
+          >
+            Next
+          </button>
+          <button type="button" data-testid="other" onClick={() => void navigate("/elsewhere")}>
+            Other
+          </button>
+          {dialog}
+        </>
+      );
+    }
+    const WAYS = [
+      ["Back", () => fireEvent.click(screen.getByTestId("back")), "/list"],
+      ["Previous", () => fireEvent.click(screen.getByTestId("previous")), "/detail/1"],
+      ["Next", () => fireEvent.click(screen.getByTestId("next")), "/detail/3"],
+      ["Esc", () => escape(screen.getByLabelText("Name")), "/list"],
+    ] as const;
+    const pause = () => act(() => new Promise((done) => window.setTimeout(done, 30)));
+    function renderSaving(way: () => void) {
+      render(
+        <MemoryRouter initialEntries={["/detail/2"]}>
+          <Where />
+          <Routes>
+            <Route path="/detail/2" element={<SavingPage />} />
+            <Route path="*" element={null} />
+          </Routes>
+        </MemoryRouter>,
+      );
+      edit();
+      fireEvent.click(screen.getByTestId("save"));
+      way();
+    }
+
+    it.each(WAYS)(
+      "%s is held silently and lands at its target after the save",
+      async (_name, way, target) => {
+        renderSaving(way);
+        await pause();
+        expect(screen.getByTestId("path")).toHaveTextContent("/detail/2");
+        expect(screen.queryByTestId("leave-guard")).toBeNull();
+        fireEvent.click(screen.getByTestId("ok"));
+        await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent(target));
+        expect(screen.queryByTestId("leave-guard")).toBeNull();
+      },
+    );
+
+    it.each(WAYS)("%s is dropped after saveFailed; the error stays", async (_name, way) => {
+      renderSaving(way);
+      await pause();
+      fireEvent.click(screen.getByTestId("fail"));
+      expect(await screen.findByTestId("error")).toBeInTheDocument();
+      await pause();
+      expect(screen.getByTestId("path")).toHaveTextContent("/detail/2");
+      expect(screen.queryByTestId("leave-guard")).toBeNull();
+      // The draft is still unsaved: the next way out asks.
+      way();
+      expect(await screen.findByTestId("leave-guard")).toBeInTheDocument();
+    });
+
+    // Under a data router Back goes through the router's blocker once the save ended; a held route
+    // change that Back replaced is reset, so no blocked state is left after `saveFailed`.
+    describe("under a data router", () => {
+      function renderRouted() {
+        const router = createMemoryRouter(
+          [
+            { path: "/detail/2", element: <SavingPage /> },
+            { path: "*", element: null },
+          ],
+          { initialEntries: ["/detail/2"] },
+        );
+        render(<RouterProvider router={router} />);
+        edit();
+        fireEvent.click(screen.getByTestId("save"));
+        return router;
+      }
+      const blocked = (router: ReturnType<typeof createMemoryRouter>) =>
+        [...router.state.blockers.values()].map((blocker) => blocker.state);
+
+      it("Back is held silently and lands at its target after the save", async () => {
+        const router = renderRouted();
+        fireEvent.click(screen.getByTestId("back"));
+        await pause();
+        expect(router.state.location.pathname).toBe("/detail/2");
+        expect(screen.queryByTestId("leave-guard")).toBeNull();
+        fireEvent.click(screen.getByTestId("ok"));
+        await waitFor(() => expect(router.state.location.pathname).toBe("/list"));
+        expect(screen.queryByTestId("leave-guard")).toBeNull();
+      });
+
+      it("a held route change Back replaced leaves no blocked state after saveFailed", async () => {
+        const router = renderRouted();
+        fireEvent.click(screen.getByTestId("other"));
+        await pause();
+        fireEvent.click(screen.getByTestId("back"));
+        await pause();
+        expect(blocked(router)).not.toContain("blocked");
+        fireEvent.click(screen.getByTestId("fail"));
+        expect(await screen.findByTestId("error")).toBeInTheDocument();
+        await pause();
+        expect(router.state.location.pathname).toBe("/detail/2");
+        expect(blocked(router)).not.toContain("blocked");
+        expect(screen.queryByTestId("leave-guard")).toBeNull();
+      });
+    });
   });
 
   it("a rejected save keeps the page and hands the focus back", async () => {
