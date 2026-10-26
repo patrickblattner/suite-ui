@@ -1,12 +1,13 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import i18n from "i18next";
 import { EyeIcon, FileTextIcon, GridIcon } from "lucide-react";
-import { useEffect, useState } from "react";
+import { createRef, useEffect, useState } from "react";
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   EditorHeader,
+  type EditorHeaderLayout,
   type EditorHeaderProps,
   type EditorHeaderTool,
   type EditorLifecycle,
@@ -980,6 +981,106 @@ describe("EditorHeader at narrow width", () => {
     expect(Number(head.getAttribute("data-shrink"))).toBeGreaterThan(Number(bare));
     expect(head).toHaveAttribute("data-bare-shrink", bare);
   });
+
+  it("tells an app the folds its status holds and each time it settles, through its layout (#599)", async () => {
+    const rect = Object.getOwnPropertyDescriptor(Element.prototype, "getBoundingClientRect")!
+      .value as (this: Element) => DOMRect;
+    vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (
+      this: Element,
+    ) {
+      if (this.getAttribute("data-slot") !== "editor-status") return rect.call(this);
+      return new DOMRect(0, 0, natural(this) - 60, 20);
+    });
+    const layout = createRef<EditorHeaderLayout>();
+    const header = (status: boolean) => (
+      <EditorHeader
+        title="Spring newsletter"
+        canUndo
+        canRedo
+        dirty={false}
+        saving={false}
+        onBack={() => {}}
+        onUndo={() => {}}
+        onRedo={() => {}}
+        onSave={() => {}}
+        onReset={() => {}}
+        layout={layout}
+        {...(status ? { status: <span data-testid="test-status-full">Busy</span> } : {})}
+      />
+    );
+    available = 390;
+    const { rerender } = render(header(false));
+    expect(layout.current!.statusFolds()).toBe(0);
+    const settled = vi.fn();
+    const stop = layout.current!.onSettle(settled);
+    rerender(header(true));
+    await act(async () => {
+      resize();
+      await Promise.resolve();
+    });
+    expect(layout.current!.statusFolds()).toBeGreaterThan(0);
+    expect(settled).toHaveBeenCalled();
+    stop();
+    settled.mockClear();
+    await act(async () => {
+      resize();
+      await Promise.resolve();
+    });
+    expect(settled).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    // Title 600, its floor's text 100, the slot's row gap 8 off; a status gives its slot's 40 back.
+    ["without a status", false, 492],
+    ["with a status, its slot and row gap counted back in", true, 540],
+  ] as const)(
+    "tells an app its height and the room beside the title's floor for a status's content, %s (#599)",
+    (_, status, room) => {
+      const rect = Object.getOwnPropertyDescriptor(Element.prototype, "getBoundingClientRect")!
+        .value as (this: Element) => DOMRect;
+      vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (
+        this: Element,
+      ) {
+        const slot = this.getAttribute("data-slot");
+        if (slot === "editor-header") return new DOMRect(0, 0, 1200, 60);
+        if (slot === "editor-title") return new DOMRect(0, 0, 600, 20);
+        if (slot === "editor-status") return new DOMRect(0, 0, 40, 20);
+        return rect.call(this);
+      });
+      vi.spyOn(Range.prototype, "getBoundingClientRect").mockReturnValue(
+        new DOMRect(0, 0, 100, 20),
+      );
+      // jsdom applies no Tailwind: the action group's `gap-2` is stubbed, so the gap counts.
+      const computed = window.getComputedStyle.bind(window);
+      vi.spyOn(window, "getComputedStyle").mockImplementation((el, pseudo) => {
+        const style = computed(el, pseudo);
+        if (el.getAttribute("data-slot") !== "editor-actions") return style;
+        return new Proxy(style, {
+          get: (target, key) =>
+            key === "columnGap" ? "8px" : (Reflect.get(target, key, target) as unknown),
+        });
+      });
+      const layout = createRef<EditorHeaderLayout>();
+      render(
+        <EditorHeader
+          title="Spring newsletter"
+          canUndo
+          canRedo
+          dirty={false}
+          saving={false}
+          onBack={() => {}}
+          onUndo={() => {}}
+          onRedo={() => {}}
+          onSave={() => {}}
+          onReset={() => {}}
+          layout={layout}
+          {...(status ? { status: <span>Busy</span> } : {})}
+        />,
+      );
+      expect(layout.current!.height()).toBe(60);
+      expect(layout.current!.statusRoom()).toBe(room);
+    },
+  );
 
   it("already folded before a status comes and goes, never steps back past where it stood (#581)", () => {
     const rect = Object.getOwnPropertyDescriptor(Element.prototype, "getBoundingClientRect")!

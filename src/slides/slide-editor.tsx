@@ -36,7 +36,7 @@ import {
 import { CanvasOverlay, type CanvasTarget, CanvasZoom, type CanvasZoomMode } from "../ui/canvas.js";
 import { type DecimalInvalid } from "../ui/decimal-number.js";
 import { type DrawerId, DrawerRail } from "../ui/drawer-rail.js";
-import { EditorHeader, useEditorLeaveGuard } from "../ui/editor-header.js";
+import { EditorHeader, type EditorHeaderLayout, useEditorLeaveGuard } from "../ui/editor-header.js";
 import { Field } from "../ui/field.js";
 import { GridFields, GridOverlay, GridToggle } from "../ui/grid.js";
 import { Hint } from "../ui/hint.js";
@@ -257,9 +257,9 @@ const DUPLICATE_SHORTCUT = ["Ctrl+D", "Meta+D"] as const;
 // is busy (`SUI-FEATURE-106` rev 5).
 const ADOPT_TIMEOUT_MS = 10_000;
 const ADOPT_BUSY_MS = 300;
-// The operation spinner (`size-4`) and the head row's gap (`gap-2`), for the status's room.
+// The operation spinner (`size-4`) and the status's own gap (`gap-2`), for the status's room.
 const SPINNER_PX = 16;
-const ROW_GAP_PX = 8;
+const STATUS_GAP_PX = 8;
 // How long a new entrance, exit or transition plays (ms); the most a duration or delay field takes
 // is `ANIMATION_MAX_MS`, shared with the preview.
 const ANIMATION_MS = 500;
@@ -2015,25 +2015,21 @@ function Editor({
   // form until the paste ends.
   const [adoptingFits, setAdoptingFits] = React.useState(true);
   const adoptingBox = React.useRef<HTMLSpanElement>(null);
+  const adoptingStatus = React.useRef<HTMLSpanElement>(null);
+  // The head's layout, read through its own API (#599).
+  const headLayout = React.useRef<EditorHeaderLayout>(null);
   // The height the head needs without the full label, as last read.
   const bareHeight = React.useRef(0);
   React.useLayoutEffect(() => {
-    const head = adoptingBox.current?.parentElement?.querySelector("[data-slot=editor-header]");
+    const head = headLayout.current;
     // Read from the paste's start, so the slot shows the right form from its first frame.
     if (adopting === undefined || !head) return;
-    // The folds the status holds beyond the step the head would stand at without it.
-    const statusFolds = () => {
-      const folds = Number(head.getAttribute("data-shrink") ?? 0);
-      return folds - Number(head.getAttribute("data-bare-shrink") ?? folds);
-    };
     let latched = false;
     const measure = () => {
       if (latched) return;
-      const height = head.getBoundingClientRect().height;
-      const full = head.querySelector(
-        "[data-testid=slide-editor-adopting-status] [data-testid=operation-label]",
-      );
-      if (full !== null && (statusFolds() > 0 || height > bareHeight.current)) {
+      const height = head.height();
+      const full = adoptingStatus.current?.querySelector("[data-testid=operation-label]") ?? null;
+      if (full !== null && (head.statusFolds() > 0 || height > bareHeight.current)) {
         latched = true;
         setAdoptingFits(false);
         return;
@@ -2042,29 +2038,17 @@ function Editor({
       bareHeight.current = height;
       // A head the compact form holds folded counts the room those folds free: the full label would
       // hold them too.
-      if (statusFolds() > 0) return;
-      const title = head.querySelector("[data-slot=editor-title]");
-      const floor = title?.firstElementChild;
+      if (head.statusFolds() > 0) return;
       const label = adoptingBox.current?.querySelector("[data-slot=slide-editor-adopting-measure]");
-      if (!title || !floor || !label) return;
-      // The slot's own width and its row gap (`gap-2`) are free again without the status.
-      const slot = head.querySelector("[data-slot=editor-status]");
-      const taken = slot === null ? 0 : slot.getBoundingClientRect().width + ROW_GAP_PX;
-      // The floor stretches over the title's grid column; its text is what the title cannot give up.
-      const text = floor.ownerDocument.createRange();
-      text.selectNodeContents(floor);
-      const room = title.getBoundingClientRect().width - text.getBoundingClientRect().width + taken;
-      // Spinner, gap and label, plus the slot's row gap.
-      const needed = SPINNER_PX + ROW_GAP_PX + label.getBoundingClientRect().width + ROW_GAP_PX;
-      setAdoptingFits(room >= needed);
+      if (!label) return;
+      // Spinner, gap and label; the head takes its slot's row gap off the room itself.
+      const needed = SPINNER_PX + STATUS_GAP_PX + label.getBoundingClientRect().width;
+      setAdoptingFits(head.statusRoom() >= needed);
     };
     measure();
-    // Read whenever the head settles, on its width, its height or a fold step: it marks its bare step
-    // each time. Read in between, the head may still stand at a step it is about to leave. The form it
-    // takes is laid out before the paint, so the head never shows the full label it gives up (#598).
-    const settling = new MutationObserver(() => flushSync(measure));
-    settling.observe(head, { attributes: true, attributeFilter: ["data-bare-shrink"] });
-    return () => settling.disconnect();
+    // Read whenever the head settles, on its width, its height or a fold step. The form it takes is
+    // laid out before the paint, so the head never shows the full label it gives up (#598).
+    return head.onSettle(() => flushSync(measure));
   }, [adopting]);
   const queueBusy = () =>
     (drag !== undefined && drag.kind !== "marquee") ||
@@ -3409,6 +3393,7 @@ function Editor({
           saving={saving}
           onSave={() => void save()}
           onReset={reset}
+          layout={headLayout}
           // From 300 ms on the head's status slot shows why (`SUI-FEATURE-106` rev 7, `GL-UI-033`):
           // spinner and label where the head has the room, else the spinner alone with the label as
           // its hint (`SUI-FEATURE-104`), so the head neither folds further nor wraps.
@@ -3416,6 +3401,7 @@ function Editor({
             ? {
                 status: (
                   <span
+                    ref={adoptingStatus}
                     className="flex items-center gap-2"
                     data-testid="slide-editor-adopting-status"
                   >

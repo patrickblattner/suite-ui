@@ -55,6 +55,22 @@ type EditorHeaderProps = {
   // passes `dirty={false}` with it, so `useEditorLeaveGuard` (which follows `dirty` alone) stays
   // inactive.
   readOnly?: boolean;
+  // What the header lays out, for an app whose status chooses between a full and a compact form (#599).
+  layout?: React.Ref<EditorHeaderLayout>;
+};
+
+// The header's layout as an app's status needs it, read when asked (#581, #599).
+type EditorHeaderLayout = {
+  // The header's height.
+  height: () => number;
+  // The fold steps the status holds beyond the step the header would stand at without it.
+  statusFolds: () => number;
+  // The room the title leaves beside its floor for the status's content, with the room the status
+  // takes counted back in and its slot's row gap taken off.
+  statusRoom: () => number;
+  // Calls `listener` each time the header settles, on its width, its height or a fold step; returns
+  // the call that stops it.
+  onSettle: (listener: () => void) => () => void;
 };
 
 // An `icon-sm` tool of the header (`SUI-FEATURE-104`); `label` is its name and tooltip. With `pressed`
@@ -197,6 +213,7 @@ function EditorHeader({
   tools: headerTools = [],
   status,
   readOnly = false,
+  layout,
 }: EditorHeaderProps) {
   const { t, i18n } = useTranslation("suite");
   const [confirming, setConfirming] = React.useState(false);
@@ -260,6 +277,44 @@ function EditorHeader({
       attach(node);
     },
     [attach],
+  );
+  const floorBox = React.useRef<HTMLSpanElement>(null);
+  React.useImperativeHandle(
+    layout,
+    () => ({
+      height: () => header.current?.getBoundingClientRect().height ?? 0,
+      statusFolds: () => {
+        const folds = Number(header.current?.getAttribute("data-shrink") ?? 0);
+        return folds - Number(header.current?.getAttribute("data-bare-shrink") ?? folds);
+      },
+      statusRoom: () => {
+        const node = header.current;
+        const floor = floorBox.current;
+        if (node === null || floor === null || titleBox.current === null) return 0;
+        // The floor stretches over the title's grid column; its text is what the title cannot give up.
+        const text = floor.ownerDocument.createRange();
+        text.selectNodeContents(floor);
+        // The status's slot stands in the action group, behind its row gap.
+        const actions = node.querySelector("[data-slot=editor-actions]");
+        const gap = actions === null ? 0 : parseFloat(getComputedStyle(actions).columnGap || "0");
+        return (
+          titleBox.current.getBoundingClientRect().width -
+          text.getBoundingClientRect().width +
+          statusWidth(node) -
+          gap
+        );
+      },
+      // The header marks its bare step each time it settles; read in between, it may still stand at a
+      // step it is about to leave.
+      onSettle: (listener) => {
+        const node = header.current;
+        if (node === null) return () => {};
+        const settling = new MutationObserver(listener);
+        settling.observe(node, { attributes: true, attributeFilter: ["data-bare-shrink"] });
+        return () => settling.disconnect();
+      },
+    }),
+    [],
   );
   // A status that goes while it holds the focus (its operation ended) hands it on in `GL-UI-050`'s
   // order from where it stood, with or without a fold step (#600). Its place is noted while it still
@@ -450,7 +505,11 @@ function EditorHeader({
         </Button>
       )}
       <div ref={titleBox} data-slot="editor-title" className="grid flex-1 font-medium">
-        <span aria-hidden="true" className="invisible col-start-1 row-start-1 whitespace-nowrap">
+        <span
+          ref={floorBox}
+          aria-hidden="true"
+          className="invisible col-start-1 row-start-1 whitespace-nowrap"
+        >
           {titleFloor}
         </span>
         <OverflowTooltip>
@@ -799,6 +858,7 @@ function useEditorLeaveGuard({
 
 export {
   EditorHeader,
+  type EditorHeaderLayout,
   type EditorHeaderProps,
   type EditorHeaderTool,
   type EditorLeaveGuardOptions,
