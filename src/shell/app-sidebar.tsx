@@ -104,6 +104,8 @@ function AppSidebar({
   React.useEffect(() => {
     const id = switchingTo.current;
     switchingTo.current = null;
+    // Only a pathname change closes it (`SUI-FEATURE-110` rev 4): a search or hash change a page writes
+    // into the URL leaves it open; an entry link still closes it through the nav's click handler.
     if (shownPath.current === pathname) return;
     shownPath.current = pathname;
     const state = location.state as { [SWITCH_STATE]?: unknown } | null;

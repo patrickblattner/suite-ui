@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import * as React from "react";
 import { flushSync } from "react-dom";
-import { Route, Routes } from "react-router-dom";
+import { type NavigateFunction, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PageHeader } from "../list/page-header.js";
@@ -29,9 +29,21 @@ function OverlayProbe() {
   return <output data-testid="probe">{`${isOverlay} ${overlayOpen} ${isOpen}`}</output>;
 }
 
-function Shell({ panel = false }: { panel?: boolean }) {
+// Hands out the router's navigate, for a page that writes its own state into the URL, and shows the
+// search and hash of the current location.
+const page: { navigate?: NavigateFunction } = {};
+function NavigateProbe() {
+  const navigate = useNavigate();
+  const { search, hash } = useLocation();
+  React.useEffect(() => {
+    page.navigate = navigate;
+  }, [navigate]);
+  return <output data-testid="location-search">{`${search}${hash}`}</output>;
+}
+
+function Shell({ panel = false, route = "/dashboard" }: { panel?: boolean; route?: string }) {
   return (
-    <ShellHarness route="/dashboard">
+    <ShellHarness route={route}>
       <div className="flex">
         <AppSidebar
           instanceName="Test instance"
@@ -43,6 +55,7 @@ function Shell({ panel = false }: { panel?: boolean }) {
           <PageHeader title="Dashboard" subtitle="Overview" />
           <input aria-label="Field" data-testid="field" />
           <OverlayProbe />
+          <NavigateProbe />
           {panel ? (
             <EditPanel open onOpenChange={() => {}} title="Item" onSubmit={() => {}}>
               Body
@@ -582,6 +595,32 @@ describe("sidebar overlay below md (SUI-FEATURE-110)", () => {
     render(<Shell />);
     openOverlay();
     fireEvent.click(screen.getByTestId("nav-dashboard"));
+    expect(sidebar()).toHaveAttribute("data-overlay", "closed");
+    await waitFor(() => expect(trigger()).toHaveFocus());
+  });
+
+  // `SUI-FEATURE-110` rev 4 AC6: only a pathname change is a route change for the overlay.
+  it("a programmatic change of only search params or hash leaves it open", () => {
+    narrow(true);
+    render(<Shell />);
+    openOverlay();
+    act(() => void page.navigate!("/dashboard?filter=open"));
+    expect(sidebar()).toHaveAttribute("data-overlay", "open");
+    act(() => void page.navigate!("/dashboard?filter=open#tab-2"));
+    expect(sidebar()).toHaveAttribute("data-overlay", "open");
+    act(() => void page.navigate!("/ideas"));
+    expect(sidebar()).toHaveAttribute("data-overlay", "closed");
+  });
+
+  it("an entry link that only changes the search params closes it", async () => {
+    narrow(true);
+    render(<Shell route="/dashboard?filter=open" />);
+    openOverlay();
+    expect(screen.getByTestId("location-search")).toHaveTextContent("?filter=open");
+    fireEvent.click(screen.getByTestId("nav-dashboard"));
+    // Same pathname, only the search changed.
+    expect(screen.getByTestId("location")).toHaveTextContent("/dashboard");
+    expect(screen.getByTestId("location-search")).toBeEmptyDOMElement();
     expect(sidebar()).toHaveAttribute("data-overlay", "closed");
     await waitFor(() => expect(trigger()).toHaveFocus());
   });
