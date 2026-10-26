@@ -655,3 +655,9 @@
 {"ts":"2026-10-26T05:30:39.601Z","key":"GL-UI-016","from":17,"to":20,"disposition":"ticket","ref":"596"}
 {"ts":"2026-10-26T05:30:40.049Z","key":"SUI-FEATURE-110","from":4,"to":5,"disposition":"ticket","ref":"597"}
 {"ts":"2026-10-26T05:30:40.505Z","key":"PROC-FLOW-002","from":6,"to":7,"disposition":"editorial","ref":"process: night/weekly window release follows the harness window file, not the clock; no code impact"}
+{"ts":"2026-10-26T11:21:04.281Z","key":"GL-UI-016","from":20,"to":21,"disposition":"ticket","ref":"605"}
+{"ts":"2026-10-26T11:21:22.327Z","key":"SUI-FEATURE-091","from":5,"to":6,"disposition":"ticket","ref":"606"}
+{"ts":"2026-10-26T11:21:36.519Z","key":"SUI-FEATURE-104","from":4,"to":5,"disposition":"ticket","ref":"607"}
+{"ts":"2026-10-26T11:21:49.313Z","key":"SUI-FEATURE-112","from":null,"to":2,"disposition":"ticket","ref":"608"}
+{"ts":"2026-10-26T11:22:02.175Z","key":"SUI-FEATURE-113","from":null,"to":2,"disposition":"ticket","ref":"609"}
+{"ts":"2026-10-26T11:22:17.262Z","key":"SUI-FEATURE-114","from":null,"to":2,"disposition":"ticket","ref":"610"}
