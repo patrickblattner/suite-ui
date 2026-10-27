@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased — #625, SUI-FEATURE-280 rev 2: an image's crop shifts along the axis its proportions overhang, at 100 % too (minor)
+
+- **SlideView image crop (#625):** the image is drawn at its own proportions, filling the area inside its border (`cover`) and then zoomed; the crop's offset reaches as far as that drawn image overhangs the area, half to each side. At zoom 1 the axis the image overhangs now shifts (a 2:1 image in a 400 × 400 frame reaches ±200 px sideways), the other does not. Editor, player and export draw it alike.
+- **Natural size (#625):** the proportions come from the loaded image's natural size. Until it has loaded nothing is clamped; a stored crop is never rewritten, only drawn within its reach.
+- **Crop mode (#625):** dragging, the x/y fields and the arrow keys shift the image on the overhanging axis at 100 %; the fields' range names that reach, and the dimmed rest shows the whole drawn image, its overhang included. Cropping starts from the size the canvas's image has already loaded; while it is not known, a shift is kept unclamped and no range is named. A medium that does not load keeps the area's own proportions, as before.
+- **Export (#625):** each image drawn by `SlideView` carries `data-slide-image` (`loading`, then `sized` once its size is known); `exportSlidePages` waits until every loaded one is `sized`, so the PNG never catches a crop before it is clamped to its reach.
+- **Tests (#625):** unit: the reach from the image's proportions (2:1 in 400 × 400: −150 kept, −500 clamped at −200; a bordered frame against its inner area), SlideView drawing it shifted, clamped, centred with offset 0, and unclamped before load; crop mode at 100 % shifting sideways by keys, field and drag, never up and down; a key before load keeps the stored shift; the size taken from the canvas; a broken medium clamped as before; the export's wait for sized images. Gallery: an export with a crop on the overhanging axis equals the view; crop expectations follow the photo's 4:3 proportions in its 400 × 250 frame.
+
+**Migration:** none required; no schema change. Stored crops draw as before as long as their offset on the overhanging axis is 0, and every stored crop within the old reach draws unchanged. Crop-mode screenshots show the image's overhang in the dimmed rest.
+
 ## Unreleased — #634, GL-UI-017: a Hint that adds only a status line keeps the field's label help (patch)
 
 - **Hint (#634, Q&A #4792):** on a field with `LabelWithHelp`, a Hint that does not describe the field (describe off, or its text equals the `aria-label`) but sets a status line no longer drops the label help from `aria-describedby`; it reads `"<field>-help <status>"`. A describing Hint still replaces the label help with its own id.

@@ -46,18 +46,41 @@ export function SlidePlayerPage() {
   );
 }
 
+// `SUI-FEATURE-280` (#625): the showcase with its photo shifted up past its reach at 100 %, on the
+// axis its 4:3 proportions overhang its frame: drawn at the limit once its size is known.
+const SLIDE_OVERHANG = {
+  ...SLIDE_EXPORTABLE,
+  pages: SLIDE_EXPORTABLE.pages.map((page) => ({
+    ...page,
+    elements: page.elements?.map((element) =>
+      element.id === "photo"
+        ? { ...element, crop: { zoom: 1, offsetX: 0, offsetY: -500 } }
+        : element,
+    ),
+  })),
+} as typeof SLIDE_EXPORTABLE;
+
 // `SUI-FEATURE-160` AC2: the export page of the showcase as an app serves it (`?harness=slide-export`),
 // and the editor's view of the same page at scale 1 (`&view=editor`) to compare it with; `&broken=1`
-// exports the showcase with its unknown type, which aborts.
-export function SlideExportHarness({ editor, broken }: { editor: boolean; broken: boolean }) {
+// exports the showcase with its unknown type, which aborts; `&overhang=1` the shifted photo.
+export function SlideExportHarness({
+  editor,
+  broken,
+  overhang,
+}: {
+  editor: boolean;
+  broken: boolean;
+  overhang: boolean;
+}) {
+  const exportable = overhang ? SLIDE_OVERHANG : SLIDE_EXPORTABLE;
   return editor ? (
     <SlideView
-      document={SLIDE_EXPORTABLE}
+      document={exportable}
       {...GALLERY_SLIDE_PROPS}
       scale={1}
       data-testid="slide-editor-view"
     />
   ) : (
-    <SlideExport document={broken ? SLIDE_SHOWCASE : SLIDE_EXPORTABLE} {...GALLERY_SLIDE_PROPS} />
+    <SlideExport document={broken ? SLIDE_SHOWCASE : exportable} {...GALLERY_SLIDE_PROPS} />
   );
 }

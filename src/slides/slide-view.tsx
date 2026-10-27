@@ -5,7 +5,14 @@ import { cn } from "../lib/cn.js";
 import { OverflowTooltip } from "../ui/tooltip.js";
 import type { SlideBrandSet } from "./brand.js";
 import { safeParseSlideDocument, type SlideDocumentError } from "./document.js";
-import { clampCrop, cropArea, drawnBox, overflowingIds } from "./editor-ops.js";
+import {
+  clampCrop,
+  cropArea,
+  croppedImageSize,
+  drawnBox,
+  type ImageSize,
+  overflowingIds,
+} from "./editor-ops.js";
 import {
   animationOf,
   animationOrders,
@@ -255,6 +262,10 @@ interface Draw {
   // notes one.
   broken: ReadonlySet<string>;
   onBroken: (src: string) => void;
+  // Natural sizes of the media URLs loaded so far, and the callback that notes one: an image's crop
+  // reaches as far as its proportions let it (`SUI-FEATURE-280`).
+  loaded: ReadonlyMap<string, ImageSize>;
+  onLoaded: (src: string, size: ImageSize) => void;
   t: (key: string, options?: Record<string, unknown>) => string;
   nextId: () => string;
   missingMedia: Set<string>;
@@ -552,8 +563,14 @@ function image(draw: Draw, element: ElementOf<"image">) {
   // The image lies inside the border, in the frame less a border on each side; its crop refers to
   // that area, so a crop cuts opposite sides evenly (`SUI-FEATURE-230` rev 5 §Rahmen). A crop stored
   // for the whole frame (before rev 5) is drawn at that area's limit, never leaving a gap.
+  // It is drawn at its own proportions, filling that area (`cover`) and zoomed, so on the axis where
+  // they differ it reaches past the area and shifts at 100 % too (`SUI-FEATURE-280`). Until it has
+  // loaded nothing is clamped; the stored crop is never rewritten, only drawn within its reach.
   const { width: w, height: h } = cropArea(element);
-  const { zoom, offsetX, offsetY } = clampCrop(w, h, element.crop);
+  const natural = draw.loaded.get(src);
+  const { zoom, offsetX, offsetY } =
+    natural === undefined ? element.crop : clampCrop(w, h, element.crop, natural);
+  const drawn = croppedImageSize(w, h, zoom, natural);
   return (
     <div
       style={{
@@ -577,12 +594,20 @@ function image(draw: Draw, element: ElementOf<"image">) {
         alt={element.alt}
         draggable={false}
         onError={() => draw.onBroken(src)}
+        // "sized" once its size is known and its crop drawn within its reach: the export waits for it.
+        data-slide-image={natural === undefined ? "loading" : "sized"}
+        onLoad={(event) =>
+          draw.onLoaded(src, {
+            width: event.currentTarget.naturalWidth,
+            height: event.currentTarget.naturalHeight,
+          })
+        }
         style={{
           position: "absolute",
-          left: px((w - w * zoom) / 2 + offsetX),
-          top: px((h - h * zoom) / 2 + offsetY),
-          width: px(w * zoom),
-          height: px(h * zoom),
+          left: px((w - drawn.width) / 2 + offsetX),
+          top: px((h - drawn.height) / 2 + offsetY),
+          width: px(drawn.width),
+          height: px(drawn.height),
           maxWidth: "none",
           objectFit: "cover",
           transform: element.flipped ? "scaleX(-1)" : undefined,
@@ -1226,6 +1251,14 @@ export function SlideView({
   const onBroken = React.useCallback((src: string) => {
     setBroken((current) => (current.has(src) ? current : new Set([...current, src])));
   }, []);
+  const [loaded, setLoaded] = React.useState<ReadonlyMap<string, ImageSize>>(() => new Map());
+  const onLoaded = React.useCallback((src: string, size: ImageSize) => {
+    setLoaded((current) => {
+      const known = current.get(src);
+      if (known?.width === size.width && known.height === size.height) return current;
+      return new Map([...current, [src, size]]);
+    });
+  }, []);
 
   // The root as state, so the observer attaches whenever the root appears (a document that was
   // invalid and becomes valid renders it only then).
@@ -1260,6 +1293,8 @@ export function SlideView({
     onFit,
     broken,
     onBroken,
+    loaded,
+    onLoaded,
     t: (key, options) => t(key, options),
     nextId: () => `${uid}s${(counter.value += 1)}`,
     missingMedia: new Set(),

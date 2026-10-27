@@ -970,12 +970,43 @@ export function cropArea(element: SlideElement): { width: number; height: number
   };
 }
 
+// An image's natural size, as loaded: only its proportions count. The crop functions take it, or
+// `null` while it is not known yet: then the shift is not clamped (`SUI-FEATURE-280`), and without
+// it the image has the area's own proportions.
+export type ImageSize = { width: number; height: number };
+
+// The size an image of `image`'s proportions is drawn at in a `width` × `height` area (`SUI-FEATURE-280`):
+// filling it (`cover`), then zoomed; on the axis where its proportions differ it reaches past the area.
+// Without its size it has the area's proportions.
+export function croppedImageSize(
+  width: number,
+  height: number,
+  zoom: number,
+  image?: ImageSize | null,
+): { width: number; height: number } {
+  const fill =
+    image === undefined || image === null || image.width <= 0 || image.height <= 0
+      ? { width, height }
+      : (() => {
+          const scale = Math.max(width / image.width, height / image.height);
+          return { width: image.width * scale, height: image.height * scale };
+        })();
+  return { width: fill.width * zoom, height: fill.height * zoom };
+}
+
 // A crop that keeps the image covering its frame: zoomed at least 1, shifted no further than the
-// zoomed image reaches past the frame on each side.
-export function clampCrop(width: number, height: number, crop: ImageCrop): ImageCrop {
+// drawn image (`croppedImageSize`) reaches past the frame on each side, half to each side
+// (`SUI-FEATURE-280`); an image whose size is not known yet (`null`) shifts unclamped.
+export function clampCrop(
+  width: number,
+  height: number,
+  crop: ImageCrop,
+  image?: ImageSize | null,
+): ImageCrop {
   const zoom = Math.max(1, crop.zoom);
-  const reachX = (width * zoom - width) / 2;
-  const reachY = (height * zoom - height) / 2;
+  const drawn = croppedImageSize(width, height, zoom, image);
+  const reachX = image === null ? Infinity : Math.max(0, drawn.width - width) / 2;
+  const reachY = image === null ? Infinity : Math.max(0, drawn.height - height) / 2;
   // `+ 0` turns a clamped −0 into 0.
   return {
     zoom: round(zoom),
@@ -994,14 +1025,16 @@ export function zoomCrop(
   height: number,
   crop: ImageCrop,
   factor: number,
+  image?: ImageSize | null,
 ): ImageCrop {
   const zoom = Math.min(CROP_ZOOM_MAX, Math.max(1, crop.zoom * factor));
   const scale = zoom / crop.zoom;
-  return clampCrop(width, height, {
-    zoom,
-    offsetX: crop.offsetX * scale,
-    offsetY: crop.offsetY * scale,
-  });
+  return clampCrop(
+    width,
+    height,
+    { zoom, offsetX: crop.offsetX * scale, offsetY: crop.offsetY * scale },
+    image,
+  );
 }
 
 // The crop shifted by a step on the page; an image turned (with its groups) by `rotation` moves in
@@ -1012,13 +1045,15 @@ export function panCrop(
   crop: ImageCrop,
   step: { x: number; y: number },
   rotation: number,
+  image?: ImageSize | null,
 ): ImageCrop {
   const local = turn(step, -rotation);
-  return clampCrop(width, height, {
-    zoom: crop.zoom,
-    offsetX: crop.offsetX + local.x,
-    offsetY: crop.offsetY + local.y,
-  });
+  return clampCrop(
+    width,
+    height,
+    { zoom: crop.zoom, offsetX: crop.offsetX + local.x, offsetY: crop.offsetY + local.y },
+    image,
+  );
 }
 
 // The whole image of a crop where it is drawn on the page (`SUI-FEATURE-230`): the frame's placed box
@@ -1027,11 +1062,11 @@ export function panCrop(
 export function croppedImageBox(
   placed: { box: Box; rotation: number },
   crop: ImageCrop,
+  image?: ImageSize | null,
 ): { box: Box; rotation: number } {
   const { box, rotation } = placed;
   const shift = turn({ x: crop.offsetX, y: crop.offsetY }, rotation);
-  const width = box.width * crop.zoom;
-  const height = box.height * crop.zoom;
+  const { width, height } = croppedImageSize(box.width, box.height, crop.zoom, image);
   return {
     box: {
       x: box.x + box.width / 2 + shift.x - width / 2,

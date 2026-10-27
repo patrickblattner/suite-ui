@@ -248,6 +248,7 @@ createRoot(document.getElementById("root") as HTMLElement).render(
       <SlideExportHarness
         editor={params.get("view") === "editor"}
         broken={params.get("broken") === "1"}
+        overhang={params.get("overhang") === "1"}
       />
     ) : fieldPair ? (
       <FieldPairHarness />

@@ -118,8 +118,15 @@ export async function exportSlidePages(
     const error = await page.locator(`${ROOT} [data-slide-error]`).getAttribute("data-slide-error");
     throw new SlideExportError([{ code: "invalid", items: error === null ? [] : [error] }]);
   }
+  // Every image loaded, and an element's image drawn at its size, its crop within its reach
+  // (`SUI-FEATURE-280`); one that did not load has none.
   await page.waitForFunction(
-    () => [...document.images].every((image) => image.complete),
+    () =>
+      [...document.images].every(
+        (image) =>
+          image.complete &&
+          (image.naturalWidth === 0 || image.getAttribute("data-slide-image") !== "loading"),
+      ),
     undefined,
     { timeout },
   );

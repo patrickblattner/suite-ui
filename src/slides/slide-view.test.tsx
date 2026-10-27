@@ -1012,6 +1012,13 @@ describe("SlideView past-page notices of a master", () => {
   });
 });
 
+// An image loaded at its natural size, as the browser reports it.
+function loadImage(image: HTMLElement, natural: { width: number; height: number }) {
+  Object.defineProperty(image, "naturalWidth", { configurable: true, value: natural.width });
+  Object.defineProperty(image, "naturalHeight", { configurable: true, value: natural.height });
+  fireEvent.load(image);
+}
+
 // SUI-FEATURE-230 rev 5 §Rahmen (#538): a bordered image lies in its frame less the border, and its
 // crop refers to that area: as much of it is hidden on one side as on the opposite one.
 describe("SlideView bordered image", () => {
@@ -1022,6 +1029,7 @@ describe("SlideView bordered image", () => {
       kind: "free",
       value: "#dc2626",
     },
+    natural?: { width: number; height: number },
   ) => {
     const document = {
       ...SLIDE_SHOWCASE,
@@ -1042,6 +1050,7 @@ describe("SlideView bordered image", () => {
     } as SlideViewProps["document"];
     await drawn({ document });
     const image = screen.getByRole("img", { name: "Hills under a sun" });
+    if (natural !== undefined) loadImage(image, natural);
     const [left, top, width, height] = ["left", "top", "width", "height"].map((key) =>
       parseFloat(image.style.getPropertyValue(key)),
     ) as [number, number, number, number];
@@ -1084,11 +1093,107 @@ describe("SlideView bordered image", () => {
 
   // A crop stored for the whole frame (before rev 5) reaches past the area's limit: drawn at it.
   it("draws a crop past the area's reach at its limit, leaving no gap", async () => {
-    expect(await bordered({ zoom: 1.5, offsetX: 150, offsetY: -100 })).toEqual({
+    const red = { kind: "free" as const, value: "#dc2626" };
+    // An image of the area's own proportions (`SUI-FEATURE-280`: the reach follows the image).
+    const area = { width: 580, height: 380 };
+    expect(await bordered({ zoom: 1.5, offsetX: 150, offsetY: -100 }, red, area)).toEqual({
       left: 0,
       right: 290,
       top: 190,
       bottom: 0,
     });
+  });
+});
+
+// SUI-FEATURE-280 (#625): the image is drawn at its own proportions, cover-filled and zoomed; the crop
+// reaches as far as it overhangs the area, so at 100 % its overhanging axis shifts.
+describe("SlideView image crop on the overhanging axis", () => {
+  const wide = { width: 1600, height: 800 };
+  const square = async (
+    crop: { zoom: number; offsetX: number; offsetY: number },
+    natural: { width: number; height: number } | undefined,
+    border?: number,
+  ) => {
+    const document = {
+      ...SLIDE_SHOWCASE,
+      pages: [
+        {
+          ...SLIDE_SHOWCASE.pages[0]!,
+          elements: [
+            {
+              id: "square",
+              type: "image",
+              x: 0,
+              y: 0,
+              width: 400,
+              height: 400,
+              media: { id: "photo" },
+              alt: "Square",
+              crop,
+              ...(border === undefined
+                ? {}
+                : { border: { color: { kind: "free", value: "#000" }, width: border } }),
+            },
+          ],
+        },
+      ],
+    } as SlideViewProps["document"];
+    await drawn({ document });
+    const image = screen.getByRole("img", { name: "Square" });
+    if (natural !== undefined) loadImage(image, natural);
+    const [left, top, width, height] = ["left", "top", "width", "height"].map((key) =>
+      parseFloat(image.style.getPropertyValue(key)),
+    ) as [number, number, number, number];
+    return { left, top, width, height };
+  };
+
+  // AC1: a 2:1 image in a 400 × 400 frame at zoom 1 shifts 150 px left with no gap, and stops at
+  // half its overhang.
+  it("shifts a wide image along its overhang at 100 % and clamps at half of it", async () => {
+    expect(await square({ zoom: 1, offsetX: -150, offsetY: 0 }, wide)).toEqual({
+      left: -350,
+      top: 0,
+      width: 800,
+      height: 400,
+    });
+    cleanup();
+    expect(await square({ zoom: 1, offsetX: -500, offsetY: 40 }, wide)).toEqual({
+      left: -400,
+      top: 0,
+      width: 800,
+      height: 400,
+    });
+  });
+
+  // AC4: with a border, the reach refers to the area inside it (360 × 360 at border 20).
+  it("relates a bordered image's reach to the area inside the border", async () => {
+    expect(await square({ zoom: 1, offsetX: -500, offsetY: 0 }, wide, 20)).toEqual({
+      left: -360,
+      top: 0,
+      width: 720,
+      height: 360,
+    });
+  });
+
+  // AC5: a crop with no shift on the overhanging axis is centred as `cover` centred it before.
+  it("draws a crop with no shift on the overhanging axis centred, as before", async () => {
+    expect(await square({ zoom: 1.5, offsetX: 0, offsetY: 30 }, wide)).toEqual({
+      left: -400,
+      top: -70,
+      width: 1200,
+      height: 600,
+    });
+  });
+
+  // Until the image has loaded nothing is clamped, and the stored crop stays as it is; the image is
+  // marked once it is drawn at its size, for the export to wait on (review #625).
+  it("clamps nothing before the image has loaded", async () => {
+    const crop = { zoom: 1, offsetX: -150, offsetY: 0 };
+    expect(await square(crop, undefined)).toEqual({ left: -150, top: 0, width: 400, height: 400 });
+    expect(crop).toEqual({ zoom: 1, offsetX: -150, offsetY: 0 });
+    const image = screen.getByRole("img", { name: "Square" });
+    expect(image).toHaveAttribute("data-slide-image", "loading");
+    loadImage(image, wide);
+    expect(image).toHaveAttribute("data-slide-image", "sized");
   });
 });
