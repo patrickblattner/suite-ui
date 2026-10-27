@@ -61,6 +61,9 @@ const LABELS = {
   },
 } as const;
 
+// `?history=locked` (#629): Undo and Redo `disabled`, so a real browser shows that the disabled icon
+// button still names itself on hover (`GL-UI-016`).
+const HISTORY_LOCKED = new URLSearchParams(window.location.search).get("history") === "locked";
 const PAGE_SIZE = 10;
 const NAMES = Array.from({ length: 23 }, (_, i) => `Entry ${i + 1}`);
 const TILES = Array.from({ length: 9 }, (_, i) => `Tile ${i + 1}`);
@@ -279,12 +282,24 @@ export function KeysPage() {
     <div className="flex flex-col gap-8" data-testid="keys-page">
       <section className="flex items-center gap-2" data-testid="keys-editor">
         <IconButtonTooltip label={labels.undo} shortcut={UNDO_SHORTCUT}>
-          <Button variant="ghost" size="icon-sm" onClick={undo} data-testid="keys-undo">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={undo}
+            disabled={HISTORY_LOCKED}
+            data-testid="keys-undo"
+          >
             <Undo2Icon />
           </Button>
         </IconButtonTooltip>
         <IconButtonTooltip label={labels.redo} shortcut={REDO_SHORTCUT}>
-          <Button variant="ghost" size="icon-sm" onClick={redo} data-testid="keys-redo">
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={redo}
+            disabled={HISTORY_LOCKED}
+            data-testid="keys-redo"
+          >
             <Redo2Icon />
           </Button>
         </IconButtonTooltip>

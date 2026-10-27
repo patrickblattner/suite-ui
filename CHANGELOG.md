@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased — #629, GL-UI-013: the outline Button shows its ring border on hover in dark; a disabled Button shows `not-allowed` and no hover (patch)
+
+- **Button outline (#629, found in #628):** in dark mode the hover now reveals the `--ring` border on the input tint, as the Select trigger does; before, `dark:border-input` hid it and only a 1.08:1 fill change remained.
+- **Disabled Button (#629):** it no longer sets `pointer-events: none`, so its `cursor-not-allowed` shows, as on the locked (`aria-disabled`) Button and the disabled Select. Every variant keeps its rest look under the pointer. A press on it does nothing: it opens no menu whose `asChild` trigger it is.
+- **Behaviour change (#629):** a click on a disabled Button no longer falls through to a clickable row or card behind it; the browser drops it at the button.
+- **Behaviour change (#629):** a disabled Button that is its own tooltip trigger (`IconButtonTooltip` or `Hint` without `disabledText`, or `TooltipTrigger asChild`) now opens its hint on hover in a real browser, so a disabled icon button names itself (`GL-UI-016`, as `GL-UI-006` rev 4 pins for a locked surface's Undo and Redo). Before, `pointer-events: none` kept it shut. A running (`busy`) button still keeps its own hint closed.
+- **Tests (#629):** unit: the outline's dark hover border, every variant's disabled hover pair and cursor, no menu from a disabled `asChild` trigger. Unit: a disabled self-trigger `Hint` and `IconButtonTooltip` open on hover. Gallery: a disabled icon Undo (`?page=keys&history=locked`) shows its name on hover and ignores a click; the outline Button's hover (ring border, accent or input fill, label ≥ 4.5:1) light and dark; every disabled variant shows `not-allowed` and keeps its look under the pointer.
+
+**Migration:** none required. An app that relied on a click through a disabled Button reaching the element behind it handles that element's click itself. No strings, `data-testid`s or baselines change.
+
 ## Unreleased — #619, GL-UI-013: toast action and cancel show a hover signal; an app's toastOptions no longer replace the package's (patch)
 
 - **Toaster (#619, found in #617):** the filled action tints its fill on hover (85 % of the toast's text colour over the toast fill); on success, error and warning its label takes the variant's `-hover` token meanwhile, so it keeps 4.5:1. The ghost cancel reveals a 1 px border in the toast's text colour on hover. Both carry `cursor-pointer` and a transparent 1 px border at rest, so under forced colours they show an edge. The close X takes the toast buttons' token ring with the same 2 px gap, and on hover inverts to the toast's text colour with its icon in the toast's fill (sonner's grey hover hid the X). All set once in the Toaster.

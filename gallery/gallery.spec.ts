@@ -8502,6 +8502,19 @@ test("target size: the close buttons of dialog, panel and toast", async ({ page 
   }
 });
 
+// #629 (`GL-UI-016`, `GL-UI-006` rev 4): a disabled icon button that is its own tooltip trigger takes
+// the pointer, so it names itself on hover in a real browser; a click on it does nothing.
+test("a disabled icon Undo shows its name on hover", async ({ page }) => {
+  await page.goto("/?page=keys&lng=en&history=locked");
+  const undo = page.getByTestId("keys-undo");
+  await expect(undo).toBeDisabled();
+  expect(await undo.evaluate((el) => getComputedStyle(el).cursor)).toBe("not-allowed");
+  await undo.hover();
+  await expect(page.getByRole("tooltip")).toHaveText("Undo");
+  await undo.click({ force: true });
+  await expect(page.getByTestId("keys-history")).toHaveText("0 / 0");
+});
+
 // `SUI-FEATURE-056` AC6 (`GL-UI-006`): table, tiles and pager by keyboard in a real browser.
 test("keyboard: Tab enters the table at one row, ↓/↑ move, Enter opens", async ({ page }) => {
   await page.goto("/?page=keys&lng=en");

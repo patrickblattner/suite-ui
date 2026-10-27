@@ -201,3 +201,29 @@ describe("hints of a running button (as on main)", () => {
     expect(hintOf(screen.getByRole("button", { name: "Send" }))).toEqual(expected);
   });
 });
+
+// #629: a disabled button gets pointer events now (its `cursor-not-allowed` shows), so as its own
+// tooltip trigger it names itself on hover (`GL-UI-016`), as the locked surface's Undo does (#461).
+describe("hints of a disabled button that is its own trigger", () => {
+  it("a Hint without disabledText opens on hover", () => {
+    render(
+      <Hint text="Saves the draft">
+        <Button variant="success" size="default" disabled>
+          Save
+        </Button>
+      </Hint>,
+    );
+    expect(hintOf(screen.getByRole("button", { name: "Save" })).hover1500).toBe("Saves the draft");
+  });
+
+  it("an IconButtonTooltip without disabledText opens on hover", () => {
+    render(
+      <IconButtonTooltip label="Send Ada">
+        <Button variant="outline" size="icon-xs" disabled>
+          <span aria-hidden="true">→</span>
+        </Button>
+      </IconButtonTooltip>,
+    );
+    expect(hintOf(screen.getByRole("button", { name: "Send Ada" })).hover1500).toBe("Send Ada");
+  });
+});

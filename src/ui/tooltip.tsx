@@ -1280,7 +1280,7 @@ function uniqueIds(describedBy: string | undefined): string | undefined {
 // control, hidden from the name: the variant of this system, `⌘Z` on macOS, `Ctrl+Z` elsewhere
 // (`GL-UI-006`). `aria-keyshortcuts` names every variant of a usable control (#380). While the
 // control is `disabled` or locked with `aria-disabled`, `disabledText` (the condition under which it
-// becomes usable) takes the place of `label`. A disabled control takes no pointer events, so it
+// becomes usable) takes the place of `label`. A disabled control gets no click and no focus, so it
 // then sits in a span that is the trigger, focusable and the owner of the description; a control
 // locked with `aria-disabled` (a Save that locked itself, `SUI-FEATURE-120`) keeps the focus and owns
 // the description itself; a `disabled` `Button` is locked that way instead (`SUI-FEATURE-250`). The

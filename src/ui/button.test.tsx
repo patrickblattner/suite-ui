@@ -4,6 +4,12 @@ import { Profiler, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { Button } from "./button.js";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "./dropdown-menu.js";
 
 // `variant` and `size` are required: each line below must stay a type error, or `npm run typecheck`
 // fails on the unused directive.
@@ -367,6 +373,31 @@ describe("Button", () => {
       "dark:hover:bg-input/50",
     );
   });
+
+  // #629: a press reaches a disabled button now, so it must not open a menu whose `asChild` trigger it is.
+  it.each([
+    [true, "false"],
+    [false, "true"],
+  ] as const)(
+    "disabled %s: a menu trigger of its own opens on press only when usable",
+    (disabled, expanded) => {
+      render(
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="default" disabled={disabled}>
+              Actions
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem>Rename</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>,
+      );
+      const button = screen.getByRole("button", { name: "Actions" });
+      fireEvent.pointerDown(button, { button: 0, ctrlKey: false, pointerType: "mouse" });
+      expect(button).toHaveAttribute("aria-expanded", expanded);
+    },
+  );
 
   it("disabled and busy: the full colour of the variant", () => {
     render(

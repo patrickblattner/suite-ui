@@ -268,11 +268,17 @@ function Button(props: ButtonProps) {
         if (locked) event.preventDefault();
         rest.onMouseDown?.(event);
       }}
+      onPointerDown={(event: React.PointerEvent<HTMLButtonElement>) => {
+        // A disabled button gets pointer events (#629), so a trigger that opens on press (a menu's
+        // `asChild` trigger) would open from it: the press does nothing, as the click does.
+        if (event.currentTarget.matches(":disabled")) event.preventDefault();
+        rest.onPointerDown?.(event);
+      }}
       onPointerMove={(event: React.PointerEvent<HTMLButtonElement>) => {
         // The button as a tooltip trigger of its own (`TooltipTrigger asChild` hands it its
-        // `data-slot`): its hint stays closed while it runs, as the disabled button took no pointer
-        // events. A wrapping trigger and any other trigger (a menu's) still see the move. A lock
-        // without a run keeps the hint that names the button.
+        // `data-slot`): its hint stays closed while it runs. A wrapping trigger and any other trigger
+        // (a menu's) still see the move. A lock without a run, and a `disabled` button, which gets
+        // pointer events (#629), keep the hint that names the button (`GL-UI-016`).
         if (
           locked &&
           busy &&
