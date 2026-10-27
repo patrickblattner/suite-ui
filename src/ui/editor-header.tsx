@@ -836,6 +836,11 @@ type EditorLeaveGuardOptions = {
   onSave: LeaveSave;
   // Discard resets the draft before the held way out goes on.
   onReset: () => void;
+  // The edited document: a new identity (`Object.is`) during the save takes a held way out back, as
+  // typing does (a canvas drag fires no DOM `input`, `SUI-FEATURE-112`). Pass the state value itself
+  // (or one memoized on it), never an object built anew in each render; a save's result sets it in
+  // the same update that ends `saving`, else it counts as an edit.
+  draft?: unknown;
 };
 
 /**
@@ -851,6 +856,7 @@ function useEditorLeaveGuard({
   onBack,
   onSave,
   onReset,
+  draft,
 }: EditorLeaveGuardOptions) {
   return useLeaveGuard({
     dirty,
@@ -859,6 +865,7 @@ function useEditorLeaveGuard({
     onLeave: onBack,
     onSave,
     onDiscard: onReset,
+    draft,
   });
 }
 

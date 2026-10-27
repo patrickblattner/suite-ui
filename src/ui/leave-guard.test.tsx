@@ -27,12 +27,15 @@ import {
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { useEscapeLayer } from "../lib/escape-layers.js";
+import { GlobalSearch } from "../shell/global-search.js";
+import { SidebarProvider } from "../shell/sidebar-provider.js";
 import { Combobox } from "./combobox.js";
 import { Dialog, DialogContent, DialogTitle } from "./dialog.js";
 import { EditPanel, type EditPanelProps } from "./edit-panel.js";
 import { Input } from "./input.js";
 import { installLeaveGuard, isDirty, LeaveGuardWindow, useLeaveGuard } from "./leave-guard.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select.js";
+import { Switch } from "./switch.js";
 
 // jsdom's events are all untrusted, as a component's own are in the browser: `asUser` marks the
 // events a test dispatches inside it as the user's. The browser's trusted path runs in the gallery.
@@ -693,6 +696,43 @@ describe("EditPanel leave guard: focus, keys and routes (GL-UI-007)", () => {
     await settleAndWait(() => saved.settle(true));
     await act(() => waitPastTraversal());
     expect(onBack).toHaveBeenCalledTimes(steps);
+    expect(screen.queryByTestId("leave-guard")).toBeNull();
+  });
+
+  // SUI-FEATURE-112 AC5: the panel passes `draft` on; a Switch toggled while its Back waits for
+  // the slow `onSubmit` drops that step, as an entry in a field does.
+  it("save panel with draft: a Switch toggled during a slow save drops the held Back", async () => {
+    const saved = deferredResult();
+    const onBack = vi.fn();
+    function SwitchPanel() {
+      const [active, setActive] = useState(false);
+      return (
+        <EditPanel
+          open
+          onOpenChange={() => {}}
+          title="Channel"
+          onSubmit={() => saved.promise}
+          onBack={onBack}
+          dirty={active}
+          draft={active}
+        >
+          <Switch
+            aria-label="Active"
+            data-testid="active"
+            checked={active}
+            onCheckedChange={setActive}
+          />
+        </EditPanel>
+      );
+    }
+    render(<SwitchPanel />);
+    fireEvent.click(screen.getByTestId("active"));
+    fireEvent.click(screen.getByTestId("edit-panel-submit"));
+    fireEvent.click(screen.getByTestId("edit-panel-back"));
+    fireEvent.click(screen.getByTestId("active"));
+    await settleAndWait(() => saved.settle(true));
+    await act(() => waitPastTraversal());
+    expect(onBack).not.toHaveBeenCalled();
     expect(screen.queryByTestId("leave-guard")).toBeNull();
   });
 
@@ -2173,10 +2213,57 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
       });
       await pause();
       const name = screen.getByLabelText("Name");
-      fireEvent.change(name, { target: { value: "Changed" } });
+      asUser(() => fireEvent.change(name, { target: { value: "Changed" } }));
       fireEvent.blur(name);
       fireEvent.click(screen.getByTestId("ok"));
       await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/list"));
+      expect(screen.queryByTestId("leave-guard")).toBeNull();
+    });
+
+    // SUI-FEATURE-112: a control that fires only `change` (no `input`) during the hold is an edit.
+    it("a change-only edit during the save drops the held Back silently", async () => {
+      renderSaving(() => fireEvent.click(screen.getByTestId("back")));
+      await pause();
+      const box = document.createElement("input");
+      box.type = "checkbox";
+      document.body.append(box);
+      try {
+        asUser(() => fireEvent.change(box, { target: { checked: true } }));
+        fireEvent.click(screen.getByTestId("ok"));
+        await pause();
+        expect(screen.getByTestId("path")).toHaveTextContent("/detail/2");
+        expect(screen.queryByTestId("leave-guard")).toBeNull();
+      } finally {
+        box.remove();
+      }
+    });
+
+    // SUI-FEATURE-112 AC6: typing into the app frame's search, outside the page, while Back is held
+    // drops it: after the save no dialog, the route stays.
+    it("typing into the app frame's search during the save drops the held Back", async () => {
+      render(
+        <MemoryRouter initialEntries={["/detail/2"]}>
+          <SidebarProvider storageKey="test.sidebar.open">
+            <GlobalSearch
+              areas={[{ key: "content", labelKey: "Content" }]}
+              search={() => Promise.resolve({ groups: [] })}
+            />
+            <Where />
+            <Routes>
+              <Route path="/detail/2" element={<SavingPage />} />
+              <Route path="*" element={null} />
+            </Routes>
+          </SidebarProvider>
+        </MemoryRouter>,
+      );
+      edit();
+      fireEvent.click(screen.getByTestId("save"));
+      fireEvent.click(screen.getByTestId("back"));
+      await pause();
+      asUser(() => fireEvent.input(screen.getByTestId("shell-search"), { target: { value: "S" } }));
+      fireEvent.click(screen.getByTestId("ok"));
+      await pause();
+      expect(screen.getByTestId("path")).toHaveTextContent("/detail/2");
       expect(screen.queryByTestId("leave-guard")).toBeNull();
     });
 
@@ -2247,6 +2334,91 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
       } finally {
         document.removeEventListener("input", heard, true);
       }
+    });
+
+    // SUI-FEATURE-112 AC5: a Switch fires no DOM `input`; with the page's state as `draft` its
+    // toggle during the save takes the held Back back, without it the Back still goes (DOM only).
+    function SwitchPage({ withDraft }: { withDraft: boolean }) {
+      const navigate = useNavigate();
+      const [loaded, setLoaded] = useState({ active: false });
+      const [values, setValues] = useState({ active: false });
+      const [finish, setFinish] = useState<((ok: boolean) => void) | null>(null);
+      const { guard, dialog } = useLeaveGuard({
+        dirty: isDirty(loaded, values),
+        busy: finish !== null,
+        onLeave: () => void navigate("/list"),
+        onSave: () => true,
+        ...(withDraft ? { draft: values } : {}),
+      });
+      const save = () => {
+        void new Promise<boolean>((resolve) => setFinish(() => resolve)).then(() => {
+          setFinish(null);
+          // The save's result in the same update that ends `busy`: a new draft, but no edit.
+          setLoaded(values);
+          if (withDraft) setValues((current) => ({ ...current }));
+        });
+      };
+      return (
+        <>
+          <Switch
+            aria-label="Active"
+            data-testid="active"
+            checked={values.active}
+            onCheckedChange={(active) => setValues({ active })}
+          />
+          <button type="button" data-testid="save" onClick={save} />
+          <button type="button" data-testid="ok" onClick={() => finish?.(true)} />
+          <button
+            type="button"
+            data-testid="back"
+            onClick={() => guard(() => void navigate("/list"))}
+          />
+          {dialog}
+        </>
+      );
+    }
+    function renderSwitchPage(withDraft: boolean) {
+      render(
+        <MemoryRouter initialEntries={["/detail/2"]}>
+          <Where />
+          <Routes>
+            <Route path="/detail/2" element={<SwitchPage withDraft={withDraft} />} />
+            <Route path="*" element={null} />
+          </Routes>
+        </MemoryRouter>,
+      );
+      const active = screen.getByTestId("active");
+      fireEvent.click(active);
+      fireEvent.click(screen.getByTestId("save"));
+      fireEvent.click(screen.getByTestId("back"));
+      return active;
+    }
+    it("with draft: a Switch toggled during the save drops the held Back silently", async () => {
+      const active = renderSwitchPage(true);
+      await pause();
+      active.focus();
+      fireEvent.click(active);
+      fireEvent.click(screen.getByTestId("ok"));
+      await pause();
+      expect(screen.getByTestId("path")).toHaveTextContent("/detail/2");
+      expect(screen.queryByTestId("leave-guard")).toBeNull();
+      expect(active).toHaveFocus();
+    });
+    it("with draft: a new draft from the save's result is no edit, the held Back lands", async () => {
+      renderSwitchPage(true);
+      await pause();
+      fireEvent.click(screen.getByTestId("ok"));
+      await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/list"));
+      expect(screen.queryByTestId("leave-guard")).toBeNull();
+    });
+    it("without draft: a Switch toggle stays outside the DOM detection, the held Back goes", async () => {
+      const active = renderSwitchPage(false);
+      await pause();
+      fireEvent.click(active);
+      fireEvent.click(screen.getByTestId("ok"));
+      // The page is changed again after the save: the held Back asks as the page is then.
+      expect(await screen.findByTestId("leave-guard")).toBeInTheDocument();
+      expect(screen.getByTestId("path")).toHaveTextContent("/detail/2");
     });
 
     // SUI-FEATURE-112 AC3: the latest way wins; after an edit, it asks first as the page is then.

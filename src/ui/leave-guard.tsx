@@ -1090,6 +1090,26 @@ function finishWaiting(router: DataRouter, entry: RouterHolds) {
   });
 }
 
+// A field typed into: its `change` on blur follows the `input` events of the typing, and is no edit.
+function isTextEntry(target: EventTarget | null) {
+  if (target instanceof HTMLTextAreaElement) return true;
+  if (target instanceof HTMLElement && target.isContentEditable) return true;
+  if (!(target instanceof HTMLInputElement)) return false;
+  return !NO_TEXT_INPUTS.has(target.type);
+}
+const NO_TEXT_INPUTS = new Set([
+  "checkbox",
+  "radio",
+  "range",
+  "color",
+  "file",
+  "date",
+  "datetime-local",
+  "month",
+  "time",
+  "week",
+]);
+
 // An edit takes back the confirmed change that waits for the router's submission (`SUI-FEATURE-112`):
 // it is dropped as after a failure, and the resets of its Discards never run, so the draft stays.
 function dropWaiting(router: DataRouter) {
@@ -1242,6 +1262,12 @@ type LeaveConfirmOptions = {
   // The latest way held replaces an earlier one, which is dropped.
   holdBusy?: boolean | undefined;
   saveFailed?: boolean | undefined;
+  // The edited state the call site holds anyway: a new identity (`Object.is`) while a way out is held
+  // is an edit, as a DOM `input` is, for a canvas drag or a button-based control (Switch, Checkbox,
+  // Select trigger) that fires none (`SUI-FEATURE-112`). Pass the state value itself (or one memoized
+  // on it), never an object built anew in each render. A save's result that sets it does so in the
+  // same update that ends `busy`, so it is no edit. Without it only DOM input counts.
+  draft?: unknown;
 };
 
 // The shared core of the edit panel and `useLeaveGuard`: `guard` leaves at once when clean, holds the
@@ -1262,6 +1288,7 @@ function useLeaveConfirm({
   ignoreSearchParams = false,
   holdBusy = false,
   saveFailed = false,
+  draft,
 }: LeaveConfirmOptions) {
   const [pending, setPending] = React.useState<PendingLeave | null>(null);
   // The open dialog's held leave, for a way out that arrives while it asks; set with the state, so a
@@ -1539,27 +1566,42 @@ function useLeaveConfirm({
   // An edit on the surface (an `input` event: an entry in a field, a native select or checkbox) while
   // a way out is held takes that way back, silently: who works on no longer wants to leave. Once the
   // work ended the surface stays, asking nothing; a newer way out is held as before
-  // (`SUI-FEATURE-112`). While the dialog asks, the surface takes no edit. Not `change`: a text field
-  // fires it on blur, which is no edit. Heard on the whole document on purpose: panels and dialogs
+  // (`SUI-FEATURE-112`). While the dialog asks, the surface takes no edit. A `change` counts where no
+  // `input` came with it; a text field fires it on blur, which is no edit. Heard on the whole document on purpose: panels and dialogs
   // render in portals outside any root of the surface (`SUI-FEATURE-112` rev 4). Only the user's own
   // input counts: a value a save's result sets fires an untrusted one.
+  const takeBack = React.useCallback(() => {
+    if (asking.current !== null) return;
+    const way = waiting.current;
+    waiting.current = null;
+    way?.stay?.();
+    const held = busyWaiting.current;
+    busyWaiting.current = null;
+    held?.stay?.();
+    if (router !== undefined) dropWaiting(router);
+  }, [router]);
   React.useEffect(() => {
     if (!open) return;
     const onEdit = (event: Event) => {
-      if (!isUserEvent(event) || asking.current !== null) return;
-      const way = waiting.current;
-      waiting.current = null;
-      way?.stay?.();
-      const held = busyWaiting.current;
-      busyWaiting.current = null;
-      held?.stay?.();
-      if (router !== undefined) dropWaiting(router);
+      if (!isUserEvent(event)) return;
+      if (event.type === "change" && isTextEntry(event.target)) return;
+      takeBack();
     };
     document.addEventListener("input", onEdit, true);
+    document.addEventListener("change", onEdit, true);
     return () => {
       document.removeEventListener("input", onEdit, true);
+      document.removeEventListener("change", onEdit, true);
     };
-  }, [open, router]);
+  }, [open, takeBack]);
+  // A new `draft` while the work runs is an edit as well. The draft a save's result sets comes in the
+  // render that ends `busy`: no edit, the held way goes on.
+  const lastDraft = React.useRef(draft);
+  React.useEffect(() => {
+    if (Object.is(lastDraft.current, draft)) return;
+    lastDraft.current = draft;
+    if (open && (busy || work.current !== null)) takeBack();
+  }, [draft, busy, open, takeBack]);
 
   const close = () => ask(null);
   const dialog = (
@@ -1628,6 +1670,11 @@ type LeaveGuardOptions = {
   // submission to the page's own route still asks, as its action may redirect away. Set it only where the changed state survives such a
   // switch (a server draft, a store), never where a search parameter selects another entry (`?id=`).
   ignoreSearchParams?: boolean | undefined;
+  // The page's edited state: a new identity (`Object.is`) during the save takes a held way back, as
+  // typing does (a canvas drag, a Switch or Select trigger fire no DOM `input`; `SUI-FEATURE-112`).
+  // Pass the state value itself (or one memoized on it), never an object built anew in each render;
+  // a save's result sets it in the same update that ends `busy`, else it counts as an edit.
+  draft?: unknown;
 };
 
 /**
@@ -1650,6 +1697,7 @@ function useLeaveGuard({
   onDiscard,
   ignoreSearchParams,
   saveFailed,
+  draft,
 }: LeaveGuardOptions) {
   const { guard, dialog, saveForm, ownSave } = useLeaveConfirm({
     dirty,
@@ -1659,6 +1707,7 @@ function useLeaveGuard({
     ignoreSearchParams,
     holdBusy: true,
     saveFailed,
+    draft,
   });
   const leave = React.useRef(onLeave);
   React.useEffect(() => {

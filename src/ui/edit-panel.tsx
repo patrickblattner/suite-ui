@@ -52,6 +52,12 @@ type EditPanelProps = {
   // ("Apply changes?" for `submitKind="apply"`, `SUI-FEATURE-094`; "Discard changes?" without
   // `onSubmit`, `SUI-FEATURE-092`).
   dirty?: boolean;
+  // The panel's edited values: a new identity (`Object.is`) while a way out waits for the running
+  // `onSubmit` takes it back, as typing does; pass it where a Switch, Checkbox or Select trigger edits
+  // without a DOM `input` (`SUI-FEATURE-112`). Pass the state value itself (or one memoized on it),
+  // never an object built anew in each render; a save's result sets it in the same update that ends
+  // `busy`, else it counts as an edit.
+  draft?: unknown;
   // The primary action is running (`GL-UI-027`): working state and lock on the primary action,
   // Cancel locked with it, and the panel ignores every close request until the caller closes it.
   busy?: boolean;
@@ -120,6 +126,7 @@ function EditPanel({
   submitLabel,
   onSubmit,
   dirty = false,
+  draft,
   busy: busyProp = false,
   submitDisabled = false,
   submitHint,
@@ -154,6 +161,7 @@ function EditPanel({
     dirty: open && dirty && !view,
     busy: open && busyProp,
     open,
+    draft,
     // Without `onSubmit` the panel has no save target, and a next step saves nothing and never runs
     // from the dialog (`SUI-FEATURE-094`): the dialog asks "Discard changes?".
     onSave:

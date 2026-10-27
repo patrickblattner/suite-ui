@@ -929,6 +929,13 @@ function Editor({
   const pendingCrop =
     cropping !== undefined && storedCrop !== undefined && !sameCrop(cropping.crop, storedCrop);
   const dirty = history.document !== saved || pendingCrop;
+  // What the leave guard watches during a save (`SUI-FEATURE-112`): the document and a crop being set,
+  // which is a canvas change not yet in the document.
+  const pendingCropValue = pendingCrop ? cropping.crop : undefined;
+  const draft = React.useMemo(
+    () => ({ document: history.document, crop: pendingCropValue }),
+    [history.document, pendingCropValue],
+  );
   // "Your changes are still here" never stands without changes: Reset or undoing back to the saved
   // state ends it (#584), and so a broken rule, which the saved state does not break (#586).
   if (saveRejected && !dirty) setSaveRejected(false);
@@ -1266,6 +1273,7 @@ function Editor({
     onBack,
     onSave: save,
     onReset: reset,
+    draft,
   });
 
   const frame = React.useRef<HTMLDivElement>(null);
