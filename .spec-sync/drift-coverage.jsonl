@@ -685,3 +685,13 @@
 {"ts":"2026-10-27T11:27:14.940Z","key":"SUI-FEATURE-280","from":null,"to":2,"disposition":"ticket","ref":"625"}
 {"ts":"2026-10-27T11:27:30.061Z","key":"SUI-FEATURE-290","from":null,"to":2,"disposition":"ticket","ref":"626"}
 {"ts":"2026-10-27T12:13:11.132Z","key":"PROC-DEV-041","from":8,"to":9,"disposition":"editorial","ref":"process rule (ticket bundling per surface, answer built in the asking ticket); worker procedure, no code impact; applied this run (#623 folded into #622)"}
+{"ts":"2026-10-27T17:31:39.018Z","key":"SUI-FEATURE-115","from":5,"to":6,"disposition":"ticket","ref":"621"}
+{"ts":"2026-10-27T17:31:51.821Z","key":"SUI-FEATURE-116","from":2,"to":4,"disposition":"ticket","ref":"632"}
+{"ts":"2026-10-27T17:32:13.078Z","key":"SUI-FEATURE-164","from":2,"to":4,"disposition":"ticket","ref":"622"}
+{"ts":"2026-10-27T17:32:13.078Z","key":"SUI-FEATURE-165","from":2,"to":4,"disposition":"ticket","ref":"622"}
+{"ts":"2026-10-27T17:32:13.078Z","key":"SUI-FEATURE-114","from":4,"to":5,"disposition":"ticket","ref":"622"}
+{"ts":"2026-10-27T17:32:22.293Z","key":"PROC-DEV-010","from":5,"to":6,"disposition":"editorial","ref":"process rule: in-scope review findings fixed in the PR's fix round; applied from #622 on, no code impact"}
+{"ts":"2026-10-27T17:32:29.908Z","key":"PROC-REL-003","from":5,"to":6,"disposition":"editorial","ref":"harness window timing (worker-harness), no code in suite-ui"}
+{"ts":"2026-10-27T17:32:34.914Z","key":"GL-CODE-002","from":11,"to":12,"disposition":"editorial","ref":"size-limit ratchet semantics; suite-ui has no size-limit phase (library, no client bundle budget), no code impact"}
+{"ts":"2026-10-27T17:32:54.636Z","key":"SUI-FEATURE-300","from":null,"to":3,"disposition":"ticket","ref":"633"}
+{"ts":"2026-10-27T17:32:54.636Z","key":"GL-UI-010","from":11,"to":14,"disposition":"ticket","ref":"633"}
