@@ -331,6 +331,43 @@ describe("Button", () => {
     },
   );
 
+  // #629 (`GL-UI-013`): a disabled button takes the pointer, so its `cursor-not-allowed` shows, and a
+  // hover pair of every variant keeps its rest look under it — as the locked button's does.
+  it.each([
+    ["default", "disabled:hover:bg-primary/50"],
+    ["destructive", "disabled:hover:bg-destructive/50"],
+    ["success", "disabled:hover:bg-success/50"],
+    ["warn", "disabled:hover:bg-warn/50"],
+    ["outline", "dark:disabled:hover:border-input"],
+    ["secondary", "disabled:hover:bg-secondary/50"],
+    ["ghost", "dark:disabled:hover:bg-transparent"],
+    ["link", "disabled:hover:no-underline"],
+  ] as const)("disabled %s: the not-allowed cursor shows, no hover look", (variant, pair) => {
+    render(
+      <Button variant={variant} size="default" disabled>
+        Save
+      </Button>,
+    );
+    const button = screen.getByRole("button", { name: "Save" });
+    expect(button).toHaveClass("disabled:cursor-not-allowed", pair);
+    expect(button).not.toHaveClass("disabled:pointer-events-none");
+  });
+
+  // #629 (`GL-UI-013`): the outline button reveals the `--ring` border on hover in dark too, as the
+  // select trigger does; `dark:border-input` no longer outranks it.
+  it("outline: the ring border on hover, light and dark", () => {
+    render(
+      <Button variant="outline" size="default">
+        Save
+      </Button>,
+    );
+    expect(screen.getByRole("button", { name: "Save" })).toHaveClass(
+      "hover:border-ring",
+      "dark:hover:border-ring",
+      "dark:hover:bg-input/50",
+    );
+  });
+
   it("disabled and busy: the full colour of the variant", () => {
     render(
       <Button variant="success" size="default" disabled busy>

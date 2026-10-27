@@ -12,7 +12,7 @@ import { proseLinkClass } from "./prose-link.js";
 // instead of the token pair. Filled variants hover onto their own `-hover` token, never onto a lower
 // opacity (`GL-UI-014`); a disabled button dims in colour (`DISABLED_LOOK`).
 const buttonVariants = cva(
-  "inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow] outline-none focus-visible:border-ring focus-visible:focus-ring disabled:pointer-events-none disabled:cursor-not-allowed aria-invalid:border-destructive [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "inline-flex shrink-0 cursor-pointer items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-[color,background-color,border-color,box-shadow] outline-none focus-visible:border-ring focus-visible:focus-ring disabled:cursor-not-allowed aria-invalid:border-destructive [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
@@ -21,7 +21,7 @@ const buttonVariants = cva(
         success: "bg-success text-success-foreground hover:bg-success-hover",
         warn: "bg-warn text-warn-foreground hover:bg-warn-hover",
         outline:
-          "border bg-background shadow-xs hover:border-ring hover:bg-accent hover:text-accent-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
+          "border bg-background shadow-xs hover:border-ring hover:bg-accent hover:text-accent-foreground dark:border-input dark:bg-input/30 dark:hover:border-ring dark:hover:bg-input/50",
         secondary: "bg-secondary text-secondary-foreground hover:bg-secondary-hover",
         ghost:
           "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50 dark:hover:text-accent-foreground",
@@ -118,21 +118,24 @@ const LOCKED_LOOK: Record<ButtonVariant, string> = {
 };
 
 // One look for "not available" (`SUI-FEATURE-250` rev 4): a `disabled` button wears the same half-tone
-// as `LOCKED_LOOK`, never element opacity, so locked and disabled look the same. It takes no pointer
-// events, so it needs no hover pair; the base class gives the cursor.
+// as `LOCKED_LOOK`, never element opacity, so locked and disabled look the same. It takes the pointer, so
+// the base class's `cursor-not-allowed` shows, as on the locked button and the disabled select; the
+// hover pair keeps its rest look under it (`GL-UI-013`).
 const DISABLED_LOOK: Record<ButtonVariant, string> = {
   default:
-    "disabled:bg-primary/50 disabled:text-[color-mix(in_srgb,var(--primary-foreground)_50%,var(--surface))]",
+    "disabled:bg-primary/50 disabled:hover:bg-primary/50 disabled:text-[color-mix(in_srgb,var(--primary-foreground)_50%,var(--surface))]",
   destructive:
-    "disabled:bg-destructive/50 disabled:text-[color-mix(in_srgb,var(--destructive-foreground)_50%,var(--surface))]",
+    "disabled:bg-destructive/50 disabled:hover:bg-destructive/50 disabled:text-[color-mix(in_srgb,var(--destructive-foreground)_50%,var(--surface))]",
   success:
-    "disabled:bg-success/50 disabled:text-[color-mix(in_srgb,var(--success-foreground)_50%,var(--surface))]",
-  warn: "disabled:bg-warn/50 disabled:text-[color-mix(in_srgb,var(--warn-foreground)_50%,var(--surface))]",
-  outline: "disabled:text-[color-mix(in_srgb,var(--foreground)_50%,var(--surface))]",
+    "disabled:bg-success/50 disabled:hover:bg-success/50 disabled:text-[color-mix(in_srgb,var(--success-foreground)_50%,var(--surface))]",
+  warn: "disabled:bg-warn/50 disabled:hover:bg-warn/50 disabled:text-[color-mix(in_srgb,var(--warn-foreground)_50%,var(--surface))]",
+  outline:
+    "disabled:text-[color-mix(in_srgb,var(--foreground)_50%,var(--surface))] disabled:hover:text-[color-mix(in_srgb,var(--foreground)_50%,var(--surface))] disabled:hover:border-border disabled:hover:bg-background dark:disabled:hover:border-input dark:disabled:hover:bg-input/30",
   secondary:
-    "disabled:bg-secondary/50 disabled:text-[color-mix(in_srgb,var(--secondary-foreground)_50%,var(--surface))]",
-  ghost: "disabled:text-[color-mix(in_srgb,var(--foreground)_50%,var(--surface))]",
-  link: "disabled:text-[color-mix(in_srgb,var(--primary)_50%,var(--surface))]",
+    "disabled:bg-secondary/50 disabled:hover:bg-secondary/50 disabled:text-[color-mix(in_srgb,var(--secondary-foreground)_50%,var(--surface))]",
+  ghost:
+    "disabled:text-[color-mix(in_srgb,var(--foreground)_50%,var(--surface))] disabled:hover:bg-transparent disabled:hover:text-[color-mix(in_srgb,var(--foreground)_50%,var(--surface))] dark:disabled:hover:bg-transparent dark:disabled:hover:text-[color-mix(in_srgb,var(--foreground)_50%,var(--surface))]",
+  link: "disabled:text-[color-mix(in_srgb,var(--primary)_50%,var(--surface))] disabled:hover:no-underline",
 };
 
 // Under forced colours the system palette replaces the half-tone above: the locked button takes
