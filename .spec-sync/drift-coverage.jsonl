@@ -684,3 +684,4 @@
 {"ts":"2026-10-27T11:26:59.331Z","key":"SUI-FEATURE-194","from":null,"to":2,"disposition":"ticket","ref":"624"}
 {"ts":"2026-10-27T11:27:14.940Z","key":"SUI-FEATURE-280","from":null,"to":2,"disposition":"ticket","ref":"625"}
 {"ts":"2026-10-27T11:27:30.061Z","key":"SUI-FEATURE-290","from":null,"to":2,"disposition":"ticket","ref":"626"}
+{"ts":"2026-10-27T12:13:11.132Z","key":"PROC-DEV-041","from":8,"to":9,"disposition":"editorial","ref":"process rule (ticket bundling per surface, answer built in the asking ticket); worker procedure, no code impact; applied this run (#623 folded into #622)"}
