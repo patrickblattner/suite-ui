@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { SLIDE_BRAND, SLIDE_EDITOR_DOC } from "../../gallery/slide-showcase.js";
 import { toast } from "../ui/toaster.js";
 import { safeParseSlideDocument } from "./document.js";
-import { SLIDE_LIMITS, type SlideDocument } from "./schema.js";
+import { SLIDE_LIMITS, type SlideDocument, type TextRun } from "./schema.js";
 import { SlideEditor } from "./slide-editor.js";
 import { fillEditable, rangeIn, readRuns, selectRange } from "./slide-editor-text.js";
 
@@ -454,5 +454,131 @@ describe("SlideEditor text editing", () => {
     expect(spans()).toHaveLength(SLIDE_LIMITS.maxRuns + 1);
     error.mockRestore();
     // A thousand runs drawn and filled twice: slow under the full suite's load.
+  }, 60_000);
+
+  // The caption loaded with these runs (the schema check passed by, for a draft past a limit), and
+  // opened for editing.
+  async function editCaptionWith(runs: TextRun[]) {
+    const loaded = safeParseSlideDocument(SLIDE_EDITOR_DOC);
+    if (!loaded.ok) throw new Error("showcase invalid");
+    const draft: SlideDocument = {
+      ...loaded.document,
+      pages: loaded.document.pages.map((one, index) =>
+        index !== 1
+          ? one
+          : {
+              ...one,
+              elements: one.elements.map((element) =>
+                element.id === "caption" && element.type === "text"
+                  ? { ...element, runs }
+                  : element,
+              ),
+            },
+      ),
+    };
+    vi.mocked(safeParseSlideDocument).mockReturnValueOnce({ ok: true, document: draft });
+    const onSave = renderEditor();
+    const canvas = screen.getByTestId("slide-editor-canvas");
+    fireEvent.pointerDown(canvas, { ...at(100, 400), button: 0, pointerId: 1 });
+    fireEvent.pointerUp(canvas, at(100, 400));
+    fireEvent.doubleClick(canvas, at(100, 400));
+    const field = await screen.findByTestId("slide-editor-text-field");
+    return { onSave, field, spans: () => field.querySelectorAll("span[data-run]") };
+  }
+
+  // SUI-FEATURE-114 AC3: a bold toggle that would split the runs past `maxRuns` is refused at input.
+  it("refuses a bold toggle mid-run at the run limit: format unchanged, the hint, Save works", async () => {
+    const error = vi.spyOn(toast, "error").mockReturnValue(1);
+    const runs = Array.from({ length: SLIDE_LIMITS.maxRuns }, (_, index) =>
+      index % 2 === 0 ? { text: "xyz", size: 20, weight: 700 } : { text: "xyz", size: 20 },
+    );
+    const { onSave, field, spans } = await editCaptionWith(runs);
+    expect(spans()).toHaveLength(SLIDE_LIMITS.maxRuns);
+
+    // "y" of the second, plain run to bold: two runs more, refused.
+    selectRange(field, { start: 4, end: 5 });
+    fireEvent.keyDown(field, { key: "b", ctrlKey: true });
+    expect(error).toHaveBeenCalledWith(
+      "That much text doesn’t fit here. Nothing was added; remove some text and try again.",
+      { id: "slide-editor-text-refused" },
+    );
+    expect(spans()).toHaveLength(SLIDE_LIMITS.maxRuns);
+    expect(screen.getAllByTestId("editor-state")[0]).toHaveTextContent("Saved");
+
+    // The whole second run to bold joins it with its neighbours: fewer runs, taken.
+    selectRange(field, { start: 3, end: 6 });
+    fireEvent.keyDown(field, { key: "b", ctrlKey: true });
+    expect(error).toHaveBeenCalledTimes(1);
+    fireEvent.keyDown(field, { key: "Escape" });
+    fireEvent.click(screen.getAllByTestId("editor-save")[0]!);
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    const caption = onSave.mock.calls[0]![0].pages[1]!.elements.find(
+      (element) => element.id === "caption",
+    );
+    expect(caption?.type === "text" && caption.runs.length).toBe(SLIDE_LIMITS.maxRuns - 2);
+    expect(caption?.type === "text" && caption.runs[0]).toEqual({
+      text: "xyz".repeat(3),
+      size: 20,
+      weight: 700,
+    });
+    error.mockRestore();
+  }, 60_000);
+
+  // SUI-FEATURE-114: a format from the property panel is refused past `maxRuns` as a toggle is.
+  it("refuses a panel format mid-run at the run limit: format unchanged, the hint", async () => {
+    const error = vi.spyOn(toast, "error").mockReturnValue(1);
+    const runs = Array.from({ length: SLIDE_LIMITS.maxRuns }, (_, index) =>
+      index % 2 === 0 ? { text: "xyz", size: 20, weight: 700 } : { text: "xyz", size: 20 },
+    );
+    const { field, spans } = await editCaptionWith(runs);
+    const sizeTo = (range: { start: number; end: number }, value: string) => {
+      selectRange(field, range);
+      act(() => {
+        document.dispatchEvent(new Event("selectionchange"));
+      });
+      fireEvent.change(screen.getByTestId("slide-editor-text-size"), { target: { value } });
+    };
+
+    // "y" of the second run to 40 px: two runs more, refused.
+    sizeTo({ start: 4, end: 5 }, "40");
+    expect(error).toHaveBeenCalledWith(
+      "That much text doesn’t fit here. Nothing was added; remove some text and try again.",
+      { id: "slide-editor-text-refused" },
+    );
+    expect(spans()).toHaveLength(SLIDE_LIMITS.maxRuns);
+    expect(screen.getAllByTestId("editor-state")[0]).toHaveTextContent("Saved");
+
+    // The whole second run to 40 px adds none: taken.
+    sizeTo({ start: 3, end: 6 }, "40");
+    expect(error).toHaveBeenCalledTimes(1);
+    await waitFor(() =>
+      expect(screen.getAllByTestId("editor-state")[0]).not.toHaveTextContent("Saved"),
+    );
+    expect(spans()).toHaveLength(SLIDE_LIMITS.maxRuns);
+    error.mockRestore();
+  }, 60_000);
+
+  // A field already past `maxRuns` takes a toggle that makes it no worse, as it takes text (#610).
+  it("in a field past the run limit takes a toggle that does not add runs", async () => {
+    const error = vi.spyOn(toast, "error").mockReturnValue(1);
+    const runs = Array.from({ length: SLIDE_LIMITS.maxRuns + 2 }, (_, index) =>
+      index % 2 === 0
+        ? { text: index === 0 ? "aa" : "a", size: 20, weight: 700 }
+        : { text: "b", size: 20 },
+    );
+    const { field, spans } = await editCaptionWith(runs);
+
+    // Italic on half of the first run would split it: one run more, refused.
+    selectRange(field, { start: 0, end: 1 });
+    fireEvent.keyDown(field, { key: "i", ctrlKey: true });
+    expect(error).toHaveBeenCalledTimes(1);
+    expect(spans()).toHaveLength(SLIDE_LIMITS.maxRuns + 2);
+
+    // The plain "b" to bold joins three runs into one: still past the limit, but no worse, so taken.
+    selectRange(field, { start: 2, end: 3 });
+    fireEvent.keyDown(field, { key: "b", ctrlKey: true });
+    expect(error).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(spans()).toHaveLength(SLIDE_LIMITS.maxRuns));
+    error.mockRestore();
   }, 60_000);
 });

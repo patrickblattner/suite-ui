@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — #618, SUI-FEATURE-114 rev 3: a format change over a limit is refused on input (patch)
+
+- **SlideEditor (#618):** a format change in a text field or table cell — bold or italic by `Ctrl`/`Cmd`+`B`/`I`, or any format from the property panel (size, weight, italic, font, colour) on a selection — that would split the runs past `SLIDE_LIMITS.maxRuns` is refused at input, as typed and pasted text is since #610: the formatting stays as it was and the same error toast (`slides.editor.textRefused`) says why. A field already past the limit takes a format change that adds no runs (one that joins runs, for example), so it can still be brought back under. The check at Save stays as the last bound.
+- **Tests (#618):** unit: in a text field at `maxRuns`, bold on part of a run is refused with the hint and leaves the draft unchanged; bold on a whole run is taken and Save succeeds. The same in a table cell. A size from the panel on part of a run at the limit is refused, on a whole run taken. In a field past the limit, italic that splits a run is refused, bold that joins runs taken.
+
+**Migration:** none. No call site, string, `data-testid` or baseline changes.
+
 ## Unreleased — #609, SUI-FEATURE-113 rev 3: `ProseLink` and `Button variant="link" inline` for links in running text (minor)
 
 - **ProseLink (#609):** new export `@suite/ui/ui/prose-link` with `<ProseLink>` (renders `<a>`, takes its props; `asChild` for a router link) and `proseLinkClass`: underlined at rest 4 px below the text (`underline-offset-4`), no underline on hover, the token focus ring on keyboard focus (`GL-UI-060` §Links, `GL-UI-013`), in `text-primary`. The look is the new `prose-link` rule in `styles.css`.

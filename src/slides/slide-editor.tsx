@@ -2696,17 +2696,21 @@ function Editor({
         brand={view.brand}
         readOnly={single.locked}
         revision={travels}
-        onFormat={(patch, merge) =>
+        onFormat={(patch, merge) => {
+          // A format that splits the runs past a limit is refused like text (`SUI-FEATURE-114`).
+          const span = formatSpan(textBody, formatRangeOf);
+          const runs = formatRange(textBody.runs, span.start, span.end, patch);
+          if (!runsFit(runs, textBody.runs)) {
+            toast.error(t("slides.editor.textRefused"), { id: TEXT_REFUSED_TOAST });
+            return;
+          }
           changeBody(
             single.id,
             textCell,
-            (one) => {
-              const span = formatSpan(one, formatRangeOf);
-              return { ...one, runs: formatRange(one.runs, span.start, span.end, patch) };
-            },
+            (one) => ({ ...one, runs }),
             merge === undefined ? undefined : `format:${single.id}:${merge}`,
-          )
-        }
+          );
+        }}
         onBody={(patch) => changeBody(single.id, textCell, (one) => ({ ...one, ...patch }))}
       />
     );
@@ -4029,20 +4033,21 @@ function Editor({
                             ? undefined
                             : tabToCell
                         }
-                        onToggle={(format, range) =>
-                          changeBody(editing.id, editing.cell, (one) => {
-                            const span = formatSpan(one, range);
-                            return {
-                              ...one,
-                              runs: formatRange(
-                                one.runs,
-                                span.start,
-                                span.end,
-                                toggledFormat(one, range, format),
-                              ),
-                            };
-                          })
-                        }
+                        onToggle={(format, range) => {
+                          // A toggle that splits the runs past a limit is refused like text.
+                          const span = formatSpan(body, range);
+                          const runs = formatRange(
+                            body.runs,
+                            span.start,
+                            span.end,
+                            toggledFormat(body, range, format),
+                          );
+                          if (!runsFit(runs, body.runs)) {
+                            toast.error(t("slides.editor.textRefused"), { id: TEXT_REFUSED_TOAST });
+                            return;
+                          }
+                          changeBody(editing.id, editing.cell, (one) => ({ ...one, runs }));
+                        }}
                       />
                     );
                   })()}

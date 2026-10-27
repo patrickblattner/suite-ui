@@ -5,6 +5,7 @@ import { SLIDE_BRAND, SLIDE_EDITOR_DOC } from "../../gallery/slide-showcase.js";
 import { toast } from "../ui/toaster.js";
 import { SLIDE_LIMITS, type SlideDocument, type SlideDocumentInput } from "./schema.js";
 import { SlideEditor } from "./slide-editor.js";
+import { selectRange } from "./slide-editor-text.js";
 
 beforeEach(() => {
   // jsdom has no pointer capture.
@@ -246,4 +247,59 @@ describe("SlideEditor tables", () => {
     expect(table.rows[1]![1]!.runs).toEqual([{ text: "Tables", size: 16 }]);
     error.mockRestore();
   });
+
+  // SUI-FEATURE-114 AC3 in a cell: a bold toggle that would split the runs past `maxRuns` is refused.
+  it("refuses a bold toggle mid-run in a cell at the run limit: format unchanged, the hint", async () => {
+    const error = vi.spyOn(toast, "error").mockReturnValue(1);
+    const runs = Array.from({ length: SLIDE_LIMITS.maxRuns }, (_, index) =>
+      index % 2 === 0 ? { text: "xyz", size: 16, weight: 700 } : { text: "xyz", size: 16 },
+    );
+    const full: SlideDocumentInput = {
+      ...SLIDE_EDITOR_DOC,
+      pages: SLIDE_EDITOR_DOC.pages.map((page, index) =>
+        index !== 1
+          ? page
+          : {
+              ...page,
+              elements: page.elements?.map((element) =>
+                element.id === "facts" && element.type === "table"
+                  ? {
+                      ...element,
+                      rows: element.rows.map((row, at) =>
+                        at !== 1
+                          ? row
+                          : row.map((cell, column) => (column !== 1 ? cell : { runs })),
+                      ),
+                    }
+                  : element,
+              ),
+            },
+      ),
+    };
+    const { canvas, press, saved } = renderEditor(full);
+    press(500, 30);
+    fireEvent.doubleClick(canvas, at(700, 70));
+    const field = await screen.findByTestId("slide-editor-text-field");
+    const spans = () => field.querySelectorAll("span[data-run]");
+    expect(spans()).toHaveLength(SLIDE_LIMITS.maxRuns);
+
+    // "y" of the second, plain run to bold: two runs more, refused.
+    selectRange(field, { start: 4, end: 5 });
+    fireEvent.keyDown(field, { key: "b", ctrlKey: true });
+    expect(error).toHaveBeenCalledWith(
+      "That much text doesn’t fit here. Nothing was added; remove some text and try again.",
+      { id: "slide-editor-text-refused" },
+    );
+    expect(spans()).toHaveLength(SLIDE_LIMITS.maxRuns);
+
+    // The whole second run to bold joins it with its neighbours: taken, and Save works.
+    selectRange(field, { start: 3, end: 6 });
+    fireEvent.keyDown(field, { key: "b", ctrlKey: true });
+    expect(error).toHaveBeenCalledTimes(1);
+    fireEvent.keyDown(field, { key: "Escape" });
+    const table = await saved();
+    expect(table.rows[1]![1]!.runs).toHaveLength(SLIDE_LIMITS.maxRuns - 2);
+    error.mockRestore();
+    // A thousand runs drawn and filled: slow under the full suite's load.
+  }, 60_000);
 });
