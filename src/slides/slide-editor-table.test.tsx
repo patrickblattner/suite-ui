@@ -287,7 +287,7 @@ describe("SlideEditor tables", () => {
     selectRange(field, { start: 4, end: 5 });
     fireEvent.keyDown(field, { key: "b", ctrlKey: true });
     expect(error).toHaveBeenCalledWith(
-      "That much text doesn’t fit here. Nothing was added; remove some text and try again.",
+      "Formatting not changed: this text has too many differently formatted parts. Remove some formatting and try again.",
       { id: "slide-editor-text-refused" },
     );
     expect(spans()).toHaveLength(SLIDE_LIMITS.maxRuns);

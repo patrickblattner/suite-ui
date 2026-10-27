@@ -2701,7 +2701,7 @@ function Editor({
           const span = formatSpan(textBody, formatRangeOf);
           const runs = formatRange(textBody.runs, span.start, span.end, patch);
           if (!runsFit(runs, textBody.runs)) {
-            toast.error(t("slides.editor.textRefused"), { id: TEXT_REFUSED_TOAST });
+            toast.error(t("slides.editor.formatRefused"), { id: TEXT_REFUSED_TOAST });
             return;
           }
           changeBody(
@@ -4043,7 +4043,9 @@ function Editor({
                             toggledFormat(body, range, format),
                           );
                           if (!runsFit(runs, body.runs)) {
-                            toast.error(t("slides.editor.textRefused"), { id: TEXT_REFUSED_TOAST });
+                            toast.error(t("slides.editor.formatRefused"), {
+                              id: TEXT_REFUSED_TOAST,
+                            });
                             return;
                           }
                           changeBody(editing.id, editing.cell, (one) => ({ ...one, runs }));

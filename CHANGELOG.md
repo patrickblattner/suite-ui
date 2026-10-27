@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — #620, SUI-FEATURE-114 rev 4: a refused format change gets its own hint (patch)
+
+- **SlideEditor (#620):** a format change refused at input since #618 (bold or italic by `Ctrl`/`Cmd`+`B`/`I`, or a format from the property panel, in a text field or table cell) now says so in its own words, in the same toast slot: the new key `slides.editor.formatRefused` ("Formatting not changed: this text has too many differently formatted parts. Remove some formatting and try again."), in `en`, `de` and `es`. Refused typed or pasted text keeps `slides.editor.textRefused`, unchanged.
+- **Tests (#620):** unit: the bold toggle in a text field and in a table cell and the panel size at `maxRuns` now expect the `formatRefused` text in the refused-text toast slot; the refused paste in a text field and a table cell still expects `textRefused`. The catalogue parity test covers the new key in every language.
+
+**Migration:** new package text `slides.editor.formatRefused`; an app that overrides the suite strings (`registerSuiteStrings`) adds its own translation of it, or the package text applies. The gallery's strings-table baselines change (one row more); no call site or `data-testid` changes.
+
 ## Unreleased — #617, GL-UI-013 / SUI-FEATURE-116 rev 2: toast action and cancel keep their contrast and the token focus ring (patch)
 
 - **Toaster (#617, found in #614):** a toast's action and cancel take the one token focus ring (`--ring`, full opacity, the transparent forced-colours outline) in place of sonner's 2 px black shadow at 40 %. On every variant, neutral included, a 2 px gap in the toast's text colour (`--normal-text`) parts the ring from the toast fill, so the ring keeps 3:1 against the gap and the gap 3:1 against the fill, light and dark; the gap is set once in the Toaster. The cancel drops sonner's see-through fill (2.77:1 in dark mode) and shows its label in the toast's text colour on the toast fill, so it keeps the toast's text contrast.

@@ -744,6 +744,8 @@ export const de: SuiteStrings = {
         "Das Layout lässt sich auf dieser Seite nicht verwenden: Es passt nicht zum Dokument. Wähle ein anderes Layout.",
       textRefused:
         "So viel Text passt hier nicht hinein. Es wurde nichts eingefügt; entferne etwas Text und versuche es erneut.",
+      formatRefused:
+        "Formatierung nicht geändert: Dieser Text hat zu viele unterschiedlich formatierte Teile. Entferne etwas Formatierung und versuche es erneut.",
       pageRefused:
         "Das Dokument fasst diese Seite nicht. Entferne eine Seite oder ein Element und versuche es erneut.",
       deleteSelection: "Löschen",

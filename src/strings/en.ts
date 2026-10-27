@@ -763,6 +763,8 @@ export const en = {
         "The layout can’t be used on this page: it doesn’t fit the document. Choose another layout.",
       textRefused:
         "That much text doesn’t fit here. Nothing was added; remove some text and try again.",
+      formatRefused:
+        "Formatting not changed: this text has too many differently formatted parts. Remove some formatting and try again.",
       pageRefused: "The document can’t take this page. Remove a page or element and try again.",
       deleteSelection: "Delete",
       cut: "Cut",
