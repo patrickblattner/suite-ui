@@ -195,34 +195,55 @@ function useFoldSteps(
 
   React.useLayoutEffect(() => {
     if (root === null || typeof ResizeObserver === "undefined") return;
-    const resize = new ResizeObserver(() => measure(root));
+    // Settles the bar now; once what the settle started is laid out (an app's own refold on the bar's
+    // settled step), the bar measures again (#598). Tells whether the bar stepped.
+    const settleNow = () => {
+      const before = current.current;
+      flushSync(() => measure(root));
+      queueMicrotask(() => flushSync(() => measure(root)));
+      return current.current !== before;
+    };
+    // A resize without a window resize (a panel opens, a sidebar collapses) steps before the paint as
+    // well, so no frame shows a step the bar is about to leave. What a step resizes (the bar's height
+    // as it wraps, its swapped children) would leave the observers' notifications undelivered, so the
+    // bar lets go of them for the step and watches again from the next frame on, which reports every
+    // box afresh (#613).
+    let watching = true;
+    let frame = 0;
+    const resize = new ResizeObserver(() => {
+      if (!settleNow()) return;
+      watching = false;
+      resize.disconnect();
+      frame = requestAnimationFrame(watch);
+    });
     const observeChildren = () => {
       for (const child of root.children) resize.observe(child);
     };
-    resize.observe(root);
-    observeChildren();
+    const watch = () => {
+      watching = true;
+      resize.observe(root);
+      observeChildren();
+    };
+    watch();
     // A fold step swaps children; the new ones are watched, the old ones let go.
     const mutation =
       typeof MutationObserver === "undefined"
         ? null
         : new MutationObserver((records) => {
-            for (const record of records)
-              for (const node of record.removedNodes)
-                if (node instanceof Element) resize.unobserve(node);
-            observeChildren();
+            if (watching) {
+              for (const record of records)
+                for (const node of record.removedNodes)
+                  if (node instanceof Element) resize.unobserve(node);
+              observeChildren();
+            }
             measure(root);
           });
     mutation?.observe(root, { childList: true });
     // A window resize settles the bar before the frame's layout, so a sudden narrowing never paints a
-    // step it is about to leave; stepping from the observers instead would leave their notifications
-    // undelivered. Once what the settle started is laid out (an app's own refold on the bar's
-    // settled step), the bar measures again (#598).
-    const settleNow = () => {
-      flushSync(() => measure(root));
-      queueMicrotask(() => flushSync(() => measure(root)));
-    };
+    // step it is about to leave (#598).
     window.addEventListener("resize", settleNow);
     return () => {
+      cancelAnimationFrame(frame);
       resize.disconnect();
       mutation?.disconnect();
       window.removeEventListener("resize", settleNow);

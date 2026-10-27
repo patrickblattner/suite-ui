@@ -3414,6 +3414,102 @@ for (const [target, bar] of [
   });
 }
 
+// #613: each frame's bar as the frame paints it, with the window width it is laid out at. An observer
+// made after the bar's is told after it, before the paint: it watches the bar afresh in each frame, so
+// it is told once per frame, and lets go once it has read it, so it leaves nothing undelivered.
+type PaintedFrame = { window: number; folds: number; height: number };
+async function recordPaintedFrames(bar: Locator) {
+  await bar.evaluate((node) => {
+    const frames: PaintedFrame[] = [];
+    (window as unknown as { painted613: PaintedFrame[] }).painted613 = frames;
+    const read = new ResizeObserver(() => {
+      read.disconnect();
+      frames.push({
+        window: window.innerWidth,
+        folds: Number(node.getAttribute("data-shrink")),
+        height: node.getBoundingClientRect().height,
+      });
+    });
+    requestAnimationFrame(function watch() {
+      read.observe(node);
+      requestAnimationFrame(watch);
+    });
+  });
+  return () => bar.evaluate(() => (window as unknown as { painted613: PaintedFrame[] }).painted613);
+}
+
+// #613 (`SUI-FEATURE-104`, AC 1): the bar's container narrows and widens without a window resize (a
+// sidebar collapses, a panel opens). The bar steps before the paint: the frame the resize starts in —
+// read by an observer made after the bar's, so it is told after it, before the paint — already shows
+// the settled step and height: never a step the bar is about to leave, never a wrapped header. The
+// observers leave none of their notifications undelivered.
+for (const [target, bar] of [
+  ["editor-bar", "[data-slot=editor-header]"],
+  ["preview", "[data-shrink]"],
+] as const) {
+  test(`fold steps: a container resize without a window resize paints no in-between frame on ${target}`, async ({
+    page,
+  }) => {
+    const errors = await collectWindowErrors(page);
+    await page.goto(`/?page=${target}&lng=de`);
+    const node = page.locator(bar).first();
+    await expect(node).toBeVisible();
+    const unwrapped = (await node.boundingBox())!.height;
+    const seen = new Set<number>();
+    for (const width of [500, 1400, 420, 900, 1200]) {
+      const painted = await node.evaluate(
+        (head, width) =>
+          new Promise<{ folds: number; height: number }>((done) => {
+            const read = new ResizeObserver(() => {
+              read.disconnect();
+              done({
+                folds: Number(head.getAttribute("data-shrink")),
+                height: head.getBoundingClientRect().height,
+              });
+            });
+            read.observe(head);
+            head.parentElement!.style.width = `${width}px`;
+            head.parentElement!.style.maxWidth = `${width}px`;
+          }),
+        width,
+      );
+      await page.evaluate(() => new Promise((done) => setTimeout(done, 300)));
+      const settled = {
+        folds: Number(await node.getAttribute("data-shrink")),
+        height: (await node.boundingBox())!.height,
+      };
+      seen.add(settled.folds);
+      expect(painted, `${width} px`).toEqual(settled);
+      // The editor header never wraps; the preview toolbar wraps only at its last step.
+      if (target === "editor-bar" || settled.folds < 3) expect(settled.height).toBe(unwrapped);
+    }
+    // The resizes crossed fold boundaries.
+    expect(seen.size).toBeGreaterThan(1);
+    expect(await errors()).toEqual([]);
+  });
+}
+
+// #613 (`SUI-FEATURE-104`, AC 2): widening the window from 500 to 1920 px unfolds the wrapped preview
+// toolbar before the paint: no frame at 1920 px shows it taller than its unwrapped line.
+test("fold steps: widening the preview toolbar paints no wrapped frame", async ({ page }) => {
+  const errors = await collectWindowErrors(page);
+  await page.goto("/?page=preview&lng=de");
+  const node = page.locator("[data-shrink]").first();
+  await expect(node).toBeVisible();
+  const unwrapped = (await node.boundingBox())!.height;
+  await page.setViewportSize({ width: 500, height: 900 });
+  await expect(node).toHaveAttribute("data-shrink", "3");
+  expect((await node.boundingBox())!.height).toBeGreaterThan(unwrapped);
+  const painted = await recordPaintedFrames(node);
+  await page.setViewportSize({ width: 1920, height: 900 });
+  await page.evaluate(() => new Promise((done) => setTimeout(done, 300)));
+  await expect(node).toHaveAttribute("data-shrink", "0");
+  const frames = (await painted()).filter((frame) => frame.window === 1920);
+  expect(frames.length).toBeGreaterThan(0);
+  expect(Math.max(...frames.map((frame) => frame.height))).toBe(unwrapped);
+  expect(await errors()).toEqual([]);
+});
+
 // SUI-FEATURE-090 rev 9 (AC2): at 1000 px the steps fold before the title drops under 18 characters.
 test("editor header: at 1000 px the title keeps 18 characters, folding comes first", async ({
   page,

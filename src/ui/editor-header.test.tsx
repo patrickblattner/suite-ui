@@ -776,15 +776,22 @@ describe("EditorHeader at narrow width", () => {
       return sum + (WIDTHS[id] ?? 0);
     }, 60);
 
-  // jsdom has no ResizeObserver: a stand-in that records what it watches and is fired by hand.
+  // jsdom has no ResizeObserver: a stand-in that records what it watches and is fired by hand. A fold
+  // step taken from an observer watches again from the next frame on (#613): frames, too, pass by
+  // hand, one before each resize.
   let observers: {
     callback: ResizeObserverCallback;
     targets: Element[];
     released: Element[];
     disconnected: boolean;
   }[];
+  let frames: Map<number, FrameRequestCallback>;
+  let frameIds: number;
   const resize = () =>
     act(() => {
+      const due = [...frames.values()];
+      frames.clear();
+      for (const callback of due) callback(performance.now());
       for (const observer of observers)
         if (!observer.disconnected) observer.callback([], {} as ResizeObserver);
     });
@@ -793,6 +800,13 @@ describe("EditorHeader at narrow width", () => {
     available = 2000;
     stateWidth = () => 100;
     observers = [];
+    frames = new Map();
+    frameIds = 0;
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      frames.set(++frameIds, callback);
+      return frameIds;
+    });
+    vi.stubGlobal("cancelAnimationFrame", (id: number) => frames.delete(id));
     vi.stubGlobal(
       "ResizeObserver",
       class {
@@ -803,12 +817,14 @@ describe("EditorHeader at narrow width", () => {
         }
         observe(target: Element) {
           this.entry.targets.push(target);
+          this.entry.disconnected = false;
         }
         unobserve(target: Element) {
           this.entry.released.push(target);
         }
         disconnect() {
           this.entry.disconnected = true;
+          this.entry.released.push(...this.entry.targets.splice(0));
         }
       },
     );
@@ -1411,6 +1427,23 @@ describe("EditorHeader at narrow width", () => {
     resize();
     await waitFor(() => expect(screen.getByTestId("editor-back")).not.toBe(back));
     await waitFor(() => expect(observers.flatMap((observer) => observer.released)).toContain(back));
+  });
+
+  it("lets go of a part a step swaps out while it keeps watching, on a window resize (#613)", async () => {
+    available = 2000;
+    renderHeader();
+    const back = screen.getByTestId("editor-back");
+    // A window resize steps outside the observers: they stay connected, and only the swapped part goes.
+    available = 250;
+    act(() => {
+      window.dispatchEvent(new Event("resize"));
+    });
+    expect(screen.getByTestId("editor-back")).not.toBe(back);
+    await waitFor(() =>
+      expect(
+        observers.some((observer) => !observer.disconnected && observer.released.includes(back)),
+      ).toBe(true),
+    );
   });
 
   // An editor whose Undo, Save and Reset really change the draft state.

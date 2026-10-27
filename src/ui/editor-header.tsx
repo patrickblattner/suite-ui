@@ -356,8 +356,14 @@ function EditorHeader({
     measure();
     if (typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(measure);
-    observer.observe(node);
-    return () => observer.disconnect();
+    // The last step may be taken while the observers deliver (a resize without a window resize): a
+    // header watched from then on would leave its first notification undelivered, so it is watched
+    // from the next frame on; the read above covers this one (#613).
+    const frame = requestAnimationFrame(() => observer.observe(node));
+    return () => {
+      cancelAnimationFrame(frame);
+      observer.disconnect();
+    };
   }, [spent]);
 
   // A control that locks while it has the focus hands it on.
