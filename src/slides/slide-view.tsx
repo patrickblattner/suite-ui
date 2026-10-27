@@ -594,6 +594,8 @@ function image(draw: Draw, element: ElementOf<"image">) {
         alt={element.alt}
         draggable={false}
         onError={() => draw.onBroken(src)}
+        // "sized" once its size is known and its crop drawn within its reach: the export waits for it.
+        data-slide-image={natural === undefined ? "loading" : "sized"}
         onLoad={(event) =>
           draw.onLoaded(src, {
             width: event.currentTarget.naturalWidth,

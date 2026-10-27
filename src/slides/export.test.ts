@@ -10,13 +10,14 @@ function fakePage(
   { root = true, ready = true, broken = [] as string[] } = {},
 ) {
   const pdf = vi.fn(() => Promise.resolve(new Uint8Array([37, 80, 68, 70])));
+  const waitForFunction = vi.fn<SlideExportPage["waitForFunction"]>(() => Promise.resolve());
   const page: SlideExportPage = {
     waitForSelector: vi.fn((selector: string) =>
       (selector.includes("ready") ? ready : root)
         ? Promise.resolve()
         : Promise.reject(new Error("timeout")),
     ),
-    waitForFunction: vi.fn(() => Promise.resolve()),
+    waitForFunction,
     evaluate: <T>() => Promise.resolve(broken as T),
     locator: (selector: string) => ({
       getAttribute: (name: string) => Promise.resolve(attributes[name] ?? null),
@@ -24,7 +25,7 @@ function fakePage(
     }),
     pdf,
   };
-  return Object.assign(page, { printed: pdf });
+  return Object.assign(page, { printed: pdf, waited: waitForFunction });
 }
 
 const ready = {
@@ -85,6 +86,31 @@ describe("exportSlidePages", () => {
     expect(error.message).toBe(
       "Slide export stopped: missing-fonts (no font file loaded for these families: Brand Sans); missing-brand (brand colour keys the brand set lacks: accent)",
     );
+  });
+
+  // SUI-FEATURE-280 (review #625): the PNG waits until each element's image is drawn at its size,
+  // its crop within its reach; an image that did not load, or one of no element, waits for nothing.
+  it("waits for every element's image to be drawn at its size", async () => {
+    const page = fakePage(ready);
+    await exportSlidePages(page);
+    const loaded = page.waited.mock.calls[0]![0];
+    const image = (complete: boolean, naturalWidth: number, state: string | null) => ({
+      complete,
+      naturalWidth,
+      getAttribute: () => state,
+    });
+    const settled = (...images: ReturnType<typeof image>[]) => {
+      vi.stubGlobal("document", { images });
+      try {
+        return loaded();
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    };
+    expect(settled(image(true, 800, "sized"), image(true, 800, null))).toBe(true);
+    expect(settled(image(true, 800, "loading"))).toBe(false);
+    expect(settled(image(false, 0, "loading"))).toBe(false);
+    expect(settled(image(true, 0, "loading"))).toBe(true);
   });
 
   it("names an image that resolved but did not load", async () => {

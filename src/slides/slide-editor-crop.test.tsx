@@ -277,6 +277,8 @@ describe("SlideEditor crop mode (SUI-FEATURE-230 rev 4)", () => {
   it("ends the typing on Enter and on an arrow step", () => {
     renderEditor();
     startCrop();
+    // An image of the frame's proportions: at 100 % it does not shift (`SUI-FEATURE-280`).
+    loadRest({ width: 160, height: 100 });
     setZoom("300");
     const offsetX = screen.getByTestId<HTMLInputElement>("slide-editor-crop-offsetX");
     fireEvent.change(offsetX, { target: { value: "100" } });
@@ -376,6 +378,19 @@ describe("SlideEditor crop mode (SUI-FEATURE-230 rev 4)", () => {
     fireEvent.error(rest.querySelector("img")!);
     expect(screen.queryByTestId("slide-editor-crop-rest")).toBeNull();
     expect(canvas()).toHaveAttribute("data-cropping", "photo");
+  });
+
+  // Review #625: a medium that does not load keeps the area's own proportions, so a crop stored past
+  // its reach (#538) shows clamped as before, never past it.
+  it("clamps a crop stored past its reach as before once its medium fails to load", () => {
+    renderEditor(10, { zoom: 1.5, offsetX: -40, offsetY: -25 });
+    startCrop();
+    fireEvent.error(screen.getByTestId("slide-editor-crop-rest").querySelector("img")!);
+    expect(screen.getByTestId("slide-editor-crop-offsetX")).toHaveValue("-35");
+    expect(screen.getByTestId("slide-editor-crop-offsetY")).toHaveValue("-20");
+    expect(screen.getByTestId("slide-editor-crop-offsetX-range")).toHaveTextContent(
+      "From -35 to 35 px",
+    );
   });
 
   // Codex CX1: with a border the view draws the image inside it, in the frame less the border
@@ -485,6 +500,38 @@ describe("SlideEditor crop mode on the overhanging axis (SUI-FEATURE-280)", () =
     const rest = screen.getByTestId("slide-editor-crop-rest");
     expect(rest.style.left).toBe(`${-200 * 0.25 + 24}px`);
     expect(rest.style.width).toBe(`${400 * 0.25}px`);
+  });
+
+  // Review #625: a key pressed before the image's size is known keeps the stored shift; nothing is
+  // clamped and no reach is named until it loads.
+  it("keeps a stored shift on a key pressed before the image has loaded", () => {
+    renderEditor(undefined, { zoom: 1, offsetX: -60, offsetY: 0 });
+    startCrop();
+    expect(offsetX()).toHaveValue("-60");
+    expect(screen.queryByTestId("slide-editor-crop-offsetY-range")).toBeNull();
+    fireEvent.keyDown(canvas(), { key: "ArrowLeft" });
+    expect(offsetX()).toHaveValue("-61");
+    loadRest(wide);
+    expect(offsetX()).toHaveValue("-61");
+    expect(screen.getByTestId("slide-editor-crop-offsetY-range")).toHaveTextContent(
+      "Zoom in to shift the image.",
+    );
+  });
+
+  // Review #625: cropping starts from the size the canvas's image has already loaded.
+  it("takes the image's size from the canvas as cropping starts", () => {
+    renderEditor(undefined, { zoom: 1, offsetX: -500, offsetY: 0 });
+    const drawn = document.querySelector<HTMLImageElement>("[data-slide-element=photo] img")!;
+    Object.defineProperty(drawn, "complete", { configurable: true, value: true });
+    Object.defineProperty(drawn, "naturalWidth", { configurable: true, value: wide.width });
+    Object.defineProperty(drawn, "naturalHeight", { configurable: true, value: wide.height });
+    startCrop();
+    expect(offsetX()).toHaveValue("-120");
+    expect(screen.getByTestId("slide-editor-crop-offsetX-range")).toHaveTextContent(
+      "From -120 to 120 px",
+    );
+    fireEvent.keyDown(canvas(), { key: "ArrowUp" });
+    expect(offsetY()).toHaveValue("0");
   });
 
   it("shifts the image sideways at 100 % by drag, not up and down", () => {

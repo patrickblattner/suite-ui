@@ -1185,10 +1185,15 @@ describe("SlideView image crop on the overhanging axis", () => {
     });
   });
 
-  // Until the image has loaded nothing is clamped, and the stored crop stays as it is.
+  // Until the image has loaded nothing is clamped, and the stored crop stays as it is; the image is
+  // marked once it is drawn at its size, for the export to wait on (review #625).
   it("clamps nothing before the image has loaded", async () => {
     const crop = { zoom: 1, offsetX: -150, offsetY: 0 };
     expect(await square(crop, undefined)).toEqual({ left: -150, top: 0, width: 400, height: 400 });
     expect(crop).toEqual({ zoom: 1, offsetX: -150, offsetY: 0 });
+    const image = screen.getByRole("img", { name: "Square" });
+    expect(image).toHaveAttribute("data-slide-image", "loading");
+    loadImage(image, wide);
+    expect(image).toHaveAttribute("data-slide-image", "sized");
   });
 });

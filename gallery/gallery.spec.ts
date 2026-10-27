@@ -11749,6 +11749,23 @@ test("slide export: PNG equal to the editor view, PDF with real text", async ({ 
     expect(text).toContain(words);
 });
 
+// SUI-FEATURE-280 AC2 (review #625): a photo shifted past its reach on the axis it overhangs is
+// exported as the view draws it, at the limit, once its size is known; no pixel differs.
+test("slide export: a crop on the overhanging axis equals the view", async ({ page }) => {
+  await page.goto("/?harness=slide-export&overhang=1");
+  const { png } = await exportSlidePages(page);
+  await page.goto("/?harness=slide-export&view=editor&overhang=1");
+  const view = page.getByTestId("slide-editor-view");
+  await expect(view).toHaveAttribute("data-slide-ready", "true");
+  const photo = view.locator("[data-slide-element=photo] img");
+  await expect(photo).toHaveAttribute("data-slide-image", "sized");
+  // The 4:3 photo fills the 592 × 392 area inside its border at 592 × 444: 26 px up at most.
+  await expect(photo).toHaveCSS("top", "-52px");
+  await parkPointer(page);
+  const editor = await view.screenshot({ animations: "disabled" });
+  expect(Buffer.from(png[0]!).equals(editor)).toBe(true);
+});
+
 // SUI-FEATURE-160 §Text einpassen, §Schriften: what the view cannot draw as asked stops the export
 // loudly, by name.
 test("slide export: an element the view cannot draw stops the export by name", async ({ page }) => {

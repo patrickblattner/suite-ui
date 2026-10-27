@@ -685,19 +685,15 @@ function TransitionFields({
 // validated document to the app, and leaving with a draft asks first (`GL-UI-007`). `Esc` goes from
 // the inside out: a child's group, no selection, an open drawer, then leaving.
 // An image's crop clamped to the area it refers to, as the view draws it (`SUI-FEATURE-230` rev 5),
-// within the reach of the image's proportions; before the image has loaded, as stored
-// (`SUI-FEATURE-280`).
+// within the reach of the image's proportions; while they are not known (`null`), its shift as
+// stored (`SUI-FEATURE-280`).
 function shownCrop(
   image: Extract<SlideElement, { type: "image" }>,
-  natural: ImageSize | undefined,
+  natural: ImageSize | null | undefined,
 ): ImageCrop {
   const { width, height } = cropArea(image);
-  return loadedCrop(width, height, image.crop, natural);
+  return clampCrop(width, height, image.crop, natural);
 }
-
-// A crop clamped once its image's size is known; until then nothing is clamped (`SUI-FEATURE-280`).
-const loadedCrop = (width: number, height: number, crop: ImageCrop, natural?: ImageSize) =>
-  natural === undefined ? crop : clampCrop(width, height, crop, natural);
 
 const sameCrop = (a: ImageCrop, b: ImageCrop) =>
   a.zoom === b.zoom && a.offsetX === b.offsetX && a.offsetY === b.offsetY;
@@ -873,14 +869,18 @@ function Editor({
   >(undefined);
   // The medium of the dimmed crop rest that did not load: no rest for it.
   const [brokenCropSrc, setBrokenCropSrc] = React.useState<string | undefined>(undefined);
-  // The natural size of the dimmed crop rest's medium, once loaded: the crop's reach follows the
-  // image's proportions (`SUI-FEATURE-280`).
+  // The natural size of the medium being cropped, taken from the canvas's image as cropping starts or
+  // from the dimmed rest once it loads: the crop's reach follows the image's proportions
+  // (`SUI-FEATURE-280`).
   const [loadedCropSrc, setLoadedCropSrc] = React.useState<
     { src: string; size: ImageSize } | undefined
   >(undefined);
+  // The size the crop functions take: `null` while it is not known (nothing clamped), none for a
+  // medium that did not load (the area's own proportions, as before).
   const naturalSize = (image: Extract<SlideElement, { type: "image" }>) => {
     const src = view.resolveMedia?.(image.media.id);
-    return src !== undefined && loadedCropSrc?.src === src ? loadedCropSrc.size : undefined;
+    if (src === undefined || src === brokenCropSrc) return undefined;
+    return loadedCropSrc?.src === src ? loadedCropSrc.size : null;
   };
   // The crop zoom % field's run (see `cropZoomRevision`): a count of the crop changes made elsewhere,
   // the crop the field set last, and the crop its typing started from.
@@ -1048,7 +1048,7 @@ function Editor({
       const image = findElement(elements, cropping.id)?.element;
       if (image !== undefined) {
         const { width, height } = cropArea(image);
-        const crop = loadedCrop(width, height, cropping.crop, cropNatural);
+        const crop = clampCrop(width, height, cropping.crop, cropNatural);
         const next =
           storedCrop !== undefined && sameCrop(crop, storedCrop)
             ? current
@@ -1297,6 +1297,24 @@ function Editor({
   });
 
   const frame = React.useRef<HTMLDivElement>(null);
+  // Cropping an image starts from the size its view on the canvas has already loaded, so the first
+  // shift is clamped to the image's own reach (`SUI-FEATURE-280`).
+  const cropFrom = (image: Extract<SlideElement, { type: "image" }>): ImageCrop => {
+    const src = view.resolveMedia?.(image.media.id);
+    const drawn = [
+      ...(frame.current?.querySelectorAll<HTMLImageElement>("[data-slide-element] img") ?? []),
+    ].find(
+      (node) =>
+        node.closest("[data-slide-element]")?.getAttribute("data-slide-element") === image.id &&
+        node.getAttribute("src") === src,
+    );
+    if (src === undefined || drawn === undefined || !drawn.complete || drawn.naturalWidth === 0) {
+      return shownCrop(image, naturalSize(image));
+    }
+    const size = { width: drawn.naturalWidth, height: drawn.naturalHeight };
+    setLoadedCropSrc({ src, size });
+    return shownCrop(image, src === brokenCropSrc ? undefined : size);
+  };
   const canvas = React.useRef<HTMLDivElement>(null);
   const cropDescription = React.useId();
   // Per instance, so two mounted editors never share a heading id.
@@ -1334,12 +1352,14 @@ function Editor({
   const croppedHeight = cropFrame?.height;
   const naturalWidth = cropNatural?.width;
   const naturalHeight = cropNatural?.height;
+  const naturalUnknown = cropNatural === null;
   React.useEffect(() => {
     const node = canvas.current;
     if (node === null || croppedWidth === undefined || croppedHeight === undefined) return;
     const [width, height] = [croppedWidth, croppedHeight];
-    const natural =
-      naturalWidth === undefined || naturalHeight === undefined
+    const natural = naturalUnknown
+      ? null
+      : naturalWidth === undefined || naturalHeight === undefined
         ? undefined
         : { width: naturalWidth, height: naturalHeight };
     const onWheel = (event: WheelEvent) => {
@@ -1353,7 +1373,7 @@ function Editor({
     };
     node.addEventListener("wheel", onWheel, { passive: false });
     return () => node.removeEventListener("wheel", onWheel);
-  }, [croppedWidth, croppedHeight, naturalWidth, naturalHeight]);
+  }, [croppedWidth, croppedHeight, naturalWidth, naturalHeight, naturalUnknown]);
   const toPage = (event: { clientX: number; clientY: number }): Point => {
     const rect = frame.current?.getBoundingClientRect();
     return {
@@ -1803,7 +1823,7 @@ function Editor({
     if (hit?.type === "image" && !hit.locked) {
       const ids = [hit.id];
       setSelection(ids);
-      setCropping({ id: hit.id, crop: shownCrop(hit, naturalSize(hit)), selection: ids });
+      setCropping({ id: hit.id, crop: cropFrom(hit), selection: ids });
       return;
     }
     // A double click on a text field starts editing it, on a table its cell under the pointer
@@ -2316,7 +2336,7 @@ function Editor({
     const image = findElement(elements, cropping.id)?.element;
     if (keep && image !== undefined) {
       const { width, height } = cropArea(image);
-      const crop = loadedCrop(width, height, kept ?? cropping.crop, cropNatural);
+      const crop = clampCrop(width, height, kept ?? cropping.crop, cropNatural);
       // Left as it started, a crop stored past its reach stays as stored (#538).
       if (storedCrop === undefined || !sameCrop(crop, storedCrop)) {
         apply((current) => withCrop(current, page, cropping.id, crop));
@@ -2480,7 +2500,7 @@ function Editor({
     // Enter on one selected image starts cropping it, as a double click does.
     if (event.key === "Enter" && single?.type === "image" && !single.locked) {
       event.preventDefault();
-      setCropping({ id: single.id, crop: shownCrop(single, naturalSize(single)), selection });
+      setCropping({ id: single.id, crop: cropFrom(single), selection });
       return;
     }
     // Enter on one selected text field or table starts editing it, as a double click does.
@@ -2932,14 +2952,17 @@ function Editor({
                   }
                   testId={`slide-editor-crop-${key}`}
                   help={
-                    <span data-testid={`slide-editor-crop-${key}-range`}>
-                      {reach === 0
-                        ? t("slides.editor.cropOffsetNone")
-                        : t("slides.editor.cropOffsetRange", {
-                            min: number.format(-reach),
-                            max: number.format(reach),
-                          })}
-                    </span>
+                    // While the image's size is not known, its reach is not named.
+                    Number.isFinite(reach) ? (
+                      <span data-testid={`slide-editor-crop-${key}-range`}>
+                        {reach === 0
+                          ? t("slides.editor.cropOffsetNone")
+                          : t("slides.editor.cropOffsetRange", {
+                              min: number.format(-reach),
+                              max: number.format(reach),
+                            })}
+                      </span>
+                    ) : undefined
                   }
                 />
               );
@@ -3751,7 +3774,16 @@ function Editor({
                       draggable={false}
                       className="size-full max-w-none object-cover"
                       style={{ transform: cropRest.flipped ? "scaleX(-1)" : undefined }}
-                      onError={() => setBrokenCropSrc(cropRest.src)}
+                      onError={() => {
+                        setBrokenCropSrc(cropRest.src);
+                        // Without a size the image keeps the area's proportions, as before
+                        // (`SUI-FEATURE-280`): a crop past that reach comes within it (#538).
+                        setCropping((current) => {
+                          if (current === undefined || cropFrame === undefined) return current;
+                          const crop = clampCrop(cropFrame.width, cropFrame.height, current.crop);
+                          return sameCrop(crop, current.crop) ? current : { ...current, crop };
+                        });
+                      }}
                       onLoad={(event) => {
                         const { naturalWidth: width, naturalHeight: height } = event.currentTarget;
                         const size = { width, height };

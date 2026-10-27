@@ -970,7 +970,9 @@ export function cropArea(element: SlideElement): { width: number; height: number
   };
 }
 
-// An image's natural size, as loaded: only its proportions count.
+// An image's natural size, as loaded: only its proportions count. The crop functions take it, or
+// `null` while it is not known yet: then the shift is not clamped (`SUI-FEATURE-280`), and without
+// it the image has the area's own proportions.
 export type ImageSize = { width: number; height: number };
 
 // The size an image of `image`'s proportions is drawn at in a `width` × `height` area (`SUI-FEATURE-280`):
@@ -980,10 +982,10 @@ export function croppedImageSize(
   width: number,
   height: number,
   zoom: number,
-  image?: ImageSize,
+  image?: ImageSize | null,
 ): { width: number; height: number } {
   const fill =
-    image === undefined || image.width <= 0 || image.height <= 0
+    image === undefined || image === null || image.width <= 0 || image.height <= 0
       ? { width, height }
       : (() => {
           const scale = Math.max(width / image.width, height / image.height);
@@ -994,17 +996,17 @@ export function croppedImageSize(
 
 // A crop that keeps the image covering its frame: zoomed at least 1, shifted no further than the
 // drawn image (`croppedImageSize`) reaches past the frame on each side, half to each side
-// (`SUI-FEATURE-280`).
+// (`SUI-FEATURE-280`); an image whose size is not known yet (`null`) shifts unclamped.
 export function clampCrop(
   width: number,
   height: number,
   crop: ImageCrop,
-  image?: ImageSize,
+  image?: ImageSize | null,
 ): ImageCrop {
   const zoom = Math.max(1, crop.zoom);
   const drawn = croppedImageSize(width, height, zoom, image);
-  const reachX = Math.max(0, drawn.width - width) / 2;
-  const reachY = Math.max(0, drawn.height - height) / 2;
+  const reachX = image === null ? Infinity : Math.max(0, drawn.width - width) / 2;
+  const reachY = image === null ? Infinity : Math.max(0, drawn.height - height) / 2;
   // `+ 0` turns a clamped −0 into 0.
   return {
     zoom: round(zoom),
@@ -1023,7 +1025,7 @@ export function zoomCrop(
   height: number,
   crop: ImageCrop,
   factor: number,
-  image?: ImageSize,
+  image?: ImageSize | null,
 ): ImageCrop {
   const zoom = Math.min(CROP_ZOOM_MAX, Math.max(1, crop.zoom * factor));
   const scale = zoom / crop.zoom;
@@ -1043,7 +1045,7 @@ export function panCrop(
   crop: ImageCrop,
   step: { x: number; y: number },
   rotation: number,
-  image?: ImageSize,
+  image?: ImageSize | null,
 ): ImageCrop {
   const local = turn(step, -rotation);
   return clampCrop(
@@ -1060,7 +1062,7 @@ export function panCrop(
 export function croppedImageBox(
   placed: { box: Box; rotation: number },
   crop: ImageCrop,
-  image?: ImageSize,
+  image?: ImageSize | null,
 ): { box: Box; rotation: number } {
   const { box, rotation } = placed;
   const shift = turn({ x: crop.offsetX, y: crop.offsetY }, rotation);
