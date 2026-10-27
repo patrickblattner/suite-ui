@@ -15131,6 +15131,54 @@ test("slide editor: a table's border is dragged, a row inserted and a cell edite
   expect(table.rows[0]![1]!.runs[0]!.text).toBe("Topics");
 });
 
+// SUI-FEATURE-114 AC1/AC2 (#610): text pasted past the text-length limit into a text field or a table
+// cell is refused at input: nothing put in, an error toast says why, and Save afterwards succeeds.
+test("slide editor: a paste past the text limit is refused in a text field and a cell; Save works", async ({
+  page,
+}) => {
+  const { editor, at, select } = await openEditor(page);
+  await editor.getByTestId("slide-editor-next-page").click();
+  const text = editor.getByTestId("slide-editor-text-field");
+  const hint = page.locator("[data-sonner-toast][data-type=error]");
+  const pasteTooLong = () =>
+    text.evaluate((node) => {
+      const data = new DataTransfer();
+      data.setData("text/plain", "x".repeat(100_001));
+      node.dispatchEvent(new ClipboardEvent("paste", { clipboardData: data, bubbles: true }));
+    });
+  for (const [x, y, before] of [
+    [100, 400, "A caption"],
+    [700, 70, "Slides"],
+  ] as const) {
+    await select(x, y);
+    const spot = at(x, y);
+    await page.mouse.dblclick(spot.x, spot.y);
+    await expect(text).toHaveText(before);
+    await pasteTooLong();
+    await expect(text).toHaveText(before);
+    await expect(hint).toContainText(
+      "That much text doesn’t fit here. Nothing was added; remove some text and try again.",
+    );
+    await page.keyboard.press("End");
+    await page.keyboard.type("!");
+    await page.keyboard.press("Escape");
+    await expect(text).toHaveCount(0);
+    // The next pass is shown a toast of its own, not this one still on screen.
+    await hint.click();
+    await expect(hint).toHaveCount(0);
+  }
+  const saved = await savedDocument(page);
+  const elements = saved.pages[1]!.elements;
+  const caption = elements.find((element) => element.id === "caption")! as {
+    runs: { text: string }[];
+  };
+  const table = elements.find((element) => element.id === "facts")! as {
+    rows: { runs: { text: string }[] }[][];
+  };
+  expect(caption.runs.map((run) => run.text).join("")).toBe("A caption!");
+  expect(table.rows[1]![1]!.runs[0]!.text).toBe("Slides!");
+});
+
 // AC3 and AC5 (#308): pages duplicated, dragged and hidden in the sorter; the player skips the
 // hidden one.
 test("slide editor: the page sorter duplicates, drags and hides; the player skips the hidden page", async ({

@@ -248,6 +248,8 @@ const CROP_HINT_ROOM = 480;
 const FIELD_RANGE = 2 * SLIDE_LIMITS.maxFormatSide;
 // The one error toast of a refused insert: a repeated press replaces it (#365).
 const INSERT_REFUSED_TOAST = "slide-editor-insert-refused";
+// The one error toast of text refused at input: a repeated key replaces it.
+const TEXT_REFUSED_TOAST = "slide-editor-text-refused";
 // The element clipboard's keys (`SUI-FEATURE-191`), on the canvas and named in its menu.
 const CUT_SHORTCUT = ["Ctrl+X", "Meta+X"] as const;
 const COPY_SHORTCUT = ["Ctrl+C", "Meta+C"] as const;
@@ -347,6 +349,14 @@ const inkless = (body: TextBody): TextBody => ({
 // The parts of an app that pass the schema, those past the structural limits left out before the
 // recursive parse: each element first passes the element schema with its preflight (Codex #389 CX1).
 const fitsLimits = (element: unknown) => slideElementSchema.safeParse(element).success;
+// Whether a field's new runs stay within `SLIDE_LIMITS` (runs, a run's text length): text typed or
+// pasted past them is refused at input, never first at Save (`SUI-FEATURE-114`). A field already past
+// a bound takes an edit that makes it no worse there, so deleting stays possible.
+const longest = (runs: readonly { text: string }[]) =>
+  runs.reduce((most, run) => Math.max(most, run.text.length), 0);
+const runsFit = (runs: readonly { text: string }[], before: readonly { text: string }[]) =>
+  (runs.length <= SLIDE_LIMITS.maxRuns || runs.length <= before.length) &&
+  (longest(runs) <= SLIDE_LIMITS.maxTextLength || longest(runs) <= longest(before));
 const validLayouts = (list: readonly SlideLayoutInput[] | undefined): SlideLayout[] =>
   (list ?? []).flatMap((one) => {
     if (!(one.elements ?? []).every(fitsLimits)) return [];
@@ -3989,6 +3999,10 @@ function Editor({
                         }
                         range={textRange}
                         onRuns={(runs, range) => {
+                          if (!runsFit(runs, body.runs)) {
+                            toast.error(t("slides.editor.textRefused"), { id: TEXT_REFUSED_TOAST });
+                            return false;
+                          }
                           setTextRange(range);
                           changeBody(
                             editing.id,
@@ -3996,6 +4010,7 @@ function Editor({
                             (one) => ({ ...one, runs }),
                             `text:${editing.session}`,
                           );
+                          return true;
                         }}
                         onRange={setTextRange}
                         onEnd={endEditing}

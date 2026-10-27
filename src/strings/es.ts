@@ -735,6 +735,8 @@ export const es: SuiteStrings = {
       placeholderFill: "Rellenar {{name}}",
       layoutRefused:
         "El diseño no se puede usar en esta página: no encaja con el documento. Elige otro diseño.",
+      textRefused:
+        "Tanto texto no cabe aquí. No se ha añadido nada; quita algo de texto e inténtalo de nuevo.",
       pageRefused:
         "El documento no admite esta página. Quita una página o un elemento e inténtalo de nuevo.",
       deleteSelection: "Eliminar",

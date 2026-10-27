@@ -37,6 +37,9 @@ describe("SlideEditor schema save error", () => {
   it.each([
     ["row-cells", "a table row has more or fewer cells than the table has columns."],
     ["too-many-elements", "a page holds more elements than allowed."],
+    // Text past the length limit no longer reaches Save (`SUI-FEATURE-114`); the check stays as the
+    // last bound, its rule named as the others.
+    ["too-big", "a value is too large or too long."],
   ] as const)("names the %s rule in plain words", async (code, rule) => {
     const onSave = vi.fn(() => true as const);
     render(
@@ -70,46 +73,6 @@ describe("SlideEditor schema save error", () => {
     expect(onSave).not.toHaveBeenCalled();
   });
 
-  // A real path to the refusal: text edits are not checked when made, so text past the length limit
-  // reaches Save. The caption of the showcase's second page, at the canvas's "Fit" of 0.25 in jsdom.
-  const at = (x: number, y: number) => ({ clientX: x / 4, clientY: y / 4 });
-  async function pasteTooLongCaption() {
-    fireEvent.click(screen.getByTestId("slide-editor-next-page"));
-    const canvas = screen.getByTestId("slide-editor-canvas");
-    fireEvent.pointerDown(canvas, { ...at(100, 400), button: 0, pointerId: 1 });
-    fireEvent.pointerUp(canvas, at(100, 400));
-    fireEvent.doubleClick(canvas, at(100, 400));
-    const field = await screen.findByTestId("slide-editor-text-field");
-    fireEvent.paste(field, { clipboardData: { getData: () => "x".repeat(100_001) } });
-    fireEvent.keyDown(field, { key: "Escape" });
-    await act(async () => {
-      fireEvent.click(screen.getAllByTestId("editor-save")[0]!);
-      await Promise.resolve();
-    });
-  }
-
-  it("names the too-big rule for a pasted text past the limit, no code, path or detail", async () => {
-    const onSave = vi.fn(() => true as const);
-    render(
-      <SlideEditor
-        document={SLIDE_EDITOR_DOC}
-        title="Deck"
-        brand={SLIDE_BRAND}
-        onSave={onSave}
-        onBack={() => {}}
-      />,
-    );
-    await pasteTooLongCaption();
-    const error = screen.getByTestId("slide-editor-save-error");
-    expect(error).toHaveTextContent(
-      "Not saved: a value is too large or too long. Undo your recent changes, then save again.",
-    );
-    expect(error.textContent).not.toContain("too-big");
-    expect(error.textContent).not.toContain("runs");
-    expect(error.textContent).not.toContain("at most");
-    expect(onSave).not.toHaveBeenCalled();
-  });
-
   // As the rejected-save text (#584): undoing back to the saved state ends it.
   it("clears the rule when undo makes the draft clean", async () => {
     render(
@@ -121,7 +84,16 @@ describe("SlideEditor schema save error", () => {
         onBack={() => {}}
       />,
     );
-    await pasteTooLongCaption();
+    fireEvent.click(screen.getByTestId("drawer-layers"));
+    fireEvent.click(screen.getAllByTestId("slide-editor-layer-lock")[0]!);
+    vi.mocked(safeParseSlideDocument).mockReturnValueOnce({
+      ok: false,
+      error: new SlideDocumentError("invalid", [{ code: "too-big", path: "pages", message: "" }]),
+    });
+    await act(async () => {
+      fireEvent.click(screen.getAllByTestId("editor-save")[0]!);
+      await Promise.resolve();
+    });
     expect(screen.getByTestId("slide-editor-save-error")).toBeInTheDocument();
     fireEvent.click(screen.getAllByTestId("editor-undo")[0]!);
     expect(screen.getAllByTestId("editor-state")[0]).toHaveTextContent("Saved");

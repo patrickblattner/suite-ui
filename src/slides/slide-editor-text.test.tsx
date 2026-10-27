@@ -2,9 +2,17 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SLIDE_BRAND, SLIDE_EDITOR_DOC } from "../../gallery/slide-showcase.js";
-import type { SlideDocument } from "./schema.js";
+import { toast } from "../ui/toaster.js";
+import { safeParseSlideDocument } from "./document.js";
+import { SLIDE_LIMITS, type SlideDocument } from "./schema.js";
 import { SlideEditor } from "./slide-editor.js";
 import { fillEditable, rangeIn, readRuns, selectRange } from "./slide-editor-text.js";
+
+// The schema check runs as it is, except where a test loads a draft already past a limit.
+vi.mock("./document.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./document.js")>();
+  return { ...actual, safeParseSlideDocument: vi.fn(actual.safeParseSlideDocument) };
+});
 
 beforeEach(() => {
   // jsdom has no pointer capture.
@@ -354,4 +362,97 @@ describe("SlideEditor text editing", () => {
     );
     expect(caption?.type === "text" && caption.runs).toEqual([{ text: "X", size: 20 }]);
   });
+
+  // SUI-FEATURE-114 AC1: text past a limit is refused at input, not first at Save.
+  it("refuses a paste past the text-length limit: nothing put in, a hint, and Save still works", async () => {
+    const error = vi.spyOn(toast, "error").mockReturnValue(1);
+    const onSave = renderEditor();
+    const canvas = screen.getByTestId("slide-editor-canvas");
+    fireEvent.pointerDown(canvas, { ...at(100, 400), button: 0, pointerId: 1 });
+    fireEvent.pointerUp(canvas, at(100, 400));
+    fireEvent.doubleClick(canvas, at(100, 400));
+    const field = await screen.findByTestId("slide-editor-text-field");
+    fireEvent.paste(field, {
+      clipboardData: { getData: () => "x".repeat(SLIDE_LIMITS.maxTextLength + 1) },
+    });
+    expect(field.textContent).toBe("A caption");
+    expect(error).toHaveBeenCalledWith(
+      "That much text doesn’t fit here. Nothing was added; remove some text and try again.",
+      {
+        id: "slide-editor-text-refused",
+      },
+    );
+    expect(screen.getAllByTestId("editor-state")[0]).toHaveTextContent("Saved");
+
+    // Typing past it is refused too: the field is filled again as it was.
+    field.querySelector("span")!.textContent = "x".repeat(SLIDE_LIMITS.maxTextLength + 1);
+    fireEvent.input(field);
+    expect(field.textContent).toBe("A caption");
+    expect(error).toHaveBeenCalledTimes(2);
+
+    field.querySelector("span")!.textContent = "A short caption";
+    fireEvent.input(field);
+    fireEvent.keyDown(field, { key: "Escape" });
+    fireEvent.click(screen.getAllByTestId("editor-save")[0]!);
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    const caption = onSave.mock.calls[0]![0].pages[1]!.elements.find(
+      (element) => element.id === "caption",
+    );
+    expect(caption?.type === "text" && caption.runs.map((run) => run.text).join("")).toBe(
+      "A short caption",
+    );
+    error.mockRestore();
+  });
+
+  // A field already past a limit (a format toggle can split its runs past `maxRuns`) takes an edit
+  // that makes it no worse: deleting stays possible, adding a run is refused (#610).
+  it("in a field past the run limit takes a deletion and refuses an added run", async () => {
+    const error = vi.spyOn(toast, "error").mockReturnValue(1);
+    const loaded = safeParseSlideDocument(SLIDE_EDITOR_DOC);
+    if (!loaded.ok) throw new Error("showcase invalid");
+    const runs = Array.from({ length: SLIDE_LIMITS.maxRuns + 2 }, (_, index) =>
+      index % 2 === 0 ? { text: "a", size: 20, weight: 700 } : { text: "b", size: 20 },
+    );
+    const over: SlideDocument = {
+      ...loaded.document,
+      pages: loaded.document.pages.map((one, index) =>
+        index !== 1
+          ? one
+          : {
+              ...one,
+              elements: one.elements.map((element) =>
+                element.id === "caption" && element.type === "text"
+                  ? { ...element, runs }
+                  : element,
+              ),
+            },
+      ),
+    };
+    vi.mocked(safeParseSlideDocument).mockReturnValueOnce({ ok: true, document: over });
+    renderEditor();
+    const canvas = screen.getByTestId("slide-editor-canvas");
+    fireEvent.pointerDown(canvas, { ...at(100, 400), button: 0, pointerId: 1 });
+    fireEvent.pointerUp(canvas, at(100, 400));
+    fireEvent.doubleClick(canvas, at(100, 400));
+    const field = await screen.findByTestId("slide-editor-text-field");
+    const spans = () => field.querySelectorAll("span[data-run]");
+    expect(spans()).toHaveLength(SLIDE_LIMITS.maxRuns + 2);
+
+    // A bold run put after the last, plain one: one run more, refused, the field as it was.
+    spans()[SLIDE_LIMITS.maxRuns + 1]!.after(spans()[0]!.cloneNode(true));
+    fireEvent.input(field);
+    expect(error).toHaveBeenCalledTimes(1);
+    expect(spans()).toHaveLength(SLIDE_LIMITS.maxRuns + 2);
+
+    // The last run deleted: still past the limit, but no worse, so it is taken.
+    spans()[SLIDE_LIMITS.maxRuns + 1]!.remove();
+    fireEvent.input(field);
+    expect(error).toHaveBeenCalledTimes(1);
+    await waitFor(() =>
+      expect(screen.getAllByTestId("editor-state")[0]).not.toHaveTextContent("Saved"),
+    );
+    expect(spans()).toHaveLength(SLIDE_LIMITS.maxRuns + 1);
+    error.mockRestore();
+    // A thousand runs drawn and filled twice: slow under the full suite's load.
+  }, 60_000);
 });

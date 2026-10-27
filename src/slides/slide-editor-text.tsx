@@ -304,7 +304,8 @@ export function InlineTextEditor({
   label: string;
   // The range the field selects again after its runs changed from outside (a format, Undo).
   range: TextRange | undefined;
-  onRuns: (runs: TextRun[], range: TextRange | undefined) => void;
+  // `false` when the runs are refused (past a limit, `SUI-FEATURE-114`): the field keeps its text.
+  onRuns: (runs: TextRun[], range: TextRange | undefined) => boolean;
   onRange: (range: TextRange) => void;
   onEnd: () => void;
   onUndo: () => void;
@@ -367,8 +368,10 @@ export function InlineTextEditor({
     const at = rangeIn(node) ?? { start: 0, end: 0 };
     const runs = insertText(current(), at.start, at.end, text);
     const caret = Math.min(at.start, at.end) + text.length;
+    const before = emitted.current;
     emitted.current = null;
-    onRuns(runs, { start: caret, end: caret });
+    // Refused, nothing was put in: the field is as it was.
+    if (!onRuns(runs, { start: caret, end: caret })) emitted.current = before;
   };
   const area = inner ?? { x: 0, y: 0, width: frame.box.width, height: frame.box.height };
   const font = cssFont(DEFAULT_FONT, brand);
@@ -435,7 +438,13 @@ export function InlineTextEditor({
               if (node === null) return;
               const runs = readRuns(node, filled.current, emitted.current ?? filled.current);
               emitted.current = runs;
-              onRuns(runs, rangeIn(node));
+              if (onRuns(runs, rangeIn(node))) return;
+              // Refused: the typed text goes again, the caret back where it was.
+              emitted.current = body.runs;
+              filled.current = body.runs;
+              fillEditable(node, body.runs, brand, body.list);
+              const end = textOf(body.runs).length;
+              selectRange(node, latestRange.current ?? { start: end, end });
             }}
             onPaste={(event) => {
               event.preventDefault();

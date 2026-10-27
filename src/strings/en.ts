@@ -761,6 +761,8 @@ export const en = {
       placeholderFill: "Fill {{name}}",
       layoutRefused:
         "The layout can’t be used on this page: it doesn’t fit the document. Choose another layout.",
+      textRefused:
+        "That much text doesn’t fit here. Nothing was added; remove some text and try again.",
       pageRefused: "The document can’t take this page. Remove a page or element and try again.",
       deleteSelection: "Delete",
       cut: "Cut",

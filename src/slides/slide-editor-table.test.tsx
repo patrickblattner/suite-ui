@@ -2,7 +2,8 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SLIDE_BRAND, SLIDE_EDITOR_DOC } from "../../gallery/slide-showcase.js";
-import type { SlideDocument, SlideDocumentInput } from "./schema.js";
+import { toast } from "../ui/toaster.js";
+import { SLIDE_LIMITS, type SlideDocument, type SlideDocumentInput } from "./schema.js";
 import { SlideEditor } from "./slide-editor.js";
 
 beforeEach(() => {
@@ -219,5 +220,30 @@ describe("SlideEditor tables", () => {
     const table = await saved();
     expect(table.columnWidths).toEqual([220, 120]);
     expect(table.width).toBe(340);
+  });
+
+  // SUI-FEATURE-114 AC2: a cell refuses text past a limit at input, as a text field does.
+  it("refuses a paste past the text-length limit in a cell: nothing put in, a hint, Save still works", async () => {
+    const error = vi.spyOn(toast, "error").mockReturnValue(1);
+    const { canvas, press, saved } = renderEditor();
+    press(500, 30);
+    fireEvent.doubleClick(canvas, at(700, 70));
+    const field = await screen.findByTestId("slide-editor-text-field");
+    fireEvent.paste(field, {
+      clipboardData: { getData: () => "x".repeat(SLIDE_LIMITS.maxTextLength + 1) },
+    });
+    expect(field.textContent).toBe("Slides");
+    expect(error).toHaveBeenCalledWith(
+      "That much text doesn’t fit here. Nothing was added; remove some text and try again.",
+      {
+        id: "slide-editor-text-refused",
+      },
+    );
+    field.querySelector("span")!.textContent = "Tables";
+    fireEvent.input(field);
+    fireEvent.keyDown(field, { key: "Escape" });
+    const table = await saved();
+    expect(table.rows[1]![1]!.runs).toEqual([{ text: "Tables", size: 16 }]);
+    error.mockRestore();
   });
 });
