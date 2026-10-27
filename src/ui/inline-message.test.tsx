@@ -56,11 +56,7 @@ describe("InlineMessage", () => {
       </InlineMessage>,
     );
     const message = screen.getByRole("status");
-    expect(message).toHaveClass(
-      "[&_a]:underline",
-      "[&_a]:hover:no-underline",
-      "[&_a]:focus-visible:focus-ring",
-    );
+    expect(message).toHaveClass("[&_a]:prose-link");
     const link = screen.getByRole("link", { name: "See plans" });
     expect(link.tabIndex).toBe(0);
     link.focus();

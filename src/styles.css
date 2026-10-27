@@ -356,6 +356,20 @@
   @apply ring-[3px] ring-ring ring-inset;
 }
 
+/* The one look of a link in running text (`GL-UI-060` §Links, `SUI-FEATURE-113` rev 3): underlined
+   4 px below the text at rest, no underline on hover, the token focus ring on keyboard focus. The
+   colour stays with the call site: `proseLinkClass` adds `text-primary`, an `InlineMessage` keeps its
+   tone. */
+@utility prose-link {
+  @apply rounded-sm underline underline-offset-4 outline-none;
+  @variant hover {
+    text-decoration-line: none;
+  }
+  &:focus-visible {
+    @apply focus-ring;
+  }
+}
+
 @layer base {
   * {
     border-color: var(--border);

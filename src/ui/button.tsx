@@ -5,6 +5,7 @@ import type * as React from "react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { cn } from "../lib/cn.js";
+import { proseLinkClass } from "./prose-link.js";
 
 // The transition list is enumerated and leaves `opacity` out on purpose: an animated opacity shows the
 // filled surface half-transparent for a moment, and a contrast check in that window reads the mix
@@ -37,7 +38,8 @@ const buttonVariants = cva(
           "relative size-6 rounded-md after:absolute after:top-1/2 after:left-1/2 after:size-6 after:-translate-x-1/2 after:-translate-y-1/2 [&_svg:not([class*='size-'])]:size-3",
         "icon-sm": "size-8",
         "icon-lg": "size-10",
-        // A text link in a table row, a path or running text (`SUI-FEATURE-006`): no height and no
+        // A text link in a table row or a path (`SUI-FEATURE-006`); a link button in running text takes
+        // `inline` instead, a link there `ProseLink` (`SUI-FEATURE-113`). No height and no
         // side padding of its own, so the line of text sets its height; only the icon gap of `sm`.
         // The 2 px above and below grow the hit area to 24 px (`GL-UI-013`), the negative margin
         // takes them back out of the layout.
@@ -51,9 +53,26 @@ type ButtonVariant = NonNullable<VariantProps<typeof buttonVariants>["variant"]>
 // The sizes of a button box. `inline` is not one of them: it exists only together with `variant="link"`.
 type ButtonSize = Exclude<NonNullable<VariantProps<typeof buttonVariants>["size"]>, "inline">;
 
+// A link button in the middle of a sentence counts as running text (`GL-UI-060` §Links,
+// `SUI-FEATURE-113`): the prose-link look, and it flows in the line — inline, no height or padding of
+// its own, the paragraph's font and line height, on the text's baseline, so the line keeps its height.
+// `hover:no-underline` and `rounded-sm` repeat the rule's own so the merge drops the link variant's.
+// The label stays on one line (the base `whitespace-nowrap`): a `<button>` is an inline block, so a
+// wrapping label would wrap as a block of its own and add a line to the paragraph. A label that can
+// wrap belongs in a `ProseLink` (`asChild` for a router link).
+const INLINE_LINK = cn(
+  "inline h-auto p-0 text-start align-baseline text-[length:inherit] leading-[inherit] font-[number:inherit] rounded-sm hover:no-underline",
+  proseLinkClass,
+);
+
 type ButtonProps = React.ComponentProps<"button"> &
-  // Both are required (`GL-UI-011`): every button names its action colour and its size token.
-  ({ variant: ButtonVariant; size: ButtonSize } | { variant: "link"; size: "inline" }) & {
+  // Both are required (`GL-UI-011`): every button names its action colour and its size token. A link
+  // button in a sentence takes `inline` instead of a size.
+  (
+    | { variant: ButtonVariant; size: ButtonSize; inline?: never }
+    | { variant: "link"; size: "inline"; inline?: never }
+    | { variant: "link"; inline: true; size?: never }
+  ) & {
     asChild?: boolean;
     // The action is running and must not run twice (`GL-UI-027`): the working state in the full colour
     // of the variant, and a lock against a second trigger that keeps the focus (`SUI-FEATURE-120`).
@@ -150,6 +169,7 @@ function Button(props: ButtonProps) {
     className,
     variant,
     size,
+    inline = false,
     asChild = false,
     busy = false,
     loading = false,
@@ -209,12 +229,14 @@ function Button(props: ButtonProps) {
       data-slot="button"
       data-variant={variant}
       data-size={size}
+      data-inline={inline || undefined}
       // While it runs, the call site's `disabled` waits: the attribute would drop the focus to `<body>`
       // (`SUI-FEATURE-103`); the run's lock holds instead, and `disabled` applies again once it ends
       // and the focus has left the button.
       {...(disabled !== undefined && !running && !holding ? { disabled } : {})}
       className={cn(
         buttonVariants({ variant, size }),
+        inline && INLINE_LINK,
         locked && !busy && (disabled !== true || holding) && [LOCKED_LOOK[variant], LOCKED_FORCED],
         // "Runs" and "does not work" never share a look: a running button that is also `disabled`
         // keeps its full colour. Its `disabled:` variants match the `:disabled` state, so a button

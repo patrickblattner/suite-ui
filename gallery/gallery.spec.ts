@@ -9889,6 +9889,49 @@ test("GL-UI-060: the InlineMessage tones differ without colour, the link is reac
   await expect(link).toBeFocused();
 });
 
+// `SUI-FEATURE-113` rev 3: the link and the link button in a sentence share the prose-link look (the
+// underline 4 px below the text) and leave the paragraph's line height as it is.
+test("SUI-FEATURE-113: ProseLink and Button inline look alike and flow in the sentence", async ({
+  page,
+}) => {
+  await page.goto("/?page=components&lng=en");
+  const cases = [
+    { sentence: page.getByTestId("prose-link-sentence"), role: "link", name: "upload guide" },
+    { sentence: page.getByTestId("button-inline-sentence"), role: "button", name: "Select all" },
+  ] as const;
+  const colours: string[] = [];
+  for (const { sentence, role, name } of cases) {
+    const target = sentence.getByRole(role, { name });
+    await expect(target).toHaveCSS("text-decoration-line", "underline");
+    await expect(target).toHaveCSS("text-underline-offset", "4px");
+    await target.hover();
+    await expect(target).toHaveCSS("text-decoration-line", "none");
+    await page.mouse.move(0, 0);
+    await target.focus();
+    await page.keyboard.press("Shift+Tab");
+    await page.keyboard.press("Tab");
+    await expect(target).toBeFocused();
+    await expect(target).toHaveCSS("box-shadow", /3px/);
+    const box = await sentence.evaluate((p) => {
+      const style = getComputedStyle(p);
+      const child = p.querySelector("a, button") as HTMLElement;
+      return {
+        height: p.getBoundingClientRect().height,
+        lineHeight: parseFloat(style.lineHeight),
+        fontSize: style.fontSize,
+        childFontSize: getComputedStyle(child).fontSize,
+        childWeight: getComputedStyle(child).fontWeight,
+        weight: style.fontWeight,
+      };
+    });
+    expect(box.height).toBeCloseTo(box.lineHeight, 0);
+    expect(box.childFontSize).toBe(box.fontSize);
+    expect(box.childWeight).toBe(box.weight);
+    colours.push(await target.evaluate((el) => getComputedStyle(el).color));
+  }
+  expect(colours[1]).toBe(colours[0]);
+});
+
 test("GL-UI-060: every toast variant has its own symbol and its name", async ({ page }) => {
   await page.goto("/?page=toast&lng=en");
   await expect(page.locator("[data-sonner-toast][data-type=success]")).toBeVisible();

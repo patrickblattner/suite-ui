@@ -23,6 +23,15 @@ export const inlineOnlyAsLink = [
   <Button key="default" variant="default" size="inline" />,
 ];
 
+// `inline` exists only with `variant="link"` and takes the place of a size (`SUI-FEATURE-113`).
+export const inlineLinkOnly = [
+  <Button key="link" variant="link" inline />,
+  // @ts-expect-error inline needs variant="link"
+  <Button key="ghost" variant="ghost" inline />,
+  // @ts-expect-error inline takes no size
+  <Button key="sized" variant="link" size="sm" inline />,
+];
+
 // An action that switches its own working state on, like a mutation whose pending flag drives the
 // prop.
 function Action({ prop, onRun }: { prop: "busy" | "loading"; onRun: () => void }) {
@@ -43,6 +52,55 @@ function Action({ prop, onRun }: { prop: "busy" | "loading"; onRun: () => void }
 }
 
 describe("Button", () => {
+  it("variant link inline: the prose-link look, flowing in the sentence on its font and line height", () => {
+    render(
+      <p>
+        Nothing selected.{" "}
+        <Button variant="link" inline>
+          Select all
+        </Button>
+      </p>,
+    );
+    const button = screen.getByRole("button", { name: "Select all" });
+    expect(button).toHaveAttribute("data-inline", "true");
+    expect(button).not.toHaveAttribute("data-size");
+    const classes = button.className.split(/\s+/);
+    expect(classes).toEqual(
+      expect.arrayContaining([
+        "prose-link",
+        "text-primary",
+        "inline",
+        "p-0",
+        "align-baseline",
+        "text-[length:inherit]",
+        "leading-[inherit]",
+        "font-[number:inherit]",
+        "hover:no-underline",
+        "underline-offset-4",
+        // A button is an inline block: its label stays on one line, never a wrapped block.
+        "whitespace-nowrap",
+        "text-start",
+      ]),
+    );
+    expect(classes).not.toContain("whitespace-normal");
+    // Nothing of the link variant's own box or hover underline stays.
+    for (const gone of ["inline-flex", "text-sm", "font-medium", "hover:underline", "rounded-md"])
+      expect(classes).not.toContain(gone);
+    expect(classes.filter((c) => /^(h|size|min-h)-(?!auto)/.test(c))).toEqual([]);
+  });
+
+  it("variant link without inline keeps its look", () => {
+    render(
+      <Button variant="link" size="default">
+        Open
+      </Button>,
+    );
+    const button = screen.getByRole("button", { name: "Open" });
+    expect(button).not.toHaveAttribute("data-inline");
+    expect(button).toHaveClass("inline-flex", "hover:underline", "underline-offset-4");
+    expect(button).not.toHaveClass("prose-link");
+  });
+
   it("inline: a text link takes no height and no side padding from its size, 2 px to grow its hit area", () => {
     render(
       <Button variant="link" size="inline">

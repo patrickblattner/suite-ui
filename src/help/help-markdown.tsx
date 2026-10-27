@@ -5,6 +5,7 @@ import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import { Code } from "../ui/code.js";
+import { proseLinkClass } from "../ui/prose-link.js";
 
 // The GFM renderer of the help pages (`GL-UI-021`, `SUI-FEATURE-038`). Beyond styling it does two
 // things: a missing or empty image source, or an image that fails to load, renders a "Screenshot
@@ -85,7 +86,7 @@ const components: Components = {
         href={safe}
         target={external ? "_blank" : undefined}
         rel={external ? "noreferrer" : undefined}
-        className="rounded-sm text-primary underline outline-none hover:no-underline focus-visible:focus-ring"
+        className={proseLinkClass}
       >
         {children}
       </a>

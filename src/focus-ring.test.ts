@@ -2,7 +2,13 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
+
+import { HelpMarkdown } from "./help/help-markdown.js";
+import { InlineMessage } from "./ui/inline-message.js";
+import { ProseLink } from "./ui/prose-link.js";
 
 const src = fileURLToPath(new URL("./", import.meta.url));
 const sources = readdirSync(src, { recursive: true, encoding: "utf8" })
@@ -47,9 +53,26 @@ describe("focus ring", () => {
     "ui/checkbox.tsx",
     "list/data-table-shell.tsx",
     "help/help-drawer.tsx",
-    "help/help-markdown.tsx",
   ])("%s uses the central rule", (file) => {
     expect(readFileSync(`${src}${file}`, "utf8")).toContain("focus-visible:focus-ring");
+  });
+
+  // SUI-FEATURE-113: a link in running text takes the ring through the one `prose-link` rule; the
+  // rendered class lists, not the source text, show who uses it.
+  it("the prose-link rule rings the link with the central rule", () => {
+    const css = readFileSync(`${src}styles.css`, "utf8");
+    expect(css).toMatch(/@utility prose-link \{[\s\S]*?&:focus-visible \{\s*@apply focus-ring;/);
+  });
+
+  it.each([
+    ["ProseLink", createElement(ProseLink, { href: "#a" }, "a"), "prose-link"],
+    ["HelpMarkdown", createElement(HelpMarkdown, { body: "[a](#a)" }), "prose-link"],
+    ["InlineMessage", createElement(InlineMessage, { tone: "warn" }, "a"), "[&_a]:prose-link"],
+  ] as const)("%s links take the prose-link rule", (_name, element, token) => {
+    const classes = [...renderToStaticMarkup(element).matchAll(/class="([^"]*)"/g)].flatMap(
+      ([, list]) => list!.replaceAll("&amp;", "&").split(/\s+/),
+    );
+    expect(classes).toContain(token);
   });
 
   // SUI-FEATURE-055: the keyboard-highlighted entry of a menu or choice list carries the inset ring.

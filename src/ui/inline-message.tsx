@@ -18,8 +18,8 @@ const tones = {
 // A free message line (`SUI-FEATURE-096`): the tone's symbol before the text in the tone's status
 // text colour, so the kind does not rest on colour alone (`GL-UI-060`). The text starts with a word
 // only screen readers read, so it does not rest on the symbol either. An error is an alert, a
-// warning a status message. A link in the text is underlined at rest, drops the underline on hover
-// like the help-markdown link, and takes the focus ring.
+// warning a status message. A link in the text takes the prose-link rule of the help-markdown link
+// (`SUI-FEATURE-113`) in the tone's colour.
 function InlineMessage({ tone, className, children, ...props }: InlineMessageProps) {
   const { t } = useTranslation("suite");
   const { Icon, role, className: toneClassName } = tones[tone];
@@ -28,11 +28,7 @@ function InlineMessage({ tone, className, children, ...props }: InlineMessagePro
       role={role}
       data-slot="inline-message"
       data-tone={tone}
-      className={cn(
-        "flex items-start gap-2 text-sm [&_a]:rounded-sm [&_a]:underline [&_a]:underline-offset-4 [&_a]:hover:no-underline [&_a]:outline-none [&_a]:focus-visible:focus-ring",
-        toneClassName,
-        className,
-      )}
+      className={cn("flex items-start gap-2 text-sm [&_a]:prose-link", toneClassName, className)}
       {...props}
     >
       <Icon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />

@@ -39,6 +39,7 @@ export * from "./popover.js";
 export * from "./preview-frame.js";
 export * from "./preview-toolbar.js";
 export * from "./property-panel.js";
+export * from "./prose-link.js";
 export * from "./radio-group.js";
 export * from "./removable-chip.js";
 export * from "./restore-defaults-button.js";

@@ -51,6 +51,7 @@ import {
   OperationStatusProvider,
   useOperationStatus,
 } from "../src/ui/operation-status.js";
+import { ProseLink } from "../src/ui/prose-link.js";
 import { RadioGroup, RadioGroupItem } from "../src/ui/radio-group.js";
 import { RestoreDefaultsButton } from "../src/ui/restore-defaults-button.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../src/ui/select.js";
@@ -721,6 +722,26 @@ function InlineMessages() {
         <InlineMessage tone="warn" data-testid="inline-message-warn">
           The storage is almost full. <a href="#inline-message">Free up space</a>
         </InlineMessage>
+      </div>
+    </Section>
+  );
+}
+
+// `SUI-FEATURE-113`: a link and a link button in a sentence, both in the prose-link look.
+function ProseLinks() {
+  return (
+    <Section id="prose-link" title="ProseLink · Button inline">
+      <div className="flex flex-col gap-3 text-sm">
+        <p data-testid="prose-link-sentence">
+          Read the <ProseLink href="#prose-link">upload guide</ProseLink> first.
+        </p>
+        <p data-testid="button-inline-sentence">
+          Nothing selected yet.{" "}
+          <Button variant="link" inline>
+            Select all
+          </Button>{" "}
+          to start.
+        </p>
       </div>
     </Section>
   );
@@ -1519,6 +1540,7 @@ export function ComponentsPage() {
       <Fields />
       <FieldErrors />
       <InlineMessages />
+      <ProseLinks />
       <Choices />
       <Sliders />
       <Structure />
