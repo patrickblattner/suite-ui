@@ -20,6 +20,10 @@ export type SlideMigration = (document: Record<string, unknown>) => Record<strin
 export const SLIDE_MIGRATIONS: Readonly<Record<number, SlideMigration>> = {
   // 1 → 2 added the optional `placeholderRole` (`SUI-FEATURE-192`): no content changes.
   1: (document) => document,
+  // 2 → 3 added inline runs (`SUI-FEATURE-164`), a text field's `sizing` and a shape's `follow`
+  // (`SUI-FEATURE-165`): an older document has none of them, its text fields are `fixed` by default,
+  // so its content stays as it was.
+  2: (document) => document,
 };
 
 export type SlideDocumentErrorCode =

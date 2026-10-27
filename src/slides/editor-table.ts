@@ -3,7 +3,7 @@
 // its text, and adds its share to the table's box; removing one takes its share away again. Column
 // widths are relative: the table draws them scaled to its width.
 
-import { SLIDE_LIMITS, type SlideElement, type TextRun } from "./schema.js";
+import { isTextRun, SLIDE_LIMITS, type SlideElement, type TextRun } from "./schema.js";
 
 export type Table = Extract<SlideElement, { type: "table" }>;
 export type TableCell = Table["rows"][number][number];
@@ -17,7 +17,7 @@ const sum = (values: readonly number[]) => values.reduce((total, value) => total
 // A cell's format without its text: the first run's format kept, so what is typed into it looks like
 // its neighbour.
 function emptied(cell: TableCell): TableCell {
-  const first: TextRun | undefined = cell.runs[0];
+  const first: TextRun | undefined = cell.runs.find(isTextRun);
   return { ...structuredClone(cell), runs: first === undefined ? [] : [{ ...first, text: "" }] };
 }
 

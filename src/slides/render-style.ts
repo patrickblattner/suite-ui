@@ -7,11 +7,14 @@ import { resolveColor, resolveFont, type SlideBrandSet } from "./brand.js";
 import {
   isSlideColor,
   isSlideFontFamily,
+  isTextRun,
   type ColorValue,
   type Fill,
   type FontValue,
   type SlideDocument,
   type SlideElement,
+  type InlineRun,
+  type Run,
   type SlidePage,
   type TextRun,
 } from "./schema.js";
@@ -106,18 +109,105 @@ export function stackOrder<T extends { layer: number }>(elements: readonly T[]):
     .map(({ element }) => element);
 }
 
-// A text field's paragraphs: a `\n` in a run's text ends one. Each piece keeps its run's format.
-export type Piece = { run: TextRun; text: string };
+// A text field's paragraphs: a `\n` in a run's text ends one. Each piece keeps its run's format; an
+// inline run is a piece of its own (`SUI-FEATURE-164`).
+export type Piece = { run: TextRun; text: string } | { run: InlineRun; text?: undefined };
 
-export function paragraphs(runs: readonly TextRun[]): Piece[][] {
+export function paragraphs(runs: readonly Run[]): Piece[][] {
   const result: Piece[][] = [[]];
   for (const run of runs) {
+    if (run.inline !== undefined) {
+      result.at(-1)!.push({ run });
+      continue;
+    }
     run.text.split("\n").forEach((text, index) => {
       if (index > 0) result.push([]);
       if (text !== "") result.at(-1)!.push({ run, text });
     });
   }
   return result;
+}
+
+// A paragraph's pieces with each inline run glued to the word it touches (`SUI-FEATURE-164` AC1): a
+// line may break around an image or icon like around a word (CSS breaks on both sides of one), so a
+// flag before "Zürich" goes to the next line with it. A glue is drawn as one span that does not wrap;
+// the text pieces it takes a word from are split there.
+export type Glued = Piece | { glue: Piece[] };
+
+export function glueInline(pieces: readonly Piece[]): Glued[] {
+  const result: Glued[] = [];
+  const rest = [...pieces];
+  while (rest.length > 0) {
+    const piece = rest.shift()!;
+    if (piece.text !== undefined) {
+      result.push(piece);
+      continue;
+    }
+    const last = result.at(-1);
+    let group: Piece[];
+    if (last !== undefined && "glue" in last) {
+      // Nothing between it and the glue before: one glue.
+      group = last.glue;
+      result.pop();
+    } else {
+      group = [];
+      const word = last?.text === undefined ? null : /\S+$/.exec(last.text);
+      if (last !== undefined && last.text !== undefined && word !== null) {
+        result.pop();
+        if (word.index > 0) result.push({ run: last.run, text: last.text.slice(0, word.index) });
+        group.push({ run: last.run, text: word[0] });
+      }
+    }
+    group.push(piece);
+    const next = rest[0];
+    const word = next?.text === undefined ? null : /^\S+/.exec(next.text);
+    if (next !== undefined && next.text !== undefined && word !== null) {
+      rest.shift();
+      group.push({ run: next.run, text: word[0] });
+      if (word[0].length < next.text.length) {
+        rest.unshift({ run: next.run, text: next.text.slice(word[0].length) });
+      }
+    }
+    result.push({ glue: group });
+  }
+  return result;
+}
+
+// The box that lifts an inline run taller than its line's 1 em (`SUI-FEATURE-164`): the run itself takes
+// no room in the line (a negative top margin as tall as it), and this box around it holds the line's
+// own room plus the part above 1 em, so the line grows by that part and the run stays inside its
+// line. None up to 1 em: the line stays as it is. The same in the view and the editor's field.
+export function inlineLift(
+  height: number,
+): { display: "inline-block"; paddingTop: string } | undefined {
+  if (height <= 1) return undefined;
+  return { display: "inline-block", paddingTop: `${num(height - 1)}em` };
+}
+
+// The run a paragraph takes its font size from: its first text, else the field's first text
+// (`SUI-FEATURE-164`).
+export function paragraphRun(pieces: readonly Piece[], runs: readonly Run[]): TextRun | undefined {
+  for (const piece of pieces) if (piece.run.inline === undefined) return piece.run;
+  return runs.find(isTextRun);
+}
+
+// The run an inline piece takes its colour and highlight from (`SUI-FEATURE-164` rev 4): the text
+// before it in its paragraph, at the paragraph's start the text after it, else as `paragraphRun`.
+export function inkRun(
+  pieces: readonly Piece[],
+  piece: Piece,
+  runs: readonly Run[],
+): TextRun | undefined {
+  const at = pieces.indexOf(piece);
+  for (let index = at - 1; index >= 0; index--) {
+    const before = pieces[index]!;
+    if (before.text !== undefined) return before.run;
+  }
+  for (let index = at + 1; index < pieces.length; index++) {
+    const after = pieces[index]!;
+    if (after.text !== undefined) return after.run;
+  }
+  return paragraphRun(pieces, runs);
 }
 
 // The roles the page's own elements fill (`placeholderRole`, in groups too).

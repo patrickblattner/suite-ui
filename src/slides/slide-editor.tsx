@@ -88,6 +88,7 @@ import {
   placedBox,
   setAnimation,
   setBox,
+  setFollow,
   setPayload,
   setRotation,
   setTransition,
@@ -128,9 +129,11 @@ import {
   withLayout,
 } from "./editor-layouts.js";
 import { resizeColumn, setCell } from "./editor-table.js";
-import { formatRange } from "./editor-text.js";
+import { formatRange, insertRuns } from "./editor-text.js";
+import { offersHandle, unfollowsBy } from "./text-follow.js";
 import { cssColor, eachElement, stackOrder } from "./render-style.js";
 import {
+  type Run,
   SLIDE_LIMITS,
   type SlideDocument,
   slideElementSchema,
@@ -168,11 +171,13 @@ import {
   tableLayout,
 } from "./slide-editor-table.js";
 import {
+  FollowTextField,
   formatSpan,
   InlineTextEditor,
   type TextBody,
   TextFormatFields,
   type TextRange,
+  TextSizingField,
   toggledFormat,
 } from "./slide-editor-text.js";
 import { ANIMATION_MAX_MS, SlidePreview } from "./slide-editor-preview.js";
@@ -341,10 +346,13 @@ const withBody = (
 const asFrame = (element: SlideElement) => element as Group;
 
 // Text being edited is drawn by its editable field only: on the canvas it keeps its place but no ink.
+// An inline icon takes its paragraph's colour, so it goes with it (`SUI-FEATURE-164`).
 const TRANSPARENT = { type: "color", color: { kind: "free", value: "transparent" } } as const;
 const inkless = (body: TextBody): TextBody => ({
   ...body,
-  runs: body.runs.map((run) => ({ ...run, fill: TRANSPARENT, highlight: undefined })),
+  runs: body.runs.map((run) =>
+    run.inline === undefined ? { ...run, fill: TRANSPARENT, highlight: undefined } : run,
+  ),
 });
 
 // The parts of an app that pass the schema, those past the structural limits left out before the
@@ -353,9 +361,10 @@ const fitsLimits = (element: unknown) => slideElementSchema.safeParse(element).s
 // Whether a field's new runs stay within `SLIDE_LIMITS` (runs, a run's text length): text typed or
 // pasted past them is refused at input, never first at Save (`SUI-FEATURE-114`). A field already past
 // a bound takes an edit that makes it no worse there, so deleting stays possible.
-const longest = (runs: readonly { text: string }[]) =>
-  runs.reduce((most, run) => Math.max(most, run.text.length), 0);
-const runsFit = (runs: readonly { text: string }[], before: readonly { text: string }[]) =>
+// An inline run counts as one run and has no text of its own (`SUI-FEATURE-164`).
+const longest = (runs: readonly Run[]) =>
+  runs.reduce((most, run) => Math.max(most, run.inline === undefined ? run.text.length : 0), 0);
+const runsFit = (runs: readonly Run[], before: readonly Run[]) =>
   (runs.length <= SLIDE_LIMITS.maxRuns || runs.length <= before.length) &&
   (longest(runs) <= SLIDE_LIMITS.maxTextLength || longest(runs) <= longest(before));
 const validLayouts = (list: readonly SlideLayoutInput[] | undefined): SlideLayout[] =>
@@ -906,6 +915,9 @@ function Editor({
     | undefined
   >(undefined);
   const [textRange, setTextRange] = React.useState<TextRange | undefined>(undefined);
+  // Counts the times the field being edited takes the focus back (an inline run put in from the
+  // library, `SUI-FEATURE-164`).
+  const [fieldFocus, setFieldFocus] = React.useState(0);
   const sessions = React.useRef(0);
   // The selected table's current cell (`SUI-FEATURE-161` §Tabellen), set by a click into it.
   const [tableCell, setTableCell] = React.useState<{ id: string; cell: CellAt } | undefined>(
@@ -1008,6 +1020,19 @@ function Editor({
   // Every change is one step of the history and names the page it changes.
   const apply = (change: (document: SlideDocument) => SlideDocument, merge?: string) =>
     history.apply(change, { merge, page });
+  // The boxes the canvas drew of sizes that follow the text (`SUI-FEATURE-165`) are stored as the
+  // size last measured, in the step that changed the text, not as a step of their own; a draft saved
+  // as it stood stays saved. A drag's preview or a crop being set is not stored from.
+  const storeLayout = (boxes: ReadonlyMap<string, Box>) => {
+    if (preview !== undefined || cropping !== undefined) return;
+    const from = history.document;
+    const to = updateElements(from, page, [...boxes.keys()], (element) => ({
+      ...element,
+      ...boxes.get(element.id),
+    }));
+    history.amend(from, to);
+    setSaved((current) => (current === from ? to : current));
+  };
   // Whether a changed document passes the schema (an app layout copied in whose ids clash, a page or
   // element past its limit); else the change is named in an error toast and not made.
   const fits = (next: SlideDocument, refused: string) => {
@@ -1216,6 +1241,37 @@ function Editor({
     );
     return false;
   };
+  // With a caret in the text being edited, an icon or a medium from the library goes into the text at
+  // the caret as an inline run, never a new element (`SUI-FEATURE-164`): past the run limit it is
+  // refused with its own hint, `inlineRefused` (`SUI-FEATURE-114`), a medium the schema refuses is named as a medium.
+  // The field takes the focus back with its caret after the new run. `false`: nothing being edited.
+  const insertInline = (entry: LibraryEntry): boolean => {
+    if (entry.kind !== "icon" && entry.kind !== "image") return false;
+    if (editing === undefined || edited === undefined || textRange === undefined) return false;
+    const body = bodyOf(edited, editing.cell);
+    if (body === undefined) return false;
+    const run: Run =
+      entry.kind === "icon"
+        ? { inline: "icon", icon: entry.icon, height: 1 }
+        : { inline: "media", media: { id: entry.media }, alt: entry.alt, height: 1 };
+    const runs = insertRuns(body.runs, textRange.start, textRange.end, [run]);
+    if (!runsFit(runs, body.runs)) {
+      toast.error(t("slides.editor.inlineRefused"), { id: TEXT_REFUSED_TOAST });
+      return true;
+    }
+    if (
+      !slideElementSchema.safeParse(withBody(edited, editing.cell, (one) => ({ ...one, runs })))
+        .success
+    ) {
+      toast.error(t("slides.editor.libraryMediaInvalid"), { id: INSERT_REFUSED_TOAST });
+      return true;
+    }
+    const caret = Math.min(textRange.start, textRange.end) + 1;
+    setTextRange({ start: caret, end: caret });
+    changeBody(editing.id, editing.cell, (one) => ({ ...one, runs }));
+    setFieldFocus((count) => count + 1);
+    return true;
+  };
   // Put on the page of the document as it is when it lands (a picked medium arrives later). The
   // element must pass the schema first: a medium it refuses (its id or alt text past their limits)
   // is named as a medium, any other element by the generic error. Then the focus goes to the new
@@ -1228,6 +1284,7 @@ function Editor({
     label = entryLabel(entry),
     into?: OpenPlaceholder,
   ): void => {
+    if (at === undefined && into === undefined && insertInline(entry)) return;
     const point = at ?? { x: pageWidth / 2, y: pageHeight / 2 };
     const color = insertColor(view.brand, ground);
     const made = libraryElement(history.document, page, entry, point, color);
@@ -1545,6 +1602,7 @@ function Editor({
       lineHeight: 1.2,
       list: "none",
       verticalAlign: "top",
+      sizing: "fixed",
     };
     const element = intoPlaceholder(made, open);
     const next = insertElement(history.document, page, element);
@@ -1937,7 +1995,16 @@ function Editor({
         { x: local.x - drag.start.x, y: local.y - drag.start.y },
         event.shiftKey,
       );
-      setPreview(setBox(drag.base, page, drag.id, box));
+      // A handle on a side that follows the text makes the field `fixed`, in the same step
+      // (`SUI-FEATURE-165`).
+      const dragged = findElement(drag.base.pages[page]?.elements ?? [], drag.id)?.element;
+      const base =
+        dragged !== undefined && unfollowsBy(dragged, drag.handle)
+          ? updateElements(drag.base, page, [drag.id], (element) =>
+              element.type === "text" ? { ...element, sizing: "fixed" } : element,
+            )
+          : drag.base;
+      setPreview(setBox(base, page, drag.id, box));
       return;
     }
     setPreview(
@@ -2761,6 +2828,70 @@ function Editor({
           );
         }}
         onBody={(patch) => changeBody(single.id, textCell, (one) => ({ ...one, ...patch }))}
+        onInline={(index, patch, merge) =>
+          changeBody(
+            single.id,
+            textCell,
+            (one) => ({
+              ...one,
+              runs: one.runs.map((run, at) =>
+                at === index && run.inline !== undefined ? { ...run, ...patch } : run,
+              ),
+            }),
+            `inline:${single.id}:${index}:${merge}`,
+          )
+        }
+      />
+    );
+  // A text field's size: fixed or following its text (`SUI-FEATURE-165`).
+  const sizingField =
+    single?.type !== "text" ? null : (
+      <TextSizingField
+        value={single.sizing}
+        readOnly={single.locked}
+        onValue={(sizing) =>
+          apply((current) =>
+            updateElements(current, page, [single.id], (element) =>
+              element.type === "text" ? { ...element, sizing } : element,
+            ),
+          )
+        }
+      />
+    );
+  // A shape in a group with a text field may follow one of them: its box is the field's grown by
+  // the insets (`SUI-FEATURE-165` §Editor).
+  const followTexts =
+    single?.type === "shape"
+      ? (findElement(elements, single.id)?.group?.children.filter(
+          (one): one is Extract<SlideElement, { type: "text" }> => one.type === "text",
+        ) ?? [])
+      : [];
+  const followField =
+    single?.type !== "shape" || followTexts.length === 0 ? null : (
+      <FollowTextField
+        key={single.id}
+        follow={single.follow}
+        texts={followTexts}
+        readOnly={single.locked}
+        revision={travels}
+        onFollow={(id) => apply((current) => setFollow(current, page, single.id, id))}
+        onInset={(side, value) =>
+          apply(
+            (current) =>
+              updateElements(current, page, [single.id], (element) =>
+                element.type !== "shape" || element.follow === undefined
+                  ? element
+                  : {
+                      ...element,
+                      follow: {
+                        ...element.follow,
+                        inset: { ...element.follow.inset, [side]: Math.max(0, value) },
+                      },
+                    },
+              ),
+            `field:${single.id}:inset-${side}`,
+          )
+        }
       />
     );
   const hasContent =
@@ -3018,8 +3149,25 @@ function Editor({
                   };
                 }
                 setSizeLimit(limit);
+                // A typed side the text sets makes the field `fixed`, a typed box frees a shape that
+                // follows its text, in the same step, as a handle does (`SUI-FEATURE-165`).
+                const element = found.element;
+                const unfollows =
+                  (key === "width" || key === "height") &&
+                  unfollowsBy(element, key === "width" ? "e" : "s");
+                const freed = element.type === "shape" && element.follow !== undefined;
+                const start =
+                  unfollows || freed
+                    ? updateElements(base, page, [single.id], (one) => {
+                        if (one.type === "text") return { ...one, sizing: "fixed" };
+                        if (one.type !== "shape") return one;
+                        const free = { ...one };
+                        delete free.follow;
+                        return free;
+                      })
+                    : base;
                 apply(
-                  () => setBox(base, page, single.id, { ...boxOf(found.element), [key]: wanted }),
+                  () => setBox(start, page, single.id, { ...boxOf(element), [key]: wanted }),
                   merge,
                 );
               }}
@@ -3044,6 +3192,10 @@ function Editor({
             }
             testId="slide-editor-rotation"
           />
+          {/* Directly under X/Y/W/H and Rotation, at the width of the panel's other single selects
+              (`SUI-FEATURE-165` AC9, #630). */}
+          {sizingField === null ? null : <div className="col-start-1">{sizingField}</div>}
+          {followField}
         </div>
       )}
       {selected.length === 0 || editable.length === 0 ? null : (
@@ -3547,6 +3699,7 @@ function Editor({
                   onInsert={(entry, label) => insertEntry(entry, undefined, label)}
                   onPickMedia={pickFromMedia}
                   appEntries={appEntries}
+                  atCaret={editing !== undefined && textRange !== undefined}
                 />
               ),
             },
@@ -3692,6 +3845,7 @@ function Editor({
                 scale={zoom}
                 animationStep="none"
                 pastPageNotices
+                onLayout={storeLayout}
               />
               {/* The app's overlay over the page, unscaled, never taking a press; the editor's only
                   (`SUI-FEATURE-163`). */}
@@ -4023,7 +4177,7 @@ function Editor({
                   }}
                   data-testid="slide-editor-handles"
                 >
-                  {HANDLES.map((handle) => (
+                  {HANDLES.filter((handle) => offersHandle(single, handle)).map((handle) => (
                     <div
                       key={handle}
                       aria-hidden="true"
@@ -4084,9 +4238,16 @@ function Editor({
                         key={editing.session}
                         body={body}
                         brand={view.brand}
+                        resolveMedia={view.resolveMedia}
+                        focusRequest={fieldFocus}
                         frame={placedBox(elements, edited)}
                         inner={inner}
                         padding={inner === undefined ? 0 : CELL_PADDING}
+                        unwrapped={
+                          editing.cell === undefined &&
+                          edited.type === "text" &&
+                          edited.sizing === "both"
+                        }
                         zoom={zoom}
                         label={
                           editing.cell === undefined

@@ -8,6 +8,7 @@ import {
   resolveFont,
   safeParseSlideDocument,
   CHART_PATTERNS,
+  isTextRun,
   SLIDE_LIMITS,
   SLIDE_MIGRATIONS,
   SLIDE_SCHEMA_VERSION,
@@ -218,10 +219,25 @@ describe("slide document migration", () => {
     })),
   });
 
-  it("ships one step, 1 → 2, that changes no content (SUI-FEATURE-192 AC4)", () => {
-    expect(SLIDE_SCHEMA_VERSION).toBe(2);
-    expect(Object.keys(SLIDE_MIGRATIONS)).toEqual(["1"]);
+  it("ships two steps, 1 → 2 and 2 → 3, that change no content (SUI-FEATURE-192 AC4)", () => {
+    expect(SLIDE_SCHEMA_VERSION).toBe(3);
+    expect(Object.keys(SLIDE_MIGRATIONS)).toEqual(["1", "2"]);
     expect(parseSlideDocument({ ...valid, schemaVersion: 1 })).toEqual(parseSlideDocument(valid));
+  });
+
+  // SUI-FEATURE-164 AC5, SUI-FEATURE-165 AC6: a version-2 document loads and migrates with its content
+  // as it was: no inline runs, every text field `fixed`, no shape following anything.
+  it("migrates a version-2 document with its content unchanged (SUI-FEATURE-164/165)", () => {
+    const text = { id: "t", type: "text", x: 10, y: 20, width: 300, height: 80 };
+    const runs = [{ text: "Neu", size: 24, weight: 700 }];
+    const shape = { id: "s", type: "shape", shape: "rectangle", x: 0, y: 0, width: 50, height: 50 };
+    const page = { ...valid.pages[0]!, elements: [shape, { ...text, runs }] };
+    const parsed = parseSlideDocument({ ...valid, schemaVersion: 2, pages: [page] });
+    expect(parsed.schemaVersion).toBe(3);
+    const [first, second] = parsed.pages[0]!.elements;
+    expect(first).toMatchObject(shape);
+    expect(first?.type === "shape" && first.follow).toBeUndefined();
+    expect(second).toMatchObject({ ...text, runs, sizing: "fixed" });
   });
 
   it("migrates a previous version on load, content unchanged", () => {
@@ -266,7 +282,7 @@ describe("brand references", () => {
     const snapshot = structuredClone(document);
     const element = document.pages[0]!.elements[0]!;
     if (element.type !== "text") throw new Error("expected a text element");
-    const [run, freeRun] = element.runs;
+    const [run, freeRun] = element.runs.filter(isTextRun);
     const color = run!.fill!.type === "color" ? run!.fill!.color : undefined;
     const before: SlideBrandSet = {
       colors: { primary: { value: "#0a3d62", label: "Primary" } },
@@ -493,7 +509,7 @@ describe("slide document issue codes", () => {
       "unknown-version",
       "schemaVersion",
     ],
-    ["a newer version", { ...valid, schemaVersion: 3 }, "newer-version", "schemaVersion"],
+    ["a newer version", { ...valid, schemaVersion: 4 }, "newer-version", "schemaVersion"],
     [
       "a wrong type",
       withElements([{ ...element, x: "10%" }]),
@@ -795,5 +811,189 @@ describe("slideDocumentSchema preflight", () => {
     }));
     const group = { ...element, id: "g", type: "group", children };
     expect(issues(group)).toEqual([{ code: "too-many-elements", path: [] }]);
+  });
+});
+
+// SUI-FEATURE-164: a run is text or an inline element, an icon or a medium of the app.
+describe("inline runs", () => {
+  const withRuns = (runs: unknown[]) => ({
+    ...valid,
+    pages: [
+      {
+        ...valid.pages[0]!,
+        elements: [{ id: "t", type: "text", x: 0, y: 0, width: 400, height: 100, runs }],
+      },
+    ],
+  });
+  const runsOf = (raw: unknown) => {
+    const element = parseSlideDocument(raw).pages[0]!.elements[0];
+    if (element?.type !== "text") throw new Error("expected a text element");
+    return element.runs;
+  };
+
+  it("takes an icon and a medium beside text, height 1 and no alt text by default", () => {
+    const runs = runsOf(
+      withRuns([
+        { inline: "media", media: { id: "flag-ch" } },
+        { text: " Zürich" },
+        { inline: "icon", icon: "star", height: 1.5 },
+      ]),
+    );
+    expect(runs).toEqual([
+      { inline: "media", media: { id: "flag-ch" }, alt: "", height: 1 },
+      { text: " Zürich" },
+      { inline: "icon", icon: "star", height: 1.5 },
+    ]);
+  });
+
+  it(`keeps an inline height within 0 and ${SLIDE_LIMITS.maxInlineHeight}, names a run it does not know`, () => {
+    const at = (height: number) =>
+      rejection(withRuns([{ inline: "icon", icon: "star", height }])).issues[0];
+    expect(at(SLIDE_LIMITS.maxInlineHeight + 0.5)).toMatchObject({
+      code: "too-big",
+      path: "pages[0].elements[0].runs[0].height",
+    });
+    expect(at(0)).toMatchObject({ code: "too-small" });
+    expect(runsOf(withRuns([{ inline: "icon", icon: "star", height: 4 }]))[0]).toMatchObject({
+      height: 4,
+    });
+    expect(rejection(withRuns([{ inline: "video", src: "x" }])).issues[0]).toMatchObject({
+      path: "pages[0].elements[0].runs[0].inline",
+    });
+    // A text run keeps its own issues and paths.
+    expect(rejection(withRuns([{ text: "a", size: -1 }])).issues[0]).toMatchObject({
+      code: "too-small",
+      path: "pages[0].elements[0].runs[0].size",
+    });
+  });
+
+  it("counts an inline run as one run against maxRuns", () => {
+    const runs = Array.from({ length: SLIDE_LIMITS.maxRuns + 1 }, (_, index) =>
+      index % 2 === 0 ? { inline: "icon", icon: "star" } : { text: "x", weight: 700 },
+    );
+    expect(rejection(withRuns(runs)).issues[0]).toMatchObject({
+      code: "too-big",
+      path: "pages[0].elements[0].runs",
+    });
+    expect(() => parseSlideDocument(withRuns(runs.slice(1)))).not.toThrow();
+  });
+
+  // SUI-FEATURE-164 AC5: a medium the app does not know is the view's to name, never a schema error.
+  it("takes an inline medium whatever its id names", () => {
+    expect(() =>
+      parseSlideDocument(withRuns([{ inline: "media", media: { id: "gone" }, alt: "Flag" }])),
+    ).not.toThrow();
+  });
+});
+
+// SUI-FEATURE-165: a text field's sizing and a shape that follows a text field of its own group.
+describe("sizes that follow the text", () => {
+  const text = (id: string) => ({
+    id,
+    type: "text",
+    x: 100,
+    y: 100,
+    width: 200,
+    height: 50,
+    runs: [{ text: "Neu" }],
+    sizing: "both",
+  });
+  const badge = (follow: string, extra: unknown[] = []) => ({
+    ...valid,
+    pages: [
+      {
+        ...valid.pages[0]!,
+        elements: [
+          {
+            id: "badge",
+            type: "group",
+            x: 84,
+            y: 92,
+            width: 232,
+            height: 66,
+            children: [
+              {
+                id: "back",
+                type: "shape",
+                shape: "rectangle",
+                x: 84,
+                y: 92,
+                width: 232,
+                height: 66,
+                follow: { id: follow, inset: { top: 8, right: 16, bottom: 8, left: 16 } },
+              },
+              text("label"),
+              { id: "dot", type: "shape", shape: "ellipse", x: 0, y: 0, width: 4, height: 4 },
+            ],
+          },
+          ...extra,
+        ],
+      },
+    ],
+  });
+
+  it("takes a shape following a text field of its group, sizing fixed by default", () => {
+    const parsed = parseSlideDocument(badge("label"));
+    const group = parsed.pages[0]!.elements[0];
+    if (group?.type !== "group") throw new Error("expected a group");
+    expect(group.children[0]).toMatchObject({
+      follow: { id: "label", inset: { top: 8, right: 16, bottom: 8, left: 16 } },
+    });
+    expect(group.children[1]).toMatchObject({ sizing: "both" });
+    const plain = parseSlideDocument({
+      ...valid,
+      pages: [{ ...valid.pages[0]!, elements: [{ ...text("t"), sizing: undefined }] }],
+    }).pages[0]!.elements[0];
+    expect(plain).toMatchObject({ sizing: "fixed" });
+  });
+
+  it("names a follow reference outside the group, to no text field or from no group (AC6)", () => {
+    const outside = rejection(badge("loose", [text("loose")]));
+    expect(outside.issues).toHaveLength(1);
+    expect(outside.issues[0]).toMatchObject({
+      code: "follow-outside-group",
+      path: "pages[0].elements[0].children[0].follow.id",
+    });
+    expect(outside.issues[0]!.message).toContain("loose");
+    expect(rejection(badge("dot")).issues[0]).toMatchObject({
+      code: "follow-not-text",
+      path: "pages[0].elements[0].children[0].follow.id",
+    });
+    expect(rejection(badge("nowhere")).issues[0]).toMatchObject({ code: "follow-not-text" });
+    // Rev 6: the page's top level is no group, so a shape there follows nothing.
+    const loose = rejection({
+      ...valid,
+      pages: [
+        {
+          ...valid.pages[0]!,
+          elements: [
+            {
+              id: "back",
+              type: "shape",
+              shape: "rectangle",
+              x: 0,
+              y: 0,
+              width: 100,
+              height: 50,
+              follow: { id: "t", inset: { top: 8, right: 8, bottom: 8, left: 8 } },
+            },
+            text("t"),
+          ],
+        },
+      ],
+    });
+    expect(loose.issues).toHaveLength(1);
+    expect(loose.issues[0]).toMatchObject({
+      code: "follow-no-group",
+      path: "pages[0].elements[0].follow",
+    });
+    expect(
+      rejection({
+        ...valid,
+        pages: [{ ...valid.pages[0]!, elements: [{ ...text("t"), sizing: "grow" }] }],
+      }).issues[0],
+    ).toMatchObject({
+      path: "pages[0].elements[0].sizing",
+    });
   });
 });

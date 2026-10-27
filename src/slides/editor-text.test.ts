@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest";
 
-import { formatOfRange, formatRange, insertText, normalizeRuns, textOf } from "./editor-text.js";
+import {
+  formatOfRange,
+  formatRange,
+  INLINE_CHARACTER,
+  inlineAt,
+  insertRuns,
+  insertText,
+  normalizeRuns,
+  sliceRuns,
+  textOf,
+} from "./editor-text.js";
+import type { Run } from "./schema.js";
 
 // SUI-FEATURE-161 §Text (#308): a range of a field takes a format; the runs stay minimal.
 describe("text runs", () => {
@@ -42,7 +53,7 @@ describe("text runs", () => {
       fill: { type: "color", color: { kind: "brand", key: "primary" } },
     });
     expect(textOf(next)).toBe("One\nTwo");
-    expect(next.map((run) => run.text)).toEqual(["On", "e\n", "T", "wo"]);
+    expect(next.map((run) => textOf([run]))).toEqual(["On", "e\n", "T", "wo"]);
   });
 
   it("reads the common format and what is mixed", () => {
@@ -77,5 +88,70 @@ describe("text insertion", () => {
       { text: "cd!", size: 20 },
     ]);
     expect(insertText([], 0, 0, "new")).toEqual([{ text: "new" }]);
+  });
+});
+
+// SUI-FEATURE-164 AC3: an inline run is one character of the text: never cut, merged or formatted.
+describe("inline runs in the text", () => {
+  const flag = { inline: "media", media: { id: "flag-ch" }, alt: "Swiss flag", height: 1 } as const;
+  const star = { inline: "icon", icon: "star", height: 1 } as const;
+  const runs: Run[] = [{ text: "ab", size: 10 }, flag, { text: "cd", size: 20 }];
+
+  it("counts as one character", () => {
+    expect(textOf(runs)).toBe(`ab${INLINE_CHARACTER}cd`);
+    expect(inlineAt(runs, { start: 2, end: 3 })).toEqual({ index: 1, run: flag });
+    expect(inlineAt(runs, { start: 3, end: 2 })).toEqual({ index: 1, run: flag });
+    expect(inlineAt(runs, { start: 1, end: 2 })).toBeUndefined();
+    expect(inlineAt(runs, { start: 2, end: 2 })).toBeUndefined();
+  });
+
+  it("goes in at the caret and out whole with the range over it; text after it keeps the text's format", () => {
+    expect(insertRuns([{ text: "Zürich" }], 0, 0, [flag])).toEqual([flag, { text: "Zürich" }]);
+    expect(insertRuns(runs, 1, 1, [star])).toEqual([
+      { text: "a", size: 10 },
+      star,
+      { text: "b", size: 10 },
+      flag,
+      { text: "cd", size: 20 },
+    ]);
+    // Backspace after it: the range [2, 3) holds it alone.
+    expect(insertRuns(runs, 2, 3, [])).toEqual([
+      { text: "ab", size: 10 },
+      { text: "cd", size: 20 },
+    ]);
+    // Typed right after it: the format of the text before it, as after any character.
+    expect(insertText(runs, 3, 3, "X")).toEqual([
+      { text: "ab", size: 10 },
+      flag,
+      { text: "X", size: 10 },
+      { text: "cd", size: 20 },
+    ]);
+    // Typed right after an inline run at the field's start: the first text's format.
+    expect(insertText([flag, { text: "Zürich", size: 30 }], 1, 1, " ")).toEqual([
+      flag,
+      { text: " Zürich", size: 30 },
+    ]);
+  });
+
+  it("is left as it is by a format and passed over when reading one", () => {
+    expect(formatRange(runs, 0, 5, { weight: 700 })).toEqual([
+      { text: "ab", size: 10, weight: 700 },
+      flag,
+      { text: "cd", size: 20, weight: 700 },
+    ]);
+    expect(formatOfRange(runs, 2, 3).format).toEqual({ size: 10 });
+    // Text runs on both sides of it are never merged across it.
+    expect(normalizeRuns([{ text: "a" }, star, { text: "b" }])).toEqual([
+      { text: "a" },
+      star,
+      { text: "b" },
+    ]);
+    expect(normalizeRuns([star])).toEqual([star]);
+  });
+
+  it("is copied with the text around it", () => {
+    expect(sliceRuns(runs, 1, 4)).toEqual([{ text: "b", size: 10 }, flag, { text: "c", size: 20 }]);
+    expect(sliceRuns(runs, 2, 3)).toEqual([flag]);
+    expect(sliceRuns(runs, 3, 3)).toEqual([]);
   });
 });

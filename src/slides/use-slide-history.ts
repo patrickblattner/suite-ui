@@ -29,6 +29,7 @@ type Action =
       merge?: string | undefined;
       page?: number | undefined;
     }
+  | { type: "amend"; from: SlideDocument; to: SlideDocument }
   | { type: "undo" }
   | { type: "redo" }
   | { type: "reset"; document: SlideDocument };
@@ -52,6 +53,19 @@ function reduce(state: State, action: Action): State {
         future: [],
         merge: action.merge,
       };
+    }
+    case "amend": {
+      if (state.present.document !== action.from) return state;
+      // Typed and taken back, the size measured again: no step any more, as with `apply` (#366).
+      const before = state.past.at(-1);
+      if (
+        state.merge !== undefined &&
+        before !== undefined &&
+        !isDirty(before.document, action.to)
+      ) {
+        return { past: state.past.slice(0, -1), present: before, future: [], merge: undefined };
+      }
+      return { ...state, present: { ...state.present, document: action.to } };
     }
     case "undo": {
       const previous = state.past.at(-1);
@@ -90,6 +104,10 @@ export interface SlideHistory {
   // was made under that key, else the current one. A field that applies each keystroke computes from
   // it, so a number passed on the way (3 of 300) leaves nothing behind (#327).
   before: (merge: string) => SlideDocument;
+  // Replaces the current document `from` by `to` in place, no step of its own: what the view measured
+  // of sizes that follow the text (`SUI-FEATURE-165`), part of the step that changed the text. Nothing
+  // happens once the current document is another one.
+  amend: (from: SlideDocument, to: SlideDocument) => void;
   undo: () => void;
   redo: () => void;
   canUndo: boolean;
@@ -113,6 +131,10 @@ export function useSlideHistory(initial: SlideDocument): SlideHistory {
       dispatch({ type: "apply", change, merge: options?.merge, page: options?.page }),
     [],
   );
+  const amend = React.useCallback(
+    (from: SlideDocument, to: SlideDocument) => dispatch({ type: "amend", from, to }),
+    [],
+  );
   const undo = React.useCallback(() => dispatch({ type: "undo" }), []);
   const redo = React.useCallback(() => dispatch({ type: "redo" }), []);
   const reset = React.useCallback(
@@ -126,6 +148,7 @@ export function useSlideHistory(initial: SlideDocument): SlideHistory {
       state.merge === merge
         ? (state.past.at(-1)?.document ?? state.present.document)
         : state.present.document,
+    amend,
     undo,
     redo,
     canUndo: state.past.length > 0,

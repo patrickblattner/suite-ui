@@ -97,7 +97,7 @@ describe("SlideEditor placeholders", () => {
       height: 60,
       placeholderRole: "title",
     });
-    expect(heading.type === "text" && heading.runs[0]!.text).toBe("Welcome");
+    expect(heading.type === "text" && heading.runs[0]).toMatchObject({ text: "Welcome" });
     // The title starts at 64 px in the heading font (#395).
     expect(heading.type === "text" && heading.runs[0]).toMatchObject({
       size: 64,

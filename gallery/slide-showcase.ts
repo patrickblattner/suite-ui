@@ -611,3 +611,117 @@ export const SLIDE_EDITOR_DOC: SlideDocumentInput = {
     },
   ],
 };
+
+// `SUI-FEATURE-164`: a flag (the gallery's photo) before a word, the same line without it, and the
+// same in a field so narrow that the word wraps.
+type RunsInput = Extract<SlideElementInput, { type: "text" }>["runs"];
+const flagRuns: RunsInput = [
+  { text: "Grüezi aus ", size: 40 },
+  { inline: "media", media: { id: "photo" }, alt: "Swiss flag" },
+  { text: "Zürich", size: 40 },
+];
+const flowText = (id: string, y: number, width: number, runs: RunsInput): SlideElementInput => ({
+  id,
+  type: "text",
+  x: 80,
+  y,
+  width,
+  height: 120,
+  runs,
+});
+// `SUI-FEATURE-165`: a badge, its shape following a `both` text field (inset 8/16/8/16), left-aligned
+// and centred; and a `height` field of three lines.
+const badge = (id: string, x: number, y: number, align: "left" | "center") =>
+  ({
+    id,
+    type: "group",
+    x: x - 16,
+    y: y - 8,
+    width: 152,
+    height: 64,
+    children: [
+      {
+        id: `${id}-back`,
+        type: "shape",
+        shape: "rectangle",
+        x: x - 16,
+        y: y - 8,
+        width: 152,
+        height: 64,
+        cornerRadius: 24,
+        fill: { type: "color", color: brand("primary") },
+        follow: { id: `${id}-label`, inset: { top: 8, right: 16, bottom: 8, left: 16 } },
+      },
+      {
+        id: `${id}-label`,
+        type: "text",
+        x,
+        y,
+        width: 120,
+        height: 48,
+        align,
+        sizing: "both",
+        runs: [
+          {
+            text: "Neu eingetroffen",
+            size: 40,
+            fill: { type: "color", color: brand("background") },
+          },
+        ],
+      },
+    ],
+  }) satisfies SlideElementInput;
+export const SLIDE_TEXT_FLOW = deck([
+  {
+    id: "flow",
+    background,
+    elements: [
+      flowText("flag-line", 60, 900, flagRuns),
+      flowText("plain-line", 200, 900, [{ text: "Grüezi aus Zürich", size: 40 }]),
+      flowText("flag-narrow", 340, 300, flagRuns),
+      flowText("icon-line", 480, 900, [
+        { text: "Rated ", size: 40, fill: { type: "color", color: brand("accent") } },
+        { inline: "icon", icon: "star" },
+        { inline: "icon", icon: "star" },
+      ]),
+      badge("badge-left", 1100, 80, "left"),
+      badge("badge-centre", 1300, 260, "center"),
+      {
+        id: "note",
+        type: "text",
+        x: 1100,
+        y: 440,
+        width: 600,
+        height: 48,
+        sizing: "height",
+        runs: [{ text: "One line\nTwo lines\nThree lines", size: 40 }],
+      },
+      // An icon twice the line's height on the second line: that line grows, the first stays clear.
+      {
+        id: "tall-line",
+        type: "text",
+        x: 1100,
+        y: 680,
+        width: 600,
+        height: 96,
+        sizing: "height",
+        runs: [
+          { text: "First line\nSecond ", size: 40 },
+          { inline: "icon", icon: "star", height: 2 },
+          { text: " line", size: 40 },
+        ],
+      },
+    ],
+  },
+]);
+
+// A wider brand font for the badges (`SUI-FEATURE-165` AC4): the gallery's bold cut served as the
+// regular one of a family of its own.
+export const SLIDE_WIDE_BRAND: SlideBrandSet = {
+  ...SLIDE_BRAND,
+  fonts: { ...SLIDE_BRAND.fonts, body: { family: "Gallery Slide Wide", label: "Body text" } },
+};
+export const SLIDE_WIDE_FONTS: SlideFontFile[] = [
+  ...SLIDE_FONTS,
+  { family: "Gallery Slide Wide", src: SLIDE_FONTS[1]!.src, weight: 400 },
+];

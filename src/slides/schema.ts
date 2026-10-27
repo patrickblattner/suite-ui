@@ -10,8 +10,9 @@ import { GRID_COLUMNS_MAX, GRID_COLUMNS_MIN } from "../ui/grid-core.js";
 import { shownInError } from "./shown-in-error.js";
 
 // The current schema version. Every change of the schema raises it and adds a step to the migration
-// chain (`document.ts`). Version 2 added `placeholderRole` (`SUI-FEATURE-192`).
-export const SLIDE_SCHEMA_VERSION = 2;
+// chain (`document.ts`). Version 2 added `placeholderRole` (`SUI-FEATURE-192`); version 3 inline runs
+// (`SUI-FEATURE-164`), a text field's `sizing` and a shape's `follow` (`SUI-FEATURE-165`).
+export const SLIDE_SCHEMA_VERSION = 3;
 
 // The hard limits of a document, generous on purpose (`SUI-DESIGN-002` §Form): the schema is the one boundary apps
 // and servers share, so tightening a limit later would take a schema version. `maxGroupDepth` and
@@ -27,6 +28,8 @@ export const SLIDE_LIMITS = {
   maxMasters: 100,
   maxLayouts: 100,
   maxRuns: 1000,
+  // The height of an inline run, as a factor of its line's font size (`SUI-FEATURE-164`).
+  maxInlineHeight: 4,
   // Characters of a run's text and of a page's notes.
   maxTextLength: 100_000,
   // Characters of a name, an alt text, a category or a series name.
@@ -60,6 +63,11 @@ export type SlideIssueCode =
   | "duplicate-pattern"
   | "group-depth"
   | "too-many-elements"
+  // A shape follows an element outside its own group, or one that is no text field, or follows while
+  // in no group (`SUI-FEATURE-165`).
+  | "follow-outside-group"
+  | "follow-not-text"
+  | "follow-no-group"
   // Loading.
   | "missing-version"
   | "invalid-version"
@@ -220,6 +228,8 @@ const elementBaseSchema = z.object(elementBase);
 // One run of text: font, size, cut (weight and italic), colour or gradient, letter spacing, capitals
 // and a highlight (a colour area behind the run).
 export const textRunSchema = z.object({
+  // No `inline`: what tells a text run from an inline one.
+  inline: z.undefined().optional(),
   text: z.string().max(SLIDE_LIMITS.maxTextLength),
   font: fontValueSchema.optional(),
   size: px.positive().optional(),
@@ -231,21 +241,51 @@ export const textRunSchema = z.object({
   highlight: colorValueSchema.optional(),
 });
 
+// An inline element in the flow of a line (`SUI-FEATURE-164`): an icon of the library or a medium of
+// the app, its height a factor of the line's font size, its width after its aspect ratio. It stands on
+// the baseline and takes the colour and highlight of the text before it in its paragraph (at the
+// paragraph's start: after it). An image with an alt text is read out, one without is decorative, as
+// an icon always is. It counts as one run against `maxRuns`.
+const inlineHeight = z.number().positive().max(SLIDE_LIMITS.maxInlineHeight).default(1);
+export const inlineIconRunSchema = z.object({
+  inline: z.literal("icon"),
+  icon: id,
+  height: inlineHeight,
+});
+export const inlineMediaRunSchema = z.object({
+  inline: z.literal("media"),
+  media: mediaRefSchema,
+  alt: label.default(""),
+  height: inlineHeight,
+});
+
+// A run is text or an inline element, told apart by `inline`.
+export const runSchema = z.discriminatedUnion("inline", [
+  textRunSchema,
+  inlineIconRunSchema,
+  inlineMediaRunSchema,
+]);
+
 // Per text field: alignment, line height (a multiple of the size), list and vertical alignment. A "\n"
 // in a run's text ends a paragraph; with a `bullet` or `numbered` list every paragraph is one item
 // (`SUI-DESIGN-002` §Modell).
 const textBody = {
-  runs: z.array(textRunSchema).max(SLIDE_LIMITS.maxRuns),
+  runs: z.array(runSchema).max(SLIDE_LIMITS.maxRuns),
   align: z.enum(["left", "center", "right", "justify"]).default("left"),
   lineHeight: z.number().positive().default(1.2),
   list: z.enum(["none", "bullet", "numbered"]).default("none"),
   verticalAlign: z.enum(["top", "middle", "bottom"]).default("top"),
 };
 
+// A text field's size (`SUI-FEATURE-165`): `fixed` as set; `height` follows the text at a fixed
+// width; `both` takes the longest line's width (no wrapping but at a paragraph's end) and the text's
+// height. A size that follows grows from the anchor the alignments give, measured where the text is
+// drawn; the stored size is the one last measured.
 export const textElementSchema = z.object({
   ...elementBase,
   type: z.literal("text"),
   ...textBody,
+  sizing: z.enum(["fixed", "height", "both"]).default("fixed"),
   shadow: shadowSchema.optional(),
 });
 
@@ -267,6 +307,8 @@ export const imageElementSchema = z.object({
   shadow: shadowSchema.optional(),
 });
 
+// `follow` puts the shape behind a text field of its own group (`SUI-FEATURE-165`): its box is the
+// field's, grown by the inset on each side.
 export const shapeElementSchema = z.object({
   ...elementBase,
   type: z.literal("shape"),
@@ -275,6 +317,14 @@ export const shapeElementSchema = z.object({
   cornerRadius: size.default(0),
   border: borderSchema.optional(),
   shadow: shadowSchema.optional(),
+  follow: z
+    .object({
+      id,
+      inset: z
+        .object({ top: size, right: size, bottom: size, left: size })
+        .default({ top: 0, right: 0, bottom: 0, left: 0 }),
+    })
+    .optional(),
 });
 
 // A line runs through the middle of its box from left to right; `rotation` turns it.
@@ -559,6 +609,41 @@ const documentShape = z
         );
       });
     }
+    // A shape follows a text field of its own group; the page's, layout's or master's top level is no
+    // group (`SUI-FEATURE-165` rev 6).
+    const follows = (elements: SlideElement[], path: (string | number)[], grouped: boolean) => {
+      elements.forEach((element, index) => {
+        if (element.type === "group") {
+          follows(element.children, [...path, index, "children"], true);
+          return;
+        }
+        if (element.type !== "shape" || element.follow === undefined) return;
+        const target = element.follow.id;
+        if (!grouped) {
+          context.addIssue({
+            code: "custom",
+            path: [...path, index, "follow"],
+            message: "a shape in no group follows a text field",
+            ...issue("follow-no-group"),
+          });
+          return;
+        }
+        const sibling = elements.find((one) => one.id === target);
+        const inGroup = sibling !== undefined;
+        if (sibling?.type === "text") return;
+        context.addIssue({
+          code: "custom",
+          path: [...path, index, "follow", "id"],
+          message: inGroup
+            ? `${shownInError(target)} is no text field`
+            : `${shownInError(target)} is no text field of the shape's own group`,
+          ...issue(inGroup || !seen.has(target) ? "follow-not-text" : "follow-outside-group"),
+        });
+      });
+    };
+    for (const [key, list] of parts) {
+      list.forEach((part, index) => follows(part.elements, [key, index, "elements"], false));
+    }
     const masters = new Set(document.masters.map((master) => master.id));
     const layouts = new Set(document.layouts.map((layout) => layout.id));
     document.layouts.forEach((layout, index) => {
@@ -683,6 +768,11 @@ export type Fill = z.output<typeof fillSchema>;
 export type Background = z.output<typeof backgroundSchema>;
 export type MediaRef = z.output<typeof mediaRefSchema>;
 export type TextRun = z.output<typeof textRunSchema>;
+export type InlineRun =
+  z.output<typeof inlineIconRunSchema> | z.output<typeof inlineMediaRunSchema>;
+// A run of a text field or table cell: text or an inline element (`SUI-FEATURE-164`).
+export type Run = z.output<typeof runSchema>;
+export const isTextRun = (run: Run): run is TextRun => run.inline === undefined;
 export type SlideFormat = z.output<typeof slideFormatSchema>;
 export type SlideGrid = z.output<typeof slideGridSchema>;
 export type SlideMaster = z.output<typeof slideMasterSchema>;

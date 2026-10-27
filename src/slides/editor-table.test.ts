@@ -10,6 +10,7 @@ import {
   setCell,
   type Table,
 } from "./editor-table.js";
+import { textOf } from "./editor-text.js";
 
 const cell = (text: string) => ({
   runs: [{ text, size: 20 }],
@@ -46,7 +47,7 @@ describe("table changes", () => {
     expect(more.rows[1]![0]!.runs).toEqual([{ text: "", size: 20 }]);
     expect(more.height).toBe(150);
     const less = deleteRow(more, 1);
-    expect(less.rows.map((row) => row[0]!.runs[0]!.text)).toEqual(["a", "c"]);
+    expect(less.rows.map((row) => textOf(row[0]!.runs))).toEqual(["a", "c"]);
     expect(less.height).toBe(100);
     expect(deleteRow(deleteRow(less, 0), 0).rows).toHaveLength(1);
   });
@@ -58,7 +59,7 @@ describe("table changes", () => {
     expect(more.width).toBe(500);
     const less = deleteColumn(more, 0);
     expect(less.columnWidths).toEqual([200, 200]);
-    expect(less.rows[0]![0]!.runs[0]!.text).toBe("b");
+    expect(textOf(less.rows[0]![0]!.runs)).toBe("b");
     expect(less.width).toBe(400);
     expect(deleteColumn(deleteColumn(less, 0), 0).columnWidths).toHaveLength(1);
   });

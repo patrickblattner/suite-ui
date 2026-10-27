@@ -6,6 +6,7 @@ import { OverflowTooltip } from "../ui/tooltip.js";
 import type { SlideBrandSet } from "./brand.js";
 import { safeParseSlideDocument, type SlideDocumentError } from "./document.js";
 import {
+  type Box,
   clampCrop,
   cropArea,
   croppedImageSize,
@@ -25,10 +26,14 @@ import {
   DEFAULT_TEXT_COLOR,
   DEFAULT_TEXT_SIZE,
   eachElement,
+  glueInline,
   gradientLine,
+  inkRun,
+  inlineLift,
   num,
   pageLists,
   type Piece,
+  paragraphRun,
   paragraphs,
   px,
   stackOrder,
@@ -38,6 +43,9 @@ import {
   type ColorValue,
   type Fill,
   type FontValue,
+  type InlineRun,
+  isTextRun,
+  type Run,
   type SlideDocument,
   type SlideDocumentInput,
   type SlideElement,
@@ -45,6 +53,7 @@ import {
   type SlideFormat,
   type TextRun,
 } from "./schema.js";
+import { changedBoxes, followKey, followLayout, type Measured } from "./text-follow.js";
 import { useReducedMotion } from "./use-reduced-motion.js";
 import {
   isSlideIcon,
@@ -219,6 +228,10 @@ export interface SlideViewProps {
   // (`SUI-FEATURE-231`, `SUI-FEATURE-180` §Hinweise im Editor): the editor's notices.
   pastPageNotices?: boolean;
   onReport?: (report: SlideViewReport) => void;
+  // The boxes of the page's own elements as drawn, by id, where they differ from the document's: sizes
+  // that follow the text measured here (`SUI-FEATURE-165`). The editor stores them as the size last
+  // measured; the view itself never changes the document.
+  onLayout?: (boxes: ReadonlyMap<string, Box>) => void;
   className?: string;
   "data-testid"?: string;
 }
@@ -258,6 +271,8 @@ interface Draw {
   renderPlaceholder: SlideViewProps["renderPlaceholder"];
   // A text element (by id) fits its field or not.
   onFit: (id: string, fits: boolean) => void;
+  // The size a text element's text measured, when its size follows it (`SUI-FEATURE-165`).
+  onMeasure: (id: string, size: Measured) => void;
   // Media URLs that failed to load (a new URL for the same id tries again), and the callback that
   // notes one.
   broken: ReadonlySet<string>;
@@ -325,7 +340,111 @@ function Stand({ text }: { text: string }) {
 
 const fitSize = (size: number) => `calc(var(--slide-fit, 1) * ${px(size)})`;
 
-function runSpan(draw: Draw, piece: Piece, key: number) {
+// The colour a run's text is drawn in where one colour is needed (an inline icon's): its fill's, the
+// first stop of a gradient, else the page's text colour.
+function inkOf(draw: Draw, run: TextRun | undefined): string | undefined {
+  const fill = run?.fill;
+  if (fill === undefined) return cssColor(DEFAULT_TEXT_COLOR, draw.brand) ?? "#000000";
+  return colorOf(draw, fill.type === "color" ? fill.color : fill.stops[0]!.color);
+}
+
+// An inline run in its line (`SUI-FEATURE-164`): `height` em of its paragraph's font size, standing
+// on the baseline, its width after its aspect ratio. A negative top margin takes it out of the line
+// box, so a factor up to 1 leaves the line's height as it is; the part above 1 em grows the line
+// (`inlineLift`), never reaching into the line above. An icon takes the colour of the text before it
+// (`inkRun`), both its highlight. What cannot be drawn is the named stand-in at the line's size, never a gap.
+function inlineSpan(draw: Draw, run: InlineRun, ink: TextRun | undefined, key: number) {
+  const height = `${num(run.height)}em`;
+  const place: React.CSSProperties = {
+    display: "inline",
+    height,
+    verticalAlign: "baseline",
+    marginTop: `${num(-run.height)}em`,
+  };
+  const lifted = (drawn: React.ReactElement) => {
+    const lift = inlineLift(run.height);
+    return lift === undefined ? (
+      drawn
+    ) : (
+      <span key={key} style={lift}>
+        {drawn}
+      </span>
+    );
+  };
+  const stand = (text: string) =>
+    lifted(
+      <span
+        key={key}
+        role="img"
+        aria-label={text}
+        title={text}
+        data-slot="slide-stand-in"
+        style={{
+          ...place,
+          display: "inline-block",
+          width: height,
+          boxSizing: "border-box",
+          border: "0.06em dashed #94a3b8",
+          background: "#f1f5f9",
+        }}
+      />,
+    );
+  let drawn: React.ReactElement;
+  if (run.inline === "icon") {
+    const Icon = isSlideIcon(run.icon) ? draw.icons.get(run.icon) : undefined;
+    if (Icon === undefined && isSlideIcon(run.icon) && !draw.ready) {
+      // Not loaded yet: its room, so the line does not move once it is (the page shows when ready).
+      drawn = <span key={key} style={{ ...place, display: "inline-block", width: height }} />;
+    } else if (Icon === undefined) {
+      draw.unknownIcons.add(run.icon);
+      return stand(draw.t("slides.unknownIcon", { name: run.icon }));
+    } else {
+      drawn = (
+        <Icon
+          key={key}
+          aria-hidden
+          color={inkOf(draw, ink)}
+          style={{ ...place, width: height }}
+          data-slide-inline="icon"
+        />
+      );
+    }
+  } else {
+    const src = draw.resolveMedia?.(run.media.id);
+    if (src === undefined || draw.broken.has(src)) {
+      draw.missingMedia.add(run.media.id);
+      return stand(draw.t("slides.missingMedia", { id: run.media.id }));
+    }
+    drawn = (
+      <img
+        key={key}
+        src={src}
+        // Without an alt text it is decorative.
+        alt={run.alt}
+        draggable={false}
+        onError={() => draw.onBroken(src)}
+        style={{ ...place, width: "auto", maxWidth: "none" }}
+        data-slide-inline="media"
+      />
+    );
+  }
+  if (ink?.highlight === undefined) return lifted(drawn);
+  return (
+    <mark
+      key={key}
+      style={{
+        backgroundColor: colorOf(draw, ink.highlight) ?? "transparent",
+        color: "inherit",
+      }}
+    >
+      {lifted(drawn)}
+    </mark>
+  );
+}
+
+// `ink` names the run an inline piece takes its colour from (`inkRun`); a text piece has its own.
+function runSpan(draw: Draw, piece: Piece, key: number, ink: () => TextRun | undefined) {
+  if (piece.text === undefined) return inlineSpan(draw, piece.run, ink(), key);
   const run: TextRun = piece.run;
   const style: React.CSSProperties = {
     fontFamily: familyOf(draw, run.font),
@@ -365,8 +484,22 @@ function runSpan(draw: Draw, piece: Piece, key: number) {
 // A text field's or a table cell's paragraphs; in a list every paragraph is one item.
 function textContent(draw: Draw, body: TextBody) {
   const lines = paragraphs(body.runs).map((pieces, index) => {
-    const size = fitSize(pieces[0]?.run.size ?? body.runs[0]?.size ?? DEFAULT_TEXT_SIZE);
-    const content = pieces.length === 0 ? "​" : pieces.map((piece, at) => runSpan(draw, piece, at));
+    const paragraph = paragraphRun(pieces, body.runs);
+    const size = fitSize(paragraph?.size ?? body.runs.find(isTextRun)?.size ?? DEFAULT_TEXT_SIZE);
+    const content =
+      pieces.length === 0
+        ? "​"
+        : glueInline(pieces).map((piece, at) =>
+            "glue" in piece ? (
+              <span key={at} style={{ whiteSpace: "nowrap" }}>
+                {piece.glue.map((one, part) =>
+                  runSpan(draw, one, part, () => inkRun(pieces, one, body.runs)),
+                )}
+              </span>
+            ) : (
+              runSpan(draw, piece, at, () => inkRun(pieces, piece, body.runs))
+            ),
+          );
     return body.list === "none" ? (
       <p key={index} style={{ margin: 0, fontSize: size }}>
         {content}
@@ -399,13 +532,18 @@ function textBodyStyle(body: TextBody): React.CSSProperties {
 
 // A text field. With `fit`, text that overflows shrinks (one factor over all its runs, at least 0.7);
 // what overflows still is reported. Without, it overflows visibly. It measures again only when its
-// content, box or the fonts change (`measureKey`).
+// content, box or the fonts change (`measureKey`). A size that follows the text (`sizing`,
+// `SUI-FEATURE-165`) never shrinks: its text is measured instead, `both` on one line per paragraph,
+// again once an inline image has loaded, and handed on with `onMeasure`.
 function SlideText({
   id,
   measureKey,
   fit,
   ready,
   onFit,
+  sizing,
+  textKey,
+  onMeasure,
   verticalAlign,
   style,
   children,
@@ -415,12 +553,40 @@ function SlideText({
   fit: boolean;
   ready: boolean;
   onFit: (id: string, fits: boolean) => void;
+  sizing: ElementOf<"text">["sizing"];
+  // The text as `followKey` names it, handed on with what it measured.
+  textKey: string;
+  onMeasure: (id: string, size: Measured) => void;
   verticalAlign: TextBody["verticalAlign"];
   style: React.CSSProperties;
   children: React.ReactNode;
 }) {
   const box = React.useRef<HTMLDivElement>(null);
   const content = React.useRef<HTMLDivElement>(null);
+  React.useLayoutEffect(() => {
+    const inner = content.current;
+    if (sizing === "fixed" || !ready || inner === null) return;
+    const measure = () => {
+      // Not laid out (hidden, or no layout engine): nothing to measure, the stored size stands.
+      if (inner.getClientRects().length === 0) return;
+      // The used size, unrounded and before any transform (`offsetWidth` rounds to whole units,
+      // #631); the content has no padding or border.
+      const used = getComputedStyle(inner);
+      onMeasure(id, {
+        width: Number.parseFloat(used.width),
+        height: Number.parseFloat(used.height),
+        key: textKey,
+      });
+    };
+    measure();
+    // A load or a failed image does not bubble, but its capture passes the field.
+    inner.addEventListener("load", measure, true);
+    inner.addEventListener("error", measure, true);
+    return () => {
+      inner.removeEventListener("load", measure, true);
+      inner.removeEventListener("error", measure, true);
+    };
+  }, [id, measureKey, textKey, sizing, ready, onMeasure]);
   React.useLayoutEffect(() => {
     const frame = box.current;
     const inner = content.current;
@@ -461,7 +627,12 @@ function SlideText({
         height: "100%",
       }}
     >
-      <div ref={content}>{children}</div>
+      <div
+        ref={content}
+        style={sizing === "both" ? { width: "max-content", whiteSpace: "pre" } : undefined}
+      >
+        {children}
+      </div>
     </div>
   );
 }
@@ -1053,10 +1224,15 @@ function content(draw: Draw, element: SlideElement): React.ReactNode {
             element.height,
             element.lineHeight,
             element.list,
+            // An inline image that failed is drawn as its stand-in: measured again once it shows.
+            draw.broken.size,
           ])}
-          fit={draw.fitText}
+          fit={draw.fitText && element.sizing === "fixed"}
           ready={draw.ready}
           onFit={draw.onFit}
+          sizing={element.sizing}
+          textKey={followKey(element)}
+          onMeasure={draw.onMeasure}
           verticalAlign={element.verticalAlign}
           style={{ ...textBodyStyle(element), textShadow: shadowOf(draw, element.shadow) }}
         >
@@ -1191,8 +1367,11 @@ function assetsOf(brand: SlideBrandSet, elements: readonly SlideElement[]) {
       faces.set(JSON.stringify(need), need);
     }
   };
-  const body = (runs: readonly TextRun[]) => {
-    for (const run of runs) font(run.font, run.weight, run.italic);
+  const body = (runs: readonly Run[]) => {
+    for (const run of runs) {
+      if (run.inline === undefined) font(run.font, run.weight, run.italic);
+      else if (run.inline === "icon" && isSlideIcon(run.icon)) icons.add(run.icon);
+    }
   };
   eachElement(elements, (element) => {
     if (element.type === "text") body(element.runs);
@@ -1221,6 +1400,7 @@ export function SlideView({
   notices = true,
   pastPageNotices = false,
   onReport,
+  onLayout,
   className,
   "data-testid": testId,
 }: SlideViewProps) {
@@ -1230,7 +1410,24 @@ export function SlideView({
   const parsed = React.useMemo(() => safeParseSlideDocument(source), [source]);
   const document = parsed.ok ? parsed.document : undefined;
   const pageData = document?.pages[page];
-  const lists = document === undefined ? [] : pageLists(document, page);
+  // What each text whose size follows it measured, by id; the lists drawn as that makes them.
+  const [textSizes, setTextSizes] = React.useState<ReadonlyMap<string, Measured>>(() => new Map());
+  const onMeasure = React.useCallback((id: string, size: Measured) => {
+    setTextSizes((current) => {
+      const old = current.get(id);
+      if (
+        old !== undefined &&
+        old.width === size.width &&
+        old.height === size.height &&
+        old.key === size.key
+      ) {
+        return current;
+      }
+      return new Map(current).set(id, size);
+    });
+  }, []);
+  const given = document === undefined ? [] : pageLists(document, page);
+  const lists = given.map((list) => followLayout(list, textSizes));
   const assets = assetsOf(brand, lists.flat());
   const loadedFonts = useSlideFonts(fonts, assets.faces, fontOrigins);
   const loadedIcons = useSlideIcons(assets.icons);
@@ -1291,6 +1488,7 @@ export function SlideView({
     extensions,
     renderPlaceholder,
     onFit,
+    onMeasure,
     broken,
     onBroken,
     loaded,
@@ -1362,6 +1560,16 @@ export function SlideView({
   React.useEffect(() => {
     reportRef.current.onReport?.(reportRef.current.report);
   }, [reportKey]);
+  // The page's own elements are the last list.
+  const laidOut = changedBoxes(given.at(-1) ?? [], lists.at(-1) ?? []);
+  const layoutKey = JSON.stringify([...laidOut]);
+  const layoutRef = React.useRef({ laidOut, onLayout });
+  React.useEffect(() => {
+    layoutRef.current = { laidOut, onLayout };
+  });
+  React.useEffect(() => {
+    if (layoutRef.current.laidOut.size > 0) layoutRef.current.onLayout?.(layoutRef.current.laidOut);
+  }, [layoutKey]);
 
   if (document === undefined || pageData === undefined) {
     return (

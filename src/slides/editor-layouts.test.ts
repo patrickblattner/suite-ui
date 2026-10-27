@@ -68,6 +68,7 @@ describe("layouts and placeholders", () => {
       lineHeight: 1.2,
       list: "none",
       verticalAlign: "top",
+      sizing: "fixed",
     });
     expect(openPlaceholders(filled, 0)).toEqual([]);
     expect(pageLists(filled, 0)[1]).toEqual([]);
@@ -101,6 +102,7 @@ describe("layouts and placeholders", () => {
       lineHeight: 1.2,
       list: "none",
       verticalAlign: "top",
+      sizing: "fixed",
     });
     const moved = setPageLayout(doc, 0, "other");
     const heading = moved.pages[0]!.elements.find((one) => one.id === "heading")!;
@@ -143,6 +145,7 @@ describe("layouts and placeholders", () => {
       lineHeight: 1.2,
       list: "none",
       verticalAlign: "top",
+      sizing: "fixed",
     });
     const moved = setPageLayout(doc, 0, "title");
     expect(moved.pages[0]!.elements.find((one) => one.id === "footer")).toMatchObject({

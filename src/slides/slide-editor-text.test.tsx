@@ -1,10 +1,12 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import type { ComponentProps } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { SLIDE_BRAND, SLIDE_EDITOR_DOC } from "../../gallery/slide-showcase.js";
+import { resolveSlideMedia, SLIDE_BRAND, SLIDE_EDITOR_DOC } from "../../gallery/slide-showcase.js";
 import { toast } from "../ui/toaster.js";
 import { safeParseSlideDocument } from "./document.js";
-import { SLIDE_LIMITS, type SlideDocument, type TextRun } from "./schema.js";
+import { textOf } from "./editor-text.js";
+import { type Run, SLIDE_LIMITS, type SlideDocument } from "./schema.js";
 import { SlideEditor } from "./slide-editor.js";
 import { fillEditable, rangeIn, readRuns, selectRange } from "./slide-editor-text.js";
 
@@ -91,7 +93,10 @@ describe("editable text field", () => {
 const ZOOM = 0.25;
 const at = (x: number, y: number) => ({ clientX: x * ZOOM, clientY: y * ZOOM });
 
-function renderEditor(onSave = vi.fn<(document: SlideDocument) => boolean>(() => true)) {
+function renderEditor(
+  onSave = vi.fn<(document: SlideDocument) => boolean>(() => true),
+  props: Partial<ComponentProps<typeof SlideEditor>> = {},
+) {
   render(
     <SlideEditor
       document={SLIDE_EDITOR_DOC}
@@ -99,6 +104,7 @@ function renderEditor(onSave = vi.fn<(document: SlideDocument) => boolean>(() =>
       brand={SLIDE_BRAND}
       onSave={onSave}
       onBack={() => {}}
+      {...props}
     />,
   );
   fireEvent.click(screen.getByTestId("slide-editor-next-page"));
@@ -398,9 +404,7 @@ describe("SlideEditor text editing", () => {
     const caption = onSave.mock.calls[0]![0].pages[1]!.elements.find(
       (element) => element.id === "caption",
     );
-    expect(caption?.type === "text" && caption.runs.map((run) => run.text).join("")).toBe(
-      "A short caption",
-    );
+    expect(caption?.type === "text" && textOf(caption.runs)).toBe("A short caption");
     error.mockRestore();
   });
 
@@ -458,7 +462,10 @@ describe("SlideEditor text editing", () => {
 
   // The caption loaded with these runs (the schema check passed by, for a draft past a limit), and
   // opened for editing.
-  async function editCaptionWith(runs: TextRun[]) {
+  async function editCaptionWith(
+    runs: Run[],
+    props: Partial<ComponentProps<typeof SlideEditor>> = {},
+  ) {
     const loaded = safeParseSlideDocument(SLIDE_EDITOR_DOC);
     if (!loaded.ok) throw new Error("showcase invalid");
     const draft: SlideDocument = {
@@ -477,7 +484,7 @@ describe("SlideEditor text editing", () => {
       ),
     };
     vi.mocked(safeParseSlideDocument).mockReturnValueOnce({ ok: true, document: draft });
-    const onSave = renderEditor();
+    const onSave = renderEditor(undefined, props);
     const canvas = screen.getByTestId("slide-editor-canvas");
     fireEvent.pointerDown(canvas, { ...at(100, 400), button: 0, pointerId: 1 });
     fireEvent.pointerUp(canvas, at(100, 400));
@@ -580,5 +587,222 @@ describe("SlideEditor text editing", () => {
     expect(error).toHaveBeenCalledTimes(1);
     await waitFor(() => expect(spans()).toHaveLength(SLIDE_LIMITS.maxRuns));
     error.mockRestore();
+  }, 60_000);
+
+  // SUI-FEATURE-164: an icon or a medium of the library goes into the text at the caret.
+  const pickIcon = async (name: string) => {
+    fireEvent.click(screen.getByTestId("drawer-add"));
+    fireEvent.change(screen.getByTestId("slide-editor-library-search"), {
+      target: { value: name },
+    });
+    fireEvent.click(await screen.findByTestId(`slide-editor-library-icon-${name}`));
+  };
+  const caretAt = (field: HTMLElement, offset: number) => {
+    selectRange(field, { start: offset, end: offset });
+    act(() => {
+      document.dispatchEvent(new Event("selectionchange"));
+    });
+  };
+  const star = { inline: "icon", icon: "star", height: 1 } as const;
+
+  it("puts a library icon in at the caret, no new element; Backspace takes it out, Undo back (AC3)", async () => {
+    const { onSave, field } = await editCaptionWith([{ text: "A caption", size: 20 }]);
+    caretAt(field, 2);
+    await pickIcon("star");
+    await waitFor(() => expect(field.querySelectorAll("[data-inline]")).toHaveLength(1));
+    // The field has the focus back, its caret after the icon.
+    expect(document.activeElement).toBe(field);
+    expect(rangeIn(field)).toEqual({ start: 3, end: 3 });
+    expect(field.querySelector("[data-inline]")).toHaveAttribute("contenteditable", "false");
+    // Backspace: the browser takes the span out.
+    field.querySelector("[data-inline]")!.remove();
+    fireEvent.input(field);
+    await waitFor(() => expect(field.querySelectorAll("[data-inline]")).toHaveLength(0));
+    fireEvent.keyDown(field, { key: "z", metaKey: true });
+    await waitFor(() => expect(field.querySelectorAll("[data-inline]")).toHaveLength(1));
+    fireEvent.keyDown(field, { key: "Escape" });
+    fireEvent.click(screen.getAllByTestId("editor-save")[0]!);
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    const page = onSave.mock.calls[0]![0].pages[1]!;
+    expect(page.elements.map((element) => element.id)).toEqual(
+      SLIDE_EDITOR_DOC.pages[1]!.elements!.map((element) => element.id),
+    );
+    const caption = page.elements.find((element) => element.id === "caption");
+    expect(caption?.type === "text" && caption.runs).toEqual([
+      { text: "A ", size: 20 },
+      star,
+      { text: "caption", size: 20 },
+    ]);
+  }, 60_000);
+
+  it("puts a picked medium in at the caret; the panel shows and changes its alt text (AC3)", async () => {
+    const pickMedia = vi.fn(() => Promise.resolve({ id: "photo", alt: "Swiss flag" }));
+    const { onSave, field } = await editCaptionWith([{ text: "Zürich", size: 20 }], {
+      pickMedia,
+      resolveMedia: resolveSlideMedia,
+    });
+    caretAt(field, 0);
+    fireEvent.click(screen.getByTestId("drawer-add"));
+    fireEvent.click(screen.getByTestId("slide-editor-library-media"));
+    await waitFor(() => expect(field.querySelectorAll("[data-inline] img")).toHaveLength(1));
+    expect(field.querySelector("[data-inline] img")).toHaveAttribute("alt", "Swiss flag");
+    selectRange(field, { start: 0, end: 1 });
+    act(() => {
+      document.dispatchEvent(new Event("selectionchange"));
+    });
+    const alt = await screen.findByTestId("slide-editor-text-inline-alt");
+    expect(alt).toHaveValue("Swiss flag");
+    fireEvent.change(alt, { target: { value: "Flag of Switzerland" } });
+    fireEvent.keyDown(field, { key: "Escape" });
+    fireEvent.click(screen.getAllByTestId("editor-save")[0]!);
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    const caption = onSave.mock.calls[0]![0].pages[1]!.elements.find(
+      (element) => element.id === "caption",
+    );
+    expect(caption?.type === "text" && caption.runs).toEqual([
+      { inline: "media", media: { id: "photo" }, alt: "Flag of Switzerland", height: 1 },
+      { text: "Zürich", size: 20 },
+    ]);
+  }, 60_000);
+
+  // SUI-FEATURE-114 rev 5 AC4: its own hint, `inlineRefused`, at the same place.
+  it("refuses an inline run at the run limit with the hint, text unchanged (AC4)", async () => {
+    const error = vi.spyOn(toast, "error").mockReturnValue(1);
+    const runs = Array.from({ length: SLIDE_LIMITS.maxRuns }, (_, index) =>
+      index % 2 === 0 ? { text: "xyz", size: 20, weight: 700 } : { text: "xyz", size: 20 },
+    );
+    const { field, spans } = await editCaptionWith(runs);
+    caretAt(field, 4);
+    await pickIcon("star");
+    expect(error).toHaveBeenCalledWith(
+      "Not inserted: this text has too many parts. Remove some formatting or an inserted icon or image and try again.",
+      { id: "slide-editor-text-refused" },
+    );
+    expect(spans()).toHaveLength(SLIDE_LIMITS.maxRuns);
+    expect(field.querySelectorAll("[data-inline]")).toHaveLength(0);
+    expect(screen.getAllByTestId("editor-state")[0]).toHaveTextContent("Saved");
+    error.mockRestore();
+  }, 60_000);
+
+  it("keeps an inline run through a copy and paste inside the editor (AC3)", async () => {
+    const { field } = await editCaptionWith([
+      { text: "A ", size: 20 },
+      star,
+      { text: "b", size: 20 },
+    ]);
+    await waitFor(() => expect(field.querySelectorAll("[data-inline]")).toHaveLength(1));
+    const store = new Map<string, string>();
+    const clipboardData = {
+      setData: (type: string, value: string) => store.set(type, value),
+      getData: (type: string) => store.get(type) ?? "",
+    };
+    selectRange(field, { start: 1, end: 3 });
+    fireEvent.copy(field, { clipboardData });
+    expect(store.get("text/plain")).toBe(" ");
+    caretAt(field, 4);
+    fireEvent.paste(field, { clipboardData });
+    await waitFor(() => expect(field.querySelectorAll("[data-inline]")).toHaveLength(2));
+    expect(field.textContent).toBe("A b ");
+    // A paste of plain text from elsewhere stays plain text.
+    caretAt(field, 0);
+    fireEvent.paste(field, {
+      clipboardData: { getData: (type: string) => (type === "text/plain" ? "Z" : "") },
+    });
+    await waitFor(() => expect(field.textContent).toBe("ZA b "));
+    expect(field.querySelectorAll("[data-inline]")).toHaveLength(2);
+  }, 60_000);
+
+  it("shows an inline run's height in the panel when it alone is selected, and changes it (AC3)", async () => {
+    const { onSave, field } = await editCaptionWith([{ text: "A ", size: 20 }, star]);
+    caretAt(field, 1);
+    expect(screen.queryByTestId("slide-editor-text-inline")).toBeNull();
+    selectRange(field, { start: 2, end: 3 });
+    act(() => {
+      document.dispatchEvent(new Event("selectionchange"));
+    });
+    const height = await screen.findByTestId("slide-editor-text-inline-height");
+    expect(height).toHaveValue("1");
+    // An icon has no alt text: it is decorative.
+    expect(screen.queryByTestId("slide-editor-text-inline-alt")).toBeNull();
+    fireEvent.change(height, { target: { value: "1.5" } });
+    fireEvent.keyDown(field, { key: "Escape" });
+    fireEvent.click(screen.getAllByTestId("editor-save")[0]!);
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    const caption = onSave.mock.calls[0]![0].pages[1]!.elements.find(
+      (element) => element.id === "caption",
+    );
+    expect(caption?.type === "text" && caption.runs[1]).toEqual({ ...star, height: 1.5 });
+  }, 60_000);
+
+  // SUI-FEATURE-164 rev 4 AC2: in the field as in the view, the run before it, at a paragraph's start
+  // the run after it, gives an inline icon its colour and highlight.
+  it("draws an inline icon in the field in the colour and highlight of the run before it, at a paragraph's start the run after", async () => {
+    const red = { type: "color", color: { kind: "free", value: "#dc2626" } } as const;
+    const blue = { type: "color", color: { kind: "free", value: "#2563eb" } } as const;
+    const { field } = await editCaptionWith([
+      { text: "Plain ", size: 20 },
+      { text: "red ", size: 20, fill: red, highlight: { kind: "free", value: "#fef08a" } },
+      star,
+      { text: " blue\n", size: 20, fill: blue },
+      star,
+      { text: " blue", size: 20, fill: blue },
+    ]);
+    const [middle, start] = [...field.querySelectorAll<HTMLElement>("[data-inline]")];
+    expect(middle!.style.backgroundColor).toBe("rgb(254, 240, 138)");
+    expect(start!.style.backgroundColor).toBe("");
+    await waitFor(() => expect(middle!.querySelector("svg")).not.toBeNull());
+    expect(middle!.querySelector("svg")!.style.color).toBe("rgb(220, 38, 38)");
+    expect(start!.querySelector("svg")!.style.color).toBe("rgb(37, 99, 235)");
+  }, 60_000);
+
+  // #622 (GL-UI-013): the inline run the selection covers shows it on the canvas; the pointer is a hand.
+  it("marks the inline run the selection covers as selected, and only while it does", async () => {
+    const { field } = await editCaptionWith([{ text: "A ", size: 20 }, star]);
+    const span = field.querySelector<HTMLElement>("[data-inline]")!;
+    expect(span).toHaveAttribute("data-testid", "slide-editor-text-inline-run");
+    expect(span.className).toContain("cursor-pointer");
+    expect(span.className).toContain("data-[selected]:outline-ring");
+    caretAt(field, 1);
+    expect(span).not.toHaveAttribute("data-selected");
+    selectRange(field, { start: 2, end: 3 });
+    act(() => {
+      document.dispatchEvent(new Event("selectionchange"));
+    });
+    expect(span).toHaveAttribute("data-selected");
+    caretAt(field, 3);
+    expect(span).not.toHaveAttribute("data-selected");
+  }, 60_000);
+
+  // #622: an inline taller than 1 em grows its line, placed as the view places it.
+  it("lifts an inline taller than 1 em in a box that grows the line, as the view does", async () => {
+    const { field } = await editCaptionWith([
+      { text: "A ", size: 20 },
+      { ...star, height: 2 },
+      { text: " B", size: 20 },
+      star,
+    ]);
+    const [tall, plain] = field.querySelectorAll<HTMLElement>("[data-inline]");
+    const box = tall!.firstElementChild as HTMLElement;
+    expect(box.style.display).toBe("inline-block");
+    expect(box.style.paddingTop).toBe("1em");
+    expect((box.firstElementChild as HTMLElement).style.marginTop).toBe("-2em");
+    expect((plain!.firstElementChild as HTMLElement).style.marginTop).toBe("-1em");
+    expect((plain!.firstElementChild as HTMLElement).style.paddingTop).toBe("");
+  }, 60_000);
+
+  // #622: with a caret in the text, the library says where an icon or image goes.
+  it("names the text at the caret in the library hint while a caret is set", async () => {
+    const { field } = await editCaptionWith([{ text: "A caption", size: 20 }]);
+    caretAt(field, 2);
+    fireEvent.click(screen.getByTestId("drawer-add"));
+    expect(screen.getByTestId("slide-editor-library-hint")).toHaveTextContent(
+      "goes into the text at the cursor",
+    );
+    fireEvent.keyDown(field, { key: "Escape" });
+    await waitFor(() =>
+      expect(screen.getByTestId("slide-editor-library-hint")).toHaveTextContent(
+        "insert at the page’s centre",
+      ),
+    );
   }, 60_000);
 });

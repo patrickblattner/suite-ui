@@ -12,6 +12,7 @@ import {
   type SlideElement,
   type SlideFormat,
   type SlidePage,
+  type Run,
   type TextRun,
 } from "./schema.js";
 
@@ -113,42 +114,47 @@ const centreOf = (box: Box) => ({ x: box.x + box.width / 2, y: box.y + box.heigh
 // children about its centre, so a new box with a new centre would move them all; the group and its
 // children shift by (R − I)(c′ − c) so everything stays where it is drawn, the changed child too.
 function refitGroups(elements: readonly SlideElement[]): SlideElement[] {
-  return elements.map((element) => {
-    if (element.type !== "group") return element;
-    let children = refitGroups(element.children);
-    const bounds = boundsOf(children.map(drawnBox));
-    if (bounds === undefined) return { ...element, children };
-    const offset = { x: 0, y: 0 };
-    if (element.rotation !== 0) {
-      const old = centreOf(boxOf(element));
-      const next = centreOf(bounds);
-      const shift = { x: next.x - old.x, y: next.y - old.y };
-      const turned = turn(shift, element.rotation);
-      offset.x = turned.x - shift.x;
-      offset.y = turned.y - shift.y;
-    }
-    if (Math.abs(offset.x) > 1e-9 || Math.abs(offset.y) > 1e-9) {
-      const moved = (one: SlideElement): SlideElement => ({
-        ...one,
-        x: round(one.x + offset.x),
-        y: round(one.y + offset.y),
-      });
-      children = children.map((child) => withDescendants(child, moved));
-    }
-    const fitted = {
-      x: round(bounds.x + offset.x),
-      y: round(bounds.y + offset.y),
-      width: round(bounds.width),
-      height: round(bounds.height),
-    };
-    const same =
-      fitted.x === element.x &&
-      fitted.y === element.y &&
-      fitted.width === element.width &&
-      fitted.height === element.height &&
-      children.every((child, index) => child === element.children[index]);
-    return same ? element : { ...element, ...fitted, children };
-  });
+  return elements.map((element) =>
+    element.type === "group" ? refitGroup(element, refitGroups(element.children)) : element,
+  );
+}
+
+// The group with `next` as its children and its box made the box around them, one level of
+// `refitGroups`; the same object when nothing changed.
+export function refitGroup(element: Group, next: SlideElement[]): Group {
+  let children = next;
+  const bounds = boundsOf(children.map(drawnBox));
+  if (bounds === undefined) return { ...element, children };
+  const offset = { x: 0, y: 0 };
+  if (element.rotation !== 0) {
+    const old = centreOf(boxOf(element));
+    const next = centreOf(bounds);
+    const shift = { x: next.x - old.x, y: next.y - old.y };
+    const turned = turn(shift, element.rotation);
+    offset.x = turned.x - shift.x;
+    offset.y = turned.y - shift.y;
+  }
+  if (Math.abs(offset.x) > 1e-9 || Math.abs(offset.y) > 1e-9) {
+    const moved = (one: SlideElement): SlideElement => ({
+      ...one,
+      x: round(one.x + offset.x),
+      y: round(one.y + offset.y),
+    });
+    children = children.map((child) => withDescendants(child, moved));
+  }
+  const fitted = {
+    x: round(bounds.x + offset.x),
+    y: round(bounds.y + offset.y),
+    width: round(bounds.width),
+    height: round(bounds.height),
+  };
+  const same =
+    fitted.x === element.x &&
+    fitted.y === element.y &&
+    fitted.width === element.width &&
+    fitted.height === element.height &&
+    children.every((child, index) => child === element.children[index]);
+  return same ? element : { ...element, ...fitted, children };
 }
 
 // The groups an element stands in, outermost first.
@@ -308,6 +314,26 @@ export function withDescendants(
   return next.type === "group"
     ? { ...next, children: next.children.map((child) => withDescendants(child, change)) }
     : next;
+}
+
+// The elements with `follow` dropped from each shape whose text field is no longer one of its own
+// group (`SUI-FEATURE-165`): deleted, grouped apart from it, left behind by a copy, or the group
+// ungrouped (a page's top level is no group, rev 6).
+function withFollowsKept(elements: readonly SlideElement[], grouped = false): SlideElement[] {
+  return elements.map((element): SlideElement => {
+    if (element.type === "group") {
+      const children = withFollowsKept(element.children, true);
+      return children.every((child, index) => child === element.children[index])
+        ? element
+        : { ...element, children };
+    }
+    if (element.type !== "shape" || element.follow === undefined) return element;
+    const target = element.follow.id;
+    if (grouped && elements.some((one) => one.id === target && one.type === "text")) return element;
+    const free = { ...element };
+    delete free.follow;
+    return free;
+  });
 }
 
 // Changes the elements of `ids` with `change`.
@@ -766,6 +792,42 @@ export function moveLayer(
   );
 }
 
+// New paddings of a shape set to follow a text field (`SUI-FEATURE-165` rev 6).
+export const FOLLOW_INSET = { top: 8, right: 8, bottom: 8, left: 8 } as const;
+
+// Sets the text field a shape of a group follows, or none (`text` undefined). Following one puts the
+// shape directly behind that field in the group's stacking order, so the text stays in view; a shape
+// that already followed keeps its paddings, a new one takes `FOLLOW_INSET` (`SUI-FEATURE-165` rev 6).
+export function setFollow(
+  document: SlideDocument,
+  page: number,
+  id: string,
+  text: string | undefined,
+): SlideDocument {
+  // Only a shape in a group follows, and only a text field of that group.
+  if (findElement(document.pages[page]?.elements ?? [], id)?.group === undefined) return document;
+  return withPage(document, page, (elements) =>
+    mapListOf(elements, id, (list) => {
+      const shape = list.find((element) => element.id === id);
+      if (shape?.type !== "shape") return list;
+      if (text !== undefined && list.find((element) => element.id === text)?.type !== "text") {
+        return list;
+      }
+      const next = { ...shape };
+      if (text === undefined) {
+        delete next.follow;
+        return list.map((element) => (element.id === id ? next : element));
+      }
+      next.follow = { id: text, inset: shape.follow?.inset ?? { ...FOLLOW_INSET } };
+      const order = stackOrder(list).filter((element) => element.id !== id);
+      const at = order.findIndex((element) => element.id === text);
+      if (at === -1) return list;
+      order.splice(at, 0, next);
+      return order.map((one) => ({ ...one, layer: 0 }));
+    }),
+  );
+}
+
 // Groups the elements of `ids` where they stand together (one list); the group takes the place of
 // the topmost of them and their box.
 export function groupElements(
@@ -782,26 +844,28 @@ export function groupElements(
   const id = uniqueId(document, "group");
   const wanted = new Set(ids);
   const next = withPage(document, page, (all) =>
-    mapListOf(all, ids[0]!, (current) => {
-      const order = stackOrder(current);
-      const children = order.filter((element) => wanted.has(element.id));
-      const top = Math.max(...children.map((child) => order.indexOf(child)));
-      const group: SlideElement = {
-        id,
-        type: "group",
-        ...boundsOf(children.map(drawnBox))!,
-        rotation: 0,
-        layer: 0,
-        locked: false,
-        hidden: false,
-        opacity: 100,
-        children: children.map((child) => ({ ...child, layer: 0 })),
-      };
-      const rest = order.flatMap((element, index) =>
-        index === top ? [group] : wanted.has(element.id) ? [] : [element],
-      );
-      return rest.map((one) => ({ ...one, layer: 0 }));
-    }),
+    withFollowsKept(
+      mapListOf(all, ids[0]!, (current) => {
+        const order = stackOrder(current);
+        const children = order.filter((element) => wanted.has(element.id));
+        const top = Math.max(...children.map((child) => order.indexOf(child)));
+        const group: SlideElement = {
+          id,
+          type: "group",
+          ...boundsOf(children.map(drawnBox))!,
+          rotation: 0,
+          layer: 0,
+          locked: false,
+          hidden: false,
+          opacity: 100,
+          children: children.map((child) => ({ ...child, layer: 0 })),
+        };
+        const rest = order.flatMap((element, index) =>
+          index === top ? [group] : wanted.has(element.id) ? [] : [element],
+        );
+        return rest.map((one) => ({ ...one, layer: 0 }));
+      }),
+    ),
   );
   return { document: next, id };
 }
@@ -840,11 +904,14 @@ export function ungroupElement(
       moved,
     );
   });
+  // A shape that comes out onto the page's top level follows nothing there (`SUI-FEATURE-165`).
   const next = withPage(document, page, (all) =>
-    mapListOf(all, id, (list) =>
-      stackOrder(list)
-        .flatMap((element) => (element.id === id ? children : [element]))
-        .map((one) => ({ ...one, layer: 0 })),
+    withFollowsKept(
+      mapListOf(all, id, (list) =>
+        stackOrder(list)
+          .flatMap((element) => (element.id === id ? children : [element]))
+          .map((one) => ({ ...one, layer: 0 })),
+      ),
     ),
   );
   return { document: next, ids: children.map((child) => child.id) };
@@ -1093,8 +1160,11 @@ function anchored(start: number, length: number, side: number, next: number, sca
   return next - scaled - fromEnd * scale;
 }
 
-// A text run at `scale`: its size (the view's default where it has none) and letter spacing.
-const scaledRun = (run: TextRun, scale: number): TextRun => ({
+// A text run at `scale`: its size (the view's default where it has none) and letter spacing. An
+// inline run's height is a factor of its line's size, so it scales with the text.
+const scaledRun = (run: Run, scale: number): Run =>
+  run.inline === undefined ? scaledTextRun(run, scale) : run;
+const scaledTextRun = (run: TextRun, scale: number): TextRun => ({
   ...run,
   // At least 1 px: a text scaled far down stays a valid size.
   size: Math.max(1, round((run.size ?? DEFAULT_TEXT_SIZE) * scale)),
@@ -1351,6 +1421,7 @@ export function libraryElement(
         lineHeight: 1.2,
         list: "none",
         verticalAlign: "top",
+        sizing: "fixed",
       };
     case "table": {
       // 3 × 3, 80 % of the shorter side wide, each row an eighth of it high.
@@ -1432,23 +1503,13 @@ export function libraryElement(
       const block = entry.element;
       const dx = at.x - (block.x + block.width / 2);
       const dy = at.y - (block.y + block.height / 2);
-      const ids = idsOf(document);
-      const fresh = (prefix: string) => {
-        for (let count = 1; ; count += 1) {
-          const id = `${prefix}-${count}`;
-          if (!ids.has(id)) {
-            ids.add(id);
-            return id;
-          }
-        }
-      };
-      const copy = withDescendants(structuredClone(block), (one) => ({
+      const moved = withDescendants(structuredClone(block), (one) => ({
         ...one,
-        id: fresh(one.type),
         x: round(one.x + dx),
         y: round(one.y + dy),
       }));
-      return { ...copy, layer };
+      const [copy] = freshCopies([moved], idsOf(document));
+      return { ...copy!, layer };
     }
     default: {
       const unknown: never = entry;
@@ -1591,7 +1652,7 @@ export function deleteElements(
           : { ...element, children },
       ];
     });
-  return withPage(document, page, walk);
+  return withPage(document, page, (elements) => withFollowsKept(walk(elements)));
 }
 
 // The element clipboard (`SUI-FEATURE-191`): a copy keeps a group's children, the animations, the
@@ -1609,15 +1670,32 @@ const shifted = (element: SlideElement, step: { x: number; y: number }): SlideEl
     y: round(one.y + step.y),
   }));
 
-// The element and what is in it with ids unused in the document; `taken` grows with each.
-function withFreshIds(element: SlideElement, taken: Set<string>): SlideElement {
-  return withDescendants(element, (one) => {
-    let count = 1;
-    while (taken.has(`${one.type}-${count}`)) count += 1;
-    const id = `${one.type}-${count}`;
-    taken.add(id);
-    return { ...one, id };
-  });
+// Copies of the elements and what is in them with ids unused in the document, `taken` growing with
+// each: every path that copies elements (duplicate, paste, a library block, a duplicated page) goes
+// through here. A shape that follows a text field follows the copy of it when it was copied along,
+// else nothing (`SUI-FEATURE-165`): never the original, nor a text of the same id elsewhere.
+export function freshCopies(elements: readonly SlideElement[], taken: Set<string>): SlideElement[] {
+  const renamed = new Map<string, string>();
+  const copies = elements.map((element) =>
+    withDescendants(element, (one) => {
+      let count = 1;
+      while (taken.has(`${one.type}-${count}`)) count += 1;
+      const id = `${one.type}-${count}`;
+      taken.add(id);
+      renamed.set(one.id, id);
+      return { ...one, id };
+    }),
+  );
+  return copies.map((copy) =>
+    withDescendants(copy, (one) => {
+      if (one.type !== "shape" || one.follow === undefined) return one;
+      const id = renamed.get(one.follow.id);
+      if (id !== undefined) return { ...one, follow: { ...one.follow, id } };
+      const free = { ...one };
+      delete free.follow;
+      return free;
+    }),
+  );
 }
 
 // An element without its ids and its layer, to tell whether a paste would lie exactly on it: the
@@ -1696,12 +1774,12 @@ export function pasteElements(
     step += DUPLICATE_OFFSET;
     keys = next;
   }
-  const taken = idsOf(document);
-  const placed = copies
-    .map((copy) => ({ ...shifted(copy, { x: step, y: step }), layer }))
-    .map((copy) => withFreshIds(copy, taken));
+  const placed = freshCopies(
+    copies.map((copy) => ({ ...shifted(copy, { x: step, y: step }), layer })),
+    idsOf(document),
+  );
   return {
-    document: withPage(document, page, (elements) => [...elements, ...placed]),
+    document: withPage(document, page, (elements) => withFollowsKept([...elements, ...placed])),
     ids: placed.map((element) => element.id),
   };
 }
@@ -1714,8 +1792,7 @@ export function duplicateElements(
   ids: readonly string[],
 ): { document: SlideDocument; ids: string[] } {
   const elements = document.pages[page]?.elements ?? [];
-  const taken = idsOf(document);
-  const copies = new Map<string, SlideElement>();
+  const originals = new Map<string, SlideElement>();
   for (const id of ids) {
     const element = findElement(elements, id)?.element;
     if (element === undefined) continue;
@@ -1723,9 +1800,11 @@ export function duplicateElements(
       x: DUPLICATE_OFFSET,
       y: DUPLICATE_OFFSET,
     });
-    copies.set(id, withFreshIds(freed(shifted(element, step)), taken));
+    originals.set(id, freed(shifted(element, step)));
   }
-  if (copies.size === 0) return { document, ids: [] };
+  if (originals.size === 0) return { document, ids: [] };
+  const fresh = freshCopies([...originals.values()], idsOf(document));
+  const copies = new Map([...originals.keys()].map((id, index) => [id, fresh[index]!]));
   const walk = (list: readonly SlideElement[]): SlideElement[] =>
     list.flatMap((element) => {
       const self =
@@ -1734,7 +1813,7 @@ export function duplicateElements(
       return copy === undefined ? [self] : [self, copy];
     });
   return {
-    document: withPage(document, page, walk),
+    document: withPage(document, page, (elements) => withFollowsKept(walk(elements))),
     ids: [...copies.values()].map((copy) => copy.id),
   };
 }

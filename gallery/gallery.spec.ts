@@ -11766,6 +11766,161 @@ test("slide export: a crop on the overhanging axis equals the view", async ({ pa
   expect(Buffer.from(png[0]!).equals(editor)).toBe(true);
 });
 
+// SUI-FEATURE-164 AC2, SUI-FEATURE-165 AC5: inline runs and badges that follow their text export
+// equal to the editor's view, pixel for pixel.
+test("slide export: inline runs and following badges equal to the editor view", async ({
+  page,
+}) => {
+  await page.goto("/?harness=slide-export&doc=flow");
+  const { png } = await exportSlidePages(page);
+  expect(png).toHaveLength(1);
+  await page.goto("/?harness=slide-export&doc=flow&view=editor");
+  const view = page.getByTestId("slide-editor-view");
+  await expect(view).toHaveAttribute("data-slide-ready", "true");
+  await page.waitForFunction(() => [...document.images].every((image) => image.complete));
+  await parkPointer(page);
+  const editor = await view.screenshot({ animations: "disabled" });
+  expect(Buffer.from(png[0]!).equals(editor)).toBe(true);
+});
+
+// SUI-FEATURE-164 AC1: a flag before "Zürich" stands on the baseline, leaves the line's height as it
+// is, and wraps with the word in a narrow field.
+test("slide text flow: an inline image on the baseline, line height kept, wraps with its word", async ({
+  page,
+}) => {
+  await page.goto("/?harness=slide-export&doc=flow&view=editor");
+  const view = page.getByTestId("slide-editor-view");
+  await expect(view).toHaveAttribute("data-slide-ready", "true");
+  await page.waitForFunction(() => [...document.images].every((image) => image.complete));
+  const measured = await view.evaluate((root) => {
+    const element = (id: string) => root.querySelector(`[data-slide-element="${id}"]`)!;
+    const flag = (id: string) => element(id).querySelector("img")!;
+    // A box of no height on the baseline, put beside the flag.
+    const probe = document.createElement("span");
+    probe.style.cssText = "display:inline-block;width:0;height:0";
+    flag("flag-line").before(probe);
+    const baseline = probe.getBoundingClientRect().bottom;
+    probe.remove();
+    const word = (id: string, text: string) => {
+      const node = [...element(id).querySelectorAll("span")]
+        .flatMap((span) => [...span.childNodes])
+        .find((child) => child.nodeType === 3 && child.textContent === text)!;
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      return range.getBoundingClientRect();
+    };
+    const narrow = flag("flag-narrow").getBoundingClientRect();
+    return {
+      flagBottom: flag("flag-line").getBoundingClientRect().bottom,
+      flagHeight: flag("flag-line").getBoundingClientRect().height,
+      baseline,
+      withFlag: element("flag-line").querySelector("p")!.getBoundingClientRect().height,
+      without: element("plain-line").querySelector("p")!.getBoundingClientRect().height,
+      narrowFlag: { top: narrow.top, bottom: narrow.bottom },
+      greeting: word("flag-narrow", "Grüezi aus ").top,
+      city: word("flag-narrow", "Zürich"),
+    };
+  });
+  expect(Math.abs(measured.flagBottom - measured.baseline)).toBeLessThanOrEqual(0.5);
+  // Factor 1: as high as the line's text size (40 px).
+  expect(measured.flagHeight).toBeCloseTo(40, 0);
+  expect(measured.withFlag).toBe(measured.without);
+  // Narrow: the flag left the first line together with "Zürich".
+  expect(measured.narrowFlag.top).toBeGreaterThan(measured.greeting + 20);
+  expect(Math.abs(measured.narrowFlag.bottom - measured.city.bottom)).toBeLessThan(15);
+});
+
+// SUI-FEATURE-164 (#622): an inline twice the line's height grows its line by the part above 1 em; it
+// stays clear of the line above, and a field whose height follows the text holds it.
+test("slide text flow: a tall inline grows its line, clear of the line above and inside its field", async ({
+  page,
+}) => {
+  await page.goto("/?harness=slide-export&doc=flow&view=editor");
+  const view = page.getByTestId("slide-editor-view");
+  await expect(view).toHaveAttribute("data-slide-ready", "true");
+  const measured = await view.evaluate((root) => {
+    const field = root.querySelector('[data-slide-element="tall-line"]')!;
+    const scale = field.getBoundingClientRect().width / 600;
+    const text = (wanted: string) => {
+      const node = [...field.querySelectorAll("span")]
+        .flatMap((span) => [...span.childNodes])
+        .find((child) => child.nodeType === 3 && child.textContent?.startsWith(wanted))!;
+      const range = document.createRange();
+      range.selectNodeContents(node);
+      return range.getBoundingClientRect();
+    };
+    const icon = field.querySelector("[data-slide-inline=icon]")!.getBoundingClientRect();
+    const box = field.getBoundingClientRect();
+    return {
+      firstBottom: text("First line").bottom / scale,
+      second: text("Second").bottom / scale,
+      icon: { top: icon.top / scale, bottom: icon.bottom / scale, height: icon.height / scale },
+      field: { top: box.top / scale, bottom: box.bottom / scale, height: box.height / scale },
+    };
+  });
+  // Twice the line's 40 px, standing on the second line's baseline.
+  expect(measured.icon.height).toBeCloseTo(80, 0);
+  expect(Math.abs(measured.icon.bottom - measured.second)).toBeLessThan(15);
+  // Clear of the first line (its 48 px line box; a factor-1 inline of this font reaches 2 px above
+  // its line, the part above 1 em none), and inside the field that grew around it.
+  expect(measured.icon.top).toBeGreaterThanOrEqual(measured.field.top + 48 - 3);
+  expect(measured.icon.top).toBeGreaterThan(measured.firstBottom - 3);
+  expect(measured.icon.bottom).toBeLessThanOrEqual(measured.field.bottom + 0.5);
+  // Two lines of 48 px, the second grown by the 40 px above 1 em.
+  expect(measured.field.height).toBeGreaterThanOrEqual(2 * 48 + 40 - 1);
+});
+
+// SUI-FEATURE-165 AC1–AC4: badges grow with their text, measured where they are drawn.
+test("slide text flow: badges and a text field grow with their text from their anchor", async ({
+  page,
+}) => {
+  const boxes = async (url: string) => {
+    await page.goto(url);
+    const view = page.getByTestId("slide-editor-view");
+    await expect(view).toHaveAttribute("data-slide-ready", "true");
+    return view.evaluate((root) => {
+      const page = root.querySelector("[data-slot=slide-page]")!.getBoundingClientRect();
+      const box = (id: string) => {
+        const rect = root.querySelector(`[data-slide-element="${id}"]`)!.getBoundingClientRect();
+        return {
+          x: rect.left - page.left,
+          y: rect.top - page.top,
+          width: rect.width,
+          height: rect.height,
+        };
+      };
+      return {
+        left: box("badge-left-label"),
+        leftBack: box("badge-left-back"),
+        centre: box("badge-centre-label"),
+        centreBack: box("badge-centre-back"),
+        note: box("note"),
+      };
+    });
+  };
+  const narrow = await boxes("/?harness=slide-export&doc=flow&view=editor");
+  // AC1: "Neu eingetroffen" is far wider than the stored 120 px; the left edge stays at 1100.
+  expect(narrow.left.x).toBeCloseTo(1100, 0);
+  expect(narrow.left.width).toBeGreaterThan(200);
+  // The shape behind keeps its inset: 8 / 16 / 8 / 16.
+  expect(narrow.leftBack.x).toBeCloseTo(narrow.left.x - 16, 0);
+  expect(narrow.leftBack.y).toBeCloseTo(narrow.left.y - 8, 0);
+  expect(narrow.leftBack.width).toBeCloseTo(narrow.left.width + 32, 0);
+  expect(narrow.leftBack.height).toBeCloseTo(narrow.left.height + 16, 0);
+  // AC2: centred, it grows on both sides around the stored centre (1300 + 60).
+  expect(narrow.centre.x + narrow.centre.width / 2).toBeCloseTo(1360, 0);
+  expect(narrow.centre.width).toBeCloseTo(narrow.left.width, 0);
+  // AC3: three lines at 40 px × 1.2, the width as set.
+  expect(narrow.note.width).toBe(600);
+  expect(narrow.note.height).toBeGreaterThanOrEqual(3 * 48 - 1);
+  expect(narrow.note.height).toBeLessThanOrEqual(3 * 48 + 1);
+  // AC4: a wider brand font, the same document: a wider badge.
+  const wide = await boxes("/?harness=slide-export&doc=flow&view=editor&brand=wide");
+  expect(wide.left.width).toBeGreaterThan(narrow.left.width + 10);
+  expect(wide.leftBack.width).toBeCloseTo(wide.left.width + 32, 0);
+  expect(wide.left.x).toBeCloseTo(1100, 0);
+});
+
 // SUI-FEATURE-160 §Text einpassen, §Schriften: what the view cannot draw as asked stops the export
 // loudly, by name.
 test("slide export: an element the view cannot draw stops the export by name", async ({ page }) => {
@@ -15232,6 +15387,60 @@ test("slide editor: a child's rotation field in a turned group shows the angle o
   await expect(child).toHaveAttribute("style", /rotate\(53deg\)/);
 });
 
+// #630 AC3, SUI-FEATURE-165 AC9/AC10: on the Layout tab the Field size and Follows text selects are as
+// wide as the Rotation field, the four paddings form two aligned rows, and no label wraps (de, es:
+// the longest labels).
+for (const lng of ["de", "es"] as const) {
+  test(`slide editor: Field size and Follows text sit in the panel's grid, labels on one line (${lng})`, async ({
+    page,
+  }) => {
+    await page.goto(`/?page=slide-editor&doc=badge&lng=${lng}`);
+    await expect(page.locator("html")).toHaveAttribute("lang", lng);
+    const { editor, field, at } = await openEditor(page, false);
+    const width = async (locator: Locator) => (await locator.boundingBox())!.width;
+    const unwrapped = async () => {
+      const labels = editor.getByTestId("slide-editor-layout").locator("label");
+      const wrapped = await labels.evaluateAll((all) =>
+        all
+          .filter((label) => {
+            const line = Number.parseFloat(getComputedStyle(label).lineHeight);
+            return label.getBoundingClientRect().height > line * 1.5;
+          })
+          .map((label) => label.textContent),
+      );
+      expect(wrapped).toEqual([]);
+    };
+    // The text field of the badge.
+    const label = at(320, 225);
+    await page.mouse.dblclick(label.x, label.y);
+    await expect(field("text-sizing")).toBeVisible();
+    expect(
+      Math.abs((await width(field("text-sizing"))) - (await width(field("rotation")))),
+    ).toBeLessThanOrEqual(1);
+    await unwrapped();
+    // The shape behind it, in its padding.
+    await page.mouse.click(at(700, 400).x, at(700, 400).y);
+    const shape = at(290, 196);
+    await page.mouse.dblclick(shape.x, shape.y);
+    await expect(field("follow")).toBeVisible();
+    expect(
+      Math.abs((await width(field("follow"))) - (await width(field("rotation")))),
+    ).toBeLessThanOrEqual(1);
+    const [top, right, bottom, left] = await Promise.all(
+      ["top", "right", "bottom", "left"].map(
+        async (side) => (await field(`inset-${side}`).boundingBox())!,
+      ),
+    );
+    expect(Math.abs(top!.y - right!.y)).toBeLessThanOrEqual(1);
+    expect(Math.abs(bottom!.y - left!.y)).toBeLessThanOrEqual(1);
+    expect(bottom!.y).toBeGreaterThan(top!.y);
+    expect(Math.abs(top!.x - bottom!.x)).toBeLessThanOrEqual(1);
+    expect(Math.abs(right!.x - left!.x)).toBeLessThanOrEqual(1);
+    expect(Math.abs(top!.width - (await width(field("rotation"))))).toBeLessThanOrEqual(1);
+    await unwrapped();
+  });
+}
+
 // SUI-FEATURE-190 AC1 (#327): a group whose turned child holds its width takes the nearest width it
 // reaches and names the limit at the field; its height stays.
 test("slide editor: a group's width beyond what its turned child allows takes the limit", async ({
@@ -15844,6 +16053,100 @@ test("slide editor: text edited on the canvas with two sizes in one field; Esc, 
     { text: "caption", size: 40 },
     { text: " here", size: 20 },
   ]);
+});
+
+// SUI-FEATURE-164 AC3: with the caret in the caption, a library icon goes into the text, no element; it
+// is one character to the arrows and to Delete, and Undo brings it back.
+test("slide editor: a library icon goes in at the caret, arrows skip it, Delete removes it, Undo", async ({
+  page,
+}) => {
+  const { editor, at } = await openEditor(page);
+  await editor.getByTestId("slide-editor-next-page").click();
+  const caption = at(100, 400);
+  await page.mouse.dblclick(caption.x, caption.y);
+  const text = editor.getByTestId("slide-editor-text-field");
+  await expect(text).toBeFocused();
+  await page.keyboard.press("Home");
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("ArrowRight");
+  await page.evaluate(
+    () => new Promise((resolve) => setTimeout(() => requestAnimationFrame(resolve), 0)),
+  );
+  const elements = await editor.locator("[data-slide-element]").count();
+  await editor.getByTestId("drawer-add").click();
+  await editor.getByTestId("slide-editor-library-search").fill("star");
+  await editor.getByTestId("slide-editor-library-icon-star").click();
+  await expect(text.locator("[data-inline] svg")).toHaveCount(1);
+  await expect(text).toBeFocused();
+  expect(await editor.locator("[data-slide-element]").count()).toBe(elements);
+  // One ArrowLeft passes over the icon: "y" goes in before it.
+  await page.keyboard.press("ArrowLeft");
+  await page.keyboard.type("y");
+  await expect(text).toHaveText("A ycaption");
+  await expect(text.locator("[data-inline]")).toHaveCount(1);
+  // Delete takes the icon out whole; Undo brings it back.
+  await page.keyboard.press("Delete");
+  await expect(text.locator("[data-inline]")).toHaveCount(0);
+  await expect(text).toHaveText("A ycaption");
+  await page.keyboard.press("Control+z");
+  await expect(text.locator("[data-inline]")).toHaveCount(1);
+  await page.keyboard.press("Escape");
+  const saved = await savedDocument(page);
+  const runs = saved.pages[1]!.elements.find((element) => element.id === "caption")!.runs;
+  expect(runs).toEqual([
+    { text: "A ", size: 20 },
+    { inline: "icon", icon: "star", height: 1 },
+    { text: "caption", size: 20 },
+  ]);
+});
+
+// #622 (GL-UI-013): an inline run in the text field shows the hand, a hover outline, and once
+// clicked a selected outline in the ring token, until the selection leaves it.
+test("slide editor: an inline run in the text shows hover and a selected outline", async ({
+  page,
+}) => {
+  const { editor, at } = await openEditor(page);
+  await editor.getByTestId("slide-editor-next-page").click();
+  const caption = at(100, 400);
+  await page.mouse.dblclick(caption.x, caption.y);
+  const text = editor.getByTestId("slide-editor-text-field");
+  await expect(text).toBeFocused();
+  await page.keyboard.press("Home");
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("ArrowRight");
+  await page.evaluate(
+    () => new Promise((resolve) => setTimeout(() => requestAnimationFrame(resolve), 0)),
+  );
+  await editor.getByTestId("drawer-add").click();
+  await editor.getByTestId("slide-editor-library-search").fill("star");
+  await editor.getByTestId("slide-editor-library-icon-star").click();
+  const run = text.getByTestId("slide-editor-text-inline-run");
+  await expect(run).toHaveCount(1);
+  const look = () =>
+    run.evaluate((span) => {
+      const style = getComputedStyle(span);
+      return { cursor: style.cursor, style: style.outlineStyle, width: style.outlineWidth };
+    });
+  await expect(run).not.toHaveAttribute("data-selected");
+  expect((await look()).style).toBe("none");
+  await run.hover();
+  expect(await look()).toEqual({ cursor: "pointer", style: "solid", width: "1px" });
+  await run.click();
+  await expect(run).toHaveAttribute("data-selected", "");
+  await expect(editor.getByTestId("slide-editor-text-inline")).toBeVisible();
+  const ring = await page.evaluate(() => {
+    const probe = document.createElement("div");
+    probe.style.color = "var(--ring)";
+    document.body.append(probe);
+    const color = getComputedStyle(probe).color;
+    probe.remove();
+    return color;
+  });
+  expect(await look()).toEqual({ cursor: "pointer", style: "solid", width: "2px" });
+  expect(await run.evaluate((span) => getComputedStyle(span).outlineColor)).toBe(ring);
+  // The caret moved off it: no selected state.
+  await page.keyboard.press("ArrowRight");
+  await expect(run).not.toHaveAttribute("data-selected");
 });
 
 // AC2 (#308): a table's column border dragged, a row inserted from the panel, a cell typed into.

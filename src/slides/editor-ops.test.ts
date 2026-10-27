@@ -2,17 +2,21 @@
 import { describe, expect, it } from "vitest";
 
 import { parseSlideDocument, safeParseSlideDocument } from "./document.js";
+import { duplicatePage } from "./editor-pages.js";
 import {
   alignElements,
   boundsOf,
   distributeElements,
+  duplicateElements,
   boxOf,
   chartData,
+  copyElements,
   CROP_ZOOM_MAX,
   clampCrop,
   cropArea,
   croppedImageBox,
   croppedImageSize,
+  deleteElements,
   drawnBox,
   findElement,
   groupChain,
@@ -25,6 +29,7 @@ import {
   overflowingIds,
   pageBox,
   panCrop,
+  pasteElements,
   placedBox,
   moveBy,
   moveEach,
@@ -39,6 +44,8 @@ import {
   stepIntoGroups,
   toggleSelected,
   transferFormat,
+  FOLLOW_INSET,
+  setFollow,
   ungroupElement,
   updateElements,
   withoutNested,
@@ -55,6 +62,7 @@ import {
 } from "./editor-geometry.js";
 import {
   FORMAT_16_9,
+  isTextRun,
   SLIDE_LIMITS,
   type SlideDocument,
   type SlideElement,
@@ -1213,7 +1221,9 @@ describe("transfer to another format", () => {
     expect(box(copy, "other")).toEqual({ x: 6.667, y: 6.667, width: 66.667, height: 66.667 });
     const { document: all } = transferFormat(deck(), small);
     const words = findElement(all.pages[0]!.elements, "words")!.element;
-    expect(words.type === "text" && words.runs.map((run) => run.size)).toEqual([32, 21.333]);
+    expect(words.type === "text" && words.runs.filter(isTextRun).map((run) => run.size)).toEqual([
+      32, 21.333,
+    ]);
   });
 
   // #294 inc 2 review: masters with their elements, a turned element's anchor, an image's crop
@@ -1267,9 +1277,9 @@ describe("transfer to another format", () => {
     ]);
     const sheet = findElement(copy.pages[0]!.elements, "sheet")!.element;
     expect(sheet.type === "table" && sheet.columnWidths).toEqual([100, 100]);
-    expect(sheet.type === "table" && sheet.rows[0]!.map((cell) => cell.runs[0]!.size)).toEqual([
-      10, 10.667,
-    ]);
+    expect(
+      sheet.type === "table" && sheet.rows[0]!.map((cell) => cell.runs.filter(isTextRun)[0]!.size),
+    ).toEqual([10, 10.667]);
     // Twice the shorter side: everything doubles, anchored as before.
     const large = { name: "Large", width: 3840, height: 2160 };
     const { document: big } = transferFormat(source, large);
@@ -1290,7 +1300,7 @@ describe("transfer to another format", () => {
     ]);
     const { document: copy } = transferFormat(tiny, { name: "Small", width: 640, height: 360 });
     const text = findElement(copy.pages[0]!.elements, "t")!.element;
-    expect(text.type === "text" && text.runs[0]!.size).toBe(1);
+    expect(text.type === "text" && text.runs.filter(isTextRun)[0]!.size).toBe(1);
     expect(safeParseSlideDocument(copy).ok).toBe(true);
   });
 
@@ -1689,5 +1699,215 @@ describe("app extensions", () => {
     expect(set.pages[0]!.elements[0]!.payload).toEqual({ filter: { warmth: 10 } });
     const cleared = setPayload(set, 0, "a", {});
     expect(cleared.pages[0]!.elements[0]).not.toHaveProperty("payload");
+  });
+});
+
+// SUI-FEATURE-165: a shape's `follow` points at a text field of its own list; the editor actions keep
+// it there or drop it, so the draft stays one the schema takes (#622).
+describe("shapes that follow their text through editor actions", () => {
+  const back = { ...shape("back", 84, 92, 92, 56), follow: { id: "label" } };
+  const label = {
+    id: "label",
+    type: "text",
+    x: 100,
+    y: 100,
+    width: 60,
+    height: 40,
+    runs: [{ text: "Neu" }],
+    sizing: "both",
+  };
+  const badge = (elements: unknown[]) =>
+    doc([{ id: "badge", type: "group", x: 84, y: 92, width: 92, height: 56, children: elements }]);
+  const two = (document: SlideDocument) => ({
+    ...document,
+    pages: [...document.pages, { ...document.pages[0]!, id: "q", elements: [] }],
+  });
+  const valid = (document: SlideDocument) => expect(safeParseSlideDocument(document).ok).toBe(true);
+  const follows = (document: SlideDocument, id: string, page = 0) => {
+    const found = findElement(document.pages[page]!.elements, id)?.element;
+    return found?.type === "shape" ? found.follow?.id : undefined;
+  };
+  const childIds = (document: SlideDocument, page = 0) => {
+    const group = document.pages[page]!.elements.at(-1)!;
+    return group.type === "group" ? group.children.map((child) => child.id) : [];
+  };
+
+  it("a duplicated badge's shape follows the duplicated text", () => {
+    const result = duplicateElements(badge([back, label]), 0, ["badge"]);
+    valid(result.document);
+    const [copyBack, copyLabel] = childIds(result.document);
+    expect(follows(result.document, copyBack!)).toBe(copyLabel);
+    expect(follows(result.document, "back")).toBe("label");
+  });
+
+  it("shape and text duplicated together: the copy follows the copy", () => {
+    const document = badge([back, label]);
+    const result = duplicateElements(document, 0, ["back", "label"]);
+    valid(result.document);
+    const [copyBack, copyLabel] = result.ids;
+    expect(follows(result.document, copyBack!)).toBe(copyLabel);
+  });
+
+  it("a pasted badge's shape follows the pasted text, on another page too", () => {
+    const document = two(badge([back, label]));
+    const copies = copyElements(document.pages[0]!.elements, ["badge"]);
+    for (const page of [0, 1]) {
+      const result = pasteElements(document, page, copies);
+      valid(result.document);
+      const [copyBack, copyLabel] = childIds(result.document, page);
+      expect(follows(result.document, copyBack!, page)).toBe(copyLabel);
+    }
+  });
+
+  it("a shape pasted without its text follows nothing", () => {
+    const document = badge([back, label]);
+    const copies = copyElements(document.pages[0]!.elements, ["back"]);
+    const result = pasteElements(document, 0, copies);
+    valid(result.document);
+    expect(follows(result.document, result.ids[0]!)).toBeUndefined();
+  });
+
+  // Recheck MEDIUM: a copy beside its original's text does not follow that text and land on it.
+  it("a shape duplicated or pasted on the page of its text, without it, follows nothing", () => {
+    const inBadge = duplicateElements(badge([back, label]), 0, ["back"]);
+    valid(inBadge.document);
+    expect(follows(inBadge.document, inBadge.ids[0]!)).toBeUndefined();
+    expect(follows(inBadge.document, "back")).toBe("label");
+    const document = badge([back, label]);
+    const pasted = pasteElements(document, 0, copyElements(document.pages[0]!.elements, ["back"]));
+    valid(pasted.document);
+    expect(follows(pasted.document, pasted.ids[0]!)).toBeUndefined();
+    expect(follows(pasted.document, "back")).toBe("label");
+  });
+
+  // SUI-FEATURE-165 rev 6: the page's top level is no group, so a badge ungrouped follows nothing.
+  it("an ungrouped badge's shape follows nothing", () => {
+    const result = ungroupElement(badge([back, label]), 0, "badge");
+    valid(result.document);
+    expect(follows(result.document, "back")).toBeUndefined();
+  });
+
+  it("a duplicated page's badge follows the copied text", () => {
+    const { document: next, index } = duplicatePage(badge([back, label]), 0);
+    valid(next);
+    const [copyBack, copyLabel] = childIds(next, index);
+    expect(copyLabel).not.toBe("label");
+    expect(follows(next, copyBack!, index)).toBe(copyLabel);
+  });
+
+  it("a library block holding a badge comes in following its own copied text", () => {
+    const document = badge([back, label]);
+    const block = findElement(document.pages[0]!.elements, "badge")!.element;
+    const copy = libraryElement(
+      document,
+      0,
+      { kind: "block", id: "b", element: block },
+      { x: 600, y: 400 },
+      { kind: "free", value: "#000000" },
+    );
+    const inserted = insertElement(document, 0, copy);
+    valid(inserted);
+    const [copyBack, copyLabel] = childIds(inserted);
+    expect(copyLabel).not.toBe("label");
+    expect(follows(inserted, copyBack!)).toBe(copyLabel);
+  });
+
+  it("deleting the followed text drops the shape's follow", () => {
+    const deleted = deleteElements(badge([back, label]), 0, ["label"]);
+    valid(deleted);
+    expect(follows(deleted, "back")).toBeUndefined();
+    expect(findElement(deleted.pages[0]!.elements, "back")).toBeDefined();
+  });
+
+  it("grouping the shape apart from its text drops its follow", () => {
+    const document = badge([back, label, shape("other", 300, 300)]);
+    const shapeGrouped = groupElements(document, 0, ["back", "other"]).document;
+    valid(shapeGrouped);
+    expect(follows(shapeGrouped, "back")).toBeUndefined();
+    const textGrouped = groupElements(document, 0, ["label", "other"]).document;
+    valid(textGrouped);
+    expect(follows(textGrouped, "back")).toBeUndefined();
+  });
+
+  it("grouping the shape with its text keeps its follow", () => {
+    const document = badge([back, label, shape("other", 300, 300)]);
+    const grouped = groupElements(document, 0, ["back", "label"]).document;
+    valid(grouped);
+    expect(follows(grouped, "back")).toBe("label");
+  });
+});
+
+describe("setFollow", () => {
+  const label = (id: string) => ({
+    id,
+    type: "text",
+    x: 100,
+    y: 100,
+    width: 60,
+    height: 40,
+    runs: [{ text: id }],
+    sizing: "both",
+  });
+  const badge = (elements: unknown[]) =>
+    doc([{ id: "badge", type: "group", x: 0, y: 0, width: 160, height: 140, children: elements }]);
+  const valid = (document: SlideDocument) => expect(safeParseSlideDocument(document).ok).toBe(true);
+  const children = (document: SlideDocument) => {
+    const group = document.pages[0]!.elements[0]!;
+    return group.type === "group" ? group.children : [];
+  };
+  const ids = (document: SlideDocument) => children(document).map((child) => child.id);
+  const back = (document: SlideDocument) => children(document).find((child) => child.id === "back");
+
+  it("puts a shape already behind, not directly, directly behind its text", () => {
+    const result = setFollow(
+      badge([shape("back", 0, 0), shape("x", 0, 0), label("a")]),
+      0,
+      "back",
+      "a",
+    );
+    valid(result);
+    expect(ids(result)).toEqual(["x", "back", "a"]);
+    expect(back(result)).toMatchObject({ follow: { id: "a", inset: FOLLOW_INSET } });
+  });
+
+  it("moves a shape above its text past the siblings in between to directly behind it", () => {
+    const document = badge([label("a"), shape("x", 0, 0), shape("y", 0, 0), shape("back", 0, 0)]);
+    const result = setFollow(document, 0, "back", "a");
+    valid(result);
+    expect(ids(result)).toEqual(["back", "a", "x", "y"]);
+  });
+
+  it("keeps the paddings when switching to another text field", () => {
+    const inset = { top: 1, right: 2, bottom: 3, left: 4 };
+    const document = badge([
+      { ...shape("back", 0, 0), follow: { id: "a", inset } },
+      label("a"),
+      label("b"),
+    ]);
+    const result = setFollow(document, 0, "back", "b");
+    valid(result);
+    expect(ids(result)).toEqual(["a", "back", "b"]);
+    expect(back(result)).toMatchObject({ follow: { id: "b", inset } });
+  });
+
+  it("changes nothing for a target missing from the list", () => {
+    const document = badge([shape("back", 0, 0), label("a")]);
+    const result = setFollow(document, 0, "back", "gone");
+    valid(result);
+    expect(result).toEqual(document);
+  });
+
+  it("changes nothing for a shape outside a group", () => {
+    const document = doc([shape("back", 0, 0), label("a")]);
+    const result = setFollow(document, 0, "back", "a");
+    valid(result);
+    expect(result).toEqual(document);
+  });
+
+  it("changes nothing for a target that is no text field", () => {
+    const document = badge([shape("back", 0, 0), shape("x", 60, 40)]);
+    const result = setFollow(document, 0, "back", "x");
+    valid(result);
+    expect(result).toEqual(document);
   });
 });

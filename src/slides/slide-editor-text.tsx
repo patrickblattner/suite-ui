@@ -14,6 +14,7 @@ import { useTranslation } from "react-i18next";
 import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
 import { Button } from "../ui/button.js";
 import { Field } from "../ui/field.js";
+import { Input } from "../ui/input.js";
 import { helpIdFor } from "../ui/label-with-help.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select.js";
 import { IconButtonTooltip } from "../ui/tooltip.js";
@@ -22,10 +23,14 @@ import type { Box } from "./editor-ops.js";
 import { NumberField } from "./number-field.js";
 import {
   formatOfRange,
+  INLINE_CHARACTER,
+  inlineAt,
+  insertRuns,
   insertText,
   normalizeRuns,
   type RunFormatPatch,
   runFormat,
+  sliceRuns,
   textOf,
 } from "./editor-text.js";
 import {
@@ -35,15 +40,29 @@ import {
   DEFAULT_FONT,
   DEFAULT_TEXT_COLOR,
   DEFAULT_TEXT_SIZE,
+  glueInline,
+  inkRun,
+  inlineLift,
   num,
+  type Piece,
+  paragraphRun,
   paragraphs,
   px,
 } from "./render-style.js";
-import type { TextRun } from "./schema.js";
+import {
+  type InlineRun,
+  isTextRun,
+  type Run,
+  runSchema,
+  SLIDE_LIMITS,
+  type SlideElement,
+  type TextRun,
+} from "./schema.js";
+import { isSlideIcon, useSlideIcons } from "./use-slide-assets.js";
 
 // What a text field and a table cell share: runs and the field's alignment, line height and list.
 export type TextBody = {
-  runs: TextRun[];
+  runs: Run[];
   align: "left" | "center" | "right" | "justify";
   lineHeight: number;
   list: "none" | "bullet" | "numbered";
@@ -82,20 +101,44 @@ function runStyle(run: TextRun, brand: SlideBrandSet): Partial<Record<string, st
   return style;
 }
 
+// The drawing of an inline run inside its paragraph's span (`SUI-FEATURE-164`), placed as the view
+// places it (`slide-view.tsx` `inlineSpan`), in the colour of `ink` (`inkRun`).
+export type InlineDrawing = (
+  run: InlineRun,
+  ink: TextRun | undefined,
+  document: Document,
+) => Element;
+
+// An inline run in the field shows that the pointer selects it and, while selected, an outline
+// (`markSelectedInline`); the outline is the editor's alone, the view draws none.
+const INLINE_RUN_CLASS =
+  "cursor-pointer rounded-xs outline-offset-1 not-data-[selected]:hover:outline-1 not-data-[selected]:hover:outline-ring data-[selected]:outline-2 data-[selected]:outline-ring";
+
+// Marks the inline run the range covers exactly (`inlineAt`) as selected, and no other.
+function markSelectedInline(root: HTMLElement, runs: readonly Run[], range: TextRange | undefined) {
+  const selected = inlineAt(runs, range)?.index;
+  for (const span of root.querySelectorAll<HTMLElement>("[data-inline]")) {
+    span.toggleAttribute("data-selected", span.dataset.run === String(selected));
+  }
+}
+
 // Fills the editable root with the runs: one block per paragraph, one span per piece that names its
-// run (`data-run`), an empty paragraph holding a `<br>` so it keeps its line.
+// run (`data-run`), an empty paragraph holding a `<br>` so it keeps its line. An inline run is a span
+// the caret cannot enter (`data-inline`), one character to the arrows and the delete keys.
 export function fillEditable(
   root: HTMLElement,
-  runs: readonly TextRun[],
+  runs: readonly Run[],
   brand: SlideBrandSet,
   list: TextBody["list"],
+  inline?: InlineDrawing,
 ) {
   const document = root.ownerDocument;
   root.replaceChildren();
   for (const pieces of paragraphs(runs)) {
     const block = document.createElement("div");
     block.dataset.paragraph = "";
-    const size = pieces[0]?.run.size ?? runs[0]?.size ?? DEFAULT_TEXT_SIZE;
+    const paragraph = paragraphRun(pieces, runs);
+    const size = paragraph?.size ?? runs.find(isTextRun)?.size ?? DEFAULT_TEXT_SIZE;
     block.style.fontSize = px(size);
     if (list !== "none") {
       block.style.display = "list-item";
@@ -103,22 +146,54 @@ export function fillEditable(
       block.style.marginLeft = "1.2em";
     }
     if (pieces.length === 0) block.append(document.createElement("br"));
-    for (const piece of pieces) {
+    const pieceSpan = (piece: Piece) => {
       const span = document.createElement("span");
       span.dataset.run = String(runs.indexOf(piece.run));
-      Object.assign(span.style, runStyle(piece.run, brand));
-      span.textContent = piece.text;
-      block.append(span);
+      if (piece.text === undefined) {
+        span.dataset.inline = "";
+        span.dataset.testid = "slide-editor-text-inline-run";
+        span.className = INLINE_RUN_CLASS;
+        span.setAttribute("contenteditable", "false");
+        const ink = inkRun(pieces, piece, runs);
+        if (ink?.highlight !== undefined) {
+          span.style.backgroundColor = cssColor(ink.highlight, brand) ?? "transparent";
+        }
+        if (inline !== undefined) span.append(inline(piece.run, ink, document));
+      } else {
+        Object.assign(span.style, runStyle(piece.run, brand));
+        span.textContent = piece.text;
+      }
+      return span;
+    };
+    // An inline run and the word it touches do not wrap apart, as the view draws them.
+    for (const piece of glueInline(pieces)) {
+      if (!("glue" in piece)) {
+        block.append(pieceSpan(piece));
+        continue;
+      }
+      const glue = document.createElement("span");
+      glue.style.whiteSpace = "nowrap";
+      glue.append(...piece.glue.map(pieceSpan));
+      block.append(glue);
     }
     root.append(block);
   }
   if (list === "numbered") root.style.counterReset = "list-item";
 }
 
-type Token = { kind: "text"; node: Text; text: string } | { kind: "break"; at: [Node, number] };
+type Token =
+  | { kind: "text"; node: Text; text: string }
+  | { kind: "inline"; node: Element }
+  | { kind: "break"; at: [Node, number] };
 
 const BLOCKS = new Set(["DIV", "P", "LI"]);
 const CONTAINERS = new Set(["UL", "OL"]);
+
+// The DOM position just before a node (`after`: just after it), in its parent.
+const beside = (node: Node, after = false): [Node, number] => {
+  const parent = node.parentNode!;
+  return [parent, Array.prototype.indexOf.call(parent.childNodes, node) + (after ? 1 : 0)];
+};
 
 // The editable root as text and paragraph breaks, in reading order: a block starts a paragraph when
 // something came before it; a `<br>` breaks a line unless it is the last thing in its block (the
@@ -143,6 +218,12 @@ function tokensOf(root: Node): Token[] {
     }
     if (node.nodeType !== 1) return;
     const element = node as Element;
+    if (element.hasAttribute("data-inline")) {
+      if (pending) breakAt(beside(element));
+      tokens.push({ kind: "inline", node: element });
+      content = true;
+      return;
+    }
     if (element.tagName === "BR") {
       let next = element.nextSibling;
       while (next !== null && next.nodeType === 3 && (next as Text).data === "") {
@@ -178,27 +259,41 @@ function tokensOf(root: Node): Token[] {
 // outside any span the one before it; paragraphs end in "\n". Text before any span, or an empty
 // field, takes the first of the `latest` runs handed on, not a run of `previous` deleted since
 // (Codex #401 CX1).
+// An inline span is its run again, the one its `data-run` names (`SUI-FEATURE-164`); text typed
+// after it takes the format of the text run before it.
 export function readRuns(
   root: HTMLElement,
-  previous: readonly TextRun[],
-  latest: readonly TextRun[] = previous,
-): TextRun[] {
-  const first = latest[0] ?? previous[0] ?? { text: "" };
-  const pieces: TextRun[] = [];
+  previous: readonly Run[],
+  latest: readonly Run[] = previous,
+): Run[] {
+  const first: TextRun = latest.find(isTextRun) ?? previous.find(isTextRun) ?? { text: "" };
+  const pieces: Run[] = [];
   let last: TextRun = first;
-  for (const token of tokensOf(root)) {
-    if (token.kind === "break") {
-      const end = pieces.at(-1);
-      if (end === undefined) pieces.push({ ...runFormat(last), text: "\n" });
-      else pieces[pieces.length - 1] = { ...end, text: `${end.text}\n` };
-      continue;
-    }
-    const owner = token.node.parentElement?.closest("[data-run]");
+  const named = (node: Element | null | undefined) => {
+    const owner = node?.closest("[data-run]");
     const index =
       owner !== null && owner !== undefined && root.contains(owner)
         ? Number(owner.getAttribute("data-run"))
         : NaN;
-    const run = Number.isInteger(index) ? (previous[index] ?? last) : last;
+    return Number.isInteger(index) ? previous[index] : undefined;
+  };
+  for (const token of tokensOf(root)) {
+    if (token.kind === "break") {
+      const end = pieces.at(-1);
+      if (end === undefined || end.inline !== undefined) {
+        pieces.push({ ...runFormat(last), text: "\n" });
+      } else {
+        pieces[pieces.length - 1] = { ...end, text: `${end.text}\n` };
+      }
+      continue;
+    }
+    if (token.kind === "inline") {
+      const run = named(token.node);
+      if (run?.inline !== undefined) pieces.push(run);
+      continue;
+    }
+    const own = named(token.node.parentElement);
+    const run = own?.inline === undefined ? (own ?? last) : last;
     last = run;
     pieces.push({ ...runFormat(run), text: token.text });
   }
@@ -244,6 +339,11 @@ function positionAt(root: HTMLElement, offset: number): [Node, number] {
       }
       at += token.text.length;
       last = [token.node, token.node.data.length];
+    } else if (token.kind === "inline") {
+      if (offset <= at) return beside(token.node);
+      at += 1;
+      last = beside(token.node, true);
+      if (offset <= at) return last;
     } else {
       at += 1;
       last = token.at;
@@ -276,12 +376,18 @@ const isMod = (event: React.KeyboardEvent) => event.metaKey || event.ctrlKey;
 // Redo go to the editor's history, so a step taken back is the field's own too. The canvas frame is
 // `select-none`; the field sets `select-text` itself (Safari leaves `user-select: none` on its
 // editable descendants, #317).
+// Inline runs (`SUI-FEATURE-164`) are drawn in the field as the view draws them, the canvas leaving
+// their ink to it as it leaves the text's; a copy inside the editor keeps them with the text's format
+// (`RUNS_MIME`), so a paste of it brings them back.
 export function InlineTextEditor({
   body,
   brand,
+  resolveMedia,
+  focusRequest = 0,
   frame,
   inner,
   padding = 0,
+  unwrapped = false,
   zoom,
   label,
   range,
@@ -295,17 +401,24 @@ export function InlineTextEditor({
 }: {
   body: TextBody;
   brand: SlideBrandSet;
+  // The URL of a media id of the app, for an inline image.
+  resolveMedia?: ((id: string) => string | undefined) | undefined;
+  // A new count takes the focus back into the field, at `range` (an inline run put in from outside).
+  focusRequest?: number;
   // Where the element is drawn on the page and its turn.
   frame: { box: Box; rotation: number };
   // The field's box in the element (a table cell's), px of the format; the whole element without.
   inner?: Box | undefined;
   padding?: number;
+  // The field's width follows its text (`sizing` `both`, `SUI-FEATURE-165`): no automatic wraps, as
+  // the view draws it, from the moment the sizing changes.
+  unwrapped?: boolean;
   zoom: number;
   label: string;
   // The range the field selects again after its runs changed from outside (a format, Undo).
   range: TextRange | undefined;
   // `false` when the runs are refused (past a limit, `SUI-FEATURE-114`): the field keeps its text.
-  onRuns: (runs: TextRun[], range: TextRange | undefined) => boolean;
+  onRuns: (runs: Run[], range: TextRange | undefined) => boolean;
   onRange: (range: TextRange) => void;
   onEnd: () => void;
   onUndo: () => void;
@@ -316,28 +429,56 @@ export function InlineTextEditor({
   onTab?: ((back: boolean) => boolean) | undefined;
 }) {
   const root = React.useRef<HTMLDivElement>(null);
+  // The icons of the field's inline runs, drawn once out of sight and copied into the field.
+  const iconNames = [
+    ...new Set(
+      body.runs.flatMap((run) =>
+        run.inline === "icon" && isSlideIcon(run.icon) ? [run.icon] : [],
+      ),
+    ),
+  ];
+  const { icons } = useSlideIcons(iconNames);
+  const iconsKey = JSON.stringify([...icons.keys()]);
+  const iconSource = React.useRef<HTMLDivElement>(null);
+  const media = React.useRef(resolveMedia);
+  // Called in effects and handlers only, where the icons drawn out of sight are there.
+  const inline = React.useCallback<InlineDrawing>(
+    (run, ink, document) =>
+      inlineNode(document, run, ink, brand, media.current, iconSource.current),
+    [brand],
+  );
   // The runs this field last handed on: the same runs coming back need no refill, unless the list
-  // it was filled with changed.
-  const emitted = React.useRef<TextRun[] | null>(null);
+  // it was filled with or the icons it draws changed.
+  const emitted = React.useRef<Run[] | null>(null);
   const filledList = React.useRef(body.list);
+  const filledIcons = React.useRef(iconsKey);
   // The runs the field was last filled with: its spans' `data-run` name their index there, also
   // after the runs it handed on were normalised (Codex #398 CX1).
-  const filled = React.useRef<readonly TextRun[]>(body.runs);
+  const filled = React.useRef<readonly Run[]>(body.runs);
   const latestRange = React.useRef(range);
   const onRangeRef = React.useRef(onRange);
   React.useLayoutEffect(() => {
     latestRange.current = range;
     onRangeRef.current = onRange;
+    media.current = resolveMedia;
   });
   const first = React.useRef(true);
   React.useLayoutEffect(() => {
     const node = root.current;
     if (node === null) return;
-    if (body.runs === emitted.current && body.list === filledList.current && !first.current) return;
+    if (
+      body.runs === emitted.current &&
+      body.list === filledList.current &&
+      iconsKey === filledIcons.current &&
+      !first.current
+    ) {
+      return;
+    }
     emitted.current = body.runs;
     filledList.current = body.list;
+    filledIcons.current = iconsKey;
     filled.current = body.runs;
-    fillEditable(node, body.runs, brand, body.list);
+    fillEditable(node, body.runs, brand, body.list, inline);
     if (first.current) {
       first.current = false;
       node.focus();
@@ -348,13 +489,20 @@ export function InlineTextEditor({
     if (node.ownerDocument.activeElement === node && latestRange.current !== undefined) {
       selectRange(node, latestRange.current);
     }
-  }, [body.runs, body.list, brand]);
+  }, [body.runs, body.list, brand, iconsKey, inline]);
+  React.useLayoutEffect(() => {
+    const node = root.current;
+    if (focusRequest === 0 || node === null) return;
+    node.focus();
+    if (latestRange.current !== undefined) selectRange(node, latestRange.current);
+  }, [focusRequest]);
   // The selection as it moves, so a format from the panel knows its range after the focus left.
   React.useEffect(() => {
     const node = root.current;
     if (node === null) return;
     const onChange = () => {
       const now = rangeIn(node);
+      markSelectedInline(node, filled.current, now);
       if (now !== undefined) onRangeRef.current(now);
     };
     node.ownerDocument.addEventListener("selectionchange", onChange);
@@ -362,12 +510,17 @@ export function InlineTextEditor({
   }, []);
   const current = () => emitted.current ?? body.runs;
   // Text put in by the editor itself (a paragraph, a paste): the runs refill and the caret follows.
-  const put = (text: string) => {
+  // Runs (a paste of a copy inside the editor) come in with their own format.
+  const put = (text: string | readonly Run[]) => {
     const node = root.current;
     if (node === null) return;
     const at = rangeIn(node) ?? { start: 0, end: 0 };
-    const runs = insertText(current(), at.start, at.end, text);
-    const caret = Math.min(at.start, at.end) + text.length;
+    const runs =
+      typeof text === "string"
+        ? insertText(current(), at.start, at.end, text)
+        : insertRuns(current(), at.start, at.end, text);
+    const caret =
+      Math.min(at.start, at.end) + (typeof text === "string" ? text : textOf(text)).length;
     const before = emitted.current;
     emitted.current = null;
     // Refused, nothing was put in: the field is as it was.
@@ -426,12 +579,21 @@ export function InlineTextEditor({
             style={{
               textAlign: body.align,
               lineHeight: num(body.lineHeight),
-              whiteSpace: "pre-wrap",
+              whiteSpace: unwrapped ? "pre" : "pre-wrap",
               overflowWrap: "break-word",
               margin: 0,
               paddingLeft: 0,
             }}
             onPointerDown={(event) => event.stopPropagation()}
+            // A click on an inline run selects it, so the panel shows its height and alt text.
+            onClick={(event) => {
+              const span = (event.target as Element).closest?.("[data-inline]");
+              const node = root.current;
+              if (span === null || span === undefined || node === null) return;
+              const [parent, index] = beside(span);
+              const start = offsetOf(node, parent, index);
+              selectRange(node, { start, end: start + 1 });
+            }}
             onDoubleClick={(event) => event.stopPropagation()}
             onInput={() => {
               const node = root.current;
@@ -442,12 +604,25 @@ export function InlineTextEditor({
               // Refused: the typed text goes again, the caret back where it was.
               emitted.current = body.runs;
               filled.current = body.runs;
-              fillEditable(node, body.runs, brand, body.list);
+              fillEditable(node, body.runs, brand, body.list, inline);
               const end = textOf(body.runs).length;
               selectRange(node, latestRange.current ?? { start: end, end });
             }}
+            onCopy={(event) => {
+              if (copyRuns(event, current())) event.preventDefault();
+            }}
+            onCut={(event) => {
+              if (!copyRuns(event, current())) return;
+              event.preventDefault();
+              put([]);
+            }}
             onPaste={(event) => {
               event.preventDefault();
+              const runs = pastedRuns(event.clipboardData.getData(RUNS_MIME));
+              if (runs !== undefined) {
+                if (runs.length > 0) put(runs);
+                return;
+              }
               const text = event.clipboardData.getData("text/plain").replace(/\r\n?/g, "\n");
               if (text !== "") put(text);
             }}
@@ -479,8 +654,104 @@ export function InlineTextEditor({
           />
         </div>
       </div>
+      {/* The icons of the inline runs, drawn once out of sight for the field to copy. */}
+      <div ref={iconSource} hidden aria-hidden="true">
+        {iconNames.map((name) => {
+          const Icon = icons.get(name);
+          return Icon === undefined ? null : <Icon key={name} data-slide-icon={name} />;
+        })}
+      </div>
     </div>
   );
+}
+
+// What a copy inside the editor carries beside its plain text: the runs, inline ones among them
+// (`SUI-FEATURE-164`).
+export const RUNS_MIME = "application/x-suite-slide-runs";
+
+// Puts the selected runs on the clipboard; `false` when nothing is selected.
+function copyRuns(event: React.ClipboardEvent<HTMLElement>, runs: readonly Run[]): boolean {
+  const at = rangeIn(event.currentTarget);
+  if (at === undefined || at.start === at.end) return false;
+  const copied = sliceRuns(runs, at.start, at.end);
+  event.clipboardData.setData("text/plain", textOf(copied).replaceAll(INLINE_CHARACTER, ""));
+  event.clipboardData.setData(RUNS_MIME, JSON.stringify(copied));
+  return true;
+}
+
+// The runs of a copy inside the editor, checked against the schema; `undefined` when the clipboard
+// holds none (or none that pass), so the plain text applies.
+function pastedRuns(data: string): Run[] | undefined {
+  if (data === "") return undefined;
+  try {
+    const parsed = runSchema.array().max(SLIDE_LIMITS.maxRuns).safeParse(JSON.parse(data));
+    return parsed.success ? parsed.data : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+// The colour a run's text is drawn in where one colour is needed (`slide-view.tsx` `inkOf`).
+function inkOf(run: TextRun | undefined, brand: SlideBrandSet): string {
+  const fill = run?.fill;
+  const value =
+    fill === undefined
+      ? DEFAULT_TEXT_COLOR
+      : fill.type === "color"
+        ? fill.color
+        : fill.stops[0]!.color;
+  return cssColor(value, brand) ?? "#000000";
+}
+
+// An inline run as the field draws it, placed as the view places it (`slide-view.tsx` `inlineSpan`):
+// an icon copied from those drawn out of sight in the colour of `ink` (`inkRun`), an image by its URL. What
+// the view draws as a stand-in takes its room here and leaves the canvas's stand-in to show.
+function inlineNode(
+  document: Document,
+  run: InlineRun,
+  ink: TextRun | undefined,
+  brand: SlideBrandSet,
+  resolveMedia: ((id: string) => string | undefined) | undefined,
+  icons: HTMLElement | null,
+): Element {
+  const height = `${num(run.height)}em`;
+  const place = {
+    display: "inline",
+    height,
+    verticalAlign: "baseline",
+    marginTop: `${num(-run.height)}em`,
+  };
+  const lifted = (node: Element): Element => {
+    const lift = inlineLift(run.height);
+    if (lift === undefined) return node;
+    const box = document.createElement("span");
+    Object.assign(box.style, lift);
+    box.append(node);
+    return box;
+  };
+  if (run.inline === "icon") {
+    const icon = icons?.querySelector(`[data-slide-icon="${CSS.escape(run.icon)}"]`);
+    if (icon !== null && icon !== undefined) {
+      const copy = icon.cloneNode(true) as SVGElement;
+      copy.removeAttribute("data-slide-icon");
+      copy.setAttribute("aria-hidden", "true");
+      Object.assign(copy.style, place, { width: height, color: inkOf(ink, brand) });
+      return lifted(copy);
+    }
+  } else {
+    const src = resolveMedia?.(run.media.id);
+    if (src !== undefined) {
+      const image = document.createElement("img");
+      image.src = src;
+      image.alt = run.alt;
+      image.draggable = false;
+      Object.assign(image.style, place, { width: "auto", maxWidth: "none" });
+      return lifted(image);
+    }
+  }
+  const room = document.createElement("span");
+  Object.assign(room.style, place, { display: "inline-block", width: height });
+  return lifted(room);
 }
 
 // The range a format applies to: the selected text, or the whole field without a selection.
@@ -518,6 +789,7 @@ export function TextFormatFields({
   revision,
   onFormat,
   onBody,
+  onInline,
 }: {
   testIdPrefix: string;
   body: TextBody;
@@ -528,10 +800,14 @@ export function TextFormatFields({
   revision: number;
   onFormat: (patch: RunFormatPatch, merge?: string) => void;
   onBody: (patch: Partial<Pick<TextBody, "align" | "list">>) => void;
+  // A change of the inline run the range selects alone (`SUI-FEATURE-164`): its height, an image's
+  // alt text; changes in a row under the same `merge` are one step.
+  onInline?: ((index: number, patch: InlinePatch, merge: string) => void) | undefined;
 }) {
   const { t } = useTranslation("suite");
   // Per instance, so two mounted editors never share a field id (#566); `testIdPrefix` names the test ids.
   const id = React.useId();
+  const selectedInline = onInline === undefined ? undefined : inlineAt(body.runs, range);
   const { start, end } = formatSpan(body, range);
   const { format, mixed } = formatOfRange(body.runs, start, end);
   const font = format.font ?? (mixed.has("font") ? undefined : DEFAULT_FONT);
@@ -715,7 +991,232 @@ export function TextFormatFields({
             "numbered",
           )}
         </div>
+        {selectedInline === undefined || onInline === undefined ? null : (
+          <section className="flex flex-col gap-2" data-testid={`${testIdPrefix}-inline`}>
+            <h4 className="text-sm font-semibold">{t("slides.editor.inlineElement")}</h4>
+            <div className="grid grid-cols-2 gap-4" data-tooltip-row="">
+              {/* Keyed by the run: another one selected shows its own height. */}
+              <NumberField
+                key={`${selectedInline.index}-${start}`}
+                id={`${id}-inline-height`}
+                label={t("slides.editor.inlineHeight")}
+                hint={t("slides.editor.inlineHeightHint")}
+                valueHint={t("slides.editor.inlineHeightValueHint")}
+                value={selectedInline.run.height}
+                unit="×"
+                min={0.1}
+                max={SLIDE_LIMITS.maxInlineHeight}
+                readOnly={readOnly}
+                revision={revision}
+                onValue={(height) => {
+                  if (height > 0) {
+                    const value = Math.min(
+                      SLIDE_LIMITS.maxInlineHeight,
+                      Math.round(height * 100) / 100,
+                    );
+                    onInline(selectedInline.index, { height: value }, "height");
+                  }
+                }}
+                testId={`${testIdPrefix}-inline-height`}
+              />
+              {selectedInline.run.inline !== "media" ? null : (
+                <Field
+                  label={t("slides.editor.inlineAlt")}
+                  htmlFor={`${id}-inline-alt`}
+                  hint={t("slides.editor.inlineAltHint")}
+                >
+                  <Input
+                    id={`${id}-inline-alt`}
+                    aria-describedby={helpIdFor(`${id}-inline-alt`)}
+                    value={selectedInline.run.alt}
+                    maxLength={SLIDE_LIMITS.maxLabelLength}
+                    readOnly={readOnly}
+                    onChange={(event) =>
+                      onInline(selectedInline.index, { alt: event.target.value }, "alt")
+                    }
+                    data-testid={`${testIdPrefix}-inline-alt`}
+                  />
+                </Field>
+              )}
+            </div>
+          </section>
+        )}
       </div>
     </section>
+  );
+}
+
+// What the panel changes of an inline run.
+export type InlinePatch = { height?: number; alt?: string };
+
+export type TextSizing = "fixed" | "height" | "both";
+const SIZINGS = [
+  ["fixed", "textSizingFixed"],
+  ["height", "textSizingHeight"],
+  ["both", "textSizingBoth"],
+] as const;
+
+// A text field's size in the panel (`SUI-FEATURE-165`): fixed, or following its text.
+export function TextSizingField({
+  value,
+  readOnly,
+  onValue,
+}: {
+  value: TextSizing;
+  readOnly: boolean;
+  onValue: (sizing: TextSizing) => void;
+}) {
+  const { t } = useTranslation("suite");
+  const id = React.useId();
+  return (
+    <Field
+      label={t("slides.editor.textSizing")}
+      htmlFor={`${id}-sizing`}
+      hint={t("slides.editor.textSizingHint")}
+      valueHint={t("slides.editor.textSizingValueHint", {
+        fixed: t("slides.editor.textSizingFixed"),
+        interpolation: { escapeValue: false },
+      })}
+    >
+      <Select
+        value={value}
+        disabled={readOnly}
+        onValueChange={(next) => onValue(next as TextSizing)}
+      >
+        <SelectTrigger
+          id={`${id}-sizing`}
+          aria-describedby={helpIdFor(`${id}-sizing`)}
+          fieldName={t("slides.editor.textSizing")}
+          className="w-full"
+          data-testid="slide-editor-text-sizing"
+        >
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {SIZINGS.map(([sizing, key]) => (
+            <SelectItem
+              key={sizing}
+              value={sizing}
+              data-testid={`slide-editor-text-sizing-${sizing}`}
+            >
+              {t(`slides.editor.${key}`)}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </Field>
+  );
+}
+
+type Shape = Extract<SlideElement, { type: "shape" }>;
+type Inset = NonNullable<Shape["follow"]>["inset"];
+const INSET_SIDES = [
+  ["top", "insetTop"],
+  ["right", "insetRight"],
+  ["bottom", "insetBottom"],
+  ["left", "insetLeft"],
+] as const;
+// The select's value for a shape that follows no text field: a space, so no element id is it.
+const FOLLOW_NONE = " ";
+const LABEL_LENGTH = 40;
+
+// A text field by its opening text, cut with an ellipsis; empty when it has none.
+function textLabel(text: Extract<SlideElement, { type: "text" }>) {
+  const plain = text.runs
+    .flatMap((run) => (run.inline === undefined ? [run.text] : []))
+    .join("")
+    .replace(/\s+/g, " ")
+    .trim();
+  return plain.length > LABEL_LENGTH ? `${plain.slice(0, LABEL_LENGTH - 1).trimEnd()}…` : plain;
+}
+
+// A shape's "Follows text" in the panel (`SUI-FEATURE-165` §Editor): a text field of its group, or
+// none, and the padding on each side. Grid cells of the panel's two-column number grid: the select in
+// the first column, the paddings two by two (Top, Right / Bottom, Left). Text fields that read the
+// same are told apart by their place in the group.
+export function FollowTextField({
+  follow,
+  texts,
+  readOnly,
+  revision,
+  onFollow,
+  onInset,
+}: {
+  follow: Shape["follow"];
+  texts: readonly Extract<SlideElement, { type: "text" }>[];
+  readOnly: boolean;
+  revision: number;
+  onFollow: (id: string | undefined) => void;
+  onInset: (side: keyof Inset, value: number) => void;
+}) {
+  const { t } = useTranslation("suite");
+  const id = React.useId();
+  const labels = texts.map((text) => text.name || textLabel(text) || t("slides.editor.type.text"));
+  const named = labels.map((label, index) =>
+    labels.filter((one) => one === label).length > 1 ? `${label} (${index + 1})` : label,
+  );
+  return (
+    <>
+      <div className="col-start-1">
+        <Field
+          label={t("slides.editor.followText")}
+          htmlFor={`${id}-follow`}
+          hint={t("slides.editor.followTextHint")}
+          valueHint={t("slides.editor.followTextValueHint", {
+            none: t("slides.editor.followNone"),
+            interpolation: { escapeValue: false },
+          })}
+        >
+          <Select
+            value={follow?.id ?? FOLLOW_NONE}
+            disabled={readOnly}
+            onValueChange={(next) => onFollow(next === FOLLOW_NONE ? undefined : next)}
+          >
+            <SelectTrigger
+              id={`${id}-follow`}
+              aria-describedby={helpIdFor(`${id}-follow`)}
+              fieldName={t("slides.editor.followText")}
+              className="w-full"
+              data-testid="slide-editor-follow"
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={FOLLOW_NONE} data-testid="slide-editor-follow-none">
+                {t("slides.editor.followNone")}
+              </SelectItem>
+              {texts.map((text, index) => (
+                <SelectItem
+                  key={text.id}
+                  value={text.id}
+                  data-testid={`slide-editor-follow-${text.id}`}
+                >
+                  {named[index]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+      </div>
+      {follow === undefined
+        ? null
+        : INSET_SIDES.map(([side, key]) => (
+            <div key={side} className={side === "top" ? "col-start-1" : undefined}>
+              <NumberField
+                id={`${id}-inset-${side}`}
+                label={t(`slides.editor.${key}`)}
+                hint={t("slides.editor.insetHint")}
+                valueHint={t("slides.editor.insetValueHint")}
+                value={follow.inset[side]}
+                min={0}
+                unit="px"
+                readOnly={readOnly}
+                revision={revision}
+                onValue={(value) => onInset(side, value)}
+                testId={`slide-editor-inset-${side}`}
+              />
+            </div>
+          ))}
+    </>
   );
 }

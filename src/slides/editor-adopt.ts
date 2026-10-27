@@ -10,15 +10,26 @@ import {
   type FontValue,
   isSlideColor,
   isSlideFontFamily,
+  type Run,
   type SlideElement,
   type TextRun,
 } from "./schema.js";
 
-// The media ids the images of `elements` reference, those in groups too, each once.
+// The runs of a text field and of each table cell.
+const runsOf = (element: SlideElement): Run[] =>
+  element.type === "text"
+    ? element.runs
+    : element.type === "table"
+      ? element.rows.flat().flatMap((cell) => cell.runs)
+      : [];
+
+// The media ids the images of `elements` reference, those in groups too, each once; the inline
+// images of their text too (`SUI-FEATURE-164`).
 export function mediaIds(elements: readonly SlideElement[]): string[] {
   const ids = new Set<string>();
   eachElement(elements, (element) => {
     if (element.type === "image") ids.add(element.media.id);
+    for (const run of runsOf(element)) if (run.inline === "media") ids.add(run.media.id);
   });
   return [...ids];
 }
@@ -41,11 +52,24 @@ export function withMedia(
   elements: readonly SlideElement[],
   remap: Readonly<Record<string, string>>,
 ): SlideElement[] {
+  const run = (one: Run): Run =>
+    one.inline === "media" && Object.hasOwn(remap, one.media.id)
+      ? { ...one, media: { id: remap[one.media.id]! } }
+      : one;
   return elements.map((element) =>
     withDescendants(element, (one) =>
       one.type === "image" && Object.hasOwn(remap, one.media.id)
         ? { ...one, media: { id: remap[one.media.id]! } }
-        : one,
+        : one.type === "text"
+          ? { ...one, runs: one.runs.map(run) }
+          : one.type === "table"
+            ? {
+                ...one,
+                rows: one.rows.map((row) =>
+                  row.map((cell) => ({ ...cell, runs: cell.runs.map(run) })),
+                ),
+              }
+            : one,
     ),
   );
 }
@@ -101,7 +125,10 @@ export function adoptBrand(
     ...value,
     color: color(value.color, "line"),
   });
-  const run = (value: TextRun, title: boolean): TextRun => ({
+  // An inline run takes its paragraph's colours: nothing of its own to adopt.
+  const run = (value: Run, title: boolean): Run =>
+    value.inline !== undefined ? value : textRun(value, title);
+  const textRun = (value: TextRun, title: boolean): TextRun => ({
     ...value,
     ...(value.font === undefined ? {} : { font: font(value.font, title) }),
     ...(value.fill === undefined ? {} : { fill: fill(value.fill, "text") }),

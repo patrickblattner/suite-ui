@@ -151,7 +151,7 @@ describe("SlideEditor tables", () => {
     fireEvent.keyDown(field, { key: "Escape" });
     const table = await saved();
     expect(table.rows[1]![1]!.runs).toEqual([{ text: "Tables", size: 16 }]);
-    expect(table.rows[0]![0]!.runs[0]!.text).toBe("Day");
+    expect(table.rows[0]![0]!.runs[0]).toMatchObject({ text: "Day" });
   });
 
   it("moves between cells with Tab and Shift+Tab while editing; at the table's end Tab leaves (#308)", async () => {

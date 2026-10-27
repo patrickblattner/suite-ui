@@ -53,6 +53,60 @@ const FULL_DOC = FULL
       ),
     }
   : undefined;
+// `?doc=badge`: the first page holds a badge, a group of a shape following a text field
+// (`SUI-FEATURE-165`), for the panel's Field size and Follows text (#630, AC10).
+const BADGE_DOC =
+  PARAMS.get("doc") === "badge"
+    ? {
+        ...SLIDE_EDITOR_DOC,
+        pages: SLIDE_EDITOR_DOC.pages.map((page, index) =>
+          index === 0
+            ? {
+                ...page,
+                elements: [
+                  {
+                    id: "badge",
+                    type: "group" as const,
+                    x: 284,
+                    y: 192,
+                    width: 232,
+                    height: 66,
+                    children: [
+                      {
+                        id: "badge-back",
+                        type: "shape" as const,
+                        shape: "rectangle" as const,
+                        x: 284,
+                        y: 192,
+                        width: 232,
+                        height: 66,
+                        fill: {
+                          type: "color" as const,
+                          color: { kind: "brand" as const, key: "muted" },
+                        },
+                        follow: {
+                          id: "badge-label",
+                          inset: { top: 8, right: 16, bottom: 8, left: 16 },
+                        },
+                      },
+                      {
+                        id: "badge-label",
+                        type: "text" as const,
+                        x: 300,
+                        y: 200,
+                        width: 200,
+                        height: 50,
+                        runs: [{ text: "New", size: 40 }],
+                        sizing: "both" as const,
+                      },
+                    ],
+                  },
+                ],
+              }
+            : page,
+        ),
+      }
+    : undefined;
 // `?ground=dark`: the first page's background is the brand's dark text colour, so a new element takes
 // a colour that stands out on it, not on white (#365).
 const DARK_DOC =
@@ -316,6 +370,7 @@ export function SlideEditorPage() {
             document={
               opened ??
               FULL_DOC ??
+              BADGE_DOC ??
               DARK_DOC ??
               PICTURE_DOC ??
               (INVALID

@@ -16,6 +16,7 @@ import {
   animationState,
   cssFill,
   cssFont,
+  glueInline,
   gradientLine,
   paragraphs,
   stackOrder,
@@ -561,6 +562,25 @@ describe("slide render rules", () => {
       ["b", "c"],
       ["d"],
     ]);
+  });
+
+  // SUI-FEATURE-164 AC1: a line breaks around an image as around a word; glued, the flag wraps with
+  // the word it stands before.
+  it("glues an inline run to the words it touches, never across a space", () => {
+    const flag = { inline: "icon", icon: "flag", height: 1 } as const;
+    const pieces = paragraphs([
+      { text: "Grüezi aus " },
+      flag,
+      { text: "Zürich und Bern" },
+      flag,
+      flag,
+      { text: "!" },
+    ]);
+    expect(
+      glueInline(pieces[0]!).map((piece) =>
+        "glue" in piece ? piece.glue.map((one) => one.text ?? "[flag]") : (piece.text ?? "[flag]"),
+      ),
+    ).toEqual(["Grüezi aus ", ["[flag]", "Zürich"], " und ", ["Bern", "[flag]", "[flag]", "!"]]);
   });
 
   it("stacks by layer, then by order in the list", () => {
@@ -1195,5 +1215,305 @@ describe("SlideView image crop on the overhanging axis", () => {
     expect(image).toHaveAttribute("data-slide-image", "loading");
     loadImage(image, wide);
     expect(image).toHaveAttribute("data-slide-image", "sized");
+  });
+});
+
+const onlyPage = (elements: unknown[]) =>
+  ({
+    ...SLIDE_SHOWCASE,
+    pages: [{ ...SLIDE_SHOWCASE.pages[0]!, elements }],
+  }) as SlideViewProps["document"];
+
+// SUI-FEATURE-164: an icon or an image in the flow of a line.
+describe("SlideView inline runs", () => {
+  const flagText = onlyPage([
+    {
+      id: "city",
+      type: "text",
+      x: 100,
+      y: 100,
+      width: 600,
+      height: 100,
+      runs: [
+        { inline: "media", media: { id: "photo" }, alt: "Swiss flag" },
+        { text: "Zürich", fill: { type: "color", color: { kind: "brand", key: "primary" } } },
+        { inline: "icon", icon: "star", height: 0.8 },
+        { inline: "media", media: { id: "photo" } },
+        { inline: "media", media: { id: "gone" } },
+      ],
+    },
+  ]);
+
+  it("stands on the baseline at its factor of the line's size, inside the line (AC1)", async () => {
+    const { container } = await drawn({ document: flagText });
+    const image = screen.getByRole("img", { name: "Swiss flag" });
+    expect(image.style.height).toBe("1em");
+    expect(image.style.width).toBe("auto");
+    expect(image.style.verticalAlign).toBe("baseline");
+    // Its first em lies inside the line box: the line's height stays the text's.
+    expect(image.style.marginTop).toBe("-1em");
+    // In the paragraph that sets the line's size, glued to the word after it.
+    expect(image.parentElement?.style.whiteSpace).toBe("nowrap");
+    expect(image.parentElement?.textContent).toBe("Zürich");
+    expect(image.parentElement?.parentElement?.tagName).toBe("P");
+    const icon = container.querySelector<SVGElement>("[data-slide-inline=icon]")!;
+    expect(icon.style.height).toBe("0.8em");
+    expect(icon.style.marginTop).toBe("-0.8em");
+  });
+
+  // #622: the part above 1 em grows the line, so a tall inline never reaches into the line above.
+  it("lifts an inline taller than 1 em in a box that grows its line by the part above 1 em", async () => {
+    const { container } = await drawn({
+      document: onlyPage([
+        {
+          id: "tall",
+          type: "text",
+          x: 100,
+          y: 100,
+          width: 600,
+          height: 100,
+          runs: [
+            { text: "Big " },
+            { inline: "icon", icon: "star", height: 2.5 },
+            { inline: "media", media: { id: "gone" }, height: 2 },
+          ],
+        },
+      ]),
+    });
+    const icon = container.querySelector<SVGElement>("[data-slide-inline=icon]")!;
+    expect(icon.style.height).toBe("2.5em");
+    expect(icon.style.marginTop).toBe("-2.5em");
+    const box = icon.parentElement!;
+    expect(box.style.display).toBe("inline-block");
+    expect(box.style.paddingTop).toBe("1.5em");
+    // The stand-in is lifted the same way.
+    const stand = container.querySelector<HTMLElement>("[data-slot=slide-stand-in]")!;
+    expect(stand.parentElement!.style.paddingTop).toBe("1em");
+  });
+
+  it("reads out an image by its alt text; one without and an icon are decorative (AC5)", async () => {
+    const { container } = await drawn({ document: flagText });
+    const images = [...container.querySelectorAll<HTMLImageElement>("[data-slide-inline=media]")];
+    expect(images.map((image) => image.alt)).toEqual(["Swiss flag", ""]);
+    const icon = container.querySelector("[data-slide-inline=icon]")!;
+    expect(icon).toHaveAttribute("aria-hidden", "true");
+    // The icon takes the colour of the text before it.
+    expect(icon).toHaveAttribute("stroke", "#1d4ed8");
+  });
+
+  // SUI-FEATURE-164 rev 4 AC2: the text before it, at the paragraph's start the text after it.
+  it("draws an icon in the colour and highlight of the run before it, at a paragraph's start the run after", async () => {
+    const red = { type: "color", color: { kind: "free", value: "#dc2626" } } as const;
+    const blue = { type: "color", color: { kind: "free", value: "#2563eb" } } as const;
+    const { container } = await drawn({
+      document: onlyPage([
+        {
+          id: "inks",
+          type: "text",
+          x: 0,
+          y: 0,
+          width: 600,
+          height: 200,
+          runs: [
+            { text: "Plain " },
+            { text: "red ", fill: red, highlight: { kind: "free", value: "#fef08a" } },
+            { inline: "icon", icon: "star" },
+            { text: " blue\n", fill: blue },
+            { inline: "icon", icon: "star" },
+            { text: " blue", fill: blue },
+          ],
+        },
+      ]),
+    });
+    const [middle, start] = [...container.querySelectorAll<SVGElement>("[data-slide-inline=icon]")];
+    expect(middle).toHaveAttribute("stroke", "#dc2626");
+    expect(middle!.closest("mark")!.style.backgroundColor).toBe("rgb(254, 240, 138)");
+    expect(start).toHaveAttribute("stroke", "#2563eb");
+    expect(start!.closest("mark")).toBeNull();
+  });
+
+  it("shows the missing-media stand-in at the line's size for an unknown medium, no error (AC5)", async () => {
+    const { container, report } = await drawn({ document: flagText });
+    const stand = within(container).getByRole("img", { name: "Image gone not found" });
+    expect(stand).toHaveAttribute("data-slot", "slide-stand-in");
+    expect(stand.style.height).toBe("1em");
+    expect(report().missingMedia).toEqual(["gone"]);
+    expect(report().error).toBeUndefined();
+  });
+
+  it("names an unknown icon in the text by its stand-in", async () => {
+    const { report } = await drawn({
+      document: onlyPage([
+        {
+          id: "t",
+          type: "text",
+          x: 0,
+          y: 0,
+          width: 400,
+          height: 100,
+          runs: [{ text: "A" }, { inline: "icon", icon: "no-such-icon" }],
+        },
+      ]),
+    });
+    expect(screen.getByRole("img", { name: "Icon no-such-icon not found" })).toBeInTheDocument();
+    expect(report().unknownIcons).toEqual(["no-such-icon"]);
+  });
+});
+
+// SUI-FEATURE-165: a text field and the shape behind it grow with the text, measured where drawn.
+describe("SlideView sizes that follow the text", () => {
+  // jsdom lays nothing out: a text measures 10 px a character (20 in a family named "Wide") and 40 px
+  // a line.
+  // The used size a field's text measures to, as `getComputedStyle` gives it (#631: unrounded).
+  const computed = window.getComputedStyle.bind(window);
+  const usedSize = (width: (element: Element) => number, height = 40) => {
+    vi.spyOn(window, "getComputedStyle").mockImplementation((element, pseudo) => {
+      const style = computed(element, pseudo);
+      style.width = `${width(element)}px`;
+      style.height = `${height}px`;
+      return style;
+    });
+  };
+  const measure = () => {
+    vi.spyOn(HTMLElement.prototype, "getClientRects").mockImplementation(
+      () => [{}] as unknown as DOMRectList,
+    );
+    usedSize((element) => {
+      const wide = element.querySelector("span")?.style.fontFamily.includes("Wide") === true;
+      return (element.textContent ?? "").length * (wide ? 20 : 10);
+    });
+  };
+  const badge = (text: string, align = "left") =>
+    onlyPage([
+      {
+        id: "badge",
+        type: "group",
+        x: 84,
+        y: 92,
+        width: 92,
+        height: 56,
+        children: [
+          {
+            id: "back",
+            type: "shape",
+            shape: "rectangle",
+            x: 84,
+            y: 92,
+            width: 92,
+            height: 56,
+            fill: { type: "color", color: { kind: "brand", key: "primary" } },
+            follow: { id: "label", inset: { top: 8, right: 16, bottom: 8, left: 16 } },
+          },
+          {
+            id: "label",
+            type: "text",
+            x: 100,
+            y: 100,
+            width: 60,
+            height: 40,
+            runs: [{ text }],
+            align,
+            sizing: "both",
+          },
+        ],
+      },
+    ]);
+  const boxOf = (container: HTMLElement, id: string) => {
+    const style = container.querySelector<HTMLElement>(`[data-slide-element=${id}]`)!.style;
+    return [style.left, style.top, style.width, style.height];
+  };
+
+  it("draws field, shape and group at the measured size, the left edge kept (AC1)", async () => {
+    measure();
+    const onLayout = vi.fn();
+    const document = badge("Neu eingetroffen");
+    const before = JSON.stringify(document);
+    const { container } = await drawn({ document, onLayout });
+    // 16 characters: 160 × 40; the group's children are placed relative to the group.
+    await waitFor(() =>
+      expect(boxOf(container, "label")).toEqual(["16px", "8px", "160px", "40px"]),
+    );
+    expect(boxOf(container, "back")).toEqual(["0px", "0px", "192px", "56px"]);
+    expect(boxOf(container, "badge")).toEqual(["84px", "92px", "192px", "56px"]);
+    expect(onLayout).toHaveBeenLastCalledWith(
+      new Map([
+        ["badge", { x: 84, y: 92, width: 192, height: 56 }],
+        ["back", { x: 84, y: 92, width: 192, height: 56 }],
+        ["label", { x: 100, y: 100, width: 160, height: 40 }],
+      ]),
+    );
+    // The view never writes the document.
+    expect(JSON.stringify(document)).toBe(before);
+  });
+
+  // #631: a fractional text width is kept, not rounded down to a whole unit the text would wrap in.
+  it("takes the measured size unrounded", async () => {
+    measure();
+    usedSize(() => 30.6, 40.4);
+    const onLayout = vi.fn<(boxes: ReadonlyMap<string, unknown>) => void>();
+    const { container } = await drawn({ document: badge("Neu"), onLayout });
+    await waitFor(() =>
+      expect(boxOf(container, "label")).toEqual(["16px", "8px", "30.6px", "40.4px"]),
+    );
+    expect(onLayout.mock.lastCall?.[0].get("label")).toEqual({
+      x: 100,
+      y: 100,
+      width: 30.6,
+      height: 40.4,
+    });
+  });
+
+  it("grows a centred badge on both sides (AC2)", async () => {
+    measure();
+    const { container } = await drawn({ document: badge("Neu eingetroffen", "center") });
+    // 160 wide around the old centre at 130: from 50.
+    await waitFor(() =>
+      expect(boxOf(container, "badge")).toEqual(["34px", "92px", "192px", "56px"]),
+    );
+  });
+
+  it("follows a wider brand font without a change to the document (AC4)", async () => {
+    measure();
+    const document = badge("Neu");
+    const before = JSON.stringify(document);
+    const wide = {
+      ...SLIDE_BRAND,
+      fonts: { ...SLIDE_BRAND.fonts, body: { family: "Gallery Wide", label: "Body text" } },
+    };
+    const fonts = [...SLIDE_FONTS, { ...SLIDE_FONTS[0]!, family: "Gallery Wide" }];
+    const { container } = await drawn({ document, brand: wide, fonts });
+    await waitFor(() => expect(boxOf(container, "badge")[2]).toBe("92px"));
+    expect(boxOf(container, "label")[2]).toBe("60px");
+    cleanup();
+    const narrow = await drawn({ document });
+    await waitFor(() => expect(boxOf(narrow.container, "label")[2]).toBe("30px"));
+    expect(boxOf(narrow.container, "badge")[2]).toBe("62px");
+    expect(JSON.stringify(document)).toBe(before);
+  });
+
+  // #622: a failed inline image becomes its stand-in, and the size follows it.
+  it("measures again once a failed inline image shows its stand-in", async () => {
+    measure();
+    usedSize((element) => {
+      const stands = element.querySelectorAll("[data-slot=slide-stand-in]").length;
+      return (element.textContent ?? "").length * 10 + stands * 40;
+    });
+    const document = badge("Neu");
+    const group = document.pages[0]?.elements?.[0];
+    const label = group?.type === "group" ? group.children[1] : undefined;
+    if (label?.type !== "text") throw new Error("badge");
+    label.runs.push({ inline: "media", media: { id: "photo" }, alt: "", height: 1 });
+    const { container } = await drawn({ document });
+    await waitFor(() => expect(boxOf(container, "label")[2]).toBe("30px"));
+    fireEvent.error(container.querySelector("[data-slide-inline=media]")!);
+    await waitFor(() => expect(boxOf(container, "label")[2]).toBe("70px"));
+  });
+
+  it("keeps the stored size while the text is not laid out (hidden)", async () => {
+    usedSize(() => 999);
+    const onLayout = vi.fn();
+    const { container } = await drawn({ document: badge("Neu eingetroffen"), onLayout });
+    expect(boxOf(container, "label")).toEqual(["16px", "8px", "60px", "40px"]);
+    expect(onLayout).not.toHaveBeenCalled();
   });
 });

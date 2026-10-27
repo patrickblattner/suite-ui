@@ -249,6 +249,8 @@ createRoot(document.getElementById("root") as HTMLElement).render(
         editor={params.get("view") === "editor"}
         broken={params.get("broken") === "1"}
         overhang={params.get("overhang") === "1"}
+        flow={params.get("doc") === "flow"}
+        wide={params.get("brand") === "wide"}
       />
     ) : fieldPair ? (
       <FieldPairHarness />

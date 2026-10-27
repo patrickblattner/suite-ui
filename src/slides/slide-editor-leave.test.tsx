@@ -95,7 +95,7 @@ describe("SlideEditor leave guard during its save", () => {
 
   // A crop shifted on the canvas is a change not yet in the document: it counts as well.
   const PHOTO_DOC: SlideDocumentInput = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     format: FORMAT_16_9,
     pages: [
       {

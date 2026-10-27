@@ -481,6 +481,8 @@ export const es: SuiteStrings = {
       cropOffsetNone: "Amplía para desplazar la imagen.",
       libraryHint:
         "Haz clic o pulsa Intro para insertar en el centro de la página, o arrastra a la página.",
+      libraryHintCaret:
+        "Haz clic o pulsa Intro: un icono o una imagen va al texto en el cursor; lo demás, al centro de la página. O arrastra a la página.",
       libraryShapes: "Formas",
       libraryRectangle: "Rectángulo",
       libraryEllipse: "Elipse",
@@ -701,6 +703,33 @@ export const es: SuiteStrings = {
       textJustify: "Justificar",
       textBullets: "Lista con viñetas",
       textNumbered: "Lista numerada",
+      textSizing: "Tamaño del campo",
+      textSizingHint: "Si el campo de texto mantiene su tamaño o crece con su texto.",
+      textSizingValueHint:
+        "«{{fixed}}» mantiene el tamaño indicado; las otras opciones hacen el campo tan grande como su texto.",
+      textSizingFixed: "Fijo",
+      textSizingHeight: "La altura sigue al texto",
+      textSizingBoth: "Ancho y altura siguen al texto",
+      followText: "Sigue al texto",
+      followTextHint:
+        "Si la forma queda detrás de un campo de texto de su grupo y toma su marco más el relleno.",
+      followTextValueHint:
+        "«{{none}}» mantiene el tamaño propio de la forma; un campo de texto da a la forma el marco de ese campo más el relleno.",
+      followNone: "Ninguno",
+      insetTop: "Relleno superior",
+      insetRight: "Relleno derecho",
+      insetBottom: "Relleno inferior",
+      insetLeft: "Relleno izquierdo",
+      insetHint: "El relleno entre el campo de texto y el borde de la forma en este lado.",
+      insetValueHint: "Píxeles, 0 o más; 0 pone el borde de la forma sobre el del campo de texto.",
+      inlineElement: "Elemento en el texto",
+      inlineHeight: "Altura",
+      inlineHeightHint: "La altura del icono o la imagen seleccionados en su línea.",
+      inlineHeightValueHint:
+        "Veces el tamaño del texto de la línea, hasta 4; 1 es tan alto como el texto.",
+      inlineAlt: "Texto alternativo",
+      inlineAltHint:
+        "Lo que lee un lector de pantalla para la imagen; vacío, la imagen es decorativa y se omite.",
       tableCell: "Tabla · fila {{row}}, columna {{column}}",
       tableCellName: "{{name}}, fila {{row}}, columna {{column}}",
       tableRowAbove: "Insertar fila arriba",
@@ -739,6 +768,8 @@ export const es: SuiteStrings = {
         "Tanto texto no cabe aquí. No se ha añadido nada; quita algo de texto e inténtalo de nuevo.",
       formatRefused:
         "No se ha cambiado el formato: este texto tiene demasiadas partes con formatos distintos. Quita algo de formato e inténtalo de nuevo.",
+      inlineRefused:
+        "No se ha insertado: este texto tiene demasiadas partes. Quita algo de formato o un icono o imagen insertado e inténtalo de nuevo.",
       pageRefused:
         "El documento no admite esta página. Quita una página o un elemento e inténtalo de nuevo.",
       deleteSelection: "Eliminar",
@@ -835,6 +866,9 @@ export const es: SuiteStrings = {
         "duplicate-pattern": "dos series de un gráfico tienen el mismo patrón.",
         "group-depth": "hay grupos metidos unos dentro de otros a demasiada profundidad.",
         "too-many-elements": "una página contiene más elementos de los permitidos.",
+        "follow-outside-group": "una forma sigue a un campo de texto fuera de su propio grupo.",
+        "follow-not-text": "una forma sigue a algo que no es un campo de texto.",
+        "follow-no-group": "una forma sin grupo sigue a un campo de texto.",
         "missing-version": "el documento no indica qué versión es.",
         "invalid-version": "no se puede leer la versión del documento.",
         "unknown-version": "la versión del documento es desconocida.",

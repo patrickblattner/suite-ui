@@ -2,8 +2,8 @@
 // `editor-ops.ts`: each takes a document and returns a new one, so every change is a step of the
 // editor's history, across pages too.
 
-import { idsOf } from "./editor-ops.js";
-import type { Background, SlideDocument, SlideElement, SlidePage } from "./schema.js";
+import { freshCopies, idsOf } from "./editor-ops.js";
+import type { Background, SlideDocument, SlidePage } from "./schema.js";
 
 // A page without a background of its own and without a layout or master that has one: white.
 const WHITE: Background = { type: "color", color: { kind: "free", value: "#ffffff" } };
@@ -21,15 +21,6 @@ function freshIds(taken: Set<string>) {
   };
 }
 
-const withIds = (element: SlideElement, fresh: (prefix: string) => string): SlideElement =>
-  element.type === "group"
-    ? {
-        ...element,
-        id: fresh(element.type),
-        children: element.children.map((child) => withIds(child, fresh)),
-      }
-    : { ...element, id: fresh(element.type) };
-
 // A copy of the page right after it, with new ids for it and every element on it.
 export function duplicatePage(
   document: SlideDocument,
@@ -37,11 +28,11 @@ export function duplicatePage(
 ): { document: SlideDocument; index: number } {
   const page = document.pages[index];
   if (page === undefined) return { document, index };
-  const fresh = freshIds(idsOf(document));
+  const taken = idsOf(document);
   const copy: SlidePage = {
     ...structuredClone(page),
-    id: fresh("page"),
-    elements: page.elements.map((element) => withIds(structuredClone(element), fresh)),
+    id: freshIds(taken)("page"),
+    elements: freshCopies(structuredClone(page.elements), taken),
   };
   const pages = [...document.pages];
   pages.splice(index + 1, 0, copy);

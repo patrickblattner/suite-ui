@@ -487,6 +487,8 @@ export const de: SuiteStrings = {
       cropOffsetRange: "Von {{min}} bis {{max}} px",
       cropOffsetNone: "Zum Verschieben zuerst zoomen.",
       libraryHint: "Klicken oder Enter fügt in der Seitenmitte ein, oder auf die Seite ziehen.",
+      libraryHintCaret:
+        "Klicken oder Enter: Ein Icon oder Bild kommt an der Schreibmarke in den Text, alles andere in die Seitenmitte. Oder auf die Seite ziehen.",
       libraryShapes: "Formen",
       libraryRectangle: "Rechteck",
       libraryEllipse: "Ellipse",
@@ -708,6 +710,33 @@ export const de: SuiteStrings = {
       textJustify: "Blocksatz",
       textBullets: "Aufzählung",
       textNumbered: "Nummerierte Liste",
+      textSizing: "Feldgröße",
+      textSizingHint: "Ob das Textfeld seine Größe behält oder mit seinem Text wächst.",
+      textSizingValueHint:
+        "„{{fixed}}“ behält die gesetzte Größe; die anderen machen das Feld so groß wie seinen Text.",
+      textSizingFixed: "Fest",
+      textSizingHeight: "Höhe folgt dem Text",
+      textSizingBoth: "Breite und Höhe folgen dem Text",
+      followText: "Folgt Text",
+      followTextHint:
+        "Ob die Form hinter einem Textfeld ihrer Gruppe liegt und dessen Rahmen plus den Innenabstand annimmt.",
+      followTextValueHint:
+        "„{{none}}“ behält die eigene Größe der Form; ein Textfeld gibt der Form dessen Rahmen plus den Innenabstand.",
+      followNone: "Keins",
+      insetTop: "Innenabstand oben",
+      insetRight: "Innenabstand rechts",
+      insetBottom: "Innenabstand unten",
+      insetLeft: "Innenabstand links",
+      insetHint: "Der Innenabstand zwischen dem Textfeld und dem Rand der Form auf dieser Seite.",
+      insetValueHint: "Pixel, 0 oder mehr; 0 legt den Rand der Form auf den des Textfelds.",
+      inlineElement: "Element im Text",
+      inlineHeight: "Höhe",
+      inlineHeightHint: "Die Höhe des ausgewählten Icons oder Bilds in seiner Zeile.",
+      inlineHeightValueHint:
+        "Vielfaches der Schriftgröße der Zeile, bis 4; 1 ist so hoch wie der Text.",
+      inlineAlt: "Alternativtext",
+      inlineAltHint:
+        "Was ein Screenreader für das Bild vorliest; leer ist das Bild nur Schmuck und wird übergangen.",
       tableCell: "Tabelle · Zeile {{row}}, Spalte {{column}}",
       tableCellName: "{{name}}, Zeile {{row}}, Spalte {{column}}",
       tableRowAbove: "Zeile oberhalb einfügen",
@@ -746,6 +775,8 @@ export const de: SuiteStrings = {
         "So viel Text passt hier nicht hinein. Es wurde nichts eingefügt; entferne etwas Text und versuche es erneut.",
       formatRefused:
         "Formatierung nicht geändert: Dieser Text hat zu viele unterschiedlich formatierte Teile. Entferne etwas Formatierung und versuche es erneut.",
+      inlineRefused:
+        "Nicht eingefügt: Dieser Text hat zu viele Teile. Entferne etwas Formatierung oder ein eingefügtes Icon oder Bild und versuche es erneut.",
       pageRefused:
         "Das Dokument fasst diese Seite nicht. Entferne eine Seite oder ein Element und versuche es erneut.",
       deleteSelection: "Löschen",
@@ -845,6 +876,9 @@ export const de: SuiteStrings = {
         "duplicate-pattern": "Zwei Reihen eines Diagramms haben dasselbe Muster.",
         "group-depth": "Gruppen sind zu tief ineinander verschachtelt.",
         "too-many-elements": "Eine Seite enthält mehr Elemente als erlaubt.",
+        "follow-outside-group": "Eine Form folgt einem Textfeld außerhalb ihrer Gruppe.",
+        "follow-not-text": "Eine Form folgt etwas, das kein Textfeld ist.",
+        "follow-no-group": "Eine Form ohne Gruppe folgt einem Textfeld.",
         "missing-version": "Das Dokument sagt nicht, welche Version es hat.",
         "invalid-version": "Die Version des Dokuments ist nicht lesbar.",
         "unknown-version": "Die Version des Dokuments ist unbekannt.",

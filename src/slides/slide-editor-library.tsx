@@ -161,12 +161,15 @@ export function ElementLibrary({
   onInsert,
   onPickMedia,
   appEntries = [],
+  atCaret = false,
 }: {
   term: string;
   onTerm: (term: string) => void;
   onInsert: (entry: LibraryEntry, label: string) => void;
   onPickMedia: (() => void) | undefined;
   appEntries?: readonly AppLibraryEntry[];
+  // A caret is set in a text field: an icon or a medium goes into the text there (`SUI-FEATURE-164`).
+  atCaret?: boolean;
 }) {
   const { t } = useTranslation("suite");
   const names = React.useMemo(() => slideIconNames(), []);
@@ -255,7 +258,9 @@ export function ElementLibrary({
   );
   return (
     <div className="flex flex-col gap-4" data-testid="slide-editor-library">
-      <p className="text-sm text-muted-foreground">{t("slides.editor.libraryHint")}</p>
+      <p className="text-sm text-muted-foreground" data-testid="slide-editor-library-hint">
+        {t(atCaret ? "slides.editor.libraryHintCaret" : "slides.editor.libraryHint")}
+      </p>
       <section className="flex flex-col gap-2" aria-labelledby={`${searchId}-shapes`}>
         <h3 id={`${searchId}-shapes`} className="text-base font-semibold">
           {t("slides.editor.libraryShapes")}
