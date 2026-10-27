@@ -959,18 +959,12 @@ test("full-screen editor: leaving the editor restores the app shell's toast offs
   await expect.poll(root).toBe("");
 });
 
-// `SUI-FEATURE-101` rev 3 (`GL-UI-028`, `GL-UI-013`): a success toast lies over the FilterBar's right
-// end. Focus on an uncovered control closes nothing; Tab onto the first control it covers closes all
-// toasts, so the control and its ring are unobscured.
-test("toast: Tab onto a FilterBar control under the toast closes all toasts", async ({ page }) => {
-  await page.goto("/?page=list&toast=1");
-  const success = page.locator("[data-sonner-toast][data-type=success]");
-  await expect(success).toBeVisible();
-  // The toast slides in; its box is taken once it rests. It starts its slide-in only once mounted;
-  // two equal reads in a row can fall before the slide starts.
-  await expect(success).toHaveAttribute("data-mounted", "true");
-  const toastBox = (await settledBox(success))!;
-  // The ring reaches 4 px beyond the control.
+// The first FilterBar control, in Tab order, that the toast box covers, its ring included (4 px beyond
+// the control); `first` is its index. The search field, the first control, lies clear of the toast.
+async function firstFilterBarControlUnder(
+  page: Page,
+  toastBox: { x: number; y: number; width: number; height: number },
+) {
   const covers = (control: { x: number; y: number; width: number; height: number }) =>
     toastBox.x < control.x + control.width + 4 &&
     control.x - 4 < toastBox.x + toastBox.width &&
@@ -983,8 +977,20 @@ test("toast: Tab onto a FilterBar control under the toast closes all toasts", as
   const boxes = await Promise.all(controls.map(box));
   const first = boxes.findIndex(covers);
   expect(first).toBeGreaterThan(0);
-  const covered = controls[first]!;
-  expect(covers(boxes[0]!)).toBe(false);
+  return { first, covered: controls[first]! };
+}
+
+// `SUI-FEATURE-101` rev 3 (`GL-UI-028`, `GL-UI-013`): a success toast lies over the FilterBar's right
+// end. Focus on an uncovered control closes nothing; Tab onto the first control it covers closes all
+// toasts, so the control and its ring are unobscured.
+test("toast: Tab onto a FilterBar control under the toast closes all toasts", async ({ page }) => {
+  await page.goto("/?page=list&toast=1");
+  const success = page.locator("[data-sonner-toast][data-type=success]");
+  await expect(success).toBeVisible();
+  // The toast slides in; its box is taken once it rests. It starts its slide-in only once mounted;
+  // two equal reads in a row can fall before the slide starts.
+  await expect(success).toHaveAttribute("data-mounted", "true");
+  const { first, covered } = await firstFilterBarControlUnder(page, (await settledBox(success))!);
 
   // Focus on the uncovered search field: the toast stays, also after its exit animation's time.
   await page.getByTestId("filter-haystack").focus();
@@ -995,6 +1001,80 @@ test("toast: Tab onto a FilterBar control under the toast closes all toasts", as
   await expect(covered).toBeFocused();
   await expect(page.locator("[data-sonner-toast]")).toHaveCount(0);
   expect(await covered.evaluate((el) => el.matches(":focus-visible"))).toBe(true);
+});
+
+// `GL-UI-028`, `SUI-FEATURE-101` (#603): a Tab onto a FilterBar control during the toast's slide-in
+// closes all toasts. The slide-in is held part-way from its start, and the page timers move only when
+// the test steps them, so the Tab lands mid-slide and the check 1000 ms after the mount never runs:
+// only the focus check can close the toast.
+test("toast: Tab onto a FilterBar control during the toast's slide-in closes all toasts", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  // The slide runs in real time, not on the page clock: its transform transition is held at three
+  // quarters of its time as it starts, the first one only.
+  await page.addInitScript(() => {
+    let held = false;
+    document.addEventListener(
+      "transitionrun",
+      (event) => {
+        if (held || event.propertyName !== "transform") return;
+        if (!(event.target instanceof Element) || !event.target.matches("[data-sonner-toast]"))
+          return;
+        for (const a of event.target.getAnimations()) {
+          if (!(a instanceof CSSTransition) || a.transitionProperty !== "transform") continue;
+          a.pause();
+          a.currentTime = Number(a.effect!.getComputedTiming().duration) * 0.75;
+          held = true;
+        }
+      },
+      true,
+    );
+  });
+  await page.clock.install({ time: T0 });
+  await page.clock.pauseAt(T0);
+  await page.goto("/?page=list&toast=1");
+  const success = page.locator("[data-sonner-toast][data-type=success]");
+  const open = page.locator("[data-sonner-toast][data-removed=false]");
+  // The page timers step one frame at a time until the toast has mounted, then stand still.
+  await expect
+    .poll(
+      async () => {
+        await page.clock.runFor(16);
+        return success.getAttribute("data-mounted", { timeout: 100 }).catch(() => null);
+      },
+      { intervals: [16] },
+    )
+    .toBe("true");
+  const slide = () =>
+    success.evaluate((el) =>
+      el
+        .getAnimations()
+        .filter((a) => a instanceof CSSTransition && a.transitionProperty === "transform")
+        .map((a) => ({ state: a.playState, progress: a.effect!.getComputedTiming().progress })),
+    );
+  await expect.poll(slide).toEqual([{ state: "paused", progress: expect.any(Number) }]);
+  const progress = Number((await slide())[0]!.progress);
+  expect(progress).toBeGreaterThan(0);
+  expect(progress).toBeLessThan(1);
+  const { first, covered } = await firstFilterBarControlUnder(page, await box(success));
+
+  // Keyboard focus on the uncovered controls before it closes nothing.
+  await page.getByTestId("filter-haystack").focus();
+  for (let i = 1; i < first; i++) await page.keyboard.press("Tab");
+  await page.clock.runFor(100);
+  await expect(open).toHaveCount(1);
+
+  await page.keyboard.press("Tab");
+  await expect(covered).toBeFocused();
+  expect(await covered.evaluate((el) => el.matches(":focus-visible"))).toBe(true);
+  // Sonner closes on its next frame and timer; 100 ms on, far short of the check 1000 ms after the
+  // mount, only the focus check can have closed the toast.
+  await page.clock.runFor(100);
+  await expect(open).toHaveCount(0);
+  await page.clock.runFor(300);
+  await expect(page.locator("[data-sonner-toast]")).toHaveCount(0);
+  await expect(covered).toBeFocused();
 });
 
 // `SUI-FEATURE-101` rev 5 AC 5: by keyboard ⋯ → Delete → confirm, the focus returns to the ⋯ and
