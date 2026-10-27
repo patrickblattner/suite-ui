@@ -446,7 +446,18 @@ function promiseToast<T>(promise: PromiseArgs<T>[0], data?: PromiseArgs<T>[1]) {
               ? out
               : { message: out }
           ) as ExternalToast & { message: React.ReactNode };
-          const prepared = prepare(variant, settings.message, { ...settings, id }, true);
+          // The caller's duration only when set: an `undefined` would override the one sonner keeps
+          // from the loading toast (#637).
+          const prepared = prepare(
+            variant,
+            settings.message,
+            {
+              ...(rest.duration === undefined ? {} : { duration: rest.duration }),
+              ...settings,
+              id,
+            },
+            true,
+          );
           pending = () => {
             prepared.shown(id);
           };
