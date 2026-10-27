@@ -851,6 +851,12 @@ export const de: SuiteStrings = {
       distributeHorizontal: "Waagrecht verteilen",
       distributeVertical: "Senkrecht verteilen",
       lock: "{{name}} sperren",
+      protected: "{{name}} ist geschützt und lässt sich nicht löschen",
+      deleteProtected: "Die Auswahl enthält ein geschütztes Element, darum wurde nichts gelöscht.",
+      cutProtected:
+        "Die Auswahl enthält ein geschütztes Element, darum wurde nichts ausgeschnitten. Kopieren geht weiterhin.",
+      deletePageProtected:
+        "Seite {{n}} enthält ein geschütztes Element und lässt sich darum nicht löschen.",
       hide: "{{name}} ausblenden",
       selection: "{{count}} Elemente",
       document: "Dokument",

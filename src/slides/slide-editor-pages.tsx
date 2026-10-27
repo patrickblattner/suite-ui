@@ -58,8 +58,9 @@ const PageThumb = React.memo(function PageThumb({ document, index, view }: Thumb
 // as a small picture in order; a click shows it on the canvas. The pictures are a keyboard grid
 // (`GL-UI-006`): ↑/↓ go from page to page, Enter shows one, Delete asks to delete it. A page is
 // dragged to its new place (the arrow buttons are the keyboard's way), duplicated, hidden (the player
-// skips it) or deleted after `ConfirmDeleteDialog`; the last page stays. "Add page" adds an empty
-// page after the one shown, from one of the document's layouts when it has any.
+// skips it) or deleted after `ConfirmDeleteDialog`; the last page stays, and so does one the editor
+// refuses before the question (a protected element on it, `SUI-FEATURE-194`). "Add page" adds an
+// empty page after the one shown, from one of the document's layouts when it has any.
 export function PageSorter({
   document,
   layouts,
@@ -69,6 +70,7 @@ export function PageSorter({
   onMove,
   onDuplicate,
   onHidden,
+  refuseDelete,
   onDelete,
   onNew,
 }: {
@@ -81,6 +83,8 @@ export function PageSorter({
   onMove: (from: number, to: number) => void;
   onDuplicate: (index: number) => void;
   onHidden: (index: number, hidden: boolean) => void;
+  // `true` when the page is not to be deleted; the editor says why.
+  refuseDelete: (index: number) => boolean;
   onDelete: (index: number) => void;
   onNew: (layoutId: string | undefined) => void;
 }) {
@@ -90,6 +94,9 @@ export function PageSorter({
   const grid = useRowGrid();
   const count = document.pages.length;
   const { width, height } = document.format;
+  const askDelete = (index: number) => {
+    if (!refuseDelete(index)) setDeleting(index);
+  };
   const iconButton = (
     label: string,
     icon: React.ReactNode,
@@ -159,7 +166,7 @@ export function PageSorter({
           // Enter and Space show the page natively, so the picture's button takes only Delete from
           // `rowProps`, plus its tab stop, its mark for the arrows and its inset focus ring.
           const entry = grid.rowProps({
-            onDelete: count <= 1 ? undefined : () => setDeleting(index),
+            onDelete: count <= 1 ? undefined : () => askDelete(index),
           });
           return (
             <li
@@ -253,7 +260,7 @@ export function PageSorter({
                   {iconButton(
                     t("slides.editor.deletePage", { n }),
                     <Trash2Icon />,
-                    () => setDeleting(index),
+                    () => askDelete(index),
                     "slide-editor-page-delete",
                     // The Delete chip while the grid binds the key to it.
                     count <= 1

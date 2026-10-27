@@ -141,4 +141,22 @@ describe("useSlideHistory, pinned", () => {
     act(() => result.current.undo());
     expect(result.current.redoPage).toBe(3);
   });
+
+  // SUI-FEATURE-194: what `onChange` reports counts the steps, not what the view measured.
+  it("counts the steps made, not an amend, and names a run under a merge key", () => {
+    const { result } = renderHook(() => useSlideHistory(start));
+    expect(result.current.step).toBe(0);
+    act(() => result.current.apply((document) => moveBy(document, 0, ["a"], 1, 0)));
+    expect(result.current).toMatchObject({ step: 1, merging: false });
+    const from = result.current.document;
+    act(() => result.current.amend(from, moveBy(from, 0, ["a"], 1, 0)));
+    expect(result.current.step).toBe(1);
+    act(() => result.current.apply((document) => moveBy(document, 0, ["a"], 1, 0), { merge: "x" }));
+    act(() => result.current.apply((document) => moveBy(document, 0, ["a"], 1, 0), { merge: "x" }));
+    expect(result.current).toMatchObject({ step: 3, merging: true });
+    act(() => result.current.undo());
+    expect(result.current).toMatchObject({ step: 4, merging: false });
+    act(() => result.current.redo());
+    expect(result.current.step).toBe(5);
+  });
 });

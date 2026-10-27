@@ -8,11 +8,14 @@ import {
   duplicateElements,
   findElement,
   groupElements,
+  holdsProtected,
   pasteElements,
   setRotation,
+  ungroupElement,
   updateElements,
 } from "./editor-ops.js";
 import { setPageLayout } from "./editor-layouts.js";
+import { duplicatePage } from "./editor-pages.js";
 import { FORMAT_16_9, type SlideDocument, type SlideElement } from "./schema.js";
 
 const shape = (id: string, x: number, y: number) => ({
@@ -219,5 +222,64 @@ describe("element clipboard", () => {
     // The group copied whole keeps its own opacity; its children stay as they are.
     const [group] = copyElements(elementsOf(half), [grouped.id!]);
     expect(group).toMatchObject({ opacity: 50 });
+  });
+});
+
+// SUI-FEATURE-194: an element the app marks `deletable: false` is protected; a copy of it is not.
+describe("delete protection", () => {
+  const guarded = doc([
+    { ...shape("a", 0, 0), deletable: false },
+    {
+      id: "g",
+      type: "group",
+      x: 300,
+      y: 0,
+      width: 300,
+      height: 100,
+      children: [{ ...shape("b", 300, 0), deletable: false }, shape("c", 500, 0)],
+    },
+    shape("d", 700, 0),
+  ]);
+
+  it("finds a protected element in the ids, one in a group too (AC1, AC2)", () => {
+    expect(holdsProtected(elementsOf(guarded), ["a"])).toBe(true);
+    expect(holdsProtected(elementsOf(guarded), ["g"])).toBe(true);
+    expect(holdsProtected(elementsOf(guarded), ["d", "b"])).toBe(true);
+    expect(holdsProtected(elementsOf(guarded), ["c", "d"])).toBe(false);
+    expect(holdsProtected(elementsOf(guarded), [])).toBe(false);
+  });
+
+  it("makes every copy deletable, the original staying protected (AC3)", () => {
+    const duplicated = duplicateElements(guarded, 0, ["a", "g"]);
+    const all = elementsOf(duplicated.document);
+    expect(findElement(all, "a")!.element.deletable).toBe(false);
+    expect(findElement(all, "b")!.element.deletable).toBe(false);
+    expect(holdsProtected(all, duplicated.ids)).toBe(false);
+    const copies = copyElements(elementsOf(guarded), ["a", "b"]);
+    expect(copies.map((copy) => copy.deletable)).toEqual([true, true]);
+    const pasted = pasteElements(guarded, 0, copies);
+    expect(holdsProtected(elementsOf(pasted.document), pasted.ids)).toBe(false);
+    // A duplicated page's elements are copies as well.
+    const twice = duplicatePage(guarded, 0);
+    const copied = elementsOf(twice.document, twice.index);
+    expect(
+      holdsProtected(
+        copied,
+        copied.map((element) => element.id),
+      ),
+    ).toBe(false);
+    expect(holdsProtected(elementsOf(twice.document), ["a", "g"])).toBe(true);
+  });
+
+  it("keeps the protection on the children when a group is ungrouped (AC3)", () => {
+    const { document, ids } = ungroupElement(guarded, 0, "g");
+    expect(ids.map((id) => findElement(elementsOf(document), id)!.element.deletable)).toEqual([
+      false,
+      true,
+    ]);
+    // A protected group hands its protection to its children, as it does its lock.
+    const whole = updateElements(guarded, 0, ["g"], (group) => ({ ...group, deletable: false }));
+    const out = ungroupElement(whole, 0, "g");
+    expect(holdsProtected(elementsOf(out.document), ["c"])).toBe(true);
   });
 });

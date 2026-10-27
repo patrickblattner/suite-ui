@@ -11,8 +11,9 @@ import { shownInError } from "./shown-in-error.js";
 
 // The current schema version. Every change of the schema raises it and adds a step to the migration
 // chain (`document.ts`). Version 2 added `placeholderRole` (`SUI-FEATURE-192`); version 3 inline runs
-// (`SUI-FEATURE-164`), a text field's `sizing` and a shape's `follow` (`SUI-FEATURE-165`).
-export const SLIDE_SCHEMA_VERSION = 3;
+// (`SUI-FEATURE-164`), a text field's `sizing` and a shape's `follow` (`SUI-FEATURE-165`); version 4 an
+// element's `deletable` (`SUI-FEATURE-194`).
+export const SLIDE_SCHEMA_VERSION = 4;
 
 // The hard limits of a document, generous on purpose (`SUI-DESIGN-002` §Form): the schema is the one boundary apps
 // and servers share, so tightening a limit later would take a schema version. `maxGroupDepth` and
@@ -202,6 +203,8 @@ const payload = z.record(z.string(), z.unknown()).optional();
 
 // What every element carries: its box, rotation in degrees, layer (stacking order), lock, visibility,
 // opacity 0–100 %, animation and the app's payload. `name` is the label of the selection frame.
+// `deletable` is set by the app, never in the editor: a protected element is not deleted, nor cut
+// (`SUI-FEATURE-194`).
 // `placeholderRole` marks a page element as the content of its layout's placeholder of that role,
 // which the page then no longer draws (`SUI-FEATURE-192`).
 // `x`/`y` are page coordinates of the format, for an element inside a group too. Stacking: the lower
@@ -217,6 +220,7 @@ const elementBase = {
   rotation: px.default(0),
   layer: z.number().int().default(0),
   locked: z.boolean().default(false),
+  deletable: z.boolean().default(true),
   hidden: z.boolean().default(false),
   opacity: z.number().min(0).max(100).default(100),
   animation: animationSchema.optional(),

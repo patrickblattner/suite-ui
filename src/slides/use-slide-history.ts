@@ -15,11 +15,13 @@ const LIMIT = 200;
 // A state of the document and the page its step changed, so undo and redo can show that page.
 type Entry = { document: SlideDocument; page: number | undefined };
 
+// `step` counts the changes made as steps (apply, undo, redo, reset), not what `amend` measured.
 type State = {
   past: Entry[];
   present: Entry;
   future: Entry[];
   merge: string | undefined;
+  step: number;
 };
 
 type Action =
@@ -43,15 +45,22 @@ function reduce(state: State, action: Action): State {
       if (action.merge !== undefined && action.merge === state.merge) {
         const before = state.past.at(-1);
         if (before !== undefined && !isDirty(before.document, next)) {
-          return { past: state.past.slice(0, -1), present: before, future: [], merge: undefined };
+          return {
+            past: state.past.slice(0, -1),
+            present: before,
+            future: [],
+            merge: undefined,
+            step: state.step + 1,
+          };
         }
-        return { ...state, present: entry, future: [] };
+        return { ...state, present: entry, future: [], step: state.step + 1 };
       }
       return {
         past: [...state.past, state.present].slice(-LIMIT),
         present: entry,
         future: [],
         merge: action.merge,
+        step: state.step + 1,
       };
     }
     case "amend": {
@@ -63,7 +72,13 @@ function reduce(state: State, action: Action): State {
         before !== undefined &&
         !isDirty(before.document, action.to)
       ) {
-        return { past: state.past.slice(0, -1), present: before, future: [], merge: undefined };
+        return {
+          ...state,
+          past: state.past.slice(0, -1),
+          present: before,
+          future: [],
+          merge: undefined,
+        };
       }
       return { ...state, present: { ...state.present, document: action.to } };
     }
@@ -75,12 +90,19 @@ function reduce(state: State, action: Action): State {
         present: previous,
         future: [state.present, ...state.future],
         merge: undefined,
+        step: state.step + 1,
       };
     }
     case "redo": {
       const [next, ...future] = state.future;
       if (next === undefined) return state;
-      return { past: [...state.past, state.present], present: next, future, merge: undefined };
+      return {
+        past: [...state.past, state.present],
+        present: next,
+        future,
+        merge: undefined,
+        step: state.step + 1,
+      };
     }
     case "reset":
       return {
@@ -88,6 +110,7 @@ function reduce(state: State, action: Action): State {
         present: { document: action.document, page: undefined },
         future: [],
         merge: undefined,
+        step: state.step + 1,
       };
   }
 }
@@ -117,6 +140,10 @@ export interface SlideHistory {
   redoPage: number | undefined;
   // Starts anew from a document (after loading or saving), without steps.
   reset: (document: SlideDocument) => void;
+  // Counts the steps made (apply, undo, redo, reset), not what `amend` stores; and whether the last
+  // step is a run under a `merge` key that a next change of the same key still folds into (typing).
+  step: number;
+  merging: boolean;
 }
 
 export function useSlideHistory(initial: SlideDocument): SlideHistory {
@@ -125,6 +152,7 @@ export function useSlideHistory(initial: SlideDocument): SlideHistory {
     present: { document: initial, page: undefined },
     future: [],
     merge: undefined,
+    step: 0,
   });
   const apply = React.useCallback<SlideHistory["apply"]>(
     (change, options) =>
@@ -156,5 +184,7 @@ export function useSlideHistory(initial: SlideDocument): SlideHistory {
     undoPage: state.present.page,
     redoPage: state.future[0]?.page,
     reset,
+    step: state.step,
+    merging: state.merge !== undefined,
   };
 }

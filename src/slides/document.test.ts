@@ -219,9 +219,9 @@ describe("slide document migration", () => {
     })),
   });
 
-  it("ships two steps, 1 → 2 and 2 → 3, that change no content (SUI-FEATURE-192 AC4)", () => {
-    expect(SLIDE_SCHEMA_VERSION).toBe(3);
-    expect(Object.keys(SLIDE_MIGRATIONS)).toEqual(["1", "2"]);
+  it("ships three steps, 1 → 2, 2 → 3 and 3 → 4, that change no content (SUI-FEATURE-192 AC4)", () => {
+    expect(SLIDE_SCHEMA_VERSION).toBe(4);
+    expect(Object.keys(SLIDE_MIGRATIONS)).toEqual(["1", "2", "3"]);
     expect(parseSlideDocument({ ...valid, schemaVersion: 1 })).toEqual(parseSlideDocument(valid));
   });
 
@@ -233,11 +233,29 @@ describe("slide document migration", () => {
     const shape = { id: "s", type: "shape", shape: "rectangle", x: 0, y: 0, width: 50, height: 50 };
     const page = { ...valid.pages[0]!, elements: [shape, { ...text, runs }] };
     const parsed = parseSlideDocument({ ...valid, schemaVersion: 2, pages: [page] });
-    expect(parsed.schemaVersion).toBe(3);
+    expect(parsed.schemaVersion).toBe(SLIDE_SCHEMA_VERSION);
     const [first, second] = parsed.pages[0]!.elements;
     expect(first).toMatchObject(shape);
     expect(first?.type === "shape" && first.follow).toBeUndefined();
     expect(second).toMatchObject({ ...text, runs, sizing: "fixed" });
+  });
+
+  // SUI-FEATURE-194 AC5: a version-3 document loads and migrates with every element deletable, those
+  // in groups too.
+  it("migrates a version-3 document with every element deletable (SUI-FEATURE-194 AC5)", () => {
+    const text = { id: "t", type: "text", x: 10, y: 20, width: 300, height: 80, runs: [] };
+    const shape = { id: "s", type: "shape", shape: "rectangle", x: 0, y: 0, width: 50, height: 50 };
+    const group = { id: "g", type: "group", x: 0, y: 0, width: 50, height: 50, children: [shape] };
+    const page = { ...valid.pages[0]!, elements: [group, text] };
+    const parsed = parseSlideDocument({ ...valid, schemaVersion: 3, pages: [page] });
+    expect(parsed.schemaVersion).toBe(4);
+    const [first, second] = parsed.pages[0]!.elements;
+    expect(first).toMatchObject({ id: "g", deletable: true });
+    expect(first?.type === "group" && first.children[0]).toMatchObject({
+      id: "s",
+      deletable: true,
+    });
+    expect(second).toMatchObject({ id: "t", deletable: true });
   });
 
   it("migrates a previous version on load, content unchanged", () => {
@@ -509,7 +527,12 @@ describe("slide document issue codes", () => {
       "unknown-version",
       "schemaVersion",
     ],
-    ["a newer version", { ...valid, schemaVersion: 4 }, "newer-version", "schemaVersion"],
+    [
+      "a newer version",
+      { ...valid, schemaVersion: SLIDE_SCHEMA_VERSION + 1 },
+      "newer-version",
+      "schemaVersion",
+    ],
     [
       "a wrong type",
       withElements([{ ...element, x: "10%" }]),

@@ -865,6 +865,11 @@ export const en = {
       distributeHorizontal: "Distribute horizontally",
       distributeVertical: "Distribute vertically",
       lock: "Lock {{name}}",
+      protected: "{{name}} is protected and can’t be deleted",
+      deleteProtected: "The selection holds a protected element, so nothing was deleted.",
+      cutProtected:
+        "The selection holds a protected element, so nothing was cut. Copying still works.",
+      deletePageProtected: "Page {{n}} holds a protected element, so it can’t be deleted.",
       hide: "Hide {{name}}",
       selection: "{{count}} elements",
       document: "Document",

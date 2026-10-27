@@ -843,6 +843,12 @@ export const es: SuiteStrings = {
       distributeHorizontal: "Distribuir en horizontal",
       distributeVertical: "Distribuir en vertical",
       lock: "Bloquear {{name}}",
+      protected: "{{name}} está protegido y no se puede eliminar",
+      deleteProtected: "La selección contiene un elemento protegido, así que no se eliminó nada.",
+      cutProtected:
+        "La selección contiene un elemento protegido, así que no se cortó nada. Copiar sigue funcionando.",
+      deletePageProtected:
+        "La página {{n}} contiene un elemento protegido, así que no se puede eliminar.",
       hide: "Ocultar {{name}}",
       selection: "{{count}} elementos",
       document: "Documento",

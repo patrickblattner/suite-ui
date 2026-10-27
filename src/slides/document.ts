@@ -24,6 +24,9 @@ export const SLIDE_MIGRATIONS: Readonly<Record<number, SlideMigration>> = {
   // (`SUI-FEATURE-165`): an older document has none of them, its text fields are `fixed` by default,
   // so its content stays as it was.
   2: (document) => document,
+  // 3 → 4 added an element's `deletable` (`SUI-FEATURE-194`): an older document has none, so every
+  // element is deletable by default.
+  3: (document) => document,
 };
 
 export type SlideDocumentErrorCode =
