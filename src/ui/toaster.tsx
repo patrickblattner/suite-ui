@@ -557,6 +557,17 @@ export const TOAST_VARIANT_CLASSNAMES = {
   info: "[--normal-bg:var(--info)] [--normal-text:var(--info-foreground)] [--normal-border:var(--info)]",
 } as const;
 
+// The toast's action and cancel take the one token ring (`GL-UI-013`), `!` because sonner's own
+// unlayered rules set `outline: none` and a 2 px black shadow at 40 %. On a coloured toast `--ring`
+// does not reach 3:1 against the fill, so a 2 px gap in the toast's text colour parts them: the ring
+// keeps 3:1 against the gap, the gap the toast's text contrast against the fill (`SUI-FEATURE-116`,
+// #617). The gap only sets the offset of the one ring, so it shows only with it.
+export const TOAST_BUTTON_FOCUS =
+  "focus-visible:focus-ring! ring-offset-2 ring-offset-(--normal-text)";
+// The cancel shows its label in the toast's text colour on the toast's own fill, so it keeps the
+// toast's text contrast; sonner's see-through white fill left it at 2.77:1 in dark mode (#617).
+export const TOAST_CANCEL_COLORS = "bg-transparent! text-(--normal-text)!";
+
 // Top right, below the page title row, so a fresh toast never covers the page's primary action. The
 // shell-derived `--toast-offset-top` (styles.css) moves with a banner that pushes the page down.
 // Applied after the prop spread: placement is not a per-page choice.
@@ -656,6 +667,7 @@ function dismissAllOnToastClick(event: React.MouseEvent<HTMLElement>): void {
 
 // The focus ring (`focus-ring`, styles.css) reaches 4 px beyond the element at most: 3 px of ring,
 // and in forced colours the 2 px outline at 2 px offset. A toast over the ring covers the focus too.
+// It measures elements outside the toasts; the gapped 5 px ring of a toast's own buttons never counts.
 const FOCUS_RING_PX = 4;
 
 // A toast that appears over the keyboard focus stays this long, then closes (`SUI-FEATURE-101` rev 4).
@@ -1066,6 +1078,8 @@ function Toaster({ theme = "light", ...props }: ToasterAppProps) {
             ...TOAST_VARIANT_CLASSNAMES,
             closeButton:
               "size-6! after:absolute after:top-1/2 after:left-1/2 after:size-6 after:-translate-x-1/2 after:-translate-y-1/2",
+            actionButton: TOAST_BUTTON_FOCUS,
+            cancelButton: cn(TOAST_BUTTON_FOCUS, TOAST_CANCEL_COLORS),
           },
         }}
         style={

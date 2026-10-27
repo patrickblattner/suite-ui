@@ -211,15 +211,24 @@ export function SheetPage() {
   );
 }
 
+// `?buttons=1` gives every variant an action and a cancel, so their focus shows on each toast
+// fill (`SUI-FEATURE-116` AC 4, #617).
+const TOAST_BUTTONS = new URLSearchParams(window.location.search).get("buttons") === "1";
+
 export function ToastPage({ theme }: { theme: "light" | "dark" }) {
+  const { t } = useTranslation("suite");
   useEffect(() => {
     // Fixed ids, so the second effect run of StrictMode updates the toasts instead of doubling them.
-    const options = (id: string) => ({ id, duration: Infinity });
+    const buttons = {
+      action: { label: t("editor.undo"), onClick: () => undefined },
+      cancel: { label: t("actions.cancel"), onClick: () => undefined },
+    };
+    const options = (id: string) => ({ id, duration: Infinity, ...(TOAST_BUTTONS ? buttons : {}) });
     toast("Neutral", options("neutral"));
     toast.info("Info", options("info"));
     toast.warning("Warning", options("warning"));
     toast.error("Error", options("error"));
     toast.success("Success", options("success"));
-  }, []);
+  }, [t]);
   return <Toaster theme={theme} expand visibleToasts={5} closeButton />;
 }

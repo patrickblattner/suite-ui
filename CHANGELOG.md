@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — #617, GL-UI-013 / SUI-FEATURE-116 rev 2: toast action and cancel keep their contrast and the token focus ring (patch)
+
+- **Toaster (#617, found in #614):** a toast's action and cancel take the one token focus ring (`--ring`, full opacity, the transparent forced-colours outline) in place of sonner's 2 px black shadow at 40 %. On every variant, neutral included, a 2 px gap in the toast's text colour (`--normal-text`) parts the ring from the toast fill, so the ring keeps 3:1 against the gap and the gap 3:1 against the fill, light and dark; the gap is set once in the Toaster. The cancel drops sonner's see-through fill (2.77:1 in dark mode) and shows its label in the toast's text colour on the toast fill, so it keeps the toast's text contrast.
+- **Tests (#617):** gallery: the receipt's Undo as action and as only cancel, and the action and cancel on every toast variant (new `?page=toast&buttons=1` view), light and dark: cancel label ≥ 4.5:1 with no fill, the ring with its gap drawn on keyboard focus, ring against gap and gap against fill ≥ 3:1; under forced colours a focused toast button shows its outline.
+
+**Migration:** none required. Toasts with an action or cancel look different: the cancel has no fill, and on keyboard focus both buttons show the gapped token ring. No gallery or Iris baselines change; no strings or `data-testid`s change.
+
 ## Unreleased — #615, SUI-FEATURE-115 rev 4: a tile's tooltip is placed inside the tile's visible area, never over a sticky header or toolbar (patch)
 
 - **Tile tooltip (#615):** the overflow tooltip in a tile (`data-tooltip-tile`, e.g. `MediaTile`) now measures its edges against the tile's visible area instead of the viewport. That area is the viewport cut by every clipping ancestor (`overflow` other than `visible`, at its padding box, so borders and scrollbars do not count), less every fixed or sticky app part (an app header, a toolbar) on top of the tile or its column; a part only above or below the tile cuts the area there only, never at the tile's sides. Every placement — beside the text, over or under it, and the fallback at the element — stays inside that area, so the bubble never covers such a part. The parts are found with `elementsFromPoint` probes over the tile's column, not by walking the page; without a hit test (jsdom) every fixed or sticky part overlapping the column counts.

@@ -53,6 +53,7 @@ describe("focus ring", () => {
     "ui/checkbox.tsx",
     "list/data-table-shell.tsx",
     "help/help-drawer.tsx",
+    "ui/toaster.tsx",
   ])("%s uses the central rule", (file) => {
     expect(readFileSync(`${src}${file}`, "utf8")).toContain("focus-visible:focus-ring");
   });

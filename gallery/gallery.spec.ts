@@ -1418,6 +1418,146 @@ test("toast: the receipt with only a cancel over the returned focus stays like o
   }
 });
 
+// #617 (`GL-UI-013`): the receipt's Undo, as its action and as its only cancel, light and dark. The
+// cancel's label keeps 4.5:1 on the toast in the toast's text colour, no sonner fill under it; reached by
+// keyboard each draws the token ring, parted from the coloured toast by a 2 px gap in the toast's text
+// colour: the ring keeps 3:1 against the gap, the gap 3:1 against the toast.
+for (const theme of THEMES) {
+  for (const kind of ["action", "cancel"] as const) {
+    test(`toast: the receipt's Undo as ${kind} keeps its contrast and the token ring (${theme})`, async ({
+      page,
+    }) => {
+      await page.goto(
+        `/?page=preview&lng=en&theme=${theme}&receipt=1${kind === "cancel" ? "&cancel=1" : ""}`,
+      );
+      await (theme === "dark"
+        ? expect(page.locator("html")).toHaveClass(/\bdark\b/)
+        : expect(page.locator("html")).not.toHaveClass(/\bdark\b/));
+      const ring = await utilityColor(page, "bg-ring", "backgroundColor");
+      const { receipt, undo, archive, reachUndo } = receiptPreview(page);
+      await archive();
+      await expect(receipt).toBeVisible();
+      await expect(undo).toHaveAttribute(`data-${kind}`, "true");
+      const toast = await receipt.evaluate((el) => {
+        const { backgroundColor, color } = getComputedStyle(el);
+        return { backgroundColor, color };
+      });
+      if (kind === "cancel") {
+        const label = await undo.evaluate((el) => {
+          const { backgroundColor, color } = getComputedStyle(el);
+          return { backgroundColor, color };
+        });
+        expect(label).toEqual({ backgroundColor: "rgba(0, 0, 0, 0)", color: toast.color });
+        expect(
+          await contrastOf(page, label.color, toast.backgroundColor),
+          "cancel label on the toast",
+        ).toBeGreaterThanOrEqual(4.5);
+      }
+      await reachUndo();
+      await expect
+        .poll(() => settledBoxShadowOf(undo))
+        .toContain(`${toast.color} 0px 0px 0px 2px, ${ring} 0px 0px 0px 5px`);
+      expect(await contrastOf(page, ring, toast.color), "ring on the gap").toBeGreaterThanOrEqual(
+        3,
+      );
+      expect(
+        await contrastOf(page, toast.color, toast.backgroundColor),
+        "gap on the toast",
+      ).toBeGreaterThanOrEqual(3);
+      const outline = await undo.evaluate((el) => {
+        const { outlineStyle, outlineWidth, outlineColor } = getComputedStyle(el);
+        return { outlineStyle, outlineWidth, outlineColor };
+      });
+      expect(outline).toEqual({
+        outlineStyle: "solid",
+        outlineWidth: "2px",
+        outlineColor: "rgba(0, 0, 0, 0)",
+      });
+    });
+  }
+
+  // `SUI-FEATURE-116` AC 1/4 (#617): on every toast variant, neutral included, the action and the
+  // cancel reached by keyboard draw the token ring with the 2 px gap in the variant's text colour:
+  // ring against gap and gap against the toast fill at 3:1; the cancel's label keeps 4.5:1 on the fill.
+  test(`toast: action and cancel on every variant keep the gapped token ring (${theme})`, async ({
+    page,
+  }) => {
+    await page.goto(`/?page=toast&lng=en&theme=${theme}&buttons=1`);
+    await (theme === "dark"
+      ? expect(page.locator("html")).toHaveClass(/\bdark\b/)
+      : expect(page.locator("html")).not.toHaveClass(/\bdark\b/));
+    const ring = await utilityColor(page, "bg-ring", "backgroundColor");
+    // The page shows its toasts again once the language has loaded; their buttons are focused after.
+    await expect(page.locator("[data-sonner-toast] [data-action]")).toHaveText(
+      Array(5).fill("Undo"),
+    );
+    await expect(page.locator("[data-sonner-toast] [data-cancel]")).toHaveText(
+      Array(5).fill("Cancel"),
+    );
+    // Alt+T enters the toasts by keyboard; a Tab on the page lands under a toast and closes them all.
+    await page.keyboard.press("Alt+T");
+    for (const variant of ["Neutral", "Info", "Warning", "Error", "Success"]) {
+      const toast = page.locator("[data-sonner-toast]").filter({ hasText: variant });
+      await expect(toast).toBeVisible();
+      const fill = await toast.evaluate((el) => {
+        const { backgroundColor, color } = getComputedStyle(el);
+        return { backgroundColor, color };
+      });
+      for (const selector of ["[data-action]", "[data-cancel]"]) {
+        const button = toast.locator(selector);
+        if (selector === "[data-cancel]") {
+          const label = await button.evaluate((el) => {
+            const { backgroundColor, color } = getComputedStyle(el);
+            return { backgroundColor, color };
+          });
+          expect(label).toEqual({ backgroundColor: "rgba(0, 0, 0, 0)", color: fill.color });
+          expect(
+            await contrastOf(page, label.color, fill.backgroundColor),
+            `${variant} cancel label`,
+          ).toBeGreaterThanOrEqual(4.5);
+        }
+        await button.focus();
+        await expect(button).toBeFocused();
+        await expect
+          .poll(() => settledBoxShadowOf(button))
+          .toContain(`${fill.color} 0px 0px 0px 2px, ${ring} 0px 0px 0px 5px`);
+      }
+      expect(
+        await contrastOf(page, ring, fill.color),
+        `${variant}: ring on the gap`,
+      ).toBeGreaterThanOrEqual(3);
+      expect(
+        await contrastOf(page, fill.color, fill.backgroundColor),
+        `${variant}: gap on the toast`,
+      ).toBeGreaterThanOrEqual(3);
+    }
+  });
+}
+
+// `SUI-FEATURE-116` AC 3 (#617): in forced colors a focused toast button shows its outline.
+test("toast: a focused toast button shows an outline under forced colors", async ({ page }) => {
+  await page.emulateMedia({ forcedColors: "active" });
+  await page.goto("/?page=toast&lng=en&buttons=1");
+  await expect(page.locator("[data-sonner-toast] [data-cancel]")).toHaveText(
+    Array(5).fill("Cancel"),
+  );
+  await page.keyboard.press("Alt+T");
+  for (const selector of ["[data-action]", "[data-cancel]"]) {
+    const button = page
+      .locator("[data-sonner-toast]")
+      .filter({ hasText: "Success" })
+      .locator(selector);
+    await button.focus();
+    await expect(button).toBeFocused();
+    const style = await button.evaluate((el) => {
+      const { outlineStyle, outlineWidth, outlineColor } = getComputedStyle(el);
+      return { outlineStyle, outlineWidth, outlineColor };
+    });
+    expect(style).toMatchObject({ outlineStyle: "solid", outlineWidth: "2px" });
+    expect(style.outlineColor).not.toBe("rgba(0, 0, 0, 0)");
+  }
+});
+
 // `SUI-FEATURE-101` rev 7 (#564, #575): after Alt+T onto Undo, a press on the page's empty area puts
 // the focus on nothing, as without toasts: the ⋯ takes none, so no ring, and the receipt stays.
 // `@touch` runs it in WebKit on an iPhone too, with a touch tap: Safari focuses nothing on a press.
@@ -7691,6 +7831,13 @@ test("contrastOf: a see-through colour is drawn over its ground", async ({ page 
 });
 
 const boxShadowOf = (element: Locator) => element.evaluate((el) => getComputedStyle(el).boxShadow);
+// The box shadow at the end of its transition: sonner's toast buttons transition it for 200 ms, and on
+// a busy run the poll caught them mid-way for seconds (#617).
+const settledBoxShadowOf = (element: Locator) =>
+  element.evaluate((el) => {
+    for (const animation of el.getAnimations()) animation.finish();
+    return getComputedStyle(el).boxShadow;
+  });
 
 for (const theme of THEMES) {
   // SUI-FEATURE-055 AC1: the tab panel stays a tab stop and draws the one ring at 3:1.
