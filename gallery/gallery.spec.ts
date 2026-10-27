@@ -6640,7 +6640,7 @@ for (const [trigger, prefix, ids] of [
     await page.goto("/?page=edit-panel&lng=en");
     await page.getByTestId(trigger).click();
     const hints = {
-      "check-panel-back": ["Back", "Goes back one step; asks first if there are unsaved changes."],
+      "check-panel-back": ["Back", "Goes back one step."],
       "check-panel-cancel": [
         "Cancel",
         "Closes the panel without saving; asks first if there are unsaved changes.",

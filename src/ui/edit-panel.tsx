@@ -67,9 +67,12 @@ type EditPanelProps = {
   // `apply` takes the entries over into an outer form that saves them, so it carries no icon
   // (`SUI-FEATURE-094`, `GL-UI-011` §Icon-Kanon).
   submitKind?: "save" | "next" | "apply";
-  // With `onBack` the footer carries Back left-aligned (`SUI-FEATURE-035`); it goes through the
-  // unsaved-changes guard, then calls `onBack`. A Back during the work of a promise from `onSubmit`
-  // goes on only once it resolves `true`; otherwise it is dropped.
+  // With `onBack` the footer carries Back left-aligned (`SUI-FEATURE-035`): one step back inside the
+  // panel, the inputs kept, never asking about unsaved changes (`SUI-FEATURE-091` rev 6). `onBack`
+  // therefore never closes the panel: one that set `open` to false would let a changed panel go
+  // without the question. On the first step the call site omits `onBack` or sets `backDisabled`. A
+  // Back during the work of a promise from `onSubmit` goes on only once it resolves `true`;
+  // otherwise it is dropped.
   onBack?: () => void;
   backDisabled?: boolean;
   // With `pager` the header carries ‹ and › left of the title, the position beside them. A locked
@@ -136,12 +139,10 @@ function EditPanel({
   const { t } = useTranslation("suite");
   const view = mode === "view";
   const submitText = submitHint ?? t(`editPanel.${submitKind}Hint`);
-  // Back's and Cancel's hints follow the kind (`SUI-FEATURE-094`): only `save` speaks of saving.
-  const packageBackHint = {
-    save: t("editPanel.backHint"),
-    apply: t("editPanel.applyBackHint"),
-    next: t("editPanel.nextBackHint"),
-  }[submitKind];
+  // Back is one step inside the panel and asks nothing, so its hint is the same for every kind
+  // (`SUI-FEATURE-091` rev 6). Cancel's hint follows the kind (`SUI-FEATURE-094`): only `save`
+  // speaks of saving.
+  const packageBackHint = t("editPanel.backHint");
   const packageCancelHint = {
     save: t("editPanel.cancelHint"),
     apply: t("editPanel.applyCancelHint"),
@@ -149,7 +150,7 @@ function EditPanel({
   }[submitKind];
   const returnFocus = React.useRef<HTMLElement | null>(null);
   const submit = React.useRef<HTMLButtonElement>(null);
-  const { guard, dialog, working, run } = useLeaveConfirm({
+  const { guard, step, dialog, working, run } = useLeaveConfirm({
     dirty: open && dirty && !view,
     busy: open && busyProp,
     open,
@@ -379,9 +380,11 @@ function EditPanel({
                     size="default"
                     className="mr-auto"
                     // While its own promise works Back stays open: it waits for the result
-                    // (`SUI-FEATURE-150`); only the call site's `busy` locks it.
+                    // (`SUI-FEATURE-171`); only the call site's `busy` locks it. Otherwise it is
+                    // one step inside the panel with the inputs kept, never through the leave
+                    // dialog (`SUI-FEATURE-091` rev 6).
                     disabled={busyProp || backDisabled}
-                    onClick={() => guard(onBack)}
+                    onClick={() => step(onBack)}
                     data-testid={`${testIdPrefix}-back`}
                   >
                     {t("actions.back")}

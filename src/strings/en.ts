@@ -250,7 +250,7 @@ export const en = {
   },
   editPanel: {
     viewCloseHint: "Closes the panel.",
-    backHint: "Goes back one step; asks first if there are unsaved changes.",
+    backHint: "Goes back one step.",
     cancelHint: "Closes the panel without saving; asks first if there are unsaved changes.",
     closeHint: "Closes the panel; asks first if there are changes.",
     saveHint: "Saves the entries.",
@@ -258,10 +258,7 @@ export const en = {
     applyHint: "Applies the entries to the form; they are only saved when you save the page.",
     applyCancelHint:
       "Closes the panel without applying; asks first if there are changes not applied yet.",
-    applyBackHint:
-      "Goes back one step without applying; asks first if there are changes not applied yet.",
     nextCancelHint: "Closes the panel; asks first if there are changes.",
-    nextBackHint: "Goes back one step; asks first if there are changes.",
     busyHint: "An action is running; available again once it has finished.",
   },
   leaveGuard: {

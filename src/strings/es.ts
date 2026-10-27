@@ -236,16 +236,14 @@ export const es: SuiteStrings = {
   },
   editPanel: {
     viewCloseHint: "Cierra el panel.",
-    backHint: "Vuelve un paso atrás; antes pregunta si hay cambios sin guardar.",
+    backHint: "Vuelve un paso atrás.",
     cancelHint: "Cierra el panel sin guardar; antes pregunta si hay cambios sin guardar.",
     closeHint: "Cierra el panel; antes pregunta si hay cambios.",
     saveHint: "Guarda los datos.",
     nextHint: "Pasa al paso siguiente.",
     applyHint: "Aplica los datos al formulario; solo se guardan al guardar la página.",
     applyCancelHint: "Cierra el panel sin aplicar; antes pregunta si hay cambios sin aplicar.",
-    applyBackHint: "Vuelve un paso atrás sin aplicar; antes pregunta si hay cambios sin aplicar.",
     nextCancelHint: "Cierra el panel; antes pregunta si hay cambios.",
-    nextBackHint: "Vuelve un paso atrás; antes pregunta si hay cambios.",
     busyHint: "Hay una acción en curso; vuelve a estar disponible cuando haya terminado.",
   },
   leaveGuard: {

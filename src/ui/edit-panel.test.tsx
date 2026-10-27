@@ -162,28 +162,28 @@ describe("EditPanel", () => {
   );
 
   // SUI-FEATURE-094 AC1: applying to an outer form claims no save and carries no icon; neither
-  // do Cancel's and Back's hints.
+  // does Cancel's hint. Back's hint only says it goes one step back (SUI-FEATURE-091 rev 6 AC2).
   it.each([
     [
       "en",
       "Apply",
       "Applies the entries to the form; they are only saved when you save the page.",
       "Closes the panel without applying; asks first if there are changes not applied yet.",
-      "Goes back one step without applying; asks first if there are changes not applied yet.",
+      "Goes back one step.",
     ],
     [
       "de",
       "Übernehmen",
       "Übernimmt die Eingaben ins Formular; gespeichert wird erst mit dem Speichern der Seite.",
       "Schließt das Panel, ohne zu übernehmen; nicht übernommene Änderungen werden vorher abgefragt.",
-      "Geht einen Schritt zurück, ohne zu übernehmen; nicht übernommene Änderungen werden vorher abgefragt.",
+      "Geht einen Schritt zurück.",
     ],
     [
       "es",
       "Aplicar",
       "Aplica los datos al formulario; solo se guardan al guardar la página.",
       "Cierra el panel sin aplicar; antes pregunta si hay cambios sin aplicar.",
-      "Vuelve un paso atrás sin aplicar; antes pregunta si hay cambios sin aplicar.",
+      "Vuelve un paso atrás.",
     ],
   ])(
     '%s: submitKind="apply" is the package text without an icon',
@@ -200,23 +200,12 @@ describe("EditPanel", () => {
     },
   );
 
-  // SUI-FEATURE-094 rev 7 AC1: a next step's Cancel and Back claim neither saving nor applying.
+  // SUI-FEATURE-094 rev 7 AC1: a next step's Cancel claims neither saving nor applying; Back only
+  // goes one step back (SUI-FEATURE-091 rev 6 AC2).
   it.each([
-    [
-      "en",
-      "Closes the panel; asks first if there are changes.",
-      "Goes back one step; asks first if there are changes.",
-    ],
-    [
-      "de",
-      "Schließt das Panel; Änderungen werden vorher abgefragt.",
-      "Geht einen Schritt zurück; Änderungen werden vorher abgefragt.",
-    ],
-    [
-      "es",
-      "Cierra el panel; antes pregunta si hay cambios.",
-      "Vuelve un paso atrás; antes pregunta si hay cambios.",
-    ],
+    ["en", "Closes the panel; asks first if there are changes.", "Goes back one step."],
+    ["de", "Schließt das Panel; Änderungen werden vorher abgefragt.", "Geht einen Schritt zurück."],
+    ["es", "Cierra el panel; antes pregunta si hay cambios.", "Vuelve un paso atrás."],
   ])(
     '%s: submitKind="next" has the plain Cancel and Back hints',
     async (lng, cancelHint, backHint) => {
@@ -453,6 +442,56 @@ describe("EditPanel", () => {
     expect(screen.getByTestId("edit-panel")).toBeInTheDocument();
   });
 
+  // SUI-FEATURE-091 rev 6 AC7: Back is one step inside the panel, never a way out through the
+  // leave dialog; the input stays, and Cancel still asks.
+  it("multi-step: a dirty Back goes one step back without a dialog, the input kept", () => {
+    function TwoSteps() {
+      const [step, setStep] = useState(1);
+      const [name, setName] = useState("Main");
+      const [topic, setTopic] = useState("");
+      return (
+        <EditPanel
+          open
+          onOpenChange={() => {}}
+          title="Channel"
+          dirty={name !== "Main" || topic !== ""}
+          onSubmit={() => setStep(2)}
+          submitKind={step === 1 ? "next" : "save"}
+          onBack={step === 2 ? () => setStep(1) : undefined}
+        >
+          {step === 1 ? (
+            <Input aria-label="Name" value={name} onChange={(e) => setName(e.target.value)} />
+          ) : (
+            <Input aria-label="Topic" value={topic} onChange={(e) => setTopic(e.target.value)} />
+          )}
+        </EditPanel>
+      );
+    }
+    render(<TwoSteps />);
+    fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Changed" } });
+    fireEvent.click(screen.getByTestId("edit-panel-submit"));
+    fireEvent.change(screen.getByLabelText("Topic"), { target: { value: "News" } });
+    fireEvent.click(screen.getByTestId("edit-panel-back"));
+    expect(screen.queryByTestId("leave-guard")).toBeNull();
+    expect(screen.getByLabelText("Name")).toHaveValue("Changed");
+    fireEvent.click(screen.getByTestId("edit-panel-cancel"));
+    expect(screen.getByTestId("leave-guard")).toBeInTheDocument();
+  });
+
+  // SUI-FEATURE-091 rev 6 AC2: only Cancel and Close speak of the question, Back never does.
+  it.each(["de", "en", "es"])(
+    "%s: Back's hint names no question, Cancel's and Close's do",
+    async (lng) => {
+      await i18n.changeLanguage(lng);
+      const t = i18n.getFixedT(lng, "suite");
+      const question = { de: "abgefragt", en: "asks first", es: "pregunta" }[lng] ?? "";
+      expect(t("editPanel.backHint")).not.toContain(question);
+      for (const key of ["cancelHint", "nextCancelHint", "applyCancelHint", "closeHint"]) {
+        expect(t(`editPanel.${key}`)).toContain(question);
+      }
+    },
+  );
+
   // SUI-FEATURE-035 AC3
   it.each([[{ backDisabled: true }], [{ busy: true }]])("%o locks Back", (props) => {
     renderPanel({ onBack: () => {}, ...props });
@@ -490,14 +529,39 @@ describe("EditPanel", () => {
     },
   );
 
+  // #606: the work has ended but the panel has not rendered that yet; a dirty Back then still asks
+  // nothing and goes at once.
+  it("a dirty Back between the end of the work and its render goes without a dialog", async () => {
+    let settle: (value: boolean) => void = () => {};
+    const onBack = vi.fn();
+    renderPanel({
+      dirty: true,
+      onBack,
+      onSubmit: () =>
+        new Promise<boolean>((done) => {
+          settle = done;
+        }),
+    });
+    fireEvent.click(screen.getByTestId("edit-panel-submit"));
+    settle(true);
+    // The settle runs, outside `act`, before React renders its update.
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(screen.getByTestId("edit-panel-submit")).toHaveAttribute("aria-busy", "true");
+    fireEvent.click(screen.getByTestId("edit-panel-back"));
+    expect(screen.queryByTestId("leave-guard")).toBeNull();
+    expect(onBack).toHaveBeenCalledTimes(1);
+    await act(async () => {});
+  });
+
   // #285, SUI-FEATURE-171 AC1–3: during the panel's own slow submit of every kind, a dirty Back opens
   // no dialog and waits, Cancel is locked and a click on it changes nothing, and both show busyHint;
   // after the result their hint by kind returns.
   describe.each([
-    ["save", "backHint", "cancelHint"],
-    ["next", "nextBackHint", "nextCancelHint"],
-    ["apply", "applyBackHint", "applyCancelHint"],
-  ] as const)("slow submit, submitKind=%s", (submitKind, backKey, cancelKey) => {
+    ["save", "cancelHint"],
+    ["next", "nextCancelHint"],
+    ["apply", "applyCancelHint"],
+  ] as const)("slow submit, submitKind=%s", (submitKind, cancelKey) => {
     const description = (testId: string) => {
       const button = screen.getByTestId(testId);
       const owner = button.hasAttribute("aria-describedby") ? button : button.parentElement;
@@ -559,7 +623,7 @@ describe("EditPanel", () => {
           settle(false);
           await Promise.resolve();
         });
-        expect(description("edit-panel-back")).toBe(t(`editPanel.${backKey}`));
+        expect(description("edit-panel-back")).toBe(t("editPanel.backHint"));
         expect(description("edit-panel-cancel")).toBe(t(`editPanel.${cancelKey}`));
       },
     );
@@ -604,12 +668,14 @@ describe("EditPanel", () => {
   }
 
   it.each([
+    // Back opens no leave dialog (SUI-FEATURE-091 rev 6); each kind keeps a focused and an
+    // unfocused opener.
     ["save", "edit-panel-cancel", true],
-    ["save", "edit-panel-back", false],
+    ["save", "edit-panel-next", false],
     ["save", "edit-panel-next", true],
     ["save", "escape", true],
     ["apply", "edit-panel-cancel", false],
-    ["apply", "edit-panel-back", true],
+    ["apply", "edit-panel-cancel", true],
     ["apply", "edit-panel-next", true],
     ["apply", "escape", true],
   ] as const)(
@@ -690,7 +756,7 @@ describe("EditPanel", () => {
     it.each([
       [
         "en",
-        "Goes back one step; asks first if there are unsaved changes.",
+        "Goes back one step.",
         "Closes the panel without saving; asks first if there are unsaved changes.",
         "Closes the panel; asks first if there are changes.",
         "Saves the entries.",
@@ -699,7 +765,7 @@ describe("EditPanel", () => {
       ],
       [
         "de",
-        "Geht einen Schritt zurück; ungespeicherte Änderungen werden vorher abgefragt.",
+        "Geht einen Schritt zurück.",
         "Schließt das Panel, ohne zu speichern; ungespeicherte Änderungen werden vorher abgefragt.",
         "Schließt das Panel; Änderungen werden vorher abgefragt.",
         "Speichert die Eingaben.",
@@ -708,7 +774,7 @@ describe("EditPanel", () => {
       ],
       [
         "es",
-        "Vuelve un paso atrás; antes pregunta si hay cambios sin guardar.",
+        "Vuelve un paso atrás.",
         "Cierra el panel sin guardar; antes pregunta si hay cambios sin guardar.",
         "Cierra el panel; antes pregunta si hay cambios.",
         "Guarda los datos.",
@@ -746,7 +812,7 @@ describe("EditPanel", () => {
       renderPanel({ onBack: () => {} });
       expect(screen.getByTestId("edit-panel-back")).toHaveAccessibleName("Back");
       expect(screen.getByTestId("edit-panel-back")).toHaveAccessibleDescription(
-        "Goes back one step; asks first if there are unsaved changes.",
+        "Goes back one step.",
       );
       expect(screen.getByTestId("edit-panel-cancel")).toHaveAccessibleName("Cancel");
       expect(screen.getByTestId("edit-panel-submit")).toHaveAccessibleName("Save");
@@ -784,9 +850,7 @@ describe("EditPanel", () => {
 
     it("AC4: Back locked without a disabled hint, the normal hint stands", () => {
       renderPanel({ onBack: () => {}, backDisabled: true });
-      expect(hintOf("edit-panel-back")).toBe(
-        "Goes back one step; asks first if there are unsaved changes.",
-      );
+      expect(hintOf("edit-panel-back")).toBe("Goes back one step.");
     });
 
     it("AC7: order, testids and button classes stay, each button in its hint shell", () => {

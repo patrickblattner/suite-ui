@@ -296,25 +296,22 @@ describe("EditPanel leave guard (GL-UI-007)", () => {
     expect(save).toHaveBeenCalledTimes(1);
   });
 
-  // Acceptance 3
-  it("dirty Cancel, Back, Previous and Next ask the same question", () => {
+  // Acceptance 3. The panel's Back is one step inside it and never asks (SUI-FEATURE-091 rev 6).
+  it("dirty Cancel, Previous and Next ask the same question; Back does not", () => {
     const onBack = vi.fn();
     const onNext = vi.fn();
     const onPrevious = vi.fn();
     render(<ListWithPanel onBack={onBack} pager={{ position: "1/3", onPrevious, onNext }} />);
     openRow();
     edit();
-    for (const id of [
-      "edit-panel-cancel",
-      "edit-panel-back",
-      "edit-panel-previous",
-      "edit-panel-next",
-    ]) {
+    for (const id of ["edit-panel-cancel", "edit-panel-previous", "edit-panel-next"]) {
       fireEvent.click(screen.getByTestId(id));
       expect(screen.getByTestId("leave-guard")).toBeInTheDocument();
       fireEvent.click(screen.getByTestId("leave-guard-cancel"));
     }
-    expect(onBack).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("edit-panel-back"));
+    expect(screen.queryByTestId("leave-guard")).toBeNull();
+    expect(onBack).toHaveBeenCalledTimes(1);
     expect(onPrevious).not.toHaveBeenCalled();
     expect(onNext).not.toHaveBeenCalled();
 

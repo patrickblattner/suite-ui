@@ -237,7 +237,7 @@ export const de: SuiteStrings = {
   },
   editPanel: {
     viewCloseHint: "Schließt das Panel.",
-    backHint: "Geht einen Schritt zurück; ungespeicherte Änderungen werden vorher abgefragt.",
+    backHint: "Geht einen Schritt zurück.",
     cancelHint:
       "Schließt das Panel, ohne zu speichern; ungespeicherte Änderungen werden vorher abgefragt.",
     closeHint: "Schließt das Panel; Änderungen werden vorher abgefragt.",
@@ -247,10 +247,7 @@ export const de: SuiteStrings = {
       "Übernimmt die Eingaben ins Formular; gespeichert wird erst mit dem Speichern der Seite.",
     applyCancelHint:
       "Schließt das Panel, ohne zu übernehmen; nicht übernommene Änderungen werden vorher abgefragt.",
-    applyBackHint:
-      "Geht einen Schritt zurück, ohne zu übernehmen; nicht übernommene Änderungen werden vorher abgefragt.",
     nextCancelHint: "Schließt das Panel; Änderungen werden vorher abgefragt.",
-    nextBackHint: "Geht einen Schritt zurück; Änderungen werden vorher abgefragt.",
     busyHint: "Eine Aktion läuft; wieder verfügbar, sobald sie abgeschlossen ist.",
   },
   leaveGuard: {

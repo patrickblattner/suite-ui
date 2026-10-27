@@ -1413,6 +1413,17 @@ function useLeaveConfirm({
       () => settle(false),
     );
   };
+  // A step inside the surface that never asks (the edit panel's Back, `SUI-FEATURE-091` rev 6): it
+  // runs at once, or, while the surface's own work runs, waits for its result as a way out does
+  // (`SUI-FEATURE-171`). It reads the work's ref, not `working`, which turns false only a render
+  // after the work ended.
+  const step = React.useCallback(
+    (action: () => void) => {
+      if (work.current === null) action();
+      else waiting.current = ownWay(action);
+    },
+    [ownWay],
+  );
   // Closing or unmounting the surface drops what it held: the dialog closes, the way out it asked
   // about or that waited stays, and the running work's result no longer counts.
   const drop = React.useCallback(() => {
@@ -1553,7 +1564,7 @@ function useLeaveConfirm({
       />
     </>
   );
-  return { guard, dialog, working, run, saveForm, ownSave };
+  return { guard, step, dialog, working, run, saveForm, ownSave };
 }
 
 type LeaveGuardOptions = {
