@@ -1133,6 +1133,33 @@ describe("keyboard bubble placement", () => {
     }
   });
 
+  // SUI-FEATURE-115 rev 5 (#621 review): a narrow fixed part over the tile's rows above the name cuts
+  // the area only at its bottom edge, never at its side: no room above the name, so 4 px under it,
+  // the tile's full width less 8 px a side.
+  it("a narrow fixed part over a tile above the name cuts the area only vertically", async () => {
+    const part = (tiles: React.ReactNode) => (
+      <div>
+        <div data-testid="part" style={{ position: "fixed" }} />
+        {tiles}
+      </div>
+    );
+    const boxes: Record<string, [number, number, number, number]> = {
+      part: [216, 200, 60, 140],
+      before: [0, 300, 200, 60],
+      tile: [216, 300, 200, 60],
+      after: [432, 300, 200, 60],
+      name: [228, 324, 176, 20],
+    };
+    for (const open of opens) {
+      expect(await placedInTile(80, boxes, open, part)).toEqual({
+        side: "bottom",
+        width: "184px",
+        x: 224,
+        y: 348,
+      });
+    }
+  });
+
   // SUI-FEATURE-115 rev 5 AC 4 (#621): a fixed footer below a wholly visible tile in its column cuts the
   // area only at its top edge: the bubble stands over the name as without it.
   it("a fixed app footer below a visible tile leaves the bubble unchanged", async () => {
