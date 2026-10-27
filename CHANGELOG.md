@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — #619, GL-UI-013: toast action and cancel show a hover signal; an app's toastOptions no longer replace the package's (patch)
+
+- **Toaster (#619, found in #617):** the filled action tints its fill on hover (85 % of the toast's text colour over the toast fill); on success, error and warning its label takes the variant's `-hover` token meanwhile, so it keeps 4.5:1. The ghost cancel reveals a 1 px border in the toast's text colour on hover. Both carry `cursor-pointer` and a transparent 1 px border at rest, so under forced colours they show an edge. The close X takes the toast buttons' token ring with the same 2 px gap, and on hover inverts to the toast's text colour with its icon in the toast's fill (sonner's grey hover hid the X). All set once in the Toaster.
+- **Toaster `toastOptions` (#619):** an app's own `toastOptions`, its `classNames` included, now merge with the package's; variant colours, close button and the buttons' ring, gap and hover stay.
+- **Tests (#619):** unit: a consumer `toastOptions.classNames` merges with the package's. Gallery: on every toast variant, light and dark, the action's hover tint (against its rest fill ≥ 1.2:1 on a light fill, ≥ 1.1:1 on a dark one; label ≥ 4.5:1), the cancel's border reveal (≥ 3:1 on the fill) and the close X's hover (icon ≥ 3:1), all with the pointer cursor; the close X's gapped token ring on keyboard focus; under forced colours the action and cancel show an edge at rest.
+
+**Migration:** none required. An app that passed `toastOptions.classNames` to the Toaster now keeps the package's toast look alongside its own classes. No strings or `data-testid`s change.
+
 ## Unreleased — #620, SUI-FEATURE-114 rev 4: a refused format change gets its own hint (patch)
 
 - **SlideEditor (#620):** a format change refused at input since #618 (bold or italic by `Ctrl`/`Cmd`+`B`/`I`, or a format from the property panel, in a text field or table cell) now says so in its own words, in the same toast slot: the new key `slides.editor.formatRefused` ("Formatting not changed: this text has too many differently formatted parts. Remove some formatting and try again."), in `en`, `de` and `es`. Refused typed or pasted text keeps `slides.editor.textRefused`, unchanged.

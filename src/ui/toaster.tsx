@@ -9,6 +9,7 @@ import * as React from "react";
 import { getI18n, useTranslation } from "react-i18next";
 import {
   type ExternalToast,
+  type ToastClassnames,
   Toaster as Sonner,
   toast as sonnerToast,
   type ToasterProps,
@@ -546,14 +547,16 @@ const toast: typeof sonnerToast = Object.assign(
 
 // Same meaning, same colour and symbol in every app: each variant fills the toast body through the
 // `--normal-*` variables sonner reads. Success, error and warn carry their white `-foreground`
-// (`GL-UI-011` §Helle Schrift auf Farbflächen); info carries its own `-foreground`.
+// (`GL-UI-011` §Helle Schrift auf Farbflächen); info carries its own `-foreground`. On those three the
+// action's label, the toast's fill, takes the variant's `-hover` token while the light action fill
+// tints, so it keeps 4.5:1 (#619); info and neutral keep their label, the tint leaves it at 4.5:1.
 export const TOAST_VARIANT_CLASSNAMES = {
   success:
-    "[--normal-bg:var(--success)] [--normal-text:var(--success-foreground)] [--normal-border:var(--success)]",
+    "[--normal-bg:var(--success)] [--normal-text:var(--success-foreground)] [--normal-border:var(--success)] [--normal-hover:var(--success-hover)]",
   error:
-    "[--normal-bg:var(--destructive)] [--normal-text:var(--destructive-foreground)] [--normal-border:var(--destructive)]",
+    "[--normal-bg:var(--destructive)] [--normal-text:var(--destructive-foreground)] [--normal-border:var(--destructive)] [--normal-hover:var(--destructive-hover)]",
   warning:
-    "[--normal-bg:var(--warn)] [--normal-text:var(--warn-foreground)] [--normal-border:var(--warn)]",
+    "[--normal-bg:var(--warn)] [--normal-text:var(--warn-foreground)] [--normal-border:var(--warn)] [--normal-hover:var(--warn-hover)]",
   info: "[--normal-bg:var(--info)] [--normal-text:var(--info-foreground)] [--normal-border:var(--info)]",
 } as const;
 
@@ -567,6 +570,42 @@ export const TOAST_BUTTON_FOCUS =
 // The cancel shows its label in the toast's text colour on the toast's own fill, so it keeps the
 // toast's text contrast; sonner's see-through white fill left it at 2.77:1 in dark mode (#617).
 export const TOAST_CANCEL_COLORS = "bg-transparent! text-(--normal-text)!";
+// The hover signal per button type (`GL-UI-013`, #619), `!` against sonner's unlayered rules: the
+// filled action tints its fill and darkens its label where the variant sets `--normal-hover`, the
+// ghost cancel reveals a 1 px border in the toast's text colour.
+// Both carry a transparent 1 px border at rest, so in forced colours they show an edge (sonner sets
+// `border: none`) and the cancel's border reveal moves nothing.
+const TOAST_BUTTON_EDGE = "cursor-pointer border! border-transparent!";
+const TOAST_ACTION_HOVER =
+  "hover:bg-(--normal-text)/85! hover:text-[var(--normal-hover,var(--normal-bg))]!";
+const TOAST_CANCEL_HOVER = "hover:border-(--normal-text)!";
+
+// The close button, when an app turns it on, gets a 24 px hit area (`GL-UI-013`); `!` because sonner's
+// own unlayered rule sets 20 px. Its round corners do not hit, so an unpainted square over the border
+// box covers them. It takes the toast buttons' gapped token ring (#619). On hover it inverts to the
+// toast's text colour with its icon in the toast's fill, so the X keeps the toast's text contrast;
+// sonner's grey hover fill under an unchanged icon lost it (#619).
+const TOAST_CLASSNAMES = {
+  ...TOAST_VARIANT_CLASSNAMES,
+  closeButton: cn(
+    "size-6! after:absolute after:top-1/2 after:left-1/2 after:size-6 after:-translate-x-1/2 after:-translate-y-1/2",
+    "hover:border-(--normal-text)! hover:bg-(--normal-text)! hover:text-(--normal-bg)!",
+    TOAST_BUTTON_FOCUS,
+  ),
+  actionButton: cn(TOAST_BUTTON_FOCUS, TOAST_BUTTON_EDGE, TOAST_ACTION_HOVER),
+  cancelButton: cn(TOAST_BUTTON_FOCUS, TOAST_BUTTON_EDGE, TOAST_CANCEL_COLORS, TOAST_CANCEL_HOVER),
+} satisfies ToastClassnames;
+
+// An app's own `toastOptions.classNames` add to the package's, never replace them: the package's come
+// last, so variant colours, close button and the toast buttons' ring and gap stay (#619).
+function withToastClassNames(own: ToastClassnames = {}): ToastClassnames {
+  const merged: ToastClassnames = { ...own };
+  for (const [key, value] of Object.entries(TOAST_CLASSNAMES)) {
+    const name = key as keyof typeof TOAST_CLASSNAMES;
+    merged[name] = cn(own[name], value);
+  }
+  return merged;
+}
 
 // Top right, below the page title row, so a fresh toast never covers the page's primary action. The
 // shell-derived `--toast-offset-top` (styles.css) moves with a banner that pushes the page down.
@@ -1039,7 +1078,7 @@ function useToasterFocus(toasts: React.RefObject<HTMLElement | null>, id?: strin
 type ToasterAppProps = Omit<ToasterProps, "position" | "offset" | "mobileOffset">;
 
 // `theme` follows the app: pass its resolved theme ("light" or "dark").
-function Toaster({ theme = "light", ...props }: ToasterAppProps) {
+function Toaster({ theme = "light", toastOptions, ...props }: ToasterAppProps) {
   const { t } = useTranslation("suite");
   const toasts = React.useRef<HTMLDivElement>(null);
   useDismissToastsUnderFocus(toasts);
@@ -1070,17 +1109,9 @@ function Toaster({ theme = "light", ...props }: ToasterAppProps) {
           error: named(<CircleXIcon aria-hidden="true" className="size-4" />, t("status.error")),
           loading: <Loader2Icon className="size-4 animate-spin" />,
         }}
-        // The close button, when an app turns it on, gets a 24 px hit area (`GL-UI-013`); `!` because
-        // sonner's own unlayered rule sets 20 px. Its round corners do not hit, so an unpainted square
-        // over the border box covers them.
         toastOptions={{
-          classNames: {
-            ...TOAST_VARIANT_CLASSNAMES,
-            closeButton:
-              "size-6! after:absolute after:top-1/2 after:left-1/2 after:size-6 after:-translate-x-1/2 after:-translate-y-1/2",
-            actionButton: TOAST_BUTTON_FOCUS,
-            cancelButton: cn(TOAST_BUTTON_FOCUS, TOAST_CANCEL_COLORS),
-          },
+          ...toastOptions,
+          classNames: withToastClassNames(toastOptions?.classNames),
         }}
         style={
           {

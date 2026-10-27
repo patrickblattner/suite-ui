@@ -109,6 +109,59 @@ describe("Toaster", () => {
       });
     },
   );
+
+  // #619: an app's own `toastOptions.classNames` add to the package's; variant colours, close button
+  // and the toast buttons' gapped ring, edge and hover stay.
+  it("merges an app's own toastOptions classNames with the package's", async () => {
+    render(
+      <Toaster
+        closeButton
+        toastOptions={{
+          classNames: {
+            toast: "app-toast",
+            success: "app-success",
+            actionButton: "app-action",
+            cancelButton: "app-cancel",
+            closeButton: "app-close",
+          },
+        }}
+      />,
+    );
+    act(() => {
+      toast.success("File saved", {
+        duration: Infinity,
+        action: { label: "Undo", onClick: () => undefined },
+        cancel: { label: "Cancel", onClick: () => undefined },
+      });
+    });
+    const item = (await screen.findByText("File saved")).closest("[data-sonner-toast]");
+    expect(item).toHaveClass(
+      "app-toast",
+      "app-success",
+      "[--normal-bg:var(--success)]",
+      "[--normal-hover:var(--success-hover)]",
+    );
+    const ring = ["focus-visible:focus-ring!", "ring-offset-(--normal-text)"];
+    const edge = ["cursor-pointer", "border!", "border-transparent!"];
+    expect(item?.querySelector("[data-action]")).toHaveClass(
+      "app-action",
+      ...ring,
+      ...edge,
+      "hover:bg-(--normal-text)/85!",
+      "hover:text-[var(--normal-hover,var(--normal-bg))]!",
+    );
+    expect(item?.querySelector("[data-cancel]")).toHaveClass(
+      "app-cancel",
+      ...ring,
+      ...edge,
+      "bg-transparent!",
+      "hover:border-(--normal-text)!",
+    );
+    expect(item?.querySelector("[data-close-button]")).toHaveClass("app-close", "size-6!", ...ring);
+    act(() => {
+      toast.dismiss();
+    });
+  });
 });
 
 // `SUI-FEATURE-101` rev 3: keyboard focus never rests under a toast; the pointer keeps its behaviour.

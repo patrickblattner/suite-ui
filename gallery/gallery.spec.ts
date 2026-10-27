@@ -1532,7 +1532,158 @@ for (const theme of THEMES) {
       ).toBeGreaterThanOrEqual(3);
     }
   });
+
+  // #619 (`GL-UI-013` hover table): on every toast variant, neutral included, a pointer over the filled
+  // action tints its fill, one over the ghost cancel reveals a 1 px border in the toast's text colour;
+  // both show the pointer cursor. The labels keep 4.5:1 on what shows under them: on success, error and
+  // warning the action's label takes the variant's `-hover` token. The close X keeps its icon at 3:1.
+  test(`toast: action and cancel on every variant show their hover signal (${theme})`, async ({
+    page,
+  }) => {
+    await page.goto(`/?page=toast&lng=en&theme=${theme}&buttons=1`);
+    await (theme === "dark"
+      ? expect(page.locator("html")).toHaveClass(/\bdark\b/)
+      : expect(page.locator("html")).not.toHaveClass(/\bdark\b/));
+    await expect(page.locator("[data-sonner-toast] [data-cancel]")).toHaveText(
+      Array(5).fill("Cancel"),
+    );
+    const look = (button: Locator) =>
+      button.evaluate((el) => {
+        const { backgroundColor, borderTopColor, borderTopWidth, color, cursor } =
+          getComputedStyle(el);
+        return { backgroundColor, borderTopColor, borderTopWidth, color, cursor };
+      });
+    for (const variant of ["Neutral", "Info", "Warning", "Error", "Success"]) {
+      const toast = page.locator("[data-sonner-toast]").filter({ hasText: variant });
+      await expect(toast).toBeVisible();
+      const fill = await toast.evaluate((el) => {
+        const { backgroundColor, color } = getComputedStyle(el);
+        return { backgroundColor, color };
+      });
+      const action = toast.locator("[data-action]");
+      const restAction = await look(action);
+      expect(restAction.cursor, `${variant} action cursor`).toBe("pointer");
+      await action.hover();
+      await expect
+        .poll(async () => (await look(action)).backgroundColor)
+        .not.toBe(restAction.backgroundColor);
+      const hoverAction = await look(action);
+      // A tint shows less on a light fill: 1.2:1 there, 1.1:1 on a dark one.
+      const lightFill =
+        (await contrastOf(page, restAction.backgroundColor, "rgb(0, 0, 0)")) >
+        (await contrastOf(page, restAction.backgroundColor, "rgb(255, 255, 255)"));
+      expect(
+        await contrastOf(
+          page,
+          restAction.backgroundColor,
+          hoverAction.backgroundColor,
+          fill.backgroundColor,
+        ),
+        `${variant} action tint against its rest fill`,
+      ).toBeGreaterThanOrEqual(lightFill ? 1.2 : 1.1);
+      expect(
+        await contrastOf(
+          page,
+          hoverAction.color,
+          hoverAction.backgroundColor,
+          fill.backgroundColor,
+        ),
+        `${variant} action label on its hover fill`,
+      ).toBeGreaterThanOrEqual(4.5);
+
+      const cancel = toast.locator("[data-cancel]");
+      const restCancel = await look(cancel);
+      expect(restCancel).toMatchObject({
+        borderTopColor: "rgba(0, 0, 0, 0)",
+        borderTopWidth: "1px",
+        cursor: "pointer",
+      });
+      await cancel.hover();
+      await expect.poll(async () => (await look(cancel)).borderTopColor).toBe(fill.color);
+      const hoverCancel = await look(cancel);
+      expect(hoverCancel).toMatchObject({
+        backgroundColor: "rgba(0, 0, 0, 0)",
+        borderTopWidth: "1px",
+        color: fill.color,
+      });
+      expect(
+        await contrastOf(page, hoverCancel.borderTopColor, fill.backgroundColor),
+        `${variant} cancel border on the toast`,
+      ).toBeGreaterThanOrEqual(3);
+
+      // The close X inverts: the toast's text colour as fill, its icon in the toast's fill.
+      const close = toast.locator("[data-close-button]");
+      expect((await look(close)).cursor, `${variant} close cursor`).toBe("pointer");
+      await close.hover();
+      await expect.poll(async () => (await look(close)).backgroundColor).toBe(fill.color);
+      const hoverClose = await look(close);
+      expect(hoverClose.color, `${variant} close icon on hover`).toBe(fill.backgroundColor);
+      expect(
+        await contrastOf(page, hoverClose.color, hoverClose.backgroundColor),
+        `${variant} close icon on its hover fill`,
+      ).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  // #619 (`GL-UI-013`, `SUI-FEATURE-116`): the close X reached by keyboard takes the toast buttons'
+  // token ring with the same 2 px gap in the variant's text colour, not sonner's shadow, on every
+  // variant; the browser outline gives way to the transparent fallback.
+  test(`toast: the close X on every variant takes the gapped token ring (${theme})`, async ({
+    page,
+  }) => {
+    await page.goto(`/?page=toast&lng=en&theme=${theme}&buttons=1`);
+    await (theme === "dark"
+      ? expect(page.locator("html")).toHaveClass(/\bdark\b/)
+      : expect(page.locator("html")).not.toHaveClass(/\bdark\b/));
+    const ring = await utilityColor(page, "bg-ring", "backgroundColor");
+    await expect(page.locator("[data-sonner-toast] [data-cancel]")).toHaveText(
+      Array(5).fill("Cancel"),
+    );
+    await page.keyboard.press("Alt+T");
+    for (const variant of ["Neutral", "Info", "Warning", "Error", "Success"]) {
+      const toast = page.locator("[data-sonner-toast]").filter({ hasText: variant });
+      await expect(toast).toBeVisible();
+      const gap = await toast.evaluate((el) => getComputedStyle(el).color);
+      const close = toast.locator("[data-close-button]");
+      await close.focus();
+      await expect(close).toBeFocused();
+      await expect
+        .poll(() => settledBoxShadowOf(close))
+        .toContain(`${gap} 0px 0px 0px 2px, ${ring} 0px 0px 0px 5px`);
+      const outline = await close.evaluate((el) => {
+        const { outlineStyle, outlineWidth, outlineColor } = getComputedStyle(el);
+        return { outlineStyle, outlineWidth, outlineColor };
+      });
+      expect(outline).toEqual({
+        outlineStyle: "solid",
+        outlineWidth: "2px",
+        outlineColor: "rgba(0, 0, 0, 0)",
+      });
+    }
+  });
 }
+
+// #619 (`GL-UI-013`): in forced colors the toast action and cancel show an edge at rest; their
+// transparent border takes the system colour.
+test("toast: action and cancel show an edge at rest under forced colors", async ({ page }) => {
+  await page.emulateMedia({ forcedColors: "active" });
+  await page.goto("/?page=toast&lng=en&buttons=1");
+  await expect(page.locator("[data-sonner-toast] [data-cancel]")).toHaveText(
+    Array(5).fill("Cancel"),
+  );
+  for (const selector of ["[data-action]", "[data-cancel]"]) {
+    const button = page
+      .locator("[data-sonner-toast]")
+      .filter({ hasText: "Success" })
+      .locator(selector);
+    const edge = await button.evaluate((el) => {
+      const { borderTopStyle, borderTopWidth, borderTopColor } = getComputedStyle(el);
+      return { borderTopStyle, borderTopWidth, borderTopColor };
+    });
+    expect(edge).toMatchObject({ borderTopStyle: "solid", borderTopWidth: "1px" });
+    expect(edge.borderTopColor, selector).not.toBe("rgba(0, 0, 0, 0)");
+  }
+});
 
 // `SUI-FEATURE-116` AC 3 (#617): in forced colors a focused toast button shows its outline.
 test("toast: a focused toast button shows an outline under forced colors", async ({ page }) => {
