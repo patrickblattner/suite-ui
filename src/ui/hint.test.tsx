@@ -207,6 +207,89 @@ describe("Hint on a field with label help", () => {
     expect(document.getElementById(hintId)).toHaveTextContent("Letters only");
     expect(describedBy).toBe(`eigen ${hintId}`);
   });
+
+  // #634: a describing hint with a status line still replaces the label help.
+  it("a describing hint with a status line replaces the label help", () => {
+    render(
+      <>
+        <LabelWithHelp htmlFor="x" help="What the field is for">
+          Name
+        </LabelWithHelp>
+        <Hint text="Letters only" status="note">
+          <Input id="x" aria-describedby="x-help" />
+        </Hint>
+      </>,
+    );
+    const describedBy = screen.getByRole("textbox").getAttribute("aria-describedby") ?? "";
+    const hintId = describedBy.split(" ")[0] ?? "";
+    expect(document.getElementById(hintId)).toHaveTextContent("Letters only");
+    expect(describedBy).toBe(`${hintId} note`);
+  });
+
+  // #634: a hint that only adds a status line keeps the label help.
+  it("keeps the label help where the hint adds only a status line", () => {
+    render(
+      <>
+        <LabelWithHelp htmlFor="x" help="What the field is for">
+          Name
+        </LabelWithHelp>
+        <Hint text="Name" status="note">
+          <Input id="x" aria-label="Name" aria-describedby="x-help" />
+        </Hint>
+      </>,
+    );
+    expect(screen.getByRole("textbox")).toHaveAttribute("aria-describedby", "x-help note");
+  });
+
+  // #634: a hint with describe off and a status line keeps the label help.
+  it("keeps the label help where describe is off and a status line is set", () => {
+    render(
+      <>
+        <LabelWithHelp htmlFor="x" help="What the field is for">
+          Name
+        </LabelWithHelp>
+        <Hint text="Letters only" describe={false} status="note">
+          <Input id="x" aria-describedby="x-help" />
+        </Hint>
+      </>,
+    );
+    expect(screen.getByRole("textbox")).toHaveAttribute("aria-describedby", "x-help note");
+  });
+
+  // #634: the carrier of a disabled field carries the field's own ids, the label help included.
+  it("the carrier of a disabled field keeps the label help where the hint does not describe", () => {
+    render(
+      <>
+        <LabelWithHelp htmlFor="x" help="What the field is for">
+          Name
+        </LabelWithHelp>
+        <Hint text="Name" disabledText="Name" describe={false}>
+          <Input id="x" aria-describedby="x-help" disabled />
+        </Hint>
+      </>,
+    );
+    const input = screen.getByRole("textbox");
+    expect(input.parentElement).toHaveAttribute("aria-describedby", "x-help");
+    expect(input).not.toHaveAttribute("aria-describedby");
+  });
+
+  it("the carrier of a disabled field replaces the label help with a describing hint", () => {
+    render(
+      <>
+        <LabelWithHelp htmlFor="x" help="What the field is for">
+          Name
+        </LabelWithHelp>
+        <Hint text="Letters only" disabledText="Possible once a field changed">
+          <Input id="x" aria-describedby="x-help" disabled />
+        </Hint>
+      </>,
+    );
+    const input = screen.getByRole("textbox");
+    const describedBy = input.parentElement?.getAttribute("aria-describedby") ?? "";
+    expect(describedBy.split(" ")).toHaveLength(1);
+    expect(document.getElementById(describedBy)).toHaveTextContent("Possible once a field changed");
+    expect(input).not.toHaveAttribute("aria-describedby");
+  });
 });
 
 describe("Hint timing", () => {

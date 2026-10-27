@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — #634, GL-UI-017: a Hint that adds only a status line keeps the field's label help (patch)
+
+- **Hint (#634, Q&A #4792):** on a field with `LabelWithHelp`, a Hint that does not describe the field (describe off, or its text equals the `aria-label`) but sets a status line no longer drops the label help from `aria-describedby`; it reads `"<field>-help <status>"`. A describing Hint still replaces the label help with its own id.
+- **Hint on a disabled control (#634):** the carrier span now carries the field's own `aria-describedby` ids, the label help included, by the same rule (a describing Hint replaces the label help); the disabled control itself keeps none, so nothing is described twice.
+- **Tests (#634):** unit: label help kept beside a status-only Hint and beside a Hint with `describe={false}`; a describing Hint with a status line still replaces it; on a disabled field the carrier keeps the label help, or takes the hint id in its place.
+
+**Migration:** none required. No strings, `data-testid`s or baselines change.
+
 ## Unreleased — #629, GL-UI-013: the outline Button shows its ring border on hover in dark; a disabled Button shows `not-allowed` and no hover (patch)
 
 - **Button outline (#629, found in #628):** in dark mode the hover now reveals the `--ring` border on the input tint, as the Select trigger does; before, `dark:border-input` hid it and only a 1.08:1 fill change remained.

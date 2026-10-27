@@ -88,16 +88,17 @@ const PassThrough = React.forwardRef<HTMLElement, AnyProps>(function PassThrough
   return React.cloneElement(child, merged);
 });
 
-// The element's own describedby ids first, then the hint id (if described), then a status line, each once. The label
-// help of the same field (`LabelWithHelp`) is dropped: the hint takes its place as the field's
-// description (`GL-UI-017` §Assistive Tech), so the field is never described twice.
+// The element's own describedby ids first, then the hint id (if described), then a status line, each once. Only
+// where the hint id is added, the label help of the same field (`LabelWithHelp`) is dropped: the hint
+// takes its place as the field's description (`GL-UI-017` §Assistive Tech), so the field is never
+// described twice. A hint that only adds a status line keeps the label help (#634).
 function describedBy(
   existing: string | undefined,
   fieldId: string | undefined,
   id: string | undefined,
   status: string | undefined,
 ): string {
-  const labelHelp = fieldId === undefined ? undefined : helpIdFor(fieldId);
+  const labelHelp = fieldId === undefined || id === undefined ? undefined : helpIdFor(fieldId);
   const own = (existing ?? "")
     .split(/\s+/)
     .filter((part) => part !== "" && part !== id && part !== labelHelp && part !== status);
@@ -261,6 +262,10 @@ function Hint({
       ),
     });
   }
+  // The carrier takes over the field's own describedby ids; the disabled control keeps none (#634).
+  if (owner === "carrier" && children.props["aria-describedby"] !== undefined) {
+    trigger = React.cloneElement(trigger, { "aria-describedby": undefined });
+  }
   // Locked, the control offers no shortcut, as `IconButtonTooltip` (#380).
   if (offered !== undefined) {
     trigger = React.cloneElement(trigger, { "aria-keyshortcuts": ariaKeyShortcuts(offered) });
@@ -276,8 +281,13 @@ function Hint({
           carrierClassName ?? "rounded-md focus-visible:focus-ring",
         )}
         aria-describedby={
-          owner === "carrier" && (describes || status !== undefined)
-            ? describedBy(undefined, undefined, describes ? id : undefined, status)
+          owner === "carrier"
+            ? describedBy(
+                children.props["aria-describedby"],
+                children.props.id,
+                describes ? id : undefined,
+                status,
+              ) || undefined
             : undefined
         }
       >
