@@ -5197,6 +5197,55 @@ test("select: field name and value at the leading edge, chevron right", async ({
   await expect(page.getByRole("tooltip")).toHaveText("A value too long for its trigger");
 });
 
+// #628 (`GL-UI-013`): the select trigger shows the pointer cursor, and a pointer over it reveals the
+// outline Button's hover, a `--ring` border on the `--accent` fill (the input tint in dark), in light
+// and dark; the value and the placeholder keep 4.5:1 on the hover fill. A disabled trigger keeps its
+// rest look under the pointer.
+for (const theme of THEMES) {
+  test(`select: the trigger shows the pointer cursor and its hover signal (${theme})`, async ({
+    page,
+  }) => {
+    await page.goto(`/?page=components&lng=en&theme=${theme}`);
+    await (theme === "dark"
+      ? expect(page.locator("html")).toHaveClass(/\bdark\b/)
+      : expect(page.locator("html")).not.toHaveClass(/\bdark\b/));
+    const look = (trigger: Locator) =>
+      trigger.evaluate((el) => {
+        const { backgroundColor, borderTopColor, color, cursor } = getComputedStyle(el);
+        return { backgroundColor, borderTopColor, color, cursor };
+      });
+    const ground = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+    const ring = await utilityColor(page, "bg-ring", "backgroundColor");
+    const fill = await utilityColor(
+      page,
+      theme === "dark" ? "bg-input/50" : "bg-accent",
+      "backgroundColor",
+    );
+    for (const name of ["Select with value", "Select empty"]) {
+      const trigger = page.getByRole("combobox", { name, exact: true });
+      const rest = await look(trigger);
+      expect(rest.cursor, `${name} cursor`).toBe("pointer");
+      await trigger.hover();
+      await expect.poll(async () => (await look(trigger)).borderTopColor).toBe(ring);
+      await expect.poll(async () => (await look(trigger)).backgroundColor).toBe(fill);
+      const hover = await look(trigger);
+      expect(hover.cursor, `${name} cursor on hover`).toBe("pointer");
+      expect(
+        await contrastOf(page, hover.color, hover.backgroundColor, ground),
+        `${name}: text on the hover fill`,
+      ).toBeGreaterThanOrEqual(4.5);
+    }
+
+    const disabled = page.getByRole("combobox", { name: "Select disabled", exact: true });
+    const rest = await look(disabled);
+    expect(rest.cursor).toBe("not-allowed");
+    await disabled.hover();
+    // Longer than the trigger's transition, so a hover look would have arrived.
+    await page.waitForTimeout(500);
+    expect(await look(disabled)).toEqual(rest);
+  });
+}
+
 // `GL-UI-016` §Schließen (#593): a press on the bubble closes it and never reaches its element: the
 // select, which opens on pointerdown, stays closed — for a bubble opened by the keyboard or the pointer.
 for (const by of ["keyboard", "pointer"]) {
