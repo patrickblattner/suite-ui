@@ -665,3 +665,5 @@
 {"ts":"2026-10-26T21:42:51.885Z","key":"PROC-REL-030","from":4,"to":5,"disposition":"editorial","ref":"static rule-test files in the fast set apply only under GATE_MODE=remote; suite-ui runs local mode (local profile keeps unit)"}
 {"ts":"2026-10-26T21:43:14.537Z","key":"SUI-FEATURE-115","from":null,"to":2,"disposition":"ticket","ref":"611"}
 {"ts":"2026-10-26T21:43:27.136Z","key":"SUI-FEATURE-101","from":7,"to":8,"disposition":"ticket","ref":"614"}
+{"ts":"2026-10-27T00:35:03.241Z","key":"SUI-FEATURE-115","from":2,"to":3,"disposition":"ticket","ref":"615"}
+{"ts":"2026-10-27T00:35:03.594Z","key":"SUI-FEATURE-094","from":9,"to":10,"disposition":"ticket","ref":"606"}
