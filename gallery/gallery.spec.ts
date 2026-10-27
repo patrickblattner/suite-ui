@@ -4121,6 +4121,49 @@ test.describe("leave guard: a route change waits for the page's own save (#572)"
   });
 });
 
+// #608 (`SUI-FEATURE-112` rev 2): typing after a way was held during the page's own save takes that
+// way back: once the save ended no dialog, the focus and the route stay. A newer way replaces it.
+test.describe("leave guard: an edit during the save drops the held way (#608)", () => {
+  for (const way of ["harness-back", "harness-open"] as const) {
+    test(`${way}, then typing: the page stays without a dialog`, async ({ page }) => {
+      await openHarnessDetail(page);
+      await page.getByTestId("harness-save").click();
+      await page.getByTestId(way).click();
+      await expectNoDialog(page);
+      const value = page.getByTestId("harness-value");
+      await value.click();
+      await value.press("End");
+      await value.pressSequentially(" more");
+      // The save is ended from the keyboard's place: the focus never moves to a button.
+      await value.evaluate(() =>
+        document.querySelector<HTMLElement>("[data-testid=harness-finish-save]")?.click(),
+      );
+      await expect(page.getByTestId("harness-save-state")).toHaveText("saved");
+      await page.waitForTimeout(100);
+      await expectNoDialog(page);
+      expect(pathOf(page)).toBe("/detail");
+      await expect(value).toBeFocused();
+      await expect(value).toHaveValue("draft more");
+      // Enter in the field saves nothing and leaves nothing.
+      await page.keyboard.press("Enter");
+      await expectNoDialog(page);
+      expect(pathOf(page)).toBe("/detail");
+    });
+  }
+
+  test("Back, then another link: lands at the second target", async ({ page }) => {
+    await openHarnessDetail(page);
+    await page.getByTestId("harness-save").click();
+    await page.getByTestId("harness-back").click();
+    await page.getByTestId("harness-open").click();
+    await expectNoDialog(page);
+    await page.getByTestId("harness-finish-save").click();
+    await expect(page.getByTestId("harness-item")).toBeVisible();
+    expect(pathOf(page)).toBe("/item");
+    await expectNoDialog(page);
+  });
+});
+
 // #557 (`GL-UI-007`, `GL-UI-050`): Cancel returns the focus to the tab trigger that asked, and that
 // focus does not activate it again: the dialog stays closed, the original tab and the draft stay.
 for (const path of ["mouse", "keyboard"] as const) {

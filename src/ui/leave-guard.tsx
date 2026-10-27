@@ -24,6 +24,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "./dialog.js";
+import { isUserEvent } from "./user-event.js";
 
 // Saving from the leave dialog: `true` (or a promise of it) means saved, and the held leave goes on;
 // anything else keeps the surface open, where the call site shows the error at its field.
@@ -1089,6 +1090,13 @@ function finishWaiting(router: DataRouter, entry: RouterHolds) {
   });
 }
 
+// An edit takes back the confirmed change that waits for the router's submission (`SUI-FEATURE-112`):
+// it is dropped as after a failure, and the resets of its Discards never run, so the draft stays.
+function dropWaiting(router: DataRouter) {
+  const entry = routerHolds.get(router);
+  if (entry !== undefined) entry.waiting = null;
+}
+
 // Starts a waiting change anew, past the holds that confirmed it; the holds that block now ask first.
 // A browser step goes by the step to the entry it targeted, counted from where the submission left
 // the history (none when that is where the app stands: never `go(0)`, which would reload). Any other
@@ -1528,6 +1536,30 @@ function useLeaveConfirm({
       unhold();
     };
   }, [router, routerHold]);
+  // An edit on the surface (an `input` event: an entry in a field, a native select or checkbox) while
+  // a way out is held takes that way back, silently: who works on no longer wants to leave. Once the
+  // work ended the surface stays, asking nothing; a newer way out is held as before
+  // (`SUI-FEATURE-112`). While the dialog asks, the surface takes no edit. Not `change`: a text field
+  // fires it on blur, which is no edit. Heard on the whole document on purpose: panels and dialogs
+  // render in portals outside any root of the surface (`SUI-FEATURE-112` rev 4). Only the user's own
+  // input counts: a value a save's result sets fires an untrusted one.
+  React.useEffect(() => {
+    if (!open) return;
+    const onEdit = (event: Event) => {
+      if (!isUserEvent(event) || asking.current !== null) return;
+      const way = waiting.current;
+      waiting.current = null;
+      way?.stay?.();
+      const held = busyWaiting.current;
+      busyWaiting.current = null;
+      held?.stay?.();
+      if (router !== undefined) dropWaiting(router);
+    };
+    document.addEventListener("input", onEdit, true);
+    return () => {
+      document.removeEventListener("input", onEdit, true);
+    };
+  }, [open, router]);
 
   const close = () => ask(null);
   const dialog = (

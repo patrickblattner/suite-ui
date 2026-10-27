@@ -27,11 +27,27 @@ import {
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { useEscapeLayer } from "../lib/escape-layers.js";
+import { Combobox } from "./combobox.js";
 import { Dialog, DialogContent, DialogTitle } from "./dialog.js";
 import { EditPanel, type EditPanelProps } from "./edit-panel.js";
 import { Input } from "./input.js";
 import { installLeaveGuard, isDirty, LeaveGuardWindow, useLeaveGuard } from "./leave-guard.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select.js";
+
+// jsdom's events are all untrusted, as a component's own are in the browser: `asUser` marks the
+// events a test dispatches inside it as the user's. The browser's trusted path runs in the gallery.
+const trust = vi.hoisted(() => ({ user: false }));
+vi.mock("./user-event.js", () => ({
+  isUserEvent: (event: Event) => event.isTrusted || trust.user,
+}));
+function asUser(dispatch: () => void) {
+  trust.user = true;
+  try {
+    dispatch();
+  } finally {
+    trust.user = false;
+  }
+}
 
 const JSDOM = UntypedJSDOM as new (
   html: string,
@@ -623,6 +639,62 @@ describe("EditPanel leave guard: focus, keys and routes (GL-UI-007)", () => {
       await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/other"));
     },
   );
+
+  // SUI-FEATURE-112 AC2: an entry in the panel's field while its slow `onSubmit` holds a navigation
+  // click takes that click back: once the save ended no dialog, the focus and the route stay.
+  it.each(["data router", "navigator router"])(
+    "save panel (%s): an edit during a slow save drops the held navigation click silently",
+    async (kind) => {
+      const saved = deferredResult();
+      const page = <Routed open save={() => saved.promise} />;
+      if (kind === "data router") {
+        const router = createMemoryRouter(
+          [
+            { path: "/list", element: page },
+            { path: "*", element: <Where /> },
+          ],
+          { initialEntries: ["/list"] },
+        );
+        render(<RouterProvider router={router} />);
+      } else {
+        render(<MemoryRouter initialEntries={["/list"]}>{page}</MemoryRouter>);
+      }
+      fireEvent.click(screen.getByTestId("edit-panel-submit"));
+      fireEvent.click(screen.getByTestId("nav"));
+      await act(() => waitPastTraversal());
+      const name = screen.getByLabelText("Name");
+      name.focus();
+      asUser(() => fireEvent.input(name, { target: { value: "Changed" } }));
+      await settleAndWait(() => saved.settle(true));
+      await act(() => waitPastTraversal());
+      expect(screen.getByTestId("path")).toHaveTextContent("/list");
+      expect(screen.queryByTestId("leave-guard")).toBeNull();
+      expect(name).toHaveFocus();
+    },
+  );
+
+  // SUI-FEATURE-112 for every held way: the panel's Back during its own slow `onSubmit` waits for
+  // the result (SUI-FEATURE-171); an entry in a field meanwhile drops that step.
+  it.each([
+    ["without an edit", false, 1],
+    ["with an edit", true, 0],
+  ])("save panel: Back during a slow save, %s", async (_name, typing, steps) => {
+    const saved = deferredResult();
+    const onBack = vi.fn();
+    render(<ListWithPanel open save={() => saved.promise} onBack={onBack} />);
+    openRow();
+    fireEvent.click(screen.getByTestId("edit-panel-submit"));
+    fireEvent.click(screen.getByTestId("edit-panel-back"));
+    expect(onBack).not.toHaveBeenCalled();
+    if (typing)
+      asUser(() =>
+        fireEvent.input(screen.getByLabelText("Name"), { target: { value: "Changed" } }),
+      );
+    await settleAndWait(() => saved.settle(true));
+    await act(() => waitPastTraversal());
+    expect(onBack).toHaveBeenCalledTimes(steps);
+    expect(screen.queryByTestId("leave-guard")).toBeNull();
+  });
 
   // SUI-FEATURE-150 AC1 for `submitKind="save"`: Save in the dialog works until the save settles; no
   // way out of the panel closes the dialog meanwhile, and `Enter` does not save twice.
@@ -2069,6 +2141,136 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
       },
     );
 
+    // SUI-FEATURE-112 AC1: typing after the way was held takes it back; once the save ended the page
+    // stays, without a dialog, the focus where it was.
+    const typeOn = (value: string) => {
+      const name = screen.getByLabelText("Name");
+      name.focus();
+      asUser(() => fireEvent.input(name, { target: { value } }));
+      return name;
+    };
+    it.each([
+      ...WAYS,
+      ["Other", () => fireEvent.click(screen.getByTestId("other")), "/elsewhere"] as const,
+    ])("%s is dropped silently by an edit during the save", async (_name, way) => {
+      renderSaving(way);
+      await pause();
+      const name = typeOn("Changed again");
+      fireEvent.click(screen.getByTestId("ok"));
+      await pause();
+      expect(screen.getByTestId("path")).toHaveTextContent("/detail/2");
+      expect(screen.queryByTestId("leave-guard")).toBeNull();
+      expect(name).toHaveFocus();
+      expect(name).toHaveValue("Changed again");
+    });
+
+    // SUI-FEATURE-112 AC4: a text field fires `change` on blur, for input made before the hold:
+    // no edit during the hold, so the way still goes.
+    it("a blur's change after the hold is no edit: the held Back still lands", async () => {
+      renderSaving(() => {
+        screen.getByLabelText("Name").focus();
+        fireEvent.click(screen.getByTestId("back"));
+      });
+      await pause();
+      const name = screen.getByLabelText("Name");
+      fireEvent.change(name, { target: { value: "Changed" } });
+      fireEvent.blur(name);
+      fireEvent.click(screen.getByTestId("ok"));
+      await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/list"));
+      expect(screen.queryByTestId("leave-guard")).toBeNull();
+    });
+
+    // A value the save's result sets fires an untrusted `input` (the combobox's hidden input, as a
+    // Radix bubble select or slider does): no edit by the user, so the held Back still goes.
+    it("a combobox value set by the save's result is no edit: the held Back still lands", async () => {
+      const OPTIONS = [
+        { value: "a", label: "Alpha" },
+        { value: "b", label: "Beta" },
+      ];
+      function KindPage() {
+        const navigate = useNavigate();
+        const [kind, setKind] = useState("a");
+        const [busy, setBusy] = useState(false);
+        const { guard, dialog } = useLeaveGuard({
+          dirty: false,
+          busy,
+          onLeave: () => void navigate("/list"),
+        });
+        return (
+          <>
+            <Combobox
+              aria-label="Kind"
+              name="kind"
+              options={OPTIONS}
+              value={kind}
+              onValueChange={setKind}
+            />
+            <button type="button" data-testid="save" onClick={() => setBusy(true)} />
+            <button
+              type="button"
+              data-testid="ok"
+              onClick={() => {
+                setKind("b");
+                setBusy(false);
+              }}
+            />
+            <button
+              type="button"
+              data-testid="back"
+              onClick={() => guard(() => void navigate("/list"))}
+            />
+            {dialog}
+          </>
+        );
+      }
+      const heard = vi.fn();
+      document.addEventListener("input", heard, true);
+      try {
+        render(
+          <MemoryRouter initialEntries={["/detail/2"]}>
+            <Where />
+            <Routes>
+              <Route path="/detail/2" element={<KindPage />} />
+              <Route path="*" element={null} />
+            </Routes>
+          </MemoryRouter>,
+        );
+        fireEvent.click(screen.getByTestId("save"));
+        fireEvent.click(screen.getByTestId("back"));
+        await pause();
+        expect(screen.getByTestId("path")).toHaveTextContent("/detail/2");
+        fireEvent.click(screen.getByTestId("ok"));
+        await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/list"));
+        // The combobox did announce its new value while the Back was held.
+        expect(heard).toHaveBeenCalled();
+        expect(screen.queryByTestId("leave-guard")).toBeNull();
+      } finally {
+        document.removeEventListener("input", heard, true);
+      }
+    });
+
+    // SUI-FEATURE-112 AC3: the latest way wins; after an edit, it asks first as the page is then.
+    it("a second way out during the save replaces Back and lands at its target", async () => {
+      renderSaving(() => fireEvent.click(screen.getByTestId("back")));
+      await pause();
+      fireEvent.click(screen.getByTestId("other"));
+      await pause();
+      fireEvent.click(screen.getByTestId("ok"));
+      await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/elsewhere"));
+      expect(screen.queryByTestId("leave-guard")).toBeNull();
+    });
+
+    it("a way out after an edit during the save is held, and asks first once the save ended", async () => {
+      renderSaving(() => fireEvent.click(screen.getByTestId("back")));
+      await pause();
+      typeOn("Changed again");
+      fireEvent.click(screen.getByTestId("other"));
+      await pause();
+      fireEvent.click(screen.getByTestId("ok"));
+      fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+      await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/elsewhere"));
+    });
+
     it.each(WAYS)("%s is dropped after saveFailed; the error stays", async (_name, way) => {
       renderSaving(way);
       await pause();
@@ -2111,6 +2313,20 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
         await waitFor(() => expect(screen.queryByLabelText("Name")).toBeNull());
         expect(router.state.location.pathname).toBe("/list");
         expect(screen.queryByTestId("leave-guard")).toBeNull();
+      });
+
+      // SUI-FEATURE-112 AC1 under a data router: the dropped way leaves no blocked state.
+      it.each(["back", "other"])("an edit drops the held %s silently", async (testId) => {
+        const router = renderRouted();
+        fireEvent.click(screen.getByTestId(testId));
+        await pause();
+        const name = typeOn("Changed again");
+        fireEvent.click(screen.getByTestId("ok"));
+        await pause();
+        expect(router.state.location.pathname).toBe("/detail/2");
+        expect(blocked(router)).not.toContain("blocked");
+        expect(screen.queryByTestId("leave-guard")).toBeNull();
+        expect(name).toHaveFocus();
       });
 
       it("a held route change Back replaced leaves no blocked state after saveFailed", async () => {
@@ -2494,16 +2710,19 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
   function SpyPage({
     onDiscard,
     label = "Name",
+    changed = false,
     children,
   }: {
     onDiscard: (name: string) => void;
     label?: string;
+    // Changed without an edit on the page (a value set from outside).
+    changed?: boolean;
     children?: ReactNode;
   }) {
     const navigate = useNavigate();
     const [name, setName] = useState("Main");
     const { guard, dialog } = useLeaveGuard({
-      dirty: isDirty("Main", name),
+      dirty: changed || isDirty("Main", name),
       onLeave: () => void navigate("/list"),
       onSave: () => true,
       onDiscard: () => {
@@ -2598,13 +2817,10 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
       await pause();
       expect(onDiscard).not.toHaveBeenCalled();
       expect(screen.getByLabelText("Name")).toHaveValue("Changed");
-      // SUI-FEATURE-172: input during the wait falls under that Discard; no second question.
-      fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Again" } });
       await settleAndWait(settle);
       await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/elsewhere"));
       expect(onDiscard).toHaveBeenCalledTimes(1);
-      // The reset is read when it runs: it sees the input made during the wait.
-      expect(onDiscard).toHaveBeenCalledWith("Again");
+      expect(onDiscard).toHaveBeenCalledWith("Changed");
       expect(screen.queryByTestId("leave-guard")).toBeNull();
     },
   );
@@ -2676,9 +2892,9 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
     expect(onDiscard).toHaveBeenCalledTimes(1);
   });
 
-  // A restarted change that a second guard, changed during the wait, blocks again: that guard asks,
-  // and both resets run once the change goes.
-  it("#287: a restarted change a second guard blocks again resets both drafts once", async () => {
+  // SUI-FEATURE-172 rev 5 AC5, SUI-FEATURE-112: an edit in a second guard during the wait takes the
+  // change back with its deferred Discard: the page stays, no reset runs, every input stays.
+  it("#287: an edit in a second guard during the wait drops the change and its Discard", async () => {
     const { action, settle } = submission(() => null);
     const first = vi.fn();
     const second = vi.fn();
@@ -2694,12 +2910,15 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
     fireEvent.click(screen.getAllByTestId("go")[0]!);
     fireEvent.click(await screen.findByTestId("leave-guard-discard"));
     await waitFor(() => expect(screen.queryByTestId("leave-guard")).toBeNull());
-    fireEvent.change(screen.getByLabelText("Other"), { target: { value: "Changed" } });
+    asUser(() => fireEvent.input(screen.getByLabelText("Other"), { target: { value: "Changed" } }));
     await settleAndWait(settle);
-    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
-    await waitFor(() => expect(router.state.location.pathname).toBe("/elsewhere"));
-    expect(first).toHaveBeenCalledTimes(1);
-    expect(second).toHaveBeenCalledTimes(1);
+    await pause();
+    expect(router.state.location.pathname).toBe("/detail");
+    expect(screen.queryByTestId("leave-guard")).toBeNull();
+    expect(first).not.toHaveBeenCalled();
+    expect(second).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Name")).toHaveValue("Changed");
+    expect(screen.getByLabelText("Other")).toHaveValue("Changed");
   });
 
   // Nested guards without a submission: the Discard of the guard asked first resets at once, also
@@ -2921,24 +3140,29 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
   });
 
   // Review #301 (code M1): a third change that displaces the second while its question is still open
-  // takes the page's Discard on, as the second did: only the other guard is asked.
+  // takes the page's Discard on, as the second did: only the other guard is asked. The other guard
+  // turns changed without an edit on the surface, which would take the waiting change back
+  // (SUI-FEATURE-112).
   it("#302: a change displacing an unanswered replacement keeps the Discards it took over", async () => {
     const { action, settle } = submission(() => null);
     const first = vi.fn();
     const second = vi.fn();
-    const router = submittingRouter(action, {
-      page: (
+    function Page() {
+      const [changed, setChanged] = useState(false);
+      return (
         <SpyPage onDiscard={first}>
-          <SpyPage onDiscard={second} label="Other" />
+          <SpyPage onDiscard={second} label="Other" changed={changed} />
+          <button type="button" data-testid="change-other" onClick={() => setChanged(true)} />
         </SpyPage>
-      ),
-    });
+      );
+    }
+    const router = submittingRouter(action, { page: <Page /> });
     await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
     edit();
     fireEvent.click(screen.getAllByTestId("go")[0]!);
     fireEvent.click(await screen.findByTestId("leave-guard-discard"));
     await waitFor(() => expect(screen.queryByTestId("leave-guard")).toBeNull());
-    fireEvent.change(screen.getByLabelText("Other"), { target: { value: "Changed" } });
+    fireEvent.click(screen.getByTestId("change-other"));
     act(() => {
       void router.navigate("/b");
     });
@@ -3068,6 +3292,34 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
     await settleAndWait(loaded.settle);
     await waitFor(() => expect(router.state.location.pathname).toBe("/elsewhere"));
   });
+
+  // SUI-FEATURE-112 AC2: an entry in a field while a route change waits for the router's submission
+  // takes it back: once the submission succeeded no dialog, the focus and the route stay, and a
+  // confirmed Discard never resets the draft.
+  it.each(["clean", "discarded"])(
+    "AC2 (SUI-FEATURE-112): an edit drops a route change waiting for a submission (%s)",
+    async (start) => {
+      const { action, settle } = submission();
+      const onDiscard = vi.fn();
+      const router = submittingRouter(action, { page: <SpyPage onDiscard={onDiscard} /> });
+      await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+      if (start === "discarded") edit();
+      fireEvent.click(screen.getByTestId("go"));
+      if (start === "discarded") fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+      await pause();
+      const name = screen.getByLabelText("Name");
+      name.focus();
+      asUser(() => fireEvent.input(name, { target: { value: "Changed again" } }));
+      await settleAndWait(settle);
+      await pause();
+      expect(router.state.navigation.state).toBe("idle");
+      expect(router.state.location.pathname).toBe("/detail");
+      expect(screen.queryByTestId("leave-guard")).toBeNull();
+      expect(name).toHaveFocus();
+      expect(name).toHaveValue("Changed again");
+      expect(onDiscard).not.toHaveBeenCalled();
+    },
+  );
 
   // SUI-FEATURE-150: a page busy with its own submission holds a navigation click without asking;
   // the click goes on once the submission succeeded, through the page's guard as it is then.
@@ -5356,14 +5608,19 @@ describe("a page's own Save under a data router (SUI-FEATURE-170)", () => {
       expect(asks()).toBe(false);
     });
 
-    it("asks once the Save succeeded when the page changed meanwhile", async () => {
+    // SUI-FEATURE-170 rev 6 AC5, SUI-FEATURE-112: a change during the Save takes the way back.
+    it("stays without a dialog once the Save succeeded when the page changed meanwhile", async () => {
       const { router, settle } = await savingThenGo(save);
-      fireEvent.change(screen.getByLabelText("Name"), { target: { value: "Again" } });
+      const name = screen.getByLabelText("Name");
+      name.focus();
+      asUser(() => fireEvent.input(name, { target: { value: "Again" } }));
       await settleAndWait(settle);
-      expect(
-        within(await screen.findByTestId("leave-guard")).getByRole("heading"),
-      ).toHaveTextContent("Save changes?");
-      expect(router.state.location.pathname).toBe("/detail");
+      await pause();
+      expect({ asks: asks(), at: router.state.location.pathname }).toEqual({
+        asks: false,
+        at: "/detail",
+      });
+      expect(name).toHaveFocus();
     });
 
     it("stays with the error when the Save failed", async () => {
