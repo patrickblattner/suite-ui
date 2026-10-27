@@ -480,10 +480,10 @@ function inTile(
   };
 }
 
-// The area a tile is visible in (`SUI-FEATURE-115` rev 3, #615): the viewport, cut by every clipping
+// The area a tile is visible in (`SUI-FEATURE-115` rev 5, #615, #621): the viewport, cut by every clipping
 // ancestor (`overflow` other than `visible`; the root's and the body's clip the viewport itself), less
-// each fixed or sticky app part (a header, a toolbar) that lies over the tile or its column, so the
-// bubble never covers it. Such a part is cut away on the side that leaves the most of the area around the text.
+// each fixed or sticky app part (a header, a toolbar, a footer) that overlaps the tile's column, so the
+// bubble never covers it. Such a part cuts the area only vertically, above or below the text.
 // A clip is the ancestor's padding box: its borders and scrollbars are not visible area. The parts
 // are found by the hit test at points over the tile's column, the topmost element there lifted
 // to its fixed or sticky ancestor, so only a part on top of the tile counts and the page is not walked;
@@ -568,33 +568,10 @@ function visibleArea(tile: Element, own: DOMRect, bubble: Element | null): Area 
     const top = Math.max(rect.top, area.top);
     const bottom = Math.min(rect.bottom, area.bottom);
     if (left >= right || top >= bottom) continue;
-    // A part only in the column, above or below the tile, bounds the bubble's growth there: it cuts
-    // the area at its own edge, never the tile's sides (#615).
-    if (rect.bottom <= box.top) {
-      area.top = Math.max(area.top, rect.bottom);
-      continue;
-    }
-    if (rect.top >= box.bottom) {
-      area.bottom = Math.min(area.bottom, rect.top);
-      continue;
-    }
-    const rests: Area[] = [
-      { ...area, bottom: Math.min(area.bottom, rect.top) },
-      { ...area, top: Math.max(area.top, rect.bottom) },
-      { ...area, right: Math.min(area.right, rect.left) },
-      { ...area, left: Math.max(area.left, rect.right) },
-    ];
-    const size = (rest: Area) =>
-      Math.max(0, rest.right - rest.left) * Math.max(0, rest.bottom - rest.top);
-    const around = rests.filter(
-      (rest) =>
-        middle.x >= rest.left &&
-        middle.x <= rest.right &&
-        middle.y >= rest.top &&
-        middle.y <= rest.bottom,
-    );
-    const best = (around.length > 0 ? around : rests).reduce((a, b) => (size(b) > size(a) ? b : a));
-    Object.assign(area, best);
+    // A part in the column, over the tile or only above or below it, cuts the area only vertically,
+    // never at the sides (rev 5, #621): one above the name at its bottom edge, one below at its top.
+    if ((rect.top + rect.bottom) / 2 <= middle.y) area.top = Math.max(area.top, rect.bottom);
+    else area.bottom = Math.min(area.bottom, rect.top);
   }
   return area;
 }

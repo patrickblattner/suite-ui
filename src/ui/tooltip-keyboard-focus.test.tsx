@@ -1107,6 +1107,58 @@ describe("keyboard bubble placement", () => {
     expect(scrolls).toEqual([]);
   });
 
+  // SUI-FEATURE-115 rev 5 AC 9 (#621): a sticky header ending 10 px over the tile's top edge, covering
+  // none of it, still bounds the area: no room above the name up to it, so 4 px under the name.
+  it("a sticky app header just above a tile keeps the bubble off it", async () => {
+    const header = (tiles: React.ReactNode) => (
+      <div>
+        <header data-testid="header" style={{ position: "sticky", top: 0 }} />
+        {tiles}
+      </div>
+    );
+    const boxes: Record<string, [number, number, number, number]> = {
+      header: [0, 0, 1000, 56],
+      before: [0, 66, 200, 60],
+      tile: [216, 66, 200, 60],
+      after: [432, 66, 200, 60],
+      name: [228, 90, 176, 20],
+    };
+    for (const open of opens) {
+      expect(await placedInTile(80, boxes, open, header)).toEqual({
+        side: "bottom",
+        width: "184px",
+        x: 224,
+        y: 114,
+      });
+    }
+  });
+
+  // SUI-FEATURE-115 rev 5 AC 4 (#621): a fixed footer below a wholly visible tile in its column cuts the
+  // area only at its top edge: the bubble stands over the name as without it.
+  it("a fixed app footer below a visible tile leaves the bubble unchanged", async () => {
+    const footer = (tiles: React.ReactNode) => (
+      <div>
+        {tiles}
+        <footer data-testid="footer" style={{ position: "fixed", bottom: 0 }} />
+      </div>
+    );
+    const boxes: Record<string, [number, number, number, number]> = {
+      footer: [0, 744, 1000, 56],
+      before: [0, 300, 200, 60],
+      tile: [216, 300, 200, 60],
+      after: [432, 300, 200, 60],
+      name: [228, 324, 176, 20],
+    };
+    for (const open of opens) {
+      expect(await placedInTile(80, boxes, open, footer)).toEqual({
+        side: "top",
+        width: "184px",
+        x: 224,
+        y: 240,
+      });
+    }
+  });
+
   // SUI-FEATURE-115 rev 3 AC 6 (#615): a tile cut 100 px off at an inner scroll container's left edge
   // holds the bubble as at the viewport's (AC 2), measured at the container's edge.
   it("a tile bubble in an inner scroll container stands in the tile's part visible in it", async () => {

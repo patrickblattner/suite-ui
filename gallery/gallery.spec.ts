@@ -3956,6 +3956,64 @@ test("media tile: the overflow tooltip under a fixed app header never stands ove
   }
 });
 
+// `SUI-FEATURE-115` rev 5 AC 9 (#621): a header ending 10 px over the tile's top edge covers none of
+// the tile, yet bounds its visible area: with no room above the name up to it (the preview hidden,
+// so the name stands near the tile's top), the bubble stands 4 px under the name, no pixel over the
+// header. AC 4: a fixed footer below the wholly visible tile, in its column, cuts only at its top
+// edge: the bubble stands over the name as without it.
+test("media tile: a fixed app header just above or a footer below the tile keeps the bubble off it", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const grid = await mediaTiles(page);
+  const tile = grid.getByTestId("media-tile").nth(3);
+  const name = tile.locator(".truncate");
+  const preview = tile.locator("[data-slot=media-tile-preview]");
+  const bubble = page.locator("[data-slot=tooltip-content]");
+  const pin = (tag: "header" | "footer") =>
+    page.evaluate((tag) => {
+      const part = document.createElement(tag);
+      Object.assign(part.style, {
+        position: "fixed",
+        left: "0",
+        right: "0",
+        height: "56px",
+        zIndex: "40",
+        background: "white",
+      });
+      part.style.setProperty(tag === "header" ? "top" : "bottom", "0");
+      document.body.append(part);
+    }, tag);
+  const show = async (tileTop: number) => {
+    await page.mouse.move(0, 450);
+    await expect(page.getByRole("tooltip")).toHaveCount(0);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    const top = (await box(tile)).y;
+    await page.evaluate((y) => window.scrollTo(0, y), top - tileTop);
+    expect(Math.round((await box(tile)).y)).toBe(tileTop);
+    const text = await box(name);
+    await page.mouse.move(text.x + text.width - 10, text.y + text.height / 2);
+    await expect(page.getByRole("tooltip")).toBeVisible({ timeout: 5000 });
+    return { at: await box(bubble), text: await box(name) };
+  };
+  await pin("header");
+  // AC 9: the tile's top 10 px under the header's bottom edge (56).
+  await preview.evaluate((node) => ((node as HTMLElement).style.display = "none"));
+  const under = await show(66);
+  expect(under.text.y - 4 - under.at.height, "room above the name up to the header").toBeLessThan(
+    56,
+  );
+  expect(under.at.y).toBeGreaterThanOrEqual(56);
+  expect(Math.abs(under.at.y - (under.text.y + under.text.height + 4))).toBeLessThanOrEqual(1);
+  // AC 4: the preview back, the tile wholly visible between the header and the footer (top edge 844).
+  await preview.evaluate((node) => ((node as HTMLElement).style.display = ""));
+  await pin("footer");
+  const over = await show(100);
+  const whole = await box(tile);
+  expect(whole.y + whole.height).toBeLessThanOrEqual(844);
+  expect(Math.abs(over.at.y + over.at.height - (over.text.y - 4))).toBeLessThanOrEqual(1);
+});
+
 // `GL-UI-016` rev 19 §Schließen, `GL-UI-050` rev 7 (#593): a click on the bubble inside its tile
 // closes it and does not open the tile; a tile focused by the keyboard keeps the focus, never <body>.
 for (const by of ["keyboard", "pointer"]) {

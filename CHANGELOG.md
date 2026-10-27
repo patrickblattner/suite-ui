@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — #621, SUI-FEATURE-115 rev 5: a fixed or sticky part in a tile's column cuts its visible area only vertically (patch)
+
+- **Tile tooltip (#621):** every fixed or sticky app part (header, toolbar, footer) that overlaps the tile's column counts toward the tile's visible area, whether it covers the tile or lies just above or below it, and it cuts that area only vertically: the top is the bottom edge of the lowest part above the name, the bottom the top edge of the highest part below. A part that overlaps the tile no longer cuts the area at its side.
+- **Tests (#621):** unit: a sticky header ending 10 px above the tile's top (AC 9) with no room above the name — the bubble stands 4 px under the name, no pixel over the header; a fixed footer below a wholly visible tile leaves the bubble over the name (AC 4). Gallery: the same two cases on a `MediaTile` with a fixed header and footer.
+
+**Migration:** none. No call site, string, `data-testid` or baseline changes.
+
 ## Unreleased — #615, SUI-FEATURE-115 rev 4: a tile's tooltip is placed inside the tile's visible area, never over a sticky header or toolbar (patch)
 
 - **Tile tooltip (#615):** the overflow tooltip in a tile (`data-tooltip-tile`, e.g. `MediaTile`) now measures its edges against the tile's visible area instead of the viewport. That area is the viewport cut by every clipping ancestor (`overflow` other than `visible`, at its padding box, so borders and scrollbars do not count), less every fixed or sticky app part (an app header, a toolbar) on top of the tile or its column; a part only above or below the tile cuts the area there only, never at the tile's sides. Every placement — beside the text, over or under it, and the fallback at the element — stays inside that area, so the bubble never covers such a part. The parts are found with `elementsFromPoint` probes over the tile's column, not by walking the page; without a hit test (jsdom) every fixed or sticky part overlapping the column counts.
