@@ -1555,7 +1555,10 @@ describe("toast with an action: duration", () => {
 
   // Under all fake timers, shows a toast.promise's result and reports whether it is still open after
   // each of `checks` ms.
-  async function promiseResultOpen(data: Record<string, unknown>, checks: number[]) {
+  async function promiseResultOpen(
+    data: NonNullable<Parameters<typeof toast.promise<string>>[1]>,
+    checks: number[],
+  ) {
     render(<Toaster />);
     let resolve: (value: string) => void = () => undefined;
     act(() => {
@@ -1585,7 +1588,15 @@ describe("toast with an action: duration", () => {
 
   it("keeps the caller's duration on a toast.promise result with an action (#637)", async () => {
     useAllFakeTimers();
-    expect(await promiseResultOpen({ action: undo, duration: 12000 }, [11900, 12100])).toEqual([
+    expect(await promiseResultOpen({ action: undo, duration: 10000 }, [9900, 10100])).toEqual([
+      true,
+      false,
+    ]);
+  });
+
+  it("keeps 8000 ms on a toast.promise result with an action and a shorter duration (#637)", async () => {
+    useAllFakeTimers();
+    expect(await promiseResultOpen({ action: undo, duration: 3000 }, [7900, 8100])).toEqual([
       true,
       false,
     ]);

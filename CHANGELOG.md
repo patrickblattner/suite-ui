@@ -2,7 +2,7 @@
 
 ## Unreleased — #637, SUI-FEATURE-101: a toast.promise result keeps the caller's duration (patch)
 
-- **toast.promise (#637):** the result of a promise toast now takes the caller's explicit `duration`, as `toast.success` and the other routes do; with an action, `duration: 12000` lasts 12000 ms instead of 8000 ms. Without a duration the timing is unchanged: an action toast lasts at least 8000 ms, one without an action keeps sonner's.
+- **toast.promise (#637):** the result of a promise toast with an action now takes the caller's explicit `duration`, as `toast.success` with an action does: `duration: 10000` lasts 10000 ms instead of 8000 ms, and one below 8000 ms still lasts 8000 ms. Without a duration the timing is unchanged: an action toast lasts at least 8000 ms, one without an action keeps sonner's.
 
 ## 0.176.0 — #625, SUI-FEATURE-280 rev 2: an image's crop shifts along the axis its proportions overhang, at 100 % too
 
