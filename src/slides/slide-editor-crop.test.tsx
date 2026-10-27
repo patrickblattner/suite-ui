@@ -67,6 +67,13 @@ const startCrop = () => {
   fireEvent.keyDown(canvas(), { key: "Enter" });
   expect(canvas()).toHaveAttribute("data-cropping", "photo");
 };
+// The dimmed rest's image loaded at its natural size: the crop's reach follows its proportions.
+const loadRest = (natural: { width: number; height: number }) => {
+  const image = screen.getByTestId("slide-editor-crop-rest").querySelector("img")!;
+  Object.defineProperty(image, "naturalWidth", { configurable: true, value: natural.width });
+  Object.defineProperty(image, "naturalHeight", { configurable: true, value: natural.height });
+  fireEvent.load(image);
+};
 const slider = () => screen.getByRole("slider", { name: "Zoom" });
 const percent = () => screen.getByRole<HTMLInputElement>("spinbutton", { name: "Zoom (%)" });
 // Sets the zoom by the % field and leaves it for the slider.
@@ -431,6 +438,8 @@ describe("SlideEditor crop mode (SUI-FEATURE-230 rev 4)", () => {
     const state = screen.getAllByTestId("editor-state")[0]!.textContent;
     expect(undo()).toHaveAttribute("aria-disabled", "true");
     startCrop();
+    // Clamped once the image has loaded, here at the area's own proportions (`SUI-FEATURE-280`).
+    loadRest({ width: 140, height: 80 });
     expect(screen.getByTestId("slide-editor-crop-offsetX")).toHaveValue("-35");
     expect(screen.getByTestId("slide-editor-crop-offsetY")).toHaveValue("-20");
     // The whole image, 210 × 120 about the frame's centre (120, 450) shifted by −35, −20, starts at
@@ -443,5 +452,54 @@ describe("SlideEditor crop mode (SUI-FEATURE-230 rev 4)", () => {
     expect(canvas()).not.toHaveAttribute("data-cropping");
     expect(undo()).toHaveAttribute("aria-disabled", "true");
     expect(screen.getAllByTestId("editor-state")[0]).toHaveTextContent(state);
+  });
+});
+
+// SUI-FEATURE-280 AC3 (#625): an image wider than its frame shifts sideways at 100 % by drag, the x
+// field and the arrow keys; up and down it does not.
+describe("SlideEditor crop mode on the overhanging axis (SUI-FEATURE-280)", () => {
+  // A 4:1 image in the 160 × 100 frame: drawn 400 × 100, it reaches 120 px past each side.
+  const wide = { width: 1600, height: 400 };
+  const offsetX = () => screen.getByTestId<HTMLInputElement>("slide-editor-crop-offsetX");
+  const offsetY = () => screen.getByTestId<HTMLInputElement>("slide-editor-crop-offsetY");
+
+  it("shifts the image sideways at 100 % by arrow keys and the x field, not up and down", () => {
+    renderEditor();
+    startCrop();
+    loadRest(wide);
+    expect(percent()).toHaveValue("100");
+    expect(screen.getByTestId("slide-editor-crop-offsetX-range")).toHaveTextContent(
+      "From -120 to 120 px",
+    );
+    expect(screen.getByTestId("slide-editor-crop-offsetY-range")).toHaveTextContent(
+      "Zoom in to shift the image.",
+    );
+    fireEvent.keyDown(canvas(), { key: "ArrowLeft", shiftKey: true });
+    expect(offsetX()).toHaveValue("-10");
+    fireEvent.keyDown(canvas(), { key: "ArrowUp", shiftKey: true });
+    expect(offsetY()).toHaveValue("0");
+    fireEvent.change(offsetX(), { target: { value: "-500" } });
+    fireEvent.blur(offsetX(), { relatedTarget: offsetY() });
+    expect(offsetX()).toHaveValue("-120");
+    // The whole image, 400 × 100 about the frame's centre (120, 450) shifted 120 px left.
+    const rest = screen.getByTestId("slide-editor-crop-rest");
+    expect(rest.style.left).toBe(`${-200 * 0.25 + 24}px`);
+    expect(rest.style.width).toBe(`${400 * 0.25}px`);
+  });
+
+  it("shifts the image sideways at 100 % by drag, not up and down", () => {
+    renderEditor();
+    startCrop();
+    loadRest(wide);
+    const at = (x: number, y: number) => ({ clientX: x * 0.25, clientY: y * 0.25, pointerId: 1 });
+    fireEvent.pointerDown(canvas(), { ...at(120, 450), button: 0 });
+    fireEvent.pointerMove(canvas(), at(80, 480));
+    fireEvent.pointerUp(canvas(), at(80, 480));
+    expect(offsetX()).toHaveValue("-40");
+    expect(offsetY()).toHaveValue("0");
+    // Kept, the document takes the shift at zoom 1.
+    fireEvent.keyDown(canvas(), { key: "Enter" });
+    expect(canvas()).not.toHaveAttribute("data-cropping");
+    expect(screen.getAllByTestId("editor-undo")[0]).not.toHaveAttribute("aria-disabled", "true");
   });
 });

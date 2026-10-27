@@ -12,6 +12,7 @@ import {
   clampCrop,
   cropArea,
   croppedImageBox,
+  croppedImageSize,
   drawnBox,
   findElement,
   groupChain,
@@ -1110,6 +1111,42 @@ describe("image crop", () => {
     expect(turned.box.x).toBeCloseTo(-100, 6);
     expect(turned.box.y).toBeCloseTo(-20, 6);
     expect(turned.rotation).toBe(90);
+  });
+
+  // SUI-FEATURE-280 AC1, AC3, AC4 (#625): the reach comes from the drawn image, cover-filled at its own
+  // proportions, then zoomed; at 100 % the axis it overhangs shifts, the other does not.
+  it("reaches as far as the image's proportions overhang the frame, at 100 % too", () => {
+    const wide = { width: 1600, height: 800 };
+    expect(croppedImageSize(400, 400, 1, wide)).toEqual({ width: 800, height: 400 });
+    expect(clampCrop(400, 400, { zoom: 1, offsetX: -150, offsetY: 0 }, wide)).toEqual({
+      zoom: 1,
+      offsetX: -150,
+      offsetY: 0,
+    });
+    // Half the overhang: 200 px each way, and none vertically.
+    expect(clampCrop(400, 400, { zoom: 1, offsetX: -500, offsetY: 30 }, wide)).toEqual({
+      zoom: 1,
+      offsetX: -200,
+      offsetY: 0,
+    });
+    // Zoomed 1.5: 1200 × 600 in 400 × 400.
+    expect(clampCrop(400, 400, { zoom: 1.5, offsetX: 999, offsetY: -999 }, wide)).toEqual({
+      zoom: 1.5,
+      offsetX: 400,
+      offsetY: -100,
+    });
+    expect(
+      panCrop(400, 400, { zoom: 1, offsetX: 0, offsetY: 0 }, { x: -30, y: 20 }, 0, wide),
+    ).toEqual({ zoom: 1, offsetX: -30, offsetY: 0 });
+    expect(zoomCrop(400, 400, { zoom: 1, offsetX: -200, offsetY: 0 }, 2, wide).offsetX).toBe(-400);
+    // A bordered frame: the reach refers to the area inside the border, 360 × 360 at border 20.
+    expect(clampCrop(360, 360, { zoom: 1, offsetX: -500, offsetY: 0 }, wide).offsetX).toBe(-180);
+    // The whole image, its overhang included.
+    const frame = { box: { x: 0, y: 0, width: 400, height: 400 }, rotation: 0 };
+    expect(croppedImageBox(frame, { zoom: 1, offsetX: -150, offsetY: 0 }, wide)).toEqual({
+      box: { x: -350, y: 0, width: 800, height: 400 },
+      rotation: 0,
+    });
   });
 });
 
