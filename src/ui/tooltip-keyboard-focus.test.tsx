@@ -1069,6 +1069,50 @@ describe("keyboard bubble placement", () => {
     ]);
   });
 
+  // SUI-FEATURE-115 rev 8 AC 7 (#621 review): a header covering the name's whole height counts by its
+  // centre in the column, not against the name's middle: header 0–56 (centre 28) over a name at 10–30
+  // (middle 20) still counts as above, so the focus scrolls the tile 8 px clear under it. And a tile
+  // wholly above the viewport (Shift+Tab back onto it) counts the header as above as well, never below.
+  // jsdom does not scroll: the stub moves the tiles to 64 px as the scroll would.
+  it("Tab onto a tile whose name lies in the header's upper half or above it reveals it below", async () => {
+    const header = (tiles: React.ReactNode) => (
+      <div>
+        <header data-testid="header" style={{ position: "fixed", top: 0 }} />
+        {tiles}
+      </div>
+    );
+    for (const tileTop of [-14, -100]) {
+      const boxes: Record<string, [number, number, number, number]> = {
+        header: [0, 0, 1000, 56],
+        tile: [216, tileTop, 200, 60],
+        after: [432, tileTop, 200, 60],
+        name: [228, tileTop + 24, 176, 20],
+      };
+      const scrolls: { top: string; bottom: string }[] = [];
+      Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+        configurable: true,
+        value: function (this: HTMLElement) {
+          scrolls.push({ top: this.style.scrollMarginTop, bottom: this.style.scrollMarginBottom });
+          for (const key of ["tile", "after", "name"]) {
+            const box = boxes[key];
+            if (box !== undefined) box[1] += 64 - tileTop;
+          }
+        },
+      });
+      try {
+        expect(await placedInTile(80, boxes, (tile) => tabTo(tile), header)).toEqual({
+          side: "bottom",
+          width: "184px",
+          x: 224,
+          y: 112,
+        });
+      } finally {
+        Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
+      }
+      expect(scrolls).toEqual([{ top: "64px", bottom: "" }]);
+    }
+  });
+
   // SUI-FEATURE-115 AC 4 (#615 review): a fixed part only in the tile's column, below the wholly
   // visible tile (a strip, a floating action), bounds the area at its top edge only, never the tile's
   // side: the bubble stands over the name as without it, the tile's full width less 8 px a side.
@@ -1105,6 +1149,213 @@ describe("keyboard bubble placement", () => {
       Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
     }
     expect(scrolls).toEqual([]);
+  });
+
+  // SUI-FEATURE-115 rev 5 AC 9 (#621): a sticky header ending 10 px over the tile's top edge, covering
+  // none of it, still bounds the area: no room above the name up to it, so 4 px under the name.
+  it("a sticky app header just above a tile keeps the bubble off it", async () => {
+    const header = (tiles: React.ReactNode) => (
+      <div>
+        <header data-testid="header" style={{ position: "sticky", top: 0 }} />
+        {tiles}
+      </div>
+    );
+    const boxes: Record<string, [number, number, number, number]> = {
+      header: [0, 0, 1000, 56],
+      before: [0, 66, 200, 60],
+      tile: [216, 66, 200, 60],
+      after: [432, 66, 200, 60],
+      name: [228, 90, 176, 20],
+    };
+    for (const open of opens) {
+      expect(await placedInTile(80, boxes, open, header)).toEqual({
+        side: "bottom",
+        width: "184px",
+        x: 224,
+        y: 114,
+      });
+    }
+  });
+
+  // SUI-FEATURE-115 rev 5 (#621 review): a narrow fixed part over the tile's rows above the name cuts
+  // the area only at its bottom edge, never at its side: no room above the name, so 4 px under it,
+  // the tile's full width less 8 px a side.
+  it("a narrow fixed part over a tile above the name cuts the area only vertically", async () => {
+    const part = (tiles: React.ReactNode) => (
+      <div>
+        <div data-testid="part" style={{ position: "fixed" }} />
+        {tiles}
+      </div>
+    );
+    const boxes: Record<string, [number, number, number, number]> = {
+      part: [216, 200, 60, 140],
+      before: [0, 300, 200, 60],
+      tile: [216, 300, 200, 60],
+      after: [432, 300, 200, 60],
+      name: [228, 324, 176, 20],
+    };
+    for (const open of opens) {
+      expect(await placedInTile(80, boxes, open, part)).toEqual({
+        side: "bottom",
+        width: "184px",
+        x: 224,
+        y: 348,
+      });
+    }
+  });
+
+  // SUI-FEATURE-115 rev 8 AC 10 (#621): a sticky bar over the name's whole width cutting its line partly
+  // counts by its centre, above the name's vertical middle as a part above, on or below it as one
+  // below; the bubble never over it.
+  it("a sticky bar cutting the name's line counts as above or below by its centre", async () => {
+    const bar = (tiles: React.ReactNode) => (
+      <div>
+        <div data-testid="bar" style={{ position: "sticky", top: 0 }} />
+        {tiles}
+      </div>
+    );
+    const boxes = (
+      top: number,
+      height: number,
+    ): Record<string, [number, number, number, number]> => ({
+      bar: [0, top, 1000, height],
+      before: [0, 300, 200, 60],
+      tile: [216, 300, 200, 60],
+      after: [432, 300, 200, 60],
+      name: [228, 324, 176, 20],
+    });
+    for (const open of opens) {
+      // Centre 323 above the name's middle 334: the area's top is the bar's bottom, 336, so no room
+      // above the name; 4 px under it.
+      expect(await placedInTile(80, boxes(310, 26), open, bar)).toEqual({
+        side: "bottom",
+        width: "184px",
+        x: 224,
+        y: 348,
+      });
+      // Centre 345 below it: the area's bottom is the bar's top, 330; the bubble over the name as
+      // without the bar, not hidden as it would be for a bar counted above.
+      expect(await placedInTile(80, boxes(330, 30), open, bar)).toEqual({
+        side: "top",
+        width: "184px",
+        x: 224,
+        y: 240,
+      });
+      // Centre 334 exactly on it counts as below: the area's bottom is 328, the bubble over the name;
+      // counted above, the area's top would be 340 and the bubble under the name.
+      expect(await placedInTile(80, boxes(328, 12), open, bar)).toEqual({
+        side: "top",
+        width: "184px",
+        x: 224,
+        y: 240,
+      });
+    }
+  });
+
+  // SUI-FEATURE-115 rev 8 AC 11 (#621): a fixed part over part of the name's width cuts no area, so the
+  // name is not hidden; the bubble stands on the side free of it, over the name first.
+  it("a fixed part over part of the name's width keeps the bubble off it, cutting no area", async () => {
+    const part = (tiles: React.ReactNode) => (
+      <div>
+        <div data-testid="part" style={{ position: "fixed" }} />
+        {tiles}
+      </div>
+    );
+    const boxes = (
+      top: number,
+      height: number,
+    ): Record<string, [number, number, number, number]> => ({
+      part: [340, top, 60, height],
+      before: [0, 300, 200, 60],
+      tile: [216, 300, 200, 60],
+      after: [432, 300, 200, 60],
+      name: [228, 324, 176, 20],
+    });
+    for (const open of opens) {
+      // x 340–400, y 300–346: over the name's place, so 4 px under the name, no pixel over the part.
+      expect(await placedInTile(80, boxes(300, 46), open, part)).toEqual({
+        side: "bottom",
+        width: "184px",
+        x: 224,
+        y: 348,
+      });
+      // y 200–500, over both sides: the name is still not hidden (it would be, counted as a part
+      // below), the bubble falls back to the place at the element, right of the name.
+      expect(await placedInTile(80, boxes(200, 300), open, part)).toEqual({
+        side: "right",
+        width: "",
+        x: 412,
+        y: 320,
+      });
+    }
+  });
+
+  // SUI-FEATURE-115 rev 8 AC 11 (#621 review): with a hit test, as in a browser, the part at x 340–400
+  // stands off the name's and the column's centres; the sampled columns still find it.
+  it("the hit test finds a part over part of the name's width off the column's centre", async () => {
+    const part = (tiles: React.ReactNode) => (
+      <div>
+        <div data-testid="part" style={{ position: "fixed" }} />
+        {tiles}
+      </div>
+    );
+    const boxes: Record<string, [number, number, number, number]> = {
+      part: [340, 300, 60, 46],
+      before: [0, 300, 200, 60],
+      tile: [216, 300, 200, 60],
+      after: [432, 300, 200, 60],
+      name: [228, 324, 176, 20],
+    };
+    // The topmost element at a point: the fixed part over the tiles, else the innermost tile node.
+    const order = ["part", "name", "before", "tile", "after"];
+    Object.defineProperty(document, "elementsFromPoint", {
+      configurable: true,
+      value: (x: number, y: number) =>
+        order
+          .filter((key) => {
+            const [left, top, width, height] = boxes[key] ?? [0, 0, 0, 0];
+            return x >= left && x < left + width && y >= top && y < top + height;
+          })
+          .map((key) => screen.getByTestId(key)),
+    });
+    try {
+      for (const open of opens) {
+        expect(await placedInTile(80, boxes, open, part)).toEqual({
+          side: "bottom",
+          width: "184px",
+          x: 224,
+          y: 348,
+        });
+      }
+    } finally {
+      Reflect.deleteProperty(document, "elementsFromPoint");
+    }
+  });
+
+  // SUI-FEATURE-115 rev 5 AC 4 (#621): a fixed footer below a wholly visible tile in its column cuts the
+  // area only at its top edge: the bubble stands over the name as without it.
+  it("a fixed app footer below a visible tile leaves the bubble unchanged", async () => {
+    const footer = (tiles: React.ReactNode) => (
+      <div>
+        {tiles}
+        <footer data-testid="footer" style={{ position: "fixed", bottom: 0 }} />
+      </div>
+    );
+    const boxes: Record<string, [number, number, number, number]> = {
+      footer: [0, 744, 1000, 56],
+      before: [0, 300, 200, 60],
+      tile: [216, 300, 200, 60],
+      after: [432, 300, 200, 60],
+      name: [228, 324, 176, 20],
+    };
+    for (const open of opens) {
+      expect(await placedInTile(80, boxes, open, footer)).toEqual({
+        side: "top",
+        width: "184px",
+        x: 224,
+        y: 240,
+      });
+    }
   });
 
   // SUI-FEATURE-115 rev 3 AC 6 (#615): a tile cut 100 px off at an inner scroll container's left edge

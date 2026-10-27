@@ -4247,6 +4247,154 @@ test("media tile: the overflow tooltip under a fixed app header never stands ove
   }
 });
 
+// `SUI-FEATURE-115` rev 5 AC 9 (#621): a header ending 10 px over the tile's top edge covers none of
+// the tile, yet bounds its visible area: with no room above the name up to it (the preview hidden,
+// so the name stands near the tile's top), the bubble stands 4 px under the name, no pixel over the
+// header. AC 4: a fixed footer below the wholly visible tile, in its column, cuts only at its top
+// edge: the bubble stands over the name as without it.
+test("media tile: a fixed app header just above or a footer below the tile keeps the bubble off it", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const grid = await mediaTiles(page);
+  const tile = grid.getByTestId("media-tile").nth(3);
+  const name = tile.locator(".truncate");
+  const preview = tile.locator("[data-slot=media-tile-preview]");
+  const bubble = page.locator("[data-slot=tooltip-content]");
+  const pin = (tag: "header" | "footer") =>
+    page.evaluate((tag) => {
+      const part = document.createElement(tag);
+      Object.assign(part.style, {
+        position: "fixed",
+        left: "0",
+        right: "0",
+        height: "56px",
+        zIndex: "40",
+        background: "white",
+      });
+      part.style.setProperty(tag === "header" ? "top" : "bottom", "0");
+      document.body.append(part);
+    }, tag);
+  const show = async (tileTop: number) => {
+    await page.mouse.move(0, 450);
+    await expect(page.getByRole("tooltip")).toHaveCount(0);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    const top = (await box(tile)).y;
+    await page.evaluate((y) => window.scrollTo(0, y), top - tileTop);
+    expect(Math.round((await box(tile)).y)).toBe(tileTop);
+    const text = await box(name);
+    await page.mouse.move(text.x + text.width - 10, text.y + text.height / 2);
+    await expect(page.getByRole("tooltip")).toBeVisible({ timeout: 5000 });
+    return { at: await box(bubble), text: await box(name) };
+  };
+  await pin("header");
+  // AC 9: the tile's top 10 px under the header's bottom edge (56).
+  await preview.evaluate((node) => ((node as HTMLElement).style.display = "none"));
+  const under = await show(66);
+  expect(under.text.y - 4 - under.at.height, "room above the name up to the header").toBeLessThan(
+    56,
+  );
+  expect(under.at.y).toBeGreaterThanOrEqual(56);
+  expect(Math.abs(under.at.y - (under.text.y + under.text.height + 4))).toBeLessThanOrEqual(1);
+  // AC 4: the preview back, the tile wholly visible between the header and the footer (top edge 844).
+  await preview.evaluate((node) => ((node as HTMLElement).style.display = ""));
+  await pin("footer");
+  const over = await show(100);
+  const whole = await box(tile);
+  expect(whole.y + whole.height).toBeLessThanOrEqual(844);
+  expect(Math.abs(over.at.y + over.at.height - (over.text.y - 4))).toBeLessThanOrEqual(1);
+});
+
+// `SUI-FEATURE-115` rev 8 AC 10 (#621): a fixed bar over the name's whole width cutting only the top or
+// only the bottom of the name's line counts by its centre against the name's middle, as a part above
+// or below; the bubble never stands over it. Hovered on the name's uncovered part.
+test("media tile: a fixed bar cutting the name's line keeps the bubble off it", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const grid = await mediaTiles(page);
+  const tile = grid.getByTestId("media-tile").nth(3);
+  const name = tile.locator(".truncate");
+  const bubble = page.locator("[data-slot=tooltip-content]");
+  await page.evaluate((y) => window.scrollTo(0, y), (await box(tile)).y - 300);
+  const text = await box(name);
+  for (const above of [true, false]) {
+    await page.mouse.move(0, 880);
+    await expect(page.getByRole("tooltip")).toHaveCount(0);
+    // Above: from 20 px over the name down through its top third; below: its bottom third and 20 px on.
+    const top = above ? text.y - 20 : text.y + (text.height * 2) / 3;
+    const bottom = above ? text.y + text.height / 3 : text.y + text.height + 20;
+    await page.evaluate(
+      ({ top, height }) => {
+        document.querySelector("[data-testid=gallery-bar]")?.remove();
+        const bar = document.createElement("div");
+        bar.dataset.testid = "gallery-bar";
+        Object.assign(bar.style, {
+          position: "fixed",
+          left: "0",
+          right: "0",
+          top: `${top}px`,
+          height: `${height}px`,
+          zIndex: "40",
+          background: "white",
+        });
+        document.body.append(bar);
+      },
+      { top, height: bottom - top },
+    );
+    await page.mouse.move(text.x + text.width - 10, above ? text.y + text.height - 2 : text.y + 2);
+    await expect(page.getByRole("tooltip")).toBeVisible({ timeout: 5000 });
+    const at = await box(bubble);
+    if (above)
+      expect(at.y, "under the bar and the name").toBeGreaterThanOrEqual(text.y + text.height);
+    else expect(at.y + at.height, "over the bar and the name").toBeLessThanOrEqual(text.y);
+  }
+});
+
+// `SUI-FEATURE-115` rev 8 AC 11 (#621): a fixed chip over 64–98 % of the name's width, from 24 px above
+// the name to 2 px under it, off the column's sampled centre, cuts no area: the name keeps its bubble,
+// which stands under the name and never over the chip. Hovered on the name's uncovered part.
+test("media tile: a fixed chip over part of the name's width keeps the bubble off it", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const grid = await mediaTiles(page);
+  const tile = grid.getByTestId("media-tile").nth(3);
+  const name = tile.locator(".truncate");
+  const bubble = page.locator("[data-slot=tooltip-content]");
+  await page.evaluate((y) => window.scrollTo(0, y), (await box(tile)).y - 300);
+  const text = await box(name);
+  const chip = {
+    x: text.x + text.width * 0.64,
+    y: text.y - 24,
+    width: text.width * 0.34,
+    height: text.height + 26,
+  };
+  await page.evaluate((chip) => {
+    const part = document.createElement("div");
+    Object.assign(part.style, {
+      position: "fixed",
+      left: `${chip.x}px`,
+      top: `${chip.y}px`,
+      width: `${chip.width}px`,
+      height: `${chip.height}px`,
+      zIndex: "40",
+      background: "white",
+    });
+    document.body.append(part);
+  }, chip);
+  await page.mouse.move(text.x + 10, text.y + text.height / 2);
+  await expect(page.getByRole("tooltip")).toBeVisible({ timeout: 5000 });
+  const at = await box(bubble);
+  const over =
+    at.x < chip.x + chip.width &&
+    at.x + at.width > chip.x &&
+    at.y < chip.y + chip.height &&
+    at.y + at.height > chip.y;
+  expect(over, "the bubble over the chip").toBe(false);
+  expect(at.y, "under the name").toBeGreaterThanOrEqual(text.y + text.height);
+});
+
 // `GL-UI-016` rev 19 §Schließen, `GL-UI-050` rev 7 (#593): a click on the bubble inside its tile
 // closes it and does not open the tile; a tile focused by the keyboard keeps the focus, never <body>.
 for (const by of ["keyboard", "pointer"]) {

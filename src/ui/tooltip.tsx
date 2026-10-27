@@ -417,9 +417,13 @@ function inTile(
   bubbleWidth: number,
   heightAt: (width: number) => number,
   padding: number,
+  blocks: readonly Area[] = [],
 ): RowPlacement {
   const left = Math.max(tile.left, area.left);
   const right = Math.min(tile.right, area.right);
+  // An app part over part of the name's width (`visibleArea`) cuts no area: the bubble only keeps off it.
+  const free = (x: number, y: number, w: number, h: number) =>
+    blocks.every((b) => b.right <= x || b.left >= x + w || b.bottom <= y || b.top >= y + h);
   // Beside the text the bubble's top stands 4 px above the text's, kept inside the area's top and
   // bottom less the padding, never over an app part there (#615).
   const topOffset = (width: number) => {
@@ -429,7 +433,13 @@ function inTile(
   const gap = SIDE_OFFSET + ARROW_SIZE;
   const roomRight = Math.floor(right - SIDE_OFFSET - own.right - gap);
   const roomLeft = Math.floor(own.left - gap - left - SIDE_OFFSET);
-  if (Math.max(roomRight, roomLeft) >= ROW_MIN_WIDTH) {
+  const beside = (right: boolean) => {
+    if (blocks.length === 0) return true;
+    const w = Math.min(bubbleWidth, right ? roomRight : roomLeft);
+    const x = right ? own.right + gap : own.left - gap - w;
+    return free(x, own.top + topOffset(w), w, heightAt(w));
+  };
+  if (Math.max(roomRight, roomLeft) >= ROW_MIN_WIDTH && beside(roomRight >= roomLeft)) {
     const right = roomRight >= roomLeft;
     const room = right ? roomRight : roomLeft;
     return {
@@ -450,8 +460,11 @@ function inTile(
   // edge reaches just under it. A text wholly outside the area shows no bubble (`hiddenIn`).
   const aboveBottom = Math.min(own.top - ALIGN_RAISE, area.bottom - padding);
   const belowTop = Math.max(own.bottom + ALIGN_RAISE, area.top + padding);
-  const above = aboveBottom - height >= area.top + padding;
-  const below = belowTop + height <= area.bottom - padding;
+  const above =
+    aboveBottom - height >= area.top + padding &&
+    free(left + SIDE_OFFSET, aboveBottom - height, width, height);
+  const below =
+    belowTop + height <= area.bottom - padding && free(left + SIDE_OFFSET, belowTop, width, height);
   if (width < ROW_MIN_WIDTH || !(above || below)) {
     const at = atElement(own, bubbleWidth, padding);
     return at !== null
@@ -480,12 +493,14 @@ function inTile(
   };
 }
 
-// The area a tile is visible in (`SUI-FEATURE-115` rev 3, #615): the viewport, cut by every clipping
+// The area a tile is visible in (`SUI-FEATURE-115` rev 8, #615, #621): the viewport, cut by every clipping
 // ancestor (`overflow` other than `visible`; the root's and the body's clip the viewport itself), less
-// each fixed or sticky app part (a header, a toolbar) that lies over the tile or its column, so the
-// bubble never covers it. Such a part is cut away on the side that leaves the most of the area around the text.
+// each fixed or sticky app part (a header, a toolbar, a footer) that overlaps the tile's column, so the
+// bubble never covers it. Such a part cuts the area only vertically, above or below the text; one over
+// part of the name's width cuts nothing and is returned as a block the bubble keeps off.
 // A clip is the ancestor's padding box: its borders and scrollbars are not visible area. The parts
-// are found by the hit test at points over the tile's column, the topmost element there lifted
+// are found by the hit test at points over the tile's column (rows at the area's, the tile's and the
+// name's edges, columns every 16 px), the topmost element there lifted
 // to its fixed or sticky ancestor, so only a part on top of the tile counts and the page is not walked;
 // without a hit test (jsdom) every fixed or sticky part overlapping the column counts. `bubble` is the
 // bubble's own popper, itself fixed, never an app part. `clipArea` is the area before the parts.
@@ -509,7 +524,11 @@ function clipArea(tile: Element): Area {
   }
   return area;
 }
-function visibleArea(tile: Element, own: DOMRect, bubble: Element | null): Area {
+function visibleArea(
+  tile: Element,
+  own: DOMRect,
+  bubble: Element | null,
+): { area: Area; blocks: Area[] } {
   const area = clipArea(tile);
   const box = tile.getBoundingClientRect();
   // The tile's column through the area: a bubble over or under its text may grow out of the tile
@@ -522,17 +541,20 @@ function visibleArea(tile: Element, own: DOMRect, bubble: Element | null): Area 
   };
   const parts = new Set<Element>();
   if (typeof document.elementsFromPoint === "function") {
-    if (seen.left >= seen.right || seen.top >= seen.bottom) return area;
-    const xs = [
-      seen.left + 1,
-      (own.left + own.right) / 2,
-      (seen.left + seen.right) / 2,
-      seen.right - 1,
-    ];
+    if (seen.left >= seen.right || seen.top >= seen.bottom) return { area, blocks: [] };
+    // Columns across the tile's column every 16 px, so a part at least that wide is found wherever it
+    // stands, on the name's line too (rev 8, AC 11), plus the name's own edges; at most 32 a row.
+    const step = Math.max(16, (seen.right - seen.left) / 32);
+    const xs = [own.left + 1, own.right - 1];
+    for (let x = seen.left + 1; x < seen.right - 1; x += step) xs.push(x);
+    xs.push(seen.right - 1);
     const ys = [
       seen.top + 1,
       Math.max(box.top, seen.top) + 1,
+      // The name's own line top to bottom, so a part cutting it only partly is found (rev 8, AC 10).
+      own.top + 1,
       (own.top + own.bottom) / 2,
+      own.bottom - 1,
       Math.min(box.bottom, seen.bottom) - 1,
       seen.bottom - 1,
     ].filter((y) => y >= seen.top && y <= seen.bottom);
@@ -560,7 +582,17 @@ function visibleArea(tile: Element, own: DOMRect, bubble: Element | null): Area 
     };
     walk(document.body);
   }
-  const middle = { x: (own.left + own.right) / 2, y: (own.top + own.bottom) / 2 };
+  // The name's part inside the clipped area; a name wholly outside it (a tile scrolled away, before
+  // the keyboard focus brings it back) has none, and every part counts by its centre in the column.
+  const clip = { ...area };
+  const name = {
+    left: Math.max(own.left, clip.left),
+    top: Math.max(own.top, clip.top),
+    right: Math.min(own.right, clip.right),
+    bottom: Math.min(own.bottom, clip.bottom),
+  };
+  const outside = name.left >= name.right || name.top >= name.bottom;
+  const blocks: Area[] = [];
   for (const part of parts) {
     const rect = part.getBoundingClientRect();
     const left = Math.max(rect.left, seen.left, area.left);
@@ -568,35 +600,25 @@ function visibleArea(tile: Element, own: DOMRect, bubble: Element | null): Area 
     const top = Math.max(rect.top, area.top);
     const bottom = Math.min(rect.bottom, area.bottom);
     if (left >= right || top >= bottom) continue;
-    // A part only in the column, above or below the tile, bounds the bubble's growth there: it cuts
-    // the area at its own edge, never the tile's sides (#615).
-    if (rect.bottom <= box.top) {
-      area.top = Math.max(area.top, rect.bottom);
+    // A part in the column cuts the area only vertically, never at the sides (rev 8, #621): one above
+    // the name at its bottom edge, one below at its top. One in the name's line over the name's whole
+    // width counts by its centre: covering the name's whole height, against the column's middle;
+    // cutting the line partly, against the name's middle, a centre on it counting as below. One over
+    // part of the name's width cuts nothing: the bubble keeps off it over or under the text (`inTile`).
+    const centre = (rect.top + rect.bottom) / 2;
+    let above: boolean;
+    if (outside) above = centre < (clip.top + clip.bottom) / 2;
+    else if (rect.bottom <= name.top || rect.top >= name.bottom) above = rect.bottom <= name.top;
+    else if (rect.left > name.left || rect.right < name.right) {
+      blocks.push({ left: rect.left, top: rect.top, right: rect.right, bottom: rect.bottom });
       continue;
-    }
-    if (rect.top >= box.bottom) {
-      area.bottom = Math.min(area.bottom, rect.top);
-      continue;
-    }
-    const rests: Area[] = [
-      { ...area, bottom: Math.min(area.bottom, rect.top) },
-      { ...area, top: Math.max(area.top, rect.bottom) },
-      { ...area, right: Math.min(area.right, rect.left) },
-      { ...area, left: Math.max(area.left, rect.right) },
-    ];
-    const size = (rest: Area) =>
-      Math.max(0, rest.right - rest.left) * Math.max(0, rest.bottom - rest.top);
-    const around = rests.filter(
-      (rest) =>
-        middle.x >= rest.left &&
-        middle.x <= rest.right &&
-        middle.y >= rest.top &&
-        middle.y <= rest.bottom,
-    );
-    const best = (around.length > 0 ? around : rests).reduce((a, b) => (size(b) > size(a) ? b : a));
-    Object.assign(area, best);
+    } else if (rect.top <= name.top && rect.bottom >= name.bottom) {
+      above = centre < (clip.top + clip.bottom) / 2;
+    } else above = centre < (name.top + name.bottom) / 2;
+    if (above) area.top = Math.max(area.top, rect.bottom);
+    else area.bottom = Math.min(area.bottom, rect.top);
   }
-  return area;
+  return { area, blocks };
 }
 
 // Whether a box lies wholly outside an area.
@@ -620,7 +642,7 @@ function hiddenIn(box: DOMRect, area: Area): boolean {
 function revealTile(holder: HTMLElement, own: Element) {
   if (!holder.matches(TOOLTIP_TILE) || typeof holder.scrollIntoView !== "function") return;
   const clip = clipArea(holder);
-  const area = visibleArea(holder, own.getBoundingClientRect(), null);
+  const { area } = visibleArea(holder, own.getBoundingClientRect(), null);
   const box = holder.getBoundingClientRect();
   if (
     box.left >= area.left &&
@@ -705,7 +727,7 @@ function useRowPlacement(content: HTMLElement | null, padding: number): RowPlace
         return height;
       };
       const own = trigger.getBoundingClientRect();
-      const area = visibleArea(
+      const { area, blocks } = visibleArea(
         tile,
         own,
         content.closest("[data-radix-popper-content-wrapper]") ?? content,
@@ -722,6 +744,7 @@ function useRowPlacement(content: HTMLElement | null, padding: number): RowPlace
         content.getBoundingClientRect().width,
         heightAt,
         padding,
+        blocks,
       );
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setPlacement(placed);
