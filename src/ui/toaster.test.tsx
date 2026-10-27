@@ -344,6 +344,15 @@ describe("Toaster: focus under a toast", () => {
     expect(item()).toHaveAttribute("data-removed", "false");
   });
 
+  it("keeps a toast sonner raises unwrapped with only a cancel past 1000 ms (#614)", async () => {
+    const item = await renderCovered({
+      focused: "covered",
+      show: () => sonnerToast("Saved", { cancel: { label: "Keep", onClick: () => undefined } }),
+    });
+    await wait(1300);
+    expect(item()).toHaveAttribute("data-removed", "false");
+  });
+
   it("closes a toast whose action sonner does not draw after 1000 ms (#561)", async () => {
     const item = await renderCovered({ focused: "covered", action: "Undo" });
     await vi.waitFor(() => expect(item()?.getAttribute("data-removed") ?? "true").toBe("true"), {
@@ -1405,6 +1414,25 @@ describe("toast with an action: duration", () => {
     expect(onAutoClose).toHaveBeenCalledTimes(1);
   });
 
+  // The wrapper's cancel would come back by sonner's merge, without its mark (#614).
+  it("gives a call right after the dismissal of a toast with only a cancel its own duration and no mark (#614)", () => {
+    render(<Toaster />);
+    useAllFakeTimers();
+    act(() => {
+      toast.success("Archived", { id: "fc", cancel: { label: "Keep", onClick: () => undefined } });
+    });
+    advance(1);
+    act(() => {
+      toast.dismiss("fc");
+      toast.message("Restored", { id: "fc" });
+    });
+    advance(1);
+    expect(toastOf("Restored")).not.toHaveClass("suite-toast-action");
+    expect(screen.queryByRole("button", { name: "Keep" })).toBeNull();
+    for (let step = 0; step < 10; step++) advance(500);
+    expect(screen.queryByText("Restored")).toBeNull();
+  });
+
   it("drops the timer of a toast toast.custom replaces by its id (#582)", () => {
     render(<Toaster />);
     useAllFakeTimers();
@@ -1822,6 +1850,145 @@ describe("toast with an action: duration", () => {
       expect(dismiss).not.toHaveBeenCalledWith("p");
     },
   );
+
+  // `SUI-FEATURE-101` rev 8 (#614): every own button but the close X counts as an action, sonner's
+  // cancel too; a toast with only a cancel is a toast with an action.
+  const keep = { label: "Keep", onClick: () => undefined };
+
+  it("gives a toast with only a cancel the action's duration, with the hint naming the cancel (#614)", () => {
+    // 2000 ms success base plus 50 ms for each of 118 words and the hint's 4 ("Alt+T, then Tab:
+    // Keep"): 8100 ms.
+    const dismiss = watchDismiss();
+    const success = vi.spyOn(sonnerToast, "success").mockReturnValue("k");
+    toast.success(Array.from({ length: 118 }, () => "word").join(" "), { cancel: keep });
+    expect(success.mock.calls[0]?.[1]?.duration).toBe(Number.POSITIVE_INFINITY);
+    vi.advanceTimersByTime(8099);
+    expect(dismiss).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(dismiss).toHaveBeenCalledWith("k");
+  });
+
+  it.each([
+    ["an object with a label", keep, "Alt+T, then Tab: Keep"],
+    [
+      "an own element",
+      <button key="own" type="button">
+        Keep
+      </button>,
+      "Alt+T, then Tab: the action",
+    ],
+  ] as const)(
+    "marks a toast with only a cancel as %s and names it in the live region (#614)",
+    (_case, cancel, hint) => {
+      render(<Toaster />);
+      useAllFakeTimers();
+      act(() => {
+        toast.success("Kept", { cancel });
+      });
+      advance(1);
+      expect(toastOf("Kept")).toHaveClass("suite-toast-action");
+      expect(within(toastOf("Kept") as HTMLElement).getByText(hint)).toBeInTheDocument();
+      // Past sonner's default and the 1000 ms over the focus: it keeps the action's 8000 ms.
+      for (let step = 0; step < 15; step++) advance(500);
+      expect(toastOf("Kept")).not.toHaveAttribute("data-removed", "true");
+      for (let step = 0; step < 4; step++) advance(500);
+      expect(screen.queryByText("Kept")).toBeNull();
+    },
+  );
+
+  it("stands still while the focus is on the cancel of a toast with only a cancel (#614)", () => {
+    render(
+      <>
+        <button type="button" data-testid="outside">
+          Outside
+        </button>
+        <Toaster />
+      </>,
+    );
+    const dismiss = watchDismiss();
+    let id: string | number = "";
+    act(() => {
+      id = toast.success("Kept", { cancel: keep });
+    });
+    advance(3000);
+    act(() => screen.getByRole("button", { name: "Keep" }).focus());
+    advance(20000);
+    expect(dismiss).not.toHaveBeenCalledWith(id);
+    act(() => screen.getByTestId("outside").focus());
+    advance(4999);
+    expect(dismiss).not.toHaveBeenCalledWith(id);
+    advance(1);
+    expect(dismiss).toHaveBeenCalledWith(id);
+  });
+
+  it("drops the mark and the timer of a toast with only a cancel on a cancel click (#614, #602)", () => {
+    render(<Toaster />);
+    useAllFakeTimers();
+    const dismiss = vi.spyOn(sonnerToast, "dismiss");
+    const set = vi.spyOn(Map.prototype, "set");
+    const cancelled = vi.fn();
+    act(() => {
+      toast.success("Kept", {
+        id: "o",
+        cancel: { label: "Keep", onClick: cancelled },
+        className: "only-cancel",
+      });
+    });
+    const index = set.mock.calls.findIndex(
+      ([key, value]) =>
+        key === "o" &&
+        typeof value === "object" &&
+        value !== null &&
+        (value as { className?: unknown }).className === "only-cancel",
+    );
+    const marks = set.mock.contexts[index] as Map<unknown, unknown>;
+    set.mockRestore();
+    expect(marks.has("o")).toBe(true);
+    advance(1);
+    fireEvent.click(screen.getByRole("button", { name: "Keep" }));
+    expect(cancelled).toHaveBeenCalledTimes(1);
+    expect(marks.has("o")).toBe(false);
+    for (let step = 0; step < 40; step++) advance(500);
+    expect(dismiss).not.toHaveBeenCalledWith("o");
+  });
+
+  // sonner merges the replacement into the toast: one that drops only the action keeps the cancel and
+  // stays a toast with an action; one that drops both returns to the path without one.
+  it("keeps a replacement that drops only the action a toast with an action, its cancel named (#614)", () => {
+    render(<Toaster />);
+    useAllFakeTimers();
+    act(() => {
+      toast.success("Archived", { id: "a", action: undo, cancel: keep });
+    });
+    advance(1);
+    act(() => {
+      toast.message("Restored", { id: "a", action: undefined });
+    });
+    advance(1);
+    expect(toastOf("Restored")).toHaveClass("suite-toast-action");
+    expect(
+      within(toastOf("Restored") as HTMLElement).getByText("Alt+T, then Tab: Keep"),
+    ).toBeInTheDocument();
+  });
+
+  it("gives a replacement that drops both action and cancel its duration and no mark (#614)", () => {
+    render(<Toaster />);
+    useAllFakeTimers();
+    act(() => {
+      toast.success("Archived", { id: "b", action: undo, cancel: keep });
+    });
+    advance(1);
+    act(() => {
+      toast.message("Restored", { id: "b", action: undefined, cancel: undefined });
+    });
+    advance(1);
+    expect(toastOf("Restored")).not.toHaveClass("suite-toast-action");
+    expect(screen.queryByRole("button", { name: "Keep" })).toBeNull();
+    expect(within(toastOf("Restored") as HTMLElement).queryByText(/Alt\+T/)).toBeNull();
+    // Sonner's default 4000 ms, well below the action floor.
+    for (let step = 0; step < 10; step++) advance(500);
+    expect(screen.queryByText("Restored")).toBeNull();
+  });
 
   // sonner raises the result of a toast.promise without a loading state by the id the wrapper hands
   // it; the caller's id replaces an earlier result instead of stacking a second one (#602).

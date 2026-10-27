@@ -90,6 +90,9 @@ const CONTENT_LANGUAGES = ["de", "en", "es"] as const;
 // and a receipt appears over the focus returned to it; its last entry is then Delete, whose receipt
 // has no action, beside Archive, whose receipt offers Undo (`SUI-FEATURE-101` rev 5).
 const RECEIPT = new URLSearchParams(window.location.search).get("receipt") === "1";
+// `&cancel=1` offers the receipt's Undo as sonner's cancel instead of its action: a toast with only a
+// cancel is a toast with an action (`SUI-FEATURE-101` rev 8 AC 10, #614).
+const CANCEL_ONLY = new URLSearchParams(window.location.search).get("cancel") === "1";
 
 // The column widths the narrow toolbar is shown at (`SUI-FEATURE-067` AC 5).
 // `max-w-full` keeps them inside a narrow viewport.
@@ -161,9 +164,8 @@ function RowWithMenu() {
   const [deleting, setDeleting] = useState(false);
   const archive = () => {
     setArchiving(false);
-    toast.success(labels.archived, {
-      action: { label: t("editor.undo"), onClick: () => toast.success(labels.restored) },
-    });
+    const undo = { label: t("editor.undo"), onClick: () => toast.success(labels.restored) };
+    toast.success(labels.archived, CANCEL_ONLY ? { cancel: undo } : { action: undo });
   };
   const actions: RowActionSet = {
     rowName: labels.entry,

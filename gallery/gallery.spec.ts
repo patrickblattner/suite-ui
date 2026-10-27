@@ -1365,6 +1365,59 @@ test("toast: the receipt with Undo over the returned focus stays, Alt+T reaches 
   }
 });
 
+// `SUI-FEATURE-101` rev 8 AC 10 (#614): the receipt offering Undo as its only cancel, over the returned
+// focus, behaves like AC 6: it stays at least 8000 ms, past the 1000 ms one without an action gets, and
+// the live region names Undo and Alt+T. Tab into its Undo keeps it open; the first keyboard move onto
+// an element under it, or `Esc`, closes it at once.
+test("toast: the receipt with only a cancel over the returned focus stays like one with an action", async ({
+  page,
+}) => {
+  // Four rounds, one of them waits out the receipt's 8000 ms.
+  test.setTimeout(60_000);
+  await page.goto("/?page=preview&lng=en&receipt=1&cancel=1");
+  const { trigger, toasts, receipt, undo, archive, reachUndo } = receiptPreview(page);
+  const hint = receipt.getByText("Alt+T, then Tab: Undo");
+  const before = page
+    .getByTestId("preview-row-menu")
+    .getByTestId("row-menu-actions")
+    .getByTestId("row-edit");
+  for (const round of ["inside", "Shift+Tab", "Escape", "time"]) {
+    await expect(toasts).toHaveCount(0, { timeout: 9000 });
+    await archive();
+    await expect(receipt).toBeVisible();
+    await expect(receipt).toHaveClass(/suite-toast-action/);
+    await expect(hint).toBeVisible();
+    await expect(undo).toHaveAttribute("data-cancel", "true");
+    // Past the 1000 ms a receipt without an action gets: this one keeps its own duration.
+    await page.waitForTimeout(1300);
+    await expect(receipt).toHaveAttribute("data-removed", "false");
+    if (round === "inside") {
+      await reachUndo();
+      await page.waitForTimeout(300);
+      await expect(receipt).toHaveAttribute("data-removed", "false");
+      await page.keyboard.press("Enter");
+      await expect(trigger).toBeFocused();
+      await expect(toasts.filter({ hasText: "Home restored." })).toBeVisible();
+      continue;
+    }
+    if (round === "Shift+Tab") {
+      await page.keyboard.press("Shift+Tab");
+      await expect(before).toBeFocused();
+    } else if (round === "time") {
+      // At least 8000 ms from its appearance, 1300 ms of them have passed; then it closes by itself.
+      await page.waitForTimeout(6200);
+      await expect(receipt).toHaveAttribute("data-removed", "false");
+      await expect(toasts).toHaveCount(0, { timeout: 2500 });
+      await expect(trigger).toBeFocused();
+      continue;
+    } else {
+      await page.keyboard.press("Escape");
+      await expect(trigger).toBeFocused();
+    }
+    await expect(toasts).toHaveCount(0, { timeout: 400 });
+  }
+});
+
 // `SUI-FEATURE-101` rev 7 (#564, #575): after Alt+T onto Undo, a press on the page's empty area puts
 // the focus on nothing, as without toasts: the ⋯ takes none, so no ring, and the receipt stays.
 // `@touch` runs it in WebKit on an iPhone too, with a touch tap: Safari focuses nothing on a press.

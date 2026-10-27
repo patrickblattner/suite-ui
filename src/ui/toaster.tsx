@@ -117,8 +117,8 @@ function actionLabel(action: ExternalToast["action"]): string | undefined {
   return typeof label === "string" ? label : undefined;
 }
 
-// A toast with an action, sonner's object form or an own element, carries this class: the
-// dismissal under the focus reads it (`SUI-FEATURE-101` rev 6, #561).
+// A toast with an action, sonner's object form or an own element, as `action` or `cancel` (rev 8,
+// #614), carries this class: the dismissal under the focus reads it (`SUI-FEATURE-101` rev 6, #561).
 const ACTION_TOAST_CLASS = "suite-toast-action";
 
 // A toast with an action stays at least this long, so its action stays reachable (`SUI-FEATURE-101`
@@ -278,15 +278,16 @@ type Prepared = {
 /**
  * Prepares a call to sonner (`SUI-FEATURE-101` rev 7). sonner merges a call that replaces a toast by
  * its id into that toast, so the toast keeps the action it shows unless the call sets `action`
- * itself; after every call it is a toast with an action exactly when it shows one (#582). Such a
- * toast gets its key hint and its mark and, unless loading (`timed` false: it stays until it is
- * replaced, as in sonner), closes after `actionToastDurationFor` by its own timer, its `Infinity`
- * keeping sonner's timer off. A call that replaces a toast drops that toast's timer; one that shows
+ * itself; after every call it is a toast with an action exactly when it shows one, its cancel
+ * counting as one (rev 8, #614; #582). Such a toast gets its key hint and its mark and, unless
+ * loading (`timed` false: it stays until it is replaced, as in sonner), closes after
+ * `actionToastDurationFor` by its own timer, its `Infinity` keeping sonner's timer off. A call that replaces a toast drops that toast's timer; one that shows
  * no action and replaces a marked toast gets the caller's own class, handlers and duration back, the
  * explicit keys, even when undefined, overriding the wrapper's that sonner's merge would hand on.
  * Without a duration sonner takes the Toaster's configured one (its default 4000 ms). A marked toast
  * whose dismissal sonner has not shown yet is no longer live, yet sonner merges a call into it all the
- * same: the call counts as a new toast, so it takes the caller's own values and sets `action` too.
+ * same: the call counts as a new toast, so it takes the caller's own values and sets `action` and
+ * `cancel` too.
  */
 function prepare(
   variant: ToastVariant | undefined,
@@ -307,7 +308,9 @@ function prepare(
   const marked = id === undefined ? undefined : marks.get(id);
   const own = live === undefined ? ownOf(opts) : { ...(marked ?? ownOf(live)), ...ownOf(opts) };
   const action = opts !== undefined && "action" in opts ? opts.action : live?.action;
-  if (!rendersAction(action)) {
+  const cancel = opts !== undefined && "cancel" in opts ? opts.cancel : live?.cancel;
+  // Every own button but the close X counts as an action, sonner's cancel too (rev 8, #614).
+  if (!rendersAction(action) && !rendersAction(cancel)) {
     if (id !== undefined) marks.delete(id);
     return {
       opts:
@@ -316,6 +319,7 @@ function prepare(
           : {
               ...opts,
               action: opts?.action,
+              cancel: opts?.cancel,
               className: own.className,
               onDismiss: own.onDismiss,
               onAutoClose: own.onAutoClose,
@@ -326,10 +330,10 @@ function prepare(
       shown: () => undefined,
     };
   }
-  const label = actionLabel(action);
+  // The hint names the action; a toast with only a cancel names its cancel.
+  const label = actionLabel(rendersAction(action) ? action : cancel);
   let shownId = id;
   const clicked = closingAction(action, () => shownId);
-  const cancel = opts !== undefined && "cancel" in opts ? opts.cancel : live?.cancel;
   const cancelled = closingAction(cancel, () => shownId, true);
   const markedOpts = {
     ...opts,
@@ -737,7 +741,7 @@ function useDismissToastsUnderFocus(toasts: React.RefObject<HTMLElement | null>)
         // The wrapper's mark, or sonner's own action button for a toast it did not wrap.
         if (
           document.querySelector(
-            `${VISIBLE_TOASTS}.${ACTION_TOAST_CLASS}, ${VISIBLE_TOASTS} [data-action]`,
+            `${VISIBLE_TOASTS}.${ACTION_TOAST_CLASS}, ${VISIBLE_TOASTS} [data-action], ${VISIBLE_TOASTS} [data-cancel]`,
           ) === null
         )
           dismissIfCovered(document.activeElement);
