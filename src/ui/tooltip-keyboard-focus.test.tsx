@@ -788,11 +788,13 @@ describe("keyboard bubble placement", () => {
 
   // A line of three tiles (`data-tooltip-tile`), the middle one the focusable holder of a clipped
   // name; boxes are [left, top, width, height] in a 1000 px viewport, the bubble 184 px wide and
-  // `height` px tall. Opens it by `open` and returns where the popper placed it.
+  // `height` px tall. Opens it by `open` and returns where the popper placed it. `frame` sets the tiles
+  // in surroundings of their own (a sticky header, a scroll container).
   async function placedInTile(
     height: number,
     boxes: Record<string, [number, number, number, number]>,
     open: (tile: HTMLElement) => void,
+    frame: (tiles: React.ReactNode) => React.ReactNode = (tiles) => tiles,
   ) {
     mockLayout(
       1000,
@@ -803,17 +805,19 @@ describe("keyboard bubble placement", () => {
       [184, height],
     );
     const view = render(
-      <div>
-        <button type="button" data-tooltip-tile="" data-testid="before" />
-        <button type="button" data-tooltip-tile="" data-testid="tile">
-          <OverflowTooltip>
-            <span className="truncate" data-testid="name">
-              {LONG}
-            </span>
-          </OverflowTooltip>
-        </button>
-        <button type="button" data-tooltip-tile="" data-testid="after" />
-      </div>,
+      frame(
+        <div>
+          <button type="button" data-tooltip-tile="" data-testid="before" />
+          <button type="button" data-tooltip-tile="" data-testid="tile">
+            <OverflowTooltip>
+              <span className="truncate" data-testid="name">
+                {LONG}
+              </span>
+            </OverflowTooltip>
+          </button>
+          <button type="button" data-tooltip-tile="" data-testid="after" />
+        </div>,
+      ),
     );
     const { content, x, y } = await opened(screen.getByTestId("tile"), open);
     const result = { side: content?.dataset.side, width: content?.style.width, x, y };
@@ -955,6 +959,191 @@ describe("keyboard bubble placement", () => {
       expect(tall.x).toBeGreaterThanOrEqual(404);
       expect(tall.y).toBeGreaterThanOrEqual(0);
       expect(tall.y + 500).toBeLessThanOrEqual(800);
+    }
+  });
+
+  // SUI-FEATURE-115 rev 3 AC 5 (#615): a sticky app header 56 px tall bounds the tile's visible area at
+  // its bottom edge. The name 14 px under it: the bubble stands 4 px under the name, no pixel over the
+  // header. The name 40 px under it, which leaves the viewport room above but not the visible area:
+  // still under the name, never over the header.
+  it("a tile bubble under a sticky app header never stands over the header", async () => {
+    const header = (tiles: React.ReactNode) => (
+      <div>
+        <header data-testid="header" style={{ position: "sticky", top: 0 }} />
+        {tiles}
+      </div>
+    );
+    const at = (nameTop: number): Record<string, [number, number, number, number]> => ({
+      header: [0, 0, 1000, 56],
+      before: [0, nameTop - 44, 200, 60],
+      tile: [216, nameTop - 44, 200, 60],
+      after: [432, nameTop - 44, 200, 60],
+      name: [228, nameTop, 176, 20],
+    });
+    for (const open of opens) {
+      expect(await placedInTile(80, at(70), open, header)).toEqual({
+        side: "bottom",
+        width: "184px",
+        x: 224,
+        y: 94,
+      });
+      expect(await placedInTile(80, at(96), open, header)).toEqual({
+        side: "bottom",
+        width: "184px",
+        x: 224,
+        y: 120,
+      });
+    }
+  });
+
+  // #615: beside a name the sticky header half covers, the bubble's top stands 8 px under the header,
+  // never a pixel over it. SUI-FEATURE-115 rev 4 (Name verdeckt): a name wholly under the header shows
+  // no bubble, never one held at the visible area's top.
+  it("a tile bubble at a name under a sticky app header never stands over the header", async () => {
+    const header = (tiles: React.ReactNode) => (
+      <div>
+        <header data-testid="header" style={{ position: "sticky", top: 0 }} />
+        {tiles}
+      </div>
+    );
+    const hidden: Record<string, [number, number, number, number]> = {
+      header: [0, 0, 1000, 56],
+      tile: [216, -18, 200, 60],
+      after: [432, -18, 200, 60],
+      name: [228, 26, 176, 20],
+    };
+    const beside: Record<string, [number, number, number, number]> = {
+      header: [0, 0, 1000, 56],
+      tile: [416, 30, 400, 180],
+      after: [832, 30, 160, 180],
+      name: [428, 40, 100, 20],
+    };
+    expect((await placedInTile(80, hidden, tileByPointer, header)).side).toBeUndefined();
+    for (const open of opens) {
+      const placed = await placedInTile(32, beside, open, header);
+      expect(placed.side).toBe("right");
+      expect(placed.y).toBe(64);
+    }
+  });
+
+  // SUI-FEATURE-115 rev 4 AC 7 (#615): Tab onto a tile whose name lies wholly under a fixed 56 px
+  // header first scrolls the tile out from under it, 8 px clear (`scroll-margin-top` 64 px, nearest);
+  // then the bubble follows the rules: no room above the name, so 4 px under it, never over the header.
+  // jsdom does not scroll: the stub moves the tiles as the scroll would.
+  it("Tab onto a tile under a fixed app header scrolls it out from under it first", async () => {
+    const header = (tiles: React.ReactNode) => (
+      <div>
+        <header data-testid="header" style={{ position: "fixed", top: 0 }} />
+        {tiles}
+      </div>
+    );
+    const boxes: Record<string, [number, number, number, number]> = {
+      header: [0, 0, 1000, 56],
+      tile: [216, -18, 200, 60],
+      after: [432, -18, 200, 60],
+      name: [228, 26, 176, 20],
+    };
+    const scrolls: { margin: string; options: unknown }[] = [];
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: function (this: HTMLElement, options: unknown) {
+        scrolls.push({ margin: this.style.scrollMarginTop, options });
+        for (const key of ["tile", "after", "name"]) {
+          const box = boxes[key];
+          if (box !== undefined) box[1] += 82;
+        }
+      },
+    });
+    try {
+      expect(await placedInTile(80, boxes, (tile) => tabTo(tile), header)).toEqual({
+        side: "bottom",
+        width: "184px",
+        x: 224,
+        y: 132,
+      });
+    } finally {
+      Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
+    }
+    expect(scrolls).toEqual([
+      { margin: "64px", options: { block: "nearest", inline: "nearest", behavior: "instant" } },
+    ]);
+  });
+
+  // SUI-FEATURE-115 AC 4 (#615 review): a fixed part only in the tile's column, below the wholly
+  // visible tile (a strip, a floating action), bounds the area at its top edge only, never the tile's
+  // side: the bubble stands over the name as without it, the tile's full width less 8 px a side.
+  it("a fixed part below a visible tile in its column leaves the bubble unchanged", async () => {
+    const strip = (tiles: React.ReactNode) => (
+      <div>
+        {tiles}
+        <div data-testid="strip" style={{ position: "fixed" }} />
+      </div>
+    );
+    const boxes: Record<string, [number, number, number, number]> = {
+      strip: [400, 110, 16, 690],
+      before: [0, 40, 200, 60],
+      tile: [216, 40, 200, 60],
+      after: [432, 40, 200, 60],
+      name: [228, 64, 176, 20],
+    };
+    // The tile is wholly in its visible area: the keyboard focus scrolls nothing, sideways neither.
+    const scrolls: unknown[] = [];
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: (options: unknown) => scrolls.push(options),
+    });
+    try {
+      for (const open of opens) {
+        expect(await placedInTile(32, boxes, open, strip)).toEqual({
+          side: "top",
+          width: "184px",
+          x: 224,
+          y: 28,
+        });
+      }
+    } finally {
+      Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
+    }
+    expect(scrolls).toEqual([]);
+  });
+
+  // SUI-FEATURE-115 rev 3 AC 6 (#615): a tile cut 100 px off at an inner scroll container's left edge
+  // holds the bubble as at the viewport's (AC 2), measured at the container's edge.
+  it("a tile bubble in an inner scroll container stands in the tile's part visible in it", async () => {
+    const scroller = (tiles: React.ReactNode) => (
+      // Longhands: jsdom's computed style does not expand the `overflow` shorthand.
+      <div data-testid="scroller" style={{ overflowX: "auto", overflowY: "auto" }}>
+        {tiles}
+      </div>
+    );
+    // A 2 px border: its padding box, 100..900, is what clips (jsdom computes no client box). Other
+    // elements keep their client width of 100 (`beforeEach`).
+    const client = (
+      key: "clientLeft" | "clientTop" | "clientWidth" | "clientHeight",
+      px: number,
+      otherwise = 0,
+    ) =>
+      vi.spyOn(HTMLElement.prototype, key, "get").mockImplementation(function (this: HTMLElement) {
+        return this.dataset.testid === "scroller" ? px : otherwise;
+      });
+    client("clientLeft", 2);
+    client("clientTop", 2);
+    client("clientWidth", 800, 100);
+    client("clientHeight", 796);
+    const boxes: Record<string, [number, number, number, number]> = {
+      scroller: [98, 0, 804, 800],
+      tile: [0, 300, 300, 60],
+      after: [316, 300, 200, 60],
+      name: [12, 324, 276, 20],
+    };
+    for (const open of opens) {
+      // Visible 100..300: from 8 px right of the container's edge to 8 px before the tile's right edge.
+      expect(await placedInTile(80, boxes, open, scroller)).toEqual({
+        side: "top",
+        width: "184px",
+        x: 108,
+        y: 240,
+      });
     }
   });
 });

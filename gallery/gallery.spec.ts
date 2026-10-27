@@ -3829,7 +3829,13 @@ test("media tile: the overflow tooltip at the viewport's top and left edge is ne
     await show(by);
     const own = await box(tiles.nth(3));
     const { at, text } = await expectWhole(own.x, own.x + own.width);
-    expect(Math.abs(at.y - (text.y + text.height + 4))).toBeLessThanOrEqual(1);
+    if (by === "pointer") {
+      expect(Math.abs(at.y - (text.y + text.height + 4))).toBeLessThanOrEqual(1);
+    } else {
+      // Rev 4 (#615): the keyboard focus scrolled the tile wholly into view first; then over the name.
+      expect(own.y).toBeGreaterThanOrEqual(0);
+      expect(Math.abs(at.y + at.height - (text.y - 4))).toBeLessThanOrEqual(1);
+    }
     await page.keyboard.press("Escape");
 
     // The left edge: the tile 60 px past it, its name mid-view.
@@ -3849,6 +3855,104 @@ test("media tile: the overflow tooltip at the viewport's top and left edge is ne
     await expectWhole(0, past.x + past.width);
     await page.keyboard.press("Escape");
     await grid.evaluate((node) => (node.style.transform = ""));
+  }
+});
+
+// `SUI-FEATURE-115` rev 3 AC 5 (#615): under an app header 56 px tall, fixed over the page, the tile's
+// visible area starts at the header's bottom edge. The name 14 px under it, or 40 px under it (room
+// above in the viewport, not in the visible area): on hover the bubble stands 4 px under the name, no
+// pixel over the header. Rev 4: keyboard focus first scrolls the tile wholly out from under the
+// header, 8 px clear, then the rules apply (AC 7, also with the name wholly under the header at
+// y 26-46); a bubble open while the page scrolls the name wholly under the header closes (AC 8).
+// The same header beneath the tiles (z-index -1) lies over no tile, so it cuts nothing: the bubble
+// stands over the name as without it.
+test("media tile: the overflow tooltip under a fixed app header never stands over it", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 600 });
+  const grid = await mediaTiles(page);
+  const tiles = grid.getByTestId("media-tile");
+  const name = tiles.nth(3).locator(".truncate");
+  const bubble = page.locator("[data-slot=tooltip-content]");
+  await page.evaluate(() => {
+    const header = document.createElement("header");
+    header.dataset.testid = "app-header";
+    Object.assign(header.style, {
+      position: "fixed",
+      top: "0",
+      left: "0",
+      right: "0",
+      height: "56px",
+      zIndex: "40",
+      background: "white",
+    });
+    document.body.append(header);
+  });
+  const header = page.getByTestId("app-header");
+  const show = async (by: "pointer" | "keyboard", nameTop: number) => {
+    await page.mouse.move(0, 300);
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    await expect(page.getByRole("tooltip")).toHaveCount(0);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    const top = (await box(name)).y;
+    await page.evaluate((y) => window.scrollTo(0, y), top - nameTop);
+    expect(Math.round((await box(name)).y)).toBe(nameTop);
+    if (by === "pointer") {
+      const text = await box(name);
+      await page.mouse.move(text.x + text.width - 10, text.y + text.height / 2);
+    } else {
+      await page.keyboard.press("Shift");
+      await tiles.nth(3).evaluate((node) => (node as HTMLElement).focus({ preventScroll: true }));
+      await expect(tiles.nth(3)).toBeFocused();
+    }
+    await expect(page.getByRole("tooltip")).toBeVisible({ timeout: 5000 });
+    return { at: await box(bubble), text: await box(name) };
+  };
+  for (const under of [14, 40]) {
+    const { at, text } = await show("pointer", 56 + under);
+    expect(at.y).toBeGreaterThanOrEqual(56);
+    expect(Math.abs(at.y - (text.y + text.height + 4))).toBeLessThanOrEqual(1);
+    await page.keyboard.press("Escape");
+  }
+  for (const nameTop of [56 + 14, 56 + 40, 26]) {
+    const { at, text } = await show("keyboard", nameTop);
+    const tile = await box(tiles.nth(3));
+    expect(tile.y).toBeGreaterThanOrEqual(63);
+    expect(text.y).toBeGreaterThanOrEqual(56);
+    expect(at.y).toBeGreaterThanOrEqual(56);
+    expect(at.y + at.height <= text.y || at.y >= text.y + text.height, "bubble over the name").toBe(
+      true,
+    );
+    await page.keyboard.press("Escape");
+  }
+  // An app with smooth scrolling: the focus's scroll out from under the header is instant, so the
+  // bubble still opens.
+  await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+  await expect(page.getByRole("tooltip")).toHaveCount(0);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  const start = (await box(name)).y;
+  await page.evaluate((y) => window.scrollTo(0, y), start - 26);
+  expect(Math.round((await box(name)).y)).toBe(26);
+  await page.evaluate(() => (document.documentElement.style.scrollBehavior = "smooth"));
+  await page.keyboard.press("Shift");
+  await tiles.nth(3).evaluate((node) => (node as HTMLElement).focus({ preventScroll: true }));
+  await expect(page.getByRole("tooltip")).toBeVisible({ timeout: 5000 });
+  expect((await box(tiles.nth(3))).y).toBeGreaterThanOrEqual(63);
+  await page.keyboard.press("Escape");
+  await page.evaluate(() => (document.documentElement.style.scrollBehavior = ""));
+  for (const by of ["pointer", "keyboard"] as const) {
+    const { text } = await show(by, 56 + 40);
+    await page.evaluate((dy) => window.scrollBy(0, dy), text.y + text.height - 30);
+    expect((await box(name)).y + (await box(name)).height).toBeLessThanOrEqual(56);
+    await expect(page.getByRole("tooltip")).toHaveCount(0);
+    await page.mouse.move(0, 300);
+  }
+
+  await header.evaluate((node) => (node.style.zIndex = "-1"));
+  for (const by of ["pointer", "keyboard"] as const) {
+    const { at, text } = await show(by, 56 + 60);
+    expect(Math.abs(at.y + at.height - (text.y - 4))).toBeLessThanOrEqual(1);
+    await page.keyboard.press("Escape");
   }
 });
 

@@ -90,24 +90,29 @@ function inDocumentOrder(nodes: Iterable<HTMLElement>): HTMLElement[] {
 // the holder (rev 17, Q&A #4645): an `OverflowTooltip` at its clipped text, a `Hint` at its trigger,
 // the control whose text is clipped. `due`: this member shows the keyboard
 // bubble. `close` resets it, for the root's close. `enabled: false` takes no part; `inside` as for
-// `holderOf`.
+// `holderOf`. `reveal` runs on the keyboard focus itself, before the delay: a tile scrolls itself
+// wholly into view there (`SUI-FEATURE-115` rev 4, #615).
 function useOpenOnKeyboardFocus({
   node,
   enabled,
   read,
   inside = false,
+  reveal,
 }: {
   node: HTMLElement | null;
   enabled: boolean;
   read: () => string[];
   inside?: boolean;
+  reveal?: (holder: HTMLElement) => void;
 }): { due: boolean; lines: string[]; close: () => void } {
   const [lines, setLines] = React.useState<string[] | null>(null);
   const holder = React.useMemo(() => holderOf(node, inside), [node, inside]);
   // Read when the delay has run, so the latest one counts without rejoining.
   const readRef = React.useRef(read);
+  const revealRef = React.useRef(reveal);
   React.useLayoutEffect(() => {
     readRef.current = read;
+    revealRef.current = reveal;
   });
   React.useEffect(() => {
     if (!enabled || node === null || holder === null) return;
@@ -177,6 +182,7 @@ function useOpenOnKeyboardFocus({
       if (lastInput !== "key" || !holder.matches(CARRIES) || !holder.matches(":focus-visible")) {
         return;
       }
+      revealRef.current?.(holder);
       listen(true);
       settle();
       timer = window.setTimeout(open, TOOLTIP_HINT_DELAY);
