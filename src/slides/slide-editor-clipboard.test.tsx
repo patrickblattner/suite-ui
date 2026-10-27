@@ -943,7 +943,7 @@ describe("SlideEditor element clipboard", () => {
     },
   );
 
-  it("reads no room off a head the compact status still holds folded, so a widened wait keeps the form a fresh load shows (#581)", async () => {
+  it("keeps a status compact from its start compact through a widening until the paste ends (#581, SUI-FEATURE-104 rev 5 AC 9, #607)", async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     // Narrow at first: the title has no room for the label beside its floor.
     let titleWidth = 150;
@@ -978,15 +978,13 @@ describe("SlideEditor element clipboard", () => {
       await Promise.resolve();
     });
     expect(status().querySelector("[data-testid=operation-label]")).toBeNull();
-    // Back at its bare step with that room, the head takes the label, as a fresh load there does.
+    // Back at its bare step with that room, it still stays compact until the paste ends.
     await act(async () => {
       head.setAttribute("data-shrink", "1");
       head.setAttribute("data-bare-shrink", "1");
       await Promise.resolve();
     });
-    expect(status().querySelector("[data-testid=operation-label]")).toHaveTextContent(
-      "Importing media …",
-    );
+    expect(status().querySelector("[data-testid=operation-label]")).toBeNull();
     box.mockRestore();
   });
 

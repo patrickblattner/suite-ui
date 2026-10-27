@@ -319,9 +319,10 @@ for (const lng of LANGUAGES) {
 
     // #581: resized during the wait, the status takes the form and the head the folds a fresh load
     // at the last width shows — the folds the full label itself caused give it no room. Each path
-    // loads at its first width; the first two pass 1920 px (the full label) and narrow to their last,
-    // the others widen to a width where a fresh load is compact, after a narrowing or at a jump: the
-    // folds the narrower width left give the label no room either. #601: the last two on a dirty deck,
+    // loads at its first width. The first starts at 1920 px with the full label and narrows to its
+    // last; the second, folded at 500 px, passes 1920 px still compact (`SUI-FEATURE-104` rev 5,
+    // #607) and narrows to its last. The others widen to a width where a fresh load is compact, after
+    // a narrowing or at a jump: the folds the narrower width left give the label no room either. #601: the last two on a dirty deck,
     // widened to a width where a fresh dirty load is compact and a clean one shows the label.
     const narrowed = { de: 600, en: 500, es: 600 }[lng];
     const compact = { de: 900, en: 760, es: 860 }[lng];
@@ -381,7 +382,8 @@ for (const lng of LANGUAGES) {
         await wait();
         for (const step of widths.slice(1)) {
           await page.setViewportSize({ width: step, height: 900 });
-          if (step === 1920) await expect(editor.getByTestId("operation-label")).toBeVisible();
+          // Folded at 500 px, it stays compact at 1920 px (`SUI-FEATURE-104` rev 5, #607).
+          if (step === 1920) await expect(editor.getByTestId("operation-label")).toHaveCount(0);
           // Laid out at each width before the next.
           await page.evaluate(
             () => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))),
@@ -395,6 +397,93 @@ for (const lng of LANGUAGES) {
         expect({ head: await head.boundingBox(), canvas: await canvas.boundingBox() }).toEqual(
           fresh,
         );
+      });
+    }
+
+    // #607 (`SUI-FEATURE-104` rev 5 AC 9): a status folded at 600 px stays compact through a widening
+    // to 1200 px until its paste ends, without a live region turning up or speaking again; the next
+    // paste at 1200 px starts from that width and shows the label.
+    if (theme === "light") {
+      test(`slide editor paste wait stays compact when widened until it ends ${lng}`, async ({
+        page,
+      }) => {
+        test.slow();
+        const editor = page.getByTestId("slide-editor");
+        const head = editor.locator("[data-slot=editor-header]");
+        const titleText = editor.locator("[data-slot=editor-title-text]");
+        const load = async (width: number) => {
+          await page.setViewportSize({ width, height: 900 });
+          await page.goto(`/?page=slide-editor&paste=wait&lng=${lng}&theme=${theme}`);
+          await expect(page.locator("html")).toHaveAttribute("lang", lng);
+          await expect(
+            editor.locator("[data-slot=slide-view][data-slide-ready=true]"),
+          ).toBeAttached();
+        };
+        // The head at 1200 px without a status.
+        await load(1200);
+        const bare = {
+          folds: await head.getAttribute("data-shrink"),
+          title: (await titleText.boundingBox())!.width,
+        };
+        await load(600);
+        const canvas = editor.getByTestId("slide-editor-canvas");
+        const status = editor.getByTestId("slide-editor-adopting-status");
+        await canvas.focus();
+        await canvas.press("Control+v");
+        await expect(editor.getByTestId("slide-editor-adopting")).not.toBeEmpty();
+        await expect(status.getByTestId("operation-spinner")).toBeVisible();
+        await expect(status.getByTestId("operation-label")).toHaveCount(0);
+        // Every change from here until the paste ends: a full label, a live region in the head's
+        // status slot, or new text in the paste's own live region.
+        await editor.evaluate((node) => {
+          const seen = { label: 0, live: 0, spoken: 0 };
+          (window as unknown as { seen607: typeof seen }).seen607 = seen;
+          const region = node.querySelector("[data-testid=slide-editor-adopting]")!;
+          const text = region.textContent;
+          // A live region replaced by another node speaks anew, even with the same text.
+          const read = () => {
+            if (node.querySelector("[data-testid=slide-editor-adopting-status]") === null) return;
+            if (node.querySelector("[data-slot=editor-status] [data-testid=operation-label]"))
+              seen.label++;
+            if (node.querySelector("[data-slot=editor-status] :is([role=status],[aria-live])"))
+              seen.live++;
+            if (
+              node.querySelector("[data-testid=slide-editor-adopting]") !== region ||
+              region.textContent !== text
+            )
+              seen.spoken++;
+          };
+          new MutationObserver(read).observe(node, {
+            subtree: true,
+            childList: true,
+            attributes: true,
+            characterData: true,
+          });
+          const frame = () => {
+            read();
+            requestAnimationFrame(frame);
+          };
+          requestAnimationFrame(frame);
+        });
+        await page.setViewportSize({ width: 1200, height: 900 });
+        await page.evaluate(() => new Promise((done) => setTimeout(done, 500)));
+        await expect(status.getByTestId("operation-spinner")).toBeVisible();
+        await expect(status.getByTestId("operation-label")).toHaveCount(0);
+        // The compact form holds no fold and reserves no room for the label: the head stands as one
+        // without a status, the title giving up at most the spinner (16 px) and its slot's row gap
+        // (8 px).
+        await expect(head).toHaveAttribute("data-shrink", bare.folds!);
+        expect((await titleText.boundingBox())!.width).toBeGreaterThanOrEqual(bare.title - 24);
+        // The paste lands after the editor's 10 s wait; the status ends with it.
+        await expect(status).toHaveCount(0, { timeout: 15_000 });
+        expect(
+          await page.evaluate(() => (window as unknown as { seen607: unknown }).seen607),
+        ).toEqual({ label: 0, live: 0, spoken: 0 });
+
+        await canvas.focus();
+        await canvas.press("Control+v");
+        await expect(editor.getByTestId("slide-editor-adopting")).not.toBeEmpty();
+        await expect(status.getByTestId("operation-label")).toBeVisible();
       });
     }
 

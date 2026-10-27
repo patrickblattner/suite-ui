@@ -2012,7 +2012,7 @@ function Editor({
   // Room the status's own folds freed counts for nothing (#581): it is read only once the head has
   // settled, and only while the head stands at the step it needs without the status. Once the full
   // label holds folds or makes the head taller than it stood without it, the status keeps its compact
-  // form until the paste ends.
+  // form until the paste ends, as does a status shown compact from its start (`SUI-FEATURE-104` rev 5).
   const [adoptingFits, setAdoptingFits] = React.useState(true);
   const adoptingBox = React.useRef<HTMLSpanElement>(null);
   const adoptingStatus = React.useRef<HTMLSpanElement>(null);
@@ -2029,6 +2029,11 @@ function Editor({
       if (latched) return;
       const height = head.height();
       const full = adoptingStatus.current?.querySelector("[data-testid=operation-label]") ?? null;
+      // A status shown compact stays so until the paste ends; a widening never unfolds it (#607).
+      if (adoptingStatus.current !== null && full === null) {
+        latched = true;
+        return;
+      }
       if (full !== null && (head.statusFolds() > 0 || height > bareHeight.current)) {
         latched = true;
         setAdoptingFits(false);
@@ -2036,8 +2041,8 @@ function Editor({
       }
       // With the label, a head no taller than it stood would without it be no taller either.
       bareHeight.current = height;
-      // A head the compact form holds folded counts the room those folds free: the full label would
-      // hold them too.
+      // A safety net: room read off a head a status holds folded is not the head's. A shown status
+      // that holds folds has latched above by now (#607); while the paste waits there is none.
       if (head.statusFolds() > 0) return;
       const label = adoptingBox.current?.querySelector("[data-slot=slide-editor-adopting-measure]");
       if (!label) return;
