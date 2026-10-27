@@ -122,8 +122,8 @@ function keepClosedOnFocus(event: React.FocusEvent): void {
   event.preventDefault();
 }
 
-// A running button (`busy`) that is the trigger itself took no pointer events while it was `disabled`
-// (`SUI-FEATURE-120`): its hint stays closed on hover until the run ends.
+// A running button (`busy`) that is the trigger itself keeps its hint closed on hover until the run
+// ends (`SUI-FEATURE-120`).
 function keepClosedOnPointer(event: React.PointerEvent): void {
   event.preventDefault();
 }
@@ -164,8 +164,8 @@ type HintProps = {
 // reaches assistive tech as the control's `aria-describedby`. An icon-only control whose `aria-label`
 // already is the hint text gets no describedby; the same string would be read twice.
 //
-// A disabled control takes no pointer events, so with `disabledText` the control sits in a span that
-// is the tooltip trigger and, while the control is disabled, focusable and the owner of the
+// A disabled control gets no click and no focus, so with `disabledText` the control sits in a span
+// that is the tooltip trigger and, while the control is disabled, focusable and the owner of the
 // description. A control locked with `aria-disabled` (a Save that locked itself, `SUI-FEATURE-120`)
 // keeps the focus and owns the description itself; only its text is `disabledText`. A `disabled`
 // `Button` is locked that way instead (`SUI-FEATURE-250`), so the span is never focusable for it. The

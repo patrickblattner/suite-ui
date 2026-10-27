@@ -4,6 +4,12 @@ import { Profiler, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { Button } from "./button.js";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "./dropdown-menu.js";
 
 // `variant` and `size` are required: each line below must stay a type error, or `npm run typecheck`
 // fails on the unused directive.
@@ -328,6 +334,68 @@ describe("Button", () => {
         </Button>,
       );
       expect(screen.getByRole("button", { name: "Save" })).toHaveClass(`aria-${text!}`);
+    },
+  );
+
+  // #629 (`GL-UI-013`): a disabled button takes the pointer, so its `cursor-not-allowed` shows, and a
+  // hover pair of every variant keeps its rest look under it — as the locked button's does.
+  it.each([
+    ["default", "disabled:hover:bg-primary/50"],
+    ["destructive", "disabled:hover:bg-destructive/50"],
+    ["success", "disabled:hover:bg-success/50"],
+    ["warn", "disabled:hover:bg-warn/50"],
+    ["outline", "dark:disabled:hover:border-input"],
+    ["secondary", "disabled:hover:bg-secondary/50"],
+    ["ghost", "dark:disabled:hover:bg-transparent"],
+    ["link", "disabled:hover:no-underline"],
+  ] as const)("disabled %s: the not-allowed cursor shows, no hover look", (variant, pair) => {
+    render(
+      <Button variant={variant} size="default" disabled>
+        Save
+      </Button>,
+    );
+    const button = screen.getByRole("button", { name: "Save" });
+    expect(button).toHaveClass("disabled:cursor-not-allowed", pair);
+    expect(button).not.toHaveClass("disabled:pointer-events-none");
+  });
+
+  // #629 (`GL-UI-013`): the outline button reveals the `--ring` border on hover in dark too, as the
+  // select trigger does; `dark:border-input` no longer outranks it.
+  it("outline: the ring border on hover, light and dark", () => {
+    render(
+      <Button variant="outline" size="default">
+        Save
+      </Button>,
+    );
+    expect(screen.getByRole("button", { name: "Save" })).toHaveClass(
+      "hover:border-ring",
+      "dark:hover:border-ring",
+      "dark:hover:bg-input/50",
+    );
+  });
+
+  // #629: a press reaches a disabled button now, so it must not open a menu whose `asChild` trigger it is.
+  it.each([
+    [true, "false"],
+    [false, "true"],
+  ] as const)(
+    "disabled %s: a menu trigger of its own opens on press only when usable",
+    (disabled, expanded) => {
+      render(
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="default" disabled={disabled}>
+              Actions
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent>
+            <DropdownMenuItem>Rename</DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>,
+      );
+      const button = screen.getByRole("button", { name: "Actions" });
+      fireEvent.pointerDown(button, { button: 0, ctrlKey: false, pointerType: "mouse" });
+      expect(button).toHaveAttribute("aria-expanded", expanded);
     },
   );
 

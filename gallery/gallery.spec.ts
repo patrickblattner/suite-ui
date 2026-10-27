@@ -5246,6 +5246,68 @@ for (const theme of THEMES) {
   });
 }
 
+// #629 (`GL-UI-013`): the outline Button shows the select trigger's hover, a `--ring` border on the
+// `--accent` fill (the input tint in dark), in light and dark; its label keeps 4.5:1 on the hover fill.
+// A disabled Button of every variant takes the pointer with `not-allowed` and keeps its rest look.
+for (const theme of THEMES) {
+  test(`button: outline shows its hover signal, a disabled one none (${theme})`, async ({
+    page,
+  }) => {
+    await page.goto(`/?page=components&lng=en&theme=${theme}`);
+    await (theme === "dark"
+      ? expect(page.locator("html")).toHaveClass(/\bdark\b/)
+      : expect(page.locator("html")).not.toHaveClass(/\bdark\b/));
+    const look = (button: Locator) =>
+      button.evaluate((el) => {
+        const { backgroundColor, borderTopColor, color, cursor, textDecorationLine } =
+          getComputedStyle(el);
+        return { backgroundColor, borderTopColor, color, cursor, textDecorationLine };
+      });
+    const ground = await page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+    const ring = await utilityColor(page, "bg-ring", "backgroundColor");
+    const fill = await utilityColor(
+      page,
+      theme === "dark" ? "bg-input/50" : "bg-accent",
+      "backgroundColor",
+    );
+    const outline = page
+      .getByTestId("button-disabled-outline")
+      .locator("..")
+      .locator("button")
+      .first();
+    const rest = await look(outline);
+    expect(rest.cursor).toBe("pointer");
+    expect(rest.borderTopColor).not.toBe(ring);
+    await outline.hover();
+    await expect.poll(async () => (await look(outline)).borderTopColor).toBe(ring);
+    await expect.poll(async () => (await look(outline)).backgroundColor).toBe(fill);
+    const hover = await look(outline);
+    expect(
+      await contrastOf(page, hover.color, hover.backgroundColor, ground),
+      "outline label on the hover fill",
+    ).toBeGreaterThanOrEqual(4.5);
+
+    for (const variant of [
+      "success",
+      "warn",
+      "destructive",
+      "outline",
+      "secondary",
+      "ghost",
+      "default",
+      "link",
+    ]) {
+      const disabled = page.getByTestId(`button-disabled-${variant}`);
+      const before = await look(disabled);
+      expect(before.cursor, `${variant} disabled cursor`).toBe("not-allowed");
+      await disabled.hover();
+      // Longer than the button's transition, so a hover look would have arrived.
+      await page.waitForTimeout(300);
+      expect(await look(disabled), `${variant} disabled under the pointer`).toEqual(before);
+    }
+  });
+}
+
 // `GL-UI-016` §Schließen (#593): a press on the bubble closes it and never reaches its element: the
 // select, which opens on pointerdown, stays closed — for a bubble opened by the keyboard or the pointer.
 for (const by of ["keyboard", "pointer"]) {
@@ -8438,6 +8500,19 @@ test("target size: the close buttons of dialog, panel and toast", async ({ page 
     const icon = await close(page).locator("svg").boundingBox();
     expect(icon?.width, name).toBeLessThanOrEqual(16);
   }
+});
+
+// #629 (`GL-UI-016`, `GL-UI-006` rev 4): a disabled icon button that is its own tooltip trigger takes
+// the pointer, so it names itself on hover in a real browser; a click on it does nothing.
+test("a disabled icon Undo shows its name on hover", async ({ page }) => {
+  await page.goto("/?page=keys&lng=en&history=locked");
+  const undo = page.getByTestId("keys-undo");
+  await expect(undo).toBeDisabled();
+  expect(await undo.evaluate((el) => getComputedStyle(el).cursor)).toBe("not-allowed");
+  await undo.hover();
+  await expect(page.getByRole("tooltip")).toHaveText("Undo");
+  await undo.click({ force: true });
+  await expect(page.getByTestId("keys-history")).toHaveText("0 / 0");
 });
 
 // `SUI-FEATURE-056` AC6 (`GL-UI-006`): table, tiles and pager by keyboard in a real browser.
