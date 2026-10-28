@@ -703,3 +703,4 @@
 {"ts":"2026-10-28T00:35:16.768Z","key":"SUI-FEATURE-194","from":2,"to":4,"disposition":"ticket","ref":"624"}
 {"ts":"2026-10-28T00:35:17.205Z","key":"SUI-FEATURE-115","from":8,"to":9,"disposition":"editorial","ref":"rev 9 only drops the References block; norm and ACs unchanged"}
 {"ts":"2026-10-28T00:35:17.665Z","key":"SUI-FEATURE-165","from":7,"to":8,"disposition":"editorial","ref":"rev 8 only drops the References block; norm and ACs unchanged"}
+{"ts":"2026-10-28T05:43:07.827Z","key":"SUI-FEATURE-290","from":2,"to":4,"disposition":"ticket","ref":"626"}
