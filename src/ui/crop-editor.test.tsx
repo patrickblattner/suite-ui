@@ -1,9 +1,14 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import i18n from "i18next";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { CropEditor, type CropEditorProps, ImagePlacementButtons } from "./crop-editor.js";
+import {
+  CropEditor,
+  type CropEditorProps,
+  ImagePlacementButtons,
+  type ImagePlacementButtonsProps,
+} from "./crop-editor.js";
 import type { Crop } from "./cropped-image.js";
 
 afterEach(async () => {
@@ -148,7 +153,13 @@ describe("CropEditor", () => {
   });
 });
 
-function Placement({ onCrop }: { onCrop: (crop: Crop | null) => void }) {
+function Placement({
+  onCrop,
+  ...hints
+}: { onCrop: (crop: Crop | null) => void } & Pick<
+  ImagePlacementButtonsProps,
+  "flipHint" | "cropHint"
+>) {
   const [flipped, setFlipped] = useState(false);
   const [crop, setCrop] = useState<Crop | null>(null);
   return (
@@ -162,8 +173,16 @@ function Placement({ onCrop }: { onCrop: (crop: Crop | null) => void }) {
         setCrop(next);
         onCrop(next);
       }}
+      {...hints}
     />
   );
+}
+
+function described(button: HTMLElement): string[] {
+  return (button.getAttribute("aria-describedby") ?? "")
+    .split(" ")
+    .filter((id) => id !== "")
+    .map((id) => document.getElementById(id)?.textContent ?? "");
 }
 
 describe("ImagePlacementButtons", () => {
@@ -202,5 +221,48 @@ describe("ImagePlacementButtons", () => {
       expect(button).toHaveAttribute("data-size", "sm");
       expect(button.closest('[role="menu"]')).toBeNull();
     }
+  });
+
+  // SUI-FEATURE-311 rev 3 AC 1: Flip is a toggle, Crop opens a dialog and carries no pressed state.
+  it("Flip carries aria-pressed with its state, Crop none", () => {
+    render(<Placement onCrop={() => {}} />);
+    const flip = screen.getByTestId("image-flip");
+    expect(flip).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(flip);
+    expect(flip).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByTestId("image-crop")).not.toHaveAttribute("aria-pressed");
+  });
+
+  // SUI-FEATURE-311 rev 3 AC 2: each hint describes its own button only; keyboard focus opens no
+  // bubble, the text reaches the button through aria-describedby.
+  it.each([
+    ["flipHint", "image-flip", "image-crop"],
+    ["cropHint", "image-crop", "image-flip"],
+  ] as const)("%s describes only its own button", (prop, own, other) => {
+    render(<Placement onCrop={() => {}} {...{ [prop]: "Mirrors the image" }} />);
+    const button = screen.getByTestId(own);
+    act(() => button.focus());
+    expect(button).toHaveFocus();
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    expect(described(button)).toEqual(["Mirrors the image"]);
+    expect(screen.getByTestId(other)).not.toHaveAttribute("aria-describedby");
+  });
+
+  it("with both hints, each button is described by its own text", () => {
+    render(<Placement onCrop={() => {}} flipHint="Mirrors it" cropHint="Frames it" />);
+    expect(described(screen.getByTestId("image-flip"))).toEqual(["Mirrors it"]);
+    expect(described(screen.getByTestId("image-crop"))).toEqual(["Frames it"]);
+  });
+
+  // SUI-FEATURE-311 rev 3 AC 3: no hint, no tooltip and no description.
+  it("without hints renders no tooltip and no aria-describedby", () => {
+    render(<Placement onCrop={() => {}} />);
+    for (const id of ["image-flip", "image-crop"]) {
+      const button = screen.getByTestId(id);
+      expect(button).not.toHaveAttribute("aria-describedby");
+      expect(button).not.toHaveAttribute("data-state");
+      act(() => button.focus());
+    }
+    expect(screen.queryByRole("tooltip")).toBeNull();
   });
 });

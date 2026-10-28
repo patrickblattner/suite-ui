@@ -1252,6 +1252,13 @@ const BANDS = `data:image/svg+xml,${encodeURIComponent(
 )}`;
 const MIDDLE: Crop = { x: 0.25, y: 0, width: 0.5, height: 1 };
 
+// `?placementHints=on` (`SUI-FEATURE-311`): the placement buttons carry a hint each; without it they
+// carry none. A hint draws nothing until hover or focus, so the captures keep the buttons without.
+const PLACEMENT_HINTS =
+  new URLSearchParams(window.location.search).get("placementHints") === "on"
+    ? { flipHint: "Mirrors the image left to right", cropHint: "Opens the crop editor" }
+    : {};
+
 // `SUI-FEATURE-062`: the image placement buttons with the crop editor, the drawn image (original,
 // middle half, middle half flipped) and a cropped, flipped background whose text stays unflipped.
 function CropRow() {
@@ -1271,6 +1278,7 @@ function CropRow() {
           onFlippedChange={setFlipped}
           crop={crop}
           onCropChange={setCrop}
+          {...PLACEMENT_HINTS}
         />
       </Row>
       <Row label="CroppedImage">

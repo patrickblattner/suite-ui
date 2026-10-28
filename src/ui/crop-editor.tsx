@@ -14,6 +14,7 @@ import {
 import { Button } from "./button.js";
 import type { Crop } from "./cropped-image.js";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "./dialog.js";
+import { Hint } from "./hint.js";
 
 type CropEditorProps = {
   open: boolean;
@@ -263,11 +264,16 @@ type ImagePlacementButtonsProps = {
   crop: Crop | null;
   onCropChange: (crop: Crop | null) => void;
   disabled?: boolean;
+  // The app's description of each button, shown as its own `Hint` (`SUI-FEATURE-311`); without one
+  // that button has no tooltip.
+  flipHint?: string;
+  cropHint?: string;
 };
 
 // Flip and Crop for the place next to the image's change button (`GL-UI-035`), two buttons of one
 // size, never in a menu. Each is highlighted with its active text while flipped or cropped; Crop
-// opens the `CropEditor`.
+// opens the `CropEditor`. Flip is a toggle and carries `aria-pressed`; Crop opens a dialog, so its
+// active text alone tells its state (`SUI-FEATURE-311`).
 function ImagePlacementButtons({
   src,
   alt,
@@ -277,39 +283,48 @@ function ImagePlacementButtons({
   crop,
   onCropChange,
   disabled = false,
+  flipHint,
+  cropHint,
 }: ImagePlacementButtonsProps) {
   const { t } = useTranslation("suite");
   const [editing, setEditing] = React.useState(false);
   const active =
     "data-[active=true]:border-ring data-[active=true]:bg-accent data-[active=true]:text-accent-foreground dark:data-[active=true]:border-ring dark:data-[active=true]:bg-accent";
+  const flip = (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      disabled={disabled}
+      data-active={flipped}
+      aria-pressed={flipped}
+      className={active}
+      onClick={() => onFlippedChange(!flipped)}
+      data-testid="image-flip"
+    >
+      <FlipHorizontal2Icon aria-hidden="true" />
+      {t(flipped ? "flip.active" : "flip.action")}
+    </Button>
+  );
+  const cropButton = (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      disabled={disabled}
+      data-active={crop !== null}
+      className={active}
+      onClick={() => setEditing(true)}
+      data-testid="image-crop"
+    >
+      <CropIcon aria-hidden="true" />
+      {t(crop !== null ? "crop.active" : "crop.action")}
+    </Button>
+  );
   return (
     <>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        disabled={disabled}
-        data-active={flipped}
-        className={active}
-        onClick={() => onFlippedChange(!flipped)}
-        data-testid="image-flip"
-      >
-        <FlipHorizontal2Icon aria-hidden="true" />
-        {t(flipped ? "flip.active" : "flip.action")}
-      </Button>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        disabled={disabled}
-        data-active={crop !== null}
-        className={active}
-        onClick={() => setEditing(true)}
-        data-testid="image-crop"
-      >
-        <CropIcon aria-hidden="true" />
-        {t(crop !== null ? "crop.active" : "crop.action")}
-      </Button>
+      {flipHint === undefined ? flip : <Hint text={flipHint}>{flip}</Hint>}
+      {cropHint === undefined ? cropButton : <Hint text={cropHint}>{cropButton}</Hint>}
       <CropEditor
         open={editing}
         onOpenChange={setEditing}

@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — #645, SUI-FEATURE-311 rev 3: ImagePlacementButtons' Flip carries aria-pressed, each button takes an optional hint (minor)
+
+- **ImagePlacementButtons (#645):** Flip is a toggle button with `aria-pressed` set to `flipped`; Crop opens a dialog and carries no `aria-pressed`, its active text "Cropped" stays the state cue. New optional props `flipHint` and `cropHint` (string): a set hint wraps that button alone in the package `Hint`, so it opens on hover (hoverable, `GL-UI-016`) and describes the button through `aria-describedby`; keyboard focus reaches it as that description. Without a hint the button has no tooltip and no `aria-describedby`; the group never carries one.
+- **Gallery (#645):** `?page=components&placementHints=on` gives the placement buttons a hint each; the default page keeps them without, so no baseline changes. New checks: Flip's `aria-pressed` follows its state and Crop has none; with hints each button is described by its own text and its hover opens only its own bubble; without hints neither button opens a tooltip or carries a description.
+- **Tests (#645):** unit: Flip's `aria-pressed` false then true after a click, none on Crop; `flipHint` and `cropHint` each describe only their own button, both together each their own text; without hints no `aria-describedby`, no tooltip state and no tooltip on focus.
+
 ## 0.178.0 — #633, SUI-FEATURE-300 rev 3 + GL-UI-010 rev 14: SettingsBlock and Card hold their content 8 px under the header (patch)
 
 - **SettingsBlock (#633):** the first content sits 8 px under the header (`not-last:-mb-2` on the header against the block's `gap-4`) instead of 16 px; the contents stay 16 px apart and `purpose` stays 4 px under `name`.

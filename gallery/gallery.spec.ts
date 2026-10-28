@@ -3281,6 +3281,40 @@ test("crop editor: Apply crops the placement, Reset removes the crop", async ({ 
   );
 });
 
+// `SUI-FEATURE-311`: Flip carries aria-pressed; with `?placementHints=on` each button's hint opens on
+// hover at that button alone and describes it, without hints neither button has a tooltip.
+test("placement buttons: aria-pressed on Flip, a hint at its own button only", async ({ page }) => {
+  await page.goto("/?page=components&lng=en&placementHints=on");
+  const flip = page.getByTestId("image-flip");
+  const crop = page.getByTestId("image-crop");
+  await expect(flip).toHaveAttribute("aria-pressed", "false");
+  await flip.click();
+  await expect(flip).toHaveAttribute("aria-pressed", "true");
+  await expect(crop).not.toHaveAttribute("aria-pressed");
+  await expect(flip).toHaveAccessibleDescription("Mirrors the image left to right");
+  await expect(crop).toHaveAccessibleDescription("Opens the crop editor");
+  await page.mouse.move(0, 0);
+  await flip.hover();
+  await expect(page.getByRole("tooltip")).toHaveText("Mirrors the image left to right", {
+    timeout: 5000,
+  });
+  await page.mouse.move(0, 0);
+  await expect(page.getByRole("tooltip")).toHaveCount(0);
+  await crop.hover();
+  await expect(page.getByRole("tooltip")).toHaveText("Opens the crop editor", { timeout: 5000 });
+});
+
+test("placement buttons without hints: no tooltip, no description", async ({ page }) => {
+  await page.goto("/?page=components&lng=en");
+  for (const id of ["image-flip", "image-crop"]) {
+    const button = page.getByTestId(id);
+    await expect(button).not.toHaveAttribute("aria-describedby");
+    await button.hover();
+    await page.waitForTimeout(2000);
+    await expect(page.getByRole("tooltip")).toHaveCount(0);
+  }
+});
+
 // AC 3: the middle half of the 2000 × 1000 image in a square frame, the image itself unchanged.
 test("CroppedImage: the frame shows exactly the middle half", async ({ page }) => {
   await page.goto("/?page=components");
