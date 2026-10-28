@@ -1553,25 +1553,33 @@ describe("toast with an action: duration", () => {
     expect(screen.queryByText("Done")).toBeNull();
   });
 
-  // Under all fake timers, shows a toast.promise's result and reports whether it is still open after
-  // each of `checks` ms.
+  // Under all fake timers, shows a toast.promise's `outcome` result with `text` and reports whether it
+  // is still open after each of `checks` ms.
   async function promiseResultOpen(
     data: NonNullable<Parameters<typeof toast.promise<string>>[1]>,
     checks: number[],
+    outcome: "success" | "error" = "success",
+    text = "Saved",
   ) {
     render(<Toaster />);
-    let resolve: (value: string) => void = () => undefined;
+    let settle: (failed: boolean) => void = () => undefined;
     act(() => {
-      void toast.promise(
-        new Promise<string>((done) => {
-          resolve = done;
-        }),
-        { loading: "Saving", success: "Saved", ...data },
-      );
+      void toast
+        .promise(
+          new Promise<string>((done, fail) => {
+            settle = (failed) => {
+              if (failed) fail(new Error("nope"));
+              else done("ok");
+            };
+          }),
+          { loading: "Saving", [outcome]: text, ...data },
+        )
+        .unwrap()
+        .catch(() => undefined);
     });
     advance(1);
     await act(async () => {
-      resolve("ok");
+      settle(outcome === "error");
       for (let step = 0; step < 4; step++) await Promise.resolve();
     });
     advance(1);
@@ -1580,9 +1588,11 @@ describe("toast with an action: duration", () => {
     for (const at of checks) {
       advance(at - elapsed);
       elapsed = at;
-      const shown = screen.queryByText("Saved");
-      open.push(shown !== null && toastOf("Saved")?.getAttribute("data-removed") !== "true");
+      const shown = screen.queryByText(text);
+      open.push(shown !== null && toastOf(text)?.getAttribute("data-removed") !== "true");
     }
+    // sonner unmounts a closed toast only after its exit, so the next test finds no result left.
+    advance(1000);
     return open;
   }
 
@@ -1607,9 +1617,33 @@ describe("toast with an action: duration", () => {
     expect(await promiseResultOpen({ action: undo }, [7900, 8100])).toEqual([true, false]);
   });
 
-  it("keeps the default timing on a toast.promise result without an action or duration (#637)", async () => {
+  it("times a toast.promise success without an action like toast.success: base plus 50 ms per word (#641)", async () => {
     useAllFakeTimers();
-    expect(await promiseResultOpen({}, [3900, 4100])).toEqual([true, false]);
+    // "Saved": 2000 ms success base + 1 word.
+    expect(toastDurationFor("Saved", "success")).toBe(2050);
+    expect(await promiseResultOpen({}, [2000, 2100])).toEqual([true, false]);
+  });
+
+  it("times a toast.promise error without an action like toast.error (#641)", async () => {
+    useAllFakeTimers();
+    // 3000 ms error base + 7 words = 3350 ms.
+    const message = "Saving the slide failed on the server";
+    expect(await promiseResultOpen({}, [3250, 3450], "error", message)).toEqual([true, false]);
+  });
+
+  it("keeps an explicit duration within bounds on a toast.promise result without an action (#641)", async () => {
+    useAllFakeTimers();
+    expect(await promiseResultOpen({ duration: 5000 }, [4900, 5100])).toEqual([true, false]);
+  });
+
+  it("raises a too-short explicit duration to the base on a toast.promise result without an action (#641)", async () => {
+    useAllFakeTimers();
+    expect(await promiseResultOpen({ duration: 500 }, [1900, 2100])).toEqual([true, false]);
+  });
+
+  it("caps an explicit duration on a toast.promise result without an action (#641)", async () => {
+    useAllFakeTimers();
+    expect(await promiseResultOpen({ duration: 20000 }, [11900, 12100])).toEqual([true, false]);
   });
 
   it("keeps a toast.promise that replaces an action toast a toast with an action (#582)", async () => {

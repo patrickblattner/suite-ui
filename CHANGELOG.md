@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — #641, GL-UI-029: a toast.promise result without an action gets the variant's display duration (patch)
+
+- **toast.promise (#641):** a success or error result without an action is now timed like `toast.success`/`toast.error`: the variant's base plus 50 ms per word ("Saved" lasts 2050 ms instead of sonner's 4000 ms), capped at 12000 ms. An explicit `duration` stays within the same bounds: one below the base lasts the base, one above the cap lasts 12000 ms. Results with an action are unchanged (#637).
+
 ## Unreleased — #638, GL-UI-016 rev 21: a press on the bubble ends the keyboard-focus wait (patch)
 
 - **Overflow tooltip on keyboard focus (#638):** with a pointer bubble open, a keyboard focus on its holder starts the 1500 ms wait; a press on that bubble within the wait now ends the wait as well, so the bubble stays closed instead of opening again at the deadline. `OverflowTooltip` and `Hint` alike. The pointer leaving and the keyboard bubble's own open still leave the wait running; a press on an open keyboard bubble is left to the bubble as before (#593).
