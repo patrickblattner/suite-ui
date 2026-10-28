@@ -374,17 +374,15 @@ describe("OverflowTooltip on keyboard focus", () => {
 
   // GL-UI-016 §Schließen, a click also on the tooltip itself (#638): the hover bubble stays open while
   // the focus lands on its own trigger, and the keyboard wait runs beneath it.
+  const selfFocused = () => (
+    <OverflowTooltip>
+      <span tabIndex={0} className="truncate">
+        {LONG}
+      </span>
+    </OverflowTooltip>
+  );
   const hoverThenFocus: [string, () => React.ReactElement][] = [
-    [
-      "OverflowTooltip",
-      () => (
-        <OverflowTooltip>
-          <span tabIndex={0} className="truncate">
-            {LONG}
-          </span>
-        </OverflowTooltip>
-      ),
-    ],
+    ["OverflowTooltip", selfFocused],
     [
       "Hint",
       () => (
@@ -424,7 +422,7 @@ describe("OverflowTooltip on keyboard focus", () => {
   );
 
   it("the pointer leaving during the keyboard wait does not end it: the bubble opens at the deadline", () => {
-    const holder = hoverOpenThenTab(hoverThenFocus[0][1]());
+    const holder = hoverOpenThenTab(selfFocused());
     // Left for a spot outside the way to the bubble: the hover bubble closes.
     fireEvent.pointerLeave(holder, { pointerType: "mouse", clientX: 0, clientY: 0 });
     fireEvent.pointerMove(document.body, { pointerType: "mouse", clientX: 900, clientY: 900 });
@@ -436,7 +434,7 @@ describe("OverflowTooltip on keyboard focus", () => {
   });
 
   it("the keyboard bubble's own open, closing the hover bubble of its root, does not end it", () => {
-    const holder = hoverOpenThenTab(hoverThenFocus[0][1]());
+    const holder = hoverOpenThenTab(selfFocused());
     wait(1000);
     expect(screen.getAllByRole("tooltip")).toHaveLength(1);
     expect(bubble()).toHaveTextContent(LONG);
