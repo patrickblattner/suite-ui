@@ -1553,6 +1553,65 @@ describe("toast with an action: duration", () => {
     expect(screen.queryByText("Done")).toBeNull();
   });
 
+  // Under all fake timers, shows a toast.promise's result and reports whether it is still open after
+  // each of `checks` ms.
+  async function promiseResultOpen(
+    data: NonNullable<Parameters<typeof toast.promise<string>>[1]>,
+    checks: number[],
+  ) {
+    render(<Toaster />);
+    let resolve: (value: string) => void = () => undefined;
+    act(() => {
+      void toast.promise(
+        new Promise<string>((done) => {
+          resolve = done;
+        }),
+        { loading: "Saving", success: "Saved", ...data },
+      );
+    });
+    advance(1);
+    await act(async () => {
+      resolve("ok");
+      for (let step = 0; step < 4; step++) await Promise.resolve();
+    });
+    advance(1);
+    let elapsed = 0;
+    const open: boolean[] = [];
+    for (const at of checks) {
+      advance(at - elapsed);
+      elapsed = at;
+      const shown = screen.queryByText("Saved");
+      open.push(shown !== null && toastOf("Saved")?.getAttribute("data-removed") !== "true");
+    }
+    return open;
+  }
+
+  it("keeps the caller's duration on a toast.promise result with an action (#637)", async () => {
+    useAllFakeTimers();
+    expect(await promiseResultOpen({ action: undo, duration: 10000 }, [9900, 10100])).toEqual([
+      true,
+      false,
+    ]);
+  });
+
+  it("keeps 8000 ms on a toast.promise result with an action and a shorter duration (#637)", async () => {
+    useAllFakeTimers();
+    expect(await promiseResultOpen({ action: undo, duration: 3000 }, [7900, 8100])).toEqual([
+      true,
+      false,
+    ]);
+  });
+
+  it("keeps 8000 ms on a toast.promise result with an action and no duration (#637)", async () => {
+    useAllFakeTimers();
+    expect(await promiseResultOpen({ action: undo }, [7900, 8100])).toEqual([true, false]);
+  });
+
+  it("keeps the default timing on a toast.promise result without an action or duration (#637)", async () => {
+    useAllFakeTimers();
+    expect(await promiseResultOpen({}, [3900, 4100])).toEqual([true, false]);
+  });
+
   it("keeps a toast.promise that replaces an action toast a toast with an action (#582)", async () => {
     render(<Toaster />);
     useAllFakeTimers();

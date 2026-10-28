@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — #637, SUI-FEATURE-101: a toast.promise result keeps the caller's duration (patch)
+
+- **toast.promise (#637):** the result of a promise toast with an action now takes the caller's explicit `duration`, as `toast.success` with an action does: `duration: 10000` lasts 10000 ms instead of 8000 ms, and one below 8000 ms still lasts 8000 ms. Without a duration the timing is unchanged: an action toast lasts at least 8000 ms, one without an action keeps sonner's.
+
 ## 0.176.0 — #625, SUI-FEATURE-280 rev 2: an image's crop shifts along the axis its proportions overhang, at 100 % too
 
 - **SlideView image crop (#625):** the image is drawn at its own proportions, filling the area inside its border (`cover`) and then zoomed; the crop's offset reaches as far as that drawn image overhangs the area, half to each side. At zoom 1 the axis the image overhangs now shifts (a 2:1 image in a 400 × 400 frame reaches ±200 px sideways), the other does not. Editor, player and export draw it alike.
