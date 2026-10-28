@@ -941,7 +941,7 @@ export function TextFormatFields({
             </Select>
           </Field>
         </div>
-        <div className="flex flex-wrap gap-1" data-tooltip-row="">
+        <div className="flex flex-wrap gap-0.5" data-tooltip-row="">
           {toggle(
             t("slides.editor.textBold"),
             <BoldIcon />,
@@ -956,7 +956,9 @@ export function TextFormatFields({
             () => onFormat(toggledFormat(body, range, "italic")),
             "italic",
           )}
-          <span className="mx-1 w-px self-stretch bg-border" aria-hidden="true" />
+          {/* Gap and separators as in the table's toolbar: eight buttons and two separators fit the
+              panel's default width on one row, a classic scrollbar included (#630, GL-UI-013). */}
+          <span className="mx-0.5 w-px self-stretch bg-border" aria-hidden="true" />
           {(
             [
               ["left", AlignLeftIcon],
@@ -975,7 +977,7 @@ export function TextFormatFields({
               )}
             </React.Fragment>
           ))}
-          <span className="mx-1 w-px self-stretch bg-border" aria-hidden="true" />
+          <span className="mx-0.5 w-px self-stretch bg-border" aria-hidden="true" />
           {toggle(
             t("slides.editor.textBullets"),
             <ListIcon />,

@@ -15527,6 +15527,38 @@ for (const lng of ["de", "es"] as const) {
   });
 }
 
+// #630 AC2/AC3 (GL-UI-013): at the panel's default width the text format buttons on the Content tab
+// stay on one row, the numbered list included; with a classic scrollbar in a panel body that scrolls
+// too (`@scrollbars`: the bar takes its width from the row).
+for (const scrollbar of [false, true]) {
+  test(`slide editor: the text format buttons sit on one row at the default panel width${scrollbar ? " beside a scrollbar @scrollbars" : ""}`, async ({
+    page,
+  }) => {
+    const { editor, at, field } = await openEditor(page);
+    await editor.getByTestId("slide-editor-next-page").click();
+    const caption = at(100, 400);
+    await page.mouse.dblclick(caption.x, caption.y);
+    await expect(field("text-size")).toBeVisible();
+    expect((await editor.getByTestId("property-panel").boundingBox())!.width).toBe(340);
+    if (scrollbar) {
+      const body = editor.getByTestId("property-panel-body");
+      await body.evaluate((el) => {
+        el.style.maxHeight = "200px";
+      });
+      expect(
+        await body.evaluate((el) => (el as HTMLElement).offsetWidth - el.clientWidth),
+      ).toBeGreaterThan(0);
+    }
+    const names = ["bold", "italic", "align-left", "align-center", "align-right", "align-justify"];
+    const tops = await Promise.all(
+      [...names, "bullets", "numbered"].map(
+        async (name) => (await field(`text-${name}`).boundingBox())!.y,
+      ),
+    );
+    expect(new Set(tops).size).toBe(1);
+  });
+}
+
 // SUI-FEATURE-190 AC1 (#327): a group whose turned child holds its width takes the nearest width it
 // reaches and names the limit at the field; its height stays.
 test("slide editor: a group's width beyond what its turned child allows takes the limit", async ({

@@ -154,7 +154,7 @@ export function TableFields({
     <section className="flex flex-col gap-2" data-testid="slide-editor-table">
       <h3 className="text-base font-semibold">{t("slides.editor.tableCell", values)}</h3>
       <div className="flex flex-col gap-4">
-        <div className="flex flex-wrap gap-1" data-tooltip-row="">
+        <div className="flex flex-wrap gap-0.5" data-tooltip-row="">
           {button(
             t("slides.editor.tableRowAbove"),
             <BetweenHorizontalStartIcon />,
@@ -182,7 +182,7 @@ export function TableFields({
             "delete-row",
             rows <= 1 ? t("slides.editor.tableOneRow") : undefined,
           )}
-          <span className="mx-1 w-px self-stretch bg-border" aria-hidden="true" />
+          <span className="mx-0.5 w-px self-stretch bg-border" aria-hidden="true" />
           {button(
             t("slides.editor.tableColumnLeft"),
             <BetweenVerticalStartIcon />,
