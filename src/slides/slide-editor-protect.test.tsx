@@ -5,7 +5,7 @@ import { SLIDE_BRAND } from "../../gallery/slide-showcase.js";
 import { safeParseSlideDocument } from "./document.js";
 import { FORMAT_16_9, type SlideDocument } from "./schema.js";
 import { elementClipboard } from "./element-clipboard-internal.js";
-import { SlideEditor } from "./slide-editor.js";
+import { type ReadonlySlideDocument, SlideEditor } from "./slide-editor.js";
 import type { SlideExtensions } from "./slide-view.js";
 import { toast } from "../ui/toaster.js";
 
@@ -290,6 +290,10 @@ export const reportedIsReadonly: React.ComponentProps<typeof SlideEditor>["onCha
   const copy: SlideDocument = structuredClone(reported) as SlideDocument;
   copy.format.width = 1;
 };
+// An app names the reported document's type to write its handler apart from the prop.
+export const appHandler: React.ComponentProps<typeof SlideEditor>["onChange"] = (
+  reported: ReadonlySlideDocument,
+) => void reported;
 
 // SUI-FEATURE-194: `onChange` reports every change of the document the editor takes over.
 describe("SlideEditor onChange", () => {

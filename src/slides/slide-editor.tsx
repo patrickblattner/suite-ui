@@ -203,6 +203,9 @@ type DeepReadonly<T> = T extends (...args: never[]) => unknown
     ? { readonly [K in keyof T]: DeepReadonly<T[K]> }
     : T;
 
+// The document `onChange` reports, for an app typing its handler.
+export type ReadonlySlideDocument = DeepReadonly<SlideDocument>;
+
 export interface SlideEditorProps extends Pick<
   SlideViewProps,
   "brand" | "fonts" | "fontOrigins" | "resolveMedia" | "extensions" | "renderPlaceholder"
@@ -217,7 +220,7 @@ export interface SlideEditorProps extends Pick<
   // redo and an extension's change too, typing once it is left, a drag once it is let go; never the
   // view's state (selection, zoom, grid shown). Throttling or saving it is the app's; it is read-only
   // deep down, an app that wants to change it copies it.
-  onChange?: (document: DeepReadonly<SlideDocument>) => void;
+  onChange?: (document: ReadonlySlideDocument) => void;
   // Back to the list; the leave guard asks first when the draft differs.
   onBack: () => void;
   // Whether the grid is shown, the person's view state (`SUI-FEATURE-161`); kept by the editor when
