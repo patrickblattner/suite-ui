@@ -101,10 +101,15 @@ export interface SlideFieldProps<V, E extends SlideElement> {
 // An app's own element type (`SUI-FEATURE-163`): its name and how it is drawn; in the editor its
 // fields (the Content tab, over the element's payload), its size when inserted, in format px (without,
 // a square of 20 % of the page's shorter side), and its entry in the element library with the
-// payload a new element starts with (without `library`, no entry).
+// payload a new element starts with (without `library`, no entry). `fonts` names the faces its renderer
+// draws (`SUI-FEATURE-291`), read from the element alone: they are loaded, awaited and reported missing
+// like a text run's (`font` omitted = the default font, `weight` 400, `italic` false).
 export interface SlideTypeExtension {
   label: string;
   render: SlideCustomRenderer;
+  fonts?: (
+    element: ElementOf<"custom">,
+  ) => readonly { font?: FontValue; weight?: number; italic?: boolean }[];
   fields?: (
     props: SlideFieldProps<Record<string, unknown> | undefined, ElementOf<"custom">>,
   ) => React.ReactNode;
@@ -1384,7 +1389,11 @@ function renderElement(
 }
 
 // The fonts (files needed, brand keys missing) and icons the drawn elements ask for.
-function assetsOf(brand: SlideBrandSet, elements: readonly SlideElement[]) {
+function assetsOf(
+  brand: SlideBrandSet,
+  elements: readonly SlideElement[],
+  types: SlideExtensions["types"],
+) {
   const faces = new Map<string, SlideFontNeed>();
   const missing = new Set<string>();
   const icons = new Set<string>();
@@ -1411,6 +1420,9 @@ function assetsOf(brand: SlideBrandSet, elements: readonly SlideElement[]) {
       for (const row of element.rows) for (const cell of row) body(cell.runs);
     if (element.type === "chart") font(undefined);
     if (element.type === "icon" && isSlideIcon(element.icon)) icons.add(element.icon);
+    if (element.type === "custom" && types !== undefined && Object.hasOwn(types, element.typeId))
+      for (const need of types[element.typeId]?.fonts?.(element) ?? [])
+        font(need.font, need.weight, need.italic);
   });
   return { faces: [...faces.values()], missing: [...missing], icons: [...icons] };
 }
@@ -1460,7 +1472,7 @@ export function SlideView({
   }, []);
   const given = document === undefined ? [] : pageLists(document, page);
   const lists = given.map((list) => followLayout(list, textSizes));
-  const assets = assetsOf(brand, lists.flat());
+  const assets = assetsOf(brand, lists.flat(), extensions?.types);
   const loadedFonts = useSlideFonts(fonts, assets.faces, fontOrigins);
   const loadedIcons = useSlideIcons(assets.icons);
   const ready = loadedFonts.ready && loadedIcons.ready;

@@ -38,6 +38,8 @@ export const GALLERY_SLIDE_PROPS = {
         // `{number}/{count}`; a hidden page shows a dash, drawing on no page draws nothing.
         render: (_element, { page }) =>
           page === null ? null : page.number === null ? "—" : `${page.number}/${page.count}`,
+        // It draws in the page's default font, regular (`SUI-FEATURE-291`): loaded and awaited like a text's.
+        fonts: () => [{}],
       },
     },
     addOns: [{ type: "image", id: "ext.gallery.image-filter", style: imageFilter }],

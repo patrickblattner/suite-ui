@@ -22,11 +22,13 @@ import {
   stackOrder,
 } from "./render-style.js";
 import { parseSlideDocument } from "./document.js";
+import { SLIDE_SCHEMA_VERSION } from "./schema.js";
 import {
   carriesUnloadedAddOn,
   checkSlideExtensions,
   type SlideAddOn,
   type SlideExtensions,
+  type SlideTypeExtension,
   SlideView,
   type SlideViewProps,
   type SlideViewReport,
@@ -1560,5 +1562,163 @@ describe("SlideView sizes that follow the text", () => {
     const { container } = await drawn({ document: badge("Neu eingetroffen"), onLayout });
     expect(boxOf(container, "label")).toEqual(["16px", "8px", "60px", "40px"]);
     expect(onLayout).not.toHaveBeenCalled();
+  });
+});
+
+// SUI-FEATURE-291: a custom type's declared fonts join the text runs' needs and missing report.
+describe("SlideView fonts of a custom type", () => {
+  const regularOnly = [SLIDE_FONTS[0]!];
+  const heading = { kind: "brand", key: "heading" } as const;
+  const custom = (typeId: string, id = "c") => ({
+    id,
+    type: "custom",
+    typeId,
+    x: 0,
+    y: 0,
+    width: 100,
+    height: 40,
+    payload: { label: "counter" },
+  });
+  const text = (font: { kind: "brand"; key: string }) => ({
+    id: "t",
+    type: "text",
+    x: 0,
+    y: 100,
+    width: 200,
+    height: 50,
+    runs: [{ text: "Title", font, weight: 700 }],
+  });
+  const deck = (elements: unknown[]) =>
+    ({
+      schemaVersion: SLIDE_SCHEMA_VERSION,
+      format: { name: "Test", width: 800, height: 450 },
+      pages: [
+        {
+          id: "p",
+          background: { type: "color", color: { kind: "free", value: "#ffffff" } },
+          elements,
+        },
+      ],
+    }) as SlideViewProps["document"];
+  const counterOf = (font: { kind: "brand"; key: string }) =>
+    vi.fn<NonNullable<SlideTypeExtension["fonts"]>>(() => [{ font, weight: 700 }]);
+  const withTypes = (types: Record<string, SlideTypeExtension>): SlideExtensions => ({ types });
+
+  it("needs the face a custom type declares, read from the element alone", async () => {
+    const fonts = counterOf(heading);
+    const counter = { label: "Counter", render: () => "1/4", fonts };
+    const missing = await drawn({
+      document: deck([custom("app.counter")]),
+      fonts: regularOnly,
+      extensions: withTypes({ "app.counter": counter }),
+    });
+    expect(missing.report().missingFonts).toEqual(["Gallery Slide Sans 700"]);
+    expect(fonts).toHaveBeenCalledWith(
+      expect.objectContaining({ typeId: "app.counter", payload: { label: "counter" } }),
+    );
+    expect(fonts.mock.calls.every((call) => call.length === 1)).toBe(true);
+    cleanup();
+    const loaded = await drawn({
+      document: deck([custom("app.counter")]),
+      extensions: withTypes({ "app.counter": counter }),
+    });
+    expect(loaded.report().missingFonts).toEqual([]);
+  });
+
+  it("is not ready until the face only a custom type declares has loaded", async () => {
+    // Font loading as in a browser: the bold file's load stays open until the test settles it.
+    let settle: (() => void) | undefined;
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() =>
+        Promise.resolve({ ok: true, arrayBuffer: () => Promise.resolve(new ArrayBuffer(8)) }),
+      ),
+    );
+    vi.stubGlobal(
+      "FontFace",
+      class {
+        constructor(
+          readonly family: string,
+          _bytes: ArrayBuffer,
+          readonly descriptors: { weight: string },
+        ) {}
+        load() {
+          return this.descriptors.weight === "700"
+            ? new Promise<this>((resolve) => (settle = () => resolve(this)))
+            : Promise.resolve(this);
+        }
+      },
+    );
+    const add = vi.fn();
+    Object.defineProperty(document, "fonts", { value: { add }, configurable: true });
+    try {
+      const fonts = [400, 700].map((weight) => ({
+        family: "Gallery Slide Sans",
+        src: `/custom-type-${weight}.woff2`,
+        weight,
+      }));
+      const onReport = vi.fn<(report: SlideViewReport) => void>();
+      render(
+        <SlideView
+          document={deck([custom("app.counter")])}
+          brand={SLIDE_BRAND}
+          fonts={fonts}
+          extensions={withTypes({
+            "app.counter": { label: "Counter", render: () => "1/4", fonts: counterOf(heading) },
+          })}
+          scale={0.5}
+          onReport={onReport}
+          data-testid="view"
+        />,
+      );
+      await waitFor(() => expect(settle).toBeDefined());
+      expect(add).toHaveBeenCalledTimes(1);
+      expect(screen.getByTestId("view")).toHaveAttribute("data-slide-ready", "false");
+      expect(onReport.mock.calls.some(([report]) => report.ready)).toBe(false);
+      act(() => settle!());
+      await waitFor(() =>
+        expect(screen.getByTestId("view")).toHaveAttribute("data-slide-ready", "true"),
+      );
+      expect(add).toHaveBeenCalledTimes(2);
+      expect(onReport.mock.lastCall![0].missingFonts).toEqual([]);
+    } finally {
+      Reflect.deleteProperty(document, "fonts");
+    }
+  });
+
+  it("reports a brand font key the set lacks as a text run with that key does", async () => {
+    const display = { kind: "brand", key: "display" } as const;
+    const fromType = await drawn({
+      document: deck([custom("app.counter")]),
+      extensions: withTypes({
+        "app.counter": { label: "Counter", render: () => "1/4", fonts: counterOf(display) },
+      }),
+    });
+    const typeReport = fromType.report();
+    cleanup();
+    const fromText = await drawn({ document: deck([text(display)]) });
+    expect(typeReport.missingFonts).toEqual(["display"]);
+    expect(typeReport.missingFaces).toEqual(fromText.report().missingFaces);
+    expect(typeReport.missingFonts).toEqual(fromText.report().missingFonts);
+  });
+
+  it("names a face a text run and a custom type both need once", async () => {
+    const counter = { label: "Counter", render: () => "1/4", fonts: counterOf(heading) };
+    const { report } = await drawn({
+      document: deck([text(heading), custom("app.counter"), custom("app.counter", "c2")]),
+      fonts: regularOnly,
+      extensions: withTypes({ "app.counter": counter }),
+    });
+    expect(report().missingFonts).toEqual(["Gallery Slide Sans 700"]);
+  });
+
+  it("leaves needs and report alone for a type without fonts", async () => {
+    const { report } = await drawn({
+      document: deck([custom("app.plain")]),
+      fonts: regularOnly,
+      extensions: withTypes({ "app.plain": { label: "Plain", render: () => "x" } }),
+    });
+    expect(report().missingFonts).toEqual([]);
+    expect(report().missingFaces).toEqual([]);
   });
 });
