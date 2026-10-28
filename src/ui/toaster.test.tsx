@@ -75,6 +75,44 @@ describe("toast", () => {
     expect(toastDurationFor(<span>x</span>, "info")).toBe(1000);
   });
 
+  // GL-UI-029 rev 5: the reading time counts the words of the title and a string description (#642).
+  it.each([
+    ["success", 2000],
+    ["error", 3000],
+    ["warning", 3000],
+    ["info", 1000],
+  ] as const)("counts a string description's words for toast.%s (#642)", (variant, base) => {
+    const set = durationOf(variant, () =>
+      toast[variant]("eins zwei", { description: "drei vier fünf" }),
+    );
+    expect(set).toBe(base + 5 * 50);
+  });
+
+  it("caps a toast whose string description is long (#642)", () => {
+    const words = Array.from({ length: 300 }, () => "Wort").join(" ");
+    expect(durationOf("error", () => toast.error("a", { description: words }))).toBe(12000);
+  });
+
+  it("times a toast with a React node description by its title alone (#642)", () => {
+    const set = durationOf("success", () =>
+      toast.success("eins zwei drei", { description: <em>vier fünf</em> }),
+    );
+    expect(set).toBe(2150);
+  });
+
+  it("counts the description of the live toast a call replaces by its id (#642)", () => {
+    // sonner merges the call into the live toast, which keeps showing its description.
+    vi.spyOn(sonnerToast, "getToasts").mockReturnValue([
+      { id: "r", title: "Saving", description: "drei vier fünf" },
+    ]);
+    expect(durationOf("success", () => toast.success("eins zwei", { id: "r" }))).toBe(2250);
+  });
+
+  it("keeps an explicit duration on a toast with a string description (#642)", () => {
+    const set = durationOf("info", () => toast.info("a", { description: "b c d", duration: 5000 }));
+    expect(set).toBe(5000);
+  });
+
   it("hands sonner's dismiss the id as it is, a boxed one unboxed (#585)", () => {
     const dismiss = vi.spyOn(sonnerToast, "dismiss").mockImplementation((id) => id ?? 0);
     toast.dismiss();
@@ -1150,6 +1188,21 @@ describe("toast with an action: duration", () => {
     expect(dismiss).toHaveBeenCalledWith("b");
   });
 
+  it("counts a string description in the reading time once that passes the floor (#642)", () => {
+    // 2000 ms success base plus 50 ms for each of "Archived", 117 description words and the hint's
+    // 4: 8100 ms. Without the description it would be the 8000 ms floor.
+    const dismiss = watchDismiss();
+    vi.spyOn(sonnerToast, "success").mockReturnValue("c");
+    toast.success("Archived", {
+      action: undo,
+      description: Array.from({ length: 117 }, () => "word").join(" "),
+    });
+    vi.advanceTimersByTime(8099);
+    expect(dismiss).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(dismiss).toHaveBeenCalledWith("c");
+  });
+
   it("applies to the plain call and toast.message, not to a loading toast", () => {
     const dismiss = watchDismiss();
     vi.spyOn(sonnerToast, "message").mockReturnValue("m");
@@ -1646,6 +1699,83 @@ describe("toast with an action: duration", () => {
     expect(await promiseResultOpen({ duration: 20000 }, [11900, 12100])).toEqual([true, false]);
   });
 
+  it("counts a string description's words on a toast.promise success (#642)", async () => {
+    useAllFakeTimers();
+    // 2000 ms success base + "Saved" + 7 words = 2400 ms.
+    const description = "The slide is on the server now";
+    expect(await promiseResultOpen({ description }, [2300, 2500])).toEqual([true, false]);
+  });
+
+  it("counts a string description's words on a toast.promise error (#642)", async () => {
+    useAllFakeTimers();
+    // 3000 ms error base + "Failed" + 7 words = 3400 ms.
+    const description = "The server did not take the slide";
+    expect(await promiseResultOpen({ description }, [3300, 3500], "error", "Failed")).toEqual([
+      true,
+      false,
+    ]);
+  });
+
+  it("counts the string description of a toast.promise result object (#642)", async () => {
+    useAllFakeTimers();
+    // 2000 ms success base + "Saved" + 3 words = 2200 ms.
+    const success = { message: "Saved", description: "All changes kept" };
+    expect(await promiseResultOpen({ success }, [2100, 2300])).toEqual([true, false]);
+  });
+
+  it("counts a toast.promise result's own description, not the call's (#642)", async () => {
+    useAllFakeTimers();
+    // 2000 ms success base + "Saved" + 3 words = 2200 ms; the call's 8 words would give 2450 ms.
+    const success = { message: "Saved", description: "All changes kept" };
+    expect(
+      await promiseResultOpen({ success, description: "a b c d e f g h" }, [2100, 2300]),
+    ).toEqual([true, false]);
+  });
+
+  it("counts the text of a description function on a toast.promise result, calling it once (#642)", async () => {
+    useAllFakeTimers();
+    // 2000 ms success base + "Saved" + 7 words = 2400 ms.
+    const description = vi.fn((value: string) => `The slide ${value} is on the server`);
+    expect(await promiseResultOpen({ description }, [2300, 2500])).toEqual([true, false]);
+    expect(description).toHaveBeenCalledTimes(1);
+  });
+
+  it("counts the description of a toast.promise result with an action past the floor (#642)", async () => {
+    useAllFakeTimers();
+    // 2000 ms success base + "Saved", 130 words and the hint's 4 = 8750 ms.
+    const description = Array.from({ length: 130 }, () => "word").join(" ");
+    expect(await promiseResultOpen({ action: undo, description }, [8650, 8850])).toEqual([
+      true,
+      false,
+    ]);
+  });
+
+  it("times a toast.promise result with a React node description by its title alone (#642)", async () => {
+    useAllFakeTimers();
+    const description = <em>The slide is on the server now</em>;
+    expect(await promiseResultOpen({ description }, [2000, 2100])).toEqual([true, false]);
+  });
+
+  it("closes a toast.warning with a string description after its reading time (#642)", () => {
+    render(<Toaster />);
+    useAllFakeTimers();
+    // 3000 ms warning base + 3 + 10 words = 3650 ms.
+    act(() => {
+      toast.warning("Check the input", {
+        description: "Two fields still hold values the form cannot take yet",
+      });
+    });
+    advance(1);
+    advance(3499);
+    expect(toastOf("Check the input")).not.toHaveAttribute("data-removed", "true");
+    advance(200);
+    const left = screen.queryByText("Check the input");
+    expect(
+      left === null || toastOf("Check the input")?.getAttribute("data-removed") === "true",
+    ).toBe(true);
+    advance(1000);
+  });
+
   it("keeps a toast.promise that replaces an action toast a toast with an action (#582)", async () => {
     render(<Toaster />);
     useAllFakeTimers();
@@ -1689,6 +1819,9 @@ describe("toast with an action: duration", () => {
   ] as const)(
     "returns an id for a toast.promise %s that dismisses that toast (#582, #585)",
     (_case, given, pattern) => {
+      // sonner numbers its toasts from a module-wide counter, so a toast an earlier test left may hold
+      // the id 7, and this toast would merge into it; dismissed, it is gone and this toast is a new one.
+      sonnerToast.dismiss();
       render(<Toaster />);
       useAllFakeTimers();
       let shown: ReturnType<typeof toast.promise> | undefined;

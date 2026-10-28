@@ -48,12 +48,20 @@ function toastDurationFor(message: unknown, variant: ToastVariant, duration?: nu
 
 type Message = Parameters<typeof sonnerToast.success>[0];
 
+// The text a toast reads: its title and description as far as they are strings (#642); a React
+// node, as title or description, counts no words.
+function readText(...parts: unknown[]): string {
+  return parts.filter((part) => typeof part === "string").join(" ");
+}
+
 function withDuration(
   message: Message,
   variant: ToastVariant,
-  opts?: ExternalToast,
+  opts: ExternalToast | undefined,
+  description: unknown,
 ): ExternalToast {
-  return { ...opts, duration: toastDurationFor(message, variant, opts?.duration) };
+  const text = readText(message, description);
+  return { ...opts, duration: toastDurationFor(text, variant, opts?.duration) };
 }
 
 // The key path to a toast's action: sonner's hotkey Alt+T focuses the toasts, from where Tab
@@ -129,14 +137,15 @@ const ACTION_TOAST_MIN_MS = 8000;
 /**
  * The duration of a toast with an action (`SUI-FEATURE-101` rev 6): the larger of
  * `ACTION_TOAST_MIN_MS` and the reading time (`toastDurationFor`) of all the live region reads, the
- * message and the screen-reader-only key hint. A call without a variant (the plain call,
- * `toast.message`) reads at the info base.
+ * message, the description shown (#642) and the screen-reader-only key hint. A call without a
+ * variant (the plain call, `toast.message`) reads at the info base.
  */
 function actionToastDurationFor(
   message: unknown,
   variant: ToastVariant,
   action?: string,
   duration?: number,
+  description?: unknown,
 ): number {
   // Without an i18next instance (no `initReactI18next`) the hint counts no words; it never throws.
   const i18n = getI18n() as ReturnType<typeof getI18n> | undefined;
@@ -144,7 +153,7 @@ function actionToastDurationFor(
     i18n === undefined
       ? ""
       : actionKeyText((key, options) => i18n.t(key, { ns: "suite", ...options }), action);
-  const text = typeof message === "string" ? `${message} ${hint}` : hint;
+  const text = readText(message, description, hint);
   return Math.max(ACTION_TOAST_MIN_MS, toastDurationFor(text, variant, duration));
 }
 
@@ -270,6 +279,8 @@ type Prepared = {
   opts: ExternalToast | undefined;
   // Whether the toast shows an action: it then takes no variant's duration.
   action: boolean;
+  // The description sonner shows: the call's, else that of the live toast it merges into (#642).
+  description: unknown;
   // The message as sonner shows it: with the key hint when the toast shows an action.
   wrap: (message: Message) => Message;
   // Runs once sonner shows the toast, with its id.
@@ -310,6 +321,8 @@ function prepare(
   const own = live === undefined ? ownOf(opts) : { ...(marked ?? ownOf(live)), ...ownOf(opts) };
   const action = opts !== undefined && "action" in opts ? opts.action : live?.action;
   const cancel = opts !== undefined && "cancel" in opts ? opts.cancel : live?.cancel;
+  const description =
+    opts !== undefined && "description" in opts ? opts.description : live?.description;
   // Every own button but the close X counts as an action, sonner's cancel too (rev 8, #614).
   if (!rendersAction(action) && !rendersAction(cancel)) {
     if (id !== undefined) marks.delete(id);
@@ -327,6 +340,7 @@ function prepare(
               duration: opts?.duration,
             },
       action: false,
+      description,
       wrap: (shown) => shown,
       shown: () => undefined,
     };
@@ -348,6 +362,7 @@ function prepare(
     return {
       opts: markedOpts,
       action: true,
+      description,
       wrap,
       shown: (shown) => {
         shownId = shown;
@@ -357,10 +372,17 @@ function prepare(
   }
   // A replacement without a toaster id stays in the toaster of the toast it replaces (sonner merges).
   const toaster = toasterKey(opts?.toasterId ?? live?.toasterId);
-  const left = actionToastDurationFor(message, variant ?? "info", label, opts?.duration);
+  const left = actionToastDurationFor(
+    message,
+    variant ?? "info",
+    label,
+    opts?.duration,
+    description,
+  );
   return {
     opts: { ...markedOpts, duration: Number.POSITIVE_INFINITY },
     action: true,
+    description,
     wrap,
     shown: (shown) => {
       shownId = shown;
@@ -384,7 +406,7 @@ function raise(
   const prepared = prepare(variant, message, opts, timed);
   const shownOpts =
     !prepared.action && timed && variant !== undefined
-      ? withDuration(message, variant, prepared.opts)
+      ? withDuration(message, variant, prepared.opts, prepared.description)
       : prepared.opts;
   const id = show(prepared.wrap(message), shownOpts);
   prepared.shown(id);
@@ -432,6 +454,8 @@ function promiseToast<T>(promise: PromiseArgs<T>[0], data?: PromiseArgs<T>[1]) {
   let settledOut: Promise<void> | undefined;
   let unwrapped = false;
   let pending: (() => void) | undefined;
+  // The call's description function's result, once a result has called it (#642).
+  let described: Promise<React.ReactNode> | undefined;
   const start = () => {
     pending?.();
     pending = undefined;
@@ -446,6 +470,15 @@ function promiseToast<T>(promise: PromiseArgs<T>[0], data?: PromiseArgs<T>[1]) {
               ? out
               : { message: out }
           ) as ExternalToast & { message: React.ReactNode };
+          // The description sonner shows, timed with the result (#642): the result's own, else the
+          // call's, a function's called once here and its text handed to sonner's call of it.
+          if (typeof description === "function") described = Promise.resolve(description(value));
+          const shownDescription =
+            "description" in settings
+              ? settings.description
+              : described === undefined
+                ? description
+                : await described;
           // The caller's duration only when set: an `undefined` would override the one sonner keeps
           // from the loading toast (#637).
           const prepared = prepare(
@@ -454,6 +487,7 @@ function promiseToast<T>(promise: PromiseArgs<T>[0], data?: PromiseArgs<T>[1]) {
             {
               ...(rest.duration === undefined ? {} : { duration: rest.duration }),
               ...settings,
+              description: shownDescription as ExternalToast["description"],
               id,
             },
             true,
@@ -466,7 +500,7 @@ function promiseToast<T>(promise: PromiseArgs<T>[0], data?: PromiseArgs<T>[1]) {
           return {
             ...(prepared.action
               ? prepared.opts
-              : withDuration(settings.message, variant, prepared.opts)),
+              : withDuration(settings.message, variant, prepared.opts, prepared.description)),
             id,
             message: prepared.wrap(settings.message) as React.ReactNode,
           };
@@ -483,7 +517,7 @@ function promiseToast<T>(promise: PromiseArgs<T>[0], data?: PromiseArgs<T>[1]) {
     description:
       typeof description === "function"
         ? async (value: T) => {
-            const text = await description(value);
+            const text = await (described ?? description(value));
             start();
             return text;
           }

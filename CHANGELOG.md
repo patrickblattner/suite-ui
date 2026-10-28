@@ -11,6 +11,16 @@
 - **Leave guard (#639):** a new `draft` (a change without a DOM `input`, such as a Switch or a canvas drag) while a route change waits for the router's form submission now takes that change back, as an entry in a field does: the page stays, and a Discard confirmed before never resets the draft. Before, the change went once the submission succeeded and the edit was lost. A draft the submission's result sets comes once it has ended and is no edit.
 - **Tests (#639):** unit: a new draft during the wait (clean page and after a confirmed Discard) keeps the route and the draft; the redirect-mark test of `leave-guard.search-params.test.tsx` waits for the guard's effects before it submits, so it no longer flakes under load.
 
+## Unreleased — #643, SUI-FEATURE-194 rev 4: emptying a protected group is refused; migration 3 → 4 leaves an oversized tree unwalked (patch)
+
+- **SlideEditor delete protection (#643):** deleting or cutting the last deletable child or children of a protected (`deletable: false`) group is now refused like deleting the group itself, and the toast names the group. A group that was already empty no longer counts as emptied and is kept by a delete. Locked children that stay keep their group.
+- **Slide migration (#643):** the 3 → 4 migration leaves a page, layout or master over the element or group-depth limit unmigrated, so loading fails with too-many-elements before the whole tree is walked (Codex CX1/CX2).
+
+## Unreleased — #642, GL-UI-029 rev 5: a toast's text description counts toward its reading time (patch)
+
+- **Toast reading time (#642):** `toast.success`/`error`/`warning`/`info` and `toast.promise` results now count the words of the description sonner shows as text together with the title: base plus 50 ms per word of both, capped at 12000 ms (`toast.warning("Check the input", { description: "…10 words…" })` lasts 3650 ms instead of 3150 ms). Toasts with an action count it too, beside the key hint, above their 8000 ms floor. The counted description is the call's, else that of the live toast a call replaces by its id (sonner keeps showing it); for a promise result its own, else the call's, a description function's text included (the function is still called once). A React-node description counts no words, as before; an explicit `duration` is unchanged.
+- **Tests (#642):** unit: the description counted for all four variants, capped, a node description ignored, an explicit duration kept, a replaced live toast's description counted, an action toast past the floor; toast.promise success, error, a result object with a description, the result's own description winning over the call's, a description function's text (called once), a result with an action past the floor, a node description on a result, and a toast.warning closing after its reading time under fake timers. The numeric-id toast.promise test dismisses toasts earlier tests left in sonner first, so it passes alone and under `-t "duration"`.
+
 ## 0.177.0 — #624, SUI-FEATURE-194 rev 4: delete protection per element and `onChange` for every document change; slide schema version 4
 
 - **Slide schema 4 (#624):** `SLIDE_SCHEMA_VERSION` is 4. Every element has `deletable` (default `true`), set by the app in the document; the editor offers no switch for it. The migration 3 → 4 drops any `deletable` a version-3 document carries (it knew none), on pages, layouts and masters and in groups, so an older document loads with every element deletable; nothing else changes.
@@ -302,6 +312,12 @@
 - **Tests (#550):** unit tests for the 8000 ms floor, the reading time with the hint, the routes, the dropped timer of a replaced toast, the duration of a toast replaced without an action, `onAutoClose` on the own timer, no i18next instance, the pause by pointer and by focus with the time left; the focus return after Enter on the action, after a dismissal, to nothing with the ring, on Tab past the last stop and Shift+Tab before the first after Alt+T, an own `tabindex` element as a stop, no catch after entering by Tab; the hint on every route and gone for good once the focus entered. Gallery AC 6: the focus on the ⋯ right after Enter on Undo, with its ring; Tab past Undo back to the ⋯ with its ring; a pointer click outside keeps the focus there; Tab beside the receipt keeps it, Shift+Tab back onto the ⋯ closes it; Shift+Tab onto the covered Edit closes it; the hint gone with the focus inside; the receipt open past 7500 ms, then closed.
 
 **Migration:** the strings `status.actionKey` and `status.actionKeyUnnamed` change wording in de, en and es. Baselines: the gallery string table (`gallery-{de,en,es}-{light,dark}`, `gallery-de-*-{390,1440}`) shows the new wording. No API or `data-testid` changes.
+
+## 0.174.0 — #541, GL-UI-038 rev 2: field errors appear late, retract early
+
+- **Field errors (#541):** `Field`/`FieldError` show the error text and `aria-invalid` only after blur or submit, never on change, and remove them as soon as the value is valid.
+
+**Migration:** tests that assert an error or `aria-invalid` while focus is still in the field must blur or submit first; remove app-owned error-timing code.
 
 ## 0.174.0 — #549, SUI-FEATURE-107 rev 4: in the Sidebar overlay, a section and the back link move the focus for every input
 
