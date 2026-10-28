@@ -1224,6 +1224,10 @@ function content(draw: Draw, element: SlideElement): React.ReactNode {
             element.height,
             element.lineHeight,
             element.list,
+            // The families the brand resolves to, the page's inherited one too: a switch between two
+            // loaded fonts measures again.
+            familyOf(draw, undefined),
+            element.runs.map((run) => (run.inline === undefined ? familyOf(draw, run.font) : null)),
             // An inline image that failed is drawn as its stand-in: measured again once it shows.
             draw.broken.size,
           ])}

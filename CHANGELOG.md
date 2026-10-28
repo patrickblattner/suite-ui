@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — #640, SUI-FEATURE-165 AC 3 + SUI-FEATURE-231 rev 3: text follow re-measures on a brand font switch; format transfer scales a following shape's inset (patch)
+
+- **Slides text follow (#640):** a text field whose size follows its text is measured again when the app's brand set switches a font to another one that is already loaded, the page's inherited body font too (a run whose brand font key the set lacks draws in it). Before, only the document's text, box or a font still loading set off a new measure, so the field and its badge kept the old font's size. The document stays unchanged.
+- **Format transfer (#640):** a shape that follows a text field has its inset (top, right, bottom, left) scaled with the ratio of the shorter sides, rounded as the other dimensions are. Before, the inset stayed at its old value, so a scaled badge's padding fell back to the old format's.
+- **Tests (#640):** unit: a view re-rendered with a brand set naming another loaded font measures the label and its group again, for a run's own family and for the inherited one, each size differing from the stored box; `transferFormat` scales a following shape's inset up (2.4) and down (1/3) and the copy validates.
+
 ## Unreleased — #639, SUI-FEATURE-112 AC 2 + AC 5: a new `draft` during a router submission takes the waiting route change back (patch)
 
 - **Leave guard (#639):** a new `draft` (a change without a DOM `input`, such as a Switch or a canvas drag) while a route change waits for the router's form submission now takes that change back, as an entry in a field does: the page stays, and a Discard confirmed before never resets the draft. Before, the change went once the submission succeeded and the edit was lost. A draft the submission's result sets comes once it has ended and is no edit.

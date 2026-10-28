@@ -1419,6 +1419,52 @@ describe("transfer to another format", () => {
     ).toEqual({ kind: "step", step: 12 });
   });
 
+  // #640 (Codex #636 CX6): a following shape's inset is dimensional, so it scales as the rest does.
+  it("scales a following shape's inset with the shorter side", () => {
+    const source = doc([
+      {
+        id: "badge",
+        type: "group",
+        x: 84,
+        y: 92,
+        width: 92,
+        height: 56,
+        children: [
+          {
+            ...shape("back", 84, 92, 92, 56),
+            follow: { id: "label", inset: { top: 8, right: 16, bottom: 0, left: 5 } },
+          },
+          {
+            id: "label",
+            type: "text",
+            x: 100,
+            y: 100,
+            width: 60,
+            height: 40,
+            runs: [{ text: "Neu" }],
+            sizing: "both",
+          },
+        ],
+      },
+    ]);
+    const inset = (format: { name: string; width: number; height: number }) => {
+      const { document: copy } = transferFormat(source, format);
+      expect(safeParseSlideDocument(copy).ok).toBe(true);
+      const back = findElement(copy.pages[0]!.elements, "back")!.element;
+      return back.type === "shape" ? back.follow : undefined;
+    };
+    // 2.4: 1080 → 2592.
+    expect(inset({ name: "Big", width: 4608, height: 2592 })).toEqual({
+      id: "label",
+      inset: { top: 19.2, right: 38.4, bottom: 0, left: 12 },
+    });
+    // 1/3: 1080 → 360, rounded.
+    expect(inset({ name: "Small", width: 640, height: 360 })).toEqual({
+      id: "label",
+      inset: { top: 2.667, right: 5.333, bottom: 0, left: 1.667 },
+    });
+  });
+
   // Codex #355 CX1 (#356): an element a page draws from its master (through its layout) counts too.
   it("names master and layout elements that reach past the copy's page", () => {
     const source = parseSlideDocument({

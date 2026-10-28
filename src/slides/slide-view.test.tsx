@@ -1491,6 +1491,51 @@ describe("SlideView sizes that follow the text", () => {
     expect(JSON.stringify(document)).toBe(before);
   });
 
+  // #640: both fonts already loaded, so the switch changes nothing but the resolved family. A run
+  // whose brand key the set lacks draws in the family the page inherits, and follows it too.
+  it.each([
+    ["its own family", undefined],
+    ["the inherited family", { kind: "brand", key: "nope" } as const],
+  ])("measures again when the brand switches between two loaded fonts (%s)", async (_, font) => {
+    measure();
+    // The family the text draws in: the nearest one set, up from its run.
+    const family = (node: Element | null) => {
+      for (let at = node; at instanceof HTMLElement; at = at.parentElement) {
+        if (at.style.fontFamily !== "") return at.style.fontFamily;
+      }
+      return "";
+    };
+    usedSize((element) => {
+      const wide = family(element.querySelector("span") ?? element).includes("Wide");
+      return (element.textContent ?? "").length * (wide ? 20 : 10);
+    });
+    const document = badge("Neu!");
+    const group = document.pages[0]?.elements?.[0];
+    const label = group?.type === "group" ? group.children[1] : undefined;
+    if (label?.type !== "text") throw new Error("badge");
+    label.runs = [{ text: "Neu!", ...(font === undefined ? {} : { font }) }];
+    const wide = {
+      ...SLIDE_BRAND,
+      fonts: { ...SLIDE_BRAND.fonts, body: { family: "Gallery Wide", label: "Body text" } },
+    };
+    const fonts = [...SLIDE_FONTS, { ...SLIDE_FONTS[0]!, family: "Gallery Wide" }];
+    const props = {
+      document,
+      fonts,
+      resolveMedia: resolveSlideMedia,
+      extensions,
+      scale: 0.5,
+      "data-testid": "view",
+    };
+    const { container, rerender } = await drawn(props);
+    // Neither size is the stored one (60 and 92): each is measured, not the stored box kept.
+    await waitFor(() => expect(boxOf(container, "label")[2]).toBe("40px"));
+    expect(boxOf(container, "badge")[2]).toBe("72px");
+    rerender(<SlideView {...props} brand={wide} />);
+    await waitFor(() => expect(boxOf(container, "label")[2]).toBe("80px"));
+    expect(boxOf(container, "badge")[2]).toBe("112px");
+  });
+
   // #622: a failed inline image becomes its stand-in, and the size follows it.
   it("measures again once a failed inline image shows its stand-in", async () => {
     measure();

@@ -1190,6 +1190,20 @@ const scaledShadow = <T extends ShadowLike>(shadow: T, scale: number): T => ({
   offsetY: round(shadow.offsetY * scale),
 });
 
+// A shape's follow at `scale`: its inset on each side.
+const scaledFollow = <T extends { inset: Record<"top" | "right" | "bottom" | "left", number> }>(
+  follow: T,
+  scale: number,
+): T => ({
+  ...follow,
+  inset: {
+    top: round(follow.inset.top * scale),
+    right: round(follow.inset.right * scale),
+    bottom: round(follow.inset.bottom * scale),
+    left: round(follow.inset.left * scale),
+  },
+});
+
 // The optional border and shadow of an element, scaled where it has them.
 function withScaledBorderAndShadow<T extends { border?: { width: number }; shadow?: ShadowLike }>(
   element: T,
@@ -1238,7 +1252,12 @@ function scaledContent(element: SlideElement, scale: number): SlideElement {
       );
     case "shape":
       return withScaledBorderAndShadow(
-        { ...element, cornerRadius: round(element.cornerRadius * scale) },
+        {
+          ...element,
+          cornerRadius: round(element.cornerRadius * scale),
+          // The inset around a followed text field is dimensional too (#640).
+          ...(element.follow === undefined ? {} : { follow: scaledFollow(element.follow, scale) }),
+        },
         scale,
       );
     default:
