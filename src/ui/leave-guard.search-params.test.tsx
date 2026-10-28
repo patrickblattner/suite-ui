@@ -773,6 +773,9 @@ describe("leave guard and react-router's redirect mark (SUI-FEATURE-109 rev 4, #
   async function redirectLoading(router: ReturnType<typeof createMemoryRouter>) {
     render(<RouterProvider router={router} />);
     await waitFor(() => expect(path()).toBe("/detail?tab=a"));
+    // The page may show before its effects ran: the guard holds the router only from its effect, and
+    // a submission it never saw start counts from the redirect's location (#639, flaked under load).
+    await act(async () => {});
     fireEvent.click(screen.getByTestId("save"));
     await waitFor(() => {
       expect(router.state.navigation.state).toBe("loading");

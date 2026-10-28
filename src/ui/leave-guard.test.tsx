@@ -2,7 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import i18n from "i18next";
 // @ts-expect-error -- jsdom ships no types; the test environment brings it (a router's own window, #306)
 import { JSDOM as UntypedJSDOM } from "jsdom";
-import { type ComponentProps, type ReactNode, useState } from "react";
+import { type ComponentProps, type ReactNode, useEffect, useState } from "react";
 import {
   BrowserRouter,
   createBrowserRouter,
@@ -2883,12 +2883,15 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
     onDiscard,
     label = "Name",
     changed = false,
+    withDraft = false,
     children,
   }: {
     onDiscard: (name: string) => void;
     label?: string;
     // Changed without an edit on the page (a value set from outside).
     changed?: boolean;
+    // Passes the name as `draft`, with a button that sets it without a DOM `input` (a Switch).
+    withDraft?: boolean;
     children?: ReactNode;
   }) {
     const navigate = useNavigate();
@@ -2901,10 +2904,16 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
         onDiscard(name);
         setName("Main");
       },
+      ...(withDraft ? { draft: name } : {}),
     });
     return (
       <>
         <Input aria-label={label} value={name} onChange={(event) => setName(event.target.value)} />
+        {withDraft && (
+          <button type="button" data-testid="set-name" onClick={() => setName("Set")}>
+            Set
+          </button>
+        )}
         {children}
         <button
           type="button"
@@ -3490,6 +3499,93 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
       expect(name).toHaveFocus();
       expect(name).toHaveValue("Changed again");
       expect(onDiscard).not.toHaveBeenCalled();
+    },
+  );
+
+  // SUI-FEATURE-112 AC5 (#639): a new `draft` (a change without a DOM `input`) while a route change
+  // waits for the router's submission takes it back as an entry does: the route and the draft stay.
+  it.each(["clean", "discarded"])(
+    "AC5 (SUI-FEATURE-112): a new draft drops a route change waiting for a submission (%s)",
+    async (start) => {
+      const { action, settle } = submission();
+      const onDiscard = vi.fn();
+      const router = submittingRouter(action, {
+        page: <SpyPage onDiscard={onDiscard} withDraft />,
+      });
+      await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+      if (start === "discarded") edit();
+      fireEvent.click(screen.getByTestId("go"));
+      if (start === "discarded") fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+      await pause();
+      const set = screen.getByTestId("set-name");
+      set.focus();
+      fireEvent.click(set);
+      await settleAndWait(settle);
+      await pause();
+      expect(router.state.navigation.state).toBe("idle");
+      expect(router.state.location.pathname).toBe("/detail");
+      expect(screen.queryByTestId("leave-guard")).toBeNull();
+      expect(set).toHaveFocus();
+      expect(screen.getByLabelText("Name")).toHaveValue("Set");
+      expect(onDiscard).not.toHaveBeenCalled();
+    },
+  );
+
+  // #639: the draft a submission's result sets (the loader's data, passed on directly or synced by an
+  // effect) comes once the submission ended: no edit, the waiting route change still lands.
+  it.each([
+    ["direct", "returns nothing"],
+    ["direct", "redirects"],
+    ["synced", "returns nothing"],
+    ["synced", "redirects"],
+  ])(
+    "AC4 (SUI-FEATURE-112): a draft from the submission's result (%s) is no edit, the change %s lands",
+    async (mode, result) => {
+      function LoadedPage() {
+        const data = useLoaderData<{ value: object }>();
+        const navigate = useNavigate();
+        const [synced, setSynced] = useState(data.value);
+        // A page that syncs its draft from the loader's data by an effect, as callers do.
+        // eslint-disable-next-line react-hooks/set-state-in-effect
+        useEffect(() => setSynced(data.value), [data]);
+        const { dialog } = useLeaveGuard({
+          dirty: false,
+          onLeave: () => {},
+          draft: mode === "direct" ? data.value : synced,
+        });
+        return (
+          <>
+            <Where />
+            <button type="button" data-testid="go" onClick={() => void navigate("/elsewhere")}>
+              Go
+            </button>
+            {dialog}
+          </>
+        );
+      }
+      const { action, settle } = submission(() =>
+        result === "redirects" ? redirect("/detail?saved=1") : null,
+      );
+      const router = createMemoryRouter(
+        [
+          { path: "/detail", loader: () => ({ value: {} }), action, element: <LoadedPage /> },
+          { path: "*", element: <Where /> },
+        ],
+        { initialEntries: ["/detail"] },
+      );
+      render(<RouterProvider router={router} />);
+      await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/detail"));
+      await pause();
+      act(() => {
+        void router.navigate("/detail", { formMethod: "post", formData: new FormData() });
+      });
+      await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+      fireEvent.click(screen.getByTestId("go"));
+      await pause();
+      expect(router.state.location.pathname).toBe("/detail");
+      await settleAndWait(settle);
+      await waitFor(() => expect(router.state.location.pathname).toBe("/elsewhere"));
+      expect(screen.queryByTestId("leave-guard")).toBeNull();
     },
   );
 

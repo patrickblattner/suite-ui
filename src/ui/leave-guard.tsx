@@ -1117,6 +1117,12 @@ function dropWaiting(router: DataRouter) {
   if (entry !== undefined) entry.waiting = null;
 }
 
+// A confirmed change waits for the router's submission, which still runs.
+function waitsForSubmission(router: DataRouter): boolean {
+  const waiting = routerHolds.get(router)?.waiting;
+  return submitting(router) && waiting !== undefined && waiting !== null && !waiting.ended;
+}
+
 // Starts a waiting change anew, past the holds that confirmed it; the holds that block now ask first.
 // A browser step goes by the step to the entry it targeted, counted from where the submission left
 // the history (none when that is where the app stands: never `go(0)`, which would reload). Any other
@@ -1264,9 +1270,11 @@ type LeaveConfirmOptions = {
   saveFailed?: boolean | undefined;
   // The edited state the call site holds anyway: a new identity (`Object.is`) while a way out is held
   // is an edit, as a DOM `input` is, for a canvas drag or a button-based control (Switch, Checkbox,
-  // Select trigger) that fires none (`SUI-FEATURE-112`). Pass the state value itself (or one memoized
-  // on it), never an object built anew in each render. A save's result that sets it does so in the
-  // same update that ends `busy`, so it is no edit. Without it only DOM input counts.
+  // Select trigger) that fires none (`SUI-FEATURE-112`), also while a route change waits for the
+  // router's submission. Pass the state value itself (or one memoized on it), never an object built
+  // anew in each render: a render while a way is held (the router's navigation state re-renders the
+  // page) would take that way back. A save's result that sets it does so in the same update that ends
+  // `busy` or the submission, so it is no edit. Without it only DOM input counts.
   draft?: unknown;
 };
 
@@ -1594,14 +1602,21 @@ function useLeaveConfirm({
       document.removeEventListener("change", onEdit, true);
     };
   }, [open, takeBack]);
-  // A new `draft` while the work runs is an edit as well. The draft a save's result sets comes in the
-  // render that ends `busy`: no edit, the held way goes on.
+  // A new `draft` while the work runs is an edit as well, and so is one while a route change waits
+  // for the router's submission (#639). The draft a save's result sets comes in the render that ends
+  // `busy` or the submission: no edit, the held way goes on. Whether a change waits is read in the
+  // render of the new draft: its effect may run only after the submission ended.
   const lastDraft = React.useRef(draft);
+  const waits = React.useMemo(
+    () => router !== undefined && waitsForSubmission(router),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- read anew for each draft
+    [draft, router],
+  );
   React.useEffect(() => {
     if (Object.is(lastDraft.current, draft)) return;
     lastDraft.current = draft;
-    if (open && (busy || work.current !== null)) takeBack();
-  }, [draft, busy, open, takeBack]);
+    if (open && (busy || work.current !== null || waits)) takeBack();
+  }, [draft, busy, open, takeBack, waits]);
 
   const close = () => ask(null);
   const dialog = (
@@ -1670,10 +1685,12 @@ type LeaveGuardOptions = {
   // submission to the page's own route still asks, as its action may redirect away. Set it only where the changed state survives such a
   // switch (a server draft, a store), never where a search parameter selects another entry (`?id=`).
   ignoreSearchParams?: boolean | undefined;
-  // The page's edited state: a new identity (`Object.is`) during the save takes a held way back, as
-  // typing does (a canvas drag, a Switch or Select trigger fire no DOM `input`; `SUI-FEATURE-112`).
-  // Pass the state value itself (or one memoized on it), never an object built anew in each render;
-  // a save's result sets it in the same update that ends `busy`, else it counts as an edit.
+  // The page's edited state: a new identity (`Object.is`) during the save or a running router
+  // submission takes a held way back, as typing does (a canvas drag, a Switch or Select trigger fire
+  // no DOM `input`; `SUI-FEATURE-112`). Pass the state value itself (or one memoized on it), never an
+  // object built anew in each render: a render while a way is held (the router's navigation state
+  // re-renders the page) would take that way back. A save's result sets it in the same update that
+  // ends `busy` or the submission, else it counts as an edit.
   draft?: unknown;
 };
 

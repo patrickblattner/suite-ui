@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — #639, SUI-FEATURE-112 AC 2 + AC 5: a new `draft` during a router submission takes the waiting route change back (patch)
+
+- **Leave guard (#639):** a new `draft` (a change without a DOM `input`, such as a Switch or a canvas drag) while a route change waits for the router's form submission now takes that change back, as an entry in a field does: the page stays, and a Discard confirmed before never resets the draft. Before, the change went once the submission succeeded and the edit was lost. A draft the submission's result sets comes once it has ended and is no edit.
+- **Tests (#639):** unit: a new draft during the wait (clean page and after a confirmed Discard) keeps the route and the draft; the redirect-mark test of `leave-guard.search-params.test.tsx` waits for the guard's effects before it submits, so it no longer flakes under load.
+
 ## 0.177.0 — #624, SUI-FEATURE-194 rev 4: delete protection per element and `onChange` for every document change; slide schema version 4
 
 - **Slide schema 4 (#624):** `SLIDE_SCHEMA_VERSION` is 4. Every element has `deletable` (default `true`), set by the app in the document; the editor offers no switch for it. The migration 3 → 4 drops any `deletable` a version-3 document carries (it knew none), on pages, layouts and masters and in groups, so an older document loads with every element deletable; nothing else changes.
