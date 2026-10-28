@@ -1636,7 +1636,8 @@ export function setTransition(
 }
 
 // The page without the elements of `ids` (in groups too); a group left without children goes with
-// them, the others refitted.
+// them, the others refitted. A group that had none before stays: no delete of others removes it
+// (Codex #643).
 export function deleteElements(
   document: SlideDocument,
   page: number,
@@ -1648,7 +1649,7 @@ export function deleteElements(
       if (wanted.has(element.id)) return [];
       if (element.type !== "group") return [element];
       const children = walk(element.children);
-      if (children.length === 0) return [];
+      if (children.length === 0 && element.children.length > 0) return [];
       return [
         children.length === element.children.length &&
         children.every((child, index) => child === element.children[index])
@@ -1659,22 +1660,40 @@ export function deleteElements(
   return withPage(document, page, (elements) => withFollowsKept(walk(elements)));
 }
 
-// The protected elements among those of `ids`, themselves or in their groups: deleting or cutting
-// them is refused whole (`SUI-FEATURE-194`).
+// The protected elements among those of `ids`, themselves or in their groups, and a protected group
+// `deleteElements` would remove as left without children: deleting or cutting them is refused whole
+// (`SUI-FEATURE-194`, Codex #643 CX1). `removing` are the ids actually deleted (the unlocked part of
+// `ids`); a group is emptied only by those.
 export function protectedElements(
   elements: readonly SlideElement[],
   ids: readonly string[],
+  removing: readonly string[] = ids,
 ): SlideElement[] {
   const wanted = new Set(ids);
-  const found: SlideElement[] = [];
-  const visit = (list: readonly SlideElement[], inWanted: boolean) => {
-    for (const element of list) {
-      const counted = inWanted || wanted.has(element.id);
+  const deleted = new Set(removing);
+  // Whether the element goes with the delete; its protected ones (a group's before its children's)
+  // land in `found`.
+  const visit = (
+    element: SlideElement,
+    inWanted: boolean,
+    inDeleted: boolean,
+    found: SlideElement[],
+  ): boolean => {
+    const counted = inWanted || wanted.has(element.id);
+    const removed = inDeleted || deleted.has(element.id);
+    if (element.type !== "group") {
       if (counted && !element.deletable) found.push(element);
-      if (element.type === "group") visit(element.children, counted);
+      return removed;
     }
+    const inside: SlideElement[] = [];
+    const gone = element.children.map((child) => visit(child, counted, removed, inside));
+    const emptied = element.children.length > 0 && gone.every(Boolean);
+    if ((counted || emptied) && !element.deletable) found.push(element);
+    found.push(...inside);
+    return removed || emptied;
   };
-  visit(elements, false);
+  const found: SlideElement[] = [];
+  for (const element of elements) visit(element, false, false, found);
   return found;
 }
 

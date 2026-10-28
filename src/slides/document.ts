@@ -52,8 +52,31 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const walkable = (value: unknown, cap: number): value is unknown[] =>
   Array.isArray(value) && value.length <= cap;
 
+// Whether the elements, those in groups counted, stay within `maxElements` and the group depth:
+// counted with a stack of its own and stopped at the first list over the budget, so a tree the schema
+// rejects is left as it is instead of walked and copied whole (Codex #643 CX2). It counts as
+// `structureIssue` in `schema.ts` does, which stays unexported: `index.ts` re-exports all of
+// `schema.ts`, so exporting it would make it public API.
+function withinLimits(elements: unknown[]): boolean {
+  const stack = [{ list: elements, depth: 0 }];
+  let count = 0;
+  while (stack.length > 0) {
+    const { list, depth } = stack.pop()!;
+    count += list.length;
+    if (count > SLIDE_LIMITS.maxElements) return false;
+    for (const element of list) {
+      if (!isRecord(element) || !Array.isArray(element.children)) continue;
+      if (depth + 1 > SLIDE_LIMITS.maxGroupDepth) return false;
+      stack.push({ list: element.children, depth: depth + 1 });
+    }
+  }
+  return true;
+}
+
 function holderWithoutDeletable(holder: unknown): unknown {
-  if (!isRecord(holder) || !walkable(holder.elements, SLIDE_LIMITS.maxElements)) return holder;
+  if (!isRecord(holder) || !Array.isArray(holder.elements) || !withinLimits(holder.elements)) {
+    return holder;
+  }
   return {
     ...holder,
     elements: holder.elements.map((element: unknown) => elementWithoutDeletable(element, 0)),

@@ -4,12 +4,14 @@ import { describe, expect, it } from "vitest";
 import { parseSlideDocument } from "./document.js";
 import {
   copyElements,
+  deleteElements,
   DUPLICATE_OFFSET,
   duplicateElements,
   findElement,
   groupElements,
   holdsProtected,
   pasteElements,
+  protectedElements,
   setRotation,
   ungroupElement,
   updateElements,
@@ -260,6 +262,97 @@ describe("delete protection", () => {
     expect(holdsProtected(elementsOf(guarded), ["d", "b"])).toBe(true);
     expect(holdsProtected(elementsOf(guarded), ["c", "d"])).toBe(false);
     expect(holdsProtected(elementsOf(guarded), [])).toBe(false);
+  });
+
+  // Codex #643 CX1: deleting a protected group's last deletable child would remove the group with it.
+  it("refuses a delete that would leave a protected group without children", () => {
+    const sole = docNow([
+      {
+        id: "p",
+        type: "group",
+        x: 0,
+        y: 0,
+        width: 300,
+        height: 100,
+        deletable: false,
+        children: [shape("c", 0, 0), shape("e", 200, 0)],
+      },
+      shape("d", 700, 0),
+    ]);
+    // One child of two goes: the group stays, nothing protected is removed.
+    expect(holdsProtected(elementsOf(sole), ["c"])).toBe(false);
+    expect(findElement(elementsOf(deleteElements(sole, 0, ["c"])), "p")).toBeDefined();
+    // Both go, or the last one after the other: the group would go with them, so it is refused.
+    expect(protectedElements(elementsOf(sole), ["c", "e"]).map((one) => one.id)).toEqual(["p"]);
+    const one = deleteElements(sole, 0, ["e"]);
+    expect(protectedElements(elementsOf(one), ["c"]).map((element) => element.id)).toEqual(["p"]);
+    expect(holdsProtected(elementsOf(one), ["c", "d"])).toBe(true);
+  });
+
+  // The cleanup cascades: a protected grandparent emptied through its only group goes too.
+  it("refuses a delete that would empty a protected group further up", () => {
+    const nested = docNow([
+      {
+        id: "gp",
+        type: "group",
+        x: 0,
+        y: 0,
+        width: 100,
+        height: 100,
+        deletable: false,
+        children: [
+          {
+            id: "p",
+            type: "group",
+            x: 0,
+            y: 0,
+            width: 100,
+            height: 100,
+            children: [shape("c", 0, 0)],
+          },
+        ],
+      },
+    ]);
+    expect(protectedElements(elementsOf(nested), ["c"]).map((one) => one.id)).toEqual(["gp"]);
+  });
+
+  // A protected group that has no children is no delete's side effect: it stays and refuses nothing.
+  it("keeps an empty protected group out of every other delete", () => {
+    const empty = docNow([
+      {
+        id: "empty",
+        type: "group",
+        x: 0,
+        y: 0,
+        width: 100,
+        height: 100,
+        deletable: false,
+        children: [],
+      },
+      shape("d", 700, 0),
+    ]);
+    expect(holdsProtected(elementsOf(empty), [])).toBe(false);
+    expect(holdsProtected(elementsOf(empty), ["d"])).toBe(false);
+    expect(elementsOf(deleteElements(empty, 0, ["d"])).map((one) => one.id)).toEqual(["empty"]);
+    expect(holdsProtected(elementsOf(empty), ["empty"])).toBe(true);
+  });
+
+  // Only what is deleted empties a group: a locked child chosen with the others stays, so does the group.
+  it("counts only the deleted children when a protected group would be emptied", () => {
+    const pair = docNow([
+      {
+        id: "p",
+        type: "group",
+        x: 0,
+        y: 0,
+        width: 300,
+        height: 100,
+        deletable: false,
+        children: [shape("c", 0, 0), { ...shape("e", 200, 0), locked: true }],
+      },
+    ]);
+    expect(protectedElements(elementsOf(pair), ["c", "e"], ["c"])).toEqual([]);
+    expect(protectedElements(elementsOf(pair), ["c", "e"]).map((one) => one.id)).toEqual(["p"]);
   });
 
   it("makes every copy deletable, the original staying protected (AC3)", () => {

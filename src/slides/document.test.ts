@@ -294,6 +294,64 @@ describe("slide document migration", () => {
     },
   );
 
+  // Codex #643 CX2: a branching tree over the element limit, every list of it under the limit, is
+  // left as it is by the migration, not walked and copied whole, and rejected by name.
+  it("leaves a version-3 tree over the element limit unmigrated and rejects it", () => {
+    const shape = (id: string) => ({
+      id,
+      type: "shape",
+      shape: "rectangle",
+      x: 0,
+      y: 0,
+      width: 50,
+      height: 50,
+      deletable: false,
+    });
+    const half = SLIDE_LIMITS.maxElements / 2;
+    const group = (id: string) => ({
+      ...shape(id),
+      type: "group",
+      children: Array.from({ length: half }, (_, index) => shape(`${id}-${index}`)),
+    });
+    const page = { ...valid.pages[0]!, elements: [group("a"), group("b")] };
+    const migrated = SLIDE_MIGRATIONS[3]!({ ...valid, schemaVersion: 3, pages: [page] });
+    expect((migrated.pages as unknown[])[0]).toBe(page);
+    expect(rejection({ ...valid, schemaVersion: 3, pages: [page] }).issues[0]).toMatchObject({
+      code: "too-many-elements",
+      path: "pages[0]",
+    });
+  });
+
+  // The migration's budget is the schema's: a tree at the limits is migrated, one past them is not.
+  it.each([
+    ["at the element limit", SLIDE_LIMITS.maxElements, 1, true],
+    ["one over the element limit", SLIDE_LIMITS.maxElements + 1, 1, false],
+    ["at the group depth", 1, SLIDE_LIMITS.maxGroupDepth, true],
+    ["one past the group depth", 1, SLIDE_LIMITS.maxGroupDepth + 1, false],
+  ] as const)("migrates a version-3 tree %s only within the limits", (_, total, depth, within) => {
+    const shape = (id: string) => ({
+      id,
+      type: "shape",
+      shape: "rectangle",
+      x: 0,
+      y: 0,
+      width: 50,
+      height: 50,
+      deletable: false,
+    });
+    // `depth` groups nested, the innermost holding the rest of `total` elements.
+    let inner: Record<string, unknown>[] = Array.from({ length: total - depth }, (_, index) =>
+      shape(`s-${index}`),
+    );
+    for (let level = depth; level > 0; level -= 1) {
+      inner = [{ ...shape(`g-${level}`), type: "group", children: inner }];
+    }
+    const page = { ...valid.pages[0]!, elements: inner };
+    const migrated = SLIDE_MIGRATIONS[3]!({ ...valid, schemaVersion: 3, pages: [page] });
+    expect((migrated.pages as unknown[])[0] === page).toBe(!within);
+    expect(safeParseSlideDocument({ ...valid, schemaVersion: 3, pages: [page] }).ok).toBe(within);
+  });
+
   it("migrates a previous version on load, content unchanged", () => {
     const current = parseSlideDocument(valid);
     const previous = {

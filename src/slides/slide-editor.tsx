@@ -1689,6 +1689,7 @@ function Editor({
     const found = protectedElements(
       elements,
       list.map((element) => element.id),
+      list.flatMap((element) => (element.locked ? [] : [element.id])),
     );
     const [one] = found;
     if (one === undefined) return false;
