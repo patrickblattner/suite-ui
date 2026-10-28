@@ -52,12 +52,23 @@ function SelectValue({ className, ...props }: React.ComponentProps<typeof Select
 // content (WCAG 4.1.2), so the trigger points `aria-labelledby` at a hidden element holding the bare
 // field name, without a colon. It shows nothing; a visible field name is the caller's own aria-hidden
 // child, so a screen reader does not read it again with the value.
+// Locked with `aria-disabled="true"` (`SUI-FEATURE-195`), as a locked `Button`: it stays focusable and
+// keeps the focus (a press does not move it), and neither a click nor `Space`, `Enter`, the arrow
+// keys or a typed letter (Radix's typeahead on the closed trigger) opens the list or changes the value.
+// It shows the locked look in colour, never element opacity (`SUI-FEATURE-251`): value and border
+// mixed half with `--surface`, no hover, cursor `not-allowed`; `GrayText` under forced colours. A lock
+// reason comes through the `Hint`'s `disabledText`. `disabled` keeps its own look and is not focusable.
+const LOCKED_KEYS = new Set([" ", "Enter", "ArrowUp", "ArrowDown"]);
+const LOCKED_LOOK =
+  "aria-disabled:cursor-not-allowed aria-disabled:text-[color-mix(in_srgb,var(--foreground)_50%,var(--surface))] aria-disabled:border-[color-mix(in_srgb,var(--input)_50%,var(--surface))] forced-colors:aria-disabled:border-[GrayText] forced-colors:aria-disabled:text-[GrayText]";
 function SelectTrigger({
   className,
   size = "default",
   fieldName,
   children,
   onPointerDown,
+  onMouseDown,
+  onClick,
   onKeyDown,
   ...props
 }: React.ComponentProps<typeof SelectPrimitive.Trigger> & {
@@ -70,22 +81,46 @@ function SelectTrigger({
   // Only non-blank text names the trigger; anything else (also a value bypassing the type) is none, so
   // no empty name overrides `aria-label`.
   const named = typeof fieldName === "string" && fieldName.trim() !== "";
+  const locked = props["aria-disabled"] === true || props["aria-disabled"] === "true";
   return (
     <WithFieldValueHint>
       <SelectPrimitive.Trigger
         {...fieldError}
         data-size={size}
         aria-labelledby={named ? fieldNameId : undefined}
+        // A prevented event skips the primitive's own handler: the locked trigger opens nothing.
         onPointerDown={(event) => {
-          opener?.setOpenedByPointer(true);
+          if (locked) event.preventDefault();
+          else opener?.setOpenedByPointer(true);
           onPointerDown?.(event);
         }}
+        onMouseDown={(event) => {
+          // A press on the locked trigger does not move the focus.
+          if (locked) event.preventDefault();
+          onMouseDown?.(event);
+        }}
+        onClick={(event) => {
+          if (locked) {
+            event.preventDefault();
+            return;
+          }
+          onClick?.(event);
+        }}
         onKeyDown={(event) => {
+          if (
+            locked &&
+            (LOCKED_KEYS.has(event.key) ||
+              (event.key.length === 1 && !event.ctrlKey && !event.altKey && !event.metaKey))
+          ) {
+            event.preventDefault();
+            return;
+          }
           opener?.setOpenedByPointer(false);
           onKeyDown?.(event);
         }}
         className={cn(
-          "flex w-fit cursor-pointer items-center justify-start gap-2 rounded-md border border-input bg-transparent px-3 py-2 text-sm whitespace-nowrap shadow-xs transition-[color,background-color,border-color,box-shadow] outline-none enabled:hover:border-ring enabled:hover:bg-accent focus-visible:border-ring focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive data-[placeholder]:text-muted-foreground data-[size=default]:h-9 data-[size=sm]:h-8 *:data-[slot=select-value]:min-w-0 dark:bg-input/30 dark:enabled:hover:bg-input/50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-muted-foreground",
+          "flex w-fit cursor-pointer items-center justify-start gap-2 rounded-md border border-input bg-transparent px-3 py-2 text-sm whitespace-nowrap shadow-xs transition-[color,background-color,border-color,box-shadow] outline-none enabled:not-aria-disabled:hover:border-ring enabled:not-aria-disabled:hover:bg-accent focus-visible:border-ring focus-visible:focus-ring disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive data-[placeholder]:text-muted-foreground data-[size=default]:h-9 data-[size=sm]:h-8 *:data-[slot=select-value]:min-w-0 dark:bg-input/30 dark:enabled:not-aria-disabled:hover:bg-input/50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 [&_svg:not([class*='text-'])]:text-muted-foreground",
+          locked && LOCKED_LOOK,
           className,
         )}
         {...props}

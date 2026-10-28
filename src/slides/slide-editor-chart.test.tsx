@@ -195,7 +195,9 @@ describe("ChartData", () => {
     ]) {
       const button = screen.getByTestId(id);
       expect(button).toHaveAttribute("aria-disabled", "true");
-      expect(button).toHaveAccessibleDescription("Unlock the element to change its chart.");
+      expect(button).toHaveAccessibleDescription(
+        "The element is locked. Unlock it in the layers panel to change it.",
+      );
       fireEvent.click(button);
     }
     expect(onChange).not.toHaveBeenCalled();
@@ -264,7 +266,9 @@ describe("ChartData", () => {
     for (const type of ["bar", "line", "pie"]) {
       const button = screen.getByTestId(`slide-editor-chart-type-${type}`);
       expect(button).toHaveAttribute("aria-disabled", "true");
-      expect(button).toHaveAccessibleDescription("Unlock the element to change its chart.");
+      expect(button).toHaveAccessibleDescription(
+        "The element is locked. Unlock it in the layers panel to change it.",
+      );
     }
   });
 

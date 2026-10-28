@@ -13,6 +13,7 @@ import { Field } from "../ui/field.js";
 import { helpIdFor } from "../ui/label-with-help.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select.js";
 import { IconButtonTooltip } from "../ui/tooltip.js";
+import { LockedTrigger } from "./element-lock-internal.js";
 import type { SlideBrandSet } from "./brand.js";
 import type { Box } from "./editor-ops.js";
 import {
@@ -122,7 +123,10 @@ export function TableFields({
     testId: string,
     disabledText?: string,
   ) => (
-    <IconButtonTooltip label={label} disabledText={readOnly ? undefined : disabledText}>
+    <IconButtonTooltip
+      label={label}
+      disabledText={readOnly ? t("slides.lockedElement") : disabledText}
+    >
       <Button
         type="button"
         variant="outline"
@@ -281,7 +285,6 @@ export function TableFields({
           >
             <Select
               value={fillKey}
-              disabled={readOnly}
               onValueChange={(key) =>
                 onChange(
                   setCell(table, cell.row, cell.column, (one) => {
@@ -293,15 +296,17 @@ export function TableFields({
                 )
               }
             >
-              <SelectTrigger
-                id={`${id}-fill`}
-                aria-describedby={helpIdFor(`${id}-fill`)}
-                fieldName={t("slides.editor.tableCellFill")}
-                className="w-full"
-                data-testid="slide-editor-table-fill"
-              >
-                <SelectValue placeholder={t("slides.editor.textOwnColor")} />
-              </SelectTrigger>
+              <LockedTrigger locked={readOnly}>
+                <SelectTrigger
+                  id={`${id}-fill`}
+                  aria-describedby={helpIdFor(`${id}-fill`)}
+                  fieldName={t("slides.editor.tableCellFill")}
+                  className="w-full"
+                  data-testid="slide-editor-table-fill"
+                >
+                  <SelectValue placeholder={t("slides.editor.textOwnColor")} />
+                </SelectTrigger>
+              </LockedTrigger>
               <SelectContent>
                 <SelectItem value="none">{t("slides.editor.tableNoFill")}</SelectItem>
                 {Object.entries(brand.colors).map(([key, { label }]) => (
@@ -325,7 +330,6 @@ export function TableFields({
           >
             <Select
               value={current?.verticalAlign ?? "top"}
-              disabled={readOnly}
               onValueChange={(value) =>
                 onChange(
                   setCell(table, cell.row, cell.column, (one) => ({
@@ -335,15 +339,17 @@ export function TableFields({
                 )
               }
             >
-              <SelectTrigger
-                id={`${id}-valign`}
-                aria-describedby={helpIdFor(`${id}-valign`)}
-                fieldName={t("slides.editor.tableVerticalAlign")}
-                className="w-full"
-                data-testid="slide-editor-table-valign"
-              >
-                <SelectValue />
-              </SelectTrigger>
+              <LockedTrigger locked={readOnly}>
+                <SelectTrigger
+                  id={`${id}-valign`}
+                  aria-describedby={helpIdFor(`${id}-valign`)}
+                  fieldName={t("slides.editor.tableVerticalAlign")}
+                  className="w-full"
+                  data-testid="slide-editor-table-valign"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+              </LockedTrigger>
               <SelectContent>
                 {(["top", "middle", "bottom"] as const).map((value) => (
                   <SelectItem key={value} value={value}>

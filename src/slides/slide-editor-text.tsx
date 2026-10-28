@@ -18,6 +18,7 @@ import { Input } from "../ui/input.js";
 import { helpIdFor } from "../ui/label-with-help.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select.js";
 import { IconButtonTooltip } from "../ui/tooltip.js";
+import { LockedTrigger } from "./element-lock-internal.js";
 import type { SlideBrandSet } from "./brand.js";
 import type { Box } from "./editor-ops.js";
 import { NumberField } from "./number-field.js";
@@ -826,7 +827,11 @@ export function TextFormatFields({
     onClick: () => void,
     testId: string,
   ) => (
-    <IconButtonTooltip label={label}>
+    // Locked, `disabled` with a reason becomes the focusable `aria-disabled` lock (`SUI-FEATURE-195`).
+    <IconButtonTooltip
+      label={label}
+      disabledText={readOnly ? t("slides.lockedElement") : undefined}
+    >
       <Button
         type="button"
         variant="outline"
@@ -857,20 +862,21 @@ export function TextFormatFields({
           >
             <Select
               value={fontKey ?? ""}
-              disabled={readOnly}
               onValueChange={(key) => onFormat({ font: { kind: "brand", key } })}
             >
-              <SelectTrigger
-                id={`${id}-font`}
-                aria-describedby={helpIdFor(`${id}-font`)}
-                fieldName={t("slides.editor.textFont")}
-                className="w-full"
-                data-testid={`${testIdPrefix}-font`}
-              >
-                <SelectValue
-                  placeholder={mixed.has("font") ? mixedText : t("slides.editor.textOwnFont")}
-                />
-              </SelectTrigger>
+              <LockedTrigger locked={readOnly}>
+                <SelectTrigger
+                  id={`${id}-font`}
+                  aria-describedby={helpIdFor(`${id}-font`)}
+                  fieldName={t("slides.editor.textFont")}
+                  className="w-full"
+                  data-testid={`${testIdPrefix}-font`}
+                >
+                  <SelectValue
+                    placeholder={mixed.has("font") ? mixedText : t("slides.editor.textOwnFont")}
+                  />
+                </SelectTrigger>
+              </LockedTrigger>
               <SelectContent>
                 {Object.entries(brand.fonts).map(([key, { family, label }]) => (
                   <SelectItem key={key} value={key}>
@@ -910,22 +916,23 @@ export function TextFormatFields({
           >
             <Select
               value={colorKey ?? ""}
-              disabled={readOnly}
               onValueChange={(key) =>
                 onFormat({ fill: { type: "color", color: { kind: "brand", key } } })
               }
             >
-              <SelectTrigger
-                id={`${id}-color`}
-                aria-describedby={helpIdFor(`${id}-color`)}
-                fieldName={t("slides.editor.textColor")}
-                className="w-full"
-                data-testid={`${testIdPrefix}-color`}
-              >
-                <SelectValue
-                  placeholder={mixed.has("fill") ? mixedText : t("slides.editor.textOwnColor")}
-                />
-              </SelectTrigger>
+              <LockedTrigger locked={readOnly}>
+                <SelectTrigger
+                  id={`${id}-color`}
+                  aria-describedby={helpIdFor(`${id}-color`)}
+                  fieldName={t("slides.editor.textColor")}
+                  className="w-full"
+                  data-testid={`${testIdPrefix}-color`}
+                >
+                  <SelectValue
+                    placeholder={mixed.has("fill") ? mixedText : t("slides.editor.textOwnColor")}
+                  />
+                </SelectTrigger>
+              </LockedTrigger>
               <SelectContent>
                 {Object.entries(brand.colors).map(([key, { value, label }]) => (
                   <SelectItem key={key} value={key}>
@@ -1080,20 +1087,18 @@ export function TextSizingField({
         interpolation: { escapeValue: false },
       })}
     >
-      <Select
-        value={value}
-        disabled={readOnly}
-        onValueChange={(next) => onValue(next as TextSizing)}
-      >
-        <SelectTrigger
-          id={`${id}-sizing`}
-          aria-describedby={helpIdFor(`${id}-sizing`)}
-          fieldName={t("slides.editor.textSizing")}
-          className="w-full"
-          data-testid="slide-editor-text-sizing"
-        >
-          <SelectValue />
-        </SelectTrigger>
+      <Select value={value} onValueChange={(next) => onValue(next as TextSizing)}>
+        <LockedTrigger locked={readOnly}>
+          <SelectTrigger
+            id={`${id}-sizing`}
+            aria-describedby={helpIdFor(`${id}-sizing`)}
+            fieldName={t("slides.editor.textSizing")}
+            className="w-full"
+            data-testid="slide-editor-text-sizing"
+          >
+            <SelectValue />
+          </SelectTrigger>
+        </LockedTrigger>
         <SelectContent>
           {SIZINGS.map(([sizing, key]) => (
             <SelectItem
@@ -1171,18 +1176,19 @@ export function FollowTextField({
         >
           <Select
             value={follow?.id ?? FOLLOW_NONE}
-            disabled={readOnly}
             onValueChange={(next) => onFollow(next === FOLLOW_NONE ? undefined : next)}
           >
-            <SelectTrigger
-              id={`${id}-follow`}
-              aria-describedby={helpIdFor(`${id}-follow`)}
-              fieldName={t("slides.editor.followText")}
-              className="w-full"
-              data-testid="slide-editor-follow"
-            >
-              <SelectValue />
-            </SelectTrigger>
+            <LockedTrigger locked={readOnly}>
+              <SelectTrigger
+                id={`${id}-follow`}
+                aria-describedby={helpIdFor(`${id}-follow`)}
+                fieldName={t("slides.editor.followText")}
+                className="w-full"
+                data-testid="slide-editor-follow"
+              >
+                <SelectValue />
+              </SelectTrigger>
+            </LockedTrigger>
             <SelectContent>
               <SelectItem value={FOLLOW_NONE} data-testid="slide-editor-follow-none">
                 {t("slides.editor.followNone")}

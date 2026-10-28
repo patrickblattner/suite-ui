@@ -471,6 +471,7 @@ export const de: SuiteStrings = {
     invalid: "Diese Seite kann nicht angezeigt werden.",
     player: "Vortrag",
     position: "Seite {{current}} von {{total}}",
+    lockedElement: "Element ist gesperrt. Im Ebenen-Bereich entsperren, um es zu ändern.",
     editor: {
       cropping:
         "{{name}} zuschneiden: das Bild ziehen oder mit den Pfeiltasten verschieben, + und − zoomen, Enter übernimmt, Esc bricht ab.",
@@ -590,7 +591,6 @@ export const de: SuiteStrings = {
         "Mit „{{none}}“ hat die Zelle keine Hintergrundfarbe; eine Markenfarbe füllt sie.",
       tableVerticalAlignValueHint:
         "Der Text rückt an den gewählten Rand oder in die Mitte der Zelle.",
-      chartLocked: "Entsperre das Element, um sein Diagramm zu ändern.",
       chartBarHint: "Zeigt die Daten als Balken.",
       chartLineHint: "Zeigt die Daten als Linien.",
       chartPieHint: "Zeigt die erste Reihe als Stücke eines Kreises.",

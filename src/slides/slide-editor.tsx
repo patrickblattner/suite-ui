@@ -51,6 +51,7 @@ import { SubgroupTitle } from "../ui/subgroup-title.js";
 import { toast } from "../ui/toaster.js";
 import { IconButtonTooltip, OverflowTooltip } from "../ui/tooltip.js";
 import { DELETE_SHORTCUT } from "../ui/use-edit-shortcuts.js";
+import { LockedTrigger } from "./element-lock-internal.js";
 import { type SlideDocumentError, safeParseSlideDocument } from "./document.js";
 import {
   type Alignment,
@@ -478,18 +479,19 @@ function AnimationFields({
         >
           <Select
             value={step?.effect ?? "none"}
-            disabled={readOnly}
             onValueChange={(effect) => onStep(withEffect(effect))}
           >
-            <SelectTrigger
-              id={`${fieldId}-effect`}
-              aria-describedby={helpIdFor(`${fieldId}-effect`)}
-              fieldName={t("slides.editor.animationEffect")}
-              className="w-full"
-              data-testid={`${testId}-effect`}
-            >
-              <SelectValue />
-            </SelectTrigger>
+            <LockedTrigger locked={readOnly}>
+              <SelectTrigger
+                id={`${fieldId}-effect`}
+                aria-describedby={helpIdFor(`${fieldId}-effect`)}
+                fieldName={t("slides.editor.animationEffect")}
+                className="w-full"
+                data-testid={`${testId}-effect`}
+              >
+                <SelectValue />
+              </SelectTrigger>
+            </LockedTrigger>
             <SelectContent>
               <SelectItem value="none">{t("slides.editor.animationNone")}</SelectItem>
               {EFFECTS.map((effect) => (
@@ -519,22 +521,25 @@ function AnimationFields({
           >
             <Select
               value={step.direction ?? "left"}
-              disabled={readOnly}
               onValueChange={(direction) =>
                 onStep({ ...step, direction: direction as AnimationStep["direction"] })
               }
             >
-              <SelectTrigger
-                id={`${fieldId}-direction`}
-                aria-describedby={helpIdFor(`${fieldId}-direction`)}
-                fieldName={t(
-                  kind === "entrance" ? "slides.editor.animationFrom" : "slides.editor.animationTo",
-                )}
-                className="w-full"
-                data-testid={`${testId}-direction`}
-              >
-                <SelectValue />
-              </SelectTrigger>
+              <LockedTrigger locked={readOnly}>
+                <SelectTrigger
+                  id={`${fieldId}-direction`}
+                  aria-describedby={helpIdFor(`${fieldId}-direction`)}
+                  fieldName={t(
+                    kind === "entrance"
+                      ? "slides.editor.animationFrom"
+                      : "slides.editor.animationTo",
+                  )}
+                  className="w-full"
+                  data-testid={`${testId}-direction`}
+                >
+                  <SelectValue />
+                </SelectTrigger>
+              </LockedTrigger>
               <SelectContent>
                 {DIRECTIONS.map((direction) => (
                   <SelectItem key={direction} value={direction}>

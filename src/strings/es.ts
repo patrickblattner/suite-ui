@@ -464,6 +464,7 @@ export const es: SuiteStrings = {
     invalid: "Esta página no se puede mostrar.",
     player: "Presentación",
     position: "Página {{current}} de {{total}}",
+    lockedElement: "El elemento está bloqueado. Desbloquéalo en el panel de capas para cambiarlo.",
     editor: {
       cropping:
         "Recortando {{name}}: arrastra la imagen o usa las flechas para moverla, + y − para ampliar, Intro aplica, Esc cancela.",
@@ -585,7 +586,6 @@ export const es: SuiteStrings = {
       tableCellFillValueHint:
         "Con «{{none}}» la celda no tiene color de fondo; un color de la marca la rellena.",
       tableVerticalAlignValueHint: "El texto se mueve al borde elegido o al centro de la celda.",
-      chartLocked: "Desbloquea el elemento para cambiar su gráfico.",
       chartBarHint: "Muestra los datos como barras.",
       chartLineHint: "Muestra los datos como líneas.",
       chartPieHint: "Muestra la primera serie como porciones de un círculo.",

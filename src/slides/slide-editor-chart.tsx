@@ -220,7 +220,7 @@ export function ChartData({
           <Hint
             key={type}
             text={t(`slides.editor.chart${type[0]!.toUpperCase()}${type.slice(1)}Hint`)}
-            disabledText={t("slides.editor.chartLocked")}
+            disabledText={t("slides.lockedElement")}
           >
             <Button
               type="button"
@@ -289,9 +289,7 @@ export function ChartData({
                         values({ name: seriesName(index) }),
                       )}
                       disabledText={
-                        readOnly
-                          ? t("slides.editor.chartLocked")
-                          : t("slides.editor.chartMinSeries")
+                        readOnly ? t("slides.lockedElement") : t("slides.editor.chartMinSeries")
                       }
                     >
                       <Button
@@ -362,9 +360,7 @@ export function ChartData({
                         values({ name: categoryName(row) }),
                       )}
                       disabledText={
-                        readOnly
-                          ? t("slides.editor.chartLocked")
-                          : t("slides.editor.chartMinCategories")
+                        readOnly ? t("slides.lockedElement") : t("slides.editor.chartMinCategories")
                       }
                     >
                       <Button
@@ -442,7 +438,7 @@ export function ChartData({
           text={t("slides.editor.chartAddCategoryHint")}
           disabledText={
             readOnly
-              ? t("slides.editor.chartLocked")
+              ? t("slides.lockedElement")
               : t("slides.editor.chartMaxCategories", { max: SLIDE_LIMITS.maxChartCategories })
           }
         >
@@ -470,7 +466,7 @@ export function ChartData({
           text={t("slides.editor.chartAddSeriesHint")}
           disabledText={
             readOnly
-              ? t("slides.editor.chartLocked")
+              ? t("slides.lockedElement")
               : t("slides.editor.chartMaxSeries", { max: SLIDE_LIMITS.maxChartSeries })
           }
         >

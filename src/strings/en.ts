@@ -491,6 +491,8 @@ export const en = {
     invalid: "This page can’t be shown.",
     player: "Presentation",
     position: "Page {{current}} of {{total}}",
+    // The reason every control of a locked element's property panel carries (`SUI-FEATURE-195`).
+    lockedElement: "The element is locked. Unlock it in the layers panel to change it.",
     editor: {
       cropping:
         "Cropping {{name}}: drag the image or use the arrow keys to move it, + and − to zoom, Enter to apply, Esc to cancel.",
@@ -611,7 +613,6 @@ export const en = {
         "With “{{none}}” the cell has no background colour; a brand colour fills it.",
       tableVerticalAlignValueHint:
         "The text moves to the chosen edge or to the middle of the cell.",
-      chartLocked: "Unlock the element to change its chart.",
       chartBarHint: "Shows the data as bars.",
       chartLineHint: "Shows the data as lines.",
       chartPieHint: "Shows the first series as slices of a circle.",

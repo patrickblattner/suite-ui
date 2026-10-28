@@ -604,6 +604,77 @@ for (const lng of LANGUAGES) {
       await parkPointer(page);
       await expect(panel).toHaveScreenshot(`slide-editor-chart-pie-${lng}-${theme}.png`);
     });
+
+    // `SUI-FEATURE-195`: a locked text field's panel locks every control the same way. Fields are
+    // read-only, every other control is focusable, `aria-disabled` and described by the reason, at
+    // full opacity; Tab walks through all of them, and nothing opens or changes.
+    test(`slide editor locked text panel ${lng} ${theme}`, async ({ page }) => {
+      await page.goto(`/?page=slide-editor&lng=${lng}&theme=${theme}`);
+      await expect(page.locator("html")).toHaveAttribute("lang", lng);
+      const { editor } = await openEditor(page, false);
+      await editor.getByTestId("drawer-add").click();
+      await editor.getByTestId("slide-editor-library-text").click();
+      await editor.getByTestId("drawer-layers").click();
+      const row = editor.locator("[data-layer-id]").first();
+      await row.getByTestId("slide-editor-layer-lock").click();
+      await expect(row.getByTestId("slide-editor-layer-lock")).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+      const reason = {
+        de: "Element ist gesperrt. Im Ebenen-Bereich entsperren, um es zu ändern.",
+        en: "The element is locked. Unlock it in the layers panel to change it.",
+        es: "El elemento está bloqueado. Desbloquéalo en el panel de capas para cambiarlo.",
+      }[lng];
+      const state = await editor.getByTestId("editor-state").first().textContent();
+      for (const tab of ["content", "layout"] as const) {
+        await editor.getByTestId(`property-tab-${tab}`).click();
+        const pane = editor.getByTestId(`slide-editor-${tab}`);
+        // AC 1: no control disabled or dimmed.
+        await expect(pane.locator("[disabled]")).toHaveCount(0);
+        const dimmed = await pane.evaluate((root) =>
+          [root, ...root.querySelectorAll("*")]
+            .filter((node) => Number(getComputedStyle(node).opacity) < 1)
+            .filter((node) => !node.closest("svg"))
+            .map((node) => node.getAttribute("data-testid") ?? node.tagName),
+        );
+        expect(dimmed, tab).toEqual([]);
+        // AC 2: Tab walks through every control, each read-only or locked with the reason.
+        const controls = pane.locator("input, textarea, button, [role=combobox]");
+        const count = await controls.count();
+        expect(count, tab).toBeGreaterThan(0);
+        await controls.first().focus();
+        for (let index = 0; index < count; index += 1) {
+          const focused = page.locator(":focus");
+          await expect(focused, `${tab} ${index}`).toBeFocused();
+          await expect(controls.nth(index), `${tab} ${index}`).toBeFocused();
+          const tag = await focused.evaluate((node) => node.tagName);
+          if (tag === "INPUT" || tag === "TEXTAREA") {
+            await expect(focused).toHaveAttribute("readonly", "");
+          } else {
+            await expect(focused).toHaveAttribute("aria-disabled", "true");
+            await expect(focused).toHaveAccessibleDescription(reason);
+            for (const key of ["Space", "Enter", "ArrowDown"]) await page.keyboard.press(key);
+            await focused.click({ force: true });
+            await expect(focused).toBeFocused();
+            await expect(page.getByRole("listbox")).toHaveCount(0);
+          }
+          await page.keyboard.press("Tab");
+        }
+      }
+      await expect(editor.getByTestId("editor-state").first()).toHaveText(state ?? "");
+      await editor.getByTestId("property-tab-content").click();
+      await parkPointer(page);
+      await expect(editor.getByTestId("property-panel")).toHaveScreenshot(
+        `slide-editor-locked-text-${lng}-${theme}.png`,
+      );
+      // AC 4: unlocked, the select opens again without reselecting.
+      await row.getByTestId("slide-editor-layer-lock").click();
+      const font = editor.getByTestId("slide-editor-text-font");
+      await expect(font).not.toHaveAttribute("aria-disabled");
+      await font.click();
+      await expect(page.getByRole("listbox")).toBeVisible();
+    });
   }
 }
 
@@ -17031,7 +17102,7 @@ test("slide editor: every field and text button carries its hint", async ({ page
     "slide-editor-chart-remove-category-0",
   ]) {
     await expect(page.getByTestId(testId), testId).toHaveAccessibleDescription(
-      "Unlock the element to change its chart.",
+      "The element is locked. Unlock it in the layers panel to change it.",
     );
   }
   await chartRow.getByTestId("slide-editor-layer-lock").click();
