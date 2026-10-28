@@ -133,7 +133,7 @@ describe("SlideEditor delete protection", () => {
   it("marks a protected element at its layers row, with a tooltip and no switch", () => {
     renderEditor();
     const mark = within(row("core")).getByTestId("slide-editor-layer-protected");
-    expect(mark).toHaveAccessibleName("core is protected and can’t be deleted");
+    expect(mark).toHaveAccessibleName("core is protected and can’t be deleted from its page");
     expect(within(row("kept")).getByTestId("slide-editor-layer-protected")).toBeInTheDocument();
     expect(within(row("free")).queryByTestId("slide-editor-layer-protected")).toBeNull();
     expect(mark.tagName).not.toBe("BUTTON");
@@ -230,21 +230,29 @@ describe("SlideEditor delete protection", () => {
     expect(layerIds()).toEqual(["pair", "loose", "kept", "core"]);
   });
 
-  it("refuses deleting a page with a protected element before asking (AC2)", async () => {
+  it("deletes a page with a protected element like any other; the last page stays (AC2)", async () => {
     const error = refusals();
-    renderEditor();
+    const onChange = vi.fn();
+    renderEditor(onChange);
     fireEvent.click(screen.getByTestId("drawer-document"));
     const rows = () => screen.getAllByTestId("slide-editor-page-row");
     fireEvent.click(within(rows()[0]!).getByTestId("slide-editor-page-delete"));
-    expect(screen.queryByTestId("slide-editor-page-delete-dialog")).toBeNull();
+    fireEvent.click(await screen.findByTestId("slide-editor-page-delete-dialog-confirm"));
+    expect(rows()).toHaveLength(1);
+    expect(error).not.toHaveBeenCalled();
+    expect(onChange).toHaveBeenCalledTimes(1);
+    const [reported] = onChange.mock.lastCall as [SlideDocument];
+    expect(reported.pages.map((one) => one.id)).toEqual(["two"]);
+    // Back with Undo, the other page goes: the protected page is the last and stays.
+    ctrl("z");
     expect(rows()).toHaveLength(2);
-    expect(error).toHaveBeenCalledWith(
-      "Page 1 contains a protected element, so it can’t be deleted.",
-      REFUSED,
-    );
-    // A page without one asks and deletes.
     fireEvent.click(within(rows()[1]!).getByTestId("slide-editor-page-delete"));
     fireEvent.click(await screen.findByTestId("slide-editor-page-delete-dialog-confirm"));
+    expect(rows()).toHaveLength(1);
+    const last = within(rows()[0]!).getByTestId("slide-editor-page-delete");
+    expect(last).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(last);
+    expect(screen.queryByTestId("slide-editor-page-delete-dialog")).toBeNull();
     expect(rows()).toHaveLength(1);
   });
 

@@ -3850,21 +3850,6 @@ function Editor({
                     onHidden={(index, hidden) =>
                       changePages(setPageHidden(history.document, index, hidden), index, (id) => id)
                     }
-                    refuseDelete={(index) => {
-                      const elements = history.document.pages[index]?.elements ?? [];
-                      if (
-                        !holdsProtected(
-                          elements,
-                          elements.map((element) => element.id),
-                        )
-                      ) {
-                        return false;
-                      }
-                      toast.error(t("slides.editor.deletePageProtected", { n: index + 1 }), {
-                        id: PROTECTED_REFUSED_TOAST,
-                      });
-                      return true;
-                    }}
                     onDelete={(index) => {
                       const next = deletePage(history.document, index);
                       const shown = Math.min(index, next.pages.length - 1);
