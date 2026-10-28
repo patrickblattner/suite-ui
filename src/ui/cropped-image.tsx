@@ -1,7 +1,5 @@
 import * as React from "react";
 
-import { cn } from "../lib/cn.js";
-
 // A crop of an image as fractions 0–1 of the original (`GL-UI-002`); the image itself carries none.
 type Crop = { x: number; y: number; width: number; height: number };
 
@@ -58,9 +56,16 @@ type CroppedImageProps = Omit<React.ComponentProps<"img">, "src" | "alt" | "chil
   naturalHeight?: number;
 };
 
-// An image placement drawn with its crop and flip by CSS alone (`GL-UI-002`): a frame with `overflow:
-// hidden` in the crop's ratio holds the image scaled and offset; the frame then mirrors with
-// `scaleX(-1)`, so the crop comes first and the flip second. `src` is never changed.
+/**
+ * An image placement drawn with its crop and flip by CSS alone (`GL-UI-002`): a frame with `overflow:
+ * hidden` in the crop's ratio holds the image scaled and offset; the frame then mirrors with
+ * `scaleX(-1)`, so the crop comes first and the flip second. `src` is never changed. Every property
+ * the result depends on is inline, so static HTML without Tailwind draws it too (`SUI-FEATURE-310` rev 3).
+ *
+ * A `className` from the call site only adds properties: it cannot change the frame's inline
+ * `position` or `overflow`. The caller's `style` is merged after the component's own, so a different
+ * value for one of them goes there (`SUI-FEATURE-310` rev 3).
+ */
 function CroppedImage({
   src,
   alt,
@@ -98,14 +103,21 @@ function CroppedImage({
   return (
     <div
       data-slot="cropped-image"
-      className={cn("relative overflow-hidden", className)}
-      style={{ ...style, aspectRatio: String(ratio), ...flip }}
+      className={className}
+      style={{
+        position: "relative",
+        overflow: "hidden",
+        ...style,
+        aspectRatio: String(ratio),
+        ...flip,
+      }}
     >
       <img
         src={src}
         alt={alt}
-        className="absolute max-w-none"
         style={{
+          position: "absolute",
+          maxWidth: "none",
           width: percent(1 / crop.width),
           height: percent(1 / crop.height),
           left: percent(-crop.x / crop.width),
@@ -117,15 +129,44 @@ function CroppedImage({
   );
 }
 
-type CroppedBackgroundInput = {
+type CroppedBackgroundStyleInput = {
   src: string;
   crop?: Crop | null;
   flipped?: boolean;
   naturalWidth: number;
   naturalHeight: number;
+};
+
+type CroppedBackgroundInput = CroppedBackgroundStyleInput & {
   boxWidth: number;
   boxHeight: number;
 };
+
+// The one calculation behind both background forms (`GL-UI-035`): the crop's size and centre in
+// pixels of the original. A box of `w` × `h` scales the image by `s = max(w / spanX, h / spanY)`,
+// sizes it `s · naturalWidth` × `s · naturalHeight` and places it at `w/2 − s · centreX`,
+// `h/2 − s · centreY`. `null` without a crop or a natural size: the whole image covers.
+function cropSpan(
+  crop: Crop | null,
+  naturalWidth: number,
+  naturalHeight: number,
+): { spanX: number; spanY: number; centreX: number; centreY: number } | null {
+  if (crop === null || naturalWidth <= 0 || naturalHeight <= 0) return null;
+  return {
+    spanX: crop.width * naturalWidth,
+    spanY: crop.height * naturalHeight,
+    centreX: (crop.x + crop.width / 2) * naturalWidth,
+    centreY: (crop.y + crop.height / 2) * naturalHeight,
+  };
+}
+
+function backgroundBase(src: string, flipped: boolean): React.CSSProperties {
+  return {
+    backgroundImage: `url(${JSON.stringify(src)})`,
+    backgroundRepeat: "no-repeat",
+    ...(flipped ? { transform: "scaleX(-1)" } : {}),
+  };
+}
 
 /**
  * The CSS of a background layer showing `crop` of `src` (`GL-UI-002`): the crop covers the box and
@@ -141,25 +182,43 @@ function croppedBackground({
   boxWidth,
   boxHeight,
 }: CroppedBackgroundInput): React.CSSProperties {
-  const base: React.CSSProperties = {
-    backgroundImage: `url(${JSON.stringify(src)})`,
-    backgroundRepeat: "no-repeat",
-    ...(flipped ? { transform: "scaleX(-1)" } : {}),
-  };
-  if (crop === null || naturalWidth <= 0 || naturalHeight <= 0) {
-    return { ...base, backgroundSize: "cover", backgroundPosition: "center" };
-  }
-  const scale = Math.max(
-    boxWidth / (crop.width * naturalWidth),
-    boxHeight / (crop.height * naturalHeight),
-  );
-  const centreX = (crop.x + crop.width / 2) * naturalWidth * scale;
-  const centreY = (crop.y + crop.height / 2) * naturalHeight * scale;
+  const base = backgroundBase(src, flipped);
+  const span = cropSpan(crop, naturalWidth, naturalHeight);
+  if (span === null) return { ...base, backgroundSize: "cover", backgroundPosition: "center" };
+  const scale = Math.max(boxWidth / span.spanX, boxHeight / span.spanY);
   const px = (value: number) => `${Math.round(value * 100) / 100}px`;
   return {
     ...base,
     backgroundSize: `${px(naturalWidth * scale)} ${px(naturalHeight * scale)}`,
-    backgroundPosition: `${px(boxWidth / 2 - centreX)} ${px(boxHeight / 2 - centreY)}`,
+    backgroundPosition: `${px(boxWidth / 2 - scale * span.centreX)} ${px(boxHeight / 2 - scale * span.centreY)}`,
+  };
+}
+
+// `1000.0000000001` → `"1000"`, without float noise in the style.
+function number(value: number): string {
+  return String(Math.round(value * 1e6) / 1e6);
+}
+
+/**
+ * The same layer as `croppedBackground()` without a box size (`SUI-FEATURE-310`): the box is read
+ * with container units, so the layer's parent needs `container-type: size` and the layer covers it
+ * (`inset: 0`). Static HTML draws the right section without measuring.
+ */
+function croppedBackgroundStyle({
+  src,
+  crop = null,
+  flipped = false,
+  naturalWidth,
+  naturalHeight,
+}: CroppedBackgroundStyleInput): React.CSSProperties {
+  const base = backgroundBase(src, flipped);
+  const span = cropSpan(crop, naturalWidth, naturalHeight);
+  if (span === null) return { ...base, backgroundSize: "cover", backgroundPosition: "center" };
+  const scale = `max(100cqw / ${number(span.spanX)}, 100cqh / ${number(span.spanY)})`;
+  return {
+    ...base,
+    backgroundSize: `calc(${scale} * ${number(naturalWidth)}) calc(${scale} * ${number(naturalHeight)})`,
+    backgroundPosition: `calc(50cqw - ${scale} * ${number(span.centreX)}) calc(50cqh - ${scale} * ${number(span.centreY)})`,
   };
 }
 
@@ -172,8 +231,29 @@ type CroppedBackgroundProps = Omit<React.ComponentProps<"div">, "children"> & {
   children?: React.ReactNode;
 };
 
-// A surface with a cropped, optionally flipped background layer behind its children; the layer
-// measures the surface again on every resize. Only the layer flips, the children never.
+// The absolute layer behind the children: it carries the size containment, never the box, so a box
+// whose height comes from its children keeps it.
+const BACKGROUND_LAYER: React.CSSProperties = {
+  position: "absolute",
+  inset: 0,
+  zIndex: -1,
+  containerType: "size",
+  overflow: "hidden",
+  pointerEvents: "none",
+};
+
+/**
+ * A surface with a cropped, optionally flipped background behind its children, drawn without
+ * measuring (`SUI-FEATURE-310` rev 3): the image layer reads the surface's size with container units, so
+ * the first static HTML already shows the right section. Only the image layer flips, the children
+ * never. Every property the result depends on is inline, so it needs no Tailwind.
+ *
+ * A `className` from the call site only adds properties: it cannot change the box's inline
+ * `position` or `isolation`. The caller's `style` is merged after the component's own, so a different
+ * value for one of them goes there (`SUI-FEATURE-310` rev 3). A static consumer passes `naturalWidth` and `naturalHeight`: without
+ * them the size is read only in an effect after loading, so static HTML shows the whole image as
+ * `cover` instead of the crop.
+ */
 function CroppedBackground({
   src,
   crop = null,
@@ -181,53 +261,35 @@ function CroppedBackground({
   naturalWidth,
   naturalHeight,
   className,
+  style,
   children,
   ...props
 }: CroppedBackgroundProps) {
-  const ref = React.useRef<HTMLDivElement>(null);
-  const [box, setBox] = React.useState({ width: 0, height: 0 });
-  React.useLayoutEffect(() => {
-    const element = ref.current;
-    if (element === null) return;
-    const measure = () =>
-      setBox((previous) =>
-        previous.width === element.clientWidth && previous.height === element.clientHeight
-          ? previous
-          : { width: element.clientWidth, height: element.clientHeight },
-      );
-    measure();
-    if (typeof ResizeObserver === "undefined") return;
-    const observer = new ResizeObserver(measure);
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, []);
   const natural = useNaturalSize(
     src,
     { width: naturalWidth, height: naturalHeight },
     crop !== null,
   );
-  const layer = croppedBackground({
+  const image = croppedBackgroundStyle({
     src,
     crop: natural === null ? null : crop,
     flipped,
     naturalWidth: natural?.width ?? 0,
     naturalHeight: natural?.height ?? 0,
-    boxWidth: box.width,
-    boxHeight: box.height,
   });
   return (
     <div
-      ref={ref}
       data-slot="cropped-background"
-      className={cn("relative isolate", className)}
+      className={className}
+      style={{ position: "relative", isolation: "isolate", ...style }}
       {...props}
     >
-      <div
-        aria-hidden="true"
-        data-slot="cropped-background-layer"
-        className="absolute inset-0 -z-10"
-        style={layer}
-      />
+      <div aria-hidden="true" data-slot="cropped-background-layer" style={BACKGROUND_LAYER}>
+        <div
+          data-slot="cropped-background-image"
+          style={{ position: "absolute", inset: 0, ...image }}
+        />
+      </div>
       {children}
     </div>
   );
@@ -239,6 +301,8 @@ export {
   croppedBackground,
   type CroppedBackgroundInput,
   type CroppedBackgroundProps,
+  croppedBackgroundStyle,
+  type CroppedBackgroundStyleInput,
   CroppedImage,
   type CroppedImageProps,
   cropToSourceRect,

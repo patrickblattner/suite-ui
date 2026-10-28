@@ -8,5 +8,6 @@ export default defineConfig({
   root: fileURLToPath(new URL(".", import.meta.url)),
   plugins: [react(), tailwindcss()],
   // Found by no scan of a stale cache: optimized late, it reloads the page under the first tests (#612).
-  optimizeDeps: { include: ["radix-ui/internal"] },
+  // `react-dom/server` is imported only by the static crop tests (`static-crop.tsx`, #644).
+  optimizeDeps: { include: ["radix-ui/internal", "react-dom/server"] },
 });

@@ -16,6 +16,7 @@ import { de } from "../src/strings/de.js";
 import { en } from "../src/strings/en.js";
 import { es } from "../src/strings/es.js";
 import { exportSlidePages } from "../src/slides/export.js";
+import { croppedBackground } from "../src/ui/cropped-image.js";
 import { TOOLTIP_HINT_DELAY } from "../src/ui/keyboard-focus-open-internal.js";
 import { SLIDE_EXAMPLES } from "./slide-examples.js";
 import { SLIDE_BRAND } from "./slide-showcase.js";
@@ -3336,13 +3337,142 @@ test("CroppedBackground: the middle half covers the surface, the text is not mir
 }) => {
   await page.goto("/?page=components");
   const surface = page.getByTestId("crop-background");
-  const layer = surface.locator("[data-slot=cropped-background-layer]");
+  const image = surface.locator("[data-slot=cropped-background-image]");
   const size = await box(surface);
-  await expect(layer).toHaveCSS("background-size", `${size.width * 2}px ${size.height}px`);
-  await expect(layer).toHaveCSS("background-position", `${-size.width / 2}px 0px`);
-  await expect(layer).toHaveCSS("transform", "matrix(-1, 0, 0, 1, 0, 0)");
+  await expect(image).toHaveCSS("background-size", `${size.width * 2}px ${size.height}px`);
+  await expect(image).toHaveCSS("background-position", `${-size.width / 2}px 0px`);
+  await expect(image).toHaveCSS("transform", "matrix(-1, 0, 0, 1, 0, 0)");
   await expect(surface).toHaveCSS("transform", "none");
   await expect(surface.getByText("Not mirrored")).toHaveCSS("transform", "none");
+});
+
+// `SUI-FEATURE-310`: the static markup of `gallery/static-crop.tsx`, built in the browser and loaded
+// into a page of its own without Tailwind and without any script, so nothing measures or hydrates.
+async function staticCropPage(
+  page: Page,
+  scene: "page" | "parity" | "content-height",
+  cases: {
+    crop: { x: number; y: number; width: number; height: number };
+    width: number;
+    height: number;
+  }[] = [],
+) {
+  await page.goto("/?page=components");
+  const module = `/@fs${fileURLToPath(new URL("./static-crop.tsx", import.meta.url))}`;
+  const html = await page.evaluate(
+    async ([path, scene, cases]) => {
+      const { staticCropMarkup } = (await import(path)) as typeof import("./static-crop.js");
+      return staticCropMarkup(scene, cases);
+    },
+    [module, scene, cases] as const,
+  );
+  await page.setContent(html);
+  expect(await page.evaluate(() => document.styleSheets.length + document.scripts.length)).toBe(0);
+}
+
+const BAND_BLUE = [46, 134, 193];
+const BAND_GREEN = [40, 180, 99];
+const WHITE = [255, 255, 255];
+
+// SUI-FEATURE-310 AC 1, AC 2: without Tailwind the frame clips the image, and the background shows
+// exactly the middle half behind the children; flipped mirrors the background, never the text.
+test("static CroppedImage and CroppedBackground: clipped, the middle half, the text on top", async ({
+  page,
+}) => {
+  await staticCropPage(page, "page");
+  // The frame at x 100–300 holds the 400 px wide image from x 0; outside it the page shows.
+  const frame = await box(page.getByTestId("static-image").locator(".."));
+  expect(frame.x).toBe(100);
+  expect(frame.width).toBe(200);
+  expect(frame.height).toBe(200);
+  expect(await pixelAt(page, 50, 100)).toEqual(WHITE);
+  expect(await pixelAt(page, 103, 100)).toEqual(BAND_BLUE);
+  expect(await pixelAt(page, 297, 100)).toEqual(BAND_GREEN);
+  expect(await pixelAt(page, 350, 100)).toEqual(WHITE);
+  // The 1000 × 1000 box at x 400 shows the second band in its left half, the third in its right.
+  for (const [x, color] of [
+    [402, BAND_BLUE],
+    [897, BAND_BLUE],
+    [903, BAND_GREEN],
+    [1397, BAND_GREEN],
+  ] as const) {
+    expect(await pixelAt(page, x, 50)).toEqual(color);
+  }
+  // The child's white chip draws over the background.
+  const chip = await box(page.getByText("Behind me"));
+  expect(await pixelAt(page, chip.x + 2, chip.y + 2)).toEqual(WHITE);
+  // Flipped: the third band on the left, the second on the right; only the image layer mirrors.
+  const flipped = page.getByTestId("static-background-flipped");
+  expect(await pixelAt(page, 1452, 50)).toEqual(BAND_GREEN);
+  expect(await pixelAt(page, 1847, 50)).toEqual(BAND_BLUE);
+  await expect(flipped.locator("[data-slot=cropped-background-image]")).toHaveCSS(
+    "transform",
+    "matrix(-1, 0, 0, 1, 0, 0)",
+  );
+  await expect(flipped).toHaveCSS("transform", "none");
+  await expect(flipped.locator("[data-slot=cropped-background-layer]")).toHaveCSS(
+    "transform",
+    "none",
+  );
+  await expect(flipped.getByText("Not mirrored")).toHaveCSS("transform", "none");
+});
+
+// SUI-FEATURE-310 AC 3: the container-unit form computes the same background size and position as
+// `croppedBackground()` with the box's px, within 0.5 px, at three box sizes and two crops.
+test("static CroppedBackground: the same size and position as the measured form", async ({
+  page,
+}) => {
+  const crops = [
+    { x: 0.25, y: 0, width: 0.5, height: 1 },
+    { x: 0.1, y: 0.2, width: 0.3, height: 0.5 },
+  ];
+  const sizes = [
+    [1000, 1000],
+    [1600, 400],
+    [375, 812],
+  ] as const;
+  const cases = crops.flatMap((crop) => sizes.map(([width, height]) => ({ crop, width, height })));
+  await staticCropPage(page, "parity", cases);
+  const numbers = (value: string) => value.split(" ").map((part) => Number.parseFloat(part));
+  for (const [index, { crop, width, height }] of cases.entries()) {
+    const expected = croppedBackground({
+      src: "x",
+      crop,
+      naturalWidth: 2000,
+      naturalHeight: 1000,
+      boxWidth: width,
+      boxHeight: height,
+    });
+    const actual = await page
+      .getByTestId(`parity-${index}`)
+      .locator("[data-slot=cropped-background-image]")
+      .evaluate((node) => {
+        const style = getComputedStyle(node);
+        return { size: style.backgroundSize, position: style.backgroundPosition };
+      });
+    const pairs = [
+      [numbers(actual.size), numbers(String(expected.backgroundSize))],
+      [numbers(actual.position), numbers(String(expected.backgroundPosition))],
+    ];
+    for (const [got, want] of pairs) {
+      expect(got).toHaveLength(2);
+      for (const [axis, value] of got!.entries()) {
+        expect(
+          Math.abs(value - want![axis]!),
+          `case ${index}: ${actual.size} / ${actual.position}`,
+        ).toBeLessThanOrEqual(0.5);
+      }
+    }
+  }
+});
+
+// SUI-FEATURE-310 AC 4: the size containment sits on the layer, so a box sized by its child keeps
+// the child's height.
+test("static CroppedBackground: a box sized by its content keeps that height", async ({ page }) => {
+  await staticCropPage(page, "content-height");
+  const surface = page.getByTestId("content-height");
+  expect((await box(surface)).height).toBe(120);
+  expect((await box(surface.locator("[data-slot=cropped-background-image]"))).height).toBe(120);
 });
 
 // The media detail shell on its image, with the picture loaded.
