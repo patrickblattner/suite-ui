@@ -1553,25 +1553,33 @@ describe("toast with an action: duration", () => {
     expect(screen.queryByText("Done")).toBeNull();
   });
 
-  // Under all fake timers, shows a toast.promise's result and reports whether it is still open after
-  // each of `checks` ms.
+  // Under all fake timers, shows a toast.promise's `outcome` result with `text` and reports whether it
+  // is still open after each of `checks` ms.
   async function promiseResultOpen(
     data: NonNullable<Parameters<typeof toast.promise<string>>[1]>,
     checks: number[],
+    outcome: "success" | "error" = "success",
+    text = "Saved",
   ) {
     render(<Toaster />);
-    let resolve: (value: string) => void = () => undefined;
+    let settle: (failed: boolean) => void = () => undefined;
     act(() => {
-      void toast.promise(
-        new Promise<string>((done) => {
-          resolve = done;
-        }),
-        { loading: "Saving", success: "Saved", ...data },
-      );
+      void toast
+        .promise(
+          new Promise<string>((done, fail) => {
+            settle = (failed) => {
+              if (failed) fail(new Error("nope"));
+              else done("ok");
+            };
+          }),
+          { loading: "Saving", [outcome]: text, ...data },
+        )
+        .unwrap()
+        .catch(() => undefined);
     });
     advance(1);
     await act(async () => {
-      resolve("ok");
+      settle(outcome === "error");
       for (let step = 0; step < 4; step++) await Promise.resolve();
     });
     advance(1);
@@ -1580,10 +1588,10 @@ describe("toast with an action: duration", () => {
     for (const at of checks) {
       advance(at - elapsed);
       elapsed = at;
-      const shown = screen.queryByText("Saved");
-      open.push(shown !== null && toastOf("Saved")?.getAttribute("data-removed") !== "true");
+      const shown = screen.queryByText(text);
+      open.push(shown !== null && toastOf(text)?.getAttribute("data-removed") !== "true");
     }
-    // sonner unmounts a closed toast only after its exit, so the next test finds no "Saved" left.
+    // sonner unmounts a closed toast only after its exit, so the next test finds no result left.
     advance(1000);
     return open;
   }
@@ -1618,37 +1626,9 @@ describe("toast with an action: duration", () => {
 
   it("times a toast.promise error without an action like toast.error (#641)", async () => {
     useAllFakeTimers();
-    render(<Toaster />);
-    let reject: (reason: unknown) => void = () => undefined;
-    const message = "Saving the slide failed on the server";
-    act(() => {
-      void toast
-        .promise(
-          new Promise<string>((_, fail) => {
-            reject = fail;
-          }),
-          { loading: "Saving", error: message },
-        )
-        .unwrap()
-        .catch(() => undefined);
-    });
-    advance(1);
-    await act(async () => {
-      reject(new Error("nope"));
-      for (let step = 0; step < 4; step++) await Promise.resolve();
-    });
-    advance(1);
     // 3000 ms error base + 7 words = 3350 ms.
-    const open = (at: number) => {
-      advance(at);
-      return (
-        screen.queryByText(message) !== null &&
-        toastOf(message)?.getAttribute("data-removed") !== "true"
-      );
-    };
-    expect(open(3250)).toBe(true);
-    expect(open(200)).toBe(false);
-    advance(1000);
+    const message = "Saving the slide failed on the server";
+    expect(await promiseResultOpen({}, [3250, 3450], "error", message)).toEqual([true, false]);
   });
 
   it("keeps an explicit duration within bounds on a toast.promise result without an action (#641)", async () => {
