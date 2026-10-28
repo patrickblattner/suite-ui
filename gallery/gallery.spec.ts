@@ -16,6 +16,7 @@ import { de } from "../src/strings/de.js";
 import { en } from "../src/strings/en.js";
 import { es } from "../src/strings/es.js";
 import { exportSlidePages } from "../src/slides/export.js";
+import { TOOLTIP_HINT_DELAY } from "../src/ui/keyboard-focus-open-internal.js";
 import { SLIDE_EXAMPLES } from "./slide-examples.js";
 import { SLIDE_BRAND } from "./slide-showcase.js";
 
@@ -4156,10 +4157,14 @@ test("media tile: the overflow tooltip at the viewport's top and left edge is ne
 // header, 8 px clear, then the rules apply (AC 7, also with the name wholly under the header at
 // y 26-46); a bubble open while the page scrolls the name wholly under the header closes (AC 8).
 // The same header beneath the tiles (z-index -1) lies over no tile, so it cuts nothing: the bubble
-// stands over the name as without it.
+// stands over the name as without it. The page timers stand still on the page clock (#627): every
+// opening runs the hint delay at once instead of waiting it out, and the scroll a step
+// makes is delivered in a rendered frame before the timers run, so it never counts as a later one.
 test("media tile: the overflow tooltip under a fixed app header never stands over it", async ({
   page,
 }) => {
+  await page.clock.install({ time: T0 });
+  await page.clock.pauseAt(T0);
   await page.setViewportSize({ width: 1280, height: 600 });
   const grid = await mediaTiles(page);
   const tiles = grid.getByTestId("media-tile");
@@ -4180,6 +4185,14 @@ test("media tile: the overflow tooltip under a fixed app header never stands ove
     document.body.append(header);
   });
   const header = page.getByTestId("app-header");
+  // A rendered frame first (an intersection report comes with one), then the delay; the bubble's box
+  // is read once it holds still over two frames (a trial click waits for that).
+  const opens = async () => {
+    await expect(name).toBeInViewport();
+    await page.clock.runFor(TOOLTIP_HINT_DELAY);
+    await expect(page.getByRole("tooltip")).toBeVisible({ timeout: 5000 });
+    await bubble.click({ trial: true });
+  };
   const show = async (by: "pointer" | "keyboard", nameTop: number) => {
     await page.mouse.move(0, 300);
     await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
@@ -4196,7 +4209,7 @@ test("media tile: the overflow tooltip under a fixed app header never stands ove
       await tiles.nth(3).evaluate((node) => (node as HTMLElement).focus({ preventScroll: true }));
       await expect(tiles.nth(3)).toBeFocused();
     }
-    await expect(page.getByRole("tooltip")).toBeVisible({ timeout: 5000 });
+    await opens();
     return { at: await box(bubble), text: await box(name) };
   };
   for (const under of [14, 40]) {
@@ -4227,7 +4240,9 @@ test("media tile: the overflow tooltip under a fixed app header never stands ove
   await page.evaluate(() => (document.documentElement.style.scrollBehavior = "smooth"));
   await page.keyboard.press("Shift");
   await tiles.nth(3).evaluate((node) => (node as HTMLElement).focus({ preventScroll: true }));
-  await expect(page.getByRole("tooltip")).toBeVisible({ timeout: 5000 });
+  // Out from under the header at once, read straight after the focus: a smooth reveal fails here.
+  expect((await box(tiles.nth(3))).y).toBeGreaterThanOrEqual(63);
+  await opens();
   expect((await box(tiles.nth(3))).y).toBeGreaterThanOrEqual(63);
   await page.keyboard.press("Escape");
   await page.evaluate(() => (document.documentElement.style.scrollBehavior = ""));
