@@ -499,12 +499,13 @@ function inTile(
 // bubble never covers it. Such a part cuts the area only vertically, above or below the text; one over
 // part of the name's width cuts nothing and is returned as a block the bubble keeps off.
 // A clip is the ancestor's padding box: its borders and scrollbars are not visible area. The parts
-// are found by the hit test at points over the tile's column (rows at the area's, the tile's and the
-// name's edges, columns every 16 px), the topmost element there lifted
+// are found by the hit test at points over the tile's column (rows every 8 px through the band the
+// bubble can stand in and at the area's, the tile's and the name's edges, columns every 16 px), the topmost element there lifted
 // to its fixed or sticky ancestor, so only a part on top of the tile counts and the page is not walked;
 // without a hit test (jsdom) every fixed or sticky part overlapping the column counts. `bubble` is the
 // bubble's own popper, itself fixed, never an app part. `clipArea` is the area before the parts.
 const CLIPS = /^(auto|scroll|hidden|clip)$/;
+const HIT_TESTS = 2048;
 const pinned = (node: Element) => /^(fixed|sticky)$/.test(getComputedStyle(node).position);
 function clipArea(tile: Element): Area {
   const root = document.documentElement;
@@ -528,6 +529,7 @@ function visibleArea(
   tile: Element,
   own: DOMRect,
   bubble: Element | null,
+  band?: { top: number; bottom: number },
 ): { area: Area; blocks: Area[] } {
   const area = clipArea(tile);
   const box = tile.getBoundingClientRect();
@@ -558,6 +560,22 @@ function visibleArea(
       Math.min(box.bottom, seen.bottom) - 1,
       seen.bottom - 1,
     ].filter((y) => y >= seen.top && y <= seen.bottom);
+    // Rows every 8 px, so a part at least 8 px tall above or below the name is found too (#635). Given
+    // the band the bubble can stand in, only there, 8 px at any tile width; elsewhere the rows above
+    // stand alone, a part there leaving the bubble's place as it is. Without one (the keyboard's
+    // reveal) through the whole column, at most HIT_TESTS points in all, past that further apart.
+    let from = seen.top + 1;
+    let to = seen.bottom - 1;
+    let rowStep = 8;
+    if (band === undefined) {
+      const rows = Math.max(2, Math.floor(HIT_TESTS / xs.length) - ys.length);
+      rowStep = Math.max(8, (to - from) / (rows - 1));
+    } else {
+      from = Math.max(from, band.top);
+      to = Math.min(to, band.bottom);
+      if (from <= to) ys.push(to);
+    }
+    for (let y = from; y <= to; y += rowStep) ys.push(y);
     for (const x of xs) {
       if (x < seen.left || x > seen.right) continue;
       for (const y of ys) {
@@ -621,6 +639,18 @@ function visibleArea(
   return { area, blocks };
 }
 
+// The band a tile's bubble can stand in (#635): over and under the name its tallest height, at the
+// narrowest width or its own, with its offset and the padding; beside the name it stays within that.
+function bubbleBand(
+  own: DOMRect,
+  height: number,
+  heightAt: (width: number) => number,
+  padding: number,
+): { top: number; bottom: number } {
+  const reach = Math.max(heightAt(ROW_MIN_WIDTH), height) + SIDE_OFFSET + padding;
+  return { top: own.top - reach, bottom: own.bottom + reach };
+}
+
 // Whether a box lies wholly outside an area.
 function hiddenIn(box: DOMRect, area: Area): boolean {
   // A box without size is not laid out (jsdom): nothing to tell.
@@ -653,7 +683,8 @@ function revealTile(holder: HTMLElement, own: Element) {
     return;
   }
   const margin = (cut: number) => (cut > 0 ? `${cut + SIDE_OFFSET}px` : "");
-  const { scrollMargin } = holder.style;
+  // Each side on its own: the shorthand reads empty unless all four are set, wiping a single one.
+  const { scrollMarginTop, scrollMarginBottom, scrollMarginLeft, scrollMarginRight } = holder.style;
   Object.assign(holder.style, {
     scrollMarginTop: margin(area.top - clip.top),
     scrollMarginBottom: margin(clip.bottom - area.bottom),
@@ -661,7 +692,12 @@ function revealTile(holder: HTMLElement, own: Element) {
     scrollMarginRight: margin(clip.right - area.right),
   });
   holder.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "instant" });
-  holder.style.scrollMargin = scrollMargin;
+  Object.assign(holder.style, {
+    scrollMarginTop,
+    scrollMarginBottom,
+    scrollMarginLeft,
+    scrollMarginRight,
+  });
 }
 
 // Beside a text in a table or list row the bubble stands as beside any element, its top 4 px above
@@ -731,6 +767,7 @@ function useRowPlacement(content: HTMLElement | null, padding: number): RowPlace
         tile,
         own,
         content.closest("[data-radix-popper-content-wrapper]") ?? content,
+        bubbleBand(own, content.getBoundingClientRect().height, heightAt, padding),
       );
       // A text wholly outside the visible area has no bubble: nothing it would refer to is in view.
       if (hiddenIn(own, area)) {

@@ -622,9 +622,10 @@ describe("keyboard bubble placement", () => {
     Reflect.deleteProperty(document.documentElement, "clientHeight");
   });
 
-  // Mocks the layout of a viewport `viewport` px wide and 800 px tall: each element's box by `boxOf`,
-  // told whether it is the bubble (its content or the popper's wrapper), and the popper's `size`
-  // [width, height], by which radix places it.
+  // Mocks the layout of a viewport `viewport` px wide and `viewportHeight` (800) px tall: each
+  // element's box by `boxOf`, told whether it is the bubble (its content or the popper's wrapper), and
+  // the popper's `size` [width, height], by which radix places it.
+  let viewportHeight = 800;
   function mockLayout(
     viewport: number,
     boxOf: (node: HTMLElement, isBubble: boolean) => DOMRect,
@@ -636,7 +637,7 @@ describe("keyboard bubble placement", () => {
     });
     Object.defineProperty(document.documentElement, "clientHeight", {
       configurable: true,
-      value: 800,
+      value: viewportHeight,
     });
     vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (
       this: HTMLElement,
@@ -1203,6 +1204,58 @@ describe("keyboard bubble placement", () => {
     }
   });
 
+  // #635 (#636 CX4): the reveal sets its scroll margins for the scroll only and gives the tile back each
+  // side it had on its own: an inline top and left alone (the shorthand reads empty) survive it.
+  it("Tab onto a tile restores each scroll-margin side it had inline after the reveal", async () => {
+    const header = (tiles: React.ReactNode) => (
+      <div>
+        <header data-testid="header" style={{ position: "fixed", top: 0 }} />
+        {tiles}
+      </div>
+    );
+    const boxes: Record<string, [number, number, number, number]> = {
+      header: [0, 0, 1000, 56],
+      tile: [216, -18, 200, 60],
+      after: [432, -18, 200, 60],
+      name: [228, 26, 176, 20],
+    };
+    const during: string[] = [];
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: function (this: HTMLElement) {
+        during.push(this.style.scrollMarginTop, this.style.scrollMarginLeft);
+        for (const key of ["tile", "after", "name"]) {
+          const box = boxes[key];
+          if (box !== undefined) box[1] += 82;
+        }
+      },
+    });
+    let focused: HTMLElement | null = null;
+    try {
+      await placedInTile(
+        80,
+        boxes,
+        (tile) => {
+          focused = tile;
+          tile.style.scrollMarginTop = "12px";
+          tile.style.scrollMarginLeft = "4px";
+          tabTo(tile);
+        },
+        header,
+      );
+    } finally {
+      Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
+    }
+    expect(during).toEqual(["64px", ""]);
+    const style = (focused as HTMLElement | null)?.style;
+    expect([
+      style?.scrollMarginTop,
+      style?.scrollMarginRight,
+      style?.scrollMarginBottom,
+      style?.scrollMarginLeft,
+    ]).toEqual(["12px", "", "", "4px"]);
+  });
+
   // SUI-FEATURE-115 AC 4 (#615 review): a fixed part only in the tile's column, below the wholly
   // visible tile (a strip, a floating action), bounds the area at its top edge only, never the tile's
   // side: the bubble stands over the name as without it, the tile's full width less 8 px a side.
@@ -1418,6 +1471,128 @@ describe("keyboard bubble placement", () => {
         });
       }
     } finally {
+      Reflect.deleteProperty(document, "elementsFromPoint");
+    }
+  });
+
+  // A hit test as in a browser over `boxes`: the topmost element at a point is the first key in
+  // `order` whose box holds it. Returns the points tested, to count them.
+  function hitTest(boxes: Record<string, [number, number, number, number]>, order: string[]) {
+    const points: [number, number][] = [];
+    Object.defineProperty(document, "elementsFromPoint", {
+      configurable: true,
+      value: (x: number, y: number) => {
+        points.push([x, y]);
+        return order
+          .filter((key) => {
+            const [left, top, width, height] = boxes[key] ?? [0, 0, 0, 0];
+            return x >= left && x < left + width && y >= top && y < top + height;
+          })
+          .map((key) => screen.getByTestId(key));
+      },
+    });
+    return points;
+  }
+
+  // SUI-FEATURE-115 rev 8 AC 9 geometry (#635): a fixed bar 8 px tall, y 250–258, lies between the
+  // rows the hit test sampled before (the area's top, 1, and the tile's, 301), where the bubble over
+  // the name, y 240–320, would cover it. Rows every 8 px find it: the area's top is its bottom, 258,
+  // so no room above the name; 4 px under it.
+  it("the hit test finds a thin fixed part between the tile's top and the area's above the name", async () => {
+    const part = (tiles: React.ReactNode) => (
+      <div>
+        <div data-testid="part" style={{ position: "fixed" }} />
+        {tiles}
+      </div>
+    );
+    const boxes: Record<string, [number, number, number, number]> = {
+      part: [0, 250, 1000, 8],
+      before: [0, 300, 200, 60],
+      tile: [216, 300, 200, 60],
+      after: [432, 300, 200, 60],
+      name: [228, 324, 176, 20],
+    };
+    hitTest(boxes, ["part", "name", "before", "tile", "after"]);
+    try {
+      for (const open of opens) {
+        expect(await placedInTile(80, boxes, open, part)).toEqual({
+          side: "bottom",
+          width: "184px",
+          x: 224,
+          y: 348,
+        });
+      }
+    } finally {
+      Reflect.deleteProperty(document, "elementsFromPoint");
+    }
+  });
+
+  // SUI-FEATURE-115 rev 3 AC 5 geometry (#635): the name 14 px under a sticky 56 px header, the bubble
+  // 4 px under the name at y 94–174; a fixed bar 8 px tall at y 150–158, between the tile's bottom row
+  // (85) and the area's (799), would lie under it. Found, it bounds the area at 150: the bubble fits
+  // neither side and stands at the element, right of the name, never over the bar.
+  it("the hit test finds a thin fixed part between the tile's bottom and the area's below the name", async () => {
+    const parts = (tiles: React.ReactNode) => (
+      <div>
+        <header data-testid="header" style={{ position: "sticky", top: 0 }} />
+        <div data-testid="part" style={{ position: "fixed" }} />
+        {tiles}
+      </div>
+    );
+    const boxes: Record<string, [number, number, number, number]> = {
+      header: [0, 0, 1000, 56],
+      part: [0, 150, 1000, 8],
+      before: [0, 26, 200, 60],
+      tile: [216, 26, 200, 60],
+      after: [432, 26, 200, 60],
+      name: [228, 70, 176, 20],
+    };
+    hitTest(boxes, ["header", "part", "name", "before", "tile", "after"]);
+    try {
+      for (const open of opens) {
+        const placed = await placedInTile(80, boxes, open, parts);
+        expect(placed).toEqual({ side: "right", width: "", x: 412, y: 64 });
+        expect(placed.y + 80, "the bubble over the bar").toBeLessThanOrEqual(150);
+      }
+    } finally {
+      Reflect.deleteProperty(document, "elementsFromPoint");
+    }
+  });
+
+  // #635 (review): the 8 px rows run only through the band the bubble can stand in, the name's line
+  // and the bubble's height (80) with its offset and padding over and under it, y 528–740, at any tile
+  // width. A 400 px tile in a 1000 px tall viewport: a fixed bar 8 px tall at y 560–568, under the
+  // bubble over the name (y 540–620), is found, which rows spread over the whole column (every 15 px
+  // under the 2048 cap) missed. No room above the name up to the bar: 4 px under it. Far fewer hit
+  // tests than the cap.
+  it("the hit test samples every 8 px in the bubble's band at any tile width, far below the cap", async () => {
+    const part = (tiles: React.ReactNode) => (
+      <div>
+        <div data-testid="part" style={{ position: "fixed" }} />
+        {tiles}
+      </div>
+    );
+    const boxes: Record<string, [number, number, number, number]> = {
+      part: [0, 560, 1000, 8],
+      before: [0, 600, 200, 60],
+      tile: [216, 600, 400, 60],
+      after: [632, 600, 200, 60],
+      name: [228, 624, 376, 20],
+    };
+    const points = hitTest(boxes, ["part", "name", "before", "tile", "after"]);
+    viewportHeight = 1000;
+    try {
+      expect(await placedInTile(80, boxes, tileByPointer, part)).toEqual({
+        side: "bottom",
+        width: "384px",
+        x: 224,
+        y: 648,
+      });
+      const rows = new Set(points.map(([, y]) => y));
+      for (let y = 528; y <= 740; y += 8) expect(rows).toContain(y);
+      expect(points.length).toBeLessThanOrEqual(1024);
+    } finally {
+      viewportHeight = 800;
       Reflect.deleteProperty(document, "elementsFromPoint");
     }
   });

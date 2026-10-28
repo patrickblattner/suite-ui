@@ -4261,6 +4261,32 @@ test("media tile: the overflow tooltip under a fixed app header never stands ove
     await expect(page.getByRole("tooltip")).toHaveCount(0);
     await page.mouse.move(0, 300);
   }
+  // The keyboard's own scroll stop, not only the name hidden (#635, #627 review): Radix closes an open
+  // bubble on the page's scroll as well, so the stop shows in the wait. Two frames past the focus, a
+  // scroll of 10 px that leaves the name in view ends the wait: the bubble never opens.
+  {
+    await page.mouse.move(0, 300);
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    await expect(page.getByRole("tooltip")).toHaveCount(0);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    const top = (await box(name)).y;
+    await page.evaluate((y) => window.scrollTo(0, y), top - (56 + 40));
+    await page.keyboard.press("Shift");
+    await tiles.nth(3).evaluate((node) => (node as HTMLElement).focus({ preventScroll: true }));
+    await expect(tiles.nth(3)).toBeFocused();
+    await page.clock.runFor(100);
+    // Delivered before the delay runs out: the scroll event comes with a rendered frame.
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) => {
+          window.addEventListener("scroll", () => resolve(), { once: true });
+          window.scrollBy(0, 10);
+        }),
+    );
+    expect((await box(name)).y, "the name clear of the header").toBeGreaterThanOrEqual(56);
+    await page.clock.runFor(TOOLTIP_HINT_DELAY);
+    await expect(page.getByRole("tooltip")).toHaveCount(0);
+  }
 
   await header.evaluate((node) => (node.style.zIndex = "-1"));
   for (const by of ["pointer", "keyboard"] as const) {
@@ -4415,6 +4441,43 @@ test("media tile: a fixed chip over part of the name's width keeps the bubble of
     at.y < chip.y + chip.height &&
     at.y + at.height > chip.y;
   expect(over, "the bubble over the chip").toBe(false);
+  expect(at.y, "under the name").toBeGreaterThanOrEqual(text.y + text.height);
+});
+
+// `SUI-FEATURE-115` rev 8 AC 9 geometry (#635): a fixed bar 8 px tall over the tile's column, 12 px
+// above the name, lies between the tile's top row and the name's, where the hit test sampled nothing
+// before. Found, it bounds the area at its bottom: no room above the name, so the bubble stands under
+// it, never over the bar. Hovered on the name.
+test("media tile: a thin fixed bar between the tile's top and its name keeps the bubble off it", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const grid = await mediaTiles(page);
+  const tile = grid.getByTestId("media-tile").nth(3);
+  const name = tile.locator(".truncate");
+  const bubble = page.locator("[data-slot=tooltip-content]");
+  await page.evaluate((y) => window.scrollTo(0, y), (await box(tile)).y - 300);
+  const text = await box(name);
+  const bar = { y: text.y - 20, height: 8 };
+  expect(bar.y, "between the tile's top and the name").toBeGreaterThan((await box(tile)).y + 2);
+  await page.evaluate((bar) => {
+    const part = document.createElement("div");
+    Object.assign(part.style, {
+      position: "fixed",
+      left: "0",
+      right: "0",
+      top: `${bar.y}px`,
+      height: `${bar.height}px`,
+      zIndex: "40",
+      background: "white",
+    });
+    document.body.append(part);
+  }, bar);
+  await page.mouse.move(text.x + text.width - 10, text.y + text.height / 2);
+  await expect(page.getByRole("tooltip")).toBeVisible({ timeout: 5000 });
+  const at = await box(bubble);
+  const over = at.y < bar.y + bar.height && at.y + at.height > bar.y;
+  expect(over, "the bubble over the bar").toBe(false);
   expect(at.y, "under the name").toBeGreaterThanOrEqual(text.y + text.height);
 });
 
