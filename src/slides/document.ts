@@ -29,21 +29,31 @@ export const SLIDE_MIGRATIONS: Readonly<Record<number, SlideMigration>> = {
   // every element is deletable; a stray one written before is dropped, in groups too.
   3: (document) => {
     const next = { ...document };
-    for (const key of ["pages", "layouts", "masters"] as const) {
+    const caps = {
+      pages: SLIDE_LIMITS.maxPages,
+      layouts: SLIDE_LIMITS.maxLayouts,
+      masters: SLIDE_LIMITS.maxMasters,
+    };
+    for (const [key, cap] of Object.entries(caps)) {
       const list = next[key];
-      if (Array.isArray(list)) next[key] = list.map(holderWithoutDeletable);
+      if (walkable(list, cap)) next[key] = list.map(holderWithoutDeletable);
     }
     return next;
   },
 };
 
 // Untrusted input: anything not shaped as expected is left as it is, for the schema to name, and so
-// is a group deeper than the schema takes (it names that too), so the walk stays bounded.
+// is a group deeper than the schema takes (it names that too), so the walk stays bounded. A list
+// over its cap is not walked either, as `structureIssue` skips it: a sparse array can claim 2^32 − 1
+// entries.
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
+const walkable = (value: unknown, cap: number): value is unknown[] =>
+  Array.isArray(value) && value.length <= cap;
+
 function holderWithoutDeletable(holder: unknown): unknown {
-  if (!isRecord(holder) || !Array.isArray(holder.elements)) return holder;
+  if (!isRecord(holder) || !walkable(holder.elements, SLIDE_LIMITS.maxElements)) return holder;
   return {
     ...holder,
     elements: holder.elements.map((element: unknown) => elementWithoutDeletable(element, 0)),
@@ -54,7 +64,7 @@ function elementWithoutDeletable(element: unknown, depth: number): unknown {
   if (!isRecord(element) || depth > SLIDE_LIMITS.maxGroupDepth) return element;
   const rest = { ...element };
   delete rest.deletable;
-  return Array.isArray(rest.children)
+  return walkable(rest.children, SLIDE_LIMITS.maxElements)
     ? {
         ...rest,
         children: rest.children.map((child: unknown) => elementWithoutDeletable(child, depth + 1)),

@@ -799,6 +799,28 @@ describe("slide document list caps before the walk", () => {
       message: `at most ${cap} ${key}`,
     });
   });
+
+  // The 3 → 4 migration runs before those caps: it leaves a list over its cap unwalked, so a sparse
+  // one in a version-3 document is rejected at once, not walked (SUI-FEATURE-194).
+  it.each(["pages", "layouts", "masters", "elements", "children"])(
+    "rejects a sparse %s list of 2^32 − 1 in a version-3 document at once",
+    (key) => {
+      const sparse: unknown[] = [];
+      sparse.length = 2 ** 32 - 1;
+      const page = valid.pages[0]!;
+      const group = { ...page.elements![0]!, id: "g", type: "group", children: sparse };
+      const raw =
+        key === "elements"
+          ? { ...valid, pages: [{ ...page, elements: sparse }] }
+          : key === "children"
+            ? { ...valid, pages: [{ ...page, elements: [group] }] }
+            : { ...valid, [key]: sparse };
+      const start = performance.now();
+      const error = rejection({ ...raw, schemaVersion: 3 });
+      expect(performance.now() - start).toBeLessThan(50);
+      expect(error.issues[0]?.code).toMatch(/^too-(big|many-elements)$/);
+    },
+  );
 });
 
 // Codex #299 CX1: the exported schema carries the structural preflight itself, so an app that checks

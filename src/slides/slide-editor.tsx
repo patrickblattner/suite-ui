@@ -870,8 +870,9 @@ function Editor({
   const { t, i18n } = useTranslation("suite");
   const history: SlideHistory = useSlideHistory(initial);
   // `onChange` (`SUI-FEATURE-194`): each step is reported once it is made; a run of typing under a
-  // `merge` key once the focus leaves its field, a press ends or a click lands (the click that makes
-  // the change too, so a button or switch of an extension reports at once), counted by `settled`.
+  // `merge` key once the focus leaves its field, a press ends or a pointer click lands (the click that
+  // makes the change too, so a button or switch of an extension reports at once), counted by
+  // `settled`.
   // What the view measured (`amend`) is no step of its own.
   const [settled, setSettled] = React.useState(0);
   const reported = React.useRef({ step: history.step, document: history.document, settled });
@@ -894,7 +895,13 @@ function Editor({
     if (result.ok) onChangeRef.current?.(result.document);
   }, [history.step, history.merging, history.document, settled]);
   const settle = () => {
-    if (onChange !== undefined) setSettled((count) => count + 1);
+    if (history.merging && onChange !== undefined) setSettled((count) => count + 1);
+  };
+  // A click may make the change itself, before `merging` is rendered, so it settles ungated; a click
+  // from the keyboard (`detail` 0, Enter submitting a form) leaves the focus in the field, so it
+  // settles nothing.
+  const settleClick = (event: React.MouseEvent) => {
+    if (event.detail > 0 && onChange !== undefined) setSettled((count) => count + 1);
   };
   // The app's layouts and masters that pass the schema (`SUI-FEATURE-192`); any other is left out.
   const appLayouts = React.useMemo(() => validLayouts(layoutsProp), [layoutsProp]);
@@ -3717,7 +3724,7 @@ function Editor({
       data-slide-page={pageData?.id}
       onBlur={settle}
       onPointerUp={settle}
-      onClick={settle}
+      onClick={settleClick}
     >
       <div ref={headerRef} className="shrink-0">
         <EditorHeader

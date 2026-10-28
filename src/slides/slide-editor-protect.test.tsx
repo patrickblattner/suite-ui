@@ -349,6 +349,22 @@ describe("SlideEditor onChange", () => {
     expect(typed.pages[0]!.elements.find((one) => one.id === "free")).toMatchObject({ x: 320 });
   });
 
+  it("reports typing on a pointer click, not on a click from the keyboard", () => {
+    const onChange = vi.fn();
+    renderEditor(onChange);
+    select("free");
+    const field = screen.getByTestId("slide-editor-x");
+    fireEvent.focus(field);
+    fireEvent.change(field, { target: { value: "320" } });
+    // Enter submitting a form clicks with `detail` 0; the focus stays in the field.
+    fireEvent.click(field, { detail: 0 });
+    expect(onChange).not.toHaveBeenCalled();
+    fireEvent.click(field, { detail: 1 });
+    expect(onChange).toHaveBeenCalledTimes(1);
+    fireEvent.blur(field);
+    expect(onChange).toHaveBeenCalledTimes(1);
+  });
+
   it("reports nothing for the view's state: the page shown, the grid, the zoom", () => {
     const onChange = vi.fn();
     renderEditor(onChange, { document: { ...DOC, grid: { kind: "step", step: 40 } } });
@@ -394,7 +410,8 @@ describe("SlideEditor onChange", () => {
       },
     });
     select("note");
-    fireEvent.click(screen.getByTestId("note-mark"));
+    // A pointer click (`detail` 1).
+    fireEvent.click(screen.getByTestId("note-mark"), { detail: 1 });
     expect(onChange).toHaveBeenCalledTimes(1);
     const [changed] = onChange.mock.lastCall as [SlideDocument];
     expect(changed.pages[0]!.elements[0]!.payload).toEqual({ marked: true });
