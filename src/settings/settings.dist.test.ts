@@ -31,8 +31,10 @@ describe("Settings class strings", () => {
     // SUI-FEATURE-042: the option group of a SettingsField and the head of a SettingsSection.
     "flex w-full max-w-xl flex-col gap-2",
     "flex items-start justify-between gap-4 border-b border-border pb-4",
-    // SUI-FEATURE-043: the frame of a SettingsBlock and the group of a SecretCardHeader.
+    // SUI-FEATURE-043/-300: the frame and the header of a SettingsBlock and the group of a
+    // SecretCardHeader.
     "flex flex-col gap-4 rounded-lg border p-4",
+    "flex items-start justify-between gap-4 not-last:-mb-2",
     "flex flex-col items-end gap-2",
     "flex justify-end gap-2",
     // SUI-FEATURE-058: the row of a SettingsToggleField.

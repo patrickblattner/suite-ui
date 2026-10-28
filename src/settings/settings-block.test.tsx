@@ -23,7 +23,7 @@ describe("SettingsBlock", () => {
     );
     expect(container.querySelector("fieldset, legend")).toBeNull();
     const header = container.querySelector("[data-slot=settings-block-header]");
-    expect(header).toHaveClass("items-start");
+    expect(header).toHaveClass("items-start", "not-last:-mb-2");
     expect(header).toContainElement(screen.getByText("state"));
   });
 });

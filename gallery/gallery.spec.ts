@@ -7252,6 +7252,68 @@ test("settings block: a named section, the aside on the name line", async ({ pag
   expect(Math.abs(aside.y - name.y)).toBeLessThanOrEqual(2);
 });
 
+// SUI-FEATURE-300 AC1/AC2: the description sits 4 px under the title and the first content 8 px under
+// the header — without a description, under the title line (or a taller action). After the first
+// content the field rule holds (16 px), and a card's footer keeps its 24 px. Light and dark.
+for (const theme of ["light", "dark"]) {
+  test(`settings block and card: description 4 px under the title, content 8 px under the header (${theme})`, async ({
+    page,
+  }) => {
+    await page.goto(`/?page=settings&layout=blocks&lng=en&theme=${theme}`);
+    const blocks = page.locator("[data-slot=settings-block]");
+    await expect(blocks.first()).toBeVisible();
+    for (const block of await blocks.all()) {
+      const header = block.locator("[data-slot=settings-block-header]");
+      const name = await box(block.locator("[data-slot=settings-block-name]"));
+      const purpose = await box(header.locator("p").first());
+      const head = await box(header);
+      const first = await box(header.locator("xpath=following-sibling::*[1]"));
+      expect(purpose.y - (name.y + name.height)).toBeCloseTo(4, 0);
+      expect(first.y - (head.y + head.height)).toBeCloseTo(8, 0);
+    }
+    const input = await box(page.getByTestId("secret-value"));
+    const row = await box(
+      page.locator("[data-slot=settings-action-row]").filter({
+        has: page.getByTestId("secret-save"),
+      }),
+    );
+    expect(row.y - (input.y + input.height)).toBeCloseTo(16, 0);
+
+    await page.goto(`/?page=components&lng=en&theme=${theme}`);
+    for (const text of ["Presentational", "Clickable"]) {
+      const card = page
+        .locator("[data-slot=card]")
+        .filter({ has: page.getByText(text, { exact: true }) });
+      const title = await box(card.locator("[data-slot=card-title]"));
+      const description = await box(card.locator("[data-slot=card-description]"));
+      const head = await box(card.locator("[data-slot=card-header]"));
+      const content = await box(card.locator("[data-slot=card-content]"));
+      expect(description.y - (title.y + title.height)).toBeCloseTo(4, 0);
+      expect(content.y - (head.y + head.height)).toBeCloseTo(8, 0);
+      const footer = card.locator("[data-slot=card-footer]");
+      if ((await footer.count()) > 0) {
+        expect((await box(footer)).y - (content.y + content.height)).toBeCloseTo(24, 0);
+      }
+    }
+    const actionCard = page.getByTestId("components-card-action");
+    const actionTitle = await box(actionCard.locator("[data-slot=card-title]"));
+    const action = await box(actionCard.locator("[data-slot=card-action]"));
+    const actionHead = await box(actionCard.locator("[data-slot=card-header]"));
+    const actionContent = await box(actionCard.locator("[data-slot=card-content]"));
+    const headBottom = Math.max(actionTitle.y + actionTitle.height, action.y + action.height);
+    expect(actionHead.y + actionHead.height).toBeCloseTo(headBottom, 0);
+    expect(actionContent.y - headBottom).toBeCloseTo(8, 0);
+
+    await page.goto(`/?page=settings&layout=body&lng=en&theme=${theme}`);
+    const card = page.getByTestId("settings-card");
+    const title = await box(card.locator("[data-slot=card-title]"));
+    const head = await box(card.locator("[data-slot=card-header]"));
+    const content = await box(card.locator("[data-slot=card-content]"));
+    expect(head.y + head.height).toBeCloseTo(title.y + title.height, 0);
+    expect(content.y - (title.y + title.height)).toBeCloseTo(8, 0);
+  });
+}
+
 // SUI-FEATURE-043 AC2: Switch, test chip, state chip, Replace and Remove stand in that order from
 // left to right on one line; "Test connection" stands in its own row below them.
 test("secret card header: fixed order on one line, the test in a row below", async ({ page }) => {

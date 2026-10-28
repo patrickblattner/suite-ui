@@ -1115,6 +1115,15 @@ function Structure() {
               </CardHeader>
               <CardContent>Content</CardContent>
             </Card>
+            <Card data-testid="components-card-action">
+              <CardHeader>
+                <CardTitle>Card with action</CardTitle>
+                <CardAction>
+                  <Badge variant="secondary">Manual</Badge>
+                </CardAction>
+              </CardHeader>
+              <CardContent>Content</CardContent>
+            </Card>
           </div>
           <Table>
             <TableCaption>Table</TableCaption>

@@ -15,7 +15,7 @@ type SettingsBlockProps = {
 
 // The framed block of one entry, such as an integration or a secret (`SUI-FEATURE-043`): a title row
 // with the name and the purpose under it, an optional aside at its right aligned on the name line,
-// then the content 16 px apart. No legend on the frame.
+// then the content 8 px under the header (`SUI-FEATURE-300`) and 16 px apart. No legend on the frame.
 function SettingsBlock({ name, purpose, aside, children }: SettingsBlockProps) {
   const nameId = React.useId();
   return (
@@ -24,7 +24,10 @@ function SettingsBlock({ name, purpose, aside, children }: SettingsBlockProps) {
       className="flex flex-col gap-4 rounded-lg border p-4"
       data-slot="settings-block"
     >
-      <div className="flex items-start justify-between gap-4" data-slot="settings-block-header">
+      <div
+        className="flex items-start justify-between gap-4 not-last:-mb-2"
+        data-slot="settings-block-header"
+      >
         <div className="flex min-w-0 flex-col gap-1">
           <SubgroupTitle asChild>
             <h3 id={nameId} data-slot="settings-block-name">
