@@ -372,6 +372,82 @@ describe("OverflowTooltip on keyboard focus", () => {
     expect(bubble()).toHaveTextContent(LONG);
   });
 
+  // GL-UI-016 §Schließen, a click also on the tooltip itself (#638): the hover bubble stays open while
+  // the focus lands on its own trigger, and the keyboard wait runs beneath it.
+  const hoverThenFocus: [string, () => React.ReactElement][] = [
+    [
+      "OverflowTooltip",
+      () => (
+        <OverflowTooltip>
+          <span tabIndex={0} className="truncate">
+            {LONG}
+          </span>
+        </OverflowTooltip>
+      ),
+    ],
+    [
+      "Hint",
+      () => (
+        <Hint text="Opens the file">
+          <button type="button" className="truncate">
+            {LONG}
+          </button>
+        </Hint>
+      ),
+    ],
+  ];
+
+  function hoverOpenThenTab(ui: React.ReactElement): HTMLElement {
+    render(ui);
+    const holder = screen.getByText(LONG);
+    fireEvent.pointerMove(holder, { pointerType: "mouse" });
+    wait(1500);
+    tabTo(holder);
+    wait(500);
+    expect(bubble()).not.toBeNull();
+    return holder;
+  }
+
+  it.each(hoverThenFocus)(
+    "%s: a press on the hover bubble while the keyboard wait runs ends the wait",
+    (_, ui) => {
+      const holder = hoverOpenThenTab(ui());
+      const hovered = bubble() as HTMLElement;
+      fireEvent.pointerDown(hovered, { pointerType: "mouse" });
+      fireEvent.pointerUp(hovered, { pointerType: "mouse" });
+      fireEvent.click(hovered);
+      expect(bubble()).toBeNull();
+      wait(2000);
+      expect(bubble()).toBeNull();
+      expect(document.activeElement).toBe(holder);
+    },
+  );
+
+  it("the pointer leaving during the keyboard wait does not end it: the bubble opens at the deadline", () => {
+    const holder = hoverOpenThenTab(hoverThenFocus[0][1]());
+    // Left for a spot outside the way to the bubble: the hover bubble closes.
+    fireEvent.pointerLeave(holder, { pointerType: "mouse", clientX: 0, clientY: 0 });
+    fireEvent.pointerMove(document.body, { pointerType: "mouse", clientX: 900, clientY: 900 });
+    expect(bubble()).toBeNull();
+    wait(999);
+    expect(bubble()).toBeNull();
+    wait(1);
+    expect(bubble()).toHaveTextContent(LONG);
+  });
+
+  it("the keyboard bubble's own open, closing the hover bubble of its root, does not end it", () => {
+    const holder = hoverOpenThenTab(hoverThenFocus[0][1]());
+    wait(1000);
+    expect(screen.getAllByRole("tooltip")).toHaveLength(1);
+    expect(bubble()).toHaveTextContent(LONG);
+    // Its closers still listen: a press elsewhere closes it.
+    fireEvent.pointerDown(document.body, { pointerType: "mouse" });
+    expect(bubble()).toBeNull();
+    wait(2000);
+    expect(bubble()).toBeNull();
+    expect(document.activeElement).toBe(holder);
+  });
+
   it("a bubble that closed when its text fit does not reopen without focus once it clips again", () => {
     // `layout` re-renders the name, which measures it anew.
     const view = (layout: number) => (

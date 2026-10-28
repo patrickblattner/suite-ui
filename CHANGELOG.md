@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — #638, GL-UI-016 rev 21: a press on the bubble ends the keyboard-focus wait (patch)
+
+- **Overflow tooltip on keyboard focus (#638):** with a pointer bubble open, a keyboard focus on its holder starts the 1500 ms wait; a press on that bubble within the wait now ends the wait as well, so the bubble stays closed instead of opening again at the deadline. `OverflowTooltip` and `Hint` alike. The pointer leaving and the keyboard bubble's own open still leave the wait running; a press on an open keyboard bubble is left to the bubble as before (#593).
+
 ## 0.176.0 — #625, SUI-FEATURE-280 rev 2: an image's crop shifts along the axis its proportions overhang, at 100 % too
 
 - **SlideView image crop (#625):** the image is drawn at its own proportions, filling the area inside its border (`cover`) and then zoomed; the crop's offset reaches as far as that drawn image overhangs the area, half to each side. At zoom 1 the axis the image overhangs now shifts (a 2:1 image in a 400 × 400 frame reaches ±200 px sideways), the other does not. Editor, player and export draw it alike.
