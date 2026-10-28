@@ -4157,8 +4157,8 @@ test("media tile: the overflow tooltip at the viewport's top and left edge is ne
 // header, 8 px clear, then the rules apply (AC 7, also with the name wholly under the header at
 // y 26-46); a bubble open while the page scrolls the name wholly under the header closes (AC 8).
 // The same header beneath the tiles (z-index -1) lies over no tile, so it cuts nothing: the bubble
-// stands over the name as without it. The page timers stand still on the page clock (#627): each of
-// the 14 openings runs the hint delay at once instead of waiting it out, and the scroll a step
+// stands over the name as without it. The page timers stand still on the page clock (#627): every
+// opening runs the hint delay at once instead of waiting it out, and the scroll a step
 // makes is delivered in a rendered frame before the timers run, so it never counts as a later one.
 test("media tile: the overflow tooltip under a fixed app header never stands over it", async ({
   page,
@@ -4240,6 +4240,8 @@ test("media tile: the overflow tooltip under a fixed app header never stands ove
   await page.evaluate(() => (document.documentElement.style.scrollBehavior = "smooth"));
   await page.keyboard.press("Shift");
   await tiles.nth(3).evaluate((node) => (node as HTMLElement).focus({ preventScroll: true }));
+  // Out from under the header at once, read straight after the focus: a smooth reveal fails here.
+  expect((await box(tiles.nth(3))).y).toBeGreaterThanOrEqual(63);
   await opens();
   expect((await box(tiles.nth(3))).y).toBeGreaterThanOrEqual(63);
   await page.keyboard.press("Escape");
