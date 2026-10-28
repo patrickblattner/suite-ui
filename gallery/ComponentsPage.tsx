@@ -767,6 +767,25 @@ function ProseLinks() {
   );
 }
 
+// A switch whose toggle starts a run of 800 ms (`SUI-FEATURE-253` AC 2): busy for the run, then usable.
+function RunSwitch() {
+  const [checked, setChecked] = useState(false);
+  const [busy, setBusy] = useState(false);
+  return (
+    <Switch
+      aria-label="runs"
+      checked={checked}
+      busy={busy}
+      data-testid="switch-run"
+      onCheckedChange={(next) => {
+        setChecked(next);
+        setBusy(true);
+        setTimeout(() => setBusy(false), 800);
+      }}
+    />
+  );
+}
+
 function Choices() {
   return (
     <Section id="choices" title="Checkbox · RadioGroup · Switch · Select">
@@ -790,10 +809,24 @@ function Choices() {
       <Row label="Switch">
         <Switch aria-label="off" />
         <Switch aria-label="on" defaultChecked />
-        <Switch aria-label="disabled" disabled />
-        <Switch aria-label="disabled on" disabled defaultChecked />
+        <Switch aria-label="disabled" disabled data-testid="switch-disabled" />
+        <Switch aria-label="disabled on" disabled defaultChecked data-testid="switch-disabled-on" />
         <Switch aria-label="sm off" size="sm" />
         <Switch aria-label="sm on" size="sm" defaultChecked />
+        {/* SUI-FEATURE-253: busy, a switch whose toggle runs an action, and locked with a reason. */}
+        <Switch aria-label="busy" busy defaultChecked data-testid="switch-busy" />
+        <RunSwitch />
+        <Hint text="Shows the page to visitors" disabledText="Possible once the page is saved">
+          <Switch aria-label="locked" aria-disabled="true" data-testid="switch-locked" />
+        </Hint>
+        <Hint text="Shows the page to visitors" disabledText="Possible once the page is saved">
+          <Switch
+            aria-label="locked on"
+            aria-disabled="true"
+            defaultChecked
+            data-testid="switch-locked-on"
+          />
+        </Hint>
       </Row>
       <Row label="Select">
         <Select defaultValue="weekly">

@@ -17408,3 +17408,161 @@ test("date fields: a mouse click shows no focus ring", async ({ page }) => {
     await expect.poll(shadow, { message: type }).toContain(`${ring} 0px 0px 0px 3px`);
   }
 });
+
+// `SUI-FEATURE-253` AC 1–2: a busy or `aria-disabled` switch ignores click, Space and Enter and keeps
+// the focus; a switch that runs on toggle keeps the focus through the run and toggles again after.
+test("switch: busy and locked keep the focus and do not toggle; a run hands it back usable", async ({
+  page,
+}) => {
+  await page.goto("/?page=components&lng=en");
+  for (const id of ["switch-busy", "switch-locked", "switch-locked-on"]) {
+    const toggle = page.getByTestId(id);
+    const before = await toggle.getAttribute("aria-checked");
+    await toggle.focus();
+    // Playwright waits for an `aria-disabled` control to become enabled; the real click goes through.
+    await toggle.click({ force: true });
+    await page.keyboard.press("Space");
+    await page.keyboard.press("Enter");
+    await expect(toggle, id).toHaveAttribute("aria-checked", before!);
+    await expect(toggle, id).toBeFocused();
+  }
+  await expect(page.getByTestId("switch-busy")).toHaveAttribute("aria-busy", "true");
+  await expect(page.getByTestId("switch-locked")).not.toHaveAttribute("aria-busy", /.*/);
+  // Locked with a reason: the reason describes the switch itself.
+  await expect(page.getByTestId("switch-locked")).toHaveAccessibleDescription(
+    "Possible once the page is saved",
+  );
+  // Busy looks like a busy `Button`: the full colour of a usable switch in its position, the
+  // progress cursor, no locked look (`SUI-FEATURE-253` rev 3).
+  const look = (toggle: Locator) =>
+    toggle.evaluate((track) => {
+      const thumb = track.querySelector("[data-slot=switch-thumb]")!;
+      for (const el of [track, thumb]) for (const a of el.getAnimations()) a.finish();
+      return {
+        track: getComputedStyle(track).backgroundColor,
+        thumb: getComputedStyle(thumb).backgroundColor,
+        cursor: getComputedStyle(track).cursor,
+      };
+    });
+  const usableOn = await look(page.getByRole("switch", { name: "on", exact: true }));
+  expect(await look(page.getByTestId("switch-busy"))).toEqual({ ...usableOn, cursor: "progress" });
+  const run = page.getByTestId("switch-run");
+  await run.focus();
+  await page.keyboard.press("Space");
+  await expect(run).toHaveAttribute("aria-busy", "true");
+  await expect(run).toHaveAttribute("aria-checked", "true");
+  expect(await look(run)).toEqual({ ...usableOn, cursor: "progress" });
+  await page.keyboard.press("Space");
+  await expect(run).toHaveAttribute("aria-checked", "true");
+  await expect(run).toBeFocused();
+  await expect(run).not.toHaveAttribute("aria-busy", /.*/);
+  await expect(run).toBeFocused();
+  await page.keyboard.press("Space");
+  await expect(run).toHaveAttribute("aria-checked", "false");
+});
+
+// `SUI-FEATURE-253` AC 3: locked and disabled switches wear one look in colour, never opacity: track
+// and thumb mixed half with `--surface`, cursor `not-allowed`, the locked one's focus ring at 3:1;
+// the disabled one stays out of the Tab order.
+for (const theme of THEMES) {
+  test(`switch: locked and disabled mix with the surface, no opacity (${theme})`, async ({
+    page,
+  }) => {
+    await page.goto(`/?page=components&lng=en&theme=${theme}`);
+    await parkPointer(page);
+    const ids = ["switch-locked", "switch-locked-on", "switch-disabled", "switch-disabled-on"];
+    const seen = await page.evaluate(
+      ([list, dark]) => {
+        const canvas = document.createElement("canvas");
+        canvas.width = canvas.height = 1;
+        const context = canvas.getContext("2d", { willReadFrequently: true })!;
+        // A colour as it shows over the surface.
+        const rgba = (fill: string, under: string) => {
+          context.clearRect(0, 0, 1, 1);
+          for (const layer of [under, fill]) {
+            context.fillStyle = layer;
+            context.fillRect(0, 0, 1, 1);
+          }
+          return [...context.getImageData(0, 0, 1, 1).data];
+        };
+        return list.map((id) => {
+          const track = document.querySelector(`[data-testid=${id}]`)!;
+          const thumb = track.querySelector("[data-slot=switch-thumb]")!;
+          // The colours at the end of their transition: the theme is set after the page loads.
+          for (const el of [track, thumb]) for (const a of el.getAnimations()) a.finish();
+          const style = getComputedStyle(track);
+          const surface = style.getPropertyValue("--surface");
+          const on = track.getAttribute("data-state") === "checked";
+          const thumbToken = !dark ? "--background" : on ? "--primary-foreground" : "--foreground";
+          let opacity = 1;
+          for (let el: Element | null = thumb; el; el = el.parentElement)
+            opacity *= Number(getComputedStyle(el).opacity);
+          return {
+            id,
+            cursor: style.cursor,
+            opacity,
+            surface: rgba(surface, surface),
+            track: rgba(style.backgroundColor, surface),
+            trackToken: rgba(style.getPropertyValue(on ? "--primary" : "--input"), surface),
+            thumb: rgba(getComputedStyle(thumb).backgroundColor, surface),
+            thumbToken: rgba(style.getPropertyValue(thumbToken), surface),
+          };
+        });
+      },
+      [ids, theme === "dark"] as const,
+    );
+    for (const s of seen) {
+      const near = (actual: number[], token: number[], what: string) =>
+        actual.slice(0, 3).forEach((channel, i) => {
+          const expected = (token[i]! + s.surface[i]!) / 2;
+          expect(Math.abs(channel - expected), `${s.id} ${what} channel ${i}`).toBeLessThanOrEqual(
+            1,
+          );
+        });
+      expect(s.opacity, s.id).toBe(1);
+      expect(s.cursor, s.id).toBe("not-allowed");
+      near(s.track, s.trackToken, "track");
+      near(s.thumb, s.thumbToken, "thumb");
+    }
+    // Locked and disabled look the same.
+    expect(seen[0]!.track).toEqual(seen[2]!.track);
+    expect(seen[1]!.track).toEqual(seen[3]!.track);
+    const locked = page.getByTestId("switch-locked");
+    await page.keyboard.press("Tab");
+    await locked.focus();
+    await expect(locked).toBeFocused();
+    const ring = await utilityColor(page, "bg-ring", "backgroundColor");
+    const surface = await locked.evaluate((node) =>
+      getComputedStyle(node).getPropertyValue("--surface"),
+    );
+    expect(await contrastOf(page, ring, surface)).toBeGreaterThanOrEqual(3);
+    // The focused locked switch draws that ring, undimmed.
+    expect(await settledBoxShadowOf(locked)).toContain(`${ring} 0px 0px 0px 3px`);
+    await page.getByTestId("switch-disabled").focus();
+    await expect(page.getByTestId("switch-disabled")).not.toBeFocused();
+  });
+}
+
+// `SUI-FEATURE-253` rev 3 AC 3: in forced colours a locked and a disabled switch draw their track's
+// border in `GrayText`, as a locked `Button` does; a usable and a busy switch do not.
+test("switch: locked and disabled take GrayText in forced colours", async ({ page }) => {
+  await page.emulateMedia({ forcedColors: "active" });
+  await page.goto("/?page=components&lng=en");
+  const gray = await page.evaluate(() => {
+    const probe = document.createElement("span");
+    probe.style.color = "GrayText";
+    document.body.append(probe);
+    const color = getComputedStyle(probe).color;
+    probe.remove();
+    return color;
+  });
+  const border = (id: string) =>
+    page.getByTestId(id).evaluate((el) => {
+      for (const a of el.getAnimations()) a.finish();
+      return getComputedStyle(el).borderTopColor;
+    });
+  for (const id of ["switch-locked", "switch-locked-on", "switch-disabled", "switch-disabled-on"])
+    expect(await border(id), id).toBe(gray);
+  expect(await border("switch-busy")).not.toBe(gray);
+  expect(await border("switch-run")).not.toBe(gray);
+});
