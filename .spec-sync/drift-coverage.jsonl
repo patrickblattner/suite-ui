@@ -724,3 +724,5 @@
 {"ts":"2026-10-28T17:30:35.914Z","key":"SUI-FEATURE-101","from":8,"to":9,"disposition":"ticket","ref":"656"}
 {"ts":"2026-10-28T17:30:36.264Z","key":"SUI-FEATURE-320","from":null,"to":2,"disposition":"ticket","ref":"657"}
 {"ts":"2026-10-28T17:31:04.037Z","key":"GL-UI-004","from":11,"to":12,"disposition":"editorial","ref":"rev 12 narrows the per-app label guard (a reference to the package key is not an overwrite); the guard lives in each app's lint step, suite-ui ships none; no code impact"}
+{"ts":"2026-10-28T18:19:48.419Z","key":"GL-UI-051","from":null,"to":2,"disposition":"editorial","ref":"app labelling rule; EditPanel already defaults its primary action to the package keys actions.create/actions.save by mode and takes app labels as a prop; no package change"}
+{"ts":"2026-10-28T18:19:48.883Z","key":"PROC-REL-006","from":2,"to":3,"disposition":"editorial","ref":"rev 3 adds Node/image detectors for exposed repos in stage-infra; suite-ui is internal; no code impact"}
