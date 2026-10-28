@@ -655,6 +655,25 @@ function Fields() {
         <TimezoneCombobox value={empty} onValueChange={setEmpty} data-testid="timezone-empty" />
         <TimezoneCombobox value="Europe/Berlin" onValueChange={() => undefined} disabled />
         <TimezoneCombobox value="Europe/Berlin" onValueChange={() => undefined} aria-invalid />
+        {/* `SUI-FEATURE-117`: read-only beside the editable fields above. */}
+        <div className="flex flex-col gap-2">
+          <LabelWithHelp htmlFor="input-readonly" help="Set by the system">
+            Read-only
+          </LabelWithHelp>
+          <Input
+            id="input-readonly"
+            data-testid="input-readonly"
+            defaultValue="Read-only"
+            readOnly
+            aria-describedby={helpIdFor("input-readonly")}
+          />
+        </div>
+        <Textarea
+          aria-label="Textarea read-only"
+          data-testid="textarea-readonly"
+          defaultValue={"Two\nlines"}
+          readOnly
+        />
       </div>
     </Section>
   );
@@ -843,6 +862,13 @@ function Choices() {
         <Row key={size} label={`Height · ${size}`}>
           <div className="flex flex-wrap items-center gap-3" data-testid={`height-row-${size}`}>
             <Input aria-label={`Input ${size}`} size={size} placeholder="Search" className="w-48" />
+            <Input
+              aria-label={`Input ${size} read-only`}
+              size={size}
+              defaultValue="Read-only"
+              readOnly
+              className="w-48"
+            />
             <Select defaultValue="weekly">
               <SelectTrigger aria-label={`Select ${size}`} size={size} className="w-48">
                 <SelectValue />

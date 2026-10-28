@@ -38,6 +38,10 @@ function Input({
         className={cn(
           "w-full min-w-0 rounded-md border border-input bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none selection:bg-primary selection:text-primary-foreground file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm dark:bg-input/30",
           "data-[size=default]:h-9 data-[size=sm]:h-8",
+          // Read-only: a muted surface and the default cursor (`SUI-FEATURE-117`), in light and dark;
+          // all else stays the editable field's. Keyed on the attribute, not `:read-only`, which also
+          // matches a disabled field and the types the attribute does not apply to.
+          "[&[readonly]:not(:disabled)]:cursor-default [&[readonly]:not(:disabled)]:bg-muted",
           picker
             ? // An invalid field keeps its destructive border under focus, as non-picker fields do (#484).
               // The calendar button draws no browser outline of its own: the field's ring stands for it

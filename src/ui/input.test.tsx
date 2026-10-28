@@ -21,6 +21,33 @@ describe("Input", () => {
   });
 });
 
+// `SUI-FEATURE-117`: a read-only field gets the muted surface and the default cursor, keyed on the
+// native attribute; the gallery measures the computed colour, cursor and box.
+describe("read-only Input", () => {
+  it("carries the read-only look and the native attribute", () => {
+    render(<Input aria-label="Name" readOnly defaultValue="Fixed" />);
+    const input = screen.getByRole("textbox", { name: "Name" });
+    expect(input).toHaveAttribute("readonly");
+    expect(input).toHaveClass(
+      "[&[readonly]:not(:disabled)]:cursor-default",
+      "[&[readonly]:not(:disabled)]:bg-muted",
+    );
+  });
+
+  it("keeps the editable field's shape and size classes", () => {
+    render(<Input aria-label="Name" readOnly size="sm" />);
+    expect(screen.getByRole("textbox", { name: "Name" })).toHaveClass(
+      "rounded-md",
+      "border",
+      "border-input",
+      "px-3",
+      "py-1",
+      "data-[size=sm]:h-8",
+      "focus-visible:focus-ring",
+    );
+  });
+});
+
 describe("height scale", () => {
   function Row({ size }: { size: "default" | "sm" }) {
     return (

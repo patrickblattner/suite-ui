@@ -3316,6 +3316,129 @@ test("placement buttons without hints: no tooltip, no description", async ({ pag
   }
 });
 
+// `SUI-FEATURE-117`: a read-only Input or Textarea has the `--muted` surface and the default cursor,
+// in light and dark, and otherwise the editable field's box; it stays a Tab stop with the focus ring
+// and selectable text. Editable and disabled fields keep their look.
+const surfaceOf = (field: Locator) =>
+  field.evaluate((el) => {
+    const probe = document.createElement("div");
+    probe.style.backgroundColor = "var(--muted)";
+    el.parentElement!.append(probe);
+    const muted = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    const style = getComputedStyle(el);
+    return { muted, background: style.backgroundColor, cursor: style.cursor };
+  });
+
+const BOX_PROPERTIES = [
+  "height",
+  "padding-top",
+  "padding-right",
+  "padding-bottom",
+  "padding-left",
+  "border-top-width",
+  "border-left-width",
+  "border-top-color",
+  "border-left-color",
+  "border-top-left-radius",
+  "border-bottom-right-radius",
+  "font-size",
+] as const;
+const boxStyleOf = (field: Locator) =>
+  field.evaluate(
+    (el, properties) => {
+      const style = getComputedStyle(el);
+      return properties.map((property) => style.getPropertyValue(property));
+    },
+    [...BOX_PROPERTIES],
+  );
+
+for (const theme of THEMES) {
+  test(`read-only fields: muted surface and default cursor in ${theme}`, async ({ page }) => {
+    await page.goto(`/?page=components&lng=en&theme=${theme}`);
+    for (const field of [
+      page.getByTestId("input-readonly"),
+      page.getByTestId("textarea-readonly"),
+    ]) {
+      await expect(field).toHaveAttribute("readonly");
+      const { muted, background, cursor } = await surfaceOf(field);
+      expect(background).toBe(muted);
+      expect(cursor).toBe("default");
+    }
+    for (const [field, disabled] of [
+      [page.locator("#input-filled"), false],
+      [page.getByRole("textbox", { name: "Textarea filled" }), false],
+      [page.locator("#input-disabled"), true],
+      [page.getByRole("textbox", { name: "Textarea disabled" }), true],
+    ] as const) {
+      const { muted, background, cursor } = await surfaceOf(field);
+      expect(background).not.toBe(muted);
+      expect(cursor).toBe(disabled ? "not-allowed" : "text");
+      await expect(field).toHaveCSS("opacity", disabled ? "0.5" : "1");
+    }
+  });
+
+  test(`read-only fields: the editable field's box at both sizes in ${theme}`, async ({ page }) => {
+    await page.goto(`/?page=components&lng=en&theme=${theme}`);
+    const pairs: [Locator, Locator][] = [
+      [page.locator("#input-filled"), page.getByTestId("input-readonly")],
+      [
+        page.getByRole("textbox", { name: "Textarea filled" }),
+        page.getByTestId("textarea-readonly"),
+      ],
+      ...(["default", "sm"] as const).map((size): [Locator, Locator] => [
+        page.getByRole("textbox", { name: `Input ${size}`, exact: true }),
+        page.getByRole("textbox", { name: `Input ${size} read-only` }),
+      ]),
+    ];
+    for (const [editable, readOnly] of pairs) {
+      expect(await boxStyleOf(readOnly)).toEqual(await boxStyleOf(editable));
+      const [a, b] = [await box(editable), await box(readOnly)];
+      expect(b.height).toBeCloseTo(a.height, 1);
+      expect(b.width).toBeCloseTo(a.width, 1);
+    }
+    expect((await box(page.getByRole("textbox", { name: "Input sm read-only" }))).height).toBe(32);
+    expect((await box(page.getByRole("textbox", { name: "Input default read-only" }))).height).toBe(
+      36,
+    );
+  });
+}
+
+test("read-only fields: a Tab stop with the focus ring, selectable, described by the help", async ({
+  page,
+}) => {
+  await page.goto("/?page=components&lng=en");
+  const input = page.getByTestId("input-readonly");
+  const textarea = page.getByTestId("textarea-readonly");
+  await expect(input).toHaveAccessibleDescription("Set by the system");
+  // The invalid time zone field stands right before them: one Tab reaches the input (its label's
+  // hint is no tab stop), the next the textarea.
+  await page
+    .getByTestId("section-fields")
+    .locator("[data-slot=timezone-combobox] input[aria-invalid=true]")
+    .focus();
+  await page.keyboard.press("Tab");
+  await expectReadOnlyStop(page, input);
+  await page.keyboard.press("Tab");
+  await expectReadOnlyStop(page, textarea);
+});
+
+// A focused read-only field shows the focus ring and selects all its text.
+async function expectReadOnlyStop(page: Page, field: Locator) {
+  await expect(field).toBeFocused();
+  expect(await field.evaluate((el) => el.matches(":focus-visible"))).toBe(true);
+  await expect.poll(() => boxShadowOf(field)).not.toBe("none");
+  await expect(field).not.toHaveCSS("user-select", "none");
+  await page.keyboard.press("ControlOrMeta+a");
+  const length = (await field.inputValue()).length;
+  expect(
+    await field.evaluate((el: HTMLInputElement | HTMLTextAreaElement) => [
+      el.selectionStart,
+      el.selectionEnd,
+    ]),
+  ).toEqual([0, length]);
+}
+
 // AC 3: the middle half of the 2000 × 1000 image in a square frame, the image itself unchanged.
 test("CroppedImage: the frame shows exactly the middle half", async ({ page }) => {
   await page.goto("/?page=components");

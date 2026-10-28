@@ -24,3 +24,19 @@ describe("Textarea", () => {
     );
   });
 });
+
+// `SUI-FEATURE-117`: a read-only textarea gets the muted surface and the default cursor.
+describe("read-only Textarea", () => {
+  it("carries the read-only look and the native attribute", () => {
+    render(<Textarea aria-label="Notes" readOnly defaultValue="Fixed" />);
+    const textarea = screen.getByRole("textbox", { name: "Notes" });
+    expect(textarea).toHaveAttribute("readonly");
+    expect(textarea).toHaveClass(
+      "[&[readonly]:not(:disabled)]:cursor-default",
+      "[&[readonly]:not(:disabled)]:bg-muted",
+      "px-3",
+      "py-2",
+      "focus-visible:focus-ring",
+    );
+  });
+});

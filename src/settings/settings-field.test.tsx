@@ -625,6 +625,40 @@ describe("SettingsField valueHint", () => {
     expect(hover(radio)).toBe("Fast");
     expect(radio).not.toHaveAccessibleDescription(/Fast skips|How it runs/);
   });
+
+  // `SUI-FEATURE-117` AC 3: read-only changes only the look; the field keeps its references.
+  it("a read-only Input and Textarea keep their help, value hint and error references", () => {
+    render(
+      <>
+        <SettingsField label="Port" htmlFor="port" help="1 to 65535.">
+          <Input id="port" readOnly aria-describedby="port-description" />
+        </SettingsField>
+        <SettingsField label="Host" htmlFor="host" valueHint="A domain name." error="Enter a host.">
+          <Input id="host" readOnly />
+        </SettingsField>
+        <SettingsField label="Notes" htmlFor="notes" valueHint="Up to 500 characters.">
+          <Textarea id="notes" readOnly />
+        </SettingsField>
+        <SettingsField label="Body" htmlFor="body" error="Enter a body.">
+          <Textarea id="body" readOnly />
+        </SettingsField>
+      </>,
+    );
+    const port = screen.getByRole("textbox", { name: "Port" });
+    expect(port).toHaveAttribute("readonly");
+    expect(port).toHaveAccessibleDescription("1 to 65535.");
+    const host = screen.getByRole("textbox", { name: "Host" });
+    expect(host).toHaveAccessibleDescription("A domain name.");
+    expect(host).toHaveAttribute("aria-errormessage", "host-error");
+    expect(host).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByRole("textbox", { name: "Notes" })).toHaveAccessibleDescription(
+      "Up to 500 characters.",
+    );
+    const body = screen.getByRole("textbox", { name: "Body" });
+    expect(body).toHaveAttribute("readonly");
+    expect(body).toHaveAttribute("aria-errormessage", "body-error");
+    expect(body).toHaveAttribute("aria-invalid", "true");
+  });
 });
 
 describe("SettingsSection", () => {
