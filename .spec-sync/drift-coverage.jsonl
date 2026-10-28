@@ -721,3 +721,6 @@
 {"ts":"2026-10-28T16:42:08.687Z","key":"SUI-FEATURE-117","from":2,"to":3,"disposition":"ticket","ref":"653"}
 {"ts":"2026-10-28T16:42:09.143Z","key":"SUI-FEATURE-253","from":null,"to":2,"disposition":"ticket","ref":"654"}
 {"ts":"2026-10-28T16:42:09.600Z","key":"SUI-FEATURE-195","from":null,"to":2,"disposition":"ticket","ref":"655"}
+{"ts":"2026-10-28T17:30:35.914Z","key":"SUI-FEATURE-101","from":8,"to":9,"disposition":"ticket","ref":"656"}
+{"ts":"2026-10-28T17:30:36.264Z","key":"SUI-FEATURE-320","from":null,"to":2,"disposition":"ticket","ref":"657"}
+{"ts":"2026-10-28T17:31:04.037Z","key":"GL-UI-004","from":11,"to":12,"disposition":"editorial","ref":"rev 12 narrows the per-app label guard (a reference to the package key is not an overwrite); the guard lives in each app's lint step, suite-ui ships none; no code impact"}
