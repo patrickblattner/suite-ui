@@ -727,3 +727,4 @@
 {"ts":"2026-10-28T18:19:48.419Z","key":"GL-UI-051","from":null,"to":2,"disposition":"editorial","ref":"app labelling rule; EditPanel already defaults its primary action to the package keys actions.create/actions.save by mode and takes app labels as a prop; no package change"}
 {"ts":"2026-10-28T18:19:48.883Z","key":"PROC-REL-006","from":2,"to":3,"disposition":"editorial","ref":"rev 3 adds Node/image detectors for exposed repos in stage-infra; suite-ui is internal; no code impact"}
 {"ts":"2026-10-28T20:42:39.034Z","key":"SUI-FEATURE-253","from":2,"to":3,"disposition":"ticket","ref":"654"}
+{"ts":"2026-10-28T23:34:58.470Z","key":"SUI-FEATURE-117","from":3,"to":4,"disposition":"ticket","ref":"653"}
