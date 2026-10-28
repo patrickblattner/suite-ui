@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
+import { flushSync } from "react-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Hint } from "./hint.js";
@@ -370,6 +371,95 @@ describe("OverflowTooltip on keyboard focus", () => {
     wait(200);
     expect(screen.getAllByRole("tooltip")).toHaveLength(1);
     expect(bubble()).toHaveTextContent(LONG);
+  });
+
+  // GL-UI-016 §Schließen, a click also on the tooltip itself (#638): the hover bubble stays open while
+  // the focus lands on its own trigger, and the keyboard wait runs beneath it.
+  const selfFocused = () => (
+    <OverflowTooltip>
+      <span tabIndex={0} className="truncate">
+        {LONG}
+      </span>
+    </OverflowTooltip>
+  );
+  const hoverThenFocus: [string, () => React.ReactElement][] = [
+    ["OverflowTooltip", selfFocused],
+    [
+      "Hint",
+      () => (
+        <Hint text="Opens the file">
+          <button type="button" className="truncate">
+            {LONG}
+          </button>
+        </Hint>
+      ),
+    ],
+  ];
+
+  function hoverOpenThenTab(ui: React.ReactElement): HTMLElement {
+    render(ui);
+    const holder = screen.getByText(LONG);
+    fireEvent.pointerMove(holder, { pointerType: "mouse" });
+    wait(1500);
+    tabTo(holder);
+    wait(500);
+    expect(bubble()).not.toBeNull();
+    return holder;
+  }
+
+  it.each(hoverThenFocus)(
+    "%s: a press on the hover bubble while the keyboard wait runs ends the wait",
+    (_, ui) => {
+      const holder = hoverOpenThenTab(ui());
+      const hovered = bubble() as HTMLElement;
+      fireEvent.pointerDown(hovered, { pointerType: "mouse" });
+      fireEvent.pointerUp(hovered, { pointerType: "mouse" });
+      fireEvent.click(hovered);
+      expect(bubble()).toBeNull();
+      wait(2000);
+      expect(bubble()).toBeNull();
+      expect(document.activeElement).toBe(holder);
+    },
+  );
+
+  it("the pointer leaving during the keyboard wait does not end it: the bubble opens at the deadline", () => {
+    const holder = hoverOpenThenTab(selfFocused());
+    // Left for a spot outside the way to the bubble: the hover bubble closes.
+    fireEvent.pointerLeave(holder, { pointerType: "mouse", clientX: 0, clientY: 0 });
+    fireEvent.pointerMove(document.body, { pointerType: "mouse", clientX: 900, clientY: 900 });
+    expect(bubble()).toBeNull();
+    wait(999);
+    expect(bubble()).toBeNull();
+    wait(1);
+    expect(bubble()).toHaveTextContent(LONG);
+  });
+
+  it("the keyboard bubble's own open, closing the hover bubble of its root, does not end it", () => {
+    const holder = hoverOpenThenTab(selfFocused());
+    wait(1000);
+    expect(screen.getAllByRole("tooltip")).toHaveLength(1);
+    expect(bubble()).toHaveTextContent(LONG);
+    // Its own closers still listen: `Enter` on its holder closes it, which only the keyboard wait does.
+    fireEvent.keyDown(holder, { key: "Enter" });
+    expect(bubble()).toBeNull();
+    wait(2000);
+    expect(bubble()).toBeNull();
+    expect(document.activeElement).toBe(holder);
+  });
+
+  it("a press on the open keyboard bubble reaches the bubble, which closes itself and keeps the focus", () => {
+    const tile = renderTile();
+    tabTo(tile);
+    wait(1500);
+    const keyboard = bubble() as HTMLElement;
+    expect(keyboard).toHaveTextContent(LONG);
+    // A browser renders between the press's listeners (a microtask checkpoint after each one);
+    // flushing at the bubble does the same here. Closed by the window's listener, the bubble would be
+    // gone by then and the press would not reach it: its pointerdown would not be prevented (#593).
+    keyboard.addEventListener("pointerdown", () => flushSync(() => {}), { capture: true });
+    expect(fireEvent.pointerDown(keyboard, { pointerType: "mouse" })).toBe(false);
+    expect(bubble()).toBeNull();
+    expect(document.activeElement).toBe(tile);
   });
 
   it("a bubble that closed when its text fit does not reopen without focus once it clips again", () => {

@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — #638, GL-UI-016 rev 21: a press on the bubble ends the keyboard-focus wait (patch)
+
+- **Overflow tooltip on keyboard focus (#638):** with a pointer bubble open, a keyboard focus on its holder starts the 1500 ms wait; a press on that bubble within the wait now ends the wait as well, so the bubble stays closed instead of opening again at the deadline. `OverflowTooltip` and `Hint` alike. The pointer leaving and the keyboard bubble's own open still leave the wait running; a press on an open keyboard bubble is left to the bubble as before (#593).
+
 ## Unreleased — #637, SUI-FEATURE-101: a toast.promise result keeps the caller's duration (patch)
 
 - **toast.promise (#637):** the result of a promise toast with an action now takes the caller's explicit `duration`, as `toast.success` with an action does: `duration: 10000` lasts 10000 ms instead of 8000 ms, and one below 8000 ms still lasts 8000 ms. Without a duration the timing is unchanged: an action toast lasts at least 8000 ms, one without an action keeps sonner's.

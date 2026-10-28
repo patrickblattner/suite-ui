@@ -83,15 +83,15 @@ function inDocumentOrder(nodes: Iterable<HTMLElement>): HTMLElement[] {
 // each on its own line in document order (`lines`); the others stay closed. Opening, it closes every
 // other bubble, as radix's own open does. A press anywhere but on a bubble, `Esc`, `Enter` or `Space`
 // on the holder (its activation, a click), a scroll and the focus leaving close it, also while it
-// waits; a press on a bubble is left to that bubble, which closes itself (#593). The scroll the
-// focus itself causes (Tab onto an element out of view) does not count: scrolls count once two frames
-// have passed since the focus; a scroll in those frames does not extend them, so a scroll begun at
-// once still closes it (#590). The bubble stands where the member's pointer bubble does, not beside
-// the holder (rev 17, Q&A #4645): an `OverflowTooltip` at its clipped text, a `Hint` at its trigger,
-// the control whose text is clipped. `due`: this member shows the keyboard
-// bubble. `close` resets it, for the root's close. `enabled: false` takes no part; `inside` as for
-// `holderOf`. `reveal` runs on the keyboard focus itself, before the delay: a tile scrolls itself
-// wholly into view there (`SUI-FEATURE-115` rev 4, #615).
+// waits; a press on a bubble is left to that bubble, which closes itself (#593), and while it waits
+// ends the wait as well (#638). The scroll the focus itself causes (Tab onto an element out of view)
+// does not count: scrolls count once two frames have passed since the focus; a scroll in those frames
+// does not extend them, so a scroll begun at once still closes it (#590). The bubble stands where the
+// member's pointer bubble does, not beside the holder (rev 17, Q&A #4645): an `OverflowTooltip` at its
+// clipped text, a `Hint` at its trigger, the control whose text is clipped. `due`: this member shows
+// the keyboard bubble. `close` resets it, for the root's close. `enabled: false` takes no part;
+// `inside` as for `holderOf`. `reveal` runs on the keyboard focus itself, before the delay: a tile
+// scrolls itself wholly into view there (`SUI-FEATURE-115` rev 4, #615).
 function useOpenOnKeyboardFocus({
   node,
   enabled,
@@ -143,8 +143,14 @@ function useOpenOnKeyboardFocus({
     };
     // A press on the bubble itself is the bubble's: it closes it and keeps the focus (#593). Closed
     // here, the bubble would leave before the press reached it, and the press would land on <body>.
+    // While the wait still runs (a pointer bubble is pressed), the press is a click and ends the wait
+    // too (#638); closing no keyboard bubble then, it leaves the pressed bubble to itself.
     const onPress = (event: PointerEvent) => {
-      if (event.target instanceof Element && event.target.closest("[data-slot=tooltip-content]")) {
+      if (
+        timer === 0 &&
+        event.target instanceof Element &&
+        event.target.closest("[data-slot=tooltip-content]")
+      ) {
         return;
       }
       stop();
@@ -162,12 +168,14 @@ function useOpenOnKeyboardFocus({
     };
     function stop() {
       window.clearTimeout(timer);
+      timer = 0;
       window.cancelAnimationFrame(frame);
       frame = 0;
       listen(false);
       setLines(null);
     }
     const open = () => {
+      timer = 0;
       const all = inDocumentOrder(members.keys()).map((member) => ({
         member,
         texts: members.get(member)?.() ?? [],
