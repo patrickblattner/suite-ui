@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
+import { flushSync } from "react-dom";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Hint } from "./hint.js";
@@ -438,12 +439,27 @@ describe("OverflowTooltip on keyboard focus", () => {
     wait(1000);
     expect(screen.getAllByRole("tooltip")).toHaveLength(1);
     expect(bubble()).toHaveTextContent(LONG);
-    // Its closers still listen: a press elsewhere closes it.
-    fireEvent.pointerDown(document.body, { pointerType: "mouse" });
+    // Its own closers still listen: `Enter` on its holder closes it, which only the keyboard wait does.
+    fireEvent.keyDown(holder, { key: "Enter" });
     expect(bubble()).toBeNull();
     wait(2000);
     expect(bubble()).toBeNull();
     expect(document.activeElement).toBe(holder);
+  });
+
+  it("a press on the open keyboard bubble reaches the bubble, which closes itself and keeps the focus", () => {
+    const tile = renderTile();
+    tabTo(tile);
+    wait(1500);
+    const keyboard = bubble() as HTMLElement;
+    expect(keyboard).toHaveTextContent(LONG);
+    // A browser renders between the press's listeners (a microtask checkpoint after each one);
+    // flushing at the bubble does the same here. Closed by the window's listener, the bubble would be
+    // gone by then and the press would not reach it: its pointerdown would not be prevented (#593).
+    keyboard.addEventListener("pointerdown", () => flushSync(() => {}), { capture: true });
+    expect(fireEvent.pointerDown(keyboard, { pointerType: "mouse" })).toBe(false);
+    expect(bubble()).toBeNull();
+    expect(document.activeElement).toBe(tile);
   });
 
   it("a bubble that closed when its text fit does not reopen without focus once it clips again", () => {

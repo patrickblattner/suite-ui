@@ -86,12 +86,12 @@ function inDocumentOrder(nodes: Iterable<HTMLElement>): HTMLElement[] {
 // waits; a press on a bubble is left to that bubble, which closes itself (#593), and while it waits
 // ends the wait as well (#638). The scroll the focus itself causes (Tab onto an element out of view)
 // does not count: scrolls count once two frames have passed since the focus; a scroll in those frames
-// does not extend them, so a scroll begun at once still closes it (#590). The bubble stands where the member's pointer bubble does, not beside
-// the holder (rev 17, Q&A #4645): an `OverflowTooltip` at its clipped text, a `Hint` at its trigger,
-// the control whose text is clipped. `due`: this member shows the keyboard
-// bubble. `close` resets it, for the root's close. `enabled: false` takes no part; `inside` as for
-// `holderOf`. `reveal` runs on the keyboard focus itself, before the delay: a tile scrolls itself
-// wholly into view there (`SUI-FEATURE-115` rev 4, #615).
+// does not extend them, so a scroll begun at once still closes it (#590). The bubble stands where the
+// member's pointer bubble does, not beside the holder (rev 17, Q&A #4645): an `OverflowTooltip` at its
+// clipped text, a `Hint` at its trigger, the control whose text is clipped. `due`: this member shows
+// the keyboard bubble. `close` resets it, for the root's close. `enabled: false` takes no part;
+// `inside` as for `holderOf`. `reveal` runs on the keyboard focus itself, before the delay: a tile
+// scrolls itself wholly into view there (`SUI-FEATURE-115` rev 4, #615).
 function useOpenOnKeyboardFocus({
   node,
   enabled,
