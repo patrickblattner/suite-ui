@@ -76,7 +76,7 @@ const DOC = {
 };
 
 function renderEditor(
-  onChange?: (document: SlideDocument) => void,
+  onChange?: React.ComponentProps<typeof SlideEditor>["onChange"],
   props: Partial<React.ComponentProps<typeof SlideEditor>> = {},
 ) {
   const onSave = vi.fn((saved: SlideDocument) => {
@@ -272,6 +272,24 @@ describe("SlideEditor delete protection", () => {
     expect(within(row("loose")).queryByTestId("slide-editor-layer-protected")).toBeNull();
   });
 });
+
+// SUI-FEATURE-194 AC7: the reported document is read-only deep down; each assignment below must
+// stay a type error, or `npm run typecheck` fails on the unused directive.
+export const reportedIsReadonly: React.ComponentProps<typeof SlideEditor>["onChange"] = (
+  reported,
+) => {
+  // @ts-expect-error a top-level field is read-only
+  reported.schemaVersion = 4;
+  // @ts-expect-error a nested field is read-only
+  reported.format.width = 1;
+  // @ts-expect-error the page list is read-only
+  reported.pages[1] = reported.pages[0]!;
+  // @ts-expect-error an element of a page is read-only
+  reported.pages[0]!.elements[0]!.x = 0;
+  // A copy is the app's to change.
+  const copy: SlideDocument = structuredClone(reported) as SlideDocument;
+  copy.format.width = 1;
+};
 
 // SUI-FEATURE-194: `onChange` reports every change of the document the editor takes over.
 describe("SlideEditor onChange", () => {
