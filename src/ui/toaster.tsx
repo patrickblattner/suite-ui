@@ -18,6 +18,7 @@ import {
 
 import { cn } from "../lib/cn.js";
 import { captureOpener, type Opener, returnFocus } from "./focus-return.js";
+import { dropHeld, holdToast, toastsHeld } from "./toast-hold-internal.js";
 
 type ToastVariant = "info" | "success" | "warning" | "error";
 
@@ -394,14 +395,26 @@ function prepare(
   };
 }
 
-// Raises a toast through sonner's `show`; a variant times a toast without an action by
-// `toastDurationFor`.
+// Raises a toast through sonner's `show`, held while a confirm dialog is open; a variant times a
+// toast without an action by `toastDurationFor`.
 function raise(
   show: Show,
   variant: ToastVariant | undefined,
   message: Message,
   opts?: ExternalToast,
   timed = true,
+): string | number {
+  if (toastsHeld())
+    return holdToast(opts, (shownOpts) => raiseNow(show, variant, message, shownOpts, timed));
+  return raiseNow(show, variant, message, opts, timed);
+}
+
+function raiseNow(
+  show: Show,
+  variant: ToastVariant | undefined,
+  message: Message,
+  opts: ExternalToast | undefined,
+  timed: boolean,
 ): string | number {
   const prepared = prepare(variant, message, opts, timed);
   const shownOpts =
@@ -445,7 +458,7 @@ function promiseToast<T>(promise: PromiseArgs<T>[0], data?: PromiseArgs<T>[1]) {
       // sonner (2.0.8) reads `success` only once the promise settles, so clearing it here keeps sonner
       // from raising a result over the element.
       options.success = undefined;
-      raise(sonnerToast, undefined, value, { id });
+      raiseNow(sonnerToast, undefined, value, { id }, true);
       return routed;
     },
   );
@@ -525,15 +538,36 @@ function promiseToast<T>(promise: PromiseArgs<T>[0], data?: PromiseArgs<T>[1]) {
     // Not async: sonner drops what this returns, so a caller's `finally` that throws must throw here,
     // where sonner's chain makes `unwrap()` reject (#585); one that rejects goes into `unwrap` (#587).
     finally: () => {
-      if (element !== undefined && marks.has(id)) raise(sonnerToast, undefined, element, { id });
+      if (element !== undefined && marks.has(id))
+        raiseNow(sonnerToast, undefined, element, { id }, true);
       settledOut = Promise.resolve(settled?.());
       // `unwrap()` called before this takes the rejection; otherwise the rejection stays unhandled.
       if (unwrapped) settledOut.catch(() => undefined);
     },
   };
-  const shownId = sonnerToast.promise(watched, options);
-  loadingState?.shown(id);
-  const sonnerUnwrap = shownId.unwrap;
+  // Held as a whole while a confirm dialog is open (`SUI-FEATURE-101` rev 9): its loading state shows
+  // once the dialog has closed, its result after it.
+  type Shown = ReturnType<typeof sonnerToast.promise<T>>;
+  let shownId: Shown | undefined;
+  // sonner's own unwrap, taken before the returned value gets the wrapper's.
+  let shownUnwrap: Shown["unwrap"] | undefined;
+  let onShown: (unwrap: Shown["unwrap"]) => void = () => undefined;
+  const shown = new Promise<Shown["unwrap"]>((resolve) => {
+    onShown = resolve;
+  });
+  const show = () => {
+    shownId = sonnerToast.promise(watched, options);
+    shownUnwrap = shownId.unwrap;
+    loadingState?.shown(id);
+    onShown(shownUnwrap);
+  };
+  if (toastsHeld()) {
+    // A rejection while held reaches sonner once it shows: until then it counts as handled.
+    watched.catch(() => undefined);
+    holdToast({ id }, show);
+  } else show();
+  const sonnerUnwrap = () =>
+    shownUnwrap === undefined ? shown.then((later) => later()) : shownUnwrap();
   const unwrap = () => {
     unwrapped = true;
     return sonnerUnwrap().then(
@@ -547,9 +581,10 @@ function promiseToast<T>(promise: PromiseArgs<T>[0], data?: PromiseArgs<T>[1]) {
       },
     );
   };
-  return Object.assign(loading === undefined ? (Object(id) as object) : shownId, {
-    unwrap,
-  }) as typeof shownId;
+  return Object.assign(
+    loading === undefined || shownId === undefined ? (Object(id) as object) : shownId,
+    { unwrap },
+  ) as NonNullable<typeof shownId>;
 }
 
 // sonner's `toast` with the four variants timed by `toastDurationFor`; every route goes through
@@ -575,20 +610,24 @@ const toast: typeof sonnerToast = Object.assign(
     loading: (message: Message, opts?: ExternalToast) =>
       raise(sonnerToast.loading, undefined, message, opts, false),
     custom: (jsx: Parameters<typeof sonnerToast.custom>[0], data?: ExternalToast) => {
-      const prepared = prepare(undefined, undefined, data, true);
-      const id = sonnerToast.custom(
-        (shown) => prepared.wrap(jsx(shown)) as React.ReactElement,
-        prepared.opts,
-      );
-      prepared.shown(id);
-      return id;
+      const custom = (opts: ExternalToast | undefined) => {
+        const prepared = prepare(undefined, undefined, opts, true);
+        const id = sonnerToast.custom(
+          (shown) => prepared.wrap(jsx(shown)) as React.ReactElement,
+          prepared.opts,
+        );
+        prepared.shown(id);
+        return id;
+      };
+      return toastsHeld() ? holdToast(data, custom) : custom(data);
     },
     promise: promiseToast,
+    // A held toast that is dismissed never shows.
     dismiss: (id?: string | number) => {
       const shown: unknown = id;
-      return sonnerToast.dismiss(
-        shown instanceof String || shown instanceof Number ? shown.valueOf() : id,
-      );
+      const key = shown instanceof String || shown instanceof Number ? shown.valueOf() : id;
+      dropHeld(key);
+      return sonnerToast.dismiss(key);
     },
   },
 );

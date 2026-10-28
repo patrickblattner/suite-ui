@@ -11,6 +11,7 @@ import {
   DialogTitle,
 } from "./dialog.js";
 import { Hint } from "./hint.js";
+import { useToastHold } from "./toast-hold-internal.js";
 
 type ConfirmDeleteDialogProps = {
   open: boolean;
@@ -65,6 +66,9 @@ function ConfirmDeleteDialog({
   "data-testid": testId,
 }: ConfirmDeleteDialogProps) {
   const { t } = useTranslation("suite");
+  // A toast raised while the dialog is open, its receipt above all, shows once the dialog has closed
+  // and the focus is back (`SUI-FEATURE-101` rev 9); the focus returns before this microtask runs.
+  const releaseToasts = useToastHold(open, busy);
   return (
     <Dialog
       open={open}
@@ -73,7 +77,11 @@ function ConfirmDeleteDialog({
         onOpenChange(next);
       }}
     >
-      <DialogContent data-testid={testId} {...(returnFocus !== undefined ? { returnFocus } : {})}>
+      <DialogContent
+        data-testid={testId}
+        onCloseAutoFocus={() => queueMicrotask(releaseToasts)}
+        {...(returnFocus !== undefined ? { returnFocus } : {})}
+      >
         <DialogHeader>
           <DialogTitle>
             {title ??

@@ -93,6 +93,11 @@ const RECEIPT = new URLSearchParams(window.location.search).get("receipt") === "
 // `&cancel=1` offers the receipt's Undo as sonner's cancel instead of its action: a toast with only a
 // cancel is a toast with an action (`SUI-FEATURE-101` rev 8 AC 10, #614).
 const CANCEL_ONLY = new URLSearchParams(window.location.search).get("cancel") === "1";
+// A confirm works busy, raises its receipt while still busy, then closes: the receipt shows only once
+// the dialog has closed (`SUI-FEATURE-101` rev 9). With `?receipt=1` the dialog stays busy until the
+// test calls `window.releaseConfirm()`; otherwise it works this long.
+const CONFIRM_WORK_MS = 400;
+type ReleaseHook = { releaseConfirm?: () => void };
 
 // The column widths the narrow toolbar is shown at (`SUI-FEATURE-067` AC 5).
 // `max-w-full` keeps them inside a narrow viewport.
@@ -162,11 +167,35 @@ function RowWithMenu() {
   const labels = LABELS[i18n.language as keyof typeof LABELS] ?? LABELS.en;
   const [archiving, setArchiving] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const archive = () => {
-    setArchiving(false);
-    const undo = { label: t("editor.undo"), onClick: () => toast.success(labels.restored) };
-    toast.success(labels.archived, CANCEL_ONLY ? { cancel: undo } : { action: undo });
+  const [working, setWorking] = useState(false);
+  // The dialog works, raises the receipt while still busy, then closes.
+  const confirm = (done: () => void, close: () => void) => {
+    setWorking(true);
+    const finish = () => {
+      setWorking(false);
+      close();
+    };
+    if (!RECEIPT) {
+      setTimeout(() => {
+        done();
+        finish();
+      }, CONFIRM_WORK_MS);
+      return;
+    }
+    done();
+    (window as ReleaseHook).releaseConfirm = () => {
+      delete (window as ReleaseHook).releaseConfirm;
+      finish();
+    };
   };
+  const archive = () =>
+    confirm(
+      () => {
+        const undo = { label: t("editor.undo"), onClick: () => toast.success(labels.restored) };
+        toast.success(labels.archived, CANCEL_ONLY ? { cancel: undo } : { action: undo });
+      },
+      () => setArchiving(false),
+    );
   const actions: RowActionSet = {
     rowName: labels.entry,
     onEdit: () => {},
@@ -217,6 +246,7 @@ function RowWithMenu() {
         open={archiving}
         onOpenChange={setArchiving}
         onConfirm={archive}
+        busy={working}
         title={labels.archiveTitle}
         description={labels.archiveText}
         confirmLabel={labels.archive}
@@ -226,10 +256,13 @@ function RowWithMenu() {
       <ConfirmDeleteDialog
         open={deleting}
         onOpenChange={setDeleting}
-        onConfirm={() => {
-          setDeleting(false);
-          toast.success(labels.deleted);
-        }}
+        onConfirm={() =>
+          confirm(
+            () => toast.success(labels.deleted),
+            () => setDeleting(false),
+          )
+        }
+        busy={working}
         object={labels.entry}
         description={labels.deleteText}
         data-testid="delete-confirm"

@@ -1239,7 +1239,24 @@ test("toast: Tab onto a FilterBar control during the toast's slide-in closes all
   await expect(covered).toBeFocused();
 });
 
-// `SUI-FEATURE-101` rev 5 AC 5: by keyboard ⋯ → Delete → confirm, the focus returns to the ⋯ and
+// `SUI-FEATURE-101` rev 9: with `?receipt=1` the confirm has raised its receipt and stays busy until
+// the test releases it. While it is held no toast shows, two frames after the raise too, when sonner
+// would long have drawn an unheld one; released, the dialog closes.
+async function heldReceipt(page: Page, dialog: string) {
+  await page.waitForFunction(
+    () => typeof (window as { releaseConfirm?: unknown }).releaseConfirm === "function",
+  );
+  await expect(page.getByTestId(`${dialog}-confirm`)).toHaveAttribute("aria-busy", "true");
+  await page.evaluate(
+    () => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))),
+  );
+  expect(await page.locator("[data-sonner-toast]").count()).toBe(0);
+  await expect(page.getByTestId(`${dialog}-confirm`)).toHaveAttribute("aria-busy", "true");
+  await page.evaluate(() => (window as { releaseConfirm?: () => void }).releaseConfirm?.());
+}
+
+// `SUI-FEATURE-101` rev 5 AC 5 (rev 9: no toast while the dialog works, the receipt once it has
+// closed): by keyboard ⋯ → Delete → confirm, the focus returns to the ⋯ and
 // the receipt, which has no action, appears over it, in the live region. It stays 1000 ms, then
 // closes; `Esc` closes it earlier. The focus stays on the ⋯ throughout.
 test("toast: the receipt over the returned focus closes after 1000 ms, Esc earlier", async ({
@@ -1258,6 +1275,8 @@ test("toast: the receipt over the returned focus closes after 1000 ms, Esc earli
     await page.keyboard.press("Enter");
     await page.getByTestId("delete-confirm-confirm").focus();
     await page.keyboard.press("Enter");
+    await heldReceipt(page, "delete-confirm");
+    await expect(page.getByTestId("delete-confirm")).toBeHidden();
     await expect(trigger).toBeFocused();
     expect(await trigger.evaluate((el) => el.matches(":focus-visible"))).toBe(true);
     await expect(receipt).toBeVisible();
@@ -1300,7 +1319,8 @@ function receiptPreview(page: Page) {
     toasts,
     receipt,
     undo,
-    // By keyboard ⋯ → Archive → confirm: the focus is back on the ⋯ as the receipt appears.
+    // By keyboard ⋯ → Archive → confirm: the dialog works with no toast (rev 9), then the focus is
+    // back on the ⋯ as the receipt appears.
     archive: async () => {
       await trigger.focus();
       await page.keyboard.press("Enter");
@@ -1308,6 +1328,8 @@ function receiptPreview(page: Page) {
       await page.keyboard.press("Enter");
       await page.getByTestId("archive-confirm-confirm").focus();
       await page.keyboard.press("Enter");
+      await heldReceipt(page, "archive-confirm");
+      await expect(page.getByTestId("archive-confirm")).toBeHidden();
       await expect(trigger).toBeFocused();
     },
     // Alt+T focuses the toasts, Tab reaches Undo (the toast, then its Undo).
