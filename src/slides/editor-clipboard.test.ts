@@ -16,7 +16,12 @@ import {
 } from "./editor-ops.js";
 import { setPageLayout } from "./editor-layouts.js";
 import { duplicatePage } from "./editor-pages.js";
-import { FORMAT_16_9, type SlideDocument, type SlideElement } from "./schema.js";
+import {
+  FORMAT_16_9,
+  SLIDE_SCHEMA_VERSION,
+  type SlideDocument,
+  type SlideElement,
+} from "./schema.js";
 
 const shape = (id: string, x: number, y: number) => ({
   id,
@@ -37,6 +42,13 @@ const page = (id: string, elements: unknown[]) => ({
 const doc = (...pages: unknown[][]): SlideDocument =>
   parseSlideDocument({
     schemaVersion: 1,
+    format: FORMAT_16_9,
+    pages: pages.map((elements, index) => page(`p${index}`, elements)),
+  });
+
+const docNow = (...pages: unknown[][]): SlideDocument =>
+  parseSlideDocument({
+    schemaVersion: SLIDE_SCHEMA_VERSION,
     format: FORMAT_16_9,
     pages: pages.map((elements, index) => page(`p${index}`, elements)),
   });
@@ -227,7 +239,8 @@ describe("element clipboard", () => {
 
 // SUI-FEATURE-194: an element the app marks `deletable: false` is protected; a copy of it is not.
 describe("delete protection", () => {
-  const guarded = doc([
+  // In the current version: a version-3 document carries no `deletable` (its migration drops one).
+  const guarded = docNow([
     { ...shape("a", 0, 0), deletable: false },
     {
       id: "g",
