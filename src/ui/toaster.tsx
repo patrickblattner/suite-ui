@@ -616,17 +616,19 @@ export const TOAST_VARIANT_CLASSNAMES = {
 export const TOAST_BUTTON_FOCUS =
   "focus-visible:focus-ring! ring-offset-2 ring-offset-(--normal-text)";
 // The cancel shows its label in the toast's text colour on the toast's own fill, so it keeps the
-// toast's text contrast; sonner's see-through white fill left it at 2.77:1 in dark mode (#617).
-export const TOAST_CANCEL_COLORS = "bg-transparent! text-(--normal-text)!";
+// toast's text contrast; sonner's see-through white fill left it at 2.77:1 in dark mode (#617). At rest
+// a 1 px border in the toast's text colour marks it as a button (`SUI-FEATURE-116` rev 4, #632).
+export const TOAST_CANCEL_COLORS = "border-(--normal-text)! bg-transparent! text-(--normal-text)!";
 // The hover signal per button type (`GL-UI-013`, #619), `!` against sonner's unlayered rules: the
 // filled action tints its fill and darkens its label where the variant sets `--normal-hover`, the
-// ghost cancel reveals a 1 px border in the toast's text colour.
-// Both carry a transparent 1 px border at rest, so in forced colours they show an edge (sonner sets
-// `border: none`) and the cancel's border reveal moves nothing.
-const TOAST_BUTTON_EDGE = "cursor-pointer border! border-transparent!";
+// outlined cancel fills in the toast's text colour with its label in the toast's fill (#632).
+// Both carry a 1 px border, the action's transparent, so in forced colours they show an edge (sonner
+// sets `border: none`).
+const TOAST_BUTTON_EDGE = "cursor-pointer border!";
+const TOAST_ACTION_COLORS = "border-transparent!";
 const TOAST_ACTION_HOVER =
   "hover:bg-(--normal-text)/85! hover:text-[var(--normal-hover,var(--normal-bg))]!";
-const TOAST_CANCEL_HOVER = "hover:border-(--normal-text)!";
+const TOAST_CANCEL_HOVER = "hover:bg-(--normal-text)! hover:text-(--normal-bg)!";
 
 // The close button, when an app turns it on, gets a 24 px hit area (`GL-UI-013`); `!` because sonner's
 // own unlayered rule sets 20 px. Its round corners do not hit, so an unpainted square over the border
@@ -640,7 +642,7 @@ const TOAST_CLASSNAMES = {
     "hover:border-(--normal-text)! hover:bg-(--normal-text)! hover:text-(--normal-bg)!",
     TOAST_BUTTON_FOCUS,
   ),
-  actionButton: cn(TOAST_BUTTON_FOCUS, TOAST_BUTTON_EDGE, TOAST_ACTION_HOVER),
+  actionButton: cn(TOAST_BUTTON_FOCUS, TOAST_BUTTON_EDGE, TOAST_ACTION_COLORS, TOAST_ACTION_HOVER),
   cancelButton: cn(TOAST_BUTTON_FOCUS, TOAST_BUTTON_EDGE, TOAST_CANCEL_COLORS, TOAST_CANCEL_HOVER),
 } satisfies ToastClassnames;
 

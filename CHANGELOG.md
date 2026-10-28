@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — #632, SUI-FEATURE-116 rev 4: the toast cancel is outlined at rest and fills on hover (patch)
+
+- **Toast cancel (#632):** sonner's cancel button in a toast now carries a 1 px border in the toast's text colour (`--normal-text`) at rest, without a fill, so it reads as a button before a pointer reaches it. On hover it fills in `--normal-text` with its label in the toast's fill (`--normal-bg`), in every variant, neutral included, light and dark. Before, it showed only its label at rest and revealed the border on hover. Set once in the Toaster; the action button is unchanged.
+- **Tests (#632):** unit: the cancel carries the rest border and hover fill classes, no transparent border and no accent, beside an app's own class. Gallery: on every variant, light and dark, the cancel's rest border is the toast's text colour at 3:1 on the fill with no fill under its label; on hover its fill is the toast's text colour and its label the toast's fill at 4.5:1.
+
 ## Unreleased — #626, SUI-FEATURE-290 rev 4: an app type's renderer and an add-on's style get the page's position (minor)
 
 - **Slides page context (#626):** `SlideCustomRenderer` now gets a second argument `{ page }` and an add-on's `style` a third, both `SlideDrawContext`: `page` is `{ number, count }` (`SlidePagePosition`), `count` the pages not hidden, `number` the page's place among them from 1 and `null` on a hidden page; a master's or layout's element drawn on a page gets that page's position; with no page drawn on, `page` is `null`. `SlideView` computes it from the document, so the editor, player and export show the same values. The editor's page pictures are drawn again when a page's position changes (order, count or hidden), in the same step as the change; the sorter takes every page's position once per step and hands each picture its number and count. The package formats nothing; existing one-argument renderers keep working. No schema change.

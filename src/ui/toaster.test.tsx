@@ -180,21 +180,29 @@ describe("Toaster", () => {
       "[--normal-hover:var(--success-hover)]",
     );
     const ring = ["focus-visible:focus-ring!", "ring-offset-(--normal-text)"];
-    const edge = ["cursor-pointer", "border!", "border-transparent!"];
+    const edge = ["cursor-pointer", "border!"];
     expect(item?.querySelector("[data-action]")).toHaveClass(
       "app-action",
       ...ring,
       ...edge,
+      "border-transparent!",
       "hover:bg-(--normal-text)/85!",
       "hover:text-[var(--normal-hover,var(--normal-bg))]!",
     );
-    expect(item?.querySelector("[data-cancel]")).toHaveClass(
+    // #632 (`SUI-FEATURE-116` rev 4 AC 4): the cancel's rest border and hover fill in the toast's
+    // text colour, its hover label in the toast's fill; no accent anywhere.
+    const cancel = item?.querySelector("[data-cancel]");
+    expect(cancel).toHaveClass(
       "app-cancel",
       ...ring,
       ...edge,
+      "border-(--normal-text)!",
       "bg-transparent!",
-      "hover:border-(--normal-text)!",
+      "hover:bg-(--normal-text)!",
+      "hover:text-(--normal-bg)!",
     );
+    expect(cancel).not.toHaveClass("border-transparent!");
+    expect(cancel?.className).not.toMatch(/accent/);
     expect(item?.querySelector("[data-close-button]")).toHaveClass("app-close", "size-6!", ...ring);
     act(() => {
       toast.dismiss();
