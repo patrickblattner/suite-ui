@@ -462,8 +462,11 @@ function promiseToast<T>(promise: PromiseArgs<T>[0], data?: PromiseArgs<T>[1]) {
             prepared.shown(id);
           };
           if (typeof description !== "function") start();
+          // Without an action the result is timed by `toastDurationFor`, as by `raise` (#641).
           return {
-            ...prepared.opts,
+            ...(prepared.action
+              ? prepared.opts
+              : withDuration(settings.message, variant, prepared.opts)),
             id,
             message: prepared.wrap(settings.message) as React.ReactNode,
           };

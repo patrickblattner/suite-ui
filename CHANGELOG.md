@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — #641, GL-UI-029: a toast.promise result without an action gets the variant's display duration (patch)
+
+- **toast.promise (#641):** a success or error result without an action is now timed like `toast.success`/`toast.error`: the variant's base plus 50 ms per word ("Saved" lasts 2050 ms instead of sonner's 4000 ms), capped at 12000 ms. An explicit `duration` stays within the same bounds: one below the base lasts the base, one above the cap lasts 12000 ms. Results with an action are unchanged (#637).
+
 ## Unreleased — #637, SUI-FEATURE-101: a toast.promise result keeps the caller's duration (patch)
 
 - **toast.promise (#637):** the result of a promise toast with an action now takes the caller's explicit `duration`, as `toast.success` with an action does: `duration: 10000` lasts 10000 ms instead of 8000 ms, and one below 8000 ms still lasts 8000 ms. Without a duration the timing is unchanged: an action toast lasts at least 8000 ms, one without an action keeps sonner's.
