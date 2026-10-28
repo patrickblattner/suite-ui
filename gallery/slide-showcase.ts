@@ -323,78 +323,102 @@ export const SLIDE_EXPORTABLE = deck([
 ]);
 
 // The player's deck: two shown pages with animations in order, a hidden one between them, and a
-// transition.
-export const SLIDE_DECK = deck([
-  {
-    id: "first",
-    background,
-    elements: [
-      {
-        id: "first-title",
-        type: "text",
-        x: 160,
-        y: 160,
-        width: 1600,
-        height: 160,
-        runs: [{ text: "First slide", size: 96, weight: 700 }],
-      },
-      {
-        id: "first-one",
-        type: "shape",
-        shape: "rectangle",
-        x: 160,
-        y: 480,
-        width: 400,
-        height: 300,
-        fill: { type: "color", color: brand("primary") },
-        animation: { entrance: { effect: "slide", direction: "left", duration: 300, order: 1 } },
-      },
-      {
-        id: "first-two",
-        type: "shape",
-        shape: "ellipse",
-        x: 760,
-        y: 480,
-        width: 300,
-        height: 300,
-        fill: { type: "color", color: brand("accent") },
-        animation: { entrance: { effect: "zoom", duration: 300, order: 2 } },
-      },
-    ],
-  },
-  {
-    id: "skipped",
-    background,
-    hidden: true,
-    elements: [
-      {
-        id: "skipped-title",
-        type: "text",
-        x: 160,
-        y: 160,
-        width: 1600,
-        height: 160,
-        runs: [{ text: "Hidden slide", size: 96 }],
-      },
-    ],
-  },
-  {
-    id: "second",
-    background: { type: "color", color: brand("muted") },
-    transition: { type: "fade", duration: 400 },
-    elements: [
-      {
-        id: "second-title",
-        type: "text",
-        x: 160,
-        y: 160,
-        width: 1600,
-        height: 160,
-        runs: [{ text: "Second slide", size: 96, weight: 700 }],
-      },
-    ],
-  },
-]);
+// transition; its master carries the gallery's page counter (`SUI-FEATURE-290`).
+export const SLIDE_DECK: SlideDocumentInput = {
+  ...deck([
+    {
+      id: "first",
+      layoutId: "deck-layout",
+      background,
+      elements: [
+        {
+          id: "first-title",
+          type: "text",
+          x: 160,
+          y: 160,
+          width: 1600,
+          height: 160,
+          runs: [{ text: "First slide", size: 96, weight: 700 }],
+        },
+        {
+          id: "first-one",
+          type: "shape",
+          shape: "rectangle",
+          x: 160,
+          y: 480,
+          width: 400,
+          height: 300,
+          fill: { type: "color", color: brand("primary") },
+          animation: { entrance: { effect: "slide", direction: "left", duration: 300, order: 1 } },
+        },
+        {
+          id: "first-two",
+          type: "shape",
+          shape: "ellipse",
+          x: 760,
+          y: 480,
+          width: 300,
+          height: 300,
+          fill: { type: "color", color: brand("accent") },
+          animation: { entrance: { effect: "zoom", duration: 300, order: 2 } },
+        },
+      ],
+    },
+    {
+      id: "skipped",
+      layoutId: "deck-layout",
+      background,
+      hidden: true,
+      elements: [
+        {
+          id: "skipped-title",
+          type: "text",
+          x: 160,
+          y: 160,
+          width: 1600,
+          height: 160,
+          runs: [{ text: "Hidden slide", size: 96 }],
+        },
+      ],
+    },
+    {
+      id: "second",
+      layoutId: "deck-layout",
+      background: { type: "color", color: brand("muted") },
+      transition: { type: "fade", duration: 400 },
+      elements: [
+        {
+          id: "second-title",
+          type: "text",
+          x: 160,
+          y: 160,
+          width: 1600,
+          height: 160,
+          runs: [{ text: "Second slide", size: 96, weight: 700 }],
+        },
+      ],
+    },
+  ]),
+  masters: [
+    {
+      id: "deck-master",
+      name: "Deck master",
+      elements: [
+        {
+          id: "deck-counter",
+          name: "Page counter",
+          type: "custom",
+          typeId: "gallery.page-counter",
+          x: 1680,
+          y: 980,
+          width: 160,
+          height: 60,
+        },
+      ],
+    },
+  ],
+  layouts: [{ id: "deck-layout", name: "Deck layout", masterId: "deck-master" }],
+};
 
 type Font = { kind: "brand"; key: string } | { kind: "free"; family: string };
 

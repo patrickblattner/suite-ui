@@ -197,6 +197,12 @@ const GALLERY_EDITOR_EXTENSIONS: SlideExtensions = {
         </div>
       ),
     },
+    // `SUI-FEATURE-290`: the page counter, to be put on a page or into a master.
+    "gallery.page-counter": {
+      ...GALLERY_SLIDE_PROPS.extensions.types["gallery.page-counter"],
+      defaultSize: { width: 160, height: 60 },
+      library: {},
+    },
   },
   addOns: [
     {

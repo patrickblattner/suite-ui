@@ -15853,7 +15853,8 @@ test("slide editor: entrances in order and a cross-fade play in the preview and 
 
 // SUI-FEATURE-163 AC1 (#295 inc 2): the gallery's extensions with their editor parts. The overlay lies
 // over the page in the editor only, at 1 screen px whatever the zoom; the stamp type and the badge
-// block come from the library; saved, the player draws the stamp and no overlay.
+// block come from the library, the page counter too (`SUI-FEATURE-290`); saved, the player draws the
+// stamp and no overlay.
 test("slide editor: the app's overlay, library entries and fields", async ({ page }) => {
   const { editor, library } = await openLibrary(page, "&extensions=editor");
   const zone = editor.getByTestId("gallery-safe-zone");
@@ -15864,7 +15865,7 @@ test("slide editor: the app's overlay, library entries and fields", async ({ pag
   await expect(zone).toHaveCSS("border-top-width", "1px");
 
   const app = library.getByTestId("slide-editor-library-app");
-  await expect(app.getByRole("button")).toHaveText(["Stamp", "Badge"]);
+  await expect(app.getByRole("button")).toHaveText(["Stamp", "Page counter", "Badge"]);
   await library.getByTestId("slide-editor-library-type-gallery.stamp").click();
   const stamp = editor.locator("[data-slot=slide-view] [data-slide-element=custom-1]");
   await expect(stamp).toContainText("New");
@@ -15875,6 +15876,11 @@ test("slide editor: the app's overlay, library entries and fields", async ({ pag
   await expect(
     editor.locator("[data-slot=slide-view] [data-slide-type=group]").last(),
   ).toContainText("Badge");
+  // `SUI-FEATURE-290`: the page counter draws the shown page's position, the first of two.
+  await library.getByTestId("slide-editor-library-type-gallery.page-counter").click();
+  await expect(editor.locator("[data-slot=slide-view] [data-slide-type=custom]").last()).toHaveText(
+    "1/2",
+  );
 
   await page.getByTestId("editor-save").click();
   await page.getByTestId("slide-editor-app-present").click();

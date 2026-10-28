@@ -231,6 +231,28 @@ function unfilled(elements: readonly SlideElement[], roles: ReadonlySet<string>)
   );
 }
 
+// Where a page stands in the document, as an app's renderer gets it (`SUI-FEATURE-290`): `count` the
+// pages not hidden, `number` the page's place among them from 1, `null` on a hidden page.
+export interface SlidePagePosition {
+  number: number | null;
+  count: number;
+}
+
+// The position of every page, by index, in one pass.
+export function pagePositions(document: SlideDocument): SlidePagePosition[] {
+  const count = document.pages.filter((one) => !one.hidden).length;
+  let number = 0;
+  return document.pages.map((one) => ({ number: one.hidden ? null : (number += 1), count }));
+}
+
+// The position of the page at `page`; `null` when no page is drawn on (`SUI-FEATURE-290` AC4).
+export function pagePosition(
+  document: SlideDocument,
+  page: number | undefined,
+): SlidePagePosition | null {
+  return page === undefined ? null : (pagePositions(document)[page] ?? null);
+}
+
 // What a page draws, bottom to top: its master's elements, its layout's, its own; a placeholder whose
 // role a page element fills is not drawn on that page (`SUI-FEATURE-192`).
 export function pageLists(document: SlideDocument, page: number): SlideElement[][] {

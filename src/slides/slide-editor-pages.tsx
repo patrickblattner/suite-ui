@@ -23,6 +23,7 @@ import { GRID_ITEM_ATTR, useRowGrid } from "../list/use-row-grid.js";
 import { Hint } from "../ui/hint.js";
 import { IconButtonTooltip } from "../ui/tooltip.js";
 import { DELETE_SHORTCUT } from "../ui/use-edit-shortcuts.js";
+import { pagePositions } from "./render-style.js";
 import type { SlideDocument } from "./schema.js";
 import { SlideView, type SlideViewProps } from "./slide-view.js";
 
@@ -34,14 +35,24 @@ type ViewProps = Pick<
   "brand" | "fonts" | "fontOrigins" | "resolveMedia" | "extensions" | "renderPlaceholder"
 >;
 
-type ThumbProps = { document: SlideDocument; index: number; view: ViewProps };
+// `number` and `count` are the page's position (`SUI-FEATURE-290`), taken once for all pages by the
+// sorter; the picture's view takes it from the document itself.
+type ThumbProps = {
+  document: SlideDocument;
+  index: number;
+  number: number | null;
+  count: number;
+  view: ViewProps;
+};
 
-// A page's small picture, drawn again only when what it shows changed: the page itself, the
-// document's format, layouts or masters, or the view. Another page's change, a drag or a key on the
-// canvas leaves it be (#308).
+// A page's small picture, drawn again only when what it shows changed: the page itself, its position
+// among the shown pages (an app's page counter, `SUI-FEATURE-290`), the document's format, layouts or
+// masters, or the view. Another page's change, a drag or a key on the canvas leaves it be (#308).
 export const samePageThumb = (before: ThumbProps, after: ThumbProps) =>
   before.index === after.index &&
   before.document.pages[before.index] === after.document.pages[after.index] &&
+  before.number === after.number &&
+  before.count === after.count &&
   before.document.format === after.document.format &&
   before.document.layouts === after.document.layouts &&
   before.document.masters === after.document.masters &&
@@ -156,6 +167,7 @@ export function PageSorter({
       </Hint>
     );
   };
+  const positions = pagePositions(document);
   return (
     <section className="flex flex-col gap-2" data-testid="slide-editor-pages">
       <h3 className="text-base font-semibold">{t("slides.editor.pages")}</h3>
@@ -163,6 +175,7 @@ export function PageSorter({
       <ol {...grid.gridProps} role={undefined} className="flex flex-col gap-1">
         {document.pages.map((one, index) => {
           const n = index + 1;
+          const position = positions[index]!;
           // Enter and Space show the page natively, so the picture's button takes only Delete from
           // `rowProps`, plus its tab stop, its mark for the arrows and its inset focus ring.
           const entry = grid.rowProps({
@@ -216,7 +229,13 @@ export function PageSorter({
                   data-testid="slide-editor-page-show"
                 >
                   <div className={cn("pointer-events-none size-full", one.hidden && "opacity-40")}>
-                    <PageThumb document={document} index={index} view={view} />
+                    <PageThumb
+                      document={document}
+                      index={index}
+                      number={position.number}
+                      count={position.count}
+                      view={view}
+                    />
                   </div>
                 </button>
               </IconButtonTooltip>

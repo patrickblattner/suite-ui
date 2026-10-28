@@ -32,7 +32,9 @@ import {
   inlineLift,
   num,
   pageLists,
+  pagePosition,
   type Piece,
+  type SlidePagePosition,
   paragraphRun,
   paragraphs,
   px,
@@ -69,8 +71,20 @@ import {
 type ElementOf<T extends SlideElement["type"]> = Extract<SlideElement, { type: T }>;
 type TextBody = Pick<ElementOf<"text">, "runs" | "align" | "lineHeight" | "list" | "verticalAlign">;
 
+export type { SlidePagePosition };
+
+// What an app's renderer and an add-on's style get besides the element (`SUI-FEATURE-290`): the
+// position of the page it is drawn on, `null` when it is drawn on no page. The package formats
+// nothing; a counter's text and language are the app's.
+export interface SlideDrawContext {
+  page: SlidePagePosition | null;
+}
+
 // Draws an app's own element type (`SUI-FEATURE-163`).
-export type SlideCustomRenderer = (element: ElementOf<"custom">) => React.ReactNode;
+export type SlideCustomRenderer = (
+  element: ElementOf<"custom">,
+  context: SlideDrawContext,
+) => React.ReactNode;
 
 type BuiltInType = Exclude<SlideElement["type"], "custom">;
 
@@ -111,7 +125,11 @@ export type SlideAddOn = {
   [T in BuiltInType]: {
     type: T;
     id: string;
-    style: (value: unknown, element: ElementOf<T>) => React.CSSProperties | undefined;
+    style: (
+      value: unknown,
+      element: ElementOf<T>,
+      context: SlideDrawContext,
+    ) => React.CSSProperties | undefined;
     label?: string;
     fields?: (props: SlideFieldProps<unknown, ElementOf<T>>) => React.ReactNode;
   };
@@ -269,6 +287,8 @@ interface Draw {
   resolveMedia: SlideViewProps["resolveMedia"];
   extensions: SlideViewProps["extensions"];
   renderPlaceholder: SlideViewProps["renderPlaceholder"];
+  // The drawn page's position, for an app's renderer and add-ons (`SUI-FEATURE-290`).
+  page: SlidePagePosition | null;
   // A text element (by id) fits its field or not.
   onFit: (id: string, fits: boolean) => void;
   // The size a text element's text measured, when its size follows it (`SUI-FEATURE-165`).
@@ -1269,7 +1289,9 @@ function content(draw: Draw, element: SlideElement): React.ReactNode {
           ? types[element.typeId]
           : undefined;
       if (type !== undefined) {
-        return <AppType key={element.typeId} render={type.render} element={element} />;
+        return (
+          <AppType key={element.typeId} render={type.render} element={element} page={draw.page} />
+        );
       }
       draw.unknownTypes.add(element.typeId);
       return <Stand text={draw.t("slides.unknownType", { type: element.typeId })} />;
@@ -1281,11 +1303,13 @@ function content(draw: Draw, element: SlideElement): React.ReactNode {
 function AppType({
   render,
   element,
+  page,
 }: {
   render: SlideCustomRenderer;
   element: ElementOf<"custom">;
+  page: SlidePagePosition | null;
 }) {
-  return render(element);
+  return render(element, { page });
 }
 
 // The element's drawing under each add-on of its type whose key its payload holds, one box per add-on so
@@ -1297,8 +1321,12 @@ function withAddOns(draw: Draw, element: SlideElement, drawn: React.ReactNode): 
     if (addOn.type !== element.type || !Object.hasOwn(payload, addOn.id)) return inner;
     // The add-on's type is the element's (checked above).
     const style = (
-      addOn.style as (value: unknown, element: SlideElement) => React.CSSProperties | undefined
-    )(payload[addOn.id], element);
+      addOn.style as (
+        value: unknown,
+        element: SlideElement,
+        context: SlideDrawContext,
+      ) => React.CSSProperties | undefined
+    )(payload[addOn.id], element, { page: draw.page });
     return style === undefined ? (
       inner
     ) : (
@@ -1491,6 +1519,8 @@ export function SlideView({
     resolveMedia,
     extensions,
     renderPlaceholder,
+    // Master and layout elements drawn on the page get its position too (`SUI-FEATURE-290`).
+    page: document === undefined ? null : pagePosition(document, page),
     onFit,
     onMeasure,
     broken,
