@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { useCallback, useEffect, useRef, useState } from "react";
-import { afterEach, describe, expect, it } from "vitest";
+import { StrictMode, useCallback, useEffect, useRef, useState } from "react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { Button } from "./button.js";
 import { ConfirmDeleteDialog } from "./confirm-delete-dialog.js";
@@ -18,7 +18,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "./dropdown-menu.js";
-import { FOCUS_FALLBACK_ATTR, useFocusAfterRun } from "./focus-return.js";
+import { FOCUS_FALLBACK_ATTR, FOCUS_MAIN_ATTR, useFocusAfterRun } from "./focus-return.js";
 
 afterEach(cleanup);
 
@@ -579,31 +579,60 @@ describe("focus return after a dialog (GL-UI-050)", () => {
   });
 });
 
-// SUI-FEATURE-120 rev 3 (#150 re-review): a hand-on target that refuses the focus passes it to the
-// next tier: the group's control, then the surface's main content.
+// SUI-FEATURE-252 rev 2 (refines SUI-FEATURE-120 rev 7): the hook keeps the focus on a button that is
+// still in the document, locked or not, and hands it on by `GL-UI-050` targets 2–4 once it is gone.
 describe("useFocusAfterRun", () => {
+  type RunProps = {
+    running: boolean;
+    locked?: boolean;
+    shown?: boolean;
+    extra?: boolean;
+    next?: boolean;
+    withMain?: boolean;
+    onSave?: () => void;
+  };
+
+  // An app-style Save outside a dialog: the package `Button`, busy while it runs, locked with
+  // `aria-disabled` once its form is clean.
   function Run({
     running,
-    locked,
+    locked = false,
+    shown = true,
     extra = false,
-  }: {
-    running: boolean;
-    locked: boolean;
-    extra?: boolean;
-  }) {
+    next = true,
+    withMain = true,
+    onSave,
+  }: RunProps) {
     const save = useRef<HTMLButtonElement>(null);
     const field = useCallback(() => document.querySelector<HTMLElement>("#field"), []);
-    useFocusAfterRun(save, running, locked, field);
+    useFocusAfterRun(save, running, withMain ? field : undefined);
     return (
       <main>
         <input id="field" aria-label="Field" />
+        <input aria-label="Marked" {...{ [FOCUS_MAIN_ATTR]: "" }} />
         <div data-focus-group="">
-          <button type="button" ref={save} disabled={locked} data-testid="save">
-            Save
+          <button type="button" data-testid="before">
+            Before
           </button>
-          <button type="button" data-testid="next">
-            Next
-          </button>
+          {shown ? (
+            <Button
+              ref={save}
+              type="button"
+              variant="success"
+              size="default"
+              busy={running}
+              {...(locked ? { "aria-disabled": true } : {})}
+              onClick={onSave}
+              data-testid="save"
+            >
+              Save
+            </Button>
+          ) : null}
+          {next ? (
+            <button type="button" data-testid="next">
+              Next
+            </button>
+          ) : null}
           {extra ? (
             <button type="button" data-testid="after-next">
               After next
@@ -614,32 +643,221 @@ describe("useFocusAfterRun", () => {
     );
   }
 
-  it("a group control that refuses the focus hands it to the main content", () => {
-    const { rerender } = render(<Run running={false} locked={false} />);
-    screen.getByTestId("next").focus = () => {};
+  function startRun(props: Omit<RunProps, "running"> = {}) {
+    const view = render(<Run running={false} {...props} />);
+    act(() => screen.getByTestId("save").focus());
+    view.rerender(<Run running {...props} />);
+    return view;
+  }
+
+  // AC1 + AC5 (SUI-FEATURE-120 AC1 through the hook): busy and then self-locked, Save keeps the focus
+  // and triggers nothing.
+  it("a button that locks itself after the run keeps the focus", () => {
+    const onSave = vi.fn();
+    const { rerender } = startRun({ onSave });
     const save = screen.getByTestId("save");
-    act(() => save.focus());
-    rerender(<Run running locked={false} />);
+    expect(save).toHaveFocus();
+    expect(save).toHaveAttribute("aria-busy", "true");
+    rerender(<Run running={false} locked onSave={onSave} />);
+    expect(save).toHaveFocus();
+    expect(save).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(save);
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it("a button that ends usable keeps the focus", () => {
+    const { rerender } = startRun();
+    rerender(<Run running={false} />);
+    expect(screen.getByTestId("save")).toHaveFocus();
+  });
+
+  // AC2: the owner stays mounted, Save is gone; its group's neighbours were noted during the run.
+  it("a button removed after the run hands the focus to the next control of its group", () => {
+    const { rerender } = startRun();
+    rerender(<Run running={false} shown={false} />);
+    expect(screen.getByTestId("next")).toHaveFocus();
+  });
+
+  it("without a control after it, the one before it takes the focus", () => {
+    const { rerender } = startRun({ next: false });
+    rerender(<Run running={false} shown={false} next={false} />);
+    expect(screen.getByTestId("before")).toHaveFocus();
+  });
+
+  // SUI-FEATURE-120 rev 3 (#150 re-review): a target that refuses the focus passes it on.
+  it("tries every group control in turn", () => {
+    const { rerender } = startRun({ extra: true });
+    screen.getByTestId("next").focus = () => {};
+    rerender(<Run running={false} shown={false} extra />);
+    expect(screen.getByTestId("after-next")).toHaveFocus();
+  });
+
+  it("without a usable group control, the main callback takes the focus", () => {
+    const { rerender } = startRun();
+    screen.getByTestId("next").focus = () => {};
+    screen.getByTestId("before").focus = () => {};
+    rerender(<Run running={false} shown={false} />);
+    expect(screen.getByLabelText("Field")).toHaveFocus();
+  });
+
+  it("without a main callback, the marked main content takes the focus, never the body", () => {
+    const { rerender } = startRun({ withMain: false });
+    screen.getByTestId("next").focus = () => {};
+    screen.getByTestId("before").focus = () => {};
+    rerender(<Run running={false} shown={false} withMain={false} />);
+    expect(screen.getByLabelText("Marked")).toHaveFocus();
+    expect(document.activeElement).not.toBe(document.body);
+  });
+
+  // AC3: the component holding the hook unmounts together with Save.
+  it("a holder that unmounts with the button hands the focus to the next control", async () => {
+    function Holder({ running }: { running: boolean }) {
+      const save = useRef<HTMLButtonElement>(null);
+      useFocusAfterRun(save, running);
+      return (
+        <Button
+          ref={save}
+          type="button"
+          variant="success"
+          size="default"
+          busy={running}
+          data-testid="save"
+        >
+          Save
+        </Button>
+      );
+    }
+    function Page({ running, shown }: { running: boolean; shown: boolean }) {
+      return (
+        <main>
+          <div role="toolbar" aria-label="Actions">
+            {shown ? <Holder running={running} /> : null}
+            <button type="button" data-testid="next">
+              Next
+            </button>
+          </div>
+        </main>
+      );
+    }
+    const { rerender } = render(<Page running={false} shown />);
+    act(() => screen.getByTestId("save").focus());
+    rerender(<Page running shown />);
+    rerender(<Page running={false} shown={false} />);
+    // The hand-on waits for the removal, a microtask after the commit.
+    await act(() => Promise.resolve());
+    expect(screen.getByTestId("next")).toHaveFocus();
+  });
+
+  // AC4: the person tabbed away during the run; nothing is moved, whether Save stays or goes.
+  it("focus moved elsewhere during the run stays there", async () => {
+    const { rerender } = startRun();
+    act(() => screen.getByLabelText("Field").focus());
+    rerender(<Run running={false} shown={false} />);
+    await act(() => Promise.resolve());
+    expect(screen.getByLabelText("Field")).toHaveFocus();
+  });
+
+  it("focus moved elsewhere during the run stays there when Save stays", () => {
+    const { rerender } = startRun();
+    act(() => screen.getByLabelText("Field").focus());
     rerender(<Run running={false} locked />);
     expect(screen.getByLabelText("Field")).toHaveFocus();
   });
 
-  it("tries every group control in turn before the main content", () => {
-    const { rerender } = render(<Run running={false} locked={false} extra />);
-    screen.getByTestId("next").focus = () => {};
-    const save = screen.getByTestId("save");
-    act(() => save.focus());
-    rerender(<Run running locked={false} extra />);
-    rerender(<Run running={false} locked extra />);
-    expect(screen.getByTestId("after-next")).toHaveFocus();
+  // GL-UI-050 §laufende Aktion: never `<body>`, during the run either.
+  it("a button removed while the run goes on hands the focus on at once", () => {
+    const { rerender } = startRun();
+    rerender(<Run running shown={false} />);
+    expect(screen.getByTestId("next")).toHaveFocus();
   });
 
-  it("a usable group control takes it first", () => {
-    const { rerender } = render(<Run running={false} locked={false} />);
-    const save = screen.getByTestId("save");
-    act(() => save.focus());
-    rerender(<Run running locked={false} />);
-    rerender(<Run running={false} locked />);
-    expect(screen.getByTestId("next")).toHaveFocus();
+  // Tier 4: no group control, no main callback and no main content: the nearest container left.
+  it("without any main content, the nearest container still there takes the focus", () => {
+    function Bare({ running, shown }: { running: boolean; shown: boolean }) {
+      const save = useRef<HTMLButtonElement>(null);
+      useFocusAfterRun(save, running);
+      return (
+        <div data-testid="outer">
+          <div data-focus-group="" data-testid="group">
+            {shown ? (
+              <Button
+                ref={save}
+                type="button"
+                variant="success"
+                size="default"
+                busy={running}
+                data-testid="save"
+              >
+                Save
+              </Button>
+            ) : null}
+          </div>
+        </div>
+      );
+    }
+    const { rerender } = render(<Bare running={false} shown />);
+    act(() => screen.getByTestId("save").focus());
+    rerender(<Bare running shown />);
+    rerender(<Bare running={false} shown={false} />);
+    const group = screen.getByTestId("group");
+    expect(group).toHaveFocus();
+    expect(group).toHaveAttribute(FOCUS_FALLBACK_ATTR);
+  });
+
+  // A StrictMode remount runs the unmount cleanup while the button stays: nothing is moved.
+  it("a remount that keeps the button moves nothing", async () => {
+    render(
+      <StrictMode>
+        <Run running />
+      </StrictMode>,
+    );
+    await act(() => Promise.resolve());
+    expect(document.activeElement).toBe(document.body);
+  });
+
+  // Inside a dialog that closes with the button, the dialog's return to its opener wins (GL-UI-050
+  // target 1); `returnFocus` covers it.
+  it("a dialog that closes during the run returns the focus to its opener", async () => {
+    function Holder({ running }: { running: boolean }) {
+      const save = useRef<HTMLButtonElement>(null);
+      useFocusAfterRun(save, running);
+      return (
+        <div data-focus-group="">
+          <Button
+            ref={save}
+            type="button"
+            variant="success"
+            size="default"
+            busy={running}
+            data-testid="dialog-save"
+          >
+            Save
+          </Button>
+        </div>
+      );
+    }
+    function Page({ open, running }: { open: boolean; running: boolean }) {
+      return (
+        <main>
+          <Button type="button" variant="outline" size="default" data-testid="opener">
+            Open
+          </Button>
+          <Dialog open={open}>
+            <DialogContent>
+              <DialogTitle>Edit</DialogTitle>
+              <DialogDescription>Edit dialog</DialogDescription>
+              <Holder running={running} />
+            </DialogContent>
+          </Dialog>
+        </main>
+      );
+    }
+    const { rerender } = render(<Page open={false} running={false} />);
+    act(() => screen.getByTestId("opener").focus());
+    rerender(<Page open running={false} />);
+    act(() => screen.getByTestId("dialog-save").focus());
+    rerender(<Page open running />);
+    rerender(<Page open={false} running />);
+    await waitFor(() => expect(screen.getByTestId("opener")).toHaveFocus());
   });
 });

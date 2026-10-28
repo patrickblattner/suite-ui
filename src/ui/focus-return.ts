@@ -144,26 +144,48 @@ function captureOpener(focused: Element | null = document.activeElement): Opener
   // In a list with the keyboard grid the entry is the unit: it counts as the trigger, however the
   // dialog was opened (a key on the entry, a button in it, its ⋯ menu; `GL-UI-050` rev 4).
   const trigger = entryNode && frame ? entryNode : control;
-  const group = trigger.closest<HTMLElement>(GROUP_SELECTOR);
-  const around =
-    group === null
-      ? []
-      : [...group.querySelectorAll<HTMLElement>(CONTROL_SELECTOR)].filter(
-          (other) => other !== trigger && !isNavigation(other),
-        );
   return {
     trigger,
-    group,
-    after: around.filter(
-      (control) => trigger.compareDocumentPosition(control) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ),
-    before: around.filter(
-      (control) => trigger.compareDocumentPosition(control) & Node.DOCUMENT_POSITION_PRECEDING,
-    ),
+    ...neighboursOf(trigger),
     entry: entryNode && frame ? { frame, index: listEntries(frame).indexOf(entryNode) } : null,
     containers: ancestors(trigger),
     surface: trigger.closest<HTMLElement>(OPEN_DIALOG_SELECTOR),
   };
+}
+
+/** A control's group and the group's controls after and before it, locked ones included. */
+type Neighbours = { group: HTMLElement | null; after: HTMLElement[]; before: HTMLElement[] };
+
+/** Notes `control`'s neighbours while it is still in the document, for when it is gone. */
+function neighboursOf(control: Element): Neighbours {
+  const group = control.closest<HTMLElement>(GROUP_SELECTOR);
+  const around =
+    group === null
+      ? []
+      : [...group.querySelectorAll<HTMLElement>(CONTROL_SELECTOR)].filter(
+          (other) => other !== control && !isNavigation(other),
+        );
+  return {
+    group,
+    after: around.filter(
+      (other) => control.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ),
+    before: around.filter(
+      (other) => control.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_PRECEDING,
+    ),
+  };
+}
+
+/**
+ * Tier 2 for a control that is gone: its noted neighbours that are usable now, after it and then
+ * before it, the nearest first, then the group's other usable controls in reading order.
+ */
+function goneTargets({ group, after, before }: Neighbours): HTMLElement[] {
+  return [
+    ...after.filter((control) => isUsable(control)),
+    ...before.filter((control) => isUsable(control)).reverse(),
+    ...groupTargets(group, null),
+  ];
 }
 
 function ancestors(element: Element): HTMLElement[] {
@@ -306,9 +328,7 @@ function returnFocus(opener: Opener | null, focusVisible?: boolean): boolean {
   if (trigger.isConnected) {
     if (placeFirst(groupTargets(group, trigger), focusVisible)) return true;
   } else if (group?.isConnected) {
-    const after = opener.after.filter((control) => isUsable(control));
-    const before = opener.before.filter((control) => isUsable(control)).reverse();
-    if (placeFirst([...after, ...before, ...groupTargets(group, null)], focusVisible)) return true;
+    if (placeFirst(goneTargets(opener), focusVisible)) return true;
   } else if (entry !== null && entry.frame.isConnected) {
     focusListEntry(entry.frame, entry.index);
     if (entry.frame.contains(document.activeElement)) return true;
@@ -316,7 +336,12 @@ function returnFocus(opener: Opener | null, focusVisible?: boolean): boolean {
   if (place(mainTarget(group ?? trigger, opener.surface), focusVisible)) return true;
   // Tier 4: the container the dialog was opened from, the nearest that takes the focus; never
   // `<body>`.
-  return opener.containers.some(
+  return placeContainer(opener.containers, focusVisible);
+}
+
+/** Tier 4: the nearest of `containers` still in the document that takes the focus. */
+function placeContainer(containers: readonly HTMLElement[], focusVisible?: boolean): boolean {
+  return containers.some(
     (node) =>
       node.isConnected &&
       !behindModal(node) &&
@@ -325,40 +350,94 @@ function returnFocus(opener: Opener | null, focusVisible?: boolean): boolean {
   );
 }
 
+/** A running button's surroundings, noted while it is still in the document. */
+type RunSnapshot = Neighbours & {
+  node: HTMLElement;
+  // The button's ancestors, nearest first, for the main content and tier 4.
+  containers: HTMLElement[];
+  // The dialog or sheet the button stands in, open or closing: its surface for tier 3.
+  surface: HTMLElement | null;
+};
+
+// A dialog or sheet in any state: a closing one renders its content once more, as closed.
+const DIALOG_SELECTOR = "[role=dialog], [role=alertdialog]";
+
+function snapshotRun(node: HTMLElement): RunSnapshot {
+  return {
+    node,
+    ...neighboursOf(node),
+    containers: ancestors(node),
+    surface: node.closest<HTMLElement>(DIALOG_SELECTOR),
+  };
+}
+
 /**
- * `GL-UI-050` §laufende Aktion (`SUI-FEATURE-120`): a button that ran and locks itself as its action
- * ends (a Save that leaves the form clean) hands the focus on instead of dropping it to `<body>`: to
- * the next usable control of its group (`FOCUS_GROUP_ATTR`), else to `main` (the surface's main
- * content), else to the page's main content. A button that ends usable keeps the focus; the hand-on
- * waits for a lock that comes in a later render. Focus moved elsewhere during the run stays there.
+ * Hands the focus on from a button that left the document, by `GL-UI-050` targets 2–4: the group's
+ * next usable control after it, then before it, else `main` (the app's main content), else the marked
+ * or `main` content, else the nearest container still in the document. Only when the focus has fallen
+ * to `<body>`; focus the person moved elsewhere stays there. A button still in the document (a
+ * StrictMode or `Activity` remount) keeps it, and so does one whose dialog closed with it: the
+ * dialog's own return (`returnFocus`) places the focus then.
+ */
+function handOnFromGone(snapshot: RunSnapshot, main?: () => HTMLElement | null): void {
+  const { node, containers, surface } = snapshot;
+  if (node.isConnected || (surface !== null && !surface.isConnected)) return;
+  const active = document.activeElement;
+  if (active !== null && active !== document.body) return;
+  if (placeFirst(goneTargets(snapshot))) return;
+  if (place(main?.() ?? null)) return;
+  const near = containers.find((container) => container.isConnected) ?? null;
+  if (place(mainTarget(near, surface))) return;
+  placeContainer(containers);
+}
+
+/**
+ * `GL-UI-050` §laufende Aktion (`SUI-FEATURE-120`, `SUI-FEATURE-252`): a button that runs keeps the
+ * focus while it is in the document, locked (`aria-disabled`) or not. If it leaves the document during
+ * or after the run (removed, or the component holding the hook unmounts with it) and the focus was on
+ * it, the focus goes to the next usable control of its group (noted during the run), else to `main`
+ * (the surface's main content), else to the page's main content, else the nearest container still
+ * there; never `<body>`. Focus moved elsewhere during the run stays there. Inside a dialog that closes
+ * with the button, the dialog's return places the focus.
  */
 function useFocusAfterRun(
   button: React.RefObject<HTMLButtonElement | null>,
   running: boolean,
-  locked: boolean,
   main?: () => HTMLElement | null,
 ): void {
-  const ran = React.useRef(false);
+  const snapshot = React.useRef<RunSnapshot | null>(null);
+  const mainRef = React.useRef(main);
+  // Each render of a run notes the button's surroundings anew, and hands on from a button that is
+  // gone while the run goes on.
   React.useLayoutEffect(() => {
-    if (running) {
-      ran.current = true;
-      return;
-    }
+    mainRef.current = main;
+    if (!running) return;
     const node = button.current;
-    if (!ran.current || node === null) return;
-    const active = document.activeElement;
-    const held = active === null || active === document.body || active === node;
-    if (!held || !locked) {
-      if (!held || active !== node) ran.current = false;
+    if (node?.isConnected === true) {
+      snapshot.current = snapshotRun(node);
       return;
     }
-    ran.current = false;
-    const group = node.closest(`[${FOCUS_GROUP_ATTR}]`);
-    // Each target counts only if it took the focus; else the next one is tried.
-    if (placeFirst(groupTargets(group, node))) return;
-    if (place(main?.() ?? null)) return;
-    place(mainTarget(group ?? node));
-  }, [button, running, locked, main]);
+    const noted = snapshot.current;
+    snapshot.current = null;
+    if (noted !== null) handOnFromGone(noted, main);
+  });
+  React.useLayoutEffect(() => {
+    if (running) return;
+    const noted = snapshot.current;
+    snapshot.current = null;
+    if (noted !== null && button.current?.isConnected !== true) handOnFromGone(noted, main);
+  }, [button, running, main]);
+  // The holder unmounts with the button: its cleanup runs before the button leaves the document, so
+  // the hand-on waits for the removal.
+  React.useLayoutEffect(
+    () => () => {
+      const noted = snapshot.current;
+      if (noted === null) return;
+      snapshot.current = null;
+      queueMicrotask(() => handOnFromGone(noted, mainRef.current));
+    },
+    [],
+  );
 }
 
 export {

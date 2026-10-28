@@ -62,15 +62,15 @@ describe("SaveResetButtons focus", () => {
     );
   });
 
-  // A lock with a reason (an invalid entry) stays `disabled` and hands the focus on.
-  it("a save that ends with an invalid entry locks Save and hands the focus on", () => {
+  // SUI-FEATURE-252 AC1: a lock with a reason (an invalid entry) is `aria-disabled` and keeps the focus.
+  it("a save that ends with an invalid entry locks Save and keeps the focus on it", () => {
     const { rerender } = render(page(true, false));
     const save = screen.getByTestId("settings-general-save");
     save.focus();
     rerender(page(true, true, false));
     rerender(page(true, false, false));
     expect(save).toHaveAttribute("aria-disabled", "true");
-    expect(screen.getByTestId("settings-general-reset")).toHaveFocus();
+    expect(save).toHaveFocus();
   });
 
   it("a save that ends with Save still usable keeps the focus on it", () => {

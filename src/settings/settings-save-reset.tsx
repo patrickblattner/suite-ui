@@ -29,10 +29,10 @@ type SaveResetButtonsProps = {
 // the dimmed colour of their action; while a save runs, Save keeps its full colour and shows the
 // working sign in place of its icon. Save locks itself with `aria-disabled` and a trigger lock while
 // the form is clean, so it keeps the focus after a save (`GL-UI-050`, `SUI-FEATURE-120`). Locked with a
-// reason (an invalid entry, a page that did not load) it is locked the same way and hands the focus on
-// after a save: within the row, else to the page's main content. Clicked or reached by Enter in a field
-// while locked with a reason, it still submits its form, which shows every field's error and saves
-// nothing (`GL-UI-038` §Absenden).
+// reason (an invalid entry, a page that did not load) it is locked the same way and keeps the focus
+// too (`SUI-FEATURE-252`); only a Save that leaves the page hands it on. Clicked or reached by Enter
+// in a field while locked with a reason, it still submits its form, which shows every field's error
+// and saves nothing (`GL-UI-038` §Absenden).
 function SaveResetButtons({
   stem,
   dirty,
@@ -45,7 +45,7 @@ function SaveResetButtons({
   const { t } = useTranslation("suite");
   const save = React.useRef<HTMLButtonElement>(null);
   const clean = !dirty && valid && !saving;
-  useFocusAfterRun(save, saving, !valid);
+  useFocusAfterRun(save, saving);
   return (
     <>
       {cancel !== undefined ? (
