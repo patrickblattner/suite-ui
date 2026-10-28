@@ -328,6 +328,31 @@ describe("Hint timing", () => {
 
   const secondLine = () => document.querySelector("[data-slot=tooltip-hint]");
 
+  // #649: an empty text keeps the usable control silent on hover, no bubble and no description; locked,
+  // its `disabledText` opens as usual.
+  it("empty text: no bubble on hover while usable, the reason once locked", () => {
+    const hint = (disabled: boolean) => (
+      <Hint text="" disabledText="The page is published">
+        <Button variant="outline" size="sm" disabled={disabled}>
+          Flip
+        </Button>
+      </Hint>
+    );
+    const { rerender } = render(hint(false));
+    const button = screen.getByRole("button");
+    hoverFor(button, 1500);
+    expect(document.querySelector("[data-slot=tooltip-content]")).toBeNull();
+    expect(button).not.toHaveAttribute("aria-describedby");
+    fireEvent.pointerLeave(button, { pointerType: "mouse" });
+    rerender(hint(true));
+    expect(screen.getByRole("button")).toBe(button);
+    hoverFor(button, 1500);
+    expect(document.querySelector("[data-slot=tooltip-content]")).toHaveTextContent(
+      "The page is published",
+    );
+    expect(button).toHaveAccessibleDescription("The page is published");
+  });
+
   // #438: a closed hint reads no layout, however often it renders; it measures on the render that
   // opens it, before the bubble paints.
   it("reads no layout while closed", () => {

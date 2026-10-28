@@ -30,6 +30,32 @@ describe("PRESSED_FILL_CLASS (SUI-FEATURE-095)", () => {
     }
   });
 
+  // SUI-FEATURE-251 rev 4: pressed and locked, the fill and its label mix half with --surface and the
+  // hover tone is gone, in light and dark.
+  // SUI-FEATURE-250 rev 4: a natively disabled pressed toggle looks the same as a locked one.
+  it.each(["aria-disabled", "disabled"])(
+    "pressed and %s: the half-tone fill and label, no hover tone, GrayText under forced colours",
+    (state) => {
+      const tokens = PRESSED_FILL_CLASS.split(" ");
+      const label = "text-[color-mix(in_srgb,var(--primary-foreground)_50%,var(--surface))]";
+      for (const prefix of [
+        `pressed:${state}:`,
+        `pressed:${state}:hover:`,
+        `dark:pressed:${state}:`,
+        `dark:pressed:${state}:hover:`,
+      ]) {
+        for (const token of ["bg-primary/50", "border-transparent", label]) {
+          expect(tokens).toContain(`${prefix}${token}`);
+        }
+      }
+      expect(tokens).toContain(`forced-colors:pressed:${state}:text-[GrayText]!`);
+      expect(tokens).toContain(`forced-colors:pressed:${state}:border-[GrayText]!`);
+      expect(
+        tokens.filter((token) => token.includes(`${state}:`) && token.includes("primary-hover")),
+      ).toEqual([]);
+    },
+  );
+
   it("AC 3: the pressed value is defined once, in lib/pressed-fill.ts; no toggle keeps an accent copy", () => {
     const copies = sources
       .filter(({ path, text }) => path !== "lib/pressed-fill.ts" && PRESSED_SURFACE.test(text))

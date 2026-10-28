@@ -3275,7 +3275,7 @@ test("crop editor: Apply crops the placement, Reset removes the crop", async ({ 
   await page.getByTestId("crop-editor-reset").click();
   await expect(crop).toHaveText("Crop");
   await page.getByTestId("image-flip").click();
-  await expect(page.getByTestId("image-flip")).toHaveText("Flipped");
+  await expect(page.getByTestId("image-flip")).toHaveText("Flip");
   await expect(page.getByTestId("crop-placement")).toHaveCSS(
     "transform",
     "matrix(-1, 0, 0, 1, 0, 0)",
@@ -3303,6 +3303,118 @@ test("placement buttons: aria-pressed on Flip, a hint at its own button only", a
   await expect(page.getByRole("tooltip")).toHaveCount(0);
   await crop.hover();
   await expect(page.getByRole("tooltip")).toHaveText("Opens the crop editor", { timeout: 5000 });
+});
+
+// `SUI-FEATURE-311` rev 4 AC 1: Flip keeps its label and shows the package's pressed fill while
+// pressed, the outline look while not.
+test("placement buttons: Flip keeps its label and takes the pressed fill", async ({ page }) => {
+  await page.goto("/?page=components&lng=de");
+  const flip = page.getByTestId("image-flip");
+  const change = page.getByRole("button", { name: "Change image" });
+  const rest = await flip.evaluate((node) => getComputedStyle(node).backgroundColor);
+  expect(rest).toBe(await change.evaluate((node) => getComputedStyle(node).backgroundColor));
+  await flip.click();
+  await page.mouse.move(0, 0);
+  await expect(flip).toHaveAttribute("aria-pressed", "true");
+  await expect(flip).toHaveText("Spiegeln");
+  const primary = await page.evaluate(() => {
+    const probe = document.createElement("div");
+    probe.style.backgroundColor = "var(--primary)";
+    document.body.append(probe);
+    const color = getComputedStyle(probe).backgroundColor;
+    probe.remove();
+    return color;
+  });
+  await expect(flip).toHaveCSS("background-color", primary);
+});
+
+// `SUI-FEATURE-311` rev 4 AC 5 / `SUI-FEATURE-251` rev 4 AC 6: `?placementFlipped=on` starts Flip
+// pressed; locked as well, its pressed fill and label come out as the half mix with `--surface`, light
+// and dark, it differs from the locked and unpressed Crop beside it, and hover changes nothing.
+for (const theme of THEMES) {
+  test(`placement buttons pressed and locked: the pressed fill half mixed with the surface (${theme})`, async ({
+    page,
+  }) => {
+    await page.goto(`/?page=components&lng=en&theme=${theme}&placementFlipped=on`);
+    const flip = page.getByTestId("image-flip");
+    await expect(flip).toHaveAttribute("aria-pressed", "true");
+    await expect(flip).toHaveText("Flip");
+    await page.goto(
+      `/?page=components&lng=en&theme=${theme}&placementFlipped=on&placementLocked=on&placementHints=on`,
+    );
+    await expect(flip).toHaveAttribute("aria-pressed", "true");
+    await expect(flip).toHaveAttribute("aria-disabled", "true");
+    await parkPointer(page);
+    const look = () =>
+      page.evaluate(() => {
+        const canvas = document.createElement("canvas");
+        canvas.width = canvas.height = 1;
+        const context = canvas.getContext("2d", { willReadFrequently: true })!;
+        // A colour as it shows, drawn over the `under` colour when it is see-through.
+        const rgba = (fill: string, under?: string) => {
+          context.clearRect(0, 0, 1, 1);
+          for (const layer of under === undefined ? [fill] : [under, fill]) {
+            context.fillStyle = layer;
+            context.fillRect(0, 0, 1, 1);
+          }
+          return [...context.getImageData(0, 0, 1, 1).data];
+        };
+        const read = (id: string) => {
+          const node = document.querySelector(`[data-testid=${id}]`)!;
+          const style = getComputedStyle(node);
+          const surface = style.getPropertyValue("--surface");
+          return {
+            fill: rgba(style.backgroundColor, surface),
+            label: rgba(style.color),
+            surface: rgba(surface),
+            primary: rgba(style.getPropertyValue("--primary")),
+            foreground: rgba(style.getPropertyValue("--primary-foreground")),
+          };
+        };
+        return { flip: read("image-flip"), crop: read("image-crop") };
+      });
+    const rest = await look();
+    const half = (color: number[]) =>
+      color.slice(0, 3).map((channel, i) => (channel + rest.flip.surface[i]!) / 2);
+    const near = (actual: number[], expected: number[], what: string) =>
+      actual.slice(0, 3).forEach((channel, i) => {
+        expect(Math.abs(channel - expected[i]!), `${what} channel ${i}`).toBeLessThanOrEqual(1);
+      });
+    near(rest.flip.fill, half(rest.flip.primary), "pressed locked fill");
+    near(rest.flip.label, half(rest.flip.foreground), "pressed locked label");
+    expect(rest.flip.fill).not.toEqual(rest.crop.fill);
+    expect(rest.flip.label).not.toEqual(rest.crop.label);
+    await flip.hover();
+    await page.waitForTimeout(300);
+    const hovered = await look();
+    expect(hovered.flip.fill).toEqual(rest.flip.fill);
+    expect(hovered.flip.label).toEqual(rest.flip.label);
+  });
+}
+
+// `SUI-FEATURE-311` rev 4 AC 4: locked with a reason, both buttons are reached by Tab, do nothing on
+// click or Enter and carry the reason as their description instead of their hint.
+test("placement buttons locked: reached by Tab, inert, described by the reason", async ({
+  page,
+}) => {
+  await page.goto("/?page=components&lng=en&placementHints=on&placementLocked=on");
+  const flip = page.getByTestId("image-flip");
+  const crop = page.getByTestId("image-crop");
+  for (const button of [flip, crop]) {
+    await expect(button).toHaveAttribute("aria-disabled", "true");
+    await expect(button).toHaveAccessibleDescription("The page is published");
+  }
+  await page.getByRole("button", { name: "Change image" }).focus();
+  await page.keyboard.press("Tab");
+  await expect(flip).toBeFocused();
+  await page.keyboard.press("Enter");
+  await page.keyboard.press("Tab");
+  await expect(crop).toBeFocused();
+  await page.keyboard.press("Enter");
+  await flip.click({ force: true });
+  await crop.click({ force: true });
+  await expect(flip).toHaveAttribute("aria-pressed", "false");
+  await expect(page.getByTestId("crop-editor")).toHaveCount(0);
 });
 
 test("placement buttons without hints: no tooltip, no description", async ({ page }) => {

@@ -354,7 +354,6 @@ export const en = {
   },
   flip: {
     action: "Flip",
-    active: "Flipped",
   },
   // The header of an editor page (`EditorHeader`).
   editor: {

@@ -338,7 +338,6 @@ export const de: SuiteStrings = {
   },
   flip: {
     action: "Spiegeln",
-    active: "Gespiegelt",
   },
   editor: {
     back: "Zurück",

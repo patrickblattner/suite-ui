@@ -140,7 +140,9 @@ type HintChildProps = {
 };
 
 type HintProps = {
-  // The description: for a button what happens next, for a field the value it takes.
+  // The description: for a button what happens next, for a field the value it takes. Empty, the
+  // usable control has no bubble and no description; only its `disabledText` shows while locked, and
+  // the tree stays the same across the lock (`SUI-FEATURE-311` rev 4).
   text: string;
   // Shown instead of `text` while the wrapped control is disabled, or locked with `aria-disabled` (a
   // Save that locked itself, `SUI-FEATURE-120`): the condition under which it becomes usable.
@@ -240,7 +242,8 @@ function Hint({
   const locked =
     (disabled || ariaLocked) && disabledText !== undefined && children.props.busy !== true;
   const shown = locked ? disabledText : text;
-  const describes = describe && children.props["aria-label"] !== shown;
+  const silent = shown === "";
+  const describes = describe && !silent && children.props["aria-label"] !== shown;
   const carried = disabledText !== undefined;
   const variants = shortcutVariants(shortcut);
   // Locked, with or without a reason of its own, the control offers no shortcut (`GL-UI-006` rev 4
@@ -302,7 +305,7 @@ function Hint({
       <FieldValueHintContext.Provider value={undefined}>
         <TooltipProvider>
           <TooltipPrimitive.Root
-            open={press.root.open || focus.due}
+            open={!silent && (press.root.open || focus.due)}
             onOpenChange={(next) => {
               if (!next) focus.close();
               press.root.onOpenChange(next);

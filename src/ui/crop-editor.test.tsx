@@ -9,6 +9,7 @@ import {
   ImagePlacementButtons,
   type ImagePlacementButtonsProps,
 } from "./crop-editor.js";
+import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
 import type { Crop } from "./cropped-image.js";
 
 afterEach(async () => {
@@ -155,11 +156,16 @@ describe("CropEditor", () => {
 
 function Placement({
   onCrop,
-  ...hints
-}: { onCrop: (crop: Crop | null) => void } & Pick<
+  onFlip,
+  ...rest
+}: { onCrop: (crop: Crop | null) => void; onFlip?: (flipped: boolean) => void } & Pick<
   ImagePlacementButtonsProps,
   "flipHint" | "cropHint"
->) {
+> &
+  (
+    | { disabled?: undefined; disabledReason?: undefined }
+    | { disabled: boolean; disabledReason: string }
+  )) {
   const [flipped, setFlipped] = useState(false);
   const [crop, setCrop] = useState<Crop | null>(null);
   return (
@@ -167,13 +173,16 @@ function Placement({
       src="photo.jpg"
       alt="Team"
       flipped={flipped}
-      onFlippedChange={setFlipped}
+      onFlippedChange={(next) => {
+        setFlipped(next);
+        onFlip?.(next);
+      }}
       crop={crop}
       onCropChange={(next) => {
         setCrop(next);
         onCrop(next);
       }}
-      {...hints}
+      {...rest}
     />
   );
 }
@@ -187,22 +196,21 @@ function described(button: HTMLElement): string[] {
 
 describe("ImagePlacementButtons", () => {
   it.each([
-    ["de", "Spiegeln", "Gespiegelt", "Zuschneiden", "Zugeschnitten"],
-    ["en", "Flip", "Flipped", "Crop", "Cropped"],
-    ["es", "Reflejar", "Reflejado", "Recortar", "Recortado"],
+    ["de", "Spiegeln", "Zuschneiden", "Zugeschnitten"],
+    ["en", "Flip", "Crop", "Cropped"],
+    ["es", "Reflejar", "Recortar", "Recortado"],
   ])(
-    "%s: Flip toggles to its active text, Crop opens the editor",
-    async (lng, flip, flipped, crop, cropped) => {
+    "%s: Flip keeps its label in both states, Crop opens the editor",
+    async (lng, flip, crop, cropped) => {
       await i18n.changeLanguage(lng);
       const onCrop = vi.fn();
       render(<Placement onCrop={onCrop} />);
       const flipButton = screen.getByTestId("image-flip");
       const cropButton = screen.getByTestId("image-crop");
       expect(flipButton).toHaveTextContent(flip);
-      expect(flipButton).toHaveAttribute("data-active", "false");
       fireEvent.click(flipButton);
-      expect(flipButton).toHaveTextContent(flipped);
-      expect(flipButton).toHaveAttribute("data-active", "true");
+      expect(flipButton).toHaveTextContent(flip);
+      expect(flipButton).toHaveAttribute("aria-pressed", "true");
 
       expect(cropButton).toHaveTextContent(crop);
       fireEvent.click(cropButton);
@@ -223,14 +231,22 @@ describe("ImagePlacementButtons", () => {
     }
   });
 
-  // SUI-FEATURE-311 rev 3 AC 1: Flip is a toggle, Crop opens a dialog and carries no pressed state.
-  it("Flip carries aria-pressed with its state, Crop none", () => {
+  // SUI-FEATURE-311 rev 4 AC 1: Flip is a toggle with the package's pressed fill and a fixed label,
+  // Crop opens a dialog and carries no pressed state.
+  it("Flip carries aria-pressed and the pressed fill with one label, Crop none", async () => {
+    await i18n.changeLanguage("de");
     render(<Placement onCrop={() => {}} />);
     const flip = screen.getByTestId("image-flip");
     expect(flip).toHaveAttribute("aria-pressed", "false");
+    expect(flip).toHaveAccessibleName("Spiegeln");
+    expect(flip.className).toContain(PRESSED_FILL_CLASS);
+    expect(flip).not.toHaveAttribute("data-active");
     fireEvent.click(flip);
     expect(flip).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByTestId("image-crop")).not.toHaveAttribute("aria-pressed");
+    expect(flip).toHaveAccessibleName("Spiegeln");
+    const crop = screen.getByTestId("image-crop");
+    expect(crop).not.toHaveAttribute("aria-pressed");
+    expect(crop.className).not.toContain("pressed:bg-primary");
   });
 
   // SUI-FEATURE-311 rev 3 AC 2: each hint describes its own button only; keyboard focus opens no
@@ -264,5 +280,79 @@ describe("ImagePlacementButtons", () => {
       act(() => button.focus());
     }
     expect(screen.queryByRole("tooltip")).toBeNull();
+  });
+
+  // SUI-FEATURE-311 rev 4 AC 4: locked with a reason, both buttons stay focusable, do nothing and
+  // carry the reason as their description instead of their hint.
+  it.each([
+    ["without hints", {}],
+    ["with hints", { flipHint: "Mirrors it", cropHint: "Frames it" }],
+  ])("locked %s: aria-disabled, focusable, inert, described by the reason", (_, hints) => {
+    const onFlip = vi.fn();
+    render(
+      <Placement
+        onCrop={() => {}}
+        onFlip={onFlip}
+        disabled
+        disabledReason="The page is published"
+        {...hints}
+      />,
+    );
+    const flip = screen.getByTestId("image-flip");
+    const crop = screen.getByTestId("image-crop");
+    for (const button of [flip, crop]) {
+      expect(button).toHaveAttribute("aria-disabled", "true");
+      expect(button).not.toBeDisabled();
+      expect(button).toHaveAccessibleDescription("The page is published");
+      expect(button.tabIndex).toBe(0);
+      act(() => button.focus());
+      expect(button).toHaveFocus();
+      fireEvent.click(button);
+    }
+    expect(onFlip).not.toHaveBeenCalled();
+    expect(flip).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByTestId("crop-editor")).toBeNull();
+  });
+
+  it("disabled without disabledReason is a type error", () => {
+    const props = {
+      src: "photo.jpg",
+      flipped: false,
+      onFlippedChange: () => {},
+      crop: null,
+      onCropChange: () => {},
+    };
+    // @ts-expect-error a lock always names its reason (SUI-FEATURE-250)
+    const locked: ImagePlacementButtonsProps = { ...props, disabled: true };
+    // @ts-expect-error a reason without a lock
+    const reasonOnly: ImagePlacementButtonsProps = { ...props, disabledReason: "Published" };
+    expect([locked, reasonOnly]).toHaveLength(2);
+  });
+
+  // Review #649: with a reason, the tree stands across the lock, so a focused button keeps its focus;
+  // unlocked without a hint it still has no tooltip and no description.
+  it.each([
+    ["without hints", {}],
+    ["with hints", { flipHint: "Mirrors it", cropHint: "Frames it" }],
+  ])("toggling the lock %s keeps both buttons mounted and focused", (_, hints) => {
+    const props = { onCrop: () => {}, disabledReason: "The page is published", ...hints };
+    const { rerender } = render(<Placement {...props} disabled={false} />);
+    const flip = screen.getByTestId("image-flip");
+    const crop = screen.getByTestId("image-crop");
+    if (!("flipHint" in hints)) {
+      for (const button of [flip, crop]) expect(button).not.toHaveAttribute("aria-describedby");
+    }
+    act(() => flip.focus());
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    rerender(<Placement {...props} disabled />);
+    expect(screen.getByTestId("image-flip")).toBe(flip);
+    expect(screen.getByTestId("image-crop")).toBe(crop);
+    expect(flip).toHaveFocus();
+    expect(flip).toHaveAttribute("aria-disabled", "true");
+    expect(flip).toHaveAccessibleDescription("The page is published");
+    rerender(<Placement {...props} disabled={false} />);
+    expect(screen.getByTestId("image-flip")).toBe(flip);
+    expect(flip).toHaveFocus();
+    expect(flip).not.toHaveAttribute("aria-disabled");
   });
 });

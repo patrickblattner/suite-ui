@@ -1278,10 +1278,22 @@ const PLACEMENT_HINTS =
     ? { flipHint: "Mirrors the image left to right", cropHint: "Opens the crop editor" }
     : {};
 
+// `?placementLocked=on` (`SUI-FEATURE-311` rev 4): the placement buttons locked with a reason; the
+// default page keeps them usable, so the captures stay unchanged.
+const PLACEMENT_LOCK =
+  new URLSearchParams(window.location.search).get("placementLocked") === "on"
+    ? { disabled: true, disabledReason: "The page is published" }
+    : {};
+
+// `?placementFlipped=on` (`SUI-FEATURE-311` rev 4): the placement starts flipped, so Flip shows its
+// pressed fill without a click; with `placementLocked=on` it shows pressed and locked at once.
+const PLACEMENT_FLIPPED =
+  new URLSearchParams(window.location.search).get("placementFlipped") === "on";
+
 // `SUI-FEATURE-062`: the image placement buttons with the crop editor, the drawn image (original,
 // middle half, middle half flipped) and a cropped, flipped background whose text stays unflipped.
 function CropRow() {
-  const [flipped, setFlipped] = useState(false);
+  const [flipped, setFlipped] = useState(PLACEMENT_FLIPPED);
   const [crop, setCrop] = useState<Crop | null>(null);
   return (
     <Section id="crop" title="Crop and flip">
@@ -1298,6 +1310,7 @@ function CropRow() {
           crop={crop}
           onCropChange={setCrop}
           {...PLACEMENT_HINTS}
+          {...PLACEMENT_LOCK}
         />
       </Row>
       <Row label="CroppedImage">

@@ -11,6 +11,7 @@ import {
   resizeCrop,
   scaleCrop,
 } from "../lib/crop-geometry.js";
+import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
 import { Button } from "./button.js";
 import type { Crop } from "./cropped-image.js";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "./dialog.js";
@@ -263,17 +264,22 @@ type ImagePlacementButtonsProps = {
   onFlippedChange: (flipped: boolean) => void;
   crop: Crop | null;
   onCropChange: (crop: Crop | null) => void;
-  disabled?: boolean;
   // The app's description of each button, shown as its own `Hint` (`SUI-FEATURE-311`); without one
   // that button has no tooltip.
   flipHint?: string;
   cropHint?: string;
-};
+} &
+  // A lock always names its reason (`SUI-FEATURE-250`): locked, both buttons carry it as their
+  // description instead of their hint. The app knows the reason; the package invents none.
+  (
+    | { disabled: boolean; disabledReason: string }
+    | { disabled?: undefined; disabledReason?: undefined }
+  );
 
 // Flip and Crop for the place next to the image's change button (`GL-UI-035`), two buttons of one
-// size, never in a menu. Each is highlighted with its active text while flipped or cropped; Crop
-// opens the `CropEditor`. Flip is a toggle and carries `aria-pressed`; Crop opens a dialog, so its
-// active text alone tells its state (`SUI-FEATURE-311`).
+// size, never in a menu. Flip is a toggle: `aria-pressed` and the package's pressed fill
+// (`SUI-FEATURE-095`) tell its state, its label stays "Flip" in both. Crop opens the `CropEditor` and
+// carries no `aria-pressed`; it is highlighted with its active text while cropped (`SUI-FEATURE-311`).
 function ImagePlacementButtons({
   src,
   alt,
@@ -283,11 +289,28 @@ function ImagePlacementButtons({
   crop,
   onCropChange,
   disabled = false,
+  disabledReason,
   flipHint,
   cropHint,
 }: ImagePlacementButtonsProps) {
   const { t } = useTranslation("suite");
   const [editing, setEditing] = React.useState(false);
+  // Locked, each button carries the reason through its `Hint`, which turns `disabled` into the
+  // focusable `aria-disabled` lock (`SUI-FEATURE-250`). With a reason the `Hint` stands unlocked too
+  // (without a hint of its own it stays silent then), so toggling the lock never remounts a button.
+  const hinted = (
+    button: React.ReactElement<React.ComponentProps<typeof Button>>,
+    hint: string | undefined,
+  ) => {
+    if (disabledReason !== undefined) {
+      return (
+        <Hint text={hint ?? ""} disabledText={disabledReason}>
+          {button}
+        </Hint>
+      );
+    }
+    return hint === undefined ? button : <Hint text={hint}>{button}</Hint>;
+  };
   const active =
     "data-[active=true]:border-ring data-[active=true]:bg-accent data-[active=true]:text-accent-foreground dark:data-[active=true]:border-ring dark:data-[active=true]:bg-accent";
   const flip = (
@@ -296,14 +319,13 @@ function ImagePlacementButtons({
       variant="outline"
       size="sm"
       disabled={disabled}
-      data-active={flipped}
       aria-pressed={flipped}
-      className={active}
+      className={PRESSED_FILL_CLASS}
       onClick={() => onFlippedChange(!flipped)}
       data-testid="image-flip"
     >
       <FlipHorizontal2Icon aria-hidden="true" />
-      {t(flipped ? "flip.active" : "flip.action")}
+      {t("flip.action")}
     </Button>
   );
   const cropButton = (
@@ -323,8 +345,8 @@ function ImagePlacementButtons({
   );
   return (
     <>
-      {flipHint === undefined ? flip : <Hint text={flipHint}>{flip}</Hint>}
-      {cropHint === undefined ? cropButton : <Hint text={cropHint}>{cropButton}</Hint>}
+      {hinted(flip, flipHint)}
+      {hinted(cropButton, cropHint)}
       <CropEditor
         open={editing}
         onOpenChange={setEditing}

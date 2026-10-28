@@ -332,7 +332,6 @@ export const es: SuiteStrings = {
   },
   flip: {
     action: "Reflejar",
-    active: "Reflejado",
   },
   editor: {
     back: "Volver",
