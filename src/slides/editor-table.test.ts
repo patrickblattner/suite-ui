@@ -30,6 +30,7 @@ const table: Table = {
   rotation: 0,
   layer: 0,
   locked: false,
+  deletable: true,
   hidden: false,
   opacity: 100,
   columnWidths: [100, 200],

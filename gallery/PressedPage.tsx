@@ -68,6 +68,7 @@ const CHART: Extract<SlideElement, { type: "chart" }> = {
   rotation: 0,
   layer: 0,
   locked: false,
+  deletable: true,
   hidden: false,
   opacity: 100,
   categories: ["Q1", "Q2"],

@@ -856,6 +856,7 @@ export function groupElements(
           rotation: 0,
           layer: 0,
           locked: false,
+          deletable: true,
           hidden: false,
           opacity: 100,
           children: children.map((child) => ({ ...child, layer: 0 })),
@@ -900,6 +901,8 @@ export function ungroupElement(
         opacity: round((child.opacity * group.opacity) / 100),
         hidden: child.hidden || group.hidden,
         locked: child.locked || group.locked,
+        // A protected group's protection stays with its children (`SUI-FEATURE-194`).
+        deletable: child.deletable && group.deletable,
       },
       moved,
     );
@@ -1383,6 +1386,7 @@ export function libraryElement(
     rotation: 0,
     layer,
     locked: false,
+    deletable: true,
     hidden: false,
     opacity: 100,
   });
@@ -1655,6 +1659,29 @@ export function deleteElements(
   return withPage(document, page, (elements) => withFollowsKept(walk(elements)));
 }
 
+// The protected elements among those of `ids`, themselves or in their groups: deleting or cutting
+// them is refused whole (`SUI-FEATURE-194`).
+export function protectedElements(
+  elements: readonly SlideElement[],
+  ids: readonly string[],
+): SlideElement[] {
+  const wanted = new Set(ids);
+  const found: SlideElement[] = [];
+  const visit = (list: readonly SlideElement[], inWanted: boolean) => {
+    for (const element of list) {
+      const counted = inWanted || wanted.has(element.id);
+      if (counted && !element.deletable) found.push(element);
+      if (element.type === "group") visit(element.children, counted);
+    }
+  };
+  visit(elements, false);
+  return found;
+}
+
+export function holdsProtected(elements: readonly SlideElement[], ids: readonly string[]): boolean {
+  return protectedElements(elements, ids).length > 0;
+}
+
 // The element clipboard (`SUI-FEATURE-191`): a copy keeps a group's children, the animations, the
 // crop and the app's payload as they are; only the ids are new, made where the copy lands.
 
@@ -1673,7 +1700,8 @@ const shifted = (element: SlideElement, step: { x: number; y: number }): SlideEl
 // Copies of the elements and what is in them with ids unused in the document, `taken` growing with
 // each: every path that copies elements (duplicate, paste, a library block, a duplicated page) goes
 // through here. A shape that follows a text field follows the copy of it when it was copied along,
-// else nothing (`SUI-FEATURE-165`): never the original, nor a text of the same id elsewhere.
+// else nothing (`SUI-FEATURE-165`): never the original, nor a text of the same id elsewhere. A copy is
+// deletable: the protection belongs to the original alone (`SUI-FEATURE-194`).
 export function freshCopies(elements: readonly SlideElement[], taken: Set<string>): SlideElement[] {
   const renamed = new Map<string, string>();
   const copies = elements.map((element) =>
@@ -1683,7 +1711,7 @@ export function freshCopies(elements: readonly SlideElement[], taken: Set<string
       const id = `${one.type}-${count}`;
       taken.add(id);
       renamed.set(one.id, id);
-      return { ...one, id };
+      return { ...one, id, deletable: true };
     }),
   );
   return copies.map((copy) =>
@@ -1703,11 +1731,12 @@ export function freshCopies(elements: readonly SlideElement[], taken: Set<string
 const withoutIds = (element: SlideElement) =>
   JSON.stringify(withDescendants({ ...element, layer: 0 }, (one) => ({ ...one, id: "" })));
 
-// A copy as the clipboard holds it: never locked and free of its layout role, inside too, so a
-// layout change maps each role to the original alone (`SUI-FEATURE-191` rev 3).
+// A copy as the clipboard holds it: never locked nor protected and free of its layout role, inside
+// too, so a layout change maps each role to the original alone (`SUI-FEATURE-191` rev 3,
+// `SUI-FEATURE-194`).
 const freed = (element: SlideElement): SlideElement =>
   withDescendants(element, (one) => {
-    const free = { ...one, locked: false };
+    const free = { ...one, locked: false, deletable: true };
     delete free.placeholderRole;
     return free;
   });

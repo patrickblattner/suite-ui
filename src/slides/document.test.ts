@@ -18,6 +18,7 @@ import {
   type SlideBrandSet,
   type SlideMigration,
 } from "./index.js";
+import { eachElement } from "./render-style.js";
 
 function rejection(raw: unknown): SlideDocumentError {
   const result = safeParseSlideDocument(raw);
@@ -219,9 +220,9 @@ describe("slide document migration", () => {
     })),
   });
 
-  it("ships two steps, 1 → 2 and 2 → 3, that change no content (SUI-FEATURE-192 AC4)", () => {
-    expect(SLIDE_SCHEMA_VERSION).toBe(3);
-    expect(Object.keys(SLIDE_MIGRATIONS)).toEqual(["1", "2"]);
+  it("ships three steps, 1 → 2, 2 → 3 and 3 → 4, that change no content (SUI-FEATURE-192 AC4)", () => {
+    expect(SLIDE_SCHEMA_VERSION).toBe(4);
+    expect(Object.keys(SLIDE_MIGRATIONS)).toEqual(["1", "2", "3"]);
     expect(parseSlideDocument({ ...valid, schemaVersion: 1 })).toEqual(parseSlideDocument(valid));
   });
 
@@ -233,12 +234,65 @@ describe("slide document migration", () => {
     const shape = { id: "s", type: "shape", shape: "rectangle", x: 0, y: 0, width: 50, height: 50 };
     const page = { ...valid.pages[0]!, elements: [shape, { ...text, runs }] };
     const parsed = parseSlideDocument({ ...valid, schemaVersion: 2, pages: [page] });
-    expect(parsed.schemaVersion).toBe(3);
+    expect(parsed.schemaVersion).toBe(SLIDE_SCHEMA_VERSION);
     const [first, second] = parsed.pages[0]!.elements;
     expect(first).toMatchObject(shape);
     expect(first?.type === "shape" && first.follow).toBeUndefined();
     expect(second).toMatchObject({ ...text, runs, sizing: "fixed" });
   });
+
+  // SUI-FEATURE-194 AC5: a version-3 document loads and migrates with every element deletable, those
+  // in groups too.
+  it("migrates a version-3 document with every element deletable (SUI-FEATURE-194 AC5)", () => {
+    const text = { id: "t", type: "text", x: 10, y: 20, width: 300, height: 80, runs: [] };
+    const shape = { id: "s", type: "shape", shape: "rectangle", x: 0, y: 0, width: 50, height: 50 };
+    const group = { id: "g", type: "group", x: 0, y: 0, width: 50, height: 50, children: [shape] };
+    const page = { ...valid.pages[0]!, elements: [group, text] };
+    const parsed = parseSlideDocument({ ...valid, schemaVersion: 3, pages: [page] });
+    expect(parsed.schemaVersion).toBe(4);
+    const [first, second] = parsed.pages[0]!.elements;
+    expect(first).toMatchObject({ id: "g", deletable: true });
+    expect(first?.type === "group" && first.children[0]).toMatchObject({
+      id: "s",
+      deletable: true,
+    });
+    expect(second).toMatchObject({ id: "t", deletable: true });
+  });
+
+  // A version 3 knew no `deletable`: one written into such a document anyway, `false` or not even a
+  // boolean, is dropped, so the document loads fully deletable.
+  it.each([false, "no"])(
+    "drops a stray `deletable: %s` from a version-3 document (SUI-FEATURE-194 AC5)",
+    (stray) => {
+      const shape = (id: string) => ({
+        id,
+        type: "shape",
+        shape: "rectangle",
+        x: 0,
+        y: 0,
+        width: 50,
+        height: 50,
+        deletable: stray,
+      });
+      const group = { ...shape("g"), type: "group", children: [shape("child")] };
+      const page = { ...valid.pages[0]!, elements: [group, shape("top")] };
+      const layout = { id: "l", name: "L", elements: [shape("in-layout")] };
+      const result = safeParseSlideDocument({
+        ...valid,
+        schemaVersion: 3,
+        layouts: [layout],
+        pages: [page],
+      });
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      const flags: unknown[] = [];
+      eachElement(
+        [...result.document.pages[0]!.elements, ...result.document.layouts[0]!.elements],
+        (element) => flags.push(element.deletable),
+      );
+      expect(flags).toEqual([true, true, true, true]);
+    },
+  );
 
   it("migrates a previous version on load, content unchanged", () => {
     const current = parseSlideDocument(valid);
@@ -509,7 +563,12 @@ describe("slide document issue codes", () => {
       "unknown-version",
       "schemaVersion",
     ],
-    ["a newer version", { ...valid, schemaVersion: 4 }, "newer-version", "schemaVersion"],
+    [
+      "a newer version",
+      { ...valid, schemaVersion: SLIDE_SCHEMA_VERSION + 1 },
+      "newer-version",
+      "schemaVersion",
+    ],
     [
       "a wrong type",
       withElements([{ ...element, x: "10%" }]),
@@ -740,6 +799,28 @@ describe("slide document list caps before the walk", () => {
       message: `at most ${cap} ${key}`,
     });
   });
+
+  // The 3 → 4 migration runs before those caps: it leaves a list over its cap unwalked, so a sparse
+  // one in a version-3 document is rejected at once, not walked (SUI-FEATURE-194).
+  it.each(["pages", "layouts", "masters", "elements", "children"])(
+    "rejects a sparse %s list of 2^32 − 1 in a version-3 document at once",
+    (key) => {
+      const sparse: unknown[] = [];
+      sparse.length = 2 ** 32 - 1;
+      const page = valid.pages[0]!;
+      const group = { ...page.elements![0]!, id: "g", type: "group", children: sparse };
+      const raw =
+        key === "elements"
+          ? { ...valid, pages: [{ ...page, elements: sparse }] }
+          : key === "children"
+            ? { ...valid, pages: [{ ...page, elements: [group] }] }
+            : { ...valid, [key]: sparse };
+      const start = performance.now();
+      const error = rejection({ ...raw, schemaVersion: 3 });
+      expect(performance.now() - start).toBeLessThan(50);
+      expect(error.issues[0]?.code).toMatch(/^too-(big|many-elements)$/);
+    },
+  );
 });
 
 // Codex #299 CX1: the exported schema carries the structural preflight itself, so an app that checks

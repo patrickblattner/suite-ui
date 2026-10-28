@@ -5,6 +5,7 @@
 import type { z } from "zod";
 
 import {
+  SLIDE_LIMITS,
   SLIDE_SCHEMA_VERSION,
   slideDocumentSchema,
   type SlideDocument,
@@ -24,7 +25,52 @@ export const SLIDE_MIGRATIONS: Readonly<Record<number, SlideMigration>> = {
   // (`SUI-FEATURE-165`): an older document has none of them, its text fields are `fixed` by default,
   // so its content stays as it was.
   2: (document) => document,
+  // 3 → 4 added an element's `deletable` (`SUI-FEATURE-194`): an older document carries none, so
+  // every element is deletable; a stray one written before is dropped, in groups too.
+  3: (document) => {
+    const next = { ...document };
+    const caps = {
+      pages: SLIDE_LIMITS.maxPages,
+      layouts: SLIDE_LIMITS.maxLayouts,
+      masters: SLIDE_LIMITS.maxMasters,
+    };
+    for (const [key, cap] of Object.entries(caps)) {
+      const list = next[key];
+      if (walkable(list, cap)) next[key] = list.map(holderWithoutDeletable);
+    }
+    return next;
+  },
 };
+
+// Untrusted input: anything not shaped as expected is left as it is, for the schema to name, and so
+// is a group deeper than the schema takes (it names that too), so the walk stays bounded. A list
+// over its cap is not walked either, as `structureIssue` skips it: a sparse array can claim 2^32 − 1
+// entries.
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const walkable = (value: unknown, cap: number): value is unknown[] =>
+  Array.isArray(value) && value.length <= cap;
+
+function holderWithoutDeletable(holder: unknown): unknown {
+  if (!isRecord(holder) || !walkable(holder.elements, SLIDE_LIMITS.maxElements)) return holder;
+  return {
+    ...holder,
+    elements: holder.elements.map((element: unknown) => elementWithoutDeletable(element, 0)),
+  };
+}
+
+function elementWithoutDeletable(element: unknown, depth: number): unknown {
+  if (!isRecord(element) || depth > SLIDE_LIMITS.maxGroupDepth) return element;
+  const rest = { ...element };
+  delete rest.deletable;
+  return walkable(rest.children, SLIDE_LIMITS.maxElements)
+    ? {
+        ...rest,
+        children: rest.children.map((child: unknown) => elementWithoutDeletable(child, depth + 1)),
+      }
+    : rest;
+}
 
 export type SlideDocumentErrorCode =
   | "invalid"
