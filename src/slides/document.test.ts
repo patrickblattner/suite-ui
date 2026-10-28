@@ -18,6 +18,7 @@ import {
   type SlideBrandSet,
   type SlideMigration,
 } from "./index.js";
+import { eachElement } from "./render-style.js";
 
 function rejection(raw: unknown): SlideDocumentError {
   const result = safeParseSlideDocument(raw);
@@ -257,6 +258,41 @@ describe("slide document migration", () => {
     });
     expect(second).toMatchObject({ id: "t", deletable: true });
   });
+
+  // A version 3 knew no `deletable`: one written into such a document anyway, `false` or not even a
+  // boolean, is dropped, so the document loads fully deletable.
+  it.each([false, "no"])(
+    "drops a stray `deletable: %s` from a version-3 document (SUI-FEATURE-194 AC5)",
+    (stray) => {
+      const shape = (id: string) => ({
+        id,
+        type: "shape",
+        shape: "rectangle",
+        x: 0,
+        y: 0,
+        width: 50,
+        height: 50,
+        deletable: stray,
+      });
+      const group = { ...shape("g"), type: "group", children: [shape("child")] };
+      const page = { ...valid.pages[0]!, elements: [group, shape("top")] };
+      const layout = { id: "l", name: "L", elements: [shape("in-layout")] };
+      const result = safeParseSlideDocument({
+        ...valid,
+        schemaVersion: 3,
+        layouts: [layout],
+        pages: [page],
+      });
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      const flags: unknown[] = [];
+      eachElement(
+        [...result.document.pages[0]!.elements, ...result.document.layouts[0]!.elements],
+        (element) => flags.push(element.deletable),
+      );
+      expect(flags).toEqual([true, true, true, true]);
+    },
+  );
 
   it("migrates a previous version on load, content unchanged", () => {
     const current = parseSlideDocument(valid);

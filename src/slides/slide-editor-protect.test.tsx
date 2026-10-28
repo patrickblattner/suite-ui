@@ -6,6 +6,7 @@ import { safeParseSlideDocument } from "./document.js";
 import { FORMAT_16_9, type SlideDocument } from "./schema.js";
 import { elementClipboard } from "./element-clipboard-internal.js";
 import { SlideEditor } from "./slide-editor.js";
+import type { SlideExtensions } from "./slide-view.js";
 import { toast } from "../ui/toaster.js";
 
 beforeEach(() => {
@@ -74,7 +75,10 @@ const DOC = {
   ],
 };
 
-function renderEditor(onChange?: (document: SlideDocument) => void) {
+function renderEditor(
+  onChange?: (document: SlideDocument) => void,
+  props: Partial<React.ComponentProps<typeof SlideEditor>> = {},
+) {
   const onSave = vi.fn((saved: SlideDocument) => {
     void saved;
     return true as const;
@@ -87,6 +91,7 @@ function renderEditor(onChange?: (document: SlideDocument) => void) {
       onSave={onSave}
       onChange={onChange}
       onBack={() => {}}
+      {...props}
     />,
   );
   return onSave;
@@ -119,6 +124,9 @@ const ctrl = (key: string) => fireEvent.keyDown(canvas(), { key, ctrlKey: true }
 
 // The layers, topmost first.
 const ALL = ["pair", "loose", "kept", "free", "core"];
+// The refusals share one toast, so a repeat replaces it (`GL-UI-029`).
+const REFUSED = { id: "slide-editor-protected-refused" };
+const refusals = () => vi.spyOn(toast, "error").mockReturnValue(1);
 
 // SUI-FEATURE-194: delete protection per element.
 describe("SlideEditor delete protection", () => {
@@ -132,42 +140,72 @@ describe("SlideEditor delete protection", () => {
   });
 
   it("refuses Delete, Backspace and the floating Delete on a protected element, with a hint (AC1)", () => {
-    const warning = vi.spyOn(toast, "warning").mockReturnValue(1);
+    const error = refusals();
     renderEditor();
     select("core");
     fireEvent.keyDown(canvas(), { key: "Delete" });
     fireEvent.keyDown(canvas(), { key: "Backspace" });
     fireEvent.click(screen.getByTestId("slide-editor-action-delete"));
     expect(layerIds()).toEqual(ALL);
-    expect(warning).toHaveBeenCalledTimes(3);
-    expect(warning).toHaveBeenLastCalledWith(
-      "The selection holds a protected element, so nothing was deleted.",
+    // Three refusals, one toast: each replaces the one before.
+    expect(error.mock.calls).toEqual(
+      Array.from({ length: 3 }, () => ["core is protected, so nothing was deleted.", REFUSED]),
     );
     // The selection stays, and so does Undo's history: nothing was changed.
     expect(row("core").querySelector("[aria-pressed='true']")).not.toBeNull();
     expect(screen.getAllByTestId("editor-undo")[0]).toHaveAttribute("aria-disabled", "true");
   });
 
-  it("refuses the whole selection when one element of it is protected (AC1)", () => {
-    vi.spyOn(toast, "warning").mockReturnValue(1);
+  it("refuses the whole selection when one element of it is protected, naming it (AC1)", () => {
+    const error = refusals();
     renderEditor();
     click(350, 50);
     click(50, 50, true);
     fireEvent.keyDown(canvas(), { key: "Delete" });
     expect(layerIds()).toEqual(ALL);
+    expect(error).toHaveBeenLastCalledWith(
+      "core is protected, so nothing was deleted. Deselect it to delete the rest.",
+      REFUSED,
+    );
+    // With several protected elements none is named.
+    click(650, 350, true);
+    fireEvent.keyDown(canvas(), { key: "Delete" });
+    expect(layerIds()).toEqual(ALL);
+    expect(error).toHaveBeenLastCalledWith(
+      "The selection contains protected elements, so nothing was deleted.",
+      REFUSED,
+    );
+  });
+
+  it("says why a locked protected element stays, by key and by the floating Delete (AC1)", () => {
+    const error = refusals();
+    renderEditor();
+    fireEvent.click(within(row("core")).getByTestId("slide-editor-layer-lock"));
+    select("core");
+    fireEvent.keyDown(canvas(), { key: "Delete" });
+    // The floating actions offer only Delete for it.
+    const actions = screen.getByTestId("slide-editor-actions");
+    expect(within(actions).getAllByRole("button")).toHaveLength(1);
+    fireEvent.click(within(actions).getByTestId("slide-editor-action-delete"));
+    expect(layerIds()).toEqual(ALL);
+    expect(error.mock.calls).toEqual(
+      Array.from({ length: 2 }, () => ["core is protected, so nothing was deleted.", REFUSED]),
+    );
   });
 
   it("refuses cutting a protected element with the keys and the menu; copying stays (AC1)", async () => {
-    const warning = vi.spyOn(toast, "warning").mockReturnValue(1);
+    const error = refusals();
     const onSave = renderEditor();
     select("core");
     ctrl("x");
     fireEvent.contextMenu(canvas(), at(50, 50));
     fireEvent.click(screen.getByTestId("slide-editor-menu-cut"));
     expect(layerIds()).toEqual(ALL);
-    expect(warning).toHaveBeenCalledTimes(2);
-    expect(warning).toHaveBeenLastCalledWith(
-      "The selection holds a protected element, so nothing was cut. Copying still works.",
+    expect(error.mock.calls).toEqual(
+      Array.from({ length: 2 }, () => [
+        "core is protected, so nothing was cut. Copying still works.",
+        REFUSED,
+      ]),
     );
     // Nothing went to the clipboard with the refused cut.
     expect(elementClipboard.elements).toEqual([]);
@@ -180,11 +218,12 @@ describe("SlideEditor delete protection", () => {
   });
 
   it("refuses deleting a group with a protected child (AC2)", () => {
-    vi.spyOn(toast, "warning").mockReturnValue(1);
+    const error = refusals();
     renderEditor();
     select("pair");
     fireEvent.keyDown(canvas(), { key: "Delete" });
     expect(layerIds()).toEqual(ALL);
+    expect(error).toHaveBeenLastCalledWith("kept is protected, so nothing was deleted.", REFUSED);
     // An unprotected element still deletes.
     select("free");
     fireEvent.keyDown(canvas(), { key: "Delete" });
@@ -192,15 +231,16 @@ describe("SlideEditor delete protection", () => {
   });
 
   it("refuses deleting a page with a protected element before asking (AC2)", async () => {
-    const warning = vi.spyOn(toast, "warning").mockReturnValue(1);
+    const error = refusals();
     renderEditor();
     fireEvent.click(screen.getByTestId("drawer-document"));
     const rows = () => screen.getAllByTestId("slide-editor-page-row");
     fireEvent.click(within(rows()[0]!).getByTestId("slide-editor-page-delete"));
     expect(screen.queryByTestId("slide-editor-page-delete-dialog")).toBeNull();
     expect(rows()).toHaveLength(2);
-    expect(warning).toHaveBeenCalledWith(
-      "Page 1 holds a protected element, so it can’t be deleted.",
+    expect(error).toHaveBeenCalledWith(
+      "Page 1 contains a protected element, so it can’t be deleted.",
+      REFUSED,
     );
     // A page without one asks and deletes.
     fireEvent.click(within(rows()[1]!).getByTestId("slide-editor-page-delete"));
@@ -209,7 +249,7 @@ describe("SlideEditor delete protection", () => {
   });
 
   it("duplicates a protected element as a deletable copy; the original stays protected (AC3)", () => {
-    vi.spyOn(toast, "warning").mockReturnValue(1);
+    refusals();
     renderEditor();
     select("core");
     ctrl("d");
@@ -289,10 +329,52 @@ describe("SlideEditor onChange", () => {
 
   it("reports nothing for the view's state: the page shown, the grid, the zoom", () => {
     const onChange = vi.fn();
-    renderEditor(onChange);
+    renderEditor(onChange, { document: { ...DOC, grid: { kind: "step", step: 40 } } });
     fireEvent.click(screen.getByTestId("drawer-document"));
     fireEvent.click(screen.getByTestId("slide-editor-next-page"));
     fireEvent.click(screen.getByTestId("slide-editor-previous-page"));
+    const grid = screen.getByTestId("grid-toggle-button");
+    fireEvent.click(grid);
+    expect(grid).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(grid);
+    fireEvent.click(screen.getByTestId("canvas-zoom-actual"));
+    expect(screen.getByTestId("canvas-zoom-actual")).toHaveAttribute("aria-checked", "true");
+    fireEvent.click(screen.getByTestId("canvas-zoom-fit"));
     expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("reports an extension's change of its element once", () => {
+    const onChange = vi.fn();
+    const extensions: SlideExtensions = {
+      types: {
+        "test.note": {
+          label: "Note",
+          render: () => <span>Note</span>,
+          defaultSize: { width: 200, height: 80 },
+          fields: ({ value, onChange: change }) => (
+            <button
+              type="button"
+              data-testid="note-mark"
+              onClick={() => change({ ...value, marked: true })}
+            >
+              Mark
+            </button>
+          ),
+        },
+      },
+    };
+    const note = { id: "note", name: "note", type: "custom" as const, typeId: "test.note" };
+    renderEditor(onChange, {
+      extensions,
+      document: {
+        ...DOC,
+        pages: [{ id: "one", background, elements: [{ ...shape("x", 0, 0), ...note }] }],
+      },
+    });
+    select("note");
+    fireEvent.click(screen.getByTestId("note-mark"));
+    expect(onChange).toHaveBeenCalledTimes(1);
+    const [changed] = onChange.mock.lastCall as [SlideDocument];
+    expect(changed.pages[0]!.elements[0]!.payload).toEqual({ marked: true });
   });
 });

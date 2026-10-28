@@ -70,6 +70,7 @@ import {
   groupSizeRange,
   holdsProtected,
   insertElement,
+  protectedElements,
   intoGroups,
   type LayerMove,
   type LibraryEntry,
@@ -262,6 +263,8 @@ const FIELD_RANGE = 2 * SLIDE_LIMITS.maxFormatSide;
 const INSERT_REFUSED_TOAST = "slide-editor-insert-refused";
 // The one error toast of text refused at input: a repeated key replaces it.
 const TEXT_REFUSED_TOAST = "slide-editor-text-refused";
+// The one error toast of a delete or cut refused for a protected element (`SUI-FEATURE-194`).
+const PROTECTED_REFUSED_TOAST = "slide-editor-protected-refused";
 // The element clipboard's keys (`SUI-FEATURE-191`), on the canvas and named in its menu.
 const CUT_SHORTCUT = ["Ctrl+X", "Meta+X"] as const;
 const COPY_SHORTCUT = ["Ctrl+C", "Meta+C"] as const;
@@ -856,8 +859,9 @@ function Editor({
   const { t, i18n } = useTranslation("suite");
   const history: SlideHistory = useSlideHistory(initial);
   // `onChange` (`SUI-FEATURE-194`): each step is reported once it is made; a run of typing under a
-  // `merge` key once the focus leaves its field or a press ends, counted by `settled`. What the view
-  // measured (`amend`) is no step of its own.
+  // `merge` key once the focus leaves its field, a press ends or a click lands (the click that makes
+  // the change too, so a button or switch of an extension reports at once), counted by `settled`.
+  // What the view measured (`amend`) is no step of its own.
   const [settled, setSettled] = React.useState(0);
   const reported = React.useRef({ step: history.step, document: history.document, settled });
   const onChangeRef = React.useRef(onChange);
@@ -872,13 +876,14 @@ function Editor({
     }
     if (history.merging && settled === last.settled) return;
     reported.current = { step: history.step, document: history.document, settled };
-    // A run typed and taken back is the document reported before.
-    if (history.document === last.document) return;
+    // A run typed and taken back is the document reported before; without `onChange` nothing is
+    // checked.
+    if (history.document === last.document || onChangeRef.current === undefined) return;
     const result = safeParseSlideDocument(history.document);
     if (result.ok) onChangeRef.current?.(result.document);
   }, [history.step, history.merging, history.document, settled]);
   const settle = () => {
-    if (history.merging && onChange !== undefined) setSettled((count) => count + 1);
+    if (onChange !== undefined) setSettled((count) => count + 1);
   };
   // The app's layouts and masters that pass the schema (`SUI-FEATURE-192`); any other is left out.
   const appLayouts = React.useMemo(() => validLayouts(layoutsProp), [layoutsProp]);
@@ -1495,6 +1500,8 @@ function Editor({
   });
   const single = selected.length === 1 ? selected[0] : undefined;
   const editable = selected.filter((element) => !element.locked);
+  // A selection holding a protected element takes Delete even when locked, to say why it stays.
+  const guarded = holdsProtected(elements, selection);
   // Unnamed, an app type goes by its label (`SUI-FEATURE-163`), a built-in one by its type's name.
   const types = view.extensions?.types;
   const nameOf = (element: SlideElement) =>
@@ -1659,22 +1666,29 @@ function Editor({
         });
   // A choice holding a protected element, in a group too, is neither deleted nor cut: nothing
   // changes and a hint says why (`SUI-FEATURE-194`, `GL-UI-029`).
-  const refusedAsProtected = (list: readonly SlideElement[], hint: string) => {
-    if (
-      !holdsProtected(
-        elements,
-        list.map((element) => element.id),
-      )
-    ) {
-      return false;
-    }
-    toast.warning(t(hint));
+  // One protected element is named; when it is chosen beside others, the hint says to deselect it.
+  const refusedAsProtected = (list: readonly SlideElement[], action: "delete" | "cut") => {
+    const found = protectedElements(
+      elements,
+      list.map((element) => element.id),
+    );
+    const [one] = found;
+    if (one === undefined) return false;
+    const hint =
+      found.length > 1
+        ? `slides.editor.${action}Protected`
+        : list.length > 1 && list.some((element) => element.id === one.id)
+          ? `slides.editor.${action}ProtectedRest`
+          : `slides.editor.${action}ProtectedOne`;
+    toast.error(t(hint, { name: nameOf(one), interpolation: { escapeValue: false } }), {
+      id: PROTECTED_REFUSED_TOAST,
+    });
     return true;
   };
   // `false` when refused, so a held command keeps its choice selected.
   const removeSelected = (of?: readonly string[]) => {
     const list = chosen(of);
-    if (refusedAsProtected(list, "slides.editor.deleteProtected")) return false;
+    if (refusedAsProtected(list, "delete")) return false;
     const ids = list.flatMap((element) => (element.locked ? [] : [element.id]));
     if (ids.length === 0) return true;
     apply((current) => deleteElements(current, page, ids));
@@ -1703,7 +1717,7 @@ function Editor({
     );
   };
   const cutSelection = (of?: readonly string[]) => {
-    if (refusedAsProtected(chosen(of), "slides.editor.cutProtected")) return false;
+    if (refusedAsProtected(chosen(of), "cut")) return false;
     copySelection(of);
     return removeSelected(of);
   };
@@ -2632,7 +2646,10 @@ function Editor({
     }
     // Behind a paste that waits, the keys may be meant for what it pastes, nothing selected yet.
     const queued = pastePending.current || held.current.length > 0;
-    if ((event.key === "Delete" || event.key === "Backspace") && (editable.length > 0 || queued)) {
+    if (
+      (event.key === "Delete" || event.key === "Backspace") &&
+      (editable.length > 0 || guarded || queued)
+    ) {
       event.preventDefault();
       removeKey();
       return;
@@ -3468,16 +3485,17 @@ function Editor({
     </div>
   );
 
-  // The selection's actions floating at it (`GL-UI-040` §5): grouping, then the layer steps.
+  // The selection's actions floating at it (`GL-UI-040` §5): grouping, then the layer steps. A
+  // locked selection holding a protected element gets only Delete, which says why it stays.
   const actions =
-    selected.length === 0 || editable.length === 0 ? undefined : (
+    selected.length === 0 || (editable.length === 0 && !guarded) ? undefined : (
       <div
         className="flex items-center gap-1"
         data-tooltip-row=""
         data-testid="slide-editor-actions"
       >
-        {groupButton("action-")}
-        {single === undefined
+        {editable.length === 0 ? null : groupButton("action-")}
+        {single === undefined || editable.length === 0
           ? null
           : iconButton(
               t("slides.editor.forward"),
@@ -3485,7 +3503,7 @@ function Editor({
               () => layer("forward"),
               "action-forward",
             )}
-        {single === undefined
+        {single === undefined || editable.length === 0
           ? null
           : iconButton(
               t("slides.editor.backward"),
@@ -3551,7 +3569,7 @@ function Editor({
                 interpolation: { escapeValue: false },
               })}
               tabIndex={0}
-              className="relative inline-flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none focus-visible:focus-ring [&_svg]:size-4"
+              className="relative inline-flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none focus-visible:focus-ring [&_svg]:size-3"
               data-testid="slide-editor-layer-protected"
             >
               <LockKeyholeIcon aria-hidden="true" />
@@ -3688,6 +3706,7 @@ function Editor({
       data-slide-page={pageData?.id}
       onBlur={settle}
       onPointerUp={settle}
+      onClick={settle}
     >
       <div ref={headerRef} className="shrink-0">
         <EditorHeader
@@ -3822,7 +3841,9 @@ function Editor({
                       ) {
                         return false;
                       }
-                      toast.warning(t("slides.editor.deletePageProtected", { n: index + 1 }));
+                      toast.error(t("slides.editor.deletePageProtected", { n: index + 1 }), {
+                        id: PROTECTED_REFUSED_TOAST,
+                      });
                       return true;
                     }}
                     onDelete={(index) => {

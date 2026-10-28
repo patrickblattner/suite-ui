@@ -5,6 +5,7 @@
 import type { z } from "zod";
 
 import {
+  SLIDE_LIMITS,
   SLIDE_SCHEMA_VERSION,
   slideDocumentSchema,
   type SlideDocument,
@@ -24,10 +25,42 @@ export const SLIDE_MIGRATIONS: Readonly<Record<number, SlideMigration>> = {
   // (`SUI-FEATURE-165`): an older document has none of them, its text fields are `fixed` by default,
   // so its content stays as it was.
   2: (document) => document,
-  // 3 → 4 added an element's `deletable` (`SUI-FEATURE-194`): an older document has none, so every
-  // element is deletable by default.
-  3: (document) => document,
+  // 3 → 4 added an element's `deletable` (`SUI-FEATURE-194`): an older document carries none, so
+  // every element is deletable; a stray one written before is dropped, in groups too.
+  3: (document) => {
+    const next = { ...document };
+    for (const key of ["pages", "layouts", "masters"] as const) {
+      const list = next[key];
+      if (Array.isArray(list)) next[key] = list.map(holderWithoutDeletable);
+    }
+    return next;
+  },
 };
+
+// Untrusted input: anything not shaped as expected is left as it is, for the schema to name, and so
+// is a group deeper than the schema takes (it names that too), so the walk stays bounded.
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+function holderWithoutDeletable(holder: unknown): unknown {
+  if (!isRecord(holder) || !Array.isArray(holder.elements)) return holder;
+  return {
+    ...holder,
+    elements: holder.elements.map((element: unknown) => elementWithoutDeletable(element, 0)),
+  };
+}
+
+function elementWithoutDeletable(element: unknown, depth: number): unknown {
+  if (!isRecord(element) || depth > SLIDE_LIMITS.maxGroupDepth) return element;
+  const rest = { ...element };
+  delete rest.deletable;
+  return Array.isArray(rest.children)
+    ? {
+        ...rest,
+        children: rest.children.map((child: unknown) => elementWithoutDeletable(child, depth + 1)),
+      }
+    : rest;
+}
 
 export type SlideDocumentErrorCode =
   | "invalid"

@@ -1659,20 +1659,27 @@ export function deleteElements(
   return withPage(document, page, (elements) => withFollowsKept(walk(elements)));
 }
 
-// Whether the elements of `ids` hold a protected one, themselves or in their groups: deleting or
-// cutting them is refused whole (`SUI-FEATURE-194`).
-export function holdsProtected(elements: readonly SlideElement[], ids: readonly string[]): boolean {
+// The protected elements among those of `ids`, themselves or in their groups: deleting or cutting
+// them is refused whole (`SUI-FEATURE-194`).
+export function protectedElements(
+  elements: readonly SlideElement[],
+  ids: readonly string[],
+): SlideElement[] {
   const wanted = new Set(ids);
-  let found = false;
+  const found: SlideElement[] = [];
   const visit = (list: readonly SlideElement[], inWanted: boolean) => {
     for (const element of list) {
       const counted = inWanted || wanted.has(element.id);
-      if (counted && !element.deletable) found = true;
+      if (counted && !element.deletable) found.push(element);
       if (element.type === "group") visit(element.children, counted);
     }
   };
   visit(elements, false);
   return found;
+}
+
+export function holdsProtected(elements: readonly SlideElement[], ids: readonly string[]): boolean {
+  return protectedElements(elements, ids).length > 0;
 }
 
 // The element clipboard (`SUI-FEATURE-191`): a copy keeps a group's children, the animations, the
