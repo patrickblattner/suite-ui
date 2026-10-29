@@ -728,3 +728,6 @@
 {"ts":"2026-10-28T18:19:48.883Z","key":"PROC-REL-006","from":2,"to":3,"disposition":"editorial","ref":"rev 3 adds Node/image detectors for exposed repos in stage-infra; suite-ui is internal; no code impact"}
 {"ts":"2026-10-28T20:42:39.034Z","key":"SUI-FEATURE-253","from":2,"to":3,"disposition":"ticket","ref":"654"}
 {"ts":"2026-10-28T23:34:58.470Z","key":"SUI-FEATURE-117","from":3,"to":4,"disposition":"ticket","ref":"653"}
+{"ts":"2026-10-29T00:47:11.985Z","key":"SUI-FEATURE-151","from":null,"to":2,"disposition":"ticket","ref":"659"}
+{"ts":"2026-10-29T00:47:12.337Z","key":"SUI-FEATURE-195","from":2,"to":3,"disposition":"ticket","ref":"660"}
+{"ts":"2026-10-29T00:47:12.694Z","key":"PROC-REL-006","from":3,"to":4,"disposition":"editorial","ref":"rev 4: Renovate self-hosted for exposed repos; suite-ui is internal, no code impact"}
