@@ -12,11 +12,13 @@ const UP_LOCKED_ATTR = "data-reorder-up-locked";
 const DOWN_LOCKED_ATTR = "data-reorder-down-locked";
 
 // The drop line at the target row, drawn on its cells so the row's own background stays; the carried
-// row is shaded while it travels. The line joins the actions column's edge shadow (`GL-UI-023`), which
-// it would otherwise replace; stuck, that column's opaque ground covers the cell's own shadow, so there
-// the line lies on the `::after` above it as well.
+// row wears one 2 px `ring` outline around the whole row while it travels, never per-cell borders
+// (`SUI-FEATURE-360`, `GL-UI-023`), in place of its hover tint (`ROW_CLASS`). The line joins the
+// actions column's edge shadow (`GL-UI-023`), which it would otherwise replace; stuck, that column's
+// opaque ground covers the cell's own shadow and the row's outline, so there the line and the ring's
+// top, right and bottom edges lie on the `::after` above it as well.
 const BODY_CLASS =
-  "[&>tr:has([data-drop=before])>td]:[--drop-line:inset_0_2px_0_0_var(--primary)] [&>tr:has([data-drop=after])>td]:[--drop-line:inset_0_-2px_0_0_var(--primary)] [&>tr:has([data-drop])>td]:shadow-[var(--drop-line),var(--actions-edge,0_0_#0000)] [[data-actions-stuck]_&>tr:has([data-drop])>td[data-col-kind=actions]]:after:shadow-[var(--drop-line)] [&>tr:has([data-carried])]:bg-muted/50";
+  "[&>tr:has([data-drop=before])>td]:[--drop-line:inset_0_2px_0_0_var(--primary)] [&>tr:has([data-drop=after])>td]:[--drop-line:inset_0_-2px_0_0_var(--primary)] [&>tr:has([data-drop])>td]:shadow-[var(--drop-line),var(--actions-edge,0_0_#0000)] [[data-actions-stuck]_&>tr:has([data-drop])>td[data-col-kind=actions]]:after:shadow-[var(--drop-line),var(--carry-ring,0_0_#0000)] [&>tr:has([data-carried])>td[data-col-kind=actions]]:[--carry-ring:inset_0_2px_0_0_var(--ring),inset_0_-2px_0_0_var(--ring),inset_-2px_0_0_0_var(--ring)] [[data-actions-stuck]_&>tr:has([data-carried])>td[data-col-kind=actions]]:after:shadow-[var(--drop-line,0_0_#0000),var(--carry-ring)] [&>tr:has([data-carried])]:outline-2 [&>tr:has([data-carried])]:outline-solid [&>tr:has([data-carried])]:-outline-offset-2 [&>tr:has([data-carried])]:outline-ring";
 
 type ReorderRow = {
   row: HTMLTableRowElement;

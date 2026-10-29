@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — #684, SUI-FEATURE-360 rev 2: a carried reorder row wears a ring around the whole row (minor)
+
+- **Changed look (#684):** a row carried by its `ReorderCell` (keyboard pick-up or pointer drag) no longer takes the hover tint; it wears one 2 px outline on the `ring` token around the whole row (≥ 3:1 on the surface, light and dark), never per-cell borders (`GL-UI-023`). `TableRow` suppresses its hover tint on a row that holds a carried cell (`data-[grid-row]:not-has-data-carried:hover:bg-muted/50`); another hovered row, selection and expansion keep their looks. A drop or `Esc` takes the outline away. Under a stuck actions column, whose opaque ground covers the outline, the ring's top, right and bottom edges lie on that cell's `::after`, beside a drop line there.
+- **Gallery (#684):** `reorder-carry-de-light.png` updated, new `reorder-carry-de-dark.png` and `reorder-carry-wide-de-{light,dark}.png`.
+- **Tests (#684):** gallery, light and dark: the carried row's computed outline is 2 px solid in the `ring` colour, ≥ 3:1 on `background`, no cell has a border (AC 1); hovered, the carried row has no tint while another hovered row has `bg-muted/50` (AC 2); after `Esc` and after a drop the outline is `none` (AC 3). With `?wide=1` the stuck actions cell's top, bottom and right edge pixels match the ring pixel over the name cell and differ from its ground (AC 1). Unit: the `TableRow` class literal in `table.test.tsx` and `table.dist.test.ts`.
+
 ## 0.186.1 — #686: spec-sync-toolkit v0.33.2 (patch)
 
 - **Toolkit pin (#686):** the `spec-sync-toolkit` devDependency moves from v0.33.1 to v0.33.2 (norm pin PROC-DEV-039 rev 4); no behaviour change.

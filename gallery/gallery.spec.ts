@@ -7276,6 +7276,110 @@ test("reorder: ↓, a drag and the keyboard move the row alike", async ({ page }
   await expect(page.locator("[data-drop]")).toHaveCount(0);
 });
 
+// SUI-FEATURE-360 AC 1–4: a carried row wears one 2 px `ring` outline around the whole row, ≥ 3:1 on
+// the surface, no border on any cell; it shows no hover tint while another hovered row keeps its own;
+// a drop or Esc takes the outline away. Light is `reorder-carry-de-light.png` above.
+for (const theme of THEMES) {
+  test(`reorder: the carried row wears one ring around the row (${theme})`, async ({ page }) => {
+    await page.goto(`/?page=reorder&lng=de&theme=${theme}`);
+    const ring = await utilityColor(page, "bg-ring", "backgroundColor");
+    const surface = await utilityColor(page, "bg-background", "backgroundColor");
+    const tint = await utilityColor(page, "bg-muted/50", "backgroundColor");
+    const rows = page.getByTestId("reorder-row");
+    const carried = rows.first();
+    const outline = () =>
+      carried.evaluate((row) => {
+        const { outlineStyle, outlineWidth, outlineColor } = getComputedStyle(row);
+        return { outlineStyle, outlineWidth, outlineColor };
+      });
+    const background = (row: Locator) =>
+      row.evaluate((element) => getComputedStyle(element).backgroundColor);
+
+    const grip = page.getByTestId("reorder-entry-1-grip");
+    await grip.focus();
+    await page.keyboard.press("Space");
+    expect(await outline()).toEqual({
+      outlineStyle: "solid",
+      outlineWidth: "2px",
+      outlineColor: ring,
+    });
+    expect(await contrastOf(page, ring, surface)).toBeGreaterThanOrEqual(3);
+    const cellBorders = await carried.getByRole("gridcell").evaluateAll((cells) =>
+      cells.flatMap((cell) => {
+        const style = getComputedStyle(cell);
+        return [
+          style.borderTopWidth,
+          style.borderRightWidth,
+          style.borderBottomWidth,
+          style.borderLeftWidth,
+        ];
+      }),
+    );
+    expect(new Set(cellBorders)).toEqual(new Set(["0px"]));
+
+    await carried.getByRole("gridcell").nth(1).hover();
+    await expect.poll(() => background(carried)).toBe("rgba(0, 0, 0, 0)");
+    await rows.nth(1).getByRole("gridcell").nth(1).hover();
+    await expect.poll(() => background(rows.nth(1))).toBe(tint);
+
+    await page.keyboard.press("ArrowDown");
+    await expect(grip).toBeFocused();
+    if (theme === "dark") {
+      await parkPointer(page);
+      await expect(page.getByTestId("data-table-scroll")).toHaveScreenshot(
+        "reorder-carry-de-dark.png",
+      );
+    }
+
+    await page.keyboard.press("Escape");
+    await expect.poll(async () => (await outline()).outlineStyle).toBe("none");
+    await page.keyboard.press("Space");
+    await expect.poll(async () => (await outline()).outlineStyle).toBe("solid");
+    await page.keyboard.press("Space");
+    await expect(page.locator("[data-carried]")).toHaveCount(0);
+    await expect.poll(async () => (await outline()).outlineStyle).toBe("none");
+  });
+}
+
+// SUI-FEATURE-360 AC 1 under the stuck actions column (`GL-UI-023`): its opaque ground covers the
+// row's outline, so the ring's top, right and bottom edges lie on its `::after`. Their pixels match the
+// outline's over the name cell, and differ from the ground; the drop line on the target row stays.
+for (const theme of THEMES) {
+  test(`reorder: the carried ring runs on under the stuck actions column (${theme})`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 900, height: 800 });
+    await page.goto(`/?page=reorder&wide=1&lng=de&theme=${theme}`);
+    const scroller = page.getByTestId("data-table-scroll");
+    await expect(scroller).toHaveAttribute("data-actions-stuck", "");
+    await page.getByTestId("reorder-entry-1-grip").focus();
+    await page.keyboard.press("Space");
+    await page.keyboard.press("ArrowDown");
+    await expect(page.getByTestId("reorder-entry-2")).toHaveAttribute("data-drop", "after");
+    const carried = page.getByTestId("reorder-row").first();
+    const name = (await carried.getByRole("gridcell").nth(1).boundingBox())!;
+    const actions = (await carried.locator("td[data-col-kind=actions]").boundingBox())!;
+    const ringPixel = await pixelAt(page, name.x + name.width / 2, name.y);
+    const ground = await pixelAt(page, actions.x + actions.width / 2, actions.y + 3);
+    expect(ringPixel).not.toEqual(ground);
+    const edges = {
+      top: await pixelAt(page, actions.x + actions.width / 2, actions.y),
+      bottom: await pixelAt(page, actions.x + actions.width / 2, actions.y + actions.height - 1),
+      right: await pixelAt(page, actions.x + actions.width - 1, actions.y + actions.height / 2),
+    };
+    expect(edges).toEqual({ top: ringPixel, bottom: ringPixel, right: ringPixel });
+    const dropLine = await page
+      .getByTestId("reorder-row")
+      .nth(1)
+      .locator("td[data-col-kind=actions]")
+      .evaluate((cell) => getComputedStyle(cell, "::after").boxShadow);
+    expect(dropLine).toMatch(/0px -2px 0px 0px inset/);
+    await parkPointer(page);
+    await expect(scroller).toHaveScreenshot(`reorder-carry-wide-de-${theme}.png`);
+    await page.keyboard.press("Escape");
+  });
+}
+
 // SUI-FEATURE-340 AC 7, AC 5: a click on grip, ↑ or ↓ leaves the selected row; the first row of a
 // later page keeps ↑ and moves across the page boundary.
 test("reorder: the controls never select the row; ↑ crosses the page", async ({ page }) => {

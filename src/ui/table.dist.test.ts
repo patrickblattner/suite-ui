@@ -29,7 +29,7 @@ describe("Table class strings", () => {
   const forms = [
     "relative w-full",
     `${STICKY_HEADER} [&_tr]:border-b`,
-    "border-b transition-colors data-[grid-row]:hover:bg-muted/50 has-aria-expanded:bg-muted/50 data-[state=selected]:bg-muted",
+    "border-b transition-colors data-[grid-row]:not-has-data-carried:hover:bg-muted/50 has-aria-expanded:bg-muted/50 data-[state=selected]:bg-muted",
     `${BASE.head} ${STICKY_HEAD_ACTIONS}`,
     `${BASE.cell} ${STICKY_CELL_ACTIONS}`,
   ];

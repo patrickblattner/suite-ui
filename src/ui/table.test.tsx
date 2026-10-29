@@ -77,7 +77,7 @@ describe("Table", () => {
     renderTable();
     for (const id of ["plain-row", "target-row"]) {
       expect(classOf(id)).not.toMatch(/(^| )hover:bg-/);
-      expect(classOf(id)).toContain("data-[grid-row]:hover:bg-muted/50");
+      expect(classOf(id)).toContain("data-[grid-row]:not-has-data-carried:hover:bg-muted/50");
       expect(classOf(id)).toContain("has-aria-expanded:bg-muted/50");
       expect(classOf(id)).toContain("data-[state=selected]:bg-muted");
     }
@@ -115,7 +115,9 @@ describe("Table", () => {
       "[scrollbar-gutter:stable]",
     );
     expect(classOf("rows-header")).toContain(STICKY_HEADER);
-    expect(classOf("shell-row")).toContain("data-[grid-row]:hover:bg-muted/50");
+    expect(classOf("shell-row")).toContain(
+      "data-[grid-row]:not-has-data-carried:hover:bg-muted/50",
+    );
     expect(classOf("shell-actions")).toContain(STICKY_HEAD_ACTIONS);
   });
 });

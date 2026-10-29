@@ -15,9 +15,10 @@ const HEADER_CLASS =
   "sticky top-0 z-10 bg-background [--surface:var(--background)] shadow-[inset_0_-1px_0_0_var(--border)] [&_tr]:border-b";
 
 // Only a row with an open target (`data-grid-row`) promises a click and highlights on hover
-// (`GL-UI-023`); selection and expansion stay.
+// (`GL-UI-023`); selection and expansion stay. A row carried by its `ReorderCell` wears its ring
+// instead of the tint (`SUI-FEATURE-360`).
 const ROW_CLASS =
-  "border-b transition-colors data-[grid-row]:hover:bg-muted/50 has-aria-expanded:bg-muted/50 data-[state=selected]:bg-muted";
+  "border-b transition-colors data-[grid-row]:not-has-data-carried:hover:bg-muted/50 has-aria-expanded:bg-muted/50 data-[state=selected]:bg-muted";
 
 // The marked actions column sticks to the scroller's right edge only while the body overflows
 // sideways (`data-actions-stuck`, set by `DataTableShell`; never beside a preview), opaque over the
