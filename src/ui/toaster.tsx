@@ -458,14 +458,27 @@ function promiseToast<T>(promise: PromiseArgs<T>[0], data?: PromiseArgs<T>[1]) {
       // sonner (2.0.8) reads `success` only once the promise settles, so clearing it here keeps sonner
       // from raising a result over the element.
       options.success = undefined;
-      raiseNow(sonnerToast, undefined, value, { id }, true);
+      // Still held at the call's hold: `show` raises it, so a dismiss drops both (#663). Shown or
+      // never held: held while a confirm dialog works, as every route (`SUI-FEATURE-101` rev 9).
+      if (!heldAtCall || released) raise(sonnerToast, undefined, value, { id });
       return routed;
     },
   );
   promiseIds += 1;
   const id = rest.id ?? `suite-promise-${String(promiseIds)}`;
+  // Decided once: a dialog opening or closing mid-flight must not run the caller's `finally` twice
+  // or not at all (#663).
+  const heldAtCall = toastsHeld();
+  // The call's hold has released it, and how its promise came out if known by then (#663).
+  let released = false;
+  let outcome: { value: T } | { reason: unknown } | undefined;
   let settledOut: Promise<void> | undefined;
   let unwrapped = false;
+  const settle = () => {
+    settledOut = Promise.resolve(settled?.());
+    // `unwrap()` called before this takes the rejection; otherwise the rejection stays unhandled.
+    if (unwrapped) settledOut.catch(() => undefined);
+  };
   let pending: (() => void) | undefined;
   // The call's description function's result, once a result has called it (#642).
   let described: Promise<React.ReactNode> | undefined;
@@ -540,34 +553,57 @@ function promiseToast<T>(promise: PromiseArgs<T>[0], data?: PromiseArgs<T>[1]) {
     finally: () => {
       if (element !== undefined && marks.has(id))
         raiseNow(sonnerToast, undefined, element, { id }, true);
-      settledOut = Promise.resolve(settled?.());
-      // `unwrap()` called before this takes the rejection; otherwise the rejection stays unhandled.
-      if (unwrapped) settledOut.catch(() => undefined);
+      if (!heldAtCall) settle();
     },
   };
-  // Held as a whole while a confirm dialog is open (`SUI-FEATURE-101` rev 9): its loading state shows
-  // once the dialog has closed, its result after it.
+  // Held as a whole while a confirm dialog is open (`SUI-FEATURE-101` rev 9): once the dialog has
+  // closed, its loading state shows if the promise is still pending, its result after it. Only the rendering is held: the caller's
+  // `finally` and `unwrap()` follow the promise, so a confirm handler that awaits `unwrap()` before
+  // it closes the dialog ends, and a held toast that is dismissed still settles (#663).
   type Shown = ReturnType<typeof sonnerToast.promise<T>>;
   let shownId: Shown | undefined;
   // sonner's own unwrap, taken before the returned value gets the wrapper's.
   let shownUnwrap: Shown["unwrap"] | undefined;
-  let onShown: (unwrap: Shown["unwrap"]) => void = () => undefined;
-  const shown = new Promise<Shown["unwrap"]>((resolve) => {
-    onShown = resolve;
-  });
+  // Released with its outcome known, it shows only its result, without a loading state before it
+  // (#663); an element result shows by its id.
   const show = () => {
-    shownId = sonnerToast.promise(watched, options);
+    released = true;
+    if (outcome !== undefined && element !== undefined) {
+      raiseNow(sonnerToast, undefined, element, { id }, true);
+      return;
+    }
+    shownId = sonnerToast.promise(
+      watched,
+      outcome === undefined ? options : { ...options, loading: undefined },
+    );
     shownUnwrap = shownId.unwrap;
-    loadingState?.shown(id);
-    onShown(shownUnwrap);
+    if (outcome === undefined) loadingState?.shown(id);
   };
-  if (toastsHeld()) {
-    // A rejection while held reaches sonner once it shows: until then it counts as handled.
-    watched.catch(() => undefined);
+  let sonnerUnwrap: () => Promise<T>;
+  if (heldAtCall) {
+    // Takes the promise's rejection while held, so it counts as handled; a caller's `finally` that
+    // throws rejects it, and with it `unwrap()` (#585).
+    const settledHeld = watched
+      .then(
+        (value) => {
+          outcome = { value };
+        },
+        (reason: unknown) => {
+          outcome = { reason };
+        },
+      )
+      .finally(settle);
     holdToast({ id }, show);
-  } else show();
-  const sonnerUnwrap = () =>
-    shownUnwrap === undefined ? shown.then((later) => later()) : shownUnwrap();
+    sonnerUnwrap = () =>
+      settledHeld.then(() =>
+        outcome !== undefined && "value" in outcome
+          ? outcome.value
+          : Promise.reject(outcome?.reason as Error),
+      );
+  } else {
+    show();
+    sonnerUnwrap = () => shownUnwrap!();
+  }
   const unwrap = () => {
     unwrapped = true;
     return sonnerUnwrap().then(

@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { useState } from "react";
+import { type ReactElement, useState } from "react";
 import { toast as sonnerToast } from "sonner";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -195,3 +195,183 @@ describe("toast after a confirm dialog", () => {
     expect(sonnerSpy).toHaveBeenCalledOnce();
   });
 });
+
+// Codex #663: a held `toast.promise` holds only its rendering. A confirm handler that works busy,
+// awaits `unwrap()` and then closes, as an app does, ends; the toast shows once the dialog closed.
+describe("toast.promise awaited inside a confirm dialog (#663)", () => {
+  type Run = (log: string[]) => Promise<unknown>;
+  // A confirm whose handler sets busy, awaits `run` and closes; `log` records the order.
+  function AwaitingConfirm({ run, log }: { run: Run; log: string[] }) {
+    const [open, setOpen] = useState(true);
+    const [busy, setBusy] = useState(false);
+    const onConfirm = async () => {
+      setBusy(true);
+      try {
+        log.push(`unwrap:${String(await run(log))}`);
+      } catch (reason) {
+        log.push(`rejected:${String(reason)}`);
+      }
+      setBusy(false);
+      setOpen(false);
+    };
+    return (
+      <>
+        <ConfirmDeleteDialog
+          open={open}
+          onOpenChange={setOpen}
+          onConfirm={() => void onConfirm()}
+          busy={busy}
+          object="Home"
+          description="Gone for good."
+          data-testid="confirm"
+        />
+        <Toaster />
+      </>
+    );
+  }
+
+  async function confirmWith(run: Run) {
+    const log: string[] = [];
+    render(<AwaitingConfirm run={run} log={log} />);
+    fireEvent.click(await screen.findByTestId("confirm-confirm"));
+    return log;
+  }
+
+  it("settles unwrap and the caller's finally while held, shows the result after close", async () => {
+    let shownWhileOpen = -1;
+    const log = await confirmWith(async (entries) => {
+      const value = await toast
+        .promise(Promise.resolve("ok"), {
+          loading: "Deleting…",
+          success: "Deleted.",
+          finally: () => {
+            entries.push("finally");
+          },
+        })
+        .unwrap();
+      shownWhileOpen = toasts().length;
+      return value;
+    });
+    await waitForClose();
+    expect(shownWhileOpen).toBe(0);
+    expect(log).toEqual(["finally", "unwrap:ok"]);
+    expect(await screen.findByText("Deleted.")).toBeInTheDocument();
+    expect(log).toEqual(["finally", "unwrap:ok"]);
+  });
+
+  it("rejects unwrap while held and shows the error after close", async () => {
+    const log = await confirmWith(() =>
+      toast
+        .promise(Promise.reject(new Error("boom")), { loading: "Deleting…", error: "Failed." })
+        .unwrap(),
+    );
+    await waitForClose();
+    expect(log).toEqual(["rejected:Error: boom"]);
+    expect(await screen.findByText("Failed.")).toBeInTheDocument();
+  });
+
+  it("rejects unwrap with a held caller's finally that throws, as sonner does (#585)", async () => {
+    const log = await confirmWith(() =>
+      toast
+        .promise(Promise.resolve("ok"), {
+          loading: "Deleting…",
+          success: "Deleted.",
+          finally: () => {
+            throw new Error("finally failed");
+          },
+        })
+        .unwrap(),
+    );
+    await waitForClose();
+    expect(log).toEqual(["rejected:Error: finally failed"]);
+    expect(await screen.findByText("Deleted.")).toBeInTheDocument();
+  });
+
+  it("settles a held promise toast that is dismissed; it never shows", async () => {
+    const sonnerSpy = vi.spyOn(sonnerToast, "promise");
+    const log = await confirmWith(async (entries) => {
+      const shown = toast.promise(Promise.resolve("ok"), {
+        loading: "Deleting…",
+        success: "Deleted.",
+        finally: () => {
+          entries.push("finally");
+        },
+      });
+      toast.dismiss(shown as unknown as string);
+      return shown.unwrap();
+    });
+    await waitForClose();
+    expect(log).toEqual(["finally", "unwrap:ok"]);
+    await wait(300);
+    expect(toasts()).toHaveLength(0);
+    expect(sonnerSpy).not.toHaveBeenCalled();
+  });
+
+  it("shows only the result of a promise settled while held, no loading state first (#663)", async () => {
+    const sonnerSpy = vi.spyOn(sonnerToast, "promise");
+    const { controlsRef } = await confirmFromTrigger("delete");
+    let unwrapped: Promise<unknown> = Promise.resolve();
+    act(() => {
+      unwrapped = toast
+        .promise(Promise.resolve("ok"), { loading: "Deleting…", success: "Saved" })
+        .unwrap();
+    });
+    await expect(unwrapped).resolves.toBe("ok");
+    const seen: string[] = [];
+    const observer = new MutationObserver(() => {
+      if (document.body.textContent?.includes("Deleting…")) seen.push("loading");
+    });
+    observer.observe(document.body, { childList: true, subtree: true, characterData: true });
+    act(() => controlsRef.finish?.());
+    expect(await screen.findByText("Saved")).toBeInTheDocument();
+    observer.disconnect();
+    expect(seen).toEqual([]);
+    expect(sonnerSpy).toHaveBeenCalledOnce();
+    expect(sonnerSpy.mock.calls[0]?.[1]?.loading).toBeUndefined();
+  });
+
+  it("never shows an element result of a held promise toast dismissed before it resolves", async () => {
+    const { controlsRef } = await confirmFromTrigger("delete");
+    let resolve = () => {};
+    let unwrapped: Promise<unknown> = Promise.resolve();
+    act(() => {
+      const shown = toast.promise(
+        new Promise<ReactElement>((done) => (resolve = () => done(<span>Late element</span>))),
+        { success: "Saved" },
+      );
+      toast.dismiss(shown as unknown as string);
+      unwrapped = shown.unwrap();
+    });
+    act(() => resolve());
+    await expect(unwrapped).resolves.toMatchObject({ type: "span" });
+    act(() => controlsRef.finish?.());
+    await screen.findByText("Home deleted.");
+    await wait(300);
+    expect(screen.queryByText("Late element")).toBeNull();
+    expect(screen.queryByText("Saved")).toBeNull();
+  });
+
+  it("holds an element result without a loading state while the dialog works (CX2)", async () => {
+    const { controlsRef } = await confirmFromTrigger("delete");
+    let unwrapped: Promise<unknown> = Promise.resolve();
+    act(() => {
+      unwrapped = toast
+        .promise(Promise.resolve(<span>Done element</span>), { success: "Saved" })
+        .unwrap();
+    });
+    await wait(300);
+    expect(toasts()).toHaveLength(0);
+    expect(screen.queryByText("Done element")).toBeNull();
+    act(() => controlsRef.finish?.());
+    const element = await screen.findByText("Done element");
+    expect(element.closest("[data-sonner-toast]")).not.toBeNull();
+    expect(screen.queryByText("Saved")).toBeNull();
+    await expect(unwrapped).resolves.toMatchObject({ type: "span" });
+  });
+});
+
+async function waitForClose() {
+  for (let tries = 0; tries < 40 && screen.queryByTestId("confirm") !== null; tries += 1)
+    await wait(50);
+  expect(screen.queryByTestId("confirm")).toBeNull();
+}
