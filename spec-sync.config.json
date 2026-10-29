@@ -21,11 +21,13 @@
       {
         "name": "build",
         "cmd": "npm run build",
-        "blocking": true
+        "blocking": true,
+        "imageOnly": "PROC-REL-030"
       },
       {
         "name": "unit",
-        "cmd": "npm test"
+        "cmd": "npm test",
+        "imageOnly": "PROC-REL-030"
       },
       {
         "name": "gallery",
