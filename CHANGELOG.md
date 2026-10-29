@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #668, SUI-FEATURE-330 rev 5: the row step is `success`; `MediaDetailShell` and `MediaTile` show it (minor)
+## 0.183.0 — #668, SUI-FEATURE-330 rev 5: the row step is `success`; `MediaDetailShell` and `MediaTile` show it (minor)
 
 - **Row step variant (#668):** the `RowActionSet` `step` renders as a labelled `success` button (was `outline`): a lifecycle promote, which `GL-UI-011` puts on `success`. Row, `PreviewToolbar` and folded entry otherwise unchanged.
 - **`MediaDetailShell` `step` (#668):** a new optional `step?: RowAction & { rowName: string }`, shown through `useRowActionButtons` as a labelled `success` button at `sm`, first in the preview head before "Used by"; name and hint "‹label› ‹rowName›", `busy` and `disabledText` as on any `RowAction`.
