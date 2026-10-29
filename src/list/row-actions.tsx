@@ -263,8 +263,8 @@ function RowActionMenu({
 }
 
 // The buttons of an entry's actions, each in its fixed variant (`GL-UI-011`): the step a labelled
-// `outline` (`SUI-FEATURE-330`), "Used by" and the extra actions `outline`, edit `warn`, the overflow menu `outline`, delete `destructive`, all `icon-xs`. The
-// caller places them.
+// `outline` at `xs` (`SUI-FEATURE-330`), "Used by" and the extra actions `outline`, edit `warn`, the
+// overflow menu `outline`, delete `destructive`, all `icon-xs`. The caller places them.
 function useRowActionButtons(
   {
     rowName,
@@ -280,7 +280,8 @@ function useRowActionButtons(
     menu,
     deleteShortcut = false,
   }: RowActionSet,
-  // `icon-xs` in the row; a toolbar passes its own height step (`GL-UI-008`: `icon-sm`).
+  // `icon-xs` in the row; a toolbar passes its own height step (`GL-UI-008`: `icon-sm`). The labelled
+  // step takes the text size of the same height: `xs` or `sm`.
   size: "icon-xs" | "icon-sm" = "icon-xs",
 ) {
   const { t } = useTranslation("suite");
@@ -347,7 +348,8 @@ function RowActionsHead(props: Omit<React.ComponentProps<typeof TableHead>, "chi
 }
 
 // The action cluster at the end of a row (`GL-UI-011`, `GL-UI-023`): the step as a labelled `outline`
-// first (`SUI-FEATURE-330`), extra actions as `outline`, then edit (`warn`), the overflow menu (`outline`) and delete (`destructive`), all `icon-xs`. A click on an action, a
+// at `xs` first (`SUI-FEATURE-330`), extra actions as `outline`, then edit (`warn`), the overflow menu
+// (`outline`) and delete (`destructive`), all `icon-xs`. A click on an action, a
 // locked action included, never reaches the row, so it does not open the row's target; neither does
 // Enter or Space on an action. A click on the empty part of the cell does open the row (`GL-UI-015`).
 function RowActions({

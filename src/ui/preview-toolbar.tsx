@@ -52,7 +52,8 @@ type PreviewToolbarProps = {
 type Shrink = 0 | 1 | 2 | 3;
 
 // The selected entry's actions, in the row's own order (`GL-UI-008`, `GL-UI-011`): the step, "Used by",
-// extra actions, then edit, the overflow menu and delete, at the toolbar's height (`icon-sm`). Folded,
+// extra actions, then edit, the overflow menu and delete, at the toolbar's height (`icon-sm`, the
+// labelled step `sm`). Folded,
 // the menu holds them in that same order: the step (`SUI-FEATURE-330`), "Used by", the extra actions, edit, the menu's own entries and
 // delete, which stands last after a separator (`SUI-FEATURE-067`). Each folded action keeps its hint:
 // its name with the row's, or its reason while locked (`SUI-FEATURE-066`).
