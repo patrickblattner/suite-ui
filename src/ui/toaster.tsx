@@ -471,6 +471,8 @@ function promiseToast<T>(promise: PromiseArgs<T>[0], data?: PromiseArgs<T>[1]) {
   const heldAtCall = toastsHeld();
   // The call's hold has released it, and how its promise came out if known by then (#663).
   let released = false;
+  // Shown without the loading state it was given, its options go onto the result itself (#664).
+  let skipped = false;
   let outcome: { value: T } | { reason: unknown } | undefined;
   let settledOut: Promise<void> | undefined;
   let unwrapped = false;
@@ -506,12 +508,13 @@ function promiseToast<T>(promise: PromiseArgs<T>[0], data?: PromiseArgs<T>[1]) {
                 ? description
                 : await described;
           // The caller's duration only when set: an `undefined` would override the one sonner keeps
-          // from the loading toast (#637).
+          // from the loading toast (#637). Without that loading toast, the caller's options whole:
+          // sonner would merge them from it, its action and toaster routing too (#664).
           const prepared = prepare(
             variant,
             settings.message,
             {
-              ...(rest.duration === undefined ? {} : { duration: rest.duration }),
+              ...(skipped ? rest : rest.duration === undefined ? {} : { duration: rest.duration }),
               ...settings,
               description: shownDescription as ExternalToast["description"],
               id,
@@ -565,11 +568,14 @@ function promiseToast<T>(promise: PromiseArgs<T>[0], data?: PromiseArgs<T>[1]) {
   // sonner's own unwrap, taken before the returned value gets the wrapper's.
   let shownUnwrap: Shown["unwrap"] | undefined;
   // Released with its outcome known, it shows only its result, without a loading state before it
-  // (#663); an element result shows by its id.
+  // (#663); an element result shows by its id, with the caller's options as on the loading toast, a
+  // description that is no function among them (#664).
   const show = () => {
     released = true;
+    skipped = outcome !== undefined && loading !== undefined;
     if (outcome !== undefined && element !== undefined) {
-      raiseNow(sonnerToast, undefined, element, { id }, true);
+      const carried = typeof description === "function" ? rest : { ...rest, description };
+      raiseNow(sonnerToast, undefined, element, skipped ? { ...carried, id } : { id }, true);
       return;
     }
     shownId = sonnerToast.promise(

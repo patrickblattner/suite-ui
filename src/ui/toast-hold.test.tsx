@@ -330,6 +330,45 @@ describe("toast.promise awaited inside a confirm dialog (#663)", () => {
     expect(sonnerSpy.mock.calls[0]?.[1]?.loading).toBeUndefined();
   });
 
+  // Without the loading state sonner would merge them from, the result takes the caller's action,
+  // description and routing options itself, and stays as an action toast past 1000 ms (#664).
+  it.each<[string, () => Promise<unknown>]>([
+    ["result", () => Promise.resolve("ok")],
+    ["error", () => Promise.reject(new Error("boom"))],
+    ["element result", () => Promise.resolve(<span>Done element</span>)],
+  ])(
+    "keeps the action, description and routing options of a promise settled while held: %s (#664)",
+    async (_, settled) => {
+      const { controlsRef } = await confirmFromTrigger("delete");
+      let unwrapped: Promise<unknown> = Promise.resolve();
+      act(() => {
+        unwrapped = toast
+          .promise(settled(), {
+            id: "held-routed",
+            loading: "Deleting…",
+            success: "Saved",
+            error: "Failed",
+            description: "Gone for good.",
+            action: { label: "Undo", onClick: () => undefined },
+            toasterId: "secondary",
+            position: "top-center",
+          })
+          .unwrap();
+      });
+      await unwrapped.catch(() => undefined);
+      act(() => controlsRef.finish?.());
+      await wait(1200);
+      const shown = sonnerToast.getToasts().find((item) => item.id === "held-routed");
+      expect(shown).toMatchObject({
+        action: { label: "Undo" },
+        description: "Gone for good.",
+        toasterId: "secondary",
+        position: "top-center",
+        className: expect.stringContaining("suite-toast-action") as unknown,
+      });
+    },
+  );
+
   it("never shows an element result of a held promise toast dismissed before it resolves", async () => {
     const { controlsRef } = await confirmFromTrigger("delete");
     let resolve = () => {};
