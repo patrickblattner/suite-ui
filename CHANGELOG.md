@@ -1,13 +1,14 @@
 # Changelog
 
-## Unreleased — #668, SUI-FEATURE-330 rev 4: the row step is `success`; `MediaDetailShell` and `MediaTile` show it (minor)
+## Unreleased — #668, SUI-FEATURE-330 rev 5: the row step is `success`; `MediaDetailShell` and `MediaTile` show it (minor)
 
 - **Row step variant (#668):** the `RowActionSet` `step` renders as a labelled `success` button (was `outline`): a lifecycle promote, which `GL-UI-011` puts on `success`. Row, `PreviewToolbar` and folded entry otherwise unchanged.
 - **`MediaDetailShell` `step` (#668):** a new optional `step?: RowAction & { rowName: string }`, shown through `useRowActionButtons` as a labelled `success` button at `sm`, first in the preview head before "Used by"; name and hint "‹label› ‹rowName›", `busy` and `disabledText` as on any `RowAction`.
 - **`MediaTile` `step` (#668):** a new optional `step?: RowAction`. A tile is below the fold width, so the step is the first entry of a ⋯ menu in the tile's corner before the delete button, hinted "‹label› ‹name›", locked while it runs or with its reason. Without `step` both components render as before.
-- **`foldRowAction` (#668):** the folded ⋯ entry of a `RowAction`, shared by `PreviewToolbar` and `MediaTile`.
+- **`foldRowAction` (#668):** the folded ⋯ entry of a `RowAction`, shared by `PreviewToolbar` and `MediaTile`. The entry keeps the action's `icon` and `shortcut` (before, a folded extra action in the `PreviewToolbar` lost both).
+- **Busy ⋯ button (#668):** `RowActionMenu` shows the working state (`aria-busy` and the busy sign, `SUI-FEATURE-072`) while any of its entries runs, without the lock, so the menu still opens to its other entries. New optional `RowMenuItem` `busy`, which `foldRowAction` sets for a running action. Covers the folded step in `MediaTile` and every folded action in `PreviewToolbar`.
 - **Gallery (#668):** `?page=tiles&step=1` and `?page=edit-panel&step=1` show the step; axe scans the tiles. New baselines: `media-tiles-step-de-light.png`, `media-detail-step-de-light.png`; `list-step-de-light.png` updated for `success`.
-- **Tests (#668):** unit: the row and toolbar step are `success` (AC 1); the detail shell shows the step first in its head, `success`, `sm`, named "‹label› ‹rowName›", busy and locked with its reason, and its head is unchanged without a step; the tile folds the step as the only ⋯ entry before delete, hinted, locked while busy or with its reason, and its corner is unchanged without a step (AC 2, AC 3). Gallery: the tile's ⋯ stands left of delete, the detail step stands left of "Used by".
+- **Tests (#668):** unit: the row and toolbar step are `success` (AC 1); the detail shell shows the step first in its head, `success`, `sm`, named "‹label› ‹rowName›", busy and locked with its reason, and its head is unchanged without a step; the tile folds the step as the only ⋯ entry before delete, hinted, locked while busy or with its reason, and its corner is unchanged without a step (AC 2, AC 3); the ⋯ button shows the working state, unlocked, while a folded step runs, in the tile and the toolbar; a folded entry keeps its icon and shortcut. Gallery: the tile's ⋯ stands left of delete, the detail step stands left of "Used by".
 
 ## 0.182.0 — #666, SUI-FEATURE-330 rev 2: `RowActionSet` `step`, the row's next lifecycle step as a labelled button (minor)
 

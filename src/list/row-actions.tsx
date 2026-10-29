@@ -48,6 +48,9 @@ type RowMenuItem = {
   checked?: boolean;
   destructive?: boolean;
   disabled?: boolean;
+  // The action the entry stands for is running (`SUI-FEATURE-072`): the ⋯ button shows the working
+  // state while any of its entries runs.
+  busy?: boolean;
   hint?: string;
   "data-testid"?: string;
 };
@@ -244,7 +247,13 @@ function RowActionMenu({
     <DropdownMenu>
       <IconButtonTooltip label={menu.label}>
         <DropdownMenuTrigger asChild>
-          <Button variant={variant} size={size} data-testid={testId}>
+          <Button
+            variant={variant}
+            size={size}
+            // The working state without the lock: the menu still opens to its other entries.
+            loading={menu.items.some((item) => item.busy === true)}
+            data-testid={testId}
+          >
             <EllipsisIcon aria-hidden="true" />
           </Button>
         </DropdownMenuTrigger>
@@ -262,13 +271,18 @@ function RowActionMenu({
   );
 }
 
-// An action folded into the ⋯ menu (`SUI-FEATURE-067`): its hint "‹label› ‹rowName›", or its reason
-// while locked; a running action's entry is locked while it runs (`SUI-FEATURE-072`).
+// An action folded into the ⋯ menu (`SUI-FEATURE-067`): its icon and shortcut, its hint "‹label›
+// ‹rowName›", or its reason while locked; a running action's entry is locked while it runs and marks
+// the ⋯ button as working (`SUI-FEATURE-072`).
 function foldRowAction(action: RowAction, rowName: string): RowMenuItem {
+  const Icon = action.icon;
   return {
     label: action.label,
+    icon: <Icon aria-hidden="true" />,
+    ...(action.shortcut === undefined ? {} : { shortcut: action.shortcut }),
     onSelect: action.onClick,
     disabled: action.disabledText !== undefined || action.busy === true,
+    ...(action.busy === true ? { busy: true } : {}),
     hint: action.disabledText ?? `${action.label} ${rowName}`,
   };
 }

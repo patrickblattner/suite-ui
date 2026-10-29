@@ -422,6 +422,7 @@ describe("MediaTile step (SUI-FEATURE-330 rev 4 AC 8)", () => {
       "media-tile-delete",
     ]);
     expect(trigger).toHaveAccessibleName("More for hero.jpg");
+    expect(trigger).not.toHaveAttribute("aria-busy");
     const entries = within(openMenu()).getAllByRole("menuitem");
     expect(entries.map((entry) => entry.textContent)).toEqual(["Publish"]);
     expect(
@@ -435,6 +436,11 @@ describe("MediaTile step (SUI-FEATURE-330 rev 4 AC 8)", () => {
   it("a busy step's entry is locked; a locked one names its reason", () => {
     const onClick = vi.fn();
     renderTile({ step: { label: "Publish", icon: SendIcon, onClick, busy: true } });
+    // The ⋯ button shows the working state, still unlocked (`SUI-FEATURE-072`).
+    const trigger = screen.getByTestId("row-menu");
+    expect(trigger).toHaveAttribute("aria-busy", "true");
+    expect(trigger.querySelector("[data-slot=busy]")).not.toBeNull();
+    expect(trigger).not.toHaveAttribute("aria-disabled");
     const busy = within(openMenu()).getByRole("menuitem", { name: "Publish" });
     expect(busy).toHaveAttribute("data-disabled");
     fireEvent.click(busy);

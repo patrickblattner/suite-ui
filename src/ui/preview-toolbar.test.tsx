@@ -736,6 +736,10 @@ describe("PreviewToolbar in a narrow column (SUI-FEATURE-067)", () => {
     resize(320);
     expect(toolbar()).toHaveAttribute("data-shrink", "2");
     const trigger = within(screen.getByTestId("preview-actions")).getByTestId("row-menu");
+    // The ⋯ button shows the step's working state, still unlocked: it opens to the other entries.
+    expect(trigger).toHaveAttribute("aria-busy", "true");
+    expect(trigger.querySelector("[data-slot=busy]")).not.toBeNull();
+    expect(trigger).not.toHaveAttribute("aria-disabled");
     trigger.focus();
     fireEvent.keyDown(trigger, { key: "Enter" });
     const entry = within(screen.getByRole("menu")).getByRole("menuitem", { name: "Deliver" });

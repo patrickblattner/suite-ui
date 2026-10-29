@@ -27,7 +27,8 @@ type MediaTileProps = {
   // call it through `rowProps`. Without it (no right to delete) no button and no key.
   onDelete?: (() => void) | undefined;
   // The medium's next lifecycle step (`SUI-FEATURE-330`). A tile is below the fold width, so the step
-  // is the first entry of a ⋯ menu beside the delete button, named and hinted "‹label› ‹name›".
+  // is the first entry of a ⋯ menu beside the delete button: named "‹label›", hinted "‹label› ‹name›";
+  // while it runs the ⋯ button shows the working state.
   step?: RowAction | undefined;
   // `useRowGrid().rowProps` of the grid whose `gridProps` the `TileGridShell` holds: the tile is
   // one of its entries, arrows move between the tiles, one tab stop. A tile without `onOpen` and
