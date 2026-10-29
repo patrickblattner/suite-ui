@@ -754,3 +754,6 @@
 {"ts":"2026-10-29T15:05:31.813Z","key":"PROC-DEV-039","from":3,"to":4,"disposition":"editorial","ref":"process rule: toolkit-pin tickets are P1; no code impact, no open pin ticket"}
 {"ts":"2026-10-29T16:03:32.045Z","key":"SUI-FEATURE-350","from":2,"to":3,"disposition":"ticket","ref":"679"}
 {"ts":"2026-10-29T16:03:38.365Z","key":"GL-SEC-022","from":2,"to":3,"disposition":"editorial","ref":"server-side rate limit for admin factor reset; suite-ui is a UI package with no reset endpoint"}
+{"ts":"2026-10-29T16:49:05.092Z","key":"SUI-FEATURE-350","from":3,"to":4,"disposition":"ticket","ref":"683"}
+{"ts":"2026-10-29T16:49:05.438Z","key":"SUI-FEATURE-360","from":null,"to":2,"disposition":"ticket","ref":"684"}
+{"ts":"2026-10-29T16:49:05.793Z","key":"GL-SEC-022","from":3,"to":4,"disposition":"editorial","ref":"configurable app-side reset limits live in apps with security settings; suite-ui is a UI package with no reset endpoint or settings store"}
