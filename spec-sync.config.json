@@ -22,16 +22,17 @@
         "name": "build",
         "cmd": "npm run build",
         "blocking": true,
-        "imageOnly": "PROC-REL-030"
+        "imageOnly": "builds dist with tsup; the pre-run never builds (SST-DESIGN-013)"
       },
       {
         "name": "unit",
         "cmd": "npm test",
-        "imageOnly": "PROC-REL-030"
+        "imageOnly": "the suite includes *.dist.test.ts that read dist/, which only the build phase produces"
       },
       {
         "name": "gallery",
-        "cmd": "npm run gallery:image"
+        "cmd": "npm run gallery:image",
+        "imageOnly": "Playwright screenshots in the pinned Docker image (SUI-FEATURE-076); the pre-run never starts a browser"
       }
     ]
   },
