@@ -28,14 +28,15 @@ type MediaTileProps = {
   onDelete?: (() => void) | undefined;
   // The medium's next lifecycle step (`SUI-FEATURE-330`). A tile is below the fold width, so the step
   // is the first entry of a ⋯ menu beside the delete button: named "‹label›", hinted "‹label› ‹name›";
-  // while it runs the ⋯ button shows the working state.
+  // while it runs the ⋯ button shows the working state. Not shown with `selected` or `current`
+  // (rev 7): a choice of a picker offers no step.
   step?: RowAction | undefined;
   // `useRowGrid().rowProps` of the grid whose `gridProps` the `TileGridShell` holds: the tile is
   // one of its entries, arrows move between the tiles, one tab stop. A tile without `onOpen` and
   // `onDelete` is no entry: not focusable, not reachable by Tab or arrows.
   rowProps?: RowGrid["rowProps"] | undefined;
   // Given, the tile is a choice of the picker: `aria-pressed`, and the selection ring while true. A
-  // choice needs `onOpen` (the pick); without it `selected` has no effect.
+  // choice needs `onOpen` (the pick); without it `selected` sets neither, but still hides the step.
   selected?: boolean;
   // The picker's pinned current choice: a "Current" badge, which `selected` replaces.
   current?: boolean;
@@ -97,7 +98,8 @@ function MediaTile({
     onDelete,
     deleteTestId: `${testId}-delete`,
     deleteShortcut: entry !== undefined,
-    ...(step === undefined
+    // A choice of a picker is a selection task: no step, and no ⋯ without other entries (rev 7).
+    ...(step === undefined || selected !== undefined || current !== undefined
       ? {}
       : { menu: { label: t("actions.more", { name }), items: [foldRowAction(step, name)] } }),
   });

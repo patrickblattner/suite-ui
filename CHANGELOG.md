@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — #678, SUI-FEATURE-330 rev 7: `MediaTile` shows no step as a choice of a picker (patch)
+
+- **`MediaTile` in a picker (#678):** with `selected` (true or false) or `current` given the tile shows no `step`, neither in its ⋯ menu nor elsewhere; as the step was the menu's only entry, the ⋯ button is gone too, and the corner holds only delete. Without `selected`/`current` the step folds into ⋯ as before.
+- **Tests (#678):** unit: a selected, an unselected and a current tile with `step` show no step entry and no ⋯ button (AC 10); the same tile without `selected`/`current` still shows the step in ⋯. No gallery baseline changes (the gallery's step tiles are no picker choices).
+
 ## 0.184.0 — #675, SUI-FEATURE-340 rev 3: `ReorderCell`, `ReorderHead` and `DataTableShell.reorder` for hand-sorted rows (minor)
 
 - **`ReorderCell` (#675):** a new package table cell for the first column of a hand-sorted list, shrunk to its content (`w-0`): a drag grip, ↑ and ↓, `ghost` `icon-xs`, each with a tooltip and the name "‹verb› ‹rowName›" ("Move" / "Move up" / "Move down"; de "Verschieben" / "Nach oben verschieben" / "Nach unten verschieben", es "Mover" / "Subir" / "Bajar"). Props `id`, `rowName`, `onMove(direction)`, optional `upDisabledText` / `downDisabledText` (the direction is locked and its hint names the reason, as on `RowAction`), optional `group` (a drag only lands among rows of the same group) and an optional `data-testid` prefix (`‹prefix›-grip`, `-up`, `-down`). The grip shows only inside a `DataTableShell` with `reorder`; without it the cell holds ↑ and ↓ alone. After ↑ or ↓ the same arrow keeps the focus once the row re-rendered, on the row's new page too when the app's pager follows it. A click or Enter/Space on its controls never reaches the row, so it never selects or opens it. Not a row action: it is not part of `RowActionSet`, not counted with the row's action controls and not mirrored in the preview toolbar.

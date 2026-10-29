@@ -464,6 +464,30 @@ describe("MediaTile step (SUI-FEATURE-330 rev 4 AC 8)", () => {
       .closest<HTMLElement>("[data-slot=media-tile-actions]")!;
     expect(corner.className).toBe("absolute top-2 right-2");
   });
+
+  it.each([
+    ["selected", { selected: true }],
+    ["unselected", { selected: false }],
+    ["current", { current: true }],
+  ])(
+    "SUI-FEATURE-330 rev 7 AC 10: a %s choice of a picker shows no step and no ⋯ button",
+    (_, choice) => {
+      renderTile({
+        ...choice,
+        onDelete: vi.fn(),
+        step: { label: "Publish", icon: SendIcon, onClick: vi.fn() },
+      });
+      expect(screen.queryByTestId("row-menu")).toBeNull();
+      expect(screen.queryByText("Publish")).toBeNull();
+      expect(screen.getByTestId("media-tile-delete")).toBeInTheDocument();
+    },
+  );
+
+  it("SUI-FEATURE-330 rev 7 AC 10: the same tile without selected/current still shows the step in ⋯", () => {
+    renderTile({ onDelete: vi.fn(), step: { label: "Publish", icon: SendIcon, onClick: vi.fn() } });
+    const entries = within(openMenu()).getAllByRole("menuitem");
+    expect(entries.map((entry) => entry.textContent)).toEqual(["Publish"]);
+  });
 });
 
 // GL-UI-050 rev 4: the corner button acts for its tile, so the tile is the unit the focus returns to.
