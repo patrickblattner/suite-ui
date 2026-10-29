@@ -742,3 +742,4 @@
 {"ts":"2026-10-29T10:40:32.830Z","key":"PROC-DEV-013","from":5,"to":6,"disposition":"editorial","ref":"rev 6: architect answer kinds (spec revision vs answer text); worker records answer on ticket; no code impact"}
 {"ts":"2026-10-29T10:40:48.771Z","key":"PROC-DEV-039","from":2,"to":3,"disposition":"editorial","ref":"rev 3: priority class labels P1/P2/P3 in queue sort; worker process (applied to open tickets), no code impact"}
 {"ts":"2026-10-29T10:41:00.230Z","key":"PROC-DEV-041","from":9,"to":10,"disposition":"editorial","ref":"rev 10: package-carrier classification applies to apps pinning @suite/ui; suite-ui is the carrier itself, no code impact"}
+{"ts":"2026-10-29T11:37:43.885Z","key":"SUI-FEATURE-330","from":4,"to":5,"disposition":"ticket","ref":"668"}
