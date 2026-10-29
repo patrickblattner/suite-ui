@@ -732,3 +732,5 @@
 {"ts":"2026-10-29T00:47:12.337Z","key":"SUI-FEATURE-195","from":2,"to":3,"disposition":"ticket","ref":"660"}
 {"ts":"2026-10-29T00:47:12.694Z","key":"PROC-REL-006","from":3,"to":4,"disposition":"editorial","ref":"rev 4: Renovate self-hosted for exposed repos; suite-ui is internal, no code impact"}
 {"ts":"2026-10-29T02:00:02.397Z","key":"SUI-FEATURE-320","from":2,"to":3,"disposition":"ticket","ref":"657"}
+{"ts":"2026-10-29T03:08:35.515Z","key":"SUI-FEATURE-320","from":2,"to":4,"disposition":"ticket","ref":"661"}
+{"ts":"2026-10-29T03:08:35.886Z","key":"SUI-FEATURE-195","from":3,"to":4,"disposition":"ticket","ref":"662"}
