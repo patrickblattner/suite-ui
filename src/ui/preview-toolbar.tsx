@@ -5,7 +5,12 @@ import { useTranslation } from "react-i18next";
 import { cn } from "../lib/cn.js";
 import { useEscapeLayer } from "../lib/escape-layers.js";
 import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
-import { type RowActionSet, type RowMenuItem, useRowActionButtons } from "../list/row-actions.js";
+import {
+  type RowAction,
+  type RowActionSet,
+  type RowMenuItem,
+  useRowActionButtons,
+} from "../list/row-actions.js";
 import { Button } from "./button.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select.js";
 import { StatusChip, type StatusChipState } from "./status-chip.js";
@@ -46,9 +51,10 @@ type PreviewToolbarProps = {
 // 1 the actions but edit folded into ⋯, 2 all actions folded, 3 the rest wrapped into a second line.
 type Shrink = 0 | 1 | 2 | 3;
 
-// The selected entry's actions, in the row's own order (`GL-UI-008`, `GL-UI-011`): "Used by", extra
-// actions, then edit, the overflow menu and delete, at the toolbar's height (`icon-sm`). Folded, the
-// menu holds them in that same order: "Used by", the extra actions, edit, the menu's own entries and
+// The selected entry's actions, in the row's own order (`GL-UI-008`, `GL-UI-011`): the step, "Used by",
+// extra actions, then edit, the overflow menu and delete, at the toolbar's height (`icon-sm`, the
+// labelled step `sm`). Folded,
+// the menu holds them in that same order: the step (`SUI-FEATURE-330`), "Used by", the extra actions, edit, the menu's own entries and
 // delete, which stands last after a separator (`SUI-FEATURE-067`). Each folded action keeps its hint:
 // its name with the row's, or its reason while locked (`SUI-FEATURE-066`).
 function PreviewActions({
@@ -58,8 +64,17 @@ function PreviewActions({
 }: RowActionSet & { shrink: Shrink; className?: string | undefined }) {
   const { t } = useTranslation("suite");
   const keepEdit = shrink === 1;
+  const foldAction = (action: RowAction): RowMenuItem => ({
+    label: action.label,
+    onSelect: action.onClick,
+    // `SUI-FEATURE-072`: a running action's folded entry is locked while it runs.
+    disabled: action.disabledText !== undefined || action.busy === true,
+    hint: action.disabledText ?? `${action.label} ${set.rowName}`,
+  });
   const items: RowMenuItem[] = [
-    // `SUI-FEATURE-004`: "Used by" folds in first.
+    // `SUI-FEATURE-330`: the step folds in as the first entry.
+    ...(set.step === undefined ? [] : [foldAction(set.step)]),
+    // `SUI-FEATURE-004`: "Used by" follows.
     ...(set.usage === undefined
       ? []
       : [
@@ -70,13 +85,7 @@ function PreviewActions({
             ...(set.usage.count === 0 ? { hint: t("usage.none") } : {}),
           },
         ]),
-    ...(set.extra ?? []).map((action) => ({
-      label: action.label,
-      onSelect: action.onClick,
-      // `SUI-FEATURE-072`: a running action's folded entry is locked while it runs.
-      disabled: action.disabledText !== undefined || action.busy === true,
-      hint: action.disabledText ?? `${action.label} ${set.rowName}`,
-    })),
+    ...(set.extra ?? []).map(foldAction),
   ];
   if (!keepEdit && set.onEdit !== undefined)
     items.push({
@@ -112,6 +121,7 @@ function PreviewActions({
   const buttons = useRowActionButtons(folded, "icon-sm");
   return (
     <div className={cn("flex items-center gap-1", className)} data-testid="preview-actions">
+      {buttons.step}
       {buttons.extra}
       {buttons.edit}
       {buttons.menu}
@@ -142,10 +152,11 @@ function PreviewToolbar({
   // Wrapping is left out when Close would stand alone in the first line.
   const companion = maximize !== undefined || actions !== undefined;
   const maxShrink: Shrink = companion || device !== undefined ? 3 : 2;
-  // A new language or status text folds the toolbar afresh, so shorter texts unfold it again.
+  // A new language or status text folds the toolbar afresh, so shorter texts unfold it again; so does
+  // a step that comes, goes or changes its label (`SUI-FEATURE-330`), a folded one included.
   const { attach, steps } = useFoldSteps(
     maxShrink,
-    [i18n.language, status ?? "", language?.value ?? ""].join("\u0000"),
+    [i18n.language, status ?? "", language?.value ?? "", actions?.step?.label ?? ""].join("\u0000"),
   );
   const shrink = steps as Shrink;
   const setToolbar = React.useCallback(

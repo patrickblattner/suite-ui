@@ -60,6 +60,9 @@ type RowUsage = { count: number; active: boolean; onToggle: () => void };
 type RowActionSet = {
   // The row's name, the object of every action's name.
   rowName: string;
+  // The row's next lifecycle step (`SUI-FEATURE-330`): a labelled `outline` button before every
+  // other action.
+  step?: RowAction;
   // "Used by", the first of the extra actions.
   usage?: RowUsage;
   // Further actions, left of edit and delete.
@@ -90,11 +93,14 @@ function RowActionButton({
   rowName,
   variant,
   size,
+  labelled = false,
 }: {
   action: RowAction;
   rowName: string;
   variant: "outline" | "warn" | "destructive";
   size: "icon-xs" | "icon-sm";
+  // Shows `label` beside the icon, at the text size of the same height (`SUI-FEATURE-330`).
+  labelled?: boolean;
 }) {
   const Icon = action.icon;
   const locked = action.disabledText !== undefined;
@@ -108,13 +114,14 @@ function RowActionButton({
       <Button
         type="button"
         variant={variant}
-        size={size}
+        size={labelled ? (size === "icon-xs" ? "xs" : "sm") : size}
         disabled={locked}
         {...(action.busy === undefined ? {} : { busy: action.busy })}
         onClick={action.onClick}
         data-testid={action["data-testid"]}
       >
         <Icon aria-hidden="true" />
+        {labelled ? action.label : null}
       </Button>
     </IconButtonTooltip>
   );
@@ -255,12 +262,13 @@ function RowActionMenu({
   );
 }
 
-// The buttons of an entry's actions, each in its fixed variant (`GL-UI-011`): "Used by" and the extra
-// actions `outline`, edit `warn`, the overflow menu `outline`, delete `destructive`, all `icon-xs`. The
-// caller places them.
+// The buttons of an entry's actions, each in its fixed variant (`GL-UI-011`): the step a labelled
+// `outline` at `xs` (`SUI-FEATURE-330`), "Used by" and the extra actions `outline`, edit `warn`, the
+// overflow menu `outline`, delete `destructive`, all `icon-xs`. The caller places them.
 function useRowActionButtons(
   {
     rowName,
+    step,
     usage,
     extra = [],
     onEdit,
@@ -272,11 +280,16 @@ function useRowActionButtons(
     menu,
     deleteShortcut = false,
   }: RowActionSet,
-  // `icon-xs` in the row; a toolbar passes its own height step (`GL-UI-008`: `icon-sm`).
+  // `icon-xs` in the row; a toolbar passes its own height step (`GL-UI-008`: `icon-sm`). The labelled
+  // step takes the text size of the same height: `xs` or `sm`.
   size: "icon-xs" | "icon-sm" = "icon-xs",
 ) {
   const { t } = useTranslation("suite");
   return {
+    step:
+      step === undefined ? null : (
+        <RowActionButton action={step} rowName={rowName} variant="outline" size={size} labelled />
+      ),
     extra: [
       ...(usage === undefined ? [] : [<UsageButton key="usage" usage={usage} size={size} />]),
       ...extra.map((action) => (
@@ -334,12 +347,14 @@ function RowActionsHead(props: Omit<React.ComponentProps<typeof TableHead>, "chi
   );
 }
 
-// The action cluster at the end of a row (`GL-UI-011`, `GL-UI-023`): extra actions as `outline` on
-// the left, then edit (`warn`), the overflow menu (`outline`) and delete (`destructive`), all `icon-xs`. A click on an action, a
+// The action cluster at the end of a row (`GL-UI-011`, `GL-UI-023`): the step as a labelled `outline`
+// at `xs` first (`SUI-FEATURE-330`), extra actions as `outline`, then edit (`warn`), the overflow menu
+// (`outline`) and delete (`destructive`), all `icon-xs`. A click on an action, a
 // locked action included, never reaches the row, so it does not open the row's target; neither does
 // Enter or Space on an action. A click on the empty part of the cell does open the row (`GL-UI-015`).
 function RowActions({
   rowName,
+  step,
   usage,
   extra,
   onEdit,
@@ -354,6 +369,7 @@ function RowActions({
 }: RowActionsProps) {
   const buttons = useRowActionButtons({
     rowName,
+    step,
     usage,
     extra,
     onEdit,
@@ -379,6 +395,7 @@ function RowActions({
         data-slot="row-actions"
         data-tooltip-row=""
       >
+        {buttons.step}
         {buttons.extra}
         {buttons.edit}
         {buttons.menu}
