@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #683, SUI-FEATURE-350 rev 4: the "Used by" button is named "Usages of ‹rowName› (n)" (minor)
+## 0.186.0 — #683, SUI-FEATURE-350 rev 4: the "Used by" button is named "Usages of ‹rowName› (n)" (minor)
 
 - **Changed accessible name (#683):** the row-named "Used by" button of `RowActionSet.usage` (table row and `PreviewToolbar`) is now named "Usages of ‹rowName› (n)" instead of "Used by ‹rowName› (n)" (de "Verwendungen von ‹rowName› (n)" instead of "Verwendet von ‹rowName› (n)", es "Usos de ‹rowName› (n)" instead of "Usado por ‹rowName› (n)"): "Used by ‹name›" read as if the row were the user. Its hint follows; locked, it still names the reason. `MediaDetailShell` keeps "Used by (n)". Tests or automation that find the button by its row-named name need the new wording.
 - **Folded ⋯ entry (#683, SUI-FEATURE-066):** folded into ⋯ of the `PreviewToolbar`, the "Used by" entry keeps its visible label "Used by (n)" and now carries the button's hint "Usages of ‹rowName› (n)"; locked, "Not used anywhere" as before.
