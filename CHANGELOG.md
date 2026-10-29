@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #664, SUI-FEATURE-101 rev 9: a held `toast.promise` settled before release keeps its action and toaster routing (patch)
+## 0.181.1 — #664, SUI-FEATURE-101 rev 9: a held `toast.promise` settled before release keeps its action and toaster routing (patch)
 
 - **Held `toast.promise` (#664, Codex #664 CX1):** a `toast.promise` with a loading state whose promise settles while a confirm dialog holds it shows only its result once the dialog has closed (#663). That result now carries the caller's options the loading toast would have handed on: its `action` (e.g. Undo), `cancel`, `toasterId`, `position` and the rest, and it is treated as a toast with an action (no close after 1000 ms). Before, it lost its action and went to the default toaster, so with only the named toaster mounted it never showed. The same holds for an error result and for a promise that resolved to a React element, which also keeps the caller's `description` unless that is a function. Still no loading state before the result; without a dialog nothing changes.
 - **Tests (#664):** unit, with a real confirm dialog: a promise with `action`, `description`, `toasterId` and `position`, settled while held, shows its result after close with all four, as an action toast still shown after 1200 ms, for a success, an error and an element result. Without the fix the success and element cases fail (and the element case still fails on its `description` with only the first fix).
