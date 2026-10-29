@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #686: spec-sync-toolkit v0.33.2 (patch)
+## 0.186.1 — #686: spec-sync-toolkit v0.33.2 (patch)
 
 - **Toolkit pin (#686):** the `spec-sync-toolkit` devDependency moves from v0.33.1 to v0.33.2 (norm pin PROC-DEV-039 rev 4); no behaviour change.
 
