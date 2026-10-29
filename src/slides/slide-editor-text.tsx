@@ -18,7 +18,7 @@ import { Input } from "../ui/input.js";
 import { helpIdFor } from "../ui/label-with-help.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select.js";
 import { IconButtonTooltip } from "../ui/tooltip.js";
-import { LockedTrigger } from "./element-lock-internal.js";
+import { LockedFieldHint, LockedTrigger } from "./element-lock-internal.js";
 import type { SlideBrandSet } from "./brand.js";
 import type { Box } from "./editor-ops.js";
 import { NumberField } from "./number-field.js";
@@ -1034,17 +1034,19 @@ export function TextFormatFields({
                   htmlFor={`${id}-inline-alt`}
                   hint={t("slides.editor.inlineAltHint")}
                 >
-                  <Input
-                    id={`${id}-inline-alt`}
-                    aria-describedby={helpIdFor(`${id}-inline-alt`)}
-                    value={selectedInline.run.alt}
-                    maxLength={SLIDE_LIMITS.maxLabelLength}
-                    readOnly={readOnly}
-                    onChange={(event) =>
-                      onInline(selectedInline.index, { alt: event.target.value }, "alt")
-                    }
-                    data-testid={`${testIdPrefix}-inline-alt`}
-                  />
+                  <LockedFieldHint readOnly={readOnly}>
+                    <Input
+                      id={`${id}-inline-alt`}
+                      aria-describedby={helpIdFor(`${id}-inline-alt`)}
+                      value={selectedInline.run.alt}
+                      maxLength={SLIDE_LIMITS.maxLabelLength}
+                      readOnly={readOnly}
+                      onChange={(event) =>
+                        onInline(selectedInline.index, { alt: event.target.value }, "alt")
+                      }
+                      data-testid={`${testIdPrefix}-inline-alt`}
+                    />
+                  </LockedFieldHint>
                 </Field>
               )}
             </div>

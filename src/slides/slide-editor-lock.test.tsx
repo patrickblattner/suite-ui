@@ -186,4 +186,119 @@ describe("SlideEditor: a locked element's property panel", () => {
     expect(effect).toHaveAttribute("aria-expanded", "true");
     expect(screen.getByRole("listbox")).toBeInTheDocument();
   });
+
+  // SUI-FEATURE-195 rev 3: a read-only field carries the reason after its own hint.
+  const description = (field: Element) =>
+    (field.getAttribute("aria-describedby") ?? "")
+      .split(/\s+/)
+      .flatMap((id) => document.getElementById(id)?.textContent ?? [])
+      .join(" ");
+
+  it("describes every read-only field by its hint and then the reason, gone once unlocked (AC 6)", () => {
+    const { lock } = editor();
+    const locked = new Map<string, string>();
+    for (const name of ["content", "layout"] as const) {
+      for (const field of fieldsOf(tab(name))) {
+        const id = (field as HTMLElement).dataset.testid ?? field.id;
+        expect(field, id).toHaveAccessibleDescription(expect.stringContaining(REASON));
+        locked.set(id, description(field));
+      }
+    }
+    expect([...locked.keys()]).toEqual(
+      expect.arrayContaining([
+        "slide-editor-text-size",
+        "slide-editor-x",
+        "slide-editor-y",
+        "slide-editor-width",
+        "slide-editor-height",
+        "slide-editor-rotation",
+        "slide-editor-entrance-duration",
+      ]),
+    );
+    // The flip keeps every field of the open tab and the focus (#660 AC 3).
+    const shown = fieldsOf(screen.getByTestId("slide-editor-layout"));
+    const x = screen.getByTestId("slide-editor-x");
+    x.focus();
+    fireEvent.click(lock);
+    expect(x).toHaveFocus();
+    expect(fieldsOf(screen.getByTestId("slide-editor-layout"))).toEqual(shown);
+    const seen: string[] = [];
+    for (const name of ["layout", "content"] as const) {
+      for (const field of fieldsOf(tab(name))) {
+        const id = (field as HTMLElement).dataset.testid ?? field.id;
+        seen.push(id);
+        const hint = description(field);
+        expect(hint, id).not.toContain(REASON);
+        expect(hint, id).not.toBe("");
+        expect(locked.get(id), id).toBe(`${hint} ${REASON}`);
+      }
+    }
+    expect(seen.sort()).toEqual([...locked.keys()].sort());
+    tab("layout");
+    const again = screen.getByTestId("slide-editor-x");
+    again.focus();
+    fireEvent.click(lock);
+    expect(again).toHaveFocus();
+    expect(again).toHaveAccessibleDescription(expect.stringContaining(REASON));
+  });
+
+  it("gives the reason to a locked chart's and table's read-only fields, not to the cell pickers (AC 6)", () => {
+    const facts = SLIDE_EDITOR_DOC.pages[1]!.elements!.find((element) => element.id === "facts")!;
+    const results = {
+      id: "results",
+      name: "Results",
+      type: "chart" as const,
+      chart: "bar" as const,
+      x: 40,
+      y: 200,
+      width: 400,
+      height: 300,
+      categories: ["Q1", "Q2"],
+      series: [{ name: "2026", values: [4, 6] }],
+      locked: true,
+    };
+    render(
+      <SlideEditor
+        document={{
+          ...DOC,
+          pages: [{ ...DOC.pages[0]!, elements: [{ ...facts, locked: true }, results] }],
+        }}
+        title="Deck"
+        brand={SLIDE_BRAND}
+        onSave={() => true}
+        onBack={() => {}}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("drawer-layers"));
+    const select = (id: string) =>
+      fireEvent.click(
+        within(
+          screen
+            .getAllByTestId("slide-editor-layer")
+            .find((node) => node.getAttribute("data-layer-id") === id)!,
+        ).getByTestId("slide-editor-layer-select"),
+      );
+    select("facts");
+    let fields = fieldsOf(tab("content"));
+    expect(fields.length).toBeGreaterThan(0);
+    for (const field of fields) {
+      const id = (field as HTMLElement).dataset.testid ?? field.id;
+      if (field.hasAttribute("readonly")) {
+        expect(field, id).toHaveAccessibleDescription(expect.stringContaining(REASON));
+      } else {
+        expect(id).toMatch(/^slide-editor-table-cell-(row|column)$/);
+        expect(field, id).not.toHaveAccessibleDescription(expect.stringContaining(REASON));
+      }
+    }
+    expect(screen.getByTestId("slide-editor-table-column-width")).toHaveAccessibleDescription(
+      expect.stringContaining(REASON),
+    );
+    select("results");
+    fields = fieldsOf(tab("content"));
+    expect(fields.length).toBeGreaterThan(2);
+    for (const field of fields) {
+      expect(field, field.outerHTML).toHaveAttribute("readonly");
+      expect(field, field.outerHTML).toHaveAccessibleDescription(expect.stringContaining(REASON));
+    }
+  });
 });

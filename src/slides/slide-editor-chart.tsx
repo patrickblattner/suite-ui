@@ -15,6 +15,7 @@ import { Hint } from "../ui/hint.js";
 import { Input } from "../ui/input.js";
 import { IconButtonTooltip } from "../ui/tooltip.js";
 import { chartData } from "./editor-ops.js";
+import { useLockedHint } from "./element-lock-internal.js";
 import { SLIDE_LIMITS, type SlideElement } from "./schema.js";
 
 type Chart = Extract<SlideElement, { type: "chart" }>;
@@ -28,7 +29,7 @@ function NameField({
   ...props
 }: React.ComponentProps<typeof Input> & { value: string; hint: string; status?: string }) {
   return (
-    <Hint text={hint} status={status}>
+    <Hint text={useLockedHint(hint, props.readOnly === true)} status={status}>
       <Input {...props} />
     </Hint>
   );
@@ -80,7 +81,7 @@ function ValueField({
     if (parsed.invalid === undefined) onValue(parsed.value);
   };
   return (
-    <Hint text={t("slides.editor.chartValueHint")}>
+    <Hint text={useLockedHint(t("slides.editor.chartValueHint"), readOnly)}>
       <Input
         inputMode="decimal"
         aria-label={label}

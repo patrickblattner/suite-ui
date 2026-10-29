@@ -51,7 +51,7 @@ import { SubgroupTitle } from "../ui/subgroup-title.js";
 import { toast } from "../ui/toaster.js";
 import { IconButtonTooltip, OverflowTooltip } from "../ui/tooltip.js";
 import { DELETE_SHORTCUT } from "../ui/use-edit-shortcuts.js";
-import { LockedTrigger } from "./element-lock-internal.js";
+import { ElementLockedContext, LockedTrigger } from "./element-lock-internal.js";
 import { type SlideDocumentError, safeParseSlideDocument } from "./document.js";
 import {
   type Alignment,
@@ -4423,55 +4423,59 @@ function Editor({
             </div>
           </div>
         </div>
-        <PropertyPanel
-          path={path}
-          tabs={[
-            ...(single !== undefined && hasContent
-              ? [
-                  {
-                    id: "content" as const,
-                    content: (
-                      <div className="flex flex-col gap-4" data-testid="slide-editor-content">
-                        {unloadedNote}
-                        {single.type === "table" ? (
-                          <TableFields
-                            key={single.id}
-                            table={single}
-                            cell={currentCell}
-                            brand={view.brand}
-                            readOnly={single.locked}
-                            revision={travels}
-                            onChange={(next, merge) =>
-                              apply(
-                                (current) => updateElements(current, page, [single.id], () => next),
-                                merge === undefined ? undefined : `table:${single.id}:${merge}`,
-                              )
-                            }
-                            onCell={(cell) => setTableCell({ id: single.id, cell })}
-                          />
-                        ) : null}
-                        {textFields}
-                        {single.type === "chart" ? (
-                          <ChartData
-                            key={single.id}
-                            chart={single}
-                            revision={travels}
-                            readOnly={single.locked}
-                            onChange={(next, merge) => changeChart(next, merge)}
-                          />
-                        ) : null}
-                        {typeFields}
-                        {addOnFields}
-                      </div>
-                    ),
-                  },
-                ]
-              : []),
-            { id: "layout", content: layoutTab },
-          ]}
-          activeTab={!hasContent ? "layout" : contentFirst ? panelTab : builtInTab}
-          onTab={contentFirst ? setPanelTab : setBuiltInTab}
-        />
+        {/* Its read-only fields carry the lock reason with their hint (`SUI-FEATURE-195` rev 3). */}
+        <ElementLockedContext.Provider value={single?.locked === true}>
+          <PropertyPanel
+            path={path}
+            tabs={[
+              ...(single !== undefined && hasContent
+                ? [
+                    {
+                      id: "content" as const,
+                      content: (
+                        <div className="flex flex-col gap-4" data-testid="slide-editor-content">
+                          {unloadedNote}
+                          {single.type === "table" ? (
+                            <TableFields
+                              key={single.id}
+                              table={single}
+                              cell={currentCell}
+                              brand={view.brand}
+                              readOnly={single.locked}
+                              revision={travels}
+                              onChange={(next, merge) =>
+                                apply(
+                                  (current) =>
+                                    updateElements(current, page, [single.id], () => next),
+                                  merge === undefined ? undefined : `table:${single.id}:${merge}`,
+                                )
+                              }
+                              onCell={(cell) => setTableCell({ id: single.id, cell })}
+                            />
+                          ) : null}
+                          {textFields}
+                          {single.type === "chart" ? (
+                            <ChartData
+                              key={single.id}
+                              chart={single}
+                              revision={travels}
+                              readOnly={single.locked}
+                              onChange={(next, merge) => changeChart(next, merge)}
+                            />
+                          ) : null}
+                          {typeFields}
+                          {addOnFields}
+                        </div>
+                      ),
+                    },
+                  ]
+                : []),
+              { id: "layout", content: layoutTab },
+            ]}
+            activeTab={!hasContent ? "layout" : contentFirst ? panelTab : builtInTab}
+            onTab={contentFirst ? setPanelTab : setBuiltInTab}
+          />
+        </ElementLockedContext.Provider>
       </div>
       {dialog}
     </div>

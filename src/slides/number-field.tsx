@@ -12,6 +12,7 @@ import {
 import { Field } from "../ui/field.js";
 import { helpIdFor } from "../ui/label-with-help.js";
 import { Input } from "../ui/input.js";
+import { LockedFieldHint } from "./element-lock-internal.js";
 
 // The error of a number field that is not a number, by why (`GL-UI-037`): it names the right form.
 export const NUMBER_ERROR = {
@@ -79,27 +80,29 @@ export function NumberField({
       warning={warning}
       warningTestId={warningTestId}
     >
-      <NumberInput
-        id={id}
-        value={value}
-        unit={unit}
-        readOnly={readOnly}
-        min={min}
-        max={max}
-        aria-describedby={
-          [
-            hint && helpIdFor(id),
-            (help !== undefined || (warning !== undefined && warning !== "")) &&
-              `${id}-description`,
-          ]
-            .filter(Boolean)
-            .join(" ") || undefined
-        }
-        revision={revision}
-        onValue={onValue}
-        onInvalid={setWhy}
-        testId={testId}
-      />
+      <LockedFieldHint readOnly={readOnly}>
+        <NumberInput
+          id={id}
+          value={value}
+          unit={unit}
+          readOnly={readOnly}
+          min={min}
+          max={max}
+          aria-describedby={
+            [
+              hint && helpIdFor(id),
+              (help !== undefined || (warning !== undefined && warning !== "")) &&
+                `${id}-description`,
+            ]
+              .filter(Boolean)
+              .join(" ") || undefined
+          }
+          revision={revision}
+          onValue={onValue}
+          onInvalid={setWhy}
+          testId={testId}
+        />
+      </LockedFieldHint>
     </Field>
   );
 }
