@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — #668, SUI-FEATURE-330 rev 4: the row step is `success`; `MediaDetailShell` and `MediaTile` show it (minor)
+
+- **Row step variant (#668):** the `RowActionSet` `step` renders as a labelled `success` button (was `outline`): a lifecycle promote, which `GL-UI-011` puts on `success`. Row, `PreviewToolbar` and folded entry otherwise unchanged.
+- **`MediaDetailShell` `step` (#668):** a new optional `step?: RowAction & { rowName: string }`, shown through `useRowActionButtons` as a labelled `success` button at `sm`, first in the preview head before "Used by"; name and hint "‹label› ‹rowName›", `busy` and `disabledText` as on any `RowAction`.
+- **`MediaTile` `step` (#668):** a new optional `step?: RowAction`. A tile is below the fold width, so the step is the first entry of a ⋯ menu in the tile's corner before the delete button, hinted "‹label› ‹name›", locked while it runs or with its reason. Without `step` both components render as before.
+- **`foldRowAction` (#668):** the folded ⋯ entry of a `RowAction`, shared by `PreviewToolbar` and `MediaTile`.
+- **Gallery (#668):** `?page=tiles&step=1` and `?page=edit-panel&step=1` show the step; axe scans the tiles. New baselines: `media-tiles-step-de-light.png`, `media-detail-step-de-light.png`; `list-step-de-light.png` updated for `success`.
+- **Tests (#668):** unit: the row and toolbar step are `success` (AC 1); the detail shell shows the step first in its head, `success`, `sm`, named "‹label› ‹rowName›", busy and locked with its reason, and its head is unchanged without a step; the tile folds the step as the only ⋯ entry before delete, hinted, locked while busy or with its reason, and its corner is unchanged without a step (AC 2, AC 3). Gallery: the tile's ⋯ stands left of delete, the detail step stands left of "Used by".
+
 ## 0.182.0 — #666, SUI-FEATURE-330 rev 2: `RowActionSet` `step`, the row's next lifecycle step as a labelled button (minor)
 
 - **RowActionSet `step` (#666):** a new optional `step?: RowAction`, the row's next lifecycle step (e.g. "Jetzt zustellen"). `RowActions` renders it as a labelled `outline` button, icon and `label`, in first position, before "Used by", the extra actions, edit, the ⋯ menu and delete; at the height of the icon buttons (`xs` in the row, `sm` in the `PreviewToolbar`). Its name and hint read "‹label› ‹rowName›"; `busy`, `disabledText` and `shortcut` behave as on any `RowAction`, so a running step locks only that row's step. The cluster stays end-aligned: edit, menu and delete stand at the same x-position whether or not a row has a step, and a row without a step reserves no space. `PreviewToolbar` shows the same step through `useRowActionButtons` (new `step` slot of its result); below the fold width the step is the first entry of the ⋯ menu, locked while it runs or with its reason as hint. Without `step` nothing changes.

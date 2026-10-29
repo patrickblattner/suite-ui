@@ -695,7 +695,7 @@ describe("RowActions step (SUI-FEATURE-330)", () => {
   const cluster = (rowName: string) =>
     screen.getByTestId(`actions-${rowName}`).querySelector<HTMLElement>("[data-slot=row-actions]");
 
-  it("AC1: the step stands first as a labelled outline button with icon, named ‹label› ‹rowName›", () => {
+  it("AC1: the step stands first as a labelled success button with icon, named ‹label› ‹rowName›", () => {
     const { deliverAda } = renderRows();
     const buttons = within(screen.getByTestId("actions-Ada")).getAllByRole("button");
     expect(buttons.map((button) => button.getAttribute("aria-label"))).toEqual([
@@ -706,7 +706,7 @@ describe("RowActions step (SUI-FEATURE-330)", () => {
     ]);
     const step = screen.getByTestId("row-step");
     expect(buttons[0]).toBe(step);
-    expect(step).toHaveAttribute("data-variant", "outline");
+    expect(step).toHaveAttribute("data-variant", "success");
     // The text size of the icon buttons' height (`icon-xs`).
     expect(step).toHaveAttribute("data-size", "xs");
     expect(step).toHaveTextContent("Deliver");

@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import i18n from "i18next";
 import * as React from "react";
+import { SendIcon } from "lucide-react";
 import { MemoryRouter } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -378,6 +379,55 @@ describe("MediaDetailShell", () => {
     fireEvent.keyDown(panel(), { key: "Escape" });
     expect(onToggle).toHaveBeenCalledTimes(2);
     expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("SUI-FEATURE-330 AC 8: the step stands first in the head, labelled success, named ‹label› ‹rowName›", () => {
+    const onClick = vi.fn();
+    renderShell({
+      usage: { count: 2, active: false, onToggle: vi.fn(), content: <p>usages</p> },
+      step: {
+        label: "Publish",
+        icon: SendIcon,
+        onClick,
+        rowName: "team-photo.jpg",
+        "data-testid": "media-detail-step",
+      },
+    });
+    const step = screen.getByTestId("media-detail-step");
+    const group = step.parentElement!;
+    expect(panel().querySelector("[data-slot=media-detail-head]")).toContainElement(step);
+    expect(group.firstElementChild).toBe(step);
+    expect(step.nextElementSibling).toHaveAccessibleName("Used by (2)");
+    expect(step).toHaveTextContent("Publish");
+    expect(step).toHaveAttribute("data-variant", "success");
+    expect(step).toHaveAttribute("data-size", "sm");
+    expect(step).toHaveAccessibleName("Publish team-photo.jpg");
+    fireEvent.click(step);
+    expect(onClick).toHaveBeenCalledOnce();
+  });
+
+  it("SUI-FEATURE-330 AC 8: a busy step is locked; a locked one names its reason", () => {
+    const onClick = vi.fn();
+    const step = { label: "Publish", icon: SendIcon, onClick, rowName: "team-photo.jpg" };
+    renderShell({ step: { ...step, busy: true, "data-testid": "media-detail-step" } });
+    fireEvent.click(screen.getByTestId("media-detail-step"));
+    expect(onClick).not.toHaveBeenCalled();
+    cleanup();
+    renderShell({
+      step: { ...step, disabledText: "No file yet.", "data-testid": "media-detail-step" },
+    });
+    const locked = screen.getByTestId("media-detail-step");
+    expect(locked).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(locked);
+    expect(onClick).not.toHaveBeenCalled();
+    expect(locked).toHaveAccessibleDescription("No file yet.");
+  });
+
+  it("SUI-FEATURE-330 AC 8: without step the head is unchanged", () => {
+    renderShell({ usage: { count: 2, active: false, onToggle: vi.fn(), content: <p>usages</p> } });
+    const usage = screen.getByRole("button", { name: "Used by (2)" });
+    expect(usage.parentElement!.firstElementChild).toBe(usage);
+    expect(screen.queryByRole("button", { name: /Publish/ })).toBeNull();
   });
 
   it.each([

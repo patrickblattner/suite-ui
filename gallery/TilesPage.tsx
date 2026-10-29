@@ -1,3 +1,4 @@
+import { SendIcon } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -17,18 +18,21 @@ const LABELS = {
     objects: "media files",
     add: "Add media file",
     error: "The media files could not be loaded.",
+    publish: "Publish",
   },
   de: {
     name: "Name",
     objects: "Mediendateien",
     add: "Mediendatei hinzufügen",
     error: "Die Mediendateien konnten nicht geladen werden.",
+    publish: "Veröffentlichen",
   },
   es: {
     name: "Nombre",
     objects: "archivos multimedia",
     add: "Añadir archivo multimedia",
     error: "No se pudieron cargar los archivos multimedia.",
+    publish: "Publicar",
   },
 } as const;
 
@@ -77,6 +81,9 @@ const MEDIA: Omit<MediaTileProps, "onOpen">[] = [
 
 // `SUI-FEATURE-084` rev 5: an image and an icon tile carry the always-visible delete button.
 const DELETABLE = new Set(["team-photo.jpg", "intro.mp4"]);
+// `?step=1` gives the first two media their next lifecycle step (`SUI-FEATURE-330`), folded into the
+// tile's ⋯ menu; the second one's is running.
+const STEP = new URLSearchParams(window.location.search).get("step") === "1";
 
 type State = Pick<ListStateProps, "isPending" | "isEmpty" | "isError" | "filtered">;
 
@@ -183,6 +190,16 @@ export function TilesPage() {
               {...medium}
               onOpen={() => setOpened(medium.name)}
               onDelete={DELETABLE.has(medium.name) ? () => setDeleted(medium.name) : undefined}
+              {...(STEP && DELETABLE.has(medium.name)
+                ? {
+                    step: {
+                      label: labels.publish,
+                      icon: SendIcon,
+                      onClick: () => {},
+                      busy: medium.name === "intro.mp4",
+                    },
+                  }
+                : {})}
             />
           ))}
         </TileGridShell>

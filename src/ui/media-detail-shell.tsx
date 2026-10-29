@@ -16,7 +16,7 @@ import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
 import { isTextField } from "../lib/keyboard.js";
-import { type RowUsage, useRowActionButtons } from "../list/row-actions.js";
+import { type RowAction, type RowUsage, useRowActionButtons } from "../list/row-actions.js";
 import { PANEL_SURFACE_CLASS, usePanelGeometry } from "../lib/panel-geometry.js";
 import { Button } from "./button.js";
 import { FieldSubmitContext, useFieldSubmits } from "./field-error.js";
@@ -79,6 +79,9 @@ type MediaDetailShellProps = MediaDetailSource & {
   // "Used by" (`SUI-FEATURE-004`): a button in the preview head; while `active`, `content` (a
   // `UsageTable`) takes the preview's place in the preview column.
   usage?: RowUsage & { content: React.ReactNode };
+  // The medium's next lifecycle step (`SUI-FEATURE-330`): a labelled `success` button first in the
+  // preview head, before "Used by"; its name and hint read "‹label› ‹rowName›".
+  step?: RowAction & { rowName: string };
 };
 
 // Keys that belong to the focused control, not to paging.
@@ -345,13 +348,18 @@ function MediaDetailShell({
   onReset,
   pickAction,
   usage,
+  step,
   ...slots
 }: MediaDetailShellProps) {
   const { t } = useTranslation("suite");
-  const usageButton = useRowActionButtons(
-    { rowName: "", ...(usage === undefined ? {} : { usage }) },
+  const headButtons = useRowActionButtons(
+    {
+      rowName: step?.rowName ?? "",
+      ...(usage === undefined ? {} : { usage }),
+      ...(step === undefined ? {} : { step }),
+    },
     "icon-sm",
-  ).extra;
+  );
   const showUsage = usage?.active === true;
   // An image, video, audio or PDF whose `src` has a scheme it may not load shows `noRenderer` instead
   // (`SUI-FEATURE-089`).
@@ -503,7 +511,8 @@ function MediaDetailShell({
                       {t("media.position", { n: position, total })}
                     </span>
                     <div className="ms-auto flex items-center gap-2">
-                      {usageButton}
+                      {headButtons.step}
+                      {headButtons.extra}
                       {pickAction !== undefined && (
                         <span ref={pickSlot} className="contents">
                           <PickButton
