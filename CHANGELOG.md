@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #677, SUI-FEATURE-047 rev 4: `RowActionsHead` right-aligned with its cluster (patch)
+## 0.187.1 — #677, SUI-FEATURE-047 rev 4: `RowActionsHead` right-aligned with its cluster (patch)
 
 - **Changed look (#677):** `RowActionsHead` aligns its text right (`text-right`, `GL-UI-023` rev 10 "Aktions-Spalte rechtsbündig"), so "Actions" ends on the cluster's right edge, also when the column is wider than its cluster. A `className` passed in still merges over it. `RowActions` itself is unchanged and takes no part in the reorder placement, which stays with `ReorderCell` (#675).
 - **Gallery (#677):** `list-step-de-light.png` and `reorder-carry-de-{light,dark}.png` updated.
