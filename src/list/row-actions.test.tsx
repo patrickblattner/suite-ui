@@ -63,6 +63,27 @@ describe("RowActions (SUI-FEATURE-047)", () => {
     expect(screen.getByTestId("actions")).toHaveAttribute("data-col-kind", "actions");
   });
 
+  // SUI-FEATURE-047 rev 4: the head aligns right, with the cluster (pixels in the gallery spec).
+  it("right-aligns the head with its cluster", () => {
+    renderRow();
+    expect(screen.getByTestId("actions-head")).toHaveClass("text-right");
+    expect(screen.getByTestId("actions-head")).not.toHaveClass("text-left");
+  });
+
+  it("lets a passed className win over the right alignment", () => {
+    render(
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <RowActionsHead className="text-left" data-testid="actions-head" />
+          </TableRow>
+        </TableHeader>
+      </Table>,
+    );
+    expect(screen.getByTestId("actions-head")).toHaveClass("text-left");
+    expect(screen.getByTestId("actions-head")).not.toHaveClass("text-right");
+  });
+
   it("AC4: extra, extra, edit, delete in DOM order, all icon-xs, named ‹verb› ‹row›", async () => {
     await i18n.changeLanguage("de");
     renderRow();

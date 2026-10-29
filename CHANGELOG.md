@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — #677, SUI-FEATURE-047 rev 4: `RowActionsHead` right-aligned with its cluster (patch)
+
+- **Changed look (#677):** `RowActionsHead` aligns its text right (`text-right`, `GL-UI-023` rev 10 "Aktions-Spalte rechtsbündig"), so "Actions" ends on the cluster's right edge, also when the column is wider than its cluster. A `className` passed in still merges over it. `RowActions` itself is unchanged and takes no part in the reorder placement, which stays with `ReorderCell` (#675).
+- **Gallery (#677):** `list-step-de-light.png` and `reorder-carry-de-{light,dark}.png` updated.
+- **Tests (#677):** gallery: in an actions column widened 120 px beyond its natural width, the text "Aktionen" ends on the delete button's right edge ±1 px (AC 10; fails at 157 px without the change). Unit: the head carries `text-right`, not `text-left`.
+
 ## 0.187.0 — #684, SUI-FEATURE-360 rev 2: a carried reorder row wears a ring around the whole row (minor)
 
 - **Changed look (#684):** a row carried by its `ReorderCell` (keyboard pick-up or pointer drag) no longer takes the hover tint; it wears one 2 px outline on the `ring` token around the whole row (≥ 3:1 on the surface, light and dark), never per-cell borders (`GL-UI-023`). `TableRow` suppresses its hover tint on a row that holds a carried cell (`data-[grid-row]:not-has-data-carried:hover:bg-muted/50`); another hovered row, selection and expansion keep their looks. A drop or `Esc` takes the outline away. Under a stuck actions column, whose opaque ground covers the outline, the ring's top, right and bottom edges lie on that cell's `::after`, beside a drop line there.

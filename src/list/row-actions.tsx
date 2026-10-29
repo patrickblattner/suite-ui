@@ -382,11 +382,15 @@ function useRowActionButtons(
   };
 }
 
-// The head of the actions column (`GL-UI-023`): "Actions", marked as the actions column.
-function RowActionsHead(props: Omit<React.ComponentProps<typeof TableHead>, "children">) {
+// The head of the actions column (`GL-UI-023`): "Actions", marked as the actions column, right-aligned
+// so it ends on the cluster's right edge however wide the column is (`SUI-FEATURE-047` rev 4).
+function RowActionsHead({
+  className,
+  ...props
+}: Omit<React.ComponentProps<typeof TableHead>, "children">) {
   const { t } = useTranslation("suite");
   return (
-    <TableHead data-col-kind="actions" {...props}>
+    <TableHead data-col-kind="actions" className={cn("text-right", className)} {...props}>
       {t("list.actions")}
     </TableHead>
   );

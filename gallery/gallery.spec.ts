@@ -8464,6 +8464,32 @@ for (const [rows, query] of [
   });
 }
 
+// SUI-FEATURE-047 AC10 (rev 4): in an actions column wider than its cluster, "Aktionen" ends on the
+// delete button's right edge (±1 px).
+test("row actions: the head text ends on the delete button's right edge in a wide column", async ({
+  page,
+}) => {
+  await page.goto("/?page=list&actions=1&lng=de");
+  const head = page.getByTestId("list-actions-head");
+  await expect(head).toHaveText("Aktionen");
+  const cell = page.getByTestId("list-actions").first();
+  // Widen the column 120 px beyond its natural width, so it is clearly wider than the cluster.
+  await head.evaluate(
+    (th, width) => (th.style.width = `${width}px`),
+    (await box(head)).width + 120,
+  );
+  const buttons = cell.getByRole("button");
+  const first = await box(buttons.first());
+  const remove = await box(cell.getByRole("button", { name: /^Löschen/ }));
+  expect(remove.x + remove.width - first.x).toBeLessThan((await box(cell)).width - 100);
+  const textRight = await head.evaluate((th) => {
+    const range = document.createRange();
+    range.selectNodeContents(th);
+    return range.getBoundingClientRect().right;
+  });
+  expect(Math.abs(textRight - (remove.x + remove.width))).toBeLessThanOrEqual(1);
+});
+
 // SUI-FEATURE-047 AC7: in ListViewShell the arrow key swaps table for tiles while the focus stays on
 // the switch and the FilterBar stays the same node.
 test("list view shell: the view swaps under the keyboard, the FilterBar is not remounted", async ({
