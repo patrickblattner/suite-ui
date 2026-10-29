@@ -871,6 +871,7 @@ const AXE_PAGES: [
     ],
   ],
   ["list", (page) => page.getByTestId("list-actions").first(), "&actions=1"],
+  ["list", (page) => page.getByTestId("list-actions").first(), "&actions=1&step=1"],
   ["select", (page) => page.getByRole("combobox", { expanded: false }), "&select=closed"],
 ];
 
@@ -7198,6 +7199,33 @@ test("table actions sticky: the actions column sits on the scroller's right edge
     const cell = await box(actions);
     expect(Math.abs(cell.x + cell.width - right)).toBeLessThanOrEqual(1);
   }
+});
+
+// SUI-FEATURE-330 AC1, AC2, AC7: odd rows carry a labelled step before their icon buttons; edit and
+// delete stand at the same x-position in every row, with or without a step.
+test("table actions step: the icon buttons line up in rows with and without a step", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/?page=list&actions=1&step=1&lng=de");
+  const rows = page.getByTestId("list-actions");
+  const step = rows.nth(0).getByRole("button", { name: "Jetzt zustellen Ereignis 1" });
+  await expect(step).toHaveText("Jetzt zustellen");
+  await expect(rows.nth(1).getByRole("button", { name: /^Jetzt zustellen/ })).toHaveCount(0);
+  for (const name of ["Bearbeiten", "Löschen"]) {
+    const xs = await Promise.all(
+      [0, 1, 2, 3].map(
+        async (i) =>
+          (await box(rows.nth(i).getByRole("button", { name: new RegExp(`^${name} `) }))).x,
+      ),
+    );
+    expect(new Set(xs).size).toBe(1);
+  }
+  // The step stands first, left of the row's other actions.
+  const copy = rows.nth(0).getByRole("button", { name: /^Kopieren / });
+  expect((await box(step)).x).toBeLessThan((await box(copy)).x);
+  await parkPointer(page);
+  await expect(page.getByTestId("data-table-scroll")).toHaveScreenshot("list-step-de-light.png");
 });
 
 // SUI-FEATURE-029 AC5: DataTableShell — scrolled to the end on both axes,

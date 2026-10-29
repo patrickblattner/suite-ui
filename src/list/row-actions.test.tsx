@@ -1,12 +1,12 @@
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import i18n from "i18next";
-import { CopyIcon, DownloadIcon } from "lucide-react";
+import { CopyIcon, DownloadIcon, SendIcon } from "lucide-react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
 import { Table, TableBody, TableHeader, TableRow } from "../ui/table.js";
 import { EmptyCell } from "./empty-cell.js";
-import { RowActions, RowActionsHead, type RowActionsProps } from "./row-actions.js";
+import { type RowAction, RowActions, RowActionsHead, type RowActionsProps } from "./row-actions.js";
 import { hintOf } from "./test-utils.js";
 
 function renderRow(props: Partial<RowActionsProps> = {}, onRowClick = vi.fn()) {
@@ -649,6 +649,122 @@ describe("RowActions test ids (SUI-FEATURE-008)", () => {
       "data-testid",
       "row-menu-item",
     );
+  });
+});
+
+describe("RowActions step (SUI-FEATURE-330)", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  // Ada's row with a step, Bob's without; Cleo's step is running.
+  function renderRows(adaStep: Partial<RowAction> = {}) {
+    const deliverAda = vi.fn();
+    const deliverCleo = vi.fn();
+    const editAda = vi.fn();
+    const row = (rowName: string, step?: RowAction) => (
+      <TableRow>
+        <RowActions
+          rowName={rowName}
+          {...(step === undefined ? {} : { step })}
+          extra={[{ label: "Copy", icon: CopyIcon, onClick: vi.fn() }]}
+          onEdit={rowName === "Ada" ? editAda : vi.fn()}
+          onDelete={vi.fn()}
+          data-testid={`actions-${rowName}`}
+        />
+      </TableRow>
+    );
+    render(
+      <Table>
+        <TableBody>
+          {row("Ada", {
+            label: "Deliver",
+            icon: SendIcon,
+            onClick: deliverAda,
+            "data-testid": "row-step",
+            ...adaStep,
+          })}
+          {row("Bob")}
+          {row("Cleo", { label: "Deliver", icon: SendIcon, onClick: deliverCleo, busy: true })}
+        </TableBody>
+      </Table>,
+    );
+    return { deliverAda, deliverCleo, editAda };
+  }
+  const cluster = (rowName: string) =>
+    screen.getByTestId(`actions-${rowName}`).querySelector<HTMLElement>("[data-slot=row-actions]");
+
+  it("AC1: the step stands first as a labelled outline button with icon, named ‹label› ‹rowName›", () => {
+    const { deliverAda } = renderRows();
+    const buttons = within(screen.getByTestId("actions-Ada")).getAllByRole("button");
+    expect(buttons.map((button) => button.getAttribute("aria-label"))).toEqual([
+      "Deliver Ada",
+      "Copy Ada",
+      "Edit Ada",
+      "Delete Ada",
+    ]);
+    const step = screen.getByTestId("row-step");
+    expect(buttons[0]).toBe(step);
+    expect(step).toHaveAttribute("data-variant", "outline");
+    // The text size of the icon buttons' height (`icon-xs`).
+    expect(step).toHaveAttribute("data-size", "xs");
+    expect(step).toHaveTextContent("Deliver");
+    expect(step.querySelector("svg")).toBeInTheDocument();
+    expect(step).toHaveAttribute("type", "button");
+    fireEvent.click(step);
+    expect(deliverAda).toHaveBeenCalledOnce();
+  });
+
+  it("AC1: its hint reads ‹label› ‹rowName›", () => {
+    renderRows();
+    expect(hintOf(screen.getByTestId("row-step")).hover1500).toMatch(/^Deliver Ada/);
+  });
+
+  it("AC2: the cluster stays end-aligned; a row without a step has the same icon buttons and no step", () => {
+    renderRows();
+    for (const rowName of ["Ada", "Bob", "Cleo"]) {
+      expect(cluster(rowName)?.className).toMatch(/\bjustify-end\b/);
+    }
+    // Bob's cluster reserves nothing: its buttons are exactly the icon buttons Ada's step stands before.
+    const icons = (rowName: string) =>
+      within(cluster(rowName) as HTMLElement)
+        .getAllByRole("button")
+        .filter((button) => button.dataset.size === "icon-xs")
+        .map((button) => button.getAttribute("aria-label")?.split(" ")[0]);
+    expect(icons("Bob")).toEqual(icons("Ada"));
+    expect(within(cluster("Bob") as HTMLElement).getAllByRole("button")).toHaveLength(3);
+    expect(cluster("Bob")?.children).toHaveLength(3);
+  });
+
+  it("AC3: busy locks only that row's step; click and double click do not run it", () => {
+    const { deliverAda, deliverCleo } = renderRows();
+    const running = screen.getByRole("button", { name: "Deliver Cleo" });
+    expect(running).toHaveAttribute("aria-busy", "true");
+    expect(within(running).getByTestId("button-loading")).toBeInTheDocument();
+    fireEvent.click(running);
+    fireEvent.click(running, { detail: 2 });
+    fireEvent.dblClick(running);
+    expect(deliverCleo).not.toHaveBeenCalled();
+    const other = screen.getByTestId("row-step");
+    expect(other).not.toHaveAttribute("aria-busy");
+    fireEvent.click(other);
+    expect(deliverAda).toHaveBeenCalledOnce();
+  });
+
+  it("AC3: disabledText locks the step and names the reason, as on any RowAction", () => {
+    const { deliverAda } = renderRows({ disabledText: "No address yet." });
+    const step = screen.getByTestId("row-step");
+    expect(step).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(step);
+    expect(deliverAda).not.toHaveBeenCalled();
+    expect(step).toHaveAccessibleDescription("No address yet.");
+    expect(hintOf(step.parentElement as HTMLElement).hover1500).toBe("No address yet.");
+  });
+
+  it("AC3: shortcut shows on the step as on any RowAction", () => {
+    renderRows({ shortcut: ["Ctrl+Enter"] });
+    expect(screen.getByTestId("row-step")).toHaveAttribute("aria-keyshortcuts", "Control+Enter");
   });
 });
 

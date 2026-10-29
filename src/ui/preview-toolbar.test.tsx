@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import i18n from "i18next";
-import { CopyIcon } from "lucide-react";
+import { CopyIcon, SendIcon } from "lucide-react";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
@@ -683,6 +683,81 @@ describe("PreviewToolbar in a narrow column (SUI-FEATURE-067)", () => {
     expect(entry).toHaveAttribute("data-disabled");
     fireEvent.click(entry);
     expect(onClick).not.toHaveBeenCalled();
+  });
+
+  // With the step: 9 buttons (450 px); folded but edit 7 (350 px); ⋯ alone 6 (300 px).
+  const STEP: RowActionSet = {
+    ...ENTRY,
+    step: { label: "Deliver", icon: SendIcon, onClick: () => {}, "data-testid": "row-step" },
+  };
+
+  it("SUI-FEATURE-330 AC5: the toolbar shows the row's step first, labelled, at its height", () => {
+    render(<PreviewToolbar {...FULL} actions={STEP} />);
+    expect(toolbar()).toHaveAttribute("data-shrink", "0");
+    expect(actionLabels()).toEqual(["Deliver Home", "Copy Home", "Edit Home", "Delete Home"]);
+    const step = within(screen.getByTestId("preview-actions")).getByTestId("row-step");
+    expect(step).toHaveTextContent("Deliver");
+    expect(step).toHaveAttribute("data-variant", "outline");
+    expect(step).toHaveAttribute("data-size", "sm");
+  });
+
+  it.each([
+    [420, "1", ["Deliver", "Copy", "—", "Delete"]],
+    [320, "2", ["Deliver", "Copy", "Edit", "—", "Delete"]],
+  ])(
+    "SUI-FEATURE-330 AC4: at %i px the step is the first entry of the ⋯ menu",
+    (width, shrink, entries) => {
+      render(<PreviewToolbar {...FULL} actions={STEP} />);
+      resize(width);
+      expect(toolbar()).toHaveAttribute("data-shrink", shrink);
+      expect(within(screen.getByTestId("preview-actions")).queryByTestId("row-step")).toBeNull();
+      expect(menuEntries()).toEqual(entries);
+    },
+  );
+
+  it("SUI-FEATURE-330 AC3: folded, a running step's entry is locked", () => {
+    const onClick = vi.fn();
+    render(
+      <PreviewToolbar
+        {...FULL}
+        actions={{ ...ENTRY, step: { label: "Deliver", icon: SendIcon, onClick, busy: true } }}
+      />,
+    );
+    resize(320);
+    expect(toolbar()).toHaveAttribute("data-shrink", "2");
+    const trigger = within(screen.getByTestId("preview-actions")).getByTestId("row-menu");
+    trigger.focus();
+    fireEvent.keyDown(trigger, { key: "Enter" });
+    const entry = within(screen.getByRole("menu")).getByRole("menuitem", { name: "Deliver" });
+    expect(entry).toHaveAttribute("data-disabled");
+    fireEvent.click(entry);
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
+  it("SUI-FEATURE-330 AC3: folded, a locked step's entry names its reason", () => {
+    render(
+      <PreviewToolbar
+        {...FULL}
+        actions={{
+          ...ENTRY,
+          step: {
+            label: "Deliver",
+            icon: SendIcon,
+            onClick: () => {},
+            disabledText: "No address yet.",
+          },
+        }}
+      />,
+    );
+    resize(320);
+    const trigger = within(screen.getByTestId("preview-actions")).getByTestId("row-menu");
+    trigger.focus();
+    fireEvent.keyDown(trigger, { key: "Enter" });
+    const reasoned = within(screen.getByRole("menu")).getByRole("menuitem", { name: "Deliver" });
+    expect(reasoned).toHaveAttribute("data-disabled");
+    expect(
+      document.getElementById(reasoned.getAttribute("aria-describedby") ?? "")?.textContent,
+    ).toBe("No address yet.");
   });
 
   it("keeps the device switch beside Close when nothing else would stand there", () => {

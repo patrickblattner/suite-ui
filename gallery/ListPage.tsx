@@ -1,4 +1,4 @@
-import { CopyIcon } from "lucide-react";
+import { CopyIcon, SendIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 // sonner's own toast: the package's `toast` caps every duration at 12 s, and the gallery holds the
@@ -32,6 +32,7 @@ const LABELS = {
     view: "View",
     views: ["Compact", "Detailed"],
     copy: "Copy",
+    send: "Send now",
     inUse: "Still booked; delete the bookings first.",
   },
   de: {
@@ -45,6 +46,7 @@ const LABELS = {
     view: "Sicht",
     views: ["Kompakt", "Ausführlich"],
     copy: "Kopieren",
+    send: "Jetzt zustellen",
     inUse: "Noch gebucht; zuerst die Buchungen löschen.",
   },
   es: {
@@ -58,6 +60,7 @@ const LABELS = {
     view: "Vista",
     views: ["Compacta", "Detallada"],
     copy: "Copiar",
+    send: "Enviar ahora",
     inUse: "Aún reservado; elimine primero las reservas.",
   },
 } as const;
@@ -99,6 +102,9 @@ const TABS = new URLSearchParams(window.location.search).get("slots") === "tabs"
 // `?actions=1` gives the rows a long note and an actions column, so the table is wider than its
 // scroller at 1100 px and the gallery measures that the actions stay at the right edge.
 const ACTIONS = new URLSearchParams(window.location.search).get("actions") === "1";
+// `?step=1` (with `actions=1`) gives every odd row its next lifecycle step (`SUI-FEATURE-330`), so
+// rows with and without a step mix; the third row's step is running.
+const STEP = new URLSearchParams(window.location.search).get("step") === "1";
 // `?filters=node` passes the filters as one node, ordered by the page, with a third filter so the
 // controls group wraps at narrow widths; without it a list of one dynamic and one static filter.
 const NODE_FILTERS = new URLSearchParams(window.location.search).get("filters") === "node";
@@ -275,6 +281,16 @@ export function ListPage() {
                 <TableCell>{NOTE}</TableCell>
                 <RowActions
                   rowName={`${labels.event} ${row.id}`}
+                  {...(STEP && row.id % 2 === 1
+                    ? {
+                        step: {
+                          label: labels.send,
+                          icon: SendIcon,
+                          onClick: () => {},
+                          busy: row.id === 3,
+                        },
+                      }
+                    : {})}
                   // `SUI-FEATURE-072`: the second row's copy is running.
                   extra={[
                     { label: labels.copy, icon: CopyIcon, onClick: () => {}, busy: row.id === 2 },
