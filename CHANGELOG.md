@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — #686: spec-sync-toolkit v0.33.2 (patch)
+
+- **Toolkit pin (#686):** the `spec-sync-toolkit` devDependency moves from v0.33.1 to v0.33.2 (norm pin PROC-DEV-039 rev 4); no behaviour change.
+
 ## 0.186.0 — #683, SUI-FEATURE-350 rev 4: the "Used by" button is named "Usages of ‹rowName› (n)" (minor)
 
 - **Changed accessible name (#683):** the row-named "Used by" button of `RowActionSet.usage` (table row and `PreviewToolbar`) is now named "Usages of ‹rowName› (n)" instead of "Used by ‹rowName› (n)" (de "Verwendungen von ‹rowName› (n)" instead of "Verwendet von ‹rowName› (n)", es "Usos de ‹rowName› (n)" instead of "Usado por ‹rowName› (n)"): "Used by ‹name›" read as if the row were the user. Its hint follows; locked, it still names the reason. `MediaDetailShell` keeps "Used by (n)". Tests or automation that find the button by its row-named name need the new wording.
