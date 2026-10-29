@@ -7,6 +7,7 @@ import type { SlideExtensions } from "../src/slides/slide-view.js";
 import type { PickedMedia } from "../src/slides/slide-editor-library.js";
 import { SlidePlayer } from "../src/slides/slide-player.js";
 import { Button } from "../src/ui/button.js";
+import { Hint } from "../src/ui/hint.js";
 import { Input } from "../src/ui/input.js";
 import {
   Dialog,
@@ -182,18 +183,21 @@ const GALLERY_EDITOR_EXTENSIONS: SlideExtensions = {
       ...stamp,
       defaultSize: { width: 200, height: 80 },
       library: { payload: { text: "New" } },
-      fields: ({ value, onChange, readOnly }) => (
+      // `SUI-FEATURE-195` rev 4: locked, the read-only field carries the editor's reason as its hint.
+      fields: ({ value, onChange, readOnly, lockedReason }) => (
         <div className="flex flex-col gap-1.5">
           <label htmlFor="gallery-stamp-text" className="text-sm font-medium">
             Stamp text
           </label>
-          <Input
-            id="gallery-stamp-text"
-            value={typeof value?.text === "string" ? value.text : ""}
-            readOnly={readOnly}
-            onChange={(event) => onChange({ ...value, text: event.target.value })}
-            data-testid="gallery-stamp-text"
-          />
+          <Hint text={lockedReason ?? ""}>
+            <Input
+              id="gallery-stamp-text"
+              value={typeof value?.text === "string" ? value.text : ""}
+              readOnly={readOnly}
+              onChange={(event) => onChange({ ...value, text: event.target.value })}
+              data-testid="gallery-stamp-text"
+            />
+          </Hint>
         </div>
       ),
     },

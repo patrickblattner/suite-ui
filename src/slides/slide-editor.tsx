@@ -2816,6 +2816,9 @@ function Editor({
         ? current
         : setPayload(current, page, id, change(found.element.payload));
     }, merge);
+  // The app's and add-ons' fields get the lock reason in the editor's language and apply it
+  // themselves (`SUI-FEATURE-195` rev 4).
+  const lockedReason = single?.locked === true ? t("slides.lockedElement") : undefined;
   // Each is rendered as a component of its own, so the app's fields may use hooks; keyed by element, so
   // another element's fields start afresh.
   const TypeFields =
@@ -2829,6 +2832,7 @@ function Editor({
         element={single}
         value={single.payload}
         readOnly={single.locked}
+        lockedReason={lockedReason}
         onChange={(payload) => changePayload(single.id, () => payload, `payload:${single.id}`)}
       />
     );
@@ -2843,6 +2847,7 @@ function Editor({
             value: unknown;
             onChange: (value: unknown) => void;
             readOnly: boolean;
+            lockedReason: string | undefined;
           }) => React.ReactNode;
           const payload = single.payload;
           return [
@@ -2865,6 +2870,7 @@ function Editor({
                       : undefined
                   }
                   readOnly={single.locked}
+                  lockedReason={lockedReason}
                   onChange={(value) =>
                     changePayload(
                       single.id,

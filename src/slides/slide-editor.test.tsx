@@ -543,12 +543,13 @@ describe("SlideEditor extension parts", () => {
         defaultSize: { width: 200, height: 80 },
         library: { payload: { text: "New" } },
         // Uses a hook, as an app's fields may (review #295 inc 2).
-        fields: function StampFields({ value, onChange, readOnly }) {
+        fields: function StampFields({ value, onChange, readOnly, lockedReason }) {
           const [touched, setTouched] = React.useState(false);
           return (
             <input
               aria-label="Stamp text"
               data-touched={touched}
+              data-locked-reason={lockedReason ?? "none"}
               value={typeof value?.text === "string" ? value.text : ""}
               readOnly={readOnly}
               onChange={(event) => {
@@ -575,9 +576,10 @@ describe("SlideEditor extension parts", () => {
         style: (value) => ({
           filter: `sepia(${Number((value as { warmth?: number })?.warmth ?? 0)}%)`,
         }),
-        fields: ({ value, onChange }) => (
+        fields: ({ value, onChange, lockedReason }) => (
           <input
             aria-label="Warmth"
+            data-locked-reason={lockedReason ?? "none"}
             type="number"
             value={Number((value as { warmth?: number } | undefined)?.warmth ?? 0)}
             onChange={(event) =>
@@ -812,6 +814,32 @@ describe("SlideEditor extension parts", () => {
       .find((node) => node.getAttribute("data-layer-id") === "stamp")!;
     fireEvent.click(within(row).getByTestId("slide-editor-layer-lock"));
     expect(screen.getByLabelText("Stamp text")).toHaveAttribute("readonly");
+  });
+
+  // SUI-FEATURE-195 rev 4 AC 7: the app's and add-ons' fields get the lock reason next to readOnly.
+  it("passes lockedReason to the app's and add-ons' fields while the element is locked", () => {
+    editor();
+    const lock = (id: string) => {
+      const row = screen
+        .getAllByTestId("slide-editor-layer")
+        .find((node) => node.getAttribute("data-layer-id") === id)!;
+      fireEvent.click(within(row).getByTestId("slide-editor-layer-lock"));
+    };
+    const reason = "The element is locked. Unlock it in the layers panel to change it.";
+    select("stamp");
+    expect(screen.getByLabelText("Stamp text")).toHaveAttribute("data-locked-reason", "none");
+    lock("stamp");
+    expect(screen.getByLabelText("Stamp text")).toHaveAttribute("data-locked-reason", reason);
+    lock("stamp");
+    expect(screen.getByLabelText("Stamp text")).toHaveAttribute("data-locked-reason", "none");
+    select("photo-1");
+    fireEvent.mouseDown(screen.getByTestId("property-tab-content"));
+    fireEvent.click(screen.getByTestId("property-tab-content"));
+    expect(screen.getByLabelText("Warmth")).toHaveAttribute("data-locked-reason", "none");
+    lock("photo-1");
+    expect(screen.getByLabelText("Warmth")).toHaveAttribute("data-locked-reason", reason);
+    lock("photo-1");
+    expect(screen.getByLabelText("Warmth")).toHaveAttribute("data-locked-reason", "none");
   });
 
   it("names an inserted block by its library label", () => {

@@ -16659,6 +16659,19 @@ test("slide editor: the app's overlay, library entries and fields", async ({ pag
   await expect(editor.locator("[data-slot=slide-view] [data-slide-type=custom]").last()).toHaveText(
     "1/2",
   );
+  // `SUI-FEATURE-195` rev 4 AC 7: locked, the stamp's field shows the editor's reason; unlocked, none.
+  await editor.getByTestId("drawer-layers").click();
+  const stampRow = editor.locator("[data-layer-id=custom-1]");
+  await stampRow.getByTestId("slide-editor-layer-select").click();
+  await stampRow.getByTestId("slide-editor-layer-lock").click();
+  const stampText = editor.getByTestId("gallery-stamp-text");
+  await expect(stampText).toHaveAttribute("readonly", "");
+  await expect(stampText).toHaveAccessibleDescription(
+    "The element is locked. Unlock it in the layers panel to change it.",
+  );
+  await stampRow.getByTestId("slide-editor-layer-lock").click();
+  await expect(stampText).not.toHaveAttribute("readonly");
+  await expect(stampText).toHaveAccessibleDescription("");
 
   await page.getByTestId("editor-save").click();
   await page.getByTestId("slide-editor-app-present").click();

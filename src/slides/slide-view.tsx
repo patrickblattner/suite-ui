@@ -91,10 +91,14 @@ type BuiltInType = Exclude<SlideElement["type"], "custom">;
 // What an app's own fields in the editor's panel get (`SUI-FEATURE-163`): the value they edit, the
 // change to it (one step of the history; changes in a row to the same value merge into one), and
 // whether the element is locked. The value comes from the document as saved: check its shape.
+// `lockedReason` is the translated reason while the element is locked, `undefined` otherwise: the
+// fields' text and number inputs stay `readOnly` with it in their description, their other controls
+// lock through `aria-disabled` with it (`Hint` `disabledText`, `SUI-FEATURE-195`).
 export interface SlideFieldProps<V, E extends SlideElement> {
   value: V;
   onChange: (value: V) => void;
   readOnly: boolean;
+  lockedReason?: string | undefined;
   element: E;
 }
 
