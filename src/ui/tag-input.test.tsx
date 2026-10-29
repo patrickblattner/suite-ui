@@ -617,6 +617,8 @@ describe("TagInput passes props to its text field", () => {
     render(<TagInput value={["protected"]} onChange={() => undefined} readOnly />);
     expect(chips()).toEqual(["protected"]);
     expect(screen.getByTestId("tag-input-chip")).toHaveAttribute("data-slot", "badge");
+    // `SUI-FEATURE-117` rev 4: a tag is a category, so the `outline` badge on the muted frame.
+    expect(screen.getByTestId("tag-input-chip")).toHaveAttribute("data-variant", "outline");
     expect(screen.queryByRole("button", { name: "Remove tag protected" })).toBeNull();
   });
 

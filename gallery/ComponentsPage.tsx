@@ -598,6 +598,18 @@ function UploadAndTags() {
           placeholder="Add tags"
           suggestions={TAG_SUGGESTIONS}
         />
+        {/* `SUI-FEATURE-117` rev 3: read-only beside the editable tag field above. */}
+        <LabelWithHelp htmlFor="gallery-tags-readonly" help="Set by the system">
+          Tags read-only
+        </LabelWithHelp>
+        <TagInput
+          id="gallery-tags-readonly"
+          testId="tag-input-readonly"
+          value={["summer", "team"]}
+          onChange={() => undefined}
+          readOnly
+          aria-describedby={helpIdFor("gallery-tags-readonly")}
+        />
       </div>
     </Section>
   );

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { Button } from "./button.js";
 import { Input } from "./input.js";
+import { READ_ONLY_LOOK } from "./read-only-look-internal.js";
 import { Select, SelectTrigger, SelectValue } from "./select.js";
 
 // One height scale for all controls (`GL-UI-011`): jsdom has no Tailwind, so the height step is checked
@@ -28,10 +29,7 @@ describe("read-only Input", () => {
     render(<Input aria-label="Name" readOnly defaultValue="Fixed" />);
     const input = screen.getByRole("textbox", { name: "Name" });
     expect(input).toHaveAttribute("readonly");
-    expect(input).toHaveClass(
-      "[&[readonly]:not(:disabled)]:cursor-default",
-      "[&[readonly]:not(:disabled)]:bg-muted",
-    );
+    expect(input).toHaveClass(...READ_ONLY_LOOK.split(" "));
   });
 
   it("keeps the editable field's shape and size classes", () => {

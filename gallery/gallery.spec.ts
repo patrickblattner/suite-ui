@@ -3644,6 +3644,63 @@ async function expectReadOnlyStop(page: Page, field: Locator) {
   ).toEqual([0, length]);
 }
 
+// `SUI-FEATURE-117` rev 3: a read-only TagInput takes the same look on its whole frame, chips included,
+// and otherwise keeps the editable frame's box; its text field stays a Tab stop with the frame's ring.
+for (const theme of THEMES) {
+  test(`read-only TagInput: muted frame, default cursor, the editable box in ${theme}`, async ({
+    page,
+  }) => {
+    await page.goto(`/?page=components&lng=en&theme=${theme}`);
+    const editable = page.getByTestId("tag-input");
+    const readOnly = page.getByTestId("tag-input-readonly");
+    const input = page.getByTestId("tag-input-readonly-input");
+    await expect(input).toHaveAttribute("readonly");
+    const frame = await surfaceOf(readOnly);
+    expect(frame.background).toBe(frame.muted);
+    expect(frame.cursor).toBe("default");
+    const inputSurface = await surfaceOf(input);
+    expect([inputSurface.muted, "rgba(0, 0, 0, 0)"]).toContain(inputSurface.background);
+    expect(inputSurface.cursor).toBe("default");
+    // Rev 4: each chip is an `outline` badge whose border stays visible on the muted frame.
+    for (const chip of await readOnly.getByTestId("tag-input-readonly-chip").all()) {
+      await expect(chip).toHaveAttribute("data-variant", "outline");
+      const edge = await chip.evaluate((el) => {
+        const style = getComputedStyle(el);
+        return { width: style.borderTopWidth, color: style.borderTopColor, cursor: style.cursor };
+      });
+      expect(edge.width).toBe("1px");
+      expect(edge.color).not.toBe("rgba(0, 0, 0, 0)");
+      expect(edge.color).not.toBe(frame.muted);
+      expect(edge.cursor).toBe("default");
+    }
+    const before = await surfaceOf(editable);
+    expect(before.background).not.toBe(before.muted);
+    expect((await surfaceOf(page.getByTestId("tag-input-input"))).cursor).toBe("text");
+    expect(await boxStyleOf(readOnly)).toEqual(await boxStyleOf(editable));
+    expect(await boxStyleOf(input)).toEqual(await boxStyleOf(page.getByTestId("tag-input-input")));
+    const [a, b] = [await box(editable), await box(readOnly)];
+    expect(b.height).toBeCloseTo(a.height, 1);
+    expect(b.width).toBeCloseTo(a.width, 1);
+    expect(b.height).toBe(36);
+  });
+}
+
+test("read-only TagInput: a Tab stop with the focus ring, described by the help", async ({
+  page,
+}) => {
+  await page.goto("/?page=components&lng=en");
+  const frame = page.getByTestId("tag-input-readonly");
+  const input = page.getByTestId("tag-input-readonly-input");
+  await expect(input).toHaveAccessibleDescription("Set by the system");
+  // The editable tag field stands right before it; its label's hint is no tab stop, nor is a chip.
+  await page.getByTestId("tag-input-input").focus();
+  await page.keyboard.press("Tab");
+  await expect(input).toBeFocused();
+  expect(await input.evaluate((el) => el.matches(":focus-visible"))).toBe(true);
+  await expect.poll(() => boxShadowOf(frame)).not.toBe("none");
+  await expect(frame).not.toHaveCSS("user-select", "none");
+});
+
 // AC 3: the middle half of the 2000 × 1000 image in a square frame, the image itself unchanged.
 test("CroppedImage: the frame shows exactly the middle half", async ({ page }) => {
   await page.goto("/?page=components");

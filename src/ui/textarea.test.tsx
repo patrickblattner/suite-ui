@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 
+import { READ_ONLY_LOOK } from "./read-only-look-internal.js";
 import { Textarea } from "./textarea.js";
 
 // jsdom has no layout and no Tailwind, so only the classes are checked here; the gallery measures the
@@ -32,8 +33,7 @@ describe("read-only Textarea", () => {
     const textarea = screen.getByRole("textbox", { name: "Notes" });
     expect(textarea).toHaveAttribute("readonly");
     expect(textarea).toHaveClass(
-      "[&[readonly]:not(:disabled)]:cursor-default",
-      "[&[readonly]:not(:disabled)]:bg-muted",
+      ...READ_ONLY_LOOK.split(" "),
       "px-3",
       "py-2",
       "focus-visible:focus-ring",

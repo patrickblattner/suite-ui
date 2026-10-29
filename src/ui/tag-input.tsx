@@ -5,6 +5,7 @@ import { cn } from "../lib/cn.js";
 import { usePopupPlacement } from "../lib/popup-placement.js";
 import { Badge } from "./badge.js";
 import { useFieldErrorAttributes } from "./field-error.js";
+import { READ_ONLY_LOOK } from "./read-only-look-internal.js";
 import { RemovableChip } from "./removable-chip.js";
 
 // Further input attributes (`name`, `aria-*`, `data-*`, native handlers) reach the text field, as on
@@ -92,6 +93,9 @@ function matchSuggestions(suggestions: readonly string[], chosen: readonly strin
 //
 // Inside an invalid field (`SUI-FEATURE-270`) the text field carries the error like `Input`, and the
 // frame, which also carries the focus, takes the red border of an invalid `Input`.
+//
+// Read-only, the whole frame, chips included, and its text field take the read-only look of `Input`
+// (`SUI-FEATURE-117` rev 3); the chips are `outline` badges (rev 4).
 //
 // `ref`, `id` and the further input attributes reach the text field (`SUI-FEATURE-108`), so a `Hint` or
 // a form field describes and focuses it. Its own handlers run first, the passed ones after; a passed
@@ -273,6 +277,7 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
       ref={frameRef}
       data-testid={testId}
       data-disabled={disabled || undefined}
+      data-readonly={(readOnly && !disabled) || undefined}
       data-invalid={isInvalid ? "" : undefined}
       // Disabled, the field opens no hover hint, as the disabled `Slider`.
       {...(disabled
@@ -282,6 +287,7 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
         "relative flex min-h-9 w-full min-w-0 flex-wrap items-center gap-1 rounded-md border border-input bg-transparent px-2 py-1 shadow-xs transition-[color,box-shadow] dark:bg-input/30",
         "focus-within:border-ring focus-within:focus-ring data-[invalid]:border-destructive",
         "data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50",
+        READ_ONLY_LOOK,
         className,
       )}
     >
@@ -290,8 +296,9 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
           {value.map((tag, index) => (
             <li key={tag} className="flex">
               {readOnly ? (
-                // A chip without removal is a `Badge` (`SUI-FEATURE-007`, `GL-UI-011`, #561).
-                <Badge variant="secondary" className="h-6" data-testid={`${testId}-chip`}>
+                // A chip without removal is a `Badge` (`SUI-FEATURE-007`, `GL-UI-011`, #561); a tag is a
+                // category, so `outline`: its border stays visible on the muted frame (`SUI-FEATURE-117` rev 4).
+                <Badge variant="outline" className="h-6" data-testid={`${testId}-chip`}>
                   {tag}
                 </Badge>
               ) : (
@@ -353,7 +360,10 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
         }}
         aria-describedby={uniqueIds(ariaDescribedBy)}
         aria-invalid={isInvalid ? true : ariaInvalid}
-        className="h-6 min-w-24 flex-1 bg-transparent px-1 text-base outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed md:text-sm"
+        className={cn(
+          "h-6 min-w-24 flex-1 bg-transparent px-1 text-base outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed md:text-sm",
+          READ_ONLY_LOOK,
+        )}
       />
       {open ? (
         <div
