@@ -32,10 +32,19 @@ function SelectGroup({ ...props }: React.ComponentProps<typeof SelectPrimitive.G
 // The chosen value is one line and never silently cut off (`GL-UI-016`): a block box with `truncate`
 // shows the clip as an ellipsis, and the overflow tooltip reveals the full value while it is clipped.
 // Radix renders the chosen option itself, so the tooltip reads the text back from the node.
+// The option's leading decorative mark (a colour swatch, the first child and `aria-hidden`) is inline
+// there, outside the item's flex row, so it becomes an inline block to keep its size, with the item's
+// gap before the label (#658). Other `aria-hidden` spans in the value are left as they are.
 function SelectValue({ className, ...props }: React.ComponentProps<typeof SelectPrimitive.Value>) {
   return (
     <OverflowTooltip>
-      <span data-slot="select-value" className={cn("block min-w-0 truncate text-left", className)}>
+      <span
+        data-slot="select-value"
+        className={cn(
+          "block min-w-0 truncate text-left [&_span[aria-hidden=true]:first-child]:mr-2 [&_span[aria-hidden=true]:first-child]:inline-block [&_span[aria-hidden=true]:first-child]:align-middle",
+          className,
+        )}
+      >
         <SelectPrimitive.Value {...props} />
       </span>
     </OverflowTooltip>

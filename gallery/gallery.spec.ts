@@ -884,6 +884,28 @@ test("axe covers every gallery page", async ({ page }) => {
   expect([...new Set(AXE_PAGES.map(([name]) => name))].sort()).toEqual([...options].sort());
 });
 
+// #658: the colour swatch keeps its square size in the open list and in the chosen value.
+for (const theme of THEMES) {
+  test(`select colour swatch is square ${theme}`, async ({ page }) => {
+    await page.goto(`/?page=slide-editor&lng=en&theme=${theme}`);
+    const { editor } = await openEditor(page, false);
+    await editor.getByTestId("drawer-add").click();
+    await editor.getByTestId("slide-editor-library-text").click();
+    await editor.getByRole("tab", { name: "Content" }).click();
+    const square = async (swatch: Locator) => {
+      const { width, height } = (await swatch.boundingBox())!;
+      expect(width).toBeGreaterThan(8);
+      expect(width).toBe(height);
+    };
+    const color = editor.getByTestId("slide-editor-text-color");
+    await color.click();
+    const option = page.getByRole("option").nth(1);
+    await square(option.locator("span[aria-hidden=true]").last());
+    await option.click();
+    await square(color.locator("[data-slot=select-value] span[aria-hidden=true]"));
+  });
+}
+
 for (const theme of THEMES) {
   for (const [name, ready, query = "", step, hidesPage = false] of AXE_PAGES) {
     const title = `${name}${query}${step === undefined ? "" : ` ${step[0]}`}`;
