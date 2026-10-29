@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #666, SUI-FEATURE-330 rev 2: `RowActionSet` `step`, the row's next lifecycle step as a labelled button (minor)
+## 0.182.0 — #666, SUI-FEATURE-330 rev 2: `RowActionSet` `step`, the row's next lifecycle step as a labelled button (minor)
 
 - **RowActionSet `step` (#666):** a new optional `step?: RowAction`, the row's next lifecycle step (e.g. "Jetzt zustellen"). `RowActions` renders it as a labelled `outline` button, icon and `label`, in first position, before "Used by", the extra actions, edit, the ⋯ menu and delete; at the height of the icon buttons (`xs` in the row, `sm` in the `PreviewToolbar`). Its name and hint read "‹label› ‹rowName›"; `busy`, `disabledText` and `shortcut` behave as on any `RowAction`, so a running step locks only that row's step. The cluster stays end-aligned: edit, menu and delete stand at the same x-position whether or not a row has a step, and a row without a step reserves no space. `PreviewToolbar` shows the same step through `useRowActionButtons` (new `step` slot of its result); below the fold width the step is the first entry of the ⋯ menu, locked while it runs or with its reason as hint. Without `step` nothing changes.
 - **Gallery (#666):** `?page=list&actions=1&step=1` gives every odd row a "Send now" step, the third one running; axe scans it. New baseline: `gallery/__screenshots__/list-step-de-light.png`.
