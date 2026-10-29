@@ -254,6 +254,7 @@ export const en = {
     cancelHint: "Closes the panel without saving; asks first if there are unsaved changes.",
     closeHint: "Closes the panel; asks first if there are changes.",
     saveHint: "Saves the entries.",
+    createHint: "Adds the entry.",
     nextHint: "Goes on to the next step.",
     applyHint: "Applies the entries to the form; they are only saved when you save the page.",
     applyCancelHint:

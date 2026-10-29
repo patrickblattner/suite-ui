@@ -252,8 +252,61 @@ describe("EditPanel", () => {
     );
   });
 
+  // SUI-FEATURE-151 AC1: the add mode's primary action is the package word Add after the plus
+  // symbol, green, with its own hint; Cancel keeps the save panel's hint.
+  it.each([
+    ["en", "Add", "Adds the entry."],
+    ["de", "Anlegen", "Legt den Eintrag an."],
+    ["es", "Añadir", "Añade la entrada."],
+  ])(
+    '%s: submitKind="create" is Add with the plus symbol, no SaveIcon',
+    async (lng, label, hint) => {
+      await i18n.changeLanguage(lng);
+      const { onSubmit } = renderPanel({ submitKind: "create", submitLabel: undefined });
+      const submit = screen.getByTestId("edit-panel-submit");
+      expect(submit).toHaveTextContent(new RegExp(`^${label}$`));
+      expect(submit).toHaveAttribute("data-variant", "success");
+      expect(submit).toHaveAttribute("data-size", "default");
+      expect(submit.querySelector(".lucide-save")).toBeNull();
+      const icons = submit.querySelectorAll("svg");
+      expect(icons).toHaveLength(1);
+      expect(icons[0]).toHaveClass("lucide-plus");
+      expect(icons[0]).toHaveAttribute("aria-hidden", "true");
+      expect(submit.firstElementChild).toBe(icons[0]);
+      expect(submit).toHaveAccessibleDescription(hint);
+      expect(screen.getByTestId("edit-panel-cancel")).toHaveAccessibleDescription(
+        i18n.t("suite:editPanel.cancelHint"),
+      );
+      fireEvent.click(submit);
+      expect(onSubmit).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  // SUI-FEATURE-151 AC1: Add submits like Save: Enter in a field, the lock and busy.
+  it('submitKind="create" submits, locks and works with busy like Save', () => {
+    const { onSubmit } = renderPanel({ submitKind: "create" });
+    fireEvent.submit(screen.getByLabelText("Name"));
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    cleanup();
+    const { onSubmit: onLocked } = renderPanel({
+      submitKind: "create",
+      submitDisabled: true,
+      submitDisabledHint: "Enter a name.",
+    });
+    expect(screen.getByTestId("edit-panel-submit")).toHaveAttribute("aria-disabled", "true");
+    fireEvent.submit(screen.getByLabelText("Name"));
+    expect(onLocked).not.toHaveBeenCalled();
+    cleanup();
+    const { onSubmit: onBusySubmit } = renderPanel({ submitKind: "create", busy: true });
+    const submit = screen.getByTestId("edit-panel-submit");
+    expect(submit).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(submit);
+    expect(onBusySubmit).not.toHaveBeenCalled();
+    expect(submit.firstElementChild).toHaveAttribute("data-testid", "button-loading");
+  });
+
   // SUI-FEATURE-094 AC3: React bubbles the panel's submit through the portal; it stops at the panel.
-  it.each([undefined, "save", "next", "apply"] as const)(
+  it.each([undefined, "save", "create", "next", "apply"] as const)(
     "submitKind %s: an outer form never submits along, the panel's onSubmit runs once",
     (submitKind) => {
       const spy = vi.fn((event: FormEvent) => event.preventDefault());

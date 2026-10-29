@@ -286,6 +286,8 @@ function Demo() {
   const [media, setMedia] = useState<number | null>(null);
   const [nextOpen, setNextOpen] = useState(false);
   const [nextName, setNextName] = useState("team-photo.jpg");
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createName, setCreateName] = useState("");
   const [viewOpen, setViewOpen] = useState(false);
   const [viewModeOpen, setViewModeOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
@@ -393,6 +395,17 @@ function Demo() {
         >
           Open without save target
         </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          data-testid="create-panel-trigger"
+          onClick={() => {
+            setCreateName("");
+            setCreateOpen(true);
+          }}
+        >
+          Add a channel
+        </Button>
         <ContactPanelDemo />
         <ApplyPanelDemo />
         <span data-testid="edit-panel-check-counts">
@@ -480,6 +493,27 @@ function Demo() {
             id="next-name"
             value={nextName}
             onChange={(event) => setNextName(event.target.value)}
+          />
+        </div>
+      </EditPanel>
+      {/* SUI-FEATURE-151: the add mode beside the rows' edit mode; its primary action is the package
+          word Add with the plus symbol, the edit mode's stays Save. */}
+      <EditPanel
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        title="Add channel"
+        mode="add"
+        testIdPrefix="create-panel"
+        dirty={createName !== ""}
+        submitKind="create"
+        onSubmit={() => setCreateOpen(false)}
+      >
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="create-name">Name</Label>
+          <Input
+            id="create-name"
+            value={createName}
+            onChange={(event) => setCreateName(event.target.value)}
           />
         </div>
       </EditPanel>

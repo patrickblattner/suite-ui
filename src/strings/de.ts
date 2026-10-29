@@ -242,6 +242,7 @@ export const de: SuiteStrings = {
       "Schließt das Panel, ohne zu speichern; ungespeicherte Änderungen werden vorher abgefragt.",
     closeHint: "Schließt das Panel; Änderungen werden vorher abgefragt.",
     saveHint: "Speichert die Eingaben.",
+    createHint: "Legt den Eintrag an.",
     nextHint: "Geht zum nächsten Schritt.",
     applyHint:
       "Übernimmt die Eingaben ins Formular; gespeichert wird erst mit dem Speichern der Seite.",

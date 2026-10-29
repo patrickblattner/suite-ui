@@ -283,6 +283,18 @@ describe("EditPanel leave guard (GL-UI-007)", () => {
     expect(primary.querySelector("svg")).toHaveClass("lucide-save");
   });
 
+  // SUI-FEATURE-151: the add mode saves like Save, also from the leave dialog.
+  it('submitKind="create": the leave dialog\'s Save calls onSubmit and leaves on success', async () => {
+    const save = vi.fn(() => Promise.resolve(true));
+    render(<ListWithPanel save={save} submitKind="create" />);
+    openRow();
+    edit();
+    escape();
+    fireEvent.click(screen.getByTestId("leave-guard-save"));
+    await waitFor(() => expect(screen.queryByTestId("edit-panel")).toBeNull());
+    expect(save).toHaveBeenCalledTimes(1);
+  });
+
   // SUI-FEATURE-094 AC4: a next step saves nothing; the dialog never runs it.
   it('submitKind="next" asks "Discard changes?" with Cancel and Discard, focused on Cancel', () => {
     const save = vi.fn(() => true);

@@ -1,4 +1,10 @@
-import { ArrowRightIcon, ChevronLeftIcon, ChevronRightIcon, SaveIcon } from "lucide-react";
+import {
+  ArrowRightIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  PlusIcon,
+  SaveIcon,
+} from "lucide-react";
 import { Dialog as SheetPrimitive } from "radix-ui";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
@@ -69,10 +75,11 @@ type EditPanelProps = {
   backHint?: string;
   backDisabledHint?: string;
   // What the primary action does (`SUI-FEATURE-111`): `save` (the default) leads with the save symbol;
+  // `create` is the add mode's save, the package word Add after the plus symbol (`SUI-FEATURE-151`);
   // `next` only moves on to the next step, saves nothing, and so carries an arrow after its text;
   // `apply` takes the entries over into an outer form that saves them, so it carries no icon
   // (`SUI-FEATURE-094`, `GL-UI-011` §Icon-Kanon).
-  submitKind?: "save" | "next" | "apply";
+  submitKind?: "save" | "create" | "next" | "apply";
   // With `onBack` the footer carries Back left-aligned (`SUI-FEATURE-035`): one step back inside the
   // panel, the inputs kept, never asking about unsaved changes (`SUI-FEATURE-091` rev 6). `onBack`
   // therefore never closes the panel: one that set `open` to false would let a changed panel go
@@ -148,10 +155,11 @@ function EditPanel({
   const submitText = submitHint ?? t(`editPanel.${submitKind}Hint`);
   // Back is one step inside the panel and asks nothing, so its hint is the same for every kind
   // (`SUI-FEATURE-091` rev 6). Cancel's hint follows the kind (`SUI-FEATURE-094`): only `save`
-  // speaks of saving.
+  // and `create` speak of saving.
   const packageBackHint = t("editPanel.backHint");
   const packageCancelHint = {
     save: t("editPanel.cancelHint"),
+    create: t("editPanel.cancelHint"),
     apply: t("editPanel.applyCancelHint"),
     next: t("editPanel.nextCancelHint"),
   }[submitKind];
@@ -444,6 +452,7 @@ function EditPanel({
                     data-testid={`${testIdPrefix}-submit`}
                   >
                     {submitKind === "save" ? <SaveIcon aria-hidden="true" /> : null}
+                    {submitKind === "create" ? <PlusIcon aria-hidden="true" /> : null}
                     {submitLabel ?? t(`actions.${submitKind}`)}
                     {submitKind === "next" ? <ArrowRightIcon aria-hidden="true" /> : null}
                   </Button>

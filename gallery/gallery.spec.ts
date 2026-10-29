@@ -11550,6 +11550,48 @@ test("edit panel: a next step shows its text, then an arrow, never the save symb
   await expect(page.getByTestId("next-panel")).toBeHidden();
 });
 
+// `SUI-FEATURE-151`: the add mode's primary action is the package word Add after the plus symbol,
+// green and at Save's size; the edit mode beside it keeps Save with the save symbol.
+for (const [lng, add, hint, save] of [
+  ["en", "Add", "Adds the entry.", "Save"],
+  ["de", "Anlegen", "Legt den Eintrag an.", "Speichern"],
+  ["es", "Añadir", "Añade la entrada.", "Guardar"],
+] as const) {
+  test(`edit panel: add mode shows ${add} with the plus symbol, edit mode Save, ${lng}`, async ({
+    page,
+  }) => {
+    await page.goto(`/?page=edit-panel&lng=${lng}`);
+    await page.getByTestId("create-panel-trigger").click();
+    const create = page.getByTestId("create-panel-submit");
+    await expect(create).toHaveText(add);
+    await expect(create).toHaveAccessibleDescription(hint);
+    await expect(create).toHaveAttribute("data-variant", "success");
+    await expect(create.locator(".lucide-save")).toHaveCount(0);
+    const plus = create.locator("svg");
+    await expect(plus).toHaveCount(1);
+    await expect(plus).toHaveClass(/lucide-plus/);
+    const label = await create.evaluate((el) => {
+      const range = document.createRange();
+      const text = [...el.childNodes].find((node) => node.nodeType === Node.TEXT_NODE)!;
+      range.selectNode(text);
+      return range.getBoundingClientRect().left;
+    });
+    const icon = await box(plus);
+    expect(icon.x + icon.width).toBeLessThanOrEqual(label);
+    expect((await box(create)).height).toBe(36);
+    await page.getByTestId("create-panel").getByLabel("Name").fill("Announcements");
+    await create.click();
+    await expect(page.getByTestId("create-panel")).toBeHidden();
+
+    await page.getByTestId("edit-panel-check-trigger").click();
+    const edit = page.getByTestId("check-panel-submit");
+    await expect(edit).toHaveText(save);
+    await expect(edit.locator("svg")).toHaveCount(1);
+    await expect(edit.locator("svg")).toHaveClass(/lucide-save/);
+    await expect(edit.locator(".lucide-plus")).toHaveCount(0);
+  });
+}
+
 // `SUI-FEATURE-094`: Apply takes the entries over into the outer form without an icon and without
 // a word about saving; the panel's submit, by click or Enter, never submits that outer form.
 for (const [lng, label, hint, cancelHint] of [
