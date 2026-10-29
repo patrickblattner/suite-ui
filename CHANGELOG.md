@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — #679, SUI-FEATURE-350 rev 3: the "Used by" button names its row (minor)
+
+- **Changed accessible name (#679):** the "Used by" button of `RowActionSet.usage` (table row and `PreviewToolbar`, both through `useRowActionButtons`) is now named "Used by ‹rowName› (n)" instead of "Used by (n)" (de "Verwendet von ‹rowName› (n)", es "Usado por ‹rowName› (n)"), locked at count 0 too, so a screen reader hears a different name per row, like edit and delete. Its hint follows the name while usable (`GL-UI-016`); locked, it still names the reason ("Not used anywhere"). The visible counter and the folded ⋯ entry ("Used by (n)") are unchanged. `MediaDetailShell` shows a single record and keeps "Used by (n)", beside a step too. Tests or automation that find the button by its old name need the row name.
+- **Strings (#679):** new key `usage.actionNamed` in en, de, es.
+- **Gallery (#679):** the strings table lists the new key: `gallery-{de,en,es}-{light,dark}.png` and `gallery-de-{light,dark}-{390,1440}.png` updated.
+- **Tests (#679):** unit: two rows "Thema A" (2) and "Thema B" (0) are named "Verwendet von Thema A (2)" / "Verwendet von Thema B (0)", hints "Verwendet von Thema A (2)" / "Nirgends verwendet", en and es names (AC 1, 3); the `PreviewToolbar` for "Thema A" carries the same name (AC 2); the media detail head keeps "Used by (2)" beside a step. Existing name assertions and the `RowActions` HTML snapshot carry the row name.
+
 ## 0.184.2 — #680, SUI-FEATURE-340 rev 3: a refresh during a reorder carry keeps the carried row's lock and group (patch)
 
 - **`DataTableShell.reorder` (#680, Codex CX1):** a carried row and its target are now found by id on the rows as they are when the row is aimed, stepped or dropped, not by the indices of the pick-up. Before, a refresh of the page during a carry (e.g. a row prepended) left the pick-up index pointing at another row, so the lock and group of that row were checked instead: a row with `downDisabledText` could be dropped below by pointer or keyboard. The carry also follows a refresh by itself: its drop line keeps its direction on the moved rows, a target the row may no longer land on (a lock or another group now in between) points it back home and takes the line away, and a carried row the refresh removed is no longer carried, its line gone. A keyboard drop that moves nothing, refused after a refresh too, is announced as put back at the row's position, not as dropped.

@@ -355,6 +355,8 @@ export const en = {
   // "Used by": the action that switches a preview to its usages, and the `UsageTable`.
   usage: {
     action: "Used by ({{count}})",
+    // The button's name and hint in a row or preview toolbar: names its row (`SUI-FEATURE-350`).
+    actionNamed: "Used by {{name}} ({{count}})",
     none: "Not used anywhere",
     empty: "No usages",
     title: "Title",

@@ -384,7 +384,7 @@ describe("PreviewToolbar (GL-UI-008)", () => {
         .getAllByRole("button")
         .map((button) => button.getAttribute("aria-label"));
     const row = labels(screen.getByTestId("row-cell"));
-    expect(row[0]).toBe("Used by (3)");
+    expect(row[0]).toBe("Used by Home (3)");
     expect(labels(screen.getByTestId("preview-actions"))).toEqual(row);
   });
 
@@ -395,6 +395,17 @@ describe("PreviewToolbar (GL-UI-008)", () => {
     expect(screen.getByRole("combobox", { name: "Sprache" })).toBeInTheDocument();
     expect(screen.getByRole("radiogroup", { name: "Gerät" })).toBeInTheDocument();
     expect(screen.getByRole("radio", { name: "Mobil" })).toBeInTheDocument();
+  });
+
+  it("SUI-FEATURE-350 AC2: the usage button names the row, as in the table row", async () => {
+    await i18n.changeLanguage("de");
+    render(
+      <PreviewToolbar
+        {...FULL}
+        actions={{ rowName: "Thema A", usage: { count: 2, active: false, onToggle: () => {} } }}
+      />,
+    );
+    expect(screen.getByTestId("row-usage")).toHaveAccessibleName("Verwendet von Thema A (2)");
   });
 });
 

@@ -444,11 +444,11 @@ describe("RowActions Used by (SUI-FEATURE-004)", () => {
     const buttons = within(screen.getByTestId("actions")).getAllByRole("button");
     expect(buttons[0]).toBe(screen.getByTestId("row-usage"));
     expect(buttons[1]).toBe(screen.getByTestId("row-copy"));
-    expect(buttons[0]).toHaveAttribute("aria-label", "Verwendet von (3)");
+    expect(buttons[0]).toHaveAttribute("aria-label", "Verwendet von Ada (3)");
     expect(buttons[0]).toHaveAttribute("aria-pressed", "false");
     expect(buttons[0]).toHaveAttribute("data-size", "icon-xs");
     expect(screen.getByTestId("row-usage-count")).toHaveTextContent("3");
-    expect(hintOf(buttons[0]!).hover1500).toBe("Verwendet von (3)");
+    expect(hintOf(buttons[0]!).hover1500).toBe("Verwendet von Ada (3)");
     fireEvent.click(buttons[0]!);
     expect(onToggle).toHaveBeenCalledTimes(1);
   });
@@ -486,6 +486,51 @@ describe("RowActions Used by (SUI-FEATURE-004)", () => {
       "pressed:border-primary",
       "pressed:hover:bg-primary-hover",
     );
+  });
+});
+
+describe("RowActions Used by names its row (SUI-FEATURE-350)", () => {
+  afterEach(async () => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    await i18n.changeLanguage("en");
+  });
+
+  it("AC1: each row's usage button carries its row name, usable and locked; the hint follows", async () => {
+    await i18n.changeLanguage("de");
+    render(
+      <Table>
+        <TableBody>
+          {[
+            { name: "Thema A", count: 2 },
+            { name: "Thema B", count: 0 },
+          ].map(({ name, count }) => (
+            <TableRow key={name}>
+              <RowActions
+                rowName={name}
+                usage={{ count, active: false, onToggle: vi.fn() }}
+                data-testid={`cell-${name}`}
+              />
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>,
+    );
+    const a = within(screen.getByTestId("cell-Thema A")).getByTestId("row-usage");
+    const b = within(screen.getByTestId("cell-Thema B")).getByTestId("row-usage");
+    expect(a).toHaveAccessibleName("Verwendet von Thema A (2)");
+    expect(b).toHaveAccessibleName("Verwendet von Thema B (0)");
+    expect(hintOf(a).hover1500).toBe("Verwendet von Thema A (2)");
+    expect(hintOf(b.parentElement as HTMLElement).hover1500).toBe("Nirgends verwendet");
+  });
+
+  it.each([
+    ["en", "Used by Ada (2)"],
+    ["es", "Usado por Ada (2)"],
+  ])("AC3: the name in %s", async (lng, name) => {
+    await i18n.changeLanguage(lng);
+    renderRow({ usage: { count: 2, active: false, onToggle: vi.fn() } });
+    expect(screen.getByTestId("row-usage")).toHaveAccessibleName(name);
   });
 });
 

@@ -132,13 +132,26 @@ function RowActionButton({
 
 // The "Used by" button (`SUI-FEATURE-004`): `outline` with the count as a small badge, pressed while
 // the usages show, filled like the chosen device of the `PreviewToolbar` (`SUI-FEATURE-003`). Without
-// a use it is locked.
-function UsageButton({ usage, size }: { usage: RowUsage; size: "icon-xs" | "icon-sm" }) {
+// a use it is locked. Its name and hint read "Used by ‹rowName› (n)", locked too (`SUI-FEATURE-350`);
+// without a `rowName` (a single record) "Used by (n)".
+function UsageButton({
+  usage,
+  rowName,
+  size,
+}: {
+  usage: RowUsage;
+  rowName: string;
+  size: "icon-xs" | "icon-sm";
+}) {
   const { t } = useTranslation("suite");
   const unused = usage.count === 0;
   return (
     <IconButtonTooltip
-      label={t("usage.action", { count: usage.count })}
+      label={
+        rowName === ""
+          ? t("usage.action", { count: usage.count })
+          : t("usage.actionNamed", { name: rowName, count: usage.count })
+      }
       disabledText={unused ? t("usage.none") : undefined}
     >
       <Button
@@ -316,7 +329,9 @@ function useRowActionButtons(
         <RowActionButton action={step} rowName={rowName} variant="success" size={size} labelled />
       ),
     extra: [
-      ...(usage === undefined ? [] : [<UsageButton key="usage" usage={usage} size={size} />]),
+      ...(usage === undefined
+        ? []
+        : [<UsageButton key="usage" usage={usage} rowName={rowName} size={size} />]),
       ...extra.map((action) => (
         <RowActionButton
           key={action.label}

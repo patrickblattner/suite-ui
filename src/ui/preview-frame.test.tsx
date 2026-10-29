@@ -232,7 +232,7 @@ describe("PreviewFrame (GL-UI-008)", () => {
       );
     }
     render(<Split />);
-    const button = screen.getByRole("button", { name: "Used by (3)" });
+    const button = screen.getByRole("button", { name: "Used by Home (3)" });
     expect(screen.queryByTestId("usages")).toBeNull();
     fireEvent.click(button);
     expect(button).toHaveAttribute("aria-pressed", "true");

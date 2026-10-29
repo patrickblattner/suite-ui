@@ -397,6 +397,7 @@ describe("MediaDetailShell", () => {
     const group = step.parentElement!;
     expect(panel().querySelector("[data-slot=media-detail-head]")).toContainElement(step);
     expect(group.firstElementChild).toBe(step);
+    // SUI-FEATURE-350: a single record, "Used by" keeps its name without the step's row name.
     expect(step.nextElementSibling).toHaveAccessibleName("Used by (2)");
     expect(step).toHaveTextContent("Publish");
     expect(step).toHaveAttribute("data-variant", "success");

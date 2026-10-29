@@ -356,10 +356,15 @@ function MediaDetailShell({
   const headButtons = useRowActionButtons(
     {
       rowName: step?.rowName ?? "",
-      ...(usage === undefined ? {} : { usage }),
       // In pick mode the pick button is the head's one primary action: no step (rev 6).
       ...(step === undefined || pickAction !== undefined ? {} : { step }),
     },
+    "icon-sm",
+  );
+  // A single record: "Used by" keeps its name without a row name, beside a step too
+  // (`SUI-FEATURE-350`).
+  const usageButtons = useRowActionButtons(
+    { rowName: "", ...(usage === undefined ? {} : { usage }) },
     "icon-sm",
   );
   const showUsage = usage?.active === true;
@@ -514,7 +519,7 @@ function MediaDetailShell({
                     </span>
                     <div className="ms-auto flex items-center gap-2">
                       {headButtons.step}
-                      {headButtons.extra}
+                      {usageButtons.extra}
                       {pickAction !== undefined && (
                         <span ref={pickSlot} className="contents">
                           <PickButton
