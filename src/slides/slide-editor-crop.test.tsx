@@ -47,7 +47,7 @@ function renderEditor(border?: number, crop?: { zoom: number; offsetX: number; o
   render(
     <SlideEditor
       document={{
-        schemaVersion: 4,
+        schemaVersion: 5,
         format: FORMAT_16_9,
         pages: [{ id: "one", background, elements: [image] }],
       }}

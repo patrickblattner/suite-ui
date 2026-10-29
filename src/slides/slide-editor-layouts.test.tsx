@@ -355,3 +355,99 @@ describe("SlideEditor placeholders", () => {
     expect(screen.getAllByTestId("slide-editor-placeholder-fill")).toHaveLength(1);
   });
 });
+
+// SUI-FEATURE-320 (#657): an app layout whose placeholders carry prototypes.
+const CORE: SlideLayoutInput = {
+  id: "app-core",
+  name: "Core",
+  elements: [
+    {
+      id: "app-core-title",
+      type: "placeholder",
+      role: "title",
+      x: 300,
+      y: 10,
+      width: 300,
+      height: 60,
+      prototype: { type: "text", runs: [{ text: "Title" }], deletable: false },
+    },
+    {
+      id: "app-core-body",
+      type: "placeholder",
+      role: "body",
+      x: 300,
+      y: 200,
+      width: 600,
+      height: 300,
+      prototype: { type: "text", runs: [{ text: "Body" }] },
+    },
+  ],
+};
+
+describe("SlideEditor placeholder prototypes", () => {
+  const renderCore = (onChange: () => void) =>
+    render(
+      <SlideEditor
+        document={SLIDE_EDITOR_DOC}
+        title="Deck"
+        brand={SLIDE_BRAND}
+        layouts={[CORE]}
+        onChange={onChange}
+        onSave={() => true}
+        onBack={() => {}}
+      />,
+    );
+  const roles = (document: SlideDocument, page: number) =>
+    document.pages[page]!.elements.map((one) => [one.placeholderRole, one.deletable]);
+  const shownRoles = () =>
+    screen
+      .queryAllByTestId("slide-editor-placeholder")
+      .map((one) => one.getAttribute("data-placeholder-role"));
+
+  it("lays down the prototypes on a new page in one step and one report; Undo takes it back (AC1, AC4)", () => {
+    const onChange = vi.fn();
+    renderCore(onChange);
+    fireEvent.click(screen.getByTestId("drawer-document"));
+    fireEvent.pointerDown(screen.getByTestId("slide-editor-page-new"), {
+      button: 0,
+      ctrlKey: false,
+      pointerType: "mouse",
+    });
+    fireEvent.click(screen.getByTestId("slide-editor-page-layout-app-core"));
+    expect(onChange).toHaveBeenCalledTimes(1);
+    const [made] = onChange.mock.lastCall as [SlideDocument];
+    expect(made.pages).toHaveLength(SLIDE_EDITOR_DOC.pages.length + 1);
+    expect(roles(made, 1)).toEqual([
+      ["title", false],
+      ["body", true],
+    ]);
+    // The new page is shown, with no hint for the two roles.
+    expect(shownRoles()).toEqual([]);
+    fireEvent.click(screen.getAllByTestId("editor-undo")[0]!);
+    expect(onChange).toHaveBeenCalledTimes(2);
+    const [back] = onChange.mock.lastCall as [SlideDocument];
+    expect(back.pages.map((one) => one.id)).toEqual(SLIDE_EDITOR_DOC.pages.map((one) => one.id));
+    expect(back.layouts).toEqual([]);
+  });
+
+  it("lays down the prototypes on a change of layout in one step and one report; Undo takes it back (AC2, AC4)", () => {
+    const onChange = vi.fn();
+    renderCore(onChange);
+    const before = (SLIDE_EDITOR_DOC.pages[0]!.elements ?? []).map((one) => one.id);
+    fireEvent.keyDown(screen.getByRole("combobox", { name: "Layout" }), { key: "Enter" });
+    fireEvent.click(screen.getByRole("option", { name: "Core" }));
+    expect(onChange).toHaveBeenCalledTimes(1);
+    const [changed] = onChange.mock.lastCall as [SlideDocument];
+    expect(changed.pages[0]!.layoutId).toBe("app-core");
+    expect(roles(changed, 0).slice(before.length)).toEqual([
+      ["title", false],
+      ["body", true],
+    ]);
+    expect(shownRoles()).toEqual([]);
+    fireEvent.click(screen.getAllByTestId("editor-undo")[0]!);
+    expect(onChange).toHaveBeenCalledTimes(2);
+    const [back] = onChange.mock.lastCall as [SlideDocument];
+    expect(back.pages[0]!.layoutId).toBeUndefined();
+    expect(back.pages[0]!.elements.map((one) => one.id)).toEqual(before);
+  });
+});

@@ -10,7 +10,14 @@ import {
   setPageLayout,
   withLayout,
 } from "./editor-layouts.js";
-import { deleteElements, findElement, insertElement, placedBox } from "./editor-ops.js";
+import {
+  deleteElements,
+  findElement,
+  insertElement,
+  placedBox,
+  updateElements,
+} from "./editor-ops.js";
+import { newPage } from "./editor-pages.js";
 import { pageLists } from "./render-style.js";
 import { slideElementSchema, slideLayoutSchema, slideMasterSchema } from "./schema.js";
 
@@ -341,5 +348,192 @@ describe("layouts and placeholders", () => {
     expect(roleTextRun("title", 1080, 1920).size).toBe(64);
     expect(roleTextRun("title", 1280, 720).size).toBe(43);
     expect(roleTextRun("body", 1280, 720).size).toBe(21);
+  });
+});
+
+// SUI-FEATURE-320 (#657): placeholders with a prototype lay down their element on a new page and on a
+// change of layout.
+describe("placeholder prototypes", () => {
+  const heading = { kind: "brand" as const, key: "heading" };
+  const titlePrototype = {
+    type: "text" as const,
+    runs: [{ text: "Title", size: 64, font: heading }],
+    align: "center" as const,
+    deletable: false,
+  };
+  const bodyPrototype = { type: "text" as const, runs: [{ text: "Body" }], lineHeight: 1.5 };
+  const withPrototype = (
+    id: string,
+    role: string,
+    box: { x: number; y: number; rotation?: number },
+    prototype?: object,
+  ) => ({ ...placeholder(id, role, box.x, box.y), rotation: box.rotation ?? 0, prototype });
+  const core = {
+    id: "core",
+    name: "Core",
+    elements: [
+      withPrototype("core-title", "title", { x: 100, y: 40, rotation: 5 }, titlePrototype),
+      withPrototype("core-body", "body", { x: 100, y: 200 }, bodyPrototype),
+      withPrototype("core-note", "note", { x: 100, y: 400 }),
+    ],
+  };
+  const moved = {
+    id: "moved",
+    name: "Moved",
+    elements: [
+      withPrototype("moved-title", "title", { x: 500, y: 500 }, titlePrototype),
+      withPrototype(
+        "moved-quote",
+        "quote",
+        { x: 0, y: 0 },
+        { type: "text", runs: [{ text: "Q" }] },
+      ),
+    ],
+  };
+  const bare = { id: "bare", name: "Bare", elements: [placeholder("bare-body", "body", 0, 0)] };
+  const deck = parseSlideDocument({
+    ...SLIDE_EDITOR_DOC,
+    layouts: [core, moved, bare],
+    pages: [{ ...SLIDE_EDITOR_DOC.pages[0]!, elements: [] }],
+  });
+  const byRole = (doc: typeof deck, page: number, role: string) =>
+    doc.pages[page]!.elements.filter((one) => one.placeholderRole === role);
+
+  it("lays down the prototypes on a new page from the layout, open placeholders staying open (AC1)", () => {
+    const made = newPage(deck, 0, "core");
+    expect(() => parseSlideDocument(made.document)).not.toThrow();
+    const [title, body] = made.document.pages[made.index]!.elements;
+    expect(made.document.pages[made.index]!.elements).toHaveLength(2);
+    expect(title).toMatchObject({
+      type: "text",
+      x: 100,
+      y: 40,
+      width: 300,
+      height: 60,
+      rotation: 5,
+      placeholderRole: "title",
+      deletable: false,
+      align: "center",
+      runs: [{ text: "Title", size: 64, font: heading }],
+    });
+    expect(body).toMatchObject({
+      type: "text",
+      x: 100,
+      y: 200,
+      placeholderRole: "body",
+      deletable: true,
+      lineHeight: 1.5,
+      runs: [{ text: "Body" }],
+    });
+    // Ids of their own, unique in the document.
+    expect(title!.id).not.toBe(body!.id);
+    expect(title!.id).not.toMatch(/^core-/);
+    // No hint for the two roles; the placeholder without a prototype stays open.
+    expect(openPlaceholders(made.document, made.index).map((one) => one.placeholder.role)).toEqual([
+      "note",
+    ]);
+    // The layout's prototype is untouched by the element laid down.
+    const ph = made.document.layouts[0]!.elements[0]!;
+    expect(ph.type === "placeholder" && ph.prototype?.type === "text" && ph.prototype.runs).toEqual(
+      titlePrototype.runs,
+    );
+  });
+
+  it("lays down a missing role on a change of layout; an element of a held role only moves (AC2)", () => {
+    let doc = newPage(deck, 0, "core").document;
+    const page = 1;
+    // The title is retyped; its content must survive the move.
+    const title = byRole(doc, page, "title")[0]!;
+    doc = updateElements(doc, page, [title.id], (one) =>
+      one.type === "text" ? { ...one, runs: [{ text: "Mine" }] } : one,
+    );
+    const next = setPageLayout(doc, page, "moved");
+    expect(() => parseSlideDocument(next)).not.toThrow();
+    const [movedTitle] = byRole(next, page, "title");
+    expect(byRole(next, page, "title")).toHaveLength(1);
+    expect(movedTitle).toMatchObject({
+      id: title.id,
+      x: 500,
+      y: 500,
+      rotation: 0,
+      runs: [{ text: "Mine" }],
+    });
+    const [quote] = byRole(next, page, "quote");
+    expect(quote).toMatchObject({ x: 0, y: 0, runs: [{ text: "Q" }], deletable: true });
+  });
+
+  it("does not count an open placeholder as present on a change of layout (AC2)", () => {
+    // A page on the bare layout shows its body placeholder open, with no element.
+    let doc = setPageLayout(deck, 0, "bare");
+    expect(openPlaceholders(doc, 0).map((one) => one.placeholder.role)).toEqual(["body"]);
+    doc = setPageLayout(doc, 0, "core");
+    expect(byRole(doc, 0, "body")).toHaveLength(1);
+    expect(byRole(doc, 0, "title")).toHaveLength(1);
+  });
+
+  it("frees a protected element whose role the new layout lacks: no role, deletable (AC3)", () => {
+    const doc = newPage(deck, 0, "core").document;
+    const page = 1;
+    const body = byRole(doc, page, "body")[0]!;
+    const title = byRole(doc, page, "title")[0]!;
+    const protectedBody = updateElements(doc, page, [body.id], (one) => ({
+      ...one,
+      deletable: false,
+    }));
+    const next = setPageLayout(protectedBody, page, "moved");
+    const freed = findElement(next.pages[page]!.elements, body.id)!.element;
+    expect(freed.placeholderRole).toBeUndefined();
+    expect(freed.deletable).toBe(true);
+    expect(freed).toMatchObject({ x: 100, y: 200 });
+    // The title, held by the new layout, keeps its protection.
+    expect(findElement(next.pages[page]!.elements, title.id)!.element.deletable).toBe(false);
+    // Dropping the layout frees it too.
+    const none = setPageLayout(next, page, undefined);
+    expect(findElement(none.pages[page]!.elements, title.id)!.element).toMatchObject({
+      deletable: true,
+    });
+    expect(
+      findElement(none.pages[page]!.elements, title.id)!.element.placeholderRole,
+    ).toBeUndefined();
+  });
+
+  it("takes a master's prototype for a role the layout lacks (AC7)", () => {
+    const doc = parseSlideDocument({
+      ...SLIDE_EDITOR_DOC,
+      masters: [
+        {
+          id: "brand",
+          name: "Brand",
+          elements: [withPrototype("brand-footer", "footer", { x: 0, y: 1000 }, bodyPrototype)],
+        },
+      ],
+      layouts: [{ ...core, masterId: "brand" }],
+      pages: [{ ...SLIDE_EDITOR_DOC.pages[0]!, elements: [] }],
+    });
+    const made = newPage(doc, 0, "core");
+    expect(byRole(made.document, made.index, "footer")[0]).toMatchObject({ x: 0, y: 1000 });
+  });
+
+  it("lays down one element per role, from the layout's prototype over its master's (AC7)", () => {
+    const doc = parseSlideDocument({
+      ...SLIDE_EDITOR_DOC,
+      masters: [
+        {
+          id: "brand",
+          name: "Brand",
+          elements: [
+            withPrototype("brand-title", "title", { x: 0, y: 900 }, bodyPrototype),
+            withPrototype("brand-footer", "footer", { x: 0, y: 1000 }, bodyPrototype),
+          ],
+        },
+      ],
+      layouts: [{ ...core, masterId: "brand" }],
+      pages: [{ ...SLIDE_EDITOR_DOC.pages[0]!, elements: [] }],
+    });
+    const made = newPage(doc, 0, "core");
+    const titles = byRole(made.document, made.index, "title");
+    expect(titles).toHaveLength(1);
+    expect(titles[0]).toMatchObject({ x: 100, y: 40, runs: titlePrototype.runs, deletable: false });
+    expect(byRole(made.document, made.index, "footer")).toHaveLength(1);
   });
 });

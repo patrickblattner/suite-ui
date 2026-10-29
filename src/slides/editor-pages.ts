@@ -2,6 +2,7 @@
 // `editor-ops.ts`: each takes a document and returns a new one, so every change is a step of the
 // editor's history, across pages too.
 
+import { withPrototypes } from "./editor-layouts.js";
 import { freshCopies, idsOf } from "./editor-ops.js";
 import type { Background, SlideDocument, SlidePage } from "./schema.js";
 
@@ -79,7 +80,8 @@ function backgroundFor(document: SlideDocument, layoutId: string | undefined, af
   );
 }
 
-// A new, empty page from a layout (or none) right after the page at `after`.
+// A new page from a layout (or none) right after the page at `after`, holding the elements its
+// layout's prototypes lay down (`SUI-FEATURE-320`), else empty.
 export function newPage(
   document: SlideDocument,
   after: number,
@@ -98,5 +100,5 @@ export function newPage(
   const index = Math.min(after + 1, document.pages.length);
   const pages = [...document.pages];
   pages.splice(index, 0, page);
-  return { document: { ...document, pages }, index };
+  return { document: withPrototypes({ ...document, pages }, index), index };
 }

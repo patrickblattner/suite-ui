@@ -220,9 +220,9 @@ describe("slide document migration", () => {
     })),
   });
 
-  it("ships three steps, 1 → 2, 2 → 3 and 3 → 4, that change no content (SUI-FEATURE-192 AC4)", () => {
-    expect(SLIDE_SCHEMA_VERSION).toBe(4);
-    expect(Object.keys(SLIDE_MIGRATIONS)).toEqual(["1", "2", "3"]);
+  it("ships four steps, 1 → 2 up to 4 → 5, that change no content (SUI-FEATURE-192 AC4)", () => {
+    expect(SLIDE_SCHEMA_VERSION).toBe(5);
+    expect(Object.keys(SLIDE_MIGRATIONS)).toEqual(["1", "2", "3", "4"]);
     expect(parseSlideDocument({ ...valid, schemaVersion: 1 })).toEqual(parseSlideDocument(valid));
   });
 
@@ -249,7 +249,7 @@ describe("slide document migration", () => {
     const group = { id: "g", type: "group", x: 0, y: 0, width: 50, height: 50, children: [shape] };
     const page = { ...valid.pages[0]!, elements: [group, text] };
     const parsed = parseSlideDocument({ ...valid, schemaVersion: 3, pages: [page] });
-    expect(parsed.schemaVersion).toBe(4);
+    expect(parsed.schemaVersion).toBe(SLIDE_SCHEMA_VERSION);
     const [first, second] = parsed.pages[0]!.elements;
     expect(first).toMatchObject({ id: "g", deletable: true });
     expect(first?.type === "group" && first.children[0]).toMatchObject({
@@ -293,6 +293,153 @@ describe("slide document migration", () => {
       expect(flags).toEqual([true, true, true, true]);
     },
   );
+
+  // SUI-FEATURE-320 AC5: a version-4 document loads and migrates with its content as it was; a
+  // version 4 knew no `prototype` (its parse dropped one), so one written anyway is dropped, in
+  // layouts, masters and groups, and no page gets an element laid down for it.
+  it("migrates a version-4 document with its content unchanged and no prototypes (SUI-FEATURE-320 AC5, AC8)", () => {
+    const stray = { type: "text", runs: [{ text: "Stray" }] };
+    const placeholder = (id: string) => ({
+      id,
+      type: "placeholder",
+      role: id,
+      x: 0,
+      y: 0,
+      width: 300,
+      height: 60,
+      prototype: stray,
+    });
+    const group = {
+      id: "g",
+      type: "group",
+      x: 0,
+      y: 0,
+      width: 300,
+      height: 60,
+      children: [placeholder("in-group")],
+    };
+    const text = { id: "t", type: "text", x: 10, y: 20, width: 300, height: 80, runs: [] };
+    const document = {
+      ...valid,
+      schemaVersion: 4,
+      masters: [{ id: "m", name: "M", elements: [placeholder("in-master")] }],
+      layouts: [{ id: "l", name: "L", masterId: "m", elements: [group, placeholder("title")] }],
+      pages: [{ ...valid.pages[0]!, layoutId: "l", elements: [text] }],
+    };
+    const parsed = parseSlideDocument(document);
+    expect(parsed.schemaVersion).toBe(SLIDE_SCHEMA_VERSION);
+    const prototypes: unknown[] = [];
+    eachElement([...parsed.layouts[0]!.elements, ...parsed.masters[0]!.elements], (element) => {
+      if (element.type === "placeholder") prototypes.push(element.prototype);
+    });
+    expect(prototypes).toEqual([undefined, undefined, undefined]);
+    expect(parsed.layouts[0]!.elements[1]).toMatchObject({
+      id: "title",
+      type: "placeholder",
+      role: "title",
+      x: 0,
+      y: 0,
+      width: 300,
+      height: 60,
+    });
+    expect(parsed.pages[0]!.elements).toHaveLength(1);
+    expect(parsed.pages[0]!.elements[0]).toMatchObject(text);
+  });
+
+  // SUI-FEATURE-320 rev 3: a placeholder's prototype is an element without id, box, turn and role, of
+  // any type but a group or a placeholder, held to that type's rules.
+  it("validates a placeholder's prototype by its element type (SUI-FEATURE-320 AC6)", () => {
+    const withPrototype = (prototype: unknown) => ({
+      ...valid,
+      layouts: [
+        {
+          id: "l",
+          name: "L",
+          elements: [
+            {
+              id: "p",
+              type: "placeholder",
+              role: "body",
+              x: 0,
+              y: 0,
+              width: 300,
+              height: 60,
+              prototype,
+            },
+          ],
+        },
+      ],
+    });
+    const parsed = parseSlideDocument(
+      withPrototype({
+        type: "text",
+        runs: [{ text: "Body" }],
+        deletable: false,
+      }),
+    );
+    const placeholder = parsed.layouts[0]!.elements[0]!;
+    expect(placeholder.type === "placeholder" && placeholder.prototype).toEqual({
+      type: "text",
+      runs: [{ text: "Body" }],
+      deletable: false,
+      layer: 0,
+      locked: false,
+      hidden: false,
+      opacity: 100,
+      align: "left",
+      lineHeight: 1.2,
+      list: "none",
+      verticalAlign: "top",
+      sizing: "fixed",
+    });
+    const chart = parseSlideDocument(
+      withPrototype({
+        type: "chart",
+        chart: "bar",
+        categories: ["a"],
+        series: [{ name: "s", values: [1] }],
+      }),
+    ).layouts[0]!.elements[0]!;
+    expect(
+      chart.type === "placeholder" &&
+        chart.prototype?.type === "chart" &&
+        chart.prototype.series[0]!.pattern,
+    ).toBe(CHART_PATTERNS[0]);
+    // AC6: no group or placeholder, and nothing the placeholder gives.
+    expect(rejection(withPrototype({ type: "group", children: [] })).code).toBe("invalid");
+    expect(rejection(withPrototype({ type: "placeholder", role: "x" })).code).toBe("invalid");
+    const text = { type: "text", runs: [] };
+    for (const [key, value] of Object.entries({
+      id: "t",
+      x: 0,
+      y: 0,
+      width: 10,
+      height: 10,
+      rotation: 0,
+      placeholderRole: "body",
+    })) {
+      const error = rejection(withPrototype({ ...text, [key]: value }));
+      expect(error.issues.map((one) => one.path)).toContain(
+        `layouts[0].elements[0].prototype.${key}`,
+      );
+    }
+    // A shape follows a text field of its own group; laid down on its own, it has none.
+    const follows = rejection(
+      withPrototype({ type: "shape", shape: "rectangle", follow: { id: "t" } }),
+    );
+    expect(follows.issues.map((one) => one.path)).toContain(
+      "layouts[0].elements[0].prototype.follow",
+    );
+    expect(
+      rejection(
+        withPrototype({ type: "chart", chart: "bar", categories: ["a"], series: [], rotation: 5 }),
+      ).code,
+    ).toBe("invalid");
+    expect(
+      rejection(withPrototype({ type: "table", columnWidths: [10, 10], rows: [[{ runs: [] }]] }))
+        .issues[0]!.code,
+    ).toBe("row-cells");
+  });
 
   // Codex #643 CX2: a branching tree over the element limit, every list of it under the limit, is
   // left as it is by the migration, not walked and copied whole, and rejected by name.

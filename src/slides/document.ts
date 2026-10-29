@@ -27,20 +27,38 @@ export const SLIDE_MIGRATIONS: Readonly<Record<number, SlideMigration>> = {
   2: (document) => document,
   // 3 → 4 added an element's `deletable` (`SUI-FEATURE-194`): an older document carries none, so
   // every element is deletable; a stray one written before is dropped, in groups too.
-  3: (document) => {
-    const next = { ...document };
-    const caps = {
-      pages: SLIDE_LIMITS.maxPages,
-      layouts: SLIDE_LIMITS.maxLayouts,
-      masters: SLIDE_LIMITS.maxMasters,
-    };
-    for (const [key, cap] of Object.entries(caps)) {
-      const list = next[key];
-      if (walkable(list, cap)) next[key] = list.map(holderWithoutDeletable);
-    }
-    return next;
-  },
+  3: (document) => everyElement(document, (element) => without(element, "deletable")),
+  // 4 → 5 added a placeholder's `prototype` (`SUI-FEATURE-320`): an older document carries none, so
+  // no page gets an element laid down; a stray one written before is dropped, in groups too.
+  4: (document) =>
+    everyElement(document, (element) =>
+      element.type === "placeholder" ? without(element, "prototype") : element,
+    ),
 };
+
+// The document with `change` made to every element of its pages, layouts and masters, in groups too.
+function everyElement(
+  document: Record<string, unknown>,
+  change: ElementChange,
+): Record<string, unknown> {
+  const next = { ...document };
+  const caps = {
+    pages: SLIDE_LIMITS.maxPages,
+    layouts: SLIDE_LIMITS.maxLayouts,
+    masters: SLIDE_LIMITS.maxMasters,
+  };
+  for (const [key, cap] of Object.entries(caps)) {
+    const list = next[key];
+    if (walkable(list, cap)) next[key] = list.map((holder) => holderChanged(holder, change));
+  }
+  return next;
+}
+
+function without(element: Record<string, unknown>, key: string): Record<string, unknown> {
+  const rest = { ...element };
+  delete rest[key];
+  return rest;
+}
 
 // Untrusted input: anything not shaped as expected is left as it is, for the schema to name, and so
 // is a group deeper than the schema takes (it names that too), so the walk stays bounded. A list
@@ -73,24 +91,25 @@ function withinLimits(elements: unknown[]): boolean {
   return true;
 }
 
-function holderWithoutDeletable(holder: unknown): unknown {
+type ElementChange = (element: Record<string, unknown>) => Record<string, unknown>;
+
+function holderChanged(holder: unknown, change: ElementChange): unknown {
   if (!isRecord(holder) || !Array.isArray(holder.elements) || !withinLimits(holder.elements)) {
     return holder;
   }
   return {
     ...holder,
-    elements: holder.elements.map((element: unknown) => elementWithoutDeletable(element, 0)),
+    elements: holder.elements.map((element: unknown) => elementChanged(element, 0, change)),
   };
 }
 
-function elementWithoutDeletable(element: unknown, depth: number): unknown {
+function elementChanged(element: unknown, depth: number, change: ElementChange): unknown {
   if (!isRecord(element) || depth > SLIDE_LIMITS.maxGroupDepth) return element;
-  const rest = { ...element };
-  delete rest.deletable;
+  const rest = change(element);
   return walkable(rest.children, SLIDE_LIMITS.maxElements)
     ? {
         ...rest,
-        children: rest.children.map((child: unknown) => elementWithoutDeletable(child, depth + 1)),
+        children: rest.children.map((child: unknown) => elementChanged(child, depth + 1, change)),
       }
     : rest;
 }

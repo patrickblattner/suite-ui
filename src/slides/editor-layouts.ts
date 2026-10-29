@@ -5,12 +5,14 @@
 import {
   findElement,
   groupChain,
+  insertElement,
   intoGroups,
   moveBy,
   placedBox,
   setBox,
   setRotation,
   stepIntoGroups,
+  uniqueId,
   updateElements,
   type Box,
 } from "./editor-ops.js";
@@ -73,22 +75,63 @@ export function openPlaceholders(document: SlideDocument, page: number): OpenPla
   });
 }
 
-// The placeholder of `role` in a layout (in groups too), else in its master, where it is drawn.
-function placeholderOf(document: SlideDocument, layout: SlideLayout | undefined, role: string) {
+// The placeholders of a layout (in groups too) and its master, one per role, the layout's before the
+// master's, with where they are drawn.
+function rolePlaceholders(
+  document: SlideDocument,
+  layout: SlideLayout | undefined,
+): OpenPlaceholder[] {
   const master =
     layout?.masterId === undefined
       ? undefined
       : document.masters.find((one) => one.id === layout.masterId);
+  const found = new Map<string, OpenPlaceholder>();
   for (const list of [layout?.elements ?? [], master?.elements ?? []]) {
-    let found: Placeholder | undefined;
     eachElement(list, (element) => {
-      if (found === undefined && element.type === "placeholder" && element.role === role) {
-        found = element;
+      if (element.type === "placeholder" && !found.has(element.role)) {
+        found.set(element.role, { placeholder: element, ...placedBox(list, element) });
       }
     });
-    if (found !== undefined) return placedBox(list, found);
   }
-  return undefined;
+  return [...found.values()];
+}
+
+// The placeholder of `role` in a layout, else in its master, where it is drawn.
+function placeholderOf(document: SlideDocument, layout: SlideLayout | undefined, role: string) {
+  return rolePlaceholders(document, layout).find((one) => one.placeholder.role === role);
+}
+
+// The page with an element laid down for every placeholder of its layout or master that carries a
+// prototype and whose role no page element fills (`SUI-FEATURE-320`), an open placeholder not
+// counting: an id of its own, the placeholder's box, turn and role, the prototype's content, style and
+// `deletable`.
+export function withPrototypes(document: SlideDocument, page: number): SlideDocument {
+  const current = document.pages[page];
+  const layout = document.layouts.find((one) => one.id === current?.layoutId);
+  if (current === undefined || layout === undefined) return document;
+  const filled = new Set<string>();
+  eachElement(current.elements, (element) => {
+    if (element.placeholderRole !== undefined) filled.add(element.placeholderRole);
+  });
+  let next = document;
+  for (const open of rolePlaceholders(document, layout)) {
+    const { prototype } = open.placeholder;
+    if (prototype === undefined || filled.has(open.placeholder.role)) continue;
+    const made = intoPlaceholder(
+      {
+        ...structuredClone(prototype),
+        id: uniqueId(next, prototype.type),
+        x: 0,
+        y: 0,
+        width: 0,
+        height: 0,
+        rotation: 0,
+      },
+      open,
+    );
+    next = insertElement(next, page, made);
+  }
+  return next;
 }
 
 // The first run of a text field filling a placeholder of `role` (`SUI-FEATURE-192` rev 3): the
@@ -116,7 +159,9 @@ export function intoPlaceholder(element: SlideElement, open: OpenPlaceholder): S
 }
 
 // The page with another layout (or none): an element filling a placeholder takes the box and turn of
-// the new layout's placeholder of its role, or stays where it is and loses the role when there is none.
+// the new layout's placeholder of its role, or stays where it is and loses the role and its protection
+// when there is none (`SUI-FEATURE-320`); a placeholder with a prototype whose role the page lacks
+// gets its element.
 export function setPageLayout(
   document: SlideDocument,
   page: number,
@@ -143,7 +188,7 @@ export function setPageLayout(
     const placed = placeholderOf(document, layout, element.placeholderRole!);
     if (placed === undefined) {
       next = updateElements(next, page, [element.id], (one) => {
-        const without = { ...one };
+        const without = { ...one, deletable: true };
         delete without.placeholderRole;
         return without;
       });
@@ -151,7 +196,7 @@ export function setPageLayout(
     }
     next = placeAt(next, page, element.id, placed);
   }
-  return next;
+  return withPrototypes(next, page);
 }
 
 // The element drawn at `target` on the page (Codex #398 CX2): in its groups' frame, its turn less

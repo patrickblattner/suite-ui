@@ -12,8 +12,8 @@ import { shownInError } from "./shown-in-error.js";
 // The current schema version. Every change of the schema raises it and adds a step to the migration
 // chain (`document.ts`). Version 2 added `placeholderRole` (`SUI-FEATURE-192`); version 3 inline runs
 // (`SUI-FEATURE-164`), a text field's `sizing` and a shape's `follow` (`SUI-FEATURE-165`); version 4 an
-// element's `deletable` (`SUI-FEATURE-194`).
-export const SLIDE_SCHEMA_VERSION = 4;
+// element's `deletable` (`SUI-FEATURE-194`); version 5 a placeholder's `prototype` (`SUI-FEATURE-320`).
+export const SLIDE_SCHEMA_VERSION = 5;
 
 // The hard limits of a document, generous on purpose (`SUI-DESIGN-002` §Form): the schema is the one boundary apps
 // and servers share, so tightening a limit later would take a schema version. `maxGroupDepth` and
@@ -352,109 +352,150 @@ export const tableCellSchema = z.object({
 });
 
 // Rows of cells; every row has one cell per column width.
-export const tableElementSchema = z
-  .object({
-    ...elementBase,
-    type: z.literal("table"),
-    columnWidths: z.array(size).min(1).max(SLIDE_LIMITS.maxTableColumns),
-    rows: z
-      .array(z.array(tableCellSchema).max(SLIDE_LIMITS.maxTableColumns))
-      .min(1)
-      .max(SLIDE_LIMITS.maxTableRows),
-    border: borderSchema.optional(),
-  })
-  .superRefine((table, context) => {
-    table.rows.forEach((row, index) => {
-      if (row.length !== table.columnWidths.length) {
-        context.addIssue({
-          code: "custom",
-          path: ["rows", index],
-          message: `a row needs ${table.columnWidths.length} cells, one per column`,
-          ...issue("row-cells"),
-        });
-      }
-    });
+const tableFields = {
+  type: z.literal("table"),
+  columnWidths: z.array(size).min(1).max(SLIDE_LIMITS.maxTableColumns),
+  rows: z
+    .array(z.array(tableCellSchema).max(SLIDE_LIMITS.maxTableColumns))
+    .min(1)
+    .max(SLIDE_LIMITS.maxTableRows),
+  border: borderSchema.optional(),
+};
+function tableCells(
+  table: { columnWidths: unknown[]; rows: unknown[][] },
+  context: z.RefinementCtx,
+) {
+  table.rows.forEach((row, index) => {
+    if (row.length !== table.columnWidths.length) {
+      context.addIssue({
+        code: "custom",
+        path: ["rows", index],
+        message: `a row needs ${table.columnWidths.length} cells, one per column`,
+        ...issue("row-cells"),
+      });
+    }
   });
+}
+export const tableElementSchema = z
+  .object({ ...elementBase, ...tableFields })
+  .superRefine(tableCells);
 
 // The marks a chart series carries beside its colour, in the order the package hands them out.
 export const CHART_PATTERNS = ["solid", "stripes", "dots", "crosshatch", "grid", "zigzag"] as const;
 
 // A bar, line or pie chart with its data in the element: categories and up to six series, one value
 // per category.
-export const chartElementSchema = z
-  .object({
-    ...elementBase,
-    type: z.literal("chart"),
-    chart: z.enum(["bar", "line", "pie"]),
-    categories: z.array(label).min(1).max(SLIDE_LIMITS.maxChartCategories),
-    series: z
-      .array(
-        z.object({
-          name: label,
-          values: z.array(z.number().finite()).max(SLIDE_LIMITS.maxChartCategories),
-          color: colorValueSchema.optional(),
-          // The series' own mark beside its colour (`GL-UI-060`): the fill of a bar or slice, the point
-          // marker of a line (`SUI-DESIGN-002` §Diagramm-Reihen).
-          pattern: z.enum(CHART_PATTERNS).optional(),
-        }),
-      )
-      .min(1)
-      .max(SLIDE_LIMITS.maxChartSeries),
-  })
-  .superRefine((chart, context) => {
-    chart.series.forEach((series, index) => {
-      if (series.values.length !== chart.categories.length) {
-        context.addIssue({
-          code: "custom",
-          path: ["series", index, "values"],
-          message: `a series needs ${chart.categories.length} values, one per category`,
-          ...issue("series-values"),
-        });
-      }
-    });
-    const patterns = new Set<string>();
-    chart.series.forEach((series, index) => {
-      if (series.pattern === undefined) return;
-      if (patterns.has(series.pattern)) {
-        context.addIssue({
-          code: "custom",
-          path: ["series", index, "pattern"],
-          message: `two series share the pattern ${series.pattern}`,
-          ...issue("duplicate-pattern"),
-        });
-      }
-      patterns.add(series.pattern);
-    });
-  })
-  // A series without a pattern gets the one of its index, or the next one no other series carries, so
-  // no two series share one (`SUI-DESIGN-002` §Diagramm-Reihen).
-  .transform((chart) => {
-    const used = new Set(chart.series.map((series) => series.pattern));
-    return {
-      ...chart,
-      series: chart.series.map((series, index) => {
-        if (series.pattern !== undefined) return { ...series, pattern: series.pattern };
-        const turn = (step: number) => CHART_PATTERNS[(index + step) % CHART_PATTERNS.length]!;
-        const pattern =
-          CHART_PATTERNS.map((_, step) => turn(step)).find((free) => !used.has(free)) ?? turn(0);
-        used.add(pattern);
-        return { ...series, pattern };
+const chartFields = {
+  type: z.literal("chart"),
+  chart: z.enum(["bar", "line", "pie"]),
+  categories: z.array(label).min(1).max(SLIDE_LIMITS.maxChartCategories),
+  series: z
+    .array(
+      z.object({
+        name: label,
+        values: z.array(z.number().finite()).max(SLIDE_LIMITS.maxChartCategories),
+        color: colorValueSchema.optional(),
+        // The series' own mark beside its colour (`GL-UI-060`): the fill of a bar or slice, the point
+        // marker of a line (`SUI-DESIGN-002` §Diagramm-Reihen).
+        pattern: z.enum(CHART_PATTERNS).optional(),
       }),
-    };
+    )
+    .min(1)
+    .max(SLIDE_LIMITS.maxChartSeries),
+};
+type ChartSeries = { values: number[]; pattern?: (typeof CHART_PATTERNS)[number] };
+function chartSeries(
+  chart: { categories: string[]; series: ChartSeries[] },
+  context: z.RefinementCtx,
+) {
+  chart.series.forEach((series, index) => {
+    if (series.values.length !== chart.categories.length) {
+      context.addIssue({
+        code: "custom",
+        path: ["series", index, "values"],
+        message: `a series needs ${chart.categories.length} values, one per category`,
+        ...issue("series-values"),
+      });
+    }
   });
-
-// A placeholder of a layout; the app fills it by its role key.
-export const placeholderElementSchema = z.object({
-  ...elementBase,
-  type: z.literal("placeholder"),
-  role: id,
-});
+  const patterns = new Set<string>();
+  chart.series.forEach((series, index) => {
+    if (series.pattern === undefined) return;
+    if (patterns.has(series.pattern)) {
+      context.addIssue({
+        code: "custom",
+        path: ["series", index, "pattern"],
+        message: `two series share the pattern ${series.pattern}`,
+        ...issue("duplicate-pattern"),
+      });
+    }
+    patterns.add(series.pattern);
+  });
+}
+// A series without a pattern gets the one of its index, or the next one no other series carries, so
+// no two series share one (`SUI-DESIGN-002` §Diagramm-Reihen).
+function chartPatterns<Chart extends { series: ChartSeries[] }>({ series: all, ...chart }: Chart) {
+  const used = new Set(all.map((series) => series.pattern));
+  return {
+    ...chart,
+    series: all.map((series: Chart["series"][number], index) => {
+      if (series.pattern !== undefined) return { ...series, pattern: series.pattern };
+      const turn = (step: number) => CHART_PATTERNS[(index + step) % CHART_PATTERNS.length]!;
+      const pattern =
+        CHART_PATTERNS.map((_, step) => turn(step)).find((free) => !used.has(free)) ?? turn(0);
+      used.add(pattern);
+      return { ...series, pattern };
+    }),
+  };
+}
+export const chartElementSchema = z
+  .object({ ...elementBase, ...chartFields })
+  .superRefine(chartSeries)
+  .transform(chartPatterns);
 
 // An element type the app contributes: its type id plus the app's payload, passed through.
 export const customElementSchema = z.object({
   ...elementBase,
   type: z.literal("custom"),
   typeId: id,
+});
+
+// A placeholder's prototype (`SUI-FEATURE-320`): an element without id, box, turn and role, which it
+// takes from the placeholder when the editor lays it down on a page. Never a group, whose children
+// carry ids and boxes, nor a placeholder.
+// What the placeholder gives: a prototype carrying any of it is rejected.
+const absent = z.never().optional();
+const placed = {
+  id: absent,
+  x: absent,
+  y: absent,
+  width: absent,
+  height: absent,
+  rotation: absent,
+  placeholderRole: absent,
+};
+export const slidePrototypeSchema = z.discriminatedUnion("type", [
+  textElementSchema.extend(placed),
+  imageElementSchema.extend(placed),
+  // No `follow`: a shape follows a text field of its own group, and it is laid down on its own.
+  shapeElementSchema.extend({ ...placed, follow: absent }),
+  lineElementSchema.extend(placed),
+  iconElementSchema.extend(placed),
+  z.object({ ...elementBase, ...tableFields, ...placed }).superRefine(tableCells),
+  z
+    .object({ ...elementBase, ...chartFields, ...placed })
+    .superRefine(chartSeries)
+    .transform(chartPatterns),
+  customElementSchema.extend(placed),
+]);
+
+// A placeholder of a layout; the app fills it by its role key. With a `prototype`, the editor lays
+// that element down for it on a new page and on a change of layout (`SUI-FEATURE-320`).
+export const placeholderElementSchema = z.object({
+  ...elementBase,
+  type: z.literal("placeholder"),
+  role: id,
+  prototype: slidePrototypeSchema.optional(),
 });
 
 export type SlideElementInput =
@@ -788,3 +829,5 @@ export type SlideDocumentInput = z.input<typeof documentShape>;
 // A layout and a master as an app writes them (`SUI-FEATURE-192`).
 export type SlideLayoutInput = z.input<typeof slideLayoutSchema>;
 export type SlideMasterInput = z.input<typeof slideMasterSchema>;
+// A placeholder's prototype element (`SUI-FEATURE-320`).
+export type SlidePrototype = z.output<typeof slidePrototypeSchema>;
