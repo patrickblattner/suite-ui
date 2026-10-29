@@ -151,10 +151,11 @@ function PreviewToolbar({
   // Wrapping is left out when Close would stand alone in the first line.
   const companion = maximize !== undefined || actions !== undefined;
   const maxShrink: Shrink = companion || device !== undefined ? 3 : 2;
-  // A new language or status text folds the toolbar afresh, so shorter texts unfold it again.
+  // A new language or status text folds the toolbar afresh, so shorter texts unfold it again; so does
+  // a step that comes, goes or changes its label (`SUI-FEATURE-330`), a folded one included.
   const { attach, steps } = useFoldSteps(
     maxShrink,
-    [i18n.language, status ?? "", language?.value ?? ""].join("\u0000"),
+    [i18n.language, status ?? "", language?.value ?? "", actions?.step?.label ?? ""].join("\u0000"),
   );
   const shrink = steps as Shrink;
   const setToolbar = React.useCallback(

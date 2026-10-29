@@ -715,6 +715,16 @@ describe("PreviewToolbar in a narrow column (SUI-FEATURE-067)", () => {
     },
   );
 
+  it("SUI-FEATURE-330: a selection without a step refolds the toolbar, so it unfolds again", () => {
+    available = 420;
+    const { rerender } = render(<PreviewToolbar {...FULL} actions={STEP} />);
+    expect(toolbar()).toHaveAttribute("data-shrink", "1");
+    // No resize: only the selected entry changes, to one whose 8 buttons fit 420 px.
+    rerender(<PreviewToolbar {...FULL} actions={ENTRY} />);
+    expect(toolbar()).toHaveAttribute("data-shrink", "0");
+    expect(actionLabels()).toEqual(["Copy Home", "Edit Home", "Delete Home"]);
+  });
+
   it("SUI-FEATURE-330 AC3: folded, a running step's entry is locked", () => {
     const onClick = vi.fn();
     render(
