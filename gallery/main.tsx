@@ -30,6 +30,7 @@ import {
   ToastPage,
 } from "./OverlayPages.js";
 import { PressedPage } from "./PressedPage.js";
+import { ReorderPage } from "./ReorderPage.js";
 import { PreviewPage } from "./PreviewPage.js";
 import { SettingsPage } from "./SettingsPage.js";
 import { SlideExportHarness, SlidePlayerPage } from "./SlidePlayerPage.js";
@@ -48,6 +49,7 @@ const PAGES = [
   "tokens",
   "components",
   "list",
+  "reorder",
   "tiles",
   "keys",
   "settings",
@@ -93,6 +95,7 @@ const PAGE_CONTENT: Record<Exclude<Page, "strings">, (theme: Theme) => ReactNode
   tokens: () => <TokensPage />,
   components: () => <ComponentsPage />,
   list: () => <ListPage />,
+  reorder: () => <ReorderPage />,
   tiles: () => <TilesPage />,
   keys: () => <KeysPage />,
   settings: () => <SettingsPage />,

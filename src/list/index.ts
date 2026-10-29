@@ -9,6 +9,7 @@ export * from "./list-tabs.js";
 export * from "./list-view-shell.js";
 export * from "./page-header.js";
 export * from "./page-scroll.js";
+export * from "./reorder.js";
 export * from "./row-actions.js";
 export * from "./sort-select.js";
 export * from "./split-workspace.js";

@@ -107,6 +107,21 @@ export const en = {
     actions: "Actions",
     emptyValue: "empty",
   },
+  // The reorder control of a hand-sorted list (`ReorderCell`, `SUI-FEATURE-340`): the verbs precede
+  // the row's name; the announcements go to a live region while a row is carried by keyboard.
+  reorder: {
+    head: "Order",
+    grip: "Move",
+    up: "Move up",
+    down: "Move down",
+    pickedUp:
+      "{{name}} picked up, position {{position}} of {{count}} on this page. Arrow keys move it, Space drops it, Escape puts it back.",
+    moved: "{{name}}: position {{position}} of {{count}} on this page.",
+    dropped: "{{name}} dropped at position {{position}} of {{count}} on this page.",
+    putBack: "{{name}} put back at position {{position}} of {{count}}.",
+    upEdge: "{{name}} cannot move further up on this page.",
+    downEdge: "{{name}} cannot move further down on this page.",
+  },
   // Terms the suite apps share: the severity and outcome of an event, the type column.
   severity: {
     error: "Error",

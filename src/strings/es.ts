@@ -99,6 +99,19 @@ export const es: SuiteStrings = {
     actions: "Acciones",
     emptyValue: "vacío",
   },
+  reorder: {
+    head: "Orden",
+    grip: "Mover",
+    up: "Subir",
+    down: "Bajar",
+    pickedUp:
+      "{{name}} recogido, posición {{position}} de {{count}} en esta página. Las flechas lo mueven, Espacio lo suelta, Escape lo devuelve.",
+    moved: "{{name}}: posición {{position}} de {{count}} en esta página.",
+    dropped: "{{name}} soltado en la posición {{position}} de {{count}} en esta página.",
+    putBack: "{{name}} devuelto a la posición {{position}} de {{count}}.",
+    upEdge: "{{name}} no puede subir más en esta página.",
+    downEdge: "{{name}} no puede bajar más en esta página.",
+  },
   severity: {
     error: "Error",
     warning: "Advertencia",

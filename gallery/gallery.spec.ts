@@ -872,6 +872,7 @@ const AXE_PAGES: [
   ],
   ["list", (page) => page.getByTestId("list-actions").first(), "&actions=1"],
   ["list", (page) => page.getByTestId("list-actions").first(), "&actions=1&step=1"],
+  ["reorder", (page) => page.getByTestId("reorder-row").first()],
   ["tiles", (page) => page.getByTestId("media-tiles").getByTestId("row-menu").first(), "&step=1"],
   ["select", (page) => page.getByRole("combobox", { expanded: false }), "&select=closed"],
 ];
@@ -7229,6 +7230,101 @@ test("table actions step: the icon buttons line up in rows with and without a st
   await expect(page.getByTestId("data-table-scroll")).toHaveScreenshot("list-step-de-light.png");
 });
 
+// SUI-FEATURE-340: the hand-sorted list. The names of the first `count` rows, top to bottom.
+async function reorderNames(page: Page, count = 3) {
+  const rows = page.getByTestId("reorder-row");
+  return Promise.all(
+    Array.from({ length: count }, (_, i) => rows.nth(i).getByRole("gridcell").nth(1).textContent()),
+  );
+}
+
+// SUI-FEATURE-340 AC 2, AC 4: ↓ and a pointer drag onto the next row give the same order; the grip
+// carries by keyboard, the drop line marks the target, and the grip keeps the focus after the drop.
+test("reorder: ↓, a drag and the keyboard move the row alike", async ({ page }) => {
+  await page.goto("/?page=reorder&lng=de");
+  await expect(page.getByTestId("reorder-entry-1-up")).toHaveAttribute("aria-disabled", "true");
+  await expect(page.getByTestId("reorder-entry-1-up")).toHaveAccessibleName(
+    "Nach oben verschieben Aarau",
+  );
+  await page.getByTestId("reorder-entry-2-down").click();
+  expect(await reorderNames(page)).toEqual(["Aarau", "Bern", "Basel"]);
+
+  await page.reload();
+  await page
+    .getByTestId("reorder-entry-2-grip")
+    .dragTo(page.getByTestId("reorder-row").nth(2).getByRole("gridcell").nth(1));
+  expect(await reorderNames(page)).toEqual(["Aarau", "Bern", "Basel"]);
+
+  await page.reload();
+  const grip = page.getByTestId("reorder-entry-1-grip");
+  await grip.focus();
+  await page.keyboard.press("Space");
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("ArrowDown");
+  await expect(page.getByTestId("reorder-entry-3")).toHaveAttribute("data-drop", "after");
+  await expect(page.getByTestId("reorder-live")).toHaveText(
+    "Aarau: Position 3 von 10 auf dieser Seite.",
+  );
+  await expect(grip).toBeFocused();
+  await parkPointer(page);
+  await expect(page.getByTestId("data-table-scroll")).toHaveScreenshot(
+    "reorder-carry-de-light.png",
+  );
+  await page.keyboard.press("Space");
+  expect(await reorderNames(page)).toEqual(["Basel", "Bern", "Aarau"]);
+  await expect(grip).toBeFocused();
+  await expect(page.locator("[data-drop]")).toHaveCount(0);
+});
+
+// SUI-FEATURE-340 AC 7, AC 5: a click on grip, ↑ or ↓ leaves the selected row; the first row of a
+// later page keeps ↑ and moves across the page boundary.
+test("reorder: the controls never select the row; ↑ crosses the page", async ({ page }) => {
+  await page.goto("/?page=reorder&lng=en");
+  const rows = page.getByTestId("reorder-row");
+  await rows.nth(3).getByRole("gridcell").nth(1).click();
+  await expect(rows.nth(3)).toHaveAttribute("data-state", "selected");
+  for (const part of ["grip", "up", "down"])
+    await page.getByTestId(`reorder-entry-6-${part}`).click();
+  await expect(page.locator("[data-testid=reorder-row][data-state=selected]")).toHaveCount(1);
+  await expect(rows.nth(3)).toHaveAttribute("data-state", "selected");
+
+  await page.getByTestId("pagination-next").click();
+  const up = page.getByTestId("reorder-entry-11-up");
+  await expect(up).not.toHaveAttribute("aria-disabled");
+  await up.click();
+  // The pager follows the entry to page 1, and its ↑ keeps the focus there.
+  await expect(rows.nth(9).getByRole("gridcell").nth(1)).toHaveText("St. Gallen");
+  await expect(up).toBeFocused();
+});
+
+// SUI-FEATURE-340, GL-UI-023: in the stuck actions column the drop line lies above the opaque ground,
+// and the column keeps its edge shadow.
+test("reorder: the drop line reaches under the stuck actions column", async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 800 });
+  await page.goto("/?page=reorder&wide=1&lng=en");
+  const scroller = page.getByTestId("data-table-scroll");
+  await expect(scroller).toHaveAttribute("data-actions-stuck", "");
+  await expect(scroller).toHaveAttribute("data-actions-shadow", "");
+  await page.getByTestId("reorder-entry-1-grip").focus();
+  await page.keyboard.press("Space");
+  await page.keyboard.press("ArrowDown");
+  await expect(page.getByTestId("reorder-entry-2")).toHaveAttribute("data-drop", "after");
+  const target = page.getByTestId("reorder-row").nth(1);
+  const actions = target.locator("td[data-col-kind=actions]");
+  const shadows = await actions.evaluate((cell) => ({
+    cell: getComputedStyle(cell).boxShadow,
+    after: getComputedStyle(cell, "::after").boxShadow,
+  }));
+  expect(shadows.cell).toContain("-8px 0px 8px -8px");
+  expect(shadows.after).toMatch(/0px -2px 0px 0px inset/);
+  const name = await target
+    .getByRole("gridcell")
+    .nth(1)
+    .evaluate((cell) => getComputedStyle(cell).boxShadow);
+  expect(name).toMatch(/0px -2px 0px 0px inset/);
+  await page.keyboard.press("Escape");
+});
+
 // SUI-FEATURE-330 rev 4 AC 8: a tile is below the fold width, so its step is the first entry of a ⋯
 // menu before the delete button; a running step's entry is locked.
 test("media tile step: folded into the corner ⋯ menu before delete", async ({ page }) => {
@@ -9290,6 +9386,7 @@ const TARGET_SELECTOR =
 const TARGET_PAGES = [
   "components",
   "list",
+  "reorder",
   "tiles",
   "settings",
   "shell",

@@ -99,6 +99,19 @@ export const de: SuiteStrings = {
     actions: "Aktionen",
     emptyValue: "leer",
   },
+  reorder: {
+    head: "Reihenfolge",
+    grip: "Verschieben",
+    up: "Nach oben verschieben",
+    down: "Nach unten verschieben",
+    pickedUp:
+      "{{name}} aufgenommen, Position {{position}} von {{count}} auf dieser Seite. Pfeiltasten verschieben, Leertaste legt ab, Escape legt zurück.",
+    moved: "{{name}}: Position {{position}} von {{count}} auf dieser Seite.",
+    dropped: "{{name}} abgelegt auf Position {{position}} von {{count}} auf dieser Seite.",
+    putBack: "{{name}} zurückgelegt auf Position {{position}} von {{count}}.",
+    upEdge: "{{name}} kann auf dieser Seite nicht weiter nach oben.",
+    downEdge: "{{name}} kann auf dieser Seite nicht weiter nach unten.",
+  },
   severity: {
     error: "Fehler",
     warning: "Warnung",

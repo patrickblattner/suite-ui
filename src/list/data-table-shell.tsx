@@ -5,6 +5,7 @@ import { Table, TableBody, TableCell, TableHeader, TableRow } from "../ui/table.
 import { type GutterInset, GutterRow } from "./list-gutter.js";
 import { listState, ListStateContent, type ListStateProps, scrollTabIndex } from "./list-state.js";
 import { ListTabPanel, type ListTabs } from "./list-tabs.js";
+import { ReorderContext, useReorder } from "./use-reorder.js";
 import { useOverflowXMarker } from "./use-overflow-x-marker.js";
 import { useStickyActionsMarker } from "./use-sticky-actions-marker.js";
 
@@ -69,6 +70,9 @@ type DataTableShellProps = {
   // Props for the inner `Table`, `ref` included, e.g. `role="grid"` with `onKeyDown` for a keyboard
   // grid. Look and spacing stay with the package (`GL-UI-004`), so `className` and `style` are out.
   tableProps?: Omit<React.ComponentProps<typeof Table>, "className" | "style">;
+  // A hand-sorted list (`SUI-FEATURE-340`): the rows of the visible page, each with a `ReorderCell`,
+  // are drop targets for its grip, and a drop calls `onDrop` with the row's new index on that page.
+  reorder?: { onDrop: (id: string, toIndex: number) => void };
   // The data rows, rendered once the query finished with rows.
   children: React.ReactNode;
 } & ListStateProps;
@@ -96,6 +100,7 @@ function DataTableShell({
   pagination,
   inset = "page",
   tableProps,
+  reorder,
   children,
   ...stateProps
 }: DataTableShellProps) {
@@ -127,6 +132,7 @@ function DataTableShell({
     [scrollRef],
   );
   useStickyActionsMarker(scroller);
+  const reorderState = useReorder(reorder?.onDrop);
   return (
     <div
       className="flex min-h-0 flex-1 flex-col gap-4"
@@ -151,7 +157,7 @@ function DataTableShell({
             <TableHeader className={STICKY_HEADER_CLASS} data-testid={headerTestId}>
               <TableRow>{head}</TableRow>
             </TableHeader>
-            <TableBody>
+            <TableBody {...reorderState.bodyProps}>
               {state === "pending" ? (
                 Array.from({ length: SKELETON_ROW_COUNT }, (_, index) => (
                   <TableRow key={`skeleton-${index}`} data-testid={loadingRowTestId}>
@@ -163,7 +169,9 @@ function DataTableShell({
                   </TableRow>
                 ))
               ) : state === "items" ? (
-                children
+                <ReorderContext.Provider value={reorderState.control}>
+                  {children}
+                </ReorderContext.Provider>
               ) : (
                 <TableRow>
                   <TableCell
@@ -186,6 +194,11 @@ function DataTableShell({
         </div>
       </ListTabPanel>
       <GutterRow inset={inset}>{pagination}</GutterRow>
+      {reorder === undefined ? null : (
+        <div className="sr-only" aria-live="polite" data-testid="reorder-live">
+          {reorderState.message}
+        </div>
+      )}
     </div>
   );
 }
