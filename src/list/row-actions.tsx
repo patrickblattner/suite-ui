@@ -1,4 +1,5 @@
 import { EllipsisIcon, LinkIcon, PencilIcon, Trash2Icon } from "lucide-react";
+import type { TFunction } from "i18next";
 import type * as React from "react";
 import { useTranslation } from "react-i18next";
 
@@ -132,7 +133,7 @@ function RowActionButton({
 
 // The "Used by" button (`SUI-FEATURE-004`): `outline` with the count as a small badge, pressed while
 // the usages show, filled like the chosen device of the `PreviewToolbar` (`SUI-FEATURE-003`). Without
-// a use it is locked. Its name and hint read "Used by ‹rowName› (n)", locked too (`SUI-FEATURE-350`);
+// a use it is locked. Its name and hint read "Usages of ‹rowName› (n)", locked too (`SUI-FEATURE-350`);
 // without a `rowName` (a single record) "Used by (n)".
 function UsageButton({
   usage,
@@ -147,11 +148,7 @@ function UsageButton({
   const unused = usage.count === 0;
   return (
     <IconButtonTooltip
-      label={
-        rowName === ""
-          ? t("usage.action", { count: usage.count })
-          : t("usage.actionNamed", { name: rowName, count: usage.count })
-      }
+      label={usageName(t, rowName, usage.count)}
       disabledText={unused ? t("usage.none") : undefined}
     >
       <Button
@@ -282,6 +279,14 @@ function RowActionMenu({
       </DropdownMenuContent>
     </DropdownMenu>
   );
+}
+
+// The name of the "Used by" button, "Usages of ‹rowName› (n)", the row name unescaped as text; without
+// a `rowName` (a single record) "Used by (n)" (`SUI-FEATURE-350`).
+function usageName(t: TFunction<"suite">, rowName: string, count: number): string {
+  return rowName === ""
+    ? t("usage.action", { count })
+    : t("usage.actionNamed", { name: rowName, count, interpolation: { escapeValue: false } });
 }
 
 // An action folded into the ⋯ menu (`SUI-FEATURE-067`): its icon and shortcut, its hint "‹label›
@@ -456,4 +461,5 @@ export {
   type RowMenuItem,
   type RowActionsProps,
   type RowUsage,
+  usageName,
 };

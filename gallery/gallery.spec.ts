@@ -10236,8 +10236,8 @@ for (const theme of THEMES) {
     const off = page.getByTestId("usage-frame-off");
     const on = page.getByTestId("usage-frame-on");
     // `SUI-FEATURE-350`: the name carries the row name.
-    const offButton = off.getByRole("button", { name: "Used by Home (2)" });
-    const onButton = on.getByRole("button", { name: "Used by Home (2)" });
+    const offButton = off.getByRole("button", { name: "Usages of Home (2)" });
+    const onButton = on.getByRole("button", { name: "Usages of Home (2)" });
     await expect(offButton).toHaveAttribute("aria-pressed", "false");
     await expect(offButton).not.toHaveCSS("background-color", primary);
     await expect(onButton).toHaveAttribute("aria-pressed", "true");

@@ -356,7 +356,7 @@ export const en = {
   usage: {
     action: "Used by ({{count}})",
     // The button's name and hint in a row or preview toolbar: names its row (`SUI-FEATURE-350`).
-    actionNamed: "Used by {{name}} ({{count}})",
+    actionNamed: "Usages of {{name}} ({{count}})",
     none: "Not used anywhere",
     empty: "No usages",
     title: "Title",

@@ -444,11 +444,11 @@ describe("RowActions Used by (SUI-FEATURE-004)", () => {
     const buttons = within(screen.getByTestId("actions")).getAllByRole("button");
     expect(buttons[0]).toBe(screen.getByTestId("row-usage"));
     expect(buttons[1]).toBe(screen.getByTestId("row-copy"));
-    expect(buttons[0]).toHaveAttribute("aria-label", "Verwendet von Ada (3)");
+    expect(buttons[0]).toHaveAttribute("aria-label", "Verwendungen von Ada (3)");
     expect(buttons[0]).toHaveAttribute("aria-pressed", "false");
     expect(buttons[0]).toHaveAttribute("data-size", "icon-xs");
     expect(screen.getByTestId("row-usage-count")).toHaveTextContent("3");
-    expect(hintOf(buttons[0]!).hover1500).toBe("Verwendet von Ada (3)");
+    expect(hintOf(buttons[0]!).hover1500).toBe("Verwendungen von Ada (3)");
     fireEvent.click(buttons[0]!);
     expect(onToggle).toHaveBeenCalledTimes(1);
   });
@@ -518,15 +518,22 @@ describe("RowActions Used by names its row (SUI-FEATURE-350)", () => {
     );
     const a = within(screen.getByTestId("cell-Thema A")).getByTestId("row-usage");
     const b = within(screen.getByTestId("cell-Thema B")).getByTestId("row-usage");
-    expect(a).toHaveAccessibleName("Verwendet von Thema A (2)");
-    expect(b).toHaveAccessibleName("Verwendet von Thema B (0)");
-    expect(hintOf(a).hover1500).toBe("Verwendet von Thema A (2)");
+    expect(a).toHaveAccessibleName("Verwendungen von Thema A (2)");
+    expect(b).toHaveAccessibleName("Verwendungen von Thema B (0)");
+    expect(hintOf(a).hover1500).toBe("Verwendungen von Thema A (2)");
     expect(hintOf(b.parentElement as HTMLElement).hover1500).toBe("Nirgends verwendet");
   });
 
+  it("AC5: the row name stays unescaped in name and hint", () => {
+    renderRow({ rowName: "A & B", usage: { count: 2, active: false, onToggle: vi.fn() } });
+    const button = screen.getByTestId("row-usage");
+    expect(button).toHaveAccessibleName("Usages of A & B (2)");
+    expect(hintOf(button).hover1500).toBe("Usages of A & B (2)");
+  });
+
   it.each([
-    ["en", "Used by Ada (2)"],
-    ["es", "Usado por Ada (2)"],
+    ["en", "Usages of Ada (2)"],
+    ["es", "Usos de Ada (2)"],
   ])("AC3: the name in %s", async (lng, name) => {
     await i18n.changeLanguage(lng);
     renderRow({ usage: { count: 2, active: false, onToggle: vi.fn() } });

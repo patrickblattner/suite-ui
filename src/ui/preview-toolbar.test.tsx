@@ -384,7 +384,7 @@ describe("PreviewToolbar (GL-UI-008)", () => {
         .getAllByRole("button")
         .map((button) => button.getAttribute("aria-label"));
     const row = labels(screen.getByTestId("row-cell"));
-    expect(row[0]).toBe("Used by Home (3)");
+    expect(row[0]).toBe("Usages of Home (3)");
     expect(labels(screen.getByTestId("preview-actions"))).toEqual(row);
   });
 
@@ -405,7 +405,7 @@ describe("PreviewToolbar (GL-UI-008)", () => {
         actions={{ rowName: "Thema A", usage: { count: 2, active: false, onToggle: () => {} } }}
       />,
     );
-    expect(screen.getByTestId("row-usage")).toHaveAccessibleName("Verwendet von Thema A (2)");
+    expect(screen.getByTestId("row-usage")).toHaveAccessibleName("Verwendungen von Thema A (2)");
   });
 });
 
@@ -670,6 +670,58 @@ describe("PreviewToolbar in a narrow column (SUI-FEATURE-067)", () => {
     expect(description("Edit")).toBe("Edit Home");
     expect(description("Delete")).toBe("Still used on 2 pages.");
     expect(within(menu).getByRole("menuitem", { name: "Delete" })).toHaveAttribute("data-disabled");
+  });
+
+  it.each([
+    [2, "Verwendungen von Thema A (2)"],
+    [0, "Nirgends verwendet"],
+  ])(
+    "SUI-FEATURE-350 AC3: folded, Used by keeps its label; its hint at count %i is the button's",
+    async (count, hint) => {
+      await i18n.changeLanguage("de");
+      try {
+        render(
+          <PreviewToolbar
+            {...FULL}
+            actions={{ ...ENTRY, rowName: "Thema A", usage: { ...USAGE, count } }}
+          />,
+        );
+        resize(320);
+        const trigger = within(screen.getByTestId("preview-actions")).getByTestId("row-menu");
+        trigger.focus();
+        fireEvent.keyDown(trigger, { key: "Enter" });
+        const item = within(screen.getByRole("menu")).getByRole("menuitem", {
+          name: `Verwendet von (${count})`,
+        });
+        expect(
+          document.getElementById(item.getAttribute("aria-describedby") ?? "")?.textContent,
+        ).toBe(hint);
+      } finally {
+        await i18n.changeLanguage("en");
+      }
+    },
+  );
+
+  it("SUI-FEATURE-350 AC5: folded, the hint shows the row name unescaped", () => {
+    render(<PreviewToolbar {...FULL} actions={{ ...ENTRY, rowName: "A & B", usage: USAGE }} />);
+    resize(320);
+    const trigger = within(screen.getByTestId("preview-actions")).getByTestId("row-menu");
+    trigger.focus();
+    fireEvent.keyDown(trigger, { key: "Enter" });
+    const item = within(screen.getByRole("menu")).getByRole("menuitem", { name: "Used by (3)" });
+    expect(document.getElementById(item.getAttribute("aria-describedby") ?? "")?.textContent).toBe(
+      "Usages of A & B (3)",
+    );
+  });
+
+  it("SUI-FEATURE-350: folded without a row name, Used by has no hint", () => {
+    render(<PreviewToolbar {...FULL} actions={{ ...ENTRY, rowName: "", usage: USAGE }} />);
+    resize(320);
+    const trigger = within(screen.getByTestId("preview-actions")).getByTestId("row-menu");
+    trigger.focus();
+    fireEvent.keyDown(trigger, { key: "Enter" });
+    const item = within(screen.getByRole("menu")).getByRole("menuitem", { name: "Used by (3)" });
+    expect(item).not.toHaveAttribute("aria-describedby");
   });
 
   it("SUI-FEATURE-072 AC3: the row's running action shows the same state; folded, its entry is locked", () => {

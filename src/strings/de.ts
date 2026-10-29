@@ -338,7 +338,7 @@ export const de: SuiteStrings = {
   },
   usage: {
     action: "Verwendet von ({{count}})",
-    actionNamed: "Verwendet von {{name}} ({{count}})",
+    actionNamed: "Verwendungen von {{name}} ({{count}})",
     none: "Nirgends verwendet",
     empty: "Keine Verwendungen",
     title: "Titel",

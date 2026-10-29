@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased — #683, SUI-FEATURE-350 rev 4: the "Used by" button is named "Usages of ‹rowName› (n)" (minor)
+
+- **Changed accessible name (#683):** the row-named "Used by" button of `RowActionSet.usage` (table row and `PreviewToolbar`) is now named "Usages of ‹rowName› (n)" instead of "Used by ‹rowName› (n)" (de "Verwendungen von ‹rowName› (n)" instead of "Verwendet von ‹rowName› (n)", es "Usos de ‹rowName› (n)" instead of "Usado por ‹rowName› (n)"): "Used by ‹name›" read as if the row were the user. Its hint follows; locked, it still names the reason. `MediaDetailShell` keeps "Used by (n)". Tests or automation that find the button by its row-named name need the new wording.
+- **Folded ⋯ entry (#683, SUI-FEATURE-066):** folded into ⋯ of the `PreviewToolbar`, the "Used by" entry keeps its visible label "Used by (n)" and now carries the button's hint "Usages of ‹rowName› (n)"; locked, "Not used anywhere" as before.
+- **Row name unescaped (#683, AC 5 from #685):** the row name in the usage name and hint is no longer HTML-escaped: "A & B" reads "Usages of A & B (n)", not "Usages of A &amp; B (n)", on the row button and the folded entry alike. Without a row name the folded entry carries no hint (its label already is the name).
+- **Strings (#683):** `usage.actionNamed` changed in en, de, es.
+- **Gallery (#683):** the strings table shows the new wording: `gallery-{de,en,es}-{light,dark}.png` and `gallery-de-{light,dark}-{390,1440}.png` updated; the "Used by" preview scene finds the button by its new name.
+- **Tests (#683):** unit: "Thema A" (2) / "Thema B" (0) named "Verwendungen von Thema A (2)" / "Verwendungen von Thema B (0)", hints likewise / "Nirgends verwendet", en and es names (AC 1); `PreviewToolbar` carries the same name (AC 2); folded entry for "Thema A" keeps "Verwendet von (2)" with hint "Verwendungen von Thema A (2)", locked "Nirgends verwendet" (AC 3). Existing name assertions and the `RowActions` HTML snapshot follow the new wording.
+
 ## 0.185.0 — #679, SUI-FEATURE-350 rev 3: the "Used by" button names its row (minor)
 
 - **Changed accessible name (#679):** the "Used by" button of `RowActionSet.usage` (table row and `PreviewToolbar`, both through `useRowActionButtons`) is now named "Used by ‹rowName› (n)" instead of "Used by (n)" (de "Verwendet von ‹rowName› (n)", es "Usado por ‹rowName› (n)"), locked at count 0 too, so a screen reader hears a different name per row, like edit and delete. Its hint follows the name while usable (`GL-UI-016`); locked, it still names the reason ("Not used anywhere"). The visible counter and the folded ⋯ entry ("Used by (n)") are unchanged. `MediaDetailShell` shows a single record and keeps "Used by (n)", beside a step too. Tests or automation that find the button by its old name need the row name.

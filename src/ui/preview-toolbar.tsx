@@ -10,6 +10,7 @@ import {
   type RowAction,
   type RowActionSet,
   type RowMenuItem,
+  usageName,
   useRowActionButtons,
 } from "../list/row-actions.js";
 import { Button } from "./button.js";
@@ -77,7 +78,13 @@ function PreviewActions({
             label: t("usage.action", { count: set.usage.count }),
             onSelect: set.usage.onToggle,
             disabled: set.usage.count === 0,
-            ...(set.usage.count === 0 ? { hint: t("usage.none") } : {}),
+            // `SUI-FEATURE-350`: the button's hint, its name with the row's, or its reason while locked;
+            // without a row name the label already is the name, so there is no hint.
+            ...(set.usage.count === 0
+              ? { hint: t("usage.none") }
+              : set.rowName === ""
+                ? {}
+                : { hint: usageName(t, set.rowName, set.usage.count) }),
           },
         ]),
     ...(set.extra ?? []).map(foldAction),
