@@ -55,7 +55,8 @@ pinned to a tag); custom gate chains call the runner instead of declaring a seco
 of truth.
 
 ```bash
-npx spec-sync gate --profile local|merge [--changed]          # config phases, abort on first red
+npx spec-sync gate --profile local|merge [--changed]          # all phases run, red ones in failures[]; red blocking phase skips the rest
+npx spec-sync gate --profile merge --preflight                # pre-run before every push, must list nothing
 npx spec-sync queue [--check]                                 # work backlog
 npx spec-sync pack <issue>                                    # knowledge package for a sub-agent
 npx spec-sync merge <issue> --branch <n> [--dry-run]          # merge sequence after substantive approval
