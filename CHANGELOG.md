@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #684, SUI-FEATURE-360 rev 2: a carried reorder row wears a ring around the whole row (minor)
+## 0.187.0 — #684, SUI-FEATURE-360 rev 2: a carried reorder row wears a ring around the whole row (minor)
 
 - **Changed look (#684):** a row carried by its `ReorderCell` (keyboard pick-up or pointer drag) no longer takes the hover tint; it wears one 2 px outline on the `ring` token around the whole row (≥ 3:1 on the surface, light and dark), never per-cell borders (`GL-UI-023`). `TableRow` suppresses its hover tint on a row that holds a carried cell (`data-[grid-row]:not-has-data-carried:hover:bg-muted/50`); another hovered row, selection and expansion keep their looks. A drop or `Esc` takes the outline away. Under a stuck actions column, whose opaque ground covers the outline, the ring's top, right and bottom edges lie on that cell's `::after`, beside a drop line there.
 - **Gallery (#684):** `reorder-carry-de-light.png` updated, new `reorder-carry-de-dark.png` and `reorder-carry-wide-de-{light,dark}.png`.
