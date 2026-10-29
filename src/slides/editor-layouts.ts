@@ -96,15 +96,10 @@ function rolePlaceholders(
   return [...found.values()];
 }
 
-// The placeholder of `role` in a layout, else in its master, where it is drawn.
-function placeholderOf(document: SlideDocument, layout: SlideLayout | undefined, role: string) {
-  return rolePlaceholders(document, layout).find((one) => one.placeholder.role === role);
-}
-
 // The page with an element laid down for every placeholder of its layout or master that carries a
-// prototype and whose role no page element fills (`SUI-FEATURE-320`), an open placeholder not
-// counting: an id of its own, the placeholder's box, turn and role, the prototype's content, style and
-// `deletable`.
+// prototype, is not hidden and whose role no page element fills (`SUI-FEATURE-320`), an open
+// placeholder not counting: an id of its own, the placeholder's box, turn and role, the prototype's
+// content, style and `deletable`.
 export function withPrototypes(document: SlideDocument, page: number): SlideDocument {
   const current = document.pages[page];
   const layout = document.layouts.find((one) => one.id === current?.layoutId);
@@ -116,7 +111,9 @@ export function withPrototypes(document: SlideDocument, page: number): SlideDocu
   let next = document;
   for (const open of rolePlaceholders(document, layout)) {
     const { prototype } = open.placeholder;
-    if (prototype === undefined || filled.has(open.placeholder.role)) continue;
+    if (prototype === undefined || open.placeholder.hidden || filled.has(open.placeholder.role)) {
+      continue;
+    }
     const made = intoPlaceholder(
       {
         ...structuredClone(prototype),
@@ -184,8 +181,12 @@ export function setPageLayout(
   eachElement(current.elements, (element) => {
     if (element.placeholderRole !== undefined) filled.push(element);
   });
+  // One lookup for all roles (Codex #663 CX3): rebuilding it per element made a large page cubic.
+  const byRole = new Map(
+    rolePlaceholders(document, layout).map((one) => [one.placeholder.role, one] as const),
+  );
   for (const element of filled) {
-    const placed = placeholderOf(document, layout, element.placeholderRole!);
+    const placed = byRole.get(element.placeholderRole!);
     if (placed === undefined) {
       next = updateElements(next, page, [element.id], (one) => {
         const without = { ...one, deletable: true };

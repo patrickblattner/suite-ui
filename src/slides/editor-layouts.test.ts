@@ -536,4 +536,89 @@ describe("placeholder prototypes", () => {
     expect(titles[0]).toMatchObject({ x: 100, y: 40, runs: titlePrototype.runs, deletable: false });
     expect(byRole(made.document, made.index, "footer")).toHaveLength(1);
   });
+
+  // SUI-FEATURE-320 rev 4 (#661).
+  it("lays down nothing for a hidden placeholder; an element of its role still moves (AC9)", () => {
+    const veiled = {
+      id: "veiled",
+      name: "Veiled",
+      elements: [
+        {
+          ...withPrototype("veiled-title", "title", { x: 700, y: 700 }, titlePrototype),
+          hidden: true,
+        },
+        withPrototype("veiled-body", "body", { x: 100, y: 300 }, bodyPrototype),
+      ],
+    };
+    const doc = parseSlideDocument({ ...deck, layouts: [core, bare, veiled] });
+    // New page from the layout: the body only.
+    const made = newPage(doc, 0, "veiled");
+    expect(byRole(made.document, made.index, "title")).toHaveLength(0);
+    expect(byRole(made.document, made.index, "body")).toHaveLength(1);
+    // Change of layout to it: no title laid down.
+    const switched = setPageLayout(setPageLayout(doc, 0, "bare"), 0, "veiled");
+    expect(byRole(switched, 0, "title")).toHaveLength(0);
+    expect(byRole(switched, 0, "body")).toHaveLength(1);
+    // An existing title still takes the hidden placeholder's box, as before.
+    const fromCore = newPage(doc, 0, "core").document;
+    const title = byRole(fromCore, 1, "title")[0]!;
+    const next = setPageLayout(fromCore, 1, "veiled");
+    expect(byRole(next, 1, "title")).toEqual([
+      expect.objectContaining({ id: title.id, x: 700, y: 700, rotation: 0 }),
+    ]);
+  });
+
+  it("lets a hidden layout placeholder win over its master's prototype of the same role (AC9)", () => {
+    const doc = parseSlideDocument({
+      ...SLIDE_EDITOR_DOC,
+      masters: [
+        {
+          id: "brand",
+          name: "Brand",
+          elements: [withPrototype("brand-title", "title", { x: 0, y: 900 }, titlePrototype)],
+        },
+      ],
+      layouts: [
+        {
+          id: "veiled",
+          name: "Veiled",
+          masterId: "brand",
+          elements: [
+            { ...withPrototype("veiled-title", "title", { x: 700, y: 700 }), hidden: true },
+          ],
+        },
+      ],
+      pages: [{ ...SLIDE_EDITOR_DOC.pages[0]!, elements: [] }],
+    });
+    const made = newPage(doc, 0, "veiled");
+    expect(byRole(made.document, made.index, "title")).toHaveLength(0);
+  });
+});
+
+// Codex #663 CX3: a layout change looks up the roles once, so a large page stays fast.
+describe("placeholder layouts hostile input", () => {
+  it("moves 1000 role-linked elements onto 1000 placeholders in well under a second", () => {
+    const roles = Array.from({ length: 1000 }, (_, index) => `r${index}`);
+    const layout = (id: string, y: number) => ({
+      id,
+      name: id,
+      elements: roles.map((role, index) => ({
+        ...placeholder(`${id}-${index}`, role, index, y),
+        prototype: { type: "text", runs: [{ text: role }] },
+      })),
+    });
+    const deck = parseSlideDocument({
+      ...SLIDE_EDITOR_DOC,
+      layouts: [layout("from", 0), layout("to", 500)],
+      pages: [{ ...SLIDE_EDITOR_DOC.pages[0]!, elements: [] }],
+    });
+    const made = newPage(deck, 0, "from");
+    const start = performance.now();
+    const next = setPageLayout(made.document, made.index, "to");
+    const ms = performance.now() - start;
+    expect(ms).toBeLessThan(500);
+    const moved = next.pages[made.index]!.elements.find((one) => one.placeholderRole === "r42");
+    expect(moved).toMatchObject({ x: 42, y: 500 });
+    expect(next.pages[made.index]!.elements).toHaveLength(1000);
+  });
 });
