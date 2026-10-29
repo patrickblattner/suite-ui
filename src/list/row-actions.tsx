@@ -48,6 +48,9 @@ type RowMenuItem = {
   checked?: boolean;
   destructive?: boolean;
   disabled?: boolean;
+  // The action the entry stands for is running (`SUI-FEATURE-072`): the ⋯ button shows the working
+  // state while any of its entries runs.
+  busy?: boolean;
   hint?: string;
   "data-testid"?: string;
 };
@@ -60,8 +63,8 @@ type RowUsage = { count: number; active: boolean; onToggle: () => void };
 type RowActionSet = {
   // The row's name, the object of every action's name.
   rowName: string;
-  // The row's next lifecycle step (`SUI-FEATURE-330`): a labelled `outline` button before every
-  // other action.
+  // The row's next lifecycle step (`SUI-FEATURE-330`): a labelled `success` button before every
+  // other action (`GL-UI-011`: a lifecycle promote).
   step?: RowAction;
   // "Used by", the first of the extra actions.
   usage?: RowUsage;
@@ -97,7 +100,7 @@ function RowActionButton({
 }: {
   action: RowAction;
   rowName: string;
-  variant: "outline" | "warn" | "destructive";
+  variant: "outline" | "success" | "warn" | "destructive";
   size: "icon-xs" | "icon-sm";
   // Shows `label` beside the icon, at the text size of the same height (`SUI-FEATURE-330`).
   labelled?: boolean;
@@ -244,7 +247,13 @@ function RowActionMenu({
     <DropdownMenu>
       <IconButtonTooltip label={menu.label}>
         <DropdownMenuTrigger asChild>
-          <Button variant={variant} size={size} data-testid={testId}>
+          <Button
+            variant={variant}
+            size={size}
+            // The working state without the lock: the menu still opens to its other entries.
+            loading={menu.items.some((item) => item.busy === true)}
+            data-testid={testId}
+          >
             <EllipsisIcon aria-hidden="true" />
           </Button>
         </DropdownMenuTrigger>
@@ -262,8 +271,24 @@ function RowActionMenu({
   );
 }
 
+// An action folded into the ⋯ menu (`SUI-FEATURE-067`): its icon and shortcut, its hint "‹label›
+// ‹rowName›", or its reason while locked; a running action's entry is locked while it runs and marks
+// the ⋯ button as working (`SUI-FEATURE-072`).
+function foldRowAction(action: RowAction, rowName: string): RowMenuItem {
+  const Icon = action.icon;
+  return {
+    label: action.label,
+    icon: <Icon aria-hidden="true" />,
+    ...(action.shortcut === undefined ? {} : { shortcut: action.shortcut }),
+    onSelect: action.onClick,
+    disabled: action.disabledText !== undefined || action.busy === true,
+    ...(action.busy === true ? { busy: true } : {}),
+    hint: action.disabledText ?? `${action.label} ${rowName}`,
+  };
+}
+
 // The buttons of an entry's actions, each in its fixed variant (`GL-UI-011`): the step a labelled
-// `outline` at `xs` (`SUI-FEATURE-330`), "Used by" and the extra actions `outline`, edit `warn`, the
+// `success` at `xs` (`SUI-FEATURE-330`), "Used by" and the extra actions `outline`, edit `warn`, the
 // overflow menu `outline`, delete `destructive`, all `icon-xs`. The caller places them.
 function useRowActionButtons(
   {
@@ -288,7 +313,7 @@ function useRowActionButtons(
   return {
     step:
       step === undefined ? null : (
-        <RowActionButton action={step} rowName={rowName} variant="outline" size={size} labelled />
+        <RowActionButton action={step} rowName={rowName} variant="success" size={size} labelled />
       ),
     extra: [
       ...(usage === undefined ? [] : [<UsageButton key="usage" usage={usage} size={size} />]),
@@ -347,7 +372,7 @@ function RowActionsHead(props: Omit<React.ComponentProps<typeof TableHead>, "chi
   );
 }
 
-// The action cluster at the end of a row (`GL-UI-011`, `GL-UI-023`): the step as a labelled `outline`
+// The action cluster at the end of a row (`GL-UI-011`, `GL-UI-023`): the step as a labelled `success`
 // at `xs` first (`SUI-FEATURE-330`), extra actions as `outline`, then edit (`warn`), the overflow menu
 // (`outline`) and delete (`destructive`), all `icon-xs`. A click on an action, a
 // locked action included, never reaches the row, so it does not open the row's target; neither does
@@ -406,6 +431,7 @@ function RowActions({
 }
 
 export {
+  foldRowAction,
   RowActionMenu,
   RowActions,
   RowActionsHead,

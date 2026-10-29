@@ -872,6 +872,7 @@ const AXE_PAGES: [
   ],
   ["list", (page) => page.getByTestId("list-actions").first(), "&actions=1"],
   ["list", (page) => page.getByTestId("list-actions").first(), "&actions=1&step=1"],
+  ["tiles", (page) => page.getByTestId("media-tiles").getByTestId("row-menu").first(), "&step=1"],
   ["select", (page) => page.getByRole("combobox", { expanded: false }), "&select=closed"],
 ];
 
@@ -7226,6 +7227,45 @@ test("table actions step: the icon buttons line up in rows with and without a st
   expect((await box(step)).x).toBeLessThan((await box(copy)).x);
   await parkPointer(page);
   await expect(page.getByTestId("data-table-scroll")).toHaveScreenshot("list-step-de-light.png");
+});
+
+// SUI-FEATURE-330 rev 4 AC 8: a tile is below the fold width, so its step is the first entry of a ⋯
+// menu before the delete button; a running step's entry is locked.
+test("media tile step: folded into the corner ⋯ menu before delete", async ({ page }) => {
+  await page.goto("/?page=tiles&step=1&lng=de");
+  const tiles = page.getByTestId("media-tiles");
+  const corner = tiles.locator("[data-slot=media-tile-actions]").first();
+  const menu = corner.getByTestId("row-menu");
+  const remove = corner.getByRole("button", { name: /^Löschen / });
+  expect((await box(menu)).x).toBeLessThan((await box(remove)).x);
+  await parkPointer(page);
+  await expect(tiles).toHaveScreenshot("media-tiles-step-de-light.png");
+  await menu.click();
+  const entries = page.getByRole("menu").getByRole("menuitem");
+  await expect(entries).toHaveText(["Veröffentlichen"]);
+  await page.keyboard.press("Escape");
+  await tiles.locator("[data-slot=media-tile-actions]").nth(1).getByTestId("row-menu").click();
+  await expect(page.getByRole("menu").getByRole("menuitem").first()).toHaveAttribute(
+    "data-disabled",
+    "",
+  );
+});
+
+// SUI-FEATURE-330 rev 4 AC 8: the media detail shell shows the step labelled `success`, first in
+// the preview head.
+test("media detail step: labelled success, first in the head", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  const shell = await openMediaDetail(page, "&step=1&lng=de");
+  const step = shell.getByTestId("media-detail-step");
+  await expect(step).toHaveText("Veröffentlichen");
+  await expect(step).toHaveAccessibleName(/^Veröffentlichen /);
+  await expect(step).toHaveAttribute("data-variant", "success");
+  const usage = shell.getByRole("button", { name: /^Verwendet/ });
+  expect((await box(step)).x).toBeLessThan((await box(usage)).x);
+  await parkPointer(page);
+  await expect(shell.locator("[data-slot=media-detail-head]")).toHaveScreenshot(
+    "media-detail-step-de-light.png",
+  );
 });
 
 // SUI-FEATURE-029 AC5: DataTableShell — scrolled to the end on both axes,

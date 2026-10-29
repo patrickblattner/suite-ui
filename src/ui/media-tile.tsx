@@ -2,7 +2,7 @@ import { CheckIcon, FileTextIcon, FileVideoIcon } from "lucide-react";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 
-import { useRowActionButtons } from "../list/row-actions.js";
+import { foldRowAction, type RowAction, useRowActionButtons } from "../list/row-actions.js";
 import { GRID_ITEM_ATTR, type RowGrid } from "../list/use-row-grid.js";
 import { cn } from "../lib/cn.js";
 import { ENTRY_FRAME_ATTR } from "../lib/list-focus.js";
@@ -26,6 +26,10 @@ type MediaTileProps = {
   // that delete button in its top-right corner, always visible; Delete/Backspace on the focused tile
   // call it through `rowProps`. Without it (no right to delete) no button and no key.
   onDelete?: (() => void) | undefined;
+  // The medium's next lifecycle step (`SUI-FEATURE-330`). A tile is below the fold width, so the step
+  // is the first entry of a ⋯ menu beside the delete button: named "‹label›", hinted "‹label› ‹name›";
+  // while it runs the ⋯ button shows the working state.
+  step?: RowAction | undefined;
   // `useRowGrid().rowProps` of the grid whose `gridProps` the `TileGridShell` holds: the tile is
   // one of its entries, arrows move between the tiles, one tab stop. A tile without `onOpen` and
   // `onDelete` is no entry: not focusable, not reachable by Tab or arrows.
@@ -57,6 +61,7 @@ function MediaTile({
   tags,
   onOpen,
   onDelete,
+  step,
   rowProps,
   selected,
   current,
@@ -86,13 +91,16 @@ function MediaTile({
       ? undefined
       : rowProps({ onDelete });
   // Filled `destructive`, `icon-xs`, hint and name "Delete ‹name›" (`GL-UI-012`, `GL-UI-016`); the
-  // Delete chip while the grid binds the same handler to the key.
-  const deleteButton = useRowActionButtons({
+  // Delete chip while the grid binds the same handler to the key. The step folds into ⋯ before it.
+  const buttons = useRowActionButtons({
     rowName: name,
     onDelete,
     deleteTestId: `${testId}-delete`,
     deleteShortcut: entry !== undefined,
-  }).delete;
+    ...(step === undefined
+      ? {}
+      : { menu: { label: t("actions.more", { name }), items: [foldRowAction(step, name)] } }),
+  });
   const shared = {
     "data-slot": "media-tile",
     "data-testid": testId,
@@ -204,7 +212,7 @@ function MediaTile({
         {content}
       </button>
     );
-  return deleteButton === null ? (
+  return buttons.menu === null && buttons.delete === null ? (
     tile
   ) : (
     <div
@@ -213,8 +221,13 @@ function MediaTile({
       className="relative flex w-full min-w-0"
     >
       {tile}
-      <div data-slot="media-tile-actions" className="absolute top-2 right-2">
-        {deleteButton}
+      <div
+        data-slot="media-tile-actions"
+        // Without a step the corner holds only delete, as before.
+        className={cn("absolute top-2 right-2", buttons.menu !== null && "flex items-center gap-1")}
+      >
+        {buttons.menu}
+        {buttons.delete}
       </div>
     </div>
   );

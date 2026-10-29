@@ -6,6 +6,7 @@ import { cn } from "../lib/cn.js";
 import { useEscapeLayer } from "../lib/escape-layers.js";
 import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
 import {
+  foldRowAction,
   type RowAction,
   type RowActionSet,
   type RowMenuItem,
@@ -64,13 +65,7 @@ function PreviewActions({
 }: RowActionSet & { shrink: Shrink; className?: string | undefined }) {
   const { t } = useTranslation("suite");
   const keepEdit = shrink === 1;
-  const foldAction = (action: RowAction): RowMenuItem => ({
-    label: action.label,
-    onSelect: action.onClick,
-    // `SUI-FEATURE-072`: a running action's folded entry is locked while it runs.
-    disabled: action.disabledText !== undefined || action.busy === true,
-    hint: action.disabledText ?? `${action.label} ${set.rowName}`,
-  });
+  const foldAction = (action: RowAction) => foldRowAction(action, set.rowName);
   const items: RowMenuItem[] = [
     // `SUI-FEATURE-330`: the step folds in as the first entry.
     ...(set.step === undefined ? [] : [foldAction(set.step)]),

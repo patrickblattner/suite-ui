@@ -1,4 +1,4 @@
-import { PencilIcon } from "lucide-react";
+import { PencilIcon, SendIcon } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useLocation } from "react-router-dom";
@@ -103,10 +103,15 @@ const SHELL_SETS = { media: SHELL_MEDIA, states: STATE_MEDIA } as const;
 // App-side hint: the two panels below close after saving, which the package `save` hint does not say
 // (`SUI-FEATURE-091`).
 const LABELS = {
-  en: { saveCloseHint: "Saves the entries and closes the panel." },
-  de: { saveCloseHint: "Speichert die Eingaben und schließt das Panel." },
-  es: { saveCloseHint: "Guarda los datos y cierra el panel." },
+  en: { saveCloseHint: "Saves the entries and closes the panel.", publish: "Publish" },
+  de: {
+    saveCloseHint: "Speichert die Eingaben und schließt das Panel.",
+    publish: "Veröffentlichen",
+  },
+  es: { saveCloseHint: "Guarda los datos y cierra el panel.", publish: "Publicar" },
 };
+// `?step=1` gives the media detail shell its next lifecycle step (`SUI-FEATURE-330`).
+const STEP = new URLSearchParams(window.location.search).get("step") === "1";
 const FIELDS = Array.from({ length: 24 }, (_, index) => `Field ${index + 1}`);
 
 // `SUI-FEATURE-093` (#264): a record picker in a panel creates a missing contact in the compact
@@ -667,6 +672,17 @@ function Demo() {
               />
             </div>
           }
+          {...(STEP
+            ? {
+                step: {
+                  label: labels.publish,
+                  icon: SendIcon,
+                  onClick: () => {},
+                  rowName: savedNames[shell]!,
+                  "data-testid": "media-detail-step",
+                },
+              }
+            : {})}
           usage={{
             count: shell === 0 ? 1 : 0,
             active: shellUsage,

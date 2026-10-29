@@ -6,7 +6,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
 import { Table, TableBody, TableHeader, TableRow } from "../ui/table.js";
 import { EmptyCell } from "./empty-cell.js";
-import { type RowAction, RowActions, RowActionsHead, type RowActionsProps } from "./row-actions.js";
+import {
+  foldRowAction,
+  type RowAction,
+  RowActions,
+  RowActionsHead,
+  type RowActionsProps,
+} from "./row-actions.js";
 import { hintOf } from "./test-utils.js";
 
 function renderRow(props: Partial<RowActionsProps> = {}, onRowClick = vi.fn()) {
@@ -695,7 +701,7 @@ describe("RowActions step (SUI-FEATURE-330)", () => {
   const cluster = (rowName: string) =>
     screen.getByTestId(`actions-${rowName}`).querySelector<HTMLElement>("[data-slot=row-actions]");
 
-  it("AC1: the step stands first as a labelled outline button with icon, named ‹label› ‹rowName›", () => {
+  it("AC1: the step stands first as a labelled success button with icon, named ‹label› ‹rowName›", () => {
     const { deliverAda } = renderRows();
     const buttons = within(screen.getByTestId("actions-Ada")).getAllByRole("button");
     expect(buttons.map((button) => button.getAttribute("aria-label"))).toEqual([
@@ -706,7 +712,7 @@ describe("RowActions step (SUI-FEATURE-330)", () => {
     ]);
     const step = screen.getByTestId("row-step");
     expect(buttons[0]).toBe(step);
-    expect(step).toHaveAttribute("data-variant", "outline");
+    expect(step).toHaveAttribute("data-variant", "success");
     // The text size of the icon buttons' height (`icon-xs`).
     expect(step).toHaveAttribute("data-size", "xs");
     expect(step).toHaveTextContent("Deliver");
@@ -769,6 +775,71 @@ describe("RowActions step (SUI-FEATURE-330)", () => {
 });
 
 // #195: inside a form an action acts on its row and never submits the form.
+describe("foldRowAction (SUI-FEATURE-330)", () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const renderFolded = (action: RowAction) =>
+    render(
+      <Table>
+        <TableBody>
+          <TableRow>
+            <RowActions
+              rowName="Ada"
+              menu={{ label: "More for Ada", items: [foldRowAction(action, "Ada")] }}
+            />
+          </TableRow>
+        </TableBody>
+      </Table>,
+    );
+  const openMenu = () => {
+    const trigger = screen.getByRole("button", { name: "More for Ada" });
+    trigger.focus();
+    fireEvent.keyDown(trigger, { key: "Enter" });
+    return screen.getByRole("menuitem");
+  };
+
+  it("keeps the action's icon and shortcut on its entry", () => {
+    renderFolded({
+      label: "Deliver",
+      icon: SendIcon,
+      onClick: vi.fn(),
+      shortcut: ["Ctrl+Enter"],
+    });
+    const entry = openMenu();
+    expect(entry.querySelector("svg.lucide-send")).toHaveAttribute("aria-hidden", "true");
+    expect(entry).toHaveAttribute("aria-keyshortcuts", "Control+Enter");
+    expect(entry.querySelector("kbd")).not.toBeNull();
+  });
+
+  it("a running action marks the ⋯ button as working, unlocked; idle, it does not", () => {
+    const { unmount } = renderFolded({
+      label: "Deliver",
+      icon: SendIcon,
+      onClick: vi.fn(),
+      busy: true,
+    });
+    const trigger = screen.getByRole("button", { name: "More for Ada" });
+    expect(trigger).toHaveAttribute("aria-busy", "true");
+    expect(trigger).not.toHaveAttribute("aria-disabled");
+    expect(openMenu()).toHaveAttribute("data-disabled");
+    unmount();
+    renderFolded({ label: "Deliver", icon: SendIcon, onClick: vi.fn() });
+    expect(screen.getByRole("button", { name: "More for Ada" })).not.toHaveAttribute("aria-busy");
+  });
+});
+
 describe("RowActions inside a form", () => {
   it("Used by, an extra action, edit and delete are type=button: one call, no submit", () => {
     const onSubmit = vi.fn((event: React.FormEvent) => event.preventDefault());

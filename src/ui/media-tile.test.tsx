@@ -1,4 +1,5 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { SendIcon } from "lucide-react";
 import i18n from "i18next";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -396,6 +397,72 @@ describe("MediaTile delete button (SUI-FEATURE-084 rev 5)", () => {
     expect(button).toHaveAttribute("aria-keyshortcuts");
     expect(button).not.toHaveAttribute("data-grid-item");
     expect(screen.getAllByTestId("media-tile")).toHaveLength(1);
+  });
+});
+
+describe("MediaTile step (SUI-FEATURE-330 rev 4 AC 8)", () => {
+  const openMenu = () => {
+    const trigger = screen.getByTestId("row-menu");
+    trigger.focus();
+    fireEvent.keyDown(trigger, { key: "Enter" });
+    return screen.getByRole("menu");
+  };
+
+  it("folds into a ⋯ menu before delete in the corner, as its first entry, hinted ‹label› ‹name›", () => {
+    const onClick = vi.fn();
+    const { tile, onOpen } = renderTile({
+      onDelete: vi.fn(),
+      step: { label: "Publish", icon: SendIcon, onClick },
+    });
+    const trigger = screen.getByTestId("row-menu");
+    expect(tile.contains(trigger)).toBe(false);
+    const corner = trigger.closest<HTMLElement>("[data-slot=media-tile-actions]")!;
+    expect([...corner.children].map((el) => el.getAttribute("data-testid"))).toEqual([
+      "row-menu",
+      "media-tile-delete",
+    ]);
+    expect(trigger).toHaveAccessibleName("More for hero.jpg");
+    expect(trigger).not.toHaveAttribute("aria-busy");
+    const entries = within(openMenu()).getAllByRole("menuitem");
+    expect(entries.map((entry) => entry.textContent)).toEqual(["Publish"]);
+    expect(
+      document.getElementById(entries[0]!.getAttribute("aria-describedby") ?? "")?.textContent,
+    ).toBe("Publish hero.jpg");
+    fireEvent.click(entries[0]!);
+    expect(onClick).toHaveBeenCalledOnce();
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it("a busy step's entry is locked; a locked one names its reason", () => {
+    const onClick = vi.fn();
+    renderTile({ step: { label: "Publish", icon: SendIcon, onClick, busy: true } });
+    // The ⋯ button shows the working state, still unlocked (`SUI-FEATURE-072`).
+    const trigger = screen.getByTestId("row-menu");
+    expect(trigger).toHaveAttribute("aria-busy", "true");
+    expect(trigger.querySelector("[data-slot=busy]")).not.toBeNull();
+    expect(trigger).not.toHaveAttribute("aria-disabled");
+    const busy = within(openMenu()).getByRole("menuitem", { name: "Publish" });
+    expect(busy).toHaveAttribute("data-disabled");
+    fireEvent.click(busy);
+    expect(onClick).not.toHaveBeenCalled();
+    cleanup();
+    renderTile({
+      step: { label: "Publish", icon: SendIcon, onClick, disabledText: "No file yet." },
+    });
+    const locked = within(openMenu()).getByRole("menuitem", { name: "Publish" });
+    expect(locked).toHaveAttribute("data-disabled");
+    expect(
+      document.getElementById(locked.getAttribute("aria-describedby") ?? "")?.textContent,
+    ).toBe("No file yet.");
+  });
+
+  it("without step the corner holds only delete, unchanged", () => {
+    renderTile({ onDelete: vi.fn() });
+    expect(screen.queryByTestId("row-menu")).toBeNull();
+    const corner = screen
+      .getByTestId("media-tile-delete")
+      .closest<HTMLElement>("[data-slot=media-tile-actions]")!;
+    expect(corner.className).toBe("absolute top-2 right-2");
   });
 });
 
