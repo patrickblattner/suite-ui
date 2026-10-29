@@ -20,7 +20,8 @@
       },
       {
         "name": "build",
-        "cmd": "npm run build"
+        "cmd": "npm run build",
+        "blocking": true
       },
       {
         "name": "unit",
