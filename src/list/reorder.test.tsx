@@ -31,6 +31,7 @@ function Harness({
   onDrop,
   onMove,
   onTableKeyDown,
+  refresh = (list) => [{ id: "x", name: "Xena" }, ...list],
 }: {
   items?: Item[];
   pageSize?: number;
@@ -38,6 +39,7 @@ function Harness({
   onDrop?: (id: string, toIndex: number) => void;
   onMove?: (id: string, direction: "up" | "down") => void;
   onTableKeyDown?: (key: string) => void;
+  refresh?: (items: Item[]) => Item[];
 }) {
   const [items, setItems] = useState(initial);
   const [page, setPage] = useState(0);
@@ -117,6 +119,9 @@ function Harness({
           </TableRow>
         ))}
       </DataTableShell>
+      <button type="button" onClick={() => setItems(refresh)}>
+        refresh
+      </button>
       <output data-testid="order">{items.map((item) => item.id).join("")}</output>
       <output data-testid="selected">{selected}</output>
     </>
@@ -371,6 +376,121 @@ describe("ReorderCell (SUI-FEATURE-340)", () => {
     expect(onDrop).not.toHaveBeenCalled();
     expect(drag("b", "a")).toBe("a");
     expect(onDrop).toHaveBeenCalledWith("b", 0);
+  });
+
+  it("AC9: a refresh during a pointer carry keeps the carried row's lock (#680)", () => {
+    const onDrop = vi.fn();
+    render(<Harness locks={{ b: { down: "Stays above Linus." } }} onDrop={onDrop} />);
+    fireEvent.dragStart(grip("b"));
+    fireEvent.click(screen.getByRole("button", { name: "refresh" }));
+    const target = within(screen.getByTestId("row-c")).getByText("Linus");
+    fireEvent.dragOver(target);
+    expect(document.querySelector("[data-drop]")).toBeNull();
+    fireEvent.drop(target);
+    fireEvent.dragEnd(grip("b"));
+    expect(onDrop).not.toHaveBeenCalled();
+    expect(order()).toBe("xabcde");
+  });
+
+  it("AC9: a refresh during a keyboard carry keeps the carried row's lock (#680)", () => {
+    const onDrop = vi.fn();
+    render(<Harness locks={{ b: { down: "Stays above Linus." } }} onDrop={onDrop} />);
+    fireEvent.keyDown(grip("b"), { key: " " });
+    fireEvent.click(screen.getByRole("button", { name: "refresh" }));
+    fireEvent.keyDown(grip("b"), { key: "ArrowDown" });
+    expect(screen.getByTestId("reorder-live")).toHaveTextContent("Stays above Linus.");
+    fireEvent.keyDown(grip("b"), { key: "ArrowDown" });
+    fireEvent.keyDown(grip("b"), { key: " " });
+    expect(onDrop).not.toHaveBeenCalled();
+    expect(order()).toBe("xabcde");
+  });
+
+  it("a refresh during a carry lands the row at its target's current index (#680)", () => {
+    const onDrop = vi.fn();
+    render(<Harness onDrop={onDrop} />);
+    fireEvent.keyDown(grip("b"), { key: " " });
+    fireEvent.keyDown(grip("b"), { key: "ArrowDown" });
+    fireEvent.click(screen.getByRole("button", { name: "refresh" }));
+    fireEvent.keyDown(grip("b"), { key: " " });
+    expect(onDrop).toHaveBeenCalledWith("b", 3);
+    expect(order()).toBe("xacbde");
+  });
+
+  it("AC5: a refresh during a carry keeps the carried row's group, by pointer and keyboard (#680)", () => {
+    const items: Item[] = [
+      { id: "a", name: "Ada", group: "main" },
+      { id: "b", name: "Grace", group: "footer" },
+      { id: "c", name: "Linus", group: "footer" },
+    ];
+    const refresh = (list: Item[]) => [{ id: "x", name: "Xena", group: "main" }, ...list];
+    const onDrop = vi.fn();
+    render(<Harness items={items} refresh={refresh} onDrop={onDrop} />);
+    fireEvent.dragStart(grip("b"));
+    fireEvent.click(screen.getByRole("button", { name: "refresh" }));
+    const target = within(screen.getByTestId("row-x")).getByText("Xena");
+    fireEvent.dragOver(target);
+    expect(document.querySelector("[data-drop]")).toBeNull();
+    fireEvent.drop(target);
+    fireEvent.dragEnd(grip("b"));
+    expect(onDrop).not.toHaveBeenCalled();
+    // By keyboard the row stops at its group's edge on the refreshed rows.
+    fireEvent.keyDown(grip("b"), { key: " " });
+    fireEvent.click(screen.getByRole("button", { name: "refresh" }));
+    fireEvent.keyDown(grip("b"), { key: "ArrowUp" });
+    expect(document.querySelector("[data-drop]")).toBeNull();
+    fireEvent.keyDown(grip("b"), { key: " " });
+    expect(onDrop).not.toHaveBeenCalled();
+    expect(order()).toBe("xxabc");
+  });
+
+  it("a refresh that puts a barrier before the target refuses the drop and announces the put-back (#680)", () => {
+    const items: Item[] = [
+      { id: "a", name: "Ada", group: "main" },
+      { id: "b", name: "Grace", group: "main" },
+      { id: "c", name: "Linus", group: "main" },
+    ];
+    const refresh = (list: Item[]) => [
+      ...list.slice(0, 2),
+      { id: "y", name: "Yara", group: "footer" },
+      ...list.slice(2),
+    ];
+    const onDrop = vi.fn();
+    render(<Harness items={items} refresh={refresh} onDrop={onDrop} />);
+    fireEvent.keyDown(grip("b"), { key: " " });
+    fireEvent.keyDown(grip("b"), { key: "ArrowDown" });
+    expect(cell("c")).toHaveAttribute("data-drop", "after");
+    fireEvent.click(screen.getByRole("button", { name: "refresh" }));
+    expect(document.querySelector("[data-drop]")).toBeNull();
+    fireEvent.keyDown(grip("b"), { key: " " });
+    expect(onDrop).not.toHaveBeenCalled();
+    expect(screen.getByTestId("reorder-live")).toHaveTextContent(
+      "Grace put back at position 2 of 4.",
+    );
+  });
+
+  it("a refresh keeps the drop line's direction on the moved rows (#680)", () => {
+    render(<Harness />);
+    fireEvent.keyDown(grip("c"), { key: " " });
+    fireEvent.keyDown(grip("c"), { key: "ArrowUp" });
+    expect(cell("b")).toHaveAttribute("data-drop", "before");
+    fireEvent.click(screen.getByRole("button", { name: "refresh" }));
+    expect(cell("b")).toHaveAttribute("data-drop", "before");
+    fireEvent.keyDown(grip("c"), { key: "ArrowDown" });
+    expect(document.querySelector("[data-drop]")).toBeNull();
+    fireEvent.keyDown(grip("c"), { key: "ArrowDown" });
+    expect(cell("d")).toHaveAttribute("data-drop", "after");
+  });
+
+  it("a refresh that removes the carried row ends the carry and its drop line (#680)", () => {
+    const onDrop = vi.fn();
+    render(<Harness refresh={(list) => list.filter((item) => item.id !== "b")} onDrop={onDrop} />);
+    fireEvent.dragStart(grip("b"));
+    fireEvent.dragOver(within(screen.getByTestId("row-c")).getByText("Linus"));
+    expect(cell("c")).toHaveAttribute("data-drop", "after");
+    fireEvent.click(screen.getByRole("button", { name: "refresh" }));
+    expect(document.querySelector("[data-drop], [data-carried]")).toBeNull();
+    fireEvent.drop(within(screen.getByTestId("row-d")).getByText("Barbara"));
+    expect(onDrop).not.toHaveBeenCalled();
   });
 
   it("AC10: the position counts the rows of the visible page; a page edge is announced", () => {

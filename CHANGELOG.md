@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — #680, SUI-FEATURE-340 rev 3: a refresh during a reorder carry keeps the carried row's lock and group (patch)
+
+- **`DataTableShell.reorder` (#680, Codex CX1):** a carried row and its target are now found by id on the rows as they are when the row is aimed, stepped or dropped, not by the indices of the pick-up. Before, a refresh of the page during a carry (e.g. a row prepended) left the pick-up index pointing at another row, so the lock and group of that row were checked instead: a row with `downDisabledText` could be dropped below by pointer or keyboard. The carry also follows a refresh by itself: its drop line keeps its direction on the moved rows, a target the row may no longer land on (a lock or another group now in between) points it back home and takes the line away, and a carried row the refresh removed is no longer carried, its line gone. A keyboard drop that moves nothing, refused after a refresh too, is announced as put back at the row's position, not as dropped.
+- **Tests (#680):** unit: with a row prepended during the carry, a pointer drag of a `downDisabledText` row onto the row below shows no line and drops nothing, a keyboard carry downward announces the lock and drops nothing, and a keyboard drop lands at its target's current index (AC 9); a row prepended from another group takes no pointer drop and stops a keyboard carry at the group's edge (AC 5); a barrier inserted before the target takes the line away, refuses the drop and announces the put-back; the line keeps its direction after a refresh; a refresh that removes the carried row ends the carry and its line.
+
 ## 0.184.1 — #678, SUI-FEATURE-330 rev 7: `MediaTile` shows no step as a choice of a picker (patch)
 
 - **`MediaTile` in a picker (#678):** with `selected` (true or false) or `current` given the tile shows no `step`, neither in its ⋯ menu nor elsewhere; as the step was the menu's only entry, the ⋯ button is gone too, and the corner holds only delete. Without `selected`/`current` the step folds into ⋯ as before.

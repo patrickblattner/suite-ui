@@ -88,6 +88,16 @@ function canLand(rows: readonly ReorderRow[], from: number, to: number): boolean
     .every((row) => row.group === source.group);
 }
 
+// The carried row and its target on the rows as they are now: a refresh of the page while the row
+// travels shifts both, so they are found by id, never by the indices of the pick-up (#680).
+// `null` once the carried row left the page; a target that left it points the row back home.
+function locate(rows: readonly ReorderRow[], carry: Carry): { from: number; to: number } | null {
+  const from = rows.findIndex((row) => row.id === carry.id);
+  if (from === -1) return null;
+  const to = rows.findIndex((row) => row.id === carry.targetId);
+  return { from, to: to === -1 ? from : to };
+}
+
 // `DataTableShell`'s side of `reorder`: the carried row, the drop targets on the body, and the live
 // region's text.
 function useReorder(onDrop: ((id: string, toIndex: number) => void) | undefined) {
@@ -145,12 +155,31 @@ function useReorder(onDrop: ((id: string, toIndex: number) => void) | undefined)
   const aim = React.useCallback(
     (rows: readonly ReorderRow[], index: number) => {
       const current = carryRef.current;
-      if (current === null) return;
-      const to = canLand(rows, current.from, index) ? index : current.from;
-      if (to !== current.to) update({ ...current, to, targetId: rows[to]?.id ?? current.id });
+      const at = current === null ? null : locate(rows, current);
+      if (current === null || at === null) return;
+      const to = canLand(rows, at.from, index) ? index : at.from;
+      if (to !== current.to || at.from !== current.from)
+        update({ ...current, from: at.from, to, targetId: rows[to]?.id ?? current.id });
     },
     [update],
   );
+
+  // A refresh of the page while a row travels: the carry follows its row and target to their new
+  // places, so the drop line keeps its direction; a target it may no longer land on points it back
+  // home, and a row that left the page is no longer carried (#680).
+  React.useLayoutEffect(() => {
+    const current = carryRef.current;
+    if (current === null) return;
+    const rows = readRows(body);
+    const at = locate(rows, current);
+    if (at === null) {
+      update(null);
+      return;
+    }
+    const to = canLand(rows, at.from, at.to) ? at.to : at.from;
+    if (at.from !== current.from || to !== current.to)
+      update({ ...current, from: at.from, to, targetId: rows[to]?.id ?? current.id });
+  });
 
   const control = React.useMemo<ReorderControl | null>(
     () =>
@@ -172,17 +201,19 @@ function useReorder(onDrop: ((id: string, toIndex: number) => void) | undefined)
               const current = carryRef.current;
               if (current === null) return;
               const rows = readRows(body);
-              const to = current.to + delta;
-              if (!canLand(rows, current.from, to)) {
+              const at = locate(rows, current);
+              if (at === null) return;
+              const to = at.to + delta;
+              if (!canLand(rows, at.from, to)) {
                 // A blocked step names its reason: the direction's lock, else the edge of the page
                 // or of the row's group.
-                const source = rows[current.from];
-                const toward = to < current.from ? source?.upLocked : source?.downLocked;
+                const source = rows[at.from];
+                const toward = to < at.from ? source?.upLocked : source?.downLocked;
                 if (toward !== null && toward !== undefined) setMessage(toward);
-                else say(delta < 0 ? "upEdge" : "downEdge", current.name, current.to, rows.length);
+                else say(delta < 0 ? "upEdge" : "downEdge", current.name, at.to, rows.length);
                 return;
               }
-              update({ ...current, to, targetId: rows[to]?.id ?? current.id });
+              update({ ...current, from: at.from, to, targetId: rows[to]?.id ?? current.id });
               say("moved", current.name, to, rows.length);
             },
             land: () => {
@@ -190,10 +221,14 @@ function useReorder(onDrop: ((id: string, toIndex: number) => void) | undefined)
               if (current === null) return;
               update(null);
               const rows = readRows(body);
-              if (current.to !== current.from && canLand(rows, current.from, current.to))
-                onDropRef.current?.(current.id, current.to);
+              const at = locate(rows, current);
+              const lands = at !== null && at.to !== at.from && canLand(rows, at.from, at.to);
+              if (lands) onDropRef.current?.(current.id, at.to);
               if (current.keyboard) {
-                say("dropped", current.name, current.to, rows.length);
+                // A drop that moves nothing, refused after a refresh too, leaves the row where it
+                // was and says so.
+                if (lands) say("dropped", current.name, at.to, rows.length);
+                else say("putBack", current.name, at?.from ?? current.from, rows.length);
                 refocus({ id: current.id, part: "grip" });
               }
             },
@@ -231,7 +266,8 @@ function useReorder(onDrop: ((id: string, toIndex: number) => void) | undefined)
           const rows = readRows(body);
           const index = indexAt(rows, event.target);
           aim(rows, index);
-          if (index !== -1 && canLand(rows, current.from, index)) {
+          const at = locate(rows, current);
+          if (index !== -1 && at !== null && canLand(rows, at.from, index)) {
             event.preventDefault();
             if (event.dataTransfer) event.dataTransfer.dropEffect = "move";
           }
@@ -247,8 +283,9 @@ function useReorder(onDrop: ((id: string, toIndex: number) => void) | undefined)
           event.preventDefault();
           const rows = readRows(body);
           const index = indexAt(rows, event.target);
+          const at = locate(rows, current);
           update(null);
-          if (index !== current.from && canLand(rows, current.from, index))
+          if (at !== null && index !== at.from && canLand(rows, at.from, index))
             onDropRef.current?.(current.id, index);
         },
       };
