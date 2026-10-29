@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.183.1 — #673, SUI-FEATURE-330 rev 6: `MediaDetailShell` shows no step in pick mode (patch)
+
+- **`MediaDetailShell` pick mode (#673):** with `pickAction` set the head shows no `step`: picking is a selection task, and the pick button stays the surface's one primary action (`GL-UX-001`). Without `pickAction` the step shows as before, first in the head's right group, `success`, `sm`.
+- **Gallery (#673):** `?page=edit-panel&step=1` opens the detail shell outside pick mode, so it still shows the step. Baseline updated: `media-detail-step-de-light.png` (no pick button).
+- **Tests (#673):** unit: with `pickAction` and `step` the head shows the pick button and no step (AC 1); the existing AC 8 tests cover the step without `pickAction` (AC 2).
+
 ## 0.183.0 — #668, SUI-FEATURE-330 rev 5: the row step is `success`; `MediaDetailShell` and `MediaTile` show it (minor)
 
 - **Row step variant (#668):** the `RowActionSet` `step` renders as a labelled `success` button (was `outline`): a lifecycle promote, which `GL-UI-011` puts on `success`. Row, `PreviewToolbar` and folded entry otherwise unchanged.

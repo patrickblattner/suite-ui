@@ -80,7 +80,8 @@ type MediaDetailShellProps = MediaDetailSource & {
   // `UsageTable`) takes the preview's place in the preview column.
   usage?: RowUsage & { content: React.ReactNode };
   // The medium's next lifecycle step (`SUI-FEATURE-330`): a labelled `success` button first in the
-  // preview head, before "Used by"; its name and hint read "‹label› ‹rowName›".
+  // preview head, before "Used by"; its name and hint read "‹label› ‹rowName›". Not shown with
+  // `pickAction` (rev 6).
   step?: RowAction & { rowName: string };
 };
 
@@ -356,7 +357,8 @@ function MediaDetailShell({
     {
       rowName: step?.rowName ?? "",
       ...(usage === undefined ? {} : { usage }),
-      ...(step === undefined ? {} : { step }),
+      // In pick mode the pick button is the head's one primary action: no step (rev 6).
+      ...(step === undefined || pickAction !== undefined ? {} : { step }),
     },
     "icon-sm",
   );

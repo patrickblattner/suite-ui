@@ -430,6 +430,16 @@ describe("MediaDetailShell", () => {
     expect(screen.queryByRole("button", { name: /Publish/ })).toBeNull();
   });
 
+  it("SUI-FEATURE-330 rev 6 AC 9: with pickAction the head shows the pick button and no step", () => {
+    renderShell({
+      pickAction: vi.fn(),
+      step: { label: "Publish", icon: SendIcon, onClick: vi.fn(), rowName: "team-photo.jpg" },
+    });
+    const head = panel().querySelector("[data-slot=media-detail-head]") as HTMLElement;
+    expect(within(head).getByText("Choose this media item")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Publish/ })).toBeNull();
+  });
+
   it.each([
     ["image", "IMG"],
     ["video", "VIDEO"],

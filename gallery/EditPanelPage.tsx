@@ -110,7 +110,8 @@ const LABELS = {
   },
   es: { saveCloseHint: "Guarda los datos y cierra el panel.", publish: "Publicar" },
 };
-// `?step=1` gives the media detail shell its next lifecycle step (`SUI-FEATURE-330`).
+// `?step=1` gives the media detail shell its next lifecycle step (`SUI-FEATURE-330`), outside pick
+// mode: with `pickAction` the shell shows no step (rev 6).
 const STEP = new URLSearchParams(window.location.search).get("step") === "1";
 const FIELDS = Array.from({ length: 24 }, (_, index) => `Field ${index + 1}`);
 
@@ -652,7 +653,7 @@ function Demo() {
             );
           }}
           onReset={() => setShellName(savedNames[shell]!)}
-          pickAction={() => setShell(null)}
+          {...(STEP ? {} : { pickAction: () => setShell(null) })}
           facts={
             <FileFacts
               kind={
