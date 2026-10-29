@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #678, SUI-FEATURE-330 rev 7: `MediaTile` shows no step as a choice of a picker (patch)
+## 0.184.1 — #678, SUI-FEATURE-330 rev 7: `MediaTile` shows no step as a choice of a picker (patch)
 
 - **`MediaTile` in a picker (#678):** with `selected` (true or false) or `current` given the tile shows no `step`, neither in its ⋯ menu nor elsewhere; as the step was the menu's only entry, the ⋯ button is gone too, and the corner holds only delete. Without `selected`/`current` the step folds into ⋯ as before.
 - **Tests (#678):** unit: a selected, an unselected and a current tile with `step` show no step entry and no ⋯ button (AC 10); the same tile without `selected`/`current` still shows the step in ⋯. No gallery baseline changes (the gallery's step tiles are no picker choices).
