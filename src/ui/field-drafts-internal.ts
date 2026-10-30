@@ -11,14 +11,17 @@ type FieldDraft = {
   flush: () => void;
   // Drops the entry.
   discard: () => void;
+  // The field's element, so a Reset of one form or entry reaches only the drafts inside it.
+  element?: () => Element | null;
 };
 
 type FieldDrafts = {
   add: (draft: FieldDraft) => () => void;
-  // Whether a counting entry is held.
-  any: () => boolean;
+  // Whether a counting entry is held; with `within`, one whose field lies inside it.
+  any: (within?: Node) => boolean;
   flush: () => void;
-  discard: () => void;
+  // Drops the counting entries; with `within`, only those whose field lies inside it.
+  discard: (within?: Node) => void;
   // The surface leaves (Save or Discard): the non-counting entries go.
   leave: () => void;
   subscribe: (listener: () => void) => () => void;
@@ -32,8 +35,13 @@ function createFieldDrafts(): FieldDrafts {
   };
   // A handled entry leaves the set at once, so a guard that asks right after (a route change in the
   // same tick) reads it gone; the field's own unregistering comes a render later.
-  const each = (counts: boolean, run: (draft: FieldDraft) => void) => {
-    const handled = [...drafts].filter((draft) => draft.counts === counts);
+  // A draft without an element counts as inside, as before scoping.
+  const inside = (draft: FieldDraft, within: Node | undefined) => {
+    const element = draft.element?.();
+    return within === undefined || element == null || within.contains(element);
+  };
+  const each = (counts: boolean, run: (draft: FieldDraft) => void, within?: Node) => {
+    const handled = [...drafts].filter((draft) => draft.counts === counts && inside(draft, within));
     for (const draft of handled) {
       drafts.delete(draft);
       run(draft);
@@ -48,9 +56,9 @@ function createFieldDrafts(): FieldDrafts {
         if (drafts.delete(draft)) notify();
       };
     },
-    any: () => [...drafts].some((draft) => draft.counts),
+    any: (within) => [...drafts].some((draft) => draft.counts && inside(draft, within)),
     flush: () => each(true, (draft) => draft.flush()),
-    discard: () => each(true, (draft) => draft.discard()),
+    discard: (within) => each(true, (draft) => draft.discard(), within),
     leave: () => each(false, (draft) => draft.discard()),
     subscribe: (listener) => {
       listeners.add(listener);
@@ -81,6 +89,7 @@ function useFieldDraft(active: boolean, draft: FieldDraft): void {
       counts,
       flush: () => latest.current.flush(),
       discard: () => latest.current.discard(),
+      element: () => latest.current.element?.() ?? null,
     });
   }, [active, counts, drafts]);
 }

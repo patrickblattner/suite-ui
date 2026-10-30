@@ -3,6 +3,9 @@ import { type ReactNode, useState } from "react";
 import { MemoryRouter, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
+import { SettingsActionRow } from "../settings/settings-action-row.js";
+import { SettingsBlock } from "../settings/settings-block.js";
+import { SettingsScaffold } from "../settings/settings-scaffold.js";
 import { SaveResetButtons } from "../settings/settings-save-reset.js";
 import { Combobox } from "./combobox.js";
 import { CreateAndSelectDialog } from "./create-and-select-dialog.js";
@@ -855,4 +858,90 @@ describe("Reset with only a typed tag", () => {
     expect(field).toHaveValue("");
     expect(screen.getByTestId("tag-input-announcement")).toHaveTextContent("");
   });
+});
+
+// Two independent entries without a leave guard, each with its own `TagInput` and action row: as two
+// forms, or as two `SettingsBlock`s without a form (#697).
+function Entry({ name }: { name: string }) {
+  const [tags, setTags] = useState([name]);
+  return (
+    <SettingsBlock name={name} purpose={name}>
+      <TagInput value={tags} onChange={setTags} testId={`${name}-tags`} />
+      <SettingsActionRow dirty onSave={() => {}} onReset={() => {}} testIdPrefix={name} />
+    </SettingsBlock>
+  );
+}
+
+function TwoEntries({ forms }: { forms: boolean }) {
+  const entry = (name: string) => <Entry name={name} />;
+  return forms ? (
+    <>
+      <form>{entry("a")}</form>
+      <form>{entry("b")}</form>
+    </>
+  ) : (
+    <>
+      {entry("a")}
+      {entry("b")}
+    </>
+  );
+}
+
+describe("#697: Reset of one entry leaves another entry's typed tag alone", () => {
+  for (const forms of [true, false]) {
+    it(forms ? "in two forms" : "in two settings blocks", () => {
+      render(<TwoEntries forms={forms} />);
+      const fieldA = screen.getByTestId("a-tags-input");
+      act(() => fieldA.focus());
+      fireEvent.change(fieldA, { target: { value: "keep-me" } });
+      mouseReset(screen.getByTestId("b-reset"));
+      // The press was not held: A blurred as usual and took its tag over instead of losing it.
+      const chips = within(screen.getByTestId("a-tags")).getAllByTestId("a-tags-chip");
+      expect(chips.map((chip) => chip.textContent)).toEqual(["a", "keep-me"]);
+    });
+
+    it(
+      forms
+        ? "in its own form, Reset still drops its draft"
+        : "in its own block, Reset still drops its draft",
+      () => {
+        render(<TwoEntries forms={forms} />);
+        const fieldB = screen.getByTestId("b-tags-input");
+        act(() => fieldB.focus());
+        fireEvent.change(fieldB, { target: { value: "draft" } });
+        mouseReset(screen.getByTestId("b-reset"));
+        expect(fieldB).toHaveValue("");
+        expect(screen.getByTestId("b-tags-announcement")).toHaveTextContent("");
+      },
+    );
+  }
+});
+
+// A block with its own action row inside the page-wide form of a `SettingsScaffold` (#697).
+function BlockInScaffoldForm() {
+  const [tags, setTags] = useState(["p"]);
+  return (
+    <SettingsScaffold
+      pageKey="general"
+      title="General"
+      subtitle="General"
+      body={
+        <>
+          <TagInput value={tags} onChange={setTags} testId="page-tags" />
+          <Entry name="b" />
+        </>
+      }
+      form={{ dirty: true, onSave: () => {}, onReset: () => {} }}
+    />
+  );
+}
+
+it("#697: the Reset of a block inside a page form leaves the page field's typed tag alone", () => {
+  render(<BlockInScaffoldForm />);
+  const field = screen.getByTestId("page-tags-input");
+  act(() => field.focus());
+  fireEvent.change(field, { target: { value: "keep-me" } });
+  mouseReset(screen.getByTestId("b-reset"));
+  const chips = within(screen.getByTestId("page-tags")).getAllByTestId("page-tags-chip");
+  expect(chips.map((chip) => chip.textContent)).toEqual(["p", "keep-me"]);
 });

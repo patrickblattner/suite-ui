@@ -239,6 +239,7 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
       current.current = "";
       setActive(null);
     },
+    element: () => root.current,
   });
 
   // Places the open list; Esc closes the list only, not a surrounding dialog: radix listens on the

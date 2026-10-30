@@ -3,7 +3,7 @@ import * as React from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "../ui/button.js";
-import { FieldDraftsContext, useHasFieldDrafts } from "../ui/field-drafts-internal.js";
+import { FieldDraftsContext } from "../ui/field-drafts-internal.js";
 import { useFocusAfterRun } from "../ui/focus-return.js";
 import { Hint } from "../ui/hint.js";
 import { submitLocked } from "../ui/field-error.js";
@@ -46,9 +46,12 @@ function SaveResetButtons({
   const { t } = useTranslation("suite");
   const save = React.useRef<HTMLButtonElement>(null);
   const clean = !dirty && valid && !saving;
-  // A field's typed but uncommitted entry around the pair (`SUI-FEATURE-118` rev 8): Reset drops it.
+  // A field's typed but uncommitted entry around the pair (`SUI-FEATURE-118` rev 8): Reset drops it,
+  // but only in what it resets: the nearer of its form and its `SettingsBlock`, else the whole page. A
+  // draft in another form or entry keeps its text and its blur.
   const drafts = React.useContext(FieldDraftsContext) ?? undefined;
-  const hasDrafts = useHasFieldDrafts(drafts);
+  const scope = (button: HTMLElement): Node =>
+    button.closest('form, [data-slot="settings-block"]') ?? document;
   useFocusAfterRun(save, saving);
   return (
     <>
@@ -77,11 +80,11 @@ function SaveResetButtons({
             // Keeps the focus in the field, so its blur does not take a typed tag over (and announce
             // it) just before Reset drops it.
             onMouseDown={(event) => {
-              if (hasDrafts) event.preventDefault();
+              if (drafts?.any(scope(event.currentTarget)) === true) event.preventDefault();
             }}
-            onClick={() => {
+            onClick={(event) => {
               if (!dirty) return;
-              drafts?.discard();
+              drafts?.discard(scope(event.currentTarget));
               onReset();
             }}
             data-testid={`${stem}-reset`}
