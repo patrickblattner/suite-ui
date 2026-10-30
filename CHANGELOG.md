@@ -1,11 +1,11 @@
 # Changelog
 
-## Unreleased — #696, SUI-FEATURE-118 rev 9: `TagInput` `guardDraft={false}` for fields that edit no entry (minor)
+## 0.191.0 — #696, SUI-FEATURE-118 rev 9: `TagInput` `guardDraft={false}` for fields that edit no entry (minor)
 
 - **New public API (#696):** `TagInput` takes `guardDraft?: boolean` (default `true`). With `guardDraft={false}` its typed, uncommitted tag never registers with a surrounding `useLeaveGuard`, `EditPanel` or `MediaDetailShell`: it does not make the surface dirty, and the surface's Save and Discard never reach it. A filter or search field, which edits no entry, passes it; otherwise the field behaves as before. The package has no filter or search surface that renders a `TagInput`, so no package call site sets it.
 - **Tests (#696):** unit, under a page's leave guard and an `EditPanel`: with `draft` typed in a `TagInput` with `guardDraft={false}`, leaving does not ask (AC 7: not dirty); with another change, Save and Discard in the guard leave the field's `draft` typed and uncommitted. All new cases fail without the change.
 
-## Unreleased — #697, SUI-FEATURE-118 rev 8: the Reset of one form or entry drops only its own typed tags (patch)
+## 0.191.0 — #697, SUI-FEATURE-118 rev 8: the Reset of one form or entry drops only its own typed tags (patch)
 
 - **Fixed (#697, Codex CX1):** the Reset of `SaveResetButtons` (and so `SettingsFooter` and `SettingsActionRow`) dropped every typed but uncommitted `TagInput` tag on the page, also in an unrelated form or entry, and its mouse press kept that other field from taking its tag over on blur. It now reaches only the drafts inside what it resets: the nearer of its `form` and its `SettingsBlock` (so a block with its own `SettingsActionRow` inside a `SettingsScaffold` page form resets only the block), else the whole page as before. A field elsewhere blurs as usual and takes its tag over. The leave guard, `EditPanel`, `MediaDetailShell` and `EditorHeader` are unchanged. No public signature changes.
 - **Tests (#697):** unit: two entries, as two forms and as two `SettingsBlock`s without a form, each with a `TagInput` and a `SettingsActionRow`: a tag typed in A survives a mouse Reset in B and is committed by A's blur (fails without the change); a tag typed in B is still dropped by B's Reset without an announcement. A block with its own action row inside a `SettingsScaffold` page form: a tag typed in a page field survives the block's Reset (fails with the form picked before the block).
