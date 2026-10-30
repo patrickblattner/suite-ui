@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #699, SUI-FEATURE-118 rev 10: `SettingsBlock` is a draft scope, `SettingsActionRow` counts its block's typed tags (minor)
+## 0.192.0 — #699, SUI-FEATURE-118 rev 10: `SettingsBlock` is a draft scope, `SettingsActionRow` counts its block's typed tags (minor)
 
 - **Changed (#699):** `SettingsBlock` is a draft scope. A typed but uncommitted `TagInput` tag inside it registers with the block and is passed on to the surrounding page guard (or `EditPanel`/`MediaDetailShell`), which still asks for it; a tag handled by either (the guard's Save or Discard, the block's Reset) leaves both. Inside a plain `Dialog` the block registers nothing, as before.
 - **Changed public contract (#699):** `SettingsActionRow` merges the typed tags of its own `SettingsBlock` into its `dirty` prop, and its Reset drops (and holds the mouse press for) exactly those, also outside a `form` inside the block; outside a block the pair keeps #697's nearer-form rule. A row inside an `EditPanel`, `Sheet`, `Dialog` or `MediaDetailShell` within a block belongs to that inner surface and never counts or resets the outer block's drafts. Apps pass the entry's own dirty, never the page-wide `useLeaveGuard().dirty` (export comment updated); a page with one pair on `useLeaveGuard().dirty` keeps working. No signature changes.
