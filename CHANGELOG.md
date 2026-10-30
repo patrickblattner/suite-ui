@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — #696, SUI-FEATURE-118 rev 9: `TagInput` `guardDraft={false}` for fields that edit no entry (minor)
+
+- **New public API (#696):** `TagInput` takes `guardDraft?: boolean` (default `true`). With `guardDraft={false}` its typed, uncommitted tag never registers with a surrounding `useLeaveGuard`, `EditPanel` or `MediaDetailShell`: it does not make the surface dirty, and the surface's Save and Discard never reach it. A filter or search field, which edits no entry, passes it; otherwise the field behaves as before. The package has no filter or search surface that renders a `TagInput`, so no package call site sets it.
+- **Tests (#696):** unit, under a page's leave guard and an `EditPanel`: with `draft` typed in a `TagInput` with `guardDraft={false}`, leaving does not ask (AC 7: not dirty); with another change, Save and Discard in the guard leave the field's `draft` typed and uncommitted. All new cases fail without the change.
+
 ## 0.190.0 — #694, SUI-FEATURE-118 rev 8: package fields under the leave guard; an uncommitted `TagInput` tag is part of the guard's decision; a plain `Dialog` or `Sheet` is a boundary; `useLeaveGuard().dirty` (minor)
 
 - **Changed behaviour (#694):** a way out without a pointer click (a shortcut, `Esc`, browser back) no longer counts as leaving a package field when the leave guard's dialog takes the focus: `TagInput` does not take a typed tag over, and an open `Combobox` or `TimezoneCombobox` list stays open with its query. A press in the dialog (Cancel with the mouse) and one `Esc` in it no longer close the list either; that `Esc` cancels the dialog at once. Cancel (`Abbrechen`, GL-UI-007) returns the focus to the field in the same state, and a `TagInput` suggestion list closed with `Esc` stays closed. When the surface leaves (Save or Discard in the dialog, or a clean surface's own way out), a list left open closes and drops its query, so nothing of it reaches the next entry on a page that stays mounted. A pointer click outside stays a normal blur (rev 5): the tag commits and the list closes before the dialog asks. All three use `isInLeaveGuardDialog`.

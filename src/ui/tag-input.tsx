@@ -40,6 +40,11 @@ type TagInputProps = Omit<
   className?: string;
   // Existing tags offered while typing (`SUI-FEATURE-100`); without them the field offers nothing.
   suggestions?: string[];
+  // Whether the typed, uncommitted text registers with a surrounding leave guard or edit panel
+  // (`SUI-FEATURE-118` rev 9; default `true`). A field that edits no entry, as a filter or a search,
+  // passes `false`: its draft then never makes the surface dirty, and the surface's Save and Discard
+  // never reach it.
+  guardDraft?: boolean;
   // The hover trigger of a wrapping `Hint` is the whole frame, chips included (`GL-UI-017`, as the
   // `Slider`, `SUI-FEATURE-057`): its ref and pointer handlers sit on the frame, so the bubble opens over
   // the chips too. `Hint` passes the ref here (`TagInput.hintTriggerRef`); `ref` stays the text field's.
@@ -113,6 +118,7 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
     testId = "tag-input",
     className,
     suggestions,
+    guardDraft = true,
     triggerRef,
     onPointerMove,
     onPointerLeave,
@@ -224,8 +230,8 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
   // The typed text is a change for a surrounding leave guard or edit panel: its Save takes it over,
   // its Discard drops it (`SUI-FEATURE-118` rev 6). Only text that adds a tag counts as a change; a
   // duplicate or bare commas do not, but go as well once the surface leaves, so nothing of them
-  // reaches the next entry.
-  useFieldDraft(!readOnly && !disabled && draft.trim() !== "", {
+  // reaches the next entry. With `guardDraft={false}` the text never registers (rev 9).
+  useFieldDraft(guardDraft && !readOnly && !disabled && draft.trim() !== "", {
     counts: adding().length > 0,
     flush: () => commit(),
     discard: () => {

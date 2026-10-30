@@ -447,6 +447,107 @@ describe("a plain Dialog over a guarded page (SUI-FEATURE-118 rev 7, AC 7)", () 
   });
 });
 
+// SUI-FEATURE-118 rev 9, AC 7: a filter field edits no entry and opts out with `guardDraft={false}`.
+function Filter() {
+  const [tags, setTags] = useState<string[]>([]);
+  return (
+    <TagInput
+      value={tags}
+      onChange={setTags}
+      placeholder="Filter by tag"
+      testId="filter"
+      guardDraft={false}
+    />
+  );
+}
+
+function FilterOnPage({ save, onLeave }: { save: () => void; onLeave: () => void }) {
+  const [changed, setChanged] = useState(false);
+  const { guard, dialog } = useLeaveGuard({
+    dirty: changed,
+    onLeave,
+    onSave: () => {
+      save();
+      return true;
+    },
+    onDiscard: () => setChanged(false),
+  });
+  return (
+    <>
+      <Filter />
+      <button type="button" data-testid="change" onClick={() => setChanged(true)}>
+        Change
+      </button>
+      <button type="button" data-testid="back" onClick={() => guard(onLeave)}>
+        Back
+      </button>
+      {dialog}
+    </>
+  );
+}
+
+function FilterInPanel({ save, onLeave }: { save: () => void; onLeave: () => void }) {
+  const [changed, setChanged] = useState(false);
+  return (
+    <EditPanel
+      open
+      onOpenChange={() => {}}
+      title="Channel"
+      dirty={changed}
+      onSubmit={() => {
+        save();
+        return true;
+      }}
+      pager={{ position: "1/2", onPrevious: () => {}, onNext: onLeave }}
+    >
+      <Filter />
+      <button type="button" data-testid="change" onClick={() => setChanged(true)}>
+        Change
+      </button>
+    </EditPanel>
+  );
+}
+
+describe.each([
+  ["the leave guard of a page", FilterOnPage, "back"],
+  ["the edit panel", FilterInPanel, "edit-panel-next"],
+] as const)(
+  "a TagInput with guardDraft={false} under %s (SUI-FEATURE-118 rev 9, AC 7)",
+  (_, Page, leaveId) => {
+    function typeFilter() {
+      const save = vi.fn();
+      const onLeave = vi.fn();
+      render(<Page save={save} onLeave={onLeave} />);
+      const field = screen.getByTestId("filter-input");
+      act(() => field.focus());
+      fireEvent.change(field, { target: { value: "draft" } });
+      return { save, onLeave, field };
+    }
+
+    it("its typed tag does not make the surface dirty", () => {
+      const { onLeave, field } = typeFilter();
+      fireEvent.click(screen.getByTestId(leaveId));
+      expect(screen.queryByTestId("leave-guard")).toBeNull();
+      expect(onLeave).toHaveBeenCalledTimes(1);
+      expect(field).toHaveValue("draft");
+    });
+
+    it.each(["save", "discard"] as const)(
+      "%s in the guard never reaches its field",
+      async (button) => {
+        const { save, onLeave, field } = typeFilter();
+        fireEvent.click(screen.getByTestId("change"));
+        fireEvent.click(screen.getByTestId(leaveId));
+        fireEvent.click(await screen.findByTestId(`leave-guard-${button}`));
+        await waitFor(() => expect(onLeave).toHaveBeenCalledTimes(1));
+        expect(save).toHaveBeenCalledTimes(button === "save" ? 1 : 0);
+        expect(field).toHaveValue("draft");
+        expect(screen.queryAllByTestId("filter-chip")).toHaveLength(0);
+      },
+    );
+  },
+);
+
 // Two guards on one page: the one that asked takes the draft; the other reads it gone at once.
 function TwoGuardsPage() {
   const navigate = useNavigate();
