@@ -1,11 +1,11 @@
 # Changelog
 
-## Unreleased — #700: `SettingsActionRow`'s Save/Reset hints name the entry, not the page (patch)
+## 0.192.1 — #700: `SettingsActionRow`'s Save/Reset hints name the entry, not the page (patch)
 
 - **Fixed (#700, GL-UI-017):** the hints of `SettingsActionRow`'s Save and Reset said "…on this page", though the row acts on one entry (`SUI-FEATURE-118` rev 10). They now come from their own string keys `settings.entrySaveHint`, `entrySaveDisabledHint`, `entrySaveInvalidHint`, `entryResetHint` and `entryResetDisabledHint` (en, de, es), e.g. "Saves the changes to this entry." `SettingsFooter` keeps the page wording; its locked-invalid Save (en `settings.saveInvalidHint`) now says "…available once everything here is valid." instead of "every entry here", as de and es already did. No public signature changes.
 - **Tests (#700):** unit, a `SettingsActionRow` beside a `SettingsFooter`, clean, dirty and invalid: the row's Save and Reset describe the entry, the footer's Save the page (fails without the change). Gallery baselines of the strings page (`gallery-<lng>-<theme>`) regenerated for the five new rows.
 
-## Unreleased — #701: a `SettingsBlock`'s aside belongs to its draft scope (patch)
+## 0.192.1 — #701: a `SettingsBlock`'s aside belongs to its draft scope (patch)
 
 - **Fixed (#701):** `SettingsBlock`'s draft scope (#699) now covers its header and `aside` as well as its content. A typed `TagInput` tag in the aside registers with the block, so the block's `SettingsActionRow` unlocks for it and its Reset drops it; before, it registered with the surrounding page guard only. No signature changes.
 - **Tests (#701):** unit, a `TagInput` in a block's `aside` and the `SettingsActionRow` in its content: a typed tag unlocks Save and Reset, and a mouse Reset drops it, leaving the committed chips (fails without the change).
