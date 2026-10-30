@@ -118,6 +118,30 @@ function useTools(): EditorHeaderTool[] {
   ];
 }
 
+// `SUI-FEATURE-105` rev 3: the record's name as an inline input; the fold budget measures its value,
+// or the placeholder when empty, by `titleText`.
+function InputTitleHeader() {
+  const [name, setName] = useState("Summer sale banner");
+  return (
+    <EditorHeader
+      title={
+        <input
+          aria-label="Page name"
+          className="w-full min-w-0 rounded-sm bg-transparent outline-none placeholder:text-muted-foreground hover:bg-accent focus-visible:focus-ring dark:hover:bg-accent/50"
+          value={name}
+          placeholder="Untitled page"
+          onChange={(event) => setName(event.target.value)}
+          data-testid="editor-title-input"
+        />
+      }
+      titleText={name === "" ? "Untitled page" : name}
+      subtitle="In review · LP-2026-117 · Marketing · Spring sale"
+      {...NOOP}
+      lifecycle={LIFECYCLE}
+    />
+  );
+}
+
 // `SUI-FEATURE-104` and `SUI-FEATURE-105`: the editor header with tools and a running operation, for a
 // role that only reads, and as the page head with a subtitle, with and without a lifecycle;
 // `SUI-FEATURE-119`: the grouped ⋯, and content locked by its state with its lifecycle kept.
@@ -176,6 +200,9 @@ export function EditorHeaderPage() {
             dirty
             canUndo
           />
+        </div>
+        <div className="rounded-md border" data-testid="editor-header-title-input">
+          <InputTitleHeader />
         </div>
       </div>
     </Section>

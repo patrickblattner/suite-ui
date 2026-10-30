@@ -31,6 +31,9 @@ import { useFoldSteps } from "./use-fold-steps.js";
 type EditorHeaderProps = {
   // The record's title, as the app shows it: the page's `h1` (`SUI-FEATURE-105`).
   title: React.ReactNode;
+  // The text the fold budget measures in place of the title node's text, for a title given as an
+  // inline input: its value, or its placeholder when empty (`SUI-FEATURE-105` rev 3).
+  titleText?: string;
   // One line under the title, e.g. the record's status and identifier (`SUI-FEATURE-105`).
   subtitle?: React.ReactNode;
   // Back to the list; pass it through the leave guard (`useEditorLeaveGuard`).
@@ -200,7 +203,8 @@ function CompactSign({
 // Redo, the state, Reset, Save, the next step, the record's menu) and names the mode instead of the
 // state; at narrow width that text folds like the state, to an eye (rev 3). `readOnly="content"`
 // (`SUI-FEATURE-119`) drops the editor group the same but keeps the lifecycle. `SUI-FEATURE-105`: the
-// title is the page's `h1`, `subtitle` one muted line under it.
+// title is the page's `h1`, `subtitle` one muted line under it; a title given as an inline input
+// sits in that `h1`, scrolls its own overflow without a tooltip, and is measured by `titleText`.
 //
 // `SUI-FEATURE-090`: the header measures its own width. While it overflows one line it folds a step
 // (`Fold`); each step remembers the width it needed, and once the header is that wide again it steps
@@ -214,6 +218,7 @@ function CompactSign({
 // it on from the locked trigger.
 function EditorHeader({
   title,
+  titleText: measuredText,
   subtitle,
   onBack,
   canUndo,
@@ -268,24 +273,25 @@ function EditorHeader({
       ];
   // The title's floor: its first 18 characters and the ellipsis while folding, 6 after the last
   // step, sized by an invisible copy in the title's own font. A title given as nodes is read back
-  // from the rendered text.
+  // from the rendered text; an input title has none, so the app names it by `titleText`.
   const titleBox = React.useRef<HTMLDivElement>(null);
   const [renderedTitle, setRenderedTitle] = React.useState("");
   React.useLayoutEffect(() => {
-    if (typeof title === "string") return;
+    if (typeof title === "string" || measuredText !== undefined) return;
     const text =
       titleBox.current?.querySelector("[data-slot=editor-title-text]")?.textContent ?? "";
     setRenderedTitle(text);
-  }, [title]);
-  const titleText = typeof title === "string" ? title : renderedTitle;
+  }, [title, measuredText]);
+  const titleText = measuredText ?? (typeof title === "string" ? title : renderedTitle);
   const stateText = t(readOnly ? "editor.readOnly" : dirty ? "editor.draft" : "editor.saved");
   // What the header shows: a new language, state text, title floor or lifecycle label folds it
   // afresh, so a shorter text (after Save, or in another language) unfolds again without a resize.
-  // Only the title's longest floor counts: typing in a live-bound title refolds nothing.
+  // Only the title's longest floor counts: typing in a live-bound title refolds nothing. A given
+  // `titleText` counts whole: each change of it measures again (`SUI-FEATURE-105` rev 3).
   const content = [
     i18n.language,
     stateText,
-    titleText.slice(0, TITLE_BUDGET),
+    measuredText ?? titleText.slice(0, TITLE_BUDGET),
     lifecycle?.preview?.label,
     lifecycle?.next?.label,
     folds.join(),
@@ -554,16 +560,29 @@ function EditorHeader({
         >
           {titleFloor}
         </span>
-        <OverflowTooltip>
+        {measuredText === undefined ? (
+          <OverflowTooltip>
+            <h1
+              data-slot="editor-title-text"
+              // Its own type, so an app's base `h1` rule does not restyle it.
+              className="col-start-1 row-start-1 m-0 min-w-0 truncate text-sm/[1.5] font-medium"
+              data-testid="page-title"
+            >
+              {title}
+            </h1>
+          </OverflowTooltip>
+        ) : (
+          // An input title scrolls its own overflow; the app gives it the `h1`'s width. The heading is
+          // named by `titleText`, so an empty field still leaves it a name.
           <h1
+            aria-label={measuredText}
             data-slot="editor-title-text"
-            // Its own type, so an app's base `h1` rule does not restyle it.
-            className="col-start-1 row-start-1 m-0 min-w-0 truncate text-sm/[1.5] font-medium"
+            className="col-start-1 row-start-1 m-0 flex min-w-0 text-sm/[1.5] font-medium"
             data-testid="page-title"
           >
             {title}
           </h1>
-        </OverflowTooltip>
+        )}
         {subtitle === undefined ? null : (
           <OverflowTooltip>
             <p

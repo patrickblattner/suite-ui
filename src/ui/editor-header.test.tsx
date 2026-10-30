@@ -2081,6 +2081,115 @@ describe("EditorHeader at narrow width", () => {
     expect(header?.querySelector("[data-slot=editor-title] > span")).toHaveTextContent(floor);
   });
 
+  // `SUI-FEATURE-105` rev 3: an input title is measured by `titleText`. Here the title's floor takes
+  // 8 px per character, so the title's text reaches the fold.
+  describe("an input title with titleText", () => {
+    let reads: number;
+    beforeEach(() => {
+      reads = 0;
+      vi.spyOn(Element.prototype, "scrollWidth", "get").mockImplementation(function (
+        this: Element,
+      ) {
+        if (!isHeader(this)) return 0;
+        reads += 1;
+        const floor = this.querySelector("[data-slot=editor-title] > span")?.textContent ?? "";
+        return Math.max(available, natural(this) + floor.length * 8);
+      });
+    });
+    const header = () => document.querySelector<HTMLElement>("[data-slot=editor-header]")!;
+    // The width the header needs as it stands.
+    const needed = () => {
+      const width = available;
+      available = 0;
+      const need = header().scrollWidth;
+      available = width;
+      return need;
+    };
+    function InputTitle({ initial, measured = true }: { initial: string; measured?: boolean }) {
+      const [name, setName] = useState(initial);
+      return (
+        <EditorHeader
+          title={
+            <input
+              aria-label="Name"
+              className="w-full min-w-0"
+              value={name}
+              placeholder="Untitled page"
+              onChange={(event) => setName(event.target.value)}
+            />
+          }
+          {...(measured ? { titleText: name === "" ? "Untitled page" : name } : {})}
+          onBack={vi.fn()}
+          canUndo
+          canRedo
+          dirty={false}
+          saving={false}
+          onUndo={vi.fn()}
+          onRedo={vi.fn()}
+          onSave={vi.fn()}
+          onReset={vi.fn()}
+          lifecycle={lifecycle({ icon: <EyeIcon aria-hidden="true" /> })}
+        />
+      );
+    }
+    const type = (value: string) =>
+      fireEvent.change(screen.getByRole("textbox", { name: "Name" }), { target: { value } });
+
+    it("sits in the h1, scrolls its own overflow and opens no truncation tooltip", () => {
+      render(<InputTitle initial="Spring newsletter" />);
+      const title = screen.getByTestId("page-title");
+      expect(title).toHaveProperty("tagName", "H1");
+      expect(title).toContainElement(screen.getByRole("textbox", { name: "Name" }));
+      expect(title).not.toHaveClass("truncate");
+      expect(screen.getAllByRole("heading")).toHaveLength(1);
+      fireEvent.pointerMove(title);
+      expect(screen.queryByRole("tooltip")).toBeNull();
+    });
+
+    it("the floor is its titleText, or the placeholder when empty", () => {
+      render(<InputTitle initial="Autumn campaign landing page" />);
+      const floor = () => header().querySelector("[data-slot=editor-title] > span");
+      expect(floor()).toHaveTextContent("Autumn campaign la…");
+      expect(screen.getByRole("heading")).toHaveAccessibleName("Autumn campaign landing page");
+      type("");
+      expect(floor()).toHaveTextContent("Untitled page");
+      // An empty field leaves the heading named.
+      expect(screen.getByRole("heading")).toHaveAccessibleName("Untitled page");
+    });
+
+    // AC 6: typing to a longer value folds as a text title of that length.
+    it("typing to a longer value measures again and folds as for text", () => {
+      render(<InputTitle initial="Spring" />);
+      available = needed() + 50;
+      resize();
+      expect(header()).toHaveAttribute("data-shrink", "0");
+      type("Spring newsletter 2026");
+      const folds = header().getAttribute("data-shrink");
+      expect(Number(folds)).toBeGreaterThan(0);
+      cleanup();
+      renderHeader({
+        title: "Spring newsletter 2026",
+        lifecycle: lifecycle({ icon: <EyeIcon aria-hidden="true" /> }),
+      });
+      expect(header()).toHaveAttribute("data-shrink", folds);
+    });
+
+    it("without titleText the input title's text (none) is measured, as before", () => {
+      render(<InputTitle initial="Spring" measured={false} />);
+      available = needed() + 50;
+      resize();
+      type("Spring newsletter 2026");
+      expect(header()).toHaveAttribute("data-shrink", "0");
+    });
+
+    it("every change of titleText measures again, past the floor as well", () => {
+      render(<InputTitle initial="Spring newsletter 2026" />);
+      const before = reads;
+      type("Spring newsletter 2026 edition");
+      expect(reads).toBeGreaterThan(before);
+    });
+  });
+
   it("a next step without an icon keeps its text", () => {
     available = 250;
     renderHeader({ lifecycle: lifecycle() });

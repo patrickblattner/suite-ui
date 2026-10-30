@@ -4224,6 +4224,69 @@ test("editor header: title as h1, subtitle under it, both truncated at 390 px", 
   await expect(header.getByTestId("editor-save")).toBeVisible();
 });
 
+// `SUI-FEATURE-105` rev 3 AC 6: an input title with an 18-character `titleText` stands at full budget
+// like a text title, the subtitle stays; typed to the long title of the text frame beside it (same
+// subtitle and lifecycle), it folds as that frame does. The input scrolls its overflow, no tooltip.
+// At 900 px the header folds: typed from a short value to the long one, its step rises to the text
+// frame's.
+test("editor header: an input title's fold step rises while typing at 900 px", async ({ page }) => {
+  await page.setViewportSize({ width: 900, height: 900 });
+  await page.goto("/?page=editor-bar&lng=en");
+  const frame = page.getByTestId("editor-header-title-input");
+  const bar = frame.locator("[data-slot=editor-header]");
+  const input = frame.getByTestId("editor-title-input");
+  const text = page.getByTestId("editor-header-subtitle-lifecycle");
+  await input.fill("Q3");
+  await expect(frame.locator("[data-slot=editor-title] > span")).toHaveText("Q3");
+  const short = Number(await bar.getAttribute("data-shrink"));
+  const long = "Autumn campaign landing page for the spring sale";
+  await input.fill(long);
+  const textStep = Number(
+    await text.locator("[data-slot=editor-header]").getAttribute("data-shrink"),
+  );
+  expect(textStep).toBeGreaterThan(short);
+  await expect.poll(async () => Number(await bar.getAttribute("data-shrink"))).toBe(textStep);
+  await expect(frame.getByTestId("page-subtitle")).toBeVisible();
+});
+
+for (const width of [1280, 1440]) {
+  test(`editor header: an input title folds like a text title at ${width} px`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/?page=editor-bar&lng=en");
+    const frame = page.getByTestId("editor-header-title-input");
+    const bar = frame.locator("[data-slot=editor-header]");
+    const floor = frame.locator("[data-slot=editor-title] > span");
+    const input = frame.getByTestId("editor-title-input");
+    await expect(frame.getByTestId("page-title").locator("input")).toHaveCount(1);
+    await expect(floor).toHaveText("Summer sale banner");
+    expect(await input.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+    await expect(frame.getByTestId("page-subtitle")).toBeVisible();
+
+    const text = page.getByTestId("editor-header-subtitle-lifecycle");
+    const long = "Autumn campaign landing page for the spring sale";
+    await input.fill(long);
+    await expect(floor).toHaveText(`${long.slice(0, 18)}…`);
+    await expect
+      .poll(() => bar.getAttribute("data-shrink"))
+      .toBe(await text.locator("[data-slot=editor-header]").getAttribute("data-shrink"));
+    await expect(frame.getByTestId("page-subtitle")).toBeVisible();
+    for (const id of ["editor-back", "editor-next", "editor-save"])
+      await expect(frame.getByTestId(id)).toBeVisible();
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect.poll(() => input.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
+    // The clipped text title opens its tooltip; moved on to the input within the skip delay, a
+    // tooltip there would open at once, yet the bubble closes and none opens.
+    const textTitle = text.getByTestId("page-title");
+    await expect(textTitle).toHaveAttribute("data-state");
+    await expect(frame.getByTestId("page-title")).not.toHaveAttribute("data-state");
+    await textTitle.hover();
+    await expect(page.getByRole("tooltip")).toHaveText(long);
+    await input.hover();
+    await expect(page.getByRole("tooltip")).toHaveCount(0);
+  });
+}
+
 // `SUI-FEATURE-090`: at narrow width every control of each editor header lies inside it and the
 // title keeps its first 6 characters and the ellipsis; widened, nothing stays folded.
 const EDITOR_HEADERS = [
