@@ -764,3 +764,5 @@
 {"ts":"2026-10-30T06:16:03.475Z","key":"SUI-FEATURE-118","from":6,"to":7,"disposition":"ticket","ref":"694"}
 {"ts":"2026-10-30T06:46:29.571Z","key":"SUI-FEATURE-118","from":7,"to":8,"disposition":"ticket","ref":"694"}
 {"ts":"2026-10-30T07:39:31.296Z","key":"SUI-FEATURE-118","from":8,"to":9,"disposition":"ticket","ref":"696"}
+{"ts":"2026-10-30T08:00:52.247Z","key":"PROC-REL-003","from":7,"to":8,"disposition":"editorial","ref":"harness runner label 'wait' on runner3 PR registrations; no code impact in suite-ui (local mode, no wait-only jobs)"}
+{"ts":"2026-10-30T08:00:52.599Z","key":"PROC-RUN-001","from":13,"to":14,"disposition":"editorial","ref":"infra inventory: runner3 PR registration carries fixed 'wait' label; no code impact in suite-ui"}
