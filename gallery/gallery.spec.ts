@@ -6862,6 +6862,25 @@ test("shell: a truncated instance name and nav label show whole in a tooltip", a
   );
 });
 
+// `GL-UI-016` rev 21 (#712): the truncated user name and role show whole above the menu hint; the
+// sidebar keeps its width (`GL-UI-019` rev 9).
+test("shell: a truncated user name and role show whole above the menu hint", async ({ page }) => {
+  await page.goto("/?page=shell&route=/dashboard&lng=en&longName=1");
+  const isClipped = (node: Element) => node.scrollWidth > node.clientWidth;
+  const name = page.getByTestId("user-menu-name");
+  const role = page.getByTestId("user-menu-role");
+  await expect.poll(() => name.evaluate(isClipped)).toBe(true);
+  await expect.poll(() => role.evaluate(isClipped)).toBe(true);
+  expect((await box(page.getByTestId("app-sidebar"))).width).toBe(224);
+  await page.getByTestId("user-menu-trigger").hover();
+  const lines = page.locator("[data-slot=tooltip-content] span.block");
+  await expect(lines.nth(0)).toHaveText("Ada Augusta King, Countess of Lovelace");
+  await expect(lines.nth(1)).toHaveText("Administrator of every community space");
+  await expect(lines.nth(2)).toHaveText(
+    "Opens the menu with profile, language, appearance and sign-out.",
+  );
+});
+
 test("shell: a deep link opens the section; the mark stays without the pointer", async ({
   page,
 }) => {

@@ -3,7 +3,7 @@ import i18n from "i18next";
 import { BellIcon } from "lucide-react";
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { userMenuOrderViolations } from "../testing/index.js";
 import { InitialSquare } from "./initial-square.js";
@@ -648,6 +648,137 @@ describe("UserMenu", () => {
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByTestId("user-menu-content")).not.toBeInTheDocument();
     expect(screen.getByTestId("user-menu-trigger")).toHaveFocus();
+  });
+
+  // `GL-UI-016` rev 21 (#712): a clipped name or role shows whole above the menu hint; one that fits
+  // shows only the hint.
+  describe("overflow tooltips of the name and role", () => {
+    const MENU_HINT = "Opens the menu with profile, language, appearance and sign-out.";
+    // The texts whose `truncate` span is clipped in this test; every other text fits.
+    let clipped: string[] = [];
+    // jsdom's `:focus-visible` follows no input modality: here it is the focused element.
+    beforeEach(() => {
+      clipped = [];
+      vi.useFakeTimers();
+      vi.stubGlobal(
+        "ResizeObserver",
+        class {
+          observe() {}
+          unobserve() {}
+          disconnect() {}
+        },
+      );
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      const matches = Element.prototype.matches;
+      vi.spyOn(Element.prototype, "matches").mockImplementation(function (
+        this: Element,
+        selector: string,
+      ) {
+        if (selector === ":focus-visible") return document.activeElement === this;
+        return matches.call(this, selector);
+      });
+      vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(100);
+      vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockImplementation(function (
+        this: HTMLElement,
+      ) {
+        return this.classList.contains("truncate") && clipped.includes(this.textContent)
+          ? 200
+          : 100;
+      });
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+      vi.restoreAllMocks();
+    });
+
+    function wait(ms: number): void {
+      act(() => {
+        vi.advanceTimersByTime(ms);
+      });
+    }
+
+    function bubble(): Element | null {
+      return document.querySelector("[data-slot=tooltip-content]");
+    }
+
+    // The pointer rests on the trigger's text for the hint delay.
+    function bubbleAfterHover(testId: string): Element | null {
+      fireEvent.pointerMove(screen.getByTestId(testId), { pointerType: "mouse" });
+      wait(1500);
+      return bubble();
+    }
+
+    function lines(element: Element | null): string[] {
+      return [...(element?.querySelectorAll("span.block") ?? [])].map((line) => line.textContent);
+    }
+
+    it("name: clipped, the whole name on top, the menu hint below", () => {
+      clipped = ["Ada Augusta King, Countess of Lovelace"];
+      renderMenu({ name: "Ada Augusta King, Countess of Lovelace" });
+      expect(lines(bubbleAfterHover("user-menu-name"))).toEqual([
+        "Ada Augusta King, Countess of Lovelace",
+        MENU_HINT,
+      ]);
+    });
+
+    it("role: clipped, the whole role on top, the menu hint below", () => {
+      clipped = ["Administrator of every community space"];
+      renderMenu({ role: "Administrator of every community space" });
+      expect(lines(bubbleAfterHover("user-menu-role"))).toEqual([
+        "Administrator of every community space",
+        MENU_HINT,
+      ]);
+    });
+
+    it("name and role: both clipped, each whole on its own line, in order, then the hint", () => {
+      clipped = [
+        "Ada Augusta King, Countess of Lovelace",
+        "Administrator of every community space",
+      ];
+      renderMenu({
+        name: "Ada Augusta King, Countess of Lovelace",
+        role: "Administrator of every community space",
+      });
+      expect(lines(bubbleAfterHover("user-menu-name"))).toEqual([
+        "Ada Augusta King, Countess of Lovelace",
+        "Administrator of every community space",
+        MENU_HINT,
+      ]);
+    });
+
+    it("name and role: fitting, only the menu hint", () => {
+      renderMenu();
+      expect(bubbleAfterHover("user-menu-name")).toHaveTextContent(new RegExp(`^${MENU_HINT}$`));
+    });
+
+    it("keyboard focus on a clipped name and role shows only the whole texts", () => {
+      clipped = [
+        "Ada Augusta King, Countess of Lovelace",
+        "Administrator of every community space",
+      ];
+      renderMenu({
+        name: "Ada Augusta King, Countess of Lovelace",
+        role: "Administrator of every community space",
+      });
+      fireEvent.keyDown(document.body, { key: "Tab" });
+      act(() => screen.getByTestId("user-menu-trigger").focus());
+      wait(1500);
+      expect(lines(bubble())).toEqual([
+        "Ada Augusta King, Countess of Lovelace",
+        "Administrator of every community space",
+      ]);
+      expect(bubble()).not.toHaveTextContent(MENU_HINT);
+    });
+
+    it("keyboard focus on a fitting name and role shows nothing", () => {
+      renderMenu();
+      fireEvent.keyDown(document.body, { key: "Tab" });
+      act(() => screen.getByTestId("user-menu-trigger").focus());
+      wait(1500);
+      expect(bubble()).toBeNull();
+    });
   });
 });
 

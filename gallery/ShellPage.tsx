@@ -226,10 +226,14 @@ export function ShellPage({ content }: { content?: ReactNode } = {}) {
   const unavailable = params.get("unavailable") === "1";
   // `&reason=noRole`: their reason is the missing role instead of "not available yet".
   const reason = params.get("reason") === "noRole" ? "noRole" : "notYet";
-  // `&longName=1`: an instance name and a nav label that truncate in the open sidebar (#710); the
-  // label is no catalogue key, so it shows as written.
+  // `&longName=1`: an instance name and a nav label that truncate in the open sidebar (#710), and a
+  // user name and role that truncate in the user menu's trigger (#712). The name and the nav label
+  // are no catalogue keys, so they show as written; the role comes from the gallery's labels per
+  // language.
   const longName = params.get("longName") === "1";
   const instanceName = longName ? "Suite gallery community" : SHELL_DATA.instanceName;
+  const userName = longName ? "Ada Augusta King, Countess of Lovelace" : SHELL_DATA.userName;
+  const role = t(longName ? "longRole" : "role");
   const nav: NavModel = longName
     ? {
         ...NAV,
@@ -254,8 +258,8 @@ export function ShellPage({ content }: { content?: ReactNode } = {}) {
             version={{ info: SHELL_DATA.version }}
             userMenu={
               <UserMenu
-                name={SHELL_DATA.userName}
-                role={t("role")}
+                name={userName}
+                role={role}
                 language={instance.language}
                 onLanguageChange={(lng: SuiteLanguage) => void instance.changeLanguage(lng)}
                 appearance={appearance}

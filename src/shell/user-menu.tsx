@@ -17,6 +17,7 @@ import { useEscapeLayer } from "../lib/escape-layers.js";
 import { SUITE_LANGUAGES, type SuiteLanguage } from "../strings/types.js";
 import { Hint } from "../ui/hint.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select.js";
+import { OverflowTooltip } from "../ui/tooltip.js";
 import { InitialSquare } from "./initial-square.js";
 import { useOptionalSidebar } from "./sidebar-provider.js";
 
@@ -352,16 +353,21 @@ function UserMenu({
           <InitialSquare name={name} testId="user-menu-avatar" />
           {!collapsed && (
             <span className="grid flex-1 leading-tight">
-              <span className="truncate text-sm font-medium" data-testid="user-menu-name">
-                {name}
-              </span>
-              {role !== undefined && (
-                <span
-                  className="truncate text-xs text-muted-foreground"
-                  data-testid="user-menu-role"
-                >
-                  {role}
+              {/* A clipped name or role shows whole above the hint text (`GL-UI-016` rev 21). */}
+              <OverflowTooltip text={name}>
+                <span className="truncate text-sm font-medium" data-testid="user-menu-name">
+                  {name}
                 </span>
+              </OverflowTooltip>
+              {role !== undefined && (
+                <OverflowTooltip text={role}>
+                  <span
+                    className="truncate text-xs text-muted-foreground"
+                    data-testid="user-menu-role"
+                  >
+                    {role}
+                  </span>
+                </OverflowTooltip>
               )}
             </span>
           )}
