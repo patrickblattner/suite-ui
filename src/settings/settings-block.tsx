@@ -1,5 +1,10 @@
 import * as React from "react";
 
+import {
+  createFieldDrafts,
+  FieldDraftsContext,
+  SettingsBlockDraftsContext,
+} from "../ui/field-drafts-internal.js";
 import { SubgroupTitle } from "../ui/subgroup-title.js";
 
 type SettingsBlockProps = {
@@ -16,8 +21,16 @@ type SettingsBlockProps = {
 // The framed block of one entry, such as an integration or a secret (`SUI-FEATURE-043`): a title row
 // with the name and the purpose under it, an optional aside at its right aligned on the name line,
 // then the content 8 px under the header (`SUI-FEATURE-300`) and 16 px apart. No legend on the frame.
+// A draft scope (`SUI-FEATURE-118` rev 10): a field's uncommitted entry inside it registers with the
+// block, for its `SettingsActionRow`, and with the page guard or panel around it. Where drafts do not
+// register (a plain `Dialog`), the block registers none either.
 function SettingsBlock({ name, purpose, aside, children }: SettingsBlockProps) {
   const nameId = React.useId();
+  const parent = React.useContext(FieldDraftsContext);
+  const drafts = React.useMemo(
+    () => (parent === null ? null : createFieldDrafts(parent)),
+    [parent],
+  );
   return (
     <section
       aria-labelledby={nameId}
@@ -42,7 +55,11 @@ function SettingsBlock({ name, purpose, aside, children }: SettingsBlockProps) {
           </div>
         ) : null}
       </div>
-      {children}
+      <FieldDraftsContext.Provider value={drafts}>
+        <SettingsBlockDraftsContext.Provider value={drafts}>
+          {children}
+        </SettingsBlockDraftsContext.Provider>
+      </FieldDraftsContext.Provider>
     </section>
   );
 }

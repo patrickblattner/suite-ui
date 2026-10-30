@@ -945,3 +945,147 @@ it("#697: the Reset of a block inside a page form leaves the page field's typed 
   const chips = within(screen.getByTestId("page-tags")).getAllByTestId("page-tags-chip");
   expect(chips.map((chip) => chip.textContent)).toEqual(["p", "keep-me"]);
 });
+
+// SUI-FEATURE-118 rev 10, AC 8: two entries under one page guard, each `SettingsActionRow` on its
+// entry's own dirty, clean before anything is typed.
+function GuardedEntry({ name }: { name: string }) {
+  const [tags, setTags] = useState([name]);
+  return (
+    <SettingsBlock name={name} purpose={name}>
+      <TagInput value={tags} onChange={setTags} testId={`${name}-tags`} />
+      <SettingsActionRow
+        dirty={isDirty([name], tags)}
+        onSave={() => {}}
+        onReset={() => setTags([name])}
+        testIdPrefix={name}
+      />
+    </SettingsBlock>
+  );
+}
+
+function GuardedEntries() {
+  const { guard, dialog } = useLeaveGuard({ dirty: false, onLeave: () => {}, onSave: () => true });
+  return (
+    <>
+      <GuardedEntry name="a" />
+      <GuardedEntry name="b" />
+      <button type="button" data-testid="back" onClick={() => guard(() => {})}>
+        Back
+      </button>
+      {dialog}
+    </>
+  );
+}
+
+describe("SettingsBlock as a draft scope (SUI-FEATURE-118 rev 10, AC 8)", () => {
+  function typeInA() {
+    render(<GuardedEntries />);
+    const field = screen.getByTestId("a-tags-input");
+    act(() => field.focus());
+    fireEvent.change(field, { target: { value: "draft" } });
+    return field;
+  }
+
+  it("a tag typed in A unlocks A's Save and Reset, not B's", () => {
+    typeInA();
+    expect(screen.getByTestId("a-save")).not.toHaveAttribute("aria-disabled");
+    expect(screen.getByTestId("a-reset")).not.toHaveAttribute("aria-disabled");
+    expect(screen.getByTestId("b-save")).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByTestId("b-reset")).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("the page guard asks for it", () => {
+    typeInA();
+    fireEvent.click(screen.getByTestId("back"));
+    expect(screen.getByTestId("leave-guard")).toBeInTheDocument();
+  });
+
+  it("Reset in A drops the draft and the guard no longer asks for it", () => {
+    const field = typeInA();
+    mouseReset(screen.getByTestId("a-reset"));
+    expect(field).toHaveValue("");
+    expect(screen.getByTestId("a-save")).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(screen.getByTestId("back"));
+    expect(screen.queryByTestId("leave-guard")).not.toBeInTheDocument();
+  });
+
+  it("the guard's Discard drops A's draft and A's pair locks again", async () => {
+    const field = typeInA();
+    fireEvent.click(screen.getByTestId("back"));
+    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+    await waitFor(() => expect(screen.queryByTestId("leave-guard")).not.toBeInTheDocument());
+    expect(field).toHaveValue("");
+    expect(screen.getByTestId("a-save")).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByTestId("a-reset")).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("the guard's Save takes A's draft over", async () => {
+    typeInA();
+    fireEvent.click(screen.getByTestId("back"));
+    fireEvent.click(await screen.findByTestId("leave-guard-save"));
+    await waitFor(() => expect(screen.queryByTestId("leave-guard")).not.toBeInTheDocument());
+    const chips = within(screen.getByTestId("a-tags")).getAllByTestId("a-tags-chip");
+    expect(chips.map((chip) => chip.textContent)).toEqual(["a", "draft"]);
+  });
+});
+
+// A block with a form inside and a `TagInput` outside that form (#699): the row counts and drops it.
+function BlockWithInnerForm() {
+  const [tags, setTags] = useState(["o"]);
+  return (
+    <SettingsBlock name="c" purpose="c">
+      <TagInput value={tags} onChange={setTags} testId="outer-tags" />
+      <form>
+        <SettingsActionRow
+          dirty={isDirty(["o"], tags)}
+          onSave={() => {}}
+          onReset={() => setTags(["o"])}
+          testIdPrefix="c"
+        />
+      </form>
+    </SettingsBlock>
+  );
+}
+
+it("#699: a block's Reset drops its draft outside the form the row sits in", () => {
+  render(<BlockWithInnerForm />);
+  const field = screen.getByTestId("outer-tags-input");
+  act(() => field.focus());
+  fireEvent.change(field, { target: { value: "draft" } });
+  expect(screen.getByTestId("c-reset")).not.toHaveAttribute("aria-disabled");
+  mouseReset(screen.getByTestId("c-reset"));
+  expect(field).toHaveValue("");
+  const chips = within(screen.getByTestId("outer-tags")).getAllByTestId("outer-tags-chip");
+  expect(chips.map((chip) => chip.textContent)).toEqual(["o"]);
+  // Dropped, not first taken over by a blur and announced.
+  expect(screen.getByTestId("outer-tags-announcement")).toHaveTextContent("");
+  expect(screen.getByTestId("c-reset")).toHaveAttribute("aria-disabled", "true");
+});
+
+// An edit panel inside a block is a scope of its own (#699): a row in it neither counts nor resets the
+// block's draft.
+function PanelInBlock() {
+  const [tags, setTags] = useState(["o"]);
+  return (
+    <SettingsBlock name="d" purpose="d">
+      <TagInput value={tags} onChange={setTags} testId="outer-tags" />
+      <EditPanel open onOpenChange={() => {}} title="Channel">
+        <SettingsActionRow
+          dirty={false}
+          onSave={() => {}}
+          onReset={() => {}}
+          testIdPrefix="inner"
+        />
+      </EditPanel>
+    </SettingsBlock>
+  );
+}
+
+it("#699: a row inside an edit panel in a block does not react to the block's draft", () => {
+  render(<PanelInBlock />);
+  const field = screen.getByTestId("outer-tags-input");
+  act(() => field.focus());
+  fireEvent.change(field, { target: { value: "draft" } });
+  expect(screen.getByTestId("inner-reset")).toHaveAttribute("aria-disabled", "true");
+  expect(screen.getByTestId("inner-save")).toHaveAttribute("aria-disabled", "true");
+});

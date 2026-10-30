@@ -3,7 +3,7 @@ import * as React from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "../ui/button.js";
-import { FieldDraftsContext } from "../ui/field-drafts-internal.js";
+import { type FieldDrafts, FieldDraftsContext } from "../ui/field-drafts-internal.js";
 import { useFocusAfterRun } from "../ui/focus-return.js";
 import { Hint } from "../ui/hint.js";
 import { submitLocked } from "../ui/field-error.js";
@@ -22,6 +22,8 @@ type SaveResetButtonsProps = {
   saving: boolean;
   // Given, Save is a plain button that calls it; otherwise Save is the submit button of its form.
   onSave?: (() => void) | undefined;
+  // The drafts of the pair's own `SettingsBlock` (`SettingsActionRow`, rev 10): Reset drops exactly these.
+  blockDrafts?: FieldDrafts | undefined;
 } & SaveResetLeft;
 
 // Reset (`destructive`) and Save (`success`), each with its fixed decorative icon before the label,
@@ -42,16 +44,20 @@ function SaveResetButtons({
   onReset,
   cancel,
   onSave,
+  blockDrafts,
 }: SaveResetButtonsProps) {
   const { t } = useTranslation("suite");
   const save = React.useRef<HTMLButtonElement>(null);
   const clean = !dirty && valid && !saving;
   // A field's typed but uncommitted entry around the pair (`SUI-FEATURE-118` rev 8): Reset drops it,
-  // but only in what it resets: the nearer of its form and its `SettingsBlock`, else the whole page. A
-  // draft in another form or entry keeps its text and its blur.
-  const drafts = React.useContext(FieldDraftsContext) ?? undefined;
-  const scope = (button: HTMLElement): Node =>
-    button.closest('form, [data-slot="settings-block"]') ?? document;
+  // but only in what it resets: its block's drafts when given (rev 10), else the nearer of its form and
+  // its `SettingsBlock`, else the whole page. A draft in another form or entry keeps its text and its blur.
+  const nearestDrafts = React.useContext(FieldDraftsContext) ?? undefined;
+  const drafts = blockDrafts ?? nearestDrafts;
+  const scope = (button: HTMLElement): Node | undefined =>
+    blockDrafts !== undefined
+      ? undefined
+      : (button.closest('form, [data-slot="settings-block"]') ?? document);
   useFocusAfterRun(save, saving);
   return (
     <>

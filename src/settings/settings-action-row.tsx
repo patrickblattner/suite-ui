@@ -1,10 +1,16 @@
-import type * as React from "react";
+import * as React from "react";
 
+import {
+  FieldDraftsContext,
+  SettingsBlockDraftsContext,
+  useHasFieldDrafts,
+} from "../ui/field-drafts-internal.js";
 import { SaveResetButtons } from "./settings-save-reset.js";
 
 type SettingsActionRowBase = {
-  // The entry differs from its loaded state. Only then are Reset and Save usable. Under a leave guard pass
-  // `useLeaveGuard().dirty`, which counts a field's uncommitted entry too (`SUI-FEATURE-118` rev 8).
+  // The entry differs from its loaded state. Only then are Reset and Save usable. Pass the entry's own
+  // dirty, never the page-wide `useLeaveGuard().dirty`: the row adds a field's uncommitted entry inside
+  // its `SettingsBlock` itself, and its Reset drops it (`SUI-FEATURE-118` rev 10).
   dirty: boolean;
   // The entry holds a value that cannot be saved: Save stays locked while Reset still follows `dirty`.
   valid?: boolean;
@@ -43,10 +49,17 @@ function SettingsActionRow({
   testIdPrefix,
   ...leftButton
 }: SettingsActionRowProps) {
+  // Only the block's own scope: an edit panel, sheet or dialog between it and the row is a scope of
+  // its own, and the row does not reach past it.
+  const block = React.useContext(SettingsBlockDraftsContext);
+  const scope = React.useContext(FieldDraftsContext);
+  const blockDrafts = block !== null && block === scope ? block : undefined;
+  const drafts = useHasFieldDrafts(blockDrafts);
   const pair = (
     <SaveResetButtons
       stem={testIdPrefix}
-      dirty={dirty}
+      dirty={dirty || drafts}
+      blockDrafts={blockDrafts}
       valid={valid}
       saving={saving}
       {...(leftButton.onCancel === undefined

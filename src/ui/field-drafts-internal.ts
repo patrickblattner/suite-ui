@@ -1,6 +1,6 @@
 // Package-internal, not exported from `src/ui/index.ts`: a package field's typed but uncommitted
-// entry (`TagInput`'s text) takes part in the decision of the surrounding leave guard or edit panel
-// (`SUI-FEATURE-118` rev 6). Apps wire nothing.
+// entry (`TagInput`'s text) takes part in the decision of its nearest scope: the leave guard, an edit
+// panel, or a `SettingsBlock`, which passes it on (`SUI-FEATURE-118` rev 6, rev 10). Apps wire nothing.
 import * as React from "react";
 
 type FieldDraft = {
@@ -27,8 +27,11 @@ type FieldDrafts = {
   subscribe: (listener: () => void) => () => void;
 };
 
-function createFieldDrafts(): FieldDrafts {
+// With `parent`, every entry registers with the parent too (a `SettingsBlock` with the page guard's), and
+// one handled by either leaves both.
+function createFieldDrafts(parent?: FieldDrafts): FieldDrafts {
   const drafts = new Set<FieldDraft>();
+  const passedOn = new Map<FieldDraft, () => void>();
   const listeners = new Set<() => void>();
   const notify = () => {
     for (const listener of [...listeners]) listener();
@@ -40,10 +43,20 @@ function createFieldDrafts(): FieldDrafts {
     const element = draft.element?.();
     return within === undefined || element == null || within.contains(element);
   };
+  const remove = (draft: FieldDraft) => {
+    passedOn.get(draft)?.();
+    passedOn.delete(draft);
+    return drafts.delete(draft);
+  };
+  // The parent handled it and dropped it already.
+  const handledAbove = (draft: FieldDraft) => {
+    passedOn.delete(draft);
+    if (drafts.delete(draft)) notify();
+  };
   const each = (counts: boolean, run: (draft: FieldDraft) => void, within?: Node) => {
     const handled = [...drafts].filter((draft) => draft.counts === counts && inside(draft, within));
     for (const draft of handled) {
-      drafts.delete(draft);
+      remove(draft);
       run(draft);
     }
     if (handled.length > 0) notify();
@@ -51,9 +64,25 @@ function createFieldDrafts(): FieldDrafts {
   return {
     add: (draft) => {
       drafts.add(draft);
+      if (parent !== undefined) {
+        passedOn.set(
+          draft,
+          parent.add({
+            ...draft,
+            flush: () => {
+              handledAbove(draft);
+              draft.flush();
+            },
+            discard: () => {
+              handledAbove(draft);
+              draft.discard();
+            },
+          }),
+        );
+      }
       notify();
       return () => {
-        if (drafts.delete(draft)) notify();
+        if (remove(draft)) notify();
       };
     },
     any: (within) => [...drafts].some((draft) => draft.counts && inside(draft, within)),
@@ -73,8 +102,10 @@ function createFieldDrafts(): FieldDrafts {
 // for its fields, and a plain `Dialog` provides none: its own confirm decides (rev 7).
 const pageDrafts = createFieldDrafts();
 const FieldDraftsContext = React.createContext<FieldDrafts | null>(pageDrafts);
+// The drafts of the surrounding `SettingsBlock`, which its `SettingsActionRow` counts (rev 10).
+const SettingsBlockDraftsContext = React.createContext<FieldDrafts | null>(null);
 
-// Registers the field's entry while `active` with the surrounding guard or panel. The latest
+// Registers the field's entry while `active` with its nearest scope. The latest
 // `flush` and `discard` run, so they read the field's current state.
 function useFieldDraft(active: boolean, draft: FieldDraft): void {
   const drafts = React.useContext(FieldDraftsContext);
@@ -111,6 +142,7 @@ export {
   type FieldDrafts,
   FieldDraftsContext,
   pageDrafts,
+  SettingsBlockDraftsContext,
   useFieldDraft,
   useHasFieldDrafts,
 };
