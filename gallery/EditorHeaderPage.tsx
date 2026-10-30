@@ -1,4 +1,13 @@
-import { EyeIcon, Grid3x3Icon, MonitorIcon, SendIcon, UploadIcon } from "lucide-react";
+import {
+  CopyIcon,
+  EyeIcon,
+  Grid3x3Icon,
+  LanguagesIcon,
+  MonitorIcon,
+  SendIcon,
+  Trash2Icon,
+  UploadIcon,
+} from "lucide-react";
 import { useState } from "react";
 
 import {
@@ -13,6 +22,57 @@ const LIFECYCLE: EditorLifecycle = {
   preview: { label: "Preview", icon: <EyeIcon aria-hidden="true" />, onClick: () => {} },
   menu: { label: "More", items: [{ label: "Duplicate", onSelect: () => {} }] },
   next: { label: "Submit for review", icon: <SendIcon aria-hidden="true" />, onClick: () => {} },
+};
+
+// `SUI-FEATURE-119`: the record's ⋯ in titled groups, a locked entry with its reason in view, and the
+// next step's description hint.
+const GROUPED: EditorLifecycle = {
+  preview: LIFECYCLE.preview!,
+  menu: {
+    label: "More",
+    items: [
+      {
+        title: "Page",
+        items: [
+          {
+            label: "Delete page",
+            icon: <Trash2Icon aria-hidden="true" />,
+            onSelect: () => {},
+            destructive: true,
+          },
+          { label: "Duplicate page", icon: <CopyIcon aria-hidden="true" />, onSelect: () => {} },
+        ],
+      },
+      {
+        title: "Version · English",
+        items: [
+          {
+            label: "Remove language",
+            onSelect: () => {},
+            disabled: true,
+            hint: "English is the default language of this page; make another language the default before you remove it.",
+            "data-testid": "gallery-menu-remove-language",
+          },
+        ],
+      },
+      {
+        title: "Languages",
+        items: [
+          {
+            label: "Add language",
+            icon: <LanguagesIcon aria-hidden="true" />,
+            onSelect: () => {},
+          },
+        ],
+      },
+    ],
+  },
+  next: {
+    label: "Submit for review",
+    icon: <SendIcon aria-hidden="true" />,
+    onClick: () => {},
+    hint: "Sends this version to the reviewers.",
+  },
 };
 
 // A running upload in the compact form the app passes: icon and short text.
@@ -59,7 +119,8 @@ function useTools(): EditorHeaderTool[] {
 }
 
 // `SUI-FEATURE-104` and `SUI-FEATURE-105`: the editor header with tools and a running operation, for a
-// role that only reads, and as the page head with a subtitle, with and without a lifecycle.
+// role that only reads, and as the page head with a subtitle, with and without a lifecycle;
+// `SUI-FEATURE-119`: the grouped ⋯, and content locked by its state with its lifecycle kept.
 export function EditorHeaderPage() {
   const tools = useTools();
   return (
@@ -82,6 +143,21 @@ export function EditorHeaderPage() {
             status={UPLOAD}
             lifecycle={LIFECYCLE}
             readOnly
+          />
+        </div>
+        <div className="rounded-md border" data-testid="editor-header-groups">
+          <EditorHeader title="Spring landing page" {...NOOP} lifecycle={GROUPED} />
+        </div>
+        <div className="rounded-md border" data-testid="editor-header-content-read-only">
+          <EditorHeader
+            title="Spring landing page"
+            subtitle="In review · LP-2026-118"
+            {...NOOP}
+            lifecycle={{
+              ...GROUPED,
+              next: { label: "Withdraw from review", onClick: () => {} },
+            }}
+            readOnly="content"
           />
         </div>
         <div className="rounded-md border" data-testid="editor-header-subtitle-lifecycle">

@@ -9,7 +9,7 @@ import {
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 
-import { type RowMenuItem, RowActionMenu } from "../list/row-actions.js";
+import { type RowMenuGroup, type RowMenuItem, RowActionMenu } from "../list/row-actions.js";
 import { cn } from "../lib/cn.js";
 import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
 import { Button } from "./button.js";
@@ -54,8 +54,10 @@ type EditorHeaderProps = {
   status?: React.ReactNode;
   // A role that may only read: no write controls at all, "Read only" in place of the state. The app
   // passes `dirty={false}` with it, so `useEditorLeaveGuard` (which follows `dirty` alone) stays
-  // inactive.
-  readOnly?: boolean;
+  // inactive. `"content"` (`SUI-FEATURE-119`): the content is locked by its state, not by the role;
+  // the editor group gives way to "Read only" the same, but the whole lifecycle stays, its next step
+  // without the "Save first" lock.
+  readOnly?: boolean | "content";
   // What the header lays out, for an app whose status chooses between a full and a compact form (#599).
   layout?: React.Ref<EditorHeaderLayout>;
 };
@@ -94,8 +96,9 @@ type EditorLifecycle = {
     onClick: () => void;
     disabledText?: string;
   };
-  // The record's own entries; they always stand in the header's ⋯, which `label` names.
-  menu?: { label: string; items: readonly RowMenuItem[] };
+  // The record's own entries; they always stand in the header's ⋯, which `label` names. Given as
+  // titled groups (`SUI-FEATURE-119`), each stands under its title, after the folded header tools.
+  menu?: { label: string; items: readonly RowMenuItem[] | readonly RowMenuGroup[] };
   next?: {
     label: string;
     icon?: React.ReactNode;
@@ -103,8 +106,18 @@ type EditorLifecycle = {
     busy?: boolean;
     // Locks the next step with this reason; it takes precedence over "Save first".
     disabledText?: string;
+    // The usable next step's description hint (`GL-UI-017`); a lock's reason wins over it.
+    hint?: string;
   };
 };
+
+// The menu's entries in their group form (`SUI-FEATURE-119`), or `undefined` for the flat form.
+function menuGroups(
+  items: readonly RowMenuItem[] | readonly RowMenuGroup[],
+): readonly RowMenuGroup[] | undefined {
+  const first = items[0];
+  return first !== undefined && "items" in first ? (items as readonly RowMenuGroup[]) : undefined;
+}
 
 // What folds when the header does not fit one line (`SUI-FEATURE-090`), in this order: Undo/Redo,
 // Reset and Preview (with the header tools, `SUI-FEATURE-104`) move into the one ⋯ menu, the state text shrinks to its mark, then Back, Save and
@@ -185,7 +198,8 @@ function CompactSign({
 // `SUI-FEATURE-104`: the editor's `tools` lead the right group, behind a separator of their own; a
 // running operation's `status` stands left of the state. `readOnly` drops every write control (Undo,
 // Redo, the state, Reset, Save, the next step, the record's menu) and names the mode instead of the
-// state; at narrow width that text folds like the state, to an eye (rev 3). `SUI-FEATURE-105`: the
+// state; at narrow width that text folds like the state, to an eye (rev 3). `readOnly="content"`
+// (`SUI-FEATURE-119`) drops the editor group the same but keeps the lifecycle. `SUI-FEATURE-105`: the
 // title is the page's `h1`, `subtitle` one muted line under it.
 //
 // `SUI-FEATURE-090`: the header measures its own width. While it overflows one line it folds a step
@@ -213,10 +227,14 @@ function EditorHeader({
   lifecycle,
   tools: headerTools = [],
   status,
-  readOnly = false,
+  readOnly: readOnlyMode = false,
   layout,
 }: EditorHeaderProps) {
   const { t, i18n } = useTranslation("suite");
+  // The editor group gives way to "Read only" either way; only a reading role loses the next step
+  // and the record's menu (`SUI-FEATURE-119`).
+  const readOnly = readOnlyMode !== false;
+  const roleReadOnly = readOnlyMode === true;
   const [confirming, setConfirming] = React.useState(false);
   // A field's typed but uncommitted entry on the page (`SUI-FEATURE-118` rev 8): Reset drops it
   // before its confirm takes the focus, whose blur would else take the tag over.
@@ -229,8 +247,15 @@ function EditorHeader({
   // The header tools fold with Preview. Read-only, only what it shows can fold; the read-only text
   // stands in the state's place and folds as `SUI-FEATURE-090` stage 4 (here the second step).
   const foldsPreview = lifecycle?.preview !== undefined || headerTools.length > 0;
+  const foldsNext = lifecycle?.next?.icon !== undefined && !roleReadOnly;
   const folds: Fold[] = readOnly
-    ? [...(foldsPreview ? ["preview" as const] : []), "state", "back", "title"]
+    ? [
+        ...(foldsPreview ? ["preview" as const] : []),
+        "state",
+        "back",
+        ...(foldsNext ? ["next" as const] : []),
+        "title",
+      ]
     : [
         "undo",
         "reset",
@@ -238,7 +263,7 @@ function EditorHeader({
         "state",
         "back",
         "save",
-        ...(lifecycle?.next?.icon !== undefined ? ["next" as const] : []),
+        ...(foldsNext ? ["next" as const] : []),
         "title",
       ];
   // The title's floor: its first 18 characters and the ellipsis while folding, 6 after the last
@@ -451,19 +476,25 @@ function EditorHeader({
       "data-testid": "editor-menu-preview",
     });
   }
-  // Read-only, the record's own menu is absent; the ⋯ only holds folded tools.
-  const records = readOnly ? [] : (lifecycle?.menu?.items ?? []);
+  // A reading role has no record menu; the ⋯ only holds folded tools.
+  const records = roleReadOnly ? [] : (lifecycle?.menu?.items ?? []);
+  const groups = menuGroups(records);
+  const recordCount =
+    groups === undefined
+      ? records.length
+      : groups.reduce((sum, group) => sum + group.items.length, 0);
   const menu =
-    tools.length + records.length > 0 ? (
+    tools.length + recordCount > 0 ? (
       // `data-slot` marks the ⋯ for an editor that keeps an edit in progress while its menu is used
       // (the slide editor's crop, #349); its menu names the trigger with `aria-labelledby`.
       <span className="contents" data-slot="editor-menu">
         <RowActionMenu
           menu={{
-            label: (readOnly ? undefined : lifecycle?.menu?.label) ?? t("editor.more"),
-            items: records,
+            label: (roleReadOnly ? undefined : lifecycle?.menu?.label) ?? t("editor.more"),
+            items: groups === undefined ? (records as readonly RowMenuItem[]) : [],
           }}
           tools={tools}
+          {...(groups === undefined ? {} : { groups })}
           size="icon-sm"
           variant="ghost"
           data-testid="editor-menu"
@@ -473,7 +504,7 @@ function EditorHeader({
 
   // What the lifecycle group shows: a divider stands only between groups that show something.
   const previewShown = preview !== undefined && !folded("preview");
-  const nextShown = lifecycle?.next !== undefined && !readOnly;
+  const nextShown = lifecycle?.next !== undefined && !roleReadOnly;
 
   return (
     <header
@@ -570,7 +601,8 @@ function EditorHeader({
             {previewShown ? <PreviewButton {...preview} /> : null}
             {shrink > 0 ? null : menu}
             {nextShown ? (
-              <NextStep {...lifecycle.next!} dirty={dirty} iconOnly={folded("next")} />
+              // Content read-only, nothing is saved here, so "Save first" never locks it.
+              <NextStep {...lifecycle.next!} dirty={dirty && !readOnly} iconOnly={folded("next")} />
             ) : null}
             {/* Full bar height: the stretch reaches through the header's vertical padding; wrapped,
                 it spans the action row and the bottom padding only. Only between two groups that
@@ -799,6 +831,7 @@ function NextStep({
   onClick,
   busy,
   disabledText,
+  hint,
   dirty,
   iconOnly,
 }: NonNullable<EditorLifecycle["next"]> & { dirty: boolean; iconOnly: boolean }) {
@@ -826,9 +859,8 @@ function NextStep({
       </IconButtonTooltip>
     );
   }
-  return reason === undefined ? (
-    button
-  ) : (
+  if (reason === undefined) return hint === undefined ? button : <Hint text={hint}>{button}</Hint>;
+  return (
     <Hint text={reason} disabledText={reason}>
       {button}
     </Hint>

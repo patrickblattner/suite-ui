@@ -4102,6 +4102,50 @@ test("editor header: tools, status and read-only", async ({ page }) => {
   await expect(readOnly.getByTestId("gallery-upload-status")).toBeVisible();
 });
 
+// `SUI-FEATURE-119` AC 7: the ⋯ in titled groups with a locked entry's reason in view, and a header
+// whose content is locked by its state keeping its lifecycle.
+for (const theme of THEMES) {
+  test(`editor header: titled menu groups and content read-only (${theme})`, async ({ page }) => {
+    await page.goto(`/?page=editor-bar&lng=en&theme=${theme}`);
+    const content = page.getByTestId("editor-header-content-read-only");
+    expect(
+      await content
+        .locator("[data-slot=editor-actions] [data-testid]")
+        .evaluateAll((nodes) => nodes.map((node) => node.getAttribute("data-testid"))),
+    ).toEqual([
+      "editor-preview",
+      "editor-menu",
+      "editor-next",
+      "editor-lifecycle-separator",
+      "editor-read-only",
+    ]);
+    await expect(content.getByTestId("editor-next")).toBeEnabled();
+
+    await page.getByTestId("editor-header-groups").getByTestId("editor-menu").click();
+    const menu = page.getByRole("menu");
+    await expect(menu.getByTestId("row-menu-group-title")).toHaveText([
+      "Page",
+      "Version · English",
+      "Languages",
+    ]);
+    const remove = menu.getByTestId("gallery-menu-remove-language");
+    await expect(remove).toHaveAccessibleDescription(
+      "English is the default language of this page; make another language the default before you remove it.",
+    );
+    await expect(remove.getByTestId("row-menu-item-hint")).toBeVisible();
+    await parkPointer(page);
+    await expect(menu).toHaveScreenshot(`editor-menu-groups-${theme}.png`);
+
+    // #703 review: the long reason wraps, so the menu stays inside a 390 px screen.
+    await page.keyboard.press("Escape");
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.getByTestId("editor-header-groups").getByTestId("editor-menu").click();
+    const box = (await page.getByRole("menu").boundingBox())!;
+    expect(box.x).toBeGreaterThanOrEqual(0);
+    expect(box.x + box.width).toBeLessThanOrEqual(390);
+  });
+}
+
 // `SUI-FEATURE-104` rev 3, AC 8: at 390 px the read-only text folds like the state (`SUI-FEATURE-090`
 // step 4) to an eye with its text as tooltip and status, before Back and the title shrink; at 1440 px
 // it stays text.

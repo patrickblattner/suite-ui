@@ -505,6 +505,259 @@ describe("EditorHeader tools, status and read-only", () => {
   });
 });
 
+// `SUI-FEATURE-119`
+describe("EditorHeader titled menu groups, content read-only and next-step hint", () => {
+  const groupedMenu = (onRemove = vi.fn()): EditorLifecycle["menu"] => ({
+    label: "More",
+    items: [
+      {
+        title: "Page",
+        items: [
+          { label: "Delete page", onSelect: vi.fn(), destructive: true },
+          { label: "Duplicate page", onSelect: vi.fn() },
+        ],
+      },
+      {
+        title: "Language",
+        items: [
+          {
+            label: "Remove language",
+            onSelect: onRemove,
+            disabled: true,
+            hint: "The default language stays",
+            "data-testid": "menu-remove-language",
+          },
+          { label: "Add language", onSelect: vi.fn() },
+        ],
+      },
+    ],
+  });
+  const openMenu = () => {
+    const trigger = screen.getByTestId("editor-menu");
+    trigger.focus();
+    fireEvent.keyDown(trigger, { key: "Enter" });
+    return screen.getByRole("menu");
+  };
+  const order = () =>
+    [...document.querySelectorAll("[data-slot=editor-actions] [data-testid]")].map((node) =>
+      node.getAttribute("data-testid"),
+    );
+
+  // AC 1
+  it("grouped: titles in order, a separator between groups, the destructive last per group", () => {
+    renderHeader({ lifecycle: { ...lifecycle(), menu: groupedMenu() } });
+    const menu = openMenu();
+    const outline = [...menu.children].map((child) =>
+      child.getAttribute("role") === "separator"
+        ? "—"
+        : [...child.children].map((entry) =>
+            entry.getAttribute("data-slot") === "dropdown-menu-label"
+              ? `# ${entry.textContent}`
+              : (entry.querySelector("[id$=-label]")?.textContent ?? entry.textContent),
+          ),
+    );
+    expect(outline).toEqual([
+      ["# Page", "Duplicate page", "Delete page"],
+      "—",
+      ["# Language", "Remove language", "Add language"],
+    ]);
+    const [page, language] = within(menu).getAllByRole("group");
+    expect(page).toHaveAccessibleName("Page");
+    expect(language).toHaveAccessibleName("Language");
+    for (const title of within(menu).getAllByTestId("row-menu-group-title"))
+      expect(title).toHaveClass("text-muted-foreground");
+  });
+
+  it("grouped: a locked entry shows its reason as a visible muted line, in the keys' path, no tooltip", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const onRemove = vi.fn();
+      renderHeader({ lifecycle: { ...lifecycle(), menu: groupedMenu(onRemove) } });
+      const menu = openMenu();
+      const remove = within(menu).getByTestId("menu-remove-language");
+      expect(remove).toHaveAccessibleName("Remove language");
+      expect(remove).toHaveAccessibleDescription("The default language stays");
+      expect(remove).toHaveAttribute("aria-disabled", "true");
+      const hint = within(remove).getByTestId("row-menu-item-hint");
+      expect(hint).toHaveTextContent("The default language stays");
+      expect(hint).toHaveClass("text-muted-foreground");
+      const items = within(menu).getAllByRole("menuitem");
+      fireEvent.keyDown(menu, { key: "ArrowDown" });
+      for (const item of items) {
+        if (item === remove) break;
+        await waitFor(() => expect(item).toHaveFocus());
+        fireEvent.keyDown(item, { key: "ArrowDown" });
+      }
+      await waitFor(() => expect(remove).toHaveFocus());
+      fireEvent.keyDown(remove, { key: "Enter" });
+      expect(onRemove).not.toHaveBeenCalled();
+      fireEvent.pointerMove(remove, { pointerType: "mouse" });
+      act(() => {
+        vi.advanceTimersByTime(1500);
+      });
+      expect(document.querySelector("[data-slot=tooltip-content]")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // #703 review: the reason keeps its contrast and a long one wraps instead of widening the menu.
+  it("grouped: a locked entry dims only icon and label; a long reason wraps", () => {
+    const reason =
+      "This language is the default of the site and stays until another language has been made the default in the settings.";
+    renderHeader({
+      lifecycle: {
+        ...lifecycle(),
+        menu: {
+          label: "More",
+          items: [
+            {
+              title: "Language",
+              items: [
+                {
+                  label: "Remove language",
+                  icon: <EyeIcon aria-hidden="true" />,
+                  onSelect: vi.fn(),
+                  disabled: true,
+                  hint: reason,
+                  "data-testid": "menu-remove-language",
+                },
+              ],
+            },
+          ],
+        },
+      },
+    });
+    const remove = within(openMenu()).getByTestId("menu-remove-language");
+    expect(remove).toHaveClass("data-[disabled]:opacity-100", "[&>svg]:opacity-50");
+    expect(remove).not.toHaveClass("data-[disabled]:opacity-50");
+    expect(remove.querySelector("[id$=-label]")).toHaveClass("opacity-50");
+    const hint = within(remove).getByTestId("row-menu-item-hint");
+    expect(hint).toHaveTextContent(reason);
+    expect(hint).toHaveClass("max-w-64", "whitespace-normal", "text-muted-foreground");
+    expect(hint).not.toHaveClass("opacity-50");
+  });
+
+  // AC 2
+  it("flat: a locked entry keeps its reason as a tooltip description, no visible line", () => {
+    renderHeader({
+      lifecycle: {
+        ...lifecycle(),
+        menu: {
+          label: "More",
+          items: [{ label: "Archive", onSelect: vi.fn(), disabled: true, hint: "Publish first" }],
+        },
+      },
+    });
+    const menu = openMenu();
+    expect(within(menu).queryByRole("group")).toBeNull();
+    expect(within(menu).queryByTestId("row-menu-item-hint")).toBeNull();
+    const archive = within(menu).getByRole("menuitem", { name: "Archive" });
+    const described = (archive.getAttribute("aria-describedby") ?? "")
+      .split(" ")
+      .map((id) => document.getElementById(id)?.textContent)
+      .join(" ");
+    expect(described).toBe("Publish first");
+  });
+
+  // AC 4
+  it('readOnly="content": Preview · ⋯ · next · divider · Read only; no editor group; next free though dirty', () => {
+    const onClick = vi.fn();
+    const { onUndo } = renderHeader({
+      readOnly: "content",
+      dirty: true,
+      status: uploadStatus,
+      lifecycle: { ...lifecycle({ onClick }), menu: groupedMenu() },
+    });
+    expect(order()).toEqual([
+      "editor-preview",
+      "editor-menu",
+      "editor-next",
+      "editor-lifecycle-separator",
+      "upload-status",
+      "editor-read-only",
+    ]);
+    for (const id of ["editor-undo", "editor-redo", "editor-state", "editor-reset", "editor-save"])
+      expect(screen.queryByTestId(id)).toBeNull();
+    expect(screen.getByTestId("editor-read-only")).toHaveTextContent("Read only");
+    const next = screen.getByTestId("editor-next");
+    expect(next).toBeEnabled();
+    expect(next).not.toHaveAttribute("aria-disabled");
+    fireEvent.click(next);
+    expect(onClick).toHaveBeenCalledTimes(1);
+    expect(within(openMenu()).getAllByRole("group")).toHaveLength(2);
+    fireEvent.keyDown(document.body, { key: "z", metaKey: true });
+    expect(onUndo).not.toHaveBeenCalled();
+  });
+
+  it('readOnly="content" keeps the tools and the app\'s disabledText on next', () => {
+    renderHeader({
+      readOnly: "content",
+      tools: headerTools(),
+      lifecycle: lifecycle({ disabledText: "In review" }),
+    });
+    expect(screen.getByTestId("editor-tool-mode")).toBeInTheDocument();
+    expect(screen.getByTestId("editor-next")).toHaveAccessibleDescription("In review");
+  });
+
+  // AC 5
+  it("readOnly={true} with a grouped menu and next: neither shows", () => {
+    renderHeader({ readOnly: true, lifecycle: { ...lifecycle(), menu: groupedMenu() } });
+    expect(screen.queryByTestId("editor-next")).toBeNull();
+    expect(screen.queryByTestId("editor-menu")).toBeNull();
+  });
+
+  // AC 6
+  describe("next-step hint", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+      vi.stubGlobal(
+        "ResizeObserver",
+        class {
+          observe() {}
+          unobserve() {}
+          disconnect() {}
+        },
+      );
+    });
+    afterEach(() => {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+    });
+    const bubbleAfterHover = () => {
+      fireEvent.pointerMove(screen.getByTestId("editor-next"), { pointerType: "mouse" });
+      const early = document.querySelector("[data-slot=tooltip-content]");
+      act(() => {
+        vi.advanceTimersByTime(1500);
+      });
+      return { early, late: document.querySelector("[data-slot=tooltip-content]") };
+    };
+
+    it("enabled: the hint opens as tooltip after the hint delay and describes next", () => {
+      renderHeader({ lifecycle: lifecycle({ hint: "Sends the page to review" }) });
+      expect(screen.getByTestId("editor-next")).toHaveAccessibleDescription(
+        "Sends the page to review",
+      );
+      const { early, late } = bubbleAfterHover();
+      expect(early).toBeNull();
+      expect(late).toHaveTextContent("Sends the page to review");
+    });
+
+    it("dirty: Save first wins over the hint", () => {
+      renderHeader({ dirty: true, lifecycle: lifecycle({ hint: "Sends the page to review" }) });
+      expect(screen.getByTestId("editor-next")).toHaveAccessibleDescription("Save first");
+      expect(bubbleAfterHover().late).not.toHaveTextContent("Sends the page to review");
+    });
+
+    it("disabledText wins over the hint", () => {
+      renderHeader({
+        lifecycle: lifecycle({ hint: "Sends the page to review", disabledText: "Add a title" }),
+      });
+      expect(screen.getByTestId("editor-next")).toHaveAccessibleDescription("Add a title");
+    });
+  });
+});
+
 // `SUI-FEATURE-105`
 describe("EditorHeader page head", () => {
   // AC 1
@@ -1873,6 +2126,71 @@ describe("EditorHeader at narrow width", () => {
       expect(screen.getByTestId(id)).toBeInTheDocument();
     expect(screen.queryByTestId("editor-tool-mode")).toBeNull();
     expect(screen.getByTestId("page-subtitle")).toHaveClass("truncate");
+  });
+
+  // SUI-FEATURE-119 AC 4: content read-only folds Preview, the text, Back, then the next step.
+  it('readOnly="content" at narrow width folds the next step to its icon, still free and named', () => {
+    available = 300;
+    const onClick = vi.fn();
+    renderHeader({
+      readOnly: "content",
+      dirty: true,
+      lifecycle: lifecycle({ icon: <EyeIcon aria-hidden="true" />, onClick }),
+    });
+    const header = document.querySelector("[data-slot=editor-header]")!;
+    expect(header).toHaveAttribute("data-shrink", "4");
+    expect(inline()).toEqual([
+      "editor-menu",
+      "editor-next",
+      "editor-lifecycle-separator",
+      "editor-read-only",
+    ]);
+    expect(screen.getByTestId("editor-read-only")).toHaveAttribute("data-compact");
+    expect(screen.getByTestId("editor-back")).toHaveAttribute("data-size", "icon-sm");
+    const next = screen.getByTestId("editor-next");
+    expect(next).toHaveAttribute("data-size", "icon");
+    expect(next).toHaveAccessibleName("Publish");
+    expect(next).not.toHaveTextContent("Publish");
+    expect(next).toBeEnabled();
+    fireEvent.click(next);
+    expect(onClick).toHaveBeenCalledTimes(1);
+    expect(within(openMenu()).getByRole("menuitem", { name: "Preview" })).toBeInTheDocument();
+  });
+
+  // SUI-FEATURE-119 AC 3
+  it("at 390 px the header tools lead untitled, then the app's titled groups", () => {
+    available = 390;
+    renderHeader({
+      dirty: true,
+      tools: headerTools(),
+      lifecycle: {
+        ...lifecycle(),
+        menu: {
+          label: "More",
+          items: [
+            { title: "Page", items: [{ label: "Duplicate page", onSelect: vi.fn() }] },
+            { title: "Languages", items: [{ label: "Add language", onSelect: vi.fn() }] },
+          ],
+        },
+      },
+    });
+    const menu = openMenu();
+    const outline = [...menu.children].map((child) =>
+      child.getAttribute("role") === "separator"
+        ? "—"
+        : child.getAttribute("role") === "group"
+          ? `[${child.textContent}]`
+          : child.getAttribute("data-testid"),
+    );
+    const firstSeparator = outline.indexOf("—");
+    expect(outline.slice(0, 2)).toEqual(["editor-menu-tool-mode", "editor-menu-tool-grid"]);
+    expect(outline.slice(0, firstSeparator)).not.toContainEqual(expect.stringMatching(/^\[/));
+    expect(outline.slice(-3)).toEqual(["[PageDuplicate page]", "—", "[LanguagesAdd language]"]);
+    expect(
+      within(menu)
+        .getAllByTestId("row-menu-group-title")
+        .map((el) => el.textContent),
+    ).toEqual(["Page", "Languages"]);
   });
 
   // #519 review: a folded checkbox entry lines up with the plain entries; its check stands last.

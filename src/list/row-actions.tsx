@@ -1,6 +1,6 @@
 import { EllipsisIcon, LinkIcon, PencilIcon, Trash2Icon } from "lucide-react";
 import type { TFunction } from "i18next";
-import type * as React from "react";
+import * as React from "react";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
@@ -11,7 +11,9 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu.js";
@@ -55,6 +57,10 @@ type RowMenuItem = {
   hint?: string;
   "data-testid"?: string;
 };
+
+// A titled group of overflow-menu entries (`SUI-FEATURE-119`): the `EditorHeader`'s ⋯ shows each under
+// its `title`, a separator between groups.
+type RowMenuGroup = { title: string; items: readonly RowMenuItem[] };
 
 // "Used by" (`SUI-FEATURE-004`): how often the entry is used, and whether the preview area shows the
 // `UsageTable` instead of the preview.
@@ -182,6 +188,7 @@ function RowActionMenu({
   size,
   variant = "outline",
   tools = [],
+  groups,
   "data-testid": testId = "row-menu",
 }: {
   menu: NonNullable<RowActionSet["menu"]>;
@@ -190,26 +197,58 @@ function RowActionMenu({
   // A group of its own above `menu.items`, after a separator: the header tools an `EditorHeader`
   // folded in (`SUI-FEATURE-090`).
   tools?: readonly RowMenuItem[];
+  // Titled groups after `menu.items` (`SUI-FEATURE-119`), each after a separator; a locked entry in
+  // them shows its `hint` as a visible muted second line instead of a tooltip.
+  groups?: readonly RowMenuGroup[];
   "data-testid"?: string;
 }) {
   const { t } = useTranslation("suite");
   const plain = menu.items.filter((item) => item.destructive !== true);
   const destructive = menu.items.filter((item) => item.destructive === true);
-  const entry = (item: RowMenuItem) => {
+  // A group without entries shows no title.
+  const shownGroups = (groups ?? []).filter((group) => group.items.length > 0);
+  // `described` is the id base of a grouped entry: locked with a hint, it shows the hint under its
+  // label and names it with `aria-describedby`, the label alone being its name.
+  const entry = (item: RowMenuItem, described?: string) => {
     // A locked entry with a hint stays in the arrow keys' path, so its reason reaches the keyboard
     // too: it is marked `aria-disabled` and ignores the choice instead of being `disabled`.
     const lockedWithReason = item.disabled === true && item.hint !== undefined;
+    const visibleHint = lockedWithReason && described !== undefined;
     // Locked, the entry offers no shortcut (`GL-UI-006` §Sichtbarkeit, #518).
     const shortcut = item.disabled === true ? undefined : item.shortcut;
     const lock = {
       disabled: item.disabled === true && !lockedWithReason,
       ...(lockedWithReason ? { "aria-disabled": true, "data-disabled": "" } : {}),
-      // Its hint opens on the pointer as well.
+      ...(visibleHint
+        ? { "aria-labelledby": `${described}-label`, "aria-describedby": `${described}-hint` }
+        : {}),
+      // Its hint opens on the pointer as well. With its reason in view only the icon and label dim, so
+      // the muted reason keeps its contrast.
       className: lockedWithReason
-        ? "data-[disabled]:pointer-events-auto data-[disabled]:cursor-not-allowed"
+        ? cn(
+            "data-[disabled]:pointer-events-auto data-[disabled]:cursor-not-allowed",
+            visibleHint && "data-[disabled]:opacity-100 [&>svg]:opacity-50",
+          )
         : undefined,
       "data-testid": item["data-testid"] ?? "row-menu-item",
     };
+    const text = visibleHint ? (
+      <span className="flex min-w-0 flex-col">
+        <span id={`${described}-label`} className="opacity-50">
+          {item.label}
+        </span>
+        {/* A long reason wraps instead of widening the menu past a narrow screen. */}
+        <span
+          id={`${described}-hint`}
+          className="max-w-64 text-xs whitespace-normal text-muted-foreground"
+          data-testid="row-menu-item-hint"
+        >
+          {item.hint}
+        </span>
+      </span>
+    ) : (
+      item.label
+    );
     const control =
       item.checked === undefined ? (
         <DropdownMenuItem
@@ -223,7 +262,7 @@ function RowActionMenu({
           }}
         >
           {item.icon}
-          {item.label}
+          {text}
           {shortcut === undefined ? null : (
             <kbd aria-hidden className="ml-auto pl-4 text-xs opacity-70">
               {shortcutChip(shortcut, t("keys.delete"))}
@@ -242,10 +281,10 @@ function RowActionMenu({
           }}
         >
           {item.icon}
-          {item.label}
+          {text}
         </DropdownMenuCheckboxItem>
       );
-    return item.hint === undefined ? (
+    return item.hint === undefined || visibleHint ? (
       control
     ) : (
       <Hint key={item.label} text={item.hint}>
@@ -261,7 +300,9 @@ function RowActionMenu({
             variant={variant}
             size={size}
             // The working state without the lock: the menu still opens to its other entries.
-            loading={menu.items.some((item) => item.busy === true)}
+            loading={[...menu.items, ...shownGroups.flatMap((group) => group.items)].some(
+              (item) => item.busy === true,
+            )}
             data-testid={testId}
           >
             <EllipsisIcon aria-hidden="true" />
@@ -269,16 +310,56 @@ function RowActionMenu({
         </DropdownMenuTrigger>
       </IconButtonTooltip>
       <DropdownMenuContent data-testid={`${testId}-content`}>
-        {tools.map(entry)}
+        {tools.map((item) => entry(item))}
         {tools.length > 0 && plain.length + destructive.length > 0 ? (
           <DropdownMenuSeparator />
         ) : null}
-        {plain.map(entry)}
+        {plain.map((item) => entry(item))}
         {plain.length > 0 && destructive.length > 0 ? <DropdownMenuSeparator /> : null}
-        {destructive.map(entry)}
+        {destructive.map((item) => entry(item))}
+        {shownGroups.length === 0 ? null : (
+          <MenuGroups
+            groups={shownGroups}
+            separated={tools.length + menu.items.length > 0}
+            entry={entry}
+          />
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );
+}
+
+// The titled groups of an overflow menu (`SUI-FEATURE-119`), each under its muted title, a separator
+// before each but a first that leads the menu; destructive entries stand last within their group. Its
+// own component, so the ids it needs leave the flat menu's ids as they were.
+function MenuGroups({
+  groups,
+  separated,
+  entry,
+}: {
+  groups: readonly RowMenuGroup[];
+  separated: boolean;
+  entry: (item: RowMenuItem, described?: string) => React.ReactNode;
+}) {
+  const id = React.useId();
+  return groups.map((group, index) => (
+    <React.Fragment key={group.title}>
+      {index > 0 || separated ? <DropdownMenuSeparator /> : null}
+      <DropdownMenuGroup aria-labelledby={`${id}-${index}`}>
+        <DropdownMenuLabel
+          id={`${id}-${index}`}
+          className="text-xs font-normal text-muted-foreground"
+          data-testid="row-menu-group-title"
+        >
+          {group.title}
+        </DropdownMenuLabel>
+        {[
+          ...group.items.filter((item) => item.destructive !== true),
+          ...group.items.filter((item) => item.destructive === true),
+        ].map((item, at) => entry(item, `${id}-${index}-${at}`))}
+      </DropdownMenuGroup>
+    </React.Fragment>
+  ));
 }
 
 // The name of the "Used by" button, "Usages of ‹rowName› (n)", the row name unescaped as text; without
@@ -462,6 +543,7 @@ export {
   useRowActionButtons,
   type RowAction,
   type RowActionSet,
+  type RowMenuGroup,
   type RowMenuItem,
   type RowActionsProps,
   type RowUsage,
