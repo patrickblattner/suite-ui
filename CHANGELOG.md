@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — #691, SUI-FEATURE-118 rev 2: public `isInLeaveGuardDialog(el)` (minor)
+
+- **New public API (#691):** `@suite/ui/ui/leave-guard` exports `isInLeaveGuardDialog(el: Element | null): boolean`, true for the leave guard's dialog ("Save changes?" and "Discard changes?") and any element inside it, its buttons included, false for any other element and for `null`. A field that commits or discards on blur passes `event.relatedTarget`, so the focus the dialog takes does not count as leaving the field. It is stable across releases; apps no longer query the dialog's DOM themselves.
+- **Marker (#691):** the dialog carries the package-owned `data-leave-guard-dialog` attribute, which the helper reads. `data-testid="leave-guard"` stays a test hook, not a contract. The dialog's behaviour, focus and texts are unchanged.
+- **Tests (#691):** unit: with either dialog variant open (its title asserted, the discard-only one without Save), the helper is true for the dialog and each of its buttons, false for an outside button, the field, `document.body`, `null` and a foreign dialog carrying only `data-testid="leave-guard"` (AC 1); a focused blur-committing field stays unsent when `Esc` opens the guard and its auto-focus moves to Save, and commits when the focus moves to an outside button (AC 2).
+
 ## 0.187.1 — #677, SUI-FEATURE-047 rev 4: `RowActionsHead` right-aligned with its cluster (patch)
 
 - **Changed look (#677):** `RowActionsHead` aligns its text right (`text-right`, `GL-UI-023` rev 10 "Aktions-Spalte rechtsbündig"), so "Actions" ends on the cluster's right edge, also when the column is wider than its cluster. A `className` passed in still merges over it. `RowActions` itself is unchanged and takes no part in the reorder placement, which stays with `ReorderCell` (#675).

@@ -162,6 +162,7 @@ function LeaveConfirmDialog({
         showCloseButton={false}
         returnFocus={() => moved.current ?? workingFocus?.() ?? null}
         data-testid="leave-guard"
+        data-leave-guard-dialog=""
         onOpenAutoFocus={(event) => {
           event.preventDefault();
           (discardOnly ? cancel : save).current?.focus();
@@ -1747,9 +1748,26 @@ function useLeaveGuard({
   return { guard, dialog, saveForm, ownSave };
 }
 
+/**
+ * Whether `element` is the leave guard's dialog or inside it, its buttons included
+ * (`SUI-FEATURE-118`): true for both variants ("Save changes?" and "Discard changes?"), false for
+ * any other element and for `null`. A field that commits or discards on blur passes the blur's
+ * `event.relatedTarget`, so the focus the dialog takes does not count as leaving the field. A draft
+ * whose commit was skipped this way still counts as dirty and must reach `onSave` when the dialog's
+ * Save runs, and must be dropped on Discard. Inside a keyboard-grid list, Cancel returns the focus to
+ * the row entry, not to the field, so an inline field must not rely on a later blur to finish its
+ * draft. Public API: it reads the package's own `data-leave-guard-dialog` marker;
+ * `data-testid="leave-guard"` is a test hook, not a contract, and apps never query the dialog's DOM
+ * themselves.
+ */
+function isInLeaveGuardDialog(element: Element | null): boolean {
+  return element?.closest("[data-leave-guard-dialog]") != null;
+}
+
 export {
   installLeaveGuard,
   isDirty,
+  isInLeaveGuardDialog,
   LeaveGuardWindow,
   type LeaveGuardOptions,
   type LeaveSave,
