@@ -2105,20 +2105,38 @@ describe("EditorHeader at narrow width", () => {
       available = width;
       return need;
     };
-    function InputTitle({ initial, measured = true }: { initial: string; measured?: boolean }) {
+    // `asText` swaps the input for a text title of its value; `second` adds a focusable beside it.
+    function InputTitle({
+      initial,
+      measured = true,
+      asText = false,
+      second = false,
+    }: {
+      initial: string;
+      measured?: boolean;
+      asText?: boolean;
+      second?: boolean;
+    }) {
       const [name, setName] = useState(initial);
       return (
         <EditorHeader
           title={
-            <input
-              aria-label="Name"
-              className="w-full min-w-0"
-              value={name}
-              placeholder="Untitled page"
-              onChange={(event) => setName(event.target.value)}
-            />
+            asText ? (
+              name
+            ) : (
+              <>
+                <input
+                  aria-label="Name"
+                  className="w-full min-w-0"
+                  value={name}
+                  placeholder="Untitled page"
+                  onChange={(event) => setName(event.target.value)}
+                />
+                {second ? <button type="button">Rename</button> : null}
+              </>
+            )
           }
-          {...(measured ? { titleText: name === "" ? "Untitled page" : name } : {})}
+          {...(measured && !asText ? { titleText: name === "" ? "Untitled page" : name } : {})}
           onBack={vi.fn()}
           canUndo
           canRedo
@@ -2134,6 +2152,28 @@ describe("EditorHeader at narrow width", () => {
     }
     const type = (value: string) =>
       fireEvent.change(screen.getByRole("textbox", { name: "Name" }), { target: { value } });
+    // The hold ends in a task after the focus has landed.
+    const settle = () => act(() => new Promise((done) => window.setTimeout(done, 0)));
+    // The step a text title of `value` takes, rendered alone.
+    const textStep = (value: string) => {
+      cleanup();
+      renderHeader({
+        title: value,
+        lifecycle: lifecycle({ icon: <EyeIcon aria-hidden="true" /> }),
+      });
+      return header().getAttribute("data-shrink");
+    };
+    // Renders the input title at a width it fits unfolded, focuses it and types the long value.
+    const typeFocused = (props: { second?: boolean } = {}) => {
+      const view = render(<InputTitle initial="Spring" {...props} />);
+      available = needed() + 50;
+      resize();
+      const input = screen.getByRole("textbox", { name: "Name" });
+      act(() => input.focus());
+      type("Spring newsletter 2026");
+      expect(header()).toHaveAttribute("data-shrink", "0");
+      return { input, view };
+    };
 
     it("sits in the h1, scrolls its own overflow and opens no truncation tooltip", () => {
       render(<InputTitle initial="Spring newsletter" />);
@@ -2157,21 +2197,93 @@ describe("EditorHeader at narrow width", () => {
       expect(screen.getByRole("heading")).toHaveAccessibleName("Untitled page");
     });
 
-    // AC 6: typing to a longer value folds as a text title of that length.
-    it("typing to a longer value measures again and folds as for text", () => {
+    // `SUI-FEATURE-105` rev 4, AC 7: while the focus is inside the title the fold step holds; on blur
+    // the header folds as a text title of that value.
+    it("typing in the focused title holds the fold step; blur folds as for text", async () => {
       render(<InputTitle initial="Spring" />);
       available = needed() + 50;
       resize();
       expect(header()).toHaveAttribute("data-shrink", "0");
+      const input = screen.getByRole("textbox", { name: "Name" });
+      act(() => input.focus());
+      const before = reads;
       type("Spring newsletter 2026");
+      expect(header()).toHaveAttribute("data-shrink", "0");
+      expect(header().querySelector("[data-slot=editor-title] > span")).toHaveTextContent("Spring");
+      expect(reads).toBe(before);
+      act(() => input.blur());
+      await settle();
       const folds = header().getAttribute("data-shrink");
       expect(Number(folds)).toBeGreaterThan(0);
-      cleanup();
-      renderHeader({
-        title: "Spring newsletter 2026",
-        lifecycle: lifecycle({ icon: <EyeIcon aria-hidden="true" /> }),
-      });
-      expect(header()).toHaveAttribute("data-shrink", folds);
+      expect(textStep("Spring newsletter 2026")).toBe(folds);
+    });
+
+    it("focus moving inside the title keeps the hold", async () => {
+      typeFocused({ second: true });
+      act(() => screen.getByRole("button", { name: "Rename" }).focus());
+      await settle();
+      expect(header()).toHaveAttribute("data-shrink", "0");
+      act(() => screen.getByRole("button", { name: "Rename" }).blur());
+      await settle();
+      expect(Number(header().getAttribute("data-shrink"))).toBeGreaterThan(0);
+    });
+
+    // A press that leaves the title ends the hold only once it has ended, so its control acts in place.
+    it("left by a press, the hold ends once the press has ended", async () => {
+      const { input } = typeFocused();
+      const preview = screen.getByTestId("editor-preview");
+      fireEvent.pointerDown(preview);
+      act(() => input.blur());
+      await settle();
+      expect(header()).toHaveAttribute("data-shrink", "0");
+      fireEvent.pointerUp(preview);
+      await settle();
+      expect(Number(header().getAttribute("data-shrink"))).toBeGreaterThan(0);
+    });
+
+    // The ⋯ opened by a press right after typing stays open: the hold lasts while the focus is in its
+    // menu and ends once it has closed.
+    it("a header popup opened right after typing holds it until it closes", async () => {
+      typeFocused();
+      const trigger = screen.getByTestId("editor-menu");
+      fireEvent.pointerDown(trigger, { button: 0, ctrlKey: false, pointerType: "mouse" });
+      const menu = screen.getByRole("menu");
+      act(() => menu.focus());
+      fireEvent.pointerUp(trigger);
+      await settle();
+      await settle();
+      expect(screen.getByRole("menu")).toBeInTheDocument();
+      expect(header()).toHaveAttribute("data-shrink", "0");
+      fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
+      await settle();
+      await settle();
+      expect(screen.queryByRole("menu")).toBeNull();
+      expect(Number(header().getAttribute("data-shrink"))).toBeGreaterThan(0);
+    });
+
+    // An input title swapped for a text title while focused sends no blur; its hold goes with it.
+    it("swapped for a text title while focused, it measures the text title", () => {
+      const { view } = typeFocused();
+      view.rerender(<InputTitle initial="Spring" asText />);
+      const folds = header().getAttribute("data-shrink");
+      expect(Number(folds)).toBeGreaterThan(0);
+      expect(header().querySelector("[data-slot=editor-title] > span")).toHaveTextContent(
+        /^Spring newsletter/,
+      );
+      expect(textStep("Spring newsletter 2026")).toBe(folds);
+    });
+
+    it("a width change measures at once while the title holds the focus", () => {
+      render(<InputTitle initial="Spring" />);
+      available = needed() + 50;
+      resize();
+      const input = screen.getByRole("textbox", { name: "Name" });
+      act(() => input.focus());
+      type("Spring newsletter 2026");
+      available = needed() - 1;
+      resize();
+      expect(Number(header().getAttribute("data-shrink"))).toBeGreaterThan(0);
+      expect(input).toHaveFocus();
     });
 
     it("without titleText the input title's text (none) is measured, as before", () => {
@@ -2182,7 +2294,7 @@ describe("EditorHeader at narrow width", () => {
       expect(header()).toHaveAttribute("data-shrink", "0");
     });
 
-    it("every change of titleText measures again, past the floor as well", () => {
+    it("unfocused, every change of titleText measures again, past the floor as well", () => {
       render(<InputTitle initial="Spring newsletter 2026" />);
       const before = reads;
       type("Spring newsletter 2026 edition");

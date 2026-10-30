@@ -204,7 +204,8 @@ function CompactSign({
 // state; at narrow width that text folds like the state, to an eye (rev 3). `readOnly="content"`
 // (`SUI-FEATURE-119`) drops the editor group the same but keeps the lifecycle. `SUI-FEATURE-105`: the
 // title is the page's `h1`, `subtitle` one muted line under it; a title given as an inline input
-// sits in that `h1`, scrolls its own overflow without a tooltip, and is measured by `titleText`.
+// sits in that `h1`, scrolls its own overflow without a tooltip, and is measured by `titleText`,
+// held while the focus is inside it.
 //
 // `SUI-FEATURE-090`: the header measures its own width. While it overflows one line it folds a step
 // (`Fold`); each step remembers the width it needed, and once the header is that wide again it steps
@@ -282,16 +283,97 @@ function EditorHeader({
       titleBox.current?.querySelector("[data-slot=editor-title-text]")?.textContent ?? "";
     setRenderedTitle(text);
   }, [title, measuredText]);
-  const titleText = measuredText ?? (typeof title === "string" ? title : renderedTitle);
+  // While the focus is inside the title its measured text holds, so the fold step does too and the
+  // input scrolls instead; leaving the title measures the current `titleText` (`SUI-FEATURE-105` rev 4,
+  // like the status in `SUI-FEATURE-104`: controls never move under typing hands).
+  const [heldText, setHeldText] = React.useState<string | undefined>(undefined);
+  // An input title swapped for a text title while it has the focus sends no blur; its hold goes too.
+  if (measuredText === undefined && heldText !== undefined) setHeldText(undefined);
+  const typedText = heldText ?? measuredText;
+  // The hold ends once the focus has landed where it went, so the refold keeps it on that control;
+  // left by a press, once the press has ended, so the pressed control acts where it was pressed.
+  // Opened from the header right after typing (the ⋯ menu), a popup holds it as well: a refold would
+  // remount its trigger and close it. The hold ends once the popup has closed.
+  const pressed = React.useRef(false);
+  const unwatch = React.useRef<(() => void) | null>(null);
+  React.useEffect(() => () => unwatch.current?.(), []);
+  React.useEffect(() => {
+    const down = () => {
+      pressed.current = true;
+    };
+    const up = () => {
+      pressed.current = false;
+    };
+    document.addEventListener("pointerdown", down, true);
+    document.addEventListener("pointerup", up, true);
+    document.addEventListener("pointercancel", up, true);
+    return () => {
+      document.removeEventListener("pointerdown", down, true);
+      document.removeEventListener("pointerup", up, true);
+      document.removeEventListener("pointercancel", up, true);
+    };
+  }, []);
+  const releaseHold = (box: HTMLElement) => {
+    const bar = box.closest("[data-slot=editor-header]");
+    const inPopup = (active: Element) =>
+      [...(bar?.querySelectorAll("[aria-controls]") ?? [])].some((control) =>
+        document.getElementById(control.getAttribute("aria-controls") ?? "")?.contains(active),
+      );
+    const check = () => {
+      const active = document.activeElement;
+      if (active !== null && (box.contains(active) || inPopup(active))) return false;
+      setHeldText(undefined);
+      return true;
+    };
+    const release = () =>
+      window.setTimeout(() => {
+        if (check() || box.contains(document.activeElement)) return;
+        // In a header popup: look again as the focus moves and as a trigger opens or closes.
+        unwatch.current?.();
+        const again = () =>
+          window.setTimeout(() => {
+            if (unwatch.current !== stop) return;
+            if (check() || box.contains(document.activeElement)) stop();
+          });
+        const observer = new MutationObserver(again);
+        if (bar !== null)
+          observer.observe(bar, {
+            subtree: true,
+            attributes: true,
+            attributeFilter: ["aria-expanded", "aria-controls"],
+          });
+        document.addEventListener("focusin", again);
+        document.addEventListener("focusout", again);
+        const stop = () => {
+          observer.disconnect();
+          document.removeEventListener("focusin", again);
+          document.removeEventListener("focusout", again);
+          if (unwatch.current === stop) unwatch.current = null;
+        };
+        unwatch.current = stop;
+      });
+    if (!pressed.current) {
+      release();
+      return;
+    }
+    const end = () => {
+      document.removeEventListener("pointerup", end, true);
+      document.removeEventListener("pointercancel", end, true);
+      release();
+    };
+    document.addEventListener("pointerup", end, true);
+    document.addEventListener("pointercancel", end, true);
+  };
+  const titleText = typedText ?? (typeof title === "string" ? title : renderedTitle);
   const stateText = t(readOnly ? "editor.readOnly" : dirty ? "editor.draft" : "editor.saved");
   // What the header shows: a new language, state text, title floor or lifecycle label folds it
   // afresh, so a shorter text (after Save, or in another language) unfolds again without a resize.
   // Only the title's longest floor counts: typing in a live-bound title refolds nothing. A given
-  // `titleText` counts whole: each change of it measures again (`SUI-FEATURE-105` rev 3).
+  // `titleText` counts whole: each change of it measures again, outside a focused title.
   const content = [
     i18n.language,
     stateText,
-    measuredText ?? titleText.slice(0, TITLE_BUDGET),
+    typedText ?? titleText.slice(0, TITLE_BUDGET),
     lifecycle?.preview?.label,
     lifecycle?.next?.label,
     folds.join(),
@@ -552,7 +634,15 @@ function EditorHeader({
           {t("editor.back")}
         </Button>
       )}
-      <div ref={titleBox} data-slot="editor-title" className="grid flex-1 font-medium">
+      <div
+        ref={titleBox}
+        data-slot="editor-title"
+        className="grid flex-1 font-medium"
+        onFocus={() => setHeldText((held) => held ?? measuredText)}
+        onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget)) releaseHold(event.currentTarget);
+        }}
+      >
         <span
           ref={floorBox}
           aria-hidden="true"

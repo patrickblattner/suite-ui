@@ -4226,21 +4226,46 @@ test("editor header: title as h1, subtitle under it, both truncated at 390 px", 
 
 // `SUI-FEATURE-105` rev 3 AC 6: an input title with an 18-character `titleText` stands at full budget
 // like a text title, the subtitle stays; typed to the long title of the text frame beside it (same
-// subtitle and lifecycle), it folds as that frame does. The input scrolls its overflow, no tooltip.
-// At 900 px the header folds: typed from a short value to the long one, its step rises to the text
-// frame's.
-test("editor header: an input title's fold step rises while typing at 900 px", async ({ page }) => {
-  await page.setViewportSize({ width: 900, height: 900 });
+// subtitle and lifecycle) and left, it folds as that frame does. The input scrolls its overflow, no
+// tooltip.
+// Rev 4 AC 7: at 820 px typing and deleting in the focused title moves no header control; on blur the
+// fold step rises from that of a short value to the text frame's.
+test("editor header: typing in a focused input title moves no control at 820 px", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 820, height: 900 });
   await page.goto("/?page=editor-bar&lng=en");
   const frame = page.getByTestId("editor-header-title-input");
   const bar = frame.locator("[data-slot=editor-header]");
   const input = frame.getByTestId("editor-title-input");
   const text = page.getByTestId("editor-header-subtitle-lifecycle");
   await input.fill("Q3");
+  await input.blur();
   await expect(frame.locator("[data-slot=editor-title] > span")).toHaveText("Q3");
   const short = Number(await bar.getAttribute("data-shrink"));
+  const controls = () =>
+    bar.evaluate((node) =>
+      [...node.querySelectorAll("button")].map((button) => {
+        const box = button.getBoundingClientRect();
+        return `${button.dataset.testid ?? button.getAttribute("aria-label")} ${box.x} ${box.y} ${box.width}`;
+      }),
+    );
+  await input.click();
+  const before = await controls();
   const long = "Autumn campaign landing page for the spring sale";
-  await input.fill(long);
+  await input.press("ControlOrMeta+a");
+  await input.pressSequentially(long);
+  expect(await controls()).toEqual(before);
+  expect(Number(await bar.getAttribute("data-shrink"))).toBe(short);
+  for (let i = 0; i < 12; i += 1) await input.press("Backspace");
+  expect(await controls()).toEqual(before);
+  expect(Number(await bar.getAttribute("data-shrink"))).toBe(short);
+  await input.pressSequentially(long.slice(-12));
+  await expect(input).toHaveValue(long);
+  expect(await controls()).toEqual(before);
+  await expect(input).toBeFocused();
+
+  await input.blur();
   const textStep = Number(
     await text.locator("[data-slot=editor-header]").getAttribute("data-shrink"),
   );
@@ -4248,6 +4273,105 @@ test("editor header: an input title's fold step rises while typing at 900 px", a
   await expect.poll(async () => Number(await bar.getAttribute("data-shrink"))).toBe(textStep);
   await expect(frame.getByTestId("page-subtitle")).toBeVisible();
 });
+
+// Rev 4 AC 7, leaving the title: the hold ends once the focus has landed, or once a press has ended,
+// so a Tab out of the edited title keeps the focus on the control it reached, and a press on Preview
+// where it stood while typing fires it, though the header refolds after.
+const LONG_TITLE = "Autumn campaign landing page for the spring sale";
+
+async function typeLongFocused(page: Page, value = LONG_TITLE) {
+  await page.setViewportSize({ width: 820, height: 900 });
+  await page.goto("/?page=editor-bar&lng=en");
+  const frame = page.getByTestId("editor-header-title-input");
+  const bar = frame.locator("[data-slot=editor-header]");
+  const input = frame.getByTestId("editor-title-input");
+  await input.fill("Q3");
+  await input.blur();
+  await expect(frame.locator("[data-slot=editor-title] > span")).toHaveText("Q3");
+  const short = Number(await bar.getAttribute("data-shrink"));
+  await input.click();
+  await input.press("ControlOrMeta+a");
+  await input.pressSequentially(value);
+  return { bar, input, short };
+}
+
+test("editor header: Tab out of an edited input title keeps the focus on the next control at 820 px", async ({
+  page,
+}) => {
+  const { bar, input, short } = await typeLongFocused(page);
+  await page.keyboard.press("Tab");
+  await expect
+    .poll(async () => Number(await bar.getAttribute("data-shrink")))
+    .toBeGreaterThan(short);
+  await expect(input).not.toBeFocused();
+  expect(
+    await bar.evaluate((node) => {
+      const active = document.activeElement;
+      return (
+        active instanceof HTMLButtonElement &&
+        node.querySelector("[data-slot=editor-actions]")!.contains(active)
+      );
+    }),
+  ).toBe(true);
+});
+
+test("editor header: a press on Preview right after typing fires it at 820 px", async ({
+  page,
+}) => {
+  const { bar, short } = await typeLongFocused(page);
+  await bar.evaluate((node) => {
+    (window as unknown as { previews: number }).previews = 0;
+    node.addEventListener(
+      "click",
+      (event) => {
+        if ((event.target as Element).closest("[data-testid=editor-preview]") !== null)
+          (window as unknown as { previews: number }).previews += 1;
+      },
+      true,
+    );
+  });
+  const box = (await bar.getByTestId("editor-preview").boundingBox())!;
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(80);
+  await page.mouse.up();
+  expect(await page.evaluate(() => (window as unknown as { previews: number }).previews)).toBe(1);
+  await expect
+    .poll(async () => Number(await bar.getAttribute("data-shrink")))
+    .toBeGreaterThan(short);
+});
+
+// A press on ⋯ right after typing opens its menu, which stays open with the focus in it, whether the
+// edit changes the fold step or not; closed, the header folds as for a text title of the value.
+for (const [value, edit] of [
+  [LONG_TITLE, "a step change"],
+  ["Q4", "the same step"],
+] as const) {
+  test(`editor header: ⋯ pressed after typing (${edit}) stays open at 820 px`, async ({ page }) => {
+    const { bar, short } = await typeLongFocused(page, value);
+    const box = (await bar.getByTestId("editor-menu").boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(80);
+    await page.mouse.up();
+    await page.waitForTimeout(300);
+    const menu = page.getByRole("menu");
+    await expect(menu).toBeVisible();
+    expect(await menu.evaluate((node) => node.contains(document.activeElement))).toBe(true);
+    await page.keyboard.press("Escape");
+    await expect(menu).toBeHidden();
+    const textStep =
+      value === LONG_TITLE
+        ? Number(
+            await page
+              .getByTestId("editor-header-subtitle-lifecycle")
+              .locator("[data-slot=editor-header]")
+              .getAttribute("data-shrink"),
+          )
+        : short;
+    await expect.poll(async () => Number(await bar.getAttribute("data-shrink"))).toBe(textStep);
+  });
+}
 
 for (const width of [1280, 1440]) {
   test(`editor header: an input title folds like a text title at ${width} px`, async ({ page }) => {
@@ -4265,6 +4389,7 @@ for (const width of [1280, 1440]) {
     const text = page.getByTestId("editor-header-subtitle-lifecycle");
     const long = "Autumn campaign landing page for the spring sale";
     await input.fill(long);
+    await input.blur();
     await expect(floor).toHaveText(`${long.slice(0, 18)}…`);
     await expect
       .poll(() => bar.getAttribute("data-shrink"))
