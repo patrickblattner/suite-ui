@@ -226,14 +226,28 @@ export function ShellPage({ content }: { content?: ReactNode } = {}) {
   const unavailable = params.get("unavailable") === "1";
   // `&reason=noRole`: their reason is the missing role instead of "not available yet".
   const reason = params.get("reason") === "noRole" ? "noRole" : "notYet";
+  // `&longName=1`: an instance name and a nav label that truncate in the open sidebar (#710); the
+  // label is no catalogue key, so it shows as written.
+  const longName = params.get("longName") === "1";
+  const instanceName = longName ? "Suite gallery community" : SHELL_DATA.instanceName;
+  const nav: NavModel = longName
+    ? {
+        ...NAV,
+        primary: NAV.primary.map((item) =>
+          item.key === "calendar"
+            ? { ...item, labelKey: "Calendar of every community event" }
+            : item,
+        ),
+      }
+    : NAV;
 
   return (
     <MemoryRouter initialEntries={[route]}>
       <SidebarProvider storageKey="gallery.sidebar.open">
         <div className="flex min-h-0 flex-1" data-testid="shell-frame">
           <AppSidebar
-            instanceName={SHELL_DATA.instanceName}
-            nav={NAV}
+            instanceName={instanceName}
+            nav={nav}
             isAllowed={() => true}
             search={<GlobalSearch areas={AREAS} search={search} />}
             onHelp={() => {}}

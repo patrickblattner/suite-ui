@@ -414,6 +414,169 @@ describe("AppSidebar", () => {
     expect(initial).toHaveAttribute("aria-hidden", "true");
   });
 
+  // `GL-UI-016` rev 21 (#710): a clipped label of the open sidebar shows whole, above the hint where
+  // the control has one; one that fits shows only the hint, or nothing.
+  describe("overflow tooltips of the sidebar's labels", () => {
+    // The texts whose `truncate` span is clipped in this test; every other text fits.
+    let clipped: string[] = [];
+    // jsdom's `:focus-visible` follows no input modality: here it is the focused element.
+    beforeEach(() => {
+      clipped = [];
+      vi.useFakeTimers();
+      vi.stubGlobal(
+        "ResizeObserver",
+        class {
+          observe() {}
+          unobserve() {}
+          disconnect() {}
+        },
+      );
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      const matches = Element.prototype.matches;
+      vi.spyOn(Element.prototype, "matches").mockImplementation(function (
+        this: Element,
+        selector: string,
+      ) {
+        if (selector === ":focus-visible") return document.activeElement === this;
+        return matches.call(this, selector);
+      });
+      vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockReturnValue(100);
+      vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockImplementation(function (
+        this: HTMLElement,
+      ) {
+        return this.classList.contains("truncate") && clipped.includes(this.textContent)
+          ? 200
+          : 100;
+      });
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+      vi.unstubAllGlobals();
+      vi.restoreAllMocks();
+    });
+
+    function renderAt(route: string, instanceName = "Test instance") {
+      render(
+        <ShellHarness route={route}>
+          <AppSidebar
+            instanceName={instanceName}
+            nav={TEST_NAV}
+            isAllowed={() => true}
+            onHelp={() => {}}
+            userMenu={<div data-testid="user-block" />}
+          />
+        </ShellHarness>,
+      );
+    }
+
+    function wait(ms: number): void {
+      act(() => {
+        vi.advanceTimersByTime(ms);
+      });
+    }
+
+    function bubble(): Element | null {
+      return document.querySelector("[data-slot=tooltip-content]");
+    }
+
+    // The pointer rests on the label's control for the hint delay.
+    function bubbleAfterHover(testId: string): Element | null {
+      const control = screen.getByTestId(testId);
+      fireEvent.pointerMove(control.querySelector(".truncate") ?? control, {
+        pointerType: "mouse",
+      });
+      wait(1500);
+      return bubble();
+    }
+
+    function lines(element: Element | null): string[] {
+      return [...(element?.querySelectorAll("span.block") ?? [])].map((line) => line.textContent);
+    }
+
+    it("instance name: clipped, the whole name on top, the dashboard hint below", () => {
+      clipped = ["Community-Plattform"];
+      renderAt("/ideas", "Community-Plattform");
+      expect(lines(bubbleAfterHover("sidebar-instance-name"))).toEqual([
+        "Community-Plattform",
+        "Opens the dashboard.",
+      ]);
+    });
+
+    it("instance name: fitting, only the dashboard hint", () => {
+      renderAt("/ideas", "Suite");
+      expect(bubbleAfterHover("sidebar-instance-name")).toHaveTextContent(
+        /^Opens the dashboard\.$/,
+      );
+    });
+
+    it("instance name: keyboard focus on a clipped name shows only the whole name", () => {
+      clipped = ["Community-Plattform"];
+      renderAt("/ideas", "Community-Plattform");
+      fireEvent.keyDown(document.body, { key: "Tab" });
+      act(() => screen.getByTestId("sidebar-instance-name").focus());
+      wait(1500);
+      expect(bubble()).toHaveTextContent(/^Community-Plattform$/);
+    });
+
+    it("nav entry: clipped, the whole label", () => {
+      clipped = ["Ideas"];
+      renderAt("/dashboard");
+      expect(bubbleAfterHover("nav-ideas")).toHaveTextContent(/^Ideas$/);
+    });
+
+    it("nav entry: fitting, no tooltip", () => {
+      renderAt("/dashboard");
+      expect(bubbleAfterHover("nav-ideas")).toBeNull();
+    });
+
+    it("section: clipped, the whole label", () => {
+      clipped = ["Administration"];
+      renderAt("/dashboard");
+      expect(bubbleAfterHover("nav-section-admin")).toHaveTextContent(/^Administration$/);
+    });
+
+    it("section: fitting, no tooltip", () => {
+      renderAt("/dashboard");
+      expect(bubbleAfterHover("nav-section-admin")).toBeNull();
+    });
+
+    it("back link: clipped, the section's whole name above its hint", () => {
+      clipped = ["Administration"];
+      renderAt("/admin/users");
+      expect(lines(bubbleAfterHover("nav-back"))).toEqual(["Administration", "Back to dashboard"]);
+    });
+
+    it("back link: fitting, only its hint", () => {
+      renderAt("/admin/users");
+      expect(bubbleAfterHover("nav-back")).toHaveTextContent(/^Back to dashboard$/);
+    });
+
+    it("help: clipped, the whole label above its hint", () => {
+      clipped = ["Help"];
+      renderAt("/dashboard");
+      expect(lines(bubbleAfterHover("help-button"))).toEqual([
+        "Help",
+        "Opens the help with guides to every area.",
+      ]);
+    });
+
+    it("help: fitting, only its hint", () => {
+      renderAt("/dashboard");
+      expect(bubbleAfterHover("help-button")).toHaveTextContent(
+        /^Opens the help with guides to every area\.$/,
+      );
+    });
+
+    it("collapsed: no label span, so nothing to clip (the entry's hint names it, as before)", () => {
+      clipped = ["Ideas"];
+      onTestFinished(() => localStorage.clear());
+      renderAt("/dashboard");
+      fireEvent.click(screen.getByTestId("sidebar-trigger"));
+      expect(screen.getByTestId("nav-ideas").querySelector(".truncate")).toBeNull();
+    });
+  });
+
   // `SUI-FEATURE-102`: a focused entry scrolls fully into view, its ring clear of the area's edges.
   it("a keyboard-focused entry scrolls into view inside the padded nav area", () => {
     const scrolled = vi.fn();

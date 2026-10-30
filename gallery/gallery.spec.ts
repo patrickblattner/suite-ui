@@ -6838,6 +6838,30 @@ for (const lng of LANGUAGES) {
   });
 }
 
+// `GL-UI-016` rev 21 (#710): the truncated instance name shows whole above the dashboard hint, a
+// truncated nav label whole in its own tooltip; the sidebar keeps its width (`GL-UI-019` rev 9).
+test("shell: a truncated instance name and nav label show whole in a tooltip", async ({ page }) => {
+  await page.goto("/?page=shell&route=/dashboard&lng=en&longName=1");
+  const isClipped = (node: Element) => node.scrollWidth > node.clientWidth;
+  const block = page.getByTestId("sidebar-instance-name");
+  const name = block.locator(".truncate");
+  await expect.poll(() => name.evaluate(isClipped)).toBe(true);
+  expect((await box(page.getByTestId("app-sidebar"))).width).toBe(224);
+  await block.hover();
+  const lines = page.locator("[data-slot=tooltip-content] span.block");
+  await expect(lines.nth(0)).toHaveText("Suite gallery community");
+  await expect(lines.nth(1)).toHaveText("Opens the dashboard.");
+
+  const label = page.getByTestId("nav-calendar").locator(".truncate");
+  await expect.poll(() => label.evaluate(isClipped)).toBe(true);
+  await page.mouse.move(1900, 1060);
+  await expect(page.locator("[data-slot=tooltip-content]")).toHaveCount(0);
+  await label.hover();
+  await expect(page.locator("[data-slot=tooltip-content]")).toHaveText(
+    "Calendar of every community event",
+  );
+});
+
 test("shell: a deep link opens the section; the mark stays without the pointer", async ({
   page,
 }) => {

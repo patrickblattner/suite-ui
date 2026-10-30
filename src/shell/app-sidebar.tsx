@@ -7,6 +7,7 @@ import { cn } from "../lib/cn.js";
 import { useEscapeLayer } from "../lib/escape-layers.js";
 import { useModalOverlay } from "../lib/modal-overlay.js";
 import { Hint, type HintProps } from "../ui/hint.js";
+import { OverflowTooltip } from "../ui/tooltip.js";
 import {
   allowedModel,
   DEFAULT_HOME_PATH,
@@ -209,7 +210,11 @@ function AppSidebar({
                 </span>
               )}
             </span>
-            {isOpen && <span className="truncate">{label}</span>}
+            {isOpen && (
+              <OverflowTooltip text={label}>
+                <span className="truncate">{label}</span>
+              </OverflowTooltip>
+            )}
             {count > 0 && isOpen && (
               <span
                 data-testid={countTestId}
@@ -250,7 +255,11 @@ function AppSidebar({
             className={cn(rowClass, !isOpen && "justify-center px-0")}
           >
             <Icon className="size-4 shrink-0" aria-hidden="true" />
-            {isOpen && <span className="truncate">{label}</span>}
+            {isOpen && (
+              <OverflowTooltip text={label}>
+                <span className="truncate">{label}</span>
+              </OverflowTooltip>
+            )}
           </button>,
         )}
       </li>
@@ -313,7 +322,10 @@ function AppSidebar({
               >
                 {/* Neutral block (`GL-UI-019`): the primary colour only in the initial square. */}
                 <InitialSquare name={instanceName} testId="sidebar-instance-initial" />
-                <span className="truncate">{instanceName}</span>
+                {/* A clipped name shows whole above the hint text (`GL-UI-016` rev 21). */}
+                <OverflowTooltip text={instanceName}>
+                  <span className="truncate">{instanceName}</span>
+                </OverflowTooltip>
               </button>
             </Hint>
           )}
@@ -358,7 +370,11 @@ function AppSidebar({
                     className={cn(rowClass, "font-medium", !isOpen && "justify-center px-0")}
                   >
                     <ChevronLeftIcon className="size-4 shrink-0" aria-hidden="true" />
-                    {isOpen && <span className="truncate">{i18n.t(activeSection.labelKey)}</span>}
+                    {isOpen && (
+                      <OverflowTooltip text={i18n.t(activeSection.labelKey)}>
+                        <span className="truncate">{i18n.t(activeSection.labelKey)}</span>
+                      </OverflowTooltip>
+                    )}
                   </button>
                 </Hint>
               </li>
@@ -385,7 +401,11 @@ function AppSidebar({
                           className={cn(rowClass, !isOpen && "justify-center px-0")}
                         >
                           <HELP_ICON className="size-4 shrink-0" aria-hidden="true" />
-                          {isOpen && <span className="truncate">{helpLabel}</span>}
+                          {isOpen && (
+                            <OverflowTooltip text={helpLabel}>
+                              <span className="truncate">{helpLabel}</span>
+                            </OverflowTooltip>
+                          )}
                         </button>
                       </Hint>
                     </li>
