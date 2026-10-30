@@ -771,3 +771,4 @@
 {"ts":"2026-10-30T14:25:01.724Z","key":"SUI-FEATURE-121","from":null,"to":2,"disposition":"ticket","ref":"704"}
 {"ts":"2026-10-30T16:52:09.852Z","key":"SUI-FEATURE-105","from":2,"to":3,"disposition":"ticket","ref":"707"}
 {"ts":"2026-10-30T18:03:12.402Z","key":"SUI-FEATURE-105","from":3,"to":4,"disposition":"ticket","ref":"708"}
+{"ts":"2026-10-30T19:17:50.343Z","key":"PROC-CC-002","from":null,"to":2,"disposition":"editorial","ref":"process rule for agent sessions (no macOS privacy dialogs); repo has no osascript/screencapture — no code impact"}
