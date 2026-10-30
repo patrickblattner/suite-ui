@@ -1406,7 +1406,13 @@ function Editor({
     setCropping(undefined);
     apply(() => saved);
   };
-  const { guard, dialog } = useEditorLeaveGuard({
+  // The header's pair follows the guard's one dirty state, field drafts on the page included
+  // (`SUI-FEATURE-118` rev 8).
+  const {
+    guard,
+    dialog,
+    dirty: guardDirty,
+  } = useEditorLeaveGuard({
     dirty,
     saving,
     saveFailed,
@@ -3748,7 +3754,7 @@ function Editor({
           canRedo={(history.canRedo || adopting !== undefined) && cropping === undefined}
           onUndo={() => travelKey("undo")}
           onRedo={() => travelKey("redo")}
-          dirty={dirty}
+          dirty={guardDirty}
           saving={saving}
           onSave={() => void save()}
           onReset={reset}

@@ -7,7 +7,8 @@ type SettingsFooterProps = {
   // The stem of the button testids; defaults to `settings-<pageKey>`. Given, the button row also
   // carries `<testIdPrefix>-actions`.
   testIdPrefix?: string;
-  // The form differs from the loaded state. Only then are Reset and Save usable.
+  // The form differs from the loaded state. Only then are Reset and Save usable. Under a leave guard pass
+  // `useLeaveGuard().dirty`, which counts a field's uncommitted entry too (`SUI-FEATURE-118` rev 8).
   dirty: boolean;
   // The form holds an entry that cannot be saved: Save stays locked while Reset still follows `dirty`.
   valid?: boolean;

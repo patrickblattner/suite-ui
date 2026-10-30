@@ -4,7 +4,9 @@ import { useTranslation } from "react-i18next";
 import { cn } from "../lib/cn.js";
 import { usePopupPlacement } from "../lib/popup-placement.js";
 import { Badge } from "./badge.js";
+import { useFieldDraft } from "./field-drafts-internal.js";
 import { useFieldErrorAttributes } from "./field-error.js";
+import { isInLeaveGuardDialog } from "./leave-guard.js";
 import { READ_ONLY_LOOK } from "./read-only-look-internal.js";
 import { RemovableChip } from "./removable-chip.js";
 
@@ -185,9 +187,8 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
     [...(suggestions ?? [])].reverse().map((tag) => [tag.toLowerCase(), tag]),
   );
 
-  // Takes the typed text over; `picked` replaces the text after the last comma.
-  const commit = (picked?: string) => {
-    if (readOnly) return;
+  // The tags the typed text adds; `picked` replaces the text after the last comma.
+  const adding = (picked?: string) => {
     const known = new Set(value.map((tag) => tag.toLowerCase()));
     const added: string[] = [];
     const parts = draft.split(",");
@@ -199,6 +200,13 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
       known.add(tag.toLowerCase());
       added.push(tag);
     }
+    return added;
+  };
+
+  // Takes the typed text over; `picked` replaces the text after the last comma.
+  const commit = (picked?: string) => {
+    if (readOnly) return;
+    const added = adding(picked);
     if (added.length > 0) {
       onChange([...value, ...added]);
       // Several tags from one entry are announced together (`SUI-FEATURE-052`).
@@ -212,6 +220,20 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
     current.current = "";
     setActive(null);
   };
+
+  // The typed text is a change for a surrounding leave guard or edit panel: its Save takes it over,
+  // its Discard drops it (`SUI-FEATURE-118` rev 6). Only text that adds a tag counts as a change; a
+  // duplicate or bare commas do not, but go as well once the surface leaves, so nothing of them
+  // reaches the next entry.
+  useFieldDraft(!readOnly && !disabled && draft.trim() !== "", {
+    counts: adding().length > 0,
+    flush: () => commit(),
+    discard: () => {
+      setDraft("");
+      current.current = "";
+      setActive(null);
+    },
+  });
 
   // Places the open list; Esc closes the list only, not a surrounding dialog: radix listens on the
   // document in the capture phase, so this listener sits one step earlier, on the window.
@@ -350,6 +372,12 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
         }}
         onBlur={(event) => {
           setFocused(false);
+          // A blur into the leave guard's dialog is no leaving: the typed tag stays a draft, and a list
+          // closed with Esc stays closed on Cancel (SUI-FEATURE-118).
+          if (isInLeaveGuardDialog(event.relatedTarget)) {
+            onBlur?.(event);
+            return;
+          }
           setDismissed(false);
           if (current.current.trim() !== "") commit();
           onBlur?.(event);

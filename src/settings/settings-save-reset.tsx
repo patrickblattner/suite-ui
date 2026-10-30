@@ -3,6 +3,7 @@ import * as React from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "../ui/button.js";
+import { FieldDraftsContext, useHasFieldDrafts } from "../ui/field-drafts-internal.js";
 import { useFocusAfterRun } from "../ui/focus-return.js";
 import { Hint } from "../ui/hint.js";
 import { submitLocked } from "../ui/field-error.js";
@@ -45,6 +46,9 @@ function SaveResetButtons({
   const { t } = useTranslation("suite");
   const save = React.useRef<HTMLButtonElement>(null);
   const clean = !dirty && valid && !saving;
+  // A field's typed but uncommitted entry around the pair (`SUI-FEATURE-118` rev 8): Reset drops it.
+  const drafts = React.useContext(FieldDraftsContext) ?? undefined;
+  const hasDrafts = useHasFieldDrafts(drafts);
   useFocusAfterRun(save, saving);
   return (
     <>
@@ -70,8 +74,15 @@ function SaveResetButtons({
             variant="destructive"
             size="default"
             {...(dirty ? {} : { "aria-disabled": true })}
+            // Keeps the focus in the field, so its blur does not take a typed tag over (and announce
+            // it) just before Reset drops it.
+            onMouseDown={(event) => {
+              if (hasDrafts) event.preventDefault();
+            }}
             onClick={() => {
-              if (dirty) onReset();
+              if (!dirty) return;
+              drafts?.discard();
+              onReset();
             }}
             data-testid={`${stem}-reset`}
           >

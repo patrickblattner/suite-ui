@@ -4,9 +4,11 @@ import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
 import { usePopupPlacement } from "../lib/popup-placement.js";
+import { useFieldDraft } from "./field-drafts-internal.js";
 import { useFieldErrorAttributes } from "./field-error.js";
 import { WithFieldValueHint } from "./field-value-hint.js";
 import { Hint } from "./hint.js";
+import { isInLeaveGuardDialog } from "./leave-guard.js";
 
 // The IANA zones of the runtime's own Intl database (`GL-UI-030` §Zeitzonen-Feld).
 const TIME_ZONES: readonly string[] = Intl.supportedValuesOf("timeZone");
@@ -90,6 +92,10 @@ function TimezoneCombobox({
     setOpen(false);
     setQuery("");
   }, []);
+  // A list the leave guard's dialog left open is no change, but it closes and drops its query once
+  // the surface leaves with Save or Discard, so nothing of it reaches the next entry
+  // (`SUI-FEATURE-118` rev 6).
+  useFieldDraft(open, { counts: false, flush: close, discard: close });
 
   const openList = () => {
     if (disabled || open) return;
@@ -112,12 +118,16 @@ function TimezoneCombobox({
       if (event.target instanceof Element && event.target.closest("[data-slot=tooltip-content]")) {
         return;
       }
+      // A press in the leave guard's dialog belongs to the dialog; staying keeps list and query.
+      if (isInLeaveGuardDialog(event.target)) return;
       if (!rootRef.current?.contains(event.target as Node)) close();
     };
     // Escape closes the list only, not a surrounding dialog: radix listens on the document in the
     // capture phase, so this listener sits one step earlier, on the window.
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
+      // An Escape in the leave guard's dialog is the dialog's Cancel, not the list's.
+      if (isInLeaveGuardDialog(event.target)) return;
       event.stopPropagation();
       close();
     };
@@ -190,6 +200,8 @@ function TimezoneCombobox({
       }}
       onKeyDown={onKeyDown}
       onBlur={(event) => {
+        // A blur into the leave guard's dialog is no leaving: the list stays open (SUI-FEATURE-118).
+        if (isInLeaveGuardDialog(event.relatedTarget)) return;
         if (!rootRef.current?.contains(event.relatedTarget)) close();
       }}
       className="h-9 w-full min-w-0 rounded-md border border-input bg-transparent py-1 pr-9 pl-3 text-base shadow-xs transition-[color,box-shadow] outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:focus-ring disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 aria-invalid:border-destructive md:text-sm dark:bg-input/30"

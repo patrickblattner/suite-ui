@@ -13,6 +13,7 @@ import { cn } from "../lib/cn.js";
 import { PANEL_SURFACE_CLASS, usePanelGeometry } from "../lib/panel-geometry.js";
 import { Button } from "./button.js";
 import { FIELD_SELECTOR } from "./dialog.js";
+import { createFieldDrafts, FieldDraftsContext } from "./field-drafts-internal.js";
 import { FieldSubmitContext, submitLocked, useFieldSubmits } from "./field-error.js";
 import { Hint } from "./hint.js";
 import { useLeaveConfirm } from "./leave-guard.js";
@@ -165,11 +166,14 @@ function EditPanel({
   }[submitKind];
   const returnFocus = React.useRef<HTMLElement | null>(null);
   const submit = React.useRef<HTMLButtonElement>(null);
+  // The typed but uncommitted entries of the panel's own fields (`SUI-FEATURE-118` rev 6).
+  const [fieldDrafts] = React.useState(createFieldDrafts);
   const { guard, step, dialog, working, run } = useLeaveConfirm({
     dirty: open && dirty && !view,
     busy: open && busyProp,
     open,
     draft,
+    fieldDrafts,
     // Without `onSubmit` the panel has no save target, and a next step saves nothing and never runs
     // from the dialog (`SUI-FEATURE-094`): the dialog asks "Discard changes?".
     onSave:
@@ -204,7 +208,7 @@ function EditPanel({
   const [submits, submitted] = useFieldSubmits();
   const fields = (
     <FieldSubmitContext.Provider value={view ? null : submits}>
-      {children}
+      <FieldDraftsContext.Provider value={fieldDrafts}>{children}</FieldDraftsContext.Provider>
     </FieldSubmitContext.Provider>
   );
 

@@ -3,7 +3,8 @@ import type * as React from "react";
 import { SaveResetButtons } from "./settings-save-reset.js";
 
 type SettingsActionRowBase = {
-  // The entry differs from its loaded state. Only then are Reset and Save usable.
+  // The entry differs from its loaded state. Only then are Reset and Save usable. Under a leave guard pass
+  // `useLeaveGuard().dirty`, which counts a field's uncommitted entry too (`SUI-FEATURE-118` rev 8).
   dirty: boolean;
   // The entry holds a value that cannot be saved: Save stays locked while Reset still follows `dirty`.
   valid?: boolean;

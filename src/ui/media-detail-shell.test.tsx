@@ -15,6 +15,7 @@ import {
   type MediaDetailShellProps,
   MediaUsageList,
 } from "./media-detail-shell.js";
+import { TagInput } from "./tag-input.js";
 
 afterEach(async () => {
   cleanup();
@@ -946,5 +947,71 @@ describe("MediaDetailShell field errors", () => {
     expect(screen.getByText("Enter a title.")).toBeInTheDocument();
     expect(screen.getByText("Describe the image.")).toBeInTheDocument();
     await waitFor(() => expect(screen.getByLabelText("Title")).toHaveFocus());
+  });
+});
+
+// #694, SUI-FEATURE-118 rev 6: a typed but uncommitted tag in the shell's fields is a change, for its
+// own Reset/Save pair as for its leave guard; Reset drops it.
+describe("MediaDetailShell with an uncommitted tag", () => {
+  it("unlocks Reset and Save, and Reset drops the draft", () => {
+    const handlers = renderShell({ fields: <TagInput value={[]} onChange={() => {}} /> });
+    const reset = screen.getByTestId("media-detail-reset");
+    const save = screen.getByTestId("media-detail-save");
+    expect(reset).toBeDisabled();
+    expect(save).toHaveAttribute("aria-disabled", "true");
+    const field = screen.getByTestId("tag-input-input");
+    fireEvent.change(field, { target: { value: "draft" } });
+    expect(reset).toBeEnabled();
+    expect(save).not.toHaveAttribute("aria-disabled");
+    fireEvent.click(reset);
+    expect(handlers.onReset).toHaveBeenCalledTimes(1);
+    expect(field).toHaveValue("");
+    expect(reset).toBeDisabled();
+  });
+});
+
+// #694: a submit without a blur takes the typed tag over first and saves the value with
+// it; Reset with a typed tag keeps the focus in the field, so no tag is taken over and announced.
+describe("MediaDetailShell submit and Reset with an uncommitted tag", () => {
+  function TaggedShell({ save }: { save: (tags: string[]) => void }) {
+    const [tags, setTags] = React.useState<string[]>([]);
+    return (
+      <MediaDetailShell
+        position={3}
+        total={65}
+        kind="image"
+        src="/media/team-photo.jpg"
+        alt="team-photo.jpg"
+        dirty={tags.length > 0}
+        saving={false}
+        fields={<TagInput value={tags} onChange={setTags} />}
+        onPrev={() => {}}
+        onNext={() => {}}
+        onClose={() => {}}
+        onSave={() => save(tags)}
+        onReset={() => setTags([])}
+      />
+    );
+  }
+
+  it("a submit saves the value including the typed tag", async () => {
+    const save = vi.fn();
+    render(<TaggedShell save={save} />);
+    const field = screen.getByTestId("tag-input-input");
+    fireEvent.change(field, { target: { value: "draft" } });
+    fireEvent.submit(field.closest("form")!);
+    await waitFor(() => expect(save).toHaveBeenCalledWith(["draft"]));
+    expect(save).toHaveBeenCalledTimes(1);
+  });
+
+  it("Reset keeps the focus in the field while a tag is typed", () => {
+    render(<TaggedShell save={() => {}} />);
+    const reset = screen.getByTestId("media-detail-reset");
+    expect(fireEvent.mouseDown(reset)).toBe(true);
+    fireEvent.change(screen.getByTestId("tag-input-input"), { target: { value: "draft" } });
+    expect(fireEvent.mouseDown(reset)).toBe(false);
+    fireEvent.click(reset);
+    expect(screen.getByTestId("tag-input-input")).toHaveValue("");
+    expect(screen.queryAllByTestId("tag-input-chip")).toHaveLength(0);
   });
 });

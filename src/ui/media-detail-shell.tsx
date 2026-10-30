@@ -19,6 +19,11 @@ import { isTextField } from "../lib/keyboard.js";
 import { type RowAction, type RowUsage, useRowActionButtons } from "../list/row-actions.js";
 import { PANEL_SURFACE_CLASS, usePanelGeometry } from "../lib/panel-geometry.js";
 import { Button } from "./button.js";
+import {
+  createFieldDrafts,
+  FieldDraftsContext,
+  useHasFieldDrafts,
+} from "./field-drafts-internal.js";
 import { FieldSubmitContext, useFieldSubmits } from "./field-error.js";
 import { Hint } from "./hint.js";
 import { useLeaveConfirm } from "./leave-guard.js";
@@ -379,11 +384,27 @@ function MediaDetailShell({
   // A submit shows every field's error and focuses the first invalid field (`GL-UI-038`).
   const [submits, submitted] = useFieldSubmits();
   const pickSlot = React.useRef<HTMLSpanElement>(null);
+  // The typed but uncommitted entries of the shell's own fields (`SUI-FEATURE-118` rev 6): they make
+  // the Reset/Save pair dirty as they make the guard ask.
+  const [fieldDrafts] = React.useState(createFieldDrafts);
+  const hasFieldDrafts = useHasFieldDrafts(fieldDrafts);
+  const changed = dirty || hasFieldDrafts;
   const { guard, dialog } = useLeaveConfirm({
     dirty: open && dirty,
     busy: open && saving,
     onSave: () => (dirty ? onSave() : false),
+    fieldDrafts,
   });
+  // A submit with a field's entry takes it over first and saves once the call site has rendered with
+  // it, so `onSave` reads the value including it, as the leave dialog's Save does.
+  const flushedSave = React.useRef(false);
+  const [flushes, setFlushes] = React.useState(0);
+  React.useEffect(() => {
+    if (!flushedSave.current) return;
+    flushedSave.current = false;
+    if (dirty && !saving) void onSave();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once per flush
+  }, [flushes]);
   const first = position <= 1;
   const last = position >= total;
   const previous = () => {
@@ -468,7 +489,12 @@ function MediaDetailShell({
             onSubmit={(event) => {
               event.preventDefault();
               if (!saving) submitted(event.currentTarget);
-              if (dirty && !saving) void onSave();
+              if (saving) return;
+              if (fieldDrafts.any()) {
+                fieldDrafts.flush();
+                flushedSave.current = true;
+                setFlushes((count) => count + 1);
+              } else if (dirty) void onSave();
             }}
           >
             <div data-slot="media-detail-split" className="@container min-h-0 flex-1">
@@ -588,7 +614,9 @@ function MediaDetailShell({
                     slots[slot] === undefined ? null : (
                       <div key={slot} data-slot={`media-detail-${slot}`}>
                         <FieldSubmitContext.Provider value={submits}>
-                          {slots[slot]}
+                          <FieldDraftsContext.Provider value={fieldDrafts}>
+                            {slots[slot]}
+                          </FieldDraftsContext.Provider>
                         </FieldSubmitContext.Provider>
                       </div>
                     ),
@@ -606,8 +634,16 @@ function MediaDetailShell({
                 type="button"
                 variant="destructive"
                 size="default"
-                disabled={!dirty || saving}
-                onClick={onReset}
+                disabled={!changed || saving}
+                // Keeps the focus in the field, so its blur does not take a typed tag over (and
+                // announce it) just before Reset drops it.
+                onMouseDown={(event) => {
+                  if (hasFieldDrafts) event.preventDefault();
+                }}
+                onClick={() => {
+                  fieldDrafts.discard();
+                  onReset();
+                }}
                 data-testid="media-detail-reset"
               >
                 <RotateCcwIcon aria-hidden="true" />
@@ -621,7 +657,7 @@ function MediaDetailShell({
                   type="submit"
                   variant="success"
                   size="default"
-                  {...(dirty ? {} : { "aria-disabled": true })}
+                  {...(changed ? {} : { "aria-disabled": true })}
                   busy={saving}
                   data-testid="media-detail-save"
                 >

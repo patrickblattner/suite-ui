@@ -14,6 +14,7 @@ import { cn } from "../lib/cn.js";
 import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
 import { Button } from "./button.js";
 import { ConfirmDeleteDialog } from "./confirm-delete-dialog.js";
+import { FieldDraftsContext, useHasFieldDrafts } from "./field-drafts-internal.js";
 import { captureOpener, fallbackTarget, type Opener, returnFocus } from "./focus-return.js";
 import { Hint } from "./hint.js";
 import { type LeaveSave, useLeaveGuard } from "./leave-guard.js";
@@ -217,6 +218,10 @@ function EditorHeader({
 }: EditorHeaderProps) {
   const { t, i18n } = useTranslation("suite");
   const [confirming, setConfirming] = React.useState(false);
+  // A field's typed but uncommitted entry on the page (`SUI-FEATURE-118` rev 8): Reset drops it
+  // before its confirm takes the focus, whose blur would else take the tag over.
+  const drafts = React.useContext(FieldDraftsContext) ?? undefined;
+  const hasDrafts = useHasFieldDrafts(drafts);
   useEditShortcuts({
     onUndo: canUndo && !readOnly ? onUndo : undefined,
     onRedo: canRedo && !readOnly ? onRedo : undefined,
@@ -670,7 +675,13 @@ function EditorHeader({
               variant="outline"
               size="default"
               {...(resetLock ? { "aria-disabled": true } : {})}
-              onClick={() => setConfirming(true)}
+              onMouseDown={(event) => {
+                if (hasDrafts) event.preventDefault();
+              }}
+              onClick={() => {
+                if (!resetLock) drafts?.discard();
+                setConfirming(true);
+              }}
               data-testid="editor-reset"
             >
               <RotateCcwIcon aria-hidden="true" />
@@ -847,7 +858,8 @@ type EditorLeaveGuardOptions = {
  * The leave guard of an editor page (`GL-UI-034`, `GL-UI-007`): with an unsaved draft `Esc`, Back,
  * the navigation, browser back and every route change ask "Save changes?" first. Discard calls
  * `onReset`, Save calls `onSave`; on success the held way goes on. Wrap the page's Back in `guard`
- * and render `dialog`.
+ * and render `dialog`. Pass its `dirty` (the passed one merged with a field's uncommitted entry,
+ * `useLeaveGuard`) to `EditorHeader`, so the header never shows "Saved" while the guard would ask.
  */
 function useEditorLeaveGuard({
   dirty,

@@ -6,6 +6,7 @@ import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
 import { Button } from "./button.js";
+import { FieldDraftsContext } from "./field-drafts-internal.js";
 import {
   captureOpener,
   type Opener,
@@ -147,7 +148,9 @@ function DialogContent({
         }}
         {...props}
       >
-        {children}
+        {/* A plain dialog is a boundary: its fields' entries never reach the page's leave guard; its
+            own confirm decides them (`SUI-FEATURE-118` rev 7). */}
+        <FieldDraftsContext.Provider value={null}>{children}</FieldDraftsContext.Provider>
         {showCloseButton && (
           <DialogPrimitive.Close
             data-slot="dialog-close"

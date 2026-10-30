@@ -34,6 +34,7 @@ import { Dialog, DialogContent, DialogTitle } from "./dialog.js";
 import { EditPanel, type EditPanelProps } from "./edit-panel.js";
 import { Input } from "./input.js";
 import { installLeaveGuard, isDirty, LeaveGuardWindow, useLeaveGuard } from "./leave-guard.js";
+import { TagInput } from "./tag-input.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./select.js";
 import { Switch } from "./switch.js";
 
@@ -3017,6 +3018,38 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
       expect(screen.queryByTestId("leave-guard")).toBeNull();
     },
   );
+
+  // #694 (SUI-FEATURE-118 rev 6): a Discard confirmed during a submission drops a field's typed
+  // tag along with the deferred reset; a second guard on the page does not ask again as it goes.
+  it("#694: Discard during a submission with a typed tag lets the change go without a second question", async () => {
+    const { action, settle } = submission(() => null);
+    const first = vi.fn();
+    const second = vi.fn();
+    function Tags() {
+      const [tags, setTags] = useState<string[]>([]);
+      return <TagInput value={tags} onChange={setTags} />;
+    }
+    const router = submittingRouter(action, {
+      page: (
+        <SpyPage onDiscard={first}>
+          <SpyPage onDiscard={second} label="Other" />
+          <Tags />
+        </SpyPage>
+      ),
+    });
+    await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+    const field = screen.getByTestId("tag-input-input");
+    act(() => field.focus());
+    fireEvent.change(field, { target: { value: "draft" } });
+    fireEvent.click(screen.getAllByTestId("go")[0]!);
+    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+    await pause();
+    await settleAndWait(settle);
+    await waitFor(() => expect(router.state.location.pathname).toBe("/elsewhere"));
+    expect(screen.queryByTestId("leave-guard")).toBeNull();
+    expect(first).toHaveBeenCalledTimes(1);
+    expect(second).not.toHaveBeenCalled();
+  });
 
   // SUI-FEATURE-172 AC3: a newer change during the wait takes the waiting one's place, passes the
   // page's Discard without a second question, takes its reset along and lands at the newer target.
