@@ -1,4 +1,12 @@
-import { EyeIcon, PencilIcon, PlusIcon, SendIcon, Trash2Icon } from "lucide-react";
+import {
+  ArchiveRestoreIcon,
+  EyeIcon,
+  PencilIcon,
+  PlusIcon,
+  RefreshCwIcon,
+  SendIcon,
+  Trash2Icon,
+} from "lucide-react";
 import type { ReactNode } from "react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -252,6 +260,40 @@ function Adds() {
               disabledText: "Possible once a directory is connected.",
             },
           ]}
+        />
+      </div>
+      {/* `SUI-FEATURE-121`: a non-create secondary action left of the add, in one group. */}
+      <div className="max-w-3xl rounded-md border p-4" data-testid="adds-secondary-frame">
+        <PageHeader
+          title="Backups"
+          subtitle="A restore beside the add."
+          add={{ label: "Back up now", onClick: () => {}, hint: "Starts a backup of every app." }}
+          secondaryAction={
+            <Hint text="Restores the apps from a backup target.">
+              <Button variant="outline" size="default">
+                <ArchiveRestoreIcon aria-hidden="true" />
+                Restore backup
+              </Button>
+            </Hint>
+          }
+        />
+      </div>
+      <div className="max-w-3xl rounded-md border p-4" data-testid="adds-secondary-pair-frame">
+        <PageHeader
+          title="Users"
+          subtitle="A sync beside two adds."
+          add={[
+            { label: t("actions.create"), onClick: () => {} },
+            { label: "Import", onClick: () => {} },
+          ]}
+          secondaryAction={
+            <Hint text="Fetches the users from the directory.">
+              <Button variant="outline" size="default">
+                <RefreshCwIcon aria-hidden="true" />
+                Sync
+              </Button>
+            </Hint>
+          }
         />
       </div>
       <UploadAdd />

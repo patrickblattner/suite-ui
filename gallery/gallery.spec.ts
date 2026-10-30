@@ -8347,7 +8347,7 @@ test("page header add pair: second outline left of the first, first at the right
 // keyboard focus its wrapper takes the focus and carries the reason as its description.
 test("page header add pair: a locked entry shows its reason", async ({ page }) => {
   await page.goto("/?page=components");
-  const secondary = page.getByTestId("page-add-secondary");
+  const secondary = page.getByTestId("adds-frame").getByTestId("page-add-secondary");
   await expect(secondary).toBeDisabled();
   const wrapper = secondary.locator("..");
   await wrapper.hover();
@@ -8358,6 +8358,100 @@ test("page header add pair: a locked entry shows its reason", async ({ page }) =
   await secondary.focus();
   await expect(secondary).toBeFocused();
   await expect(secondary).toHaveAccessibleDescription("Possible once a directory is connected.");
+});
+
+// SUI-FEATURE-121 AC1: a non-create secondary action stands left of the add, 8 px apart in one row;
+// the add stays green at the right end of the title row.
+test("page header secondary action: left of the add, add at the right end", async ({ page }) => {
+  await page.goto("/?page=components&lng=de");
+  const frame = page.getByTestId("adds-secondary-frame");
+  const header = frame.getByTestId("page-header");
+  const add = frame.getByTestId("page-add");
+  const secondary = frame.getByTestId("page-secondary-action").getByRole("button");
+  await expect(add).toHaveAttribute("data-variant", "success");
+  await expect(secondary).toHaveAttribute("data-variant", "outline");
+  const [row, first, second] = await Promise.all([box(header), box(add), box(secondary)]);
+  expect(Math.abs(row.x + row.width - (first.x + first.width))).toBeLessThanOrEqual(1);
+  expect(Math.abs(first.x - (second.x + second.width) - 8)).toBeLessThanOrEqual(1);
+  expect(Math.abs(first.y + first.height / 2 - (second.y + second.height / 2))).toBeLessThanOrEqual(
+    1,
+  );
+  await parkPointer(page);
+  await expect(frame).toHaveScreenshot("page-header-secondary-add-de-light.png");
+});
+
+// SUI-FEATURE-121 AC4 (`SUI-FEATURE-051`): below 640 px of head the group takes row two, right-aligned,
+// and nothing leaves the head: every row of buttons, the secondary's included, ends at the head's right
+// edge, beside a single add and beside a pair.
+for (const frame of ["adds-secondary-frame", "adds-secondary-pair-frame"]) {
+  test(`page header secondary action: at 320 px the group takes row two, right-aligned, ${frame}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 320, height: 900 });
+    await page.goto("/?page=components&lng=de");
+    const head = page.getByTestId(frame).getByTestId("page-header");
+    await expect(head).toBeVisible();
+    const fit = await head.evaluate((node) => {
+      const own = node.getBoundingClientRect();
+      const block = node
+        .querySelector("[data-testid=page-title]")!
+        .parentElement!.getBoundingClientRect();
+      const group = node
+        .querySelector("[data-slot=page-header-actions] > *")!
+        .getBoundingClientRect();
+      const secondary = node
+        .querySelector("[data-testid=page-secondary-action] button")!
+        .getBoundingClientRect();
+      const buttons = [...node.querySelectorAll("[data-slot=page-header-actions] button")].map(
+        (button) => button.getBoundingClientRect(),
+      );
+      // The right end of the row of buttons the given one stands in.
+      const rowEnd = (button: DOMRect) =>
+        Math.max(
+          ...buttons
+            .filter((other) => Math.abs(other.top - button.top) <= 1)
+            .map((other) => other.right),
+        );
+      return {
+        overflow: node.scrollWidth - node.clientWidth,
+        outside: [...node.querySelectorAll("*")].filter((el) => {
+          const box = el.getBoundingClientRect();
+          return box.width > 1 && (box.left < own.left - 0.5 || box.right > own.right + 0.5);
+        }).length,
+        rowTwo: group.top >= block.bottom && secondary.top >= block.bottom,
+        rowsRightAligned: buttons.every((button) => Math.abs(own.right - rowEnd(button)) <= 1),
+        secondaryRightAligned: Math.abs(own.right - rowEnd(secondary)) <= 1,
+      };
+    });
+    expect(fit).toEqual({
+      overflow: 0,
+      outside: 0,
+      rowTwo: true,
+      rowsRightAligned: true,
+      secondaryRightAligned: true,
+    });
+  });
+}
+
+// SUI-FEATURE-121 AC2: beside a pair the secondary action stands left of the pair's group, 8 px apart
+// in one row; the pair keeps its order with the green first at the right end.
+test("page header secondary action: left of an add pair", async ({ page }) => {
+  await page.goto("/?page=components&lng=de");
+  const frame = page.getByTestId("adds-secondary-pair-frame");
+  const header = frame.getByTestId("page-header");
+  const secondary = frame.getByTestId("page-secondary-action").getByRole("button");
+  const pair = frame.getByTestId("page-add-group");
+  const [row, own, group, first] = await Promise.all([
+    box(header),
+    box(secondary),
+    box(pair),
+    box(frame.getByTestId("page-add")),
+  ]);
+  expect(Math.abs(row.x + row.width - (first.x + first.width))).toBeLessThanOrEqual(1);
+  expect(Math.abs(group.x - (own.x + own.width) - 8)).toBeLessThanOrEqual(1);
+  expect(Math.abs(group.y + group.height / 2 - (own.y + own.height / 2))).toBeLessThanOrEqual(1);
+  await parkPointer(page);
+  await expect(frame).toHaveScreenshot("page-header-secondary-pair-de-light.png");
 });
 
 // SUI-FEATURE-068 AC4: the upload add reports whether its panel is open and names it.

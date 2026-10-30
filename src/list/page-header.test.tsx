@@ -1,4 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { Button } from "../ui/button.js";
@@ -206,6 +207,124 @@ describe("PageHeader", () => {
     expect(screen.getByText("Back").compareDocumentPosition(primary)).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
     );
+  });
+
+  // SUI-FEATURE-121 AC1: a non-create secondary action stands left of the add, in one group; the add
+  // keeps its testid, icon and hint, and an app-built action stays hidden.
+  it("puts a secondary action left of the add in one group when there is no primary action", () => {
+    const add = vi.fn();
+    render(
+      <PageHeader
+        title="Backups"
+        subtitle="Every backup."
+        add={{ label: "Back up now", onClick: add, hint: "Starts a backup." }}
+        secondaryAction={
+          <Button variant="outline" size="default">
+            Restore
+          </Button>
+        }
+        action={
+          <Button variant="outline" size="default">
+            Hidden action
+          </Button>
+        }
+      />,
+    );
+    const wrapper = screen.getByTestId("page-secondary-action");
+    const button = screen.getByTestId("page-add");
+    expect(wrapper).toHaveTextContent("Restore");
+    expect(wrapper.parentElement).toContainElement(button);
+    expect(wrapper.parentElement).toHaveAttribute("data-tooltip-row");
+    expect(wrapper.parentElement?.parentElement).toHaveAttribute(
+      "data-slot",
+      "page-header-actions",
+    );
+    expect(wrapper.compareDocumentPosition(button)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect(button).toHaveAttribute("data-variant", "success");
+    expect(button.querySelector("svg")).not.toBeNull();
+    expect(button).toHaveAccessibleDescription("Starts a backup.");
+    expect(screen.queryByText("Hidden action")).toBeNull();
+    expect(screen.queryByTestId("page-header-action")).toBeNull();
+    fireEvent.click(button);
+    expect(add).toHaveBeenCalledTimes(1);
+  });
+
+  // SUI-FEATURE-121 AC2: beside a pair the secondary action stands left of the pair's group.
+  it("puts a secondary action left of an add pair's group", () => {
+    render(
+      <PageHeader
+        title="Users"
+        subtitle="Every user."
+        add={[
+          { label: "Add user", onClick: () => {} },
+          { label: "Add group", onClick: () => {} },
+        ]}
+        secondaryAction={
+          <Button variant="outline" size="default">
+            Sync directory
+          </Button>
+        }
+      />,
+    );
+    const wrapper = screen.getByTestId("page-secondary-action");
+    const group = screen.getByTestId("page-add-group");
+    expect(wrapper.parentElement).toBe(group.parentElement);
+    expect(wrapper.compareDocumentPosition(group)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    expect([...group.querySelectorAll("button")].map((b) => b.dataset.testid)).toEqual([
+      "page-add-secondary",
+      "page-add",
+    ]);
+  });
+
+  // A secondary action that renders nothing leaves no empty item in the group, only the add.
+  it.each<[string, ReactNode]>([
+    ["false", false],
+    ["null", null],
+    ["an empty string", ""],
+  ])("renders no secondary wrapper beside an add for %s", (_case, secondaryAction) => {
+    render(
+      <PageHeader
+        title="Backups"
+        subtitle="Every backup."
+        add={{ label: "Back up now", onClick: () => {} }}
+        secondaryAction={secondaryAction}
+      />,
+    );
+    expect(screen.queryByTestId("page-secondary-action")).toBeNull();
+    const add = screen.getByTestId("page-add");
+    expect(add.parentElement?.children).toHaveLength(1);
+    expect(add.parentElement?.parentElement).toHaveAttribute("data-slot", "page-header-actions");
+  });
+
+  // SUI-FEATURE-121 AC3: with a primary action the add stays hidden and nothing else changes.
+  it("keeps the add hidden beside a primary action, without the secondary wrapper", () => {
+    render(
+      <PageHeader
+        title="Draft"
+        subtitle="One draft."
+        add={{ label: "Add", onClick: () => {} }}
+        secondaryAction={
+          <Button variant="outline" size="default">
+            Back
+          </Button>
+        }
+        primaryAction={
+          <Button variant="success" size="default">
+            Publish
+          </Button>
+        }
+        action={
+          <Button variant="outline" size="default">
+            Hidden action
+          </Button>
+        }
+      />,
+    );
+    expect(screen.getByTestId("page-primary-action")).toHaveTextContent("Publish");
+    expect(screen.getByText("Back")).toBeInTheDocument();
+    expect(screen.queryByTestId("page-add")).toBeNull();
+    expect(screen.queryByTestId("page-secondary-action")).toBeNull();
+    expect(screen.queryByText("Hidden action")).toBeNull();
   });
 
   it("puts an app-built action in its own slot instead of the add", () => {

@@ -39,7 +39,8 @@ type PageHeaderProps = {
   action?: React.ReactNode;
   // Detail and editor pages: the next lifecycle step, a `success` button naming the step.
   primaryAction?: React.ReactNode;
-  // Secondary or backward actions as `outline`, left of the primary action.
+  // Secondary or backward actions as `outline`, left of the primary action; without one, left of
+  // `add` (`SUI-FEATURE-121`).
   secondaryAction?: React.ReactNode;
   // The key of the running operations (`useOperationStatus`) this head shows in its status slot,
   // between the title block and the actions (`GL-UI-033`).
@@ -96,6 +97,11 @@ function addActions(add: NonNullable<PageHeaderProps["add"]>) {
   );
 }
 
+// Whether React renders anything for the node: `null`, `undefined`, booleans and `""` render nothing.
+function rendersSomething(node: React.ReactNode) {
+  return node !== null && node !== undefined && typeof node !== "boolean" && node !== "";
+}
+
 // The head's container (`SUI-FEATURE-051` rev 11, #234): the two-row switch follows the head's own
 // width, at any window width, through the container `page-head` (`--container-head-split`). The head
 // row cannot query itself, so this block around it is the container; as a block it takes its width
@@ -110,7 +116,8 @@ function PageHead({ children }: { children: React.ReactNode }) {
 
 // The title row of every page (`GL-UI-026`): an `h1` and a one-line subtitle on the left, the page's
 // action on the right of the same row — the `+ Add` (or a pair of adds) on a list page, the lifecycle next step on a
-// detail page, never two at once: `primaryAction`/`secondaryAction` before `action` before `add`. The
+// detail page, never two green buttons: `primaryAction`/`secondaryAction` before `action` before `add`.
+// Without `primaryAction` a `secondaryAction` stands left of the add in one group (`SUI-FEATURE-121`). The
 // `mb-2` on top of the page column's `gap-4` gives the head its 24 px to the first content. Below `md`
 // inside a `SidebarProvider` the head starts with the trigger of the sidebar overlay
 // (`SUI-FEATURE-110`); the title block keeps to it while the actions stay right.
@@ -128,10 +135,23 @@ function PageHeader({
   const actions =
     primaryAction !== undefined || secondaryAction !== undefined ? (
       <div className={ACTION_GROUP} data-tooltip-row="">
-        {secondaryAction}
-        {primaryAction !== undefined ? (
-          <div data-testid="page-primary-action">{primaryAction}</div>
-        ) : null}
+        {primaryAction === undefined && add !== undefined ? (
+          // A list page's non-create action left of its add, in one group (`SUI-FEATURE-121`); one
+          // that renders nothing leaves no empty item in the group's gap.
+          <>
+            {rendersSomething(secondaryAction) ? (
+              <div data-testid="page-secondary-action">{secondaryAction}</div>
+            ) : null}
+            {addActions(add)}
+          </>
+        ) : (
+          <>
+            {secondaryAction}
+            {primaryAction !== undefined ? (
+              <div data-testid="page-primary-action">{primaryAction}</div>
+            ) : null}
+          </>
+        )}
       </div>
     ) : action !== undefined ? (
       <div className="shrink-0" data-testid="page-header-action">
