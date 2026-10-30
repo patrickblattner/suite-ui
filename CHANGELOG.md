@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #693, SUI-FEATURE-118 rev 3: `isInLeaveGuardDialog(target)` takes any event target; staying returns the focus to the field in a keyboard grid too (minor)
+## 0.189.0 — #693, SUI-FEATURE-118 rev 3: `isInLeaveGuardDialog(target)` takes any event target; staying returns the focus to the field in a keyboard grid too (minor)
 
 - **Widened signature (#693):** `isInLeaveGuardDialog(target: EventTarget | null): boolean` (was `Element | null`), so a native listener passes its event's target without a cast. True for the leave guard's dialog and any element inside it, false for any other element, for `null`, and for a target that is no element (`window`, `document`, a text node). Existing calls keep compiling.
 - **Changed focus return (#693, GL-UI-007 "Abbrechen: bleibt, alles unverändert"):** when the surface stays (Cancel, or `Esc`), the leave guard returns the focus to the element that had it when the dialog opened, also inside a keyboard-grid list (`useRowGrid`), where it used to go to the row entry; the field's draft is unchanged and its next blur commits it. Only if that element is gone (or locked) does the usual `GL-UI-050` order apply. A field the call site focused while the dialog was open (a failed save's error, GL-UI-007) and the working-focus target (`SUI-FEATURE-171`) win over it, now in a keyboard-grid list too, where they used to lose to the row entry. Otherwise Discard and Save return the focus as before; other dialogs are unchanged. The #691 doc-comment caveat about keyboard grids is gone.
