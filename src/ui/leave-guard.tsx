@@ -24,6 +24,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "./dialog.js";
+import { isUsable } from "./focus-return.js";
 import { isUserEvent } from "./user-event.js";
 
 // Saving from the leave dialog: `true` (or a promise of it) means saved, and the held leave goes on;
@@ -112,9 +113,13 @@ type LeaveConfirmDialogProps = {
 // the right. It opens with the focus on Save, so `Enter` saves; `Esc` is Cancel. Without a save target
 // it is "Discard changes?" with only Cancel and Discard, opening on Cancel, so `Enter` and `Esc` both
 // stay (`SUI-FEATURE-092`). On a surface that only applies, it is "Apply changes?" and Save is Apply,
-// without the save symbol (`SUI-FEATURE-094`). When the surface stays, the focus returns as every
-// dialog's does (`GL-UI-050`), unless the call site focused a field meanwhile (the error of a failed
-// save): the dialog's focus trap takes that focus back while it is open, so it goes there on close.
+// without the save symbol (`SUI-FEATURE-094`). When the surface stays (Cancel, `Esc`), everything
+// stays unchanged, the focus included: it returns to the element that had it when the dialog opened,
+// a field in a keyboard-grid list too, where every other dialog returns to the entry
+// (`SUI-FEATURE-118`); only if that element is gone does it return as every dialog's does
+// (`GL-UI-050`). A field the call site focused meanwhile (the error of a failed save) wins, in a
+// keyboard-grid list too: the dialog's focus trap takes that focus back while it is open, so it goes
+// there on close.
 function LeaveConfirmDialog({
   open,
   working = false,
@@ -129,6 +134,14 @@ function LeaveConfirmDialog({
   const cancel = React.useRef<HTMLButtonElement>(null);
   const content = React.useRef<HTMLDivElement>(null);
   const moved = React.useRef<HTMLElement | null>(null);
+  // The element that had the focus when the dialog opened, and whether the surface stays.
+  const held = React.useRef<Element | null>(null);
+  const stayed = React.useRef(false);
+  // While a save works, Cancel holds nothing back: the surface goes on as the save decides.
+  const stay = () => {
+    stayed.current = !working;
+    onCancel();
+  };
   React.useEffect(() => {
     if (!open) return;
     moved.current = null;
@@ -154,7 +167,7 @@ function LeaveConfirmDialog({
     <Dialog
       open={open}
       onOpenChange={(next) => {
-        if (!next) onCancel();
+        if (!next) stay();
       }}
     >
       <DialogContent
@@ -165,14 +178,35 @@ function LeaveConfirmDialog({
         data-leave-guard-dialog=""
         onOpenAutoFocus={(event) => {
           event.preventDefault();
+          const active = document.activeElement;
+          held.current = active === document.body ? null : active;
+          stayed.current = false;
           (discardOnly ? cancel : save).current?.focus();
           setOpeningFocus(true);
+        }}
+        onCloseAutoFocus={(event) => {
+          const field = held.current;
+          held.current = null;
+          const staying = stayed.current;
+          stayed.current = false;
+          // A focus the caller placed outside keeps its place.
+          const active = document.activeElement;
+          const kept = active !== null && active !== document.body && active.isConnected;
+          if (kept && !isInLeaveGuardDialog(active)) return;
+          // A named target (a failed save's error field, the working primary action) wins, in a
+          // keyboard-grid list too, where `DialogContent` would return to the entry instead.
+          const named = moved.current ?? workingFocus?.() ?? null;
+          const target = named?.isConnected ? named : staying && isUsable(field) ? field : null;
+          if (target === null) return;
+          target.focus({ preventScroll: true });
+          if (document.activeElement === target) event.preventDefault();
         }}
         onKeyDown={(event) => {
           if (event.key !== "Enter" || event.repeat) return;
           if (event.target instanceof HTMLButtonElement) return;
           event.preventDefault();
-          (onSave ?? onCancel)();
+          if (onSave === undefined) stay();
+          else onSave();
         }}
       >
         <DialogHeader>
@@ -198,7 +232,7 @@ function LeaveConfirmDialog({
             size="default"
             ref={cancel}
             disabled={working}
-            onClick={onCancel}
+            onClick={stay}
             {...(discardOnly ? opening : {})}
             data-testid="leave-guard-cancel"
           >
@@ -1749,19 +1783,20 @@ function useLeaveGuard({
 }
 
 /**
- * Whether `element` is the leave guard's dialog or inside it, its buttons included
+ * Whether `target` is the leave guard's dialog or inside it, its buttons included
  * (`SUI-FEATURE-118`): true for both variants ("Save changes?" and "Discard changes?"), false for
- * any other element and for `null`. A field that commits or discards on blur passes the blur's
- * `event.relatedTarget`, so the focus the dialog takes does not count as leaving the field. A draft
- * whose commit was skipped this way still counts as dirty and must reach `onSave` when the dialog's
- * Save runs, and must be dropped on Discard. Inside a keyboard-grid list, Cancel returns the focus to
- * the row entry, not to the field, so an inline field must not rely on a later blur to finish its
+ * any other element, for `null` and for a target that is no element (`window`). It takes any event
+ * target, so a native listener passes its event's target without a cast. A field that commits or
+ * discards on blur passes the blur's `event.relatedTarget`, so the focus the dialog takes does not
+ * count as leaving the field. A draft whose commit was skipped this way still counts as dirty and
+ * must reach `onSave` when the dialog's Save runs, and must be dropped on Discard. On Cancel (or
+ * `Esc`) the focus returns to the field, in a keyboard-grid list too, so its next blur commits the
  * draft. Public API: it reads the package's own `data-leave-guard-dialog` marker;
  * `data-testid="leave-guard"` is a test hook, not a contract, and apps never query the dialog's DOM
  * themselves.
  */
-function isInLeaveGuardDialog(element: Element | null): boolean {
-  return element?.closest("[data-leave-guard-dialog]") != null;
+function isInLeaveGuardDialog(target: EventTarget | null): boolean {
+  return target instanceof Element && target.closest("[data-leave-guard-dialog]") !== null;
 }
 
 export {
