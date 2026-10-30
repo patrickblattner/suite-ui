@@ -279,6 +279,15 @@ export const es: SuiteStrings = {
     resetDisabledHint:
       "Descarta los cambios sin guardar de esta página — disponible en cuanto cambies algo aquí.",
 
+    entrySaveHint: "Guarda los cambios de esta entrada.",
+    entrySaveDisabledHint:
+      "Guarda los cambios de esta entrada — disponible en cuanto cambies algo en ella.",
+    entrySaveInvalidHint:
+      "Guarda los cambios de esta entrada — disponible en cuanto todos sus datos sean válidos.",
+    entryResetHint: "Descarta los cambios sin guardar de esta entrada.",
+    entryResetDisabledHint:
+      "Descarta los cambios sin guardar de esta entrada — disponible en cuanto cambies algo en ella.",
+
     cancelHint: "Descarta lo que está abierto aquí y lo cierra.",
     cancelDisabledHint:
       "Descarta lo que está abierto aquí — disponible en cuanto algo esté abierto.",

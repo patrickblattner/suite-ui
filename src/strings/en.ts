@@ -291,10 +291,20 @@ export const en = {
     saveHint: "Saves the changes on this page.",
     saveDisabledHint:
       "Saves the changes on this page — available once you have changed something here.",
-    saveInvalidHint: "Saves the changes on this page — available once every entry here is valid.",
+    saveInvalidHint: "Saves the changes on this page — available once everything here is valid.",
     resetHint: "Discards the unsaved changes on this page.",
     resetDisabledHint:
       "Discards the unsaved changes on this page — available once you have changed something here.",
+
+    // The Save and Reset of an entry's `SettingsActionRow`, which act on that entry only (#700).
+    entrySaveHint: "Saves the changes to this entry.",
+    entrySaveDisabledHint:
+      "Saves the changes to this entry — available once you have changed something in it.",
+    entrySaveInvalidHint:
+      "Saves the changes to this entry — available once everything in it is valid.",
+    entryResetHint: "Discards the unsaved changes to this entry.",
+    entryResetDisabledHint:
+      "Discards the unsaved changes to this entry — available once you have changed something in it.",
 
     // The Cancel of an entry's `SettingsActionRow` (`SUI-FEATURE-088`).
     cancelHint: "Discards what is open here and closes it.",

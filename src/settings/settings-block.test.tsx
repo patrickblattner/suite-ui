@@ -205,12 +205,58 @@ describe("SettingsActionRow", () => {
     expect(save).toBeEnabled();
     expect(save).toHaveAttribute("aria-disabled", "true");
     expect(save).toHaveAttribute("aria-busy", "true");
-    expect(save).toHaveAccessibleDescription("Saves the changes on this page.");
+    expect(save).toHaveAccessibleDescription("Saves the changes to this entry.");
     save.focus();
     fireEvent.click(save, { detail: 1 });
     expect(onSave).not.toHaveBeenCalled();
     expect(save).toHaveFocus();
   });
+
+  // #700, GL-UI-017: the row's Save and Reset act on one entry, so their hints name the entry; the
+  // page-wide `SettingsFooter` keeps the page wording.
+  it.each([
+    {
+      dirty: false,
+      valid: true,
+      save: "Saves the changes to this entry — available once you have changed something in it.",
+      reset:
+        "Discards the unsaved changes to this entry — available once you have changed something in it.",
+      page: "Saves the changes on this page — available once you have changed something here.",
+    },
+    {
+      dirty: true,
+      valid: true,
+      save: "Saves the changes to this entry.",
+      reset: "Discards the unsaved changes to this entry.",
+      page: "Saves the changes on this page.",
+    },
+    {
+      dirty: true,
+      valid: false,
+      save: "Saves the changes to this entry — available once everything in it is valid.",
+      reset: "Discards the unsaved changes to this entry.",
+      page: "Saves the changes on this page — available once everything here is valid.",
+    },
+  ])(
+    "row hints name the entry (dirty $dirty, valid $valid)",
+    ({ dirty, valid, save, reset, page }) => {
+      render(
+        <>
+          <SettingsActionRow
+            dirty={dirty}
+            valid={valid}
+            onSave={() => {}}
+            onReset={() => {}}
+            testIdPrefix="mail"
+          />
+          <SettingsFooter pageKey="general" dirty={dirty} valid={valid} onReset={() => {}} />
+        </>,
+      );
+      expect(screen.getByTestId("mail-save")).toHaveAccessibleDescription(save);
+      expect(screen.getByTestId("mail-reset")).toHaveAccessibleDescription(reset);
+      expect(screen.getByTestId("settings-general-save")).toHaveAccessibleDescription(page);
+    },
+  );
 
   // SUI-FEATURE-088 AC1: Cancel in place of Reset, usable while cancelable, also without a change.
   it("with onCancel and cancelable but no change: Cancel usable, Save locked", () => {

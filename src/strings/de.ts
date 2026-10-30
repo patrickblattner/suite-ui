@@ -284,6 +284,15 @@ export const de: SuiteStrings = {
     resetDisabledHint:
       "Verwirft die ungespeicherten Änderungen auf dieser Seite — verfügbar, sobald du hier etwas geändert hast.",
 
+    entrySaveHint: "Speichert die Änderungen an diesem Eintrag.",
+    entrySaveDisabledHint:
+      "Speichert die Änderungen an diesem Eintrag — verfügbar, sobald du daran etwas geändert hast.",
+    entrySaveInvalidHint:
+      "Speichert die Änderungen an diesem Eintrag — verfügbar, sobald alle Angaben darin gültig sind.",
+    entryResetHint: "Verwirft die ungespeicherten Änderungen an diesem Eintrag.",
+    entryResetDisabledHint:
+      "Verwirft die ungespeicherten Änderungen an diesem Eintrag — verfügbar, sobald du daran etwas geändert hast.",
+
     cancelHint: "Verwirft, was hier offen ist, und schließt es.",
     cancelDisabledHint: "Verwirft, was hier offen ist — verfügbar, sobald hier etwas offen ist.",
   },

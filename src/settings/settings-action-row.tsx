@@ -58,6 +58,7 @@ function SettingsActionRow({
   const pair = (
     <SaveResetButtons
       stem={testIdPrefix}
+      entry
       dirty={dirty || drafts}
       blockDrafts={blockDrafts}
       valid={valid}

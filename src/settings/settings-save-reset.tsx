@@ -24,6 +24,8 @@ type SaveResetButtonsProps = {
   onSave?: (() => void) | undefined;
   // The drafts of the pair's own `SettingsBlock` (`SettingsActionRow`, rev 10): Reset drops exactly these.
   blockDrafts?: FieldDrafts | undefined;
+  // The pair acts on one entry (`SettingsActionRow`): its hints name the entry, not the page (#700).
+  entry?: boolean | undefined;
 } & SaveResetLeft;
 
 // Reset (`destructive`) and Save (`success`), each with its fixed decorative icon before the label,
@@ -45,8 +47,24 @@ function SaveResetButtons({
   cancel,
   onSave,
   blockDrafts,
+  entry = false,
 }: SaveResetButtonsProps) {
   const { t } = useTranslation("suite");
+  const hints = entry
+    ? {
+        save: t("settings.entrySaveHint"),
+        saveDisabled: t("settings.entrySaveDisabledHint"),
+        saveInvalid: t("settings.entrySaveInvalidHint"),
+        reset: t("settings.entryResetHint"),
+        resetDisabled: t("settings.entryResetDisabledHint"),
+      }
+    : {
+        save: t("settings.saveHint"),
+        saveDisabled: t("settings.saveDisabledHint"),
+        saveInvalid: t("settings.saveInvalidHint"),
+        reset: t("settings.resetHint"),
+        resetDisabled: t("settings.resetDisabledHint"),
+      };
   const save = React.useRef<HTMLButtonElement>(null);
   const clean = !dirty && valid && !saving;
   // A field's typed but uncommitted entry around the pair (`SUI-FEATURE-118` rev 8): Reset drops it,
@@ -77,7 +95,7 @@ function SaveResetButtons({
           </Button>
         </Hint>
       ) : (
-        <Hint text={t("settings.resetHint")} disabledText={t("settings.resetDisabledHint")}>
+        <Hint text={hints.reset} disabledText={hints.resetDisabled}>
           <Button
             type="button"
             variant="destructive"
@@ -100,10 +118,7 @@ function SaveResetButtons({
           </Button>
         </Hint>
       )}
-      <Hint
-        text={t("settings.saveHint")}
-        disabledText={t(dirty ? "settings.saveInvalidHint" : "settings.saveDisabledHint")}
-      >
+      <Hint text={hints.save} disabledText={dirty ? hints.saveInvalid : hints.saveDisabled}>
         <Button
           ref={save}
           type={onSave === undefined ? "submit" : "button"}
