@@ -1089,3 +1089,37 @@ it("#699: a row inside an edit panel in a block does not react to the block's dr
   expect(screen.getByTestId("inner-reset")).toHaveAttribute("aria-disabled", "true");
   expect(screen.getByTestId("inner-save")).toHaveAttribute("aria-disabled", "true");
 });
+
+// A `TagInput` in the block's aside belongs to the block too (#701): the row in its content counts
+// and drops it.
+function BlockWithAsideField() {
+  const [tags, setTags] = useState(["o"]);
+  return (
+    <SettingsBlock
+      name="e"
+      purpose="e"
+      aside={<TagInput value={tags} onChange={setTags} testId="aside-tags" />}
+    >
+      <SettingsActionRow
+        dirty={isDirty(["o"], tags)}
+        onSave={() => {}}
+        onReset={() => setTags(["o"])}
+        testIdPrefix="e"
+      />
+    </SettingsBlock>
+  );
+}
+
+it("#701: a block's row unlocks for a draft in its aside, and its Reset drops it", () => {
+  render(<BlockWithAsideField />);
+  const field = screen.getByTestId("aside-tags-input");
+  act(() => field.focus());
+  fireEvent.change(field, { target: { value: "draft" } });
+  expect(screen.getByTestId("e-save")).not.toHaveAttribute("aria-disabled");
+  expect(screen.getByTestId("e-reset")).not.toHaveAttribute("aria-disabled");
+  mouseReset(screen.getByTestId("e-reset"));
+  expect(field).toHaveValue("");
+  const chips = within(screen.getByTestId("aside-tags")).getAllByTestId("aside-tags-chip");
+  expect(chips.map((chip) => chip.textContent)).toEqual(["o"]);
+  expect(screen.getByTestId("e-reset")).toHaveAttribute("aria-disabled", "true");
+});

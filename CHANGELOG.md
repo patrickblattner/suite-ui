@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — #701: a `SettingsBlock`'s aside belongs to its draft scope (patch)
+
+- **Fixed (#701):** `SettingsBlock`'s draft scope (#699) now covers its header and `aside` as well as its content. A typed `TagInput` tag in the aside registers with the block, so the block's `SettingsActionRow` unlocks for it and its Reset drops it; before, it registered with the surrounding page guard only. No signature changes.
+- **Tests (#701):** unit, a `TagInput` in a block's `aside` and the `SettingsActionRow` in its content: a typed tag unlocks Save and Reset, and a mouse Reset drops it, leaving the committed chips (fails without the change).
+
 ## 0.192.0 — #699, SUI-FEATURE-118 rev 10: `SettingsBlock` is a draft scope, `SettingsActionRow` counts its block's typed tags (minor)
 
 - **Changed (#699):** `SettingsBlock` is a draft scope. A typed but uncommitted `TagInput` tag inside it registers with the block and is passed on to the surrounding page guard (or `EditPanel`/`MediaDetailShell`), which still asks for it; a tag handled by either (the guard's Save or Discard, the block's Reset) leaves both. Inside a plain `Dialog` the block registers nothing, as before.
