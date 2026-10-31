@@ -21,6 +21,7 @@ import { Hint } from "../ui/hint.js";
 import { TableCell, TableHead } from "../ui/table.js";
 import { IconButtonTooltip } from "../ui/tooltip.js";
 import { DELETE_SHORTCUT } from "../ui/use-edit-shortcuts.js";
+import { useStepFold } from "./use-step-fold.js";
 
 // One action of a row. `label` is the verb; the name and the hint read "‹label› ‹rowName›". With
 // `disabledText` the action is locked and its hint names the reason. With `busy` the action is running
@@ -479,7 +480,9 @@ function RowActionsHead({
 
 // The action cluster at the end of a row (`GL-UI-011`, `GL-UI-023`): the step as a labelled `success`
 // at `xs` first (`SUI-FEATURE-330`), extra actions as `outline`, then edit (`warn`), the overflow menu
-// (`outline`) and delete (`destructive`), all `icon-xs`. A click on an action, a
+// (`outline`) and delete (`destructive`), all `icon-xs`. While the list's scroller is below the fold
+// width the step is the first entry of the ⋯ menu instead, which a row without one gains; a row without
+// a step or a ⋯ keeps the ⋯ slot free (`SUI-FEATURE-330` rev 9, `useStepFold`). A click on an action, a
 // locked action included, never reaches the row, so it does not open the row's target; neither does
 // Enter or Space on an action. A click on the empty part of the cell does open the row (`GL-UI-015`).
 function RowActions({
@@ -497,9 +500,17 @@ function RowActions({
   deleteShortcut,
   ...cellProps
 }: RowActionsProps) {
+  const { t } = useTranslation("suite");
+  const clusterRef = React.useRef<HTMLDivElement>(null);
+  // A row without a ⋯ of its own reserves its slot while the steps are folded, so its buttons stand
+  // where the folded rows' do (`SUI-FEATURE-330` rev 8 AC 2).
+  const folded = useStepFold(
+    clusterRef,
+    step !== undefined ? "drive" : menu === undefined ? "watch" : null,
+  );
   const buttons = useRowActionButtons({
     rowName,
-    step,
+    ...(folded || step === undefined ? {} : { step }),
     usage,
     extra,
     onEdit,
@@ -508,12 +519,21 @@ function RowActions({
     deleteDisabledText,
     editTestId,
     deleteTestId,
-    menu,
+    menu:
+      folded && step !== undefined
+        ? {
+            label:
+              menu?.label ??
+              t("actions.more", { name: rowName, interpolation: { escapeValue: false } }),
+            items: [foldRowAction(step, rowName), ...(menu?.items ?? [])],
+          }
+        : menu,
     deleteShortcut,
   });
   return (
     <TableCell data-col-kind="actions" {...cellProps}>
       <div
+        ref={clusterRef}
         className="flex items-center justify-end gap-1"
         onClick={(event) => {
           if (event.target !== event.currentTarget) event.stopPropagation();
@@ -528,7 +548,14 @@ function RowActions({
         {buttons.step}
         {buttons.extra}
         {buttons.edit}
-        {buttons.menu}
+        {buttons.menu ??
+          (folded ? (
+            <span
+              aria-hidden="true"
+              className="pointer-events-none size-6 shrink-0"
+              data-slot="row-menu-placeholder"
+            />
+          ) : null)}
         {buttons.delete}
       </div>
     </TableCell>

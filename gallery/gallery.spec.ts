@@ -7479,7 +7479,8 @@ test("table actions sticky: the actions column sits on the scroller's right edge
 });
 
 // SUI-FEATURE-330 AC1, AC2, AC7: odd rows carry a labelled step before their icon buttons; edit and
-// delete stand at the same x-position in every row, with or without a step.
+// delete stand at the same x-position in every row, with or without a step. AC 4b (rev 9): at 1440 px
+// the long note overflows the scroller even with the steps folded, so they stay inline.
 test("table actions step: the icon buttons line up in rows with and without a step", async ({
   page,
 }) => {
@@ -7503,6 +7504,52 @@ test("table actions step: the icon buttons line up in rows with and without a st
   expect((await box(step)).x).toBeLessThan((await box(copy)).x);
   await parkPointer(page);
   await expect(page.getByTestId("data-table-scroll")).toHaveScreenshot("list-step-de-light.png");
+});
+
+// SUI-FEATURE-330 rev 9 AC 4 (#721): at 1750 px the table overflows its scroller with the steps inline
+// but fits with them folded, so every row's step folds into its ⋯ as the first entry; widened to fit
+// the unfolded table again (1920 px), the steps come back.
+test("table actions step: below the fold width the step is the first entry of the row's ⋯", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1750, height: 900 });
+  await page.goto("/?page=list&actions=1&step=1&lng=de");
+  const rows = page.getByTestId("list-actions");
+  await expect(page.getByRole("button", { name: /^Jetzt zustellen / })).toHaveCount(0);
+  // Folded, the table fits: no horizontal overflow.
+  const scroll = page.getByTestId("data-table-scroll");
+  expect(await scroll.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+  // A row without a step gains no ⋯ but keeps its slot free: copy, edit and delete line up in every
+  // row (AC 2).
+  await expect(rows.nth(1).getByRole("button", { name: /^Mehr zu / })).toHaveCount(0);
+  for (const name of ["Kopieren", "Bearbeiten", "Löschen"]) {
+    const xs = await Promise.all(
+      [0, 1, 2, 3].map(
+        async (i) =>
+          (await box(rows.nth(i).getByRole("button", { name: new RegExp(`^${name} `) }))).x,
+      ),
+    );
+    expect(new Set(xs).size).toBe(1);
+  }
+  await parkPointer(page);
+  await expect(page.getByTestId("data-table-scroll")).toHaveScreenshot(
+    "list-step-folded-de-light.png",
+  );
+  await rows.nth(0).getByRole("button", { name: "Mehr zu Ereignis 1" }).click();
+  const entries = page.getByRole("menu").getByRole("menuitem");
+  await expect(entries).toHaveCount(1);
+  await expect(entries.first()).toHaveAccessibleName("Jetzt zustellen");
+  await page.keyboard.press("Escape");
+  // The third row's step is running: its folded entry is locked.
+  await rows.nth(2).getByRole("button", { name: "Mehr zu Ereignis 3" }).click();
+  await expect(page.getByRole("menu").getByRole("menuitem").first()).toHaveAttribute(
+    "data-disabled",
+  );
+  await page.keyboard.press("Escape");
+  await page.setViewportSize({ width: 1920, height: 900 });
+  await expect(
+    rows.nth(0).getByRole("button", { name: "Jetzt zustellen Ereignis 1" }),
+  ).toBeVisible();
 });
 
 // SUI-FEATURE-340: the hand-sorted list. The names of the first `count` rows, top to bottom.

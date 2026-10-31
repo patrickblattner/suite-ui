@@ -1,10 +1,10 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import i18n from "i18next";
 import { CopyIcon, DownloadIcon, SendIcon } from "lucide-react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
-import { Table, TableBody, TableHeader, TableRow } from "../ui/table.js";
+import { Table, TableBody, TableCell, TableHeader, TableRow } from "../ui/table.js";
 import { EmptyCell } from "./empty-cell.js";
 import {
   foldRowAction,
@@ -844,6 +844,313 @@ describe("RowActions step (SUI-FEATURE-330)", () => {
   it("AC3: shortcut shows on the step as on any RowAction", () => {
     renderRows({ shortcut: ["Ctrl+Enter"] });
     expect(screen.getByTestId("row-step")).toHaveAttribute("aria-keyshortcuts", "Control+Enter");
+  });
+});
+
+describe("RowActions step fold (SUI-FEATURE-330 rev 9 AC 4)", () => {
+  // The list's scroller: its content width with the steps inline, what folding them saves, its own
+  // width, and the resize observers watching it.
+  let contentWidth = 900;
+  let stepsWidth = 350;
+  let scrollerWidth = 600;
+  let observers: (() => void)[] = [];
+  beforeEach(() => {
+    contentWidth = 900;
+    stepsWidth = 350;
+    scrollerWidth = 600;
+    observers = [];
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(callback: () => void) {
+          observers.push(callback);
+        }
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    const scroller = (el: HTMLElement) => el.dataset.testid === "scroller";
+    const clientWidth = Object.getOwnPropertyDescriptor(Element.prototype, "clientWidth")!;
+    const scrollWidth = Object.getOwnPropertyDescriptor(Element.prototype, "scrollWidth")!;
+    vi.spyOn(HTMLElement.prototype, "clientWidth", "get").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return scroller(this) ? scrollerWidth : (clientWidth.get!.call(this) as number);
+    });
+    vi.spyOn(HTMLElement.prototype, "scrollWidth", "get").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      if (!scroller(this)) return scrollWidth.get!.call(this) as number;
+      const inline = this.querySelector('[data-variant="success"]') !== null;
+      return Math.max(contentWidth - (inline ? 0 : stepsWidth), scrollerWidth);
+    });
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  type RowsProps = {
+    scroll?: boolean;
+    steps?: boolean;
+    cleoStep?: boolean;
+    adaName?: string;
+    adaStep?: Partial<RowAction>;
+    note?: string;
+  };
+  // Ada's row with a step, Bob's without and without a menu, Cleo's step running and her own menu;
+  // without `steps` no row has one. `note` is a text cell in Ada's row.
+  function Rows({
+    scroll = true,
+    steps = true,
+    cleoStep = steps,
+    adaName = "Ada",
+    adaStep = {},
+    note = "",
+    deliverAda,
+  }: RowsProps & { deliverAda: () => void }) {
+    const row = (rowName: string, props: Partial<RowActionsProps>, cell = "") => (
+      <TableRow>
+        <TableCell data-testid={`cell-${rowName}`}>{cell}</TableCell>
+        <RowActions
+          rowName={rowName}
+          extra={[{ label: "Copy", icon: CopyIcon, onClick: vi.fn() }]}
+          onEdit={vi.fn()}
+          onDelete={vi.fn()}
+          data-testid={`actions-${rowName}`}
+          {...props}
+        />
+      </TableRow>
+    );
+    const table = (
+      <Table>
+        <TableBody>
+          {row(
+            adaName,
+            steps
+              ? { step: { label: "Deliver", icon: SendIcon, onClick: deliverAda, ...adaStep } }
+              : {},
+            note,
+          )}
+          {row("Bob", {})}
+          {row("Cleo", {
+            ...(cleoStep
+              ? { step: { label: "Deliver", icon: SendIcon, onClick: vi.fn(), busy: true } }
+              : {}),
+            menu: { label: "More for Cleo", items: [{ label: "Archive", onSelect: vi.fn() }] },
+          })}
+        </TableBody>
+      </Table>
+    );
+    return scroll ? (
+      <div data-testid="scroller" style={{ overflowX: "auto" }}>
+        {table}
+      </div>
+    ) : (
+      table
+    );
+  }
+  function renderRows(props: RowsProps = {}) {
+    const deliverAda = vi.fn();
+    const { rerender, unmount } = render(<Rows {...props} deliverAda={deliverAda} />);
+    return {
+      deliverAda,
+      unmount,
+      rerender: (next: RowsProps) =>
+        rerender(<Rows {...props} {...next} deliverAda={deliverAda} />),
+    };
+  }
+  const names = (rowName: string) =>
+    within(screen.getByTestId(`actions-${rowName}`))
+      .getAllByRole("button")
+      .map((button) => button.getAttribute("aria-label"));
+  const openMenu = (label: string) => {
+    const trigger = screen.getByRole("button", { name: label });
+    trigger.focus();
+    fireEvent.keyDown(trigger, { key: "Enter" });
+    return within(screen.getByRole("menu")).getAllByRole("menuitem");
+  };
+  const resize = (width: number) =>
+    act(() => {
+      scrollerWidth = width;
+      for (const observer of observers) observer();
+    });
+
+  it("AC4: below the fold width the step is not inline but the first ⋯ entry; a ⋯ comes where none was", () => {
+    const { deliverAda } = renderRows();
+    expect(names("Ada")).toEqual(["Copy Ada", "Edit Ada", "More for Ada", "Delete Ada"]);
+    const [entry, ...rest] = openMenu("More for Ada");
+    expect(rest).toHaveLength(0);
+    expect(entry).toHaveAccessibleName("Deliver");
+    expect(entry).toHaveAccessibleDescription("Deliver Ada");
+    expect(entry!.querySelector("svg.lucide-send")).not.toBeNull();
+    fireEvent.click(entry!);
+    expect(deliverAda).toHaveBeenCalledOnce();
+  });
+
+  it("AC4: in a row with its own menu the step stands first, before the menu's entries", () => {
+    renderRows();
+    expect(names("Cleo")).toEqual(["Copy Cleo", "Edit Cleo", "More for Cleo", "Delete Cleo"]);
+    expect(openMenu("More for Cleo").map((item) => item.textContent)).toEqual([
+      "Deliver",
+      "Archive",
+    ]);
+  });
+
+  it("AC3: busy locks only that row's folded entry and marks its ⋯ as working", () => {
+    renderRows();
+    expect(screen.getByRole("button", { name: "More for Cleo" })).toHaveAttribute(
+      "aria-busy",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: "More for Ada" })).not.toHaveAttribute("aria-busy");
+    expect(openMenu("More for Cleo")[0]).toHaveAttribute("data-disabled");
+  });
+
+  it("AC3: disabledText locks the folded entry and names the reason", () => {
+    const { deliverAda } = renderRows({ adaStep: { disabledText: "No address yet." } });
+    const [entry] = openMenu("More for Ada");
+    expect(entry).toHaveAttribute("data-disabled");
+    expect(entry).toHaveAccessibleDescription("No address yet.");
+    fireEvent.click(entry!);
+    expect(deliverAda).not.toHaveBeenCalled();
+  });
+
+  it("a row without a step keeps its buttons and gains no ⋯", () => {
+    renderRows();
+    expect(names("Bob")).toEqual(["Copy Bob", "Edit Bob", "Delete Bob"]);
+  });
+
+  it("at or above the fold width the step stays inline, first", () => {
+    contentWidth = 600;
+    renderRows();
+    expect(names("Ada")).toEqual(["Deliver Ada", "Copy Ada", "Edit Ada", "Delete Ada"]);
+    expect(names("Bob")).toEqual(["Copy Bob", "Edit Bob", "Delete Bob"]);
+  });
+
+  it("table-wide by the scroller's own width: it unfolds once the scroller fits the unfolded table, and folds again", () => {
+    renderRows();
+    expect(names("Ada")).not.toContain("Deliver Ada");
+    // Folded, the table fits 600 px; the steps come back only at the unfolded width, 900 px.
+    resize(899);
+    expect(names("Ada")).not.toContain("Deliver Ada");
+    resize(900);
+    expect(names("Ada")[0]).toBe("Deliver Ada");
+    expect(names("Cleo")[0]).toBe("Deliver Cleo");
+    resize(700);
+    expect(names("Ada")[0]).toBe("Copy Ada");
+    expect(names("Cleo")[0]).toBe("Copy Cleo");
+  });
+
+  it("AC2: folded, a row without a ⋯ reserves its slot, so its buttons line up with the folded rows'", () => {
+    renderRows();
+    const slots = (rowName: string) =>
+      [
+        ...(
+          screen
+            .getByTestId(`actions-${rowName}`)
+            .querySelector("[data-slot=row-actions]") as HTMLElement
+        ).children,
+      ].map((child) => child.getAttribute("aria-label") ?? child.getAttribute("data-slot"));
+    expect(slots("Bob")).toEqual(["Copy Bob", "Edit Bob", "row-menu-placeholder", "Delete Bob"]);
+    expect(slots("Ada")).toEqual(["Copy Ada", "Edit Ada", "More for Ada", "Delete Ada"]);
+    const placeholder = screen
+      .getByTestId("actions-Bob")
+      .querySelector<HTMLElement>("[data-slot=row-menu-placeholder]")!;
+    // The size of the ⋯ button (`icon-xs`), hidden from assistive technology, no tab stop.
+    expect(placeholder).toHaveClass("size-6", "shrink-0", "pointer-events-none");
+    expect(placeholder).toHaveAttribute("aria-hidden", "true");
+    expect(placeholder).not.toHaveAttribute("tabindex");
+    expect(placeholder.tagName).toBe("SPAN");
+    // A row with a ⋯ of its own reserves nothing more.
+    expect(
+      screen.getByTestId("actions-Cleo").querySelector("[data-slot=row-menu-placeholder]"),
+    ).toBeNull();
+  });
+
+  it("AC2: unfolded, and in a table without a step, no row reserves a slot", () => {
+    contentWidth = 600;
+    const { unmount } = renderRows();
+    expect(document.querySelector("[data-slot=row-menu-placeholder]")).toBeNull();
+    unmount();
+    contentWidth = 1300;
+    renderRows({ steps: false });
+    expect(document.querySelector("[data-slot=row-menu-placeholder]")).toBeNull();
+    expect(names("Bob")).toEqual(["Copy Bob", "Edit Bob", "Delete Bob"]);
+  });
+
+  it("the ⋯ a row gains names the row unescaped: More for A & B", () => {
+    renderRows({ adaName: "A & B" });
+    const trigger = screen.getByRole("button", { name: "More for A & B" });
+    expect(trigger.getAttribute("aria-label")).not.toContain("&amp;");
+  });
+
+  it("narrower content unfolds the steps while the scroller keeps its width", async () => {
+    const { rerender } = renderRows({ note: "a long note" });
+    expect(names("Ada")[0]).toBe("Copy Ada");
+    // A filter or a data change: the unfolded table now fits 600 px, the scroller stays 600 px.
+    contentWidth = 550;
+    rerender({ note: "short" });
+    await act(async () => {});
+    expect(names("Ada")[0]).toBe("Deliver Ada");
+    expect(names("Cleo")[0]).toBe("Deliver Cleo");
+    expect(document.querySelector("[data-slot=row-menu-placeholder]")).toBeNull();
+    // Content that still overflows folds back.
+    contentWidth = 800;
+    rerender({ note: "a long note again" });
+    await act(async () => {});
+    expect(names("Ada")[0]).toBe("Copy Ada");
+  });
+
+  it("AC4b: a table that overflows even folded keeps every step inline; wide enough to fit folded, they fold", () => {
+    // Folded, the table would still be 700 px wide in a 600 px scroller.
+    stepsWidth = 200;
+    renderRows();
+    expect(names("Ada")[0]).toBe("Deliver Ada");
+    expect(names("Cleo")[0]).toBe("Deliver Cleo");
+    expect(document.querySelector("[data-slot=row-menu-placeholder]")).toBeNull();
+    resize(650);
+    expect(names("Ada")[0]).toBe("Deliver Ada");
+    // At 700 px the folded table fits and the unfolded one does not.
+    resize(700);
+    expect(names("Ada")[0]).toBe("Copy Ada");
+    expect(names("Cleo")[0]).toBe("Copy Cleo");
+    // Narrower again, the folded table overflows: the steps come back inline.
+    resize(650);
+    expect(names("Ada")[0]).toBe("Deliver Ada");
+  });
+
+  it.each([
+    ["its last steps are gone", {}],
+    ["its only step is gone", { cleoStep: false }],
+  ])("AC2: once a folded table %s, no row keeps the reserved slot", async (_, initial) => {
+    const { rerender } = renderRows(initial);
+    expect(document.querySelector("[data-slot=row-menu-placeholder]")).not.toBeNull();
+    rerender({ steps: false, cleoStep: false });
+    await act(async () => {});
+    expect(document.querySelector("[data-slot=row-menu-placeholder]")).toBeNull();
+    expect(names("Ada")).toEqual(["Copy Ada", "Edit Ada", "Delete Ada"]);
+  });
+
+  it("new content while a fold waits to render does not freeze the fold", async () => {
+    scrollerWidth = 1000;
+    renderRows({ note: "a" });
+    expect(names("Ada")[0]).toBe("Deliver Ada");
+    // A resize outside a React event schedules the fold; content changes before it renders.
+    scrollerWidth = 600;
+    for (const observer of observers) observer();
+    screen.getByTestId("cell-Ada").textContent = "b";
+    await act(async () => {});
+    expect(names("Ada")[0]).toBe("Copy Ada");
+    // Still live: wide enough again, the steps come back.
+    resize(900);
+    expect(names("Ada")[0]).toBe("Deliver Ada");
+  });
+
+  it("outside a horizontal scroller the step never folds", () => {
+    renderRows({ scroll: false });
+    expect(names("Ada")[0]).toBe("Deliver Ada");
   });
 });
 
