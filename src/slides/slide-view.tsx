@@ -514,7 +514,14 @@ function runSpan(draw: Draw, piece: Piece, key: number, ink: () => TextRun | und
 function textContent(draw: Draw, body: TextBody) {
   const lines = paragraphs(body.runs).map((pieces, index) => {
     const paragraph = paragraphRun(pieces, body.runs);
-    const size = fitSize(paragraph?.size ?? body.runs.find(isTextRun)?.size ?? DEFAULT_TEXT_SIZE);
+    // The paragraph's own font, not the page's: its line box starts from this font's ascent and
+    // descent, so a run in another font is not lifted against the page font's (#717).
+    const font: React.CSSProperties = {
+      fontSize: fitSize(paragraph?.size ?? body.runs.find(isTextRun)?.size ?? DEFAULT_TEXT_SIZE),
+      fontFamily: paragraph === undefined ? undefined : familyOf(draw, paragraph.font),
+      fontWeight: paragraph?.weight,
+      fontStyle: paragraph?.italic === true ? "italic" : undefined,
+    };
     const content =
       pieces.length === 0
         ? "​"
@@ -530,11 +537,11 @@ function textContent(draw: Draw, body: TextBody) {
             ),
           );
     return body.list === "none" ? (
-      <p key={index} style={{ margin: 0, fontSize: size }}>
+      <p key={index} style={{ margin: 0, ...font }}>
         {content}
       </p>
     ) : (
-      <li key={index} style={{ fontSize: size }}>
+      <li key={index} style={font}>
         {content}
       </li>
     );

@@ -123,6 +123,31 @@ function markSelectedInline(root: HTMLElement, runs: readonly Run[], range: Text
   }
 }
 
+// A paragraph block's size and font, as the view draws them (`slide-view.tsx` `textContent`): its
+// line box starts from its own first run's font, not the page's (#717).
+function paragraphStyle(
+  block: HTMLElement,
+  pieces: readonly Piece[],
+  runs: readonly Run[],
+  brand: SlideBrandSet,
+) {
+  const paragraph = paragraphRun(pieces, runs);
+  block.style.fontSize = px(paragraph?.size ?? runs.find(isTextRun)?.size ?? DEFAULT_TEXT_SIZE);
+  const font = paragraph === undefined ? undefined : cssFont(paragraph.font ?? DEFAULT_FONT, brand);
+  block.style.fontFamily = font !== undefined && "css" in font ? font.css : "";
+  block.style.fontWeight = paragraph?.weight === undefined ? "" : String(paragraph.weight);
+  block.style.fontStyle = paragraph?.italic === true ? "italic" : "";
+}
+
+// After typing the browser keeps a paragraph's old style: each block takes its paragraph's again,
+// as long as the blocks are the paragraphs one by one.
+function syncParagraphs(root: HTMLElement, runs: readonly Run[], brand: SlideBrandSet) {
+  const blocks = [...root.children].filter((node): node is HTMLElement => BLOCKS.has(node.tagName));
+  const all = paragraphs(runs);
+  if (blocks.length !== root.children.length || blocks.length !== all.length) return;
+  blocks.forEach((block, index) => paragraphStyle(block, all[index]!, runs, brand));
+}
+
 // Fills the editable root with the runs: one block per paragraph, one span per piece that names its
 // run (`data-run`), an empty paragraph holding a `<br>` so it keeps its line. An inline run is a span
 // the caret cannot enter (`data-inline`), one character to the arrows and the delete keys.
@@ -138,9 +163,7 @@ export function fillEditable(
   for (const pieces of paragraphs(runs)) {
     const block = document.createElement("div");
     block.dataset.paragraph = "";
-    const paragraph = paragraphRun(pieces, runs);
-    const size = paragraph?.size ?? runs.find(isTextRun)?.size ?? DEFAULT_TEXT_SIZE;
-    block.style.fontSize = px(size);
+    paragraphStyle(block, pieces, runs, brand);
     if (list !== "none") {
       block.style.display = "list-item";
       block.style.listStyleType = list === "bullet" ? "disc" : "decimal";
@@ -601,7 +624,10 @@ export function InlineTextEditor({
               if (node === null) return;
               const runs = readRuns(node, filled.current, emitted.current ?? filled.current);
               emitted.current = runs;
-              if (onRuns(runs, rangeIn(node))) return;
+              if (onRuns(runs, rangeIn(node))) {
+                syncParagraphs(node, runs, brand);
+                return;
+              }
               // Refused: the typed text goes again, the caret back where it was.
               emitted.current = body.runs;
               filled.current = body.runs;

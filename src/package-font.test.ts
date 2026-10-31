@@ -25,10 +25,13 @@ describe("package font (SUI-FEATURE-076)", () => {
   });
 
   it("loads the substitute font only from gallery.css, in the cuts 400/500/600/700", () => {
-    expect(fontFiles("gallery").sort()).toEqual(
-      [400, 500, 600, 700].map((weight) => `fonts/inter-latin-${weight}-normal.woff2`),
-    );
+    // Beside it only the serif a slide test hands its `SlideView` as a font file (#717).
+    expect(fontFiles("gallery").sort()).toEqual([
+      ...[400, 500, 600, 700].map((weight) => `fonts/inter-latin-${weight}-normal.woff2`),
+      "fonts/playfair-display-latin-400-normal.woff2",
+    ]);
     expect(existsSync(`${root}gallery/fonts/OFL.txt`)).toBe(true);
+    expect(existsSync(`${root}gallery/fonts/OFL-playfair-display.txt`)).toBe(true);
     const css = readFileSync(`${root}gallery/gallery.css`, "utf8");
     const faces = [...css.matchAll(/@font-face \{[^}]*font-weight: (\d+);[^}]*url\("([^"]+)"\)/g)];
     expect(faces.map(([, weight, url]) => [weight, url])).toEqual(

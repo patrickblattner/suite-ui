@@ -253,6 +253,7 @@ createRoot(document.getElementById("root") as HTMLElement).render(
         broken={params.get("broken") === "1"}
         overhang={params.get("overhang") === "1"}
         flow={params.get("doc") === "flow"}
+        lines={params.get("doc") === "lines"}
         wide={params.get("brand") === "wide"}
       />
     ) : fieldPair ? (
