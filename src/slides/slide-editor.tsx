@@ -994,6 +994,11 @@ function Editor({
     | { id: string; key: "width" | "height"; limit: number; edge: "min" | "max"; revision: number }
     | undefined
   >(undefined);
+  // An icon's stroke width typed out of range (`SUI-FEATURE-166`): not taken, named at the field
+  // until the selection or the history changes.
+  const [strokeOut, setStrokeOut] = React.useState<
+    { id: string; revision: number; selection: string[] } | undefined
+  >(undefined);
   const [drawer, setDrawer] = React.useState<DrawerId | undefined>(undefined);
   const [zoomMode, setZoomMode] = React.useState<CanvasZoomMode>("fit");
   const [ownGridShown, setOwnGridShown] = React.useState(false);
@@ -2996,7 +3001,59 @@ function Editor({
         }
       />
     );
+  // An icon's stroke width in format px (`SUI-FEATURE-166`): empty is the library's own; a value out of
+  // range is not taken and named at the field.
+  const iconFields =
+    single?.type !== "icon" ? undefined : (
+      <NumberField
+        key={`${single.id}-strokeWidth`}
+        id={`${fieldId}-strokeWidth`}
+        label={t("slides.editor.strokeWidth")}
+        hint={t("slides.editor.strokeWidthHint")}
+        valueHint={t("slides.editor.strokeWidthValueHint")}
+        value={single.strokeWidth}
+        unit="px"
+        min={0.5}
+        max={SLIDE_LIMITS.maxIconStrokeWidth}
+        readOnly={single.locked}
+        revision={travels}
+        error={
+          strokeOut?.id === single.id &&
+          strokeOut.revision === travels &&
+          strokeOut.selection === selection
+            ? t("slides.editor.strokeWidthRange", { max: SLIDE_LIMITS.maxIconStrokeWidth })
+            : undefined
+        }
+        onValue={(value) => {
+          const out = !(value > 0 && value <= SLIDE_LIMITS.maxIconStrokeWidth);
+          setStrokeOut(out ? { id: single.id, revision: travels, selection } : undefined);
+          if (out) return;
+          apply(
+            (current) =>
+              updateElements(current, page, [single.id], (one) =>
+                one.type === "icon" ? { ...one, strokeWidth: value } : one,
+              ),
+            `field:${single.id}:strokeWidth`,
+          );
+        }}
+        onEmpty={() => {
+          setStrokeOut(undefined);
+          apply(
+            (current) =>
+              updateElements(current, page, [single.id], (one) => {
+                if (one.type !== "icon") return one;
+                const plain = { ...one };
+                delete plain.strokeWidth;
+                return plain;
+              }),
+            `field:${single.id}:strokeWidth`,
+          );
+        }}
+        testId="slide-editor-strokeWidth"
+      />
+    );
   const hasContent =
+    iconFields !== undefined ||
     single?.type === "chart" ||
     textBody !== undefined ||
     typeFields !== undefined ||
@@ -4475,6 +4532,7 @@ function Editor({
                               onChange={(next, merge) => changeChart(next, merge)}
                             />
                           ) : null}
+                          {iconFields}
                           {typeFields}
                           {addOnFields}
                         </div>

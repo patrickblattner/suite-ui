@@ -13202,6 +13202,35 @@ test("slide view: every element type at three sizes keeps its layout, only scale
   }
 });
 
+// SUI-FEATURE-166 AC1, AC2, AC6: an icon's stroke width is format px: at 384 and 192 px both draw a
+// 1.5 px stroke at the page's scale; one without keeps the library's own, which scales with it.
+test("slide view: icons with and without a stroke width", async ({ page }) => {
+  await page.goto("/?page=slides&lng=en");
+  const view = page.getByTestId("slide-icon-strokes");
+  await expect(view).toHaveAttribute("data-slide-ready", "true");
+  const strokes = await view.evaluate((root) => {
+    const scale =
+      root.querySelector("[data-slot=slide-page]")!.getBoundingClientRect().width / 1920;
+    const onScreen = (id: string) => {
+      const svg = root.querySelector<SVGSVGElement>(`[data-slide-element=${id}] svg`)!;
+      return {
+        attribute: svg.getAttribute("stroke-width"),
+        // The stroke in format px: its view-box width times the view box's scale, without the page's.
+        format: (Number(svg.getAttribute("stroke-width")) * svg.getScreenCTM()!.a) / scale,
+      };
+    };
+    return {
+      big: onScreen("stroke-big"),
+      small: onScreen("stroke-small"),
+      plain: onScreen("stroke-plain"),
+    };
+  });
+  expect(strokes.big.format).toBeCloseTo(1.5, 2);
+  expect(strokes.small.format).toBeCloseTo(1.5, 2);
+  expect(strokes.plain.attribute).toBe("2");
+  expect(strokes.plain.format).toBeCloseTo(32, 1);
+});
+
 // SUI-FEATURE-160 AC2: the export takes PNG from the same component as the editor's view (no pixel
 // differs) and a PDF whose text is real text.
 test("slide export: PNG equal to the editor view, PDF with real text", async ({ page }) => {

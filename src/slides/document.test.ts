@@ -220,9 +220,9 @@ describe("slide document migration", () => {
     })),
   });
 
-  it("ships four steps, 1 → 2 up to 4 → 5, that change no content (SUI-FEATURE-192 AC4)", () => {
-    expect(SLIDE_SCHEMA_VERSION).toBe(5);
-    expect(Object.keys(SLIDE_MIGRATIONS)).toEqual(["1", "2", "3", "4"]);
+  it("ships five steps, 1 → 2 up to 5 → 6, that change no content (SUI-FEATURE-192 AC4)", () => {
+    expect(SLIDE_SCHEMA_VERSION).toBe(6);
+    expect(Object.keys(SLIDE_MIGRATIONS)).toEqual(["1", "2", "3", "4", "5"]);
     expect(parseSlideDocument({ ...valid, schemaVersion: 1 })).toEqual(parseSlideDocument(valid));
   });
 
@@ -344,6 +344,88 @@ describe("slide document migration", () => {
     });
     expect(parsed.pages[0]!.elements).toHaveLength(1);
     expect(parsed.pages[0]!.elements[0]).toMatchObject(text);
+  });
+
+  // SUI-FEATURE-166 AC5: a version-5 document loads and migrates with its content as it was; a
+  // version 5 knew no `strokeWidth` (its parse dropped one), so one written anyway is dropped, in
+  // groups, layouts and prototypes, and every icon draws with the library's own stroke.
+  it("migrates a version-5 document with its content unchanged and no stroke widths (SUI-FEATURE-166 AC5)", () => {
+    const star = (id: string) => ({
+      id,
+      type: "icon",
+      icon: "star",
+      x: 10,
+      y: 20,
+      width: 96,
+      height: 96,
+      strokeWidth: 1.5,
+    });
+    const group = {
+      id: "g",
+      type: "group",
+      x: 0,
+      y: 0,
+      width: 96,
+      height: 96,
+      children: [star("in-group")],
+    };
+    const prototype = { type: "icon", icon: "star", strokeWidth: 1.5 };
+    const placeholder = {
+      id: "ph",
+      type: "placeholder",
+      role: "ph",
+      x: 0,
+      y: 0,
+      width: 96,
+      height: 96,
+      prototype,
+    };
+    const document = {
+      ...valid,
+      schemaVersion: 5,
+      layouts: [{ id: "l", name: "L", elements: [star("in-layout"), placeholder] }],
+      pages: [{ ...valid.pages[0]!, layoutId: "l", elements: [group, star("top")] }],
+    };
+    const parsed = parseSlideDocument(document);
+    expect(parsed.schemaVersion).toBe(SLIDE_SCHEMA_VERSION);
+    const widths: unknown[] = [];
+    eachElement([...parsed.pages[0]!.elements, ...parsed.layouts[0]!.elements], (element) => {
+      if (element.type === "icon") widths.push(element.strokeWidth);
+      if (element.type === "placeholder")
+        widths.push(element.prototype?.type === "icon" && element.prototype.strokeWidth);
+    });
+    expect(widths).toEqual([undefined, undefined, undefined, undefined]);
+    expect(parsed.pages[0]!.elements[1]).toMatchObject({
+      id: "top",
+      type: "icon",
+      icon: "star",
+      x: 10,
+      y: 20,
+      width: 96,
+      height: 96,
+    });
+  });
+
+  // SUI-FEATURE-166 AC4: an icon's stroke width is positive and within `maxIconStrokeWidth`, named by
+  // code at its path; one within the range loads as written.
+  it.each([
+    [0, "too-small"],
+    [-1, "too-small"],
+    [SLIDE_LIMITS.maxIconStrokeWidth + 1, "too-big"],
+  ])("rejects an icon's strokeWidth %s as %s (SUI-FEATURE-166 AC4)", (strokeWidth, code) => {
+    const icon = { id: "i", type: "icon", icon: "star", x: 0, y: 0, width: 96, height: 96 };
+    const page = (width: number) => ({
+      ...valid.pages[0]!,
+      elements: [{ ...icon, strokeWidth: width }],
+    });
+    expect(rejection({ ...valid, pages: [page(strokeWidth)] }).issues[0]).toMatchObject({
+      code,
+      path: "pages[0].elements[0].strokeWidth",
+    });
+    const kept = parseSlideDocument({ ...valid, pages: [page(SLIDE_LIMITS.maxIconStrokeWidth)] });
+    expect(kept.pages[0]!.elements[0]).toMatchObject({
+      strokeWidth: SLIDE_LIMITS.maxIconStrokeWidth,
+    });
   });
 
   // SUI-FEATURE-320 rev 3: a placeholder's prototype is an element without id, box, turn and role, of

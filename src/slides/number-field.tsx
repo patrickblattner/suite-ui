@@ -31,10 +31,12 @@ export function NumberField({
   unit,
   readOnly,
   onValue,
+  onEmpty,
   revision,
   testId,
   min,
   max,
+  error: rangeError,
   help,
   warning,
   warningTestId,
@@ -47,6 +49,8 @@ export function NumberField({
   unit: string;
   readOnly: boolean;
   onValue: (value: number) => void;
+  // With it, an emptied field is no error: it hears this instead (an optional value set back).
+  onEmpty?: (() => void) | undefined;
   // The history's travel count: what is typed stays, as typed, until the field is left or the
   // history goes back or forth (#351). The header's Undo keeps the focus here (#349), so the field
   // would otherwise show what was typed after Undo took it back.
@@ -55,6 +59,9 @@ export function NumberField({
   // The range the field's arrows keep to.
   min?: number | undefined;
   max?: number | undefined;
+  // An error about a number that is one but not taken (out of the value's range), under the field;
+  // one that is no number comes first.
+  error?: string | undefined;
   // A note under the field, read with it.
   help?: React.ReactNode;
   // A warning about the value, in place of the note and read with the field (`Field warning`).
@@ -67,7 +74,7 @@ export function NumberField({
 }) {
   const { t } = useTranslation("suite");
   const [why, setWhy] = React.useState<DecimalInvalid | null>(null);
-  const error = why === null ? undefined : t(NUMBER_ERROR[why]);
+  const error = why === null ? rangeError : t(NUMBER_ERROR[why]);
   return (
     <Field
       label={label}
@@ -99,6 +106,8 @@ export function NumberField({
           }
           revision={revision}
           onValue={onValue}
+          onEmpty={onEmpty}
+          invalid={rangeError !== undefined && rangeError !== ""}
           onInvalid={setWhy}
           testId={testId}
         />
@@ -121,7 +130,9 @@ export function NumberInput({
   unit,
   readOnly = false,
   onValue,
+  onEmpty,
   onLeave,
+  invalid = false,
   onInvalid,
   revision,
   testId,
@@ -138,7 +149,10 @@ export function NumberInput({
   unit: string;
   readOnly?: boolean;
   onValue: (value: number) => void;
+  onEmpty?: (() => void) | undefined;
   onLeave?: (value: number) => void;
+  // A number typed that the owner did not take and names in an error: left, it stays as typed.
+  invalid?: boolean;
   onInvalid?: (why: DecimalInvalid | null) => void;
   revision: number | string;
   testId: string;
@@ -158,7 +172,8 @@ export function NumberInput({
     null,
   );
   const text = typed?.revision === revision ? typed.text : null;
-  const parsed = text === null ? null : parseDecimal(text, language);
+  const emptied = text !== null && onEmpty !== undefined && text.trim() === "";
+  const parsed = text === null || emptied ? null : parseDecimal(text, language);
   const why = parsed?.invalid ?? null;
   React.useEffect(() => {
     if (why === null) return;
@@ -170,14 +185,19 @@ export function NumberInput({
   const type = (next: string) => {
     if (!takesDecimal(next)) return;
     setText(next);
+    if (onEmpty !== undefined && next.trim() === "") {
+      onEmpty();
+      return;
+    }
     const number = parseDecimal(next, language);
     if (number.invalid === undefined) onValue(number.value);
   };
   // Left, a number is taken and shown as stored; what is not one stays as typed where its error is
-  // shown (`onInvalid`), and otherwise goes back to the stored number, so it never stands
-  // unexplained.
+  // shown (`onInvalid`), and so does a number the owner did not take (`invalid`); otherwise it goes
+  // back to the stored number, so it never stands unexplained.
   const leave = () => {
     if (why !== null && onInvalid !== undefined) return;
+    if (invalid) return;
     if (parsed?.value !== undefined) onLeave?.(parsed.value);
     setText(null);
   };

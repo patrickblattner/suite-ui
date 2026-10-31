@@ -34,6 +34,16 @@ export const SLIDE_MIGRATIONS: Readonly<Record<number, SlideMigration>> = {
     everyElement(document, (element) =>
       element.type === "placeholder" ? without(element, "prototype") : element,
     ),
+  // 5 → 6 added an icon's `strokeWidth` (`SUI-FEATURE-166`): an older document carries none, so every
+  // icon draws as before; a stray one written before is dropped, in groups and prototypes too.
+  5: (document) =>
+    everyElement(document, (element) => {
+      if (element.type === "icon") return without(element, "strokeWidth");
+      const prototype = element.type === "placeholder" ? element.prototype : undefined;
+      return isRecord(prototype) && prototype.type === "icon"
+        ? { ...element, prototype: without(prototype, "strokeWidth") }
+        : element;
+    }),
 };
 
 // The document with `change` made to every element of its pages, layouts and masters, in groups too.

@@ -50,7 +50,7 @@ const background = { type: "color" as const, color: { kind: "free" as const, val
 
 // `core` is protected by the app; the group `pair` holds the protected `kept`.
 const DOC = {
-  schemaVersion: 5 as const,
+  schemaVersion: 6 as const,
   format: FORMAT_16_9,
   pages: [
     {

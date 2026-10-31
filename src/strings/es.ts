@@ -539,6 +539,8 @@ export const es: SuiteStrings = {
       widthHint: "Ancho del elemento.",
       heightHint: "Alto del elemento.",
       rotationHint: "Gira el elemento alrededor de su centro.",
+      strokeWidthHint:
+        "El grosor de las líneas del icono, igual en cualquier tamaño. Vacío usa el grosor propio del icono.",
       cropZoomHint: "Amplía la imagen dentro de su marco.",
       cropOffsetXHint: "Mueve la imagen a la izquierda o a la derecha dentro de su marco.",
       cropOffsetYHint: "Mueve la imagen hacia arriba o hacia abajo dentro de su marco.",
@@ -583,6 +585,7 @@ export const es: SuiteStrings = {
       widthValueHint: "En píxeles; un número mayor hace el elemento más ancho.",
       heightValueHint: "En píxeles; un número mayor hace el elemento más alto.",
       rotationValueHint: "Grados en el sentido de las agujas del reloj; 0 es recto.",
+      strokeWidthValueHint: "Píxeles del formato de página; vacío es el grosor propio del icono.",
       cropZoomPercent: "Zoom (%)",
       cropZoomValueHint:
         "100 % llena el marco; hasta 500 % muestra una parte cada vez menor de la imagen.",
@@ -849,6 +852,9 @@ export const es: SuiteStrings = {
       width: "Ancho",
       height: "Alto",
       rotation: "Rotación",
+      strokeWidth: "Grosor del trazo",
+      strokeWidthRange:
+        "Introduce un grosor mayor que 0 y de hasta {{max}} px, o deja el campo vacío.",
       sizeAtLeast: "Los elementos rotados mantienen el grupo en {{value}} px como mínimo.",
       sizeAtMost: "Los elementos rotados mantienen el grupo en {{value}} px como máximo.",
       unloadedExtension:

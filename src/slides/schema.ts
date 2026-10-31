@@ -12,8 +12,9 @@ import { shownInError } from "./shown-in-error.js";
 // The current schema version. Every change of the schema raises it and adds a step to the migration
 // chain (`document.ts`). Version 2 added `placeholderRole` (`SUI-FEATURE-192`); version 3 inline runs
 // (`SUI-FEATURE-164`), a text field's `sizing` and a shape's `follow` (`SUI-FEATURE-165`); version 4 an
-// element's `deletable` (`SUI-FEATURE-194`); version 5 a placeholder's `prototype` (`SUI-FEATURE-320`).
-export const SLIDE_SCHEMA_VERSION = 5;
+// element's `deletable` (`SUI-FEATURE-194`); version 5 a placeholder's `prototype` (`SUI-FEATURE-320`);
+// version 6 an icon's `strokeWidth` (`SUI-FEATURE-166`).
+export const SLIDE_SCHEMA_VERSION = 6;
 
 // The hard limits of a document, generous on purpose (`SUI-DESIGN-002` §Form): the schema is the one boundary apps
 // and servers share, so tightening a limit later would take a schema version. `maxGroupDepth` and
@@ -42,6 +43,8 @@ export const SLIDE_LIMITS = {
   maxChartSeries: 6,
   maxGradientStops: 16,
   maxColorLength: 128,
+  // An icon's stroke width in format px (`SUI-FEATURE-166`).
+  maxIconStrokeWidth: 1000,
   // The width and height of a format in px; the grid's values stay within it too.
   maxFormatSide: 16384,
 } as const;
@@ -344,6 +347,9 @@ export const iconElementSchema = z.object({
   type: z.literal("icon"),
   icon: id,
   color: colorValueSchema.optional(),
+  // The stroke in format px, whatever the icon's size (`SUI-FEATURE-166`); absent, the library's own,
+  // which scales with the icon.
+  strokeWidth: z.number().positive().max(SLIDE_LIMITS.maxIconStrokeWidth).optional(),
 });
 
 export const tableCellSchema = z.object({

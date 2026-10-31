@@ -57,6 +57,33 @@ function deck(pages: SlideDocumentInput["pages"]): SlideDocumentInput {
 
 const background = { type: "color", color: brand("background") } as const;
 
+// `SUI-FEATURE-166`: icons with a stroke width of 1.5 format px at 384 and 192 px, the same in each,
+// and one at 384 px with the library's own stroke.
+const strokeStar = (id: string, x: number, side: number, strokeWidth?: number) =>
+  ({
+    id,
+    name: id,
+    type: "icon",
+    x,
+    y: 348,
+    width: side,
+    height: side,
+    icon: "star",
+    color: brand("accent"),
+    ...(strokeWidth === undefined ? {} : { strokeWidth }),
+  }) as const;
+export const SLIDE_ICON_STROKES = deck([
+  {
+    id: "strokes",
+    background,
+    elements: [
+      strokeStar("stroke-big", 160, 384, 1.5),
+      strokeStar("stroke-small", 704, 192, 1.5),
+      strokeStar("stroke-plain", 1056, 384),
+    ],
+  },
+]);
+
 const elements: SlideElementInput[] = [
   {
     id: "title",

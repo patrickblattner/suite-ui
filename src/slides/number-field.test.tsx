@@ -148,6 +148,52 @@ describe("NumberInput", () => {
     expect(input).not.toHaveAttribute("aria-invalid");
     expect(onValue).not.toHaveBeenCalled();
   });
+
+  // #720 (SUI-FEATURE-166): with `onEmpty`, an emptied field is an optional value set back, no error.
+  it("with onEmpty, hears an emptied field instead of naming an error", () => {
+    const onValue = vi.fn();
+    const onEmpty = vi.fn();
+    const onInvalid = vi.fn();
+    render(
+      <NumberInput
+        value={3}
+        unit="px"
+        onValue={onValue}
+        onEmpty={onEmpty}
+        onInvalid={onInvalid}
+        revision={0}
+        testId="n"
+        aria-label="N"
+      />,
+    );
+    const input = screen.getByTestId("n");
+    fireEvent.change(input, { target: { value: " " } });
+    expect(onEmpty).toHaveBeenCalledTimes(1);
+    expect(onValue).not.toHaveBeenCalled();
+    expect(onInvalid).not.toHaveBeenCalledWith("other");
+    fireEvent.change(input, { target: { value: "4" } });
+    expect(onValue).toHaveBeenCalledWith(4);
+    expect(onEmpty).toHaveBeenCalledTimes(1);
+  });
+
+  // #720: a number the owner did not take (`invalid`) stays as typed when left.
+  it("keeps a number it was told is invalid as typed when left", () => {
+    render(
+      <NumberInput
+        value={3}
+        unit="px"
+        onValue={() => {}}
+        invalid
+        revision={0}
+        testId="n"
+        aria-label="N"
+      />,
+    );
+    const input = screen.getByTestId("n");
+    fireEvent.change(input, { target: { value: "0" } });
+    fireEvent.blur(input);
+    expect(input).toHaveValue("0");
+  });
 });
 
 // #541 (GL-UI-038): an error shows late, once the field is left, and goes early, as soon as what is

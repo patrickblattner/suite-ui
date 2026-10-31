@@ -543,6 +543,8 @@ export const de: SuiteStrings = {
       widthHint: "Wie breit das Element ist.",
       heightHint: "Wie hoch das Element ist.",
       rotationHint: "Dreht das Element um seine Mitte.",
+      strokeWidthHint:
+        "Die Strichstärke der Linien des Icons, gleich bei jeder Icon-Größe. Leer nimmt die eigene Strichstärke des Icons.",
       cropZoomHint: "Vergrößert das Bild in seinem Rahmen.",
       cropOffsetXHint: "Verschiebt das Bild in seinem Rahmen nach links oder rechts.",
       cropOffsetYHint: "Verschiebt das Bild in seinem Rahmen nach oben oder unten.",
@@ -586,6 +588,7 @@ export const de: SuiteStrings = {
       widthValueHint: "In Pixeln; eine größere Zahl macht das Element breiter.",
       heightValueHint: "In Pixeln; eine größere Zahl macht das Element höher.",
       rotationValueHint: "Grad im Uhrzeigersinn; 0 ist aufrecht.",
+      strokeWidthValueHint: "Pixel des Seitenformats; leer ist die eigene Strichstärke des Icons.",
       cropZoomPercent: "Zoom in %",
       cropZoomValueHint:
         "100 % füllt den Rahmen; bis 500 % zeigt einen immer kleineren Teil des Bilds.",
@@ -857,6 +860,9 @@ export const de: SuiteStrings = {
       width: "Breite",
       height: "Höhe",
       rotation: "Drehung",
+      strokeWidth: "Strichstärke",
+      strokeWidthRange:
+        "Gib eine Strichstärke über 0 und bis {{max}} px ein oder lass das Feld leer.",
       sizeAtLeast: "Gedrehte Elemente halten die Gruppe bei mindestens {{value}} px.",
       sizeAtMost: "Gedrehte Elemente halten die Gruppe bei höchstens {{value}} px.",
       unloadedExtension:

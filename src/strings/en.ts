@@ -571,6 +571,8 @@ export const en = {
       widthHint: "How wide the element is.",
       heightHint: "How tall the element is.",
       rotationHint: "Turns the element around its centre.",
+      strokeWidthHint:
+        "The width of the icon's lines, the same at any icon size. Empty uses the icon's own width.",
       cropZoomHint: "Enlarges the image inside its frame.",
       cropOffsetXHint: "Moves the image left or right inside its frame.",
       cropOffsetYHint: "Moves the image up or down inside its frame.",
@@ -615,6 +617,7 @@ export const en = {
       widthValueHint: "Pixels; a larger number makes the element wider.",
       heightValueHint: "Pixels; a larger number makes the element taller.",
       rotationValueHint: "Degrees clockwise; 0 is upright.",
+      strokeWidthValueHint: "Pixels of the page format; empty is the icon's own width.",
       cropZoomPercent: "Zoom (%)",
       cropZoomValueHint:
         "100% fills the frame; up to 500% shows an ever smaller part of the image.",
@@ -878,6 +881,8 @@ export const en = {
       width: "Width",
       height: "Height",
       rotation: "Rotation",
+      strokeWidth: "Stroke width",
+      strokeWidthRange: "Enter a width above 0 and up to {{max}} px, or leave the field empty.",
       sizeAtLeast: "The group's rotated elements keep it at least {{value}} px.",
       sizeAtMost: "The group's rotated elements keep it at most {{value}} px.",
       unloadedExtension:

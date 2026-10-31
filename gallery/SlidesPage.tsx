@@ -10,6 +10,7 @@ import {
   SLIDE_FIT_SHRINKS,
   SLIDE_FIT_TOO_LONG,
   SLIDE_FONTS,
+  SLIDE_ICON_STROKES,
   SLIDE_MISSING_FONT,
   SLIDE_SHOWCASE,
 } from "./slide-showcase.js";
@@ -153,6 +154,9 @@ export function SlidesPage() {
           fitText
         />
       </div>
+      {/* `SUI-FEATURE-166`: icons with and without a stroke width. */}
+      <h3>Icon stroke widths</h3>
+      <Drawn testId="slide-icon-strokes" width={960} height={540} document={SLIDE_ICON_STROKES} />
     </section>
   );
 }

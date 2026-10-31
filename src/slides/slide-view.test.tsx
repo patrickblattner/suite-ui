@@ -232,6 +232,46 @@ describe("SlideView", () => {
     expect(report().missingFonts).toEqual(["Gallery Slide Sans"]);
   });
 
+  // SUI-FEATURE-166 AC1–AC3: a stroke width is format px whatever the icon's size: the library's
+  // 24-unit view box fits the box's shorter side, so the drawn stroke is its attribute × side / 24.
+  // Without one the library's own stroke stays. The page's scale scales it with everything else.
+  it("draws an icon's strokeWidth in format px at any size, and the library's own without", async () => {
+    const page = SLIDE_SHOWCASE.pages[0]!;
+    const star = (id: string, side: number, strokeWidth?: number) => ({
+      id,
+      type: "icon" as const,
+      x: 0,
+      y: 0,
+      width: side,
+      height: id === "wide" ? side * 2 : side,
+      icon: "star",
+      ...(strokeWidth === undefined ? {} : { strokeWidth }),
+    });
+    const elements = [
+      star("big", 96, 1.5),
+      star("small", 48, 1.5),
+      star("wide", 48, 1.5),
+      star("plain", 96),
+    ];
+    for (const scale of [0.5, 0.25]) {
+      cleanup();
+      const { container } = await drawn({
+        document: { ...SLIDE_SHOWCASE, pages: [{ ...page, elements }] },
+        scale,
+      });
+      const svg = (id: string) => container.querySelector(`[data-slide-element=${id}] svg`)!;
+      const drawnStroke = (id: string, side: number) =>
+        (Number(svg(id).getAttribute("stroke-width")) * side) / 24;
+      expect(svg("big").getAttribute("viewBox")).toBe("0 0 24 24");
+      expect(drawnStroke("big", 96)).toBe(1.5);
+      expect(drawnStroke("small", 48)).toBe(1.5);
+      expect(drawnStroke("wide", 48)).toBe(1.5);
+      expect(svg("plain").getAttribute("stroke-width")).toBe("2");
+      const pageNode = container.querySelector<HTMLElement>("[data-slot=slide-page]")!;
+      expect(pageNode.style.transform).toBe(`scale(${scale})`);
+    }
+  });
+
   // SUI-FEATURE-160 rev 4 AC6: an icon name the library lacks stands as a named stand-in.
   it("names an unknown icon", async () => {
     const page = SLIDE_SHOWCASE.pages[0]!;

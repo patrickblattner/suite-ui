@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { resolveSlideMedia, SLIDE_BRAND, SLIDE_EDITOR_DOC } from "../../gallery/slide-showcase.js";
 import type { SlideDocument } from "./schema.js";
-import { SlideEditor } from "./slide-editor.js";
+import { type ReadonlySlideDocument, SlideEditor } from "./slide-editor.js";
 import type { SlideExtensions } from "./slide-view.js";
 
 beforeEach(() => {
@@ -1113,5 +1113,134 @@ describe("SlideEditor field ids", () => {
       "slide-editor-table-valign",
     );
     expectOwnReferences(editors);
+  });
+});
+
+// SUI-FEATURE-166 AC3, AC4: an icon's stroke width is a number field under Content; setting it changes
+// the drawing and notifies, undo restores it, clearing it returns to the library's own stroke; a
+// value out of range is named at the field and not taken.
+describe("SlideEditor: icon stroke width", () => {
+  const [first, ...rest] = SLIDE_EDITOR_DOC.pages;
+  const document = {
+    ...SLIDE_EDITOR_DOC,
+    pages: [
+      {
+        ...first!,
+        elements: [
+          ...(first!.elements ?? []),
+          {
+            id: "star",
+            name: "Star",
+            type: "icon" as const,
+            x: 40,
+            y: 40,
+            width: 96,
+            height: 96,
+            icon: "star",
+          },
+        ],
+      },
+      ...rest,
+    ],
+  };
+  const strokes = (container: HTMLElement) =>
+    [...container.querySelectorAll("[data-slide-element=star] svg")].map((svg) =>
+      svg.getAttribute("stroke-width"),
+    );
+
+  const select = (id: string) => {
+    if (screen.queryByTestId("slide-editor-layers") === null)
+      fireEvent.click(screen.getByTestId("drawer-layers"));
+    const row = screen
+      .getAllByTestId("slide-editor-layer")
+      .find((node) => node.getAttribute("data-layer-id") === id)!;
+    fireEvent.click(row.querySelector("button")!);
+  };
+  const openContent = () => {
+    fireEvent.mouseDown(screen.getByTestId("property-tab-content"));
+    fireEvent.click(screen.getByTestId("property-tab-content"));
+  };
+  const field = () => screen.getByLabelText("Stroke width");
+  const editor = (onChange?: (document: ReadonlySlideDocument) => void) => {
+    const view = render(
+      <SlideEditor
+        document={document}
+        title="Deck"
+        brand={SLIDE_BRAND}
+        onChange={onChange}
+        onSave={() => true}
+        onBack={() => {}}
+      />,
+    );
+    select("star");
+    expect(screen.getByTestId("property-tab-layout")).toHaveAttribute("data-state", "active");
+    openContent();
+    return view;
+  };
+
+  it("sets, undoes and clears the stroke width, and rejects one out of range", async () => {
+    const onChange = vi.fn<(document: ReadonlySlideDocument) => void>();
+    const { container } = editor(onChange);
+    expect(field()).toHaveValue("");
+    await waitFor(() => expect(strokes(container).length).toBeGreaterThan(0));
+    expect(new Set(strokes(container))).toEqual(new Set(["2"]));
+
+    fireEvent.change(field(), { target: { value: "1.5" } });
+    expect(new Set(strokes(container))).toEqual(new Set(["0.375"]));
+    // Typing notifies once the field is left.
+    fireEvent.blur(field());
+    const star = (changed: ReadonlySlideDocument) =>
+      changed.pages[0]!.elements.find((element) => element.id === "star");
+    expect(star(onChange.mock.lastCall![0])).toMatchObject({ strokeWidth: 1.5 });
+
+    fireEvent.click(screen.getAllByTestId("editor-undo")[0]!);
+    expect(new Set(strokes(container))).toEqual(new Set(["2"]));
+    expect(star(onChange.mock.lastCall![0])).not.toHaveProperty("strokeWidth");
+    fireEvent.click(screen.getAllByTestId("editor-redo")[0]!);
+    expect(field()).toHaveValue("1.5");
+
+    fireEvent.change(field(), { target: { value: "" } });
+    expect(new Set(strokes(container))).toEqual(new Set(["2"]));
+    fireEvent.blur(field());
+    expect(star(onChange.mock.lastCall![0])).not.toHaveProperty("strokeWidth");
+    expect(screen.queryByTestId("slide-editor-strokeWidth-error")).toBeNull();
+
+    for (const out of ["0", "-1", "1001"]) {
+      const calls = onChange.mock.calls.length;
+      fireEvent.change(field(), { target: { value: out } });
+      // The error shows once the field is left (`GL-UI-038`).
+      fireEvent.blur(field());
+      expect(screen.getByTestId("slide-editor-strokeWidth-error")).toHaveTextContent(
+        "Enter a width above 0 and up to 1000 px, or leave the field empty.",
+      );
+      // What is typed stays beside its error (`GL-UI-037`).
+      expect(field()).toHaveValue(out);
+      expect(onChange.mock.calls.length).toBe(calls);
+      expect(new Set(strokes(container))).toEqual(new Set(["2"]));
+    }
+  });
+
+  it("drops the range error when the selection changes", () => {
+    editor();
+    fireEvent.change(field(), { target: { value: "0" } });
+    fireEvent.blur(field());
+    expect(screen.getByTestId("slide-editor-strokeWidth-error")).toBeInTheDocument();
+    select("stamp");
+    select("star");
+    openContent();
+    expect(screen.queryByTestId("slide-editor-strokeWidth-error")).toBeNull();
+    expect(field()).toHaveValue("");
+  });
+
+  // The arrows keep within the range: ↓ stops at 0.5 px and never steps into the error.
+  it("steps down to 0.5 px with the arrow key and no further", () => {
+    editor();
+    fireEvent.change(field(), { target: { value: "1" } });
+    fireEvent.keyDown(field(), { key: "ArrowDown" });
+    expect(field()).toHaveValue("0.5");
+    fireEvent.keyDown(field(), { key: "ArrowDown" });
+    fireEvent.blur(field());
+    expect(field()).toHaveValue("0.5");
+    expect(screen.queryByTestId("slide-editor-strokeWidth-error")).toBeNull();
   });
 });

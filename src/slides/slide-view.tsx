@@ -839,11 +839,19 @@ function icon(draw: Draw, element: ElementOf<"icon">) {
     return <Stand text={draw.t("slides.unknownIcon", { name: element.icon })} />;
   }
   const color = element.color === undefined ? undefined : colorOf(draw, element.color);
+  // A stroke in format px, in the library's 24-unit view box, which fits the box's shorter side
+  // (`SUI-FEATURE-166`); without one, the library's own.
+  const side = Math.min(element.width, element.height);
+  const stroke =
+    element.strokeWidth === undefined || side <= 0
+      ? {}
+      : { strokeWidth: num((element.strokeWidth * 24) / side) };
   return (
     <Icon
       width="100%"
       height="100%"
       color={color ?? "currentColor"}
+      {...stroke}
       role={element.name === undefined ? undefined : "img"}
       aria-label={element.name}
       aria-hidden={element.name === undefined ? true : undefined}

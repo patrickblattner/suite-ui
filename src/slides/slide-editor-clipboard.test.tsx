@@ -49,7 +49,7 @@ const background = { type: "color" as const, color: { kind: "free" as const, val
 const payload = { "ext.gallery.image-filter": { warmth: 20, brightness: -5 }, note: ["kept", 1] };
 
 const DOC = {
-  schemaVersion: 5 as const,
+  schemaVersion: 6 as const,
   format: FORMAT_16_9,
   pages: [
     {
