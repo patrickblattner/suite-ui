@@ -852,6 +852,8 @@ export const en = {
         "The layout can’t be used on this page: it doesn’t fit the document. Choose another layout.",
       textRefused:
         "That much text doesn’t fit here. Nothing was added; remove some text and try again.",
+      paragraphsRefused:
+        "Not added: this text field has reached its paragraph limit. Shift+Enter still adds a line break.",
       formatRefused:
         "Formatting not changed: this text has too many differently formatted parts. Remove some formatting and try again.",
       inlineRefused:

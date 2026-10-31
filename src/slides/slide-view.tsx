@@ -491,7 +491,6 @@ function inlineSpan(draw: Draw, run: InlineRun, ink: TextRun | undefined, key: n
   );
 }
 
-// `ink` names the run an inline piece takes its colour from (`inkRun`); a text piece has its own.
 // A run's text with a `<br>` at each line separator (U+2028, `SUI-DESIGN-002` rev 9): the line breaks
 // inside its paragraph, in a list inside its item, and in a styled numbered list it starts at the
 // entry's text, not under the number. A text ending in one keeps its empty last line.
@@ -506,6 +505,7 @@ function lineBroken(text: string): React.ReactNode {
   ));
 }
 
+// `ink` names the run an inline piece takes its colour from (`inkRun`); a text piece has its own.
 function runSpan(draw: Draw, piece: Piece, key: number, ink: () => TextRun | undefined) {
   if (piece.text === undefined) return inlineSpan(draw, piece.run, ink(), key);
   const run: TextRun = piece.run;

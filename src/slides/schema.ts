@@ -7,6 +7,7 @@
 import { z } from "zod";
 
 import { GRID_COLUMNS_MAX, GRID_COLUMNS_MIN } from "../ui/grid-core.js";
+import { paragraphCount } from "./paragraph-count.js";
 import { shownInError } from "./shown-in-error.js";
 
 // The current schema version. Every change of the schema raises it and adds a step to the migration
@@ -280,15 +281,9 @@ export const runSchema = z.discriminatedUnion("inline", [
   inlineMediaRunSchema,
 ]);
 
-// The paragraphs of a field's runs at most `maxParagraphs` (`SUI-DESIGN-002` rev 8): counted without
-// splitting, so a text far over the cap costs no more than reading it once.
+// The paragraphs of a field's runs at most `maxParagraphs` (`SUI-DESIGN-002` rev 8).
 function paragraphCap(runs: readonly z.output<typeof runSchema>[], context: z.RefinementCtx) {
-  let count = 1;
-  for (const run of runs) {
-    if (run.inline !== undefined) continue;
-    for (let at = run.text.indexOf("\n"); at !== -1; at = run.text.indexOf("\n", at + 1)) count++;
-  }
-  if (count > SLIDE_LIMITS.maxParagraphs) {
+  if (paragraphCount(runs) > SLIDE_LIMITS.maxParagraphs) {
     context.addIssue({
       code: "custom",
       message: `at most ${SLIDE_LIMITS.maxParagraphs} paragraphs`,

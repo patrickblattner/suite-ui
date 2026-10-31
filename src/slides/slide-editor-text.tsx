@@ -845,7 +845,12 @@ function copyRuns(event: React.ClipboardEvent<HTMLElement>, runs: readonly Run[]
   const at = rangeIn(event.currentTarget);
   if (at === undefined || at.start === at.end) return false;
   const copied = sliceRuns(runs, at.start, at.end);
-  event.clipboardData.setData("text/plain", textOf(copied).replaceAll(INLINE_CHARACTER, ""));
+  // Plain text has no line separator other apps keep: a line break (U+2028) goes out as "\n" there;
+  // the runs keep it.
+  event.clipboardData.setData(
+    "text/plain",
+    textOf(copied).replaceAll(INLINE_CHARACTER, "").replaceAll(LINE_SEPARATOR, "\n"),
+  );
   event.clipboardData.setData(RUNS_MIME, JSON.stringify(copied));
   return true;
 }

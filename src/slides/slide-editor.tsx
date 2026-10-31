@@ -135,7 +135,8 @@ import {
 import { resizeColumn, setCell } from "./editor-table.js";
 import { formatRange, insertRuns } from "./editor-text.js";
 import { offersHandle, unfollowsBy } from "./text-follow.js";
-import { cssColor, eachElement, paragraphs, stackOrder } from "./render-style.js";
+import { paragraphCount } from "./paragraph-count.js";
+import { cssColor, eachElement, stackOrder } from "./render-style.js";
 import {
   type Run,
   SLIDE_LIMITS,
@@ -395,12 +396,14 @@ const fitsLimits = (element: unknown) => slideElementSchema.safeParse(element).s
 // An inline run counts as one run and has no text of its own (`SUI-FEATURE-164`).
 const longest = (runs: readonly Run[]) =>
   runs.reduce((most, run) => Math.max(most, run.inline === undefined ? run.text.length : 0), 0);
-const paragraphCount = (runs: readonly Run[]) => paragraphs(runs).length;
-const runsFit = (runs: readonly Run[], before: readonly Run[]) =>
+const partsFit = (runs: readonly Run[], before: readonly Run[]) =>
   (runs.length <= SLIDE_LIMITS.maxRuns || runs.length <= before.length) &&
-  (longest(runs) <= SLIDE_LIMITS.maxTextLength || longest(runs) <= longest(before)) &&
-  (paragraphCount(runs) <= SLIDE_LIMITS.maxParagraphs ||
-    paragraphCount(runs) <= paragraphCount(before));
+  (longest(runs) <= SLIDE_LIMITS.maxTextLength || longest(runs) <= longest(before));
+const paragraphsFit = (runs: readonly Run[], before: readonly Run[]) =>
+  paragraphCount(runs) <= SLIDE_LIMITS.maxParagraphs ||
+  paragraphCount(runs) <= paragraphCount(before);
+const runsFit = (runs: readonly Run[], before: readonly Run[]) =>
+  partsFit(runs, before) && paragraphsFit(runs, before);
 const validLayouts = (list: readonly SlideLayoutInput[] | undefined): SlideLayout[] =>
   (list ?? []).flatMap((one) => {
     if (!(one.elements ?? []).every(fitsLimits)) return [];
@@ -4485,7 +4488,11 @@ function Editor({
                         range={textRange}
                         onRuns={(runs, range) => {
                           if (!runsFit(runs, body.runs)) {
-                            toast.error(t("slides.editor.textRefused"), { id: TEXT_REFUSED_TOAST });
+                            // Refused only by the paragraph cap: say so, and that a line break still goes in.
+                            const hint = partsFit(runs, body.runs)
+                              ? "slides.editor.paragraphsRefused"
+                              : "slides.editor.textRefused";
+                            toast.error(t(hint), { id: TEXT_REFUSED_TOAST });
                             return false;
                           }
                           setTextRange(range);

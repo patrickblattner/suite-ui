@@ -823,6 +823,8 @@ export const es: SuiteStrings = {
         "El diseño no se puede usar en esta página: no encaja con el documento. Elige otro diseño.",
       textRefused:
         "Tanto texto no cabe aquí. No se ha añadido nada; quita algo de texto e inténtalo de nuevo.",
+      paragraphsRefused:
+        "No se ha añadido: este cuadro de texto ha alcanzado su límite de párrafos. Mayús+Intro sigue añadiendo un salto de línea.",
       formatRefused:
         "No se ha cambiado el formato: este texto tiene demasiadas partes con formatos distintos. Quita algo de formato e inténtalo de nuevo.",
       inlineRefused:

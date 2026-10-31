@@ -8,7 +8,7 @@ import { safeParseSlideDocument } from "./document.js";
 import { textOf } from "./editor-text.js";
 import { type Run, SLIDE_LIMITS, type SlideDocument } from "./schema.js";
 import { SlideEditor } from "./slide-editor.js";
-import { fillEditable, rangeIn, readRuns, selectRange } from "./slide-editor-text.js";
+import { fillEditable, rangeIn, readRuns, RUNS_MIME, selectRange } from "./slide-editor-text.js";
 
 // The schema check runs as it is, except where a test loads a draft already past a limit.
 vi.mock("./document.js", async (importOriginal) => {
@@ -542,6 +542,10 @@ describe("SlideEditor text editing", () => {
     });
     expect(field.textContent).toBe("A caption");
     expect(error).toHaveBeenCalledTimes(1);
+    expect(error).toHaveBeenLastCalledWith(
+      "Not added: this text field has reached its paragraph limit. Shift+Enter still adds a line break.",
+      { id: "slide-editor-text-refused" },
+    );
     // At the cap exactly, the field takes it; one Enter more is refused, Shift+Enter is not.
     selectRange(field, { start: 0, end: 0 });
     fireEvent.paste(field, {
@@ -550,6 +554,11 @@ describe("SlideEditor text editing", () => {
     await waitFor(() => expect(field.children).toHaveLength(SLIDE_LIMITS.maxParagraphs));
     fireEvent.keyDown(field, { key: "Enter" });
     expect(error).toHaveBeenCalledTimes(2);
+    // The cap refusal names the cap and the way out, not the generic "too much text" (#731 review).
+    expect(error).toHaveBeenLastCalledWith(
+      "Not added: this text field has reached its paragraph limit. Shift+Enter still adds a line break.",
+      { id: "slide-editor-text-refused" },
+    );
     expect(field.children).toHaveLength(SLIDE_LIMITS.maxParagraphs);
     fireEvent.keyDown(field, { key: "Enter", shiftKey: true });
     await waitFor(() => expect(field.querySelectorAll("br[data-line]")).toHaveLength(1));
@@ -870,6 +879,21 @@ describe("SlideEditor text editing", () => {
     expect(screen.getAllByTestId("editor-state")[0]).toHaveTextContent("Saved");
     error.mockRestore();
   }, 60_000);
+
+  // SUI-DESIGN-002 rev 9 (#731 review): a copy puts a line break on the plain text as "\n"; the runs
+  // keep the U+2028, so a paste inside the editor gives the line break back, not a paragraph.
+  it("copies a line break as \\n on plain text and as U+2028 in the runs", async () => {
+    const { field } = await editCaptionWith([{ text: "A\u2028B", size: 20 }]);
+    const store = new Map<string, string>();
+    const clipboardData = {
+      setData: (type: string, value: string) => store.set(type, value),
+      getData: (type: string) => store.get(type) ?? "",
+    };
+    selectRange(field, { start: 0, end: 3 });
+    fireEvent.copy(field, { clipboardData });
+    expect(store.get("text/plain")).toBe("A\nB");
+    expect(JSON.parse(store.get(RUNS_MIME)!)).toEqual([{ text: "A\u2028B", size: 20 }]);
+  });
 
   it("keeps an inline run through a copy and paste inside the editor (AC3)", async () => {
     const { field } = await editCaptionWith([
