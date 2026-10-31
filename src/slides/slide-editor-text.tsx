@@ -141,6 +141,13 @@ export function fillEditable(
     const paragraph = paragraphRun(pieces, runs);
     const size = paragraph?.size ?? runs.find(isTextRun)?.size ?? DEFAULT_TEXT_SIZE;
     block.style.fontSize = px(size);
+    // The paragraph's own font, as the view draws it (`slide-view.tsx` `textContent`, #717).
+    if (paragraph !== undefined) {
+      const font = cssFont(paragraph.font ?? DEFAULT_FONT, brand);
+      block.style.fontFamily = "css" in font ? font.css : "";
+      block.style.fontWeight = paragraph.weight === undefined ? "" : String(paragraph.weight);
+      block.style.fontStyle = paragraph.italic === true ? "italic" : "";
+    }
     if (list !== "none") {
       block.style.display = "list-item";
       block.style.listStyleType = list === "bullet" ? "disc" : "decimal";

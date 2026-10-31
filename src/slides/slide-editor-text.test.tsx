@@ -86,6 +86,31 @@ describe("editable text field", () => {
     }
     root.remove();
   });
+
+  // #717: a paragraph's line box starts from its own first run's font, as the view draws it.
+  it("gives each paragraph the family, weight and style of its first run", () => {
+    const mixed: Run[] = [
+      {
+        text: "Serif bold italic ",
+        font: { kind: "free", family: "Gallery Slide Serif" },
+        weight: 700,
+        italic: true,
+      },
+      { text: "then the page font\nPage font", font: { kind: "brand", key: "body" } },
+    ];
+    for (const list of ["none", "bullet"] as const) {
+      const root = document.createElement("div");
+      fillEditable(root, mixed, SLIDE_BRAND, list);
+      const [first, second] = [...root.children] as HTMLElement[];
+      expect(first!.style.fontFamily).toContain("Gallery Slide Serif");
+      expect(first!.style.fontWeight).toBe("700");
+      expect(first!.style.fontStyle).toBe("italic");
+      expect(second!.style.fontFamily).toContain("Gallery Slide Sans");
+      expect(second!.style.fontWeight).toBe("");
+      expect(second!.style.fontStyle).toBe("");
+      expect(readRuns(root, mixed)).toEqual(mixed);
+    }
+  });
 });
 
 // The caption of the editor showcase's second page, at the canvas's "Fit" of 0.25 in jsdom (its
