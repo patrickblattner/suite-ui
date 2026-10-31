@@ -787,3 +787,4 @@
 {"ts":"2026-10-31T20:07:29.357Z","key":"SUI-FEATURE-125","from":null,"to":2,"disposition":"ticket","ref":"729"}
 {"ts":"2026-10-31T20:07:29.790Z","key":"GL-SEC-010","from":12,"to":14,"disposition":"editorial","ref":"rev 13-14: editorial tightening; the session-revocation rule moved to GL-SEC-023. suite-ui is a UI package with no auth server, token or user-load code"}
 {"ts":"2026-10-31T20:07:30.226Z","key":"GL-SEC-023","from":null,"to":2,"disposition":"editorial","ref":"server-side session revocation via user-load; suite-ui only offers the Change password menu entry (onChangePassword), revocation and token renewal live in each app's server/client"}
+{"ts":"2026-10-31T21:08:57.478Z","key":"SUI-FEATURE-125","from":2,"to":4,"disposition":"ticket","ref":"729"}
