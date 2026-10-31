@@ -485,8 +485,9 @@ function runSpan(draw: Draw, piece: Piece, key: number, ink: () => TextRun | und
   const style: React.CSSProperties = {
     fontFamily: familyOf(draw, run.font),
     fontSize: fitSize(run.size ?? DEFAULT_TEXT_SIZE),
-    fontWeight: run.weight,
-    fontStyle: run.italic === true ? "italic" : undefined,
+    // Its own, never the paragraph's: the paragraph takes its first run's for the line box (#724).
+    fontWeight: run.weight ?? 400,
+    fontStyle: run.italic === true ? "italic" : "normal",
     letterSpacing: run.letterSpacing === undefined ? undefined : px(run.letterSpacing),
     textTransform: run.uppercase === true ? "uppercase" : undefined,
   };
@@ -669,15 +670,24 @@ function SlideText({
       onFit(id, true);
       return;
     }
-    // Each whole pixel below the set size, down to the first at or above 70 % of it (#719); never
-    // above the set size, which a size under 2 px would give.
+    // The largest whole pixel below the set size that fits, down to the first at or above 70 % of it
+    // (#719); never above the set size, which a size under 2 px would give. Fit only grows with the
+    // size, so a binary search finds the step the pixel-by-pixel walk would: a few layouts at any
+    // size, and bounded where pixels no longer count (1e20 − 1 is 1e20, #724).
     const lowest = Math.min(Math.ceil(size * 0.7 - 1e-9), size);
-    let step = Math.max(Math.ceil(size) - 1, lowest);
-    set(step / size);
-    while (step > lowest && overflows()) {
-      step -= 1;
-      set(step / size);
+    // `good` fits or is the lowest; `bad` overflows or lies above the highest step, a whole pixel so
+    // that no step above a set size under 2 px is tried. The middle without a sum, which would pass
+    // the largest number near it.
+    let good = lowest;
+    let bad = Math.floor(Math.max(Math.ceil(size) - 1, lowest)) + 1;
+    for (let round = 0; round < 64 && bad - good > 1; round += 1) {
+      const middle = Math.floor(good + (bad - good) / 2);
+      if (middle <= good || middle >= bad) break;
+      set(middle / size);
+      if (overflows()) bad = middle;
+      else good = middle;
     }
+    set(good / size);
     onFit(id, !overflows());
   }, [id, measureKey, size, fit, ready, onFit]);
   return (

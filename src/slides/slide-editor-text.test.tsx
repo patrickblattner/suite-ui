@@ -111,6 +111,23 @@ describe("editable text field", () => {
       expect(readRuns(root, mixed)).toEqual(mixed);
     }
   });
+
+  // #724: each run sets its own weight and style; the plain run after the bold italic one is drawn
+  // 400 and upright, not in its paragraph block's.
+  it("draws a plain run after a bold italic first run at 400 and upright", () => {
+    const root = document.createElement("div");
+    fillEditable(
+      root,
+      [{ text: "Bold italic ", weight: 700, italic: true }, { text: "plain" }],
+      SLIDE_BRAND,
+      "none",
+    );
+    const [bold, plain] = [...root.querySelectorAll<HTMLElement>("[data-run]")];
+    expect(bold!.style.fontWeight).toBe("700");
+    expect(bold!.style.fontStyle).toBe("italic");
+    expect(plain!.style.fontWeight).toBe("400");
+    expect(plain!.style.fontStyle).toBe("normal");
+  });
 });
 
 // The caption of the editor showcase's second page, at the canvas's "Fit" of 0.25 in jsdom (its

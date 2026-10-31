@@ -485,6 +485,34 @@ describe("SlideView reports", () => {
     }
   });
 
+  // #724: every factor tried at the given set size, the text never fitting.
+  const triedAt = async (size: number) => {
+    const tried: number[] = [];
+    lineBoxes((_, fit) => {
+      tried.push(fit);
+      return 100;
+    });
+    const { report } = await drawn({ document: withElements([sized(size)]), fitText: true });
+    await waitFor(() => expect(report().overflowing).toEqual(["Steps"]));
+    cleanup();
+    vi.restoreAllMocks();
+    return tried;
+  };
+
+  it("tries no factor above 1 at a fractional set size under 2 px", async () => {
+    for (const size of [1.7, 1.95]) {
+      expect(Math.max(...(await triedAt(size)))).toBeLessThanOrEqual(1);
+    }
+  });
+
+  // Near the largest number the sum of the bounds is Infinity: the search would stop at the lowest.
+  it("searches a set size near the largest number", async () => {
+    lineBoxes((_, fit) => (fit > 0.9 ? 100 : 50));
+    const { report } = await drawn({ document: withElements([sized(1.5e308)]), fitText: true });
+    expect(report().overflowing).toEqual([]);
+    expect(Number(fitOf())).toBeCloseTo(0.9, 9);
+  });
+
   it("reports text that fits only below 70 % by name, drawn at the smallest whole pixel tried", async () => {
     // Set 32: 70 % is 22.4 px, the smallest tried 23 px; this text fits only at 22 px.
     const tried: number[] = [];
@@ -497,6 +525,33 @@ describe("SlideView reports", () => {
     expect(Number(fitOf()) * 32).toBeCloseTo(23, 9);
     expect(Math.min(...tried)).toBe(23);
     expect(tried.every(Number.isInteger)).toBe(true);
+  });
+
+  // #724: a binary search over the whole pixels, so a large set size takes a few layouts and a huge
+  // one, where a pixel less is the same number, still returns.
+  it("finds the step of a large set size in a few layouts", async () => {
+    const tried = new Set<number>();
+    lineBoxes((_, fit) => {
+      tried.add(Math.round(fit * 1000 * 1000) / 1000);
+      return fit * 1000 > 777 ? 100 : 50;
+    });
+    const { report } = await drawn({ document: withElements([sized(1000)]), fitText: true });
+    expect(report().overflowing).toEqual([]);
+    expect(Number(fitOf()) * 1000).toBeCloseTo(777, 9);
+    expect(tried.size).toBeLessThanOrEqual(12);
+  });
+
+  it("returns for a set size where a pixel less is the same number", async () => {
+    let layouts = 0;
+    lineBoxes((_, fit) => {
+      layouts += 1;
+      return fit > 0.8 ? 100 : 50;
+    });
+    const { report } = await drawn({ document: withElements([sized(1e20)]), fitText: true });
+    expect(layouts).toBeLessThan(200);
+    expect(report().overflowing).toEqual([]);
+    expect(Number(fitOf())).toBeLessThanOrEqual(0.8);
+    expect(Number(fitOf())).toBeGreaterThanOrEqual(0.7);
   });
 
   it("names a missing brand colour on the view and in its attributes", async () => {
@@ -1557,6 +1612,18 @@ describe("SlideView paragraph font", () => {
     expect(second!.style.fontFamily).toContain("Gallery Slide Sans");
     expect(second!.style.fontWeight).toBe("");
     expect(second!.style.fontStyle).toBe("");
+  });
+
+  // #724: each run draws its own weight and style; a plain run after a bold italic first run is
+  // drawn 400 and upright, not in the paragraph's.
+  it("draws a plain run after a bold italic first run at 400 and upright", async () => {
+    await drawn({ document: text("none"), fonts: SLIDE_SERIF_FONTS });
+    const bold = screen.getByText("Serif bold italic", { exact: false });
+    expect(bold.style.fontWeight).toBe("700");
+    expect(bold.style.fontStyle).toBe("italic");
+    const plain = screen.getByText("then the page font", { exact: false });
+    expect(plain.style.fontWeight).toBe("400");
+    expect(plain.style.fontStyle).toBe("normal");
   });
 
   it("does the same for a list item", async () => {

@@ -82,8 +82,9 @@ function runStyle(run: TextRun, brand: SlideBrandSet): Partial<Record<string, st
   const style: Partial<Record<string, string>> = {
     fontFamily: "css" in font ? font.css : "",
     fontSize: px(run.size ?? DEFAULT_TEXT_SIZE),
-    fontWeight: run.weight === undefined ? "" : String(run.weight),
-    fontStyle: run.italic === true ? "italic" : "",
+    // Its own, never the paragraph block's first run's (#724).
+    fontWeight: String(run.weight ?? 400),
+    fontStyle: run.italic === true ? "italic" : "normal",
     letterSpacing: run.letterSpacing === undefined ? "" : px(run.letterSpacing),
     textTransform: run.uppercase === true ? "uppercase" : "",
     backgroundColor:
