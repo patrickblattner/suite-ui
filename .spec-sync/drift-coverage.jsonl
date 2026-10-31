@@ -774,3 +774,4 @@
 {"ts":"2026-10-30T19:17:50.343Z","key":"PROC-CC-002","from":null,"to":2,"disposition":"editorial","ref":"process rule for agent sessions (no macOS privacy dialogs); repo has no osascript/screencapture — no code impact"}
 {"ts":"2026-10-30T21:50:08.050Z","key":"SUI-FEATURE-122","from":null,"to":2,"disposition":"editorial","ref":"app adoption rule; sheet states no package change; RowActionSet already keeps icon x-positions (step before icons, end-aligned; row-actions.test AC2)"}
 {"ts":"2026-10-30T21:50:08.449Z","key":"PROC-CC-002","from":2,"to":4,"disposition":"editorial","ref":"session process rule (no home-rooted searches, announce protected access); repo scripts have no such calls — no code impact"}
+{"ts":"2026-10-31T03:16:36.227Z","key":"SUI-FEATURE-123","from":null,"to":2,"disposition":"ticket","ref":"715"}
