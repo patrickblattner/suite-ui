@@ -433,6 +433,13 @@ describe("MediaTile step (SUI-FEATURE-330 rev 4 AC 8)", () => {
     expect(onOpen).not.toHaveBeenCalled();
   });
 
+  it("#722: the ⋯ button names the tile unescaped (GL-UI-016)", () => {
+    // The test instance keeps i18next's default escapeValue: true.
+    expect(i18n.options.interpolation?.escapeValue).not.toBe(false);
+    renderTile({ name: "A & B", step: { label: "Publish", icon: SendIcon, onClick: vi.fn() } });
+    expect(screen.getByTestId("row-menu")).toHaveAccessibleName("More for A & B");
+  });
+
   it("a busy step's entry is locked; a locked one names its reason", () => {
     const onClick = vi.fn();
     renderTile({ step: { label: "Publish", icon: SendIcon, onClick, busy: true } });

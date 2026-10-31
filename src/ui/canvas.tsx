@@ -287,7 +287,9 @@ function CanvasOverlay({
       ))}
       <span role="status" aria-live="polite" className="sr-only" data-testid="canvas-announcement">
         {announcement ??
-          (selected === undefined ? "" : t("canvas.selected", { name: selected.name }))}
+          (selected === undefined
+            ? ""
+            : t("canvas.selected", { name: selected.name, interpolation: { escapeValue: false } }))}
       </span>
     </div>
   );

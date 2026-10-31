@@ -63,6 +63,11 @@ describe("CanvasOverlay (SUI-FEATURE-070)", () => {
     expect(screen.getByTestId("canvas-overlay")).toHaveClass("pointer-events-none");
   });
 
+  it("#722: announces the selection's name unescaped", () => {
+    renderOverlay({ selected: { rect: rect(0, 40, 100, 40), name: "A & B" } });
+    expect(screen.getByTestId("canvas-announcement").textContent).toBe("Selected: A & B");
+  });
+
   // #349: a mode the editor is in with the selection is announced in its place while it lasts.
   it("announces the editor's mode in place of the selection", () => {
     const { rerender } = renderOverlay({

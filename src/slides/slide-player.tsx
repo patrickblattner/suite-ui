@@ -190,13 +190,22 @@ export function SlidePlayer({
     report.current?.(next, page);
     const lines = [
       next.missingFonts.length > 0
-        ? t("slides.missingFonts", { fonts: missingFontsText(t, next.missingFaces) })
+        ? t("slides.missingFonts", {
+            fonts: missingFontsText(t, next.missingFaces),
+            interpolation: { escapeValue: false },
+          })
         : null,
       next.overflowing.length > 0
-        ? t("slides.overflowing", { names: next.overflowing.join(", ") })
+        ? t("slides.overflowing", {
+            names: next.overflowing.join(", "),
+            interpolation: { escapeValue: false },
+          })
         : null,
       next.missingBrand.length > 0
-        ? t("slides.missingBrand", { keys: next.missingBrand.join(", ") })
+        ? t("slides.missingBrand", {
+            keys: next.missingBrand.join(", "),
+            interpolation: { escapeValue: false },
+          })
         : null,
     ].filter((line) => line !== null);
     if (lines.length === 0) return;

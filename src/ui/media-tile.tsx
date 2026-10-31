@@ -91,8 +91,9 @@ function MediaTile({
     rowProps === undefined || (onOpen === undefined && onDelete === undefined)
       ? undefined
       : rowProps({ onDelete });
-  // Filled `destructive`, `icon-xs`, hint and name "Delete ‹name›" (`GL-UI-012`, `GL-UI-016`); the
-  // Delete chip while the grid binds the same handler to the key. The step folds into ⋯ before it.
+  // Filled `destructive`, `icon-xs` (`GL-UI-012`), hint (`GL-UI-016`) and name "Delete ‹name›"
+  // (`GL-UX-001` WCAG 2.2 AA, `SUI-FEATURE-330`); the Delete chip while the grid binds the same
+  // handler to the key. The step folds into ⋯ before it.
   const buttons = useRowActionButtons({
     rowName: name,
     onDelete,
@@ -101,7 +102,12 @@ function MediaTile({
     // A choice of a picker is a selection task: no step, and no ⋯ without other entries (rev 7).
     ...(step === undefined || selected !== undefined || current !== undefined
       ? {}
-      : { menu: { label: t("actions.more", { name }), items: [foldRowAction(step, name)] } }),
+      : {
+          menu: {
+            label: t("actions.more", { name, interpolation: { escapeValue: false } }),
+            items: [foldRowAction(step, name)],
+          },
+        }),
   });
   const shared = {
     "data-slot": "media-tile",

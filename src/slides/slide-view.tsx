@@ -433,7 +433,9 @@ function inlineSpan(draw: Draw, run: InlineRun, ink: TextRun | undefined, key: n
       drawn = <span key={key} style={{ ...place, display: "inline-block", width: height }} />;
     } else if (Icon === undefined) {
       draw.unknownIcons.add(run.icon);
-      return stand(draw.t("slides.unknownIcon", { name: run.icon }));
+      return stand(
+        draw.t("slides.unknownIcon", { name: run.icon, interpolation: { escapeValue: false } }),
+      );
     } else {
       drawn = (
         <Icon
@@ -449,7 +451,9 @@ function inlineSpan(draw: Draw, run: InlineRun, ink: TextRun | undefined, key: n
     const src = draw.resolveMedia?.(run.media.id);
     if (src === undefined || draw.broken.has(src)) {
       draw.missingMedia.add(run.media.id);
-      return stand(draw.t("slides.missingMedia", { id: run.media.id }));
+      return stand(
+        draw.t("slides.missingMedia", { id: run.media.id, interpolation: { escapeValue: false } }),
+      );
     }
     drawn = (
       <img
@@ -804,7 +808,14 @@ function image(draw: Draw, element: ElementOf<"image">) {
   // A URL the app resolves but that does not load counts as missing too, never as a gap.
   if (src === undefined || draw.broken.has(src)) {
     draw.missingMedia.add(element.media.id);
-    return <Stand text={draw.t("slides.missingMedia", { id: element.media.id })} />;
+    return (
+      <Stand
+        text={draw.t("slides.missingMedia", {
+          id: element.media.id,
+          interpolation: { escapeValue: false },
+        })}
+      />
+    );
   }
   // The image lies inside the border, in the frame less a border on each side; its crop refers to
   // that area, so a crop cuts opposite sides evenly (`SUI-FEATURE-230` rev 5 §Rahmen). A crop stored
@@ -866,14 +877,28 @@ function image(draw: Draw, element: ElementOf<"image">) {
 function icon(draw: Draw, element: ElementOf<"icon">) {
   if (!isSlideIcon(element.icon)) {
     draw.unknownIcons.add(element.icon);
-    return <Stand text={draw.t("slides.unknownIcon", { name: element.icon })} />;
+    return (
+      <Stand
+        text={draw.t("slides.unknownIcon", {
+          name: element.icon,
+          interpolation: { escapeValue: false },
+        })}
+      />
+    );
   }
   const Icon = draw.icons.get(element.icon);
   if (Icon === undefined) {
     if (!draw.ready) return null;
     // Its import failed: named like an unknown one.
     draw.unknownIcons.add(element.icon);
-    return <Stand text={draw.t("slides.unknownIcon", { name: element.icon })} />;
+    return (
+      <Stand
+        text={draw.t("slides.unknownIcon", {
+          name: element.icon,
+          interpolation: { escapeValue: false },
+        })}
+      />
+    );
   }
   const color = element.color === undefined ? undefined : colorOf(draw, element.color);
   // A stroke in format px, in the library's 24-unit view box, which fits the box's shorter side
@@ -1358,7 +1383,14 @@ function content(draw: Draw, element: SlideElement): React.ReactNode {
         );
       }
       draw.unknownTypes.add(element.typeId);
-      return <Stand text={draw.t("slides.unknownType", { type: element.typeId })} />;
+      return (
+        <Stand
+          text={draw.t("slides.unknownType", {
+            type: element.typeId,
+            interpolation: { escapeValue: false },
+          })}
+        />
+      );
     }
   }
 }
@@ -1917,13 +1949,17 @@ export function SlideView({
                     key: "fonts",
                     text: t("slides.missingFonts", {
                       fonts: missingFontsText(t, missingFaces),
+                      interpolation: { escapeValue: false },
                     }),
                   }
                 : null,
               report.missingBrand.length > 0
                 ? {
                     key: "brand",
-                    text: t("slides.missingBrand", { keys: report.missingBrand.join(", ") }),
+                    text: t("slides.missingBrand", {
+                      keys: report.missingBrand.join(", "),
+                      interpolation: { escapeValue: false },
+                    }),
                   }
                 : null,
               ...(["text", "both", "page"] as const).map((kind) => {

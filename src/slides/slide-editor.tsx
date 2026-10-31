@@ -3540,6 +3540,7 @@ function Editor({
             name: document.format.name,
             width: pageWidth,
             height: pageHeight,
+            interpolation: { escapeValue: false },
           })}
         </p>
       ) : null}

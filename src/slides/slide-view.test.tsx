@@ -951,6 +951,12 @@ describe("SlideView notices (#321)", () => {
     lineBoxes(() => 100);
   };
 
+  // The schema keeps `&` and `/` out of a family; the text is still escaped zero times (#722).
+  it("#722: names a font family and its cuts unescaped", () => {
+    const faces = [{ family: "A&B Sans", weight: 700, style: "normal" }] as const;
+    expect(missingFontsText(i18n.getFixedT("en", "suite"), faces)).toBe("A&B Sans (Bold)");
+  });
+
   // AC1: grouped by family, each cut by its name, no weight number, in de, en and es.
   it("names missing cuts by family and by name in every language", async () => {
     // Family names that end in a number stay whole: the faces come apart, not as text.
@@ -1562,6 +1568,47 @@ describe("SlideView inline runs", () => {
     expect(stand.style.height).toBe("1em");
     expect(report().missingMedia).toEqual(["gone"]);
     expect(report().error).toBeUndefined();
+  });
+
+  it("#722: names a missing medium and an unknown icon unescaped in their stand-ins", async () => {
+    await drawn({
+      document: onlyPage([
+        {
+          id: "t",
+          type: "text",
+          x: 0,
+          y: 0,
+          width: 400,
+          height: 100,
+          runs: [
+            { inline: "media", media: { id: "a/b" } },
+            { inline: "icon", icon: "a/b" },
+          ],
+        },
+      ]),
+    });
+    expect(screen.getByRole("img", { name: "Image a/b not found" })).toBeInTheDocument();
+    expect(screen.getByRole("img", { name: "Icon a/b not found" })).toBeInTheDocument();
+  });
+
+  it("#722: names a missing brand colour unescaped in the notice", async () => {
+    await drawn({
+      document: onlyPage([
+        {
+          id: "i",
+          type: "icon",
+          x: 0,
+          y: 0,
+          width: 100,
+          height: 100,
+          icon: "star",
+          color: { kind: "brand", key: "brand/accent" },
+        },
+      ]),
+    });
+    await waitFor(() =>
+      expect(screen.getByRole("alert").textContent).toContain("Brand colour missing: brand/accent"),
+    );
   });
 
   it("names an unknown icon in the text by its stand-in", async () => {

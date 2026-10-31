@@ -714,6 +714,14 @@ describe("PreviewToolbar in a narrow column (SUI-FEATURE-067)", () => {
     );
   });
 
+  it("#722: folded, the ⋯ button names the row unescaped (GL-UI-016)", () => {
+    render(<PreviewToolbar {...FULL} actions={{ ...ENTRY, rowName: "A & B", usage: USAGE }} />);
+    resize(320);
+    expect(
+      within(screen.getByTestId("preview-actions")).getByTestId("row-menu"),
+    ).toHaveAccessibleName("More for A & B");
+  });
+
   it("SUI-FEATURE-350: folded without a row name, Used by has no hint", () => {
     render(<PreviewToolbar {...FULL} actions={{ ...ENTRY, rowName: "", usage: USAGE }} />);
     resize(320);

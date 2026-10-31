@@ -72,7 +72,9 @@ function actionKeyText(
   t: (key: string, options?: Record<string, unknown>) => string,
   action?: string,
 ) {
-  return action === undefined ? t("status.actionKeyUnnamed") : t("status.actionKey", { action });
+  return action === undefined
+    ? t("status.actionKeyUnnamed")
+    : t("status.actionKey", { action, interpolation: { escapeValue: false } });
 }
 
 // A toast with an action names it in the live region with its key path. Once the focus has entered

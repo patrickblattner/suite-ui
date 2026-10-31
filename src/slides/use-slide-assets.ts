@@ -128,7 +128,7 @@ export function missingFaceName(face: SlideMissingFace): string {
 // file at all (or a missing brand font key) by its name alone. The report keeps `missingFaceName`,
 // the number included, for the app.
 export function missingFontsText(
-  t: (key: string, options?: Record<string, string>) => string,
+  t: (key: string, options?: Record<string, unknown>) => string,
   missing: readonly SlideMissingFace[],
 ): string {
   const families = new Map<string, string[]>();
@@ -143,12 +143,18 @@ export function missingFontsText(
         ? weight
         : step === 400
           ? t("slides.italic")
-          : t("slides.italicFace", { weight });
+          : t("slides.italicFace", { weight, interpolation: { escapeValue: false } });
     if (!cuts.includes(cut)) cuts.push(cut);
   }
   return [...families]
     .map(([family, cuts]) =>
-      cuts.length === 0 ? family : t("slides.fontFaces", { family, faces: cuts.join(", ") }),
+      cuts.length === 0
+        ? family
+        : t("slides.fontFaces", {
+            family,
+            faces: cuts.join(", "),
+            interpolation: { escapeValue: false },
+          }),
     )
     .join(", ");
 }

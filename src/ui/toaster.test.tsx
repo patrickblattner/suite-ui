@@ -477,6 +477,17 @@ describe("Toaster: focus under a toast", () => {
     expect(item()?.closest("[aria-live=polite]")).not.toBeNull();
   });
 
+  it("#722: names the action unescaped in the live region", async () => {
+    const item = await renderCovered({
+      focused: "covered",
+      show: () =>
+        toast.success("Saved", { action: { label: "Save & close", onClick: () => undefined } }),
+    });
+    expect(item()?.querySelector("[data-title] .sr-only")?.textContent).toBe(
+      "Alt+T, then Tab: Save & close",
+    );
+  });
+
   // #550: the hint on every route sonner draws an action on, and for a label that is no text.
   it.each([
     [

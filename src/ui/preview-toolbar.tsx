@@ -116,7 +116,12 @@ function PreviewActions({
             : {}),
           ...(items.length > 0
             ? {
-                menu: { label: set.menu?.label ?? t("actions.more", { name: set.rowName }), items },
+                menu: {
+                  label:
+                    set.menu?.label ??
+                    t("actions.more", { name: set.rowName, interpolation: { escapeValue: false } }),
+                  items,
+                },
               }
             : {}),
         };

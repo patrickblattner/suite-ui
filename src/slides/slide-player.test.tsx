@@ -196,6 +196,26 @@ describe("SlidePlayer steps and hint", () => {
     );
   });
 
+  it("#722: names text that does not fit unescaped in the presenter's hint", async () => {
+    const computed = window.getComputedStyle.bind(window);
+    vi.spyOn(window, "getComputedStyle").mockImplementation((element, pseudo) => {
+      const style = computed(element, pseudo);
+      if (element instanceof HTMLElement && element.style.getPropertyValue("--slide-fit") !== "")
+        style.height = "50px";
+      else if (element.parentElement?.style.getPropertyValue("--slide-fit")) style.height = "100px";
+      return style;
+    });
+    const renamed = JSON.parse(
+      JSON.stringify(SLIDE_DECK).replace('"id":"first-title"', '"id":"first-title","name":"Q&A"'),
+    ) as typeof SLIDE_DECK;
+    render(<SlidePlayer document={renamed} brand={SLIDE_BRAND} fitText data-testid="player" />);
+    await waitFor(() =>
+      expect(document.querySelector("[data-slot=slide-player-hint]")?.textContent).toContain(
+        "Text doesn’t fit its box: Q&A",
+      ),
+    );
+  });
+
   it("leaves Enter on a focused Previous to the button, never paging on", () => {
     render(<SlidePlayer document={SLIDE_DECK} brand={SLIDE_BRAND} data-testid="player" />);
     const player = screen.getByTestId("player");
