@@ -254,6 +254,7 @@ createRoot(document.getElementById("root") as HTMLElement).render(
         overhang={params.get("overhang") === "1"}
         flow={params.get("doc") === "flow"}
         lines={params.get("doc") === "lines"}
+        numbered={params.get("doc") === "numbered"}
         wide={params.get("brand") === "wide"}
       />
     ) : fieldPair ? (

@@ -1244,3 +1244,245 @@ describe("SlideEditor: icon stroke width", () => {
     expect(screen.queryByTestId("slide-editor-strokeWidth-error")).toBeNull();
   });
 });
+
+// SUI-FEATURE-124 §Editor (AC7): a numbered text field shows start, marker style, marker gap and
+// entry gap under Content; each change redraws and notifies, undo takes it back, and a value out of
+// range is named at its field and not taken.
+describe("SlideEditor: numbered list properties", () => {
+  const [first, ...rest] = SLIDE_EDITOR_DOC.pages;
+  const listText = (list: "numbered" | "bullet", numbered?: unknown) => ({
+    ...(numbered === undefined ? {} : { numbered }),
+    id: "steps",
+    name: "Steps",
+    type: "text" as const,
+    x: 40,
+    y: 40,
+    width: 600,
+    height: 300,
+    list,
+    runs: [{ text: "One\nTwo\nThree", size: 40 }],
+  });
+  const withList = (list: "numbered" | "bullet", numbered?: unknown) =>
+    ({
+      ...SLIDE_EDITOR_DOC,
+      pages: [
+        { ...first!, elements: [...(first!.elements ?? []), listText(list, numbered)] },
+        ...rest,
+      ],
+    }) as typeof SLIDE_EDITOR_DOC;
+  const select = (id: string) => {
+    if (screen.queryByTestId("slide-editor-layers") === null)
+      fireEvent.click(screen.getByTestId("drawer-layers"));
+    const row = screen
+      .getAllByTestId("slide-editor-layer")
+      .find((node) => node.getAttribute("data-layer-id") === id)!;
+    fireEvent.click(row.querySelector("button")!);
+  };
+  const editor = (
+    list: "numbered" | "bullet",
+    onChange?: (document: ReadonlySlideDocument) => void,
+    numbered?: unknown,
+  ) => {
+    const view = render(
+      <SlideEditor
+        document={withList(list, numbered)}
+        title="Deck"
+        brand={SLIDE_BRAND}
+        onChange={onChange}
+        onSave={() => true}
+        onBack={() => {}}
+      />,
+    );
+    select("steps");
+    fireEvent.mouseDown(screen.getByTestId("property-tab-content"));
+    fireEvent.click(screen.getByTestId("property-tab-content"));
+    return view;
+  };
+  const steps = (changed: ReadonlySlideDocument) =>
+    changed.pages[0]!.elements.find((element) => element.id === "steps") as
+      Extract<SlideDocument["pages"][number]["elements"][number], { type: "text" }> | undefined;
+  const markers = (container: HTMLElement) =>
+    [...container.querySelectorAll("[data-slide-element=steps] [data-slide-marker]")].map(
+      (one) => one.textContent,
+    );
+
+  it("shows the list properties only for a numbered list", () => {
+    editor("bullet");
+    expect(screen.queryByTestId("slide-editor-list")).toBeNull();
+    cleanup();
+    editor("numbered");
+    for (const id of ["start", "font", "size", "bold", "color", "markerGap", "entryGap"])
+      expect(screen.getByTestId(`slide-editor-list-${id}`)).toBeInTheDocument();
+    expect(screen.getByLabelText("Start")).toHaveValue("1");
+  });
+
+  it("sets start and the gaps with undo and the change notification", () => {
+    const onChange = vi.fn<(document: ReadonlySlideDocument) => void>();
+    const { container } = editor("numbered", onChange);
+    const start = () => screen.getByLabelText("Start");
+    fireEvent.change(start(), { target: { value: "4" } });
+    fireEvent.blur(start());
+    expect(steps(onChange.mock.lastCall![0])!.numbered).toEqual({ start: 4 });
+    expect(markers(container).slice(0, 3)).toEqual(["4", "5", "6"]);
+
+    const gap = () => screen.getByLabelText("Number gap");
+    fireEvent.change(gap(), { target: { value: "75" } });
+    fireEvent.blur(gap());
+    const entry = () => screen.getByLabelText("Entry gap");
+    fireEvent.change(entry(), { target: { value: "25" } });
+    fireEvent.blur(entry());
+    const size = () => screen.getByLabelText("Number size");
+    fireEvent.change(size(), { target: { value: "117" } });
+    fireEvent.blur(size());
+    expect(steps(onChange.mock.lastCall![0])!.numbered).toEqual({
+      start: 4,
+      markerGap: 75,
+      entryGap: 25,
+      marker: { size: 117 },
+    });
+
+    // One step per field: undo takes the size back, then the entry gap.
+    fireEvent.click(screen.getAllByTestId("editor-undo")[0]!);
+    expect(steps(onChange.mock.lastCall![0])!.numbered).toEqual({
+      start: 4,
+      markerGap: 75,
+      entryGap: 25,
+    });
+    fireEvent.click(screen.getAllByTestId("editor-undo")[0]!);
+    expect(steps(onChange.mock.lastCall![0])!.numbered).toEqual({ start: 4, markerGap: 75 });
+    fireEvent.click(screen.getAllByTestId("editor-redo")[0]!);
+    expect(entry()).toHaveValue("25");
+
+    // Clearing every field removes `numbered`: the list draws plain again.
+    for (const one of [size, entry, gap, start]) {
+      fireEvent.change(one(), { target: { value: "" } });
+      fireEvent.blur(one());
+    }
+    expect(steps(onChange.mock.lastCall![0])).not.toHaveProperty("numbered");
+    expect(markers(container)).toEqual([]);
+  });
+
+  // AC9 (rev 4): numbered → bullet → numbered keeps the settings; the bullet list ignores them.
+  it("keeps the numbered settings through a switch to bullets and back", () => {
+    const onChange = vi.fn<(document: ReadonlySlideDocument) => void>();
+    const { container } = editor("numbered", onChange);
+    const start = () => screen.getByLabelText("Start");
+    fireEvent.change(start(), { target: { value: "4" } });
+    fireEvent.blur(start());
+    fireEvent.click(screen.getByTestId("slide-editor-text-bullets"));
+    expect(steps(onChange.mock.lastCall![0])).toMatchObject({
+      list: "bullet",
+      numbered: { start: 4 },
+    });
+    expect(markers(container)).toEqual([]);
+    expect(screen.queryByTestId("slide-editor-list")).toBeNull();
+    fireEvent.click(screen.getByTestId("slide-editor-text-numbered"));
+    expect(steps(onChange.mock.lastCall![0])).toMatchObject({
+      list: "numbered",
+      numbered: { start: 4 },
+    });
+    expect(markers(container)).toEqual(["4", "5", "6"]);
+    expect(start()).toHaveValue("4");
+  });
+
+  it("names a value out of range at its field and does not take it", () => {
+    const onChange = vi.fn<(document: ReadonlySlideDocument) => void>();
+    editor("numbered", onChange);
+    for (const [label, value, testId] of [
+      ["Start", "-1", "slide-editor-list-start"],
+      ["Start", "1.5", "slide-editor-list-start"],
+      ["Number gap", "20000", "slide-editor-list-markerGap"],
+      ["Number size", "1001", "slide-editor-list-size"],
+    ] as const) {
+      const calls = onChange.mock.calls.length;
+      const input = screen.getByLabelText(label);
+      fireEvent.change(input, { target: { value } });
+      fireEvent.blur(input);
+      expect(screen.getByTestId(`${testId}-error`)).toBeInTheDocument();
+      expect(input).toHaveValue(value);
+      expect(onChange.mock.calls.length).toBe(calls);
+    }
+  });
+
+  // Review #727: the numbers' weight is the run's bold toggle, one history step each.
+  it("toggles bold numbers with undo", () => {
+    const onChange = vi.fn<(document: ReadonlySlideDocument) => void>();
+    editor("numbered", onChange);
+    const bold = screen.getByTestId("slide-editor-list-bold");
+    expect(bold).toHaveAttribute("aria-pressed", "false");
+    fireEvent.click(bold);
+    expect(steps(onChange.mock.lastCall![0])!.numbered).toEqual({ marker: { weight: 700 } });
+    expect(screen.getByTestId("slide-editor-list-bold")).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(screen.getByTestId("slide-editor-list-bold"));
+    expect(steps(onChange.mock.lastCall![0])).not.toHaveProperty("numbered");
+    fireEvent.click(screen.getAllByTestId("editor-undo")[0]!);
+    expect(steps(onChange.mock.lastCall![0])!.numbered).toEqual({ marker: { weight: 700 } });
+  });
+
+  // Review #727: a free marker font or colour shows the run pickers' "Own font" / "Own colour",
+  // never "As the entry"; both selects set a brand key and reset to the entry's.
+  it("shows a free marker font and colour as own, and resets or sets them", () => {
+    // Radix scrolls the chosen option into view, which jsdom lacks.
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: () => {},
+    });
+    const onChange = vi.fn<(document: ReadonlySlideDocument) => void>();
+    editor("numbered", onChange, {
+      marker: {
+        font: { kind: "free", family: "Georgia" },
+        color: { kind: "free", value: "#123456" },
+      },
+    });
+    expect(screen.getByTestId("slide-editor-list-font")).toHaveTextContent("Own font");
+    expect(screen.getByTestId("slide-editor-list-color")).toHaveTextContent("Own colour");
+    fireEvent.keyDown(screen.getByTestId("slide-editor-list-font"), { key: "Enter" });
+    fireEvent.click(screen.getByRole("option", { name: "As the entry" }));
+    expect(steps(onChange.mock.lastCall![0])!.numbered).toEqual({
+      marker: { color: { kind: "free", value: "#123456" } },
+    });
+    expect(screen.getByTestId("slide-editor-list-font")).toHaveTextContent("As the entry");
+    fireEvent.keyDown(screen.getByTestId("slide-editor-list-color"), { key: "Enter" });
+    fireEvent.click(screen.getByRole("option", { name: "Accent" }));
+    expect(steps(onChange.mock.lastCall![0])!.numbered).toEqual({
+      marker: { color: { kind: "brand", key: "accent" } },
+    });
+    expect(screen.getByTestId("slide-editor-list-color")).toHaveTextContent("Accent");
+  });
+
+  // Review #727 (HIGH): editing in place, the field numbers its paragraphs as the view does (start,
+  // marker style, column, gaps, hanging indent) and the canvas inks no number beneath it.
+  it("numbers the paragraphs in the edit field and leaves the canvas numbers without ink", async () => {
+    const onChange = vi.fn<(document: ReadonlySlideDocument) => void>();
+    const { container } = editor("numbered", onChange, {
+      start: 4,
+      marker: { size: 80, color: { kind: "brand", key: "accent" } },
+      markerGap: 30,
+      entryGap: 10,
+    });
+    const canvasMarkers = () => [
+      ...container.querySelectorAll<HTMLElement>("[data-slide-element=steps] [data-slide-marker]"),
+    ];
+    expect(canvasMarkers()[0]!.style.color).not.toBe("transparent");
+    fireEvent.keyDown(screen.getByTestId("slide-editor-canvas"), { key: "Enter" });
+    const field = await screen.findByTestId("slide-editor-text-field");
+    expect(field).toHaveAttribute("data-slide-numbered");
+    const blocks = [...field.querySelectorAll<HTMLElement>("[data-paragraph]")];
+    expect(blocks.map((block) => block.dataset.number)).toEqual(["4", "5", "6"]);
+    expect(blocks[0]!.style.getPropertyValue("--slide-marker-size")).toBe("80px");
+    expect(blocks[0]!.style.getPropertyValue("--slide-marker-color")).toBe("#d97706");
+    expect(blocks[0]!.style.paddingLeft).toBe("var(--slide-marker-indent)");
+    expect(blocks[0]!.style.marginTop).toBe("");
+    expect(blocks[1]!.style.marginTop).toBe("10px");
+    expect(blocks[0]!.style.display).toBe("");
+    expect(field.style.getPropertyValue("--slide-marker-gap")).toBe("30px");
+    // The numbers are no text of the field.
+    expect(field.textContent).toBe("OneTwoThree");
+    // The canvas keeps the numbers' place but no ink: only the field draws them.
+    expect(canvasMarkers().map((one) => one.style.color)).toEqual([
+      "transparent",
+      "transparent",
+      "transparent",
+    ]);
+  });
+});

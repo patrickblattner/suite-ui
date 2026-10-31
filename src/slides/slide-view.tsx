@@ -47,6 +47,7 @@ import {
   type FontValue,
   type InlineRun,
   isTextRun,
+  type NumberedList,
   type Run,
   type SlideDocument,
   type SlideDocumentInput,
@@ -69,7 +70,13 @@ import {
 } from "./use-slide-assets.js";
 
 type ElementOf<T extends SlideElement["type"]> = Extract<SlideElement, { type: T }>;
-type TextBody = Pick<ElementOf<"text">, "runs" | "align" | "lineHeight" | "list" | "verticalAlign">;
+type TextBody = Pick<
+  ElementOf<"text">,
+  "runs" | "align" | "lineHeight" | "list" | "verticalAlign"
+> & {
+  // A text field's styled numbered list (`SUI-FEATURE-124`); a table cell has none.
+  numbered?: NumberedList | undefined;
+};
 
 export type { SlidePagePosition };
 
@@ -522,9 +529,10 @@ function runSpan(draw: Draw, piece: Piece, key: number, ink: () => TextRun | und
   );
 }
 
-// A text field's or a table cell's paragraphs; in a list every paragraph is one item.
-function textContent(draw: Draw, body: TextBody) {
-  const lines = paragraphs(body.runs).map((pieces, index) => {
+// A text field's or a table cell's paragraphs, each with the font of its line box and its first text
+// run.
+function paragraphParts(draw: Draw, body: TextBody) {
+  return paragraphs(body.runs).map((pieces) => {
     const paragraph = paragraphRun(pieces, body.runs);
     // The paragraph's own font, not the page's: its line box starts from this font's ascent and
     // descent, so a run in another font is not lifted against the page font's (#717).
@@ -548,7 +556,93 @@ function textContent(draw: Draw, body: TextBody) {
               runSpan(draw, piece, at, () => inkRun(pieces, piece, body.runs))
             ),
           );
-    return body.list === "none" ? (
+    return { paragraph, font, content };
+  });
+}
+
+// The size of a numbered list's marker in an entry: its own, else the entry's first run's.
+function markerSize(numbered: NumberedList, paragraph: TextRun | undefined, body: TextBody) {
+  return (
+    numbered.marker?.size ?? paragraph?.size ?? body.runs.find(isTextRun)?.size ?? DEFAULT_TEXT_SIZE
+  );
+}
+
+// The size text fit steps from: its largest run, or a numbered list's largest marker
+// (`SUI-FEATURE-124`, `SUI-FEATURE-181`).
+function textSetSize(body: TextBody): number {
+  const runs = setSize(body.runs);
+  const numbered = body.list === "numbered" ? body.numbered : undefined;
+  if (numbered?.marker?.size === undefined) return runs;
+  return Math.max(runs, numbered.marker.size);
+}
+
+// A styled numbered list (`SUI-FEATURE-124`): a grid whose first column holds the numbers, as wide as
+// the widest, left-aligned; each entry spans both columns (a subgrid), so its text starts at column +
+// `markerGap` on every wrapped line. Number and first text line share a baseline: a number taller
+// than that line pushes the text down, never above the entry. `entryGap` lies between entries. The
+// numbers are the list's own (`start`, `value`), so a screen reader reads them; the drawn ones are
+// hidden from it. Marker, gaps and runs scale with text fit's one factor.
+function numberedList(draw: Draw, body: TextBody, numbered: NumberedList) {
+  const parts = paragraphParts(draw, body);
+  const start = numbered.start ?? 1;
+  const sizes = parts.map(({ paragraph }) => markerSize(numbered, paragraph, body));
+  const markerGap = numbered.markerGap ?? Math.max(...sizes) * 0.5;
+  const list: React.CSSProperties = {
+    margin: 0,
+    padding: 0,
+    listStyleType: "none",
+    display: "grid",
+    gridTemplateColumns: "max-content minmax(0, 1fr)",
+    columnGap: fitSize(markerGap),
+    rowGap: fitSize(numbered.entryGap ?? 0),
+  };
+  return (
+    <ol start={start} style={list} data-slide-list="numbered">
+      {parts.map(({ paragraph, font, content }, index) => {
+        const marker = numbered.marker;
+        const color = marker?.color;
+        const number = start + index;
+        return (
+          <li
+            key={index}
+            value={number}
+            style={{
+              ...font,
+              display: "grid",
+              gridTemplateColumns: "subgrid",
+              gridColumn: "1 / -1",
+              alignItems: "baseline",
+            }}
+          >
+            <span
+              aria-hidden="true"
+              data-slide-marker=""
+              style={{
+                textAlign: "left",
+                whiteSpace: "nowrap",
+                fontFamily: familyOf(draw, marker?.font ?? paragraph?.font),
+                fontSize: fitSize(sizes[index]!),
+                fontWeight: marker?.weight ?? paragraph?.weight ?? 400,
+                fontStyle: paragraph?.italic === true ? "italic" : "normal",
+                color: color === undefined ? inkOf(draw, paragraph) : colorOf(draw, color),
+              }}
+            >
+              {number}
+            </span>
+            <div style={{ minWidth: 0 }}>{content}</div>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+// A text field's or a table cell's paragraphs; in a list every paragraph is one item.
+function textContent(draw: Draw, body: TextBody) {
+  if (body.list === "numbered" && body.numbered !== undefined)
+    return numberedList(draw, body, body.numbered);
+  const lines = paragraphParts(draw, body).map(({ font, content }, index) =>
+    body.list === "none" ? (
       <p key={index} style={{ margin: 0, ...font }}>
         {content}
       </p>
@@ -556,8 +650,8 @@ function textContent(draw: Draw, body: TextBody) {
       <li key={index} style={font}>
         {content}
       </li>
-    );
-  });
+    ),
+  );
   if (body.list === "none") return lines;
   const list: React.CSSProperties = {
     margin: 0,
@@ -1338,8 +1432,12 @@ function content(draw: Draw, element: SlideElement): React.ReactNode {
             element.runs.map((run) => (run.inline === undefined ? familyOf(draw, run.font) : null)),
             // An inline image that failed is drawn as its stand-in: measured again once it shows.
             draw.broken.size,
+            // A styled list, its marker's font as the brand resolves it (`SUI-FEATURE-124`).
+            ...(element.numbered === undefined
+              ? []
+              : [element.numbered, familyOf(draw, element.numbered.marker?.font)]),
           ])}
-          size={setSize(element.runs)}
+          size={textSetSize(element)}
           fit={draw.fitText && element.sizing === "fixed"}
           ready={draw.ready}
           onFit={draw.onFit}
@@ -1506,7 +1604,21 @@ function assetsOf(
     }
   };
   eachElement(elements, (element) => {
-    if (element.type === "text") body(element.runs);
+    if (element.type === "text") {
+      body(element.runs);
+      // A styled list's numbers, each in its marker's font and weight, absent ones its entry's
+      // (`SUI-FEATURE-124`).
+      const numbered = element.list === "numbered" ? element.numbered : undefined;
+      if (numbered !== undefined)
+        for (const pieces of paragraphs(element.runs)) {
+          const paragraph = paragraphRun(pieces, element.runs);
+          font(
+            numbered.marker?.font ?? paragraph?.font,
+            numbered.marker?.weight ?? paragraph?.weight,
+            paragraph?.italic,
+          );
+        }
+    }
     if (element.type === "table")
       for (const row of element.rows) for (const cell of row) body(cell.runs);
     if (element.type === "chart") font(undefined);

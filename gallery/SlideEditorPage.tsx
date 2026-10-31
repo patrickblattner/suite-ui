@@ -108,6 +108,48 @@ const BADGE_DOC =
         ),
       }
     : undefined;
+// `?doc=numbered`: the first page holds a styled numbered list (`SUI-FEATURE-124`), to edit in place.
+const NUMBERED_DOC =
+  PARAMS.get("doc") === "numbered"
+    ? {
+        ...SLIDE_EDITOR_DOC,
+        pages: SLIDE_EDITOR_DOC.pages.map((page, index) =>
+          index === 0
+            ? {
+                ...page,
+                elements: [
+                  {
+                    id: "steps",
+                    name: "Steps",
+                    type: "text" as const,
+                    x: 40,
+                    y: 20,
+                    width: 600,
+                    height: 400,
+                    list: "numbered" as const,
+                    runs: [
+                      {
+                        text: "First\nSecond entry, long enough to wrap in its field\nThird",
+                        size: 32,
+                      },
+                    ],
+                    numbered: {
+                      start: 9,
+                      marker: {
+                        size: 80,
+                        weight: 700,
+                        color: { kind: "brand" as const, key: "accent" },
+                      },
+                      markerGap: 40,
+                      entryGap: 20,
+                    },
+                  },
+                ],
+              }
+            : page,
+        ),
+      }
+    : undefined;
 // `?ground=dark`: the first page's background is the brand's dark text colour, so a new element takes
 // a colour that stands out on it, not on white (#365).
 const DARK_DOC =
@@ -381,6 +423,7 @@ export function SlideEditorPage() {
               opened ??
               FULL_DOC ??
               BADGE_DOC ??
+              NUMBERED_DOC ??
               DARK_DOC ??
               PICTURE_DOC ??
               (INVALID

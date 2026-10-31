@@ -44,6 +44,17 @@ export const SLIDE_MIGRATIONS: Readonly<Record<number, SlideMigration>> = {
         ? { ...element, prototype: without(prototype, "strokeWidth") }
         : element;
     }),
+  // 6 → 7 added a text field's `numbered` (`SUI-FEATURE-124`): an older document carries none, so every
+  // list draws as before; a stray one written before (its parse dropped it) is dropped, in groups and
+  // prototypes too. Nothing else changes.
+  6: (document) =>
+    everyElement(document, (element) => {
+      if (element.type === "text") return without(element, "numbered");
+      const prototype = element.type === "placeholder" ? element.prototype : undefined;
+      return isRecord(prototype) && prototype.type === "text"
+        ? { ...element, prototype: without(prototype, "numbered") }
+        : element;
+    }),
 };
 
 // The document with `change` made to every element of its pages, layouts and masters, in groups too.

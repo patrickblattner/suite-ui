@@ -13,8 +13,9 @@ import { shownInError } from "./shown-in-error.js";
 // chain (`document.ts`). Version 2 added `placeholderRole` (`SUI-FEATURE-192`); version 3 inline runs
 // (`SUI-FEATURE-164`), a text field's `sizing` and a shape's `follow` (`SUI-FEATURE-165`); version 4 an
 // element's `deletable` (`SUI-FEATURE-194`); version 5 a placeholder's `prototype` (`SUI-FEATURE-320`);
-// version 6 an icon's `strokeWidth` (`SUI-FEATURE-166`).
-export const SLIDE_SCHEMA_VERSION = 6;
+// version 6 an icon's `strokeWidth` (`SUI-FEATURE-166`); version 7 a text field's `numbered`
+// (`SUI-FEATURE-124`).
+export const SLIDE_SCHEMA_VERSION = 7;
 
 // The hard limits of a document, generous on purpose (`SUI-DESIGN-002` §Form): the schema is the one boundary apps
 // and servers share, so tightening a limit later would take a schema version. `maxGroupDepth` and
@@ -45,6 +46,9 @@ export const SLIDE_LIMITS = {
   maxColorLength: 128,
   // An icon's stroke width in format px (`SUI-FEATURE-166`).
   maxIconStrokeWidth: 1000,
+  // A numbered list's first number and its gaps in format px (`SUI-FEATURE-124`).
+  maxListStart: 1_000_000,
+  maxListGap: 16384,
   // The width and height of a format in px; the grid's values stay within it too.
   maxFormatSide: 16384,
 } as const;
@@ -284,6 +288,25 @@ const textBody = {
   verticalAlign: z.enum(["top", "middle", "bottom"]).default("top"),
 };
 
+// A styled numbered list (`SUI-FEATURE-124`), drawn when the field's `list` is `numbered`: entries count
+// up from `start`; the number has its own style (`marker`, absent fields from the entry's first run),
+// stands in a column as wide as the widest number, `markerGap` px before the entry's text, which hangs
+// at that indent; `entryGap` px between entries, beyond the line spacing. Absent, the list draws as
+// before.
+export const numberedListSchema = z.object({
+  start: z.number().int().min(0).max(SLIDE_LIMITS.maxListStart).optional(),
+  marker: z
+    .object({
+      font: fontValueSchema.optional(),
+      size: px.positive().optional(),
+      weight: z.number().int().min(100).max(900).optional(),
+      color: colorValueSchema.optional(),
+    })
+    .optional(),
+  markerGap: size.max(SLIDE_LIMITS.maxListGap).optional(),
+  entryGap: size.max(SLIDE_LIMITS.maxListGap).optional(),
+});
+
 // A text field's size (`SUI-FEATURE-165`): `fixed` as set; `height` follows the text at a fixed
 // width; `both` takes the longest line's width (no wrapping but at a paragraph's end) and the text's
 // height. A size that follows grows from the anchor the alignments give, measured where the text is
@@ -294,6 +317,7 @@ export const textElementSchema = z.object({
   ...textBody,
   sizing: z.enum(["fixed", "height", "both"]).default("fixed"),
   shadow: shadowSchema.optional(),
+  numbered: numberedListSchema.optional(),
 });
 
 // An image with its crop: the image zoomed (1 = it covers the frame) and shifted inside the frame,
@@ -819,6 +843,7 @@ export type Fill = z.output<typeof fillSchema>;
 export type Background = z.output<typeof backgroundSchema>;
 export type MediaRef = z.output<typeof mediaRefSchema>;
 export type TextRun = z.output<typeof textRunSchema>;
+export type NumberedList = z.output<typeof numberedListSchema>;
 export type InlineRun =
   z.output<typeof inlineIconRunSchema> | z.output<typeof inlineMediaRunSchema>;
 // A run of a text field or table cell: text or an inline element (`SUI-FEATURE-164`).

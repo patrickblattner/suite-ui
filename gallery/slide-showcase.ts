@@ -817,3 +817,72 @@ export const SLIDE_LINE_SPACING = deck([
     ],
   },
 ]);
+
+// `SUI-FEATURE-124`: styled numbered lists. Numbers from 4 in the accent colour, 117 px serif, before
+// 58 px body text, 75 px after the number column and 25 px between entries; the second entry wraps.
+// Numbers 9 and 10 share one column; a 96 px number before 24 px text pushes that text down.
+const numberedText = (
+  id: string,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  text: string,
+  size: number,
+  numbered: Extract<SlideElementInput, { type: "text" }>["numbered"],
+): SlideElementInput => ({
+  id,
+  name: id,
+  type: "text",
+  x,
+  y,
+  width,
+  height,
+  list: "numbered",
+  runs: [{ text, size, font: heading }],
+  numbered,
+});
+export const SLIDE_NUMBERED_LIST = deck([
+  {
+    id: "numbered",
+    background,
+    elements: [
+      numberedText(
+        "styled-list",
+        80,
+        40,
+        900,
+        760,
+        "First entry\nSecond entry, long enough to wrap in its field\nThird entry",
+        58,
+        {
+          start: 4,
+          marker: { font: serif, size: 117, color: brand("accent") },
+          markerGap: 75,
+          entryGap: 25,
+        },
+      ),
+      numberedText("nine-ten", 1060, 40, 780, 320, "Ninth\nTenth", 64, {
+        start: 9,
+        markerGap: 32,
+      }),
+      numberedText("tall-marker", 1060, 440, 780, 300, "Small text\nSecond", 24, {
+        marker: { size: 96, weight: 700, color: brand("accent") },
+        markerGap: 24,
+        entryGap: 16,
+      }),
+      // A list without `numbered`: drawn as before.
+      {
+        id: "plain-list",
+        name: "plain-list",
+        type: "text",
+        x: 80,
+        y: 860,
+        width: 900,
+        height: 180,
+        list: "numbered",
+        runs: [{ text: "Plain\nNumbered", size: 32, font: heading }],
+      },
+    ],
+  },
+]);

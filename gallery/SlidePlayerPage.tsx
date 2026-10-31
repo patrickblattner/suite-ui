@@ -8,6 +8,7 @@ import {
   SLIDE_DECK,
   SLIDE_EXPORTABLE,
   SLIDE_LINE_SPACING,
+  SLIDE_NUMBERED_LIST,
   SLIDE_MISSING_FONT,
   SLIDE_SERIF_FONTS,
   SLIDE_SHOWCASE,
@@ -70,7 +71,8 @@ const SLIDE_OVERHANG = {
 // exports the showcase with its unknown type, which aborts; `&overhang=1` the shifted photo. `&doc=flow`
 // takes the page of inline runs and badges instead (`SUI-FEATURE-164`, `SUI-FEATURE-165`),
 // `&brand=wide` with a wider brand font. `&doc=lines` takes the page of paragraphs in a serif and the
-// page font, with fit text on (#717).
+// page font, with fit text on (#717). `&doc=numbered` takes the page of styled numbered lists
+// (`SUI-FEATURE-124`), with fit text on.
 export function SlideExportHarness({
   editor,
   broken,
@@ -78,6 +80,7 @@ export function SlideExportHarness({
   flow = false,
   wide = false,
   lines = false,
+  numbered = false,
 }: {
   editor: boolean;
   broken: boolean;
@@ -85,23 +88,27 @@ export function SlideExportHarness({
   flow?: boolean;
   wide?: boolean;
   lines?: boolean;
+  numbered?: boolean;
 }) {
   const exportable = overhang ? SLIDE_OVERHANG : SLIDE_EXPORTABLE;
-  const document = lines
-    ? SLIDE_LINE_SPACING
-    : flow
-      ? SLIDE_TEXT_FLOW
-      : broken
-        ? SLIDE_SHOWCASE
-        : exportable;
-  const props = lines
-    ? { ...GALLERY_SLIDE_PROPS, fonts: SLIDE_SERIF_FONTS, fitText: true }
-    : wide
-      ? { ...GALLERY_SLIDE_PROPS, brand: SLIDE_WIDE_BRAND, fonts: SLIDE_WIDE_FONTS }
-      : GALLERY_SLIDE_PROPS;
+  const document = numbered
+    ? SLIDE_NUMBERED_LIST
+    : lines
+      ? SLIDE_LINE_SPACING
+      : flow
+        ? SLIDE_TEXT_FLOW
+        : broken
+          ? SLIDE_SHOWCASE
+          : exportable;
+  const props =
+    lines || numbered
+      ? { ...GALLERY_SLIDE_PROPS, fonts: SLIDE_SERIF_FONTS, fitText: true }
+      : wide
+        ? { ...GALLERY_SLIDE_PROPS, brand: SLIDE_WIDE_BRAND, fonts: SLIDE_WIDE_FONTS }
+        : GALLERY_SLIDE_PROPS;
   return editor ? (
     <SlideView
-      document={flow || lines ? document : exportable}
+      document={flow || lines || numbered ? document : exportable}
       {...props}
       scale={1}
       data-testid="slide-editor-view"

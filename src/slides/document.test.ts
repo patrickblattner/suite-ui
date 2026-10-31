@@ -220,9 +220,9 @@ describe("slide document migration", () => {
     })),
   });
 
-  it("ships five steps, 1 → 2 up to 5 → 6, that change no content (SUI-FEATURE-192 AC4)", () => {
-    expect(SLIDE_SCHEMA_VERSION).toBe(6);
-    expect(Object.keys(SLIDE_MIGRATIONS)).toEqual(["1", "2", "3", "4", "5"]);
+  it("ships six steps, 1 → 2 up to 6 → 7, that change no content (SUI-FEATURE-192 AC4)", () => {
+    expect(SLIDE_SCHEMA_VERSION).toBe(7);
+    expect(Object.keys(SLIDE_MIGRATIONS)).toEqual(["1", "2", "3", "4", "5", "6"]);
     expect(parseSlideDocument({ ...valid, schemaVersion: 1 })).toEqual(parseSlideDocument(valid));
   });
 
@@ -426,6 +426,109 @@ describe("slide document migration", () => {
     expect(kept.pages[0]!.elements[0]).toMatchObject({
       strokeWidth: SLIDE_LIMITS.maxIconStrokeWidth,
     });
+  });
+
+  // SUI-FEATURE-124 AC6: a version-6 document loads migrated and unchanged; a stray `numbered` (its
+  // parse dropped one anyway) is dropped, on pages, layouts, in groups and prototypes.
+  it("migrates a version-6 document unchanged, without numbered (SUI-FEATURE-124 AC6)", () => {
+    const listText = (id: string) => ({
+      id,
+      type: "text",
+      x: 10,
+      y: 20,
+      width: 400,
+      height: 200,
+      list: "numbered",
+      runs: [{ text: "One\nTwo" }],
+      numbered: { start: 4 },
+    });
+    const group = {
+      id: "g",
+      type: "group",
+      x: 0,
+      y: 0,
+      width: 400,
+      height: 200,
+      children: [listText("in-group")],
+    };
+    const prototype = { type: "text", list: "numbered", runs: [], numbered: { start: 2 } };
+    const placeholder = {
+      id: "ph",
+      type: "placeholder",
+      role: "ph",
+      x: 0,
+      y: 0,
+      width: 96,
+      height: 96,
+      prototype,
+    };
+    const document = {
+      ...valid,
+      schemaVersion: 6,
+      layouts: [{ id: "l", name: "L", elements: [listText("in-layout"), placeholder] }],
+      pages: [{ ...valid.pages[0]!, layoutId: "l", elements: [group, listText("top")] }],
+    };
+    const parsed = parseSlideDocument(document);
+    expect(parsed.schemaVersion).toBe(SLIDE_SCHEMA_VERSION);
+    const found: unknown[] = [];
+    eachElement([...parsed.pages[0]!.elements, ...parsed.layouts[0]!.elements], (element) => {
+      if (element.type === "text") found.push(element.numbered);
+      if (element.type === "placeholder")
+        found.push(element.prototype?.type === "text" && element.prototype.numbered);
+    });
+    expect(found).toEqual([undefined, undefined, undefined, undefined]);
+    // Everything else as it was: a version-6 document without the field parses as it did.
+    const plain = { ...valid, schemaVersion: 6 };
+    expect(parseSlideDocument(plain)).toEqual(parseSlideDocument(valid));
+    expect(parsed.pages[0]!.elements[1]).toMatchObject({
+      id: "top",
+      list: "numbered",
+      x: 10,
+      y: 20,
+      runs: [{ text: "One\nTwo" }],
+    });
+  });
+
+  // SUI-FEATURE-124 AC6: out-of-range values are rejected by name at their path; values within the
+  // bounds of `SLIDE_LIMITS` load as written.
+  it.each([
+    [{ start: -1 }, "too-small", "start"],
+    [{ start: 1.5 }, "invalid-type", "start"],
+    [{ start: SLIDE_LIMITS.maxListStart + 1 }, "too-big", "start"],
+    [{ markerGap: -1 }, "too-small", "markerGap"],
+    [{ markerGap: SLIDE_LIMITS.maxListGap + 1 }, "too-big", "markerGap"],
+    [{ entryGap: -0.5 }, "too-small", "entryGap"],
+    [{ entryGap: SLIDE_LIMITS.maxListGap + 1 }, "too-big", "entryGap"],
+    [{ marker: { size: 0 } }, "too-small", "marker.size"],
+    [{ marker: { weight: 50 } }, "too-small", "marker.weight"],
+    [{ marker: { weight: 950 } }, "too-big", "marker.weight"],
+  ])("rejects numbered %j as %s (SUI-FEATURE-124 AC6)", (numbered, code, at) => {
+    const text = {
+      id: "t",
+      type: "text",
+      x: 0,
+      y: 0,
+      width: 400,
+      height: 200,
+      list: "numbered",
+      runs: [{ text: "One" }],
+    };
+    const page = (value: unknown) => ({
+      ...valid.pages[0]!,
+      elements: [{ ...text, numbered: value }],
+    });
+    const issue = rejection({ ...valid, pages: [page(numbered)] }).issues[0]!;
+    expect(issue.path).toBe(`pages[0].elements[0].numbered.${at}`);
+    if (code !== "invalid-type") expect(issue.code).toBe(code);
+    const within = {
+      start: SLIDE_LIMITS.maxListStart,
+      marker: { size: 117, weight: 900, font: { kind: "brand", key: "heading" } },
+      markerGap: SLIDE_LIMITS.maxListGap,
+      entryGap: 0,
+    };
+    expect(
+      parseSlideDocument({ ...valid, pages: [page(within)] }).pages[0]!.elements[0],
+    ).toMatchObject({ numbered: within });
   });
 
   // SUI-FEATURE-320 rev 3: a placeholder's prototype is an element without id, box, turn and role, of

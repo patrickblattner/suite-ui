@@ -22,6 +22,8 @@ export const followKey = (element: Text) =>
     element.list,
     element.sizing,
     element.sizing === "height" ? element.width : null,
+    // Only when set, so a text without it keeps its key (`SUI-FEATURE-124`).
+    ...(element.numbered === undefined ? [] : [element.numbered]),
   ]);
 
 const round = (value: number) => Math.round(value * 1000) / 1000;

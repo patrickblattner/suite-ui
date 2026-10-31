@@ -53,6 +53,7 @@ import {
 import {
   type InlineRun,
   isTextRun,
+  type NumberedList,
   type Run,
   runSchema,
   SLIDE_LIMITS,
@@ -68,13 +69,15 @@ export type TextBody = {
   lineHeight: number;
   list: "none" | "bullet" | "numbered";
   verticalAlign: "top" | "middle" | "bottom";
+  // A text field's styled numbered list (`SUI-FEATURE-124`); a table cell has none.
+  numbered?: NumberedList | undefined;
 };
 
 // A range of the field's text as character offsets, a paragraph's end counted as one.
 export type TextRange = { start: number; end: number };
 
 // The largest size the size field takes, in px of the format.
-const MAX_TEXT_SIZE = 1000;
+export const MAX_TEXT_SIZE = 1000;
 
 // The CSS of a run as the view draws it (`slide-view.tsx` `runSpan`), as DOM style values.
 function runStyle(run: TextRun, brand: SlideBrandSet): Partial<Record<string, string>> {
@@ -141,12 +144,99 @@ function paragraphStyle(
 }
 
 // After typing the browser keeps a paragraph's old style: each block takes its paragraph's again,
-// as long as the blocks are the paragraphs one by one.
-function syncParagraphs(root: HTMLElement, runs: readonly Run[], brand: SlideBrandSet) {
+// as long as the blocks are the paragraphs one by one; a styled numbered list numbers them again.
+function syncParagraphs(
+  root: HTMLElement,
+  runs: readonly Run[],
+  brand: SlideBrandSet,
+  numbered?: NumberedList,
+) {
   const blocks = [...root.children].filter((node): node is HTMLElement => BLOCKS.has(node.tagName));
   const all = paragraphs(runs);
   if (blocks.length !== root.children.length || blocks.length !== all.length) return;
   blocks.forEach((block, index) => paragraphStyle(block, all[index]!, runs, brand));
+  if (numbered !== undefined) numberBlocks(root, blocks, runs, brand, numbered);
+}
+
+// The number of a block in a styled numbered list, as generated content: an inline box at the start
+// of its first line in the column before its hanging text, styled by the block's `--slide-marker-*`.
+// Its part below the baseline takes no room in the line (a negative bottom margin): as in the view,
+// the entry's next lines run beside the number, and the block is at least the number's line high.
+const MARKER_CLASS =
+  "before:inline-block before:content-[attr(data-number)] before:[width:var(--slide-marker-column)] before:[margin-left:calc(-1*var(--slide-marker-indent))] before:[margin-right:var(--slide-marker-gap)] before:[margin-bottom:-10em] before:text-left before:indent-0 before:whitespace-nowrap before:select-none before:[font-family:var(--slide-marker-family)] before:[font-size:var(--slide-marker-size)] before:[font-weight:var(--slide-marker-weight)] before:[font-style:var(--slide-marker-style)] before:[color:var(--slide-marker-color)]";
+
+// A styled numbered list in the field (`SUI-FEATURE-124`), laid out as the view lays it out: each
+// block carries its number (`data-number`), drawn before its text (`MARKER_CLASS`) as an inline box
+// in the first line, so number and first line share a
+// baseline and a taller number pushes the line down; the block's text hangs at column + `markerGap`,
+// the column as wide as the widest number; `entryGap` between blocks. The number is no text of the
+// field: the caret never enters it and reading the field back never sees it.
+function numberBlocks(
+  root: HTMLElement,
+  blocks: readonly HTMLElement[],
+  runs: readonly Run[],
+  brand: SlideBrandSet,
+  numbered: NumberedList,
+) {
+  const start = numbered.start ?? 1;
+  const all = paragraphs(runs);
+  const marker = numbered.marker;
+  const sizes = blocks.map((_, index) => {
+    const paragraph = all[index] === undefined ? undefined : paragraphRun(all[index], runs);
+    return marker?.size ?? paragraph?.size ?? runs.find(isTextRun)?.size ?? DEFAULT_TEXT_SIZE;
+  });
+  const gap = numbered.markerGap ?? Math.max(...sizes) * 0.5;
+  root.dataset.slideNumbered = "";
+  // The field's line height (a multiple of the size), which the number's line takes too.
+  const lineHeight = Number.parseFloat(root.style.lineHeight) || 1.2;
+  // The widest number, measured out of the field in each number's own font.
+  const probe = root.ownerDocument.createElement("span");
+  probe.style.cssText =
+    "position:absolute;visibility:hidden;display:inline-block;white-space:nowrap;left:0;top:0";
+  const host = root.parentElement ?? root;
+  let column = 0;
+  blocks.forEach((block, index) => {
+    const paragraph = all[index] === undefined ? undefined : paragraphRun(all[index], runs);
+    const font = cssFont(marker?.font ?? paragraph?.font ?? DEFAULT_FONT, brand);
+    const color =
+      marker?.color !== undefined
+        ? cssColor(marker.color, brand)
+        : paragraph?.fill === undefined
+          ? cssColor(DEFAULT_TEXT_COLOR, brand)
+          : cssColor(
+              paragraph.fill.type === "color"
+                ? paragraph.fill.color
+                : paragraph.fill.stops[0]!.color,
+              brand,
+            );
+    const style = {
+      "--slide-marker-family": "css" in font ? font.css : "",
+      "--slide-marker-size": px(sizes[index]!),
+      "--slide-marker-weight": String(marker?.weight ?? paragraph?.weight ?? 400),
+      "--slide-marker-style": paragraph?.italic === true ? "italic" : "normal",
+      "--slide-marker-color": color ?? "#000000",
+    };
+    for (const [name, value] of Object.entries(style)) block.style.setProperty(name, value);
+    block.dataset.number = String(start + index);
+    block.className = MARKER_CLASS;
+    block.style.marginTop =
+      index === 0 || numbered.entryGap === undefined ? "" : px(numbered.entryGap);
+    block.style.paddingLeft = "var(--slide-marker-indent)";
+    block.style.minHeight = px(sizes[index]! * lineHeight);
+    probe.textContent = String(start + index);
+    Object.assign(probe.style, {
+      fontFamily: style["--slide-marker-family"],
+      fontSize: style["--slide-marker-size"],
+      fontWeight: style["--slide-marker-weight"],
+      fontStyle: style["--slide-marker-style"],
+    });
+    host.append(probe);
+    column = Math.max(column, Number.parseFloat(getComputedStyle(probe).width) || 0);
+    probe.remove();
+  });
+  root.style.setProperty("--slide-marker-column", px(column));
+  root.style.setProperty("--slide-marker-gap", px(gap));
+  root.style.setProperty("--slide-marker-indent", px(column + gap));
 }
 
 // Fills the editable root with the runs: one block per paragraph, one span per piece that names its
@@ -158,14 +248,18 @@ export function fillEditable(
   brand: SlideBrandSet,
   list: TextBody["list"],
   inline?: InlineDrawing,
+  numbered?: NumberedList,
 ) {
   const document = root.ownerDocument;
   root.replaceChildren();
+  // A styled numbered list numbers its blocks itself (`numberBlocks`).
+  const styled = list === "numbered" && numbered !== undefined;
+  delete root.dataset.slideNumbered;
   for (const pieces of paragraphs(runs)) {
     const block = document.createElement("div");
     block.dataset.paragraph = "";
     paragraphStyle(block, pieces, runs, brand);
-    if (list !== "none") {
+    if (list !== "none" && !styled) {
       block.style.display = "list-item";
       block.style.listStyleType = list === "bullet" ? "disc" : "decimal";
       block.style.marginLeft = "1.2em";
@@ -203,7 +297,13 @@ export function fillEditable(
     }
     root.append(block);
   }
-  if (list === "numbered") root.style.counterReset = "list-item";
+  if (list === "numbered" && !styled) root.style.counterReset = "list-item";
+  if (styled) {
+    const blocks = [...root.children].filter(
+      (node): node is HTMLElement => node instanceof HTMLElement,
+    );
+    numberBlocks(root, blocks, runs, brand, numbered);
+  }
 }
 
 type Token =
@@ -476,6 +576,9 @@ export function InlineTextEditor({
   // it was filled with or the icons it draws changed.
   const emitted = React.useRef<Run[] | null>(null);
   const filledList = React.useRef(body.list);
+  // The styled numbered list the field was filled with (`SUI-FEATURE-124`).
+  const numbered = body.list === "numbered" ? body.numbered : undefined;
+  const filledNumbered = React.useRef(numbered);
   const filledIcons = React.useRef(iconsKey);
   // The runs the field was last filled with: its spans' `data-run` name their index there, also
   // after the runs it handed on were normalised (Codex #398 CX1).
@@ -494,6 +597,7 @@ export function InlineTextEditor({
     if (
       body.runs === emitted.current &&
       body.list === filledList.current &&
+      numbered === filledNumbered.current &&
       iconsKey === filledIcons.current &&
       !first.current
     ) {
@@ -501,9 +605,10 @@ export function InlineTextEditor({
     }
     emitted.current = body.runs;
     filledList.current = body.list;
+    filledNumbered.current = numbered;
     filledIcons.current = iconsKey;
     filled.current = body.runs;
-    fillEditable(node, body.runs, brand, body.list, inline);
+    fillEditable(node, body.runs, brand, body.list, inline, numbered);
     if (first.current) {
       first.current = false;
       node.focus();
@@ -514,7 +619,7 @@ export function InlineTextEditor({
     if (node.ownerDocument.activeElement === node && latestRange.current !== undefined) {
       selectRange(node, latestRange.current);
     }
-  }, [body.runs, body.list, brand, iconsKey, inline]);
+  }, [body.runs, body.list, numbered, brand, iconsKey, inline]);
   React.useLayoutEffect(() => {
     const node = root.current;
     if (focusRequest === 0 || node === null) return;
@@ -626,13 +731,13 @@ export function InlineTextEditor({
               const runs = readRuns(node, filled.current, emitted.current ?? filled.current);
               emitted.current = runs;
               if (onRuns(runs, rangeIn(node))) {
-                syncParagraphs(node, runs, brand);
+                syncParagraphs(node, runs, brand, numbered);
                 return;
               }
               // Refused: the typed text goes again, the caret back where it was.
               emitted.current = body.runs;
               filled.current = body.runs;
-              fillEditable(node, body.runs, brand, body.list, inline);
+              fillEditable(node, body.runs, brand, body.list, inline, numbered);
               const end = textOf(body.runs).length;
               selectRange(node, latestRange.current ?? { start: end, end });
             }}

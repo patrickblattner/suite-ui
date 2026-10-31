@@ -184,6 +184,7 @@ import {
   TextSizingField,
   toggledFormat,
 } from "./slide-editor-text.js";
+import { NumberedListFields } from "./slide-editor-numbered.js";
 import { ANIMATION_MAX_MS, SlidePreview } from "./slide-editor-preview.js";
 import { TransferFormat, type TransferScope } from "./slide-editor-transfer.js";
 import {
@@ -369,11 +370,20 @@ const asFrame = (element: SlideElement) => element as Group;
 // Text being edited is drawn by its editable field only: on the canvas it keeps its place but no ink.
 // An inline icon takes its paragraph's colour, so it goes with it (`SUI-FEATURE-164`).
 const TRANSPARENT = { type: "color", color: { kind: "free", value: "transparent" } } as const;
+// A styled list's numbers go too: the field draws them (`SUI-FEATURE-124`).
 const inkless = (body: TextBody): TextBody => ({
   ...body,
   runs: body.runs.map((run) =>
     run.inline === undefined ? { ...run, fill: TRANSPARENT, highlight: undefined } : run,
   ),
+  ...(body.numbered?.marker?.color === undefined
+    ? {}
+    : {
+        numbered: {
+          ...body.numbered,
+          marker: { ...body.numbered.marker, color: TRANSPARENT.color },
+        },
+      }),
 });
 
 // The parts of an app that pass the schema, those past the structural limits left out before the
@@ -2950,6 +2960,29 @@ function Editor({
         }
       />
     );
+  // A numbered text field's list properties (`SUI-FEATURE-124` §Editor), one history step per field.
+  const numberedFields =
+    single?.type !== "text" || single.list !== "numbered" ? null : (
+      <NumberedListFields
+        key={single.id}
+        numbered={single.numbered}
+        brand={view.brand}
+        readOnly={single.locked}
+        revision={travels}
+        onNumbered={(next, merge) =>
+          apply(
+            (current) =>
+              updateElements(current, page, [single.id], (one) => {
+                if (one.type !== "text") return one;
+                const plain = { ...one };
+                delete plain.numbered;
+                return next === undefined ? plain : { ...plain, numbered: next };
+              }),
+            merge === undefined ? undefined : `field:${single.id}:numbered-${merge}`,
+          )
+        }
+      />
+    );
   // A text field's size: fixed or following its text (`SUI-FEATURE-165`).
   const sizingField =
     single?.type !== "text" ? null : (
@@ -4524,6 +4557,7 @@ function Editor({
                             />
                           ) : null}
                           {textFields}
+                          {numberedFields}
                           {single.type === "chart" ? (
                             <ChartData
                               key={single.id}

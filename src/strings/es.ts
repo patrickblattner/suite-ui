@@ -735,6 +735,31 @@ export const es: SuiteStrings = {
       textJustify: "Justificar",
       textBullets: "Lista con viñetas",
       textNumbered: "Lista numerada",
+      listStart: "Inicio",
+      listStartHint: "El número de la primera entrada; las demás cuentan a partir de él.",
+      listStartValueHint: "Un número entero, 0 o más.",
+      listStartRange: "Introduce un número entero de 0 a {{max}}.",
+      listMarkerFont: "Fuente de los números",
+      listMarkerFontHint:
+        "La fuente de los números. «Como la entrada» toma la fuente de la entrada.",
+      listMarkerColor: "Color de los números",
+      listMarkerColorHint:
+        "El color de los números. «Como la entrada» toma el color de la entrada.",
+      listFromEntry: "Como la entrada",
+      listSize: "Tamaño de los números",
+      listSizeHint: "Lo grandes que son los números. Vacío toma el tamaño del texto de la entrada.",
+      listSizeValueHint: "Píxeles del formato de página; vacío es el tamaño de la entrada.",
+      listSizeRange: "Introduce un tamaño mayor que 0 y hasta {{max}} px o deja el campo vacío.",
+      listBold: "Números en negrita",
+      listMarkerGap: "Espacio tras el número",
+      listMarkerGapHint:
+        "El espacio entre los números y el texto de la entrada; las líneas ajustadas empiezan ahí también.",
+      listMarkerGapValueHint:
+        "Píxeles del formato de página; vacío es la mitad del tamaño del número.",
+      listEntryGap: "Espacio entre entradas",
+      listEntryGapHint: "Espacio adicional entre dos entradas, además del interlineado.",
+      listEntryGapValueHint: "Píxeles del formato de página; vacío no añade ninguno.",
+      listGapRange: "Introduce de 0 a {{max}} px o deja el campo vacío.",
       textSizing: "Tamaño del campo",
       textSizingHint: "Si el campo de texto mantiene su tamaño o crece con su texto.",
       textSizingValueHint:

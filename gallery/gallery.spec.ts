@@ -13409,6 +13409,125 @@ test("slide text: line spacing from the paragraph's own font, fit leaves it, exp
   expect(measured.stepLine).toBeCloseTo(31 * 1.2, 1);
 });
 
+// SUI-FEATURE-124 AC2–AC4, AC7, SUI-FEATURE-160: styled numbered lists. Numbers stand in their own
+// column, as wide as the widest number; entry text, wrapped lines too, starts at column + markerGap;
+// entries lie entryGap apart beyond their lines; number and first text line share a baseline, a taller
+// number pushing the text down, never reaching above its entry. The export equals the editor view.
+test("slide text: styled numbered list columns, gaps and baselines, export equal", async ({
+  page,
+}) => {
+  await page.goto("/?harness=slide-export&doc=numbered");
+  const { png } = await exportSlidePages(page);
+  expect(png).toHaveLength(1);
+  await page.goto("/?harness=slide-export&doc=numbered&view=editor");
+  const view = page.getByTestId("slide-editor-view");
+  await expect(view).toHaveAttribute("data-slide-ready", "true");
+  await expect(view).not.toHaveAttribute("data-slide-overflowing");
+  await parkPointer(page);
+  const editor = await view.screenshot({ animations: "disabled" });
+  expect(Buffer.from(png[0]!).equals(editor)).toBe(true);
+  const measured = await view.evaluate((root) => {
+    // The baseline of the line an element's first content sits on, by a box of no height on it.
+    const baseline = (element: Element, first: boolean) => {
+      const probe = document.createElement("span");
+      probe.style.cssText = "display:inline-block;width:0;height:0";
+      if (first) element.prepend(probe);
+      else element.append(probe);
+      const at = probe.getBoundingClientRect().bottom;
+      probe.remove();
+      return at;
+    };
+    const list = (id: string) => {
+      const ol = root.querySelector(`[data-slide-element="${id}"] ol`)!;
+      const left = ol.getBoundingClientRect().left;
+      return {
+        entries: [...ol.querySelectorAll(":scope > li")].map((li) => {
+          const marker = li.querySelector("[data-slide-marker]")!;
+          const text = li.querySelector(":scope > div")!;
+          const range = document.createRange();
+          range.selectNodeContents(text);
+          const lines = [...range.getClientRects()].filter((rect) => rect.width > 0);
+          const box = li.getBoundingClientRect();
+          return {
+            top: box.top,
+            bottom: box.bottom,
+            number: marker.textContent,
+            markerTop: marker.getBoundingClientRect().top,
+            // The number's own width (the grid stretches its box to the column).
+            markerWidth: (() => {
+              const glyphs = document.createRange();
+              glyphs.selectNodeContents(marker);
+              return glyphs.getBoundingClientRect().width;
+            })(),
+            markerSize: parseFloat(getComputedStyle(marker).fontSize),
+            markerBaseline: baseline(marker, false),
+            textX: text.getBoundingClientRect().left - left,
+            textTop: text.getBoundingClientRect().top,
+            textBaseline: baseline(text, true),
+            // Where each line starts: the leftmost box on it (a wrapped line's trailing space has a
+            // box of its own at the line's end).
+            lineLefts: [
+              ...new Set(
+                [...new Set(lines.map((rect) => Math.round(rect.top)))].map((top) =>
+                  Math.round(
+                    Math.min(
+                      ...lines
+                        .filter((rect) => Math.round(rect.top) === top)
+                        .map((rect) => rect.left),
+                    ) - left,
+                  ),
+                ),
+              ),
+            ],
+            lineTops: [...new Set(lines.map((rect) => Math.round(rect.top)))].length,
+          };
+        }),
+      };
+    };
+    return {
+      styled: list("styled-list"),
+      nineTen: list("nine-ten"),
+      tall: list("tall-marker"),
+      plainItems: root.querySelectorAll('[data-slide-element="plain-list"] li').length,
+      plainMarkers: root.querySelectorAll('[data-slide-element="plain-list"] [data-slide-marker]')
+        .length,
+    };
+  });
+  const { styled, nineTen, tall } = measured;
+  // AC1 in the browser: from 4, bare numbers.
+  expect(styled.entries.map((entry) => entry.number)).toEqual(["4", "5", "6"]);
+  // AC2: the marker at 117 px (fit leaves it), its own column; text at column + 75 on every line.
+  const column = Math.max(...styled.entries.map((entry) => entry.markerWidth));
+  for (const entry of styled.entries) {
+    expect(entry.markerSize).toBe(117);
+    expect(entry.textX).toBeCloseTo(column + 75, 0);
+    for (const left of entry.lineLefts)
+      expect(Math.abs(left - (column + 75))).toBeLessThanOrEqual(1);
+  }
+  // The second entry wraps, and its second line hangs at the same x.
+  expect(styled.entries[1]!.lineTops).toBeGreaterThanOrEqual(2);
+  expect(styled.entries[1]!.lineLefts).toHaveLength(1);
+  // Entries 25 px apart beyond their lines.
+  for (let at = 1; at < styled.entries.length; at += 1)
+    expect(styled.entries[at]!.top - styled.entries[at - 1]!.bottom).toBeCloseTo(25, 0);
+  // AC3: 9 and 10 share one column, as wide as "10".
+  const [nine, ten] = nineTen.entries;
+  expect([nine!.number, ten!.number]).toEqual(["9", "10"]);
+  expect(ten!.markerWidth).toBeGreaterThan(nine!.markerWidth + 5);
+  expect(nine!.textX).toBeCloseTo(ten!.textX, 1);
+  expect(nine!.textX).toBeCloseTo(ten!.markerWidth + 32, 0);
+  // AC4: a number taller than the first text line pushes the text down, shares its baseline and never
+  // reaches above its entry.
+  for (const entry of [...styled.entries, ...tall.entries]) {
+    expect(entry.markerTop).toBeGreaterThanOrEqual(entry.top - 0.5);
+    expect(Math.abs(entry.markerBaseline - entry.textBaseline)).toBeLessThanOrEqual(1);
+    expect(entry.textTop).toBeGreaterThan(entry.top + 1);
+  }
+  // AC5: a list without `numbered` keeps the plain drawing.
+  expect(measured.plainItems).toBe(2);
+  expect(measured.plainMarkers).toBe(0);
+});
+
 // SUI-FEATURE-164 AC1: a flag before "Zürich" stands on the baseline, leaves the line's height as it
 // is, and wraps with the word in a narrow field.
 test("slide text flow: an inline image on the baseline, line height kept, wraps with its word", async ({
@@ -17018,6 +17137,61 @@ test("slide editor: a child's rotation field in a turned group shows the angle o
 // #630 AC3, SUI-FEATURE-165 AC9/AC10: on the Layout tab the Field size and Follows text selects are as
 // wide as the Rotation field, the four paddings form two aligned rows, and no label wraps (de, es:
 // the longest labels).
+// Review #727 (SUI-FEATURE-124): editing a styled numbered list in place, its text stands where the
+// view draws it (number column, gap, baseline pushed down by the taller number, entry gap), the
+// canvas inks no number beneath the field, and Esc moves nothing.
+test("slide editor: a styled numbered list keeps its layout while edited in place", async ({
+  page,
+}) => {
+  await page.goto("/?page=slide-editor&doc=numbered&lng=en");
+  const { editor, at } = await openEditor(page, false);
+  // Where each entry's first text starts, from the canvas or the open field.
+  const starts = (selector: string) =>
+    editor.evaluate((root, css) => {
+      const canvas = root
+        .querySelector("[data-testid=slide-editor-canvas]")!
+        .getBoundingClientRect();
+      return [...root.querySelectorAll(css)].map((span) => {
+        const rect = span.getClientRects()[0]!;
+        return { x: rect.left - canvas.left, y: rect.top - canvas.top };
+      });
+    }, selector);
+  const view = '[data-slide-element="steps"] li > div > span:first-child';
+  const before = await starts(view);
+  expect(before).toHaveLength(3);
+  const point = at(300, 60);
+  await page.mouse.dblclick(point.x, point.y);
+  const field = editor.getByTestId("slide-editor-text-field");
+  await expect(field).toBeVisible();
+  await expect(field).toHaveAttribute("data-slide-numbered", "");
+  const edited = await starts(
+    '[data-testid="slide-editor-text-field"] [data-paragraph] > span:first-child',
+  );
+  expect(edited).toHaveLength(3);
+  for (const [index, place] of edited.entries()) {
+    expect(Math.abs(place.x - before[index]!.x)).toBeLessThanOrEqual(1);
+    expect(Math.abs(place.y - before[index]!.y)).toBeLessThanOrEqual(1);
+  }
+  // The field draws the numbers, the canvas none.
+  const numbers = await field.evaluate((root) =>
+    [...root.querySelectorAll("[data-paragraph]")].map(
+      (block) => getComputedStyle(block, "::before").content,
+    ),
+  );
+  expect(numbers).toEqual(['"9"', '"10"', '"11"']);
+  const inks = await editor
+    .locator('[data-slide-element="steps"] [data-slide-marker]')
+    .evaluateAll((all) => all.map((one) => getComputedStyle(one).color));
+  expect(new Set(inks)).toEqual(new Set(["rgba(0, 0, 0, 0)"]));
+  await page.keyboard.press("Escape");
+  await expect(field).toBeHidden();
+  const after = await starts(view);
+  for (const [index, place] of after.entries()) {
+    expect(Math.abs(place.x - before[index]!.x)).toBeLessThanOrEqual(0.01);
+    expect(Math.abs(place.y - before[index]!.y)).toBeLessThanOrEqual(0.01);
+  }
+});
+
 for (const lng of ["de", "es"] as const) {
   test(`slide editor: Field size and Follows text sit in the panel's grid, labels on one line (${lng})`, async ({
     page,
