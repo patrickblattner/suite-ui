@@ -13264,6 +13264,59 @@ test("slide export: inline runs and following badges equal to the editor view", 
   expect(Buffer.from(png[0]!).equals(editor)).toBe(true);
 });
 
+// #717 (SUI-FEATURE-160): a paragraph's line spacing comes from its own runs' font, never the page's.
+// Serif lines are as high as lines in the page font (1.2 × 64 px each); a line mixing both reaches
+// the higher ascent and the deeper descent of the two; fit text leaves the serif field, as high as
+// its six lines and its glyphs below the last, at its size; the export equals the editor view.
+test("slide text: line spacing from the paragraph's own font, fit leaves it, export equal", async ({
+  page,
+}) => {
+  await page.goto("/?harness=slide-export&doc=lines");
+  const { png } = await exportSlidePages(page);
+  expect(png).toHaveLength(1);
+  await page.goto("/?harness=slide-export&doc=lines&view=editor");
+  const view = page.getByTestId("slide-editor-view");
+  await expect(view).toHaveAttribute("data-slide-ready", "true");
+  await expect(view).not.toHaveAttribute("data-slide-overflowing");
+  await parkPointer(page);
+  const editor = await view.screenshot({ animations: "disabled" });
+  expect(Buffer.from(png[0]!).equals(editor)).toBe(true);
+  const measured = await view.evaluate((root) => {
+    const field = (id: string) => root.querySelector(`[data-slide-element="${id}"]`)!;
+    // A paragraph's line above and below its baseline, found by a box of no height on it.
+    const extent = (paragraph: Element) => {
+      const probe = document.createElement("span");
+      probe.style.cssText = "display:inline-block;width:0;height:0";
+      paragraph.append(probe);
+      const baseline = probe.getBoundingClientRect().bottom;
+      probe.remove();
+      const box = paragraph.getBoundingClientRect();
+      return { above: baseline - box.top, below: box.bottom - baseline, height: box.height };
+    };
+    return {
+      serif: [...field("serif-lines").querySelectorAll("p")].map(extent),
+      sans: [...field("sans-lines").querySelectorAll("p")].map(extent),
+      mixed: extent(field("mixed-line").querySelector("p")!),
+      serifSize: parseFloat(getComputedStyle(field("serif-lines").querySelector("span")!).fontSize),
+    };
+  });
+  expect(measured.serif).toHaveLength(6);
+  // 1.2 × 64 px, as the browser rounds a font's ascent and descent; never grown past it.
+  for (const line of [...measured.serif, ...measured.sans]) {
+    expect(line.height).toBeGreaterThan(75);
+    expect(line.height).toBeLessThanOrEqual(76.8 + 0.5);
+  }
+  // The serif's line sits higher on its baseline than the page font's: the mixed line spans both.
+  expect(measured.serif[0]!.above - measured.sans[0]!.above).toBeGreaterThan(1);
+  expect(measured.mixed.height).toBeCloseTo(
+    Math.max(measured.serif[0]!.above, measured.sans[0]!.above) +
+      Math.max(measured.serif[0]!.below, measured.sans[0]!.below),
+    0,
+  );
+  // Fit text on: the serif field holds its lines, nothing shrinks.
+  expect(measured.serifSize).toBe(64);
+});
+
 // SUI-FEATURE-164 AC1: a flag before "Zürich" stands on the baseline, leaves the line's height as it
 // is, and wraps with the word in a narrow field.
 test("slide text flow: an inline image on the baseline, line height kept, wraps with its word", async ({

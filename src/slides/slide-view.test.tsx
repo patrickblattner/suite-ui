@@ -9,6 +9,7 @@ import {
   SLIDE_DECK,
   SLIDE_FONTS,
   SLIDE_MISSING_FONT,
+  SLIDE_SERIF_FONTS,
   SLIDE_SHOWCASE,
 } from "../../gallery/slide-showcase.js";
 import {
@@ -1359,6 +1360,48 @@ describe("SlideView inline runs", () => {
     });
     expect(screen.getByRole("img", { name: "Icon no-such-icon not found" })).toBeInTheDocument();
     expect(report().unknownIcons).toEqual(["no-such-icon"]);
+  });
+});
+
+// #717 (SUI-FEATURE-160): a paragraph's line box starts from its own runs' font, not the page's.
+describe("SlideView paragraph font", () => {
+  const serif = { kind: "free", family: "Gallery Slide Serif" };
+  const text = (list: string) =>
+    onlyPage([
+      {
+        id: "t",
+        type: "text",
+        x: 0,
+        y: 0,
+        width: 800,
+        height: 300,
+        list,
+        runs: [
+          { text: "Serif bold italic ", font: serif, weight: 700, italic: true },
+          { text: "then the page font\nPage font", font: { kind: "brand", key: "body" } },
+        ],
+      },
+    ]);
+
+  it("gives each paragraph the family, weight and style of its first run", async () => {
+    await drawn({ document: text("none"), fonts: SLIDE_SERIF_FONTS });
+    const [first, second] = [...document.querySelectorAll<HTMLElement>("[data-slide-element=t] p")];
+    expect(first!.style.fontFamily).toContain("Gallery Slide Serif");
+    expect(first!.style.fontWeight).toBe("700");
+    expect(first!.style.fontStyle).toBe("italic");
+    expect(second!.style.fontFamily).toContain("Gallery Slide Sans");
+    expect(second!.style.fontWeight).toBe("");
+    expect(second!.style.fontStyle).toBe("");
+  });
+
+  it("does the same for a list item", async () => {
+    await drawn({ document: text("bullet"), fonts: SLIDE_SERIF_FONTS });
+    const [first, second] = [
+      ...document.querySelectorAll<HTMLElement>("[data-slide-element=t] li"),
+    ];
+    expect(first!.style.fontFamily).toContain("Gallery Slide Serif");
+    expect(first!.style.fontStyle).toBe("italic");
+    expect(second!.style.fontFamily).toContain("Gallery Slide Sans");
   });
 });
 
