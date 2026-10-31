@@ -380,3 +380,8 @@ export function transitionOf(
       : `suite-slide-slide-${direction}-${direction === "in" ? "right" : "left"}`;
   return `${name} ${num(reduced ? 0 : duration)}ms ease both`;
 }
+
+// The largest of `sizes`, without spreading them into arguments: a numbered list has one size per
+// paragraph, and a schema-valid text holds far more paragraphs than the call stack takes (#730).
+export const largest = (sizes: readonly number[]): number =>
+  sizes.reduce((max, size) => (size > max ? size : max), -Infinity);

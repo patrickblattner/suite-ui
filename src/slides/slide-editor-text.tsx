@@ -44,6 +44,7 @@ import {
   glueInline,
   inkRun,
   inlineLift,
+  largest,
   num,
   type Piece,
   paragraphRun,
@@ -185,7 +186,7 @@ function numberBlocks(
     const paragraph = all[index] === undefined ? undefined : paragraphRun(all[index], runs);
     return marker?.size ?? paragraph?.size ?? runs.find(isTextRun)?.size ?? DEFAULT_TEXT_SIZE;
   });
-  const gap = numbered.markerGap ?? Math.max(...sizes) * 0.5;
+  const gap = numbered.markerGap ?? largest(sizes) * 0.5;
   root.dataset.slideNumbered = "";
   // The field's line height (a multiple of the size), which the number's line takes too.
   const lineHeight = Number.parseFloat(root.style.lineHeight) || 1.2;

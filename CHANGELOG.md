@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — #730: numbered list marker gap no longer overflows the call stack on very many paragraphs (patch)
+
+- **Fixed (#730, Codex review v0.201.0 CX1, SUI-FEATURE-124):** the default `markerGap` of a numbered list took `Math.max(...sizes)` over one size per paragraph, in `SlideView` and the slide editor's text field. A schema-valid text (up to 1000 runs of 100 000 characters) can hold hundreds of thousands of paragraphs, and spreading that many arguments threw a `RangeError` (maximum call stack size exceeded). The largest size is now taken in a loop (`largest` in `render-style.ts`). No signature or rendering changes.
+
 ## 0.201.0 — #722, #723, #727: styled numbered list `numbered` with slide schema 7, `EditPanel` leave-dialog Save counts as a submit, interpolated names not HTML-escaped (minor)
 
 - **Fixed (#723, GL-UI-038 rev 2, SUI-FEATURE-150 rev 7):** Save or Apply in the leave dialog of `EditPanel` called `onSubmit` without marking the form as submitted, so a failed save closed the dialog with the errors of fields the user never left still hidden. It now takes the same path as the panel's own submit button: every invalid field shows its error at once and the focus goes to the first invalid field, from every leave way that asks (a navigation, Previous/Next, `Esc`, Cancel/close); the dialog closes, the panel and the route stay. A valid form saves and leaves as before. Apps no longer count their own submits for this. No signature changes.

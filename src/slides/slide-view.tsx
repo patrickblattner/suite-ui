@@ -30,6 +30,7 @@ import {
   gradientLine,
   inkRun,
   inlineLift,
+  largest,
   num,
   pageLists,
   pagePosition,
@@ -586,7 +587,7 @@ function numberedList(draw: Draw, body: TextBody, numbered: NumberedList) {
   const parts = paragraphParts(draw, body);
   const start = numbered.start ?? 1;
   const sizes = parts.map(({ paragraph }) => markerSize(numbered, paragraph, body));
-  const markerGap = numbered.markerGap ?? Math.max(...sizes) * 0.5;
+  const markerGap = numbered.markerGap ?? largest(sizes) * 0.5;
   const list: React.CSSProperties = {
     margin: 0,
     padding: 0,
