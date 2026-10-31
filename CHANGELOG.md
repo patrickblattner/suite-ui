@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — #723, GL-UI-038 §Absenden: Save/Apply in the `EditPanel` leave dialog counts as a submit (patch)
+
+- **Fixed (#723, GL-UI-038 rev 2, SUI-FEATURE-150 rev 7):** Save or Apply in the leave dialog of `EditPanel` called `onSubmit` without marking the form as submitted, so a failed save closed the dialog with the errors of fields the user never left still hidden. It now takes the same path as the panel's own submit button: every invalid field shows its error at once and the focus goes to the first invalid field, from every leave way that asks (a navigation, Previous/Next, `Esc`, Cancel/close); the dialog closes, the panel and the route stay. A valid form saves and leaves as before. Apps no longer count their own submits for this. No signature changes.
+- **Tests (#723):** unit: a changed panel with two untouched invalid fields, Save and Apply in the leave dialog after a navigation click, Previous, Next, `Esc` and Cancel: the dialog closes, the panel and route stay, both errors show and the first field has the focus (all fail without the change); on a locked panel (`submitDisabled`) Save in the leave dialog shows both errors, focuses the first and calls no `onSubmit`; a valid form saves once and lands at the target with no error shown.
+
 ## 0.200.1 — #724, Codex review v0.200.0: bounded text-fit search, runs keep their own weight and style (patch)
 
 - **Fixed (#724, CX1, SUI-FEATURE-181 rev 4):** with text fit on, `SlideView` walked down one whole pixel per layout, so a huge run size (the schema takes any positive finite size; at 1e20 a pixel less is the same number) never returned, and a large one forced a layout per pixel. Fit now finds the same step by a binary search over the whole pixels between the set size and 70 % of it, bounded and making progress each round: the largest whole pixel that fits, or the smallest tried. Every size draws at the same step as before.

@@ -1,6 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import i18n from "i18next";
 import { type FormEvent, type ReactNode, useState } from "react";
+import { Link, MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { SidebarProvider, useSidebar } from "../shell/sidebar-provider.js";
@@ -1419,5 +1420,131 @@ describe("EditPanel field errors", () => {
     expect(screen.getByText("Enter a name.")).toBeInTheDocument();
     expect(screen.getByText("Enter a city.")).toBeInTheDocument();
     await waitFor(() => expect(screen.getByLabelText("Name")).toHaveFocus());
+  });
+
+  // #723 (GL-UI-038 §Absenden, SUI-FEATURE-150 §Primäraktion der Rückfrage): Save or Apply in the
+  // leave dialog is a submit, the same as the panel's own: a failed one closes the dialog, keeps the
+  // panel and the route, and shows the errors of fields the user never left, the focus in the first.
+  function Guarded({
+    onSubmit,
+    valid = false,
+    locked = false,
+    submitKind,
+  }: {
+    onSubmit: () => unknown;
+    valid?: boolean;
+    locked?: boolean;
+    submitKind?: "save" | "apply";
+  }) {
+    const initial = valid ? "Set" : "";
+    const [name, setName] = useState(initial);
+    const [city, setCity] = useState(initial);
+    const [note, setNote] = useState("");
+    const [open, setOpen] = useState(true);
+    return (
+      <>
+        <Link to="/other" data-testid="nav">
+          Other
+        </Link>
+        <span data-testid="path">{useLocation().pathname}</span>
+        <EditPanel
+          open={open}
+          onOpenChange={setOpen}
+          title="Channel"
+          dirty={note !== ""}
+          onSubmit={onSubmit}
+          submitDisabled={locked}
+          submitDisabledHint="Fill in every field."
+          {...(submitKind === undefined ? {} : { submitKind })}
+          pager={{ position: "2/3", onPrevious: () => {}, onNext: () => {} }}
+        >
+          <Field label="Name" htmlFor="name" error={name === "" ? "Enter a name." : undefined}>
+            <Input id="name" value={name} onChange={(event) => setName(event.target.value)} />
+          </Field>
+          <Field label="City" htmlFor="city" error={city === "" ? "Enter a city." : undefined}>
+            <Input id="city" value={city} onChange={(event) => setCity(event.target.value)} />
+          </Field>
+          <Field label="Note" htmlFor="note">
+            <Input id="note" value={note} onChange={(event) => setNote(event.target.value)} />
+          </Field>
+        </EditPanel>
+      </>
+    );
+  }
+
+  const leaveWays: [string, () => void][] = [
+    ["a navigation click", () => fireEvent.click(screen.getByTestId("nav"))],
+    ["Previous", () => fireEvent.click(screen.getByTestId("edit-panel-previous"))],
+    ["Next", () => fireEvent.click(screen.getByTestId("edit-panel-next"))],
+    ["Esc", () => fireEvent.keyDown(document.activeElement!, { key: "Escape" })],
+    ["Cancel", () => fireEvent.click(screen.getByTestId("edit-panel-cancel"))],
+  ];
+
+  function changeNote() {
+    const note = screen.getByLabelText("Note");
+    note.focus();
+    fireEvent.change(note, { target: { value: "Changed" } });
+  }
+
+  it.each(
+    leaveWays.flatMap(([way, leave]) => [
+      [way, "save", leave] as const,
+      [way, "apply", leave] as const,
+    ]),
+  )(
+    "%s → %s in the leave dialog fails: errors of untouched fields show, focus in the first",
+    async (_way, submitKind, leave) => {
+      const onSubmit = vi.fn(() => false);
+      render(
+        <MemoryRouter initialEntries={["/list"]}>
+          <Guarded onSubmit={onSubmit} submitKind={submitKind} />
+        </MemoryRouter>,
+      );
+      changeNote();
+      expect(screen.queryByText("Enter a name.")).toBeNull();
+      leave();
+      fireEvent.click(screen.getByTestId("leave-guard-save"));
+      await waitFor(() => expect(screen.queryByTestId("leave-guard")).toBeNull());
+      expect(onSubmit).toHaveBeenCalledTimes(1);
+      expect(screen.getByTestId("edit-panel")).toBeInTheDocument();
+      expect(screen.getByTestId("path")).toHaveTextContent("/list");
+      expect(screen.getByText("Enter a name.")).toBeInTheDocument();
+      expect(screen.getByText("Enter a city.")).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByLabelText("Name")).toHaveFocus());
+    },
+  );
+
+  it("a locked panel: Save in the leave dialog shows the errors and calls no onSubmit", async () => {
+    const onSubmit = vi.fn(() => true);
+    render(
+      <MemoryRouter initialEntries={["/list"]}>
+        <Guarded onSubmit={onSubmit} locked />
+      </MemoryRouter>,
+    );
+    changeNote();
+    fireEvent.click(screen.getByTestId("nav"));
+    fireEvent.click(screen.getByTestId("leave-guard-save"));
+    await waitFor(() => expect(screen.queryByTestId("leave-guard")).toBeNull());
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(screen.getByTestId("path")).toHaveTextContent("/list");
+    expect(screen.getByText("Enter a name.")).toBeInTheDocument();
+    expect(screen.getByText("Enter a city.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByLabelText("Name")).toHaveFocus());
+  });
+
+  it("a valid form: Save in the leave dialog saves and lands at the target, no error shown", async () => {
+    const onSubmit = vi.fn(() => true);
+    render(
+      <MemoryRouter initialEntries={["/list"]}>
+        <Guarded onSubmit={onSubmit} valid />
+      </MemoryRouter>,
+    );
+    changeNote();
+    fireEvent.click(screen.getByTestId("nav"));
+    fireEvent.click(screen.getByTestId("leave-guard-save"));
+    await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/other"));
+    expect(onSubmit).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("leave-guard")).toBeNull();
+    expect(screen.queryByText("Enter a name.")).toBeNull();
   });
 });

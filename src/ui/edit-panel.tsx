@@ -168,6 +168,15 @@ function EditPanel({
   const submit = React.useRef<HTMLButtonElement>(null);
   // The typed but uncommitted entries of the panel's own fields (`SUI-FEATURE-118` rev 6).
   const [fieldDrafts] = React.useState(createFieldDrafts);
+  // A submit shows every field's error and focuses the first invalid field (`GL-UI-038`).
+  const [submits, submitted] = useFieldSubmits();
+  // The panel's submit, from its own button and from Save/Apply in the leave dialog alike: every
+  // invalid field shows its error and takes the focus, also one the user never left (`GL-UI-038`
+  // §Absenden, `SUI-FEATURE-150`); a locked panel saves nothing.
+  function attempt(form: HTMLElement | null | undefined): unknown {
+    if (form != null) submitted(form);
+    return submitDisabled || onSubmit === undefined ? false : onSubmit();
+  }
   const { guard, step, dialog, working, run } = useLeaveConfirm({
     dirty: open && dirty && !view,
     busy: open && busyProp,
@@ -179,7 +188,7 @@ function EditPanel({
     onSave:
       view || onSubmit === undefined || submitKind === "next"
         ? undefined
-        : () => (submitDisabled ? false : onSubmit()),
+        : () => attempt(submit.current?.form),
     applies: submitKind === "apply",
     // Save or Apply in the leave dialog that set the call site's `busy` closes the dialog into the
     // working panel: the focus goes to its working primary action (`SUI-FEATURE-171`).
@@ -204,8 +213,6 @@ function EditPanel({
 
   const geometry = usePanelGeometry();
   const Body = view ? "div" : "form";
-  // A submit shows every field's error and focuses the first invalid field (`GL-UI-038`).
-  const [submits, submitted] = useFieldSubmits();
   const fields = (
     <FieldSubmitContext.Provider value={view ? null : submits}>
       <FieldDraftsContext.Provider value={fieldDrafts}>{children}</FieldDraftsContext.Provider>
@@ -330,9 +337,8 @@ function EditPanel({
                     // in must never submit along (`SUI-FEATURE-094`).
                     event.stopPropagation();
                     if (busy) return;
-                    submitted(event.currentTarget as HTMLElement);
-                    if (submitDisabled || onSubmit === undefined) return;
-                    run(onSubmit);
+                    const form = event.currentTarget as HTMLElement;
+                    run(() => attempt(form));
                   },
                 })}
             className="flex min-h-0 flex-1 flex-col"
