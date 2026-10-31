@@ -819,7 +819,8 @@ export const SLIDE_LINE_SPACING = deck([
 ]);
 
 // `SUI-FEATURE-124`: styled numbered lists. Numbers from 4 in the accent colour, 117 px serif, before
-// 58 px body text, 75 px after the number column and 25 px between entries; the second entry wraps.
+// 58 px body text, 75 px after the number column and 25 px between entries; the second entry wraps,
+// the third breaks its line at a U+2028 (`SUI-DESIGN-002` rev 9).
 // Numbers 9 and 10 share one column; a 96 px number before 24 px text pushes that text down.
 const numberedText = (
   id: string,
@@ -853,7 +854,7 @@ export const SLIDE_NUMBERED_LIST = deck([
         40,
         900,
         760,
-        "First entry\nSecond entry, long enough to wrap in its field\nThird entry",
+        "First entry\nSecond entry, long enough to wrap in its field\nThird entry\u2028its own line",
         58,
         {
           start: 4,

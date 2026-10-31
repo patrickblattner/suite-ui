@@ -128,6 +128,14 @@ export function paragraphs(runs: readonly Run[]): Piece[][] {
   return result;
 }
 
+// The line separator (U+2028): it breaks the line inside a paragraph, in a list a new line of the
+// same item (`SUI-DESIGN-002` rev 9). Browsers draw it as no break, so view and editor draw a `<br>`
+// for it; a text ending in one gets a zero-width space after, so its empty last line keeps its height.
+export const LINE_SEPARATOR = "\u2028";
+
+// A piece's text as its lines: one more than it holds line separators.
+export const linesOf = (text: string): string[] => text.split(LINE_SEPARATOR);
+
 // A paragraph's pieces with each inline run glued to the word it touches (`SUI-FEATURE-164` AC1): a
 // line may break around an image or icon like around a word (CSS breaks on both sides of one), so a
 // flag before "Zürich" goes to the next line with it. A glue is drawn as one span that does not wrap;

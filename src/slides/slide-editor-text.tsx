@@ -45,6 +45,8 @@ import {
   inkRun,
   inlineLift,
   largest,
+  LINE_SEPARATOR,
+  linesOf,
   num,
   type Piece,
   paragraphRun,
@@ -281,7 +283,7 @@ export function fillEditable(
         if (inline !== undefined) span.append(inline(piece.run, ink, document));
       } else {
         Object.assign(span.style, runStyle(piece.run, brand));
-        span.textContent = piece.text;
+        span.append(...lineNodes(document, piece.text));
       }
       return span;
     };
@@ -310,7 +312,27 @@ export function fillEditable(
 type Token =
   | { kind: "text"; node: Text; text: string }
   | { kind: "inline"; node: Element }
+  // A line break inside its paragraph (U+2028), a `<br data-line>`: one character of the text.
+  | { kind: "line"; node: Element }
   | { kind: "break"; at: [Node, number] };
+
+// A run's text as the field holds it: a `<br data-line>` at each U+2028, as the view draws it
+// (`SUI-DESIGN-002` rev 9); a text ending in one gets a zero-width space after, so its empty last
+// line keeps its height and takes the caret.
+function lineNodes(document: Document, text: string): Node[] {
+  const lines = linesOf(text);
+  return lines.flatMap((line, index) => {
+    const nodes: Node[] = [];
+    if (index > 0) {
+      const br = document.createElement("br");
+      br.dataset.line = "";
+      nodes.push(br);
+    }
+    if (line !== "") nodes.push(document.createTextNode(line));
+    else if (index > 0 && index === lines.length - 1) nodes.push(document.createTextNode("\u200B"));
+    return nodes;
+  });
+}
 
 const BLOCKS = new Set(["DIV", "P", "LI"]);
 const CONTAINERS = new Set(["UL", "OL"]);
@@ -347,6 +369,12 @@ function tokensOf(root: Node): Token[] {
     if (element.hasAttribute("data-inline")) {
       if (pending) breakAt(beside(element));
       tokens.push({ kind: "inline", node: element });
+      content = true;
+      return;
+    }
+    if (element.tagName === "BR" && element.hasAttribute("data-line")) {
+      if (pending) breakAt(beside(element));
+      tokens.push({ kind: "line", node: element });
       content = true;
       return;
     }
@@ -418,6 +446,13 @@ export function readRuns(
       if (run?.inline !== undefined) pieces.push(run);
       continue;
     }
+    if (token.kind === "line") {
+      const own = named(token.node);
+      const run = own?.inline === undefined ? (own ?? last) : last;
+      last = run;
+      pieces.push({ ...runFormat(run), text: LINE_SEPARATOR });
+      continue;
+    }
     const own = named(token.node.parentElement);
     const run = own?.inline === undefined ? (own ?? last) : last;
     last = run;
@@ -465,7 +500,7 @@ function positionAt(root: HTMLElement, offset: number): [Node, number] {
       }
       at += token.text.length;
       last = [token.node, token.node.data.length];
-    } else if (token.kind === "inline") {
+    } else if (token.kind === "inline" || token.kind === "line") {
       if (offset <= at) return beside(token.node);
       at += 1;
       last = beside(token.node, true);
@@ -769,8 +804,10 @@ export function InlineTextEditor({
                 event.preventDefault();
                 onEnd();
               } else if (event.key === "Enter") {
+                // Enter starts the next paragraph (in a list the next item), Shift+Enter breaks the
+                // line inside it (`SUI-DESIGN-002` rev 9).
                 event.preventDefault();
-                put("\n");
+                put(event.shiftKey ? LINE_SEPARATOR : "\n");
               } else if (event.key === "Tab" && !isMod(event) && onTab?.(event.shiftKey)) {
                 event.preventDefault();
               } else if (isMod(event) && (key === "y" || (key === "z" && event.shiftKey))) {

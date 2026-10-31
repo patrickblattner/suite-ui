@@ -7,6 +7,8 @@ import {
   SLIDE_SERIF_FONTS,
   SLIDE_SHOWCASE,
 } from "../../gallery/slide-showcase.js";
+import { SlideExport } from "./slide-export.js";
+import { SlidePlayer } from "./slide-player.js";
 import { SlideView, type SlideViewProps, type SlideViewReport } from "./slide-view.js";
 
 afterEach(() => {
@@ -251,5 +253,74 @@ describe("SlideView styled numbered list", () => {
       <div data-slide-element="b" data-slide-type="text" style="position: absolute; left: 0px; top: 0px; width: 900px; height: 600px; z-index: 1; opacity: 1;"><div style="position: relative; width: 100%; height: 100%;"><div style="text-align: left; line-height: 1.2; white-space: pre-wrap; overflow-wrap: break-word; display: flex; flex-direction: column; justify-content: flex-start; width: 100%; height: 100%; --slide-fit: 1;"><div><ul style="margin: 0px; padding-left: 1.2em; list-style-type: disc;"><li style="font-size: calc(var(--slide-fit, 1) * 58px); font-family: &quot;Gallery Slide Sans&quot;;"><span style="font-family: &quot;Gallery Slide Sans&quot;; font-size: calc(var(--slide-fit, 1) * 58px); font-weight: 400; font-style: normal; color: rgb(15, 23, 42);">Bullet</span></li><li style="font-size: calc(var(--slide-fit, 1) * 58px); font-family: &quot;Gallery Slide Sans&quot;;"><span style="font-family: &quot;Gallery Slide Sans&quot;; font-size: calc(var(--slide-fit, 1) * 58px); font-weight: 400; font-style: normal; color: rgb(15, 23, 42);">List</span></li></ul></div></div></div></div>
       <div data-slide-element="p" data-slide-type="text" style="position: absolute; left: 0px; top: 0px; width: 900px; height: 600px; z-index: 2; opacity: 1;"><div style="position: relative; width: 100%; height: 100%;"><div style="text-align: left; line-height: 1.2; white-space: pre-wrap; overflow-wrap: break-word; display: flex; flex-direction: column; justify-content: flex-start; width: 100%; height: 100%; --slide-fit: 1;"><div><p style="margin: 0px; font-size: calc(var(--slide-fit, 1) * 58px); font-family: &quot;Gallery Slide Sans&quot;;"><span style="font-family: &quot;Gallery Slide Sans&quot;; font-size: calc(var(--slide-fit, 1) * 58px); font-weight: 400; font-style: normal; color: rgb(15, 23, 42);">Plain</span></p><p style="margin: 0px; font-size: calc(var(--slide-fit, 1) * 58px); font-family: &quot;Gallery Slide Sans&quot;;"><span style="font-family: &quot;Gallery Slide Sans&quot;; font-size: calc(var(--slide-fit, 1) * 58px); font-weight: 400; font-style: normal; color: rgb(15, 23, 42);">Text</span></p></div></div></div></div>"
     `);
+  });
+});
+
+// SUI-DESIGN-002 rev 9 AC6 (#731): a U+2028 breaks the line inside its paragraph: under one number in
+// a numbered list, inside one item of a bullet list, inside one paragraph of plain text.
+describe("SlideView line break inside a paragraph", () => {
+  const entries = (id: string) =>
+    [...document.querySelectorAll(`[data-slide-element="${id}"] li`)].map((li) => ({
+      text: li.textContent,
+      breaks: li.querySelectorAll("br").length,
+    }));
+
+  it("draws A and B on two lines under one number, the following numbers unchanged", async () => {
+    await drawn({ document: onlyPage([list("A\u2028B\nNext\nLast", { start: 1 })]) });
+    expect(markers()).toEqual(["1", "2", "3"]);
+    expect(entries("l")).toEqual([
+      { text: "1AB", breaks: 1 },
+      { text: "2Next", breaks: 0 },
+      { text: "3Last", breaks: 0 },
+    ]);
+    // The new line lies in the entry's text, the column after the number: it hangs at the text's x.
+    const [first] = field().querySelectorAll("li");
+    const text = first!.querySelector(":scope > div")!;
+    expect(text.querySelector("br")).not.toBeNull();
+    expect(first!.querySelector("[data-slide-marker]")!.querySelector("br")).toBeNull();
+    expect(text.textContent).not.toContain("\u2028");
+  });
+
+  it("does the same in a plain numbered list, a bullet list and plain text", async () => {
+    await drawn({
+      document: onlyPage([
+        list("A\u2028B\nNext"),
+        { ...list("A\u2028B\nNext"), id: "b", list: "bullet" },
+        { ...list("A\u2028B\nNext"), id: "p", list: "none" },
+      ]),
+    });
+    expect(entries("l")).toEqual([
+      { text: "AB", breaks: 1 },
+      { text: "Next", breaks: 0 },
+    ]);
+    expect(entries("b")).toEqual([
+      { text: "AB", breaks: 1 },
+      { text: "Next", breaks: 0 },
+    ]);
+    const paragraphs = [...document.querySelectorAll('[data-slide-element="p"] p')];
+    expect(paragraphs.map((one) => [one.textContent, one.querySelectorAll("br").length])).toEqual([
+      ["AB", 1],
+      ["Next", 0],
+    ]);
+  });
+
+  it("keeps an empty last line after a closing line break", async () => {
+    await drawn({ document: onlyPage([{ ...list("A\u2028"), list: "none" }]) });
+    const paragraph = field().querySelector("p")!;
+    expect(paragraph.querySelectorAll("br")).toHaveLength(1);
+    expect(paragraph.textContent).toBe("A\u200B");
+  });
+
+  // SUI-FEATURE-160: player and export draw the field as the view does.
+  it("draws the same in the player and the export", async () => {
+    const doc = onlyPage([list("A\u2028B\nNext", { start: 1, markerGap: 20 })]);
+    const { unmount } = await drawn({ document: doc });
+    const view = field().innerHTML;
+    unmount();
+    render(<SlidePlayer document={doc} brand={SLIDE_BRAND} fonts={SLIDE_SERIF_FONTS} />);
+    expect(field().innerHTML).toBe(view);
+    cleanup();
+    render(<SlideExport document={doc} brand={SLIDE_BRAND} fonts={SLIDE_SERIF_FONTS} />);
+    expect(field().innerHTML).toBe(view);
   });
 });

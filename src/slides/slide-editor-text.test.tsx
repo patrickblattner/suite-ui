@@ -130,6 +130,44 @@ describe("editable text field", () => {
   });
 });
 
+// SUI-DESIGN-002 rev 9 (#731): a U+2028 breaks the line inside its paragraph; the field holds it as a
+// `<br data-line>` and reads it back unchanged, one character of the text.
+describe("line break inside a paragraph", () => {
+  const runs: Run[] = [
+    { text: "A\u2028B\nTwo", size: 32 },
+    { text: " end\u2028", size: 48 },
+  ];
+
+  it("fills a U+2028 as a line <br> in the same block and reads it back unchanged", () => {
+    for (const list of ["none", "bullet", "numbered"] as const) {
+      const root = document.createElement("div");
+      fillEditable(root, runs, SLIDE_BRAND, list, undefined, list === "numbered" ? {} : undefined);
+      expect(root.children).toHaveLength(2);
+      expect(root.children[0]!.querySelectorAll("br[data-line]")).toHaveLength(1);
+      // A text ending in one keeps its empty last line: a zero-width space after the <br>.
+      expect(root.children[1]!.querySelectorAll("br[data-line]")).toHaveLength(1);
+      expect(root.children[1]!.textContent).toBe("Two end\u200B");
+      expect(readRuns(root, runs)).toEqual(runs);
+    }
+  });
+
+  it("counts the line break as one character for the caret", () => {
+    const root = document.createElement("div");
+    document.body.append(root);
+    fillEditable(root, runs, SLIDE_BRAND, "none");
+    for (const range of [
+      { start: 1, end: 1 },
+      { start: 2, end: 2 },
+      { start: 1, end: 3 },
+      { start: 0, end: 12 },
+    ]) {
+      selectRange(root, range);
+      expect(rangeIn(root)).toEqual(range);
+    }
+    root.remove();
+  });
+});
+
 // The caption of the editor showcase's second page, at the canvas's "Fit" of 0.25 in jsdom (its
 // area measures 0).
 const ZOOM = 0.25;
@@ -211,6 +249,39 @@ describe("SlideEditor text editing", () => {
     expect(field.textContent).toBe("A caption");
     fireEvent.keyDown(field, { key: "z", metaKey: true });
     await waitFor(() => expect(field.children).toHaveLength(1));
+  });
+
+  // SUI-DESIGN-002 rev 9 AC 6 (#731): Shift+Enter breaks the line in the same paragraph (U+2028),
+  // Enter starts the next one; the runs read back with the U+2028; Undo takes it back.
+  it("breaks the line with Shift+Enter in the same paragraph, Enter starts the next; Undo works", async () => {
+    const onSave = renderEditor();
+    const canvas = screen.getByTestId("slide-editor-canvas");
+    fireEvent.pointerDown(canvas, { ...at(100, 400), button: 0, pointerId: 1 });
+    fireEvent.pointerUp(canvas, at(100, 400));
+    fireEvent.keyDown(canvas, { key: "Enter" });
+    const field = await screen.findByTestId("slide-editor-text-field");
+    selectRange(field, { start: 1, end: 1 });
+    fireEvent.keyDown(field, { key: "Enter", shiftKey: true });
+    await waitFor(() => expect(field.querySelectorAll("br[data-line]")).toHaveLength(1));
+    expect(field.children).toHaveLength(1);
+    expect(rangeIn(field)).toEqual({ start: 2, end: 2 });
+    fireEvent.keyDown(field, { key: "Enter" });
+    await waitFor(() => expect(field.children).toHaveLength(2));
+    // Undo takes the editing back, the line break with it.
+    fireEvent.keyDown(field, { key: "z", metaKey: true });
+    await waitFor(() => expect(field.children).toHaveLength(1));
+    expect(field.querySelectorAll("br[data-line]")).toHaveLength(0);
+    expect(field.textContent).toBe("A caption");
+    selectRange(field, { start: 1, end: 1 });
+    fireEvent.keyDown(field, { key: "Enter", shiftKey: true });
+    await waitFor(() => expect(field.querySelectorAll("br[data-line]")).toHaveLength(1));
+    fireEvent.keyDown(field, { key: "Escape" });
+    fireEvent.click(screen.getAllByTestId("editor-save")[0]!);
+    await waitFor(() => expect(onSave).toHaveBeenCalled());
+    const caption = onSave.mock.calls[0]![0].pages[1]!.elements.find(
+      (element) => element.id === "caption",
+    );
+    expect(caption?.type === "text" && textOf(caption.runs)).toBe("A\u2028 caption");
   });
 
   // #717: a paragraph keeps its first run's font while typing, not the font it was filled with.
@@ -454,6 +525,35 @@ describe("SlideEditor text editing", () => {
       (element) => element.id === "caption",
     );
     expect(caption?.type === "text" && caption.runs).toEqual([{ text: "X", size: 20 }]);
+  });
+
+  // SUI-DESIGN-002 rev 8 (#731): a paste or an Enter past the paragraph cap is refused at input; a
+  // line break (U+2028) is no paragraph and still goes in.
+  it("refuses paragraphs past the cap at input, a line break still goes in", async () => {
+    const error = vi.spyOn(toast, "error").mockReturnValue(1);
+    renderEditor();
+    const canvas = screen.getByTestId("slide-editor-canvas");
+    fireEvent.pointerDown(canvas, { ...at(100, 400), button: 0, pointerId: 1 });
+    fireEvent.pointerUp(canvas, at(100, 400));
+    fireEvent.doubleClick(canvas, at(100, 400));
+    const field = await screen.findByTestId("slide-editor-text-field");
+    fireEvent.paste(field, {
+      clipboardData: { getData: () => "\n".repeat(SLIDE_LIMITS.maxParagraphs) },
+    });
+    expect(field.textContent).toBe("A caption");
+    expect(error).toHaveBeenCalledTimes(1);
+    // At the cap exactly, the field takes it; one Enter more is refused, Shift+Enter is not.
+    selectRange(field, { start: 0, end: 0 });
+    fireEvent.paste(field, {
+      clipboardData: { getData: () => "\n".repeat(SLIDE_LIMITS.maxParagraphs - 1) },
+    });
+    await waitFor(() => expect(field.children).toHaveLength(SLIDE_LIMITS.maxParagraphs));
+    fireEvent.keyDown(field, { key: "Enter" });
+    expect(error).toHaveBeenCalledTimes(2);
+    expect(field.children).toHaveLength(SLIDE_LIMITS.maxParagraphs);
+    fireEvent.keyDown(field, { key: "Enter", shiftKey: true });
+    await waitFor(() => expect(field.querySelectorAll("br[data-line]")).toHaveLength(1));
+    expect(error).toHaveBeenCalledTimes(2);
   });
 
   // SUI-FEATURE-114 AC1: text past a limit is refused at input, not first at Save.

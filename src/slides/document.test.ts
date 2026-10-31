@@ -220,9 +220,9 @@ describe("slide document migration", () => {
     })),
   });
 
-  it("ships six steps, 1 → 2 up to 6 → 7, that change no content (SUI-FEATURE-192 AC4)", () => {
-    expect(SLIDE_SCHEMA_VERSION).toBe(7);
-    expect(Object.keys(SLIDE_MIGRATIONS)).toEqual(["1", "2", "3", "4", "5", "6"]);
+  it("ships seven steps, 1 → 2 up to 7 → 8, that change no content (SUI-FEATURE-192 AC4)", () => {
+    expect(SLIDE_SCHEMA_VERSION).toBe(8);
+    expect(Object.keys(SLIDE_MIGRATIONS)).toEqual(["1", "2", "3", "4", "5", "6", "7"]);
     expect(parseSlideDocument({ ...valid, schemaVersion: 1 })).toEqual(parseSlideDocument(valid));
   });
 
@@ -1282,6 +1282,93 @@ describe("slideDocumentSchema preflight", () => {
     }));
     const group = { ...element, id: "g", type: "group", children };
     expect(issues(group)).toEqual([{ code: "too-many-elements", path: [] }]);
+  });
+});
+
+// SUI-DESIGN-002 rev 8 §Form, Abnahme 2 (#731): a text field or table cell holds at most
+// `SLIDE_LIMITS.maxParagraphs` paragraphs; more is a named error with its path, the document neither
+// returned nor drawn. A U+2028 breaks a line, never a paragraph, so it does not count.
+describe("paragraph cap", () => {
+  const page = valid.pages[0]!;
+  const text = (runs: unknown[]) => ({
+    id: "t",
+    type: "text",
+    x: 0,
+    y: 0,
+    width: 400,
+    height: 200,
+    runs,
+  });
+  const withText = (runs: unknown[]) => ({
+    ...valid,
+    pages: [{ ...page, elements: [text(runs)] }],
+  });
+  const lines = (count: number, separator = "\n") =>
+    Array.from({ length: count }, (_, index) => `p${index}`).join(separator);
+
+  it("exports the cap in SLIDE_LIMITS", () => {
+    expect(SLIDE_LIMITS.maxParagraphs).toBe(1000);
+  });
+
+  it("accepts a text field at the cap, its paragraphs spread over runs", () => {
+    const half = SLIDE_LIMITS.maxParagraphs / 2;
+    expect(safeParseSlideDocument(withText([{ text: lines(SLIDE_LIMITS.maxParagraphs) }])).ok).toBe(
+      true,
+    );
+    // "a…\n" + "\n…b": the two runs share the paragraph between them.
+    expect(
+      safeParseSlideDocument(withText([{ text: `${lines(half)}\n` }, { text: lines(half) }])).ok,
+    ).toBe(true);
+  });
+
+  it("rejects one paragraph more by name, at the runs' path", () => {
+    const error = rejection(withText([{ text: lines(SLIDE_LIMITS.maxParagraphs + 1) }]));
+    expect(error.code).toBe("invalid");
+    expect(error.issues.map(({ code, path }) => ({ code, path }))).toEqual([
+      { code: "too-big", path: "pages[0].elements[0].runs" },
+    ]);
+    // Across runs, an inline run counted as no paragraph break.
+    const split = rejection(
+      withText([
+        { text: `${lines(SLIDE_LIMITS.maxParagraphs)}\n` },
+        { inline: "icon", icon: "star" },
+        { text: "last" },
+      ]),
+    );
+    expect(split.issues[0]?.code).toBe("too-big");
+  });
+
+  it("caps a table cell the same way", () => {
+    const table = {
+      id: "tb",
+      type: "table",
+      x: 0,
+      y: 0,
+      width: 400,
+      height: 200,
+      columnWidths: [400],
+      rows: [[{ runs: [{ text: lines(SLIDE_LIMITS.maxParagraphs + 1) }] }]],
+    };
+    const error = rejection({ ...valid, pages: [{ ...page, elements: [table] }] });
+    expect(error.issues[0]).toMatchObject({
+      code: "too-big",
+      path: "pages[0].elements[0].rows[0][0].runs",
+    });
+  });
+
+  it("does not count a U+2028 line break as a paragraph", () => {
+    const raw = withText([{ text: lines(SLIDE_LIMITS.maxParagraphs * 2, "\u2028") }]);
+    expect(safeParseSlideDocument(raw).ok).toBe(true);
+  });
+
+  it("rejects a version-7 document over the cap after its migration", () => {
+    const raw = {
+      ...withText([{ text: lines(SLIDE_LIMITS.maxParagraphs + 1) }]),
+      schemaVersion: 7,
+    };
+    expect(rejection(raw).issues[0]?.code).toBe("too-big");
+    const fine = { ...withText([{ text: "A\nB" }]), schemaVersion: 7 };
+    expect(parseSlideDocument(fine)).toEqual(parseSlideDocument(withText([{ text: "A\nB" }])));
   });
 });
 

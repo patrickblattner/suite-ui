@@ -31,6 +31,7 @@ import {
   inkRun,
   inlineLift,
   largest,
+  linesOf,
   num,
   pageLists,
   pagePosition,
@@ -491,6 +492,20 @@ function inlineSpan(draw: Draw, run: InlineRun, ink: TextRun | undefined, key: n
 }
 
 // `ink` names the run an inline piece takes its colour from (`inkRun`); a text piece has its own.
+// A run's text with a `<br>` at each line separator (U+2028, `SUI-DESIGN-002` rev 9): the line breaks
+// inside its paragraph, in a list inside its item, and in a styled numbered list it starts at the
+// entry's text, not under the number. A text ending in one keeps its empty last line.
+function lineBroken(text: string): React.ReactNode {
+  const lines = linesOf(text);
+  if (lines.length === 1) return text;
+  return lines.map((line, index) => (
+    <React.Fragment key={index}>
+      {index > 0 && <br />}
+      {index === lines.length - 1 && line === "" ? "\u200B" : line}
+    </React.Fragment>
+  ));
+}
+
 function runSpan(draw: Draw, piece: Piece, key: number, ink: () => TextRun | undefined) {
   if (piece.text === undefined) return inlineSpan(draw, piece.run, ink(), key);
   const run: TextRun = piece.run;
@@ -518,7 +533,7 @@ function runSpan(draw: Draw, piece: Piece, key: number, ink: () => TextRun | und
   }
   const span = (
     <span key={key} style={style}>
-      {piece.text}
+      {lineBroken(piece.text)}
     </span>
   );
   if (run.highlight === undefined) return span;
