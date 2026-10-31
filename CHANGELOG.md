@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.200.1 — #724, Codex review v0.200.0: bounded text-fit search, runs keep their own weight and style (patch)
 
 - **Fixed (#724, CX1, SUI-FEATURE-181 rev 4):** with text fit on, `SlideView` walked down one whole pixel per layout, so a huge run size (the schema takes any positive finite size; at 1e20 a pixel less is the same number) never returned, and a large one forced a layout per pixel. Fit now finds the same step by a binary search over the whole pixels between the set size and 70 % of it, bounded and making progress each round: the largest whole pixel that fits, or the smallest tried. Every size draws at the same step as before.
 - **Fixed (#724, CX2, SUI-FEATURE-160):** since #717 a paragraph carries its first run's weight and style, and a later run without a weight or without italic inherited them: a plain run after a bold italic first run was drawn bold italic. Each run in `SlideView` and in the editor's editable field now sets its own weight (400 when absent) and style (`normal` when not italic); the paragraph's line box still takes its first run's font.
