@@ -196,6 +196,51 @@ describe("SlideEditor text editing", () => {
     await waitFor(() => expect(field.children).toHaveLength(1));
   });
 
+  // #717: a paragraph keeps its first run's font while typing, not the font it was filled with.
+  it("gives a paragraph its new first run's font after typing and after Enter", async () => {
+    const serifCaption = {
+      ...SLIDE_EDITOR_DOC,
+      pages: SLIDE_EDITOR_DOC.pages.map((page) => ({
+        ...page,
+        elements: page.elements?.map((element) =>
+          element.id === "caption"
+            ? {
+                ...element,
+                runs: [
+                  {
+                    text: "Serif ",
+                    size: 20,
+                    font: { kind: "free", family: "Gallery Slide Serif" },
+                  },
+                  { text: "sans", size: 20 },
+                ],
+              }
+            : element,
+        ),
+      })),
+    } as typeof SLIDE_EDITOR_DOC;
+    renderEditor(undefined, { document: serifCaption });
+    const canvas = screen.getByTestId("slide-editor-canvas");
+    fireEvent.pointerDown(canvas, { ...at(100, 400), button: 0, pointerId: 1 });
+    fireEvent.pointerUp(canvas, at(100, 400));
+    fireEvent.doubleClick(canvas, at(100, 400));
+    const field = await screen.findByTestId("slide-editor-text-field");
+    const family = (index: number) => (field.children[index] as HTMLElement).style.fontFamily;
+    expect(family(0)).toContain("Gallery Slide Serif");
+
+    // The serif run deleted: the paragraph takes the page font's run that now leads it.
+    field.querySelector("span")!.remove();
+    fireEvent.input(field);
+    expect(field.textContent).toBe("sans");
+    expect(family(0)).toContain("Gallery Slide Sans");
+
+    selectRange(field, { start: 4, end: 4 });
+    fireEvent.keyDown(field, { key: "Enter" });
+    await waitFor(() => expect(field.children).toHaveLength(2));
+    expect(family(0)).toContain("Gallery Slide Sans");
+    expect(family(1)).toContain("Gallery Slide Sans");
+  });
+
   it("formats the whole field without a selection, and its list and alignment", () => {
     renderEditor();
     const canvas = screen.getByTestId("slide-editor-canvas");
