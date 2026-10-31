@@ -58,6 +58,125 @@ const WIDE = new URLSearchParams(window.location.search).get("wide") === "1";
 const NOTE =
   "Shown in the header and the footer of every page; the order here is the order visitors see in the menu.";
 
+// `?grouped=1` shows a main menu with expanded parents instead (`SUI-FEATURE-123`).
+const GROUPED = new URLSearchParams(window.location.search).get("grouped") === "1";
+
+type MenuEntry = { id: string; name: string; children: { id: string; name: string }[] };
+
+const MENU: MenuEntry[] = [
+  {
+    id: "bern",
+    name: "Bern",
+    children: [
+      { id: "bern-thun", name: "Thun" },
+      { id: "bern-biel", name: "Biel" },
+    ],
+  },
+  {
+    id: "zuerich",
+    name: "Zürich",
+    children: [
+      { id: "zuerich-winterthur", name: "Winterthur" },
+      { id: "zuerich-uster", name: "Uster" },
+    ],
+  },
+  { id: "basel", name: "Basel", children: [] },
+  { id: "ticino", name: "Ticino", children: [{ id: "ticino-lugano", name: "Lugano" }] },
+];
+
+// Moves the entry at `from` of `list` to `to`.
+function moved<T>(list: readonly T[], from: number, to: number): T[] {
+  const next = [...list];
+  const [entry] = next.splice(from, 1);
+  if (entry !== undefined) next.splice(to, 0, entry);
+  return next;
+}
+
+// `SUI-FEATURE-123`: a main menu whose parents show their sub-entries. A parent moves with its
+// children, by ↑/↓, the grip or a keyboard carry, past the next parent and its children; a child moves
+// only among its parent's children. `onDrop`'s `groupIndex` places the entry among its group.
+function GroupedReorder() {
+  const { i18n } = useTranslation("suite");
+  const labels = LABELS[i18n.language as keyof typeof LABELS] ?? LABELS.en;
+  const [menu, setMenu] = useState(MENU);
+  const grid = useRowGrid();
+  const moveParent = (from: number, to: number) => setMenu((list) => moved(list, from, to));
+  const moveChild = (parent: number, from: number, to: number) =>
+    setMenu((list) =>
+      list.map((entry, index) =>
+        index === parent ? { ...entry, children: moved(entry.children, from, to) } : entry,
+      ),
+    );
+  const lock = (at: number, count: number) => ({
+    ...(at === 0 ? { upDisabledText: labels.first } : {}),
+    ...(at === count - 1 ? { downDisabledText: labels.last } : {}),
+  });
+  return (
+    <DataTableShell
+      head={
+        <>
+          <ReorderHead />
+          <TableHead>{labels.name}</TableHead>
+          <RowActionsHead />
+        </>
+      }
+      columnCount={3}
+      isPending={false}
+      isEmpty={false}
+      empty=""
+      loadingRowTestId="reorder-row-loading"
+      emptyTestId="reorder-empty"
+      tableProps={grid.gridProps}
+      reorder={{
+        onDrop: (id, toIndex, groupIndex) => {
+          // Without a parent row on the page all rows share one group (`SUI-FEATURE-123` rev 4).
+          const to = groupIndex ?? toIndex;
+          const parent = menu.findIndex((entry) => entry.id === id);
+          if (parent !== -1) return moveParent(parent, to);
+          const owner = menu.findIndex((entry) => entry.children.some((child) => child.id === id));
+          const from = menu[owner]?.children.findIndex((child) => child.id === id) ?? -1;
+          if (from !== -1) moveChild(owner, from, to);
+        },
+      }}
+    >
+      {menu.flatMap((entry, at) => [
+        <TableRow key={entry.id} {...grid.rowProps({ onOpen: () => {} })} data-testid="reorder-row">
+          <ReorderCell
+            id={entry.id}
+            rowName={entry.name}
+            children={entry.id}
+            onMove={(direction) => moveParent(at, direction === "up" ? at - 1 : at + 1)}
+            {...lock(at, menu.length)}
+            data-testid={`reorder-${entry.id}`}
+          />
+          <TableCell>{entry.name}</TableCell>
+          <RowActions rowName={entry.name} onEdit={() => {}} onDelete={() => {}} />
+        </TableRow>,
+        ...entry.children.map((child, index) => (
+          <TableRow
+            key={child.id}
+            {...grid.rowProps({ onOpen: () => {} })}
+            data-testid="reorder-row"
+          >
+            <ReorderCell
+              id={child.id}
+              rowName={child.name}
+              group={entry.id}
+              onMove={(direction) =>
+                moveChild(at, index, direction === "up" ? index - 1 : index + 1)
+              }
+              {...lock(index, entry.children.length)}
+              data-testid={`reorder-${child.id}`}
+            />
+            <TableCell className="pl-8">{child.name}</TableCell>
+            <RowActions rowName={child.name} onEdit={() => {}} onDelete={() => {}} />
+          </TableRow>
+        )),
+      ])}
+    </DataTableShell>
+  );
+}
+
 // `SUI-FEATURE-340`: a hand-sorted list with a pager. ↑/↓ move an entry across the whole list, the
 // grip drags it among the rows of the page; the first entry overall has ↑ locked, the last ↓.
 export function ReorderPage() {
@@ -80,6 +199,15 @@ export function ReorderPage() {
     });
     setPage(Math.floor(to / pageSize) + 1);
   };
+  if (GROUPED)
+    return (
+      <PageScroll>
+        <div className="flex min-h-0 flex-1 flex-col gap-4" data-testid="reorder-page">
+          <PageHeader title={labels.title} subtitle={labels.subtitle} />
+          <GroupedReorder />
+        </div>
+      </PageScroll>
+    );
   return (
     <PageScroll>
       <div className="flex min-h-0 flex-1 flex-col gap-4" data-testid="reorder-page">

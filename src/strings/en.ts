@@ -121,6 +121,14 @@ export const en = {
     putBack: "{{name}} put back at position {{position}} of {{count}}.",
     upEdge: "{{name}} cannot move further up on this page.",
     downEdge: "{{name}} cannot move further down on this page.",
+    // On a page with parent rows (`SUI-FEATURE-123`) the position counts the row's level: the
+    // top-level entries, or the sub-entries of one parent.
+    pickedUpGroup:
+      "{{name}} picked up, position {{position}} of {{count}} at this level. Arrow keys move it, Space drops it, Escape puts it back.",
+    movedGroup: "{{name}}: position {{position}} of {{count}} at this level.",
+    droppedGroup: "{{name}} dropped at position {{position}} of {{count}} at this level.",
+    upEdgeGroup: "{{name}} cannot move further up at this level.",
+    downEdgeGroup: "{{name}} cannot move further down at this level.",
   },
   // Terms the suite apps share: the severity and outcome of an event, the type column.
   severity: {

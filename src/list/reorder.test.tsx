@@ -607,3 +607,276 @@ describe("RowActions beside a ReorderCell (SUI-FEATURE-340)", () => {
     expect(within(cellNode).getAllByRole("button")).toHaveLength(3);
   });
 });
+
+type MenuEntry = { id: string; children: string[] };
+
+const MENU: MenuEntry[] = [
+  { id: "p1", children: ["p1a", "p1b"] },
+  { id: "p2", children: ["p2a", "p2b"] },
+  { id: "p3", children: ["p3a"] },
+];
+
+// A main menu with expanded parents as an app builds it (`SUI-FEATURE-123`): parents pass
+// `children={id}`, children `group={parentId}`; ↑/↓ move an entry among its group, a drop places it
+// at `groupIndex`. Each row is named by its id.
+function GroupedHarness({
+  onDrop,
+  locks = {},
+}: {
+  onDrop?: (id: string, toIndex: number, groupIndex?: number) => void;
+  locks?: Record<string, { up?: string; down?: string }>;
+}) {
+  const [menu, setMenu] = useState(MENU);
+  const moved = <T,>(list: readonly T[], from: number, to: number) => {
+    const next = [...list];
+    const [entry] = next.splice(from, 1);
+    next.splice(to, 0, entry!);
+    return next;
+  };
+  const moveParent = (from: number, to: number) => setMenu((list) => moved(list, from, to));
+  const moveChild = (parent: number, from: number, to: number) =>
+    setMenu((list) =>
+      list.map((entry, index) =>
+        index === parent ? { ...entry, children: moved(entry.children, from, to) } : entry,
+      ),
+    );
+  const lockProps = (id: string) => ({
+    ...(locks[id]?.up === undefined ? {} : { upDisabledText: locks[id].up }),
+    ...(locks[id]?.down === undefined ? {} : { downDisabledText: locks[id].down }),
+  });
+  const row = (
+    id: string,
+    cellProps: Omit<React.ComponentProps<typeof ReorderCell>, "id" | "rowName">,
+  ) => (
+    <TableRow key={id} data-testid={`row-${id}`}>
+      <ReorderCell
+        id={id}
+        rowName={id}
+        {...cellProps}
+        {...lockProps(id)}
+        data-testid={`reorder-${id}`}
+      />
+      <TableCell>{id}</TableCell>
+    </TableRow>
+  );
+  return (
+    <>
+      <DataTableShell
+        head={
+          <>
+            <ReorderHead />
+            <TableHead>Name</TableHead>
+          </>
+        }
+        columnCount={2}
+        isPending={false}
+        isEmpty={false}
+        empty=""
+        loadingRowTestId="loading"
+        emptyTestId="empty"
+        reorder={{
+          onDrop: (id, toIndex, groupIndex) => {
+            onDrop?.(id, toIndex, groupIndex);
+            const parent = menu.findIndex((entry) => entry.id === id);
+            const to = groupIndex ?? toIndex;
+            if (parent !== -1) return moveParent(parent, to);
+            const owner = menu.findIndex((entry) => entry.children.includes(id));
+            moveChild(owner, menu[owner]!.children.indexOf(id), to);
+          },
+        }}
+      >
+        {menu.flatMap((entry, at) => [
+          row(entry.id, {
+            children: entry.id,
+            onMove: (direction) => moveParent(at, direction === "up" ? at - 1 : at + 1),
+          }),
+          ...entry.children.map((child, index) =>
+            row(child, {
+              group: entry.id,
+              onMove: (direction) =>
+                moveChild(at, index, direction === "up" ? index - 1 : index + 1),
+            }),
+          ),
+        ])}
+      </DataTableShell>
+      <button
+        type="button"
+        onClick={() =>
+          setMenu((list) =>
+            list.map((entry) =>
+              entry.id === "p2" ? { ...entry, children: [...entry.children, "p2c"] } : entry,
+            ),
+          )
+        }
+      >
+        add child
+      </button>
+      <output data-testid="order">
+        {menu.map((entry) => [entry.id, ...entry.children].join(" ")).join(" | ")}
+      </output>
+    </>
+  );
+}
+
+// The name cell of the row `id`.
+const nameCell = (id: string) => screen.getByTestId<HTMLTableRowElement>(`row-${id}`).cells[1]!;
+
+// A pointer drag of `id`'s grip over the row of `over`: the row that shows the drop line, then
+// dropped there unless `drop` is false.
+function dragRow(id: string, over: string, { drop = true } = {}) {
+  fireEvent.dragStart(grip(id));
+  const target = nameCell(over);
+  fireEvent.dragOver(target);
+  const line = document.querySelector("[data-drop]")?.getAttribute("data-reorder-id") ?? null;
+  if (drop) fireEvent.drop(target);
+  fireEvent.dragEnd(grip(id));
+  return line;
+}
+
+describe("ReorderCell in grouped lists (SUI-FEATURE-123)", () => {
+  const AFTER_P2 = "p2 p2a p2b | p1 p1a p1b | p3 p3a";
+
+  it("AC1/AC2: dragging the first parent below the second gives the same order as ↓, children kept", () => {
+    const onDrop = vi.fn();
+    const { unmount } = render(<GroupedHarness onDrop={onDrop} />);
+    fireEvent.click(screen.getByTestId("reorder-p1-down"));
+    const byArrow = order();
+    expect(byArrow).toBe(AFTER_P2);
+    unmount();
+    render(<GroupedHarness onDrop={onDrop} />);
+    // The drop line sits after the second parent's last child.
+    expect(dragRow("p1", "p2")).toBe("p2b");
+    expect(cell("p2b")).not.toHaveAttribute("data-drop");
+    expect(onDrop).toHaveBeenCalledWith("p1", 3, 1);
+    expect(order()).toBe(byArrow);
+  });
+
+  it("AC1: foreign rows on the way are skipped, not blocking; ↑ lands before the parent", () => {
+    const onDrop = vi.fn();
+    render(<GroupedHarness onDrop={onDrop} />);
+    expect(dragRow("p1", "p3")).toBe("p3a");
+    expect(onDrop).toHaveBeenLastCalledWith("p1", 5, 2);
+    expect(order()).toBe("p2 p2a p2b | p3 p3a | p1 p1a p1b");
+    fireEvent.dragStart(grip("p1"));
+    fireEvent.dragOver(nameCell("p2"));
+    expect(cell("p2")).toHaveAttribute("data-drop", "before");
+    fireEvent.drop(nameCell("p2"));
+    expect(onDrop).toHaveBeenLastCalledWith("p1", 0, 0);
+    expect(order()).toBe("p1 p1a p1b | p2 p2a p2b | p3 p3a");
+  });
+
+  it("AC2: a carried parent travels as a block: its children wear the outline and the preview", async () => {
+    render(<GroupedHarness />);
+    const setDragImage = vi.fn();
+    fireEvent.dragStart(grip("p1"), {
+      dataTransfer: { setData: vi.fn(), setDragImage, effectAllowed: "", dropEffect: "" },
+    });
+    // One outline around the block: each row marks its part of it.
+    expect(cell("p1")).toHaveAttribute("data-carried", "block-first");
+    expect(cell("p1a")).toHaveAttribute("data-carried", "block-middle");
+    expect(cell("p1b")).toHaveAttribute("data-carried", "block-last");
+    expect(cell("p2")).not.toHaveAttribute("data-carried");
+    const image = setDragImage.mock.calls[0]?.[0] as HTMLTableElement;
+    expect(Array.from(image.rows, (tr) => tr.textContent)).toEqual(["p1", "p1a", "p1b"]);
+    fireEvent.dragEnd(grip("p1"));
+    expect(document.querySelector("[data-carried]")).toBeNull();
+    // The preview's copy leaves once the browser took its picture.
+    await act(() => new Promise((resolve) => setTimeout(resolve)));
+    expect(image.isConnected).toBe(false);
+  });
+
+  it("AC3: while dragging a parent, another parent's children show no drop line", () => {
+    render(<GroupedHarness />);
+    // Over a child the parent aims like over that child's parent: the line stays outside its block.
+    expect(dragRow("p1", "p2a", { drop: false })).toBe("p2b");
+    expect(dragRow("p3", "p1a", { drop: false })).toBe("p1");
+    expect(cell("p1")).not.toHaveAttribute("data-drop");
+    expect(dragRow("p3", "p2b", { drop: false })).toBe("p2");
+  });
+
+  it("AC7: the pointer on the second parent's last child shows the line after it; the drop moves the block", () => {
+    const onDrop = vi.fn();
+    render(<GroupedHarness onDrop={onDrop} />);
+    expect(dragRow("p1", "p2b")).toBe("p2b");
+    expect(onDrop).toHaveBeenCalledWith("p1", 3, 1);
+    expect(order()).toBe(AFTER_P2);
+  });
+
+  it("a refresh that adds a child to the passed parent keeps the aim after its block (#715)", () => {
+    const onDrop = vi.fn();
+    render(<GroupedHarness onDrop={onDrop} />);
+    fireEvent.keyDown(grip("p1"), { key: " " });
+    fireEvent.keyDown(grip("p1"), { key: "ArrowDown" });
+    expect(cell("p2b")).toHaveAttribute("data-drop", "after");
+    fireEvent.click(screen.getByRole("button", { name: "add child" }));
+    expect(cell("p2b")).not.toHaveAttribute("data-drop");
+    expect(cell("p2c")).toHaveAttribute("data-drop", "after");
+    fireEvent.keyDown(grip("p1"), { key: " " });
+    expect(onDrop).toHaveBeenCalledWith("p1", 4, 1);
+    expect(order()).toBe("p2 p2a p2b p2c | p1 p1a p1b | p3 p3a");
+  });
+
+  it("AC4: a child never leaves its parent; within it, it reorders as before", () => {
+    const onDrop = vi.fn();
+    render(<GroupedHarness onDrop={onDrop} />);
+    expect(dragRow("p1a", "p2a")).toBeNull();
+    expect(dragRow("p1a", "p2")).toBeNull();
+    expect(dragRow("p1a", "p1")).toBeNull();
+    expect(onDrop).not.toHaveBeenCalled();
+    expect(dragRow("p1a", "p1b")).toBe("p1b");
+    expect(onDrop).toHaveBeenCalledWith("p1a", 2, 1);
+    expect(order()).toBe("p1 p1b p1a | p2 p2a p2b | p3 p3a");
+    // By keyboard the child stops at its parent's edge.
+    fireEvent.keyDown(grip("p1a"), { key: " " });
+    fireEvent.keyDown(grip("p1a"), { key: "ArrowDown" });
+    expect(document.querySelector("[data-drop]")).toBeNull();
+    expect(screen.getByTestId("reorder-live")).toHaveTextContent(
+      "p1a cannot move further down at this level.",
+    );
+  });
+
+  it("AC5: ↓, Space on a parent gives the drag's result; a step passes one parent with its children", () => {
+    const onDrop = vi.fn();
+    render(<GroupedHarness onDrop={onDrop} />);
+    const live = screen.getByTestId("reorder-live");
+    fireEvent.keyDown(grip("p1"), { key: " " });
+    expect(live).toHaveTextContent("p1 picked up, position 1 of 3 at this level.");
+    fireEvent.keyDown(grip("p1"), { key: "ArrowDown" });
+    expect(cell("p2b")).toHaveAttribute("data-drop", "after");
+    expect(live).toHaveTextContent("p1: position 2 of 3 at this level.");
+    fireEvent.keyDown(grip("p1"), { key: "ArrowDown" });
+    expect(cell("p3a")).toHaveAttribute("data-drop", "after");
+    expect(live).toHaveTextContent("p1: position 3 of 3 at this level.");
+    fireEvent.keyDown(grip("p1"), { key: "ArrowUp" });
+    fireEvent.keyDown(grip("p1"), { key: " " });
+    expect(onDrop).toHaveBeenCalledWith("p1", 3, 1);
+    expect(order()).toBe(AFTER_P2);
+  });
+
+  it("AC5: a child's carry counts the positions among its parent's children", () => {
+    render(<GroupedHarness />);
+    fireEvent.keyDown(grip("p2b"), { key: " " });
+    expect(screen.getByTestId("reorder-live")).toHaveTextContent(
+      "p2b picked up, position 2 of 2 at this level.",
+    );
+  });
+
+  it("AC6: direction locks bind as before and skip no rows", () => {
+    const onDrop = vi.fn();
+    render(
+      <GroupedHarness
+        onDrop={onDrop}
+        locks={{ p2: { up: "Pinned below the first.", down: "Pinned above the last." } }}
+      />,
+    );
+    expect(dragRow("p2", "p1")).toBeNull();
+    expect(dragRow("p2", "p3")).toBeNull();
+    expect(onDrop).not.toHaveBeenCalled();
+    fireEvent.keyDown(grip("p2"), { key: " " });
+    fireEvent.keyDown(grip("p2"), { key: "ArrowDown" });
+    expect(screen.getByTestId("reorder-live")).toHaveTextContent("Pinned above the last.");
+    fireEvent.keyDown(grip("p2"), { key: "ArrowUp" });
+    expect(screen.getByTestId("reorder-live")).toHaveTextContent("Pinned below the first.");
+    expect(document.querySelector("[data-drop]")).toBeNull();
+  });
+});

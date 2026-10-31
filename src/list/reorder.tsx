@@ -7,6 +7,7 @@ import { Button } from "../ui/button.js";
 import { TableCell, TableHead } from "../ui/table.js";
 import { IconButtonTooltip } from "../ui/tooltip.js";
 import {
+  CHILDREN_ATTR,
   DOWN_LOCKED_ATTR,
   GROUP_ATTR,
   ID_ATTR,
@@ -35,9 +36,31 @@ type ReorderCellProps = {
   downDisabledText?: string;
   // A drag only lands among rows of the same group.
   group?: string;
+  // Makes the row a parent: the group its child rows carry, typically its own `id`. On a page with a
+  // parent a carried row skips the rows of other groups, and a parent travels with its children
+  // (`SUI-FEATURE-123`).
+  children?: string;
   // The cell's test id and the prefix of its controls': `‹prefix›-grip`, `-up`, `-down`.
   "data-testid"?: string;
 } & Omit<React.ComponentProps<typeof TableCell>, "children" | "id">;
+
+// A preview of a parent with its children for the drag image: a copy of their rows in a table off
+// screen, as wide as the row, hidden from assistive tech and inert, removed once the browser took its
+// picture.
+function blockImage(rows: readonly HTMLTableRowElement[]): HTMLElement {
+  const table = document.createElement("table");
+  table.className = "fixed -top-[10000px] left-0";
+  table.setAttribute("aria-hidden", "true");
+  table.inert = true;
+  table.style.width = `${rows[0]?.getBoundingClientRect().width ?? 0}px`;
+  const body = table.createTBody();
+  for (const row of rows) body.append(row.cloneNode(true));
+  // The copy is a picture only: no test id of the list shows twice.
+  for (const node of table.querySelectorAll("[data-testid]")) node.removeAttribute("data-testid");
+  document.body.append(table);
+  setTimeout(() => table.remove());
+  return table;
+}
 
 // The empty head over the reorder cells, named for screen readers only.
 function ReorderHead({
@@ -63,6 +86,7 @@ function ReorderCell({
   upDisabledText,
   downDisabledText,
   group,
+  children,
   "data-testid": testId,
   className,
   ...cellProps
@@ -74,6 +98,18 @@ function ReorderCell({
   const downRef = React.useRef<HTMLButtonElement>(null);
   const carry = control?.carry ?? null;
   const carried = carry?.id === id;
+  // A child row travels with its carried parent; the block wears one outline, each row its part.
+  const blockAt = carry?.block.indexOf(id) ?? -1;
+  const blockPart =
+    blockAt === -1 || carry === null
+      ? null
+      : carry.block.length === 1
+        ? ""
+        : blockAt === 0
+          ? "block-first"
+          : blockAt === carry.block.length - 1
+            ? "block-last"
+            : "block-middle";
   const keyboardCarried = carried && carry.keyboard;
   const target = carry !== null && carry.to !== carry.from && carry.targetId === id;
   const focusSeq = control?.focusSeq ?? 0;
@@ -120,10 +156,11 @@ function ReorderCell({
       className={cn("w-0", className)}
       {...{ [ID_ATTR]: id }}
       {...(group === undefined ? {} : { [GROUP_ATTR]: group })}
+      {...(children === undefined ? {} : { [CHILDREN_ATTR]: children })}
       {...(upDisabledText === undefined ? {} : { [UP_LOCKED_ATTR]: upDisabledText })}
       {...(downDisabledText === undefined ? {} : { [DOWN_LOCKED_ATTR]: downDisabledText })}
       {...(target ? { "data-drop": carry.to > carry.from ? "after" : "before" } : {})}
-      {...(carried ? { "data-carried": "" } : {})}
+      {...(blockPart === null ? {} : { "data-carried": blockPart })}
       data-testid={testId}
       {...cellProps}
     >
@@ -151,8 +188,10 @@ function ReorderCell({
                 if (event.dataTransfer) {
                   event.dataTransfer.effectAllowed = "move";
                   event.dataTransfer.setData("text/plain", id);
+                  const rows = control.blockOf(id);
                   const row = event.currentTarget.closest("tr");
-                  if (row !== null) event.dataTransfer.setDragImage(row, 16, 16);
+                  if (rows.length > 1) event.dataTransfer.setDragImage(blockImage(rows), 16, 16);
+                  else if (row !== null) event.dataTransfer.setDragImage(row, 16, 16);
                 }
                 control.pickUp(id, rowName, false);
               }}

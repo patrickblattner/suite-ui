@@ -71,8 +71,11 @@ type DataTableShellProps = {
   // grid. Look and spacing stay with the package (`GL-UI-004`), so `className` and `style` are out.
   tableProps?: Omit<React.ComponentProps<typeof Table>, "className" | "style">;
   // A hand-sorted list (`SUI-FEATURE-340`): the rows of the visible page, each with a `ReorderCell`,
-  // are drop targets for its grip, and a drop calls `onDrop` with the row's new index on that page.
-  reorder?: { onDrop: (id: string, toIndex: number) => void };
+  // are drop targets for its grip, and a drop calls `onDrop` with the row's new index on that page. On
+  // a page with a parent row (`ReorderCell.children`, `SUI-FEATURE-123`) a parent moves with its
+  // children, `toIndex` is the parent's new index, and `groupIndex` the row's new place among the rows
+  // of its group on that page; without one it is absent, so apps use `groupIndex ?? toIndex`.
+  reorder?: { onDrop: (id: string, toIndex: number, groupIndex?: number) => void };
   // The data rows, rendered once the query finished with rows.
   children: React.ReactNode;
 } & ListStateProps;

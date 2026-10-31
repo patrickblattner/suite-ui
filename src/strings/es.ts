@@ -111,6 +111,12 @@ export const es: SuiteStrings = {
     putBack: "{{name}} devuelto a la posición {{position}} de {{count}}.",
     upEdge: "{{name}} no puede subir más en esta página.",
     downEdge: "{{name}} no puede bajar más en esta página.",
+    pickedUpGroup:
+      "{{name}} recogido, posición {{position}} de {{count}} en este nivel. Las flechas lo mueven, Espacio lo suelta, Escape lo devuelve.",
+    movedGroup: "{{name}}: posición {{position}} de {{count}} en este nivel.",
+    droppedGroup: "{{name}} soltado en la posición {{position}} de {{count}} en este nivel.",
+    upEdgeGroup: "{{name}} no puede subir más en este nivel.",
+    downEdgeGroup: "{{name}} no puede bajar más en este nivel.",
   },
   severity: {
     error: "Error",

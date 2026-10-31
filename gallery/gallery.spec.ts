@@ -7704,6 +7704,61 @@ test("reorder: the drop line reaches under the stuck actions column", async ({ p
   await page.keyboard.press("Escape");
 });
 
+// SUI-FEATURE-123 AC 1, 3, 4, 6, 7: the main menu with expanded parents. ↓ on the first parent, a drag
+// of its grip onto the second or onto the second's last child, and a keyboard carry give the same
+// order, each parent keeping its children; a child dragged onto another parent's rows stays put.
+test("reorder grouped: a parent moves past the next one with its children alike", async ({
+  page,
+}) => {
+  const names = () => reorderNames(page, 6);
+  const moved = ["Zürich", "Winterthur", "Uster", "Bern", "Thun", "Biel"];
+  await page.goto("/?page=reorder&grouped=1&lng=en");
+  expect(await names()).toEqual(["Bern", "Thun", "Biel", "Zürich", "Winterthur", "Uster"]);
+  await page.getByTestId("reorder-bern-down").click();
+  expect(await names()).toEqual(moved);
+
+  await page.reload();
+  await page
+    .getByTestId("reorder-bern-grip")
+    .dragTo(page.getByTestId("reorder-row").nth(3).getByRole("gridcell").nth(1));
+  expect(await names()).toEqual(moved);
+
+  await page.reload();
+  await page
+    .getByTestId("reorder-bern-grip")
+    .dragTo(page.getByTestId("reorder-row").nth(5).getByRole("gridcell").nth(1));
+  expect(await names()).toEqual(moved);
+
+  await page.reload();
+  await page
+    .getByTestId("reorder-bern-thun-grip")
+    .dragTo(page.getByTestId("reorder-row").nth(4).getByRole("gridcell").nth(1));
+  expect(await names()).toEqual(["Bern", "Thun", "Biel", "Zürich", "Winterthur", "Uster"]);
+
+  const grip = page.getByTestId("reorder-bern-grip");
+  await grip.focus();
+  await page.keyboard.press("Space");
+  await page.keyboard.press("ArrowDown");
+  await expect(page.getByTestId("reorder-zuerich-uster")).toHaveAttribute("data-drop", "after");
+  await expect(page.getByTestId("reorder-live")).toHaveText("Bern: position 2 of 4 at this level.");
+  // One ring around the carried block: the top edge on the parent, the bottom on the last child, no
+  // row of the block with an outline of its own.
+  const rows = page.getByTestId("reorder-row");
+  const look = (index: number) =>
+    rows.nth(index).evaluate((row: HTMLTableRowElement) => ({
+      outline: getComputedStyle(row).outlineStyle,
+      shadow: getComputedStyle(row.cells[1]!).boxShadow,
+    }));
+  const [parent, middle, last] = await Promise.all([look(0), look(1), look(2)]);
+  expect([parent.outline, middle.outline, last.outline]).toEqual(["none", "none", "none"]);
+  expect(parent.shadow).toMatch(/0px 2px 0px 0px inset/);
+  expect(middle.shadow).not.toMatch(/0px -?2px 0px 0px inset/);
+  expect(last.shadow).toMatch(/0px -2px 0px 0px inset/);
+  await page.keyboard.press("Space");
+  expect(await names()).toEqual(moved);
+  await expect(grip).toBeFocused();
+});
+
 // SUI-FEATURE-330 rev 4 AC 8: a tile is below the fold width, so its step is the first entry of a ⋯
 // menu before the delete button; a running step's entry is locked.
 test("media tile step: folded into the corner ⋯ menu before delete", async ({ page }) => {

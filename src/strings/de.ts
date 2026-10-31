@@ -111,6 +111,12 @@ export const de: SuiteStrings = {
     putBack: "{{name}} zurückgelegt auf Position {{position}} von {{count}}.",
     upEdge: "{{name}} kann auf dieser Seite nicht weiter nach oben.",
     downEdge: "{{name}} kann auf dieser Seite nicht weiter nach unten.",
+    pickedUpGroup:
+      "{{name}} aufgenommen, Position {{position}} von {{count}} auf dieser Ebene. Pfeiltasten verschieben, Leertaste legt ab, Escape legt zurück.",
+    movedGroup: "{{name}}: Position {{position}} von {{count}} auf dieser Ebene.",
+    droppedGroup: "{{name}} abgelegt auf Position {{position}} von {{count}} auf dieser Ebene.",
+    upEdgeGroup: "{{name}} kann auf dieser Ebene nicht weiter nach oben.",
+    downEdgeGroup: "{{name}} kann auf dieser Ebene nicht weiter nach unten.",
   },
   severity: {
     error: "Fehler",
