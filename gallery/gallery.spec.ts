@@ -13266,8 +13266,9 @@ test("slide export: inline runs and following badges equal to the editor view", 
 
 // #717 (SUI-FEATURE-160): a paragraph's line spacing comes from its own runs' font, never the page's.
 // Serif lines are as high as lines in the page font (1.2 × 64 px each); a line mixing both reaches
-// the higher ascent and the deeper descent of the two; fit text leaves the serif field, as high as
-// its six lines and its glyphs below the last, at its size; the export equals the editor view.
+// the higher ascent and the deeper descent of the two; fit text leaves the serif field, exactly as
+// high as its six lines, its glyphs reaching below it, at its size (#718); the export equals the
+// editor view.
 test("slide text: line spacing from the paragraph's own font, fit leaves it, export equal", async ({
   page,
 }) => {
@@ -13298,6 +13299,9 @@ test("slide text: line spacing from the paragraph's own font, fit leaves it, exp
       sans: [...field("sans-lines").querySelectorAll("p")].map(extent),
       mixed: extent(field("mixed-line").querySelector("p")!),
       serifSize: parseFloat(getComputedStyle(field("serif-lines").querySelector("span")!).fontSize),
+      // #718: the serif's glyphs reach past its field, which its lines fill exactly.
+      serifReach: field("serif-lines").querySelector("p")!.parentElement!.scrollHeight,
+      serifField: parseFloat(getComputedStyle(field("serif-lines")).height),
     };
   });
   expect(measured.serif).toHaveLength(6);
@@ -13313,8 +13317,11 @@ test("slide text: line spacing from the paragraph's own font, fit leaves it, exp
       Math.max(measured.serif[0]!.below, measured.sans[0]!.below),
     0,
   );
-  // Fit text on: the serif field holds its lines, nothing shrinks.
+  // Fit text on: the serif field holds its lines, nothing shrinks; its glyphs past the last line,
+  // beyond the field, do not count (#718).
+  expect(measured.serifField).toBeCloseTo(460.8, 1);
   expect(measured.serifSize).toBe(64);
+  expect(measured.serifReach).toBeGreaterThan(measured.serifField + 1);
 });
 
 // SUI-FEATURE-164 AC1: a flag before "Zürich" stands on the baseline, leaves the line's height as it

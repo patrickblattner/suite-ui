@@ -628,8 +628,10 @@ function SlideText({
     const inner = content.current;
     if (frame === null || inner === null) return;
     const set = (factor: number) => frame.style.setProperty("--slide-fit", num(factor));
+    // Only the line boxes count: the content's own height is their sum, while `scrollHeight` also
+    // takes in glyphs reaching past them, such as descenders below the last line (#718).
     const overflows = () =>
-      inner.scrollHeight > frame.clientHeight + 0.5 || inner.scrollWidth > frame.clientWidth + 0.5;
+      inner.offsetHeight > frame.clientHeight + 0.5 || inner.scrollWidth > frame.clientWidth + 0.5;
     set(1);
     if (!fit || !ready || !overflows()) {
       onFit(id, true);

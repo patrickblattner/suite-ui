@@ -178,7 +178,7 @@ describe("SlidePlayer steps and hint", () => {
   });
 
   it("names text that does not fit in the presenter's hint", async () => {
-    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(100);
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(100);
     vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(50);
     render(<SlidePlayer document={SLIDE_DECK} brand={SLIDE_BRAND} fitText data-testid="player" />);
     await waitFor(() =>

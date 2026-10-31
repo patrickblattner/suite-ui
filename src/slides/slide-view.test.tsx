@@ -310,7 +310,7 @@ describe("SlideView reports", () => {
 
   it("keys overflow by element: equal names do not cancel, an empty name falls back to the id", async () => {
     // Every text box is too small in this layout-free test: content 100 px in a 50 px box.
-    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(100);
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(100);
     vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(50);
     const { report } = await drawn({
       document: withElements([text("a", "Same"), text("b", "Same"), text("c", "")]),
@@ -325,6 +325,19 @@ describe("SlideView reports", () => {
       "b",
       "c",
     ]);
+  });
+
+  // #718 (SUI-FEATURE-160): only the line boxes count. Lines exactly as high as the box, with glyphs
+  // reaching below the last one (`scrollHeight` past it), keep their size and are not reported.
+  it("fits text whose line boxes fill its box, glyph overhang aside", async () => {
+    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(58);
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(50);
+    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(50);
+    const { report } = await drawn({ document: withElements([text("a", "Lines")]), fitText: true });
+    expect(report().overflowing).toEqual([]);
+    const field = document.querySelector<HTMLElement>('[data-slide-element="a"] p')!.parentElement!
+      .parentElement!;
+    expect(field.style.getPropertyValue("--slide-fit")).toBe("1");
   });
 
   it("names a missing brand colour on the view and in its attributes", async () => {
@@ -511,7 +524,7 @@ describe("SlideView reports, second round", () => {
 
   it("measures a text again when its runs change", async () => {
     // A box overflows when its text is longer than 20 characters.
-    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockImplementation(function (
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(function (
       this: HTMLElement,
     ) {
       return (this.textContent ?? "").length > 20 ? 100 : 10;
@@ -726,7 +739,7 @@ describe("SlideView notices (#321)", () => {
     runs: [{ text: "far too long" }],
   });
   const overflowing = () => {
-    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(100);
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(100);
     vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(50);
   };
 
@@ -948,7 +961,7 @@ describe("SlideView notices (#321)", () => {
 // under keys of its own (no duplicate React key).
 describe("SlideView notices past the page", () => {
   it("names a text that overflows and reaches past the page in one notice", async () => {
-    vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(100);
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(100);
     vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(50);
     const errors = vi.spyOn(console, "error").mockImplementation(() => {});
     const page = SLIDE_SHOWCASE.pages[0]!;

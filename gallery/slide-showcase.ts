@@ -751,9 +751,9 @@ export const SLIDE_WIDE_FONTS: SlideFontFile[] = [
 ];
 
 // #717: a paragraph's line spacing comes from its own font, not the page's. A serif whose ascent sits
-// higher than Inter's (Playfair Display, under a family of its own): six serif lines in a field of
-// their height (6 × 1.2 × 64 = 460.8 px) and the few px its glyphs reach below the last line, short
-// of six lines lifted against the page font's; the same in the page font, and one line mixing both.
+// higher than Inter's (Playfair Display, under a family of its own): six serif lines in a field
+// exactly their height (6 × 1.2 × 64 = 460.8 px), its glyphs reaching below the last line, which
+// count for nothing in fit (#718); the same in the page font, and one line mixing both.
 export const SLIDE_SERIF_FONTS: SlideFontFile[] = [
   ...SLIDE_FONTS,
   {
@@ -776,7 +776,7 @@ export const SLIDE_LINE_SPACING = deck([
     id: "lines",
     background,
     elements: [
-      linesText("serif-lines", 80, 40, 470, [{ text: SIX_LINES, size: 64, font: serif }]),
+      linesText("serif-lines", 80, 40, 460.8, [{ text: SIX_LINES, size: 64, font: serif }]),
       linesText("sans-lines", 1000, 40, 470, [{ text: SIX_LINES, size: 64, font: heading }]),
       linesText("mixed-line", 80, 600, 120, [
         { text: "Serif ", size: 64, font: serif },
