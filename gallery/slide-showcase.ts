@@ -809,6 +809,11 @@ export const SLIDE_LINE_SPACING = deck([
         { text: "Serif ", size: 64, font: serif },
         { text: "and sans", size: 64, font: heading },
       ]),
+      // #719: one line of 1.2 × 32 px in a field of 37.7 px fits at 31.4 px, not at 32: fit draws it
+      // at 31 px.
+      linesText("step-line", 80, 800, 37.7, [
+        { text: "Whole-pixel steps", size: 32, font: heading },
+      ]),
     ],
   },
 ]);

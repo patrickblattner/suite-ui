@@ -178,8 +178,16 @@ describe("SlidePlayer steps and hint", () => {
   });
 
   it("names text that does not fit in the presenter's hint", async () => {
-    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(100);
-    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(50);
+    // jsdom lays nothing out: every text is 100 px high in its 50 px field, as fit measures them
+    // (`getComputedStyle`, #719).
+    const computed = window.getComputedStyle.bind(window);
+    vi.spyOn(window, "getComputedStyle").mockImplementation((element, pseudo) => {
+      const style = computed(element, pseudo);
+      if (element instanceof HTMLElement && element.style.getPropertyValue("--slide-fit") !== "")
+        style.height = "50px";
+      else if (element.parentElement?.style.getPropertyValue("--slide-fit")) style.height = "100px";
+      return style;
+    });
     render(<SlidePlayer document={SLIDE_DECK} brand={SLIDE_BRAND} fitText data-testid="player" />);
     await waitFor(() =>
       expect(document.querySelector("[data-slot=slide-player-hint]")).toHaveTextContent(

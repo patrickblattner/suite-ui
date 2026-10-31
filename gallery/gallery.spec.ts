@@ -13378,6 +13378,10 @@ test("slide text: line spacing from the paragraph's own font, fit leaves it, exp
       // #718: the serif's glyphs reach past its field, which its lines fill exactly.
       serifReach: field("serif-lines").querySelector("p")!.parentElement!.scrollHeight,
       serifField: parseFloat(getComputedStyle(field("serif-lines")).height),
+      // #719: the step line's size and its line box against its field.
+      stepSize: parseFloat(getComputedStyle(field("step-line").querySelector("span")!).fontSize),
+      stepLine: parseFloat(getComputedStyle(field("step-line").querySelector("p")!).height),
+      stepField: parseFloat(getComputedStyle(field("step-line")).height),
     };
   });
   expect(measured.serif).toHaveLength(6);
@@ -13398,6 +13402,11 @@ test("slide text: line spacing from the paragraph's own font, fit leaves it, exp
   expect(measured.serifField).toBeCloseTo(460.8, 1);
   expect(measured.serifSize).toBe(64);
   expect(measured.serifReach).toBeGreaterThan(measured.serifField + 1);
+  // #719 (SUI-FEATURE-181 AC1, AC3): set 32 px, its line (38.4 px there) 0.7 px over its field, fits
+  // from 31.4 px on: drawn at 31 px, a whole pixel, in the editor view as in the export.
+  expect(measured.stepField).toBeCloseTo(37.7, 1);
+  expect(measured.stepSize).toBe(31);
+  expect(measured.stepLine).toBeCloseTo(31 * 1.2, 1);
 });
 
 // SUI-FEATURE-164 AC1: a flag before "Zürich" stands on the baseline, leaves the line's height as it
@@ -13582,11 +13591,13 @@ test("slide view: fit text shrinks to 70 %, reports below, overflows when off", 
   await expect(shrinks).not.toHaveAttribute("data-slide-overflowing");
   const shrunk = await size("slide-fit-shrinks");
   expect(shrunk).toBeLessThan(64);
-  expect(shrunk).toBeGreaterThanOrEqual(64 * 0.7);
+  expect(shrunk).toBeGreaterThanOrEqual(45);
   const tooLong = page.getByTestId("slide-fit-too-long");
   await expect(tooLong).toHaveAttribute("data-slide-overflowing", "too-long text");
   await expect(tooLong.getByRole("alert")).toHaveText("Text doesn’t fit its box: too-long text");
-  expect(await size("slide-fit-too-long")).toBeCloseTo(64 * 0.7, 1);
+  // #719: whole pixels only, the smallest at or above 70 % (44.8 px).
+  expect(Number.isInteger(shrunk)).toBe(true);
+  expect(await size("slide-fit-too-long")).toBe(45);
   const off = page.getByTestId("slide-fit-off");
   expect(await size("slide-fit-off")).toBe(64);
   const overflow = await off.locator("[data-slide-type=text]").evaluate((node) => {

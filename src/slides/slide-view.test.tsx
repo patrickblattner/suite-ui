@@ -85,6 +85,34 @@ async function drawn(props: Partial<SlideViewProps> = {}) {
   return { ...view, report: () => onReport.mock.lastCall![0] };
 }
 
+// jsdom lays nothing out: the heights text fit compares, as `getComputedStyle` gives them (unrounded,
+// #719). A text field's own is `field`; its text's comes from the text and the fit factor set on the
+// field, which steps down from 1. `widths` gives the field's width and its widest line's, which fit
+// reads with the text shrunk to fit.
+function lineBoxes(
+  text: (element: Element, fit: number) => number,
+  field = 50,
+  widths?: { field: number; line: (fit: number) => number },
+) {
+  const computed = window.getComputedStyle.bind(window);
+  vi.spyOn(window, "getComputedStyle").mockImplementation((element, pseudo) => {
+    const style = computed(element, pseudo);
+    const fit = (node: Element | null) =>
+      node instanceof HTMLElement ? node.style.getPropertyValue("--slide-fit") : "";
+    if (fit(element) !== "") {
+      style.height = `${field}px`;
+      if (widths !== undefined) style.width = `${widths.field}px`;
+    } else if (fit(element.parentElement) !== "") {
+      const factor = Number(fit(element.parentElement));
+      style.height = `${text(element, factor)}px`;
+      const { width, overflowWrap } = (element as HTMLElement).style;
+      if (widths !== undefined && width === "fit-content" && overflowWrap === "anywhere")
+        style.width = `${widths.line(factor)}px`;
+    }
+    return style;
+  });
+}
+
 describe("SlideView", () => {
   it("draws every element type of the showcase at its place, under one scale", async () => {
     const { container } = await drawn();
@@ -350,8 +378,7 @@ describe("SlideView reports", () => {
 
   it("keys overflow by element: equal names do not cancel, an empty name falls back to the id", async () => {
     // Every text box is too small in this layout-free test: content 100 px in a 50 px box.
-    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(100);
-    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(50);
+    lineBoxes(() => 100);
     const { report } = await drawn({
       document: withElements([text("a", "Same"), text("b", "Same"), text("c", "")]),
       fitText: true,
@@ -371,13 +398,105 @@ describe("SlideView reports", () => {
   // reaching below the last one (`scrollHeight` past it), keep their size and are not reported.
   it("fits text whose line boxes fill its box, glyph overhang aside", async () => {
     vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(58);
-    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(50);
-    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(50);
+    lineBoxes(() => 50);
     const { report } = await drawn({ document: withElements([text("a", "Lines")]), fitText: true });
     expect(report().overflowing).toEqual([]);
     const field = document.querySelector<HTMLElement>('[data-slide-element="a"] p')!.parentElement!
       .parentElement!;
     expect(field.style.getPropertyValue("--slide-fit")).toBe("1");
+  });
+
+  // #719 (SUI-FEATURE-181): fit steps down from the set size in whole pixels. Lines 99.4 px high at
+  // 32 px fit a field of 98.6 px at 31.4 px (97.5 px), not at 32: 0.8 px over, which the rounded
+  // `offsetHeight` (99) against `clientHeight` (99) would not see. Drawn at 31 px.
+  const sized = (size: number) => ({ ...text("a", "Steps"), runs: [{ text: "Steps", size }] });
+  const fitOf = () =>
+    document
+      .querySelector<HTMLElement>('[data-slide-element="a"] p')!
+      .parentElement!.parentElement!.style.getPropertyValue("--slide-fit");
+  it("shrinks text that fits at 31.4 px but not at 32 px to 31 px", async () => {
+    lineBoxes((_, fit) => 99.4 * fit, 98.6);
+    const { report } = await drawn({ document: withElements([sized(32)]), fitText: true });
+    expect(report().overflowing).toEqual([]);
+    expect(Number(fitOf()) * 32).toBeCloseTo(31, 9);
+  });
+
+  it("steps through whole pixels only, from a fractional set size too", async () => {
+    // Fits at 26.6 px and below: of 32 that is 26 px, of 31.5 (31, 30, …) 26 px as well.
+    for (const size of [32, 31.5]) {
+      lineBoxes((_, fit) => (size * fit > 26.6 ? 100 : 50));
+      await drawn({ document: withElements([sized(size)]), fitText: true });
+      expect(Number(fitOf()) * size).toBeCloseTo(26, 9);
+      cleanup();
+      vi.restoreAllMocks();
+    }
+  });
+
+  // AC6: a line box wider than the field overflows, unrounded: 0.8 px over (100.4 in 99.6, which
+  // `scrollWidth` 100 against `clientWidth` 100 would not see) shrinks to the first step that fits.
+  it("shrinks text whose widest line is under a pixel too wide", async () => {
+    lineBoxes(() => 10, 50, { field: 99.6, line: (fit) => 100.4 * fit });
+    const { report } = await drawn({ document: withElements([sized(32)]), fitText: true });
+    expect(report().overflowing).toEqual([]);
+    expect(Number(fitOf()) * 32).toBeCloseTo(31, 9);
+    // The measure leaves the content as it drew it: no width or wrapping of its own.
+    const content = document.querySelector<HTMLElement>(
+      '[data-slide-element="a"] p',
+    )!.parentElement!;
+    expect(content.style.width).toBe("");
+    expect(content.style.overflowWrap).toBe("");
+  });
+
+  // SUI-FEATURE-181 rev 4: the set size of a mixed text is its largest run's, a run without a size
+  // counts as 32 px; one factor scales every run.
+  it("steps the largest run in whole pixels, the others in proportion", async () => {
+    // Fits once the 40 px run is at 39 px: drawn at 39 and 19.5 px (AC7).
+    lineBoxes((_, fit) => (fit * 40 > 39 ? 100 : 50));
+    const runs = [
+      { text: "Large ", size: 40 },
+      { text: "small", size: 20 },
+    ];
+    await drawn({ document: withElements([{ ...sized(40), runs }]), fitText: true });
+    expect(Number(fitOf()) * 40).toBeCloseTo(39, 9);
+    // Each run is drawn at the factor times its own size: the 20 px run at 19.5 px.
+    const small = screen.getByText("small");
+    expect(small.style.fontSize).toBe("calc(var(--slide-fit, 1) * 20px)");
+    expect(Number(fitOf()) * Number.parseFloat(small.style.fontSize.split("* ")[1]!)).toBeCloseTo(
+      19.5,
+      9,
+    );
+  });
+
+  it("counts a run without a size as 32 px", async () => {
+    lineBoxes((_, fit) => (fit * 32 > 28 ? 100 : 50));
+    const runs = [{ text: "Unsized " }, { text: "small", size: 20 }];
+    await drawn({ document: withElements([{ ...sized(20), runs }]), fitText: true });
+    expect(Number(fitOf()) * 32).toBeCloseTo(28, 9);
+  });
+
+  it("never grows text set under 2 px", async () => {
+    for (const size of [1.5, 1, 0.5]) {
+      lineBoxes(() => 100);
+      const { report } = await drawn({ document: withElements([sized(size)]), fitText: true });
+      await waitFor(() => expect(report().overflowing).toEqual(["Steps"]));
+      expect(Number(fitOf())).toBeLessThanOrEqual(1);
+      cleanup();
+      vi.restoreAllMocks();
+    }
+  });
+
+  it("reports text that fits only below 70 % by name, drawn at the smallest whole pixel tried", async () => {
+    // Set 32: 70 % is 22.4 px, the smallest tried 23 px; this text fits only at 22 px.
+    const tried: number[] = [];
+    lineBoxes((_, fit) => {
+      tried.push(Math.round(fit * 32 * 1000) / 1000);
+      return fit * 32 > 22 ? 100 : 50;
+    });
+    const { report } = await drawn({ document: withElements([sized(32)]), fitText: true });
+    await waitFor(() => expect(report().overflowing).toEqual(["Steps"]));
+    expect(Number(fitOf()) * 32).toBeCloseTo(23, 9);
+    expect(Math.min(...tried)).toBe(23);
+    expect(tried.every(Number.isInteger)).toBe(true);
   });
 
   it("names a missing brand colour on the view and in its attributes", async () => {
@@ -564,12 +683,7 @@ describe("SlideView reports, second round", () => {
 
   it("measures a text again when its runs change", async () => {
     // A box overflows when its text is longer than 20 characters.
-    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(function (
-      this: HTMLElement,
-    ) {
-      return (this.textContent ?? "").length > 20 ? 100 : 10;
-    });
-    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(50);
+    lineBoxes((element) => ((element.textContent ?? "").length > 20 ? 100 : 10));
     const document = (text: string) =>
       ({
         ...SLIDE_SHOWCASE,
@@ -779,8 +893,7 @@ describe("SlideView notices (#321)", () => {
     runs: [{ text: "far too long" }],
   });
   const overflowing = () => {
-    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(100);
-    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(50);
+    lineBoxes(() => 100);
   };
 
   // AC1: grouped by family, each cut by its name, no weight number, in de, en and es.
@@ -1001,8 +1114,7 @@ describe("SlideView notices (#321)", () => {
 // under keys of its own (no duplicate React key).
 describe("SlideView notices past the page", () => {
   it("names a text that overflows and reaches past the page in one notice", async () => {
-    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockReturnValue(100);
-    vi.spyOn(HTMLElement.prototype, "clientHeight", "get").mockReturnValue(50);
+    lineBoxes(() => 100);
     const errors = vi.spyOn(console, "error").mockImplementation(() => {});
     const page = SLIDE_SHOWCASE.pages[0]!;
     const document = {

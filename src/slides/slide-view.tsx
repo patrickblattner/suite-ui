@@ -369,6 +369,13 @@ function Stand({ text }: { text: string }) {
 
 const fitSize = (size: number) => `calc(var(--slide-fit, 1) * ${px(size)})`;
 
+// The size text fit steps down from: the largest of the text runs, one without a size 32 px
+// (`SUI-FEATURE-181` rev 4).
+function setSize(runs: TextBody["runs"]): number {
+  const sizes = runs.filter(isTextRun).map((run) => run.size ?? DEFAULT_TEXT_SIZE);
+  return sizes.length === 0 ? DEFAULT_TEXT_SIZE : Math.max(...sizes);
+}
+
 // The colour a run's text is drawn in where one colour is needed (an inline icon's): its fill's, the
 // first stop of a gradient, else the page's text colour.
 function inkOf(draw: Draw, run: TextRun | undefined): string | undefined {
@@ -566,7 +573,8 @@ function textBodyStyle(body: TextBody): React.CSSProperties {
   };
 }
 
-// A text field. With `fit`, text that overflows shrinks (one factor over all its runs, at least 0.7);
+// A text field. With `fit`, text that overflows shrinks (one factor over all its runs, so that its
+// largest, `size`, steps down in whole pixels, to no less than 70 %);
 // what overflows still is reported. Without, it overflows visibly. It measures again only when its
 // content, box or the fonts change (`measureKey`). A size that follows the text (`sizing`,
 // `SUI-FEATURE-165`) never shrinks: its text is measured instead, `both` on one line per paragraph,
@@ -574,6 +582,7 @@ function textBodyStyle(body: TextBody): React.CSSProperties {
 function SlideText({
   id,
   measureKey,
+  size,
   fit,
   ready,
   onFit,
@@ -586,6 +595,8 @@ function SlideText({
 }: {
   id: string;
   measureKey: string;
+  // The set size fit steps from: the largest of its text runs.
+  size: number;
   fit: boolean;
   ready: boolean;
   onFit: (id: string, fits: boolean) => void;
@@ -627,32 +638,48 @@ function SlideText({
     const frame = box.current;
     const inner = content.current;
     if (frame === null || inner === null) return;
-    const set = (factor: number) => frame.style.setProperty("--slide-fit", num(factor));
+    // Unrounded, so a step lands on a whole pixel (`num` keeps three decimals: 31/32 → 31.008 px).
+    const set = (factor: number) => frame.style.setProperty("--slide-fit", String(factor));
     // Only the line boxes count: the content's own height is their sum, while `scrollHeight` also
-    // takes in glyphs reaching past them, such as descenders below the last line (#718).
-    const overflows = () =>
-      inner.offsetHeight > frame.clientHeight + 0.5 || inner.scrollWidth > frame.clientWidth + 0.5;
+    // takes in glyphs reaching past them, such as descenders below the last line (#718). Both heights
+    // unrounded and before any transform: `offsetHeight` rounds away up to a pixel of overflow (#719).
+    const used = (element: HTMLElement, side: "width" | "height") =>
+      Number.parseFloat(getComputedStyle(element)[side]);
+    // The widest line box, unrounded too: shrunk to fit, the content is as wide as the field unless
+    // a piece that cannot break (glued to an inline image, an image) is wider. `anywhere` breaks a
+    // word for that width as `break-word` does in the drawn text (#719).
+    const widest = () => {
+      const { width, overflowWrap } = inner.style;
+      inner.style.width = "fit-content";
+      inner.style.overflowWrap = "anywhere";
+      const widest = used(inner, "width");
+      Object.assign(inner.style, { width, overflowWrap });
+      return widest;
+    };
     set(1);
-    if (!fit || !ready || !overflows()) {
+    if (!fit || !ready) {
       onFit(id, true);
       return;
     }
-    set(0.7);
-    if (overflows()) {
-      onFit(id, false);
+    // The field's size does not follow the fit factor: read once.
+    const room = { width: used(frame, "width"), height: used(frame, "height") };
+    const overflows = () =>
+      used(inner, "height") > room.height + 0.5 || widest() > room.width + 0.5;
+    if (!overflows()) {
+      onFit(id, true);
       return;
     }
-    let low = 0.7;
-    let high = 1;
-    for (let round = 0; round < 8; round += 1) {
-      const middle = (low + high) / 2;
-      set(middle);
-      if (overflows()) high = middle;
-      else low = middle;
+    // Each whole pixel below the set size, down to the first at or above 70 % of it (#719); never
+    // above the set size, which a size under 2 px would give.
+    const lowest = Math.min(Math.ceil(size * 0.7 - 1e-9), size);
+    let step = Math.max(Math.ceil(size) - 1, lowest);
+    set(step / size);
+    while (step > lowest && overflows()) {
+      step -= 1;
+      set(step / size);
     }
-    set(low);
-    onFit(id, true);
-  }, [id, measureKey, fit, ready, onFit]);
+    onFit(id, !overflows());
+  }, [id, measureKey, size, fit, ready, onFit]);
   return (
     <div
       ref={box}
@@ -1277,6 +1304,7 @@ function content(draw: Draw, element: SlideElement): React.ReactNode {
             // An inline image that failed is drawn as its stand-in: measured again once it shows.
             draw.broken.size,
           ])}
+          size={setSize(element.runs)}
           fit={draw.fitText && element.sizing === "fixed"}
           ready={draw.ready}
           onFit={draw.onFit}
