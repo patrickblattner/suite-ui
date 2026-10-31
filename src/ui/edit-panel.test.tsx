@@ -380,6 +380,112 @@ describe("EditPanel", () => {
     expect([locked, reasonOnly, both]).toHaveLength(3);
   });
 
+  // SUI-FEATURE-125 AC1, AC4
+  it("showDisabledReason shows the lock reason before the primary action, its one description", () => {
+    renderPanel({
+      showDisabledReason: true,
+      submitDisabled: true,
+      submitDisabledHint: "Fill in the name first",
+    });
+    const line = screen.getByTestId("edit-panel-disabled-reason");
+    const submit = screen.getByTestId("edit-panel-submit");
+    expect(line).toHaveTextContent("Fill in the name first");
+    expect(line).toHaveClass("text-sm", "text-muted-foreground");
+    expect(line).not.toHaveClass("truncate");
+    // In the footer, outside the scrolling body, and before the primary action in reading order.
+    const footer = document.querySelector('[data-slot="edit-panel-footer"]')!;
+    expect(footer).toContainElement(line);
+    expect(screen.getByTestId("edit-panel-body")).not.toContainElement(line);
+    expect(submit.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
+    // The visible line is the one description target; no hidden copy of the same text.
+    expect(submit).toHaveAttribute("aria-describedby", line.id);
+    expect(submit).toHaveAccessibleDescription("Fill in the name first");
+    expect(screen.getAllByText("Fill in the name first")).toEqual([line]);
+    expect(submit.parentElement).not.toHaveAttribute("aria-describedby");
+  });
+
+  // SUI-FEATURE-125: an empty reason draws no line and points no description at one.
+  it("showDisabledReason with an empty submitDisabledHint draws no line", () => {
+    renderPanel({ showDisabledReason: true, submitDisabled: true, submitDisabledHint: "" });
+    expect(screen.queryByTestId("edit-panel-disabled-reason")).toBeNull();
+    const submit = screen.getByTestId("edit-panel-submit");
+    expect(submit).toHaveAttribute("aria-disabled", "true");
+    expect(document.querySelector('[data-slot="edit-panel-footer"] p')).toBeNull();
+    for (const id of (submit.getAttribute("aria-describedby") ?? "").split(" ").filter(Boolean)) {
+      expect(document.getElementById(id)).not.toBeVisible();
+    }
+  });
+
+  // SUI-FEATURE-125 AC5: a long unbroken token breaks anywhere, never clipped.
+  it("showDisabledReason: the line wraps anywhere and never truncates", () => {
+    renderPanel({
+      showDisabledReason: true,
+      submitDisabled: true,
+      submitDisabledHint: "x".repeat(80),
+    });
+    const line = screen.getByTestId("edit-panel-disabled-reason");
+    expect(line).toHaveClass("wrap-anywhere");
+    expect(line).not.toHaveClass("truncate");
+  });
+
+  // SUI-FEATURE-125 AC3
+  it("showDisabledReason: the line goes with the lock, and during busy the busy hint applies", () => {
+    const props = { open: true, onOpenChange: () => {}, title: "Channel", onSubmit: () => {} };
+    const { rerender } = render(
+      <EditPanel {...props} showDisabledReason submitDisabled submitDisabledHint="Set a name.">
+        <Input aria-label="Name" />
+      </EditPanel>,
+    );
+    const submit = screen.getByTestId("edit-panel-submit");
+    expect(screen.getByTestId("edit-panel-disabled-reason")).toBeInTheDocument();
+    rerender(
+      <EditPanel
+        {...props}
+        showDisabledReason
+        submitDisabled={false}
+        submitDisabledHint="Set a name."
+      >
+        <Input aria-label="Name" />
+      </EditPanel>,
+    );
+    expect(screen.queryByTestId("edit-panel-disabled-reason")).toBeNull();
+    // The lock lifted never remounts the button.
+    expect(screen.getByTestId("edit-panel-submit")).toBe(submit);
+    expect(submit).toHaveAccessibleDescription("Saves the entries.");
+    rerender(
+      <EditPanel {...props} showDisabledReason busy submitDisabled submitDisabledHint="Set a name.">
+        <Input aria-label="Name" />
+      </EditPanel>,
+    );
+    expect(screen.queryByTestId("edit-panel-disabled-reason")).toBeNull();
+    expect(screen.getByTestId("edit-panel-submit")).toHaveAccessibleDescription(
+      i18n.t("suite:editPanel.busyHint"),
+    );
+  });
+
+  // SUI-FEATURE-125 AC2: without the opt-in the footer stays byte for byte what it was before.
+  it.each([
+    ["unlocked", {}],
+    ["locked", { submitDisabled: true, submitDisabledHint: "Set a name." }],
+    ["busy", { busy: true }],
+    ["with Back", { onBack: () => {} }],
+    ["view", { mode: "view", onSubmit: undefined }],
+  ] as [string, PanelOverrides][])(
+    "footer without showDisabledReason unchanged: %s",
+    (_, props) => {
+      renderPanel(props);
+      // React's ids count across the file, so they are numbered by first appearance.
+      const ids = new Map<string, string>();
+      const html = document
+        .querySelector('[data-slot="edit-panel-footer"]')!
+        .outerHTML.replace(/_r_[0-9a-z]+_/g, (id) => {
+          if (!ids.has(id)) ids.set(id, `id${ids.size + 1}`);
+          return ids.get(id)!;
+        });
+      expect(html).toMatchSnapshot();
+    },
+  );
+
   // AC3
   it("busy: the primary action works and is locked, the panel does not close", () => {
     const { onOpenChange, onSubmit } = renderPanel({ busy: true });

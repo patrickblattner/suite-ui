@@ -103,12 +103,21 @@ const SHELL_SETS = { media: SHELL_MEDIA, states: STATE_MEDIA } as const;
 // App-side hint: the two panels below close after saving, which the package `save` hint does not say
 // (`SUI-FEATURE-091`).
 const LABELS = {
-  en: { saveCloseHint: "Saves the entries and closes the panel.", publish: "Publish" },
+  en: {
+    saveCloseHint: "Saves the entries and closes the panel.",
+    publish: "Publish",
+    nameFirst: "Fill in the name first",
+  },
   de: {
     saveCloseHint: "Speichert die Eingaben und schließt das Panel.",
     publish: "Veröffentlichen",
+    nameFirst: "Zuerst den Namen ausfüllen",
   },
-  es: { saveCloseHint: "Guarda los datos y cierra el panel.", publish: "Publicar" },
+  es: {
+    saveCloseHint: "Guarda los datos y cierra el panel.",
+    publish: "Publicar",
+    nameFirst: "Primero rellena el nombre",
+  },
 };
 // `?step=1` gives the media detail shell its next lifecycle step (`SUI-FEATURE-330`), outside pick
 // mode: with `pickAction` the shell shows no step (rev 6).
@@ -294,6 +303,8 @@ function Demo() {
   const [nextName, setNextName] = useState("team-photo.jpg");
   const [createOpen, setCreateOpen] = useState(false);
   const [createName, setCreateName] = useState("");
+  const [lockedOpen, setLockedOpen] = useState(false);
+  const [lockedName, setLockedName] = useState("");
   const [viewOpen, setViewOpen] = useState(false);
   const [viewModeOpen, setViewModeOpen] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
@@ -412,6 +423,17 @@ function Demo() {
         >
           Add a channel
         </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          data-testid="locked-panel-trigger"
+          onClick={() => {
+            setLockedName("");
+            setLockedOpen(true);
+          }}
+        >
+          Add a channel (reason shown)
+        </Button>
         <ContactPanelDemo />
         <ApplyPanelDemo />
         <span data-testid="edit-panel-check-counts">
@@ -521,6 +543,41 @@ function Demo() {
             value={createName}
             onChange={(event) => setCreateName(event.target.value)}
           />
+        </div>
+      </EditPanel>
+      {/* SUI-FEATURE-125: the locked primary action names its reason visibly in the footer; a body
+          taller than the panel shows the line stays while the body scrolls. */}
+      <EditPanel
+        open={lockedOpen}
+        onOpenChange={setLockedOpen}
+        title="Add channel"
+        mode="add"
+        testIdPrefix="locked-panel"
+        description="Step 2 of 2: name the channel."
+        // Step 1 is not part of the demo; Back shows that it stays on the button row (#729).
+        onBack={() => {}}
+        dirty={lockedName !== ""}
+        submitKind="create"
+        showDisabledReason
+        submitDisabled={lockedName.trim() === ""}
+        submitDisabledHint={labels.nameFirst}
+        onSubmit={() => setLockedOpen(false)}
+      >
+        <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-2">
+            <Label htmlFor="locked-name">Name</Label>
+            <Input
+              id="locked-name"
+              value={lockedName}
+              onChange={(event) => setLockedName(event.target.value)}
+            />
+          </div>
+          {FIELDS.map((field) => (
+            <div key={field} className="flex flex-col gap-2">
+              <Label htmlFor={`locked-${field}`}>{field}</Label>
+              <Input id={`locked-${field}`} />
+            </div>
+          ))}
         </div>
       </EditPanel>
       {/* SUI-FEATURE-091: without onSubmit the panel only shows a record; its footer is Close. */}

@@ -12359,6 +12359,91 @@ for (const [lng, add, hint, save] of [
   });
 }
 
+// `SUI-FEATURE-125`: the locked primary action names its reason visibly before the action cluster,
+// in muted hint text, the button's one description; the line stays while the body scrolls and goes
+// with the lock.
+test("edit panel: showDisabledReason shows the lock reason beside the primary action", async ({
+  page,
+}) => {
+  await page.goto("/?page=edit-panel&lng=en");
+  await page.getByTestId("locked-panel-trigger").click();
+  const line = page.getByTestId("locked-panel-disabled-reason");
+  const submit = page.getByTestId("locked-panel-submit");
+  const cancel = page.getByTestId("locked-panel-cancel");
+  await expect(line).toHaveText("Fill in the name first");
+  await expect(line).toBeVisible();
+  // Same row as the buttons, right before Cancel and the primary action.
+  const [l, s, c] = [await box(line), await box(submit), await box(cancel)];
+  expect(Math.abs(l.y + l.height / 2 - (s.y + s.height / 2))).toBeLessThanOrEqual(1);
+  expect(l.x + l.width).toBeLessThanOrEqual(c.x);
+  expect(c.x - (l.x + l.width)).toBeLessThanOrEqual(8);
+  // Muted hint text like field hints: the muted foreground at the small size, never clipped.
+  const look = await line.evaluate((el) => {
+    const probe = document.createElement("span");
+    probe.className = "text-muted-foreground";
+    document.body.append(probe);
+    const muted = getComputedStyle(probe).color;
+    probe.remove();
+    const style = getComputedStyle(el);
+    return {
+      color: style.color,
+      muted,
+      size: style.fontSize,
+      clipped: el.scrollWidth > el.clientWidth,
+    };
+  });
+  expect(look.color).toBe(look.muted);
+  expect(look.size).toBe("14px");
+  expect(look.clipped).toBe(false);
+  // One description: the visible line, read once; the tooltip shows the same text.
+  const lineId = await line.getAttribute("id");
+  await expect(submit).toHaveAttribute("aria-describedby", lineId!);
+  await expect(submit).toHaveAccessibleDescription("Fill in the name first");
+  await submit.hover();
+  await expect(page.getByRole("tooltip")).toHaveText("Fill in the name first", { timeout: 5000 });
+  await expect(submit).toHaveAttribute("aria-describedby", lineId!);
+  await expect(submit).toHaveAccessibleDescription("Fill in the name first");
+  await page.mouse.move(0, 0);
+  // Still visible after scrolling the body to its end.
+  const body = page.getByTestId("locked-panel-body");
+  await body.evaluate((el) => el.scrollTo({ top: el.scrollHeight }));
+  await expect(page.getByLabel("Field 24")).toBeInViewport();
+  await expect(line).toBeInViewport();
+  // The lock lifted, the line is gone and the package hint describes the button again.
+  await page.getByTestId("locked-panel").getByLabel("Name", { exact: true }).fill("News");
+  await expect(line).toHaveCount(0);
+  await expect(submit).not.toHaveAttribute("aria-disabled");
+  await expect(submit).toHaveAccessibleDescription("Adds the entry.");
+});
+
+// `SUI-FEATURE-125` AC 5: on a narrow panel the reason wraps onto its own row directly above the
+// buttons, its end at the primary action's end, nothing truncated; Back stays on the button row.
+test("edit panel: showDisabledReason wraps above the buttons on a narrow panel", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 360, height: 800 });
+  await page.goto("/?page=edit-panel&lng=de");
+  await page.getByTestId("locked-panel-trigger").click();
+  const line = page.getByTestId("locked-panel-disabled-reason");
+  const submit = page.getByTestId("locked-panel-submit");
+  const cancel = page.getByTestId("locked-panel-cancel");
+  await expect(line).toHaveText("Zuerst den Namen ausfüllen");
+  const [l, s, c] = [await box(line), await box(submit), await box(cancel)];
+  expect(l.y + l.height).toBeLessThanOrEqual(Math.min(s.y, c.y));
+  expect(Math.min(s.y, c.y) - (l.y + l.height)).toBeLessThanOrEqual(8);
+  expect(Math.abs(l.x + l.width - (s.x + s.width))).toBeLessThanOrEqual(1);
+  expect(Math.abs(s.y - c.y)).toBeLessThanOrEqual(1);
+  expect(await line.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(false);
+  await expect(line).toBeInViewport({ ratio: 1 });
+  const back = await box(page.getByTestId("locked-panel-back"));
+  expect(Math.abs(back.y - s.y)).toBeLessThanOrEqual(1);
+  expect(back.x + back.width).toBeLessThanOrEqual(c.x);
+  expect(l.y + l.height).toBeLessThanOrEqual(back.y);
+  for (const button of [back, c, s]) {
+    expect(button.x + button.width).toBeLessThanOrEqual(360);
+  }
+});
+
 // `SUI-FEATURE-094`: Apply takes the entries over into the outer form without an icon and without
 // a word about saving; the panel's submit, by click or Enter, never submits that outer form.
 for (const [lng, label, hint, cancelHint] of [

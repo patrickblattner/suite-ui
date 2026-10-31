@@ -75,6 +75,10 @@ type EditPanelProps = {
   submitHint?: string;
   backHint?: string;
   backDisabledHint?: string;
+  // Opt-in (`SUI-FEATURE-125`): while `submitDisabled` locks and the panel is not busy, the footer
+  // shows `submitDisabledHint` as muted text before the primary action, the button's one description.
+  // On a narrow panel it wraps onto its own row above the buttons. Default `false`, nothing changes.
+  showDisabledReason?: boolean;
   // What the primary action does (`SUI-FEATURE-111`): `save` (the default) leads with the save symbol;
   // `create` is the add mode's save, the package word Add after the plus symbol (`SUI-FEATURE-151`);
   // `next` only moves on to the next step, saves nothing, and so carries an arrow after its text;
@@ -119,6 +123,39 @@ type SubmitLock =
   | { submitDisabled?: never; submitDisabledHint?: never }
   | { submitDisabled: boolean; submitDisabledHint: string };
 
+// The footer's action cluster with the visible lock reason before it (`SUI-FEATURE-125`), first in
+// reading order and end-aligned; too narrow, the reason wraps onto its own row above the buttons. It
+// never truncates: a long unbroken token breaks anywhere. The cluster stands whether the reason shows
+// or not, so a lock never remounts the buttons. Its own component, so the id is only drawn where an app
+// opts in: every other panel keeps its ids.
+function DisabledReasonRow({
+  reason,
+  testId,
+  children,
+}: {
+  reason: string | undefined;
+  testId: string;
+  children: (reasonId?: string) => React.ReactNode;
+}) {
+  const id = React.useId();
+  return (
+    <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
+      {reason !== undefined && (
+        <p
+          id={id}
+          className="text-end text-sm wrap-anywhere text-muted-foreground"
+          data-testid={testId}
+        >
+          {reason}
+        </p>
+      )}
+      <div className="flex items-center gap-2">
+        {children(reason === undefined ? undefined : id)}
+      </div>
+    </div>
+  );
+}
+
 // The edit panel (`GL-UI-027` §Bearbeitungsflächen, `SUI-FEATURE-030`): from the right over the whole
 // content area, its left edge at the current sidebar width, so the navigation stays visible and
 // operable — hence non-modal, without an overlay, and an interaction outside does not close it. The
@@ -141,6 +178,7 @@ function EditPanel({
   submitDisabledHint,
   backHint,
   backDisabledHint,
+  showDisabledReason = false,
   submitKind = "save",
   onBack,
   backDisabled = false,
@@ -196,6 +234,12 @@ function EditPanel({
       submit.current?.getAttribute("aria-busy") === "true" ? submit.current : null,
   });
   const busy = busyProp || working;
+  // The visible lock reason (`SUI-FEATURE-125`); during the work the busy hint applies instead.
+  const reason =
+    // An empty reason draws no line and leaves the button to its usual hint.
+    showDisabledReason && submitDisabled && !busy && onSubmit !== undefined && !view
+      ? submitDisabledHint || undefined
+      : undefined;
   // The `Esc` the panel gets as the top-most layer: an open select, menu, tooltip or dialog takes it
   // first. It leaves only once it has bubbled to the document, so an editor's own `Esc` meaning
   // (stopping its propagation) keeps the panel open.
@@ -217,6 +261,66 @@ function EditPanel({
     <FieldSubmitContext.Provider value={view ? null : submits}>
       <FieldDraftsContext.Provider value={fieldDrafts}>{children}</FieldDraftsContext.Provider>
     </FieldSubmitContext.Provider>
+  );
+
+  // `reasonId`: the visible lock reason, the primary action's one description (`SUI-FEATURE-125`).
+  const footerActions = (reasonId?: string) => (
+    <>
+      <Hint
+        text={
+          view
+            ? t("editPanel.viewCloseHint")
+            : onSubmit === undefined
+              ? t("editPanel.closeHint")
+              : packageCancelHint
+        }
+        disabledText={t("editPanel.busyHint")}
+      >
+        <Button
+          type="button"
+          variant="outline"
+          size="default"
+          disabled={busy}
+          onClick={() => guard(() => onOpenChange(false))}
+          data-testid={`${testIdPrefix}-cancel`}
+        >
+          {view
+            ? t("panel.close")
+            : onSubmit === undefined
+              ? t("actions.close")
+              : t("actions.cancel")}
+        </Button>
+      </Hint>
+      {view && actions}
+      {onSubmit !== undefined && !view && (
+        <Hint
+          // A running Save locks itself inside `Button` (`aria-disabled`), unseen by `Hint`.
+          text={busy ? t("editPanel.busyHint") : submitText}
+          disabledText={busy ? t("editPanel.busyHint") : (submitDisabledHint ?? submitText)}
+          // The visible reason is the one description; the tooltip still shows it (`SUI-FEATURE-125`).
+          {...(reasonId !== undefined ? { describe: false } : {})}
+        >
+          <Button
+            type="submit"
+            variant="success"
+            size="default"
+            ref={submit}
+            busy={busy}
+            {...(submitDisabled ? { "aria-disabled": true } : {})}
+            {...(reasonId !== undefined ? { "aria-describedby": reasonId } : {})}
+            onClickCapture={(event) => {
+              if (submitDisabled) submitLocked(event);
+            }}
+            data-testid={`${testIdPrefix}-submit`}
+          >
+            {submitKind === "save" ? <SaveIcon aria-hidden="true" /> : null}
+            {submitKind === "create" ? <PlusIcon aria-hidden="true" /> : null}
+            {submitLabel ?? t(`actions.${submitKind}`)}
+            {submitKind === "next" ? <ArrowRightIcon aria-hidden="true" /> : null}
+          </Button>
+        </Hint>
+      )}
+    </>
   );
 
   return (
@@ -383,7 +487,11 @@ function EditPanel({
             <div
               data-slot="edit-panel-footer"
               data-tooltip-row=""
-              className="flex shrink-0 flex-row items-center justify-end gap-2 border-t px-6 py-4"
+              className={cn(
+                "flex shrink-0 flex-row items-center justify-end gap-2 border-t px-6 py-4",
+                // Back stays on the button row when the reason wraps above it (`SUI-FEATURE-125`).
+                showDisabledReason && "items-end",
+              )}
             >
               {/* Every footer button in the package `Hint` (`SUI-FEATURE-091`). The locked text is
                   always set, so the carrying span stands and a lock never remounts the button; the span
@@ -417,56 +525,12 @@ function EditPanel({
                   </Button>
                 </Hint>
               )}
-              <Hint
-                text={
-                  view
-                    ? t("editPanel.viewCloseHint")
-                    : onSubmit === undefined
-                      ? t("editPanel.closeHint")
-                      : packageCancelHint
-                }
-                disabledText={t("editPanel.busyHint")}
-              >
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="default"
-                  disabled={busy}
-                  onClick={() => guard(() => onOpenChange(false))}
-                  data-testid={`${testIdPrefix}-cancel`}
-                >
-                  {view
-                    ? t("panel.close")
-                    : onSubmit === undefined
-                      ? t("actions.close")
-                      : t("actions.cancel")}
-                </Button>
-              </Hint>
-              {view && actions}
-              {onSubmit !== undefined && !view && (
-                <Hint
-                  // A running Save locks itself inside `Button` (`aria-disabled`), unseen by `Hint`.
-                  text={busy ? t("editPanel.busyHint") : submitText}
-                  disabledText={busy ? t("editPanel.busyHint") : (submitDisabledHint ?? submitText)}
-                >
-                  <Button
-                    type="submit"
-                    variant="success"
-                    size="default"
-                    ref={submit}
-                    busy={busy}
-                    {...(submitDisabled ? { "aria-disabled": true } : {})}
-                    onClickCapture={(event) => {
-                      if (submitDisabled) submitLocked(event);
-                    }}
-                    data-testid={`${testIdPrefix}-submit`}
-                  >
-                    {submitKind === "save" ? <SaveIcon aria-hidden="true" /> : null}
-                    {submitKind === "create" ? <PlusIcon aria-hidden="true" /> : null}
-                    {submitLabel ?? t(`actions.${submitKind}`)}
-                    {submitKind === "next" ? <ArrowRightIcon aria-hidden="true" /> : null}
-                  </Button>
-                </Hint>
+              {showDisabledReason ? (
+                <DisabledReasonRow reason={reason} testId={`${testIdPrefix}-disabled-reason`}>
+                  {footerActions}
+                </DisabledReasonRow>
+              ) : (
+                footerActions()
               )}
             </div>
           </Body>
