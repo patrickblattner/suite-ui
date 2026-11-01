@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #753: TagInput forwards consumer onCompositionStart/onCompositionEnd (patch)
+## 0.207.2 — #753: TagInput forwards consumer onCompositionStart/onCompositionEnd (patch)
 
 - **Fixed (#753, Codex CX1):** `TagInput` no longer swallows a consumer's `onCompositionStart`/`onCompositionEnd`: both are called after the internal composition handling (GL-UI-039 rev 2, #737), as `onFocus`/`onBlur` already were. The other #737 surfaces (Combobox, TimezoneCombobox, Grid, global search, slide text editor) spread no consumer input props, so nothing there was overwritten.
 - **Tests (#753):** unit: a consumer's composition callbacks fire once each while the composed text stays the draft. No baseline changes.
