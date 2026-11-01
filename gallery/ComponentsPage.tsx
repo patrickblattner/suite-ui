@@ -82,7 +82,7 @@ import { Textarea } from "../src/ui/textarea.js";
 import { TimezoneCombobox } from "../src/ui/timezone-combobox.js";
 import { type UploadItem, UploadStep } from "../src/ui/upload-step.js";
 
-import { BANDS } from "./bands.js";
+import { BANDS, BANDS_STRETCHABLE } from "./bands.js";
 import { CanvasEdgeRow, CanvasRow } from "./CanvasDemo.js";
 import { CanvasEditorRow } from "./CanvasEditorDemo.js";
 
@@ -1429,6 +1429,41 @@ function CropRow() {
           naturalWidth={2000}
           naturalHeight={1000}
           className="w-24"
+        />
+      </Row>
+      {/* `SUI-FEATURE-312`: a 2:1 frame the layout sizes, with the square middle half. The crop form
+          sets its own ratio and the layout distorts it (the stand-in stretches, so it shows); the
+          cover form fills the frame undistorted. */}
+      <Row label="Stretched frame">
+        <CroppedImage
+          src={BANDS_STRETCHABLE}
+          alt="Middle half, stretched"
+          crop={MIDDLE}
+          naturalWidth={2000}
+          naturalHeight={1000}
+          className="h-24 w-48"
+          data-testid="crop-stretched-crop"
+        />
+        <CroppedImage
+          src={BANDS_STRETCHABLE}
+          alt="Middle half, covering"
+          crop={MIDDLE}
+          fit="cover"
+          naturalWidth={2000}
+          naturalHeight={1000}
+          className="h-24 w-48"
+          data-testid="crop-stretched-cover"
+        />
+        <CroppedImage
+          src={BANDS_STRETCHABLE}
+          alt="Middle half, covering, flipped"
+          crop={MIDDLE}
+          fit="cover"
+          flipped
+          naturalWidth={2000}
+          naturalHeight={1000}
+          className="h-24 w-48"
+          data-testid="crop-stretched-cover-flipped"
         />
       </Row>
       <Row label="CroppedBackground">

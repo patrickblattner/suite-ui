@@ -1,4 +1,5 @@
-import { cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
+import type { ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -270,5 +271,119 @@ describe("croppedBackgroundStyle", () => {
       backgroundPosition: "center",
       transform: "scaleX(-1)",
     });
+  });
+});
+
+// SUI-FEATURE-312: `fit="cover"` for a frame the layout sizes.
+describe('CroppedImage fit="cover"', () => {
+  const SQUARE = { x: 0.25, y: 0, width: 0.5, height: 1 };
+  const scale = "max(100cqw / 1000, 100cqh / 1000)";
+  // The markup of the placement, without the image preload React hoists in front of it.
+  const markup = (node: ReactElement) =>
+    renderToStaticMarkup(node).replace(/^<link rel="preload"[^>]*>/, "");
+
+  // AC 1, AC 2
+  it("sets no ratio; the img with its alt covers the frame with the crop on its centre in container units", () => {
+    const html = markup(
+      <CroppedImage
+        src="photo.jpg"
+        alt="Team"
+        crop={SQUARE}
+        fit="cover"
+        naturalWidth={2000}
+        naturalHeight={1000}
+      />,
+    );
+    expect(html).toBe(
+      '<div data-slot="cropped-image" style="position:relative;overflow:hidden;container-type:size">' +
+        '<img src="photo.jpg" alt="Team" style="position:absolute;max-width:none;' +
+        `width:calc(${scale} * 2000);height:calc(${scale} * 1000);` +
+        `left:calc(50cqw - ${scale} * 1000);top:calc(50cqh - ${scale} * 500)"/></div>`,
+    );
+    expect(html).not.toContain("aspect-ratio");
+  });
+
+  // AC 3
+  it("without a crop it is a plain cover", () => {
+    render(<CroppedImage src="photo.jpg" alt="Team" fit="cover" data-testid="img" />);
+    const img = screen.getByRole("img", { name: "Team" });
+    expect(img.parentElement!.style.aspectRatio).toBe("");
+    expect(img.style.objectFit).toBe("cover");
+    expect(img.style.width).toBe("100%");
+    expect(img.style.height).toBe("100%");
+    expect(img).toHaveAttribute("data-testid", "img");
+  });
+
+  // AC 3, the documented fallback: without a natural size a plain cover, the crop once it has loaded.
+  it("with a crop but no natural size it is a plain cover until the image has loaded", () => {
+    let loaded: (() => void) | undefined;
+    class LoadingImage {
+      naturalWidth = 0;
+      naturalHeight = 0;
+      onload: (() => void) | null = null;
+      set src(_value: string) {
+        loaded = () => {
+          this.naturalWidth = 2000;
+          this.naturalHeight = 1000;
+          this.onload?.();
+        };
+      }
+    }
+    vi.stubGlobal("Image", LoadingImage);
+    try {
+      render(<CroppedImage src="photo.jpg" alt="Team" crop={SQUARE} fit="cover" />);
+      const img = screen.getByRole("img", { name: "Team" });
+      expect(img.style.objectFit).toBe("cover");
+      expect(img.style.width).toBe("100%");
+      act(() => loaded!());
+      expect(img.style.objectFit).toBe("");
+      expect(img.style.width).toContain("2000");
+      expect(img.parentElement!.style.aspectRatio).toBe("");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  // AC 4
+  it("flipped mirrors the img around the crop's centre, never the frame", () => {
+    const html = markup(
+      <CroppedImage
+        src="photo.jpg"
+        alt="Team"
+        crop={SQUARE}
+        fit="cover"
+        flipped
+        naturalWidth={2000}
+        naturalHeight={1000}
+      />,
+    );
+    expect(html).toMatch(/^<div data-slot="cropped-image" style="[^"]*container-type:size">/);
+    expect(html.match(/transform:scaleX\(-1\)/g)).toHaveLength(1);
+    expect(html).toContain(
+      `top:calc(50cqh - ${scale} * 500);transform:scaleX(-1);transform-origin:calc(${scale} * 1000) 50%"/>`,
+    );
+  });
+
+  // AC 3, AC 4
+  it("without a crop flipped mirrors the img, never the frame", () => {
+    render(<CroppedImage src="photo.jpg" alt="Team" fit="cover" flipped />);
+    const img = screen.getByRole("img", { name: "Team" });
+    expect(img.parentElement!.style.transform).toBe("");
+    expect(img.style.transform).toBe("scaleX(-1)");
+  });
+
+  // AC 5: the markup without `fit` as the version before `fit` rendered it.
+  it("without fit the output is byte-identical to the crop form", () => {
+    const props = { src: "photo.jpg", alt: "Team", naturalWidth: 2000, naturalHeight: 1000 };
+    expect(markup(<CroppedImage {...props} crop={SQUARE} flipped />)).toBe(
+      '<div data-slot="cropped-image" style="position:relative;overflow:hidden;aspect-ratio:1;transform:scaleX(-1)">' +
+        '<img src="photo.jpg" alt="Team" style="position:absolute;max-width:none;width:200%;height:100%;left:-50%;top:0%"/></div>',
+    );
+    expect(markup(<CroppedImage {...props} flipped />)).toBe(
+      '<img data-slot="cropped-image" src="photo.jpg" alt="Team" style="transform:scaleX(-1)"/>',
+    );
+    expect(renderToStaticMarkup(<CroppedImage {...props} crop={SQUARE} fit="crop" />)).toBe(
+      renderToStaticMarkup(<CroppedImage {...props} crop={SQUARE} />),
+    );
   });
 });

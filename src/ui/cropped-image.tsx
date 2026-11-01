@@ -51,6 +51,9 @@ type CroppedImageProps = Omit<React.ComponentProps<"img">, "src" | "alt" | "chil
   alt: string;
   crop?: Crop | null;
   flipped?: boolean;
+  // `"crop"` (default): the frame takes the crop's ratio. `"cover"`: the layout sizes the frame and
+  // the crop covers it (`SUI-FEATURE-312`).
+  fit?: "crop" | "cover";
   // Without them the frame reads the size from the loaded image.
   naturalWidth?: number;
   naturalHeight?: number;
@@ -65,12 +68,17 @@ type CroppedImageProps = Omit<React.ComponentProps<"img">, "src" | "alt" | "chil
  * A `className` from the call site only adds properties: it cannot change the frame's inline
  * `position` or `overflow`. The caller's `style` is merged after the component's own, so a different
  * value for one of them goes there (`SUI-FEATURE-310` rev 3).
+ *
+ * `fit="cover"` is for a frame whose width and height the layout fixes (`SUI-FEATURE-312`): the frame
+ * sets no ratio of its own, and the `<img>` covers it with the crop on the frame's centre, read with
+ * container units; `flipped` then mirrors the `<img>`, never the frame.
  */
 function CroppedImage({
   src,
   alt,
   crop = null,
   flipped = false,
+  fit = "crop",
   naturalWidth,
   naturalHeight,
   className,
@@ -83,6 +91,17 @@ function CroppedImage({
     crop !== null,
   );
   const flip: React.CSSProperties = flipped ? { transform: "scaleX(-1)" } : {};
+  if (fit === "cover") {
+    return (
+      <div
+        data-slot="cropped-image"
+        className={className}
+        style={{ position: "relative", overflow: "hidden", containerType: "size", ...style }}
+      >
+        <img src={src} alt={alt} style={coverImageStyle(crop, natural, flipped)} {...props} />
+      </div>
+    );
+  }
   if (crop === null) {
     return (
       <img
@@ -127,6 +146,40 @@ function CroppedImage({
       />
     </div>
   );
+}
+
+// The `<img>` of `fit="cover"` (`SUI-FEATURE-312`): the same scale and offset as
+// `croppedBackgroundStyle()`, read from the frame with container units. The flip mirrors around the
+// point of the image at the frame's centre, so the crop stays where it is. Without a crop, or until
+// the natural size is known, a plain cover.
+function coverImageStyle(
+  crop: Crop | null,
+  natural: { width: number; height: number } | null,
+  flipped: boolean,
+): React.CSSProperties {
+  const flip: React.CSSProperties = flipped ? { transform: "scaleX(-1)" } : {};
+  const span = natural === null ? null : cropSpan(crop, natural.width, natural.height);
+  if (span === null || natural === null) {
+    return {
+      position: "absolute",
+      inset: 0,
+      maxWidth: "none",
+      width: "100%",
+      height: "100%",
+      objectFit: "cover",
+      ...flip,
+    };
+  }
+  const place = coverPlacement(span, natural.width, natural.height);
+  return {
+    position: "absolute",
+    maxWidth: "none",
+    width: place.width,
+    height: place.height,
+    left: place.left,
+    top: place.top,
+    ...(flipped ? { transform: "scaleX(-1)", transformOrigin: `${place.originX} 50%` } : {}),
+  };
 }
 
 type CroppedBackgroundStyleInput = {
@@ -199,6 +252,24 @@ function number(value: number): string {
   return String(Math.round(value * 1e6) / 1e6);
 }
 
+// The one container-unit placement behind `croppedBackgroundStyle()` and `fit="cover"`: the image's
+// size and offset that make the crop cover a size container on its centre, and the image's own x of
+// the crop's centre.
+function coverPlacement(
+  span: { spanX: number; spanY: number; centreX: number; centreY: number },
+  naturalWidth: number,
+  naturalHeight: number,
+): { width: string; height: string; left: string; top: string; originX: string } {
+  const scale = `max(100cqw / ${number(span.spanX)}, 100cqh / ${number(span.spanY)})`;
+  return {
+    width: `calc(${scale} * ${number(naturalWidth)})`,
+    height: `calc(${scale} * ${number(naturalHeight)})`,
+    left: `calc(50cqw - ${scale} * ${number(span.centreX)})`,
+    top: `calc(50cqh - ${scale} * ${number(span.centreY)})`,
+    originX: `calc(${scale} * ${number(span.centreX)})`,
+  };
+}
+
 /**
  * The same layer as `croppedBackground()` without a box size (`SUI-FEATURE-310`): the box is read
  * with container units, so the layer's parent needs `container-type: size` and the layer covers it
@@ -214,11 +285,11 @@ function croppedBackgroundStyle({
   const base = backgroundBase(src, flipped);
   const span = cropSpan(crop, naturalWidth, naturalHeight);
   if (span === null) return { ...base, backgroundSize: "cover", backgroundPosition: "center" };
-  const scale = `max(100cqw / ${number(span.spanX)}, 100cqh / ${number(span.spanY)})`;
+  const place = coverPlacement(span, naturalWidth, naturalHeight);
   return {
     ...base,
-    backgroundSize: `calc(${scale} * ${number(naturalWidth)}) calc(${scale} * ${number(naturalHeight)})`,
-    backgroundPosition: `calc(50cqw - ${scale} * ${number(span.centreX)}) calc(50cqh - ${scale} * ${number(span.centreY)})`,
+    backgroundSize: `${place.width} ${place.height}`,
+    backgroundPosition: `${place.left} ${place.top}`,
   };
 }
 

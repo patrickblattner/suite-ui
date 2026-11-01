@@ -3756,6 +3756,76 @@ test("CroppedBackground: the middle half covers the surface, the text is not mir
   await expect(surface.getByText("Not mirrored")).toHaveCSS("transform", "none");
 });
 
+// SUI-FEATURE-312 AC 1, AC 2, AC 4: a 2:1 frame the layout sizes, with the square middle half. The
+// crop form keeps its own ratio and is distorted; the cover form keeps the image's ratio with the
+// crop's centre on the frame's centre, also once the frame is resized; flipped mirrors the img only.
+test('CroppedImage fit="cover": the stretched frame is covered undistorted, flipped mirrors the img', async ({
+  page,
+}) => {
+  await page.goto("/?page=components");
+  const distorted = page.getByTestId("crop-stretched-crop");
+  const cover = page.getByTestId("crop-stretched-cover");
+  const flipped = page.getByTestId("crop-stretched-cover-flipped");
+  for (const img of [distorted, cover, flipped]) {
+    await expect
+      .poll(() => img.evaluate((node: HTMLImageElement) => node.complete && node.naturalWidth))
+      .toBe(2000);
+  }
+  const undistorted = async (img: Locator) => {
+    const frame = await box(img.locator(".."));
+    const picture = await box(img);
+    expect(picture.width / picture.height).toBeCloseTo(2, 2);
+    expect(picture.width).toBeCloseTo(Math.max(frame.width, frame.height) * 2, 0);
+    expect(picture.x + picture.width / 2).toBeCloseTo(frame.x + frame.width / 2, 0);
+    expect(picture.y + picture.height / 2).toBeCloseTo(frame.y + frame.height / 2, 0);
+  };
+  // The crop form: the layout's 2:1 wins over its square ratio, the image is squeezed to 4:1.
+  const squeezed = await box(distorted);
+  expect(squeezed.width / squeezed.height).toBeCloseTo(4, 1);
+  // The stand-in stretches with its box, so the distortion shows: the arrow's shaft (image y 420–580)
+  // is squeezed into the crop tile's middle, while the cover tile keeps it at its true height.
+  for (const [img, above, middle, below] of [
+    [distorted, BAND_BLUE, WHITE, BAND_BLUE],
+    [cover, WHITE, WHITE, WHITE],
+  ] as const) {
+    await img.scrollIntoViewIfNeeded();
+    const frame = await box(img.locator(".."));
+    expect(await pixelAt(page, frame.x + 60, frame.y + 36)).toEqual(above);
+    expect(await pixelAt(page, frame.x + 60, frame.y + 48)).toEqual(middle);
+    expect(await pixelAt(page, frame.x + 60, frame.y + 60)).toEqual(below);
+  }
+  await expect(cover).toHaveAttribute("alt", "Middle half, covering");
+  await expect(cover.locator("..")).not.toHaveCSS("aspect-ratio", /1/);
+  await undistorted(cover);
+  // AC 4: blue left, green right; flipped green left, blue right. Only the img mirrors.
+  for (const [img, colors] of [
+    [cover, [BAND_BLUE, BAND_GREEN]],
+    [flipped, [BAND_GREEN, BAND_BLUE]],
+  ] as const) {
+    await img.scrollIntoViewIfNeeded();
+    const frame = await box(img.locator(".."));
+    expect(await pixelAt(page, frame.x + 3, frame.y + 3)).toEqual(colors[0]);
+    expect(await pixelAt(page, frame.x + frame.width - 4, frame.y + 3)).toEqual(colors[1]);
+  }
+  await expect(flipped).toHaveCSS("transform", "matrix(-1, 0, 0, 1, 0, 0)");
+  await expect(flipped.locator("..")).toHaveCSS("transform", "none");
+  await undistorted(flipped);
+  // AC 2: the frame resized by style alone, to 1:2 and to 3:1; nothing in the component reruns.
+  for (const [width, height] of [
+    [96, 192],
+    [300, 100],
+  ] as const) {
+    await cover.locator("..").evaluate(
+      (node: HTMLElement, [w, h]) => {
+        node.style.width = `${w}px`;
+        node.style.height = `${h}px`;
+      },
+      [width, height] as const,
+    );
+    await undistorted(cover);
+  }
+});
+
 // `SUI-FEATURE-310`: the static markup of `gallery/static-crop.tsx`, built in the browser and loaded
 // into a page of its own without Tailwind and without any script, so nothing measures or hydrates.
 async function staticCropPage(

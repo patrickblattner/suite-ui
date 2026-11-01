@@ -7,4 +7,11 @@ const BANDS = `data:image/svg+xml,${encodeURIComponent(
     '<path d="M600 420 H1250 V300 L1450 500 L1250 700 V580 H600 Z" fill="#ffffff"/></svg>',
 )}`;
 
-export { BANDS };
+// The same bands drawn to any box (`preserveAspectRatio="none"`), so a frame that changes the image's
+// ratio shows the distortion instead of letterboxing it (`SUI-FEATURE-312`).
+const BANDS_STRETCHABLE = BANDS.replace(
+  encodeURIComponent('viewBox="0 0 2000 1000"'),
+  encodeURIComponent('viewBox="0 0 2000 1000" preserveAspectRatio="none"'),
+);
+
+export { BANDS, BANDS_STRETCHABLE };
