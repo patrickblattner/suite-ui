@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { createEvent, fireEvent, render, screen } from "@testing-library/react";
 import i18n from "i18next";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -294,6 +294,20 @@ describe("NumberInput composition", () => {
     expect(input).toHaveValue("１");
     expect(onValue).not.toHaveBeenCalled();
     expect(onLeave).not.toHaveBeenCalled();
+  });
+
+  // GL-UI-039 rev 3 (#760): a composition's Tab changes no field; after `compositionend` Tab acts as
+  // before.
+  it("holds a composition's Tab; after compositionend Tab moves on as before", () => {
+    const { input } = renderInput();
+    fireEvent.compositionStart(input);
+    const held = createEvent.keyDown(input, { key: "Tab", isComposing: true, keyCode: 9 });
+    fireEvent(input, held);
+    expect(held.defaultPrevented).toBe(true);
+    fireEvent.compositionEnd(input);
+    const after = createEvent.keyDown(input, { key: "Tab", keyCode: 9 });
+    fireEvent(input, after);
+    expect(after.defaultPrevented).toBe(false);
   });
 
   it("refuses a composed letter whole after compositionend", () => {

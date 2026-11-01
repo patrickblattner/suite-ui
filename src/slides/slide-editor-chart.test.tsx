@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { createEvent, fireEvent, render, screen } from "@testing-library/react";
 import i18n from "i18next";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -168,6 +168,20 @@ describe("ChartData", () => {
     expect(onChange.mock.lastCall![0].series[0]!.values[0]).toBe(12);
     fireEvent.keyDown(value(0, 0), { key: ".", code: "NumpadDecimal" });
     expect(value(0, 0)).toHaveValue("12,");
+  });
+
+  // GL-UI-039 rev 3 (#760): a composition's Tab changes no field; after `compositionend` Tab acts as
+  // before.
+  it("holds a chart value's composition Tab; after compositionend Tab moves on as before", () => {
+    render(<ChartData chart={chart} revision={0} readOnly={false} onChange={vi.fn()} />);
+    fireEvent.compositionStart(value(0, 0));
+    const held = createEvent.keyDown(value(0, 0), { key: "Tab", isComposing: true, keyCode: 9 });
+    fireEvent(value(0, 0), held);
+    expect(held.defaultPrevented).toBe(true);
+    fireEvent.compositionEnd(value(0, 0));
+    const after = createEvent.keyDown(value(0, 0), { key: "Tab", keyCode: 9 });
+    fireEvent(value(0, 0), after);
+    expect(after.defaultPrevented).toBe(false);
   });
 
   it("takes an IME's full-width digits in a chart value as their number", () => {

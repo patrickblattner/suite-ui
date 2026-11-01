@@ -1,6 +1,7 @@
 import type * as React from "react";
 
 import { cn } from "../lib/cn.js";
+import { holdCompositionTab } from "../lib/keyboard.js";
 import { useFieldErrorAttributes } from "./field-error.js";
 import { WithFieldValueHint } from "./field-value-hint.js";
 import { READ_ONLY_LOOK } from "./read-only-look-internal.js";
@@ -8,7 +9,7 @@ import { READ_ONLY_LOOK } from "./read-only-look-internal.js";
 // A framed scroll surface (`GL-UI-018`): the textarea itself scrolls, reserves the scrollbar's place
 // (`scrollbar-gutter: stable`) and keeps its inner padding beside the bar, so the text never touches
 // the bar and no line rewraps when the bar appears.
-function Textarea({ className, ...props }: React.ComponentProps<"textarea">) {
+function Textarea({ className, onKeyDown, ...props }: React.ComponentProps<"textarea">) {
   const fieldError = useFieldErrorAttributes();
   return (
     <WithFieldValueHint>
@@ -21,6 +22,11 @@ function Textarea({ className, ...props }: React.ComponentProps<"textarea">) {
           READ_ONLY_LOOK,
           className,
         )}
+        onKeyDown={(event) => {
+          // A composition's Tab changes no field (`GL-UI-039` rev 3, #760).
+          if (holdCompositionTab(event)) return;
+          onKeyDown?.(event);
+        }}
         {...props}
       />
     </WithFieldValueHint>

@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
 import { cn } from "../lib/cn.js";
+import { useCompositionText } from "../lib/use-composition-text.js";
 import { isCompositionKey } from "../ui/composition.js";
 import {
   Dialog,
@@ -93,13 +94,6 @@ function GlobalSearch({
   const opener = React.useRef<Opener | null>(null);
 
   const isDialogOpen = React.useRef(false);
-  // A composition (dead key, IME) stays in the field until it ends: only the finished text travels
-  // into the dialog (`GL-UI-039` rev 2, #737). `null` while none runs.
-  const [composing, setComposing] = React.useState<string | null>(null);
-  // The frame that hands a finished composition over; a new composition before it keeps the text in
-  // the field (Korean syllables, Android's word-by-word input), so only the whole text travels.
-  const handoff = React.useRef(0);
-  React.useEffect(() => () => cancelAnimationFrame(handoff.current), []);
 
   const openDialog = React.useCallback((seed?: string) => {
     if (seed !== undefined) setTerm(seed);
@@ -110,6 +104,10 @@ function GlobalSearch({
     isDialogOpen.current = true;
     setDialogOpen(true);
   }, []);
+  // A composition (dead key, IME) stays in the field until it ends: only the finished text travels
+  // into the dialog, one frame later, so compositions in a row travel whole (`GL-UI-039` rev 3, #737,
+  // #760). A composition cancelled to nothing leaves the field's text unchanged and opens nothing.
+  const composition = useCompositionText((text) => openDialog(text), undefined, { defer: true });
 
   // On the document, so the shortcut works from every route.
   React.useEffect(() => {
@@ -180,43 +178,18 @@ function GlobalSearch({
             type="search"
             data-testid="shell-search"
             // The way in, not a place for an answer: whatever is typed travels into the dialog.
-            value={composing ?? ""}
+            value={composition.composing() ?? ""}
             aria-label={t("search.label")}
             aria-keyshortcuts="Meta+K Control+K"
             placeholder={t("search.placeholder")}
-            onCompositionStart={(event) => {
-              cancelAnimationFrame(handoff.current);
-              handoff.current = 0;
-              setComposing(event.currentTarget.value);
-            }}
-            onChange={(event) => {
-              if (composing !== null) {
-                setComposing(event.target.value);
-                return;
-              }
-              openDialog(event.target.value);
-            }}
-            onCompositionEnd={(event) => {
-              const field = event.currentTarget;
-              setComposing(field.value);
-              cancelAnimationFrame(handoff.current);
-              handoff.current = requestAnimationFrame(() => {
-                handoff.current = 0;
-                const text = field.value;
-                setComposing(null);
-                // A composition cancelled to nothing opens nothing.
-                if (text !== "") openDialog(text);
-              });
-            }}
+            {...composition.bind()}
             onKeyDown={(event) => {
-              if (event.key === "Enter" && !isCompositionKey(event)) openDialog();
+              // A key of a composition is its own, its Tab moves no focus (`GL-UI-039` rev 3, #760).
+              if (composition.holdKey(event)) return;
+              if (event.key === "Enter") openDialog();
             }}
             onClick={() => openDialog()}
-            onBlur={() => {
-              // A composition that never ended leaves the field with the blur; a pending handoff
-              // still reads the finished text from the field, so it is left to clear it.
-              if (handoff.current === 0) setComposing(null);
-            }}
+            onBlur={composition.blur}
             className="h-9 w-full rounded-md border border-input bg-transparent py-1 pr-16 pl-8 text-sm shadow-xs outline-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:focus-ring dark:bg-input/30"
           />
         </Hint>

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { createEvent, fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -176,6 +176,24 @@ describe("TimezoneCombobox composition", () => {
     expect(screen.getByRole("listbox")).toBeInTheDocument();
     fireEvent.keyDown(input, { key: "Enter" });
     expect(onValueChange).toHaveBeenCalledWith("Europe/Zurich");
+  });
+
+  // GL-UI-039 rev 3 (#760): a composition's Tab changes no field; after `compositionend` Tab acts as
+  // before.
+  it("holds a composition's Tab with the list open; after compositionend Tab closes it", () => {
+    render(<Field initial="UTC" onValueChange={vi.fn()} />);
+    const input = screen.getByRole("combobox");
+    fireEvent.change(input, { target: { value: "zur" } });
+    fireEvent.compositionStart(input);
+    const held = createEvent.keyDown(input, { key: "Tab", isComposing: true, keyCode: 9 });
+    fireEvent(input, held);
+    expect(held.defaultPrevented).toBe(true);
+    expect(screen.getByRole("listbox")).toBeInTheDocument();
+    fireEvent.compositionEnd(input);
+    const after = createEvent.keyDown(input, { key: "Tab", keyCode: 9 });
+    fireEvent(input, after);
+    expect(after.defaultPrevented).toBe(false);
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
   });
 
   it("a composition cancelled back to the start text opens no list", () => {

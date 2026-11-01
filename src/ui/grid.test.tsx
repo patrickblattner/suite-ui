@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, createEvent, fireEvent, render, screen } from "@testing-library/react";
 import i18n from "i18next";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -408,6 +408,21 @@ describe("GridFields number entry (GL-UI-037)", () => {
     fireEvent.compositionEnd(count);
     expect(count).toHaveValue("8");
     expect(onChange).toHaveBeenLastCalledWith({ ...COLUMNS, count: 8 });
+  });
+
+  // GL-UI-039 rev 3 (#760): a composition's Tab changes no field; after `compositionend` Tab acts as
+  // before.
+  it("holds a composition's Tab; after compositionend Tab moves on as before", () => {
+    render(<Fields onChange={vi.fn()} />);
+    const count = screen.getByTestId("grid-count");
+    fireEvent.compositionStart(count);
+    const held = createEvent.keyDown(count, { key: "Tab", isComposing: true, keyCode: 9 });
+    fireEvent(count, held);
+    expect(held.defaultPrevented).toBe(true);
+    fireEvent.compositionEnd(count);
+    const after = createEvent.keyDown(count, { key: "Tab", keyCode: 9 });
+    fireEvent(count, after);
+    expect(after.defaultPrevented).toBe(false);
   });
 
   it("a composition cancelled back to the start text sends nothing", () => {

@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { cn } from "../lib/cn.js";
 import { isCompositionKey } from "./composition.js";
 import { usePopupPlacement } from "../lib/popup-placement.js";
+import { useCompositionText } from "../lib/use-composition-text.js";
 import { useFieldDraft } from "./field-drafts-internal.js";
 import { FieldUserEditContext, useFieldErrorAttributes } from "./field-error.js";
 import { WithFieldValueHint } from "./field-value-hint.js";
@@ -77,11 +78,6 @@ function TimezoneCombobox({
   const listRef = React.useRef<HTMLUListElement>(null);
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
-  // The text of a running composition (dead key, IME): shown, but searched and filtered only once it
-  // ends (`GL-UI-039` rev 2, #737). `null` while none runs.
-  const [composing, setComposing] = React.useState<string | null>(null);
-  // The field's text when the composition began: a composition that leaves it unchanged typed nothing.
-  const composedFrom = React.useRef("");
   const [active, setActive] = React.useState(0);
   // Whether the keyboard placed the highlight: then it carries the inset ring on top of the tint
   // (`GL-UI-013`); a highlight under the mouse keeps the tint alone.
@@ -165,10 +161,14 @@ function TimezoneCombobox({
     setActive(0);
     setKeyboard(true);
   };
+  // The text of a running composition (dead key, IME): shown, but searched and filtered only once it
+  // ends (`GL-UI-039` rev 3, #737, #760).
+  const composition = useCompositionText(type);
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
-    // A key of a composition is its own, the Enter that confirms a candidate too (`GL-UI-039` rev 2).
-    if (isCompositionKey(event)) return;
+    // A key of a composition is its own, the Enter that confirms a candidate too; its Tab moves no
+    // focus (`GL-UI-039` rev 3, #760).
+    if (composition.holdKey(event)) return;
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
       if (!open) {
@@ -210,23 +210,12 @@ function TimezoneCombobox({
       data-testid={testId}
       disabled={disabled}
       placeholder={t("timezone.placeholder")}
-      value={composing ?? (open ? query : value)}
+      value={composition.composing() ?? (open ? query : value)}
       onClick={openList}
-      onCompositionStart={(event) => {
-        composedFrom.current = event.currentTarget.value;
-        setComposing(event.currentTarget.value);
-      }}
-      onChange={(event) => {
-        if (composing === null) type(event.target.value);
-        else setComposing(event.target.value);
-      }}
-      onCompositionEnd={(event) => {
-        setComposing(null);
-        if (event.currentTarget.value !== composedFrom.current) type(event.currentTarget.value);
-      }}
+      {...composition.bind()}
       onKeyDown={onKeyDown}
       onBlur={(event) => {
-        setComposing(null);
+        composition.blur();
         // A blur into the leave guard's dialog is no leaving: the list stays open (SUI-FEATURE-118).
         if (isInLeaveGuardDialog(event.relatedTarget)) return;
         if (!rootRef.current?.contains(event.relatedTarget)) close();

@@ -1,4 +1,12 @@
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  createEvent,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { FileTextIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -402,6 +410,24 @@ describe("GlobalSearch composition", () => {
     const dialog = await screen.findByTestId("search-dialog");
     expect(within(dialog).getByTestId("search-dialog-input")).toHaveValue("한글");
     expect(field).toHaveValue("");
+  });
+
+  // GL-UI-039 rev 3 (#760): a composition's Tab leaves the field; after the handoff Tab moves on.
+  it("holds a composition's Tab in the field; after the handoff Tab is the browser's again", async () => {
+    renderSearch();
+    const field = screen.getByTestId("shell-search");
+    fireEvent.compositionStart(field);
+    fireEvent.change(field, { target: { value: "´" } });
+    const held = createEvent.keyDown(field, { key: "Tab", isComposing: true, keyCode: 9 });
+    fireEvent(field, held);
+    expect(held.defaultPrevented).toBe(true);
+    fireEvent.change(field, { target: { value: "" } });
+    fireEvent.compositionEnd(field);
+    await frame();
+    const after = createEvent.keyDown(field, { key: "Tab", keyCode: 9 });
+    fireEvent(field, after);
+    expect(after.defaultPrevented).toBe(false);
+    expect(screen.queryByTestId("search-dialog")).not.toBeInTheDocument();
   });
 
   it("a composition cancelled to nothing opens no dialog", async () => {

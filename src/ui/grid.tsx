@@ -3,8 +3,8 @@ import * as React from "react";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
-import { isCompositionKey } from "./composition.js";
 import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
+import { useCompositionText } from "../lib/use-composition-text.js";
 import { Button } from "./button.js";
 import { formatDecimal, numpadDecimal, parseDecimal, takesDecimal } from "./decimal-number.js";
 import {
@@ -82,13 +82,6 @@ function GridFields({
   const id = React.useId();
   // The texts of the fields whose entry is invalid or not yet left; every other field shows the value.
   const [drafts, setDrafts] = React.useState<Partial<Record<GridNumberField, string>>>({});
-  // The field a composition (dead key, IME) runs in and its text: nothing checks or refuses it until
-  // `compositionend`, then the finished text goes through the rules of typed text (`GL-UI-039` rev 2).
-  const [composing, setComposing] = React.useState<{ field: GridNumberField; text: string } | null>(
-    null,
-  );
-  // The field's text when the composition began: a composition that leaves it unchanged typed nothing.
-  const composedFrom = React.useRef("");
   // The last definition of each type, to come back to.
   const [last, setLast] = React.useState<Partial<Record<GridDefinition["kind"], GridDefinition>>>(
     value === null ? {} : { [value.kind]: value },
@@ -141,6 +134,9 @@ function GridFields({
     else next[field] = number;
     send(next as GridDefinition);
   };
+  // The field a composition (dead key, IME) runs in and its text: nothing checks or refuses it until
+  // `compositionend`, then the finished text goes through the rules of typed text (`GL-UI-039` rev 3).
+  const composition = useCompositionText<GridNumberField>((text, field) => setNumber(field, text));
 
   const fields: GridNumberField[] =
     value === null ? [] : value.kind === "step" ? ["step"] : ["count", "gap", "margin", "rowStep"];
@@ -218,27 +214,11 @@ function GridFields({
                 }
                 aria-valuemin={BOUNDS[field].min}
                 aria-valuemax={BOUNDS[field].max}
-                value={composing?.field === field ? composing.text : text}
-                onCompositionStart={(event) => {
-                  composedFrom.current = event.currentTarget.value;
-                  setComposing({ field, text: event.currentTarget.value });
-                }}
-                onChange={(event) => {
-                  if (composing?.field === field) {
-                    setComposing({ field, text: event.target.value });
-                    return;
-                  }
-                  setNumber(field, event.target.value);
-                }}
-                onCompositionEnd={(event) => {
-                  setComposing(null);
-                  // A composition that leaves the text unchanged typed nothing.
-                  if (event.currentTarget.value === composedFrom.current) return;
-                  setNumber(field, event.currentTarget.value);
-                }}
+                value={composition.composing(field) ?? text}
+                {...composition.bind(field)}
                 onKeyDown={(event) => {
-                  // A key of a composition is its own (`GL-UI-039` rev 2, #737).
-                  if (isCompositionKey(event)) return;
+                  // A key of a composition is its own, its Tab moves no focus (`GL-UI-039` rev 3).
+                  if (composition.holdKey(event)) return;
                   const next = numpadDecimal(event, language);
                   if (next !== null) setNumber(field, next);
                   else if (event.key === "ArrowUp" || event.key === "ArrowDown") {
@@ -258,8 +238,7 @@ function GridFields({
                   }
                 }}
                 onBlur={() => {
-                  // A composition that never ended leaves the field with the blur.
-                  setComposing(null);
+                  composition.blur();
                   if (draft === undefined) return;
                   if (error(field, draft) === null)
                     setDrafts((current) => {

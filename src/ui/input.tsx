@@ -1,6 +1,7 @@
 import * as React from "react";
 
 import { cn } from "../lib/cn.js";
+import { holdCompositionTab } from "../lib/keyboard.js";
 import { useFieldErrorAttributes } from "./field-error.js";
 import { WithFieldValueHint } from "./field-value-hint.js";
 import { READ_ONLY_LOOK } from "./read-only-look-internal.js";
@@ -56,6 +57,8 @@ function Input({
         }}
         onKeyDown={(event) => {
           setPointerFocus(false);
+          // A composition's Tab changes no field (`GL-UI-039` rev 3, #760).
+          if (holdCompositionTab(event)) return;
           onKeyDown?.(event);
         }}
         onBlur={(event) => {

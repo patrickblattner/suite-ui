@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, createEvent, fireEvent, render, screen, within } from "@testing-library/react";
 import { type CompositionEvent, createRef, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
@@ -672,6 +672,24 @@ describe("TagInput composition", () => {
     expect(field()).toHaveValue("Café");
     expect(options()).toEqual(["Café"]);
     fireEvent.keyDown(field(), { key: "Enter" });
+    expect(chips()).toEqual(["Café"]);
+  });
+
+  // GL-UI-039 rev 3 (#760): a composition's Tab changes no field; after `compositionend` Tab acts as
+  // before.
+  it("holds a composition's Tab and takes no entry; after compositionend Tab leaves as before", () => {
+    render(<Suggesting suggestions={["Café"]} />);
+    focusField();
+    type("Caf");
+    fireEvent.keyDown(field(), { key: "ArrowDown" });
+    fireEvent.compositionStart(field());
+    const held = createEvent.keyDown(field(), { key: "Tab", isComposing: true, keyCode: 9 });
+    fireEvent(field(), held);
+    expect(held.defaultPrevented).toBe(true);
+    expect(chips()).toEqual([]);
+    fireEvent.compositionEnd(field());
+    // The chosen entry owns the next Tab, as before.
+    fireEvent.keyDown(field(), { key: "Tab" });
     expect(chips()).toEqual(["Café"]);
   });
 

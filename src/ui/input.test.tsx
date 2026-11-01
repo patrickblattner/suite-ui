@@ -1,5 +1,5 @@
-import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { createEvent, fireEvent, render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 
 import { Button } from "./button.js";
 import { Input } from "./input.js";
@@ -139,5 +139,28 @@ describe("date and time fields", () => {
     fireEvent.keyDown(input, { key: "1" });
     fireEvent.blur(input);
     expect(calls).toEqual(["pointer", "key", "blur"]);
+  });
+});
+
+// GL-UI-039 rev 3 (#760): a composition's Tab changes no field; one the IME took (key code 229) stays
+// the IME's; after `compositionend` Tab is the caller's and the browser's again.
+describe("Input composition Tab", () => {
+  it("holds a composition's Tab; after compositionend Tab moves on as before", () => {
+    const onKeyDown = vi.fn();
+    render(<Input aria-label="Name" onKeyDown={onKeyDown} />);
+    const field = screen.getByRole("textbox", { name: "Name" });
+    fireEvent.compositionStart(field);
+    const held = createEvent.keyDown(field, { key: "Tab", isComposing: true, keyCode: 9 });
+    fireEvent(field, held);
+    expect(held.defaultPrevented).toBe(true);
+    const ime = createEvent.keyDown(field, { key: "Tab", keyCode: 229 });
+    fireEvent(field, ime);
+    expect(ime.defaultPrevented).toBe(false);
+    expect(onKeyDown).not.toHaveBeenCalled();
+    fireEvent.compositionEnd(field);
+    const after = createEvent.keyDown(field, { key: "Tab", keyCode: 9 });
+    fireEvent(field, after);
+    expect(after.defaultPrevented).toBe(false);
+    expect(onKeyDown).toHaveBeenCalledTimes(1);
   });
 });
