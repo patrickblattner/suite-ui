@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — #733: slide text field selection after text typed behind a trailing line break (patch)
+
+- **Fixed (#733, Codex v0.203.0 CX1):** in the slide editor's text field, text typed after a run's closing line break (U+2028) goes into the zero-width space that keeps the empty last line; selecting the inline run after it (a click on an icon) took that text along, so a cut deleted it too. The field now maps a text offset past the zero-width space in its node, so the selection holds the icon alone. Tests: unit: with "A U+2028" before an icon and "B" typed behind the zero-width space, the icon's selection holds no "B" and reads back as 3–4; the caret before and after "B" reads back unchanged.
+
 ## Unreleased — #728: `MediaDetailShell` leave-dialog Save counts as a submit (patch)
 
 - **Fixed (#728, GL-UI-038 §Absenden, SUI-FEATURE-150 §Primäraktion der Rückfrage):** Save in the media detail page's leave dialog marks the form as submitted, as the page's own Save does: a failed Save closes the dialog, keeps the page and the route, shows the errors of every invalid field, also one the user never left, and puts the focus in the first invalid field. Applies to every leave way of the guard (navigation click, Previous/Next, the arrow keys, Esc, Close). The page's own Save and the dialog's Save take one code path, and only a save that does not report success (`onSave` returning anything but `true`, a promise that settles to anything else or rejects, or a throw) marks the form: a successful Save that pages on shows no error in the next medium's untouched fields and moves no focus. A valid form saves and leaves as before.

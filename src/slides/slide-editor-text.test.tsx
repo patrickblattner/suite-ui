@@ -166,6 +166,41 @@ describe("line break inside a paragraph", () => {
     }
     root.remove();
   });
+
+  // Codex v0.203.0 CX1 (#733): text typed after the zero-width space of a trailing line break goes
+  // into its node; selecting the inline run after it must not take that text along.
+  it("selects an inline run after text typed behind the trailing line break's zero-width space", () => {
+    const root = document.createElement("div");
+    document.body.append(root);
+    fillEditable(
+      root,
+      [
+        { text: "A\u2028", size: 20 },
+        { inline: "icon", icon: "star", height: 1 },
+      ],
+      SLIDE_BRAND,
+      "none",
+    );
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let placeholder = walker.nextNode() as Text | null;
+    while (placeholder !== null && placeholder.data !== "\u200B") {
+      placeholder = walker.nextNode() as Text | null;
+    }
+    // The browser types into the placeholder's own node.
+    placeholder!.data = "\u200BB";
+    selectRange(root, { start: 3, end: 4 });
+    const dom = document.getSelection()!.getRangeAt(0);
+    expect(dom.toString()).not.toContain("B");
+    expect(rangeIn(root)).toEqual({ start: 3, end: 4 });
+    for (const range of [
+      { start: 2, end: 2 },
+      { start: 2, end: 3 },
+    ]) {
+      selectRange(root, range);
+      expect(rangeIn(root)).toEqual(range);
+    }
+    root.remove();
+  });
 });
 
 // The caption of the editor showcase's second page, at the canvas's "Fit" of 0.25 in jsdom (its
