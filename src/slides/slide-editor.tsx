@@ -4570,13 +4570,24 @@ function Editor({
                               revision={travels}
                               // Its rows and columns, like the formats, wait for a composition to
                               // end (GL-UI-039 rev 2, #736).
-                              onChange={(next, merge) => {
+                              onChange={(next, merge, move) => {
                                 if (composingText.current) return;
                                 apply(
                                   (current) =>
                                     updateElements(current, page, [single.id], () => next),
                                   merge === undefined ? undefined : `table:${single.id}:${merge}`,
                                 );
+                                // The open cell field follows its cell; its row or column deleted,
+                                // editing ends (#740).
+                                if (
+                                  move === undefined ||
+                                  editing?.id !== single.id ||
+                                  editing.cell === undefined
+                                )
+                                  return;
+                                const moved = move(editing.cell);
+                                if (moved === undefined) endEditing();
+                                else setEditing({ ...editing, cell: moved });
                               }}
                               onCell={(cell) => {
                                 if (!composingText.current) setTableCell({ id: single.id, cell });

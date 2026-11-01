@@ -360,3 +360,55 @@ describe("SlideEditor table cell during a composition", () => {
     expect(table.rows[2]![1]!.runs).toEqual([{ text: "Slidesé", size: 16 }]);
   });
 });
+
+// #740: the open cell field follows its cell when the panel inserts or deletes rows and columns.
+describe("SlideEditor table cell field across rows and columns", () => {
+  // Double-clicks the cell "Slides" (row 2, column 2), or "Day" (row 1, column 1) with `first`.
+  const editSlides = async (first = false) => {
+    const editor = renderEditor();
+    editor.press(500, 30);
+    fireEvent.doubleClick(editor.canvas, first ? at(500, 30) : at(700, 70));
+    await screen.findByTestId("slide-editor-text-field");
+    fireEvent.mouseDown(screen.getByTestId("property-tab-content"), { button: 0 });
+    return editor;
+  };
+  const press = (testId: string) => {
+    const button = screen.getByTestId(`slide-editor-table-${testId}`);
+    fireEvent.mouseDown(button);
+    fireEvent.click(button);
+  };
+  const type = (text: string) => {
+    const field = screen.getByTestId("slide-editor-text-field");
+    field.querySelector("span")!.textContent = text;
+    fireEvent.input(field);
+    fireEvent.keyDown(field, { key: "Escape" });
+  };
+
+  it.each([
+    ["row-above", "Facts, row 3, column 2", [2, 1]],
+    ["row-below", "Facts, row 2, column 2", [1, 1]],
+    ["column-left", "Facts, row 2, column 3", [1, 2]],
+    ["column-right", "Facts, row 2, column 2", [1, 1]],
+  ] as const)("keeps editing the same cell after %s", async (action, name, [row, column]) => {
+    const { saved } = await editSlides();
+    press(action);
+    const field = screen.getByTestId("slide-editor-text-field");
+    expect(field).toHaveAccessibleName(name);
+    expect(field.textContent).toBe("Slides");
+    type("Tables");
+    const table = await saved();
+    expect(table.rows[row]![column]!.runs).toEqual([{ text: "Tables", size: 16 }]);
+    expect(table.rows.flat().filter((cell) => cell.runs[0]?.text === "Tables")).toHaveLength(1);
+  });
+
+  // The first row and column, so a cell slides into the edited one's place.
+  it.each([
+    ["delete-row", [["Mon", "Slides"]]],
+    ["delete-column", [["Topic"], ["Slides"]]],
+  ] as const)("ends editing when %s removes the edited cell", async (action, rest) => {
+    const { cells } = await editSlides(true);
+    press(action);
+    expect(screen.queryByTestId("slide-editor-text-field")).toBeNull();
+    expect(cells()).toEqual(rest);
+  });
+});
