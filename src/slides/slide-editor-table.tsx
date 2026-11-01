@@ -135,9 +135,11 @@ export function TableFields({
     testId: string,
     disabledText?: string,
   ) => (
+    // Always given, so locking at the last row or column keeps the button mounted, locked with
+    // `aria-disabled`, and the focus on it (`GL-UI-050`, #740); unlocked it is never shown.
     <IconButtonTooltip
       label={label}
-      disabledText={readOnly ? t("slides.lockedElement") : disabledText}
+      disabledText={readOnly ? t("slides.lockedElement") : (disabledText ?? label)}
     >
       <Button
         type="button"

@@ -472,6 +472,51 @@ describe("SlideEditor table cell field across rows and columns", () => {
     expect(document.activeElement).toBe(remove);
   });
 
+  // A text step undone keeps the field on its (shifted) cell; the row step undone next ends editing.
+  it("keeps editing through a text undo after Row above; the next undo ends it", async () => {
+    const { canvas, cells } = await editSlides();
+    press("row-above");
+    const field = screen.getByTestId("slide-editor-text-field");
+    field.focus();
+    field.querySelector("span")!.textContent = "Tables";
+    fireEvent.input(field);
+    expect(cells()[2]).toEqual(["Mon", "Tables"]);
+    fireEvent.keyDown(field, { key: "z", ctrlKey: true });
+    await waitFor(() =>
+      expect(screen.getByTestId("slide-editor-text-field").textContent).toBe("Slides"),
+    );
+    expect(screen.getByTestId("slide-editor-text-field")).toHaveAccessibleName(
+      "Facts, row 3, column 2",
+    );
+    expect(cells()).toHaveLength(3);
+    screen.getByTestId("slide-editor-text-field").focus();
+    fireEvent.keyDown(screen.getByTestId("slide-editor-text-field"), { key: "z", ctrlKey: true });
+    expect(screen.queryByTestId("slide-editor-text-field")).toBeNull();
+    expect(cells()).toEqual([
+      ["Day", "Topic"],
+      ["Mon", "Slides"],
+    ]);
+    expect(document.activeElement).toBe(canvas);
+  });
+
+  // GL-UI-050: the last Delete row locks itself with `aria-disabled` and keeps the focus.
+  it("keeps the focus on Delete row as it locks at one row; a second press does nothing", async () => {
+    const { press: pressAt, cells } = renderEditor();
+    pressAt(500, 30);
+    fireEvent.mouseDown(screen.getByTestId("property-tab-content"), { button: 0 });
+    const remove = screen.getByTestId("slide-editor-table-delete-row");
+    remove.focus();
+    fireEvent.click(remove);
+    expect(cells()).toEqual([["Mon", "Slides"]]);
+    expect(screen.getByTestId("slide-editor-table-delete-row")).toBe(remove);
+    expect(remove).toHaveAttribute("aria-disabled", "true");
+    expect(remove).not.toBeDisabled();
+    expect(document.activeElement).toBe(remove);
+    fireEvent.click(remove);
+    fireEvent.keyDown(remove, { key: "Enter" });
+    expect(cells()).toEqual([["Mon", "Slides"]]);
+  });
+
   // The panel's cell picked apart from the edited one: deleting the row before it moves the field up.
   it("moves the field with its cell when the panel deletes a row before it", async () => {
     await editSlides();
