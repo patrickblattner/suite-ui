@@ -15,7 +15,7 @@ const SelectOpenerContext = React.createContext<{
   setOpenedByPointer: (pointer: boolean) => void;
 } | null>(null);
 
-function Select({ onValueChange, ...props }: React.ComponentProps<typeof SelectPrimitive.Root>) {
+function Select({ ...props }: React.ComponentProps<typeof SelectPrimitive.Root>) {
   const [openedByPointer, setOpenedByPointer] = React.useState(false);
   const opener = React.useMemo(() => ({ openedByPointer, setOpenedByPointer }), [openedByPointer]);
   // Radix calls `onValueChange` only for the person's pick, never for a value set by code; the form
@@ -28,7 +28,7 @@ function Select({ onValueChange, ...props }: React.ComponentProps<typeof SelectP
         {...props}
         onValueChange={(value) => {
           userEdit?.();
-          onValueChange?.(value);
+          props.onValueChange?.(value);
         }}
       />
     </SelectOpenerContext.Provider>
