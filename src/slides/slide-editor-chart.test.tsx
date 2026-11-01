@@ -150,6 +150,49 @@ describe("ChartData", () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
+  // #745 (GL-UI-039 rev 2): while a composition runs, a chart value is neither parsed nor applied and
+  // its numpad decimal key does nothing; after `compositionend` the finished text is typed text.
+  it("leaves a composition alone and applies the finished text", async () => {
+    await i18n.changeLanguage("de");
+    const onChange = vi.fn<(next: typeof chart) => void>();
+    render(<ChartData chart={chart} revision={0} readOnly={false} onChange={onChange} />);
+    fireEvent.compositionStart(value(0, 0));
+    fireEvent.change(value(0, 0), { target: { value: "1´" } });
+    expect(value(0, 0)).toHaveValue("1´");
+    expect(screen.queryByTestId("slide-editor-chart-error-0")).toBeNull();
+    fireEvent.change(value(0, 0), { target: { value: "12" } });
+    fireEvent.keyDown(value(0, 0), { key: ".", code: "NumpadDecimal", isComposing: true });
+    expect(value(0, 0)).toHaveValue("12");
+    expect(onChange).not.toHaveBeenCalled();
+    fireEvent.compositionEnd(value(0, 0));
+    expect(onChange.mock.lastCall![0].series[0]!.values[0]).toBe(12);
+    fireEvent.keyDown(value(0, 0), { key: ".", code: "NumpadDecimal" });
+    expect(value(0, 0)).toHaveValue("12,");
+  });
+
+  it("takes an IME's full-width digits in a chart value as their number", () => {
+    const onChange = vi.fn<(next: typeof chart) => void>();
+    render(<ChartData chart={chart} revision={0} readOnly={false} onChange={onChange} />);
+    fireEvent.change(value(0, 0), { target: { value: "" } });
+    fireEvent.compositionStart(value(0, 0));
+    fireEvent.change(value(0, 0), { target: { value: "１２" } });
+    fireEvent.compositionEnd(value(0, 0));
+    expect(value(0, 0)).toHaveValue("12");
+    expect(screen.queryByTestId("slide-editor-chart-error-0")).toBeNull();
+    expect(onChange.mock.lastCall![0].series[0]!.values[0]).toBe(12);
+  });
+
+  it("a chart value's composition cancelled back to its start text sends nothing", () => {
+    const onChange = vi.fn();
+    render(<ChartData chart={chart} revision={0} readOnly={false} onChange={onChange} />);
+    fireEvent.compositionStart(value(0, 0));
+    fireEvent.change(value(0, 0), { target: { value: "3´" } });
+    fireEvent.change(value(0, 0), { target: { value: "3" } });
+    fireEvent.compositionEnd(value(0, 0));
+    expect(value(0, 0)).toHaveValue("3");
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
   it.each([
     ["de", "2,5"],
     ["es", "2,5"],

@@ -260,3 +260,94 @@ describe("NumberField error timing", () => {
     expect(onValue).not.toHaveBeenCalled();
   });
 });
+
+// #745 (GL-UI-039 rev 2): while a composition (dead key, IME) runs, the number field neither refuses
+// nor reformats nor acts on a key; after `compositionend` the finished text goes through the rules of
+// typed text.
+describe("NumberInput composition", () => {
+  function renderInput(onLeave = vi.fn<(value: number) => void>()) {
+    const onValue = vi.fn<(value: number) => void>();
+    render(
+      <NumberInput
+        value={3}
+        unit="px"
+        onValue={onValue}
+        onLeave={onLeave}
+        revision={0}
+        testId="n"
+        aria-label="N"
+      />,
+    );
+    return { input: screen.getByTestId("n"), onValue, onLeave };
+  }
+
+  it("keeps the composing text and acts on no key until the composition ends", () => {
+    const { input, onValue, onLeave } = renderInput();
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, { target: { value: "3´" } });
+    expect(input).toHaveValue("3´");
+    fireEvent.change(input, { target: { value: "１" } });
+    expect(input).toHaveValue("１");
+    fireEvent.keyDown(input, { key: "ArrowUp", isComposing: true });
+    fireEvent.keyDown(input, { key: "Enter", isComposing: true });
+    fireEvent.keyDown(input, { key: ".", code: "NumpadDecimal", isComposing: true });
+    expect(input).toHaveValue("１");
+    expect(onValue).not.toHaveBeenCalled();
+    expect(onLeave).not.toHaveBeenCalled();
+  });
+
+  it("refuses a composed letter whole after compositionend", () => {
+    const { input, onValue } = renderInput();
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, { target: { value: "3´" } });
+    fireEvent.change(input, { target: { value: "3é" } });
+    fireEvent.compositionEnd(input);
+    expect(input).toHaveValue("3");
+    expect(onValue).not.toHaveBeenCalled();
+  });
+
+  it("applies a composed number after compositionend; the next Enter acts again", () => {
+    const { input, onValue, onLeave } = renderInput();
+    fireEvent.change(input, { target: { value: "" } });
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, { target: { value: "8" } });
+    fireEvent.keyDown(input, { key: "Enter", keyCode: 229 });
+    fireEvent.compositionEnd(input);
+    expect(input).toHaveValue("8");
+    expect(onValue).toHaveBeenLastCalledWith(8);
+    expect(onLeave).not.toHaveBeenCalled();
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onLeave).toHaveBeenCalledWith(8);
+  });
+
+  it("takes an IME's full-width digits as their number after compositionend", () => {
+    const { input, onValue } = renderInput();
+    fireEvent.change(input, { target: { value: "" } });
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, { target: { value: "１２" } });
+    expect(input).toHaveValue("１２");
+    fireEvent.compositionEnd(input);
+    expect(input).toHaveValue("12");
+    expect(onValue).toHaveBeenLastCalledWith(12);
+  });
+
+  it("a composition cancelled back to its start text sends nothing", () => {
+    const { input, onValue } = renderInput();
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, { target: { value: "3´" } });
+    fireEvent.change(input, { target: { value: "3" } });
+    fireEvent.compositionEnd(input);
+    expect(input).toHaveValue("3");
+    expect(onValue).not.toHaveBeenCalled();
+  });
+
+  it("a composition that never ends leaves the field with the blur", () => {
+    const { input, onValue } = renderInput();
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, { target: { value: "3´" } });
+    fireEvent.blur(input);
+    expect(input).toHaveValue("3");
+    fireEvent.change(input, { target: { value: "5" } });
+    expect(onValue).toHaveBeenLastCalledWith(5);
+  });
+});

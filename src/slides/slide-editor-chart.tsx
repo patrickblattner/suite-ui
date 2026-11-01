@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 
 import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
 import { Button } from "../ui/button.js";
+import { isCompositionKey } from "../ui/composition.js";
 import {
   type DecimalInvalid,
   formatDecimal,
@@ -67,6 +68,11 @@ function ValueField({
   const { t, i18n } = useTranslation("suite");
   const language = i18n.resolvedLanguage;
   const [typed, setTyped] = React.useState<{ text: string; revision: string } | null>(null);
+  // The text of a running composition (dead key, IME): it is neither parsed nor applied until
+  // `compositionend`, then it is typed text (`GL-UI-039` rev 2).
+  const [composing, setComposing] = React.useState<string | null>(null);
+  // The field's text when the composition began: a composition that leaves it unchanged typed nothing.
+  const composedFrom = React.useRef("");
   const text = typed?.revision === revision ? typed.text : null;
   const why = text === null ? null : (parseDecimal(text, language).invalid ?? null);
   const invalid = why !== null;
@@ -89,13 +95,31 @@ function ValueField({
         aria-errormessage={invalid ? error : undefined}
         aria-describedby={describedBy}
         readOnly={readOnly}
-        value={text ?? formatDecimal(value, language)}
-        onChange={(event) => type(event.target.value)}
+        value={composing ?? text ?? formatDecimal(value, language)}
+        onCompositionStart={(event) => {
+          composedFrom.current = event.currentTarget.value;
+          setComposing(event.currentTarget.value);
+        }}
+        onChange={(event) => {
+          if (composing !== null) setComposing(event.target.value);
+          else type(event.target.value);
+        }}
+        onCompositionEnd={(event) => {
+          setComposing(null);
+          // A composition that leaves the text unchanged typed nothing. The finished text is read
+          // in its compatibility form (NFKC), so an IME's full-width "１２" is typed as "12" (#745).
+          const finished = event.currentTarget.value;
+          if (finished !== composedFrom.current) type(finished.normalize("NFKC"));
+        }}
         onKeyDown={(event) => {
+          // A key of a composition is its own (`GL-UI-039` rev 2, #745).
+          if (isCompositionKey(event)) return;
           const next = numpadDecimal(event, language);
           if (next !== null) type(next);
         }}
         onBlur={() => {
+          // A composition that never ended leaves the field with the blur.
+          setComposing(null);
           if (!invalid) setTyped(null);
         }}
         className="h-8 w-16 px-2"
