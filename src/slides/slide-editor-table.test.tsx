@@ -398,7 +398,7 @@ describe("SlideEditor table cell field across rows and columns", () => {
     type("Tables");
     const table = await saved();
     expect(table.rows[row]![column]!.runs).toEqual([{ text: "Tables", size: 16 }]);
-    expect(table.rows.flat().filter((cell) => cell.runs[0]?.text === "Tables")).toHaveLength(1);
+    expect(JSON.stringify(table.rows).split('"Tables"')).toHaveLength(2);
   });
 
   // The first row and column, so a cell slides into the edited one's place.
