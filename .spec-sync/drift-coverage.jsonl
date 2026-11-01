@@ -808,3 +808,5 @@
 {"ts":"2026-11-01T11:53:35.296Z","key":"SUI-FEATURE-128","from":null,"to":2,"disposition":"ticket","ref":"752"}
 {"ts":"2026-11-01T12:31:19.337Z","key":"GL-UI-002","from":15,"to":16,"disposition":"editorial","ref":"rev 16 adds optional per-app media scope; explicitly no package carrier (pickers belong to the apps); no suite-ui code impact"}
 {"ts":"2026-11-01T12:31:20.032Z","key":"SUI-FEATURE-126","from":2,"to":3,"disposition":"ticket","ref":"737"}
+{"ts":"2026-11-01T22:46:19.967Z","key":"SUI-DESIGN-002","from":9,"to":10,"disposition":"ticket","ref":"764"}
+{"ts":"2026-11-01T22:46:30.476Z","key":"SUI-FEATURE-064","from":4,"to":6,"disposition":"ticket","ref":"763"}
