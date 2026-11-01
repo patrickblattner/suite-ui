@@ -133,7 +133,7 @@ import {
   withLayout,
 } from "./editor-layouts.js";
 import { resizeColumn, setCell } from "./editor-table.js";
-import { formatRange, insertRuns } from "./editor-text.js";
+import { formatRange, insertRuns, type RunFormatPatch } from "./editor-text.js";
 import { offersHandle, unfollowsBy } from "./text-follow.js";
 import { paragraphCount } from "./paragraph-count.js";
 import { cssColor, eachElement, stackOrder } from "./render-style.js";
@@ -2915,6 +2915,19 @@ function Editor({
             </section>,
           ];
         });
+  // A dead key or an IME composing in the field being edited (GL-UI-039 rev 2, #736): a format from
+  // the panel, whose buttons leave the focus in the field, waits for `compositionend` (or the blur that
+  // takes the composed text in), so the field is not redrawn while composing; then it applies to the
+  // text as it is.
+  const composingText = React.useRef(false);
+  const heldFormats = React.useRef<
+    ({ patch: RunFormatPatch; merge?: string | undefined } | { body: Partial<TextBody> })[]
+  >([]);
+  const [formatsReleased, setFormatsReleased] = React.useState(0);
+  const onComposing = (on: boolean) => {
+    composingText.current = on;
+    if (!on && heldFormats.current.length > 0) setFormatsReleased((count) => count + 1);
+  };
   // The text of the selected field, or of the selected table's current cell, and the range of it the
   // format applies to while it is being edited.
   const textCell = single?.type === "table" ? currentCell : undefined;
@@ -2926,6 +2939,39 @@ function Editor({
     editing.cell?.column === textCell?.column
       ? textRange
       : undefined;
+  // A format of the selected text from the panel; one that splits the runs past a limit is refused like
+  // text (`SUI-FEATURE-114`).
+  function formatText(patch: RunFormatPatch, merge?: string) {
+    if (single === undefined || textBody === undefined) return;
+    const span = formatSpan(textBody, formatRangeOf);
+    const runs = formatRange(textBody.runs, span.start, span.end, patch);
+    if (!runsFit(runs, textBody.runs)) {
+      toast.error(t("slides.editor.formatRefused"), { id: TEXT_REFUSED_TOAST });
+      return;
+    }
+    changeBody(
+      single.id,
+      textCell,
+      (one) => ({ ...one, runs }),
+      merge === undefined ? undefined : `format:${single.id}:${merge}`,
+    );
+  }
+  function formatTextBody(patch: Partial<TextBody>) {
+    if (single === undefined) return;
+    changeBody(single.id, textCell, (one) => ({ ...one, ...patch }));
+  }
+  // The formats held while composing, applied once it ended.
+  const applyHeldFormats = React.useEffectEvent(() => {
+    const held = heldFormats.current;
+    heldFormats.current = [];
+    for (const one of held) {
+      if ("patch" in one) formatText(one.patch, one.merge);
+      else formatTextBody(one.body);
+    }
+  });
+  React.useEffect(() => {
+    if (formatsReleased > 0) applyHeldFormats();
+  }, [formatsReleased]);
   const textFields =
     single === undefined || textBody === undefined ? null : (
       <TextFormatFields
@@ -2936,21 +2982,13 @@ function Editor({
         readOnly={single.locked}
         revision={travels}
         onFormat={(patch, merge) => {
-          // A format that splits the runs past a limit is refused like text (`SUI-FEATURE-114`).
-          const span = formatSpan(textBody, formatRangeOf);
-          const runs = formatRange(textBody.runs, span.start, span.end, patch);
-          if (!runsFit(runs, textBody.runs)) {
-            toast.error(t("slides.editor.formatRefused"), { id: TEXT_REFUSED_TOAST });
-            return;
-          }
-          changeBody(
-            single.id,
-            textCell,
-            (one) => ({ ...one, runs }),
-            merge === undefined ? undefined : `format:${single.id}:${merge}`,
-          );
+          if (composingText.current) heldFormats.current.push({ patch, merge });
+          else formatText(patch, merge);
         }}
-        onBody={(patch) => changeBody(single.id, textCell, (one) => ({ ...one, ...patch }))}
+        onBody={(patch) => {
+          if (composingText.current) heldFormats.current.push({ body: patch });
+          else formatTextBody(patch);
+        }}
         onInline={(index, patch, merge) =>
           changeBody(
             single.id,
@@ -4513,6 +4551,7 @@ function Editor({
                             ? undefined
                             : tabToCell
                         }
+                        onComposing={onComposing}
                         onToggle={(format, range) => {
                           // A toggle that splits the runs past a limit is refused like text.
                           const span = formatSpan(body, range);

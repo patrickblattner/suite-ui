@@ -488,6 +488,22 @@ describe("SlideEditor text editing", () => {
     expect(rangeIn(field)).toEqual({ start: 11, end: 11 });
   });
 
+  // #736 review: an input that leaves the runs as they are still draws stray text in its run.
+  it("restyles stray text though the runs read back unchanged", async () => {
+    const { field, block } = await editCaption(BOLD_PLAIN);
+    const plain = block.querySelectorAll("[data-run]")[1]!.firstChild as Text;
+    // The last "n" moves out of the plain span: the same runs, the "n" now stray.
+    plain.deleteData(4, 1);
+    const moved = document.createTextNode("n");
+    block.append(moved);
+    selectRange(field, { start: 10, end: 10 });
+    fireEvent.input(field);
+    expect(field.textContent).toBe("Bold plain");
+    expect(moved.parentElement!.hasAttribute("data-stray")).toBe(true);
+    expect(moved.parentElement!.style.fontWeight).toBe("400");
+    expect(moved.parentElement!.style.fontStyle).toBe("normal");
+  });
+
   it("formats the whole field without a selection, and its list and alignment", () => {
     renderEditor();
     const canvas = screen.getByTestId("slide-editor-canvas");
@@ -1323,6 +1339,46 @@ describe("SlideEditor text field during a composition", () => {
     expect(field.textContent).toBe("A caption");
     expect(rangeIn(field)).toEqual({ start: 2, end: 2 });
     error.mockRestore();
+  });
+
+  // #736 review: refused at a blur, the field leaves the focus where it went.
+  it("leaves the focus where it went when a blur refuses the composed text", async () => {
+    const error = vi.spyOn(toast, "error").mockReturnValue(1);
+    const { field, text } = await editCaption();
+    field.focus();
+    fireEvent.compositionStart(field);
+    text.data = "x".repeat(SLIDE_LIMITS.maxTextLength + 1);
+    fireEvent.input(field, { isComposing: true });
+    const save = screen.getAllByTestId("editor-save")[0]!;
+    act(() => save.focus());
+    expect(error).toHaveBeenCalledTimes(1);
+    expect(field.textContent).toBe("A caption");
+    expect(document.activeElement).toBe(save);
+    // No selection is put back into the field, which in Blink would pull the focus back.
+    expect(field.contains(document.getSelection()!.anchorNode)).toBe(false);
+    error.mockRestore();
+  });
+
+  // #736 review: the panel's Bold keeps the focus in the field; pressed while composing, it waits for
+  // `compositionend`, the field not redrawn before.
+  it("holds a Bold from the panel until the composition ended", async () => {
+    const { field, text, saved } = await editCaption();
+    fireEvent.mouseDown(screen.getByTestId("property-tab-content"), { button: 0 });
+    fireEvent.compositionStart(field);
+    text.appendData("é");
+    selectRange(field, { start: 10, end: 10 });
+    fireEvent.input(field, { isComposing: true });
+    const bold = screen.getByTestId("slide-editor-text-bold");
+    fireEvent.mouseDown(bold);
+    fireEvent.click(bold);
+    expect(screen.getByTestId("slide-editor-text-field")).toBe(field);
+    expect(field.querySelector("span")!.firstChild).toBe(text);
+    expect(field.querySelector("span")!.style.fontWeight).not.toBe("700");
+    expect(bold).toHaveAttribute("aria-pressed", "false");
+    fireEvent.compositionEnd(field);
+    await waitFor(() => expect(field.querySelector("span")!.style.fontWeight).toBe("700"));
+    expect(field.textContent).toBe("A captioné");
+    expect(await saved()).toEqual([{ text: "A captioné", size: 20, weight: 700 }]);
   });
 
   // #736 review: a press on the canvas ends the editing before `compositionend`: the composed text is
