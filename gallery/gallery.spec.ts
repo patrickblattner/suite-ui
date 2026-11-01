@@ -13592,6 +13592,10 @@ test("slide text: styled numbered list columns, gaps and baselines, export equal
   // The second entry wraps, and its second line hangs at the same x.
   expect(styled.entries[1]!.lineTops).toBeGreaterThanOrEqual(2);
   expect(styled.entries[1]!.lineLefts).toHaveLength(1);
+  // SUI-DESIGN-002 rev 9 AC6 (#731): the third entry's U+2028 breaks its line under the same number,
+  // the new line hanging at the entry text's x; the numbers after it unchanged.
+  expect(styled.entries[2]!.lineTops).toBe(2);
+  expect(styled.entries[2]!.lineLefts).toHaveLength(1);
   // Entries 25 px apart beyond their lines.
   for (let at = 1; at < styled.entries.length; at += 1)
     expect(styled.entries[at]!.top - styled.entries[at - 1]!.bottom).toBeCloseTo(25, 0);

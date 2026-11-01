@@ -7,6 +7,7 @@
 import { z } from "zod";
 
 import { GRID_COLUMNS_MAX, GRID_COLUMNS_MIN } from "../ui/grid-core.js";
+import { paragraphCount } from "./paragraph-count.js";
 import { shownInError } from "./shown-in-error.js";
 
 // The current schema version. Every change of the schema raises it and adds a step to the migration
@@ -14,8 +15,9 @@ import { shownInError } from "./shown-in-error.js";
 // (`SUI-FEATURE-164`), a text field's `sizing` and a shape's `follow` (`SUI-FEATURE-165`); version 4 an
 // element's `deletable` (`SUI-FEATURE-194`); version 5 a placeholder's `prototype` (`SUI-FEATURE-320`);
 // version 6 an icon's `strokeWidth` (`SUI-FEATURE-166`); version 7 a text field's `numbered`
-// (`SUI-FEATURE-124`).
-export const SLIDE_SCHEMA_VERSION = 7;
+// (`SUI-FEATURE-124`); version 8 the cap on a text field's paragraphs (`maxParagraphs`, `SUI-DESIGN-002`
+// rev 8).
+export const SLIDE_SCHEMA_VERSION = 8;
 
 // The hard limits of a document, generous on purpose (`SUI-DESIGN-002` §Form): the schema is the one boundary apps
 // and servers share, so tightening a limit later would take a schema version. `maxGroupDepth` and
@@ -31,6 +33,8 @@ export const SLIDE_LIMITS = {
   maxMasters: 100,
   maxLayouts: 100,
   maxRuns: 1000,
+  // The paragraphs of a text field or a table cell: a `\n` in a run's text ends one.
+  maxParagraphs: 1000,
   // The height of an inline run, as a factor of its line's font size (`SUI-FEATURE-164`).
   maxInlineHeight: 4,
   // Characters of a run's text and of a page's notes.
@@ -277,11 +281,23 @@ export const runSchema = z.discriminatedUnion("inline", [
   inlineMediaRunSchema,
 ]);
 
+// The paragraphs of a field's runs at most `maxParagraphs` (`SUI-DESIGN-002` rev 8).
+function paragraphCap(runs: readonly z.output<typeof runSchema>[], context: z.RefinementCtx) {
+  if (paragraphCount(runs) > SLIDE_LIMITS.maxParagraphs) {
+    context.addIssue({
+      code: "custom",
+      message: `at most ${SLIDE_LIMITS.maxParagraphs} paragraphs`,
+      ...issue("too-big"),
+    });
+  }
+}
+
 // Per text field: alignment, line height (a multiple of the size), list and vertical alignment. A "\n"
 // in a run's text ends a paragraph; with a `bullet` or `numbered` list every paragraph is one item
-// (`SUI-DESIGN-002` §Modell).
+// (`SUI-DESIGN-002` §Modell). A U+2028 (line separator) breaks the line inside its paragraph: in a
+// list a new line of the same item.
 const textBody = {
-  runs: z.array(runSchema).max(SLIDE_LIMITS.maxRuns),
+  runs: z.array(runSchema).max(SLIDE_LIMITS.maxRuns).superRefine(paragraphCap),
   align: z.enum(["left", "center", "right", "justify"]).default("left"),
   lineHeight: z.number().positive().default(1.2),
   list: z.enum(["none", "bullet", "numbered"]).default("none"),
