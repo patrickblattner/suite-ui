@@ -208,7 +208,7 @@ describe("SlideView", () => {
     const onReport = vi.fn<(report: SlideViewReport) => void>();
     const { container } = render(
       <SlideView
-        document={{ ...SLIDE_SHOWCASE, schemaVersion: 9 } as unknown as SlideViewProps["document"]}
+        document={{ ...SLIDE_SHOWCASE, schemaVersion: 10 } as unknown as SlideViewProps["document"]}
         brand={SLIDE_BRAND}
         onReport={onReport}
       />,
@@ -919,7 +919,7 @@ describe("SlideView fonts by face, and fit after a fix", () => {
     const { rerender } = render(
       <SlideView
         {...props}
-        document={{ ...SLIDE_SHOWCASE, schemaVersion: 9 } as unknown as SlideViewProps["document"]}
+        document={{ ...SLIDE_SHOWCASE, schemaVersion: 10 } as unknown as SlideViewProps["document"]}
       />,
     );
     expect(observed).toHaveLength(0);

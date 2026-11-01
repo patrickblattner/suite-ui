@@ -1362,6 +1362,22 @@ describe("SlideEditor: numbered list properties", () => {
     expect(markers(container)).toEqual([]);
   });
 
+  // Rev 5: `fit` is kept, not offered; editing another property leaves it as it is.
+  it("keeps fit without offering it", () => {
+    const onChange = vi.fn<(document: ReadonlySlideDocument) => void>();
+    editor("numbered", onChange, { start: 2, fit: "runs" });
+    expect(screen.queryByTestId("slide-editor-list-fit")).toBeNull();
+    expect(screen.queryByLabelText(/fit/i)).toBeNull();
+    const gap = () => screen.getByLabelText("Number gap");
+    fireEvent.change(gap(), { target: { value: "75" } });
+    fireEvent.blur(gap());
+    expect(steps(onChange.mock.lastCall![0])!.numbered).toEqual({
+      start: 2,
+      fit: "runs",
+      markerGap: 75,
+    });
+  });
+
   // AC9 (rev 4): numbered → bullet → numbered keeps the settings; the bullet list ignores them.
   it("keeps the numbered settings through a switch to bullets and back", () => {
     const onChange = vi.fn<(document: ReadonlySlideDocument) => void>();

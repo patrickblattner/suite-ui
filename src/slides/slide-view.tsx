@@ -583,12 +583,17 @@ function markerSize(numbered: NumberedList, paragraph: TextRun | undefined, body
   );
 }
 
-// The size text fit steps from: its largest run, or a numbered list's largest marker
-// (`SUI-FEATURE-124`, `SUI-FEATURE-181`).
+// A styled numbered list fit by its runs (`SUI-FEATURE-124` rev 5 `fit: "runs"`).
+function fitsRuns(body: TextBody): boolean {
+  return body.list === "numbered" && body.numbered?.fit === "runs";
+}
+
+// The size text fit steps from: its largest run, or a numbered list's largest marker unless the list
+// fits by its runs (`SUI-FEATURE-124`, `SUI-FEATURE-181`).
 function textSetSize(body: TextBody): number {
   const runs = setSize(body.runs);
   const numbered = body.list === "numbered" ? body.numbered : undefined;
-  if (numbered?.marker?.size === undefined) return runs;
+  if (numbered?.marker?.size === undefined || fitsRuns(body)) return runs;
   return Math.max(runs, numbered.marker.size);
 }
 
@@ -597,20 +602,22 @@ function textSetSize(body: TextBody): number {
 // `markerGap` on every wrapped line. Number and first text line share a baseline: a number taller
 // than that line pushes the text down, never above the entry. `entryGap` lies between entries. The
 // numbers are the list's own (`start`, `value`), so a screen reader reads them; the drawn ones are
-// hidden from it. Marker, gaps and runs scale with text fit's one factor.
+// hidden from it. Marker, gaps and runs scale with text fit's one factor; fit by the runs, the gaps
+// keep their px.
 function numberedList(draw: Draw, body: TextBody, numbered: NumberedList) {
   const parts = paragraphParts(draw, body);
   const start = numbered.start ?? 1;
   const sizes = parts.map(({ paragraph }) => markerSize(numbered, paragraph, body));
   const markerGap = numbered.markerGap ?? largest(sizes) * 0.5;
+  const gapSize = fitsRuns(body) ? px : fitSize;
   const list: React.CSSProperties = {
     margin: 0,
     padding: 0,
     listStyleType: "none",
     display: "grid",
     gridTemplateColumns: "max-content minmax(0, 1fr)",
-    columnGap: fitSize(markerGap),
-    rowGap: fitSize(numbered.entryGap ?? 0),
+    columnGap: gapSize(markerGap),
+    rowGap: gapSize(numbered.entryGap ?? 0),
   };
   return (
     <ol start={start} style={list} data-slide-list="numbered">
@@ -690,8 +697,9 @@ function textBodyStyle(body: TextBody): React.CSSProperties {
 
 // A text field. With `fit`, text that overflows shrinks (one factor over all its runs, so that its
 // largest, `size`, steps down in whole pixels, to no less than 70 %);
-// what overflows still is reported. Without, it overflows visibly. It measures again only when its
-// content, box or the fonts change (`measureKey`). A size that follows the text (`sizing`,
+// what overflows still is reported; `exact` checks each step without the half-pixel tolerance.
+// Without, it overflows visibly. It measures again only when its content, box or the fonts change
+// (`measureKey`). A size that follows the text (`sizing`,
 // `SUI-FEATURE-165`) never shrinks: its text is measured instead, `both` on one line per paragraph,
 // again once an inline image has loaded, and handed on with `onMeasure`.
 function SlideText({
@@ -699,6 +707,7 @@ function SlideText({
   measureKey,
   size,
   fit,
+  exact,
   ready,
   onFit,
   sizing,
@@ -713,6 +722,8 @@ function SlideText({
   // The set size fit steps from: the largest of its text runs.
   size: number;
   fit: boolean;
+  // A styled numbered list fit by its runs: measured size ≤ box size, no tolerance (`SUI-FEATURE-124`).
+  exact: boolean;
   ready: boolean;
   onFit: (id: string, fits: boolean) => void;
   sizing: ElementOf<"text">["sizing"];
@@ -778,8 +789,9 @@ function SlideText({
     }
     // The field's size does not follow the fit factor: read once.
     const room = { width: used(frame, "width"), height: used(frame, "height") };
+    const tolerance = exact ? 0 : 0.5;
     const overflows = () =>
-      used(inner, "height") > room.height + 0.5 || widest() > room.width + 0.5;
+      used(inner, "height") > room.height + tolerance || widest() > room.width + tolerance;
     if (!overflows()) {
       onFit(id, true);
       return;
@@ -803,7 +815,7 @@ function SlideText({
     }
     set(good / size);
     onFit(id, !overflows());
-  }, [id, measureKey, size, fit, ready, onFit]);
+  }, [id, measureKey, size, fit, exact, ready, onFit]);
   return (
     <div
       ref={box}
@@ -1455,6 +1467,7 @@ function content(draw: Draw, element: SlideElement): React.ReactNode {
           ])}
           size={textSetSize(element)}
           fit={draw.fitText && element.sizing === "fixed"}
+          exact={fitsRuns(element)}
           ready={draw.ready}
           onFit={draw.onFit}
           sizing={element.sizing}

@@ -234,6 +234,108 @@ describe("SlideView styled numbered list", () => {
     expect(factor * 117).toBeCloseTo(100, 9);
   });
 
+  // Rev 5 AC10: AC2 with `fit: "runs"` in a box that forces fitting. The runs step whole pixels from
+  // their own 58 px to 49 px, the marker follows at 117 × 49/58, the gaps keep 75 and 25 px. Each
+  // step's check is exact: 0.3 px over the box overflows, where `all` would let it pass.
+  const overfull = () => {
+    const computed = window.getComputedStyle.bind(window);
+    vi.spyOn(window, "getComputedStyle").mockImplementation((element, pseudo) => {
+      const style = computed(element, pseudo);
+      const fit = (node: Element | null) =>
+        node instanceof HTMLElement ? node.style.getPropertyValue("--slide-fit") : "";
+      if (fit(element) !== "") style.height = "100px";
+      else if (fit(element.parentElement) !== "") {
+        const factor = Number(fit(element.parentElement));
+        // Fits exactly (100 px in a 100 px box) once the runs are at 49 px or less.
+        style.height = `${58 * factor > 49 + 1e-9 ? 100.3 : 100}px`;
+      }
+      return style;
+    });
+  };
+  const ac2 = (fit?: "all" | "runs") =>
+    list("First\nSecond", {
+      marker: { font: serif, size: 117, color: accent },
+      markerGap: 75,
+      entryGap: 25,
+      ...(fit === undefined ? {} : { fit }),
+    });
+  const factorOf = () =>
+    Number(
+      field()
+        .querySelector<HTMLElement>("ol")!
+        .parentElement!.parentElement!.style.getPropertyValue("--slide-fit"),
+    );
+
+  it("fits by the runs: whole-pixel runs, marker in ratio, gaps in px (rev 5 AC10)", async () => {
+    overfull();
+    const { report } = await drawn({ document: onlyPage([ac2("runs")]), fitText: true });
+    expect(factorOf() * 58).toBeCloseTo(49, 9);
+    const ol = field().querySelector<HTMLElement>("ol")!;
+    expect(ol.style.columnGap).toBe("75px");
+    expect(ol.style.rowGap).toBe("25px");
+    const marker = ol.querySelector<HTMLElement>("[data-slide-marker]")!;
+    // 117 × 49/58 drawn: the marker scales by the runs' factor.
+    expect(marker.style.fontSize).toBe("calc(var(--slide-fit, 1) * 117px)");
+    expect(factorOf() * 117).toBeCloseTo((117 * 49) / 58, 9);
+    expect(screen.getByText("First").style.fontSize).toBe("calc(var(--slide-fit, 1) * 58px)");
+    expect(report().overflowing).toEqual([]);
+  });
+
+  it("keeps the half-pixel tolerance with fit all, and fits by the marker", async () => {
+    overfull();
+    await drawn({ document: onlyPage([ac2("all")]), fitText: true });
+    expect(factorOf()).toBe(1);
+    const ol = field().querySelector<HTMLElement>("ol")!;
+    expect(ol.style.columnGap).toBe("calc(var(--slide-fit, 1) * 75px)");
+    expect(ol.style.rowGap).toBe("calc(var(--slide-fit, 1) * 25px)");
+  });
+
+  // Rev 5 (Q&A #5173): the width check is exact under `runs` too: 0.3 px wider than the box overflows.
+  it("checks the width exactly too when fit by the runs", async () => {
+    const computed = window.getComputedStyle.bind(window);
+    vi.spyOn(window, "getComputedStyle").mockImplementation((element, pseudo) => {
+      const style = computed(element, pseudo);
+      const fit = (node: Element | null) =>
+        node instanceof HTMLElement ? node.style.getPropertyValue("--slide-fit") : "";
+      if (fit(element) !== "") {
+        style.height = "100px";
+        style.width = "900px";
+      } else if (fit(element.parentElement) !== "") {
+        const factor = Number(fit(element.parentElement));
+        style.height = "50px";
+        const wide = (element as HTMLElement).style.width === "fit-content";
+        style.width = `${wide && 58 * factor > 49 + 1e-9 ? 900.3 : 900}px`;
+      }
+      return style;
+    });
+    await drawn({ document: onlyPage([ac2("runs")]), fitText: true });
+    expect(factorOf() * 58).toBeCloseTo(49, 9);
+    cleanup();
+    await drawn({ document: onlyPage([ac2("all")]), fitText: true });
+    expect(factorOf()).toBe(1);
+  });
+
+  // Rev 5 (Q&A #5173): without `markerGap`, the gap under `runs` keeps its unscaled px, half the set
+  // marker size; the marker itself still scales.
+  it("keeps an absent markerGap at half the set marker size in px when fit by the runs", async () => {
+    await drawn({ document: onlyPage([list("One", { marker: { size: 40 }, fit: "runs" })]) });
+    const ol = field().querySelector<HTMLElement>("ol")!;
+    expect(ol.style.columnGap).toBe("20px");
+    expect(ol.style.rowGap).toBe("0px");
+    expect(ol.querySelector<HTMLElement>("[data-slide-marker]")!.style.fontSize).toBe(
+      "calc(var(--slide-fit, 1) * 40px)",
+    );
+  });
+
+  // Rev 5 AC5: `numbered` without `fit` draws as `fit: "all"`.
+  it("draws numbered without fit as fit all", async () => {
+    const { unmount } = await drawn({ document: onlyPage([ac2()]) });
+    const absent = field().outerHTML;
+    unmount();
+    await drawn({ document: onlyPage([ac2("all")]) });
+    expect(field().outerHTML).toBe(absent);
+  });
+
   // AC5: `list: "numbered"` without `numbered` draws byte-identical to the previous version (the
   // markup below was taken from v0.200.1, before `numbered` existed).
   it("draws a list without numbered exactly as before", async () => {
@@ -313,14 +415,19 @@ describe("SlideView line break inside a paragraph", () => {
 
   // SUI-FEATURE-160: player and export draw the field as the view does.
   it("draws the same in the player and the export", async () => {
-    const doc = onlyPage([list("A\u2028B\nNext", { start: 1, markerGap: 20 })]);
+    const doc = onlyPage([
+      list("A\u2028B\nNext", { start: 1, markerGap: 20 }),
+      { ...list("C\nD", { markerGap: 20, entryGap: 10, fit: "runs" }), id: "r", y: 600 },
+    ]);
+    const both = () =>
+      ["l", "r"].map((id) => document.querySelector(`[data-slide-element="${id}"]`)!.innerHTML);
     const { unmount } = await drawn({ document: doc });
-    const view = field().innerHTML;
+    const view = both();
     unmount();
     render(<SlidePlayer document={doc} brand={SLIDE_BRAND} fonts={SLIDE_SERIF_FONTS} />);
-    expect(field().innerHTML).toBe(view);
+    expect(both()).toEqual(view);
     cleanup();
     render(<SlideExport document={doc} brand={SLIDE_BRAND} fonts={SLIDE_SERIF_FONTS} />);
-    expect(field().innerHTML).toBe(view);
+    expect(both()).toEqual(view);
   });
 });

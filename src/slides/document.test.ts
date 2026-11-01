@@ -220,9 +220,9 @@ describe("slide document migration", () => {
     })),
   });
 
-  it("ships seven steps, 1 → 2 up to 7 → 8, that change no content (SUI-FEATURE-192 AC4)", () => {
-    expect(SLIDE_SCHEMA_VERSION).toBe(8);
-    expect(Object.keys(SLIDE_MIGRATIONS)).toEqual(["1", "2", "3", "4", "5", "6", "7"]);
+  it("ships eight steps, 1 → 2 up to 8 → 9, that change no content (SUI-FEATURE-192 AC4)", () => {
+    expect(SLIDE_SCHEMA_VERSION).toBe(9);
+    expect(Object.keys(SLIDE_MIGRATIONS)).toEqual(["1", "2", "3", "4", "5", "6", "7", "8"]);
     expect(parseSlideDocument({ ...valid, schemaVersion: 1 })).toEqual(parseSlideDocument(valid));
   });
 
@@ -489,6 +489,31 @@ describe("slide document migration", () => {
     });
   });
 
+  // SUI-FEATURE-124 rev 5: a version-8 document loads migrated and unchanged (its lists fit `all`);
+  // a version-9 document with `fit` keeps it.
+  it("migrates a version-8 document unchanged and keeps fit (SUI-FEATURE-124 rev 5)", () => {
+    const text = {
+      id: "t",
+      type: "text",
+      x: 0,
+      y: 0,
+      width: 400,
+      height: 200,
+      list: "numbered",
+      runs: [{ text: "One\nTwo" }],
+      numbered: { start: 4, markerGap: 75 },
+    };
+    const page = (element: unknown) => ({ ...valid.pages[0]!, elements: [element] });
+    const old = parseSlideDocument({ ...valid, schemaVersion: 8, pages: [page(text)] });
+    expect(old.schemaVersion).toBe(SLIDE_SCHEMA_VERSION);
+    expect(old).toEqual(parseSlideDocument({ ...valid, pages: [page(text)] }));
+    expect(old.pages[0]!.elements[0]).toMatchObject({ numbered: { start: 4, markerGap: 75 } });
+    const runs = { ...text, numbered: { ...text.numbered, fit: "runs" } };
+    expect(
+      parseSlideDocument({ ...valid, pages: [page(runs)] }).pages[0]!.elements[0],
+    ).toMatchObject({ numbered: { fit: "runs" } });
+  });
+
   // SUI-FEATURE-124 AC6: out-of-range values are rejected by name at their path; values within the
   // bounds of `SLIDE_LIMITS` load as written.
   it.each([
@@ -502,6 +527,9 @@ describe("slide document migration", () => {
     [{ marker: { size: 0 } }, "too-small", "marker.size"],
     [{ marker: { weight: 50 } }, "too-small", "marker.weight"],
     [{ marker: { weight: 950 } }, "too-big", "marker.weight"],
+    // SUI-FEATURE-124 rev 5: `fit` is "all" or "runs".
+    [{ fit: "scale" }, "invalid-value", "fit"],
+    [{ fit: 1 }, "invalid-type", "fit"],
   ])("rejects numbered %j as %s (SUI-FEATURE-124 AC6)", (numbered, code, at) => {
     const text = {
       id: "t",
@@ -525,6 +553,7 @@ describe("slide document migration", () => {
       marker: { size: 117, weight: 900, font: { kind: "brand", key: "heading" } },
       markerGap: SLIDE_LIMITS.maxListGap,
       entryGap: 0,
+      fit: "runs",
     };
     expect(
       parseSlideDocument({ ...valid, pages: [page(within)] }).pages[0]!.elements[0],

@@ -58,6 +58,9 @@ export const SLIDE_MIGRATIONS: Readonly<Record<number, SlideMigration>> = {
   // 7 → 8 capped a text field's paragraphs (`maxParagraphs`, `SUI-DESIGN-002` rev 8): no content
   // changes; an older document over the cap is rejected after the step with the named limit error.
   7: (document) => document,
+  // 8 → 9 added a numbered list's `fit` (`SUI-FEATURE-124` rev 5): no content changes; absent, a list
+  // fits as before (`all`).
+  8: (document) => document,
 };
 
 // The document with `change` made to every element of its pages, layouts and masters, in groups too.

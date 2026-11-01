@@ -16,8 +16,8 @@ import { shownInError } from "./shown-in-error.js";
 // element's `deletable` (`SUI-FEATURE-194`); version 5 a placeholder's `prototype` (`SUI-FEATURE-320`);
 // version 6 an icon's `strokeWidth` (`SUI-FEATURE-166`); version 7 a text field's `numbered`
 // (`SUI-FEATURE-124`); version 8 the cap on a text field's paragraphs (`maxParagraphs`, `SUI-DESIGN-002`
-// rev 8).
-export const SLIDE_SCHEMA_VERSION = 8;
+// rev 8); version 9 a numbered list's `fit` (`SUI-FEATURE-124` rev 5).
+export const SLIDE_SCHEMA_VERSION = 9;
 
 // The hard limits of a document, generous on purpose (`SUI-DESIGN-002` §Form): the schema is the one boundary apps
 // and servers share, so tightening a limit later would take a schema version. `maxGroupDepth` and
@@ -307,8 +307,8 @@ const textBody = {
 // A styled numbered list (`SUI-FEATURE-124`), drawn when the field's `list` is `numbered`: entries count
 // up from `start`; the number has its own style (`marker`, absent fields from the entry's first run),
 // stands in a column as wide as the widest number, `markerGap` px before the entry's text, which hangs
-// at that indent; `entryGap` px between entries, beyond the line spacing. Absent, the list draws as
-// before.
+// at that indent; `entryGap` px between entries, beyond the line spacing; `fit` how text fit shrinks
+// it. Absent, the list draws as before.
 export const numberedListSchema = z.object({
   start: z.number().int().min(0).max(SLIDE_LIMITS.maxListStart).optional(),
   marker: z
@@ -321,6 +321,10 @@ export const numberedListSchema = z.object({
     .optional(),
   markerGap: size.max(SLIDE_LIMITS.maxListGap).optional(),
   entryGap: size.max(SLIDE_LIMITS.maxListGap).optional(),
+  // How text fit shrinks the list (rev 5): `all` (absent) scales marker, gaps and runs with one
+  // factor; `runs` steps whole pixels on the largest run, the marker in the same ratio, the gaps keep
+  // their px.
+  fit: z.enum(["all", "runs"]).optional(),
 });
 
 // A text field's size (`SUI-FEATURE-165`): `fixed` as set; `height` follows the text at a fixed
