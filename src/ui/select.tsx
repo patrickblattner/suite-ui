@@ -18,8 +18,9 @@ const SelectOpenerContext = React.createContext<{
 function Select({ ...props }: React.ComponentProps<typeof SelectPrimitive.Root>) {
   const [openedByPointer, setOpenedByPointer] = React.useState(false);
   const opener = React.useMemo(() => ({ openedByPointer, setOpenedByPointer }), [openedByPointer]);
-  // Radix calls `onValueChange` only for the person's pick, never for a value set by code; the form
-  // around it hears the pick as an edit (`GL-UI-038`).
+  // Radix calls `onValueChange` for the person's pick (and, rarely, from its hidden native select: a
+  // value set by code without a matching item, a native form reset); the form around it hears the
+  // pick as an edit (`GL-UI-038`).
   const userEdit = React.useContext(FieldUserEditContext);
   return (
     <SelectOpenerContext.Provider value={opener}>

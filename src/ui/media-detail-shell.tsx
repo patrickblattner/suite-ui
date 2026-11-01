@@ -24,7 +24,12 @@ import {
   FieldDraftsContext,
   useHasFieldDrafts,
 } from "./field-drafts-internal.js";
-import { FieldSubmitContext, FieldSubmitEndContext, useFieldSubmits } from "./field-error.js";
+import {
+  FieldSubmitContext,
+  FieldSubmitEndContext,
+  FieldUserEditContext,
+  useFieldSubmits,
+} from "./field-error.js";
 import { Hint } from "./hint.js";
 import { useLeaveConfirm } from "./leave-guard.js";
 import { Sheet, SheetTitle } from "./sheet.js";
@@ -657,7 +662,10 @@ function MediaDetailShell({
                         <FieldSubmitContext.Provider value={submits}>
                           <FieldSubmitEndContext.Provider value={submitEnds}>
                             <FieldDraftsContext.Provider value={fieldDrafts}>
-                              {slots[slot]}
+                              {/* Its own form: a pick in it is no edit of a form around it. */}
+                              <FieldUserEditContext.Provider value={null}>
+                                {slots[slot]}
+                              </FieldUserEditContext.Provider>
                             </FieldDraftsContext.Provider>
                           </FieldSubmitEndContext.Provider>
                         </FieldSubmitContext.Provider>

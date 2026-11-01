@@ -17,6 +17,7 @@ import { createFieldDrafts, FieldDraftsContext } from "./field-drafts-internal.j
 import {
   FieldSubmitContext,
   FieldSubmitEndContext,
+  FieldUserEditContext,
   submitLocked,
   useFieldSubmits,
 } from "./field-error.js";
@@ -295,7 +296,10 @@ function EditPanel({
   const fields = (
     <FieldSubmitContext.Provider value={view ? null : submits}>
       <FieldSubmitEndContext.Provider value={submitEnds}>
-        <FieldDraftsContext.Provider value={fieldDrafts}>{children}</FieldDraftsContext.Provider>
+        <FieldDraftsContext.Provider value={fieldDrafts}>
+          {/* Its own form: a pick in it is no edit of a form around the panel. */}
+          <FieldUserEditContext.Provider value={null}>{children}</FieldUserEditContext.Provider>
+        </FieldDraftsContext.Provider>
       </FieldSubmitEndContext.Provider>
     </FieldSubmitContext.Provider>
   );

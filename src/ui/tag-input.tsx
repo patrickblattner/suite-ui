@@ -5,7 +5,7 @@ import { cn } from "../lib/cn.js";
 import { usePopupPlacement } from "../lib/popup-placement.js";
 import { Badge } from "./badge.js";
 import { useFieldDraft } from "./field-drafts-internal.js";
-import { useFieldErrorAttributes } from "./field-error.js";
+import { FieldUserEditContext, useFieldErrorAttributes } from "./field-error.js";
 import { isInLeaveGuardDialog } from "./leave-guard.js";
 import { READ_ONLY_LOOK } from "./read-only-look-internal.js";
 import { RemovableChip } from "./removable-chip.js";
@@ -180,9 +180,14 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
 
   const raw = { interpolation: { escapeValue: false } };
 
+  // The form around it hears a removed or added tag as the person's edit (`GL-UI-038`, #739): a chip's
+  // × and Backspace in the empty field send no input or change event.
+  const userEdit = React.useContext(FieldUserEditContext);
+
   // Read-only, the field shows its tags and changes none of them (#561).
   const remove = (tag: string) => {
     if (readOnly) return;
+    userEdit?.();
     onChange(value.filter((other) => other !== tag));
     setAnnouncement(t("tags.removed", { tag, ...raw }));
   };
@@ -214,6 +219,7 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
     if (readOnly) return;
     const added = adding(picked);
     if (added.length > 0) {
+      userEdit?.();
       onChange([...value, ...added]);
       // Several tags from one entry are announced together (`SUI-FEATURE-052`).
       setAnnouncement(

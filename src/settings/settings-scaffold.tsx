@@ -124,8 +124,9 @@ function SettingsScaffold({
     if (!target.matches("input, textarea, select, [contenteditable]")) return;
     setSaveRun("none");
   };
-  // A pick by the person in a Select or Combobox: such a control sets its value by code, so it reports
-  // the pick itself instead of a trusted event (#739).
+  // A change by the person in a package control that sets its value by code or from a button (Select,
+  // Combobox, TimezoneCombobox, Checkbox, Switch, RadioGroup, Slider, TagInput, RestoreDefaultsButton):
+  // it reports the change itself instead of a trusted event (`FieldUserEditContext`, #739).
   const saving = form?.saving === true;
   const userEdit = React.useCallback(() => {
     if (!saving) setSaveRun("none");

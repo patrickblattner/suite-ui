@@ -38,10 +38,12 @@ const FieldSubmitContext = React.createContext<number | null>(null);
 // their errors late again, without remounting them.
 const FieldSubmitEndContext = React.createContext(0);
 
-// What a package control calls with each value the person picks in it (a Select's item, a
-// Combobox's option), inside a form that drops a started save on the person's next edit (`GL-UI-038`
-// §Absenden: values put back by hand end nothing). Such a control sets its value by code, so its
-// input and change events are not trusted and the form cannot tell the pick from a value set by code.
+// What a package control calls with each change the person makes in it, inside a form that drops a
+// started save on the person's next edit (`GL-UI-038` §Absenden: values put back by hand end
+// nothing): Select, Combobox, TimezoneCombobox, Checkbox, Switch, RadioGroup, Slider, TagInput (a
+// chip added or removed) and RestoreDefaultsButton. Such a control sets its value by code or changes
+// it from a button, so no trusted input or change event tells the form of the person's change. A
+// nested form (EditPanel, MediaDetailShell, CreateAndSelectDialog) provides null.
 const FieldUserEditContext = React.createContext<(() => void) | null>(null);
 
 // The submit count a form passes to `FieldSubmitContext`, and what it calls on every submit with

@@ -9,10 +9,13 @@ import { Checkbox } from "../ui/checkbox.js";
 import { Combobox } from "../ui/combobox.js";
 import { Input } from "../ui/input.js";
 import { RadioGroup, RadioGroupItem } from "../ui/radio-group.js";
+import { RestoreDefaultsButton } from "../ui/restore-defaults-button.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select.js";
 import { Slider } from "../ui/slider.js";
 import { Switch } from "../ui/switch.js";
 import { TabsContent, TabsList, TabsTrigger } from "../ui/tabs.js";
+import { TagInput } from "../ui/tag-input.js";
+import { TimezoneCombobox } from "../ui/timezone-combobox.js";
 import { SettingsField } from "./settings-field.js";
 import { SettingsScaffold } from "./settings-scaffold.js";
 
@@ -1009,6 +1012,238 @@ describe("SettingsScaffold: a pick put back after a failed save keeps the submit
       // Clean again: the saved choice is back.
       expect(screen.getByTestId("settings-general-reset")).toHaveAttribute("aria-disabled", "true");
       expect(screen.getByText("Enter a city.")).toBeInTheDocument();
+    },
+  );
+
+  // One value in the form, saved as `initial`, beside an untouched required City field. "by code" sets
+  // the saved value back by code; "saved" ends a save in flight with the current value saved. With
+  // `pending` a save sets `saving` and keeps it until "saved"; without it the save saves nothing.
+  function ValueForm({
+    initial,
+    pending = false,
+    field,
+  }: {
+    initial: string;
+    pending?: boolean;
+    field: (value: string, setValue: (next: string) => void) => React.ReactNode;
+  }) {
+    const [saved, setSaved] = useState(initial);
+    const [value, setValue] = useState(initial);
+    const [city, setCity] = useState("");
+    const [saving, setSaving] = useState(false);
+    return (
+      <SettingsScaffold
+        pageKey="general"
+        title="General"
+        subtitle="The name of this instance."
+        left={
+          <>
+            {field(value, setValue)}
+            <button type="button" data-testid="by-code" onClick={() => setValue(saved)}>
+              by code
+            </button>
+            <button
+              type="button"
+              data-testid="saved"
+              onClick={() => {
+                setSaved(value);
+                setSaving(false);
+              }}
+            >
+              saved
+            </button>
+            <SettingsField
+              label="City"
+              htmlFor="city"
+              error={city === "" ? "Enter a city." : undefined}
+            >
+              <Input id="city" value={city} onChange={(event) => setCity(event.target.value)} />
+            </SettingsField>
+          </>
+        }
+        form={{
+          dirty: value !== saved,
+          valid: true,
+          saving,
+          onSave: () => {
+            if (pending) setSaving(true);
+          },
+          onReset: () => {},
+        }}
+      />
+    );
+  }
+
+  const tick = () => act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+  const reset = () => screen.getByTestId("settings-general-reset");
+  async function failedSubmit() {
+    await tick();
+    expect(reset()).not.toHaveAttribute("aria-disabled");
+    fireEvent.submit(screen.getByTestId("settings-general-form"));
+    expect(await screen.findByText("Enter a city.")).toBeInTheDocument();
+  }
+  async function cleanWithError(visible: boolean) {
+    await tick();
+    expect(reset()).toHaveAttribute("aria-disabled", "true");
+    if (visible) expect(screen.getByText("Enter a city.")).toBeInTheDocument();
+    else expect(screen.queryByText("Enter a city.")).toBeNull();
+  }
+
+  const tags = (value: string, setValue: (next: string) => void) => (
+    <TagInput
+      aria-label="Tags"
+      value={value.split(",")}
+      onChange={(next) => setValue(next.join(","))}
+      testId="tags"
+    />
+  );
+  const tagField = () => screen.getByTestId("tags").querySelector("input")!;
+  const addTag = (tag: string) => {
+    fireEvent.change(tagField(), { target: { value: tag } });
+    fireEvent.keyDown(tagField(), { key: "Enter" });
+  };
+
+  it("timezone combobox: a failed save, then the saved zone picked back → the city's error stays", async () => {
+    render(
+      <Trusted>
+        <ValueForm
+          initial="Europe/Berlin"
+          field={(value, setValue) => (
+            <>
+              <label htmlFor="tz">Zone</label>
+              <TimezoneCombobox id="tz" value={value} onValueChange={setValue} />
+            </>
+          )}
+        />
+      </Trusted>,
+    );
+    const pickZone = (zone: string) => {
+      fireEvent.click(screen.getByRole("combobox", { name: "Zone" }));
+      fireEvent.click(screen.getByRole("option", { name: zone }));
+    };
+    pickZone("Europe/Paris");
+    await failedSubmit();
+    pickZone("Europe/Berlin");
+    await cleanWithError(true);
+  });
+
+  it.each([
+    ["×", () => fireEvent.click(screen.getAllByTestId("tags-remove")[1]!)],
+    ["Backspace in the empty field", () => fireEvent.keyDown(tagField(), { key: "Backspace" })],
+  ])(
+    "tag input: a failed save, then the added tag removed with %s → the city's error stays",
+    async (_how, removeLast) => {
+      render(
+        <Trusted>
+          <ValueForm initial="a" field={tags} />
+        </Trusted>,
+      );
+      addTag("b");
+      await failedSubmit();
+      removeLast();
+      await cleanWithError(true);
+    },
+  );
+
+  it("tag input: a failed save, then the removed tag added back → the city's error stays", async () => {
+    render(
+      <Trusted>
+        <ValueForm initial="a,b" field={tags} />
+      </Trusted>,
+    );
+    fireEvent.click(screen.getAllByTestId("tags-remove")[1]!);
+    await failedSubmit();
+    addTag("b");
+    await cleanWithError(true);
+  });
+
+  it("Restore defaults: a failed save, then defaults equal to the saved values restored → the city's error stays", async () => {
+    render(
+      <Trusted>
+        <ValueForm
+          initial="basic"
+          field={(value, setValue) => (
+            <>
+              <Checkbox
+                aria-label="Plan"
+                checked={value === "pro"}
+                onCheckedChange={(checked) => setValue(checked === true ? "pro" : "basic")}
+              />
+              <RestoreDefaultsButton onClick={() => setValue("basic")} />
+            </>
+          )}
+        />
+      </Trusted>,
+    );
+    fireEvent.click(screen.getByRole("checkbox", { name: "Plan" }));
+    await failedSubmit();
+    fireEvent.click(screen.getByTestId("restore-defaults"));
+    await cleanWithError(true);
+  });
+
+  it("a change while the save is in flight drops nothing: the save's clean end ends the submit state", async () => {
+    render(
+      <Trusted>
+        <ValueForm
+          initial="basic"
+          pending
+          field={(value, setValue) => (
+            <Checkbox
+              aria-label="Plan"
+              checked={value === "pro"}
+              onCheckedChange={(checked) => setValue(checked === true ? "pro" : "basic")}
+            />
+          )}
+        />
+      </Trusted>,
+    );
+    const plan = () => screen.getByRole("checkbox", { name: "Plan" });
+    fireEvent.click(plan());
+    await failedSubmit();
+    // Saving: toggled off and on again, the value the save started with.
+    fireEvent.click(plan());
+    fireEvent.click(plan());
+    await tick();
+    fireEvent.click(screen.getByTestId("saved"));
+    await cleanWithError(false);
+  });
+
+  it.each(["select", "checkbox"] as const)(
+    "%s set by code to the saved value keeps the started save: its clean end ends the submit state",
+    async (control) => {
+      render(
+        <Trusted>
+          <ValueForm
+            initial="basic"
+            field={(value, setValue) =>
+              control === "select" ? (
+                <Select value={value} onValueChange={setValue}>
+                  <SelectTrigger fieldName="Plan">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {OPTIONS.map((option) => (
+                      <SelectItem key={option.value} value={option.value}>
+                        {option.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Checkbox
+                  aria-label="Plan"
+                  checked={value === "pro"}
+                  onCheckedChange={(checked) => setValue(checked === true ? "pro" : "basic")}
+                />
+              )
+            }
+          />
+        </Trusted>,
+      );
+      pick(control, "Pro");
+      await failedSubmit();
+      fireEvent.click(screen.getByTestId("by-code"));
+      await cleanWithError(false);
     },
   );
 });

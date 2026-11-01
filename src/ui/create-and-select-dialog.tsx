@@ -13,7 +13,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "./dialog.js";
-import { FieldSubmitContext, FieldSubmitEndContext, useFieldSubmits } from "./field-error.js";
+import {
+  FieldSubmitContext,
+  FieldSubmitEndContext,
+  FieldUserEditContext,
+  useFieldSubmits,
+} from "./field-error.js";
 import { Hint } from "./hint.js";
 import { useLeaveConfirm } from "./leave-guard.js";
 
@@ -190,7 +195,10 @@ function CreateAndSelectDialog<T extends ComboboxOption = ComboboxOption>({
             <DialogBody className="flex flex-col gap-4">
               <FieldSubmitContext.Provider value={submits}>
                 <FieldSubmitEndContext.Provider value={submitEnds}>
-                  {children({ name: "name", defaultValue: initialName })}
+                  {/* Its own form: a pick in it is no edit of a form around the dialog. */}
+                  <FieldUserEditContext.Provider value={null}>
+                    {children({ name: "name", defaultValue: initialName })}
+                  </FieldUserEditContext.Provider>
                 </FieldSubmitEndContext.Provider>
               </FieldSubmitContext.Provider>
               {/* A status, neither error nor warning (`SUI-FEATURE-093` rev 4): muted, with an info
