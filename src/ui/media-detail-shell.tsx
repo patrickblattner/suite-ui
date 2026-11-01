@@ -383,16 +383,38 @@ function MediaDetailShell({
   const preview = React.useRef<HTMLDivElement>(null);
   // A submit shows every field's error and focuses the first invalid field (`GL-UI-038`).
   const [submits, submitted] = useFieldSubmits();
+  const form = React.useRef<HTMLFormElement>(null);
   const pickSlot = React.useRef<HTMLSpanElement>(null);
   // The typed but uncommitted entries of the shell's own fields (`SUI-FEATURE-118` rev 6): they make
   // the Reset/Save pair dirty as they make the guard ask.
   const [fieldDrafts] = React.useState(createFieldDrafts);
   const hasFieldDrafts = useHasFieldDrafts(fieldDrafts);
   const changed = dirty || hasFieldDrafts;
+  // The page's submit, from its own Save and from Save in the leave dialog alike: a save that does not
+  // report success shows every invalid field's error and focuses the first, also one the user never
+  // left (`GL-UI-038` §Absenden, `SUI-FEATURE-150`); a successful one arms nothing for the next medium.
+  function attempt(): unknown {
+    const failed = () => {
+      if (form.current !== null) submitted(form.current);
+    };
+    let result: unknown;
+    try {
+      result = dirty ? onSave() : false;
+    } catch (error) {
+      failed();
+      throw error;
+    }
+    if (typeof (result as { then?: unknown } | null)?.then === "function") {
+      (result as PromiseLike<unknown>).then((value) => {
+        if (value !== true) failed();
+      }, failed);
+    } else if (result !== true) failed();
+    return result;
+  }
   const { guard, dialog } = useLeaveConfirm({
     dirty: open && dirty,
     busy: open && saving,
-    onSave: () => (dirty ? onSave() : false),
+    onSave: attempt,
     fieldDrafts,
   });
   // A submit with a field's entry takes it over first and saves once the call site has rendered with
@@ -402,7 +424,7 @@ function MediaDetailShell({
   React.useEffect(() => {
     if (!flushedSave.current) return;
     flushedSave.current = false;
-    if (dirty && !saving) void onSave();
+    if (!saving) void attempt();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once per flush
   }, [flushes]);
   const first = position <= 1;
@@ -484,17 +506,17 @@ function MediaDetailShell({
         >
           {/* Validation belongs to the call site (`GL-UI-027`); Enter in a field saves. */}
           <form
+            ref={form}
             noValidate
             className="flex min-h-0 flex-1 flex-col"
             onSubmit={(event) => {
               event.preventDefault();
-              if (!saving) submitted(event.currentTarget);
               if (saving) return;
               if (fieldDrafts.any()) {
                 fieldDrafts.flush();
                 flushedSave.current = true;
                 setFlushes((count) => count + 1);
-              } else if (dirty) void onSave();
+              } else void attempt();
             }}
           >
             <div data-slot="media-detail-split" className="@container min-h-0 flex-1">
