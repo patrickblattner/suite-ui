@@ -175,7 +175,7 @@ describe("line break inside a paragraph", () => {
     fillEditable(
       root,
       [
-        { text: "A ", size: 20 },
+        { text: "A\u2028", size: 20 },
         { inline: "icon", icon: "star", height: 1 },
       ],
       SLIDE_BRAND,
@@ -183,11 +183,11 @@ describe("line break inside a paragraph", () => {
     );
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
     let placeholder = walker.nextNode() as Text | null;
-    while (placeholder !== null && placeholder.data !== "​") {
+    while (placeholder !== null && placeholder.data !== "\u200B") {
       placeholder = walker.nextNode() as Text | null;
     }
     // The browser types into the placeholder's own node.
-    placeholder!.data = "​B";
+    placeholder!.data = "\u200BB";
     selectRange(root, { start: 3, end: 4 });
     const dom = document.getSelection()!.getRangeAt(0);
     expect(dom.toString()).not.toContain("B");

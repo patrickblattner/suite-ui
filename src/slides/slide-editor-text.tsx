@@ -493,7 +493,7 @@ export function rangeIn(root: HTMLElement): TextRange | undefined {
 function dataOffset(data: string, offset: number): number {
   let seen = 0;
   for (let index = 0; index < data.length; index += 1) {
-    if (data[index] === "​") continue;
+    if (data[index] === "\u200B") continue;
     if (seen === offset) return index;
     seen += 1;
   }
