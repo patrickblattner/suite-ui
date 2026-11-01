@@ -796,7 +796,15 @@ export function InlineTextEditor({
               selectRange(node, { start, end: start + 1 });
             }}
             onDoubleClick={(event) => event.stopPropagation()}
-            onInput={() => {
+            onCompositionEnd={() => {
+              // The text composed at a stray position takes its run's style once composing ends.
+              const node = root.current;
+              if (node === null) return;
+              const stray = new Map<Text, TextRun>();
+              readRuns(node, filled.current, emitted.current ?? filled.current, stray);
+              styleStray(node, stray, brand);
+            }}
+            onInput={(event) => {
               const node = root.current;
               if (node === null) return;
               const stray = new Map<Text, TextRun>();
@@ -804,7 +812,10 @@ export function InlineTextEditor({
               emitted.current = runs;
               if (onRuns(runs, rangeIn(node))) {
                 syncParagraphs(node, runs, brand, numbered);
-                styleStray(node, stray, brand);
+                // Moving the text a dead key or an IME is composing would cancel or double it.
+                if ((event.nativeEvent as InputEvent).isComposing !== true) {
+                  styleStray(node, stray, brand);
+                }
                 return;
               }
               // Refused: the typed text goes again, the caret back where it was.

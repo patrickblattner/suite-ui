@@ -366,31 +366,32 @@ describe("SlideEditor text editing", () => {
 
   // #725: text typed outside a run's span is drawn in the run it is stored in, not in its paragraph
   // block's first-run weight and style; the block keeps them for its line box (#717).
-  it("draws plain text typed at a bold-led paragraph's end in its plain run, before and after refill", async () => {
-    const boldCaption = {
+  // The caption as `runs`, its text field open.
+  const editCaption = async (runs: readonly unknown[]) => {
+    const caption = {
       ...SLIDE_EDITOR_DOC,
       pages: SLIDE_EDITOR_DOC.pages.map((page) => ({
         ...page,
         elements: page.elements?.map((element) =>
-          element.id === "caption"
-            ? {
-                ...element,
-                runs: [
-                  { text: "Bold ", size: 20, weight: 700, italic: true },
-                  { text: "plain", size: 20 },
-                ],
-              }
-            : element,
+          element.id === "caption" ? { ...element, runs } : element,
         ),
       })),
     } as typeof SLIDE_EDITOR_DOC;
-    renderEditor(undefined, { document: boldCaption });
+    renderEditor(undefined, { document: caption });
     const canvas = screen.getByTestId("slide-editor-canvas");
     fireEvent.pointerDown(canvas, { ...at(100, 400), button: 0, pointerId: 1 });
     fireEvent.pointerUp(canvas, at(100, 400));
     fireEvent.doubleClick(canvas, at(100, 400));
     const field = await screen.findByTestId("slide-editor-text-field");
-    const block = field.children[0] as HTMLElement;
+    return { field, block: field.children[0] as HTMLElement };
+  };
+  const BOLD_PLAIN = [
+    { text: "Bold ", size: 20, weight: 700, italic: true },
+    { text: "plain", size: 20 },
+  ];
+
+  it("draws plain text typed at a bold-led paragraph's end in its plain run, before and after refill", async () => {
+    const { field, block } = await editCaption(BOLD_PLAIN);
 
     // Typed after the plain span, outside it: stored in the plain run, drawn at 400 and upright.
     const typed = document.createTextNode(" more");
@@ -414,6 +415,70 @@ describe("SlideEditor text editing", () => {
     expect(spans[1]!.style.fontWeight).toBe("400");
     expect(spans[1]!.style.fontStyle).toBe("normal");
     expect((field.children[0] as HTMLElement).style.fontWeight).toBe("700");
+  });
+
+  it("restyles stray text typed on into its span, wrapping it no second time", async () => {
+    const { field, block } = await editCaption(BOLD_PLAIN);
+    const typed = document.createTextNode(" more");
+    block.append(typed);
+    selectRange(field, { start: 15, end: 15 });
+    fireEvent.input(field);
+    const span = typed.parentElement!;
+    span.style.fontWeight = "700";
+    typed.appendData(" text");
+    selectRange(field, { start: 20, end: 20 });
+    fireEvent.input(field);
+    expect(typed.parentElement).toBe(span);
+    expect(field.querySelectorAll("[data-stray]")).toHaveLength(1);
+    expect(span.style.fontWeight).toBe("400");
+    expect(rangeIn(field)).toEqual({ start: 20, end: 20 });
+  });
+
+  it("draws stray text before any span in the first run it is stored in", async () => {
+    const { field, block } = await editCaption([
+      { text: "plain ", size: 20 },
+      { text: "bold", size: 20, weight: 700, italic: true },
+    ]);
+    const typed = document.createTextNode("X");
+    block.prepend(typed);
+    selectRange(field, { start: 1, end: 1 });
+    fireEvent.input(field);
+    expect(field.textContent).toBe("Xplain bold");
+    expect(typed.parentElement!.hasAttribute("data-stray")).toBe(true);
+    expect(typed.parentElement!.style.fontWeight).toBe("400");
+    expect(typed.parentElement!.style.fontStyle).toBe("normal");
+    expect(rangeIn(field)).toEqual({ start: 1, end: 1 });
+  });
+
+  it("draws stray text after an inline run in the text run before it", async () => {
+    const { field, block } = await editCaption([
+      ...BOLD_PLAIN,
+      { inline: "icon", icon: "star", height: 1 },
+    ]);
+    const typed = document.createTextNode(" after");
+    block.append(typed);
+    selectRange(field, { start: 17, end: 17 });
+    fireEvent.input(field);
+    expect(typed.parentElement!.hasAttribute("data-stray")).toBe(true);
+    expect(typed.parentElement!.style.fontWeight).toBe("400");
+    expect(typed.parentElement!.style.fontStyle).toBe("normal");
+    expect(rangeIn(field)).toEqual({ start: 17, end: 17 });
+  });
+
+  // A dead key or an IME composing at a stray position: the text is not moved until composing ends.
+  it("leaves stray text being composed in place and styles it on compositionend", async () => {
+    const { field, block } = await editCaption(BOLD_PLAIN);
+    const typed = document.createTextNode("é");
+    block.append(typed);
+    selectRange(field, { start: 11, end: 11 });
+    fireEvent.input(field, { isComposing: true });
+    expect(typed.parentElement).toBe(block);
+    expect(field.querySelectorAll("[data-stray]")).toHaveLength(0);
+    fireEvent.compositionEnd(field);
+    expect(typed.parentElement!.hasAttribute("data-stray")).toBe(true);
+    expect(typed.parentElement!.style.fontWeight).toBe("400");
+    expect(typed.parentElement!.style.fontStyle).toBe("normal");
+    expect(rangeIn(field)).toEqual({ start: 11, end: 11 });
   });
 
   it("formats the whole field without a selection, and its list and alignment", () => {
