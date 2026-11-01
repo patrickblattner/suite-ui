@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import i18n from "i18next";
 import * as React from "react";
 import { SendIcon } from "lucide-react";
@@ -1058,6 +1058,9 @@ describe("MediaDetailShell: Save in the leave dialog is a submit", () => {
       expect(screen.getByText("Enter a title.")).toBeInTheDocument();
       expect(screen.getByText("Describe the image.")).toBeInTheDocument();
       await waitFor(() => expect(screen.getByLabelText("Title")).toHaveFocus());
+      // A later focus restore as the dialog closes must not take it away again.
+      await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+      expect(screen.getByLabelText("Title")).toHaveFocus();
     },
   );
 
@@ -1071,6 +1074,90 @@ describe("MediaDetailShell: Save in the leave dialog is a submit", () => {
     expect(onSave).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId("leave-guard")).toBeNull();
     expect(screen.queryByText("Enter a title.")).toBeNull();
+  });
+
+  // A successful Save in the leave dialog pages on: the next medium's untouched invalid field shows
+  // no error and takes no focus.
+  function Paged({ onSave }: { onSave: () => unknown }) {
+    const [position, setPosition] = React.useState(1);
+    const [titles, setTitles] = React.useState(["Set", ""]);
+    const [note, setNote] = React.useState("");
+    const title = titles[position - 1]!;
+    return (
+      <MediaDetailShell
+        position={position}
+        total={2}
+        kind="image"
+        src="/media/team-photo.jpg"
+        alt="team-photo.jpg"
+        dirty={note !== ""}
+        saving={false}
+        onSave={onSave}
+        onReset={() => setNote("")}
+        onPrev={() => setPosition(1)}
+        onNext={() => {
+          setNote("");
+          setPosition(2);
+        }}
+        onClose={() => {}}
+        fields={
+          <>
+            <Field
+              label="Title"
+              htmlFor="title"
+              error={title === "" ? "Enter a title." : undefined}
+            >
+              <Input
+                id="title"
+                value={title}
+                onChange={(event) =>
+                  setTitles((all) =>
+                    all.map((t, i) => (i === position - 1 ? event.target.value : t)),
+                  )
+                }
+              />
+            </Field>
+            <Field label="Note" htmlFor="note">
+              <Input id="note" value={note} onChange={(event) => setNote(event.target.value)} />
+            </Field>
+          </>
+        }
+      />
+    );
+  }
+
+  it.each([
+    ["sync", () => true],
+    ["async", () => Promise.resolve(true)],
+  ])(
+    "a valid medium, Next, Save in the leave dialog (%s) → the next medium shows no error, focus stays",
+    async (_kind, save) => {
+      const onSave = vi.fn(save);
+      render(<Paged onSave={onSave} />);
+      changeNote();
+      fireEvent.click(screen.getByTestId("media-detail-next"));
+      fireEvent.click(await screen.findByTestId("leave-guard-save"));
+      await waitFor(() =>
+        expect(screen.getByTestId("media-detail-position")).toHaveTextContent("2 of 2"),
+      );
+      await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+      expect(onSave).toHaveBeenCalledTimes(1);
+      expect(screen.queryByTestId("leave-guard")).toBeNull();
+      expect(screen.queryByText("Enter a title.")).toBeNull();
+      expect(screen.getByLabelText("Title")).not.toHaveFocus();
+    },
+  );
+
+  it("Save in the leave dialog whose promise settles to false shows the errors", async () => {
+    const onSave = vi.fn(() => Promise.resolve(false));
+    renderGuarded({ onSave });
+    changeNote();
+    fireEvent.click(screen.getByTestId("media-detail-next"));
+    fireEvent.click(await screen.findByTestId("leave-guard-save"));
+    await waitFor(() => expect(screen.getByText("Enter a title.")).toBeInTheDocument());
+    expect(screen.getByText("Describe the image.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByLabelText("Title")).toHaveFocus());
+    expect(screen.getByTestId("path")).toHaveTextContent("/media/2");
   });
 
   it("a valid form: Save in the leave dialog on Close saves and closes", async () => {
