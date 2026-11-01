@@ -500,7 +500,7 @@ describe("SlideEditor table cell field across rows and columns", () => {
   });
 
   // GL-UI-050: the last Delete row locks itself with `aria-disabled` and keeps the focus.
-  it("keeps the focus on Delete row as it locks at one row; a second press does nothing", async () => {
+  it("keeps the focus on Delete row as it locks at one row; a second press does nothing", () => {
     const { press: pressAt, cells } = renderEditor();
     pressAt(500, 30);
     fireEvent.mouseDown(screen.getByTestId("property-tab-content"), { button: 0 });
