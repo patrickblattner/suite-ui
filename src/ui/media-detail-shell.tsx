@@ -24,7 +24,7 @@ import {
   FieldDraftsContext,
   useHasFieldDrafts,
 } from "./field-drafts-internal.js";
-import { FieldSubmitContext, useFieldSubmits } from "./field-error.js";
+import { FieldSubmitContext, FieldSubmitEndContext, useFieldSubmits } from "./field-error.js";
 import { Hint } from "./hint.js";
 import { useLeaveConfirm } from "./leave-guard.js";
 import { Sheet, SheetTitle } from "./sheet.js";
@@ -382,7 +382,15 @@ function MediaDetailShell({
   const returnFocus = React.useRef<HTMLElement | null>(null);
   const preview = React.useRef<HTMLDivElement>(null);
   // A submit shows every field's error and focuses the first invalid field (`GL-UI-038`).
-  const [submits, submitted] = useFieldSubmits();
+  const [submits, submitted, endSubmits, submitEnds] = useFieldSubmits();
+  // A different medium (as for the preview: a different position) ends the submit state, in the
+  // render that shows it: its untouched fields show their errors late again, and they stay mounted, so
+  // the focus survives paging (`GL-UI-038` rev 3).
+  const [shownPosition, setShownPosition] = React.useState(position);
+  if (position !== shownPosition) {
+    setShownPosition(position);
+    endSubmits();
+  }
   const form = React.useRef<HTMLFormElement>(null);
   const pickSlot = React.useRef<HTMLSpanElement>(null);
   // The typed but uncommitted entries of the shell's own fields (`SUI-FEATURE-118` rev 6): they make
@@ -392,10 +400,14 @@ function MediaDetailShell({
   const changed = dirty || hasFieldDrafts;
   // The page's submit, from its own Save and from Save in the leave dialog alike: a save that does not
   // report success shows every invalid field's error and focuses the first, also one the user never
-  // left (`GL-UI-038` §Absenden, `SUI-FEATURE-150`); a successful one arms nothing for the next medium.
+  // left (`GL-UI-038` §Absenden, `SUI-FEATURE-150`); a successful one ends the submit state.
   function attempt(): unknown {
     const failed = () => {
       if (form.current !== null) submitted(form.current);
+    };
+    const settled = (value: unknown) => {
+      if (value === true) endSubmits();
+      else failed();
     };
     let result: unknown;
     try {
@@ -405,10 +417,8 @@ function MediaDetailShell({
       throw error;
     }
     if (typeof (result as { then?: unknown } | null)?.then === "function") {
-      (result as PromiseLike<unknown>).then((value) => {
-        if (value !== true) failed();
-      }, failed);
-    } else if (result !== true) failed();
+      (result as PromiseLike<unknown>).then(settled, failed);
+    } else settled(result);
     return result;
   }
   const { guard, dialog } = useLeaveConfirm({
@@ -636,9 +646,11 @@ function MediaDetailShell({
                     slots[slot] === undefined ? null : (
                       <div key={slot} data-slot={`media-detail-${slot}`}>
                         <FieldSubmitContext.Provider value={submits}>
-                          <FieldDraftsContext.Provider value={fieldDrafts}>
-                            {slots[slot]}
-                          </FieldDraftsContext.Provider>
+                          <FieldSubmitEndContext.Provider value={submitEnds}>
+                            <FieldDraftsContext.Provider value={fieldDrafts}>
+                              {slots[slot]}
+                            </FieldDraftsContext.Provider>
+                          </FieldSubmitEndContext.Provider>
                         </FieldSubmitContext.Provider>
                       </div>
                     ),

@@ -499,3 +499,63 @@ describe("SettingsScaffold submit of an invalid form", () => {
     await waitFor(() => expect(screen.getByTestId("mode-a")).toHaveFocus());
   });
 });
+
+// #735 (GL-UI-038 rev 3 §Absenden): a save that leaves the form clean ends the submit state; a value
+// that turns invalid afterwards without being typed shows its error late again.
+describe("SettingsScaffold: a successful save ends the submit state", () => {
+  function Page({ saves }: { saves: boolean }) {
+    const [saved, setSaved] = useState("Init");
+    const [name, setName] = useState("");
+    return (
+      <SettingsScaffold
+        pageKey="general"
+        title="General"
+        subtitle="The name of this instance."
+        left={
+          <>
+            <SettingsField
+              label="Name"
+              htmlFor="name"
+              error={name === "" ? "Enter a name." : undefined}
+            >
+              <Input id="name" value={name} onChange={(event) => setName(event.target.value)} />
+            </SettingsField>
+            {/* A value from elsewhere (a reload), not typed. */}
+            <button type="button" data-testid="clear" onClick={() => setName("")}>
+              clear
+            </button>
+          </>
+        }
+        form={{
+          dirty: name !== saved,
+          valid: name !== "",
+          onSave: () => {
+            if (saves) setSaved(name);
+          },
+          onReset: () => setName(saved),
+        }}
+      />
+    );
+  }
+
+  const submit = () => fireEvent.submit(screen.getByLabelText("Name").closest("form")!);
+
+  it.each([
+    [true, "late"],
+    [false, "at once"],
+  ])(
+    "saves %s: after a failed submit and a save, a cleared value shows its error %s",
+    async (saves) => {
+      render(<Page saves={saves} />);
+      submit();
+      expect(await screen.findByText("Enter a name.")).toBeInTheDocument();
+      const name = screen.getByLabelText("Name");
+      fireEvent.change(name, { target: { value: "Ada" } });
+      fireEvent.blur(name);
+      submit();
+      fireEvent.click(screen.getByTestId("clear"));
+      if (saves) expect(screen.queryByText("Enter a name.")).toBeNull();
+      else expect(screen.getByText("Enter a name.")).toBeInTheDocument();
+    },
+  );
+});

@@ -1654,3 +1654,86 @@ describe("EditPanel field errors", () => {
     expect(screen.queryByText("Enter a name.")).toBeNull();
   });
 });
+
+// #735 (GL-UI-038 rev 3 §Absenden): a successful submit ends the panel's submit state, and so does
+// another record in the pager, the fields mounted.
+describe("EditPanel: the submit state ends", () => {
+  function Paged({ onSubmit }: { onSubmit: () => unknown }) {
+    const [position, setPosition] = useState(1);
+    const [name, setName] = useState("");
+    return (
+      <EditPanel
+        open
+        onOpenChange={() => {}}
+        title="Channel"
+        onSubmit={onSubmit}
+        pager={{
+          position: `${position} of 3`,
+          onPrevious: () => setPosition((current) => current - 1),
+          onNext: () => {
+            setPosition((current) => current + 1);
+            setName("");
+          },
+        }}
+      >
+        <Field label="Name" htmlFor="name" error={name === "" ? "Enter a name." : undefined}>
+          <Input id="name" value={name} onChange={(event) => setName(event.target.value)} />
+        </Field>
+        {/* A value from elsewhere (a reload), not typed. */}
+        <button type="button" data-testid="clear" onClick={() => setName("")}>
+          clear
+        </button>
+      </EditPanel>
+    );
+  }
+
+  const submit = () => fireEvent.submit(screen.getByLabelText("Name").closest("form")!);
+
+  it.each([
+    ["true", () => true],
+    ["a promise resolving true", () => Promise.resolve(true)],
+  ])(
+    "a submit returning %s ends it: a later invalid value from elsewhere shows late",
+    async (_, ok) => {
+      const results: (() => unknown)[] = [() => false, ok];
+      render(<Paged onSubmit={() => (results.shift() ?? (() => false))()} />);
+      submit();
+      expect(await screen.findByText("Enter a name.")).toBeInTheDocument();
+      const name = screen.getByLabelText("Name");
+      fireEvent.change(name, { target: { value: "Ada" } });
+      fireEvent.blur(name);
+      submit();
+      await waitFor(() => expect(results).toHaveLength(0));
+      await act(async () => {});
+      fireEvent.click(screen.getByTestId("clear"));
+      expect(screen.queryByText("Enter a name.")).toBeNull();
+      submit();
+      expect(await screen.findByText("Enter a name.")).toBeInTheDocument();
+    },
+  );
+
+  it("a failed submit keeps it: a later invalid value from elsewhere shows at once", async () => {
+    render(<Paged onSubmit={() => false} />);
+    submit();
+    expect(await screen.findByText("Enter a name.")).toBeInTheDocument();
+    const name = screen.getByLabelText("Name");
+    fireEvent.change(name, { target: { value: "Ada" } });
+    fireEvent.blur(name);
+    fireEvent.click(screen.getByTestId("clear"));
+    expect(screen.getByText("Enter a name.")).toBeInTheDocument();
+  });
+
+  it("a failed submit, then the next record → its untouched invalid field shows no error, focus kept", async () => {
+    render(<Paged onSubmit={() => false} />);
+    submit();
+    expect(await screen.findByText("Enter a name.")).toBeInTheDocument();
+    const name = screen.getByLabelText("Name");
+    const next = screen.getByTestId("edit-panel-next");
+    next.focus();
+    fireEvent.click(next);
+    expect(screen.getByText("2 of 3")).toBeInTheDocument();
+    expect(screen.queryByText("Enter a name.")).toBeNull();
+    expect(screen.getByLabelText("Name")).toBe(name);
+    expect(next).toHaveFocus();
+  });
+});

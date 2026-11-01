@@ -1,7 +1,12 @@
 import * as React from "react";
 
 import { cn } from "../lib/cn.js";
-import { FieldError, FieldErrorContext, FieldSubmitContext } from "./field-error.js";
+import {
+  FieldError,
+  FieldErrorContext,
+  FieldSubmitContext,
+  FieldSubmitEndContext,
+} from "./field-error.js";
 import { FieldValueHintContext } from "./field-value-hint-context.js";
 import { InlineMessage } from "./inline-message.js";
 import { Label } from "./label.js";
@@ -76,6 +81,8 @@ function Field({
   const [armed, setArmed] = React.useState(submits === null);
   const [shown, setShown] = React.useState(submits === null ? current : undefined);
   const [seenSubmits, setSeenSubmits] = React.useState(submits);
+  const ends = React.useContext(FieldSubmitEndContext);
+  const [seenEnds, setSeenEnds] = React.useState(ends);
   const editing = typedIn !== null;
   if (submits !== seenSubmits) {
     // A submit ends the typing: an error returned after it shows as it arrives (#561).
@@ -83,6 +90,13 @@ function Field({
     setArmed(true);
     setTypedIn(null);
     setShown(current);
+  } else if (ends !== seenEnds) {
+    // The submit state ended (`GL-UI-038` rev 3 §Absenden): the field shows its error late again, as
+    // an untouched one. A submit and its success in one render take effect in that order.
+    setSeenEnds(ends);
+    setArmed(submits === null);
+    setTypedIn(null);
+    setShown(submits === null ? current : undefined);
   } else if (armed && !editing && shown !== current) setShown(current);
   else if (editing && shown !== undefined && shown !== current) setShown(undefined);
   const invalid = shown !== undefined;

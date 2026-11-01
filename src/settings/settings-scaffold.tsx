@@ -1,7 +1,7 @@
-import type * as React from "react";
+import * as React from "react";
 
 import { PageHeader } from "../list/page-header.js";
-import { FieldSubmitContext, useFieldSubmits } from "../ui/field-error.js";
+import { FieldSubmitContext, FieldSubmitEndContext, useFieldSubmits } from "../ui/field-error.js";
 import { InlineMessage } from "../ui/inline-message.js";
 import { Skeleton } from "../ui/skeleton.js";
 import { Tabs } from "../ui/tabs.js";
@@ -95,7 +95,15 @@ function SettingsScaffold({
   error,
 }: SettingsScaffoldProps) {
   // A submit shows every field's error and focuses the first invalid field (`GL-UI-038`).
-  const [submits, submitted] = useFieldSubmits();
+  const [submits, submitted, endSubmits, submitEnds] = useFieldSubmits();
+  // `onSave` reports no result: a form that is clean again, its save done, saved (or was reset), and
+  // that ends the submit state (`GL-UI-038` rev 3).
+  const settled = form !== undefined && !form.dirty && form.saving !== true;
+  const [wasSettled, setWasSettled] = React.useState(settled);
+  if (settled !== wasSettled) {
+    setWasSettled(settled);
+    if (settled) endSubmits();
+  }
   const state = loading ? (
     <Skeleton className="h-9 w-full" aria-busy="true" data-testid="settings-loading" />
   ) : error !== undefined ? (
@@ -171,7 +179,11 @@ function SettingsScaffold({
               form.onSave();
           }}
         >
-          <FieldSubmitContext.Provider value={submits}>{content}</FieldSubmitContext.Provider>
+          <FieldSubmitContext.Provider value={submits}>
+            <FieldSubmitEndContext.Provider value={submitEnds}>
+              {content}
+            </FieldSubmitEndContext.Provider>
+          </FieldSubmitContext.Provider>
           <SettingsFooter
             pageKey={pageKey}
             testIdPrefix={testIdPrefix}

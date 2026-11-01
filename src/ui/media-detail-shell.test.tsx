@@ -1192,6 +1192,146 @@ describe("MediaDetailShell: Save in the leave dialog is a submit", () => {
   });
 });
 
+// #735 (GL-UI-038 rev 3 §Absenden): the submit state ends with the next successful submit, or once
+// the surface shows a different medium; the fields stay mounted, so the focus survives paging.
+describe("MediaDetailShell: the submit state ends", () => {
+  // Three media, each with an empty (invalid) title; a Note change makes the page dirty.
+  function Paged({ onSave }: { onSave: (clear: () => void) => unknown }) {
+    const [position, setPosition] = React.useState(2);
+    const [titles, setTitles] = React.useState(["", "", ""]);
+    const [note, setNote] = React.useState("");
+    const title = titles[position - 1]!;
+    return (
+      <MediaDetailShell
+        position={position}
+        total={3}
+        kind="image"
+        src={`/media/${position}.jpg`}
+        alt=""
+        dirty={note !== ""}
+        saving={false}
+        onSave={() => onSave(() => setNote(""))}
+        onReset={() => setNote("")}
+        onPrev={() => setPosition((current) => current - 1)}
+        onNext={() => setPosition((current) => current + 1)}
+        onClose={() => undefined}
+        fields={
+          <>
+            <Field
+              label="Title"
+              htmlFor="title"
+              error={title === "" ? "Enter a title." : undefined}
+            >
+              <Input
+                id="title"
+                value={title}
+                onChange={(event) =>
+                  setTitles((current) =>
+                    current.map((value, index) =>
+                      index === position - 1 ? event.target.value : value,
+                    ),
+                  )
+                }
+              />
+            </Field>
+            <Field label="Note" htmlFor="note">
+              <Input id="note" value={note} onChange={(event) => setNote(event.target.value)} />
+            </Field>
+          </>
+        }
+      />
+    );
+  }
+
+  function save() {
+    fireEvent.click(screen.getByTestId("media-detail-save"));
+  }
+
+  function changeNote() {
+    fireEvent.change(screen.getByLabelText("Note"), { target: { value: "Changed" } });
+  }
+
+  const pageWays: [string, () => void][] = [
+    ["Next", () => fireEvent.click(screen.getByTestId("media-detail-next"))],
+    ["Previous", () => fireEvent.click(screen.getByTestId("media-detail-previous"))],
+    ["→", () => fireEvent.keyDown(document.activeElement!, { key: "ArrowRight" })],
+  ];
+
+  it.each(pageWays)(
+    "Save fails, then succeeds, then %s → the next medium's untouched invalid field shows no error",
+    async (_way, page) => {
+      const results = [false, true];
+      render(
+        <Paged
+          onSave={(clear) => {
+            const result = results.shift();
+            if (result === true) clear();
+            return result;
+          }}
+        />,
+      );
+      changeNote();
+      save();
+      expect(await screen.findByText("Enter a title.")).toBeInTheDocument();
+      save();
+      await waitFor(() => expect(screen.queryByText("Enter a title.")).toBeNull());
+      const title = screen.getByLabelText("Title");
+      const next = screen.getByTestId("media-detail-next");
+      next.focus();
+      page();
+      expect(screen.getByTestId("media-detail-position")).not.toHaveTextContent("2");
+      expect(screen.queryByText("Enter a title.")).toBeNull();
+      // The fields stayed mounted, the focus where it was.
+      expect(screen.getByLabelText("Title")).toBe(title);
+      expect(next).toHaveFocus();
+      // Late show applies again: left after typing, or a submit.
+      fireEvent.change(title, { target: { value: "x" } });
+      fireEvent.change(title, { target: { value: "" } });
+      expect(screen.queryByText("Enter a title.")).toBeNull();
+      fireEvent.blur(title);
+      expect(screen.getByText("Enter a title.")).toBeInTheDocument();
+    },
+  );
+
+  it("a failed Save, then → without saving → the next medium shows no error, the focus kept", async () => {
+    render(<Paged onSave={() => false} />);
+    // Unchanged, Save is locked: Enter in a field submits.
+    const submit = () => fireEvent.submit(screen.getByLabelText("Title").closest("form")!);
+    submit();
+    expect(await screen.findByText("Enter a title.")).toBeInTheDocument();
+    const title = screen.getByLabelText("Title");
+    const next = screen.getByTestId("media-detail-next");
+    next.focus();
+    fireEvent.keyDown(next, { key: "ArrowRight" });
+    expect(screen.getByTestId("media-detail-position")).toHaveTextContent("3");
+    expect(screen.queryByText("Enter a title.")).toBeNull();
+    expect(screen.getByLabelText("Title")).toBe(title);
+    expect(next).toHaveFocus();
+    // A submit on the new medium shows the error again, the focus in the field.
+    submit();
+    expect(await screen.findByText("Enter a title.")).toBeInTheDocument();
+    await waitFor(() => expect(title).toHaveFocus());
+  });
+
+  it("a Save whose promise resolves true ends the submit state", async () => {
+    const results = [false, true];
+    render(
+      <Paged
+        onSave={(clear) => {
+          const result = results.shift();
+          if (result === true) clear();
+          return Promise.resolve(result);
+        }}
+      />,
+    );
+    changeNote();
+    save();
+    expect(await screen.findByText("Enter a title.")).toBeInTheDocument();
+    save();
+    await waitFor(() => expect(screen.queryByText("Enter a title.")).toBeNull());
+  });
+});
+
 // #694, SUI-FEATURE-118 rev 6: a typed but uncommitted tag in the shell's fields is a change, for its
 // own Reset/Save pair as for its leave guard; Reset drops it.
 describe("MediaDetailShell with an uncommitted tag", () => {
