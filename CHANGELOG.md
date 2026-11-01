@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #754: spec-sync-toolkit pin v0.35.0 (patch)
+## 0.207.1 — #754: spec-sync-toolkit pin v0.35.0 (patch)
 
 - **Changed (#754):** devDependency `spec-sync-toolkit` raised from v0.34.0 to v0.35.0 (lockfile updated; SST-FEATURE-001 rev 5: licence-inventory skips extraneous nodes, allowlist exceptions are `{package, licence, reason}`). `spec-sync.config.json` has no licence allowlist, so nothing to migrate. No baseline changes.
 
