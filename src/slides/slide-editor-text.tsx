@@ -594,6 +594,7 @@ export function InlineTextEditor({
   onRedo,
   onToggle,
   onTab,
+  onComposing,
 }: {
   body: TextBody;
   brand: SlideBrandSet;
@@ -623,6 +624,9 @@ export function InlineTextEditor({
   // Tab (`back` with Shift) in a table cell: `true` when the editing went on to the next cell, so the
   // key stays in the field; `false` lets the focus leave as usual.
   onTab?: ((back: boolean) => boolean) | undefined;
+  // A composition (dead key, IME) starts and ends in the field; the panel's formats do nothing till
+  // then (GL-UI-039 rev 2, #736).
+  onComposing?: ((on: boolean) => void) | undefined;
 }) {
   const root = React.useRef<HTMLDivElement>(null);
   // The icons of the field's inline runs, drawn once out of sight and copied into the field.
@@ -661,6 +665,10 @@ export function InlineTextEditor({
     onRangeRef.current = onRange;
     media.current = resolveMedia;
   });
+  // A dead key or an IME is composing in the field, and where the selection was as it began (#736).
+  const composingRef = React.useRef(false);
+  const composedFromRef = React.useRef<TextRange | undefined>(undefined);
+  const composingEnded = React.useEffectEvent(() => onComposing?.(false));
   const first = React.useRef(true);
   React.useLayoutEffect(() => {
     const node = root.current;
@@ -679,6 +687,11 @@ export function InlineTextEditor({
     filledNumbered.current = numbered;
     filledIcons.current = iconsKey;
     filled.current = body.runs;
+    // A refill ends what the field took for a composition, should its `compositionend` never come.
+    if (composingRef.current) {
+      composingRef.current = false;
+      composingEnded();
+    }
     fillEditable(node, body.runs, brand, body.list, inline, numbered);
     if (first.current) {
       first.current = false;
@@ -710,6 +723,52 @@ export function InlineTextEditor({
     return () => node.ownerDocument.removeEventListener("selectionchange", onChange);
   }, []);
   const current = () => emitted.current ?? body.runs;
+  // The text the browser put in, taken in: the runs follow, or, refused, the field is as it was and
+  // the caret back where it was (before a composition, `caret`). The same runs again (Firefox's input
+  // after `compositionend`) are no change.
+  const takeTyped = (caret?: TextRange) => {
+    const node = root.current;
+    if (node === null) return;
+    const stray = new Map<Text, TextRun>();
+    const runs = readRuns(node, filled.current, emitted.current ?? filled.current, stray);
+    // The field is still drawn as it reads, stray text in its run's style (#725).
+    if (emitted.current !== null && JSON.stringify(runs) === JSON.stringify(emitted.current)) {
+      syncParagraphs(node, runs, brand, numbered);
+      styleStray(node, stray, brand);
+      return;
+    }
+    emitted.current = runs;
+    if (onRuns(runs, rangeIn(node))) {
+      syncParagraphs(node, runs, brand, numbered);
+      styleStray(node, stray, brand);
+      return;
+    }
+    // Refused: the typed text goes again, the caret back where it was.
+    emitted.current = body.runs;
+    filled.current = body.runs;
+    fillEditable(node, body.runs, brand, body.list, inline, numbered);
+    const end = textOf(body.runs).length;
+    // Refused at a blur, the field no longer has the focus: a selection would pull it back.
+    if (node.ownerDocument.activeElement === node) {
+      selectRange(node, caret ?? latestRange.current ?? { start: end, end });
+    }
+  };
+  const startComposing = (range: TextRange | undefined) => {
+    composingRef.current = true;
+    composedFromRef.current = range;
+    onComposing?.(true);
+  };
+  const endComposing = () => {
+    composingRef.current = false;
+    takeTyped(composedFromRef.current);
+    onComposing?.(false);
+  };
+  // The field closed mid-composition (a press on the canvas) without a blur first: the composed text is
+  // taken in first.
+  const endComposingOnClose = React.useEffectEvent(() => {
+    if (composingRef.current) endComposing();
+  });
+  React.useLayoutEffect(() => () => endComposingOnClose(), []);
   // Text put in by the editor itself (a paragraph, a paste): the runs refill and the caret follows.
   // Runs (a paste of a copy inside the editor) come in with their own format.
   const put = (text: string | readonly Run[]) => {
@@ -796,34 +855,19 @@ export function InlineTextEditor({
               selectRange(node, { start, end: start + 1 });
             }}
             onDoubleClick={(event) => event.stopPropagation()}
-            onCompositionEnd={() => {
-              // The text composed at a stray position takes its run's style once composing ends.
-              const node = root.current;
-              if (node === null) return;
-              const stray = new Map<Text, TextRun>();
-              readRuns(node, filled.current, emitted.current ?? filled.current, stray);
-              styleStray(node, stray, brand);
+            // A dead key or an IME composing owns the field until it ends (GL-UI-039 rev 2): no
+            // refusal, refill or restyle replaces the text it composes; the finished text is taken in
+            // at `compositionend` as typed text is (#736).
+            onCompositionStart={(event) => startComposing(rangeIn(event.currentTarget))}
+            onCompositionEnd={endComposing}
+            // Leaving mid-composition (a `compositionend` that may never come) takes the composed text
+            // in, so the field is not left deaf to input.
+            onBlur={() => {
+              if (composingRef.current) endComposing();
             }}
             onInput={(event) => {
-              const node = root.current;
-              if (node === null) return;
-              const stray = new Map<Text, TextRun>();
-              const runs = readRuns(node, filled.current, emitted.current ?? filled.current, stray);
-              emitted.current = runs;
-              if (onRuns(runs, rangeIn(node))) {
-                syncParagraphs(node, runs, brand, numbered);
-                // Moving the text a dead key or an IME is composing would cancel or double it.
-                if (!event.nativeEvent.isComposing) {
-                  styleStray(node, stray, brand);
-                }
-                return;
-              }
-              // Refused: the typed text goes again, the caret back where it was.
-              emitted.current = body.runs;
-              filled.current = body.runs;
-              fillEditable(node, body.runs, brand, body.list, inline, numbered);
-              const end = textOf(body.runs).length;
-              selectRange(node, latestRange.current ?? { start: end, end });
+              if (composingRef.current || event.nativeEvent.isComposing) return;
+              takeTyped();
             }}
             onCopy={(event) => {
               if (copyRuns(event, current())) event.preventDefault();
@@ -847,6 +891,13 @@ export function InlineTextEditor({
             onKeyDown={(event) => {
               // Every key stays in the field: the canvas's arrows and Enter are not for it.
               event.stopPropagation();
+              // A key of a composition is its own, the Enter that confirms a candidate too (Safari
+              // sends that one after `compositionend`, as key code 229) (GL-UI-039 rev 2, #736).
+              // Tab and the shortcuts keep off the browser's own action (leaving, its bold or undo).
+              if (composingRef.current || event.nativeEvent.isComposing || event.keyCode === 229) {
+                if (event.key === "Tab" || isMod(event)) event.preventDefault();
+                return;
+              }
               const key = event.key.toLowerCase();
               if (event.key === "Escape") {
                 event.preventDefault();

@@ -2915,6 +2915,13 @@ function Editor({
             </section>,
           ];
         });
+  // A dead key or an IME composing in the field being edited (GL-UI-039 rev 2, #736): the panel's
+  // formats and table rows and columns, whose buttons leave the focus in the field, do nothing until `compositionend` (or the blur
+  // that takes the composed text in), so the field is not redrawn while composing.
+  const composingText = React.useRef(false);
+  const onComposing = (on: boolean) => {
+    composingText.current = on;
+  };
   // The text of the selected field, or of the selected table's current cell, and the range of it the
   // format applies to while it is being edited.
   const textCell = single?.type === "table" ? currentCell : undefined;
@@ -2936,6 +2943,7 @@ function Editor({
         readOnly={single.locked}
         revision={travels}
         onFormat={(patch, merge) => {
+          if (composingText.current) return;
           // A format that splits the runs past a limit is refused like text (`SUI-FEATURE-114`).
           const span = formatSpan(textBody, formatRangeOf);
           const runs = formatRange(textBody.runs, span.start, span.end, patch);
@@ -2950,7 +2958,10 @@ function Editor({
             merge === undefined ? undefined : `format:${single.id}:${merge}`,
           );
         }}
-        onBody={(patch) => changeBody(single.id, textCell, (one) => ({ ...one, ...patch }))}
+        onBody={(patch) => {
+          if (!composingText.current)
+            changeBody(single.id, textCell, (one) => ({ ...one, ...patch }));
+        }}
         onInline={(index, patch, merge) =>
           changeBody(
             single.id,
@@ -4513,6 +4524,7 @@ function Editor({
                             ? undefined
                             : tabToCell
                         }
+                        onComposing={onComposing}
                         onToggle={(format, range) => {
                           // A toggle that splits the runs past a limit is refused like text.
                           const span = formatSpan(body, range);
@@ -4556,14 +4568,19 @@ function Editor({
                               brand={view.brand}
                               readOnly={single.locked}
                               revision={travels}
-                              onChange={(next, merge) =>
+                              // Its rows and columns, like the formats, wait for a composition to
+                              // end (GL-UI-039 rev 2, #736).
+                              onChange={(next, merge) => {
+                                if (composingText.current) return;
                                 apply(
                                   (current) =>
                                     updateElements(current, page, [single.id], () => next),
                                   merge === undefined ? undefined : `table:${single.id}:${merge}`,
-                                )
-                              }
-                              onCell={(cell) => setTableCell({ id: single.id, cell })}
+                                );
+                              }}
+                              onCell={(cell) => {
+                                if (!composingText.current) setTableCell({ id: single.id, cell });
+                              }}
                             />
                           ) : null}
                           {textFields}
