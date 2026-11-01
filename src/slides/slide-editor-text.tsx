@@ -710,6 +710,27 @@ export function InlineTextEditor({
     return () => node.ownerDocument.removeEventListener("selectionchange", onChange);
   }, []);
   const current = () => emitted.current ?? body.runs;
+  // A dead key or an IME is composing in the field (#736).
+  const composing = React.useRef(false);
+  // The text the browser put in, taken in: the runs follow, or, refused, the field is as it was.
+  const takeTyped = () => {
+    const node = root.current;
+    if (node === null) return;
+    const stray = new Map<Text, TextRun>();
+    const runs = readRuns(node, filled.current, emitted.current ?? filled.current, stray);
+    emitted.current = runs;
+    if (onRuns(runs, rangeIn(node))) {
+      syncParagraphs(node, runs, brand, numbered);
+      styleStray(node, stray, brand);
+      return;
+    }
+    // Refused: the typed text goes again, the caret back where it was.
+    emitted.current = body.runs;
+    filled.current = body.runs;
+    fillEditable(node, body.runs, brand, body.list, inline, numbered);
+    const end = textOf(body.runs).length;
+    selectRange(node, latestRange.current ?? { start: end, end });
+  };
   // Text put in by the editor itself (a paragraph, a paste): the runs refill and the caret follows.
   // Runs (a paste of a copy inside the editor) come in with their own format.
   const put = (text: string | readonly Run[]) => {
@@ -796,34 +817,17 @@ export function InlineTextEditor({
               selectRange(node, { start, end: start + 1 });
             }}
             onDoubleClick={(event) => event.stopPropagation()}
+            // A dead key or an IME composing owns the field until it ends (GL-UI-039 rev 2): no
+            // refusal, refill or restyle replaces the text it composes; the finished text is taken in
+            // at `compositionend` as typed text is (#736).
+            onCompositionStart={() => (composing.current = true)}
             onCompositionEnd={() => {
-              // The text composed at a stray position takes its run's style once composing ends.
-              const node = root.current;
-              if (node === null) return;
-              const stray = new Map<Text, TextRun>();
-              readRuns(node, filled.current, emitted.current ?? filled.current, stray);
-              styleStray(node, stray, brand);
+              composing.current = false;
+              takeTyped();
             }}
             onInput={(event) => {
-              const node = root.current;
-              if (node === null) return;
-              const stray = new Map<Text, TextRun>();
-              const runs = readRuns(node, filled.current, emitted.current ?? filled.current, stray);
-              emitted.current = runs;
-              if (onRuns(runs, rangeIn(node))) {
-                syncParagraphs(node, runs, brand, numbered);
-                // Moving the text a dead key or an IME is composing would cancel or double it.
-                if (!event.nativeEvent.isComposing) {
-                  styleStray(node, stray, brand);
-                }
-                return;
-              }
-              // Refused: the typed text goes again, the caret back where it was.
-              emitted.current = body.runs;
-              filled.current = body.runs;
-              fillEditable(node, body.runs, brand, body.list, inline, numbered);
-              const end = textOf(body.runs).length;
-              selectRange(node, latestRange.current ?? { start: end, end });
+              if (composing.current || event.nativeEvent.isComposing) return;
+              takeTyped();
             }}
             onCopy={(event) => {
               if (copyRuns(event, current())) event.preventDefault();
@@ -847,6 +851,11 @@ export function InlineTextEditor({
             onKeyDown={(event) => {
               // Every key stays in the field: the canvas's arrows and Enter are not for it.
               event.stopPropagation();
+              // A key of a composition is its own, the Enter that confirms a candidate too (Safari
+              // sends that one after `compositionend`, as key code 229) (GL-UI-039 rev 2, #736).
+              if (composing.current || event.nativeEvent.isComposing || event.keyCode === 229) {
+                return;
+              }
               const key = event.key.toLowerCase();
               if (event.key === "Escape") {
                 event.preventDefault();

@@ -303,3 +303,29 @@ describe("SlideEditor tables", () => {
     // A thousand runs drawn and filled: slow under the full suite's load.
   }, 60_000);
 });
+
+// GL-UI-039 rev 2 (#736, AC4): a table cell's field takes Option+e, then e as one "é".
+describe("SlideEditor table cell during a composition", () => {
+  it("takes Option+e, then e as exactly one é, and Enter while composing does nothing", async () => {
+    const { canvas, press, saved } = renderEditor();
+    press(500, 30);
+    fireEvent.doubleClick(canvas, at(700, 70));
+    const field = await screen.findByTestId("slide-editor-text-field");
+    const text = field.querySelector("span")!.firstChild as Text;
+    fireEvent.compositionStart(field);
+    text.appendData("´");
+    selectRange(field, { start: 7, end: 7 });
+    fireEvent.input(field, { isComposing: true });
+    fireEvent.keyDown(field, { key: "Enter", isComposing: true });
+    fireEvent.keyDown(field, { key: "Tab", isComposing: true });
+    text.replaceData(6, 1, "é");
+    fireEvent.input(field, { isComposing: true });
+    fireEvent.compositionEnd(field);
+    expect(screen.getByTestId("slide-editor-text-field")).toBe(field);
+    expect(field.children).toHaveLength(1);
+    expect(field.textContent).toBe("Slidesé");
+    fireEvent.keyDown(field, { key: "Escape" });
+    const table = await saved();
+    expect(table.rows[1]![1]!.runs).toEqual([{ text: "Slidesé", size: 16 }]);
+  });
+});

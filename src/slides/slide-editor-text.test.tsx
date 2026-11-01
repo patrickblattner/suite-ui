@@ -1169,3 +1169,106 @@ describe("SlideEditor text editing", () => {
     );
   }, 60_000);
 });
+
+// GL-UI-039 rev 2 (#736): a dead key or an IME composing owns the field until `compositionend`.
+describe("SlideEditor text field during a composition", () => {
+  const editCaption = async () => {
+    const onSave = renderEditor();
+    const canvas = screen.getByTestId("slide-editor-canvas");
+    fireEvent.pointerDown(canvas, { ...at(100, 400), button: 0, pointerId: 1 });
+    fireEvent.pointerUp(canvas, at(100, 400));
+    fireEvent.doubleClick(canvas, at(100, 400));
+    const field = await screen.findByTestId("slide-editor-text-field");
+    const saved = async () => {
+      fireEvent.keyDown(field, { key: "Escape" });
+      fireEvent.click(screen.getAllByTestId("editor-save")[0]!);
+      await waitFor(() => expect(onSave).toHaveBeenCalled());
+      const caption = onSave.mock.calls
+        .at(-1)![0]
+        .pages[1]!.elements.find((element) => element.id === "caption");
+      if (caption?.type !== "text") throw new Error("no caption");
+      return caption.runs;
+    };
+    return { field, text: field.querySelector("span")!.firstChild as Text, saved };
+  };
+
+  // AC4: Option+e, then e: the browser shows "´" while composing, then "é" — one "é", nothing more.
+  it("takes Option+e, then e as exactly one é", async () => {
+    const { field, text, saved } = await editCaption();
+    fireEvent.compositionStart(field);
+    text.appendData("´");
+    selectRange(field, { start: 10, end: 10 });
+    fireEvent.input(field, { isComposing: true });
+    fireEvent.keyDown(field, { key: "e", isComposing: true });
+    text.replaceData(9, 1, "é");
+    selectRange(field, { start: 10, end: 10 });
+    fireEvent.input(field, { isComposing: true });
+    fireEvent.compositionEnd(field);
+    // Firefox sends the last input after `compositionend`: taken again, the same text.
+    fireEvent.input(field);
+    expect(field.textContent).toBe("A captioné");
+    expect(rangeIn(field)).toEqual({ start: 10, end: 10 });
+    expect(textOf(await saved())).toBe("A captioné");
+  });
+
+  // AC1: no new paragraph, no U+2028, no leaving the field, no format toggle while composing.
+  it("lets Enter, Shift+Enter, Escape, Tab and shortcuts do nothing while composing", async () => {
+    const { field, text, saved } = await editCaption();
+    fireEvent.compositionStart(field);
+    selectRange(field, { start: 2, end: 9 });
+    for (const key of [
+      { key: "Enter" },
+      { key: "Enter", shiftKey: true },
+      { key: "Escape" },
+      { key: "Tab" },
+      { key: "Tab", shiftKey: true },
+      { key: "b", metaKey: true },
+      { key: "i", ctrlKey: true },
+      { key: "z", metaKey: true },
+    ]) {
+      fireEvent.keyDown(field, { ...key, isComposing: true });
+    }
+    expect(screen.getByTestId("slide-editor-text-field")).toBe(field);
+    expect(field.children).toHaveLength(1);
+    expect(field.querySelectorAll("br[data-line]")).toHaveLength(0);
+    expect(field.querySelector("span")!.firstChild).toBe(text);
+    expect(rangeIn(field)).toEqual({ start: 2, end: 9 });
+    fireEvent.compositionEnd(field);
+    expect(await saved()).toEqual([expect.not.objectContaining({ weight: 700 })]);
+  });
+
+  // AC4: the Enter confirming a candidate is the composition's — also Safari's after `compositionend`
+  // (key code 229); a second Enter does what Enter does.
+  it("leaves the Enter that confirms a candidate to the IME; the next Enter starts a paragraph", async () => {
+    const { field, text } = await editCaption();
+    fireEvent.compositionStart(field);
+    text.appendData("日本");
+    selectRange(field, { start: 11, end: 11 });
+    fireEvent.input(field, { isComposing: true });
+    fireEvent.keyDown(field, { key: "Enter", isComposing: true });
+    fireEvent.compositionEnd(field);
+    fireEvent.keyDown(field, { key: "Enter", keyCode: 229 });
+    expect(field.children).toHaveLength(1);
+    expect(field.textContent).toBe("A caption日本");
+    fireEvent.keyDown(field, { key: "Enter" });
+    await waitFor(() => expect(field.children).toHaveLength(2));
+    expect(field.textContent).toBe("A caption日本");
+  });
+
+  // AC2/AC3: the text limit refuses nothing while composing — the field and its text node stay — and
+  // refuses the finished text after `compositionend`, as typed text.
+  it("checks the text limit only on the finished text", async () => {
+    const error = vi.spyOn(toast, "error").mockReturnValue(1);
+    const { field, text } = await editCaption();
+    fireEvent.compositionStart(field);
+    text.data = "x".repeat(SLIDE_LIMITS.maxTextLength + 1);
+    fireEvent.input(field, { isComposing: true });
+    expect(error).not.toHaveBeenCalled();
+    expect(field.querySelector("span")!.firstChild).toBe(text);
+    expect(field.textContent).toHaveLength(SLIDE_LIMITS.maxTextLength + 1);
+    fireEvent.compositionEnd(field);
+    expect(error).toHaveBeenCalledTimes(1);
+    expect(field.textContent).toBe("A caption");
+    error.mockRestore();
+  });
+});
