@@ -40,7 +40,7 @@ function Editor({ mode, focusError = false }: { mode: Mode; focusError?: boolean
   const [saved, setSaved] = useState("Hello");
   const [draft, setDraft] = useState("Hello world");
   const [error, setError] = useState<string | null>(null);
-  const reset = (): unknown => {
+  const reset = (): boolean | Promise<void> => {
     setError(null);
     if (mode === "throws") {
       setError("Not reset");

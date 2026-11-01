@@ -10,10 +10,26 @@ import {
   type EditorHeaderLayout,
   type EditorHeaderProps,
   type EditorHeaderTool,
+  type EditorLeaveGuardOptions,
   type EditorLifecycle,
   useEditorLeaveGuard,
 } from "./editor-header.js";
 import { Input } from "./input.js";
+
+// #759 (Q&A #5174): `onReset` is `() => void | boolean | Promise<void | boolean>`. Checked by the
+// typecheck: an unused directive fails it.
+type OnReset = EditorLeaveGuardOptions["onReset"];
+export const onResetShapes: OnReset[] = [
+  () => {},
+  () => true,
+  () => false,
+  async () => {},
+  () => Promise.resolve(false),
+];
+// @ts-expect-error a reset gives no other value
+export const onResetValue: OnReset = () => "reset";
+// @ts-expect-error nor a promise of one
+export const onResetPromise: OnReset = () => Promise.resolve(1);
 
 afterEach(async () => {
   cleanup();
@@ -874,7 +890,9 @@ describe("useEditorLeaveGuard", () => {
         dirty: true,
         onBack: () => order.push("back"),
         onSave: () => true,
-        onReset: () => order.push("reset"),
+        onReset: () => {
+          order.push("reset");
+        },
       });
       return (
         <>

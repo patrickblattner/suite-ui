@@ -989,8 +989,9 @@ type EditorLeaveGuardOptions = {
   // Discard resets the draft before the held way out goes on, on every way out, route changes and
   // browser back included. A promise is awaited while Discard works; a throw, a rejection or `false`
   // is a failure: the route stays, the dialog closes and the page shows its error as for a failed save
-  // (`SUI-FEATURE-064` rev 4, `SUI-FEATURE-150`).
-  onReset: () => unknown;
+  // (`SUI-FEATURE-064` rev 4, `SUI-FEATURE-150`). Return the reset's promise, never fire and forget it:
+  // only then can a failure keep the route, also after a router submission the way waited for.
+  onReset: () => void | boolean | Promise<void | boolean>;
   // The edited document: a new identity (`Object.is`) during the save takes a held way out back, as
   // typing does (a canvas drag fires no DOM `input`, `SUI-FEATURE-112`). Pass the state value itself
   // (or one memoized on it), never an object built anew in each render; a save's result sets it in

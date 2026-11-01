@@ -48,7 +48,7 @@ type PendingLeave = {
   // after a submission, it passes this surface without asking again. A Discard hands its reset
   // (`onDiscard`) along: it runs only once the change goes, so a submission that fails meanwhile
   // leaves the draft as it is (`SUI-FEATURE-172`).
-  confirm?: ((discard?: () => void) => void) | undefined;
+  confirm?: ((discard?: Reset) => void) | undefined;
   // A route change known to keep the `pathname`, changing only `search` or `hash`: a guard with
   // `ignoreSearchParams` lets it pass while dirty or busy (`SUI-FEATURE-109`). Unknown (a `go` from the app)
   // and a submission count as another path.
@@ -293,7 +293,7 @@ function runHolds(
   holds: readonly Hold[],
   leave: () => void,
   rest: Omit<PendingLeave, "leave" | "confirm"> = {},
-  confirmed?: (hold: Hold, discard?: () => void) => void,
+  confirmed?: (hold: Hold, discard?: Reset) => void,
 ) {
   const run = (i: number): void => {
     const hold = holds[i];
@@ -592,7 +592,9 @@ type RouterHold = {
   owns: (form: EventTarget | null) => boolean;
   // While the surface lets a way out of its own go (a `guard` it confirmed), the route change that
   // way starts, with the reset of its Discard; taken once by the change it starts.
-  released: () => { discard: (() => void) | undefined } | null;
+  released: () => { discard: Reset | undefined } | null;
+  // The field entries the surface counts (`useLeaveConfirm`'s `fieldDrafts`).
+  drafts?: FieldDrafts | undefined;
 };
 type BlockerStep = Parameters<BlockerFunction>[0];
 // A blocked route change: its count among the changes asked, the blocked state that carries it on
@@ -623,7 +625,12 @@ type BlockedChange = {
 };
 // The deferred reset of each surface that confirmed a change with Discard (`SUI-FEATURE-172`): one per
 // surface, its latest answer, run once the change goes.
-type Discards = Map<Hold, () => void>;
+type Discards = Map<Hold, Reset>;
+// A Discard's reset (`onDiscard`): its result tells a failure (`runAll`).
+type Reset = () => unknown;
+// The resets a change runs before it goes, of the surfaces that confirmed it with Discard: `result`
+// once all settled, `dropped` once an edit took the change back meanwhile (`SUI-FEATURE-172`).
+type Resetting = { holds: Set<Hold>; dropped: boolean; result: Promise<boolean> };
 // A confirmed change that waits for the router's running submission (`SUI-FEATURE-150`), with the
 // holds that confirmed it and the resets of their Discards; `ended` once the submission has. `from`:
 // the submission's own location as the change began to wait (`RouterHolds.submission`).
@@ -655,6 +662,9 @@ type RouterHolds = {
   submitter: HTMLElement | null;
   submitted: EventTarget | null;
   waiting: WaitingChange | null;
+  // The resets of a confirmed change that went to run them and waits for their result
+  // (`SUI-FEATURE-064` rev 4); a newer change takes it along (`SUI-FEATURE-172`).
+  resetting: Resetting | null;
   // The own location of the router submission running now: where it ends unless redirected. Every
   // redirect makes a new one, also one that submits anew (307/308), which keeps the submission's own.
   submission: BlockerStep["currentLocation"] | null;
@@ -679,7 +689,7 @@ type RouterHolds = {
   // the next change asked: a step that never arrives (`go(-1)` at the first entry fires no
   // `popstate`) leaves no pass. Where that entry is not known (a memory router), they last no
   // longer than the submission.
-  stepping: { ways: Map<Hold, (() => void) | undefined>; index: number | null } | null;
+  stepping: { ways: Map<Hold, Reset | undefined>; index: number | null } | null;
   // The change the blocker's `proceed` let go last, until it runs; and the blocker's question,
   // registered anew once that change runs as a submission.
   proceeded: BlockedChange | null;
@@ -711,6 +721,7 @@ function routerEntry(router: DataRouter): RouterHolds {
       submitter: null,
       submitted: null,
       waiting: null,
+      resetting: null,
       submission: null,
       restarting: null,
       stepping: null,
@@ -885,6 +896,10 @@ function collectBlocking(
   let discards =
     restarting?.discards ?? (replaced === null ? undefined : new Map(replaced.discards));
   const passing = new Set(restarting?.passing ?? replaced?.discards.keys());
+  // So does a change that comes while the resets of a confirmed one run: it waits for their result
+  // in its place (`SUI-FEATURE-172`, `SUI-FEATURE-064` rev 4).
+  const resetting = entry.resetting !== null && !entry.resetting.dropped ? entry.resetting : null;
+  for (const hold of resetting?.holds ?? []) passing.add(hold);
   // A route change that a surface's own confirmed way out starts during a submission (a Back wrapped
   // in `guard`) waits for it as well, never cutting it off: it passes that surface, which confirmed
   // it already, and takes its Discard along (`SUI-FEATURE-150`, `SUI-FEATURE-172`).
@@ -909,8 +924,13 @@ function collectBlocking(
     searchOnly(currentLocation, nextLocation);
   entry.blocking = blockingNow(entry, owners, samePath).filter((hold) => !passing.has(hold));
   const carrier = restarting?.carrier ?? null;
+  // A change carrying the resets of Discards waits for their result before it goes
+  // (`SUI-FEATURE-064` rev 4), so it is blocked while a guard can run it (`runBlocked`).
+  const resets =
+    entry.runners > 0 && ((discards !== undefined && discards.size > 0) || resetting !== null);
   const blocks =
     entry.blocking.length > 0 ||
+    resets ||
     released.size > 0 ||
     (entry.waiting !== null && !entry.waiting.ended) ||
     carrier !== null;
@@ -934,7 +954,7 @@ function collectBlocking(
     entry.submitted = entry.submitting;
     entry.saving = owners;
     // The change goes now: the Discards that confirmed it reset their drafts.
-    runAll(discards);
+    void runAll(discards);
   }
   return blocks;
 }
@@ -988,8 +1008,8 @@ function blockingNow(entry: RouterHolds, owners: ReadonlySet<Hold>, samePath: bo
 }
 
 // The ways out the surfaces let go now, with the resets of their Discards; each is taken once.
-function takeReleased(entry: RouterHolds): Map<Hold, (() => void) | undefined> {
-  const released = new Map<Hold, (() => void) | undefined>();
+function takeReleased(entry: RouterHolds): Map<Hold, Reset | undefined> {
+  const released = new Map<Hold, Reset | undefined>();
   for (const hold of entry.holds) {
     const way = hold.released();
     if (way !== null) released.set(hold.hold, way.discard);
@@ -997,11 +1017,44 @@ function takeReleased(entry: RouterHolds): Map<Hold, (() => void) | undefined> {
   return released;
 }
 
-// Runs the resets of the Discards that confirmed a change, once each, as it goes.
-function runAll(discards: Discards | undefined) {
+// Runs the resets of the Discards that confirmed a change, once each, as it goes. The result tells
+// whether every one succeeded (a throw, a rejection or `false` fails, `SUI-FEATURE-064` rev 4): at
+// once when none returned a promise, else once all settled. A rejection is never an unhandled one.
+function runAll(discards: Discards | undefined): boolean | Promise<boolean> {
   const resets = [...(discards?.values() ?? [])];
   discards?.clear();
-  for (const reset of resets) reset();
+  const results: unknown[] = [];
+  let ok = true;
+  for (const reset of resets) {
+    try {
+      results.push(reset());
+    } catch {
+      ok = false;
+    }
+  }
+  ok &&= results.every((result) => result !== false);
+  const pending = results.filter(isThenable);
+  if (pending.length === 0) return ok;
+  return Promise.all(
+    pending.map((result) =>
+      Promise.resolve(result).then(
+        (value) => value !== false,
+        () => false,
+      ),
+    ),
+  ).then((oks) => ok && oks.every(Boolean));
+}
+
+// A Discard of the surface (`hold`) waits to reset: with its change for a submission, while that
+// change is asked, or while its reset runs (`SUI-FEATURE-172`). Each holder drops its resets once
+// they ran or the change was dropped, so a stale one never counts.
+function discardPending(entry: RouterHolds, hold: Hold): boolean {
+  return (
+    entry.waiting?.discards.has(hold) === true ||
+    entry.restarting?.discards?.has(hold) === true ||
+    entry.blocked?.discards?.has(hold) === true ||
+    (entry.resetting !== null && !entry.resetting.dropped && entry.resetting.holds.has(hold))
+  );
 }
 
 // Runs a newly blocked change through the holds that wanted it blocked, once, from whichever guard
@@ -1013,6 +1066,7 @@ function runBlocked(router: DataRouter, entry: RouterHolds) {
   if (blocker === undefined || blocked === null || entry.run === blocker) return;
   entry.run = blocker;
   if (blocked.answered) {
+    blocked.discards = undefined;
     entry.displaced = entry.asked;
     blocker.reset();
     return;
@@ -1027,10 +1081,13 @@ function runBlocked(router: DataRouter, entry: RouterHolds) {
   const carrier = blocked.carrier ?? blocker;
   // A form submission of the router still running is never cut off, as its data may be lost
   // (`SUI-FEATURE-150`): the confirmed change waits until it has ended, then starts anew.
-  const discards: Discards = new Map(blocked.discards);
+  // The change keeps them while it is asked; they leave it once it waits, goes or is cancelled.
+  const discards: Discards = blocked.discards ?? new Map<Hold, Reset>();
+  blocked.discards = discards;
   const confirmed = new Set<Hold>([...discards.keys(), ...(blocked.passing ?? [])]);
   const proceed = () => {
     if (!current()) return;
+    blocked.discards = undefined;
     if (submitting(router)) {
       entry.waiting = {
         ...blocked,
@@ -1040,11 +1097,38 @@ function runBlocked(router: DataRouter, entry: RouterHolds) {
         ended: false,
         from: entry.submission,
       };
-    } else {
-      runAll(discards);
+      return;
+    }
+    // The change goes only once the resets succeeded, also after a submission it waited for
+    // (`SUI-FEATURE-064` rev 4 over `SUI-FEATURE-172`, Q&A #5179): a failure, or an edit meanwhile,
+    // keeps the route, and the call site shows its error. A newer change meanwhile has taken its
+    // place, and the resets of the change it replaced, still running, along (`entry.resetting`).
+    const finish = (ok: boolean) => {
+      if (!current()) return;
+      if (!ok) {
+        blocker.reset();
+        return;
+      }
       entry.proceeded = blocked;
       carrier.proceed();
+    };
+    const holds = new Set(discards.keys());
+    const own = runAll(discards);
+    const earlier = entry.resetting !== null && !entry.resetting.dropped ? entry.resetting : null;
+    if (earlier === null && typeof own === "boolean") {
+      finish(own);
+      return;
     }
+    for (const hold of earlier?.holds ?? []) holds.add(hold);
+    const resetting: Resetting = { holds, dropped: false, result: Promise.resolve(true) };
+    resetting.result = Promise.all([own, earlier?.result ?? true]).then(
+      ([mine, before]) => mine && before && !resetting.dropped,
+    );
+    entry.resetting = resetting;
+    void resetting.result.then((ok) => {
+      if (entry.resetting === resetting) entry.resetting = null;
+      finish(ok);
+    });
   };
   const reset = () => {
     if (!current()) return;
@@ -1052,6 +1136,7 @@ function runBlocked(router: DataRouter, entry: RouterHolds) {
     // Cancelled, the change takes the Discards it took over along: they no longer count for a later
     // change (Codex v0.135.2 CX1, #302).
     blocked.replaced?.discards.clear();
+    discards.clear();
   };
   // While a surface's own Save runs, a way out asks it nothing: it waits for the Save, and the
   // surface is asked again, as it is then, once the Save succeeded (`SUI-FEATURE-170`).
@@ -1132,7 +1217,9 @@ function finishWaiting(router: DataRouter, entry: RouterHolds) {
   window.setTimeout(() => {
     if (entry.waiting !== waiting) return;
     entry.waiting = null;
-    if (ok && entry.requests === waiting.requests) restart(router, entry, waiting);
+    const started = ok && entry.requests === waiting.requests && restart(router, entry, waiting);
+    // Dropped, its Discards never reset (`SUI-FEATURE-172`); a newer change took a copy.
+    if (!started) waiting.discards.clear();
     entry.settle?.();
   });
 }
@@ -1159,9 +1246,18 @@ const NO_TEXT_INPUTS = new Set([
 
 // An edit takes back the confirmed change that waits for the router's submission (`SUI-FEATURE-112`):
 // it is dropped as after a failure, and the resets of its Discards never run, so the draft stays.
+// So does an edit while its resets run: the route stays once they settled (`SUI-FEATURE-172`).
 function dropWaiting(router: DataRouter) {
   const entry = routerHolds.get(router);
-  if (entry !== undefined) entry.waiting = null;
+  if (entry === undefined) return;
+  entry.waiting?.discards.clear();
+  entry.waiting = null;
+  if (entry.resetting !== null) entry.resetting.dropped = true;
+}
+
+// The resets a change runs were taken back by an edit meanwhile.
+function resetDropped(router: DataRouter | undefined): boolean {
+  return router !== undefined && routerHolds.get(router)?.resetting?.dropped === true;
 }
 
 // A confirmed change waits for the router's submission, which still runs.
@@ -1176,18 +1272,18 @@ function waitsForSubmission(router: DataRouter): boolean {
 // change goes on through its own blocked state from before, which the router reset when the
 // submission ended: a stand-in change, blocked at once, makes that state valid again, so the change
 // goes on as it came (a submission's data, its history action, the basename once).
-function restart(router: DataRouter, entry: RouterHolds, waiting: WaitingChange) {
+function restart(router: DataRouter, entry: RouterHolds, waiting: WaitingChange): boolean {
   // A change that keeps the pathname and is known to submit nothing (a tab switch, a browser step)
   // goes only where the submission ended at its own location: a redirect, which makes a new one,
   // wins, to another path as to the very same URL, also when the change came while the redirect
   // loaded or submitted anew (`SUI-FEATURE-109` rev 4). A submit whose options went unseen may look
   // the same; it goes on as any other way.
   const plain = waiting.link !== null || waiting.step === NavigationType.Pop;
-  if (waiting.samePath && plain && router.state.location.key !== waiting.from?.key) return;
+  if (waiting.samePath && plain && router.state.location.key !== waiting.from?.key) return false;
   const { index } = waiting;
   if (waiting.step === NavigationType.Pop && index !== null) {
     const at = windowIndex(router, router.state.location);
-    if (at === null || index === at) return;
+    if (at === null || index === at) return false;
     entry.restarting = {
       carrier: null,
       passing: waiting.confirmed,
@@ -1197,9 +1293,9 @@ function restart(router: DataRouter, entry: RouterHolds, waiting: WaitingChange)
     };
     // The step arrives later, through the window's history. With no guard left to ask (the page the
     // submission left is gone), no blocker sees it, so the resets run as it is sent.
-    if (entry.holds.length === 0) runAll(waiting.discards);
+    if (entry.holds.length === 0) void runAll(waiting.discards);
     void router.navigate(index - at);
-    return;
+    return true;
   }
   // Without the window's history (a memory router) a browser step goes by the step it came with,
   // which still targets its entry only when the submission replaced the one the app stands on.
@@ -1207,7 +1303,7 @@ function restart(router: DataRouter, entry: RouterHolds, waiting: WaitingChange)
     waiting.step === NavigationType.Pop &&
     router.state.historyAction !== NavigationType.Replace
   ) {
-    return;
+    return false;
   }
   // A change that submits nothing goes to the target it was resolved to: resolved anew, a relative
   // link would follow the page the submission led to.
@@ -1228,7 +1324,7 @@ function restart(router: DataRouter, entry: RouterHolds, waiting: WaitingChange)
         replace: waiting.step === NavigationType.Replace,
       },
     );
-    return;
+    return true;
   }
   entry.restarting = {
     carrier: waiting.carrier,
@@ -1240,6 +1336,7 @@ function restart(router: DataRouter, entry: RouterHolds, waiting: WaitingChange)
   };
   void router.navigate(null);
   runBlocked(router, entry);
+  return true;
 }
 
 // A router location carries the basename; `router.navigate` adds it.
@@ -1299,9 +1396,9 @@ type LeaveConfirmOptions = {
   // makes the dialog work until it settles; the leave goes on only after a success. It fails when it
   // throws, rejects or gives `false`: the dialog closes, the leave stays and the field entries are
   // kept; the call site shows its error, as for a failed save (`SUI-FEATURE-064` rev 4). A leave that
-  // waits for a router submission runs it only once it goes, after the submission succeeded: after
-  // a redirect the surface may be gone by then; when the submission fails it never runs
-  // (`SUI-FEATURE-172`).
+  // waits for a router submission runs it only once it goes, after the submission succeeded (after
+  // a redirect the surface may be gone by then), and goes only once it succeeded too: a failure keeps
+  // the route (Q&A #5179); when the submission fails it never runs (`SUI-FEATURE-172`).
   onDiscard?: (() => unknown) | undefined;
   // `onSave` only applies the entries to an outer form: the dialog asks "Apply changes?".
   applies?: boolean | undefined;
@@ -1392,13 +1489,18 @@ function useLeaveConfirm({
   });
   // Dirty as of now: the field drafts are read live, as another surface's Save or Discard may have
   // taken them since this one rendered.
+  // A field's entry that a Discard waiting to reset covers counts no more (`SUI-FEATURE-172`): it goes
+  // only once that reset succeeded, yet a second guard asked as the change goes must not find it (#694).
+  const draftsCovered = React.useRef<() => boolean>(() => false);
   const dirtyNow = React.useCallback(
-    () => latest.current.dirty || (latest.current.open && fieldDrafts?.any() === true),
+    () =>
+      latest.current.dirty ||
+      (latest.current.open && fieldDrafts?.any() === true && !draftsCovered.current()),
     [fieldDrafts],
   );
   const releasing = React.useRef(false);
   // The way out `release` lets go now, until the route change it starts takes it.
-  const letGo = React.useRef<{ discard: (() => void) | undefined } | null>(null);
+  const letGo = React.useRef<{ discard: Reset | undefined } | null>(null);
   // The running work's token, and the way out that waits for its result; the latest way replaces an
   // older one (a newer route change has taken the older one's place already).
   const work = React.useRef<object | null>(null);
@@ -1479,7 +1581,8 @@ function useLeaveConfirm({
   );
   // When a Discard's reset (`onDiscard`, read when it runs) runs. A route change that a data router
   // holds during a submission takes it along and runs it only once it goes, after the submission
-  // succeeded (after a redirect the surface may be gone by then); one dropped meanwhile (the
+  // succeeded (after a redirect the surface may be gone by then), and goes only once that reset
+  // succeeded as well (`runAll`); one dropped meanwhile (the
   // submission failed) leaves the draft as it is (`SUI-FEATURE-172`). So does the route change a
   // confirmed `guard` way starts then (`RouterHold.released`). Any other way out runs it first and
   // waits for its result (`SUI-FEATURE-064` rev 4); `release` then gets no reset.
@@ -1501,10 +1604,12 @@ function useLeaveConfirm({
       next.leave();
     } finally {
       releasing.current = false;
-      // No route change took it (the way only closed a panel): its reset goes with it now.
+      // No route change took it (the way only closed a panel): its reset goes with it now, as the
+      // panel has closed already (`SUI-FEATURE-172`); a rejection is the call site's to show.
       const left = letGo.current;
       letGo.current = null;
-      left?.discard?.();
+      const result = left?.discard?.();
+      if (isThenable(result)) result.then(undefined, () => {});
     }
   };
   // A route change held by a surface that only applies (`SUI-FEATURE-094`): the applied values make
@@ -1657,19 +1762,31 @@ function useLeaveConfirm({
               letGo.current = null;
               return way;
             },
+            drafts: fieldDrafts,
           },
-    [hold, router, dirtyNow],
+    [hold, router, dirtyNow, fieldDrafts],
   );
   React.useEffect(() => {
     if (router === undefined || routerHold === undefined) return;
     const entry = routerEntry(router);
     savingNow.current = () => submitting(router) && entry.saving.has(routerHold.hold);
     discardWaits.current = () =>
-      entry.waiting !== null && !entry.waiting.ended && entry.waiting.discards.has(routerHold.hold);
+      (entry.waiting !== null &&
+        !entry.waiting.ended &&
+        entry.waiting.discards.has(routerHold.hold)) ||
+      (entry.resetting !== null &&
+        !entry.resetting.dropped &&
+        entry.resetting.holds.has(routerHold.hold));
+    draftsCovered.current = () =>
+      routerHold.drafts !== undefined &&
+      entry.holds.some(
+        (other) => other.drafts === routerHold.drafts && discardPending(entry, other.hold),
+      );
     const unhold = holdRouter(router, routerHold);
     return () => {
       savingNow.current = () => false;
       discardWaits.current = () => false;
+      draftsCovered.current = () => false;
       unhold();
     };
   }, [router, routerHold]);
@@ -1762,15 +1879,17 @@ function useLeaveConfirm({
           if (work.current !== null) return;
           if (resetsLater(pending)) {
             close();
-            // A field's typed entry goes at once, also when the reset waits for a router submission:
-            // the submission never carried it, so no error of it can refer to it, and a second guard
-            // asked as the change goes must not find it (#694).
-            fieldDrafts?.discard();
-            // It runs as the change goes, which waits for nothing more: a rejection is the call
-            // site's to show, never an unhandled one.
+            // It runs as the change goes, which then waits for its result: a failure keeps the
+            // route, the draft and a field's typed entry, and the call site shows its error
+            // (`SUI-FEATURE-064` rev 4, Q&A #5179). The entry goes only after a success, unless an
+            // edit took the change back meanwhile; until then the Discard covers it (#694).
+            const settled = (value: unknown) => {
+              if (value !== false && !resetDropped(router)) fieldDrafts?.discard();
+              return value;
+            };
             release(pending, () => {
               const result = latest.current.onDiscard?.();
-              if (isThenable(result)) result.then(undefined, () => {});
+              return isThenable(result) ? Promise.resolve(result).then(settled) : settled(result);
             });
             return;
           }
@@ -1829,7 +1948,8 @@ type LeaveGuardOptions = {
   onSave?: LeaveSave | undefined;
   // Discard runs it before the held leave goes on, and a promise is awaited; throwing, rejecting or
   // `false` keeps the page and its draft (`SUI-FEATURE-064` rev 4). After a router submission the
-  // leave waited for, only once it goes (`SUI-FEATURE-172`, see `useLeaveConfirm`).
+  // leave waited for, only once it goes, and the route changes only after a success
+  // (`SUI-FEATURE-172`, see `useLeaveConfirm`).
   onDiscard?: (() => unknown) | undefined;
   // Lets a route change pass without asking that keeps the `pathname` and changes only `search` or
   // `hash` (a tab switch over `?tab=`, also by replace), also while `busy`, and the save goes on; during
