@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — #728: `MediaDetailShell` leave-dialog Save counts as a submit (patch)
+
+- **Fixed (#728, GL-UI-038 §Absenden, SUI-FEATURE-150 §Primäraktion der Rückfrage):** Save in the media detail page's leave dialog marks the form as submitted, as the page's own Save does: a failed Save closes the dialog, keeps the page and the route, shows the errors of every invalid field, also one the user never left, and puts the focus in the first invalid field. Applies to every leave way of the guard (navigation click, Previous/Next, the arrow keys, Esc, Close). A valid form saves and leaves as before.
+- **Tests (#728):** unit: a changed page with two untouched invalid fields, left by a navigation click, Previous, Next, →, Esc or Close → Save in the leave dialog → dialog closes, `onSave` ran once, nothing left, route unchanged, both errors visible, focus in the first field (AC 1, AC 2); a valid form saves and lands at the navigation target, or closes on Close, without an error (AC 3). No baseline changes.
+
 ## 0.203.0 — #731: slide text line break U+2028 (Shift+Enter) and a paragraph cap per text field, slide schema 8 (minor)
 
 - **New (#731, SUI-DESIGN-002 rev 9):** a U+2028 (line separator) in a run's text breaks the line inside its paragraph; a `\n` still ends the paragraph. In a numbered or bullet list the new line belongs to the same entry: "A U+2028 B" draws A and B on two lines under one number, and the numbers after it stay as they were. In a styled numbered list (`SUI-FEATURE-124`) the new line hangs at the entry text, not under the number. `SlideView` draws a `<br>` for it (browsers draw U+2028 as no break), so the player, thumbnails and the export break alike (`SUI-FEATURE-160`); a text ending in one keeps its empty last line. The slide editor's text field inserts it on Shift+Enter, Enter starts the next paragraph or entry as before; the field reads it back as U+2028, the caret counts it as one character, and Undo takes it back with the editing.

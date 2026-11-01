@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 import i18n from "i18next";
 import * as React from "react";
 import { SendIcon } from "lucide-react";
-import { MemoryRouter } from "react-router-dom";
+import { Link, MemoryRouter, useLocation } from "react-router-dom";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { SidebarProvider, useSidebar } from "../shell/sidebar-provider.js";
@@ -947,6 +947,140 @@ describe("MediaDetailShell field errors", () => {
     expect(screen.getByText("Enter a title.")).toBeInTheDocument();
     expect(screen.getByText("Describe the image.")).toBeInTheDocument();
     await waitFor(() => expect(screen.getByLabelText("Title")).toHaveFocus());
+  });
+});
+
+// #728 (GL-UI-038 §Absenden, SUI-FEATURE-150 §Primäraktion der Rückfrage): Save in the leave dialog
+// is a submit, the same as the page's own: a failed one closes the dialog, keeps the page and the
+// route, and shows the errors of fields the user never left, the focus in the first.
+describe("MediaDetailShell: Save in the leave dialog is a submit", () => {
+  function Guarded({
+    onSave,
+    onLeave,
+    valid = false,
+  }: {
+    onSave: () => unknown;
+    onLeave: () => void;
+    valid?: boolean;
+  }) {
+    const initial = valid ? "Set" : "";
+    const [title, setTitle] = React.useState(initial);
+    const [alt, setAlt] = React.useState(initial);
+    const [note, setNote] = React.useState("");
+    return (
+      <>
+        <Link to="/other" data-testid="nav">
+          Other
+        </Link>
+        <span data-testid="path">{useLocation().pathname}</span>
+        <MediaDetailShell
+          position={2}
+          total={3}
+          kind="image"
+          src="/media/team-photo.jpg"
+          alt="team-photo.jpg"
+          dirty={note !== ""}
+          saving={false}
+          onSave={onSave}
+          onReset={() => setNote("")}
+          onPrev={onLeave}
+          onNext={onLeave}
+          onClose={onLeave}
+          fields={
+            <>
+              <Field
+                label="Title"
+                htmlFor="title"
+                error={title === "" ? "Enter a title." : undefined}
+              >
+                <Input
+                  id="title"
+                  value={title}
+                  onChange={(event) => setTitle(event.target.value)}
+                />
+              </Field>
+              <Field
+                label="Alt"
+                htmlFor="alt"
+                error={alt === "" ? "Describe the image." : undefined}
+              >
+                <Input id="alt" value={alt} onChange={(event) => setAlt(event.target.value)} />
+              </Field>
+              <Field label="Note" htmlFor="note">
+                <Input id="note" value={note} onChange={(event) => setNote(event.target.value)} />
+              </Field>
+            </>
+          }
+        />
+      </>
+    );
+  }
+
+  const leaveWays: [string, () => void][] = [
+    ["a navigation click", () => fireEvent.click(screen.getByTestId("nav"))],
+    ["Previous", () => fireEvent.click(screen.getByTestId("media-detail-previous"))],
+    ["Next", () => fireEvent.click(screen.getByTestId("media-detail-next"))],
+    ["→", () => fireEvent.keyDown(panel(), { key: "ArrowRight" })],
+    ["Esc", () => fireEvent.keyDown(document.activeElement!, { key: "Escape" })],
+    ["Close", () => fireEvent.click(screen.getByTestId("media-detail-close"))],
+  ];
+
+  function changeNote() {
+    const note = screen.getByLabelText("Note");
+    note.focus();
+    fireEvent.change(note, { target: { value: "Changed" } });
+  }
+
+  function renderGuarded(props: { onSave: () => unknown; valid?: boolean }) {
+    const onLeave = vi.fn();
+    render(
+      <MemoryRouter initialEntries={["/media/2"]}>
+        <Guarded onLeave={onLeave} {...props} />
+      </MemoryRouter>,
+    );
+    return onLeave;
+  }
+
+  it.each(leaveWays)(
+    "%s → Save in the leave dialog fails: errors of untouched fields show, focus in the first",
+    async (_way, leave) => {
+      const onSave = vi.fn(() => false);
+      const onLeave = renderGuarded({ onSave });
+      changeNote();
+      expect(screen.queryByText("Enter a title.")).toBeNull();
+      leave();
+      fireEvent.click(await screen.findByTestId("leave-guard-save"));
+      await waitFor(() => expect(screen.queryByTestId("leave-guard")).toBeNull());
+      expect(onSave).toHaveBeenCalledTimes(1);
+      expect(onLeave).not.toHaveBeenCalled();
+      expect(screen.getByTestId("media-detail")).toBeInTheDocument();
+      expect(screen.getByTestId("path")).toHaveTextContent("/media/2");
+      expect(screen.getByText("Enter a title.")).toBeInTheDocument();
+      expect(screen.getByText("Describe the image.")).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByLabelText("Title")).toHaveFocus());
+    },
+  );
+
+  it("a valid form: Save in the leave dialog saves and lands at the target, no error shown", async () => {
+    const onSave = vi.fn(() => true);
+    renderGuarded({ onSave, valid: true });
+    changeNote();
+    fireEvent.click(screen.getByTestId("nav"));
+    fireEvent.click(await screen.findByTestId("leave-guard-save"));
+    await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/other"));
+    expect(onSave).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("leave-guard")).toBeNull();
+    expect(screen.queryByText("Enter a title.")).toBeNull();
+  });
+
+  it("a valid form: Save in the leave dialog on Close saves and closes", async () => {
+    const onSave = vi.fn(() => true);
+    const onLeave = renderGuarded({ onSave, valid: true });
+    changeNote();
+    fireEvent.click(screen.getByTestId("media-detail-close"));
+    fireEvent.click(await screen.findByTestId("leave-guard-save"));
+    await waitFor(() => expect(onLeave).toHaveBeenCalledTimes(1));
+    expect(onSave).toHaveBeenCalledTimes(1);
   });
 });
 

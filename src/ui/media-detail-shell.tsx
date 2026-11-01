@@ -383,6 +383,7 @@ function MediaDetailShell({
   const preview = React.useRef<HTMLDivElement>(null);
   // A submit shows every field's error and focuses the first invalid field (`GL-UI-038`).
   const [submits, submitted] = useFieldSubmits();
+  const form = React.useRef<HTMLFormElement>(null);
   const pickSlot = React.useRef<HTMLSpanElement>(null);
   // The typed but uncommitted entries of the shell's own fields (`SUI-FEATURE-118` rev 6): they make
   // the Reset/Save pair dirty as they make the guard ask.
@@ -392,7 +393,12 @@ function MediaDetailShell({
   const { guard, dialog } = useLeaveConfirm({
     dirty: open && dirty,
     busy: open && saving,
-    onSave: () => (dirty ? onSave() : false),
+    // Save in the leave dialog is a submit, as the page's own: every invalid field shows its error and
+    // takes the focus, also one the user never left (`GL-UI-038` §Absenden, `SUI-FEATURE-150`).
+    onSave: () => {
+      if (form.current !== null) submitted(form.current);
+      return dirty ? onSave() : false;
+    },
     fieldDrafts,
   });
   // A submit with a field's entry takes it over first and saves once the call site has rendered with
@@ -484,6 +490,7 @@ function MediaDetailShell({
         >
           {/* Validation belongs to the call site (`GL-UI-027`); Enter in a field saves. */}
           <form
+            ref={form}
             noValidate
             className="flex min-h-0 flex-1 flex-col"
             onSubmit={(event) => {
