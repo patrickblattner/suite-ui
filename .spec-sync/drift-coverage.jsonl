@@ -790,3 +790,6 @@
 {"ts":"2026-10-31T21:08:57.478Z","key":"SUI-FEATURE-125","from":2,"to":4,"disposition":"ticket","ref":"729"}
 {"ts":"2026-10-31T21:55:59.259Z","key":"SUI-DESIGN-002","from":7,"to":9,"disposition":"ticket","ref":"731"}
 {"ts":"2026-11-01T02:22:25.969Z","key":"GL-UI-038","from":2,"to":3,"disposition":"ticket","ref":"735"}
+{"ts":"2026-11-01T03:06:34.545Z","key":"GL-UI-038","from":3,"to":4,"disposition":"ticket","ref":"735"}
+{"ts":"2026-11-01T03:07:04.602Z","key":"GL-UI-039","from":null,"to":2,"disposition":"ticket","ref":"736"}
+{"ts":"2026-11-01T03:07:05.096Z","key":"GL-002","from":null,"to":2,"disposition":"editorial","ref":"superseded duplicate of GL-UI-039 (same text); no own rule"}
