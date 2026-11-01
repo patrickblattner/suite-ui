@@ -14,7 +14,12 @@ import { PANEL_SURFACE_CLASS, usePanelGeometry } from "../lib/panel-geometry.js"
 import { Button } from "./button.js";
 import { FIELD_SELECTOR } from "./dialog.js";
 import { createFieldDrafts, FieldDraftsContext } from "./field-drafts-internal.js";
-import { FieldSubmitContext, submitLocked, useFieldSubmits } from "./field-error.js";
+import {
+  FieldSubmitContext,
+  FieldSubmitEndContext,
+  submitLocked,
+  useFieldSubmits,
+} from "./field-error.js";
 import { Hint } from "./hint.js";
 import { useLeaveConfirm } from "./leave-guard.js";
 import { Sheet, SheetDescription, SheetTitle } from "./sheet.js";
@@ -27,6 +32,9 @@ const handedOver = new WeakMap<HTMLElement, HTMLElement>();
 // Paging through a set of records in one panel (`SUI-FEATURE-051`); `position` is e.g. "1/3".
 type EditPanelPager = {
   position: string;
+  // The shown record's identity: its change ends the form's submit state (`GL-UI-038` rev 4).
+  // Without it the index (the first number of `position`) stands in for it.
+  recordKey?: string;
   onPrevious: () => void;
   onNext: () => void;
   previousDisabled?: boolean;
@@ -207,13 +215,40 @@ function EditPanel({
   // The typed but uncommitted entries of the panel's own fields (`SUI-FEATURE-118` rev 6).
   const [fieldDrafts] = React.useState(createFieldDrafts);
   // A submit shows every field's error and focuses the first invalid field (`GL-UI-038`).
-  const [submits, submitted] = useFieldSubmits();
+  const [submits, submitted, endSubmits, submitEnds] = useFieldSubmits();
+  // Another record in the pager ends the submit state, in the render that shows it, the fields
+  // mounted (`GL-UI-038` rev 4): the pager's `recordKey`, else its index (the first number of
+  // `position`), so a change in the set's size alone ends nothing.
+  const record =
+    pager === undefined
+      ? undefined
+      : pager.recordKey !== undefined
+        ? `key:${pager.recordKey}`
+        : `index:${/\d+/.exec(pager.position)?.[0] ?? pager.position}`;
+  const [shownRecord, setShownRecord] = React.useState(record);
+  if (record !== shownRecord) {
+    setShownRecord(record);
+    endSubmits();
+  }
+  // The latest submit: an older one's success, settling later, ends nothing.
+  const attempts = React.useRef(0);
   // The panel's submit, from its own button and from Save/Apply in the leave dialog alike: every
   // invalid field shows its error and takes the focus, also one the user never left (`GL-UI-038`
-  // §Absenden, `SUI-FEATURE-150`); a locked panel saves nothing.
+  // §Absenden, `SUI-FEATURE-150`); a locked panel saves nothing. A submit that reports success
+  // (`true`, or a promise resolving `true`) ends the submit state.
   function attempt(form: HTMLElement | null | undefined): unknown {
     if (form != null) submitted(form);
-    return submitDisabled || onSubmit === undefined ? false : onSubmit();
+    const own = ++attempts.current;
+    const result = submitDisabled || onSubmit === undefined ? false : onSubmit();
+    if (typeof (result as { then?: unknown } | null)?.then === "function") {
+      (result as PromiseLike<unknown>).then(
+        (value) => {
+          if (value === true && own === attempts.current) endSubmits();
+        },
+        () => undefined,
+      );
+    } else if (result === true) endSubmits();
+    return result;
   }
   const { guard, step, dialog, working, run } = useLeaveConfirm({
     dirty: open && dirty && !view,
@@ -259,7 +294,9 @@ function EditPanel({
   const Body = view ? "div" : "form";
   const fields = (
     <FieldSubmitContext.Provider value={view ? null : submits}>
-      <FieldDraftsContext.Provider value={fieldDrafts}>{children}</FieldDraftsContext.Provider>
+      <FieldSubmitEndContext.Provider value={submitEnds}>
+        <FieldDraftsContext.Provider value={fieldDrafts}>{children}</FieldDraftsContext.Provider>
+      </FieldSubmitEndContext.Provider>
     </FieldSubmitContext.Provider>
   );
 

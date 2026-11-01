@@ -451,3 +451,41 @@ describe("CreateAndSelectDialog field errors", () => {
     await waitFor(() => expect(screen.getByLabelText("Email")).toHaveFocus());
   });
 });
+
+// #735 (GL-UI-038 rev 4 §Absenden): a created record ends the dialog's submit state; a duplicate
+// does not.
+describe("CreateAndSelectDialog: a created record ends the submit state", () => {
+  it("a duplicate keeps the errors, a created record ends them", async () => {
+    const results: CreateResult<ComboboxOption>[] = [
+      { duplicate: { value: "1", label: "Neu" } },
+      { created: { value: "2", label: "Neu" } },
+    ];
+    render(
+      <CreateAndSelectDialog
+        open
+        // Kept open by the call site, so its fields stay mounted.
+        onOpenChange={() => {}}
+        title="Create contact"
+        initialName="Neu"
+        onCreate={() => Promise.resolve(results.shift()!)}
+        onSelect={() => {}}
+      >
+        {(nameField) => (
+          <>
+            <Field label="Email" htmlFor="email" error="Enter an email.">
+              <Input id="email" name="email" />
+            </Field>
+            <Input aria-label="Name" {...nameField} />
+          </>
+        )}
+      </CreateAndSelectDialog>,
+    );
+    const submit = () => fireEvent.submit(screen.getByLabelText("Name").closest("form")!);
+    submit();
+    await waitFor(() => expect(results).toHaveLength(1));
+    expect(await screen.findByText("Enter an email.")).toBeInTheDocument();
+    submit();
+    await waitFor(() => expect(results).toHaveLength(0));
+    await waitFor(() => expect(screen.queryByText("Enter an email.")).toBeNull());
+  });
+});

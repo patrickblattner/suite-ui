@@ -33,14 +33,22 @@ const FOCUSABLE =
 // shows every field's error at once.
 const FieldSubmitContext = React.createContext<number | null>(null);
 
+// How often the submit state of the form around a field ended (`GL-UI-038` §Absenden): with a
+// successful submit, or once the surface shows a different record. Each end makes the fields show
+// their errors late again, without remounting them.
+const FieldSubmitEndContext = React.createContext(0);
+
 // The submit count a form passes to `FieldSubmitContext`, and what it calls on every submit with
 // itself. After the submit's render the focus goes to the form's first invalid field (`GL-UI-038`
-// §Absenden).
-function useFieldSubmits(): [number, (form: HTMLElement) => void] {
+// §Absenden). Third and fourth: what the form calls once its submit state ends (a successful submit,
+// a different record shown; also during its render), and the count of those ends it passes to
+// `FieldSubmitEndContext`.
+function useFieldSubmits(): [number, (form: HTMLElement) => void, () => void, number] {
   const [submit, setSubmit] = React.useState<{ count: number; form: HTMLElement | null }>({
     count: 0,
     form: null,
   });
+  const [ends, setEnds] = React.useState(0);
   React.useEffect(() => {
     const invalid = submit.form?.querySelector<HTMLElement>('[aria-invalid="true"]');
     // A group is no focus stop itself: its first focusable control takes the focus.
@@ -53,7 +61,8 @@ function useFieldSubmits(): [number, (form: HTMLElement) => void] {
     (form: HTMLElement) => setSubmit((current) => ({ count: current.count + 1, form })),
     [],
   );
-  return [submit.count, submitted];
+  const end = React.useCallback(() => setEnds((current) => current + 1), []);
+  return [submit.count, submitted, end, ends];
 }
 
 // The click on a submit control locked with a reason (an invalid entry), as a button handler's
@@ -70,6 +79,7 @@ export {
   FieldErrorContext,
   type FieldErrorProps,
   FieldSubmitContext,
+  FieldSubmitEndContext,
   submitLocked,
   useFieldErrorAttributes,
   useFieldSubmits,

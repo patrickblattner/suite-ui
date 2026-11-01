@@ -24,7 +24,7 @@ import {
   FieldDraftsContext,
   useHasFieldDrafts,
 } from "./field-drafts-internal.js";
-import { FieldSubmitContext, useFieldSubmits } from "./field-error.js";
+import { FieldSubmitContext, FieldSubmitEndContext, useFieldSubmits } from "./field-error.js";
 import { Hint } from "./hint.js";
 import { useLeaveConfirm } from "./leave-guard.js";
 import { Sheet, SheetTitle } from "./sheet.js";
@@ -53,6 +53,9 @@ type MediaDetailShellProps = MediaDetailSource & {
   // 1-based position of the medium in the set the view pages through, and the set's size.
   position: number;
   total: number;
+  // The shown medium's identity: its change ends the form's submit state (`GL-UI-038` rev 4).
+  // Without it the position with the `src` stands in for it.
+  recordKey?: string;
   onPrev: () => void;
   onNext: () => void;
   onClose: () => void;
@@ -338,6 +341,7 @@ function MediaDetailShell({
   open = true,
   position,
   total,
+  recordKey,
   onPrev,
   onNext,
   onClose,
@@ -382,7 +386,19 @@ function MediaDetailShell({
   const returnFocus = React.useRef<HTMLElement | null>(null);
   const preview = React.useRef<HTMLDivElement>(null);
   // A submit shows every field's error and focuses the first invalid field (`GL-UI-038`).
-  const [submits, submitted] = useFieldSubmits();
+  const [submits, submitted, endSubmits, submitEnds] = useFieldSubmits();
+  // A different medium ends the submit state, in the render that shows it: its untouched fields show
+  // their errors late again, and they stay mounted, so the focus survives paging (`GL-UI-038` rev 4).
+  // The medium's key is `recordKey`, else its position with its `src`: another medium sliding into the
+  // same position ends it too, a change in the set's size (`total`) alone does not.
+  const record = recordKey !== undefined ? `key:${recordKey}` : `at:${position}\u0000${src ?? ""}`;
+  const [shownRecord, setShownRecord] = React.useState(record);
+  if (record !== shownRecord) {
+    setShownRecord(record);
+    endSubmits();
+  }
+  // The latest save: an older one's success, settling later, ends nothing.
+  const attempts = React.useRef(0);
   const form = React.useRef<HTMLFormElement>(null);
   const pickSlot = React.useRef<HTMLSpanElement>(null);
   // The typed but uncommitted entries of the shell's own fields (`SUI-FEATURE-118` rev 6): they make
@@ -392,10 +408,15 @@ function MediaDetailShell({
   const changed = dirty || hasFieldDrafts;
   // The page's submit, from its own Save and from Save in the leave dialog alike: a save that does not
   // report success shows every invalid field's error and focuses the first, also one the user never
-  // left (`GL-UI-038` §Absenden, `SUI-FEATURE-150`); a successful one arms nothing for the next medium.
+  // left (`GL-UI-038` §Absenden, `SUI-FEATURE-150`); a successful one ends the submit state.
   function attempt(): unknown {
+    const own = ++attempts.current;
     const failed = () => {
       if (form.current !== null) submitted(form.current);
+    };
+    const settled = (value: unknown) => {
+      if (value !== true) failed();
+      else if (own === attempts.current) endSubmits();
     };
     let result: unknown;
     try {
@@ -405,10 +426,8 @@ function MediaDetailShell({
       throw error;
     }
     if (typeof (result as { then?: unknown } | null)?.then === "function") {
-      (result as PromiseLike<unknown>).then((value) => {
-        if (value !== true) failed();
-      }, failed);
-    } else if (result !== true) failed();
+      (result as PromiseLike<unknown>).then(settled, failed);
+    } else settled(result);
     return result;
   }
   const { guard, dialog } = useLeaveConfirm({
@@ -636,9 +655,11 @@ function MediaDetailShell({
                     slots[slot] === undefined ? null : (
                       <div key={slot} data-slot={`media-detail-${slot}`}>
                         <FieldSubmitContext.Provider value={submits}>
-                          <FieldDraftsContext.Provider value={fieldDrafts}>
-                            {slots[slot]}
-                          </FieldDraftsContext.Provider>
+                          <FieldSubmitEndContext.Provider value={submitEnds}>
+                            <FieldDraftsContext.Provider value={fieldDrafts}>
+                              {slots[slot]}
+                            </FieldDraftsContext.Provider>
+                          </FieldSubmitEndContext.Provider>
                         </FieldSubmitContext.Provider>
                       </div>
                     ),
@@ -664,6 +685,8 @@ function MediaDetailShell({
                 }}
                 onClick={() => {
                   fieldDrafts.discard();
+                  // Reset discards to the saved values: the submit state ends (`GL-UI-038` rev 4).
+                  endSubmits();
                   onReset();
                 }}
                 data-testid="media-detail-reset"

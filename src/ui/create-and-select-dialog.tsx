@@ -13,7 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "./dialog.js";
-import { FieldSubmitContext, useFieldSubmits } from "./field-error.js";
+import { FieldSubmitContext, FieldSubmitEndContext, useFieldSubmits } from "./field-error.js";
 import { Hint } from "./hint.js";
 import { useLeaveConfirm } from "./leave-guard.js";
 
@@ -80,7 +80,7 @@ function CreateAndSelectDialog<T extends ComboboxOption = ComboboxOption>({
   const [busy, setBusy] = React.useState(false);
   const [duplicate, setDuplicate] = React.useState<T | null>(null);
   // A submit shows every field's error and focuses the first invalid field (`GL-UI-038`).
-  const [submits, submitted] = useFieldSubmits();
+  const [submits, submitted, endSubmits, submitEnds] = useFieldSubmits();
   const { guard, dialog } = useLeaveConfirm({ dirty: open && dirty, busy: open && busy });
   // The running submit: a close or unmount moves it on, so a result that arrives after the call site
   // closed the dialog, also one opened again since, selects nothing.
@@ -134,7 +134,11 @@ function CreateAndSelectDialog<T extends ComboboxOption = ComboboxOption>({
     if (own !== attempt.current) return;
     setBusy(false);
     if ("duplicate" in result) setDuplicate(result.duplicate);
-    else select(result.created);
+    else {
+      // A successful submit ends the submit state (`GL-UI-038` rev 3).
+      endSubmits();
+      select(result.created);
+    }
   };
 
   return (
@@ -185,7 +189,9 @@ function CreateAndSelectDialog<T extends ComboboxOption = ComboboxOption>({
             </DialogHeader>
             <DialogBody className="flex flex-col gap-4">
               <FieldSubmitContext.Provider value={submits}>
-                {children({ name: "name", defaultValue: initialName })}
+                <FieldSubmitEndContext.Provider value={submitEnds}>
+                  {children({ name: "name", defaultValue: initialName })}
+                </FieldSubmitEndContext.Provider>
               </FieldSubmitContext.Provider>
               {/* A status, neither error nor warning (`SUI-FEATURE-093` rev 4): muted, with an info
                   icon, the button beside it. The live region stands while the dialog is open and

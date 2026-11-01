@@ -1654,3 +1654,169 @@ describe("EditPanel field errors", () => {
     expect(screen.queryByText("Enter a name.")).toBeNull();
   });
 });
+
+// #735 (GL-UI-038 rev 3 §Absenden): a successful submit ends the panel's submit state, and so does
+// another record in the pager, the fields mounted.
+describe("EditPanel: the submit state ends", () => {
+  function Paged({ onSubmit }: { onSubmit: () => unknown }) {
+    const [position, setPosition] = useState(1);
+    const [name, setName] = useState("");
+    return (
+      <EditPanel
+        open
+        onOpenChange={() => {}}
+        title="Channel"
+        onSubmit={onSubmit}
+        pager={{
+          position: `${position} of 3`,
+          onPrevious: () => setPosition((current) => current - 1),
+          onNext: () => {
+            setPosition((current) => current + 1);
+            setName("");
+          },
+        }}
+      >
+        <Field label="Name" htmlFor="name" error={name === "" ? "Enter a name." : undefined}>
+          <Input id="name" value={name} onChange={(event) => setName(event.target.value)} />
+        </Field>
+        {/* A value from elsewhere (a reload), not typed. */}
+        <button type="button" data-testid="clear" onClick={() => setName("")}>
+          clear
+        </button>
+      </EditPanel>
+    );
+  }
+
+  const submit = () => fireEvent.submit(screen.getByLabelText("Name").closest("form")!);
+
+  it.each([
+    ["true", () => true],
+    ["a promise resolving true", () => Promise.resolve(true)],
+  ])(
+    "a submit returning %s ends it: a later invalid value from elsewhere shows late",
+    async (_, ok) => {
+      const results: (() => unknown)[] = [() => false, ok];
+      render(<Paged onSubmit={() => (results.shift() ?? (() => false))()} />);
+      submit();
+      expect(await screen.findByText("Enter a name.")).toBeInTheDocument();
+      const name = screen.getByLabelText("Name");
+      fireEvent.change(name, { target: { value: "Ada" } });
+      fireEvent.blur(name);
+      submit();
+      await waitFor(() => expect(results).toHaveLength(0));
+      await act(async () => {});
+      fireEvent.click(screen.getByTestId("clear"));
+      expect(screen.queryByText("Enter a name.")).toBeNull();
+      submit();
+      expect(await screen.findByText("Enter a name.")).toBeInTheDocument();
+    },
+  );
+
+  it("a failed submit keeps it: a later invalid value from elsewhere shows at once", async () => {
+    render(<Paged onSubmit={() => false} />);
+    submit();
+    expect(await screen.findByText("Enter a name.")).toBeInTheDocument();
+    const name = screen.getByLabelText("Name");
+    fireEvent.change(name, { target: { value: "Ada" } });
+    fireEvent.blur(name);
+    fireEvent.click(screen.getByTestId("clear"));
+    expect(screen.getByText("Enter a name.")).toBeInTheDocument();
+  });
+
+  it("a failed submit, then the next record → its untouched invalid field shows no error, focus kept", async () => {
+    render(<Paged onSubmit={() => false} />);
+    submit();
+    expect(await screen.findByText("Enter a name.")).toBeInTheDocument();
+    const name = screen.getByLabelText("Name");
+    const next = screen.getByTestId("edit-panel-next");
+    next.focus();
+    fireEvent.click(next);
+    expect(screen.getByText("2 of 3")).toBeInTheDocument();
+    expect(screen.queryByText("Enter a name.")).toBeNull();
+    expect(screen.getByLabelText("Name")).toBe(name);
+    expect(next).toHaveFocus();
+  });
+
+  it("the pager's set size changing on the same record keeps it; another index ends it", async () => {
+    function Sized({ position }: { position: string }) {
+      return (
+        <EditPanel
+          open
+          onOpenChange={() => {}}
+          title="Channel"
+          onSubmit={() => false}
+          pager={{ position, onPrevious: () => {}, onNext: () => {} }}
+        >
+          <Field label="Name" htmlFor="name" error="Enter a name.">
+            <Input id="name" />
+          </Field>
+        </EditPanel>
+      );
+    }
+    const { rerender } = render(<Sized position="1/3" />);
+    submit();
+    expect(await screen.findByText("Enter a name.")).toBeInTheDocument();
+    rerender(<Sized position="1/4" />);
+    expect(screen.getByText("Enter a name.")).toBeInTheDocument();
+    rerender(<Sized position="2/4" />);
+    expect(screen.queryByText("Enter a name.")).toBeNull();
+  });
+
+  it("with a recordKey, the key tells the record: a deleted record's successor at the same index ends it", async () => {
+    function Keyed({ position, recordKey }: { position: string; recordKey: string }) {
+      return (
+        <EditPanel
+          open
+          onOpenChange={() => {}}
+          title="Channel"
+          onSubmit={() => false}
+          pager={{ position, recordKey, onPrevious: () => {}, onNext: () => {} }}
+        >
+          <Field label="Name" htmlFor="name" error="Enter a name.">
+            <Input id="name" />
+          </Field>
+        </EditPanel>
+      );
+    }
+    const { rerender } = render(<Keyed position="2/3" recordKey="b" />);
+    submit();
+    expect(await screen.findByText("Enter a name.")).toBeInTheDocument();
+    // The same record at another index keeps it.
+    rerender(<Keyed position="1/2" recordKey="b" />);
+    expect(screen.getByText("Enter a name.")).toBeInTheDocument();
+    // Another record at the same index ends it.
+    rerender(<Keyed position="1/2" recordKey="c" />);
+    expect(screen.queryByText("Enter a name.")).toBeNull();
+  });
+
+  it("a save resolving true mid-typing: leaving the field afterwards shows its error", async () => {
+    let resolve: (value: unknown) => void = () => undefined;
+    function Typing() {
+      const [name, setName] = useState("Ada");
+      return (
+        <EditPanel
+          open
+          onOpenChange={() => {}}
+          title="Channel"
+          onSubmit={() => new Promise((done) => (resolve = done))}
+        >
+          <Field label="Name" htmlFor="name" error={name === "" ? "Enter a name." : undefined}>
+            <Input id="name" value={name} onChange={(event) => setName(event.target.value)} />
+          </Field>
+        </EditPanel>
+      );
+    }
+    render(<Typing />);
+    submit();
+    const name = screen.getByLabelText("Name");
+    name.focus();
+    fireEvent.change(name, { target: { value: "" } });
+    await act(async () => {
+      resolve(true);
+      await Promise.resolve();
+    });
+    expect(screen.queryByText("Enter a name.")).toBeNull();
+    fireEvent.blur(name);
+    expect(screen.getByText("Enter a name.")).toBeInTheDocument();
+  });
+});

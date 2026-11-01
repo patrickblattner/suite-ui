@@ -1,7 +1,7 @@
-import type * as React from "react";
+import * as React from "react";
 
 import { PageHeader } from "../list/page-header.js";
-import { FieldSubmitContext, useFieldSubmits } from "../ui/field-error.js";
+import { FieldSubmitContext, FieldSubmitEndContext, useFieldSubmits } from "../ui/field-error.js";
 import { InlineMessage } from "../ui/inline-message.js";
 import { Skeleton } from "../ui/skeleton.js";
 import { Tabs } from "../ui/tabs.js";
@@ -95,7 +95,30 @@ function SettingsScaffold({
   error,
 }: SettingsScaffoldProps) {
   // A submit shows every field's error and focuses the first invalid field (`GL-UI-038`).
-  const [submits, submitted] = useFieldSubmits();
+  const [submits, submitted, endSubmits, submitEnds] = useFieldSubmits();
+  // `onSave` reports no result. A save the submit started runs until the form turns clean (saved: the
+  // submit state ends, as on Reset, `GL-UI-038` rev 4), `saving` goes back to false with the form
+  // still dirty (failed), or the person's next edit in the form while no save is in flight; `saving`
+  // may come later than the submit (a mutation's `isPending`). Typing the values back by hand ends
+  // nothing.
+  const [saveRun, setSaveRun] = React.useState<"none" | "started" | "saving">("none");
+  if (saveRun !== "none" && form !== undefined) {
+    if (!form.dirty && form.saving !== true) {
+      setSaveRun("none");
+      endSubmits();
+    } else if (form.saving === true && saveRun === "started") setSaveRun("saving");
+    else if (form.saving !== true && saveRun === "saving") setSaveRun("none");
+  }
+  // An edit by the person in one of the form's own controls drops the run: a trusted event, its
+  // target inside the form (not a portal's, such as a combobox search), no save in flight. A
+  // control's own dispatch (a Radix Select's value set by code) is not trusted.
+  const edited = (event: React.SyntheticEvent<HTMLFormElement>) => {
+    const target = event.target;
+    if (!event.isTrusted || form?.saving === true) return;
+    if (!(target instanceof Element) || !event.currentTarget.contains(target)) return;
+    if (!target.matches("input, textarea, select, [contenteditable]")) return;
+    setSaveRun("none");
+  };
   const state = loading ? (
     <Skeleton className="h-9 w-full" aria-busy="true" data-testid="settings-loading" />
   ) : error !== undefined ? (
@@ -162,22 +185,34 @@ function SettingsScaffold({
           className="flex min-h-0 flex-1 flex-col"
           noValidate
           data-testid={formTestId ?? `${testIdPrefix ?? `settings-${pageKey}`}-form`}
+          onInput={edited}
+          onChange={edited}
           onSubmit={(event) => {
             event.preventDefault();
             submitted(event.currentTarget);
             // Enter in a field submits too; it must not start a second save, save nothing or save an
             // invalid form.
-            if (form.dirty && form.valid !== false && form.saving !== true && state === null)
+            if (form.dirty && form.valid !== false && form.saving !== true && state === null) {
+              setSaveRun("started");
               form.onSave();
+            }
           }}
         >
-          <FieldSubmitContext.Provider value={submits}>{content}</FieldSubmitContext.Provider>
+          <FieldSubmitContext.Provider value={submits}>
+            <FieldSubmitEndContext.Provider value={submitEnds}>
+              {content}
+            </FieldSubmitEndContext.Provider>
+          </FieldSubmitContext.Provider>
           <SettingsFooter
             pageKey={pageKey}
             testIdPrefix={testIdPrefix}
             dirty={form.dirty}
             valid={form.valid !== false && state === null}
-            onReset={form.onReset}
+            onReset={() => {
+              setSaveRun("none");
+              endSubmits();
+              form.onReset();
+            }}
             saving={form.saving}
           />
         </form>
