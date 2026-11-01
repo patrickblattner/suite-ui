@@ -813,7 +813,7 @@ export function InlineTextEditor({
               if (onRuns(runs, rangeIn(node))) {
                 syncParagraphs(node, runs, brand, numbered);
                 // Moving the text a dead key or an IME is composing would cancel or double it.
-                if ((event.nativeEvent as InputEvent).isComposing !== true) {
+                if (!event.nativeEvent.isComposing) {
                   styleStray(node, stray, brand);
                 }
                 return;
