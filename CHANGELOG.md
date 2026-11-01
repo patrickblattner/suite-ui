@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — #754: spec-sync-toolkit pin v0.35.0 (patch)
+
+- **Changed (#754):** devDependency `spec-sync-toolkit` raised from v0.34.0 to v0.35.0 (lockfile updated; SST-FEATURE-001 rev 5: licence-inventory skips extraneous nodes, allowlist exceptions are `{package, licence, reason}`). `spec-sync.config.json` has no licence allowlist, so nothing to migrate. No baseline changes.
+
 ## 0.207.0 — #749, SUI-FEATURE-124 rev 5: numbered list `fit` ("all" | "runs"), slide schema 9 (minor)
 
 - **New (#749, SUI-FEATURE-124 rev 5):** a styled numbered list (`numbered`) takes `fit?: "all" | "runs"`. `"all"` (also when absent) fits as before: marker, gaps and runs scale with one factor, the marker size counting toward the set size. `"runs"` steps whole pixels on the largest run (e.g. 58 → 49 px), the marker follows in the same ratio (117 × 49/58), `markerGap` and `entryGap` keep their px (an absent `markerGap` keeps half the set marker size in px); each step's fits check is exact (measured height ≤ box height and width ≤ box width, no half-pixel tolerance). `SlideView`, `SlidePlayer`, thumbnail and `SlideExport` draw it alike. The editor keeps `fit` and does not offer it. Any other `fit` value is a named `invalid-value` error.
