@@ -96,13 +96,13 @@ function SettingsScaffold({
 }: SettingsScaffoldProps) {
   // A submit shows every field's error and focuses the first invalid field (`GL-UI-038`).
   const [submits, submitted, endSubmits, submitEnds] = useFieldSubmits();
-  // `onSave` reports no result: a form that is clean again, its save done, saved (or was reset), and
-  // that ends the submit state (`GL-UI-038` rev 3).
-  const settled = form !== undefined && !form.dirty && form.saving !== true;
-  const [wasSettled, setWasSettled] = React.useState(settled);
-  if (settled !== wasSettled) {
-    setWasSettled(settled);
-    if (settled) endSubmits();
+  // `onSave` reports no result: a save the submit started that ends (`saving` back to false, or never
+  // set) with the form clean saved, and that ends the submit state, as Reset does (`GL-UI-038` rev 4).
+  // Typing the values back by hand ends nothing.
+  const [saveRun, setSaveRun] = React.useState(false);
+  if (saveRun && form !== undefined && form.saving !== true) {
+    setSaveRun(false);
+    if (!form.dirty) endSubmits();
   }
   const state = loading ? (
     <Skeleton className="h-9 w-full" aria-busy="true" data-testid="settings-loading" />
@@ -175,8 +175,10 @@ function SettingsScaffold({
             submitted(event.currentTarget);
             // Enter in a field submits too; it must not start a second save, save nothing or save an
             // invalid form.
-            if (form.dirty && form.valid !== false && form.saving !== true && state === null)
+            if (form.dirty && form.valid !== false && form.saving !== true && state === null) {
+              setSaveRun(true);
               form.onSave();
+            }
           }}
         >
           <FieldSubmitContext.Provider value={submits}>
@@ -189,7 +191,10 @@ function SettingsScaffold({
             testIdPrefix={testIdPrefix}
             dirty={form.dirty}
             valid={form.valid !== false && state === null}
-            onReset={form.onReset}
+            onReset={() => {
+              endSubmits();
+              form.onReset();
+            }}
             saving={form.saving}
           />
         </form>

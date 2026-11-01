@@ -91,11 +91,11 @@ function Field({
     setTypedIn(null);
     setShown(current);
   } else if (ends !== seenEnds) {
-    // The submit state ended (`GL-UI-038` rev 3 §Absenden): the field shows its error late again, as
-    // an untouched one. A submit and its success in one render take effect in that order.
+    // The submit state ended (`GL-UI-038` rev 4 §Absenden): the field shows its error late again, as
+    // an untouched one; typing in it goes on, so leaving it shows the error. A submit and its success
+    // in one render take effect in that order.
     setSeenEnds(ends);
     setArmed(submits === null);
-    setTypedIn(null);
     setShown(submits === null ? current : undefined);
   } else if (armed && !editing && shown !== current) setShown(current);
   else if (editing && shown !== undefined && shown !== current) setShown(undefined);

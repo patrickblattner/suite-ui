@@ -1736,4 +1736,60 @@ describe("EditPanel: the submit state ends", () => {
     expect(screen.getByLabelText("Name")).toBe(name);
     expect(next).toHaveFocus();
   });
+
+  it("the pager's set size changing on the same record keeps it; another index ends it", async () => {
+    function Sized({ position }: { position: string }) {
+      return (
+        <EditPanel
+          open
+          onOpenChange={() => {}}
+          title="Channel"
+          onSubmit={() => false}
+          pager={{ position, onPrevious: () => {}, onNext: () => {} }}
+        >
+          <Field label="Name" htmlFor="name" error="Enter a name.">
+            <Input id="name" />
+          </Field>
+        </EditPanel>
+      );
+    }
+    const { rerender } = render(<Sized position="1/3" />);
+    submit();
+    expect(await screen.findByText("Enter a name.")).toBeInTheDocument();
+    rerender(<Sized position="1/4" />);
+    expect(screen.getByText("Enter a name.")).toBeInTheDocument();
+    rerender(<Sized position="2/4" />);
+    expect(screen.queryByText("Enter a name.")).toBeNull();
+  });
+
+  it("a save resolving true mid-typing: leaving the field afterwards shows its error", async () => {
+    let resolve: (value: unknown) => void = () => undefined;
+    function Typing() {
+      const [name, setName] = useState("Ada");
+      return (
+        <EditPanel
+          open
+          onOpenChange={() => {}}
+          title="Channel"
+          onSubmit={() => new Promise((done) => (resolve = done))}
+        >
+          <Field label="Name" htmlFor="name" error={name === "" ? "Enter a name." : undefined}>
+            <Input id="name" value={name} onChange={(event) => setName(event.target.value)} />
+          </Field>
+        </EditPanel>
+      );
+    }
+    render(<Typing />);
+    submit();
+    const name = screen.getByLabelText("Name");
+    name.focus();
+    fireEvent.change(name, { target: { value: "" } });
+    await act(async () => {
+      resolve(true);
+      await Promise.resolve();
+    });
+    expect(screen.queryByText("Enter a name.")).toBeNull();
+    fireEvent.blur(name);
+    expect(screen.getByText("Enter a name.")).toBeInTheDocument();
+  });
 });

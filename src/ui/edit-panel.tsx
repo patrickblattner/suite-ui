@@ -214,23 +214,29 @@ function EditPanel({
   // A submit shows every field's error and focuses the first invalid field (`GL-UI-038`).
   const [submits, submitted, endSubmits, submitEnds] = useFieldSubmits();
   // Another record in the pager ends the submit state, in the render that shows it, the fields
-  // mounted (`GL-UI-038` rev 3).
-  const [shownPosition, setShownPosition] = React.useState(pager?.position);
-  if (pager?.position !== shownPosition) {
-    setShownPosition(pager?.position);
+  // mounted (`GL-UI-038` rev 4). The pager has no record key: its index (the first number of
+  // `position`) tells the record, so a change in the set's size alone ends nothing.
+  const index =
+    pager === undefined ? undefined : (/\d+/.exec(pager.position)?.[0] ?? pager.position);
+  const [shownIndex, setShownIndex] = React.useState(index);
+  if (index !== shownIndex) {
+    setShownIndex(index);
     endSubmits();
   }
+  // The latest submit: an older one's success, settling later, ends nothing.
+  const attempts = React.useRef(0);
   // The panel's submit, from its own button and from Save/Apply in the leave dialog alike: every
   // invalid field shows its error and takes the focus, also one the user never left (`GL-UI-038`
   // §Absenden, `SUI-FEATURE-150`); a locked panel saves nothing. A submit that reports success
   // (`true`, or a promise resolving `true`) ends the submit state.
   function attempt(form: HTMLElement | null | undefined): unknown {
     if (form != null) submitted(form);
+    const own = ++attempts.current;
     const result = submitDisabled || onSubmit === undefined ? false : onSubmit();
     if (typeof (result as { then?: unknown } | null)?.then === "function") {
       (result as PromiseLike<unknown>).then(
         (value) => {
-          if (value === true) endSubmits();
+          if (value === true && own === attempts.current) endSubmits();
         },
         () => undefined,
       );

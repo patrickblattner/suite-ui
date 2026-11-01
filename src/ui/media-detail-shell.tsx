@@ -383,14 +383,18 @@ function MediaDetailShell({
   const preview = React.useRef<HTMLDivElement>(null);
   // A submit shows every field's error and focuses the first invalid field (`GL-UI-038`).
   const [submits, submitted, endSubmits, submitEnds] = useFieldSubmits();
-  // A different medium (as for the preview: a different position) ends the submit state, in the
-  // render that shows it: its untouched fields show their errors late again, and they stay mounted, so
-  // the focus survives paging (`GL-UI-038` rev 3).
-  const [shownPosition, setShownPosition] = React.useState(position);
-  if (position !== shownPosition) {
-    setShownPosition(position);
+  // A different medium ends the submit state, in the render that shows it: its untouched fields show
+  // their errors late again, and they stay mounted, so the focus survives paging (`GL-UI-038` rev 4).
+  // The medium's key is its `src` with its position: another medium sliding into the same position
+  // ends it too, a change in the set's size (`total`) alone does not.
+  const record = `${position}\u0000${src ?? ""}`;
+  const [shownRecord, setShownRecord] = React.useState(record);
+  if (record !== shownRecord) {
+    setShownRecord(record);
     endSubmits();
   }
+  // The latest save: an older one's success, settling later, ends nothing.
+  const attempts = React.useRef(0);
   const form = React.useRef<HTMLFormElement>(null);
   const pickSlot = React.useRef<HTMLSpanElement>(null);
   // The typed but uncommitted entries of the shell's own fields (`SUI-FEATURE-118` rev 6): they make
@@ -402,12 +406,13 @@ function MediaDetailShell({
   // report success shows every invalid field's error and focuses the first, also one the user never
   // left (`GL-UI-038` §Absenden, `SUI-FEATURE-150`); a successful one ends the submit state.
   function attempt(): unknown {
+    const own = ++attempts.current;
     const failed = () => {
       if (form.current !== null) submitted(form.current);
     };
     const settled = (value: unknown) => {
-      if (value === true) endSubmits();
-      else failed();
+      if (value !== true) failed();
+      else if (own === attempts.current) endSubmits();
     };
     let result: unknown;
     try {
@@ -676,6 +681,8 @@ function MediaDetailShell({
                 }}
                 onClick={() => {
                   fieldDrafts.discard();
+                  // Reset discards to the saved values: the submit state ends (`GL-UI-038` rev 4).
+                  endSubmits();
                   onReset();
                 }}
                 data-testid="media-detail-reset"

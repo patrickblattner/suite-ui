@@ -1330,6 +1330,74 @@ describe("MediaDetailShell: the submit state ends", () => {
     save();
     await waitFor(() => expect(screen.queryByText("Enter a title.")).toBeNull());
   });
+
+  it("an older Save's late success does not end a newer failed Save's submit state", async () => {
+    let resolveOld: (value: unknown) => void = () => undefined;
+    const results: (() => unknown)[] = [
+      () => new Promise((resolve) => (resolveOld = resolve)),
+      () => false,
+    ];
+    render(<Paged onSave={() => results.shift()!()} />);
+    changeNote();
+    save();
+    save();
+    expect(await screen.findByText("Enter a title.")).toBeInTheDocument();
+    await act(async () => {
+      resolveOld(true);
+      await Promise.resolve();
+    });
+    expect(screen.getByText("Enter a title.")).toBeInTheDocument();
+  });
+
+  it("Reset after a failed Save ends the submit state (GL-UI-038 rev 4)", async () => {
+    render(<Paged onSave={() => false} />);
+    changeNote();
+    save();
+    expect(await screen.findByText("Enter a title.")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("media-detail-reset"));
+    expect(screen.queryByText("Enter a title.")).toBeNull();
+  });
+
+  // The medium's key: its position with its `src`.
+  function Single({ position, total, src }: { position: number; total: number; src: string }) {
+    return (
+      <MediaDetailShell
+        position={position}
+        total={total}
+        kind="image"
+        src={src}
+        alt=""
+        dirty={false}
+        saving={false}
+        onSave={() => false}
+        onReset={() => undefined}
+        onPrev={() => undefined}
+        onNext={() => undefined}
+        onClose={() => undefined}
+        fields={
+          <Field label="Title" htmlFor="title" error="Enter a title.">
+            <Input id="title" />
+          </Field>
+        }
+      />
+    );
+  }
+
+  it.each([
+    [
+      "another medium slides into the same position",
+      { position: 2, total: 2, src: "/b.jpg" },
+      "end",
+    ],
+    ["the set's size changes on the same medium", { position: 2, total: 4, src: "/a.jpg" }, "stay"],
+  ])("%s → the errors %s", async (_case, props, errors) => {
+    const { rerender } = render(<Single position={2} total={3} src="/a.jpg" />);
+    fireEvent.submit(screen.getByLabelText("Title").closest("form")!);
+    expect(await screen.findByText("Enter a title.")).toBeInTheDocument();
+    rerender(<Single {...props} />);
+    if (errors === "stay") expect(screen.getByText("Enter a title.")).toBeInTheDocument();
+    else expect(screen.queryByText("Enter a title.")).toBeNull();
+  });
 });
 
 // #694, SUI-FEATURE-118 rev 6: a typed but uncommitted tag in the shell's fields is a change, for its

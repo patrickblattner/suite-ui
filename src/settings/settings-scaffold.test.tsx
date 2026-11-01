@@ -559,3 +559,73 @@ describe("SettingsScaffold: a successful save ends the submit state", () => {
     },
   );
 });
+
+// #735 (GL-UI-038 rev 4 §Absenden): Reset ends the submit state; typing the saved values back by hand
+// does not.
+describe("SettingsScaffold: Reset ends the submit state, typing back does not", () => {
+  function Page() {
+    const [name, setName] = useState("");
+    const [city, setCity] = useState("");
+    return (
+      <SettingsScaffold
+        pageKey="general"
+        title="General"
+        subtitle="The name of this instance."
+        left={
+          <>
+            <SettingsField
+              label="Name"
+              htmlFor="name"
+              error={name === "" ? "Enter a name." : undefined}
+            >
+              <Input id="name" value={name} onChange={(event) => setName(event.target.value)} />
+            </SettingsField>
+            <SettingsField
+              label="City"
+              htmlFor="city"
+              error={city === "" ? "Enter a city." : undefined}
+            >
+              <Input id="city" value={city} onChange={(event) => setCity(event.target.value)} />
+            </SettingsField>
+          </>
+        }
+        form={{
+          dirty: name !== "" || city !== "",
+          valid: name !== "" && city !== "",
+          onSave: () => {},
+          onReset: () => {
+            setName("");
+            setCity("");
+          },
+        }}
+      />
+    );
+  }
+
+  function failedSubmit() {
+    const name = screen.getByLabelText("Name");
+    fireEvent.change(name, { target: { value: "A" } });
+    fireEvent.blur(name);
+    fireEvent.submit(name.closest("form")!);
+  }
+
+  it("a failed submit, then Reset → no field errors", async () => {
+    render(<Page />);
+    failedSubmit();
+    expect(await screen.findByText("Enter a city.")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("settings-general-reset"));
+    expect(screen.queryByText("Enter a name.")).toBeNull();
+    expect(screen.queryByText("Enter a city.")).toBeNull();
+  });
+
+  it("a failed submit, then the values typed back by hand → the still invalid fields' errors stay", async () => {
+    render(<Page />);
+    failedSubmit();
+    expect(await screen.findByText("Enter a city.")).toBeInTheDocument();
+    const name = screen.getByLabelText("Name");
+    fireEvent.change(name, { target: { value: "" } });
+    fireEvent.blur(name);
+    expect(screen.getByText("Enter a name.")).toBeInTheDocument();
+    expect(screen.getByText("Enter a city.")).toBeInTheDocument();
+  });
+});
