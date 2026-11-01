@@ -147,11 +147,13 @@ function GridPage({
   showField = true,
   locked = false,
   onSave = () => true,
+  onDiscard,
 }: {
   commit: (value: string) => void;
   showField?: boolean;
   locked?: boolean;
   onSave?: () => boolean | Promise<boolean>;
+  onDiscard?: (() => unknown) | undefined;
 }) {
   const [draft, setDraft] = useState("Main");
   const grid = useRowGrid();
@@ -159,6 +161,7 @@ function GridPage({
     dirty: isDirty("Main", draft),
     onLeave: () => {},
     onSave,
+    onDiscard,
   });
   return (
     <>
@@ -199,9 +202,11 @@ function GridPage({
 }
 
 describe("focus return to the field in a keyboard-grid list (SUI-FEATURE-118 rev 3)", () => {
-  function holdInGrid(onSave?: () => boolean | Promise<boolean>) {
+  function holdInGrid(onSave?: () => boolean | Promise<boolean>, onDiscard?: () => unknown) {
     const commit = vi.fn();
-    const view = render(<GridPage commit={commit} {...(onSave ? { onSave } : {})} />);
+    const view = render(
+      <GridPage commit={commit} {...(onSave ? { onSave } : {})} onDiscard={onDiscard} />,
+    );
     const field = screen.getByLabelText("Name");
     act(() => field.focus());
     fireEvent.change(field, { target: { value: "Changed" } });
@@ -270,6 +275,23 @@ describe("focus return to the field in a keyboard-grid list (SUI-FEATURE-118 rev
     );
     fireEvent.keyDown(dialog, { key: "Escape" });
     expect(screen.getByTestId("leave-guard")).toBe(dialog);
+  });
+
+  // Review #748 (SUI-FEATURE-064 rev 4): a failed reset or save closes the dialog as a stay, so the
+  // focus returns to the field, as on Cancel, not to the row entry.
+  it.each([
+    ["Discard", "rejects"],
+    ["Discard", "gives false"],
+    ["Save", "rejects"],
+    ["Save", "gives false"],
+  ])("%s that %s returns the focus to the field, not the row entry", async (name, how) => {
+    const fail = (): boolean | Promise<boolean> =>
+      how === "rejects" ? Promise.reject(new Error("failed")) : false;
+    const { field, dialog } = name === "Save" ? holdInGrid(fail) : holdInGrid(undefined, fail);
+    fireEvent.click(within(dialog).getByRole("button", { name }));
+    await waitFor(() => expect(screen.queryByTestId("leave-guard")).toBeNull());
+    await waitFor(() => expect(document.activeElement).toBe(field));
+    expect((field as HTMLInputElement).value).toBe("Changed");
   });
 
   it.each(["Discard", "Save"])("%s keeps the old return to the row entry", async (name) => {

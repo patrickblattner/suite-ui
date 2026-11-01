@@ -98,6 +98,12 @@ type LeaveConfirmDialogProps = {
   // Save (or Apply) runs (`SUI-FEATURE-150`): the dialog stays open, Save shows the working state,
   // and Cancel and Discard are locked until the result.
   working?: boolean | undefined;
+  // The work is Discard's reset (`SUI-FEATURE-064` rev 4): Discard shows the working state instead of
+  // Save, and Save is locked with Cancel.
+  discarding?: boolean | undefined;
+  // The work failed: the dialog closes as a stay, so the focus returns as on Cancel, unless the call
+  // site has moved it to its error (`SUI-FEATURE-064` rev 4, `SUI-FEATURE-150`).
+  failed?: boolean | undefined;
   onCancel: () => void;
   onDiscard: () => void;
   // Without it the surface has no save target: the dialog asks "Discard changes?" instead.
@@ -125,6 +131,8 @@ type LeaveConfirmDialogProps = {
 function LeaveConfirmDialog({
   open,
   working = false,
+  discarding = false,
+  failed = false,
   onCancel,
   onDiscard,
   onSave,
@@ -189,7 +197,7 @@ function LeaveConfirmDialog({
         onCloseAutoFocus={(event) => {
           const field = held.current;
           held.current = null;
-          const staying = stayed.current;
+          const staying = stayed.current || failed;
           stayed.current = false;
           // A focus the caller placed outside keeps its place.
           const active = document.activeElement;
@@ -244,7 +252,8 @@ function LeaveConfirmDialog({
             type="button"
             variant="destructive"
             size="default"
-            disabled={working}
+            disabled={working && !discarding}
+            busy={discarding}
             onClick={onDiscard}
             data-testid="leave-guard-discard"
           >
@@ -256,7 +265,8 @@ function LeaveConfirmDialog({
               variant="success"
               size="default"
               ref={save}
-              busy={working}
+              busy={working && !discarding}
+              disabled={discarding}
               onClick={onSave}
               {...opening}
               data-testid="leave-guard-save"
@@ -1285,11 +1295,14 @@ type LeaveConfirmOptions = {
   busy: boolean;
   // Without it the surface has no save target: the dialog only offers Cancel and Discard.
   onSave?: LeaveSave | undefined;
-  // Discard runs it as the held leave goes on (an editor resets its draft, `GL-UI-034`). A leave that
+  // Discard runs it before the held leave goes on (an editor resets its draft, `GL-UI-034`). A promise
+  // makes the dialog work until it settles; the leave goes on only after a success. It fails when it
+  // throws, rejects or gives `false`: the dialog closes, the leave stays and the field entries are
+  // kept; the call site shows its error, as for a failed save (`SUI-FEATURE-064` rev 4). A leave that
   // waits for a router submission runs it only once it goes, after the submission succeeded: after
   // a redirect the surface may be gone by then; when the submission fails it never runs
   // (`SUI-FEATURE-172`).
-  onDiscard?: (() => void) | undefined;
+  onDiscard?: (() => unknown) | undefined;
   // `onSave` only applies the entries to an outer form: the dialog asks "Apply changes?".
   applies?: boolean | undefined;
   // The surface is shown (an edit panel's `open`). Closing it closes its dialog and drops a held leave,
@@ -1348,7 +1361,10 @@ function useLeaveConfirm({
   // The open dialog's held leave, for a way out that arrives while it asks; set with the state, so a
   // key pressed before the dialog has rendered already sees it.
   const asking = React.useRef<PendingLeave | null>(null);
+  // The last work in the dialog failed: it closes as a stay.
+  const [failed, setFailed] = React.useState(false);
   const ask = (next: PendingLeave | null) => {
+    if (next !== null) setFailed(false);
     asking.current = next;
     setPending(next);
   };
@@ -1387,6 +1403,8 @@ function useLeaveConfirm({
   // older one (a newer route change has taken the older one's place already).
   const work = React.useRef<object | null>(null);
   const [working, setWorking] = React.useState(false);
+  // The running work is Discard's reset (`SUI-FEATURE-064` rev 4).
+  const [discarding, setDiscarding] = React.useState(false);
   const waiting = React.useRef<PendingLeave | null>(null);
   // The route change that waits for the page's own `busy` save (`holdBusy`); the latest replaces an
   // older one.
@@ -1459,18 +1477,22 @@ function useLeaveConfirm({
     },
     [hold, ownWay],
   );
-  // A Discard's reset (`onDiscard`, read when it runs) goes with the way out. A route change that a
-  // data router holds during a submission takes it along and runs it only once it goes, after the
-  // submission succeeded (after a redirect the surface may be gone by then); one dropped meanwhile
-  // (the submission failed) leaves the draft as it is (`SUI-FEATURE-172`).
-  const release = (next: PendingLeave, discard?: () => void) => {
+  // When a Discard's reset (`onDiscard`, read when it runs) runs. A route change that a data router
+  // holds during a submission takes it along and runs it only once it goes, after the submission
+  // succeeded (after a redirect the surface may be gone by then); one dropped meanwhile (the
+  // submission failed) leaves the draft as it is (`SUI-FEATURE-172`). So does the route change a
+  // confirmed `guard` way starts then (`RouterHold.released`). Any other way out runs it first and
+  // waits for its result (`SUI-FEATURE-064` rev 4); `release` then gets no reset.
+  const ownDuringSubmission = (next: PendingLeave) =>
+    next.confirm === undefined && router !== undefined && submitting(router);
+  const resetsLater = (next: PendingLeave) =>
+    ownDuringSubmission(next) || (next.confirm !== undefined && next.afterSubmission === true);
+  const release = (next: PendingLeave, discard?: () => unknown) => {
     // The surface leaves: a list left open while the dialog asked closes and drops its query, so
     // nothing of it reaches the next entry (`SUI-FEATURE-118` rev 6).
     fieldDrafts?.leave();
-    // A route change a data router holds during a submission takes the reset along, and so does the
-    // one a confirmed `guard` way starts then (`RouterHold.released`); any other way goes at once.
-    const own = next.confirm === undefined && router !== undefined && submitting(router);
-    const later = own || (next.confirm !== undefined && next.afterSubmission === true);
+    const own = ownDuringSubmission(next);
+    const later = resetsLater(next);
     if (!later) discard?.();
     releasing.current = true;
     letGo.current = own ? { discard } : null;
@@ -1495,38 +1517,47 @@ function useLeaveConfirm({
 
   // The result for the way out that waited: after a success it goes on, else it is dropped. The
   // dialog that worked closes with the result; a failed save shows its error at its field.
-  const conclude = (ok: boolean) => {
+  // After a successful Discard reset (`reset`) the field entries go and the way out goes on as it is;
+  // after a failed one both stay (`SUI-FEATURE-064` rev 4).
+  const conclude = (ok: boolean, reset = false) => {
     const way = waiting.current;
     waiting.current = null;
+    if (!ok) setFailed(true);
     if (asking.current !== null) ask(null);
     if (way === null) return;
     if (!ok) way.stay?.();
-    else if (applies !== true || way.again === undefined) release(way);
+    else if (reset) {
+      fieldDrafts?.discard();
+      release(way);
+    } else if (applies !== true || way.again === undefined) release(way);
     else {
       resume.current = way;
       setResumed((count) => count + 1);
     }
   };
-  const run = (call: () => unknown) => {
-    const result = call();
+  // Concludes with `result`, at once or, for a promise, once it settles while the surface works.
+  const settleWith = (result: unknown, succeeded: (value: unknown) => boolean, reset = false) => {
     if (!isThenable(result)) {
-      conclude(result === true);
+      conclude(succeeded(result), reset);
       return;
     }
     const token = {};
     work.current = token;
     setWorking(true);
+    setDiscarding(reset);
     const settle = (ok: boolean) => {
       if (work.current !== token) return;
       work.current = null;
       setWorking(false);
-      conclude(ok);
+      setDiscarding(false);
+      conclude(ok, reset);
     };
     result.then(
-      (value) => settle(value === true),
+      (value) => settle(succeeded(value)),
       () => settle(false),
     );
   };
+  const run = (call: () => unknown) => settleWith(call(), (value) => value === true);
   // A step inside the surface that never asks (the edit panel's Back, `SUI-FEATURE-091` rev 6): it
   // runs at once, or, while the surface's own work runs, waits for its result as a way out does
   // (`SUI-FEATURE-171`). It reads the work's ref, not `working`, which turns false only a render
@@ -1556,6 +1587,7 @@ function useLeaveConfirm({
     // The closed surface no longer asks nor works; its work, still running, counts for nothing.
     drop();
     setWorking(false);
+    setDiscarding(false);
   }, [open, drop]);
   React.useEffect(
     () => () => {
@@ -1713,6 +1745,8 @@ function useLeaveConfirm({
       <LeaveConfirmDialog
         open={pending !== null}
         working={working}
+        discarding={discarding}
+        failed={failed}
         applies={applies}
         workingFocus={workingFocus}
         onCancel={() => {
@@ -1721,13 +1755,36 @@ function useLeaveConfirm({
           close();
         }}
         onDiscard={() => {
-          close();
-          if (pending === null) return;
-          // A field's typed entry goes at once, also when the reset waits for a router submission: the
-          // submission never carried it, so no error of it can refer to it, and a second guard asked as
-          // the change goes must not find it (#694).
-          fieldDrafts?.discard();
-          release(pending, () => latest.current.onDiscard?.());
+          if (pending === null) {
+            close();
+            return;
+          }
+          if (work.current !== null) return;
+          if (resetsLater(pending)) {
+            close();
+            // A field's typed entry goes at once, also when the reset waits for a router submission:
+            // the submission never carried it, so no error of it can refer to it, and a second guard
+            // asked as the change goes must not find it (#694).
+            fieldDrafts?.discard();
+            // It runs as the change goes, which waits for nothing more: a rejection is the call
+            // site's to show, never an unhandled one.
+            release(pending, () => {
+              const result = latest.current.onDiscard?.();
+              if (isThenable(result)) result.then(undefined, () => {});
+            });
+            return;
+          }
+          // Any other way out waits for the reset's result: only a success lets it go on; a failure
+          // keeps the route, the draft and the field entries (`SUI-FEATURE-064` rev 4).
+          waiting.current = pending;
+          let result: unknown;
+          try {
+            result = latest.current.onDiscard?.();
+          } catch {
+            conclude(false, true);
+            return;
+          }
+          settleWith(result, (value) => value !== false, true);
         }}
         onSave={
           onSave === undefined
@@ -1770,9 +1827,10 @@ type LeaveGuardOptions = {
   // Leave it out where the page has no save target (`SUI-FEATURE-092`): the dialog then asks
   // "Discard changes?" with only Cancel and Discard.
   onSave?: LeaveSave | undefined;
-  // Discard runs it as the held leave goes on; after a router submission the leave waited for, only
-  // once it goes (`SUI-FEATURE-172`, see `useLeaveConfirm`).
-  onDiscard?: (() => void) | undefined;
+  // Discard runs it before the held leave goes on, and a promise is awaited; throwing, rejecting or
+  // `false` keeps the page and its draft (`SUI-FEATURE-064` rev 4). After a router submission the
+  // leave waited for, only once it goes (`SUI-FEATURE-172`, see `useLeaveConfirm`).
+  onDiscard?: (() => unknown) | undefined;
   // Lets a route change pass without asking that keeps the `pathname` and changes only `search` or
   // `hash` (a tab switch over `?tab=`, also by replace), also while `busy`, and the save goes on; during
   // a router form submission (not a fetcher) it waits until that ends, and a redirect of it wins

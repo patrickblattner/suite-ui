@@ -2897,9 +2897,12 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
     label = "Name",
     changed = false,
     withDraft = false,
+    resetResult,
     children,
   }: {
     onDiscard: (name: string) => void;
+    // What the page's `onDiscard` returns (a promise of the app's reset, #748).
+    resetResult?: () => unknown;
     label?: string;
     // Changed without an edit on the page (a value set from outside).
     changed?: boolean;
@@ -2916,6 +2919,7 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
       onDiscard: () => {
         onDiscard(name);
         setName("Main");
+        return resetResult?.();
       },
       ...(withDraft ? { draft: name } : {}),
     });
@@ -3018,6 +3022,33 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
       expect(screen.queryByTestId("leave-guard")).toBeNull();
     },
   );
+
+  // Review #748: the reset that runs as the change goes waits for nothing more; its rejection is the
+  // call site's to show and never surfaces as an unhandled one.
+  it("#748: a rejecting reset of a Discard during a submission is no unhandled rejection", async () => {
+    const unhandled = vi.fn();
+    process.on("unhandledRejection", unhandled);
+    try {
+      const { action, settle } = submission(() => null);
+      const onDiscard = vi.fn();
+      const router = submittingRouter(action, {
+        page: (
+          <SpyPage onDiscard={onDiscard} resetResult={() => Promise.reject(new Error("failed"))} />
+        ),
+      });
+      await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+      edit();
+      fireEvent.click(screen.getByTestId("go"));
+      fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+      await settleAndWait(settle);
+      await waitFor(() => expect(screen.getByTestId("path")).toHaveTextContent("/elsewhere"));
+      expect(onDiscard).toHaveBeenCalledTimes(1);
+      await pause();
+      expect(unhandled).not.toHaveBeenCalled();
+    } finally {
+      process.off("unhandledRejection", unhandled);
+    }
+  });
 
   // #694 (SUI-FEATURE-118 rev 6): a Discard confirmed during a submission drops a field's typed
   // tag along with the deferred reset; a second guard on the page does not ask again as it goes.
