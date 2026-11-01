@@ -1015,8 +1015,8 @@ describe("SettingsScaffold: a pick put back after a failed save keeps the submit
     },
   );
 
-  // One value in the form, saved as `initial`, beside an untouched required City field. "by code" sets
-  // the saved value back by code; "saved" ends a save in flight with the current value saved. With
+  // One value in the form, saved as `initial`, beside an untouched required City field. "by code to
+  // Team" sets a third value by code, "by code" the saved value; "saved" ends a save in flight with the current value saved. With
   // `pending` a save sets `saving` and keeps it until "saved"; without it the save saves nothing.
   function ValueForm({
     initial,
@@ -1039,6 +1039,9 @@ describe("SettingsScaffold: a pick put back after a failed save keeps the submit
         left={
           <>
             {field(value, setValue)}
+            <button type="button" data-testid="by-code-other" onClick={() => setValue("team")}>
+              by code to Team
+            </button>
             <button type="button" data-testid="by-code" onClick={() => setValue(saved)}>
               by code
             </button>
@@ -1209,7 +1212,7 @@ describe("SettingsScaffold: a pick put back after a failed save keeps the submit
   });
 
   it.each(["select", "checkbox"] as const)(
-    "%s set by code to the saved value keeps the started save: its clean end ends the submit state",
+    "%s set by code, first to another value, then to the saved one, keeps the started save: its clean end ends the submit state",
     async (control) => {
       render(
         <Trusted>
@@ -1222,7 +1225,7 @@ describe("SettingsScaffold: a pick put back after a failed save keeps the submit
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {OPTIONS.map((option) => (
+                    {[...OPTIONS, { value: "team", label: "Team" }].map((option) => (
                       <SelectItem key={option.value} value={option.value}>
                         {option.label}
                       </SelectItem>
@@ -1242,6 +1245,10 @@ describe("SettingsScaffold: a pick put back after a failed save keeps the submit
       );
       pick(control, "Pro");
       await failedSubmit();
+      // Another value by code first: the control learns of it in its own render, before the saved
+      // value comes back.
+      fireEvent.click(screen.getByTestId("by-code-other"));
+      await tick();
       fireEvent.click(screen.getByTestId("by-code"));
       await cleanWithError(false);
     },
