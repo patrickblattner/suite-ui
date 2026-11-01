@@ -80,6 +80,8 @@ function TimezoneCombobox({
   // The text of a running composition (dead key, IME): shown, but searched and filtered only once it
   // ends (`GL-UI-039` rev 2, #737). `null` while none runs.
   const [composing, setComposing] = React.useState<string | null>(null);
+  // The field's text when the composition began: a composition that leaves it unchanged typed nothing.
+  const composedFrom = React.useRef("");
   const [active, setActive] = React.useState(0);
   // Whether the keyboard placed the highlight: then it carries the inset ring on top of the tint
   // (`GL-UI-013`); a highlight under the mouse keeps the tint alone.
@@ -210,14 +212,17 @@ function TimezoneCombobox({
       placeholder={t("timezone.placeholder")}
       value={composing ?? (open ? query : value)}
       onClick={openList}
-      onCompositionStart={(event) => setComposing(event.currentTarget.value)}
+      onCompositionStart={(event) => {
+        composedFrom.current = event.currentTarget.value;
+        setComposing(event.currentTarget.value);
+      }}
       onChange={(event) => {
         if (composing === null) type(event.target.value);
         else setComposing(event.target.value);
       }}
       onCompositionEnd={(event) => {
         setComposing(null);
-        type(event.currentTarget.value);
+        if (event.currentTarget.value !== composedFrom.current) type(event.currentTarget.value);
       }}
       onKeyDown={onKeyDown}
       onBlur={(event) => {

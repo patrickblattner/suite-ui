@@ -212,6 +212,11 @@ function GlobalSearch({
               if (event.key === "Enter" && !isCompositionKey(event)) openDialog();
             }}
             onClick={() => openDialog()}
+            onBlur={() => {
+              // A composition that never ended leaves the field with the blur; a pending handoff
+              // still reads the finished text from the field, so it is left to clear it.
+              if (handoff.current === 0) setComposing(null);
+            }}
             className="h-9 w-full rounded-md border border-input bg-transparent py-1 pr-16 pl-8 text-sm shadow-xs outline-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:focus-ring dark:bg-input/30"
           />
         </Hint>

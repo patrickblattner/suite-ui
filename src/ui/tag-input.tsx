@@ -144,6 +144,8 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
   // The text of a running composition (dead key, IME): shown, but searched and filtered only once it
   // ends (`GL-UI-039` rev 2, #737). `null` while none runs.
   const [composing, setComposing] = React.useState<string | null>(null);
+  // The field's text when the composition began: a composition that leaves it unchanged typed nothing.
+  const composedFrom = React.useRef("");
   // The text as of now: a blur in the same tick as a commit must not take the old text over again.
   const current = React.useRef("");
   const listId = `${React.useId()}-suggestions`;
@@ -385,14 +387,18 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
               "aria-autocomplete": "list" as const,
               "aria-activedescendant": open && choice >= 0 ? `${listId}-${choice}` : undefined,
             })}
-        onCompositionStart={(event) => setComposing(event.currentTarget.value)}
+        onCompositionStart={(event) => {
+          composedFrom.current = event.currentTarget.value;
+          setComposing(event.currentTarget.value);
+        }}
         onChange={(event) => {
           if (composing === null) takeText(event.target.value);
           else setComposing(event.target.value);
         }}
         onCompositionEnd={(event) => {
           setComposing(null);
-          takeText(event.currentTarget.value);
+          if (event.currentTarget.value !== composedFrom.current)
+            takeText(event.currentTarget.value);
         }}
         onFocus={(event) => {
           setFocused(true);

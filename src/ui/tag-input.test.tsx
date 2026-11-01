@@ -674,4 +674,19 @@ describe("TagInput composition", () => {
     fireEvent.keyDown(field(), { key: "Enter" });
     expect(chips()).toEqual(["Café"]);
   });
+
+  it("a composition cancelled back to the start text leaves a list closed with Esc closed", () => {
+    render(<Suggesting suggestions={["Café"]} />);
+    focusField();
+    type("Caf");
+    expect(options()).toEqual(["Café"]);
+    fireEvent.keyDown(field(), { key: "Escape" });
+    expect(options()).toEqual([]);
+    fireEvent.compositionStart(field());
+    type("Caf´");
+    type("Caf");
+    fireEvent.compositionEnd(field());
+    expect(options()).toEqual([]);
+    expect(field()).toHaveValue("Caf");
+  });
 });

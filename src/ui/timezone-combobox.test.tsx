@@ -177,4 +177,15 @@ describe("TimezoneCombobox composition", () => {
     fireEvent.keyDown(input, { key: "Enter" });
     expect(onValueChange).toHaveBeenCalledWith("Europe/Zurich");
   });
+
+  it("a composition cancelled back to the start text opens no list", () => {
+    render(<Field initial="UTC" onValueChange={vi.fn()} />);
+    const input = screen.getByRole("combobox");
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, { target: { value: "UTC´" } });
+    fireEvent.change(input, { target: { value: "UTC" } });
+    fireEvent.compositionEnd(input);
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    expect(input).toHaveValue("UTC");
+  });
 });

@@ -68,6 +68,12 @@ test("GlobalSearch: Option+e, e hands one é to the dialog", async ({ page }) =>
   await expect(page.getByTestId("search-dialog-input")).toHaveValue("é");
 });
 
+test("GlobalSearch dialog: Option+e, e gives one é", async ({ page }) => {
+  await page.goto("/?page=shell&lng=en");
+  await page.getByTestId("shell-search").click();
+  await expectOneAcute(page, page.getByTestId("search-dialog-input"));
+});
+
 // A number field refuses a letter, as typed: after `compositionend`, never during it, and without a
 // stray "´" left behind.
 test("GridFields number field: the composed é is refused whole after the composition", async ({

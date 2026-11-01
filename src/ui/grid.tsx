@@ -87,6 +87,8 @@ function GridFields({
   const [composing, setComposing] = React.useState<{ field: GridNumberField; text: string } | null>(
     null,
   );
+  // The field's text when the composition began: a composition that leaves it unchanged typed nothing.
+  const composedFrom = React.useRef("");
   // The last definition of each type, to come back to.
   const [last, setLast] = React.useState<Partial<Record<GridDefinition["kind"], GridDefinition>>>(
     value === null ? {} : { [value.kind]: value },
@@ -217,9 +219,10 @@ function GridFields({
                 aria-valuemin={BOUNDS[field].min}
                 aria-valuemax={BOUNDS[field].max}
                 value={composing?.field === field ? composing.text : text}
-                onCompositionStart={(event) =>
-                  setComposing({ field, text: event.currentTarget.value })
-                }
+                onCompositionStart={(event) => {
+                  composedFrom.current = event.currentTarget.value;
+                  setComposing({ field, text: event.currentTarget.value });
+                }}
                 onChange={(event) => {
                   if (composing?.field === field) {
                     setComposing({ field, text: event.target.value });
@@ -229,6 +232,8 @@ function GridFields({
                 }}
                 onCompositionEnd={(event) => {
                   setComposing(null);
+                  // A composition that leaves the text unchanged typed nothing.
+                  if (event.currentTarget.value === composedFrom.current) return;
                   setNumber(field, event.currentTarget.value);
                 }}
                 onKeyDown={(event) => {
@@ -253,6 +258,8 @@ function GridFields({
                   }
                 }}
                 onBlur={() => {
+                  // A composition that never ended leaves the field with the blur.
+                  setComposing(null);
                   if (draft === undefined) return;
                   if (error(field, draft) === null)
                     setDrafts((current) => {

@@ -410,6 +410,30 @@ describe("GridFields number entry (GL-UI-037)", () => {
     expect(onChange).toHaveBeenLastCalledWith({ ...COLUMNS, count: 8 });
   });
 
+  it("a composition cancelled back to the start text sends nothing", () => {
+    const onChange = vi.fn();
+    render(<Fields onChange={onChange} />);
+    const count = screen.getByTestId("grid-count");
+    fireEvent.compositionStart(count);
+    fireEvent.change(count, { target: { value: "12´" } });
+    fireEvent.change(count, { target: { value: "12" } });
+    fireEvent.compositionEnd(count);
+    expect(count).toHaveValue("12");
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("a composition that never ends leaves the field with the blur", () => {
+    const onChange = vi.fn();
+    render(<Fields onChange={onChange} />);
+    const count = screen.getByTestId("grid-count");
+    fireEvent.compositionStart(count);
+    fireEvent.change(count, { target: { value: "12´" } });
+    fireEvent.blur(count);
+    expect(count).toHaveValue("12");
+    fireEvent.change(count, { target: { value: "8" } });
+    expect(onChange).toHaveBeenLastCalledWith({ ...COLUMNS, count: 8 });
+  });
+
   it("an empty field steps to its minimum", () => {
     const onChange = vi.fn();
     render(<Fields onChange={onChange} />);

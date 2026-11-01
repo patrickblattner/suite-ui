@@ -1554,7 +1554,6 @@ function useLeaveConfirm({
   React.useEffect(() => {
     if (open) return;
     // The closed surface no longer asks nor works; its work, still running, counts for nothing.
-
     drop();
     setWorking(false);
   }, [open, drop]);

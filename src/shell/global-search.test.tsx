@@ -416,4 +416,27 @@ describe("GlobalSearch composition", () => {
     expect(screen.queryByTestId("search-dialog")).not.toBeInTheDocument();
     expect(field).toHaveValue("");
   });
+
+  it("a composition that never ends leaves the field with the blur; typing then opens the dialog", async () => {
+    renderSearch();
+    const field = screen.getByTestId("shell-search");
+    fireEvent.compositionStart(field);
+    fireEvent.change(field, { target: { value: "´" } });
+    fireEvent.blur(field);
+    expect(field).toHaveValue("");
+    fireEvent.change(field, { target: { value: "s" } });
+    const dialog = await screen.findByTestId("search-dialog");
+    expect(within(dialog).getByTestId("search-dialog-input")).toHaveValue("s");
+  });
+
+  it("a blur during the handoff frame loses no text", async () => {
+    renderSearch();
+    const field = screen.getByTestId("shell-search");
+    fireEvent.compositionStart(field);
+    fireEvent.change(field, { target: { value: "é" } });
+    fireEvent.compositionEnd(field);
+    fireEvent.blur(field);
+    const dialog = await screen.findByTestId("search-dialog");
+    expect(within(dialog).getByTestId("search-dialog-input")).toHaveValue("é");
+  });
 });

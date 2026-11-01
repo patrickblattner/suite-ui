@@ -270,4 +270,18 @@ describe("Combobox composition", () => {
     expect(onSearch.mock.calls).toEqual([["Café"]]);
     expect(await screen.findByRole("option", { name: "Café Central" })).toBeInTheDocument();
   });
+
+  it("a composition cancelled back to the start text opens and searches nothing", () => {
+    const onSearch = vi.fn(() => Promise.resolve(CONTACTS));
+    render(<Field value="1" onSearch={onSearch} />);
+    const input = screen.getByRole("combobox");
+    expect(input).toHaveValue("Ada Lovelace");
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, { target: { value: "Ada Lovelace´" } });
+    fireEvent.change(input, { target: { value: "Ada Lovelace" } });
+    fireEvent.compositionEnd(input);
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    expect(onSearch).not.toHaveBeenCalled();
+    expect(input).toHaveValue("Ada Lovelace");
+  });
 });
