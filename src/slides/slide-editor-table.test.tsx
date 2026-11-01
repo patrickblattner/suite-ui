@@ -411,4 +411,75 @@ describe("SlideEditor table cell field across rows and columns", () => {
     expect(screen.queryByTestId("slide-editor-text-field")).toBeNull();
     expect(cells()).toEqual(rest);
   });
+
+  // Review of #740: a step undone or done again that adds or takes away rows or columns ends editing,
+  // the canvas taking the focus from the field; it never edits another cell.
+  it("ends editing when Cmd+Z in the field takes Row above back; the canvas takes the focus", async () => {
+    const { canvas, cells } = await editSlides();
+    press("row-above");
+    // The panel's buttons leave the focus in the field (the tab took it in jsdom).
+    const field = screen.getByTestId("slide-editor-text-field");
+    field.focus();
+    fireEvent.keyDown(field, { key: "z", ctrlKey: true });
+    expect(screen.queryByTestId("slide-editor-text-field")).toBeNull();
+    expect(cells()).toEqual([
+      ["Day", "Topic"],
+      ["Mon", "Slides"],
+    ]);
+    expect(document.activeElement).toBe(canvas);
+  });
+
+  // GL-UI-050: the header's Undo, pressed from the keyboard, keeps the focus.
+  it("ends editing when the header's Undo takes Column left back; Undo keeps the focus", async () => {
+    const { cells } = await editSlides();
+    press("column-left");
+    const button = screen.getAllByTestId("editor-undo")[0]!;
+    button.focus();
+    fireEvent.click(button);
+    expect(screen.queryByTestId("slide-editor-text-field")).toBeNull();
+    expect(cells()).toEqual([
+      ["Day", "Topic"],
+      ["Mon", "Slides"],
+    ]);
+    expect(document.activeElement).toBe(button);
+  });
+
+  it("ends editing when Redo brings Row above again", async () => {
+    const { canvas, cells } = await editSlides();
+    press("row-above");
+    undo();
+    fireEvent.doubleClick(canvas, at(700, 70));
+    const field = await screen.findByTestId("slide-editor-text-field");
+    expect(field.textContent).toBe("Slides");
+    fireEvent.keyDown(field, { key: "z", ctrlKey: true, shiftKey: true });
+    expect(screen.queryByTestId("slide-editor-text-field")).toBeNull();
+    expect(cells()).toHaveLength(3);
+    expect(document.activeElement).toBe(canvas);
+  });
+
+  // GL-UI-050: a Delete row pressed from the keyboard keeps the focus on the button.
+  it("keeps the focus on a keyboard-focused Delete row that ends editing", async () => {
+    const { cells } = await editSlides(true);
+    press("row-below");
+    const remove = screen.getByTestId("slide-editor-table-delete-row");
+    remove.focus();
+    fireEvent.click(remove);
+    expect(screen.queryByTestId("slide-editor-text-field")).toBeNull();
+    expect(cells()).toEqual([
+      ["", ""],
+      ["Mon", "Slides"],
+    ]);
+    expect(document.activeElement).toBe(remove);
+  });
+
+  // The panel's cell picked apart from the edited one: deleting the row before it moves the field up.
+  it("moves the field with its cell when the panel deletes a row before it", async () => {
+    await editSlides();
+    fireEvent.change(screen.getByTestId("slide-editor-table-cell-row"), { target: { value: "1" } });
+    expect(screen.getByTestId("slide-editor-table")).toHaveTextContent("row 1, column 2");
+    press("delete-row");
+    const field = screen.getByTestId("slide-editor-text-field");
+    expect(field).toHaveAccessibleName("Facts, row 1, column 2");
+    expect(field.textContent).toBe("Slides");
+  });
 });
