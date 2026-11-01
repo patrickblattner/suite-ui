@@ -1212,7 +1212,7 @@ describe("SlideEditor text field during a composition", () => {
       if (caption?.type !== "text") throw new Error("no caption");
       return caption.runs;
     };
-    return { field, text: field.querySelector("span")!.firstChild as Text, saved };
+    return { field, text: field.querySelector("span")!.firstChild as Text, saved, onSave };
   };
 
   // AC4: Option+e, then e: the browser shows "´" while composing, then "é" — one "é", nothing more.
@@ -1359,26 +1359,72 @@ describe("SlideEditor text field during a composition", () => {
     error.mockRestore();
   });
 
-  // #736 review: the panel's Bold keeps the focus in the field; pressed while composing, it waits for
-  // `compositionend`, the field not redrawn before.
-  it("holds a Bold from the panel until the composition ended", async () => {
-    const { field, text, saved } = await editCaption();
+  // #736 review: the panel's formats keep the focus in the field; pressed while composing, they do
+  // nothing — the field is not redrawn, and nothing is held to apply later.
+  const composeE = (field: HTMLElement, text: Text) => {
     fireEvent.mouseDown(screen.getByTestId("property-tab-content"), { button: 0 });
     fireEvent.compositionStart(field);
     text.appendData("é");
     selectRange(field, { start: 10, end: 10 });
     fireEvent.input(field, { isComposing: true });
-    const bold = screen.getByTestId("slide-editor-text-bold");
-    fireEvent.mouseDown(bold);
-    fireEvent.click(bold);
+  };
+  const press = (testId: string) => {
+    const button = screen.getByTestId(testId);
+    fireEvent.mouseDown(button);
+    fireEvent.click(button);
+    return button;
+  };
+
+  it("leaves Bold and Italic from the panel inert while composing; both apply after", async () => {
+    const { field, text, saved } = await editCaption();
+    composeE(field, text);
+    press("slide-editor-text-bold");
+    press("slide-editor-text-italic");
     expect(screen.getByTestId("slide-editor-text-field")).toBe(field);
     expect(field.querySelector("span")!.firstChild).toBe(text);
-    expect(field.querySelector("span")!.style.fontWeight).not.toBe("700");
-    expect(bold).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByTestId("slide-editor-text-bold")).toHaveAttribute("aria-pressed", "false");
     fireEvent.compositionEnd(field);
-    await waitFor(() => expect(field.querySelector("span")!.style.fontWeight).toBe("700"));
-    expect(field.textContent).toBe("A captioné");
-    expect(await saved()).toEqual([{ text: "A captioné", size: 20, weight: 700 }]);
+    expect(field.querySelector("span")!.style.fontWeight).not.toBe("700");
+    expect(field.querySelector("span")!.style.fontStyle).not.toBe("italic");
+    // After the composition, Bold then Italic both apply: neither overwrites the other.
+    selectRange(field, { start: 0, end: 10 });
+    act(() => {
+      document.dispatchEvent(new Event("selectionchange"));
+    });
+    press("slide-editor-text-bold");
+    press("slide-editor-text-italic");
+    await waitFor(() => expect(field.querySelector("span")!.style.fontStyle).toBe("italic"));
+    expect(field.querySelector("span")!.style.fontWeight).toBe("700");
+    expect(await saved()).toEqual([{ text: "A captioné", size: 20, weight: 700, italic: true }]);
+  });
+
+  it("ends a toggle pressed twice while composing as it was", async () => {
+    const { field, text, saved } = await editCaption();
+    composeE(field, text);
+    press("slide-editor-text-bold");
+    press("slide-editor-text-bold");
+    fireEvent.compositionEnd(field);
+    expect(field.querySelector("span")!.style.fontWeight).not.toBe("700");
+    expect(await saved()).toEqual([{ text: "A captioné", size: 20 }]);
+  });
+
+  it("applies no Bold pressed while composing to the element a canvas press selects", async () => {
+    const { field, text, saved, onSave } = await editCaption();
+    composeE(field, text);
+    press("slide-editor-text-bold");
+    const canvas = screen.getByTestId("slide-editor-canvas");
+    fireEvent.pointerDown(canvas, { ...at(700, 300), button: 0, pointerId: 1 });
+    fireEvent.pointerUp(canvas, at(700, 300));
+    fireEvent.compositionEnd(field);
+    expect(await saved()).toEqual([{ text: "A captioné", size: 20 }]);
+    const parsed = safeParseSlideDocument(SLIDE_EDITOR_DOC);
+    if (!parsed.ok) throw new Error("fixture does not parse");
+    const savedPage = onSave.mock.calls.at(-1)![0].pages[1]!;
+    for (const element of parsed.document.pages[1]!.elements.filter(
+      (one) => one.id !== "caption",
+    )) {
+      expect(savedPage.elements.find((one) => one.id === element.id)).toEqual(element);
+    }
   });
 
   // #736 review: a press on the canvas ends the editing before `compositionend`: the composed text is
