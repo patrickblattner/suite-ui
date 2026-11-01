@@ -364,6 +364,58 @@ describe("SlideEditor text editing", () => {
     expect(family(1)).toContain("Gallery Slide Sans");
   });
 
+  // #725: text typed outside a run's span is drawn in the run it is stored in, not in its paragraph
+  // block's first-run weight and style; the block keeps them for its line box (#717).
+  it("draws plain text typed at a bold-led paragraph's end in its plain run, before and after refill", async () => {
+    const boldCaption = {
+      ...SLIDE_EDITOR_DOC,
+      pages: SLIDE_EDITOR_DOC.pages.map((page) => ({
+        ...page,
+        elements: page.elements?.map((element) =>
+          element.id === "caption"
+            ? {
+                ...element,
+                runs: [
+                  { text: "Bold ", size: 20, weight: 700, italic: true },
+                  { text: "plain", size: 20 },
+                ],
+              }
+            : element,
+        ),
+      })),
+    } as typeof SLIDE_EDITOR_DOC;
+    renderEditor(undefined, { document: boldCaption });
+    const canvas = screen.getByTestId("slide-editor-canvas");
+    fireEvent.pointerDown(canvas, { ...at(100, 400), button: 0, pointerId: 1 });
+    fireEvent.pointerUp(canvas, at(100, 400));
+    fireEvent.doubleClick(canvas, at(100, 400));
+    const field = await screen.findByTestId("slide-editor-text-field");
+    const block = field.children[0] as HTMLElement;
+
+    // Typed after the plain span, outside it: stored in the plain run, drawn at 400 and upright.
+    const typed = document.createTextNode(" more");
+    block.append(typed);
+    selectRange(field, { start: 15, end: 15 });
+    fireEvent.input(field);
+    expect(field.textContent).toBe("Bold plain more");
+    expect(typed.parentElement).not.toBe(block);
+    expect(typed.parentElement!.style.fontWeight).toBe("400");
+    expect(typed.parentElement!.style.fontStyle).toBe("normal");
+    expect(rangeIn(field)).toEqual({ start: 15, end: 15 });
+    // The paragraph's line box still starts from its first run's font (#717).
+    expect(block.style.fontWeight).toBe("700");
+    expect(block.style.fontStyle).toBe("italic");
+
+    // Enter refills the field from the stored runs: the typed text is the plain run's again.
+    fireEvent.keyDown(field, { key: "Enter" });
+    await waitFor(() => expect(field.children).toHaveLength(2));
+    const spans = [...field.children[0]!.querySelectorAll<HTMLElement>("[data-run]")];
+    expect(spans.map((span) => span.textContent)).toEqual(["Bold ", "plain more"]);
+    expect(spans[1]!.style.fontWeight).toBe("400");
+    expect(spans[1]!.style.fontStyle).toBe("normal");
+    expect((field.children[0] as HTMLElement).style.fontWeight).toBe("700");
+  });
+
   it("formats the whole field without a selection, and its list and alignment", () => {
     renderEditor();
     const canvas = screen.getByTestId("slide-editor-canvas");

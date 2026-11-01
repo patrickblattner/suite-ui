@@ -161,6 +161,26 @@ function syncParagraphs(
   if (numbered !== undefined) numberBlocks(root, blocks, runs, brand, numbered);
 }
 
+// Text typed outside a run's span would inherit its paragraph block's first-run font (#717): it goes
+// into a span drawn in the run it is read into (`readRuns`), as the view draws it after a refill
+// (#725). The span names no run, so reading the field back is the same; the caret stays where it is.
+function styleStray(root: HTMLElement, stray: ReadonlyMap<Text, TextRun>, brand: SlideBrandSet) {
+  const range = rangeIn(root);
+  let moved = false;
+  for (const [text, run] of stray) {
+    let span = text.parentElement;
+    if (span === null || !span.hasAttribute("data-stray")) {
+      span = root.ownerDocument.createElement("span");
+      span.dataset.stray = "";
+      text.replaceWith(span);
+      span.append(text);
+      moved = true;
+    }
+    Object.assign(span.style, runStyle(run, brand));
+  }
+  if (moved && range !== undefined) selectRange(root, range);
+}
+
 // The number of a block in a styled numbered list, as generated content: an inline box at the start
 // of its first line in the column before its hanging text, styled by the block's `--slide-marker-*`.
 // Its part below the baseline takes no room in the line (a negative bottom margin): as in the view,
@@ -415,10 +435,12 @@ function tokensOf(root: Node): Token[] {
 // (Codex #401 CX1).
 // An inline span is its run again, the one its `data-run` names (`SUI-FEATURE-164`); text typed
 // after it takes the format of the text run before it.
+// `stray` collects each text outside any run's span with the run it is read into (#725).
 export function readRuns(
   root: HTMLElement,
   previous: readonly Run[],
   latest: readonly Run[] = previous,
+  stray?: Map<Text, TextRun>,
 ): Run[] {
   const first: TextRun = latest.find(isTextRun) ?? previous.find(isTextRun) ?? { text: "" };
   const pieces: Run[] = [];
@@ -456,6 +478,7 @@ export function readRuns(
     const own = named(token.node.parentElement);
     const run = own?.inline === undefined ? (own ?? last) : last;
     last = run;
+    if (own === undefined) stray?.set(token.node, run);
     pieces.push({ ...runFormat(run), text: token.text });
   }
   return normalizeRuns(pieces.length === 0 ? [{ ...runFormat(first), text: "" }] : pieces);
@@ -776,10 +799,12 @@ export function InlineTextEditor({
             onInput={() => {
               const node = root.current;
               if (node === null) return;
-              const runs = readRuns(node, filled.current, emitted.current ?? filled.current);
+              const stray = new Map<Text, TextRun>();
+              const runs = readRuns(node, filled.current, emitted.current ?? filled.current, stray);
               emitted.current = runs;
               if (onRuns(runs, rangeIn(node))) {
                 syncParagraphs(node, runs, brand, numbered);
+                styleStray(node, stray, brand);
                 return;
               }
               // Refused: the typed text goes again, the caret back where it was.
