@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #743: spec-sync-toolkit pin v0.34.0, license field (patch)
+## 0.204.4 — #743: spec-sync-toolkit pin v0.34.0, license field (patch)
 
 - **Changed (#743):** devDependency `spec-sync-toolkit` raised from v0.33.2 to v0.34.0 (lockfile updated); `package.json` declares `"license": "UNLICENSED"`. No license-checker was in use, so nothing to replace with `spec-sync licence-inventory`. No baseline changes.
 
