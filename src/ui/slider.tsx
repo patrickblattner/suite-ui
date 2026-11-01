@@ -1,7 +1,8 @@
 import { Slider as SliderPrimitive } from "radix-ui";
-import type * as React from "react";
+import * as React from "react";
 
 import { cn } from "../lib/cn.js";
+import { FieldUserEditContext } from "./field-error.js";
 
 type SliderProps = {
   value: number;
@@ -59,12 +60,17 @@ function Slider({
   onClick,
   ...thumb
 }: SliderProps) {
+  // Radix sets the hidden native input by code, so the form around it hears the person's move only
+  // through `onValueChange` (`GL-UI-038`, #739).
+  const userEdit = React.useContext(FieldUserEditContext);
   return (
     <SliderPrimitive.Root
       data-slot="slider"
       value={[value]}
       onValueChange={([next]) => {
-        if (next !== undefined) onValueChange(next);
+        if (next === undefined) return;
+        userEdit?.();
+        onValueChange(next);
       }}
       min={min}
       max={max}

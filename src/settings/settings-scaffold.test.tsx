@@ -5,10 +5,13 @@ import { useState } from "react";
 import { createPortal } from "react-dom";
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
+import { Checkbox } from "../ui/checkbox.js";
 import { Combobox } from "../ui/combobox.js";
 import { Input } from "../ui/input.js";
 import { RadioGroup, RadioGroupItem } from "../ui/radio-group.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select.js";
+import { Slider } from "../ui/slider.js";
+import { Switch } from "../ui/switch.js";
 import { TabsContent, TabsList, TabsTrigger } from "../ui/tabs.js";
 import { SettingsField } from "./settings-field.js";
 import { SettingsScaffold } from "./settings-scaffold.js";
@@ -846,28 +849,63 @@ describe("SettingsScaffold: an edit drops the started save, other events do not"
   });
 });
 
-// #739 (GL-UI-038 rev 4 §Absenden): a Select or Combobox sets its value by code, so a pick sends no
-// trusted event; the control reports the pick itself, and putting the saved choice back after a failed
-// save ends nothing.
+// #739 (GL-UI-038 rev 4 §Absenden): a Select, Combobox, Checkbox, Switch, RadioGroup or Slider sets
+// its value by code, so a pick sends no trusted input or change event; the control reports the pick
+// itself, and putting the saved choice back after a failed save ends nothing.
 describe("SettingsScaffold: a pick put back after a failed save keeps the submit state", () => {
   beforeEach(() => {
-    // jsdom has no pointer capture and no scrolling into view, which Radix calls on opening.
+    // jsdom has no pointer capture and no scrolling into view, which Radix calls on opening, and no
+    // ResizeObserver, with which Radix measures a checkbox, switch, radio or slider thumb.
     for (const name of ["hasPointerCapture", "releasePointerCapture", "scrollIntoView"]) {
       Object.defineProperty(HTMLElement.prototype, name, {
         configurable: true,
         value: () => false,
       });
     }
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    onTestFinished(() => {
+      vi.unstubAllGlobals();
+    });
   });
+
+  // jsdom marks no event trusted: this marks every input and change as a person's, as a browser does,
+  // except one on a control's hidden native input (a Radix bubble input, the combobox's hidden input),
+  // which only the control's own dispatch reaches.
+  function Trusted({ children }: { children: React.ReactNode }) {
+    const trust = (event: React.SyntheticEvent) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement)) return;
+      const hidden =
+        target.getAttribute("aria-hidden") === "true" ||
+        (target instanceof HTMLInputElement && target.type === "hidden") ||
+        target.style.display === "none";
+      if (!hidden) (event as { isTrusted: boolean }).isTrusted = true;
+    };
+    return (
+      <div onInputCapture={trust} onChangeCapture={trust}>
+        {children}
+      </div>
+    );
+  }
 
   const OPTIONS = [
     { value: "basic", label: "Basic" },
     { value: "pro", label: "Pro" },
   ];
 
-  function Page({ control }: { control: "select" | "combobox" }) {
+  type Control = "select" | "combobox" | "checkbox" | "switch" | "radio" | "slider";
+
+  function Page({ control }: { control: Control }) {
     const [plan, setPlan] = useState("basic");
     const [city, setCity] = useState("");
+    const toggle = (checked: boolean) => setPlan(checked ? "pro" : "basic");
     return (
       <SettingsScaffold
         pageKey="general"
@@ -888,11 +926,37 @@ describe("SettingsScaffold: a pick put back after a failed save keeps the submit
                   ))}
                 </SelectContent>
               </Select>
-            ) : (
+            ) : control === "combobox" ? (
               <>
                 <label htmlFor="plan">Plan</label>
                 <Combobox id="plan" options={OPTIONS} value={plan} onValueChange={setPlan} />
               </>
+            ) : control === "checkbox" ? (
+              <Checkbox
+                aria-label="Plan"
+                checked={plan === "pro"}
+                onCheckedChange={(checked) => toggle(checked === true)}
+              />
+            ) : control === "switch" ? (
+              <Switch aria-label="Plan" checked={plan === "pro"} onCheckedChange={toggle} />
+            ) : control === "radio" ? (
+              <RadioGroup aria-label="Plan" value={plan} onValueChange={setPlan}>
+                {OPTIONS.map((option) => (
+                  <RadioGroupItem
+                    key={option.value}
+                    value={option.value}
+                    aria-label={option.label}
+                  />
+                ))}
+              </RadioGroup>
+            ) : (
+              <Slider
+                aria-label="Plan"
+                min={0}
+                max={1}
+                value={plan === "pro" ? 1 : 0}
+                onValueChange={(next) => toggle(next === 1)}
+              />
             )}
             <SettingsField
               label="City"
@@ -909,22 +973,34 @@ describe("SettingsScaffold: a pick put back after a failed save keeps the submit
     );
   }
 
-  function pick(control: "select" | "combobox", label: string) {
-    const opener = screen.getByRole("combobox", { name: "Plan" });
+  function pick(control: Control, label: "Basic" | "Pro") {
     if (control === "select") {
-      fireEvent.keyDown(opener, { key: "Enter" });
+      fireEvent.keyDown(screen.getByRole("combobox", { name: "Plan" }), { key: "Enter" });
       fireEvent.keyDown(screen.getByRole("option", { name: label }), { key: "Enter" });
-    } else {
-      fireEvent.keyDown(opener, { key: "ArrowDown" });
+    } else if (control === "combobox") {
+      fireEvent.keyDown(screen.getByRole("combobox", { name: "Plan" }), { key: "ArrowDown" });
       fireEvent.click(screen.getByRole("option", { name: label }));
+    } else if (control === "checkbox" || control === "switch") {
+      fireEvent.click(screen.getByRole(control, { name: "Plan" }));
+    } else if (control === "radio") {
+      fireEvent.click(screen.getByRole("radio", { name: label }));
+    } else {
+      fireEvent.keyDown(screen.getByRole("slider", { name: "Plan" }), {
+        key: label === "Pro" ? "End" : "Home",
+      });
     }
   }
 
-  it.each(["select", "combobox"] as const)(
+  it.each(["select", "combobox", "checkbox", "switch", "radio", "slider"] as const)(
     "%s: a failed save, then the saved choice picked back → the city's error stays",
     async (control) => {
-      render(<Page control={control} />);
+      render(
+        <Trusted>
+          <Page control={control} />
+        </Trusted>,
+      );
       pick(control, "Pro");
+      await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
       expect(screen.getByTestId("settings-general-reset")).not.toHaveAttribute("aria-disabled");
       fireEvent.submit(screen.getByTestId("settings-general-form"));
       expect(await screen.findByText("Enter a city.")).toBeInTheDocument();

@@ -1,9 +1,9 @@
 # Changelog
 
-## Unreleased — #739, Codex review v0.204.0: a Select or Combobox pick put back after a failed save keeps the submit state (patch)
+## Unreleased — #739, Codex review v0.204.0: a choice in a Select, Combobox, Checkbox, Switch, RadioGroup or Slider put back after a failed save keeps the submit state (patch)
 
-- **Fixed (#739, Codex v0.204.0 CX1, GL-UI-038 rev 4 §Absenden):** in `SettingsScaffold`, a pick in a `Select` or `Combobox` did not drop a started save, because these controls set their value by code and send no trusted event; after a failed save, picking the saved choice back turned the form clean and ended the submit state, hiding the other invalid fields' errors. Both controls now report the person's pick to the form around them through the new `FieldUserEditContext` (`ui/field-error`), which `SettingsScaffold` provides; a pick drops the started save like a trusted edit, while no save is in flight. A value set by code still drops nothing.
-- **Tests (#739):** unit: `SettingsScaffold` with a `Select` and with a `Combobox`: pick another choice, a save that saves nothing, pick the saved choice back → the form is clean and the untouched invalid field's error stays visible.
+- **Fixed (#739, Codex v0.204.0 CX1, GL-UI-038 rev 4 §Absenden):** in `SettingsScaffold`, a change in a `Select`, `Combobox`, `Checkbox`, `Switch`, `RadioGroup` or `Slider` did not drop a started save, because these controls set their value by code and send no trusted input or change event (the person's click lands on a button or span, the control's hidden native input gets an untrusted event); after a failed save, putting the saved choice back turned the form clean and ended the submit state, hiding the other invalid fields' errors. These controls now report the person's change to the form around them through the new `FieldUserEditContext` (`ui/field-error`), which `SettingsScaffold` provides; a pick drops the started save like a trusted edit, while no save is in flight. A value set by code still drops nothing.
+- **Tests (#739):** unit: `SettingsScaffold` with a `Select`, `Combobox`, `Checkbox`, `Switch`, `RadioGroup` and `Slider`, each with the person's events trusted and only the control's own dispatch untrusted, as in a browser (each case failed before the fix): pick another choice, a save that saves nothing, pick the saved choice back → the form is clean and the untouched invalid field's error stays visible.
 
 ## 0.204.2 — #740: slide table cell field follows its cell across Row above / Column left (patch)
 

@@ -1,14 +1,17 @@
-import type * as React from "react";
+import * as React from "react";
 import { Checkbox as CheckboxPrimitive } from "radix-ui";
 import { CheckIcon } from "lucide-react";
 
 import { cn } from "../lib/cn.js";
-import { useFieldErrorAttributes } from "./field-error.js";
+import { FieldUserEditContext, useFieldErrorAttributes } from "./field-error.js";
 import { WithFieldValueHint } from "./field-value-hint.js";
 
 // In a hinted field it carries the label's hint (`WithFieldValueHint`). GL-UI-013: the hit area grows to at least 24 × 24 px around the unchanged control.
 function Checkbox({ className, ...props }: React.ComponentProps<typeof CheckboxPrimitive.Root>) {
   const fieldError = useFieldErrorAttributes();
+  // Radix sets the hidden native input by code, so the form around it hears the person's toggle only
+  // through `onCheckedChange` (`GL-UI-038`, #739).
+  const userEdit = React.useContext(FieldUserEditContext);
   return (
     <WithFieldValueHint>
       <CheckboxPrimitive.Root
@@ -19,6 +22,10 @@ function Checkbox({ className, ...props }: React.ComponentProps<typeof CheckboxP
           className,
         )}
         {...props}
+        onCheckedChange={(checked) => {
+          userEdit?.();
+          props.onCheckedChange?.(checked);
+        }}
       >
         <CheckboxPrimitive.Indicator
           data-slot="checkbox-indicator"
