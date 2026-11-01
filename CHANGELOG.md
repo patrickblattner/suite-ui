@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — #725: slide text field draws text typed outside a run's span in the run it is stored in (patch)
+
+- **Fixed (#725, SUI-FEATURE-160):** since #717 the slide editor's text field gives each paragraph block its first run's weight and style for the line box, and text typed outside a run's span (until the field refilled) inherited them: a plain character typed into a paragraph led by a bold run showed bold, though it was stored plain. Such text now goes into a span drawn in the run it is read into, the caret staying where it is; text a dead key or an IME is still composing stays in place until composing ends, so the composition is neither cancelled nor doubled. The paragraph block keeps its first run's font, so the line spacing is unchanged. The stored runs are as before.
+- **Tests (#725):** unit: runs [bold italic, plain], text typed after the plain span outside it → drawn at 400 and upright, caret unchanged, the block still 700 italic; after Enter refills the field the text is in the plain run's span at 400 and upright. Text typed on into that span restyles it without a second wrap; stray text before any span takes the first run, after an inline run the text run before it; an input while composing leaves the text unmoved, and `compositionend` styles it with the caret in place.
+
 ## 0.203.1 — #728, #733: `MediaDetailShell` leave-dialog Save counts as a submit, slide text field selection after text typed behind a trailing line break (patch)
 
 - **Fixed (#733, Codex v0.203.0 CX1):** in the slide editor's text field, text typed after a run's closing line break (U+2028) goes into the zero-width space that keeps the empty last line; selecting the inline run after it (a click on an icon) took that text along, so a cut deleted it too. The field now maps a text offset past the zero-width space in its node, so the selection holds the icon alone. Tests: unit: with "A U+2028" before an icon and "B" typed behind the zero-width space, the icon's selection holds no "B" and reads back as 3–4; the caret before and after "B" reads back unchanged.
