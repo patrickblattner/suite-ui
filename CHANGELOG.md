@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #747: `MediaDetailShell` gets a view mode, `mode="view"` without the Reset/Save footer (SUI-FEATURE-061 rev 4) (minor)
+## 0.208.0 — #747: `MediaDetailShell` gets a view mode, `mode="view"` without the Reset/Save footer (SUI-FEATURE-061 rev 4) (minor)
 
 - **Added (#747, SUI-FEATURE-061 rev 4):** `MediaDetailShell` takes `mode?: "edit" | "view"`, default `"edit"` with byte-identical output. `mode="view"` (a role that may only look at media, GL-UI-032) drops the Reset/Save footer, the form and the dirty guard, as `EditPanel` `mode="view"`: paging, closing and picking never ask, a field's typed entry neither asks nor saves on Enter. `dirty`, `saving`, `onSave` and `onReset` are optional there and not read; without `mode` or with `mode="edit"` they stay required, and with all four given a mode decided at run time compiles. Head, paging, close, `pickAction`, preview, "Used by" and every slot stay. New exported type `MediaDetailMode`.
 - **Tests (#747):** unit — snapshot recorded before the change proves the default output byte-identical, `mode="edit"` renders as without `mode`, type checks (`@ts-expect-error`) that edit still requires the four props and view does not, view has no footer, pages/closes/picks without asking even with `dirty`, ignores `saving`, a typed tag neither asks nor saves, "Used by" and `MediaUsageList` work. Gallery: `?page=edit-panel&mediaView=1` opens the shell in view mode, with an E2E path over it. No baseline changes.
