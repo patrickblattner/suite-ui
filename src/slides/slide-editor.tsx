@@ -2916,7 +2916,7 @@ function Editor({
           ];
         });
   // A dead key or an IME composing in the field being edited (GL-UI-039 rev 2, #736): the panel's
-  // formats, whose buttons leave the focus in the field, do nothing until `compositionend` (or the blur
+  // formats and table rows and columns, whose buttons leave the focus in the field, do nothing until `compositionend` (or the blur
   // that takes the composed text in), so the field is not redrawn while composing.
   const composingText = React.useRef(false);
   const onComposing = (on: boolean) => {
@@ -4568,14 +4568,19 @@ function Editor({
                               brand={view.brand}
                               readOnly={single.locked}
                               revision={travels}
-                              onChange={(next, merge) =>
+                              // Its rows and columns, like the formats, wait for a composition to
+                              // end (GL-UI-039 rev 2, #736).
+                              onChange={(next, merge) => {
+                                if (composingText.current) return;
                                 apply(
                                   (current) =>
                                     updateElements(current, page, [single.id], () => next),
                                   merge === undefined ? undefined : `table:${single.id}:${merge}`,
-                                )
-                              }
-                              onCell={(cell) => setTableCell({ id: single.id, cell })}
+                                );
+                              }}
+                              onCell={(cell) => {
+                                if (!composingText.current) setTableCell({ id: single.id, cell });
+                              }}
                             />
                           ) : null}
                           {textFields}

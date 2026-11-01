@@ -328,4 +328,35 @@ describe("SlideEditor table cell during a composition", () => {
     const table = await saved();
     expect(table.rows[1]![1]!.runs).toEqual([{ text: "Slidesé", size: 16 }]);
   });
+
+  // #736 review: the panel's row and column buttons keep the focus in the cell; pressed while
+  // composing, they do nothing — the cell is not refilled, the composed text not lost.
+  it("leaves Row above inert while composing; after compositionend it inserts the row", async () => {
+    const { canvas, press, cells, saved } = renderEditor();
+    press(500, 30);
+    fireEvent.doubleClick(canvas, at(700, 70));
+    const field = await screen.findByTestId("slide-editor-text-field");
+    fireEvent.mouseDown(screen.getByTestId("property-tab-content"), { button: 0 });
+    const text = field.querySelector("span")!.firstChild as Text;
+    fireEvent.compositionStart(field);
+    text.appendData("é");
+    selectRange(field, { start: 7, end: 7 });
+    fireEvent.input(field, { isComposing: true });
+    const above = screen.getByTestId("slide-editor-table-row-above");
+    fireEvent.mouseDown(above);
+    fireEvent.click(above);
+    expect(screen.getByTestId("slide-editor-text-field")).toBe(field);
+    expect(field.querySelector("span")!.firstChild).toBe(text);
+    expect(field.textContent).toBe("Slidesé");
+    expect(screen.getByTestId("slide-editor-table")).toHaveTextContent("row 2, column 2");
+    fireEvent.compositionEnd(field);
+    fireEvent.click(screen.getByTestId("slide-editor-table-row-above"));
+    expect(cells()).toEqual([
+      ["Day", "Topic"],
+      ["", ""],
+      ["Mon", "Slidesé"],
+    ]);
+    const table = await saved();
+    expect(table.rows[2]![1]!.runs).toEqual([{ text: "Slidesé", size: 16 }]);
+  });
 });

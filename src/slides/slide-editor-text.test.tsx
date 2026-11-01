@@ -1408,6 +1408,33 @@ describe("SlideEditor text field during a composition", () => {
     expect(await saved()).toEqual([{ text: "A captioné", size: 20 }]);
   });
 
+  it("leaves the list and alignment buttons inert while composing", async () => {
+    const { field, text, saved, onSave } = await editCaption();
+    composeE(field, text);
+    for (const testId of ["bullets", "numbered", "align-center", "align-right"]) {
+      press(`slide-editor-text-${testId}`);
+      expect(screen.getByTestId(`slide-editor-text-${testId}`)).toHaveAttribute(
+        "aria-pressed",
+        "false",
+      );
+    }
+    expect(screen.getByTestId("slide-editor-text-field")).toBe(field);
+    expect(field.querySelector("span")!.firstChild).toBe(text);
+    fireEvent.compositionEnd(field);
+    expect(await saved()).toEqual([{ text: "A captioné", size: 20 }]);
+    const parsed = safeParseSlideDocument(SLIDE_EDITOR_DOC);
+    if (!parsed.ok) throw new Error("fixture does not parse");
+    const before = parsed.document.pages[1]!.elements.find((one) => one.id === "caption");
+    const after = onSave.mock.calls
+      .at(-1)![0]
+      .pages[1]!.elements.find((one) => one.id === "caption");
+    if (before?.type !== "text" || after?.type !== "text") throw new Error("no caption");
+    expect({ list: after.list, align: after.align }).toEqual({
+      list: before.list,
+      align: before.align,
+    });
+  });
+
   it("applies no Bold pressed while composing to the element a canvas press selects", async () => {
     const { field, text, saved, onSave } = await editCaption();
     composeE(field, text);

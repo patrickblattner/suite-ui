@@ -624,8 +624,8 @@ export function InlineTextEditor({
   // Tab (`back` with Shift) in a table cell: `true` when the editing went on to the next cell, so the
   // key stays in the field; `false` lets the focus leave as usual.
   onTab?: ((back: boolean) => boolean) | undefined;
-  // A composition (dead key, IME) starts and ends in the field; the panel holds its formats till then
-  // (GL-UI-039 rev 2, #736).
+  // A composition (dead key, IME) starts and ends in the field; the panel's formats do nothing till
+  // then (GL-UI-039 rev 2, #736).
   onComposing?: ((on: boolean) => void) | undefined;
 }) {
   const root = React.useRef<HTMLDivElement>(null);
