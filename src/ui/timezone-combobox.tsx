@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { cn } from "../lib/cn.js";
 import { usePopupPlacement } from "../lib/popup-placement.js";
 import { useFieldDraft } from "./field-drafts-internal.js";
-import { useFieldErrorAttributes } from "./field-error.js";
+import { FieldUserEditContext, useFieldErrorAttributes } from "./field-error.js";
 import { WithFieldValueHint } from "./field-value-hint.js";
 import { Hint } from "./hint.js";
 import { isInLeaveGuardDialog } from "./leave-guard.js";
@@ -105,7 +105,11 @@ function TimezoneCombobox({
     setKeyboard(false);
   };
 
+  // The form around it hears a pick as the person's edit (`GL-UI-038`, #739): a pick sends no input
+  // or change event.
+  const userEdit = React.useContext(FieldUserEditContext);
   const pick = (zone: string) => {
+    userEdit?.();
     onValueChange(zone);
     close();
   };

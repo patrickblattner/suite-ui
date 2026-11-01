@@ -24,7 +24,12 @@ import {
   FieldDraftsContext,
   useHasFieldDrafts,
 } from "./field-drafts-internal.js";
-import { FieldSubmitContext, FieldSubmitEndContext, useFieldSubmits } from "./field-error.js";
+import {
+  FieldSubmitContext,
+  FieldSubmitEndContext,
+  FieldUserEditContext,
+  useFieldSubmits,
+} from "./field-error.js";
 import { Hint } from "./hint.js";
 import { useLeaveConfirm } from "./leave-guard.js";
 import { Sheet, SheetTitle } from "./sheet.js";
@@ -469,7 +474,7 @@ function MediaDetailShell({
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [open, guard, onClose]);
 
-  return (
+  const sheet = (
     <Sheet
       open={open}
       modal={false}
@@ -717,6 +722,9 @@ function MediaDetailShell({
       {dialog}
     </Sheet>
   );
+  // Its own surface: a change anywhere in it (fields, preview, pager, actions) is no edit of a form
+  // around it (#739).
+  return <FieldUserEditContext.Provider value={null}>{sheet}</FieldUserEditContext.Provider>;
 }
 
 type MediaUsage = {

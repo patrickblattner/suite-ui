@@ -4,7 +4,7 @@ import { Select as SelectPrimitive } from "radix-ui";
 
 import { cn } from "../lib/cn.js";
 import { useHighlightInput } from "../lib/highlight-input.js";
-import { useFieldErrorAttributes } from "./field-error.js";
+import { FieldUserEditContext, useFieldErrorAttributes } from "./field-error.js";
 import { WithFieldValueHint } from "./field-value-hint.js";
 import { OverflowTooltip } from "./tooltip.js";
 
@@ -18,9 +18,20 @@ const SelectOpenerContext = React.createContext<{
 function Select({ ...props }: React.ComponentProps<typeof SelectPrimitive.Root>) {
   const [openedByPointer, setOpenedByPointer] = React.useState(false);
   const opener = React.useMemo(() => ({ openedByPointer, setOpenedByPointer }), [openedByPointer]);
+  // Radix calls `onValueChange` for the person's pick (and, rarely, from its hidden native select: a
+  // value set by code without a matching item, a native form reset); the form around it hears the
+  // pick as an edit (`GL-UI-038`).
+  const userEdit = React.useContext(FieldUserEditContext);
   return (
     <SelectOpenerContext.Provider value={opener}>
-      <SelectPrimitive.Root data-slot="select" {...props} />
+      <SelectPrimitive.Root
+        data-slot="select"
+        {...props}
+        onValueChange={(value) => {
+          userEdit?.();
+          props.onValueChange?.(value);
+        }}
+      />
     </SelectOpenerContext.Provider>
   );
 }

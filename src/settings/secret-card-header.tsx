@@ -2,6 +2,7 @@ import * as React from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "../ui/button.js";
+import { FieldUserEditContext } from "../ui/field-error.js";
 import { Hint } from "../ui/hint.js";
 import { Label } from "../ui/label.js";
 import { Switch } from "../ui/switch.js";
@@ -89,12 +90,15 @@ function SecretCardHeader({
       >
         {active !== undefined ? (
           <div className="flex items-center gap-2">
-            <Switch
-              id={activeId}
-              checked={active.checked}
-              onCheckedChange={active.onCheckedChange}
-              data-testid={`${testIdPrefix}-active`}
-            />
+            {/* The switch acts at once, without Save: no edit of the form around it (#739). */}
+            <FieldUserEditContext.Provider value={null}>
+              <Switch
+                id={activeId}
+                checked={active.checked}
+                onCheckedChange={active.onCheckedChange}
+                data-testid={`${testIdPrefix}-active`}
+              />
+            </FieldUserEditContext.Provider>
             <Label htmlFor={activeId}>{t("settings.active")}</Label>
           </div>
         ) : null}

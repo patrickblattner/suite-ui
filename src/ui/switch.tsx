@@ -1,7 +1,8 @@
-import type * as React from "react";
+import * as React from "react";
 import { Switch as SwitchPrimitive } from "radix-ui";
 
 import { cn } from "../lib/cn.js";
+import { FieldUserEditContext } from "./field-error.js";
 import { WithFieldValueHint } from "./field-value-hint.js";
 
 // The look of a switch locked with `aria-disabled` without a run (`data-locked`) or `disabled`, in
@@ -34,6 +35,9 @@ function Switch(
   const { className, size = "default", busy = false, onClick, onMouseDown, ...rest } = props;
   const guardsRepeatClick = "busy" in props;
   const locked = busy || rest["aria-disabled"] === true || rest["aria-disabled"] === "true";
+  // Radix sets the hidden native input by code, so the form around it hears the person's toggle only
+  // through `onCheckedChange` (`GL-UI-038`, #739).
+  const userEdit = React.useContext(FieldUserEditContext);
   return (
     <WithFieldValueHint>
       <SwitchPrimitive.Root
@@ -50,6 +54,10 @@ function Switch(
         // After the spread, so a call site's `aria-disabled` or `aria-busy` cannot undo the lock.
         {...(locked ? { "aria-disabled": true } : {})}
         {...(busy ? { "aria-busy": true } : {})}
+        onCheckedChange={(checked) => {
+          userEdit?.();
+          rest.onCheckedChange?.(checked);
+        }}
         onMouseDown={(event: React.MouseEvent<HTMLButtonElement>) => {
           // A press on the locked switch does not move the focus.
           if (locked) event.preventDefault();

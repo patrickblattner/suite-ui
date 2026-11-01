@@ -1,7 +1,12 @@
 import * as React from "react";
 
 import { PageHeader } from "../list/page-header.js";
-import { FieldSubmitContext, FieldSubmitEndContext, useFieldSubmits } from "../ui/field-error.js";
+import {
+  FieldSubmitContext,
+  FieldSubmitEndContext,
+  FieldUserEditContext,
+  useFieldSubmits,
+} from "../ui/field-error.js";
 import { InlineMessage } from "../ui/inline-message.js";
 import { Skeleton } from "../ui/skeleton.js";
 import { Tabs } from "../ui/tabs.js";
@@ -119,6 +124,13 @@ function SettingsScaffold({
     if (!target.matches("input, textarea, select, [contenteditable]")) return;
     setSaveRun("none");
   };
+  // A change by the person in a package control that sets its value by code or from a button (Select,
+  // Combobox, TimezoneCombobox, Checkbox, Switch, RadioGroup, Slider, TagInput, RestoreDefaultsButton):
+  // it reports the change itself instead of a trusted event (`FieldUserEditContext`, #739).
+  const saving = form?.saving === true;
+  const userEdit = React.useCallback(() => {
+    if (!saving) setSaveRun("none");
+  }, [saving]);
   const state = loading ? (
     <Skeleton className="h-9 w-full" aria-busy="true" data-testid="settings-loading" />
   ) : error !== undefined ? (
@@ -200,7 +212,9 @@ function SettingsScaffold({
         >
           <FieldSubmitContext.Provider value={submits}>
             <FieldSubmitEndContext.Provider value={submitEnds}>
-              {content}
+              <FieldUserEditContext.Provider value={userEdit}>
+                {content}
+              </FieldUserEditContext.Provider>
             </FieldSubmitEndContext.Provider>
           </FieldSubmitContext.Provider>
           <SettingsFooter

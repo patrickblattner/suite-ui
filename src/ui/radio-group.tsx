@@ -3,7 +3,7 @@ import { CircleIcon } from "lucide-react";
 import { RadioGroup as RadioGroupPrimitive } from "radix-ui";
 
 import { cn } from "../lib/cn.js";
-import { useFieldErrorAttributes } from "./field-error.js";
+import { FieldUserEditContext, useFieldErrorAttributes } from "./field-error.js";
 
 // The keys that move the focus to another option in radix: the arrow keys, and Home/End and
 // PageUp/PageDown to the first or last one. Each checks the option it focuses, so focus and checked
@@ -36,6 +36,9 @@ function RadioGroup({
   // "moved": a focus key moved the focus, which has not arrived yet; "checked": radix checked it.
   const focusKey = React.useRef<"none" | "moved" | "checked">("none");
   const presses = React.useRef(0);
+  // Radix sets the hidden native inputs by code, so the form around it hears the person's choice only
+  // through `onValueChange` (`GL-UI-038`, #739).
+  const userEdit = React.useContext(FieldUserEditContext);
   return (
     <RadioGroupPrimitive.Root
       {...fieldError}
@@ -68,6 +71,10 @@ function RadioGroup({
         if (!event.currentTarget.contains(event.relatedTarget)) focusKey.current = "none";
       }}
       {...props}
+      onValueChange={(value) => {
+        userEdit?.();
+        props.onValueChange?.(value);
+      }}
     />
   );
 }

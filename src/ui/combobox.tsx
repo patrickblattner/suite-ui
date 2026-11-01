@@ -5,7 +5,7 @@ import { useTranslation } from "react-i18next";
 import { cn } from "../lib/cn.js";
 import { usePopupPlacement } from "../lib/popup-placement.js";
 import { useFieldDraft } from "./field-drafts-internal.js";
-import { useFieldErrorAttributes } from "./field-error.js";
+import { FieldUserEditContext, useFieldErrorAttributes } from "./field-error.js";
 import { WithFieldValueHint } from "./field-value-hint.js";
 import { Hint } from "./hint.js";
 import { isInLeaveGuardDialog } from "./leave-guard.js";
@@ -143,11 +143,15 @@ function Combobox({
     setKeyboard(false);
   };
 
+  // The form around it hears a pick as the person's edit (`GL-UI-038`); the hidden input's
+  // announcement below is not trusted.
+  const userEdit = React.useContext(FieldUserEditContext);
   const pick = (index: number) => {
     const option = matches[index];
     close();
     if (option !== undefined) {
       setPicked(option);
+      userEdit?.();
       onValueChange(option.value, option);
     } else if (create) {
       onCreateRequest?.(term);

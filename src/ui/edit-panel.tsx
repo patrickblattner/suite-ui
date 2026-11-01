@@ -17,6 +17,7 @@ import { createFieldDrafts, FieldDraftsContext } from "./field-drafts-internal.j
 import {
   FieldSubmitContext,
   FieldSubmitEndContext,
+  FieldUserEditContext,
   submitLocked,
   useFieldSubmits,
 } from "./field-error.js";
@@ -360,7 +361,7 @@ function EditPanel({
     </>
   );
 
-  return (
+  const sheet = (
     <Sheet
       open={open}
       modal={false}
@@ -576,6 +577,9 @@ function EditPanel({
       {dialog}
     </Sheet>
   );
+  // Its own surface: a change anywhere in it (fields, preview, pager, actions) is no edit of a form
+  // around it (#739).
+  return <FieldUserEditContext.Provider value={null}>{sheet}</FieldUserEditContext.Provider>;
 }
 
 export { EditPanel, type EditPanelPager, type EditPanelProps };
