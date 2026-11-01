@@ -8,7 +8,14 @@ import { safeParseSlideDocument } from "./document.js";
 import { textOf } from "./editor-text.js";
 import { type Run, SLIDE_LIMITS, type SlideDocument } from "./schema.js";
 import { SlideEditor } from "./slide-editor.js";
-import { fillEditable, rangeIn, readRuns, RUNS_MIME, selectRange } from "./slide-editor-text.js";
+import {
+  fillEditable,
+  InlineTextEditor,
+  rangeIn,
+  readRuns,
+  RUNS_MIME,
+  selectRange,
+} from "./slide-editor-text.js";
 
 // The schema check runs as it is, except where a test loads a draft already past a limit.
 vi.mock("./document.js", async (importOriginal) => {
@@ -1212,29 +1219,54 @@ describe("SlideEditor text field during a composition", () => {
   });
 
   // AC1: no new paragraph, no U+2028, no leaving the field, no format toggle while composing.
+  // Tab and the shortcuts keep off the browser's own action too; Enter, Escape and plain keys are the
+  // IME's (#736 review).
   it("lets Enter, Shift+Enter, Escape, Tab and shortcuts do nothing while composing", async () => {
-    const { field, text, saved } = await editCaption();
+    const { field, saved } = await editCaption();
+    // A change first, so an Undo would show.
+    field.querySelector("span")!.textContent = "A big caption";
+    fireEvent.input(field);
+    const text = field.querySelector("span")!.firstChild as Text;
     fireEvent.compositionStart(field);
     selectRange(field, { start: 2, end: 9 });
-    for (const key of [
-      { key: "Enter" },
-      { key: "Enter", shiftKey: true },
-      { key: "Escape" },
-      { key: "Tab" },
-      { key: "Tab", shiftKey: true },
-      { key: "b", metaKey: true },
-      { key: "i", ctrlKey: true },
-      { key: "z", metaKey: true },
-    ]) {
-      fireEvent.keyDown(field, { ...key, isComposing: true });
+    const keys: [Record<string, unknown>, boolean][] = [
+      [{ key: "Enter" }, false],
+      [{ key: "Enter", shiftKey: true }, false],
+      [{ key: "Escape" }, false],
+      [{ key: "e" }, false],
+      [{ key: "Tab" }, true],
+      [{ key: "Tab", shiftKey: true }, true],
+      [{ key: "b", metaKey: true }, true],
+      [{ key: "i", ctrlKey: true }, true],
+      [{ key: "z", metaKey: true }, true],
+      [{ key: "y", ctrlKey: true }, true],
+    ];
+    for (const [key, prevented] of keys) {
+      // `fireEvent` answers `false` when the default was prevented.
+      expect(fireEvent.keyDown(field, { ...key, isComposing: true }), JSON.stringify(key)).toBe(
+        !prevented,
+      );
     }
     expect(screen.getByTestId("slide-editor-text-field")).toBe(field);
+    expect(field.textContent).toBe("A big caption");
     expect(field.children).toHaveLength(1);
     expect(field.querySelectorAll("br[data-line]")).toHaveLength(0);
     expect(field.querySelector("span")!.firstChild).toBe(text);
     expect(rangeIn(field)).toEqual({ start: 2, end: 9 });
     fireEvent.compositionEnd(field);
-    expect(await saved()).toEqual([expect.not.objectContaining({ weight: 700 })]);
+    expect(await saved()).toEqual([{ text: "A big caption", size: 20 }]);
+  });
+
+  it("takes Cmd+Z as Undo again once the composition ended", async () => {
+    const { field } = await editCaption();
+    field.querySelector("span")!.textContent = "A big caption";
+    fireEvent.input(field);
+    fireEvent.compositionStart(field);
+    fireEvent.keyDown(field, { key: "z", metaKey: true, isComposing: true });
+    expect(field.textContent).toBe("A big caption");
+    fireEvent.compositionEnd(field);
+    fireEvent.keyDown(field, { key: "z", metaKey: true });
+    await waitFor(() => expect(field.textContent).toBe("A caption"));
   });
 
   // AC4: the Enter confirming a candidate is the composition's — also Safari's after `compositionend`
@@ -1270,5 +1302,121 @@ describe("SlideEditor text field during a composition", () => {
     expect(error).toHaveBeenCalledTimes(1);
     expect(field.textContent).toBe("A caption");
     error.mockRestore();
+  });
+
+  // #736 review: refused at `compositionend`, the caret goes back where the composition began, not
+  // past the composed text.
+  it("puts the caret back where the refused composition began", async () => {
+    const error = vi.spyOn(toast, "error").mockReturnValue(1);
+    const { field, text } = await editCaption();
+    selectRange(field, { start: 2, end: 2 });
+    fireEvent.compositionStart(field);
+    const composed = "日".repeat(SLIDE_LIMITS.maxTextLength);
+    text.insertData(2, composed);
+    selectRange(field, { start: 2 + composed.length, end: 2 + composed.length });
+    act(() => {
+      document.dispatchEvent(new Event("selectionchange"));
+    });
+    fireEvent.input(field, { isComposing: true });
+    fireEvent.compositionEnd(field);
+    expect(error).toHaveBeenCalledTimes(1);
+    expect(field.textContent).toBe("A caption");
+    expect(rangeIn(field)).toEqual({ start: 2, end: 2 });
+    error.mockRestore();
+  });
+
+  // #736 review: a press on the canvas ends the editing before `compositionend`: the composed text is
+  // kept.
+  it("keeps the composed text when the field closes mid-composition", async () => {
+    const { field, text, saved } = await editCaption();
+    fireEvent.compositionStart(field);
+    text.appendData("é");
+    selectRange(field, { start: 10, end: 10 });
+    fireEvent.input(field, { isComposing: true });
+    const canvas = screen.getByTestId("slide-editor-canvas");
+    fireEvent.pointerDown(canvas, { ...at(700, 300), button: 0, pointerId: 1 });
+    fireEvent.pointerUp(canvas, at(700, 300));
+    expect(screen.queryByTestId("slide-editor-text-field")).toBeNull();
+    expect(textOf(await saved())).toBe("A captioné");
+  });
+
+  // #736 review: a composition whose `compositionend` never came does not keep the field deaf.
+  it("takes typed text again after a blur ended a composition left open", async () => {
+    const { field, text, saved } = await editCaption();
+    fireEvent.compositionStart(field);
+    fireEvent.blur(field);
+    field.focus();
+    text.appendData("s");
+    selectRange(field, { start: 10, end: 10 });
+    fireEvent.input(field);
+    expect(textOf(await saved())).toBe("A captions");
+  });
+});
+
+// #736 review: the field on its own, its hand-on counted.
+describe("InlineTextEditor around a composition", () => {
+  const renderField = () => {
+    const onRuns = vi.fn<(runs: Run[]) => boolean>(() => true);
+    const view = render(
+      <InlineTextEditor
+        body={{
+          runs: [{ text: "Cafe", size: 20 }],
+          align: "left",
+          lineHeight: 1.2,
+          list: "none",
+          verticalAlign: "top",
+        }}
+        brand={SLIDE_BRAND}
+        frame={{ box: { x: 0, y: 0, width: 200, height: 50 }, rotation: 0 }}
+        zoom={1}
+        label="Text"
+        range={undefined}
+        onRuns={onRuns}
+        onRange={() => {}}
+        onEnd={() => {}}
+        onUndo={() => {}}
+        onRedo={() => {}}
+        onToggle={() => {}}
+      />,
+    );
+    const field = screen.getByTestId("slide-editor-text-field");
+    // Option+e over the last "e": "´" while composing, then "é".
+    const compose = () => {
+      const text = field.querySelector("span")!.firstChild as Text;
+      fireEvent.compositionStart(field);
+      text.replaceData(3, 1, "´");
+      fireEvent.input(field, { isComposing: true });
+      text.replaceData(3, 1, "é");
+      fireEvent.input(field, { isComposing: true });
+    };
+    return { onRuns, field, compose, unmount: view.unmount };
+  };
+
+  // Firefox sends the last input after `compositionend`: nothing is handed on a second time.
+  it("hands the composed runs on once, though an input follows compositionend", () => {
+    const { onRuns, field, compose } = renderField();
+    compose();
+    expect(onRuns).not.toHaveBeenCalled();
+    fireEvent.compositionEnd(field);
+    fireEvent.input(field);
+    expect(onRuns).toHaveBeenCalledTimes(1);
+    expect(onRuns.mock.calls[0]![0]).toEqual([{ text: "Café", size: 20 }]);
+  });
+
+  it("hands the composed runs on when the field closes mid-composition", () => {
+    const { onRuns, compose, unmount } = renderField();
+    compose();
+    unmount();
+    expect(onRuns).toHaveBeenCalledTimes(1);
+    expect(onRuns.mock.calls[0]![0]).toEqual([{ text: "Café", size: 20 }]);
+  });
+
+  it("hands the composed runs on at a blur mid-composition, once", () => {
+    const { onRuns, field, compose } = renderField();
+    compose();
+    fireEvent.blur(field);
+    fireEvent.compositionEnd(field);
+    expect(onRuns).toHaveBeenCalledTimes(1);
+    expect(onRuns.mock.calls[0]![0]).toEqual([{ text: "Café", size: 20 }]);
   });
 });

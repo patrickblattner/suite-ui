@@ -71,7 +71,8 @@ export function TransferFormat({
   // Enter on a choice triggers Transfer, as Enter does anywhere in a dialog but on a button
   // (`GL-UI-027` §Tastatur).
   const enterConfirms = (event: React.KeyboardEvent) => {
-    if (event.key !== "Enter") return;
+    // The Enter confirming an IME candidate is the composition's (GL-UI-039 rev 2, #736).
+    if (event.key !== "Enter" || event.nativeEvent.isComposing || event.keyCode === 229) return;
     event.preventDefault();
     confirm();
   };
