@@ -3,7 +3,7 @@ import * as React from "react";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
-import { isCompositionKey } from "../lib/keyboard.js";
+import { isCompositionKey } from "./composition.js";
 import { usePopupPlacement } from "../lib/popup-placement.js";
 import { useFieldDraft } from "./field-drafts-internal.js";
 import { FieldUserEditContext, useFieldErrorAttributes } from "./field-error.js";

@@ -17,7 +17,7 @@ import {
 } from "sonner";
 
 import { cn } from "../lib/cn.js";
-import { isCompositionKey } from "../lib/keyboard.js";
+import { isCompositionKey } from "./composition.js";
 import { captureOpener, type Opener, returnFocus } from "./focus-return.js";
 import { dropHeld, holdToast, toastsHeld } from "./toast-hold-internal.js";
 

@@ -1,3 +1,5 @@
+import type * as React from "react";
+
 // The shared parts of the keyboard rule (`GL-UI-006`): the field and dialog checks every page
 // shortcut obeys, and the display of a shortcut as a key chip.
 
@@ -37,9 +39,10 @@ function isInDialog(element: Element | null): boolean {
 /**
  * A key of a running composition (a dead key, an IME): it belongs to the composition, the Enter that
  * confirms a candidate too — Safari sends that one after `compositionend`, with key code 229. Such a
- * key triggers nothing of the field or its surface (`GL-UI-039` rev 2, #737).
+ * key triggers nothing of the field or its surface (`GL-UI-039`, `SUI-FEATURE-126`, #737). Public as
+ * `@suite/ui/ui/composition`.
  */
-function isCompositionKey(event: KeyboardEvent | { nativeEvent: KeyboardEvent }): boolean {
+function isCompositionKey(event: KeyboardEvent | React.KeyboardEvent): boolean {
   const native = "nativeEvent" in event ? event.nativeEvent : event;
   return native.isComposing || native.keyCode === 229;
 }
@@ -49,9 +52,7 @@ function isCompositionKey(event: KeyboardEvent | { nativeEvent: KeyboardEvent })
  * the IME's, one passed on with `isComposing` and its own key code loses the browser's move. Returns
  * whether the key was such a Tab, for the caller to keep it from its own focus handling.
  */
-function holdCompositionTab(
-  event: (KeyboardEvent | { nativeEvent: KeyboardEvent }) & { key: string; preventDefault(): void },
-): boolean {
+function holdCompositionTab(event: KeyboardEvent | React.KeyboardEvent): boolean {
   if (event.key !== "Tab" || !isCompositionKey(event)) return false;
   const native = "nativeEvent" in event ? event.nativeEvent : event;
   if (native.keyCode !== 229) event.preventDefault();

@@ -2,6 +2,7 @@ import * as React from "react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "../ui/button.js";
+import { isCompositionKey } from "../ui/composition.js";
 import {
   Dialog,
   DialogContent,
@@ -72,7 +73,7 @@ export function TransferFormat({
   // (`GL-UI-027` §Tastatur).
   const enterConfirms = (event: React.KeyboardEvent) => {
     // The Enter confirming an IME candidate is the composition's (GL-UI-039 rev 2, #736).
-    if (event.key !== "Enter" || event.nativeEvent.isComposing || event.keyCode === 229) return;
+    if (event.key !== "Enter" || isCompositionKey(event)) return;
     event.preventDefault();
     confirm();
   };

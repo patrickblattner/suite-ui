@@ -13,6 +13,7 @@ import { useTranslation } from "react-i18next";
 
 import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
 import { Button } from "../ui/button.js";
+import { isCompositionKey } from "../ui/composition.js";
 import { Field } from "../ui/field.js";
 import { Input } from "../ui/input.js";
 import { helpIdFor } from "../ui/label-with-help.js";
@@ -894,7 +895,7 @@ export function InlineTextEditor({
               // A key of a composition is its own, the Enter that confirms a candidate too (Safari
               // sends that one after `compositionend`, as key code 229) (GL-UI-039 rev 2, #736).
               // Tab and the shortcuts keep off the browser's own action (leaving, its bold or undo).
-              if (composingRef.current || event.nativeEvent.isComposing || event.keyCode === 229) {
+              if (composingRef.current || isCompositionKey(event)) {
                 if (event.key === "Tab" || isMod(event)) event.preventDefault();
                 return;
               }

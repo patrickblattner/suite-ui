@@ -14,7 +14,8 @@ import {
 } from "react-router-dom";
 
 import { hasEscapeLayer } from "../lib/escape-layers.js";
-import { isCompositionKey, isInDialog } from "../lib/keyboard.js";
+import { isInDialog } from "../lib/keyboard.js";
+import { isCompositionKey } from "./composition.js";
 import { Button } from "./button.js";
 import {
   Dialog,
@@ -1553,7 +1554,7 @@ function useLeaveConfirm({
   React.useEffect(() => {
     if (open) return;
     // The closed surface no longer asks nor works; its work, still running, counts for nothing.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+
     drop();
     setWorking(false);
   }, [open, drop]);

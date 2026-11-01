@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
 import { cn } from "../lib/cn.js";
-import { isCompositionKey } from "../lib/keyboard.js";
+import { isCompositionKey } from "../ui/composition.js";
 import {
   Dialog,
   DialogBody,

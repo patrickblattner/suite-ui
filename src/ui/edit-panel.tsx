@@ -10,7 +10,7 @@ import * as React from "react";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
-import { isCompositionKey } from "../lib/keyboard.js";
+import { isCompositionKey } from "./composition.js";
 import { PANEL_SURFACE_CLASS, usePanelGeometry } from "../lib/panel-geometry.js";
 import { Button } from "./button.js";
 import { CompositionTabBoundary } from "./composition-tab-internal.js";

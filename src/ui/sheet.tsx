@@ -4,7 +4,7 @@ import { Dialog as SheetPrimitive } from "radix-ui";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
-import { isCompositionKey } from "../lib/keyboard.js";
+import { isCompositionKey } from "./composition.js";
 import { CompositionTabBoundary } from "./composition-tab-internal.js";
 import { FieldDraftsContext } from "./field-drafts-internal.js";
 

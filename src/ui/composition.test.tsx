@@ -2,8 +2,8 @@ import { act, createEvent, fireEvent, render, screen } from "@testing-library/re
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
-import { isCompositionKey } from "../lib/keyboard.js";
 import { useModalOverlay } from "../lib/modal-overlay.js";
+import { isCompositionKey } from "./composition.js";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "./dialog.js";
 import { EditPanel } from "./edit-panel.js";
 import { Input } from "./input.js";
@@ -60,6 +60,18 @@ describe("isCompositionKey", () => {
     Object.defineProperty(late, "keyCode", { value: 229 });
     expect(isCompositionKey(late)).toBe(true);
     expect(isCompositionKey(new KeyboardEvent("keydown", { key: "Enter" }))).toBe(false);
+  });
+
+  // SUI-FEATURE-126 AC 4: an app's React key handler passes its event as it is.
+  it("takes a React keyboard event: true while composing or for key code 229, false otherwise", () => {
+    const seen: boolean[] = [];
+    render(<input aria-label="Own" onKeyDown={(event) => seen.push(isCompositionKey(event))} />);
+    const own = screen.getByLabelText("Own");
+    fireEvent.keyDown(own, { key: "Enter", isComposing: true });
+    fireEvent.keyDown(own, { key: "Enter", keyCode: 229 });
+    fireEvent.keyDown(own, { key: "Enter", keyCode: 13 });
+    fireEvent.keyDown(own, { key: "e" });
+    expect(seen).toEqual([true, true, false, false]);
   });
 });
 
