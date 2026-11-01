@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 
 
 import { Checkbox } from "../ui/checkbox.js";
 import { Combobox } from "../ui/combobox.js";
+import { EditPanel } from "../ui/edit-panel.js";
 import { Input } from "../ui/input.js";
 import { RadioGroup, RadioGroupItem } from "../ui/radio-group.js";
 import { RestoreDefaultsButton } from "../ui/restore-defaults-button.js";
@@ -16,6 +17,7 @@ import { Switch } from "../ui/switch.js";
 import { TabsContent, TabsList, TabsTrigger } from "../ui/tabs.js";
 import { TagInput } from "../ui/tag-input.js";
 import { TimezoneCombobox } from "../ui/timezone-combobox.js";
+import { SecretCardHeader } from "./secret-card-header.js";
 import { SettingsField } from "./settings-field.js";
 import { SettingsScaffold } from "./settings-scaffold.js";
 
@@ -1253,4 +1255,94 @@ describe("SettingsScaffold: a pick put back after a failed save keeps the submit
       await cleanWithError(false);
     },
   );
+
+  it("tag input: a failed save, then a tag picked from the suggestions → the city's error stays", async () => {
+    render(
+      <Trusted>
+        <ValueForm
+          initial="a,b"
+          field={(value, setValue) => (
+            <TagInput
+              aria-label="Tags"
+              value={value.split(",")}
+              onChange={(next) => setValue(next.join(","))}
+              suggestions={["b", "c"]}
+              testId="tags"
+            />
+          )}
+        />
+      </Trusted>,
+    );
+    fireEvent.click(screen.getAllByTestId("tags-remove")[1]!);
+    await failedSubmit();
+    tagField().focus();
+    fireEvent.change(tagField(), { target: { value: "b" } });
+    fireEvent.click(screen.getByRole("option", { name: "b" }));
+    await cleanWithError(true);
+  });
+
+  it("tag input: typed text taken over as the submit moves the focus on → the city's error stays", async () => {
+    render(
+      <Trusted>
+        <ValueForm initial="a,b" field={tags} />
+      </Trusted>,
+    );
+    fireEvent.click(screen.getAllByTestId("tags-remove")[1]!);
+    await tick();
+    // Typed but not taken over: the submit's focus on City leaves the field, which takes it over.
+    tagField().focus();
+    fireEvent.change(tagField(), { target: { value: "b" } });
+    fireEvent.submit(screen.getByTestId("settings-general-form"));
+    await cleanWithError(true);
+  });
+
+  // A checkbox outside, and a control that is no edit of this form: the result is the same, the
+  // started save waits for clean, and the saved value set back by code ends the submit state.
+  const planCheckbox = (value: string, setValue: (next: string) => void) => (
+    <Checkbox
+      aria-label="Plan"
+      checked={value === "pro"}
+      onCheckedChange={(checked) => setValue(checked === true ? "pro" : "basic")}
+    />
+  );
+  function OtherToggle({ where }: { where: "secret" | "panel" }) {
+    const [on, setOn] = useState(false);
+    return where === "secret" ? (
+      <SecretCardHeader testIdPrefix="secret" active={{ checked: on, onCheckedChange: setOn }} />
+    ) : (
+      <EditPanel open onOpenChange={() => {}} title="Channel" onSubmit={() => true}>
+        <Checkbox
+          aria-label="Inner"
+          checked={on}
+          onCheckedChange={(next) => setOn(next === true)}
+        />
+      </EditPanel>
+    );
+  }
+
+  it.each([
+    ["the Active switch of a secret card (acts at once, without Save)", "secret"],
+    ["a checkbox in an EditPanel inside the scaffold (its own form)", "panel"],
+  ] as const)("%s is no edit of the scaffold's form", async (_case, where) => {
+    render(
+      <Trusted>
+        <ValueForm
+          initial="basic"
+          field={(value, setValue) => (
+            <>
+              {planCheckbox(value, setValue)}
+              <OtherToggle where={where} />
+            </>
+          )}
+        />
+      </Trusted>,
+    );
+    fireEvent.click(screen.getByRole("checkbox", { name: "Plan" }));
+    await failedSubmit();
+    if (where === "secret") fireEvent.click(screen.getByTestId("secret-active"));
+    else fireEvent.click(screen.getByRole("checkbox", { name: "Inner" }));
+    await tick();
+    fireEvent.click(screen.getByTestId("by-code"));
+    await cleanWithError(false);
+  });
 });

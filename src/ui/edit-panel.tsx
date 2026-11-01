@@ -296,10 +296,7 @@ function EditPanel({
   const fields = (
     <FieldSubmitContext.Provider value={view ? null : submits}>
       <FieldSubmitEndContext.Provider value={submitEnds}>
-        <FieldDraftsContext.Provider value={fieldDrafts}>
-          {/* Its own form: a pick in it is no edit of a form around the panel. */}
-          <FieldUserEditContext.Provider value={null}>{children}</FieldUserEditContext.Provider>
-        </FieldDraftsContext.Provider>
+        <FieldDraftsContext.Provider value={fieldDrafts}>{children}</FieldDraftsContext.Provider>
       </FieldSubmitEndContext.Provider>
     </FieldSubmitContext.Provider>
   );
@@ -364,7 +361,7 @@ function EditPanel({
     </>
   );
 
-  return (
+  const sheet = (
     <Sheet
       open={open}
       modal={false}
@@ -580,6 +577,9 @@ function EditPanel({
       {dialog}
     </Sheet>
   );
+  // Its own surface: a change anywhere in it (fields, preview, pager, actions) is no edit of a form
+  // around it (#739).
+  return <FieldUserEditContext.Provider value={null}>{sheet}</FieldUserEditContext.Provider>;
 }
 
 export { EditPanel, type EditPanelPager, type EditPanelProps };

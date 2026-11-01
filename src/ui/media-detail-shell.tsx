@@ -474,7 +474,7 @@ function MediaDetailShell({
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [open, guard, onClose]);
 
-  return (
+  const sheet = (
     <Sheet
       open={open}
       modal={false}
@@ -662,10 +662,7 @@ function MediaDetailShell({
                         <FieldSubmitContext.Provider value={submits}>
                           <FieldSubmitEndContext.Provider value={submitEnds}>
                             <FieldDraftsContext.Provider value={fieldDrafts}>
-                              {/* Its own form: a pick in it is no edit of a form around it. */}
-                              <FieldUserEditContext.Provider value={null}>
-                                {slots[slot]}
-                              </FieldUserEditContext.Provider>
+                              {slots[slot]}
                             </FieldDraftsContext.Provider>
                           </FieldSubmitEndContext.Provider>
                         </FieldSubmitContext.Provider>
@@ -725,6 +722,9 @@ function MediaDetailShell({
       {dialog}
     </Sheet>
   );
+  // Its own surface: a change anywhere in it (fields, preview, pager, actions) is no edit of a form
+  // around it (#739).
+  return <FieldUserEditContext.Provider value={null}>{sheet}</FieldUserEditContext.Provider>;
 }
 
 type MediaUsage = {
