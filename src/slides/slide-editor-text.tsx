@@ -488,6 +488,18 @@ export function rangeIn(root: HTMLElement): TextRange | undefined {
   };
 }
 
+// The offset in a text node's data of the `offset`-th character not a zero-width space: text typed
+// after the placeholder of a trailing line break goes into its node (Codex v0.203.0 CX1, #733).
+function dataOffset(data: string, offset: number): number {
+  let seen = 0;
+  for (let index = 0; index < data.length; index += 1) {
+    if (data[index] === "​") continue;
+    if (seen === offset) return index;
+    seen += 1;
+  }
+  return data.length;
+}
+
 // The DOM position of a text offset in the root.
 function positionAt(root: HTMLElement, offset: number): [Node, number] {
   let at = 0;
@@ -495,8 +507,8 @@ function positionAt(root: HTMLElement, offset: number): [Node, number] {
   for (const token of tokensOf(root)) {
     if (token.kind === "text") {
       if (offset <= at + token.text.length) {
-        // Offsets count the text without zero-width spaces; the node holds none (it was filled here).
-        return [token.node, Math.max(0, offset - at)];
+        // Offsets count the text without zero-width spaces; the node may still hold one.
+        return [token.node, dataOffset(token.node.data, Math.max(0, offset - at))];
       }
       at += token.text.length;
       last = [token.node, token.node.data.length];
