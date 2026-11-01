@@ -1,6 +1,8 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import i18n from "i18next";
+import type * as React from "react";
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
 import { Input } from "../ui/input.js";
@@ -700,5 +702,144 @@ describe("SettingsScaffold: Reset ends the submit state, typing back does not", 
     fireEvent.blur(name);
     expect(screen.getByText("Enter a name.")).toBeInTheDocument();
     expect(screen.getByText("Enter a city.")).toBeInTheDocument();
+  });
+});
+
+// #735 (GL-UI-038 rev 4 §Absenden): the person's next edit in the form drops a started save, so
+// typing the saved values back ends nothing; a portal's event or a control's own dispatch does not.
+describe("SettingsScaffold: an edit drops the started save, other events do not", () => {
+  // jsdom marks no event trusted: this marks every input and change it sees as a person's, as a
+  // browser does, except one from a control flagged `data-untrusted` (a control's own dispatch).
+  function Trusted({ children }: { children: React.ReactNode }) {
+    const trust = (event: React.SyntheticEvent) => {
+      if (!(event.target instanceof Element && event.target.hasAttribute("data-untrusted")))
+        (event as { isTrusted: boolean }).isTrusted = true;
+    };
+    return (
+      <div onInputCapture={trust} onChangeCapture={trust}>
+        {children}
+      </div>
+    );
+  }
+
+  it("valid, a save that saves nothing, an invalid saved state: typing the values back keeps the errors", async () => {
+    function Page() {
+      const [name, setName] = useState("");
+      const [city, setCity] = useState("");
+      return (
+        <SettingsScaffold
+          pageKey="general"
+          title="General"
+          subtitle="The name of this instance."
+          left={
+            <>
+              <SettingsField
+                label="Name"
+                htmlFor="name"
+                error={name === "" ? "Enter a name." : undefined}
+              >
+                <Input id="name" value={name} onChange={(event) => setName(event.target.value)} />
+              </SettingsField>
+              <SettingsField
+                label="City"
+                htmlFor="city"
+                error={city === "" ? "Enter a city." : undefined}
+              >
+                <Input id="city" value={city} onChange={(event) => setCity(event.target.value)} />
+              </SettingsField>
+            </>
+          }
+          form={{
+            dirty: name !== "" || city !== "",
+            valid: true,
+            onSave: () => {},
+            onReset: () => {},
+          }}
+        />
+      );
+    }
+    render(
+      <Trusted>
+        <Page />
+      </Trusted>,
+    );
+    const name = screen.getByLabelText("Name");
+    fireEvent.change(name, { target: { value: "A" } });
+    fireEvent.blur(name);
+    fireEvent.submit(name.closest("form")!);
+    expect(await screen.findByText("Enter a city.")).toBeInTheDocument();
+    fireEvent.change(name, { target: { value: "" } });
+    fireEvent.blur(name);
+    expect(screen.getByText("Enter a city.")).toBeInTheDocument();
+    expect(screen.getByText("Enter a name.")).toBeInTheDocument();
+  });
+
+  it.each([
+    ["a trusted input in a portal (a combobox search)", "portal"],
+    ["an untrusted change of a control in the form (a Radix Select set by code)", "own"],
+  ])("%s keeps the started save: its clean end ends the submit state", async (_case, source) => {
+    function Page() {
+      const [saved, setSaved] = useState("Init");
+      const [name, setName] = useState("");
+      const [saving, setSaving] = useState(false);
+      return (
+        <SettingsScaffold
+          pageKey="general"
+          title="General"
+          subtitle="The name of this instance."
+          left={
+            <>
+              <SettingsField
+                label="Name"
+                htmlFor="name"
+                error={name === "" ? "Enter a name." : undefined}
+              >
+                <Input id="name" value={name} onChange={(event) => setName(event.target.value)} />
+              </SettingsField>
+              <select aria-hidden="true" data-testid="own" data-untrusted="" defaultValue="a">
+                <option value="a">a</option>
+                <option value="b">b</option>
+              </select>
+              {createPortal(<input aria-label="Search" data-testid="portal" />, document.body)}
+              <button type="button" data-testid="clear" onClick={() => setName("")}>
+                clear
+              </button>
+            </>
+          }
+          form={{
+            dirty: name !== saved,
+            valid: name !== "",
+            saving,
+            // As a mutation: `isPending` after `setTimeout(0)`, saved a tick later.
+            onSave: () =>
+              setTimeout(() => {
+                setSaving(true);
+                setTimeout(() => {
+                  setSaved(name);
+                  setSaving(false);
+                }, 5);
+              }, 0),
+            onReset: () => setName(saved),
+          }}
+        />
+      );
+    }
+    render(
+      <Trusted>
+        <Page />
+      </Trusted>,
+    );
+    const name = screen.getByLabelText("Name");
+    fireEvent.submit(name.closest("form")!);
+    expect(await screen.findByText("Enter a name.")).toBeInTheDocument();
+    fireEvent.change(name, { target: { value: "Ada" } });
+    fireEvent.blur(name);
+    fireEvent.submit(name.closest("form")!);
+    if (source === "portal")
+      fireEvent.input(screen.getByTestId("portal"), { target: { value: "x" } });
+    else fireEvent.change(screen.getByTestId("own"), { target: { value: "b" } });
+    await act(() => new Promise((resolve) => setTimeout(resolve, 30)));
+    fireEvent.click(screen.getByTestId("clear"));
+    expect(screen.queryByText("Enter a name.")).toBeNull();
   });
 });
