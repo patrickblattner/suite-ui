@@ -1762,6 +1762,33 @@ describe("EditPanel: the submit state ends", () => {
     expect(screen.queryByText("Enter a name.")).toBeNull();
   });
 
+  it("with a recordKey, the key tells the record: a deleted record's successor at the same index ends it", async () => {
+    function Keyed({ position, recordKey }: { position: string; recordKey: string }) {
+      return (
+        <EditPanel
+          open
+          onOpenChange={() => {}}
+          title="Channel"
+          onSubmit={() => false}
+          pager={{ position, recordKey, onPrevious: () => {}, onNext: () => {} }}
+        >
+          <Field label="Name" htmlFor="name" error="Enter a name.">
+            <Input id="name" />
+          </Field>
+        </EditPanel>
+      );
+    }
+    const { rerender } = render(<Keyed position="2/3" recordKey="b" />);
+    submit();
+    expect(await screen.findByText("Enter a name.")).toBeInTheDocument();
+    // The same record at another index keeps it.
+    rerender(<Keyed position="1/2" recordKey="b" />);
+    expect(screen.getByText("Enter a name.")).toBeInTheDocument();
+    // Another record at the same index ends it.
+    rerender(<Keyed position="1/2" recordKey="c" />);
+    expect(screen.queryByText("Enter a name.")).toBeNull();
+  });
+
   it("a save resolving true mid-typing: leaving the field afterwards shows its error", async () => {
     let resolve: (value: unknown) => void = () => undefined;
     function Typing() {

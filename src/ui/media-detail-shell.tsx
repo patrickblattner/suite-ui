@@ -53,6 +53,9 @@ type MediaDetailShellProps = MediaDetailSource & {
   // 1-based position of the medium in the set the view pages through, and the set's size.
   position: number;
   total: number;
+  // The shown medium's identity: its change ends the form's submit state (`GL-UI-038` rev 4).
+  // Without it the position with the `src` stands in for it.
+  recordKey?: string;
   onPrev: () => void;
   onNext: () => void;
   onClose: () => void;
@@ -338,6 +341,7 @@ function MediaDetailShell({
   open = true,
   position,
   total,
+  recordKey,
   onPrev,
   onNext,
   onClose,
@@ -385,9 +389,9 @@ function MediaDetailShell({
   const [submits, submitted, endSubmits, submitEnds] = useFieldSubmits();
   // A different medium ends the submit state, in the render that shows it: its untouched fields show
   // their errors late again, and they stay mounted, so the focus survives paging (`GL-UI-038` rev 4).
-  // The medium's key is its `src` with its position: another medium sliding into the same position
-  // ends it too, a change in the set's size (`total`) alone does not.
-  const record = `${position}\u0000${src ?? ""}`;
+  // The medium's key is `recordKey`, else its position with its `src`: another medium sliding into the
+  // same position ends it too, a change in the set's size (`total`) alone does not.
+  const record = recordKey !== undefined ? `key:${recordKey}` : `at:${position}\u0000${src ?? ""}`;
   const [shownRecord, setShownRecord] = React.useState(record);
   if (record !== shownRecord) {
     setShownRecord(record);

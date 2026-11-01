@@ -96,13 +96,17 @@ function SettingsScaffold({
 }: SettingsScaffoldProps) {
   // A submit shows every field's error and focuses the first invalid field (`GL-UI-038`).
   const [submits, submitted, endSubmits, submitEnds] = useFieldSubmits();
-  // `onSave` reports no result: a save the submit started that ends (`saving` back to false, or never
-  // set) with the form clean saved, and that ends the submit state, as Reset does (`GL-UI-038` rev 4).
-  // Typing the values back by hand ends nothing.
-  const [saveRun, setSaveRun] = React.useState(false);
-  if (saveRun && form !== undefined && form.saving !== true) {
-    setSaveRun(false);
-    if (!form.dirty) endSubmits();
+  // `onSave` reports no result. A save the submit started runs until the form turns clean (saved: the
+  // submit state ends, as on Reset, `GL-UI-038` rev 4), `saving` goes back to false with the form
+  // still dirty (failed), or the next input in the form; `saving` may come later than the submit (a
+  // mutation's `isPending`). Typing the values back by hand ends nothing.
+  const [saveRun, setSaveRun] = React.useState<"none" | "started" | "saving">("none");
+  if (saveRun !== "none" && form !== undefined) {
+    if (!form.dirty && form.saving !== true) {
+      setSaveRun("none");
+      endSubmits();
+    } else if (form.saving === true && saveRun === "started") setSaveRun("saving");
+    else if (form.saving !== true && saveRun === "saving") setSaveRun("none");
   }
   const state = loading ? (
     <Skeleton className="h-9 w-full" aria-busy="true" data-testid="settings-loading" />
@@ -170,13 +174,15 @@ function SettingsScaffold({
           className="flex min-h-0 flex-1 flex-col"
           noValidate
           data-testid={formTestId ?? `${testIdPrefix ?? `settings-${pageKey}`}-form`}
+          onInput={() => setSaveRun("none")}
+          onChange={() => setSaveRun("none")}
           onSubmit={(event) => {
             event.preventDefault();
             submitted(event.currentTarget);
             // Enter in a field submits too; it must not start a second save, save nothing or save an
             // invalid form.
             if (form.dirty && form.valid !== false && form.saving !== true && state === null) {
-              setSaveRun(true);
+              setSaveRun("started");
               form.onSave();
             }
           }}
@@ -192,6 +198,7 @@ function SettingsScaffold({
             dirty={form.dirty}
             valid={form.valid !== false && state === null}
             onReset={() => {
+              setSaveRun("none");
               endSubmits();
               form.onReset();
             }}

@@ -32,6 +32,9 @@ const handedOver = new WeakMap<HTMLElement, HTMLElement>();
 // Paging through a set of records in one panel (`SUI-FEATURE-051`); `position` is e.g. "1/3".
 type EditPanelPager = {
   position: string;
+  // The shown record's identity: its change ends the form's submit state (`GL-UI-038` rev 4).
+  // Without it the index (the first number of `position`) stands in for it.
+  recordKey?: string;
   onPrevious: () => void;
   onNext: () => void;
   previousDisabled?: boolean;
@@ -214,13 +217,17 @@ function EditPanel({
   // A submit shows every field's error and focuses the first invalid field (`GL-UI-038`).
   const [submits, submitted, endSubmits, submitEnds] = useFieldSubmits();
   // Another record in the pager ends the submit state, in the render that shows it, the fields
-  // mounted (`GL-UI-038` rev 4). The pager has no record key: its index (the first number of
-  // `position`) tells the record, so a change in the set's size alone ends nothing.
-  const index =
-    pager === undefined ? undefined : (/\d+/.exec(pager.position)?.[0] ?? pager.position);
-  const [shownIndex, setShownIndex] = React.useState(index);
-  if (index !== shownIndex) {
-    setShownIndex(index);
+  // mounted (`GL-UI-038` rev 4): the pager's `recordKey`, else its index (the first number of
+  // `position`), so a change in the set's size alone ends nothing.
+  const record =
+    pager === undefined
+      ? undefined
+      : pager.recordKey !== undefined
+        ? `key:${pager.recordKey}`
+        : `index:${/\d+/.exec(pager.position)?.[0] ?? pager.position}`;
+  const [shownRecord, setShownRecord] = React.useState(record);
+  if (record !== shownRecord) {
+    setShownRecord(record);
     endSubmits();
   }
   // The latest submit: an older one's success, settling later, ends nothing.

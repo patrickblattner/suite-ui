@@ -1359,10 +1359,21 @@ describe("MediaDetailShell: the submit state ends", () => {
   });
 
   // The medium's key: its position with its `src`.
-  function Single({ position, total, src }: { position: number; total: number; src: string }) {
+  function Single({
+    position,
+    total,
+    src,
+    recordKey,
+  }: {
+    position: number;
+    total: number;
+    src: string;
+    recordKey?: string;
+  }) {
     return (
       <MediaDetailShell
         position={position}
+        {...(recordKey === undefined ? {} : { recordKey })}
         total={total}
         kind="image"
         src={src}
@@ -1392,6 +1403,26 @@ describe("MediaDetailShell: the submit state ends", () => {
     ["the set's size changes on the same medium", { position: 2, total: 4, src: "/a.jpg" }, "stay"],
   ])("%s → the errors %s", async (_case, props, errors) => {
     const { rerender } = render(<Single position={2} total={3} src="/a.jpg" />);
+    fireEvent.submit(screen.getByLabelText("Title").closest("form")!);
+    expect(await screen.findByText("Enter a title.")).toBeInTheDocument();
+    rerender(<Single {...props} />);
+    if (errors === "stay") expect(screen.getByText("Enter a title.")).toBeInTheDocument();
+    else expect(screen.queryByText("Enter a title.")).toBeNull();
+  });
+
+  it.each([
+    [
+      "a refreshed src on the same recordKey",
+      { position: 2, total: 3, src: "/a.jpg?v=2", recordKey: "a" },
+      "stay",
+    ],
+    [
+      "another recordKey at the same position and src",
+      { position: 2, total: 3, src: "/a.jpg", recordKey: "b" },
+      "end",
+    ],
+  ])("%s → the errors %s", async (_case, props, errors) => {
+    const { rerender } = render(<Single position={2} total={3} src="/a.jpg" recordKey="a" />);
     fireEvent.submit(screen.getByLabelText("Title").closest("form")!);
     expect(await screen.findByText("Enter a title.")).toBeInTheDocument();
     rerender(<Single {...props} />);

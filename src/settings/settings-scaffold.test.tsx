@@ -558,6 +558,79 @@ describe("SettingsScaffold: a successful save ends the submit state", () => {
       else expect(screen.getByText("Enter a name.")).toBeInTheDocument();
     },
   );
+
+  // A mutation-like save: `saving` set in the submit's handler, or only after `setTimeout(0)` (as
+  // TanStack v5 delivers `isPending`); it saves a tick later.
+  function Pending({ timing, ok }: { timing: "handler" | "timeout"; ok: boolean }) {
+    const [saved, setSaved] = useState("Init");
+    const [name, setName] = useState("");
+    const [saving, setSaving] = useState(false);
+    return (
+      <SettingsScaffold
+        pageKey="general"
+        title="General"
+        subtitle="The name of this instance."
+        left={
+          <>
+            <SettingsField
+              label="Name"
+              htmlFor="name"
+              error={name === "" ? "Enter a name." : undefined}
+            >
+              <Input id="name" value={name} onChange={(event) => setName(event.target.value)} />
+            </SettingsField>
+            <button type="button" data-testid="clear" onClick={() => setName("")}>
+              clear
+            </button>
+          </>
+        }
+        form={{
+          dirty: name !== saved,
+          valid: name !== "",
+          saving,
+          onSave: () => {
+            const finish = () =>
+              setTimeout(() => {
+                if (ok) setSaved(name);
+                setSaving(false);
+              }, 5);
+            if (timing === "handler") {
+              setSaving(true);
+              finish();
+            } else
+              setTimeout(() => {
+                setSaving(true);
+                finish();
+              }, 0);
+          },
+          onReset: () => setName(saved),
+        }}
+      />
+    );
+  }
+
+  it.each([
+    ["handler", true],
+    ["timeout", true],
+    ["handler", false],
+    ["timeout", false],
+  ] as const)(
+    "saving set in the %s, saved %s: a cleared value then shows its error late only when saved",
+    async (timing, ok) => {
+      render(<Pending timing={timing} ok={ok} />);
+      submit();
+      expect(await screen.findByText("Enter a name.")).toBeInTheDocument();
+      const name = screen.getByLabelText("Name");
+      fireEvent.change(name, { target: { value: "Ada" } });
+      fireEvent.blur(name);
+      submit();
+      // The save starts and ends.
+      await act(() => new Promise((resolve) => setTimeout(resolve, 30)));
+      fireEvent.click(screen.getByTestId("clear"));
+      if (ok) expect(screen.queryByText("Enter a name.")).toBeNull();
+      else expect(screen.getByText("Enter a name.")).toBeInTheDocument();
+    },
+  );
 });
 
 // #735 (GL-UI-038 rev 4 §Absenden): Reset ends the submit state; typing the saved values back by hand
