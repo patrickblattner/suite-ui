@@ -129,6 +129,8 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
     onFocus,
     onBlur,
     onKeyDown,
+    onCompositionStart,
+    onCompositionEnd,
     "aria-describedby": ariaDescribedBy,
     "aria-invalid": ariaInvalid,
     ...inputProps
@@ -390,6 +392,7 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
         onCompositionStart={(event) => {
           composedFrom.current = event.currentTarget.value;
           setComposing(event.currentTarget.value);
+          onCompositionStart?.(event);
         }}
         onChange={(event) => {
           if (composing === null) takeText(event.target.value);
@@ -399,6 +402,7 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
           setComposing(null);
           if (event.currentTarget.value !== composedFrom.current)
             takeText(event.currentTarget.value);
+          onCompositionEnd?.(event);
         }}
         onFocus={(event) => {
           setFocused(true);

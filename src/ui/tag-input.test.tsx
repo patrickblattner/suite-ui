@@ -1,5 +1,5 @@
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
-import { createRef, useState } from "react";
+import { type CompositionEvent, createRef, useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "./dialog.js";
@@ -688,5 +688,39 @@ describe("TagInput composition", () => {
     fireEvent.compositionEnd(field());
     expect(options()).toEqual([]);
     expect(field()).toHaveValue("Caf");
+  });
+
+  it("forwards the consumer's onCompositionStart and onCompositionEnd after its own handling (#753)", () => {
+    // Each consumer handler rewrites the field's DOM text. Run after the internal handler, the rewrite
+    // comes too late to be read: the field keeps the text the composition really had. Run before it,
+    // the internal handler would take the rewritten text over.
+    const onCompositionStart = vi.fn((event: CompositionEvent<HTMLInputElement>) => {
+      event.currentTarget.value = "consumer start";
+    });
+    const onCompositionEnd = vi.fn((event: CompositionEvent<HTMLInputElement>) => {
+      event.currentTarget.value = "consumer end";
+    });
+    function Consumer() {
+      const [tags, setTags] = useState<string[]>([]);
+      return (
+        <TagInput
+          value={tags}
+          onChange={setTags}
+          onCompositionStart={onCompositionStart}
+          onCompositionEnd={onCompositionEnd}
+        />
+      );
+    }
+    render(<Consumer />);
+    type("Caf");
+    fireEvent.compositionStart(field());
+    expect(onCompositionStart).toHaveBeenCalledTimes(1);
+    expect(field()).toHaveValue("Caf");
+    type("Café");
+    fireEvent.compositionEnd(field());
+    expect(onCompositionEnd).toHaveBeenCalledTimes(1);
+    // The internal handling ran first: the composed text is the draft, not a chip.
+    expect(field()).toHaveValue("Café");
+    expect(chips()).toEqual([]);
   });
 });

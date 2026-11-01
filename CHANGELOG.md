@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — #753: TagInput forwards consumer onCompositionStart/onCompositionEnd (patch)
+
+- **Fixed (#753, Codex CX1):** `TagInput` no longer swallows a consumer's `onCompositionStart`/`onCompositionEnd`: both are called after the internal composition handling (GL-UI-039 rev 2, #737), as `onFocus`/`onBlur` already were. The other #737 surfaces (Combobox, TimezoneCombobox, Grid, global search, slide text editor) spread no consumer input props, so nothing there was overwritten.
+- **Tests (#753):** unit: a consumer's composition callbacks fire once each while the composed text stays the draft. No baseline changes.
+
 ## 0.207.1 — #754: spec-sync-toolkit pin v0.35.0 (patch)
 
 - **Changed (#754):** devDependency `spec-sync-toolkit` raised from v0.34.0 to v0.35.0 (lockfile updated; SST-FEATURE-001 rev 5: licence-inventory skips extraneous nodes, allowlist exceptions are `{package, licence, reason}`). `spec-sync.config.json` has no licence allowlist, so nothing to migrate. No baseline changes.
