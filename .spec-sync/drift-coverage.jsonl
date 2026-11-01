@@ -793,3 +793,16 @@
 {"ts":"2026-11-01T03:06:34.545Z","key":"GL-UI-038","from":3,"to":4,"disposition":"ticket","ref":"735"}
 {"ts":"2026-11-01T03:07:04.602Z","key":"GL-UI-039","from":null,"to":2,"disposition":"ticket","ref":"736"}
 {"ts":"2026-11-01T03:07:05.096Z","key":"GL-002","from":null,"to":2,"disposition":"editorial","ref":"superseded duplicate of GL-UI-039 (same text); no own rule"}
+{"ts":"2026-11-01T11:50:54.722Z","key":"GL-CODE-002","from":12,"to":13,"disposition":"editorial","ref":"rev 13 swaps license-checker for spec-sync licence-inventory in the hygiene phase; suite-ui's gate has no hygiene phase and never ran license-checker (toolkit v0.34.0 pinned in #743); no code impact — missing hygiene phase raised to the architect"}
+{"ts":"2026-11-01T11:51:16.690Z","key":"GL-UI-035","from":4,"to":5,"disposition":"editorial","ref":"rev 5 aligns the flip toggle wording to SUI-FEATURE-311 (fixed text, state in aria-pressed + pressed fill); already built in #649 (crop-editor.tsx image-flip), no code impact"}
+{"ts":"2026-11-01T11:51:29.504Z","key":"GL-UI-038","from":4,"to":5,"disposition":"editorial","ref":"package-carrier leaf SUI-FEATURE-127 records the GL-UI-038 §Absenden behaviour already shipped in #735 (v0.204.0, minor) and #739 (v0.204.3); GL-UI-038 rev 5 only adds the carrier line; no code impact"}
+{"ts":"2026-11-01T11:51:29.504Z","key":"SUI-FEATURE-127","from":null,"to":2,"disposition":"editorial","ref":"package-carrier leaf SUI-FEATURE-127 records the GL-UI-038 §Absenden behaviour already shipped in #735 (v0.204.0, minor) and #739 (v0.204.3); GL-UI-038 rev 5 only adds the carrier line; no code impact"}
+{"ts":"2026-11-01T11:51:44.048Z","key":"GL-UI-039","from":2,"to":3,"disposition":"ticket","ref":"737"}
+{"ts":"2026-11-01T11:51:44.048Z","key":"SUI-FEATURE-126","from":null,"to":2,"disposition":"ticket","ref":"737"}
+{"ts":"2026-11-01T11:51:49.836Z","key":"PROC-REL-012","from":21,"to":22,"disposition":"editorial","ref":"rev 22 renames license-checker to licence-inventory in the hygiene phase and preflight list; suite-ui's gate has no hygiene phase (existing gap raised as Q&A #5170); no code impact from this revision"}
+{"ts":"2026-11-01T11:53:04.047Z","key":"SUI-FEATURE-061","from":3,"to":4,"disposition":"ticket","ref":"747"}
+{"ts":"2026-11-01T11:53:15.182Z","key":"SUI-FEATURE-064","from":3,"to":4,"disposition":"ticket","ref":"748"}
+{"ts":"2026-11-01T11:53:15.894Z","key":"SUI-FEATURE-124","from":4,"to":5,"disposition":"ticket","ref":"749"}
+{"ts":"2026-11-01T11:53:17.360Z","key":"SUI-FEATURE-125","from":4,"to":5,"disposition":"ticket","ref":"750"}
+{"ts":"2026-11-01T11:53:18.034Z","key":"SUI-FEATURE-312","from":null,"to":2,"disposition":"ticket","ref":"751"}
+{"ts":"2026-11-01T11:53:35.296Z","key":"SUI-FEATURE-128","from":null,"to":2,"disposition":"ticket","ref":"752"}
