@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — #743: spec-sync-toolkit pin v0.34.0, license field (patch)
+
+- **Changed (#743):** devDependency `spec-sync-toolkit` raised from v0.33.2 to v0.34.0 (lockfile updated); `package.json` declares `"license": "UNLICENSED"`. No license-checker was in use, so nothing to replace with `spec-sync licence-inventory`. No baseline changes.
+
 ## 0.204.3 — #739, Codex review v0.204.0: a change in a Select, Combobox, TimezoneCombobox, Checkbox, Switch, RadioGroup, Slider or TagInput, or Restore defaults, put back after a failed save keeps the submit state (patch)
 
 - **Fixed (#739, Codex v0.204.0 CX1, GL-UI-038 rev 4 §Absenden):** in `SettingsScaffold`, a change in a `Select`, `Combobox`, `TimezoneCombobox`, `Checkbox`, `Switch`, `RadioGroup`, `Slider` or `TagInput` (a chip added, or removed with × or Backspace), or a click on `RestoreDefaultsButton`, did not drop a started save, because these controls set their value by code or from a button and send no trusted input or change event (the person's click lands on a button, span or list option; a hidden native input gets only an untrusted event); after a failed save, putting the saved value back turned the form clean and ended the submit state, hiding the other invalid fields' errors. These controls now report the person's change to the form around them through the new `FieldUserEditContext` (`ui/field-error`), which `SettingsScaffold` provides; the change drops the started save like a trusted edit, while no save is in flight (a change during the save drops nothing). A value set by code still drops nothing. `EditPanel` and `MediaDetailShell` provide `null` for their whole sheet (fields, preview, pager, actions) and `CreateAndSelectDialog` for its fields, so a change in such a nested surface is no edit of a `SettingsScaffold` around it; the `SecretCardHeader` Active switch, which acts at once without Save, provides `null` too.
