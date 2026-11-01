@@ -394,10 +394,16 @@ function MediaDetailShell({
   // report success shows every invalid field's error and focuses the first, also one the user never
   // left (`GL-UI-038` §Absenden, `SUI-FEATURE-150`); a successful one arms nothing for the next medium.
   function attempt(): unknown {
-    const result = dirty ? onSave() : false;
     const failed = () => {
       if (form.current !== null) submitted(form.current);
     };
+    let result: unknown;
+    try {
+      result = dirty ? onSave() : false;
+    } catch (error) {
+      failed();
+      throw error;
+    }
     if (typeof (result as { then?: unknown } | null)?.then === "function") {
       (result as PromiseLike<unknown>).then((value) => {
         if (value !== true) failed();

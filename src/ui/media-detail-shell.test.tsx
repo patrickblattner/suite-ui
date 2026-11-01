@@ -1157,6 +1157,27 @@ describe("MediaDetailShell: Save in the leave dialog is a submit", () => {
     await waitFor(() => expect(screen.getByText("Enter a title.")).toBeInTheDocument());
     expect(screen.getByText("Describe the image.")).toBeInTheDocument();
     await waitFor(() => expect(screen.getByLabelText("Title")).toHaveFocus());
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+    expect(screen.getByLabelText("Title")).toHaveFocus();
+    expect(screen.getByTestId("path")).toHaveTextContent("/media/2");
+  });
+
+  it("Save in the leave dialog whose onSave throws shows the errors", async () => {
+    const onSave = vi.fn((): unknown => {
+      throw new Error("save failed");
+    });
+    const onLeave = renderGuarded({ onSave });
+    changeNote();
+    fireEvent.click(screen.getByTestId("media-detail-next"));
+    fireEvent.click(await screen.findByTestId("leave-guard-save"));
+    await waitFor(() => expect(screen.queryByTestId("leave-guard")).toBeNull());
+    expect(onSave).toHaveBeenCalledTimes(1);
+    expect(onLeave).not.toHaveBeenCalled();
+    expect(screen.getByText("Enter a title.")).toBeInTheDocument();
+    expect(screen.getByText("Describe the image.")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByLabelText("Title")).toHaveFocus());
+    await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+    expect(screen.getByLabelText("Title")).toHaveFocus();
     expect(screen.getByTestId("path")).toHaveTextContent("/media/2");
   });
 
