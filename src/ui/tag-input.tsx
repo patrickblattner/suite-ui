@@ -141,6 +141,9 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
   const isInvalid =
     ariaInvalid === true || ariaInvalid === "true" || fieldError["aria-invalid"] === true;
   const [draft, setDraft] = React.useState("");
+  // The text of a running composition (dead key, IME): shown, but searched and filtered only once it
+  // ends (`GL-UI-039` rev 2, #737). `null` while none runs.
+  const [composing, setComposing] = React.useState<string | null>(null);
   // The text as of now: a blur in the same tick as a commit must not take the old text over again.
   const current = React.useRef("");
   const listId = `${React.useId()}-suggestions`;
@@ -269,6 +272,14 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
     return () => window.removeEventListener("keydown", onKeyDown, { capture: true });
   }, [open]);
 
+  const takeText = (text: string) => {
+    setDraft(text);
+    current.current = text;
+    setDismissed(false);
+    setActive(null);
+    setKeyboard(true);
+  };
+
   const ownKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     // An IME is still composing: its Enter or comma belongs to the composition.
     if (isCompositionKey(event)) return;
@@ -360,7 +371,7 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
         {...inputProps}
         ref={ref}
         id={id}
-        value={draft}
+        value={composing ?? draft}
         placeholder={value.length === 0 && !readOnly ? placeholder : undefined}
         disabled={disabled}
         readOnly={readOnly}
@@ -374,12 +385,14 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
               "aria-autocomplete": "list" as const,
               "aria-activedescendant": open && choice >= 0 ? `${listId}-${choice}` : undefined,
             })}
+        onCompositionStart={(event) => setComposing(event.currentTarget.value)}
         onChange={(event) => {
-          setDraft(event.target.value);
-          current.current = event.target.value;
-          setDismissed(false);
-          setActive(null);
-          setKeyboard(true);
+          if (composing === null) takeText(event.target.value);
+          else setComposing(event.target.value);
+        }}
+        onCompositionEnd={(event) => {
+          setComposing(null);
+          takeText(event.currentTarget.value);
         }}
         onFocus={(event) => {
           setFocused(true);
@@ -387,6 +400,7 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
         }}
         onBlur={(event) => {
           setFocused(false);
+          setComposing(null);
           // A blur into the leave guard's dialog is no leaving: the typed tag stays a draft, and a list
           // closed with Esc stays closed on Cancel (SUI-FEATURE-118).
           if (isInLeaveGuardDialog(event.relatedTarget)) {

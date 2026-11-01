@@ -254,4 +254,20 @@ describe("Combobox composition", () => {
     expect(onPick).toHaveBeenCalledWith("c");
     expect(input).toHaveValue("Café Central");
   });
+
+  it("searches the finished text only, never a composition's intermediate one", async () => {
+    const onSearch = vi.fn((text: string) =>
+      Promise.resolve(text === "Café" ? [{ value: "c", label: "Café Central" }] : []),
+    );
+    render(<Field onSearch={onSearch} />);
+    const input = screen.getByRole("combobox");
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, { target: { value: "Caf´" } });
+    fireEvent.change(input, { target: { value: "Café" } });
+    expect(input).toHaveValue("Café");
+    expect(onSearch).not.toHaveBeenCalled();
+    fireEvent.compositionEnd(input);
+    expect(onSearch.mock.calls).toEqual([["Café"]]);
+    expect(await screen.findByRole("option", { name: "Café Central" })).toBeInTheDocument();
+  });
 });

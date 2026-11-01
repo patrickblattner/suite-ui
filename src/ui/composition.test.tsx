@@ -1,11 +1,13 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, createEvent, fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
 
 import { isCompositionKey } from "../lib/keyboard.js";
 import { useModalOverlay } from "../lib/modal-overlay.js";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "./dialog.js";
+import { EditPanel } from "./edit-panel.js";
 import { Input } from "./input.js";
+import { MediaDetailShell } from "./media-detail-shell.js";
 import { Popover, PopoverContent, PopoverTrigger } from "./popover.js";
 import { Sheet, SheetContent, SheetDescription, SheetTitle } from "./sheet.js";
 
@@ -20,6 +22,33 @@ function composeAcute(field: HTMLElement, before: string) {
   fireEvent.keyDown(field, { key: "Tab", isComposing: true });
   fireEvent.change(field, { target: { value: `${before}é` } });
   fireEvent.compositionEnd(field);
+}
+
+const TABBABLE = "a[href], button, input, select, textarea, [tabindex]:not([tabindex='-1'])";
+
+// The focus element at the edge of `root` whose Tab (Shift+Tab from the first) a focus trap cycles.
+function firstTabbable(root: HTMLElement): HTMLElement {
+  const first = [...root.querySelectorAll<HTMLElement>(TABBABLE)].find(
+    (node) => !(node as HTMLButtonElement).disabled && node.tabIndex >= 0,
+  );
+  if (first === undefined) throw new Error("no tabbable element");
+  return first;
+}
+
+// A composition's Tab from `from` moves no focus: the IME's (key code 229) keeps its default, one
+// passed on with `isComposing` loses it; the next plain Tab is the trap's again and cycles.
+function expectCompositionTabHeld(from: HTMLElement, shiftKey: boolean) {
+  act(() => from.focus());
+  const ime = createEvent.keyDown(from, { key: "Tab", shiftKey, keyCode: 229 });
+  fireEvent(from, ime);
+  expect(from).toHaveFocus();
+  expect(ime.defaultPrevented).toBe(false);
+  const passed = createEvent.keyDown(from, { key: "Tab", shiftKey, isComposing: true, keyCode: 9 });
+  fireEvent(from, passed);
+  expect(from).toHaveFocus();
+  expect(passed.defaultPrevented).toBe(true);
+  fireEvent.keyDown(from, { key: "Tab", shiftKey });
+  expect(from).not.toHaveFocus();
 }
 
 describe("isCompositionKey", () => {
@@ -112,7 +141,75 @@ describe("useModalOverlay keeps a composition's Tab", () => {
     composeAcute(last, "");
     expect(last).toHaveValue("é");
     expect(last).toHaveFocus();
-    fireEvent.keyDown(last, { key: "Tab" });
+    expectCompositionTabHeld(last, false);
     expect(screen.getByLabelText("First")).toHaveFocus();
+  });
+});
+
+describe("radix focus traps keep a composition's Tab", () => {
+  it("Dialog: Shift+Tab of a composition in the first field stays there; the next one cycles", () => {
+    render(
+      <Dialog open>
+        <DialogContent>
+          <DialogTitle>Rename</DialogTitle>
+          <DialogDescription>Name</DialogDescription>
+          <Input aria-label="Name" />
+        </DialogContent>
+      </Dialog>,
+    );
+    const name = screen.getByLabelText("Name");
+    expect(firstTabbable(screen.getByRole("dialog"))).toBe(name);
+    expectCompositionTabHeld(name, true);
+  });
+
+  it("Sheet: Shift+Tab of a composition in the first field stays there; the next one cycles", () => {
+    render(
+      <Sheet open>
+        <SheetContent>
+          <SheetTitle>Filter</SheetTitle>
+          <SheetDescription>Name</SheetDescription>
+          <Input aria-label="Name" />
+        </SheetContent>
+      </Sheet>,
+    );
+    const name = screen.getByLabelText("Name");
+    expect(firstTabbable(screen.getByRole("dialog"))).toBe(name);
+    expectCompositionTabHeld(name, true);
+  });
+
+  it("EditPanel: a composition's Shift+Tab at the panel's first stop stays there", () => {
+    render(
+      <EditPanel
+        open
+        onOpenChange={() => {}}
+        title="Channel"
+        onSubmit={() => {}}
+        submitLabel="Save"
+      >
+        <Input aria-label="Name" />
+      </EditPanel>,
+    );
+    expectCompositionTabHeld(firstTabbable(screen.getByTestId("edit-panel")), true);
+  });
+
+  it("MediaDetailShell: a composition's Shift+Tab at the panel's first stop stays there", () => {
+    render(
+      <MediaDetailShell
+        position={3}
+        total={65}
+        kind="image"
+        src="/media/team-photo.jpg"
+        alt="team-photo.jpg"
+        dirty={false}
+        saving={false}
+        fields={<Input aria-label="Name" />}
+        onPrev={() => {}}
+        onNext={() => {}}
+        onClose={() => {}}
+        onSave={() => {}}
+        onReset={() => {}}
+      />,
+    );
+    expectCompositionTabHeld(firstTabbable(screen.getByTestId("media-detail")), true);
   });
 });

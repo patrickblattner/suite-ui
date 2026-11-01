@@ -96,6 +96,10 @@ function GlobalSearch({
   // A composition (dead key, IME) stays in the field until it ends: only the finished text travels
   // into the dialog (`GL-UI-039` rev 2, #737). `null` while none runs.
   const [composing, setComposing] = React.useState<string | null>(null);
+  // The frame that hands a finished composition over; a new composition before it keeps the text in
+  // the field (Korean syllables, Android's word-by-word input), so only the whole text travels.
+  const handoff = React.useRef(0);
+  React.useEffect(() => () => cancelAnimationFrame(handoff.current), []);
 
   const openDialog = React.useCallback((seed?: string) => {
     if (seed !== undefined) setTerm(seed);
@@ -180,7 +184,11 @@ function GlobalSearch({
             aria-label={t("search.label")}
             aria-keyshortcuts="Meta+K Control+K"
             placeholder={t("search.placeholder")}
-            onCompositionStart={(event) => setComposing(event.currentTarget.value)}
+            onCompositionStart={(event) => {
+              cancelAnimationFrame(handoff.current);
+              handoff.current = 0;
+              setComposing(event.currentTarget.value);
+            }}
             onChange={(event) => {
               if (composing !== null) {
                 setComposing(event.target.value);
@@ -189,10 +197,16 @@ function GlobalSearch({
               openDialog(event.target.value);
             }}
             onCompositionEnd={(event) => {
-              const text = event.currentTarget.value;
-              setComposing(null);
-              // A composition cancelled to nothing opens nothing.
-              if (text !== "") openDialog(text);
+              const field = event.currentTarget;
+              setComposing(field.value);
+              cancelAnimationFrame(handoff.current);
+              handoff.current = requestAnimationFrame(() => {
+                handoff.current = 0;
+                const text = field.value;
+                setComposing(null);
+                // A composition cancelled to nothing opens nothing.
+                if (text !== "") openDialog(text);
+              });
             }}
             onKeyDown={(event) => {
               if (event.key === "Enter" && !isCompositionKey(event)) openDialog();

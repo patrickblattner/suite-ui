@@ -44,6 +44,20 @@ function isCompositionKey(event: KeyboardEvent | { nativeEvent: KeyboardEvent })
   return native.isComposing || native.keyCode === 229;
 }
 
+/**
+ * A composition's Tab moves no focus (`GL-UI-039` rev 2, #737): one the IME took (key code 229) stays
+ * the IME's, one passed on with `isComposing` and its own key code loses the browser's move. Returns
+ * whether the key was such a Tab, for the caller to keep it from its own focus handling.
+ */
+function holdCompositionTab(
+  event: (KeyboardEvent | { nativeEvent: KeyboardEvent }) & { key: string; preventDefault(): void },
+): boolean {
+  if (event.key !== "Tab" || !isCompositionKey(event)) return false;
+  const native = "nativeEvent" in event ? event.nativeEvent : event;
+  if (native.keyCode !== 229) event.preventDefault();
+  return true;
+}
+
 const MAC_MODIFIERS: Record<string, string> = {
   Control: "⌃",
   Meta: "⌘",
@@ -96,4 +110,12 @@ function shortcutChip(
   return [...parts.map((part) => (part === "Control" ? "Ctrl" : part)), keyLabel].join("+");
 }
 
-export { ariaKeyShortcuts, isCompositionKey, isInDialog, isMacPlatform, isTextField, shortcutChip };
+export {
+  ariaKeyShortcuts,
+  holdCompositionTab,
+  isCompositionKey,
+  isInDialog,
+  isMacPlatform,
+  isTextField,
+  shortcutChip,
+};

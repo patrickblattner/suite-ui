@@ -661,6 +661,8 @@ describe("TagInput composition", () => {
     type("Caf");
     fireEvent.compositionStart(field());
     type("Caf´");
+    // The list filters on the finished text only.
+    expect(options()).toEqual(["Café"]);
     fireEvent.keyDown(field(), { key: ",", isComposing: true });
     type("Café");
     fireEvent.keyDown(field(), { key: "Escape", isComposing: true });

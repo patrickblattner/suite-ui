@@ -77,6 +77,9 @@ function TimezoneCombobox({
   const listRef = React.useRef<HTMLUListElement>(null);
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
+  // The text of a running composition (dead key, IME): shown, but searched and filtered only once it
+  // ends (`GL-UI-039` rev 2, #737). `null` while none runs.
+  const [composing, setComposing] = React.useState<string | null>(null);
   const [active, setActive] = React.useState(0);
   // Whether the keyboard placed the highlight: then it carries the inset ring on top of the tint
   // (`GL-UI-013`); a highlight under the mouse keeps the tint alone.
@@ -154,6 +157,13 @@ function TimezoneCombobox({
     option?.scrollIntoView?.({ block: "nearest" });
   }, [open, active]);
 
+  const type = (text: string) => {
+    if (!open) setOpen(true);
+    setQuery(text);
+    setActive(0);
+    setKeyboard(true);
+  };
+
   const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     // A key of a composition is its own, the Enter that confirms a candidate too (`GL-UI-039` rev 2).
     if (isCompositionKey(event)) return;
@@ -198,16 +208,20 @@ function TimezoneCombobox({
       data-testid={testId}
       disabled={disabled}
       placeholder={t("timezone.placeholder")}
-      value={open ? query : value}
+      value={composing ?? (open ? query : value)}
       onClick={openList}
+      onCompositionStart={(event) => setComposing(event.currentTarget.value)}
       onChange={(event) => {
-        if (!open) setOpen(true);
-        setQuery(event.target.value);
-        setActive(0);
-        setKeyboard(true);
+        if (composing === null) type(event.target.value);
+        else setComposing(event.target.value);
+      }}
+      onCompositionEnd={(event) => {
+        setComposing(null);
+        type(event.currentTarget.value);
       }}
       onKeyDown={onKeyDown}
       onBlur={(event) => {
+        setComposing(null);
         // A blur into the leave guard's dialog is no leaving: the list stays open (SUI-FEATURE-118).
         if (isInLeaveGuardDialog(event.relatedTarget)) return;
         if (!rootRef.current?.contains(event.relatedTarget)) close();

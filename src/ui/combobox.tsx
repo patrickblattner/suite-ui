@@ -96,6 +96,9 @@ function Combobox({
   const listRef = React.useRef<HTMLUListElement>(null);
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
+  // The text of a running composition (dead key, IME): shown, but searched and filtered only once it
+  // ends (`GL-UI-039` rev 2, #737). `null` while none runs.
+  const [composing, setComposing] = React.useState<string | null>(null);
   const [active, setActive] = React.useState(0);
   // Whether the keyboard placed the highlight: then it carries the inset ring on top of the tint
   // (`GL-UI-013`); a highlight under the mouse keeps the tint alone.
@@ -269,11 +272,20 @@ function Combobox({
       data-testid={testId}
       disabled={disabled}
       placeholder={placeholder ?? t("combobox.placeholder")}
-      value={open ? query : label}
+      value={composing ?? (open ? query : label)}
       onClick={openList}
-      onChange={(event) => type(event.target.value)}
+      onCompositionStart={(event) => setComposing(event.currentTarget.value)}
+      onChange={(event) => {
+        if (composing === null) type(event.target.value);
+        else setComposing(event.target.value);
+      }}
+      onCompositionEnd={(event) => {
+        setComposing(null);
+        type(event.currentTarget.value);
+      }}
       onKeyDown={onKeyDown}
       onBlur={(event) => {
+        setComposing(null);
         // A blur into the leave guard's dialog is no leaving: the list stays open (SUI-FEATURE-118).
         if (isInLeaveGuardDialog(event.relatedTarget)) return;
         if (!rootRef.current?.contains(event.relatedTarget)) close();

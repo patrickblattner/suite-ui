@@ -17,6 +17,7 @@ import {
 } from "sonner";
 
 import { cn } from "../lib/cn.js";
+import { isCompositionKey } from "../lib/keyboard.js";
 import { captureOpener, type Opener, returnFocus } from "./focus-return.js";
 import { dropHeld, holdToast, toastsHeld } from "./toast-hold-internal.js";
 
@@ -906,7 +907,8 @@ function useDismissToastsUnderFocus(toasts: React.RefObject<HTMLElement | null>)
     };
     // An `Esc` an open layer (menu, popover, sheet) already took closes only that layer.
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !event.defaultPrevented)
+      // The Esc of a composition (dead key, IME) is the composition's (`GL-UI-039` rev 2, #737).
+      if (event.key === "Escape" && !event.defaultPrevented && !isCompositionKey(event))
         dismissIfCovered(document.activeElement);
     };
     const mounts = new MutationObserver((records) => {

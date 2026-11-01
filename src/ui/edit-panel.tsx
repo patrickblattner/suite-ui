@@ -13,6 +13,7 @@ import { cn } from "../lib/cn.js";
 import { isCompositionKey } from "../lib/keyboard.js";
 import { PANEL_SURFACE_CLASS, usePanelGeometry } from "../lib/panel-geometry.js";
 import { Button } from "./button.js";
+import { CompositionTabBoundary } from "./composition-tab-internal.js";
 import { FIELD_SELECTOR } from "./dialog.js";
 import { createFieldDrafts, FieldDraftsContext } from "./field-drafts-internal.js";
 import {
@@ -416,165 +417,167 @@ function EditPanel({
             escape.current = event;
           }}
         >
-          <div
-            data-slot="edit-panel-header"
-            className="flex shrink-0 flex-col gap-1.5 border-b p-6"
-          >
-            {pager === undefined ? (
-              <SheetTitle className="text-lg leading-none">{title}</SheetTitle>
-            ) : (
-              <div
-                data-slot="edit-panel-pager"
-                data-tooltip-row=""
-                className="flex items-center gap-1"
-              >
-                <IconButtonTooltip label={t("pager.previous")}>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-disabled={pager.previousDisabled === true || undefined}
-                    onClick={() => {
-                      if (pager.previousDisabled !== true) guard(pager.onPrevious);
-                    }}
-                    data-testid={`${testIdPrefix}-previous`}
-                  >
-                    <ChevronLeftIcon aria-hidden="true" />
-                  </Button>
-                </IconButtonTooltip>
-                <IconButtonTooltip label={t("pager.next")}>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-disabled={pager.nextDisabled === true || undefined}
-                    onClick={() => {
-                      if (pager.nextDisabled !== true) guard(pager.onNext);
-                    }}
-                    data-testid={`${testIdPrefix}-next`}
-                  >
-                    <ChevronRightIcon aria-hidden="true" />
-                  </Button>
-                </IconButtonTooltip>
-                {/* A change of position is announced politely (`SUI-FEATURE-052`). */}
-                <span
-                  role="status"
-                  className="mr-2 text-sm text-muted-foreground tabular-nums"
-                  data-testid={`${testIdPrefix}-position`}
-                >
-                  {pager.position}
-                </span>
+          <CompositionTabBoundary>
+            <div
+              data-slot="edit-panel-header"
+              className="flex shrink-0 flex-col gap-1.5 border-b p-6"
+            >
+              {pager === undefined ? (
                 <SheetTitle className="text-lg leading-none">{title}</SheetTitle>
-              </div>
-            )}
-            {description !== undefined && <SheetDescription>{description}</SheetDescription>}
-          </div>
-          {/* Validation belongs to the call site (Zod, `GL-UI-027`): no browser bubble blocks submit.
+              ) : (
+                <div
+                  data-slot="edit-panel-pager"
+                  data-tooltip-row=""
+                  className="flex items-center gap-1"
+                >
+                  <IconButtonTooltip label={t("pager.previous")}>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-disabled={pager.previousDisabled === true || undefined}
+                      onClick={() => {
+                        if (pager.previousDisabled !== true) guard(pager.onPrevious);
+                      }}
+                      data-testid={`${testIdPrefix}-previous`}
+                    >
+                      <ChevronLeftIcon aria-hidden="true" />
+                    </Button>
+                  </IconButtonTooltip>
+                  <IconButtonTooltip label={t("pager.next")}>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-disabled={pager.nextDisabled === true || undefined}
+                      onClick={() => {
+                        if (pager.nextDisabled !== true) guard(pager.onNext);
+                      }}
+                      data-testid={`${testIdPrefix}-next`}
+                    >
+                      <ChevronRightIcon aria-hidden="true" />
+                    </Button>
+                  </IconButtonTooltip>
+                  {/* A change of position is announced politely (`SUI-FEATURE-052`). */}
+                  <span
+                    role="status"
+                    className="mr-2 text-sm text-muted-foreground tabular-nums"
+                    data-testid={`${testIdPrefix}-position`}
+                  >
+                    {pager.position}
+                  </span>
+                  <SheetTitle className="text-lg leading-none">{title}</SheetTitle>
+                </div>
+              )}
+              {description !== undefined && <SheetDescription>{description}</SheetDescription>}
+            </div>
+            {/* Validation belongs to the call site (Zod, `GL-UI-027`): no browser bubble blocks submit.
               A `view` panel has nothing to submit and so no form. */}
-          <Body
-            {...(view
-              ? {}
-              : {
-                  noValidate: true,
-                  onSubmit: (event: React.SyntheticEvent) => {
-                    event.preventDefault();
-                    // React bubbles a submit through the portal: an outer `<form>` the panel stands
-                    // in must never submit along (`SUI-FEATURE-094`).
-                    event.stopPropagation();
-                    if (busy) return;
-                    const form = event.currentTarget as HTMLElement;
-                    run(() => attempt(form));
-                  },
-                })}
-            className="flex min-h-0 flex-1 flex-col"
-          >
-            {preview === undefined ? (
-              <div
-                data-testid={`${testIdPrefix}-body`}
-                className="relative min-h-0 flex-1 scroll-py-2 overflow-y-auto p-6 [scrollbar-gutter:stable]"
-              >
-                {fields}
-              </div>
-            ) : (
-              // The split follows the panel's own width, not the window's: the container is the area
-              // between header and footer. From `panel-split` on, preview and fields stand side by
-              // side, the preview over the full body height and only the fields scroll; below it the
-              // preview stacks on top and the whole body scrolls. Side by side the fields column is an
-              // inner scroll surface (`GL-UI-018`): it runs to the panel's right edge, where it holds the
-              // stable gutter and `--page-gutter` as its end padding on the same element, and its content
-              // starts flush with its column. Room for a focus ring comes from 6px block padding and a
-              // 6px start padding cancelled by a matching negative margin, so the edge stays flush.
-              <div data-slot="edit-panel-split" className="@container min-h-0 flex-1">
+            <Body
+              {...(view
+                ? {}
+                : {
+                    noValidate: true,
+                    onSubmit: (event: React.SyntheticEvent) => {
+                      event.preventDefault();
+                      // React bubbles a submit through the portal: an outer `<form>` the panel stands
+                      // in must never submit along (`SUI-FEATURE-094`).
+                      event.stopPropagation();
+                      if (busy) return;
+                      const form = event.currentTarget as HTMLElement;
+                      run(() => attempt(form));
+                    },
+                  })}
+              className="flex min-h-0 flex-1 flex-col"
+            >
+              {preview === undefined ? (
                 <div
                   data-testid={`${testIdPrefix}-body`}
-                  className="relative flex h-full scroll-py-2 flex-col gap-6 overflow-y-auto p-6 [scrollbar-gutter:stable] @panel-split:grid @panel-split:grid-cols-[minmax(0,3fr)_minmax(20rem,2fr)] @panel-split:overflow-hidden @panel-split:pe-0 @panel-split:[scrollbar-gutter:auto]"
+                  className="relative min-h-0 flex-1 scroll-py-2 overflow-y-auto p-6 [scrollbar-gutter:stable]"
                 >
+                  {fields}
+                </div>
+              ) : (
+                // The split follows the panel's own width, not the window's: the container is the area
+                // between header and footer. From `panel-split` on, preview and fields stand side by
+                // side, the preview over the full body height and only the fields scroll; below it the
+                // preview stacks on top and the whole body scrolls. Side by side the fields column is an
+                // inner scroll surface (`GL-UI-018`): it runs to the panel's right edge, where it holds the
+                // stable gutter and `--page-gutter` as its end padding on the same element, and its content
+                // starts flush with its column. Room for a focus ring comes from 6px block padding and a
+                // 6px start padding cancelled by a matching negative margin, so the edge stays flush.
+                <div data-slot="edit-panel-split" className="@container min-h-0 flex-1">
                   <div
-                    data-slot="edit-panel-preview"
-                    data-testid={`${testIdPrefix}-preview`}
-                    className="flex h-[45vh] shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted [--surface:var(--muted)] @panel-split:h-full [&>*]:max-h-full [&>*]:w-full [&>:not(img,video)]:overflow-y-auto [&>img]:size-full [&>img]:object-contain [&>video]:size-full [&>video]:object-contain"
+                    data-testid={`${testIdPrefix}-body`}
+                    className="relative flex h-full scroll-py-2 flex-col gap-6 overflow-y-auto p-6 [scrollbar-gutter:stable] @panel-split:grid @panel-split:grid-cols-[minmax(0,3fr)_minmax(20rem,2fr)] @panel-split:overflow-hidden @panel-split:pe-0 @panel-split:[scrollbar-gutter:auto]"
                   >
-                    {preview}
-                  </div>
-                  <div
-                    data-slot="edit-panel-fields"
-                    className="relative @panel-split:-my-1.5 @panel-split:-ms-1.5 @panel-split:min-h-0 @panel-split:scroll-py-2 @panel-split:overflow-y-auto @panel-split:py-1.5 @panel-split:ps-1.5 @panel-split:pe-[var(--page-gutter)] @panel-split:[scrollbar-gutter:stable]"
-                  >
-                    {fields}
+                    <div
+                      data-slot="edit-panel-preview"
+                      data-testid={`${testIdPrefix}-preview`}
+                      className="flex h-[45vh] shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted [--surface:var(--muted)] @panel-split:h-full [&>*]:max-h-full [&>*]:w-full [&>:not(img,video)]:overflow-y-auto [&>img]:size-full [&>img]:object-contain [&>video]:size-full [&>video]:object-contain"
+                    >
+                      {preview}
+                    </div>
+                    <div
+                      data-slot="edit-panel-fields"
+                      className="relative @panel-split:-my-1.5 @panel-split:-ms-1.5 @panel-split:min-h-0 @panel-split:scroll-py-2 @panel-split:overflow-y-auto @panel-split:py-1.5 @panel-split:ps-1.5 @panel-split:pe-[var(--page-gutter)] @panel-split:[scrollbar-gutter:stable]"
+                    >
+                      {fields}
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
-            <div
-              data-slot="edit-panel-footer"
-              data-tooltip-row=""
-              className={cn(
-                "flex shrink-0 flex-row items-center justify-end gap-2 border-t px-6 py-4",
-                // Back stays on the button row when the reason wraps above it (`SUI-FEATURE-125`).
-                showDisabledReason && "items-end",
               )}
-            >
-              {/* Every footer button in the package `Hint` (`SUI-FEATURE-091`). The locked text is
+              <div
+                data-slot="edit-panel-footer"
+                data-tooltip-row=""
+                className={cn(
+                  "flex shrink-0 flex-row items-center justify-end gap-2 border-t px-6 py-4",
+                  // Back stays on the button row when the reason wraps above it (`SUI-FEATURE-125`).
+                  showDisabledReason && "items-end",
+                )}
+              >
+                {/* Every footer button in the package `Hint` (`SUI-FEATURE-091`). The locked text is
                   always set, so the carrying span stands and a lock never remounts the button; the span
                   takes Back's `mr-auto` as well, it is the footer's flex item. */}
-              {onBack !== undefined && !view && (
-                // While the work runs Back explains it, held or locked by it (`SUI-FEATURE-171`); a
-                // Back the call site locked keeps its own reason.
-                <Hint
-                  className="mr-auto"
-                  text={busy ? t("editPanel.busyHint") : (backHint ?? packageBackHint)}
-                  disabledText={
-                    backDisabled
-                      ? (backDisabledHint ?? backHint ?? packageBackHint)
-                      : t("editPanel.busyHint")
-                  }
-                >
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="default"
+                {onBack !== undefined && !view && (
+                  // While the work runs Back explains it, held or locked by it (`SUI-FEATURE-171`); a
+                  // Back the call site locked keeps its own reason.
+                  <Hint
                     className="mr-auto"
-                    // While its own promise works Back stays open: it waits for the result
-                    // (`SUI-FEATURE-171`); only the call site's `busy` locks it. Otherwise it is
-                    // one step inside the panel with the inputs kept, never through the leave
-                    // dialog (`SUI-FEATURE-091` rev 6).
-                    disabled={busyProp || backDisabled}
-                    onClick={() => step(onBack)}
-                    data-testid={`${testIdPrefix}-back`}
+                    text={busy ? t("editPanel.busyHint") : (backHint ?? packageBackHint)}
+                    disabledText={
+                      backDisabled
+                        ? (backDisabledHint ?? backHint ?? packageBackHint)
+                        : t("editPanel.busyHint")
+                    }
                   >
-                    {t("actions.back")}
-                  </Button>
-                </Hint>
-              )}
-              {showDisabledReason ? (
-                <DisabledReasonRow reason={reason} testId={`${testIdPrefix}-disabled-reason`}>
-                  {footerActions}
-                </DisabledReasonRow>
-              ) : (
-                footerActions()
-              )}
-            </div>
-          </Body>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="default"
+                      className="mr-auto"
+                      // While its own promise works Back stays open: it waits for the result
+                      // (`SUI-FEATURE-171`); only the call site's `busy` locks it. Otherwise it is
+                      // one step inside the panel with the inputs kept, never through the leave
+                      // dialog (`SUI-FEATURE-091` rev 6).
+                      disabled={busyProp || backDisabled}
+                      onClick={() => step(onBack)}
+                      data-testid={`${testIdPrefix}-back`}
+                    >
+                      {t("actions.back")}
+                    </Button>
+                  </Hint>
+                )}
+                {showDisabledReason ? (
+                  <DisabledReasonRow reason={reason} testId={`${testIdPrefix}-disabled-reason`}>
+                    {footerActions}
+                  </DisabledReasonRow>
+                ) : (
+                  footerActions()
+                )}
+              </div>
+            </Body>
+          </CompositionTabBoundary>
         </SheetPrimitive.Content>
       </SheetPrimitive.Portal>
       {dialog}

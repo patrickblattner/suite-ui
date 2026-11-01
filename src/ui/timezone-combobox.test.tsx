@@ -160,6 +160,8 @@ describe("TimezoneCombobox composition", () => {
     const input = screen.getByRole("combobox");
     fireEvent.compositionStart(input);
     fireEvent.change(input, { target: { value: "´" } });
+    // The list filters on the finished text only.
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
     fireEvent.change(input, { target: { value: "é" } });
     fireEvent.compositionEnd(input);
     expect(input).toHaveValue("é");

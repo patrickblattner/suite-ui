@@ -383,4 +383,37 @@ describe("GlobalSearch composition", () => {
     fireEvent.keyDown(input, { key: "Enter" });
     expect(screen.getByTestId("location")).toHaveTextContent("/content/1");
   });
+
+  const frame = () => act(() => new Promise((resolve) => requestAnimationFrame(resolve)));
+
+  it("compositions in a row (Korean syllables) stay in the field; the last end hands the whole text over once", async () => {
+    renderSearch();
+    const field = screen.getByTestId("shell-search");
+    fireEvent.compositionStart(field);
+    fireEvent.change(field, { target: { value: "한" } });
+    fireEvent.compositionEnd(field);
+    fireEvent.compositionStart(field);
+    fireEvent.change(field, { target: { value: "한그" } });
+    await frame();
+    expect(screen.queryByTestId("search-dialog")).not.toBeInTheDocument();
+    expect(field).toHaveValue("한그");
+    fireEvent.change(field, { target: { value: "한글" } });
+    fireEvent.compositionEnd(field);
+    const dialog = await screen.findByTestId("search-dialog");
+    expect(within(dialog).getByTestId("search-dialog-input")).toHaveValue("한글");
+    expect(field).toHaveValue("");
+  });
+
+  it("a composition cancelled to nothing opens no dialog", async () => {
+    renderSearch();
+    const field = screen.getByTestId("shell-search");
+    fireEvent.compositionStart(field);
+    fireEvent.change(field, { target: { value: "´" } });
+    fireEvent.change(field, { target: { value: "" } });
+    fireEvent.compositionEnd(field);
+    await frame();
+    await frame();
+    expect(screen.queryByTestId("search-dialog")).not.toBeInTheDocument();
+    expect(field).toHaveValue("");
+  });
 });

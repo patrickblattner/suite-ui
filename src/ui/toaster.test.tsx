@@ -364,6 +364,20 @@ describe("Toaster: focus under a toast", () => {
     expect(screen.getByTestId("covered")).toHaveFocus();
   });
 
+  // GL-UI-039 rev 2 (#737): the Esc of a composition (dead key, IME) is the composition's.
+  it("keeps a toast over the focus on a composition's Esc; the next Esc closes it", async () => {
+    const item = await renderCovered({ focused: "covered", action: false });
+    const covered = screen.getByTestId("covered");
+    fireEvent.keyDown(covered, { key: "Escape", isComposing: true });
+    fireEvent.keyDown(covered, { key: "Escape", keyCode: 229 });
+    await wait(300);
+    expect(item()).toHaveAttribute("data-removed", "false");
+    fireEvent.keyDown(covered, { key: "Escape" });
+    await vi.waitFor(() => expect(item()?.getAttribute("data-removed") ?? "true").toBe("true"), {
+      timeout: 500,
+    });
+  });
+
   it("closes a toast over the focus on Esc before 1000 ms, the focus stays", async () => {
     const item = await renderCovered({ focused: "covered", action: false });
     const covered = screen.getByTestId("covered");
