@@ -1820,3 +1820,20 @@ describe("EditPanel: the submit state ends", () => {
     expect(screen.getByText("Enter a name.")).toBeInTheDocument();
   });
 });
+
+// GL-UI-039 rev 2 (#737): the Esc of a running composition (dead key, IME) is the composition's.
+describe("EditPanel composition", () => {
+  it("Option+e, e gives one é; the composition's Esc keeps the panel open, the next Esc closes it", () => {
+    const { onOpenChange } = renderPanel();
+    const name = screen.getByLabelText("Name");
+    fireEvent.compositionStart(name);
+    fireEvent.change(name, { target: { value: "Main´" } });
+    fireEvent.keyDown(name, { key: "Escape", isComposing: true });
+    fireEvent.change(name, { target: { value: "Mainé" } });
+    fireEvent.compositionEnd(name);
+    expect(name).toHaveValue("Mainé");
+    expect(onOpenChange).not.toHaveBeenCalled();
+    fireEvent.keyDown(name, { key: "Escape" });
+    expect(onOpenChange).toHaveBeenCalledWith(false);
+  });
+});

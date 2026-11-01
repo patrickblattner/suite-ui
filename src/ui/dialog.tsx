@@ -5,7 +5,9 @@ import * as React from "react";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
+import { isCompositionKey } from "./composition.js";
 import { Button } from "./button.js";
+import { CompositionTabBoundary } from "./composition-tab-internal.js";
 import { FieldDraftsContext } from "./field-drafts-internal.js";
 import {
   captureOpener,
@@ -94,6 +96,7 @@ function DialogContent({
   mode,
   onOpenAutoFocus,
   onCloseAutoFocus,
+  onEscapeKeyDown,
   returnFocus,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> &
@@ -146,11 +149,18 @@ function DialogContent({
           if ((named !== null && document.activeElement === named) || restoreFocus(from))
             event.preventDefault();
         }}
+        onEscapeKeyDown={(event) => {
+          // The Esc of a composition (dead key, IME) is the composition's (`GL-UI-039` rev 2, #737).
+          if (isCompositionKey(event)) event.preventDefault();
+          else onEscapeKeyDown?.(event);
+        }}
         {...props}
       >
         {/* A plain dialog is a boundary: its fields' entries never reach the page's leave guard; its
             own confirm decides them (`SUI-FEATURE-118` rev 7). */}
-        <FieldDraftsContext.Provider value={null}>{children}</FieldDraftsContext.Provider>
+        <FieldDraftsContext.Provider value={null}>
+          <CompositionTabBoundary>{children}</CompositionTabBoundary>
+        </FieldDraftsContext.Provider>
         {showCloseButton && (
           <DialogPrimitive.Close
             data-slot="dialog-close"

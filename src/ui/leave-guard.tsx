@@ -15,6 +15,7 @@ import {
 
 import { hasEscapeLayer } from "../lib/escape-layers.js";
 import { isInDialog } from "../lib/keyboard.js";
+import { isCompositionKey } from "./composition.js";
 import { Button } from "./button.js";
 import {
   Dialog,
@@ -1553,7 +1554,6 @@ function useLeaveConfirm({
   React.useEffect(() => {
     if (open) return;
     // The closed surface no longer asks nor works; its work, still running, counts for nothing.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     drop();
     setWorking(false);
   }, [open, drop]);
@@ -1842,6 +1842,8 @@ function useLeaveGuard({
   React.useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape" || event.defaultPrevented) return;
+      // The Esc of a composition (dead key, IME) is the composition's (`GL-UI-039` rev 2, #737).
+      if (isCompositionKey(event)) return;
       // An inner `Esc` layer (a selection, an open drawer, a maximized preview) takes it first.
       if (hasEscapeLayer()) return;
       if (isInDialog(event.target instanceof Element ? event.target : null)) return;

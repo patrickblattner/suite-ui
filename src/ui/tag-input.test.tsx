@@ -644,3 +644,49 @@ describe("TagInput passes props to its text field", () => {
     expect(onPaste).toHaveBeenCalledTimes(1);
   });
 });
+
+// GL-UI-039 rev 2 (#737): a running composition (dead key, IME) owns its keys.
+describe("TagInput composition", () => {
+  function Suggesting({ suggestions }: { suggestions: string[] }) {
+    const [tags, setTags] = useState<string[]>([]);
+    return <TagInput value={tags} onChange={setTags} suggestions={suggestions} />;
+  }
+  const options = () =>
+    screen.queryAllByTestId("tag-input-option").map((option) => option.textContent);
+  const focusField = () => act(() => field().focus());
+
+  it("Option+e, e gives one é; the composition's Esc keeps the list, its Enter adds nothing, the next Enter does", () => {
+    render(<Suggesting suggestions={["Café"]} />);
+    focusField();
+    type("Caf");
+    fireEvent.compositionStart(field());
+    type("Caf´");
+    // The list filters on the finished text only.
+    expect(options()).toEqual(["Café"]);
+    fireEvent.keyDown(field(), { key: ",", isComposing: true });
+    type("Café");
+    fireEvent.keyDown(field(), { key: "Escape", isComposing: true });
+    fireEvent.compositionEnd(field());
+    fireEvent.keyDown(field(), { key: "Enter", keyCode: 229 });
+    expect(chips()).toEqual([]);
+    expect(field()).toHaveValue("Café");
+    expect(options()).toEqual(["Café"]);
+    fireEvent.keyDown(field(), { key: "Enter" });
+    expect(chips()).toEqual(["Café"]);
+  });
+
+  it("a composition cancelled back to the start text leaves a list closed with Esc closed", () => {
+    render(<Suggesting suggestions={["Café"]} />);
+    focusField();
+    type("Caf");
+    expect(options()).toEqual(["Café"]);
+    fireEvent.keyDown(field(), { key: "Escape" });
+    expect(options()).toEqual([]);
+    fireEvent.compositionStart(field());
+    type("Caf´");
+    type("Caf");
+    fireEvent.compositionEnd(field());
+    expect(options()).toEqual([]);
+    expect(field()).toHaveValue("Caf");
+  });
+});

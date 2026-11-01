@@ -1496,3 +1496,20 @@ describe("MediaDetailShell submit and Reset with an uncommitted tag", () => {
     expect(screen.queryAllByTestId("tag-input-chip")).toHaveLength(0);
   });
 });
+
+// GL-UI-039 rev 2 (#737): the Esc of a running composition (dead key, IME) is the composition's.
+describe("MediaDetailShell composition", () => {
+  it("Option+e, e gives one é; the composition's Esc keeps the panel open, the next Esc closes it", () => {
+    const { onClose } = renderShell();
+    const name = screen.getByLabelText("Name");
+    fireEvent.compositionStart(name);
+    fireEvent.change(name, { target: { value: "´" } });
+    fireEvent.keyDown(name, { key: "Escape", isComposing: true });
+    fireEvent.change(name, { target: { value: "é" } });
+    fireEvent.compositionEnd(name);
+    expect(name).toHaveValue("é");
+    expect(onClose).not.toHaveBeenCalled();
+    fireEvent.keyDown(name, { key: "Escape" });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});

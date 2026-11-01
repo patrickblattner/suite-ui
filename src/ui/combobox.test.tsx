@@ -231,3 +231,57 @@ describe("Combobox", () => {
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
   });
 });
+
+// GL-UI-039 rev 2 (#737): a running composition (dead key, IME) owns its keys.
+describe("Combobox composition", () => {
+  it("Option+e, e gives one é; the keys of the composition and its confirming Enter pick nothing", () => {
+    const onPick = vi.fn();
+    render(<Field options={[{ value: "c", label: "Café Central" }]} onPick={onPick} />);
+    const input = screen.getByRole("combobox");
+    fireEvent.change(input, { target: { value: "Caf" } });
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, { target: { value: "Caf´" } });
+    fireEvent.keyDown(input, { key: "Enter", isComposing: true });
+    fireEvent.keyDown(input, { key: "Escape", isComposing: true });
+    fireEvent.keyDown(input, { key: "ArrowUp", isComposing: true });
+    fireEvent.change(input, { target: { value: "Café" } });
+    fireEvent.compositionEnd(input);
+    fireEvent.keyDown(input, { key: "Enter", keyCode: 229 });
+    expect(onPick).not.toHaveBeenCalled();
+    expect(input).toHaveValue("Café");
+    expect(screen.getAllByRole("option")).toHaveLength(1);
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onPick).toHaveBeenCalledWith("c");
+    expect(input).toHaveValue("Café Central");
+  });
+
+  it("searches the finished text only, never a composition's intermediate one", async () => {
+    const onSearch = vi.fn((text: string) =>
+      Promise.resolve(text === "Café" ? [{ value: "c", label: "Café Central" }] : []),
+    );
+    render(<Field onSearch={onSearch} />);
+    const input = screen.getByRole("combobox");
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, { target: { value: "Caf´" } });
+    fireEvent.change(input, { target: { value: "Café" } });
+    expect(input).toHaveValue("Café");
+    expect(onSearch).not.toHaveBeenCalled();
+    fireEvent.compositionEnd(input);
+    expect(onSearch.mock.calls).toEqual([["Café"]]);
+    expect(await screen.findByRole("option", { name: "Café Central" })).toBeInTheDocument();
+  });
+
+  it("a composition cancelled back to the start text opens and searches nothing", () => {
+    const onSearch = vi.fn(() => Promise.resolve(CONTACTS));
+    render(<Field value="1" onSearch={onSearch} />);
+    const input = screen.getByRole("combobox");
+    expect(input).toHaveValue("Ada Lovelace");
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, { target: { value: "Ada Lovelace´" } });
+    fireEvent.change(input, { target: { value: "Ada Lovelace" } });
+    fireEvent.compositionEnd(input);
+    expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
+    expect(onSearch).not.toHaveBeenCalled();
+    expect(input).toHaveValue("Ada Lovelace");
+  });
+});

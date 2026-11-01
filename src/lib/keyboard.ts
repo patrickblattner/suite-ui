@@ -1,3 +1,5 @@
+import type * as React from "react";
+
 // The shared parts of the keyboard rule (`GL-UI-006`): the field and dialog checks every page
 // shortcut obeys, and the display of a shortcut as a key chip.
 
@@ -32,6 +34,29 @@ function isTextField(element: Element | null): boolean {
 function isInDialog(element: Element | null): boolean {
   if (element?.closest('[role="dialog"], [role="alertdialog"]')) return true;
   return document.querySelector('[data-slot$="-overlay"][data-state="open"]') !== null;
+}
+
+/**
+ * A key of a running composition (a dead key, an IME): it belongs to the composition, the Enter that
+ * confirms a candidate too — Safari sends that one after `compositionend`, with key code 229. Such a
+ * key triggers nothing of the field or its surface (`GL-UI-039`, `SUI-FEATURE-126`, #737). Public as
+ * `@suite/ui/ui/composition`.
+ */
+function isCompositionKey(event: KeyboardEvent | React.KeyboardEvent): boolean {
+  const native = "nativeEvent" in event ? event.nativeEvent : event;
+  return native.isComposing || native.keyCode === 229;
+}
+
+/**
+ * A composition's Tab moves no focus (`GL-UI-039` rev 2, #737): one the IME took (key code 229) stays
+ * the IME's, one passed on with `isComposing` and its own key code loses the browser's move. Returns
+ * whether the key was such a Tab, for the caller to keep it from its own focus handling.
+ */
+function holdCompositionTab(event: KeyboardEvent | React.KeyboardEvent): boolean {
+  if (event.key !== "Tab" || !isCompositionKey(event)) return false;
+  const native = "nativeEvent" in event ? event.nativeEvent : event;
+  if (native.keyCode !== 229) event.preventDefault();
+  return true;
 }
 
 const MAC_MODIFIERS: Record<string, string> = {
@@ -86,4 +111,12 @@ function shortcutChip(
   return [...parts.map((part) => (part === "Control" ? "Ctrl" : part)), keyLabel].join("+");
 }
 
-export { ariaKeyShortcuts, isInDialog, isMacPlatform, isTextField, shortcutChip };
+export {
+  ariaKeyShortcuts,
+  holdCompositionTab,
+  isCompositionKey,
+  isInDialog,
+  isMacPlatform,
+  isTextField,
+  shortcutChip,
+};

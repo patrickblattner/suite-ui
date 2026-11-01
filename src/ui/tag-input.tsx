@@ -2,6 +2,7 @@ import * as React from "react";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
+import { isCompositionKey } from "./composition.js";
 import { usePopupPlacement } from "../lib/popup-placement.js";
 import { Badge } from "./badge.js";
 import { useFieldDraft } from "./field-drafts-internal.js";
@@ -140,6 +141,11 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
   const isInvalid =
     ariaInvalid === true || ariaInvalid === "true" || fieldError["aria-invalid"] === true;
   const [draft, setDraft] = React.useState("");
+  // The text of a running composition (dead key, IME): shown, but searched and filtered only once it
+  // ends (`GL-UI-039` rev 2, #737). `null` while none runs.
+  const [composing, setComposing] = React.useState<string | null>(null);
+  // The field's text when the composition began: a composition that leaves it unchanged typed nothing.
+  const composedFrom = React.useRef("");
   // The text as of now: a blur in the same tick as a commit must not take the old text over again.
   const current = React.useRef("");
   const listId = `${React.useId()}-suggestions`;
@@ -259,7 +265,8 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
   React.useEffect(() => {
     if (!open) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
+      // The Esc of a composition (dead key, IME) is the composition's (`GL-UI-039` rev 2, #737).
+      if (event.key !== "Escape" || isCompositionKey(event)) return;
       event.stopPropagation();
       setDismissed(true);
     };
@@ -267,9 +274,17 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
     return () => window.removeEventListener("keydown", onKeyDown, { capture: true });
   }, [open]);
 
+  const takeText = (text: string) => {
+    setDraft(text);
+    current.current = text;
+    setDismissed(false);
+    setActive(null);
+    setKeyboard(true);
+  };
+
   const ownKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     // An IME is still composing: its Enter or comma belongs to the composition.
-    if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+    if (isCompositionKey(event)) return;
     if ((event.key === "ArrowDown" || event.key === "ArrowUp") && matches.length > 0) {
       event.preventDefault();
       setKeyboard(true);
@@ -358,7 +373,7 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
         {...inputProps}
         ref={ref}
         id={id}
-        value={draft}
+        value={composing ?? draft}
         placeholder={value.length === 0 && !readOnly ? placeholder : undefined}
         disabled={disabled}
         readOnly={readOnly}
@@ -372,12 +387,18 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
               "aria-autocomplete": "list" as const,
               "aria-activedescendant": open && choice >= 0 ? `${listId}-${choice}` : undefined,
             })}
+        onCompositionStart={(event) => {
+          composedFrom.current = event.currentTarget.value;
+          setComposing(event.currentTarget.value);
+        }}
         onChange={(event) => {
-          setDraft(event.target.value);
-          current.current = event.target.value;
-          setDismissed(false);
-          setActive(null);
-          setKeyboard(true);
+          if (composing === null) takeText(event.target.value);
+          else setComposing(event.target.value);
+        }}
+        onCompositionEnd={(event) => {
+          setComposing(null);
+          if (event.currentTarget.value !== composedFrom.current)
+            takeText(event.currentTarget.value);
         }}
         onFocus={(event) => {
           setFocused(true);
@@ -385,6 +406,7 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
         }}
         onBlur={(event) => {
           setFocused(false);
+          setComposing(null);
           // A blur into the leave guard's dialog is no leaving: the typed tag stays a draft, and a list
           // closed with Esc stays closed on Cancel (SUI-FEATURE-118).
           if (isInLeaveGuardDialog(event.relatedTarget)) {

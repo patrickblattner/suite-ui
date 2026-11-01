@@ -347,3 +347,96 @@ describe("GlobalSearch", () => {
     expect(screen.getByRole("listbox")).not.toHaveAttribute("data-testid");
   });
 });
+
+// GL-UI-039 rev 2 (#737): a running composition (dead key, IME) owns its keys.
+describe("GlobalSearch composition", () => {
+  it("Option+e, e in the field gives one é, which the dialog takes over once composed", async () => {
+    renderSearch();
+    const field = screen.getByTestId("shell-search");
+    fireEvent.compositionStart(field);
+    fireEvent.change(field, { target: { value: "´" } });
+    fireEvent.keyDown(field, { key: "Enter", isComposing: true });
+    expect(field).toHaveValue("´");
+    expect(screen.queryByTestId("search-dialog")).not.toBeInTheDocument();
+    fireEvent.change(field, { target: { value: "é" } });
+    fireEvent.compositionEnd(field);
+    const dialog = await screen.findByTestId("search-dialog");
+    expect(within(dialog).getByTestId("search-dialog-input")).toHaveValue("é");
+    expect(field).toHaveValue("");
+  });
+
+  it("in the dialog, the composition's Enter and Esc open and close nothing; the next Enter opens the hit", async () => {
+    renderSearch();
+    fireEvent.change(screen.getByTestId("shell-search"), { target: { value: "su" } });
+    await screen.findAllByTestId("search-hit");
+    const input = screen.getByTestId("search-dialog-input");
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, { target: { value: "sum" } });
+    fireEvent.keyDown(input, { key: "Enter", isComposing: true });
+    fireEvent.keyDown(input, { key: "Escape", isComposing: true });
+    fireEvent.compositionEnd(input);
+    fireEvent.keyDown(input, { key: "Enter", keyCode: 229 });
+    expect(screen.getByTestId("search-dialog")).toBeInTheDocument();
+    expect(input).toHaveValue("sum");
+    expect(screen.getByTestId("location")).toHaveTextContent("/dashboard");
+    await screen.findAllByTestId("search-hit");
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(screen.getByTestId("location")).toHaveTextContent("/content/1");
+  });
+
+  const frame = () => act(() => new Promise((resolve) => requestAnimationFrame(resolve)));
+
+  it("compositions in a row (Korean syllables) stay in the field; the last end hands the whole text over once", async () => {
+    renderSearch();
+    const field = screen.getByTestId("shell-search");
+    fireEvent.compositionStart(field);
+    fireEvent.change(field, { target: { value: "한" } });
+    fireEvent.compositionEnd(field);
+    fireEvent.compositionStart(field);
+    fireEvent.change(field, { target: { value: "한그" } });
+    await frame();
+    expect(screen.queryByTestId("search-dialog")).not.toBeInTheDocument();
+    expect(field).toHaveValue("한그");
+    fireEvent.change(field, { target: { value: "한글" } });
+    fireEvent.compositionEnd(field);
+    const dialog = await screen.findByTestId("search-dialog");
+    expect(within(dialog).getByTestId("search-dialog-input")).toHaveValue("한글");
+    expect(field).toHaveValue("");
+  });
+
+  it("a composition cancelled to nothing opens no dialog", async () => {
+    renderSearch();
+    const field = screen.getByTestId("shell-search");
+    fireEvent.compositionStart(field);
+    fireEvent.change(field, { target: { value: "´" } });
+    fireEvent.change(field, { target: { value: "" } });
+    fireEvent.compositionEnd(field);
+    await frame();
+    await frame();
+    expect(screen.queryByTestId("search-dialog")).not.toBeInTheDocument();
+    expect(field).toHaveValue("");
+  });
+
+  it("a composition that never ends leaves the field with the blur; typing then opens the dialog", async () => {
+    renderSearch();
+    const field = screen.getByTestId("shell-search");
+    fireEvent.compositionStart(field);
+    fireEvent.change(field, { target: { value: "´" } });
+    fireEvent.blur(field);
+    expect(field).toHaveValue("");
+    fireEvent.change(field, { target: { value: "s" } });
+    const dialog = await screen.findByTestId("search-dialog");
+    expect(within(dialog).getByTestId("search-dialog-input")).toHaveValue("s");
+  });
+
+  it("a blur during the handoff frame loses no text", async () => {
+    renderSearch();
+    const field = screen.getByTestId("shell-search");
+    fireEvent.compositionStart(field);
+    fireEvent.change(field, { target: { value: "é" } });
+    fireEvent.compositionEnd(field);
+    fireEvent.blur(field);
+    const dialog = await screen.findByTestId("search-dialog");
+    expect(within(dialog).getByTestId("search-dialog-input")).toHaveValue("é");
+  });
+});

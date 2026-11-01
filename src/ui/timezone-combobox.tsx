@@ -3,6 +3,7 @@ import * as React from "react";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
+import { isCompositionKey } from "./composition.js";
 import { usePopupPlacement } from "../lib/popup-placement.js";
 import { useFieldDraft } from "./field-drafts-internal.js";
 import { FieldUserEditContext, useFieldErrorAttributes } from "./field-error.js";
@@ -76,6 +77,11 @@ function TimezoneCombobox({
   const listRef = React.useRef<HTMLUListElement>(null);
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState("");
+  // The text of a running composition (dead key, IME): shown, but searched and filtered only once it
+  // ends (`GL-UI-039` rev 2, #737). `null` while none runs.
+  const [composing, setComposing] = React.useState<string | null>(null);
+  // The field's text when the composition began: a composition that leaves it unchanged typed nothing.
+  const composedFrom = React.useRef("");
   const [active, setActive] = React.useState(0);
   // Whether the keyboard placed the highlight: then it carries the inset ring on top of the tint
   // (`GL-UI-013`); a highlight under the mouse keeps the tint alone.
@@ -129,7 +135,8 @@ function TimezoneCombobox({
     // Escape closes the list only, not a surrounding dialog: radix listens on the document in the
     // capture phase, so this listener sits one step earlier, on the window.
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
+      // The Esc of a composition (dead key, IME) is the composition's (`GL-UI-039` rev 2, #737).
+      if (event.key !== "Escape" || isCompositionKey(event)) return;
       // An Escape in the leave guard's dialog is the dialog's Cancel, not the list's.
       if (isInLeaveGuardDialog(event.target)) return;
       event.stopPropagation();
@@ -152,7 +159,16 @@ function TimezoneCombobox({
     option?.scrollIntoView?.({ block: "nearest" });
   }, [open, active]);
 
+  const type = (text: string) => {
+    if (!open) setOpen(true);
+    setQuery(text);
+    setActive(0);
+    setKeyboard(true);
+  };
+
   const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    // A key of a composition is its own, the Enter that confirms a candidate too (`GL-UI-039` rev 2).
+    if (isCompositionKey(event)) return;
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
       if (!open) {
@@ -194,16 +210,23 @@ function TimezoneCombobox({
       data-testid={testId}
       disabled={disabled}
       placeholder={t("timezone.placeholder")}
-      value={open ? query : value}
+      value={composing ?? (open ? query : value)}
       onClick={openList}
+      onCompositionStart={(event) => {
+        composedFrom.current = event.currentTarget.value;
+        setComposing(event.currentTarget.value);
+      }}
       onChange={(event) => {
-        if (!open) setOpen(true);
-        setQuery(event.target.value);
-        setActive(0);
-        setKeyboard(true);
+        if (composing === null) type(event.target.value);
+        else setComposing(event.target.value);
+      }}
+      onCompositionEnd={(event) => {
+        setComposing(null);
+        if (event.currentTarget.value !== composedFrom.current) type(event.currentTarget.value);
       }}
       onKeyDown={onKeyDown}
       onBlur={(event) => {
+        setComposing(null);
         // A blur into the leave guard's dialog is no leaving: the list stays open (SUI-FEATURE-118).
         if (isInLeaveGuardDialog(event.relatedTarget)) return;
         if (!rootRef.current?.contains(event.relatedTarget)) close();
