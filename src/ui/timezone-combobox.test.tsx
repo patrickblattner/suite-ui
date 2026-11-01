@@ -151,3 +151,28 @@ describe("TimezoneCombobox", () => {
     expect(screen.getByRole("listbox")).toBeInTheDocument();
   });
 });
+
+// GL-UI-039 rev 2 (#737): a running composition (dead key, IME) owns its keys.
+describe("TimezoneCombobox composition", () => {
+  it("Option+e, e gives one é; an IME's confirming Enter picks nothing, the next Enter does", () => {
+    const onValueChange = vi.fn();
+    render(<Field initial="UTC" onValueChange={onValueChange} />);
+    const input = screen.getByRole("combobox");
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, { target: { value: "´" } });
+    fireEvent.change(input, { target: { value: "é" } });
+    fireEvent.compositionEnd(input);
+    expect(input).toHaveValue("é");
+    fireEvent.change(input, { target: { value: "" } });
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, { target: { value: "zur" } });
+    fireEvent.keyDown(input, { key: "Enter", isComposing: true });
+    fireEvent.keyDown(input, { key: "Escape", isComposing: true });
+    fireEvent.compositionEnd(input);
+    fireEvent.keyDown(input, { key: "Enter", keyCode: 229 });
+    expect(onValueChange).not.toHaveBeenCalled();
+    expect(screen.getByRole("listbox")).toBeInTheDocument();
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onValueChange).toHaveBeenCalledWith("Europe/Zurich");
+  });
+});

@@ -3,6 +3,7 @@ import * as React from "react";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
+import { isCompositionKey } from "../lib/keyboard.js";
 import { usePopupPlacement } from "../lib/popup-placement.js";
 import { useFieldDraft } from "./field-drafts-internal.js";
 import { FieldUserEditContext, useFieldErrorAttributes } from "./field-error.js";
@@ -129,7 +130,8 @@ function TimezoneCombobox({
     // Escape closes the list only, not a surrounding dialog: radix listens on the document in the
     // capture phase, so this listener sits one step earlier, on the window.
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
+      // The Esc of a composition (dead key, IME) is the composition's (`GL-UI-039` rev 2, #737).
+      if (event.key !== "Escape" || isCompositionKey(event)) return;
       // An Escape in the leave guard's dialog is the dialog's Cancel, not the list's.
       if (isInLeaveGuardDialog(event.target)) return;
       event.stopPropagation();
@@ -153,6 +155,8 @@ function TimezoneCombobox({
   }, [open, active]);
 
   const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
+    // A key of a composition is its own, the Enter that confirms a candidate too (`GL-UI-039` rev 2).
+    if (isCompositionKey(event)) return;
     if (event.key === "ArrowDown" || event.key === "ArrowUp") {
       event.preventDefault();
       if (!open) {

@@ -4,6 +4,7 @@ import { Dialog as SheetPrimitive } from "radix-ui";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
+import { isCompositionKey } from "../lib/keyboard.js";
 import { FieldDraftsContext } from "./field-drafts-internal.js";
 
 // A side-anchored dialog on the radix Dialog primitive; `side` defaults to "right".
@@ -45,6 +46,7 @@ function SheetContent({
   children,
   side = "right",
   showCloseButton = true,
+  onEscapeKeyDown,
   ...props
 }: React.ComponentProps<typeof SheetPrimitive.Content> & {
   side?: "top" | "right" | "bottom" | "left";
@@ -68,6 +70,11 @@ function SheetContent({
             "inset-x-0 bottom-0 h-auto border-t data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
           className,
         )}
+        onEscapeKeyDown={(event) => {
+          // The Esc of a composition (dead key, IME) is the composition's (`GL-UI-039` rev 2, #737).
+          if (isCompositionKey(event)) event.preventDefault();
+          else onEscapeKeyDown?.(event);
+        }}
         {...props}
       >
         {/* A sheet is a dialog and a boundary: its fields' entries never reach the page's leave guard.

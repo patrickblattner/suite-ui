@@ -2,6 +2,7 @@ import * as React from "react";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
+import { isCompositionKey } from "../lib/keyboard.js";
 import { usePopupPlacement } from "../lib/popup-placement.js";
 import { Badge } from "./badge.js";
 import { useFieldDraft } from "./field-drafts-internal.js";
@@ -259,7 +260,8 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
   React.useEffect(() => {
     if (!open) return;
     const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") return;
+      // The Esc of a composition (dead key, IME) is the composition's (`GL-UI-039` rev 2, #737).
+      if (event.key !== "Escape" || isCompositionKey(event)) return;
       event.stopPropagation();
       setDismissed(true);
     };
@@ -269,7 +271,7 @@ const TagInputField = React.forwardRef<HTMLInputElement, TagInputProps>(function
 
   const ownKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) => {
     // An IME is still composing: its Enter or comma belongs to the composition.
-    if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+    if (isCompositionKey(event)) return;
     if ((event.key === "ArrowDown" || event.key === "ArrowUp") && matches.length > 0) {
       event.preventDefault();
       setKeyboard(true);

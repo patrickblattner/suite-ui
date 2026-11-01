@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 
 import { cn } from "../lib/cn.js";
+import { isCompositionKey } from "../lib/keyboard.js";
 import {
   Dialog,
   DialogBody,
@@ -92,6 +93,9 @@ function GlobalSearch({
   const opener = React.useRef<Opener | null>(null);
 
   const isDialogOpen = React.useRef(false);
+  // A composition (dead key, IME) stays in the field until it ends: only the finished text travels
+  // into the dialog (`GL-UI-039` rev 2, #737). `null` while none runs.
+  const [composing, setComposing] = React.useState<string | null>(null);
 
   const openDialog = React.useCallback((seed?: string) => {
     if (seed !== undefined) setTerm(seed);
@@ -107,6 +111,7 @@ function GlobalSearch({
   React.useEffect(() => {
     function onKeyDown(event: KeyboardEvent): void {
       if (event.key.toLowerCase() !== SHORTCUT_KEY || !(event.metaKey || event.ctrlKey)) return;
+      if (isCompositionKey(event)) return;
       event.preventDefault();
       openDialog();
     }
@@ -171,13 +176,26 @@ function GlobalSearch({
             type="search"
             data-testid="shell-search"
             // The way in, not a place for an answer: whatever is typed travels into the dialog.
-            value=""
+            value={composing ?? ""}
             aria-label={t("search.label")}
             aria-keyshortcuts="Meta+K Control+K"
             placeholder={t("search.placeholder")}
-            onChange={(event) => openDialog(event.target.value)}
+            onCompositionStart={(event) => setComposing(event.currentTarget.value)}
+            onChange={(event) => {
+              if (composing !== null) {
+                setComposing(event.target.value);
+                return;
+              }
+              openDialog(event.target.value);
+            }}
+            onCompositionEnd={(event) => {
+              const text = event.currentTarget.value;
+              setComposing(null);
+              // A composition cancelled to nothing opens nothing.
+              if (text !== "") openDialog(text);
+            }}
             onKeyDown={(event) => {
-              if (event.key === "Enter") openDialog();
+              if (event.key === "Enter" && !isCompositionKey(event)) openDialog();
             }}
             onClick={() => openDialog()}
             className="h-9 w-full rounded-md border border-input bg-transparent py-1 pr-16 pl-8 text-sm shadow-xs outline-none transition-[color,box-shadow] placeholder:text-muted-foreground focus-visible:border-ring focus-visible:focus-ring dark:bg-input/30"
@@ -325,7 +343,8 @@ function SearchDialog({
   // its own Enter.
   function onDialogKeyDown(event: React.KeyboardEvent<HTMLDivElement>): void {
     if (event.target !== inputRef.current && event.target !== event.currentTarget) return;
-    if (orderedHits.length === 0) return;
+    // A key of a composition is its own, the Enter that confirms a candidate too (`GL-UI-039` rev 2).
+    if (orderedHits.length === 0 || isCompositionKey(event)) return;
     if (event.key === "ArrowDown") {
       event.preventDefault();
       moveTo((activeIndex + 1) % orderedHits.length);

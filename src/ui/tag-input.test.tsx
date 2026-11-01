@@ -644,3 +644,32 @@ describe("TagInput passes props to its text field", () => {
     expect(onPaste).toHaveBeenCalledTimes(1);
   });
 });
+
+// GL-UI-039 rev 2 (#737): a running composition (dead key, IME) owns its keys.
+describe("TagInput composition", () => {
+  function Suggesting({ suggestions }: { suggestions: string[] }) {
+    const [tags, setTags] = useState<string[]>([]);
+    return <TagInput value={tags} onChange={setTags} suggestions={suggestions} />;
+  }
+  const options = () =>
+    screen.queryAllByTestId("tag-input-option").map((option) => option.textContent);
+  const focusField = () => act(() => field().focus());
+
+  it("Option+e, e gives one é; the composition's Esc keeps the list, its Enter adds nothing, the next Enter does", () => {
+    render(<Suggesting suggestions={["Café"]} />);
+    focusField();
+    type("Caf");
+    fireEvent.compositionStart(field());
+    type("Caf´");
+    fireEvent.keyDown(field(), { key: ",", isComposing: true });
+    type("Café");
+    fireEvent.keyDown(field(), { key: "Escape", isComposing: true });
+    fireEvent.compositionEnd(field());
+    fireEvent.keyDown(field(), { key: "Enter", keyCode: 229 });
+    expect(chips()).toEqual([]);
+    expect(field()).toHaveValue("Café");
+    expect(options()).toEqual(["Café"]);
+    fireEvent.keyDown(field(), { key: "Enter" });
+    expect(chips()).toEqual(["Café"]);
+  });
+});

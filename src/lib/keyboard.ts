@@ -34,6 +34,16 @@ function isInDialog(element: Element | null): boolean {
   return document.querySelector('[data-slot$="-overlay"][data-state="open"]') !== null;
 }
 
+/**
+ * A key of a running composition (a dead key, an IME): it belongs to the composition, the Enter that
+ * confirms a candidate too — Safari sends that one after `compositionend`, with key code 229. Such a
+ * key triggers nothing of the field or its surface (`GL-UI-039` rev 2, #737).
+ */
+function isCompositionKey(event: KeyboardEvent | { nativeEvent: KeyboardEvent }): boolean {
+  const native = "nativeEvent" in event ? event.nativeEvent : event;
+  return native.isComposing || native.keyCode === 229;
+}
+
 const MAC_MODIFIERS: Record<string, string> = {
   Control: "⌃",
   Meta: "⌘",
@@ -86,4 +96,4 @@ function shortcutChip(
   return [...parts.map((part) => (part === "Control" ? "Ctrl" : part)), keyLabel].join("+");
 }
 
-export { ariaKeyShortcuts, isInDialog, isMacPlatform, isTextField, shortcutChip };
+export { ariaKeyShortcuts, isCompositionKey, isInDialog, isMacPlatform, isTextField, shortcutChip };

@@ -5,6 +5,7 @@ import * as React from "react";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
+import { isCompositionKey } from "../lib/keyboard.js";
 import { Button } from "./button.js";
 import { FieldDraftsContext } from "./field-drafts-internal.js";
 import {
@@ -94,6 +95,7 @@ function DialogContent({
   mode,
   onOpenAutoFocus,
   onCloseAutoFocus,
+  onEscapeKeyDown,
   returnFocus,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Content> &
@@ -145,6 +147,11 @@ function DialogContent({
           if (named?.isConnected) named.focus({ preventScroll: true });
           if ((named !== null && document.activeElement === named) || restoreFocus(from))
             event.preventDefault();
+        }}
+        onEscapeKeyDown={(event) => {
+          // The Esc of a composition (dead key, IME) is the composition's (`GL-UI-039` rev 2, #737).
+          if (isCompositionKey(event)) event.preventDefault();
+          else onEscapeKeyDown?.(event);
         }}
         {...props}
       >

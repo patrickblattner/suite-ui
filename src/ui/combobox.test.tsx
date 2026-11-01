@@ -231,3 +231,27 @@ describe("Combobox", () => {
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
   });
 });
+
+// GL-UI-039 rev 2 (#737): a running composition (dead key, IME) owns its keys.
+describe("Combobox composition", () => {
+  it("Option+e, e gives one é; the keys of the composition and its confirming Enter pick nothing", () => {
+    const onPick = vi.fn();
+    render(<Field options={[{ value: "c", label: "Café Central" }]} onPick={onPick} />);
+    const input = screen.getByRole("combobox");
+    fireEvent.change(input, { target: { value: "Caf" } });
+    fireEvent.compositionStart(input);
+    fireEvent.change(input, { target: { value: "Caf´" } });
+    fireEvent.keyDown(input, { key: "Enter", isComposing: true });
+    fireEvent.keyDown(input, { key: "Escape", isComposing: true });
+    fireEvent.keyDown(input, { key: "ArrowUp", isComposing: true });
+    fireEvent.change(input, { target: { value: "Café" } });
+    fireEvent.compositionEnd(input);
+    fireEvent.keyDown(input, { key: "Enter", keyCode: 229 });
+    expect(onPick).not.toHaveBeenCalled();
+    expect(input).toHaveValue("Café");
+    expect(screen.getAllByRole("option")).toHaveLength(1);
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onPick).toHaveBeenCalledWith("c");
+    expect(input).toHaveValue("Café Central");
+  });
+});

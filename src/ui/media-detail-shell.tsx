@@ -15,7 +15,7 @@ import * as React from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
 
-import { isTextField } from "../lib/keyboard.js";
+import { isCompositionKey, isTextField } from "../lib/keyboard.js";
 import { type RowAction, type RowUsage, useRowActionButtons } from "../list/row-actions.js";
 import { PANEL_SURFACE_CLASS, usePanelGeometry } from "../lib/panel-geometry.js";
 import { Button } from "./button.js";
@@ -503,6 +503,8 @@ function MediaDetailShell({
           onInteractOutside={(event) => event.preventDefault()}
           onEscapeKeyDown={(event) => {
             event.preventDefault();
+            // The Esc of a composition (dead key, IME) is the composition's (`GL-UI-039` rev 2, #737).
+            if (isCompositionKey(event)) return;
             // The usages are a layer above the panel: the first `Esc` returns to the preview.
             if (showUsage) usage.onToggle();
             else escape.current = event;

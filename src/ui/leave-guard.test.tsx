@@ -6134,3 +6134,43 @@ describe("useLeaveGuard and the package Esc layers (#293)", () => {
     expect(onLayer).toHaveBeenCalledTimes(1);
   });
 });
+
+// GL-UI-039 rev 2 (#737): the Esc of a running composition (dead key, IME) is the composition's —
+// it neither leaves the page nor reaches a package Esc layer.
+describe("useLeaveGuard, the Esc layers and a composition (#737)", () => {
+  function Surface({
+    layer,
+    onLayer,
+    onLeave,
+  }: {
+    layer: boolean;
+    onLayer: () => void;
+    onLeave: () => void;
+  }) {
+    useLeaveGuard({ dirty: false, onLeave });
+    useEscapeLayer(layer, onLayer);
+    return <input aria-label="Name" />;
+  }
+
+  it("Option+e, e gives one é; the composition's Esc leaves nothing, the next Esc does", () => {
+    const onLayer = vi.fn();
+    const onLeave = vi.fn();
+    const { rerender } = render(<Surface layer onLayer={onLayer} onLeave={onLeave} />);
+    const name = screen.getByLabelText("Name");
+    fireEvent.compositionStart(name);
+    fireEvent.change(name, { target: { value: "´" } });
+    fireEvent.keyDown(name, { key: "Escape", isComposing: true });
+    fireEvent.change(name, { target: { value: "é" } });
+    fireEvent.compositionEnd(name);
+    fireEvent.keyDown(name, { key: "Escape", keyCode: 229 });
+    expect(name).toHaveValue("é");
+    expect(onLayer).not.toHaveBeenCalled();
+    fireEvent.keyDown(name, { key: "Escape" });
+    expect(onLayer).toHaveBeenCalledTimes(1);
+    rerender(<Surface layer={false} onLayer={onLayer} onLeave={onLeave} />);
+    fireEvent.keyDown(name, { key: "Escape", isComposing: true });
+    expect(onLeave).not.toHaveBeenCalled();
+    fireEvent.keyDown(name, { key: "Escape" });
+    expect(onLeave).toHaveBeenCalledTimes(1);
+  });
+});

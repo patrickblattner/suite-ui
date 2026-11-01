@@ -385,6 +385,31 @@ describe("GridFields number entry (GL-UI-037)", () => {
     expect(gutter()).toHaveValue(String(expected));
   });
 
+  // GL-UI-039 rev 2 (#737): nothing refuses or steps while a composition runs; its finished text
+  // then goes through the rules of typed text.
+  it("leaves a composition alone and checks the finished text", () => {
+    const onChange = vi.fn();
+    render(<Fields onChange={onChange} />);
+    const count = screen.getByTestId("grid-count");
+    fireEvent.compositionStart(count);
+    fireEvent.change(count, { target: { value: "12´" } });
+    expect(count).toHaveValue("12´");
+    fireEvent.change(count, { target: { value: "12é" } });
+    fireEvent.keyDown(count, { key: "ArrowUp", isComposing: true });
+    expect(count).toHaveValue("12é");
+    expect(onChange).not.toHaveBeenCalled();
+    fireEvent.compositionEnd(count);
+    expect(count).toHaveValue("12");
+    expect(onChange).not.toHaveBeenCalled();
+    fireEvent.change(count, { target: { value: "" } });
+    fireEvent.compositionStart(count);
+    fireEvent.change(count, { target: { value: "8" } });
+    fireEvent.keyDown(count, { key: "Enter", isComposing: true });
+    fireEvent.compositionEnd(count);
+    expect(count).toHaveValue("8");
+    expect(onChange).toHaveBeenLastCalledWith({ ...COLUMNS, count: 8 });
+  });
+
   it("an empty field steps to its minimum", () => {
     const onChange = vi.fn();
     render(<Fields onChange={onChange} />);

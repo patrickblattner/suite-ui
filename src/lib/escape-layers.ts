@@ -1,5 +1,7 @@
 import * as React from "react";
 
+import { isCompositionKey } from "./keyboard.js";
+
 // The package's own `Esc` layers (`GL-UI-007`: innermost `Esc` first): a maximized preview, an open
 // split preview. One document listener hands each `Esc` to the innermost layer: the one activated
 // last among those whose element holds the focus, else the one activated last. The order is explicit
@@ -12,6 +14,8 @@ const layers: Layer[] = [];
 
 function onKeyDown(event: KeyboardEvent): void {
   if (event.key !== "Escape" || event.defaultPrevented) return;
+  // The Esc of a composition (dead key, IME) is the composition's (`GL-UI-039` rev 2, #737).
+  if (isCompositionKey(event)) return;
   const target = event.target instanceof Node ? event.target : null;
   let layer = layers.at(-1);
   for (let index = layers.length - 1; index >= 0; index -= 1) {

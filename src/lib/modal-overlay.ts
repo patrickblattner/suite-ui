@@ -1,5 +1,7 @@
 import * as React from "react";
 
+import { isCompositionKey } from "./keyboard.js";
+
 const TABBABLE =
   "a[href], button, input:not([type=hidden]), select, textarea, [tabindex]:not([tabindex='-1'])";
 
@@ -44,6 +46,8 @@ function useModalOverlay(
   return React.useCallback(
     (event: React.KeyboardEvent) => {
       if (!active || element === null || event.key !== "Tab") return;
+      // The Tab of a composition (dead key, IME) is the composition's (`GL-UI-039` rev 2, #737).
+      if (isCompositionKey(event)) return;
       // A portaled layer the element opened (a dialog) reaches this handler through React; its Tab is
       // its own.
       if (!(event.target instanceof Node) || !element.contains(event.target)) return;

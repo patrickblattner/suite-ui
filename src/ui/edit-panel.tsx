@@ -10,6 +10,7 @@ import * as React from "react";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
+import { isCompositionKey } from "../lib/keyboard.js";
 import { PANEL_SURFACE_CLASS, usePanelGeometry } from "../lib/panel-geometry.js";
 import { Button } from "./button.js";
 import { FIELD_SELECTOR } from "./dialog.js";
@@ -410,6 +411,8 @@ function EditPanel({
           onInteractOutside={(event) => event.preventDefault()}
           onEscapeKeyDown={(event) => {
             event.preventDefault();
+            // The Esc of a composition (dead key, IME) is the composition's (`GL-UI-039` rev 2, #737).
+            if (isCompositionKey(event)) return;
             escape.current = event;
           }}
         >
