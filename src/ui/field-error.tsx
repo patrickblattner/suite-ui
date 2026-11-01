@@ -38,6 +38,12 @@ const FieldSubmitContext = React.createContext<number | null>(null);
 // their errors late again, without remounting them.
 const FieldSubmitEndContext = React.createContext(0);
 
+// What a package control calls with each value the person picks in it (a Select's item, a
+// Combobox's option), inside a form that drops a started save on the person's next edit (`GL-UI-038`
+// §Absenden: values put back by hand end nothing). Such a control sets its value by code, so its
+// input and change events are not trusted and the form cannot tell the pick from a value set by code.
+const FieldUserEditContext = React.createContext<(() => void) | null>(null);
+
 // The submit count a form passes to `FieldSubmitContext`, and what it calls on every submit with
 // itself. After the submit's render the focus goes to the form's first invalid field (`GL-UI-038`
 // §Absenden). Third and fourth: what the form calls once its submit state ends (a successful submit,
@@ -80,6 +86,7 @@ export {
   type FieldErrorProps,
   FieldSubmitContext,
   FieldSubmitEndContext,
+  FieldUserEditContext,
   submitLocked,
   useFieldErrorAttributes,
   useFieldSubmits,

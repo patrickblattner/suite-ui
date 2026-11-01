@@ -3,10 +3,12 @@ import i18n from "i18next";
 import type * as React from "react";
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 
+import { Combobox } from "../ui/combobox.js";
 import { Input } from "../ui/input.js";
 import { RadioGroup, RadioGroupItem } from "../ui/radio-group.js";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select.js";
 import { TabsContent, TabsList, TabsTrigger } from "../ui/tabs.js";
 import { SettingsField } from "./settings-field.js";
 import { SettingsScaffold } from "./settings-scaffold.js";
@@ -842,4 +844,95 @@ describe("SettingsScaffold: an edit drops the started save, other events do not"
     fireEvent.click(screen.getByTestId("clear"));
     expect(screen.queryByText("Enter a name.")).toBeNull();
   });
+});
+
+// #739 (GL-UI-038 rev 4 §Absenden): a Select or Combobox sets its value by code, so a pick sends no
+// trusted event; the control reports the pick itself, and putting the saved choice back after a failed
+// save ends nothing.
+describe("SettingsScaffold: a pick put back after a failed save keeps the submit state", () => {
+  beforeEach(() => {
+    // jsdom has no pointer capture and no scrolling into view, which Radix calls on opening.
+    for (const name of ["hasPointerCapture", "releasePointerCapture", "scrollIntoView"]) {
+      Object.defineProperty(HTMLElement.prototype, name, {
+        configurable: true,
+        value: () => false,
+      });
+    }
+  });
+
+  const OPTIONS = [
+    { value: "basic", label: "Basic" },
+    { value: "pro", label: "Pro" },
+  ];
+
+  function Page({ control }: { control: "select" | "combobox" }) {
+    const [plan, setPlan] = useState("basic");
+    const [city, setCity] = useState("");
+    return (
+      <SettingsScaffold
+        pageKey="general"
+        title="General"
+        subtitle="The name of this instance."
+        left={
+          <>
+            {control === "select" ? (
+              <Select value={plan} onValueChange={setPlan}>
+                <SelectTrigger fieldName="Plan">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <>
+                <label htmlFor="plan">Plan</label>
+                <Combobox id="plan" options={OPTIONS} value={plan} onValueChange={setPlan} />
+              </>
+            )}
+            <SettingsField
+              label="City"
+              htmlFor="city"
+              error={city === "" ? "Enter a city." : undefined}
+            >
+              <Input id="city" value={city} onChange={(event) => setCity(event.target.value)} />
+            </SettingsField>
+          </>
+        }
+        // The saved state: Basic, no city. The save saves nothing.
+        form={{ dirty: plan !== "basic", valid: true, onSave: () => {}, onReset: () => {} }}
+      />
+    );
+  }
+
+  function pick(control: "select" | "combobox", label: string) {
+    const opener = screen.getByRole("combobox", { name: "Plan" });
+    if (control === "select") {
+      fireEvent.keyDown(opener, { key: "Enter" });
+      fireEvent.keyDown(screen.getByRole("option", { name: label }), { key: "Enter" });
+    } else {
+      fireEvent.keyDown(opener, { key: "ArrowDown" });
+      fireEvent.click(screen.getByRole("option", { name: label }));
+    }
+  }
+
+  it.each(["select", "combobox"] as const)(
+    "%s: a failed save, then the saved choice picked back → the city's error stays",
+    async (control) => {
+      render(<Page control={control} />);
+      pick(control, "Pro");
+      expect(screen.getByTestId("settings-general-reset")).not.toHaveAttribute("aria-disabled");
+      fireEvent.submit(screen.getByTestId("settings-general-form"));
+      expect(await screen.findByText("Enter a city.")).toBeInTheDocument();
+      pick(control, "Basic");
+      await act(() => new Promise((resolve) => setTimeout(resolve, 0)));
+      // Clean again: the saved choice is back.
+      expect(screen.getByTestId("settings-general-reset")).toHaveAttribute("aria-disabled", "true");
+      expect(screen.getByText("Enter a city.")).toBeInTheDocument();
+    },
+  );
 });
