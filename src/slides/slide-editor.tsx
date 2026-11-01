@@ -1139,6 +1139,18 @@ function Editor({
       return;
     }
     const target = step === "undo" ? history.undoPage : history.redoPage;
+    // A step that adds or takes away rows or columns of the table whose cell is being edited moves
+    // that cell: editing ends (#740).
+    const to = step === "undo" ? history.undoDocument : history.redoDocument;
+    if (editing?.cell !== undefined && edited?.type === "table" && to !== undefined) {
+      const next = findElement(to.pages[page]?.elements ?? [], edited.id)?.element;
+      if (
+        next?.type !== "table" ||
+        next.rows.length !== edited.rows.length ||
+        next.columnWidths.length !== edited.columnWidths.length
+      )
+        leaveCell();
+    }
     if (step === "undo") history.undo();
     else history.redo();
     if (target !== undefined && target !== page) {
@@ -1881,6 +1893,18 @@ function Editor({
     setEditing(undefined);
     setTextRange(undefined);
     canvas.current?.focus();
+  };
+  // Editing ends because its cell moved or went (#740): the canvas takes the focus only from the field
+  // (or when it fell to the page), a panel button pressed from the keyboard keeps it (`GL-UI-050`).
+  const leaveCell = () => {
+    const active = window.document.activeElement;
+    const fromField =
+      active === null ||
+      active === window.document.body ||
+      (area?.contains(active) === true && active.closest("[contenteditable]") !== null);
+    setEditing(undefined);
+    setTextRange(undefined);
+    if (fromField) canvas.current?.focus();
   };
   // A change of a field's or a cell's text as one step; under `merge` changes in a row are one.
   const changeBody = (
@@ -4570,13 +4594,24 @@ function Editor({
                               revision={travels}
                               // Its rows and columns, like the formats, wait for a composition to
                               // end (GL-UI-039 rev 2, #736).
-                              onChange={(next, merge) => {
+                              onChange={(next, merge, move) => {
                                 if (composingText.current) return;
                                 apply(
                                   (current) =>
                                     updateElements(current, page, [single.id], () => next),
                                   merge === undefined ? undefined : `table:${single.id}:${merge}`,
                                 );
+                                // The open cell field follows its cell; its row or column deleted,
+                                // editing ends (#740).
+                                if (
+                                  move === undefined ||
+                                  editing?.id !== single.id ||
+                                  editing.cell === undefined
+                                )
+                                  return;
+                                const moved = move(editing.cell);
+                                if (moved === undefined) leaveCell();
+                                else setEditing({ ...editing, cell: moved });
                               }}
                               onCell={(cell) => {
                                 if (!composingText.current) setTableCell({ id: single.id, cell });

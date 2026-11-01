@@ -138,6 +138,9 @@ export interface SlideHistory {
   // The page the step undo takes back, and the one redo brings again, changed.
   undoPage: number | undefined;
   redoPage: number | undefined;
+  // The document undo goes back to, and the one redo brings again.
+  undoDocument: SlideDocument | undefined;
+  redoDocument: SlideDocument | undefined;
   // Starts anew from a document (after loading or saving), without steps.
   reset: (document: SlideDocument) => void;
   // Counts the steps made (apply, undo, redo, reset), not what `amend` stores; and whether the last
@@ -183,6 +186,8 @@ export function useSlideHistory(initial: SlideDocument): SlideHistory {
     canRedo: state.future.length > 0,
     undoPage: state.present.page,
     redoPage: state.future[0]?.page,
+    undoDocument: state.past.at(-1)?.document,
+    redoDocument: state.future[0]?.document,
     reset,
     step: state.step,
     merging: state.merge !== undefined,

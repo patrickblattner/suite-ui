@@ -85,6 +85,17 @@ const columnPx = (table: Table, column: number) => {
   return total === 0 ? 0 : (table.width * (table.columnWidths[column] ?? 0)) / total;
 };
 
+// Where a cell is after a row or column is inserted at `at` (`by` 1) or deleted there (`by` -1):
+// shifted with the cells behind it, or gone with the deleted one (#740).
+const moveCell =
+  (key: keyof CellAt, at: number, by: 1 | -1) =>
+  (cell: CellAt): CellAt | undefined =>
+    by === -1 && cell[key] === at
+      ? undefined
+      : cell[key] >= at
+        ? { ...cell, [key]: cell[key] + by }
+        : cell;
+
 // The table's structure and the format of its current cell in the property panel (`SUI-FEATURE-161`
 // §Tabellen): rows and columns inserted beside the current cell or deleted, its fill from the brand
 // set and its vertical alignment. The current cell is picked by its row and column, the keyboard's
@@ -105,8 +116,9 @@ export function TableFields({
   readOnly: boolean;
   // The history's travel count, for the number fields (`NumberField`).
   revision: number;
-  // Under `merge`, changes in a row are one step.
-  onChange: (next: Table, merge?: string) => void;
+  // Under `merge`, changes in a row are one step; an inserted or deleted row or column says where a
+  // cell goes with `move` (#740).
+  onChange: (next: Table, merge?: string, move?: (cell: CellAt) => CellAt | undefined) => void;
   onCell: (cell: CellAt) => void;
 }) {
   const { t } = useTranslation("suite");
@@ -123,9 +135,11 @@ export function TableFields({
     testId: string,
     disabledText?: string,
   ) => (
+    // Always given, so locking at the last row or column keeps the button mounted, locked with
+    // `aria-disabled`, and the focus on it (`GL-UI-050`, #740); unlocked it is never shown.
     <IconButtonTooltip
       label={label}
-      disabledText={readOnly ? t("slides.lockedElement") : disabledText}
+      disabledText={readOnly ? t("slides.lockedElement") : (disabledText ?? label)}
     >
       <Button
         type="button"
@@ -163,7 +177,7 @@ export function TableFields({
             t("slides.editor.tableRowAbove"),
             <BetweenHorizontalStartIcon />,
             () => {
-              onChange(insertRow(table, cell.row));
+              onChange(insertRow(table, cell.row), undefined, moveCell("row", cell.row, 1));
               onCell({ ...cell, row: cell.row + 1 });
             },
             "row-above",
@@ -172,7 +186,8 @@ export function TableFields({
           {button(
             t("slides.editor.tableRowBelow"),
             <BetweenHorizontalEndIcon />,
-            () => onChange(insertRow(table, cell.row + 1)),
+            () =>
+              onChange(insertRow(table, cell.row + 1), undefined, moveCell("row", cell.row + 1, 1)),
             "row-below",
             fullRows,
           )}
@@ -180,7 +195,7 @@ export function TableFields({
             t("slides.editor.tableDeleteRow", values),
             <Trash2Icon />,
             () => {
-              onChange(deleteRow(table, cell.row));
+              onChange(deleteRow(table, cell.row), undefined, moveCell("row", cell.row, -1));
               onCell({ ...cell, row: Math.min(cell.row, rows - 2) });
             },
             "delete-row",
@@ -191,7 +206,11 @@ export function TableFields({
             t("slides.editor.tableColumnLeft"),
             <BetweenVerticalStartIcon />,
             () => {
-              onChange(insertColumn(table, cell.column));
+              onChange(
+                insertColumn(table, cell.column),
+                undefined,
+                moveCell("column", cell.column, 1),
+              );
               onCell({ ...cell, column: cell.column + 1 });
             },
             "column-left",
@@ -200,7 +219,12 @@ export function TableFields({
           {button(
             t("slides.editor.tableColumnRight"),
             <BetweenVerticalEndIcon />,
-            () => onChange(insertColumn(table, cell.column + 1)),
+            () =>
+              onChange(
+                insertColumn(table, cell.column + 1),
+                undefined,
+                moveCell("column", cell.column + 1, 1),
+              ),
             "column-right",
             fullColumns,
           )}
@@ -208,7 +232,11 @@ export function TableFields({
             t("slides.editor.tableDeleteColumn", values),
             <Trash2Icon />,
             () => {
-              onChange(deleteColumn(table, cell.column));
+              onChange(
+                deleteColumn(table, cell.column),
+                undefined,
+                moveCell("column", cell.column, -1),
+              );
               onCell({ ...cell, column: Math.min(cell.column, columns - 2) });
             },
             "delete-column",
