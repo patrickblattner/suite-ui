@@ -74,15 +74,6 @@ type MediaDetailShellProps = MediaDetailSource & {
   previewDetail?: string;
   // The text alternative of the preview: `alt` of an image, the name of a video, audio or PDF frame.
   alt?: string;
-  // Unsaved changes against the loaded state: Reset and Save unlock, and paging or closing asks first.
-  dirty: boolean;
-  // The save runs: Save carries the working state, and nothing pages or closes.
-  saving: boolean;
-  // Returning `true` (or a promise of it) reports a successful save: Save in the leave dialog then
-  // carries out the held paging or close.
-  onSave: () => unknown;
-  // Brings back the last saved state, without asking.
-  onReset: () => void;
   // Given, the head carries "Choose this media item" (the picker); locked while `previewState` says
   // the entry has no file.
   pickAction?: () => void;
@@ -98,7 +89,34 @@ type MediaDetailShellProps = MediaDetailSource & {
   // preview head, before "Used by"; its name and hint read "‹label› ‹rowName›". Not shown with
   // `pickAction` (rev 6).
   step?: RowAction & { rowName: string };
-};
+} & MediaDetailMode;
+
+// `edit` (the default) carries the Reset/Save footer and the dirty guard. `view` (a role that may only
+// look at media, `GL-UI-032`; as `EditPanel` `mode="view"`) has neither: paging, closing and picking
+// never ask, and `dirty`, `saving`, `onSave` and `onReset` are optional and not read
+// (`SUI-FEATURE-061` rev 4).
+type MediaDetailMode =
+  | {
+      // With all four given, a mode decided at run time (`can ? "edit" : "view"`) compiles too.
+      mode?: "edit" | "view";
+      // Unsaved changes against the loaded state: Reset and Save unlock, and paging or closing asks
+      // first.
+      dirty: boolean;
+      // The save runs: Save carries the working state, and nothing pages or closes.
+      saving: boolean;
+      // Returning `true` (or a promise of it) reports a successful save: Save in the leave dialog then
+      // carries out the held paging or close.
+      onSave: () => unknown;
+      // Brings back the last saved state, without asking.
+      onReset: () => void;
+    }
+  | {
+      mode: "view";
+      dirty?: boolean;
+      saving?: boolean;
+      onSave?: () => unknown;
+      onReset?: () => void;
+    };
 
 // Keys that belong to the focused control, not to paging.
 const OWN_ARROWS =
@@ -343,9 +361,11 @@ const SLOTS = ["facts", "fields", "suggest", "actions"] as const;
 // stacks on top. The footer carries Reset and Save as the dirty-state pair (`GL-UI-027`). ← and →
 // page, `Esc` closes; with unsaved changes both ask first (`GL-UI-007`). A `previewState` takes the
 // preview's place with icon and sentence, and without a file locks the pick; a text medium shows in
-// its own scroll region, in the base family (`SUI-FEATURE-140`).
+// its own scroll region, in the base family (`SUI-FEATURE-140`). `mode="view"` drops the footer and
+// the guard (`SUI-FEATURE-061` rev 4).
 function MediaDetailShell({
   open = true,
+  mode,
   position,
   total,
   recordKey,
@@ -359,8 +379,8 @@ function MediaDetailShell({
   previewState: givenState,
   previewDetail,
   alt = "",
-  dirty,
-  saving,
+  dirty: dirtyProp,
+  saving: savingProp,
   onSave,
   onReset,
   pickAction,
@@ -369,6 +389,10 @@ function MediaDetailShell({
   ...slots
 }: MediaDetailShellProps) {
   const { t } = useTranslation("suite");
+  const view = mode === "view";
+  // Not read in `view`: nothing there is unsaved or saving.
+  const dirty = !view && dirtyProp === true;
+  const saving = !view && savingProp === true;
   const headButtons = useRowActionButtons(
     {
       rowName: step?.rowName ?? "",
@@ -427,7 +451,7 @@ function MediaDetailShell({
     };
     let result: unknown;
     try {
-      result = dirty ? onSave() : false;
+      result = dirty ? onSave?.() : false;
     } catch (error) {
       failed();
       throw error;
@@ -440,8 +464,9 @@ function MediaDetailShell({
   const { guard, dialog } = useLeaveConfirm({
     dirty: open && dirty,
     busy: open && saving,
-    onSave: attempt,
-    fieldDrafts,
+    onSave: view ? undefined : attempt,
+    // A field's typed entry asks nothing in `view` either.
+    fieldDrafts: view ? undefined : fieldDrafts,
   });
   // A submit with a field's entry takes it over first and saves once the call site has rendered with
   // it, so `onSave` reads the value including it, as the leave dialog's Save does.
@@ -475,6 +500,185 @@ function MediaDetailShell({
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [open, guard, onClose]);
+
+  // The split and the footer: in a form for `edit`, in a plain `div` for `view`.
+  const body = (
+    <>
+      <div data-slot="media-detail-split" className="@container min-h-0 flex-1">
+        <div
+          data-testid="media-detail-body"
+          className="relative flex h-full scroll-py-2 flex-col gap-6 overflow-y-auto p-6 [scrollbar-gutter:stable] @panel-split:grid @panel-split:grid-cols-[minmax(0,3fr)_minmax(20rem,2fr)] @panel-split:overflow-hidden @panel-split:pe-0 @panel-split:[scrollbar-gutter:auto]"
+        >
+          <div
+            data-slot="media-detail-preview-column"
+            className="flex shrink-0 flex-col gap-2 @panel-split:min-h-0"
+          >
+            <div
+              data-slot="media-detail-head"
+              data-tooltip-row=""
+              className="flex items-center gap-1"
+            >
+              <IconButtonTooltip label={t("pager.previous")}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-disabled={first || undefined}
+                  onClick={previous}
+                  data-testid="media-detail-previous"
+                >
+                  <ChevronLeftIcon aria-hidden="true" />
+                </Button>
+              </IconButtonTooltip>
+              <IconButtonTooltip label={t("pager.next")}>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  aria-disabled={last || undefined}
+                  onClick={next}
+                  data-testid="media-detail-next"
+                >
+                  <ChevronRightIcon aria-hidden="true" />
+                </Button>
+              </IconButtonTooltip>
+              {/* A change of position is announced politely (`SUI-FEATURE-052`). */}
+              <span
+                role="status"
+                className="text-sm text-muted-foreground tabular-nums"
+                data-testid="media-detail-position"
+              >
+                {t("media.position", { n: position, total })}
+              </span>
+              <div className="ms-auto flex items-center gap-2">
+                {headButtons.step}
+                {usageButtons.extra}
+                {pickAction !== undefined && (
+                  <span ref={pickSlot} className="contents">
+                    <PickButton
+                      // Picking leaves the medium: with unsaved changes the guard asks
+                      // first, as paging and closing do (`GL-UI-007`, `SUI-FEATURE-085`).
+                      onClick={() => guard(pickAction)}
+                      locked={previewState === "missingRef" || previewState === "missingBytes"}
+                    />
+                  </span>
+                )}
+                <IconButtonTooltip label={t("actions.close")}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    disabled={saving}
+                    onClick={() => guard(onClose)}
+                    data-testid="media-detail-close"
+                  >
+                    <XIcon aria-hidden="true" />
+                  </Button>
+                </IconButtonTooltip>
+              </div>
+            </div>
+            <div
+              ref={preview}
+              data-slot="media-detail-preview"
+              data-testid="media-detail-preview"
+              data-kind={kind}
+              data-state={previewState}
+              hidden={showUsage}
+              className="flex h-[45vh] shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted [--surface:var(--muted)] @panel-split:h-auto @panel-split:min-h-0 @panel-split:flex-1"
+            >
+              {previewState !== undefined ? (
+                <PreviewState state={previewState} detail={previewDetail} />
+              ) : (
+                // Keyed by the position: a new medium starts fresh, its scroll at the top.
+                <MediaPreview
+                  key={position}
+                  kind={kind}
+                  src={src}
+                  text={text}
+                  format={format}
+                  alt={alt}
+                />
+              )}
+            </div>
+            {showUsage ? (
+              <div
+                data-slot="media-detail-usage"
+                data-testid="media-detail-usage"
+                className="h-[45vh] shrink-0 overflow-hidden rounded-md border @panel-split:h-auto @panel-split:min-h-0 @panel-split:flex-1"
+              >
+                {usage.content}
+              </div>
+            ) : null}
+          </div>
+          <div
+            data-slot="media-detail-details"
+            className="relative flex flex-col gap-6 @panel-split:-my-1.5 @panel-split:-ms-1.5 @panel-split:min-h-0 @panel-split:scroll-py-2 @panel-split:overflow-y-auto @panel-split:py-1.5 @panel-split:ps-1.5 @panel-split:pe-[var(--page-gutter)] @panel-split:[scrollbar-gutter:stable]"
+          >
+            <SheetTitle className="text-lg leading-none">{t("media.details")}</SheetTitle>
+            {SLOTS.map((slot) =>
+              slots[slot] === undefined ? null : (
+                <div key={slot} data-slot={`media-detail-${slot}`}>
+                  <FieldSubmitContext.Provider value={submits}>
+                    <FieldSubmitEndContext.Provider value={submitEnds}>
+                      <FieldDraftsContext.Provider value={fieldDrafts}>
+                        {slots[slot]}
+                      </FieldDraftsContext.Provider>
+                    </FieldSubmitEndContext.Provider>
+                  </FieldSubmitContext.Provider>
+                </div>
+              ),
+            )}
+          </div>
+        </div>
+      </div>
+      {!view && (
+        <div
+          data-slot="media-detail-footer"
+          data-focus-group=""
+          data-tooltip-row=""
+          className="flex shrink-0 flex-row items-center justify-end gap-2 border-t px-6 py-4"
+        >
+          <Button
+            type="button"
+            variant="destructive"
+            size="default"
+            disabled={!changed || saving}
+            // Keeps the focus in the field, so its blur does not take a typed tag over (and
+            // announce it) just before Reset drops it.
+            onMouseDown={(event) => {
+              if (hasFieldDrafts) event.preventDefault();
+            }}
+            onClick={() => {
+              fieldDrafts.discard();
+              // Reset discards to the saved values: the submit state ends (`GL-UI-038` rev 4).
+              endSubmits();
+              onReset?.();
+            }}
+            data-testid="media-detail-reset"
+          >
+            <RotateCcwIcon aria-hidden="true" />
+            {t("actions.reset")}
+          </Button>
+          {/* Locked with `aria-disabled`, not `disabled`, when there is nothing to save: it keeps
+                  the focus after a save (`SUI-FEATURE-085`) and looks locked by half-tone colours;
+                  the form's submit saves only while dirty. */}
+          <Hint text={t("media.saveHint")} disabledText={t("media.saveCleanHint")}>
+            <Button
+              type="submit"
+              variant="success"
+              size="default"
+              {...(changed ? {} : { "aria-disabled": true })}
+              busy={saving}
+              data-testid="media-detail-save"
+            >
+              <SaveIcon aria-hidden="true" />
+              {t("actions.save")}
+            </Button>
+          </Hint>
+        </div>
+      )}
+    </>
+  );
 
   const sheet = (
     <Sheet
@@ -533,195 +737,28 @@ function MediaDetailShell({
           }}
         >
           <CompositionTabBoundary>
-            {/* Validation belongs to the call site (`GL-UI-027`); Enter in a field saves. */}
-            <form
-              ref={form}
-              noValidate
-              className="flex min-h-0 flex-1 flex-col"
-              onSubmit={(event) => {
-                event.preventDefault();
-                if (saving) return;
-                if (fieldDrafts.any()) {
-                  fieldDrafts.flush();
-                  flushedSave.current = true;
-                  setFlushes((count) => count + 1);
-                } else void attempt();
-              }}
-            >
-              <div data-slot="media-detail-split" className="@container min-h-0 flex-1">
-                <div
-                  data-testid="media-detail-body"
-                  className="relative flex h-full scroll-py-2 flex-col gap-6 overflow-y-auto p-6 [scrollbar-gutter:stable] @panel-split:grid @panel-split:grid-cols-[minmax(0,3fr)_minmax(20rem,2fr)] @panel-split:overflow-hidden @panel-split:pe-0 @panel-split:[scrollbar-gutter:auto]"
-                >
-                  <div
-                    data-slot="media-detail-preview-column"
-                    className="flex shrink-0 flex-col gap-2 @panel-split:min-h-0"
-                  >
-                    <div
-                      data-slot="media-detail-head"
-                      data-tooltip-row=""
-                      className="flex items-center gap-1"
-                    >
-                      <IconButtonTooltip label={t("pager.previous")}>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-disabled={first || undefined}
-                          onClick={previous}
-                          data-testid="media-detail-previous"
-                        >
-                          <ChevronLeftIcon aria-hidden="true" />
-                        </Button>
-                      </IconButtonTooltip>
-                      <IconButtonTooltip label={t("pager.next")}>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-sm"
-                          aria-disabled={last || undefined}
-                          onClick={next}
-                          data-testid="media-detail-next"
-                        >
-                          <ChevronRightIcon aria-hidden="true" />
-                        </Button>
-                      </IconButtonTooltip>
-                      {/* A change of position is announced politely (`SUI-FEATURE-052`). */}
-                      <span
-                        role="status"
-                        className="text-sm text-muted-foreground tabular-nums"
-                        data-testid="media-detail-position"
-                      >
-                        {t("media.position", { n: position, total })}
-                      </span>
-                      <div className="ms-auto flex items-center gap-2">
-                        {headButtons.step}
-                        {usageButtons.extra}
-                        {pickAction !== undefined && (
-                          <span ref={pickSlot} className="contents">
-                            <PickButton
-                              // Picking leaves the medium: with unsaved changes the guard asks
-                              // first, as paging and closing do (`GL-UI-007`, `SUI-FEATURE-085`).
-                              onClick={() => guard(pickAction)}
-                              locked={
-                                previewState === "missingRef" || previewState === "missingBytes"
-                              }
-                            />
-                          </span>
-                        )}
-                        <IconButtonTooltip label={t("actions.close")}>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon-sm"
-                            disabled={saving}
-                            onClick={() => guard(onClose)}
-                            data-testid="media-detail-close"
-                          >
-                            <XIcon aria-hidden="true" />
-                          </Button>
-                        </IconButtonTooltip>
-                      </div>
-                    </div>
-                    <div
-                      ref={preview}
-                      data-slot="media-detail-preview"
-                      data-testid="media-detail-preview"
-                      data-kind={kind}
-                      data-state={previewState}
-                      hidden={showUsage}
-                      className="flex h-[45vh] shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted [--surface:var(--muted)] @panel-split:h-auto @panel-split:min-h-0 @panel-split:flex-1"
-                    >
-                      {previewState !== undefined ? (
-                        <PreviewState state={previewState} detail={previewDetail} />
-                      ) : (
-                        // Keyed by the position: a new medium starts fresh, its scroll at the top.
-                        <MediaPreview
-                          key={position}
-                          kind={kind}
-                          src={src}
-                          text={text}
-                          format={format}
-                          alt={alt}
-                        />
-                      )}
-                    </div>
-                    {showUsage ? (
-                      <div
-                        data-slot="media-detail-usage"
-                        data-testid="media-detail-usage"
-                        className="h-[45vh] shrink-0 overflow-hidden rounded-md border @panel-split:h-auto @panel-split:min-h-0 @panel-split:flex-1"
-                      >
-                        {usage.content}
-                      </div>
-                    ) : null}
-                  </div>
-                  <div
-                    data-slot="media-detail-details"
-                    className="relative flex flex-col gap-6 @panel-split:-my-1.5 @panel-split:-ms-1.5 @panel-split:min-h-0 @panel-split:scroll-py-2 @panel-split:overflow-y-auto @panel-split:py-1.5 @panel-split:ps-1.5 @panel-split:pe-[var(--page-gutter)] @panel-split:[scrollbar-gutter:stable]"
-                  >
-                    <SheetTitle className="text-lg leading-none">{t("media.details")}</SheetTitle>
-                    {SLOTS.map((slot) =>
-                      slots[slot] === undefined ? null : (
-                        <div key={slot} data-slot={`media-detail-${slot}`}>
-                          <FieldSubmitContext.Provider value={submits}>
-                            <FieldSubmitEndContext.Provider value={submitEnds}>
-                              <FieldDraftsContext.Provider value={fieldDrafts}>
-                                {slots[slot]}
-                              </FieldDraftsContext.Provider>
-                            </FieldSubmitEndContext.Provider>
-                          </FieldSubmitContext.Provider>
-                        </div>
-                      ),
-                    )}
-                  </div>
-                </div>
-              </div>
-              <div
-                data-slot="media-detail-footer"
-                data-focus-group=""
-                data-tooltip-row=""
-                className="flex shrink-0 flex-row items-center justify-end gap-2 border-t px-6 py-4"
+            {/* Validation belongs to the call site (`GL-UI-027`); Enter in a field saves. A `view`
+              shell has nothing to submit and so no form, as `EditPanel` (`SUI-FEATURE-061` rev 4). */}
+            {view ? (
+              <div className="flex min-h-0 flex-1 flex-col">{body}</div>
+            ) : (
+              <form
+                ref={form}
+                noValidate
+                className="flex min-h-0 flex-1 flex-col"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  if (saving) return;
+                  if (fieldDrafts.any()) {
+                    fieldDrafts.flush();
+                    flushedSave.current = true;
+                    setFlushes((count) => count + 1);
+                  } else void attempt();
+                }}
               >
-                <Button
-                  type="button"
-                  variant="destructive"
-                  size="default"
-                  disabled={!changed || saving}
-                  // Keeps the focus in the field, so its blur does not take a typed tag over (and
-                  // announce it) just before Reset drops it.
-                  onMouseDown={(event) => {
-                    if (hasFieldDrafts) event.preventDefault();
-                  }}
-                  onClick={() => {
-                    fieldDrafts.discard();
-                    // Reset discards to the saved values: the submit state ends (`GL-UI-038` rev 4).
-                    endSubmits();
-                    onReset();
-                  }}
-                  data-testid="media-detail-reset"
-                >
-                  <RotateCcwIcon aria-hidden="true" />
-                  {t("actions.reset")}
-                </Button>
-                {/* Locked with `aria-disabled`, not `disabled`, when there is nothing to save: it keeps
-                  the focus after a save (`SUI-FEATURE-085`) and looks locked by half-tone colours;
-                  the form's submit saves only while dirty. */}
-                <Hint text={t("media.saveHint")} disabledText={t("media.saveCleanHint")}>
-                  <Button
-                    type="submit"
-                    variant="success"
-                    size="default"
-                    {...(changed ? {} : { "aria-disabled": true })}
-                    busy={saving}
-                    data-testid="media-detail-save"
-                  >
-                    <SaveIcon aria-hidden="true" />
-                    {t("actions.save")}
-                  </Button>
-                </Hint>
-              </div>
-            </form>
+                {body}
+              </form>
+            )}
           </CompositionTabBoundary>
         </SheetPrimitive.Content>
       </SheetPrimitive.Portal>
@@ -786,6 +823,7 @@ export {
   type MediaDetailKind,
   type MediaDetailSource,
   type MediaPreviewState,
+  type MediaDetailMode,
   MediaDetailShell,
   type MediaDetailShellProps,
   type MediaUsage,

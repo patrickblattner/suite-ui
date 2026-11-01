@@ -122,6 +122,9 @@ const LABELS = {
 // `?step=1` gives the media detail shell its next lifecycle step (`SUI-FEATURE-330`), outside pick
 // mode: with `pickAction` the shell shows no step (rev 6).
 const STEP = new URLSearchParams(window.location.search).get("step") === "1";
+// `?mediaView=1` opens the media detail shell in its view mode (`SUI-FEATURE-061` rev 4): no
+// Reset/Save footer, the name read-only.
+const MEDIA_VIEW = new URLSearchParams(window.location.search).get("mediaView") === "1";
 const FIELDS = Array.from({ length: 24 }, (_, index) => `Field ${index + 1}`);
 
 // `SUI-FEATURE-093` (#264): a record picker in a panel creates a missing contact in the compact
@@ -678,6 +681,7 @@ function Demo() {
       {/* SUI-FEATURE-061: the media detail shell; Save works for 1.5 s. */}
       {shellMedium !== undefined && shell !== null && (
         <MediaDetailShell
+          mode={MEDIA_VIEW ? "view" : "edit"}
           position={shell + 1}
           total={shellMedia.length}
           onPrev={() => {
@@ -725,6 +729,7 @@ function Demo() {
               <Label htmlFor="shell-name">Name</Label>
               <Input
                 id="shell-name"
+                readOnly={MEDIA_VIEW}
                 value={shellName}
                 onChange={(event) => setShellName(event.target.value)}
               />

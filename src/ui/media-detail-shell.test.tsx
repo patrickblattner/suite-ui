@@ -16,6 +16,7 @@ import {
   MediaUsageList,
 } from "./media-detail-shell.js";
 import { TagInput } from "./tag-input.js";
+import { stableIds } from "./test-utils.js";
 
 afterEach(async () => {
   cleanup();
@@ -1511,5 +1512,163 @@ describe("MediaDetailShell composition", () => {
     expect(onClose).not.toHaveBeenCalled();
     fireEvent.keyDown(name, { key: "Escape" });
     expect(onClose).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("MediaDetailShell: view mode (SUI-FEATURE-061 rev 4)", () => {
+  const stableHtml = () => stableIds(document.body.innerHTML);
+
+  // Everything but the four edit props.
+  const shared = {
+    position: 3,
+    total: 65,
+    kind: "image",
+    src: "/media/team-photo.jpg",
+    alt: "team-photo.jpg",
+    onPrev: () => {},
+    onNext: () => {},
+    onClose: () => {},
+    pickAction: () => {},
+    fields: <Input aria-label="Name" />,
+  } as const;
+  const edit = {
+    ...shared,
+    dirty: true,
+    saving: false,
+    onSave: () => {},
+    onReset: () => {},
+  } as const;
+
+  // AC 8: without `mode` the output is byte-identical to the version before the view mode; the
+  // snapshot was recorded on that version.
+  it("without mode the output is byte-identical to the previous version", () => {
+    render(<MediaDetailShell {...edit} />);
+    expect(stableHtml()).toMatchSnapshot();
+  });
+
+  it('mode="edit" renders exactly as without mode', () => {
+    render(<MediaDetailShell {...edit} />);
+    const without = stableHtml();
+    cleanup();
+    render(<MediaDetailShell {...edit} mode="edit" />);
+    expect(stableHtml()).toBe(without);
+  });
+
+  // AC 8: the four edit props are required only in `edit`.
+  it("view compiles without dirty, saving, onSave and onReset; edit still requires them", () => {
+    const runtime = shared.position > 1 ? "view" : "edit";
+    const shells = [
+      <MediaDetailShell key="view" {...shared} mode="view" />,
+      <MediaDetailShell key="view-all" {...edit} mode="view" />,
+      // A mode decided at run time compiles with all four given.
+      <MediaDetailShell key="runtime" {...edit} mode={runtime} />,
+      // @ts-expect-error edit (the default) needs dirty, saving, onSave and onReset
+      <MediaDetailShell key="default" {...shared} />,
+      // @ts-expect-error edit needs dirty, saving, onSave and onReset
+      <MediaDetailShell key="edit" {...shared} mode="edit" />,
+      // @ts-expect-error edit needs onSave
+      <MediaDetailShell
+        key="no-save"
+        {...shared}
+        dirty={false}
+        saving={false}
+        onReset={() => {}}
+      />,
+    ];
+    expect(shells).toHaveLength(6);
+  });
+
+  function renderView(props: Partial<React.ComponentProps<typeof MediaDetailShell>> = {}) {
+    const handlers = {
+      onPrev: vi.fn(),
+      onNext: vi.fn(),
+      onClose: vi.fn(),
+      pickAction: vi.fn(),
+    };
+    render(
+      <MemoryRouter>
+        <MediaDetailShell
+          mode="view"
+          position={3}
+          total={65}
+          kind="image"
+          src="/media/team-photo.jpg"
+          alt="team-photo.jpg"
+          {...handlers}
+          {...(props as object)}
+        />
+      </MemoryRouter>,
+    );
+    return handlers;
+  }
+
+  it("view: no Reset/Save footer; head, preview and details stay", () => {
+    renderView({ fields: <Input aria-label="Name" readOnly /> });
+    expect(panel().querySelector("[data-slot=media-detail-footer]")).toBeNull();
+    expect(screen.queryByTestId("media-detail-reset")).toBeNull();
+    expect(screen.queryByTestId("media-detail-save")).toBeNull();
+    expect(screen.getByTestId("media-detail-position")).toHaveTextContent("3 of 65");
+    expect(screen.getByTestId("media-detail-preview").querySelector("img")).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "Details" })).toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Name" })).toBeInTheDocument();
+  });
+
+  it("view renders no form and no submit state; edit keeps its form", () => {
+    renderView({ fields: <Input aria-label="Name" readOnly /> });
+    expect(panel().querySelector("form")).toBeNull();
+    cleanup();
+    render(<MediaDetailShell {...edit} />);
+    expect(panel().querySelector("form")).not.toBeNull();
+  });
+
+  it("view: paging, closing and picking never ask, even with dirty passed", () => {
+    const { onPrev, onNext, onClose, pickAction } = renderView({ dirty: true, saving: false });
+    fireEvent.keyDown(panel(), { key: "ArrowRight" });
+    fireEvent.keyDown(panel(), { key: "ArrowLeft" });
+    fireEvent.click(screen.getByTestId("media-detail-next"));
+    fireEvent.click(screen.getByTestId("media-detail-previous"));
+    expect(onNext).toHaveBeenCalledTimes(2);
+    expect(onPrev).toHaveBeenCalledTimes(2);
+    fireEvent.click(screen.getByTestId("media-detail-pick"));
+    expect(pickAction).toHaveBeenCalledTimes(1);
+    fireEvent.keyDown(panel(), { key: "Escape" });
+    fireEvent.click(screen.getByTestId("media-detail-close"));
+    expect(onClose).toHaveBeenCalledTimes(2);
+    expect(screen.queryByTestId("leave-guard")).toBeNull();
+  });
+
+  it("view: saving is not read, Close stays usable", () => {
+    const { onClose } = renderView({ saving: true });
+    expect(screen.getByTestId("media-detail-close")).toBeEnabled();
+    fireEvent.click(screen.getByTestId("media-detail-close"));
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("view: a typed tag neither asks on leaving nor saves on Enter", () => {
+    const onSave = vi.fn();
+    const { onClose } = renderView({
+      onSave,
+      fields: <TagInput value={[]} onChange={() => {}} />,
+    });
+    const field = screen.getByTestId("tag-input-input");
+    fireEvent.change(field, { target: { value: "draft" } });
+    fireEvent.keyDown(field, { key: "Enter" });
+    expect(onSave).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("media-detail-close"));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId("leave-guard")).toBeNull();
+  });
+
+  it('view: "Used by" and "Used in" work', () => {
+    const onToggle = vi.fn();
+    renderView({
+      usage: { count: 2, active: false, onToggle, content: <p>usages</p> },
+      actions: (
+        <MediaUsageList items={[{ id: "1", title: "Home", to: "/pages/1", language: "de" }]} />
+      ),
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Used by (2)" }));
+    expect(onToggle).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute("href", "/pages/1");
   });
 });

@@ -3918,6 +3918,26 @@ test("media detail shell: image, video and PDF, paged by the head and the arrow 
   await expect(shell).toBeHidden();
 });
 
+// `SUI-FEATURE-061` rev 4 AC 8: in view mode the shell has no Reset/Save footer; the head pages,
+// "Used by" opens, and Esc closes without asking.
+test("media detail shell in view mode: no footer, paging and closing never ask", async ({
+  page,
+}) => {
+  const shell = await openMediaDetail(page, "&mediaView=1");
+  await expect(shell.locator("[data-slot=media-detail-footer]")).toHaveCount(0);
+  await expect(shell.getByTestId("media-detail-save")).toHaveCount(0);
+  await expect(shell.getByLabel("Name")).toHaveAttribute("readonly", "");
+  await shell.getByRole("button", { name: "Used by (1)" }).click();
+  await expect(shell.getByTestId("media-detail-usage")).toBeVisible();
+  await shell.getByRole("button", { name: "Used by (1)" }).click();
+  await shell.getByTestId("media-detail-next").click();
+  await expect(shell.getByTestId("media-detail-position")).toHaveText("2 of 3");
+  await expect(shell.getByTestId("media-detail-pick")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(shell).toBeHidden();
+  await expect(page.getByTestId("leave-guard")).toHaveCount(0);
+});
+
 // `SUI-FEATURE-140` rev 4: plain text, JSON indented, the three preview states, then an empty text;
 // paging and the details stay in place, paging from the focused text region keeps working, and the
 // pick is locked with its reason exactly while the entry has no file.

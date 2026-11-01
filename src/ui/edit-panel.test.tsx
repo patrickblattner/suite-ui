@@ -9,6 +9,7 @@ import { EditPanel, type EditPanelProps } from "./edit-panel.js";
 import { Field } from "./field.js";
 import { Input } from "./input.js";
 import { TagInput } from "./tag-input.js";
+import { stableIds } from "./test-utils.js";
 
 afterEach(async () => {
   localStorage.clear();
@@ -474,14 +475,7 @@ describe("EditPanel", () => {
     "footer without showDisabledReason unchanged: %s",
     (_, props) => {
       renderPanel(props);
-      // React's ids count across the file, so they are numbered by first appearance.
-      const ids = new Map<string, string>();
-      const html = document
-        .querySelector('[data-slot="edit-panel-footer"]')!
-        .outerHTML.replace(/_r_[0-9a-z]+_/g, (id) => {
-          if (!ids.has(id)) ids.set(id, `id${ids.size + 1}`);
-          return ids.get(id)!;
-        });
+      const html = stableIds(document.querySelector('[data-slot="edit-panel-footer"]')!.outerHTML);
       expect(html).toMatchSnapshot();
     },
   );
