@@ -27,7 +27,8 @@ type CropAxis = "offsetX" | "offsetY";
 // through (100 on the way to 1000) leaves no trace in the shift (#495). A step by its arrow keys (held
 // auto-repeat included) zooms from the crop as it is, and leaving it or Enter ends the typing; so
 // does leaving the fields, or a crop changed elsewhere (Undo, the wheel, the slider, a shift): the
-// next typing starts from the crop then, never from an older one (#495, #500, #502).
+// next typing starts from the crop then, never from an older one (#495, #500, #502). A changed
+// `zoomRevision` ends it too, even where history brought back the very crop the typing set (#769).
 export function CropFields({
   id,
   testId,
@@ -58,14 +59,19 @@ export function CropFields({
   const [zoomInvalid, setZoomInvalid] = React.useState<DecimalInvalid | null>(null);
   // Whether the % field's keydown is an arrow step, marked before the field steps.
   const stepping = React.useRef(false);
-  // The crop the % field's typing started from and the crop it set last.
-  const typing = React.useRef<{ from: ImageCrop; set: ImageCrop } | undefined>(undefined);
+  // The crop the % field's typing started from, the crop it set last and the revision it set it in.
+  const typing = React.useRef<
+    { from: ImageCrop; set: ImageCrop; revision: number | string } | undefined
+  >(undefined);
   const zoomTyped = (zoom: number, ends = false) => {
     const stepped = !ends && stepping.current;
     const run = typing.current;
-    const from = stepped || run === undefined || !sameCrop(run.set, crop) ? crop : run.from;
+    const from =
+      stepped || run === undefined || run.revision !== zoomRevision || !sameCrop(run.set, crop)
+        ? crop
+        : run.from;
     const next = zoomCrop(width, height, from, zoom / from.zoom, natural);
-    typing.current = ends || stepped ? undefined : { from, set: next };
+    typing.current = ends || stepped ? undefined : { from, set: next, revision: zoomRevision };
     onCrop(next, "percent");
   };
   const number = new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 2 });

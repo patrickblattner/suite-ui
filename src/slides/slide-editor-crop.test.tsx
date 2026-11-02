@@ -296,6 +296,27 @@ describe("SlideEditor crop mode (SUI-FEATURE-230 rev 4)", () => {
     expect(offsetX).toHaveValue("0");
   });
 
+  // #769 CX1 guard: an image's crop cannot take the background's path (Undo, Redo, typing on) — Redo
+  // stays locked while cropping and Undo ends cropping, so a typing never outlives either.
+  it("guards against the Undo/Redo typing path: Redo locked while cropping, Undo ends it", () => {
+    renderEditor();
+    startCrop();
+    loadRest({ width: 160, height: 100 });
+    setZoom("300");
+    const offsetX = () => screen.getByTestId<HTMLInputElement>("slide-editor-crop-offsetX");
+    fireEvent.change(offsetX(), { target: { value: "100" } });
+    fireEvent.blur(offsetX(), { relatedTarget: percent() });
+    fireEvent.change(percent(), { target: { value: "100" } });
+    expect(screen.getAllByTestId("editor-redo")[0]).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(screen.getAllByTestId("editor-undo")[0]!);
+    expect(canvas()).not.toHaveAttribute("data-cropping");
+    fireEvent.keyDown(canvas(), { key: "Enter" });
+    fireEvent.change(percent(), { target: { value: "200" } });
+    expect(slider()).toHaveAttribute("aria-valuetext", "200%");
+    // From 100 %: no shift; from the typing's 300 % it would be 100 × 200 / 300.
+    expect(offsetX()).toHaveValue("0");
+  });
+
   // #502: an arrow key in the % field whose keyup never reaches it leaves no step mark once focus
   // leaves, so a later paste counts as typing and zooms from the crop it started with.
   it("counts a paste as typing after an arrow key left the % field without its keyup", () => {

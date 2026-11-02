@@ -164,6 +164,25 @@ describe("SlideEditor background image", () => {
     expect(offset("X")).toHaveValue("-960");
   });
 
+  // #769 CX1: Undo and Redo bring back the crop the typing set last, the % field keeping the focus;
+  // the next typing starts from that crop, never from the one the earlier typing began at.
+  it("restarts the typing after Undo and Redo", async () => {
+    renderEditor(image({ zoom: 1.5, offsetX: -200, offsetY: 0 }));
+    await loaded();
+    fireEvent.change(percent(), { target: { value: "100" } });
+    fireEvent.click(screen.getAllByTestId("editor-undo")[0]!);
+    expect(offset("X")).toHaveValue("-200");
+    fireEvent.click(screen.getAllByTestId("editor-redo")[0]!);
+    expect(offset("X")).toHaveValue("0");
+    // 200 % from 100 %: still centred; from the typing's 150 % it would be −266.67.
+    fireEvent.change(percent(), { target: { value: "200" } });
+    expect(within(section()).getByRole("slider", { name: "Zoom" })).toHaveAttribute(
+      "aria-valuetext",
+      "200%",
+    );
+    expect(offset("X")).toHaveValue("0");
+  });
+
   it("flips the background with a toggle whose label stays", () => {
     const { stored } = renderEditor(image({ zoom: 1.5, offsetX: -120, offsetY: 40 }));
     const flip = screen.getByTestId("slide-editor-background-flip");
