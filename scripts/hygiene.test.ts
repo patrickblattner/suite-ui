@@ -17,6 +17,8 @@ import {
   semgrepVerdict,
   sizeVerdict,
   trivyCounts,
+  trivyArgs,
+  trivyDevOnly,
   Unreadable,
   type SizeLines,
 } from "./hygiene";
@@ -106,6 +108,41 @@ describe("hygiene tool counts", () => {
   it("counts Trivy vulnerabilities across targets", () => {
     const report = { Results: [{ Vulnerabilities: [{}, {}] }, { Vulnerabilities: null }, {}] };
     expect(trivyCounts(report)).toEqual({ "trivy.fixable-high-or-critical": 2 });
+  });
+
+  it("counts Trivy devDependency findings separately from production", () => {
+    const finding = (PkgName: string, VulnerabilityID: string) => ({
+      PkgName,
+      InstalledVersion: "1.0.0",
+      VulnerabilityID,
+    });
+    const production = {
+      Results: [{ Target: "package-lock.json", Vulnerabilities: [finding("a", "CVE-1")] }],
+    };
+    const withDev = {
+      Results: [
+        {
+          Target: "package-lock.json",
+          Vulnerabilities: [
+            finding("a", "CVE-1"),
+            finding("vite", "CVE-2"),
+            finding("vite", "CVE-3"),
+          ],
+        },
+      ],
+    };
+    expect(trivyCounts(production)).toEqual({ "trivy.fixable-high-or-critical": 1 });
+    expect(trivyDevOnly(production, withDev)).toBe(2);
+    expect(trivyDevOnly({ Results: [] }, withDev)).toBe(3);
+  });
+
+  // GL-CODE-003: the gate scans production only; --include-dev-deps belongs to the inventory.
+  it("passes --include-dev-deps to Trivy only for the inventory's devDependency scan", () => {
+    const gate = trivyArgs(false);
+    const dev = trivyArgs(true);
+    expect(gate).not.toContain("--include-dev-deps");
+    expect(dev).toContain("--include-dev-deps");
+    expect(dev.filter((arg) => arg !== "--include-dev-deps")).toEqual(gate);
   });
 
   it("counts knip issues of every type, not the file or its owners", () => {

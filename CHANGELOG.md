@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — #774: `hygiene:inventory` also scans devDependencies with Trivy and counts them separately; the gate stays on production (GL-CODE-003, SUI-FEATURE-128) (minor)
+
+- **Added (#774, GL-CODE-003 rev 2, SUI-FEATURE-128 rev 4):** `npm run hygiene:inventory` additionally runs Trivy `fs --include-dev-deps` with the same flags and ignore file (`.spec-sync/hygiene/trivy-dev-deps.json`) and names the fixable HIGH/CRITICAL count for production and for devDependencies separately; the devDependency count is written to `summary.json` as `trivyDevDependencies`, outside `counts`, so it never becomes a `quality-baseline.json` ratchet entry.
+- **Unchanged (#774, GL-CODE-003):** the gate phase `hygiene` scans production dependencies only, never with `--include-dev-deps`; its log line says so. A devDependency-only finding never turns the gate red.
+- **Tests (#774):** unit — `trivyDevOnly` counts the findings of the `--include-dev-deps` scan that the production scan lacks as devDependencies, separately from production; `trivyArgs` never passes `--include-dev-deps` for the gate's scan and does for the inventory's devDependency scan.
+
 ## 0.213.5 — #772: a cropped, flipped image element is cropped first, then flipped about its frame, also in crop mode (GL-UI-035, SUI-DESIGN-002) (patch)
 
 - **Fixed (#772, GL-UI-035 rev 5, SUI-DESIGN-002 rev 10):** `SlideView` flips an image element about its frame's centre instead of the image's own, as it does the page background: with a crop and `flipped`, the frame shows the cropped section, mirrored. Before, a shifted crop showed a different section once flipped. The export draws through `SlideView` and follows.

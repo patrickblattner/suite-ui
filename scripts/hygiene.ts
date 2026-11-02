@@ -8,7 +8,8 @@
 //
 // Tools: jscpd, dependency-cruiser, Semgrep OSS (vendored packs in .semgrep/, no registry call), Trivy
 // `fs`, size-limit (lines in size-limit-lines.json) and `spec-sync licence-inventory`; the inventory adds
-// knip and gitleaks over the full history. No network except Trivy's vulnerability DB update.
+// knip, gitleaks over the full history and Trivy `fs --include-dev-deps` (GL-CODE-003; its devDependency
+// count lands in summary.json beside `counts`, never in the ratchet). No network except Trivy's vulnerability DB update.
 //
 // The gate is red when a count rises above its baseline, when an `exports` entry has no size lines, or
 // when a tool produces no readable result (a missing number is never a zero): a scanner whose version
@@ -105,14 +106,38 @@ export function semgrepVerdict(
   };
 }
 
-export function trivyCounts(report: {
-  Results?: { Vulnerabilities?: unknown[] | null }[];
-}): Counts {
+interface TrivyReport {
+  Results?: {
+    Target?: string;
+    Vulnerabilities?:
+      { VulnerabilityID?: string; PkgName?: string; InstalledVersion?: string }[] | null;
+  }[];
+}
+
+export function trivyCounts(report: TrivyReport): Counts {
   const findings = (report.Results ?? []).reduce(
     (sum, result) => sum + (result.Vulnerabilities ?? []).length,
     0,
   );
   return { "trivy.fixable-high-or-critical": findings };
+}
+
+function trivyFindings(report: TrivyReport): Set<string> {
+  return new Set(
+    (report.Results ?? []).flatMap((result) =>
+      (result.Vulnerabilities ?? []).map((v) =>
+        [result.Target, v.PkgName, v.InstalledVersion, v.VulnerabilityID].join("|"),
+      ),
+    ),
+  );
+}
+
+// GL-CODE-003: the inventory names production and devDependency findings separately. The
+// `--include-dev-deps` scan also lists the production findings, so the devDependency count is
+// only the findings the production scan does not have.
+export function trivyDevOnly(production: TrivyReport, withDev: TrivyReport): number {
+  const prod = trivyFindings(production);
+  return [...trivyFindings(withDev)].filter((finding) => !prod.has(finding)).length;
 }
 
 // knip's JSON reporter lists, per file, one array per issue type; `file` and `owners` (CODEOWNERS)
@@ -308,10 +333,12 @@ function semgrep(out: string, targets: string[] | null) {
   return { counts: verdict.counts, note: `${scope}${warned}` };
 }
 
-function trivy(out: string) {
-  checkVersion("trivy", ["--version"]);
-  const { stdout: text } = run("trivy", [
+// The gate scans production dependencies only; `--include-dev-deps` runs in the inventory alone
+// (GL-CODE-003), where a devDependency finding is an auto-audit ticket, never a gate failure.
+export function trivyArgs(includeDevDeps: boolean): string[] {
+  return [
     "fs",
+    ...(includeDevDeps ? ["--include-dev-deps"] : []),
     // No call to check.trivy.dev: the DB update is the only network access (SUI-FEATURE-128 AC 4).
     "--skip-version-check",
     "--disable-telemetry",
@@ -329,9 +356,19 @@ function trivy(out: string) {
     "--skip-dirs",
     ".spec-sync",
     ".",
-  ]);
-  writeFileSync(join(out, "trivy.json"), text);
-  return trivyCounts(json("Trivy", text));
+  ];
+}
+
+function trivyScan(out: string, includeDevDeps: boolean): string {
+  checkVersion("trivy", ["--version"]);
+  const { stdout: text } = run("trivy", trivyArgs(includeDevDeps));
+  writeFileSync(join(out, includeDevDeps ? "trivy-dev-deps.json" : "trivy.json"), text);
+  return text;
+}
+
+function trivy(out: string) {
+  const counts = trivyCounts(json("Trivy", trivyScan(out, false)));
+  return { counts, note: "production dependencies, without --include-dev-deps" };
 }
 
 function sizeLimit(out: string) {
@@ -476,11 +513,20 @@ function inventory(): number {
   const { counts, size } = measureAll(out, true);
   measure(counts, "knip", () => knip(out));
   measure(counts, "gitleaks", () => gitleaks(out));
+  // Kept out of `counts`, so it never becomes a quality-baseline.json ratchet entry (GL-CODE-003).
+  const devDependencies = trivyDevOnly(
+    json("Trivy", readFileSync(join(out, "trivy.json"), "utf8")),
+    json("Trivy", trivyScan(out, true)),
+  );
+  console.log(
+    `hygiene: trivy --include-dev-deps — fixable HIGH/CRITICAL: production ${counts["trivy.fixable-high-or-critical"]}, devDependencies ${devDependencies}`,
+  );
   const head = run("git", ["rev-parse", "HEAD"]).stdout.trim();
   const summary = {
     recordedAt: new Date().toISOString(),
     head,
     counts,
+    trivyDevDependencies: { "trivy.fixable-high-or-critical": devDependencies },
     sizes: Object.fromEntries(size.checks.map((check) => [check.name, check.size])),
   };
   writeFileSync(join(out, "summary.json"), `${JSON.stringify(summary, null, 2)}\n`);
