@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #750: MediaDetailShell and SettingsActionRow show a locked Save's reason on opt-in and take an app lock with its hint (SUI-FEATURE-125 rev 6, SUI-FEATURE-131) (minor)
+## 0.215.0 — #750: MediaDetailShell and SettingsActionRow show a locked Save's reason on opt-in and take an app lock with its hint (SUI-FEATURE-125 rev 6, SUI-FEATURE-131) (minor)
 
 - **Added (#750, SUI-FEATURE-125 rev 5):** `showDisabledReason?: boolean` (default `false`) on `MediaDetailShell` and `SettingsActionRow`, as on `EditPanel`: while Save is locked and no save runs, the reason stands as muted text before Reset + Save, wraps above them when narrow, never truncates, and is Save's one description (`aria-describedby`); the tooltip shows it too. Without the opt-in both footers are byte-identical to before.
 - **Added (#750, SUI-FEATURE-131):** `submitDisabled` + `submitDisabledHint` on `MediaDetailShell` and `SettingsActionRow` (both or none, as on `EditPanel`): the app locks Save with its own reason, which is the tooltip and, opted in, the visible line. Reset still follows `dirty`. Reason order: the app's lock, then `SettingsActionRow` `valid={false}`, then nothing changed.
