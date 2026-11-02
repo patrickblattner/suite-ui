@@ -375,6 +375,8 @@ export const es: SuiteStrings = {
     resetHint: "Descarta el borrador y vuelve al estado guardado.",
     resetCleanHint: "Descarta el borrador — disponible en cuanto cambies algo.",
     resetSavingHint: "Descarta el borrador — bloqueado mientras se guarda.",
+    resetPendingHint: "Descarta el borrador — bloqueado hasta que termine la acción en curso.",
+    pendingHint: "Bloqueado hasta que termine la acción en curso.",
     saveFirst: "Guarda primero",
     saveHint: "Guarda el borrador.",
     saveCleanHint: "Guarda el borrador — disponible en cuanto cambies algo.",

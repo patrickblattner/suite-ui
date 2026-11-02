@@ -31,6 +31,9 @@ import { isUserEvent } from "./user-event.js";
 
 // Saving from the leave dialog: `true` (or a promise of it) means saved, and the held leave goes on;
 // anything else keeps the surface open, where the call site shows the error at its field.
+// Return a promise with the result, never start a router submission (`useSubmit`, `<Form>`): a save
+// through a route action uses a fetcher and settles once the fetcher has ended, or saves by fetch or
+// a mutation. A router submission from `onSave` is unsupported and not intercepted (`SUI-FEATURE-129`).
 type LeaveSave = () => unknown;
 
 // A held leave: `leave` carries it out, `stay` drops it (a blocked route change resets). A route change
@@ -595,6 +598,9 @@ type RouterHold = {
   released: () => { discard: Reset | undefined } | null;
   // The field entries the surface counts (`useLeaveConfirm`'s `fieldDrafts`).
   drafts?: FieldDrafts | undefined;
+  // An `onSave`/`onDiscard` the surface's guard called still runs, a deferred reset included: every
+  // further route change expires meanwhile (`SUI-FEATURE-064` rev 6).
+  pending: () => boolean;
 };
 type BlockerStep = Parameters<BlockerFunction>[0];
 // A blocked route change: its count among the changes asked, the blocked state that carries it on
@@ -663,8 +669,15 @@ type RouterHolds = {
   submitted: EventTarget | null;
   waiting: WaitingChange | null;
   // The resets of a confirmed change that went to run them and waits for their result
-  // (`SUI-FEATURE-064` rev 4); a newer change takes it along (`SUI-FEATURE-172`).
+  // (`SUI-FEATURE-064` rev 4); a newer change meanwhile expires (rev 6).
   resetting: Resetting | null;
+  // Told whenever `resetting` starts, ends or is taken back (a guard's `pending`).
+  watchers: Set<() => void>;
+  // A route change that came while a guard's call still runs (`SUI-FEATURE-064` rev 6): it expires.
+  // Blocked over the change that waits for that call (`covers`), it stays blocked in its place, so
+  // that change still goes on (or is reset) through its own blocked state; with none it is reset.
+  expiring: { covers: BlockedBlocker | null } | null;
+  covering: { by: BlockedBlocker; for: BlockedBlocker } | null;
   // The own location of the router submission running now: where it ends unless redirected. Every
   // redirect makes a new one, also one that submits anew (307/308), which keeps the submission's own.
   submission: BlockerStep["currentLocation"] | null;
@@ -722,6 +735,9 @@ function routerEntry(router: DataRouter): RouterHolds {
       submitted: null,
       waiting: null,
       resetting: null,
+      watchers: new Set(),
+      expiring: null,
+      covering: null,
       submission: null,
       restarting: null,
       stepping: null,
@@ -789,6 +805,7 @@ function holdRouter(router: DataRouter, hold: RouterHold): () => void {
     document.addEventListener("submit", onSubmit, true);
     const settle = () => {
       if (entry.run !== null && heldBlocker(router) !== entry.run) entry.run = null;
+      if (heldBlocker(router) === undefined) entry.covering = null;
       const { location } = router.state.navigation;
       // Only the first location a submission runs at is its own: any later one is a redirect's, also
       // where the router's mark of it is missing, so a waiting change never replays over a redirect.
@@ -871,6 +888,12 @@ function collectBlocking(
       source: { form: null, submitter: null },
       samePath: false,
     };
+    return true;
+  }
+  // While a guard's `onSave`/`onDiscard` still runs, a further change asks nothing and never goes: it
+  // expires, and the change that waits for the call keeps its place (`SUI-FEATURE-064` rev 6).
+  if (entry.holds.some((hold) => hold.pending())) {
+    entry.expiring = { covers: heldBlocker(router) ?? null };
     return true;
   }
   entry.requests += 1;
@@ -1062,6 +1085,18 @@ function discardPending(entry: RouterHolds, hold: Hold): boolean {
 // blocked: once it went, was reset or a newer change took its place, a late answer is dropped.
 function runBlocked(router: DataRouter, entry: RouterHolds) {
   const blocker = heldBlocker(router);
+  if (blocker !== undefined && entry.expiring !== null && entry.run !== blocker) {
+    const { covers } = entry.expiring;
+    entry.expiring = null;
+    entry.run = blocker;
+    if (covers === null) blocker.reset();
+    else
+      entry.covering = {
+        by: blocker,
+        for: entry.covering?.by === covers ? entry.covering.for : covers,
+      };
+    return;
+  }
   const blocked = entry.blocked;
   if (blocker === undefined || blocked === null || entry.run === blocker) return;
   entry.run = blocker;
@@ -1076,8 +1111,12 @@ function runBlocked(router: DataRouter, entry: RouterHolds) {
   // A newer change, even one still loading, has not reset the blocker yet, but it takes the place all
   // the same. A change that was loading already when this one was blocked does not, nor do its
   // redirects: the confirmed leave goes on in its place (`GL-UI-007`).
-  const current = () =>
-    (heldBlocker(router) ?? entry.displaced) === blocker && entry.requests === blocked.requests;
+  const current = () => {
+    const held = heldBlocker(router);
+    // An expired change blocked over it stands in for it (`SUI-FEATURE-064` rev 6).
+    const own = held !== undefined && entry.covering?.by === held ? entry.covering.for : held;
+    return (own ?? entry.displaced) === blocker && entry.requests === blocked.requests;
+  };
   const carrier = blocked.carrier ?? blocker;
   // A form submission of the router still running is never cut off, as its data may be lost
   // (`SUI-FEATURE-150`): the confirmed change waits until it has ended, then starts anew.
@@ -1125,8 +1164,12 @@ function runBlocked(router: DataRouter, entry: RouterHolds) {
       ([mine, before]) => mine && before && !resetting.dropped,
     );
     entry.resetting = resetting;
+    notifyResets(entry);
     void resetting.result.then((ok) => {
-      if (entry.resetting === resetting) entry.resetting = null;
+      if (entry.resetting === resetting) {
+        entry.resetting = null;
+        notifyResets(entry);
+      }
       finish(ok);
     });
   };
@@ -1252,12 +1295,39 @@ function dropWaiting(router: DataRouter) {
   if (entry === undefined) return;
   entry.waiting?.discards.clear();
   entry.waiting = null;
-  if (entry.resetting !== null) entry.resetting.dropped = true;
+  if (entry.resetting !== null) {
+    entry.resetting.dropped = true;
+    notifyResets(entry);
+  }
+}
+
+function notifyResets(entry: RouterHolds) {
+  for (const watcher of [...entry.watchers]) watcher();
+}
+
+// Whether the deferred reset of the surface (`hold`) runs now, not taken back (`SUI-FEATURE-064` rev 6).
+function resetRunsFor(router: DataRouter, hold: Hold): boolean {
+  const resetting = routerHolds.get(router)?.resetting;
+  return (
+    resetting !== undefined && resetting !== null && !resetting.dropped && resetting.holds.has(hold)
+  );
+}
+
+function watchResets(router: DataRouter, watcher: () => void): () => void {
+  const entry = routerEntry(router);
+  entry.watchers.add(watcher);
+  return () => entry.watchers.delete(watcher);
 }
 
 // The resets a change runs were taken back by an edit meanwhile.
 function resetDropped(router: DataRouter | undefined): boolean {
   return router !== undefined && routerHolds.get(router)?.resetting?.dropped === true;
+}
+
+// The resets a confirmed change runs before it goes are still pending, not yet taken back.
+function resetRuns(router: DataRouter): boolean {
+  const resetting = routerHolds.get(router)?.resetting;
+  return resetting !== undefined && resetting !== null && !resetting.dropped;
 }
 
 // A confirmed change waits for the router's submission, which still runs.
@@ -1429,6 +1499,10 @@ type LeaveConfirmOptions = {
   // an open list closes once the surface leaves (`SUI-FEATURE-118` rev 6). Opt-in: `useLeaveGuard`
   // passes the page's, an edit panel or media detail its own; without it no draft counts.
   fieldDrafts?: FieldDrafts | undefined;
+  // While an `onSave`/`onDiscard` the guard called still runs (a deferred reset included), every
+  // further way out expires: no second question, no navigation (`SUI-FEATURE-064` rev 6). Without it
+  // a newer way out takes the place of the one that waits for the result (`SUI-FEATURE-150`).
+  holdWhilePending?: boolean | undefined;
 };
 
 // The shared core of the edit panel and `useLeaveGuard`: `guard` leaves at once when clean, holds the
@@ -1451,6 +1525,7 @@ function useLeaveConfirm({
   saveFailed = false,
   draft,
   fieldDrafts,
+  holdWhilePending = false,
 }: LeaveConfirmOptions) {
   const hasFieldDrafts = useHasFieldDrafts(fieldDrafts);
   const dirty = dirtyOwn || (open && hasFieldDrafts);
@@ -1474,6 +1549,7 @@ function useLeaveConfirm({
     ignoreSearchParams,
     holdBusy,
     saveFailed,
+    holdWhilePending,
   });
   React.useEffect(() => {
     latest.current = {
@@ -1485,6 +1561,7 @@ function useLeaveConfirm({
       ignoreSearchParams,
       holdBusy,
       saveFailed,
+      holdWhilePending,
     };
   });
   // Dirty as of now: the field drafts are read live, as another surface's Save or Discard may have
@@ -1516,6 +1593,14 @@ function useLeaveConfirm({
   const savingNow = React.useRef<() => boolean>(() => false);
   // Whether a change this surface confirmed with Discard waits now under a data router.
   const discardWaits = React.useRef<() => boolean>(() => false);
+  // Whether the deferred reset of this surface's Discard runs now under a data router.
+  const resetRunsNow = React.useRef<() => boolean>(() => false);
+  // An `onSave`/`onDiscard` this guard called still runs, a deferred reset included, and further ways
+  // out expire meanwhile (`holdWhilePending`, `SUI-FEATURE-064` rev 6).
+  const callRuns = React.useCallback(
+    () => latest.current.holdWhilePending && (work.current !== null || resetRunsNow.current()),
+    [],
+  );
   const hold = React.useCallback(
     (next: PendingLeave) => {
       // A change that keeps the pathname passes the option's surface, dirty or busy: it leaves nothing,
@@ -1523,6 +1608,9 @@ function useLeaveConfirm({
       const keeps = latest.current.ignoreSearchParams && next.samePath === true;
       if (releasing.current) {
         next.leave();
+      } else if (callRuns()) {
+        // The way that waits for the call keeps its place; this one expires (`SUI-FEATURE-064` rev 6).
+        next.stay?.();
       } else if (work.current !== null) {
         waiting.current = next;
       } else if (latest.current.busy && !keeps) {
@@ -1552,7 +1640,7 @@ function useLeaveConfirm({
         next.leave();
       }
     },
-    [dirtyNow, fieldDrafts],
+    [dirtyNow, fieldDrafts, callRuns],
   );
   // A surface's own way out (Back, Previous/Next, `Esc`). With `holdBusy` it has `again`, as a route
   // change does: the page's own save holds it, and once that ended it goes anew through `hold`
@@ -1763,13 +1851,15 @@ function useLeaveConfirm({
               return way;
             },
             drafts: fieldDrafts,
+            pending: () => latest.current.open && callRuns(),
           },
-    [hold, router, dirtyNow, fieldDrafts],
+    [hold, router, dirtyNow, fieldDrafts, callRuns],
   );
   React.useEffect(() => {
     if (router === undefined || routerHold === undefined) return;
     const entry = routerEntry(router);
     savingNow.current = () => submitting(router) && entry.saving.has(routerHold.hold);
+    resetRunsNow.current = () => resetRunsFor(router, routerHold.hold);
     discardWaits.current = () =>
       (entry.waiting !== null &&
         !entry.waiting.ended &&
@@ -1786,6 +1876,7 @@ function useLeaveConfirm({
     return () => {
       savingNow.current = () => false;
       discardWaits.current = () => false;
+      resetRunsNow.current = () => false;
       draftsCovered.current = () => false;
       unhold();
     };
@@ -1824,10 +1915,15 @@ function useLeaveConfirm({
   // A new `draft` while the work runs is an edit as well, and so is one while a route change waits
   // for the router's submission (#639). The draft a save's result sets comes in the render that ends
   // `busy` or the submission: no edit, the held way goes on. Whether a change waits is read in the
-  // render of the new draft: its effect may run only after the submission ended.
+  // render of the new draft: its effect may run only after the submission ended. So is a new draft
+  // while the change's deferred resets run (`SUI-FEATURE-172`, #763), unless it leaves the call
+  // site's own state clean: that is the draft the reset sets itself. A field's typed entry does not
+  // count here, as it stays covered by the Discard until the reset succeeded (#694). Known limit: a
+  // draft-only edit back to the exact clean value meanwhile reads as the reset's own; no input is
+  // lost, as the reset restores that same value.
   const lastDraft = React.useRef(draft);
   const waits = React.useMemo(
-    () => router !== undefined && waitsForSubmission(router),
+    () => router !== undefined && (waitsForSubmission(router) || (dirtyOwn && resetRuns(router))),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- read anew for each draft
     [draft, router],
   );
@@ -1925,7 +2021,20 @@ function useLeaveConfirm({
       />
     </>
   );
-  return { guard, step, dialog, working, run, saveForm, ownSave, dirty };
+  // Shown while the guard's call runs: the call site locks its Save/Reset pair and sets its surface
+  // `inert` with it (`SUI-FEATURE-064` rev 6). A deferred reset runs outside any render, so it is
+  // read from the router's entry, which tells when it starts, ends or is taken back.
+  const watch = React.useCallback(
+    (notify: () => void) => (router === undefined ? () => {} : watchResets(router, notify)),
+    [router],
+  );
+  const resetRunning = React.useSyncExternalStore(
+    watch,
+    () => router !== undefined && resetRunsFor(router, hold),
+    () => false,
+  );
+  const callPending = holdWhilePending && open && (working || resetRunning);
+  return { guard, step, dialog, working, run, saveForm, ownSave, dirty, callPending };
 }
 
 type LeaveGuardOptions = {
@@ -1944,7 +2053,8 @@ type LeaveGuardOptions = {
   // Back to the list (the same page, filters, sort and focused row are the app's route state).
   onLeave: () => void;
   // Leave it out where the page has no save target (`SUI-FEATURE-092`): the dialog then asks
-  // "Discard changes?" with only Cancel and Discard.
+  // "Discard changes?" with only Cancel and Discard. A promise with the result, never a router
+  // submission: save through a fetcher and settle once it has ended (`SUI-FEATURE-129`).
   onSave?: LeaveSave | undefined;
   // Discard runs it before the held leave goes on, and a promise is awaited; throwing, rejecting or
   // `false` keeps the page and its draft (`SUI-FEATURE-064` rev 4). After a router submission the
@@ -1980,10 +2090,20 @@ type LeaveGuardOptions = {
  * without the question; any other submission on the changed page asks. Unregistered, the Save form
  * asks too, and Discard then posts it.
  *
+ * `onSave` returns a promise with the result, never a router submission (`useSubmit`, `<Form>`): a
+ * save through a route action uses a fetcher and settles once the fetcher has ended
+ * (`SUI-FEATURE-129`). A router submission from `onSave` is unsupported and not intercepted.
+ *
  * `dirty` in the result is the one dirty state of the page (`SUI-FEATURE-118` rev 8): the passed
  * `dirty` merged with a package field's typed but uncommitted entry (a `TagInput` tag), which the
  * guard asks about too. Drive the page's Save/Reset pair (`SaveResetButtons`, `EditorHeader`'s
  * state and buttons) with it, so the pair never shows "saved" while the guard would ask.
+ *
+ * `pending` is true while an `onSave`/`onDiscard` the guard called still runs, a Discard's reset
+ * deferred behind a router submission included (`SUI-FEATURE-064` rev 6). Meanwhile every further
+ * way out expires: no second question, no navigation. Lock the page's Save/Reset pair with it (Save
+ * in its working state, e.g. `EditorHeader`'s `pending={pending}`) and set the editing
+ * surface `inert`, so it takes no input until the result.
  */
 function useLeaveGuard({
   dirty,
@@ -2001,6 +2121,7 @@ function useLeaveGuard({
     saveForm,
     ownSave,
     dirty: merged,
+    callPending: pending,
   } = useLeaveConfirm({
     dirty,
     busy,
@@ -2011,6 +2132,7 @@ function useLeaveGuard({
     saveFailed,
     draft,
     fieldDrafts: pageDrafts,
+    holdWhilePending: true,
   });
   const leave = React.useRef(onLeave);
   React.useEffect(() => {
@@ -2032,7 +2154,7 @@ function useLeaveGuard({
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [guard]);
 
-  return { guard, dialog, saveForm, ownSave, dirty: merged };
+  return { guard, dialog, saveForm, ownSave, dirty: merged, pending };
 }
 
 /**

@@ -8,12 +8,13 @@ import {
   Route,
   RouterProvider,
   Routes,
+  useFetcher,
   useLocation,
   useNavigate,
 } from "react-router-dom";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { useEditorLeaveGuard } from "./editor-header.js";
+import { EditorHeader, useEditorLeaveGuard } from "./editor-header.js";
 import { installLeaveGuard } from "./leave-guard.js";
 
 // `SUI-FEATURE-064` rev 4 (#748): on every way out — `Esc`, Back, the sidebar's link and browser back
@@ -76,7 +77,7 @@ function Editor({ mode, focusError = false }: { mode: Mode; focusError?: boolean
   useEffect(() => {
     if (focusError && error !== null) errorRef.current?.focus();
   }, [focusError, error]);
-  const { guard, dialog } = useEditorLeaveGuard({
+  const { guard, dialog, pending } = useEditorLeaveGuard({
     dirty: draft !== saved,
     onBack: () => void navigate("/list"),
     onSave: save,
@@ -84,6 +85,20 @@ function Editor({ mode, focusError = false }: { mode: Mode; focusError?: boolean
   });
   return (
     <>
+      {/* As an app binds it (`SUI-FEATURE-064` rev 6): the header works while the guard's call runs. */}
+      <EditorHeader
+        title="Draft"
+        onBack={() => guard(() => void navigate("/list"))}
+        canUndo={false}
+        canRedo={false}
+        onUndo={() => {}}
+        onRedo={() => {}}
+        dirty={draft !== saved}
+        saving={false}
+        pending={pending}
+        onSave={() => void save()}
+        onReset={() => void reset()}
+      />
       <nav>
         <Link to="/other" data-testid="sidebar-other">
           Other
@@ -99,7 +114,9 @@ function Editor({ mode, focusError = false }: { mode: Mode; focusError?: boolean
       >
         Back
       </button>
-      <input aria-label="Body" data-testid="body" />
+      <div data-testid="surface" inert={pending}>
+        <input aria-label="Body" data-testid="body" />
+      </div>
       <output data-testid="draft">{draft}</output>
       {error !== null && (
         <span data-testid="error" ref={errorRef} tabIndex={-1}>
@@ -310,4 +327,131 @@ describe("useEditorLeaveGuard focus after a failure", () => {
       expect(screen.getByTestId("error")).toHaveFocus();
     },
   );
+});
+
+// `SUI-FEATURE-064` rev 6 AC 9 (#763): while the guard's `onReset`/`onSave` still runs, a second way
+// out asks nothing and never goes: it expires, the header shows its working state, and the surface
+// is `inert` (jsdom does not enforce `inert`; the attribute is the app's binding). Once the call
+// succeeded, the first way lands at its own target.
+describe.each(["memory", "browser", "data"] as const)(
+  "useEditorLeaveGuard while its call runs (%s router)",
+  (router) => {
+    describe.each(["discard", "save"] as const)("%s", (answer) => {
+      it.each(["browser back", "Esc", "page Back"] as const)(
+        "a second way out (%s) expires without a second question",
+        async (second) => {
+          const { dispose } = await leaveAndAnswer(router, "sidebar", answer);
+          await pause();
+          expect(screen.getByTestId("editor-save")).toHaveAttribute("aria-busy", "true");
+          expect(screen.getByTestId("surface")).toHaveAttribute("inert");
+          const { back } = { back: () => act(() => window.history.back()) };
+          if (router === "memory") ways[second](() => fireEvent.click(screen.getByTestId("back")));
+          else ways[second](back);
+          await pause();
+          expect(path()).toHaveTextContent("/editor");
+          expect(screen.getAllByTestId("leave-guard")).toHaveLength(1);
+          act(() => settle?.("ok"));
+          await waitFor(() => expect(path()).toHaveTextContent("/other"));
+          await pause();
+          expect(path()).toHaveTextContent("/other");
+          expect(screen.queryByTestId("leave-guard")).toBeNull();
+          dispose();
+        },
+      );
+    });
+  },
+);
+
+// `SUI-FEATURE-129` AC 1: an app that saves through a route action does so with a fetcher and
+// returns a promise of the result that settles only once the fetcher has ended — never a router
+// submission. The held way runs only after that; a failed save keeps the route and its error.
+let settleAction: ((ok: boolean) => void) | null = null;
+
+function FetcherEditor() {
+  const navigate = useNavigate();
+  const fetcher = useFetcher<{ ok: boolean }>();
+  const [saved, setSaved] = useState("Hello");
+  const [draft] = useState("Hello world");
+  const [error, setError] = useState<string | null>(null);
+  const waiting = useRef<((ok: boolean) => void) | null>(null);
+  // The fetcher's end: back to idle with the action's result.
+  useEffect(() => {
+    if (fetcher.state !== "idle" || fetcher.data === undefined || waiting.current === null) return;
+    const done = waiting.current;
+    waiting.current = null;
+    done(fetcher.data.ok);
+  }, [fetcher.state, fetcher.data]);
+  const save = () => {
+    setError(null);
+    return new Promise<boolean>((resolve) => {
+      waiting.current = resolve;
+      void fetcher.submit({ body: draft }, { method: "post" });
+    }).then((ok) => {
+      if (ok) setSaved(draft);
+      else setError("Not saved");
+      return ok;
+    });
+  };
+  const { guard, dialog } = useEditorLeaveGuard({
+    dirty: draft !== saved,
+    onBack: () => void navigate("/list"),
+    onSave: save,
+    onReset: () => {},
+  });
+  return (
+    <>
+      <Where />
+      <Link to="/other" data-testid="sidebar-other">
+        Other
+      </Link>
+      <button
+        type="button"
+        data-testid="page-back"
+        onClick={() => guard(() => void navigate("/list"))}
+      >
+        Back
+      </button>
+      {error !== null && <span data-testid="error">{error}</span>}
+      {dialog}
+    </>
+  );
+}
+
+describe("useEditorLeaveGuard with an onSave that saves through a fetcher (SUI-FEATURE-129)", () => {
+  it.each([true, false])("the way runs only after the fetcher ended (save ok: %s)", async (ok) => {
+    window.history.replaceState(null, "", "/list");
+    let actions = 0;
+    const router = createBrowserRouter([
+      {
+        path: "/editor",
+        action: () => {
+          actions += 1;
+          return new Promise<{ ok: boolean }>((resolve) => {
+            settleAction = (result) => resolve({ ok: result });
+          });
+        },
+        element: <FetcherEditor />,
+      },
+      { path: "*", element: <Where /> },
+    ]);
+    render(<RouterProvider router={router} />);
+    await act(() => router.navigate("/editor"));
+    fireEvent.click(screen.getByTestId("sidebar-other"));
+    const dialog = await screen.findByTestId("leave-guard");
+    fireEvent.click(within(dialog).getByTestId("leave-guard-save"));
+    await waitFor(() => expect(actions).toBe(1));
+    await pause();
+    // The fetcher still runs: the way waits.
+    expect(path()).toHaveTextContent("/editor");
+    act(() => settleAction?.(ok));
+    if (ok) {
+      await waitFor(() => expect(path()).toHaveTextContent("/other"));
+    } else {
+      await waitFor(() => expect(screen.queryByTestId("leave-guard")).toBeNull());
+      await pause();
+      expect(path()).toHaveTextContent("/editor");
+      expect(screen.getByTestId("error")).toHaveTextContent("Not saved");
+    }
+    router.dispose();
+  });
 });

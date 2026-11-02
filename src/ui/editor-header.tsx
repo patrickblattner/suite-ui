@@ -46,6 +46,10 @@ type EditorHeaderProps = {
   dirty: boolean;
   // The save runs: Save carries the working state.
   saving: boolean;
+  // The leave guard's `onSave`/`onReset` still runs (`useEditorLeaveGuard`'s `pending`,
+  // `SUI-FEATURE-064` rev 6): Save carries the working state, and Reset, Undo and Redo (their
+  // shortcuts too) are locked, each naming that it waits for the running action.
+  pending?: boolean | undefined;
   onSave: () => void;
   // Returns the draft to the saved state; called only after the confirmation.
   onReset: () => void;
@@ -227,7 +231,8 @@ function EditorHeader({
   onUndo,
   onRedo,
   dirty,
-  saving,
+  saving: savingOwn,
+  pending = false,
   onSave,
   onReset,
   lifecycle,
@@ -237,6 +242,10 @@ function EditorHeader({
   layout,
 }: EditorHeaderProps) {
   const { t, i18n } = useTranslation("suite");
+  // While the guard's call runs the header works as for a save; the draft takes no step meanwhile.
+  const saving = savingOwn || pending;
+  const undoable = canUndo && !pending;
+  const redoable = canRedo && !pending;
   // The editor group gives way to "Read only" either way; only a reading role loses the next step
   // and the record's menu (`SUI-FEATURE-119`).
   const readOnly = readOnlyMode !== false;
@@ -247,8 +256,8 @@ function EditorHeader({
   const drafts = React.useContext(FieldDraftsContext) ?? undefined;
   const hasDrafts = useHasFieldDrafts(drafts);
   useEditShortcuts({
-    onUndo: canUndo && !readOnly ? onUndo : undefined,
-    onRedo: canRedo && !readOnly ? onRedo : undefined,
+    onUndo: undoable && !readOnly ? onUndo : undefined,
+    onRedo: redoable && !readOnly ? onRedo : undefined,
   });
   // The header tools fold with Preview. Read-only, only what it shows can fold; the read-only text
   // stands in the state's place and folds as `SUI-FEATURE-090` stage 4 (here the second step).
@@ -497,11 +506,17 @@ function EditorHeader({
     ) {
       nextFocusTarget(node, active)?.focus();
     }
-  }, [dirty, saving, canUndo, canRedo]);
+  }, [dirty, saving, undoable, redoable]);
   const clean = !dirty && !saving;
   // Reset is locked while nothing differs from the saved state or while the save runs, and names why.
   const resetLock = !dirty || saving;
-  const resetLockReason = saving ? t("editor.resetSavingHint") : t("editor.resetCleanHint");
+  const resetLockReason = pending
+    ? t("editor.resetPendingHint")
+    : saving
+      ? t("editor.resetSavingHint")
+      : t("editor.resetCleanHint");
+  const undoNone = pending ? t("editor.pendingHint") : t("editor.undoNone");
+  const redoNone = pending ? t("editor.pendingHint") : t("editor.redoNone");
   const saveLock = {
     ...(clean ? { "aria-disabled": true } : {}),
     onClick: clean ? undefined : onSave,
@@ -529,16 +544,16 @@ function EditorHeader({
         label: t("editor.undo"),
         icon: <Undo2Icon aria-hidden="true" />,
         onSelect: onUndo,
-        disabled: !canUndo,
-        ...(canUndo ? { shortcut: UNDO_SHORTCUT } : { hint: t("editor.undoNone") }),
+        disabled: !undoable,
+        ...(undoable ? { shortcut: UNDO_SHORTCUT } : { hint: undoNone }),
         "data-testid": "editor-menu-undo",
       },
       {
         label: t("editor.redo"),
         icon: <Redo2Icon aria-hidden="true" />,
         onSelect: onRedo,
-        disabled: !canRedo,
-        ...(canRedo ? { shortcut: REDO_SHORTCUT } : { hint: t("editor.redoNone") }),
+        disabled: !redoable,
+        ...(redoable ? { shortcut: REDO_SHORTCUT } : { hint: redoNone }),
         "data-testid": "editor-menu-redo",
       },
     );
@@ -731,14 +746,14 @@ function EditorHeader({
             <IconButtonTooltip
               label={t("editor.undo")}
               shortcut={UNDO_SHORTCUT}
-              disabledText={t("editor.undoNone")}
+              disabledText={undoNone}
               named
             >
               <Button
                 type="button"
                 variant="ghost"
                 size="icon-sm"
-                {...(canUndo ? {} : { "aria-disabled": true })}
+                {...(undoable ? {} : { "aria-disabled": true })}
                 onClick={onUndo}
                 // A press keeps the focus where it is, so it does not end an edit in progress there
                 // (a crop being set, #349) before Undo acts on it.
@@ -752,14 +767,14 @@ function EditorHeader({
             <IconButtonTooltip
               label={t("editor.redo")}
               shortcut={REDO_SHORTCUT}
-              disabledText={t("editor.redoNone")}
+              disabledText={redoNone}
               named
             >
               <Button
                 type="button"
                 variant="ghost"
                 size="icon-sm"
-                {...(canRedo ? {} : { "aria-disabled": true })}
+                {...(redoable ? {} : { "aria-disabled": true })}
                 onClick={onRedo}
                 onPointerDown={(event) => event.preventDefault()}
                 data-slot="editor-redo"
@@ -985,6 +1000,8 @@ type EditorLeaveGuardOptions = {
   // Back to the list: what `Esc` does, and what a held Back carries out.
   onBack: () => void;
   // Returning `true` (or a promise of it) reports a successful save: the held way out then goes on.
+  // A promise with the result, never a router submission (`useSubmit`, `<Form>`): save through a
+  // fetcher and settle once it has ended, or by fetch or a mutation (`SUI-FEATURE-129`).
   onSave: LeaveSave;
   // Discard resets the draft before the held way out goes on, on every way out, route changes and
   // browser back included. A promise is awaited while Discard works; a throw, a rejection or `false`
@@ -1002,9 +1019,14 @@ type EditorLeaveGuardOptions = {
 /**
  * The leave guard of an editor page (`GL-UI-034`, `GL-UI-007`): with an unsaved draft `Esc`, Back,
  * the navigation, browser back and every route change ask "Save changes?" first. Discard calls
- * `onReset`, Save calls `onSave`; on success the held way goes on. Wrap the page's Back in `guard`
+ * `onReset`, Save calls `onSave`; on success the held way goes on. `onSave` returns a promise with
+ * the result, never a router submission: use a fetcher (`SUI-FEATURE-129`). Wrap the page's Back in `guard`
  * and render `dialog`. Pass its `dirty` (the passed one merged with a field's uncommitted entry,
  * `useLeaveGuard`) to `EditorHeader`, so the header never shows "Saved" while the guard would ask.
+ * Bind its `pending` too: while the guard's `onSave`/`onReset` runs (a reset deferred behind a router
+ * submission included), pass `pending` to `EditorHeader` (Save works; Reset, Undo and Redo lock) and
+ * set the editing surface `inert={pending}`; every further way out expires meanwhile
+ * (`SUI-FEATURE-064` rev 6).
  */
 function useEditorLeaveGuard({
   dirty,

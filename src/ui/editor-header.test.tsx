@@ -258,6 +258,48 @@ describe("EditorHeader", () => {
     expect(screen.getByTestId("editor-reset")).not.toHaveAttribute("aria-disabled");
     expect(screen.getByTestId("editor-reset")).toHaveAccessibleDescription(usable);
   });
+
+  // #763, SUI-FEATURE-064 rev 6: while the leave guard's call runs (`pending`), Save works, and Reset,
+  // Undo and Redo lock with their shortcuts, each naming that it waits for the running action (not
+  // "being saved": the call may be a Discard's reset).
+  it.each([
+    [
+      "de",
+      "Verwirft den Entwurf — gesperrt, bis der laufende Vorgang abgeschlossen ist.",
+      "Gesperrt, bis der laufende Vorgang abgeschlossen ist.",
+    ],
+    [
+      "en",
+      "Discards the draft — locked until the running action has finished.",
+      "Locked until the running action has finished.",
+    ],
+    [
+      "es",
+      "Descarta el borrador — bloqueado hasta que termine la acción en curso.",
+      "Bloqueado hasta que termine la acción en curso.",
+    ],
+  ])("%s: pending locks Reset, Undo and Redo and keeps Save working", async (lng, reset, step) => {
+    await i18n.changeLanguage(lng);
+    const { onUndo, onRedo, onReset } = renderHeader({ dirty: true, pending: true });
+    expect(screen.getByTestId("editor-save")).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByTestId("editor-reset")).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByTestId("editor-reset")).toHaveAccessibleDescription(reset);
+    for (const id of ["editor-undo", "editor-redo"]) {
+      expect(screen.getByTestId(id)).toHaveAttribute("aria-disabled", "true");
+      expect(screen.getByTestId(id)).toHaveAccessibleDescription(step);
+      expect(screen.getByTestId(id)).not.toHaveAttribute("aria-keyshortcuts");
+      fireEvent.click(screen.getByTestId(id));
+    }
+    fireEvent.click(screen.getByTestId("editor-reset"));
+    fireEvent.keyDown(document.body, { key: "z", ctrlKey: true });
+    fireEvent.keyDown(document.body, { key: "z", metaKey: true });
+    fireEvent.keyDown(document.body, { key: "z", metaKey: true, shiftKey: true });
+    fireEvent.keyDown(document.body, { key: "y", ctrlKey: true });
+    expect(onUndo).not.toHaveBeenCalled();
+    expect(onRedo).not.toHaveBeenCalled();
+    expect(onReset).not.toHaveBeenCalled();
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+  });
 });
 
 // `SUI-FEATURE-069`: the lifecycle slot, in the structured form of `SUI-FEATURE-090`.

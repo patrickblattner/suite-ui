@@ -59,6 +59,47 @@ describe("SlideEditor Save", () => {
     expect(onBack).not.toHaveBeenCalled();
   });
 
+  // #763, SUI-FEATURE-064 rev 6: while the guard's Save runs, the editing area takes no input
+  // (`inert`), the head's Save works, Undo is locked with its shortcut, and a second way out asks
+  // nothing.
+  it("holds the editing area inert while the guard's Save runs", async () => {
+    let finish: (value: boolean) => void = () => {};
+    const onSave = vi.fn(() => new Promise<boolean>((resolve) => (finish = resolve)));
+    const onBack = vi.fn();
+    render(
+      <SlideEditor
+        document={SLIDE_EDITOR_DOC}
+        title="Deck"
+        brand={SLIDE_BRAND}
+        onSave={onSave}
+        onBack={onBack}
+      />,
+    );
+    makeDraft();
+    const area = screen.getByTestId("drawer-layers").closest(".flex-1")!;
+    expect(area).not.toHaveAttribute("inert");
+    fireEvent.click(screen.getAllByTestId("editor-back")[0]!);
+    fireEvent.click(await screen.findByTestId("leave-guard-save"));
+    await waitFor(() => expect(area).toHaveAttribute("inert"));
+    expect(screen.getAllByTestId("editor-save")[0]).toHaveAttribute("aria-busy", "true");
+    // The draft takes no step meanwhile: Undo is locked, and so is its shortcut.
+    expect(screen.getAllByTestId("editor-undo")[0]).toHaveAttribute("aria-disabled", "true");
+    fireEvent.keyDown(document.body, { key: "z", ctrlKey: true });
+    fireEvent.keyDown(document.body, { key: "z", metaKey: true });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(screen.getAllByTestId("editor-state")[0]).toHaveTextContent("Draft");
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    expect(screen.getAllByTestId("leave-guard")).toHaveLength(1);
+    await act(async () => {
+      finish(true);
+      await Promise.resolve();
+    });
+    await waitFor(() => expect(onBack).toHaveBeenCalledTimes(1));
+    expect(area).not.toHaveAttribute("inert");
+  });
+
   // #584: the rejection's text goes when the next save starts.
   it("clears the rejected-save text when the next save starts", async () => {
     const onSave = vi

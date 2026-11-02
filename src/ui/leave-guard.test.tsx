@@ -32,6 +32,7 @@ import { SidebarProvider } from "../shell/sidebar-provider.js";
 import { Combobox } from "./combobox.js";
 import { Dialog, DialogContent, DialogTitle } from "./dialog.js";
 import { EditPanel, type EditPanelProps } from "./edit-panel.js";
+import { EditorHeader, useEditorLeaveGuard } from "./editor-header.js";
 import { Input } from "./input.js";
 import { installLeaveGuard, isDirty, LeaveGuardWindow, useLeaveGuard } from "./leave-guard.js";
 import { TagInput } from "./tag-input.js";
@@ -3200,13 +3201,128 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
     expect([...router.state.blockers.values()].every((b) => b.state === "unblocked")).toBe(true);
   });
 
-  // #759 review, SUI-FEATURE-172 "Der neuere Klick gewinnt": a newer target while the deferred reset
-  // runs asks nothing, runs no second reset and lands there once the reset succeeded.
+  // #763: the page edits while the submission runs, a change asks and is Discarded; `typed` runs
+  // between the edit and the change.
+  async function discardWhileSubmitting(
+    router: ReturnType<typeof submittingRouter>,
+    typed: () => void = () => {},
+  ) {
+    await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
+    edit();
+    typed();
+    fireEvent.click(screen.getByTestId("go"));
+    fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+  }
+
+  const settleReset = (reset: ReturnType<typeof deferred>) =>
+    act(async () => {
+      reset.settle();
+      await reset.promise;
+    });
+
+  // The reset succeeds: the change that waited for it lands at its own target and stays there.
+  async function landsAfterReset(
+    router: ReturnType<typeof submittingRouter>,
+    reset: ReturnType<typeof deferred>,
+  ) {
+    await settleReset(reset);
+    await waitFor(() => expect(router.state.location.pathname).toBe("/elsewhere"));
+    await pause();
+    expect(router.state.location.pathname).toBe("/elsewhere");
+  }
+
+  const expectNoBlocker = (router: ReturnType<typeof submittingRouter>) =>
+    expect([...router.state.blockers.values()].every((b) => b.state === "unblocked")).toBe(true);
+
+  const typeTag = () => {
+    const field = screen.getByTestId("tag-input-input");
+    act(() => field.focus());
+    fireEvent.change(field, { target: { value: "draft" } });
+  };
+
+  // #763 (Codex v0.209.0 CX1): a draft-only edit (a canvas drag or a button-based control, no DOM
+  // `input`) while the deferred reset runs takes the change back as a typed entry does.
+  it("#763: a new draft while the deferred reset runs keeps the route", async () => {
+    const { action, settle } = submission(() => null);
+    const reset = deferred();
+    const onDiscard = vi.fn();
+    const router = submittingRouter(action, {
+      page: <SpyPage onDiscard={onDiscard} resetResult={() => reset.promise} withDraft />,
+    });
+    await discardWhileSubmitting(router);
+    await settleAndWait(settle);
+    await waitFor(() => expect(onDiscard).toHaveBeenCalledTimes(1));
+    const set = screen.getByTestId("set-name");
+    set.focus();
+    fireEvent.click(set);
+    await pause();
+    await settleReset(reset);
+    await pause();
+    await pause();
+    expect(router.state.location.pathname).toBe("/detail");
+    expect(screen.queryByTestId("leave-guard")).toBeNull();
+    expect(set).toHaveFocus();
+    expectNoBlocker(router);
+  });
+
+  // #763: the draft the deferred reset itself sets, at once while its promise still runs, is no
+  // edit: once the reset succeeded the change goes on to its target. #763 review: also with a typed
+  // tag the Discard covers until its reset succeeded (#694), which keeps the surface dirty.
+  it.each([false, true])(
+    "#763: a draft the deferred reset sets itself still lets the change go (typed tag: %s)",
+    async (withTag) => {
+      const { action, settle } = submission(() => null);
+      const reset = deferred();
+      function Tags() {
+        const [tags, setTags] = useState<string[]>([]);
+        return <TagInput value={tags} onChange={setTags} />;
+      }
+      function ResettingPage() {
+        const navigate = useNavigate();
+        const [name, setName] = useState("Main");
+        const { dialog } = useLeaveGuard({
+          dirty: isDirty("Main", name),
+          onLeave: () => void navigate("/list"),
+          onDiscard: () => {
+            setName("Main");
+            return reset.promise;
+          },
+          draft: name,
+        });
+        return (
+          <>
+            <Input
+              aria-label="Name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+            />
+            <button type="button" data-testid="go" onClick={() => void navigate("/elsewhere")}>
+              Go
+            </button>
+            {withTag && <Tags />}
+            {dialog}
+          </>
+        );
+      }
+      const router = submittingRouter(action, { page: <ResettingPage /> });
+      await discardWhileSubmitting(router, withTag ? typeTag : undefined);
+      await settleAndWait(settle);
+      await waitFor(() => expect(screen.getByLabelText("Name")).toHaveValue("Main"));
+      await pause();
+      expect(router.state.location.pathname).toBe("/detail");
+      await settleReset(reset);
+      await waitFor(() => expect(router.state.location.pathname).toBe("/elsewhere"));
+      expect(screen.queryByTestId("leave-guard")).toBeNull();
+    },
+  );
+
+  // #763, SUI-FEATURE-064 rev 6 "Während der Guard wartet" (replaces #759's "newer click wins"
+  // there): a further way out while the deferred reset runs asks nothing, runs no second reset and
+  // expires; the change that waited for the reset lands at its own target once the reset succeeded.
   it.each([
-    ["the page's Back", "/list", () => fireEvent.click(screen.getByTestId("back"))],
+    ["the page's Back", () => fireEvent.click(screen.getByTestId("back"))],
     [
       "a route change",
-      "/other",
       (router: ReturnType<typeof submittingRouter>) => {
         act(() => {
           void router.navigate("/other");
@@ -3214,36 +3330,119 @@ describe("useLeaveGuard on a detail page (GL-UI-007)", () => {
       },
     ],
   ] as const)(
-    "#759: %s while the deferred reset runs takes its place without a second question",
-    async (_way, target, leave) => {
+    "#763: %s while the deferred reset runs expires without a second question",
+    async (_way, leave) => {
       const { action, settle } = submission(() => null);
       const reset = deferred();
       const onDiscard = vi.fn();
       const router = submittingRouter(action, {
         page: <SpyPage onDiscard={onDiscard} resetResult={() => reset.promise} />,
       });
-      await waitFor(() => expect(router.state.navigation.state).toBe("submitting"));
-      edit();
-      fireEvent.click(screen.getByTestId("go"));
-      fireEvent.click(await screen.findByTestId("leave-guard-discard"));
+      await discardWhileSubmitting(router);
       await settleAndWait(settle);
       await waitFor(() => expect(onDiscard).toHaveBeenCalledTimes(1));
       leave(router);
       await pause();
       expect(screen.queryByTestId("leave-guard")).toBeNull();
       expect(router.state.location.pathname).toBe("/detail");
-      await act(async () => {
-        reset.settle();
-        await reset.promise;
-      });
-      await waitFor(() => expect(router.state.location.pathname).toBe(target));
+      await landsAfterReset(router, reset);
       expect(onDiscard).toHaveBeenCalledTimes(1);
       expect(screen.queryByTestId("leave-guard")).toBeNull();
+      expectNoBlocker(router);
     },
   );
 
-  // #759 recheck: a newer target while the deferred reset runs, whose reset then fails, keeps the
-  // route and the draft; a later leave asks again, and so does a typed tag after a failed reset.
+  // An editor page as an app binds rev 6 (`SUI-FEATURE-064`): the header and the surface follow
+  // `pending` (#763).
+  function EditorPage({ onReset }: { onReset: () => Promise<void> }) {
+    const navigate = useNavigate();
+    const [name, setName] = useState("Main");
+    const { guard, dialog, pending } = useEditorLeaveGuard({
+      dirty: isDirty("Main", name),
+      onBack: () => void navigate("/list"),
+      onSave: () => true,
+      onReset,
+    });
+    return (
+      <>
+        <EditorHeader
+          title="Draft"
+          onBack={() => guard(() => void navigate("/list"))}
+          canUndo={false}
+          canRedo={false}
+          onUndo={() => {}}
+          onRedo={() => {}}
+          dirty={isDirty("Main", name)}
+          saving={false}
+          pending={pending}
+          onSave={() => {}}
+          onReset={() => {}}
+        />
+        <div data-testid="surface" inert={pending}>
+          <Input aria-label="Name" value={name} onChange={(event) => setName(event.target.value)} />
+        </div>
+        <button type="button" data-testid="go" onClick={() => void navigate("/elsewhere")}>
+          Go
+        </button>
+        {dialog}
+      </>
+    );
+  }
+
+  // #763, SUI-FEATURE-064 rev 6 AC 9 (deferred): while the reset deferred behind the submission runs,
+  // the editor's `pending` holds the header in its working state and the surface `inert`; a second
+  // way out expires. Once the reset succeeded, both clear as the first way lands.
+  it("#763: AC 9, a deferred reset holds the header working and the surface inert", async () => {
+    const { action, settle } = submission(() => null);
+    const reset = deferred();
+    const onReset = vi.fn(() => reset.promise);
+    const router = submittingRouter(action, { page: <EditorPage onReset={onReset} /> });
+    await discardWhileSubmitting(router);
+    await pause();
+    // Waiting for the submission, the reset has not started: nothing is pending yet (SUI-FEATURE-172).
+    expect(screen.getByTestId("surface")).not.toHaveAttribute("inert");
+    await settleAndWait(settle);
+    await waitFor(() => expect(onReset).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.getByTestId("surface")).toHaveAttribute("inert"));
+    expect(screen.getByTestId("editor-save")).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByTestId("editor-reset")).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(screen.getByTestId("editor-back"));
+    act(() => {
+      void router.navigate("/other");
+    });
+    await pause();
+    expect(router.state.location.pathname).toBe("/detail");
+    expect(screen.queryByTestId("leave-guard")).toBeNull();
+    await landsAfterReset(router, reset);
+    expect(onReset).toHaveBeenCalledTimes(1);
+    expectNoBlocker(router);
+  });
+
+  // #763, Q #5204: rev 6 holds only once the reset runs. While the change still waits for the
+  // submission nothing is pending, and typing there takes the Discard back (SUI-FEATURE-172 AC 5):
+  // the reset never runs, the route and the typed value stay.
+  it("#763: typing while the change waits for the submission still takes the Discard back", async () => {
+    const { action, settle } = submission(() => null);
+    const onReset = vi.fn(() => Promise.resolve());
+    const router = submittingRouter(action, { page: <EditorPage onReset={onReset} /> });
+    await discardWhileSubmitting(router);
+    await pause();
+    expect(screen.getByTestId("editor-save")).not.toHaveAttribute("aria-busy");
+    expect(screen.getByTestId("surface")).not.toHaveAttribute("inert");
+    asUser(() => fireEvent.input(screen.getByLabelText("Name"), { target: { value: "Typed" } }));
+    await settleAndWait(settle);
+    await pause();
+    await pause();
+    expect(onReset).not.toHaveBeenCalled();
+    expect(router.state.location.pathname).toBe("/detail");
+    expect(screen.getByLabelText("Name")).toHaveValue("Typed");
+    expect(screen.queryByTestId("leave-guard")).toBeNull();
+    expect(screen.getByTestId("surface")).not.toHaveAttribute("inert");
+  });
+
+  // #759 recheck: a newer target while the deferred reset runs (it expires, SUI-FEATURE-064 rev 6),
+  // whose reset then fails, keeps the route and the draft; a later leave asks again, and so does a
+  // typed tag after a failed reset.
   it("#759: a newer target during the deferred reset, which then fails, keeps the route and asks again", async () => {
     const { action, settle } = submission(() => null);
     const reset = deferred();

@@ -209,6 +209,9 @@ if (PASTE_WAITS) {
 const MEDIA = PARAMS.get("media") !== "none";
 const MEDIA_FAILS = PARAMS.get("media") === "fail";
 const MEDIA_BAD = PARAMS.get("media") === "bad";
+// `?save=slow` (#763, `SUI-FEATURE-064` rev 6): Save takes 3 s, so the waiting state shows when Back
+// asks and Save in the question runs: the head works and locks, the editing area takes no input.
+const SAVE_SLOW = PARAMS.get("save") === "slow";
 // `SUI-FEATURE-163` (`?extensions=editor`): the gallery's extensions with their editor parts: the
 // stamp's text field, size and library entry; the filter's warmth field; a saved block (a badge, a
 // group); and an overlay of safe zones 5 % inside the page edge, drawn unscaled at 1 screen px.
@@ -452,8 +455,16 @@ export function SlideEditorPage() {
                 }
               : {})}
             onSave={(document) => {
-              setSaved(document);
-              return true;
+              if (!SAVE_SLOW) {
+                setSaved(document);
+                return true;
+              }
+              return new Promise<boolean>((resolve) =>
+                window.setTimeout(() => {
+                  setSaved(document);
+                  resolve(true);
+                }, 3000),
+              );
             }}
             onBack={() => setBacks((count) => count + 1)}
             data-testid="slide-editor"

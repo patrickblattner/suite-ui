@@ -404,6 +404,8 @@ export const en = {
     resetHint: "Discards the draft and returns to the saved state.",
     resetCleanHint: "Discards the draft — available once you have changed something.",
     resetSavingHint: "Discards the draft — locked while it is being saved.",
+    resetPendingHint: "Discards the draft — locked until the running action has finished.",
+    pendingHint: "Locked until the running action has finished.",
     saveFirst: "Save first",
     saveHint: "Saves the draft.",
     saveCleanHint: "Saves the draft — available once you have changed something.",

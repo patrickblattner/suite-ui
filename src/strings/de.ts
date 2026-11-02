@@ -381,6 +381,9 @@ export const de: SuiteStrings = {
     resetHint: "Verwirft den Entwurf und kehrt zum gespeicherten Stand zurück.",
     resetCleanHint: "Verwirft den Entwurf — verfügbar, sobald du etwas geändert hast.",
     resetSavingHint: "Verwirft den Entwurf — gesperrt, solange gespeichert wird.",
+    resetPendingHint:
+      "Verwirft den Entwurf — gesperrt, bis der laufende Vorgang abgeschlossen ist.",
+    pendingHint: "Gesperrt, bis der laufende Vorgang abgeschlossen ist.",
     saveFirst: "Erst speichern",
     saveHint: "Speichert den Entwurf.",
     saveCleanHint: "Speichert den Entwurf — verfügbar, sobald du etwas geändert hast.",

@@ -1441,10 +1441,13 @@ function Editor({
   };
   // The header's pair follows the guard's one dirty state, field drafts on the page included
   // (`SUI-FEATURE-118` rev 8).
+  // `pending`: the guard's `onSave`/`onReset` still runs; the head works and the editing area takes no
+  // input meanwhile (`SUI-FEATURE-064` rev 6).
   const {
     guard,
     dialog,
     dirty: guardDirty,
+    pending,
   } = useEditorLeaveGuard({
     dirty,
     saving,
@@ -3888,6 +3891,7 @@ function Editor({
           onRedo={() => travelKey("redo")}
           dirty={guardDirty}
           saving={saving}
+          pending={pending}
           onSave={() => void save()}
           onReset={reset}
           layout={headLayout}
@@ -3948,7 +3952,7 @@ function Editor({
             : t("slides.editor.saveFailed", { rule: t(`slides.editor.saveRule.${saveError}`) })}
         </p>
       )}
-      <div className="flex min-h-0 flex-1">
+      <div className="flex min-h-0 flex-1" inert={pending}>
         <DrawerRail
           items={[
             {
