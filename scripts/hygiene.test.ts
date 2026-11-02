@@ -1,9 +1,11 @@
 // @vitest-environment node
+import { spawnSync } from "node:child_process";
 import { createRequire } from "node:module";
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, matchesGlob } from "node:path";
 import {
+  changedSources,
   depcruiseCounts,
   falls,
   freshReport,
@@ -178,6 +180,52 @@ describe("fresh reports", () => {
       writeFileSync(file, '{"fresh": true}'),
     );
     expect(report).toEqual({ fresh: true });
+  });
+});
+
+// #766 (Codex v0.211.0 CX1): a name Git would quote (core.quotePath) still reaches Semgrep.
+describe("changed sources", () => {
+  let dir: string;
+  const git = (...args: string[]) => {
+    const result = spawnSync("git", args, { cwd: dir, encoding: "utf8" });
+    if (result.status !== 0) throw new Error(result.stderr);
+  };
+  // Neither the helper nor changedSources may reach the real repository (a hook's GIT_DIR) or read
+  // the user's global config (signing, hooksPath).
+  const saved = { ...process.env };
+  beforeEach(() => {
+    for (const key of Object.keys(process.env)) if (key.startsWith("GIT_")) delete process.env[key];
+    process.env.GIT_CONFIG_GLOBAL = "/dev/null";
+    process.env.GIT_CONFIG_NOSYSTEM = "1";
+    dir = mkdtempSync(join(tmpdir(), "hygiene-git-"));
+    git("init", "-q", "-b", "main");
+    git("config", "core.quotePath", "true");
+    git("config", "user.email", "test@example.com");
+    git("config", "user.name", "test");
+    git("commit", "-q", "--allow-empty", "-m", "base");
+    git("checkout", "-q", "-b", "branch");
+  });
+  afterEach(() => {
+    rmSync(dir, { recursive: true, force: true });
+    for (const key of Object.keys(process.env)) if (!(key in saved)) delete process.env[key];
+    Object.assign(process.env, saved);
+  });
+
+  it("fails closed when a Git call fails, so Semgrep is never skipped silently", () => {
+    writeFileSync(join(dir, ".git", "index"), "not an index");
+    expect(() => changedSources(dir)).toThrow(Unreadable);
+    expect(() => changedSources(dir)).toThrow(/^git diff exit \d+: .+/);
+  });
+
+  it("lists committed and untracked sources with non-ASCII, quote and newline names", () => {
+    mkdirSync(join(dir, "src"));
+    const committed = ["src/café.ts", 'src/say"hi.tsx', "src/two\nlines.js", "src/plain.ts"];
+    for (const file of committed) writeFileSync(join(dir, file), "export {};\n");
+    git("add", "src");
+    git("commit", "-q", "-m", "change");
+    writeFileSync(join(dir, "src/naïve.mjs"), "export {};\n");
+    writeFileSync(join(dir, "src/notes.md"), "not a source\n");
+    expect(changedSources(dir)?.sort()).toEqual([...committed, "src/naïve.mjs"].sort());
   });
 });
 

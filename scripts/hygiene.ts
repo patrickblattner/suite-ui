@@ -173,9 +173,9 @@ interface Ran {
   status: number | null;
 }
 
-function run(command: string, args: string[]): Ran {
+function run(command: string, args: string[], cwd = root): Ran {
   const result = spawnSync(command, args, {
-    cwd: root,
+    cwd,
     encoding: "utf8",
     maxBuffer: 512 * 1024 * 1024,
     env: { ...process.env, SEMGREP_SEND_METRICS: "off" },
@@ -255,19 +255,26 @@ const SEMGREP_EXCLUDE = [
 const SEMGREP_TIMEOUT = "60";
 
 // The files changed against `main` (committed on the branch or not), or null when there is no `main`.
-function changedSources(): string[] | null {
-  const base = spawnSync("git", ["merge-base", "HEAD", "main"], { cwd: root, encoding: "utf8" });
+// `-z` lists every path raw and NUL-separated: without it Git quotes a non-ASCII name or one with a
+// quote or newline (core.quotePath), which the source filter would reject and Semgrep never scan.
+export function changedSources(dir = root): string[] | null {
+  const base = spawnSync("git", ["merge-base", "HEAD", "main"], { cwd: dir, encoding: "utf8" });
   if (base.status !== 0) return null;
-  const git = (...args: string[]) => run("git", args).stdout.split("\n").filter(Boolean);
+  // A failing Git call is an unreadable run, never an empty list that skips Semgrep.
+  const git = (...args: string[]) => {
+    const { stdout, stderr, status } = run("git", args, dir);
+    if (status !== 0) throw new Unreadable(`git ${args[0]} exit ${status}: ${stderr.trim()}`);
+    return stdout.split("\0").filter(Boolean);
+  };
   const files = [
-    ...git("diff", "--name-only", "--diff-filter=ACMR", base.stdout.trim()),
-    ...git("ls-files", "--others", "--exclude-standard"),
+    ...git("diff", "-z", "--name-only", "--diff-filter=ACMR", base.stdout.trim()),
+    ...git("ls-files", "-z", "--others", "--exclude-standard"),
   ];
   return [...new Set(files)].filter(
     (file) =>
       SEMGREP_SOURCE.test(file) &&
       !SEMGREP_EXCLUDE.some((path) => file === path || file.startsWith(`${path}/`)) &&
-      existsSync(join(root, file)),
+      existsSync(join(dir, file)),
   );
 }
 

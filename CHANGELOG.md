@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — #766: the hygiene phase's Semgrep scan reaches changed files with non-ASCII, quote or newline names (Codex v0.211.0 CX1, SUI-FEATURE-128) (patch)
+
+- **Fixed (#766, Codex v0.211.0 CX1):** `scripts/hygiene.ts` lists the changed files with `git diff -z` and `git ls-files -z`. Before, Git quoted a name such as `src/café.ts` (core.quotePath), the source filter rejected it, and when it was the only changed source Semgrep was skipped with zero findings. Test: a branch with committed and untracked sources named with non-ASCII, a quote and a newline lists every one of them, and no non-source file.
+- **Fixed (#766, review):** a failing `git diff`/`git ls-files` there no longer reads as "no changed source files" and skips Semgrep: the hygiene phase is red as unreadable, naming the Git call, its exit and its message. Test: a broken index fails closed. The tests' Git calls run without inherited `GIT_*` variables and without the global and system config, so a hook's `GIT_DIR` cannot reach the real repository.
+
 ## 0.213.0 — #764: slide background image crop `{ zoom, offsetX, offsetY }` like an image element's, slide schema 10 (SUI-DESIGN-002 rev 10) (minor)
 
 - **New (#764, SUI-DESIGN-002 rev 10, GL-UI-035, Q&A #5201):** a page, layout or master background image carries `crop: { zoom ≥ 1, offsetX, offsetY }` next to `flipped`, the same crop as an image element (px of the format over the page's cover fill; default `{ zoom: 1, offsetX: 0, offsetY: 0 }`, so it may be left out on input). `SlideView`, `SlidePlayer` and the export draw it as an image's crop: the image covers the page, zoomed, shifted and drawn within its reach once its size is known (the export waits for it, `data-slide-image` on the background `<img>`); cropped first, then flipped about the page's centre, so a flipped page shows the same section, mirrored. An app replacing the medium (`media.id`, filling a template) keeps `crop` and `flipped`. Unblocks cockpit S7 #3303.
