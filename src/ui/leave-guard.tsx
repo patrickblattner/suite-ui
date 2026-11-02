@@ -893,9 +893,14 @@ function collectBlocking(
   // While a guard's `onSave`/`onDiscard` still runs, a further change asks nothing and never goes: it
   // expires, and the change that waits for the call keeps its place (`SUI-FEATURE-064` rev 6).
   if (entry.holds.some((hold) => hold.pending())) {
-    entry.expiring = { covers: heldBlocker(router) ?? null };
+    // A further one before the runner saw the last (one batch) covers what that one covered, not
+    // the expired change still held (#768).
+    entry.expiring ??= { covers: heldBlocker(router) ?? null };
     return true;
   }
+  // An expiring step that blocked nothing (a browser step without an index) was never taken: it
+  // leaves no trace for this change (#768).
+  entry.expiring = null;
   entry.requests += 1;
   const started = entry.restarting;
   entry.restarting = null;

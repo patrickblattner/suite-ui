@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   BrowserRouter,
   createBrowserRouter,
+  createMemoryRouter,
   Link,
   MemoryRouter,
   Route,
@@ -361,6 +362,81 @@ describe.each(["memory", "browser", "data"] as const)(
     });
   },
 );
+
+// #768 (Codex CX1, `SUI-FEATURE-064` rev 6): two route changes in one batch while the call runs,
+// before the blocked change's runner sees the first — both expire over the change that waits for
+// the call, which still lands at its own target once the call succeeded. The page's Back waits for
+// the call without a blocked change: both expired changes are reset, none stays blocked.
+describe.each(["discard", "save"] as const)(
+  "useEditorLeaveGuard with two batched route changes while its call runs (%s)",
+  (answer) => {
+    it.each(["sidebar", "page Back"] as const)("%s still lands at its own target", async (way) => {
+      settle = null;
+      const router = createMemoryRouter(
+        [
+          {
+            path: "/editor",
+            element: (
+              <>
+                <Where />
+                <Editor mode="async" />
+              </>
+            ),
+          },
+          { path: "*", element: <Where /> },
+        ],
+        { initialEntries: ["/list", "/editor"], initialIndex: 1 },
+      );
+      render(<RouterProvider router={router} />);
+      ways[way]();
+      const dialog = await screen.findByTestId("leave-guard");
+      fireEvent.click(within(dialog).getByTestId(`leave-guard-${answer}`));
+      await pause();
+      act(() => {
+        void router.navigate("/second");
+        void router.navigate("/third");
+      });
+      await pause();
+      expect(path()).toHaveTextContent("/editor");
+      // Blocked over no change, the expired one is reset at once (a null original stays null).
+      const blocked = () => [...router.state.blockers.values()].some((b) => b.state === "blocked");
+      expect(blocked()).toBe(way === "sidebar");
+      act(() => settle?.("ok"));
+      await waitFor(() => expect(path()).toHaveTextContent(target[way]));
+      expect(screen.queryByTestId("leave-guard")).toBeNull();
+      expect(blocked()).toBe(false);
+      router.dispose();
+    });
+  },
+);
+
+// #768 review: a browser step to an entry the router did not make (no index, as a hand-edited hash
+// URL) asks the blocker but blocks nothing, so the expiring it noted while a call ran is never taken.
+// A later, separate wait starts from its own change: a route change expiring then still covers it.
+it("#768: an expiring step that blocked nothing leaves no trace for a later wait", async () => {
+  settle = null;
+  const { dispose } = await routers.data("async");
+  fireEvent.click(screen.getByTestId("page-back"));
+  fireEvent.click(within(await screen.findByTestId("leave-guard")).getByTestId("leave-guard-save"));
+  await pause();
+  act(() => {
+    window.history.pushState(null, "", "/editor");
+    window.dispatchEvent(new PopStateEvent("popstate", { state: null }));
+  });
+  await pause();
+  act(() => settle?.("fail"));
+  await waitFor(() => expect(screen.queryByTestId("leave-guard")).toBeNull());
+  expect(path()).toHaveTextContent("/editor");
+  fireEvent.click(screen.getByTestId("sidebar-other"));
+  fireEvent.click(within(await screen.findByTestId("leave-guard")).getByTestId("leave-guard-save"));
+  await pause();
+  fireEvent.click(screen.getByTestId("page-back"));
+  await pause();
+  expect(path()).toHaveTextContent("/editor");
+  act(() => settle?.("ok"));
+  await waitFor(() => expect(path()).toHaveTextContent("/other"));
+  dispose();
+});
 
 // `SUI-FEATURE-129` AC 1: an app that saves through a route action does so with a fetcher and
 // returns a promise of the result that settles only once the fetcher has ended — never a router
