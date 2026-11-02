@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — #767: the SlideEditor's image element offers a Flip toggle; crop ranges show a typographic minus (GL-UI-035, SUI-DESIGN-002) (patch)
+
+- **Fixed (#767, GL-UI-035, SUI-DESIGN-002, Q&A #5206):** with one image element selected, the layout tab offers the shared Flip toggle (`FlipToggle`, `SUI-FEATURE-311`: fixed label, `aria-pressed`, a description hint). It sets `flipped` on the image as one history step that Undo takes back; `SlideView` and the export already drew it. On a locked image the toggle is locked with the lock reason.
+- **Fixed (#767, rev-764-ux):** the reach line under the crop's shift fields reads "From −480 to 480 px" with a typographic minus "−" instead of ASCII "-", for both the image crop and the page background's crop.
+- **Tests (#767):** unit: the toggle flips the selected image on the canvas and Undo flips it back; a locked image's toggle has `aria-disabled`, the lock reason and changes nothing; the range lines expect "−". Gallery: `slide-editor-image-flip-*` (new); the background baselines with the range line and the gallery front pages listing the strings (new `imageFlipHint`) are regenerated.
+
 ## 0.213.3 — #769: after Undo and Redo, typing a zoom for the background image no longer shifts it from an older crop (SUI-DESIGN-002 rev 10, Codex v0.213.0 CX1) (patch)
 
 - **Fixed (#769, Codex v0.213.0 CX1, SUI-DESIGN-002 rev 10):** the zoom % field of the page's background image starts a new typing whenever its revision changes (the history's Undo/Redo), also when history brings back the very crop that typing set. In 0.213.0, typing 100 % on a background at 150 % shifted −300 px, then Undo, Redo and typing 200 % (the field keeping the focus) zoomed from the 150 % crop and shifted the image to −400 px instead of keeping it centred. The fix is for the background crop: `CropFields` keys its typing to the revision. An image element's crop cannot take that path (Redo is locked while cropping, Undo ends cropping) and was not affected; a guard test pins that.

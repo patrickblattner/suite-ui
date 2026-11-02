@@ -172,7 +172,8 @@ export function CropFields({
                     {reach === 0
                       ? t("slides.editor.cropOffsetNone")
                       : t("slides.editor.cropOffsetRange", {
-                          min: number.format(-reach),
+                          // A typographic minus, never the hyphen `Intl` writes (#767).
+                          min: `−${number.format(reach)}`,
                           max: number.format(reach),
                         })}
                   </span>

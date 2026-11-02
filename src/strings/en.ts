@@ -624,6 +624,7 @@ export const en = {
       cropZoomValueHint:
         "100% fills the frame; up to 500% shows an ever smaller part of the image.",
       cropOffsetValueHint: "Pixels from the centre of the frame; 0 centres the image.",
+      imageFlipHint: "Mirrors the image horizontally within its area.",
       pageBackground: "Background",
       pageBackgroundZoomHint: "Enlarges the background image on the page.",
       pageBackgroundZoomValueHint:

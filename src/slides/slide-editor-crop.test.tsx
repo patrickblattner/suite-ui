@@ -412,7 +412,7 @@ describe("SlideEditor crop mode (SUI-FEATURE-230 rev 4)", () => {
     expect(screen.getByTestId("slide-editor-crop-offsetX")).toHaveValue("-35");
     expect(screen.getByTestId("slide-editor-crop-offsetY")).toHaveValue("-20");
     expect(screen.getByTestId("slide-editor-crop-offsetX-range")).toHaveTextContent(
-      "From -35 to 35 px",
+      "From −35 to 35 px",
     );
   });
 
@@ -507,7 +507,7 @@ describe("SlideEditor crop mode on the overhanging axis (SUI-FEATURE-280)", () =
     loadRest(wide);
     expect(percent()).toHaveValue("100");
     expect(screen.getByTestId("slide-editor-crop-offsetX-range")).toHaveTextContent(
-      "From -120 to 120 px",
+      "From −120 to 120 px",
     );
     expect(screen.getByTestId("slide-editor-crop-offsetY-range")).toHaveTextContent(
       "Zoom in to shift the image.",
@@ -551,7 +551,7 @@ describe("SlideEditor crop mode on the overhanging axis (SUI-FEATURE-280)", () =
     startCrop();
     expect(offsetX()).toHaveValue("-120");
     expect(screen.getByTestId("slide-editor-crop-offsetX-range")).toHaveTextContent(
-      "From -120 to 120 px",
+      "From −120 to 120 px",
     );
     fireEvent.keyDown(canvas(), { key: "ArrowUp" });
     expect(offsetY()).toHaveValue("0");
@@ -571,5 +571,58 @@ describe("SlideEditor crop mode on the overhanging axis (SUI-FEATURE-280)", () =
     fireEvent.keyDown(canvas(), { key: "Enter" });
     expect(canvas()).not.toHaveAttribute("data-cropping");
     expect(screen.getAllByTestId("editor-undo")[0]).not.toHaveAttribute("aria-disabled", "true");
+  });
+});
+
+// #767 (GL-UI-035, SUI-FEATURE-311): the selected image's Flip toggle sets `flipped`, drawn on the
+// canvas, and Undo takes it back; locked, the toggle carries the lock reason and changes nothing.
+describe("SlideEditor image flip (#767)", () => {
+  const select = () => {
+    fireEvent.click(screen.getByTestId("drawer-layers"));
+    fireEvent.click(screen.getByTestId("slide-editor-layer").querySelector("button")!);
+  };
+  // The page the canvas lays over: its drawn image.
+  const drawn = () =>
+    canvas().parentElement!.querySelector<HTMLImageElement>("img[data-slide-image]")!;
+  const flip = () => screen.getByTestId("slide-editor-image-flip");
+
+  it("flips the selected image and Undo takes it back", () => {
+    renderEditor();
+    select();
+    expect(flip()).toHaveAccessibleName("Flip");
+    expect(flip()).toHaveAttribute("aria-pressed", "false");
+    expect(flip()).toHaveAccessibleDescription("Mirrors the image horizontally within its area.");
+    expect(drawn().style.transform).toBe("");
+    fireEvent.click(flip());
+    expect(flip()).toHaveAttribute("aria-pressed", "true");
+    expect(drawn().style.transform).toBe("scaleX(-1)");
+    fireEvent.click(screen.getAllByTestId("editor-undo")[0]!);
+    expect(flip()).toHaveAttribute("aria-pressed", "false");
+    expect(drawn().style.transform).toBe("");
+  });
+
+  it("locks the toggle of a locked image with the reason", () => {
+    render(
+      <SlideEditor
+        document={{
+          schemaVersion: 10,
+          format: FORMAT_16_9,
+          pages: [{ id: "one", background, elements: [{ ...photo, locked: true }] }],
+        }}
+        title="Deck"
+        brand={SLIDE_BRAND}
+        resolveMedia={resolveSlideMedia}
+        onSave={() => true}
+        onBack={() => {}}
+      />,
+    );
+    select();
+    expect(flip()).toHaveAttribute("aria-disabled", "true");
+    expect(flip()).toHaveAccessibleDescription(
+      "The element is locked. Unlock it in the layers panel to change it.",
+    );
+    fireEvent.click(flip());
+    expect(flip()).toHaveAttribute("aria-pressed", "false");
+    expect(drawn().style.transform).toBe("");
   });
 });

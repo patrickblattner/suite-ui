@@ -124,7 +124,7 @@ describe("SlideEditor background image", () => {
     expect(stored()).toMatchObject({ crop: { zoom: 1.5, offsetX: 0, offsetY: 0 } });
     // 2880 × 1620 on 1920 × 1080: 480 px each way across, 270 px down and up.
     expect(screen.getByTestId("slide-editor-background-offsetX-range")).toHaveTextContent(
-      "From -480 to 480 px",
+      "From −480 to 480 px",
     );
     fireEvent.change(offset("X"), { target: { value: "-900" } });
     fireEvent.blur(offset("X"));
@@ -273,7 +273,7 @@ describe("SlideEditor background image", () => {
     const { stored } = renderEditor(image({ zoom: 1.5, offsetX: 0, offsetY: 0 }, false, "broken"));
     await loaded();
     expect(screen.getByTestId("slide-editor-background-offsetX-range")).toHaveTextContent(
-      "From -480 to 480 px",
+      "From −480 to 480 px",
     );
     fireEvent.change(offset("X"), { target: { value: "-900" } });
     fireEvent.blur(offset("X"));

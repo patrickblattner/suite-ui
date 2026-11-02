@@ -622,6 +622,28 @@ for (const lng of LANGUAGES) {
       await expect(section).toHaveScreenshot(`slide-editor-background-${lng}-${theme}.png`);
     });
 
+    // #767 (`GL-UI-035`, `SUI-FEATURE-311`): the selected image's layout tab offers the flip toggle,
+    // here pressed, the picture drawn mirrored.
+    test(`slide editor image flip ${lng} ${theme}`, async ({ page }) => {
+      await page.goto(`/?page=slide-editor&lng=${lng}&theme=${theme}`);
+      await expect(page.locator("html")).toHaveAttribute("lang", lng);
+      const { editor } = await openEditor(page, false);
+      await editor.getByTestId("slide-editor-next-page").click();
+      await editor.getByTestId("drawer-layers").click();
+      await editor.locator("[data-layer-id=picture] > button").first().click();
+      const flip = editor.getByTestId("slide-editor-image-flip");
+      await expect(flip).toHaveAttribute("aria-pressed", "false");
+      await flip.click();
+      await expect(flip).toHaveAttribute("aria-pressed", "true");
+      await expect(
+        editor.locator("[data-slide-element=picture] img[data-slide-image=sized]"),
+      ).toHaveCSS("transform", "matrix(-1, 0, 0, 1, 0, 0)");
+      await parkPointer(page);
+      await expect(editor.getByTestId("slide-editor-layout")).toHaveScreenshot(
+        `slide-editor-image-flip-${lng}-${theme}.png`,
+      );
+    });
+
     // `SUI-FEATURE-195`: a locked text field's panel locks every control the same way. Fields are
     // read-only, every other control is focusable, `aria-disabled` and described by the reason, at
     // full opacity; Tab walks through all of them, and nothing opens or changes.
@@ -14976,7 +14998,7 @@ test("slide editor: the crop offset fields name their reach and show the clamped
   await expect(offsetX).toHaveAccessibleDescription(
     "Zoom in to shift the image. Pixels from the centre of the frame; 0 centres the image.",
   );
-  await expect(rangeY).toHaveText("From -25 to 25 px");
+  await expect(rangeY).toHaveText("From −25 to 25 px");
   await offsetX.fill("30");
   await offsetY.focus();
   await expect(offsetX).toHaveValue("0");
@@ -14986,12 +15008,26 @@ test("slide editor: the crop offset fields name their reach and show the clamped
   const zoom = editor.getByRole("slider", { name: "Zoom" });
   await zoom.focus();
   for (let step = 0; step < 5; step += 1) await page.keyboard.press("PageUp");
-  await expect(rangeX).toHaveText("From -100 to 100 px");
+  await expect(rangeX).toHaveText("From −100 to 100 px");
   // 600 × 450 in 400 × 250.
-  await expect(rangeY).toHaveText("From -100 to 100 px");
+  await expect(rangeY).toHaveText("From −100 to 100 px");
   await offsetX.fill("999");
   await offsetY.focus();
   await expect(offsetX).toHaveValue("100");
+});
+
+// #767 (UX review): in crop mode the first pointer click on Flip flips: the press ends cropping, and
+// the toggle stands above the crop fields, so it stays under the pointer as they go.
+test("slide editor: the first click on Flip in crop mode flips the image", async ({ page }) => {
+  const { editor, canvas, centre } = await pictureEditor(page);
+  await page.mouse.dblclick(centre.x, centre.y);
+  await expect(canvas).toHaveAttribute("data-cropping", "picture");
+  const flip = editor.getByTestId("slide-editor-image-flip");
+  await expect(flip).toHaveAttribute("aria-pressed", "false");
+  const box = (await flip.boundingBox())!;
+  await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+  await expect(flip).toHaveAttribute("aria-pressed", "true");
+  await expect(canvas).not.toHaveAttribute("data-cropping");
 });
 
 // SUI-FEATURE-230 (UX review): an image whose panel shows Content keeps cropping while the person

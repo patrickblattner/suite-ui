@@ -39,6 +39,7 @@ import { type DrawerId, DrawerRail } from "../ui/drawer-rail.js";
 import { EditorHeader, type EditorHeaderLayout, useEditorLeaveGuard } from "../ui/editor-header.js";
 import { Field } from "../ui/field.js";
 import { GridFields, GridOverlay, GridToggle } from "../ui/grid.js";
+import { FlipToggle } from "../ui/flip-toggle.js";
 import { Hint } from "../ui/hint.js";
 import { helpIdFor } from "../ui/label-with-help.js";
 import { useLeaveGuard } from "../ui/leave-guard.js";
@@ -3249,6 +3250,26 @@ function Editor({
   const layoutTab = (
     <div className="flex flex-col gap-4" data-testid="slide-editor-layout">
       {unloadedNote}
+      {/* An image's flip (`GL-UI-035`, `SUI-FEATURE-311`): one step each, undone as any other. Above
+          the crop fields, so a press that ends cropping leaves the toggle where it was (#767). */}
+      {single?.type !== "image" ? null : (
+        <div className="flex flex-wrap gap-2">
+          <Hint text={t("slides.editor.imageFlipHint")} disabledText={t("slides.lockedElement")}>
+            <FlipToggle
+              flipped={single.flipped}
+              disabled={single.locked}
+              onFlippedChange={(flipped) =>
+                apply((current) =>
+                  updateElements(current, page, [single.id], (one) =>
+                    one.type === "image" ? { ...one, flipped } : one,
+                  ),
+                )
+              }
+              data-testid="slide-editor-image-flip"
+            />
+          </Hint>
+        </div>
+      )}
       {cropFields}
       {single === undefined ? null : (
         <div className="grid grid-cols-2 gap-4" data-tooltip-row="">

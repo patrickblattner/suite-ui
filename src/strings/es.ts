@@ -592,6 +592,7 @@ export const es: SuiteStrings = {
       cropZoomValueHint:
         "100 % llena el marco; hasta 500 % muestra una parte cada vez menor de la imagen.",
       cropOffsetValueHint: "Píxeles desde el centro del marco; 0 centra la imagen.",
+      imageFlipHint: "Refleja la imagen en horizontal dentro de su área.",
       pageBackground: "Fondo",
       pageBackgroundZoomHint: "Amplía la imagen de fondo en la página.",
       pageBackgroundZoomValueHint:
