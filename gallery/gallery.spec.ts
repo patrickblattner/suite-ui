@@ -12653,6 +12653,39 @@ test("settings action row: showDisabledReason names the package and the app lock
   await expect(appSave).not.toHaveAttribute("aria-disabled");
 });
 
+// `SUI-FEATURE-131` rev 3 AC 3/4: the page-wide footer of SettingsScaffold names Save's lock before
+// Reset + Save, stays visible when the body is scrolled to its end, and the line goes after one edit.
+test("settings scaffold: showDisabledReason in the fixed footer survives scrolling", async ({
+  page,
+}) => {
+  await page.goto("/?page=settings&layout=page-reason&lng=de");
+  const line = page.getByTestId("settings-general-disabled-reason");
+  const save = page.getByTestId("settings-general-save");
+  await expect(line).toHaveText("Noch nichts geändert");
+  const [l, r] = [await box(line), await box(page.getByTestId("settings-general-reset"))];
+  expect(l.x + l.width).toBeLessThanOrEqual(r.x);
+  await expect(save).toHaveAccessibleDescription("Noch nichts geändert");
+  const body = page.getByTestId("settings-body");
+  expect(await body.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
+  const before = await box(line);
+  await body.evaluate((el) => el.scrollTo(0, el.scrollHeight));
+  expect(await body.evaluate((el) => el.scrollTop + el.clientHeight >= el.scrollHeight - 1)).toBe(
+    true,
+  );
+  await expect(line).toBeInViewport();
+  expect((await box(line)).y).toBe(before.y);
+  await page.getByTestId("settings-field-2").fill("22");
+  await expect(line).toHaveCount(0);
+  await expect(save).not.toHaveAttribute("aria-disabled");
+  await page.getByTestId("settings-field-1").fill("");
+  await expect(line).toHaveText("Markierte Felder zuerst korrigieren");
+  await expect(save).toHaveAccessibleDescription("Markierte Felder zuerst korrigieren");
+  await page.getByTestId("settings-field-1").blur();
+  await expect(page.locator("#field-1-error")).toContainText(
+    "Feld ausfüllen: Es darf nicht leer sein.",
+  );
+});
+
 // `SUI-FEATURE-125` AC 5 on the other footers: at 390 px the reason wraps onto its own row above
 // Save, its end at Save's end, and nothing overflows the row.
 async function expectReasonAbove(page: Page, lineId: string, saveId: string, rowSelector: string) {
@@ -12717,6 +12750,17 @@ test("settings action row: showDisabledReason wraps above Save at 390 px", async
     "reason-app-disabled-reason",
     "reason-app-save",
     '[data-slot="settings-action-row"]',
+  );
+});
+
+test("settings scaffold: showDisabledReason wraps above Save at 390 px", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  await page.goto("/?page=settings&layout=page-reason&lng=de");
+  await expectReasonAbove(
+    page,
+    "settings-general-disabled-reason",
+    "settings-general-save",
+    '[data-testid="settings-footer"]',
   );
 });
 

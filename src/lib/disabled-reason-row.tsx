@@ -2,7 +2,7 @@ import * as React from "react";
 
 // A locked primary action always names its reason (`SUI-FEATURE-250`): `submitDisabled` comes with
 // `submitDisabledHint` or not at all. The app knows the reason; the package invents none. `EditPanel`,
-// `MediaDetailShell` and `SettingsActionRow` take it alike (`SUI-FEATURE-131`).
+// `MediaDetailShell`, `SettingsActionRow` and `SettingsScaffold` `form` take it alike (`SUI-FEATURE-131`).
 type SubmitLock =
   | { submitDisabled?: never; submitDisabledHint?: never }
   | { submitDisabled: boolean; submitDisabledHint: string };
@@ -11,8 +11,8 @@ type SubmitLock =
 // reading order and end-aligned; too narrow, the reason wraps onto its own row above the buttons. It
 // never truncates: a long unbroken token breaks anywhere. The cluster stands whether the reason shows
 // or not, so a lock never remounts the buttons. Its own component, so the id is only drawn where an app
-// opts in: every other footer keeps its ids. Shared by `EditPanel`, `MediaDetailShell` and
-// `SettingsActionRow`.
+// opts in: every other footer keeps its ids. Shared by `EditPanel`, `MediaDetailShell`,
+// `SettingsActionRow` and `SettingsFooter`.
 function DisabledReasonRow({
   reason,
   testId,

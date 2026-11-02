@@ -161,4 +161,50 @@ function SaveResetButtons({
   );
 }
 
-export { SaveResetButtons, type SaveResetButtonsProps };
+// Save's lock reason for a footer built on `SaveResetButtons` (`SUI-FEATURE-131`): the app's lock with
+// its hint, then an invalid entry, then nothing changed. Without the opt-in only the app's hint
+// replaces the package's tooltip. `reason` is the visible line: never while a save runs, and an empty
+// app hint draws none. `saveProps` carries the lock, the tooltip text and the line's id to the pair.
+// Shared by `SettingsActionRow` and `SettingsFooter`.
+function useSaveLock({
+  showDisabledReason,
+  submitDisabled,
+  submitDisabledHint,
+  valid,
+  changed,
+  saving,
+  loaded = true,
+}: {
+  showDisabledReason: boolean;
+  submitDisabled: boolean;
+  submitDisabledHint: string | undefined;
+  valid: boolean;
+  changed: boolean;
+  saving: boolean;
+  // `false` while the surface shows loading or a load error (`SUI-FEATURE-131` rev 5): that lock is no
+  // invalid value. Opted in and changed, Save stays silent: no line, no tooltip, no description; the
+  // body's state names the reason once.
+  loaded?: boolean;
+}) {
+  const { t } = useTranslation("suite");
+  const lockReason = submitDisabled
+    ? submitDisabledHint
+    : !showDisabledReason
+      ? undefined
+      : !loaded && changed
+        ? ""
+        : !valid && loaded
+          ? t("form.invalid")
+          : !changed
+            ? t("form.unchanged")
+            : undefined;
+  const reason = showDisabledReason && !saving ? lockReason || undefined : undefined;
+  const saveProps = (reasonId?: string) => ({
+    ...(submitDisabled ? { locked: true } : {}),
+    ...(lockReason !== undefined ? { saveDisabledText: lockReason } : {}),
+    ...(reasonId !== undefined ? { reasonId } : {}),
+  });
+  return { reason, saveProps };
+}
+
+export { SaveResetButtons, type SaveResetButtonsProps, useSaveLock };

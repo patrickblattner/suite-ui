@@ -31,6 +31,7 @@ const LABELS = {
     replaceOpen: "Finish or cancel the replacement first.",
     testFirst: "Test the connection first",
     noSpace: "Remove the spaces: the value can't contain any.",
+    fillField: "Fill in this field: it can't be empty.",
   },
   de: {
     title: "Allgemein",
@@ -42,6 +43,7 @@ const LABELS = {
     replaceOpen: "Erst das Ersetzen abschließen oder abbrechen.",
     testFirst: "Zuerst die Verbindung testen",
     noSpace: "Leerzeichen entfernen: Der Wert darf keine enthalten.",
+    fillField: "Feld ausfüllen: Es darf nicht leer sein.",
   },
   es: {
     title: "General",
@@ -53,6 +55,7 @@ const LABELS = {
     replaceOpen: "Termina o cancela primero el reemplazo.",
     testFirst: "Prueba primero la conexión",
     noSpace: "Quita los espacios: el valor no puede contenerlos.",
+    fillField: "Rellena este campo: no puede quedar vacío.",
   },
 } as const;
 
@@ -85,6 +88,10 @@ const ACTION_ROW_WIDTH = Number(PARAMS.get("width")) || null;
 // `SUI-FEATURE-131`): one locked by the package (nothing changed, or a value with a space is invalid),
 // one locked by the app with its own hint until the connection is tested.
 const REASON_LAYOUT = PARAMS.get("layout") === "reason";
+// `?layout=page-reason` shows the page-wide form footer with `showDisabledReason` (`SUI-FEATURE-131`
+// rev 3): locked while nothing changed or field 1 is empty, the body long enough to scroll under the
+// fixed footer.
+const PAGE_REASON_LAYOUT = PARAMS.get("layout") === "page-reason";
 const OPTIONS = ["a", "b", "c"] as const;
 const TAB_KEYS = ["provider", "areas", "prompts"] as const;
 // Long enough for a check of the working state, short enough for the test to wait for its end.
@@ -138,6 +145,36 @@ export function SettingsPage() {
       <div className="flex flex-col gap-4 p-6">
         <ReasonBlocks labels={labels} />
       </div>
+    );
+  }
+
+  if (PAGE_REASON_LAYOUT) {
+    return (
+      <PageScroll>
+        <SettingsScaffold
+          pageKey="general"
+          title={labels.title}
+          subtitle={labels.subtitle}
+          body={[
+            // Field 1 says what is wrong while it is empty (`GL-UX-001`); the footer names the lock.
+            <SettingsField
+              key="field-1"
+              label={`${labels.field} 1`}
+              htmlFor="field-1"
+              {...(form["field-1"] === "" ? { error: labels.fillField } : {})}
+            >
+              <Input
+                id="field-1"
+                data-testid="settings-field-1"
+                value={form["field-1"]}
+                onChange={(event) => setForm((f) => ({ ...f, "field-1": event.target.value }))}
+              />
+            </SettingsField>,
+            ...FIELDS.slice(1).map((id, i) => field(id, i + 1)),
+          ]}
+          form={{ ...formProps, valid: form["field-1"] !== "", showDisabledReason: true }}
+        />
+      </PageScroll>
     );
   }
 

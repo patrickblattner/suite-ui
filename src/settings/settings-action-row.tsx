@@ -1,5 +1,4 @@
 import * as React from "react";
-import { useTranslation } from "react-i18next";
 
 import {
   FieldDraftsContext,
@@ -8,7 +7,7 @@ import {
 } from "../ui/field-drafts-internal.js";
 import { cn } from "../lib/cn.js";
 import { DisabledReasonRow, type SubmitLock } from "../lib/disabled-reason-row.js";
-import { SaveResetButtons } from "./settings-save-reset.js";
+import { SaveResetButtons, useSaveLock } from "./settings-save-reset.js";
 
 type SettingsActionRowBase = {
   // The entry differs from its loaded state. Only then are Reset and Save usable. Pass the entry's own
@@ -60,7 +59,6 @@ function SettingsActionRow({
   submitDisabledHint,
   ...leftButton
 }: SettingsActionRowProps) {
-  const { t } = useTranslation("suite");
   // Only the block's own scope: an edit panel, sheet or dialog between it and the row is a scope of
   // its own, and the row does not reach past it.
   const block = React.useContext(SettingsBlockDraftsContext);
@@ -68,19 +66,14 @@ function SettingsActionRow({
   const blockDrafts = block !== null && block === scope ? block : undefined;
   const drafts = useHasFieldDrafts(blockDrafts);
   const changed = dirty || drafts;
-  // Save's lock reason (`SUI-FEATURE-131`): the app's lock with its hint, then an invalid entry, then
-  // nothing changed. Without the opt-in only the app's hint replaces the package's tooltip.
-  const lockReason = submitDisabled
-    ? submitDisabledHint
-    : !showDisabledReason
-      ? undefined
-      : !valid
-        ? t("form.invalid")
-        : !changed
-          ? t("form.unchanged")
-          : undefined;
-  // Never while a save runs; an empty app hint draws no line.
-  const reason = showDisabledReason && !saving ? lockReason || undefined : undefined;
+  const { reason, saveProps } = useSaveLock({
+    showDisabledReason,
+    submitDisabled,
+    submitDisabledHint,
+    valid,
+    changed,
+    saving,
+  });
   const pairFor = (reasonId?: string) => (
     <SaveResetButtons
       stem={testIdPrefix}
@@ -93,9 +86,7 @@ function SettingsActionRow({
         ? { onReset: leftButton.onReset }
         : { cancel: { onCancel: leftButton.onCancel, cancelable: leftButton.cancelable } })}
       onSave={onSave}
-      {...(submitDisabled ? { locked: true } : {})}
-      {...(lockReason !== undefined ? { saveDisabledText: lockReason } : {})}
-      {...(reasonId !== undefined ? { reasonId } : {})}
+      {...saveProps(reasonId)}
     />
   );
   const pair = showDisabledReason ? (

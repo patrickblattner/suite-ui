@@ -1,6 +1,7 @@
 import * as React from "react";
 
 import { PageHeader } from "../list/page-header.js";
+import { type SubmitLock } from "../lib/disabled-reason-row.js";
 import {
   FieldSubmitContext,
   FieldSubmitEndContext,
@@ -43,7 +44,11 @@ type SettingsScaffoldProps = {
     saving?: boolean;
     // `false` locks Save even with changes; Reset still follows `dirty`.
     valid?: boolean;
-  };
+    // Opt-in (`SUI-FEATURE-131` rev 3): the footer names a locked Save's reason before Reset + Save,
+    // as `SettingsActionRow` does; with `submitDisabled` + `submitDisabledHint` the app locks Save with
+    // its own reason (`SUI-FEATURE-250`). A locked Save saves nothing, by click or by Enter.
+    showDisabledReason?: boolean;
+  } & SubmitLock;
   // The page's data is still loading: the body shows a loading row instead of its content.
   loading?: boolean;
   // The page's data failed to load: the translated text naming what was not loaded, shown in the body
@@ -128,6 +133,13 @@ function SettingsScaffold({
   // Combobox, TimezoneCombobox, Checkbox, Switch, RadioGroup, Slider, TagInput, RestoreDefaultsButton):
   // it reports the change itself instead of a trusted event (`FieldUserEditContext`, #739).
   const saving = form?.saving === true;
+  const lock: SubmitLock =
+    form?.submitDisabledHint !== undefined
+      ? {
+          submitDisabled: form.submitDisabled === true,
+          submitDisabledHint: form.submitDisabledHint,
+        }
+      : {};
   const userEdit = React.useCallback(() => {
     if (!saving) setSaveRun("none");
   }, [saving]);
@@ -204,7 +216,13 @@ function SettingsScaffold({
             submitted(event.currentTarget);
             // Enter in a field submits too; it must not start a second save, save nothing or save an
             // invalid form.
-            if (form.dirty && form.valid !== false && form.saving !== true && state === null) {
+            if (
+              form.dirty &&
+              form.valid !== false &&
+              form.submitDisabled !== true &&
+              form.saving !== true &&
+              state === null
+            ) {
               setSaveRun("started");
               form.onSave();
             }
@@ -221,13 +239,16 @@ function SettingsScaffold({
             pageKey={pageKey}
             testIdPrefix={testIdPrefix}
             dirty={form.dirty}
-            valid={form.valid !== false && state === null}
+            valid={form.valid !== false}
+            loaded={state === null}
             onReset={() => {
               setSaveRun("none");
               endSubmits();
               form.onReset();
             }}
             saving={form.saving}
+            {...(form.showDisabledReason === true ? { showDisabledReason: true } : {})}
+            {...lock}
           />
         </form>
       ) : (
