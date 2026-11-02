@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #772: a cropped, flipped image element is cropped first, then flipped about its frame, also in crop mode (GL-UI-035, SUI-DESIGN-002) (patch)
+## 0.213.5 — #772: a cropped, flipped image element is cropped first, then flipped about its frame, also in crop mode (GL-UI-035, SUI-DESIGN-002) (patch)
 
 - **Fixed (#772, GL-UI-035 rev 5, SUI-DESIGN-002 rev 10):** `SlideView` flips an image element about its frame's centre instead of the image's own, as it does the page background: with a crop and `flipped`, the frame shows the cropped section, mirrored. Before, a shifted crop showed a different section once flipped. The export draws through `SlideView` and follows.
 - **Visible change for saved documents (#772, GL-UI-035):** a saved image element that is both flipped and shifted sideways now shows the other side of the image than before, because the crop now comes before the flip. The stored crop is unchanged; to get the old section back, set the opposite x shift.
