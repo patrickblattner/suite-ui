@@ -1,9 +1,10 @@
 {
   "project": "suite-ui",
+  "measureFiles": ["quality-baseline.json", "size-limit-lines.json"],
   "gate": {
     "profiles": {
-      "local": ["format", "lint", "typecheck", "unit"],
-      "merge": ["format", "lint", "typecheck", "build", "unit", "gallery"]
+      "local": ["format", "lint", "typecheck", "build", "hygiene", "knip", "unit"],
+      "merge": ["format", "lint", "typecheck", "build", "hygiene", "knip", "unit", "gallery"]
     },
     "phases": [
       {
@@ -23,6 +24,15 @@
         "cmd": "npm run build",
         "blocking": true,
         "imageOnly": "builds dist with tsup; the pre-run never builds (SST-DESIGN-013)"
+      },
+      {
+        "name": "hygiene",
+        "cmd": "npm run hygiene",
+        "imageOnly": "size-limit measures dist/, which only the build phase produces (SUI-FEATURE-128)"
+      },
+      {
+        "name": "knip",
+        "cmd": "npm run knip"
       },
       {
         "name": "unit",

@@ -12,6 +12,9 @@ export default tseslint.config(
       "**/playwright-report/**",
       "**/.spec-sync/**",
       "eslint.config.js",
+      // CommonJS tool carriers of the `hygiene` phase, outside the typed project graph like this file.
+      ".dependency-cruiser.cjs",
+      ".size-limit.cjs",
       // A stand-in app checkout for the parity tests, outside the typed project graph.
       "test/fixtures/**",
     ],

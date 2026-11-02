@@ -1,0 +1,13 @@
+{
+  "$schema-note": "Licence allowlist (SUI-FEATURE-128, GL-CODE-002). Read by `spec-sync licence-inventory` in the gate phase `hygiene` and in `npm run hygiene:inventory`; finish line 0 production packages outside it. Permissive licence classes only; anything else needs a named entry under `exceptions` with its reason.",
+  "licenses": ["MIT", "ISC", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "0BSD"],
+  "licenseReasons": {
+    "MIT": "permissive, attribution only",
+    "ISC": "permissive, functionally equivalent to MIT",
+    "Apache-2.0": "permissive with an explicit patent grant",
+    "BSD-2-Clause": "permissive, attribution only",
+    "BSD-3-Clause": "permissive, attribution plus a no-endorsement clause",
+    "0BSD": "public-domain-equivalent, no obligations"
+  },
+  "exceptions": []
+}

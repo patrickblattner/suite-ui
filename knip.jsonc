@@ -1,0 +1,27 @@
+// knip carrier (SUI-FEATURE-128, GL-CODE-002). Gate phase `knip` (scripts/hygiene.ts knip): finish
+// line 0, until then the count is ratcheted against quality-baseline.json.
+//
+// The package's public entry points are package.json `exports` and `bin`. Their targets live in
+// `dist/` and knip cannot map the wildcard subpaths back to `src/`, so `entry` mirrors them one to
+// one (`./ui/*` → `src/ui/*`, …); scripts/hygiene.test.ts checks every exports entry is covered.
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": [
+    "src/{ui,list,settings,shell,slides,help}/*.{ts,tsx}",
+    "src/operation-status/provider.tsx",
+    "src/strings/{index,en,de,es}.ts",
+    "src/parity/{index,cli}.ts",
+    "src/testing/index.ts",
+    // The repo's own tool scripts, run with `node` from package.json scripts.
+    "scripts/*.ts",
+  ],
+  // tsup transpiles every src file (bundle: false), so its plugin would make each one an entry and
+  // hide every unused export; the entry points are the `exports`, not the build input.
+  "tsup": false,
+  "project": ["src/**/*.{ts,tsx}", "gallery/**/*.{ts,tsx}", "scripts/**/*.ts"],
+  "ignoreDependencies": [
+    // Run as a binary by scripts/hygiene.ts (gate phase `hygiene`), not imported anywhere and
+    // without a knip plugin that would see its config (dependency-cruiser and size-limit have one).
+    "jscpd",
+  ],
+}

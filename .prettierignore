@@ -12,3 +12,6 @@ gallery/__screenshots__/
 AGENTS.md
 CLAUDE.md
 task-config.md
+
+# Vendored Semgrep rule packs (p/typescript, p/react), pinned tool input — never reformatted
+.semgrep/

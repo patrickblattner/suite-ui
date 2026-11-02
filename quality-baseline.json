@@ -1,0 +1,21 @@
+{
+  "$schema-note": "Quality ratchet (SUI-FEATURE-128, GL-CODE-002). Finding count per tool of the gate phases `hygiene` and `knip`; scripts/hygiene.ts turns the phase red when a measured count rises above its entry. A count may only fall; raising an entry is an owner decision in the register. Values come only from `npm run hygiene:inventory` on main and change only with `npx spec-sync measure set|remove`. Size lines are not counts: they live in size-limit-lines.json, and `size-limit.over-maximum` counts the entries above their maximum.",
+  "recordedAt": "2026-11-02",
+  "recordedFrom": "npm run hygiene:inventory on main 0eaedc7e (code identical to main; run in the #752 worktree, rebased, that introduces the tools)",
+  "counts": {
+    "jscpd.duplicated-lines": 7084,
+    "dependency-cruiser.cycles": 0,
+    "dependency-cruiser.forbidden-imports": 0,
+    "semgrep.error-or-warning": 0,
+    "trivy.fixable-high-or-critical": 0,
+    "size-limit.over-maximum": 0,
+    "licence-inventory.outside-allowlist": 0,
+    "knip.findings": 3
+  },
+  "inventoryOnly": {
+    "gitleaks.history": {
+      "value": 0,
+      "note": "full history, 1340 commits scanned; the gate phase `secrets` is not part of SUI-FEATURE-128"
+    }
+  }
+}

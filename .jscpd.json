@@ -1,0 +1,26 @@
+{
+  "$schema-note": "jscpd carrier (SUI-FEATURE-128, GL-CODE-002). Measurement settings only; the finish line (< 3 % duplicated lines, no block > 50 lines) lives in GL-CODE-002 and the verdict is the ratchet's in quality-baseline.json.",
+  "$ignore-reasons": {
+    "**/dist/**": "build output",
+    "**/node_modules/**": "third-party code",
+    "**/test-results/**": "generated Playwright artefact",
+    "**/playwright-report/**": "generated Playwright artefact",
+    "**/.spec-sync/**": "gate toolkit working directory",
+    "**/__screenshots__/**": "generated gallery baselines"
+  },
+  "format": ["typescript", "tsx", "javascript", "jsx"],
+  "minLines": 5,
+  "minTokens": 50,
+  "gitignore": true,
+  "absolute": false,
+  "silent": true,
+  "reporters": ["json"],
+  "ignore": [
+    "**/dist/**",
+    "**/node_modules/**",
+    "**/test-results/**",
+    "**/playwright-report/**",
+    "**/.spec-sync/**",
+    "**/__screenshots__/**"
+  ]
+}
