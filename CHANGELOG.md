@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #752: code hygiene in the local gate — phases `hygiene` and `knip`, `quality-baseline.json`, `npm run hygiene:inventory` (SUI-FEATURE-128, GL-CODE-002) (minor)
+## 0.211.0 — #752: code hygiene in the local gate — phases `hygiene` and `knip`, `quality-baseline.json`, `npm run hygiene:inventory` (SUI-FEATURE-128, GL-CODE-002) (minor)
 
 - **Added (#752, SUI-FEATURE-128):** gate phase `hygiene` after `build` (local and merge profile, `npm run hygiene`): jscpd, dependency-cruiser (0 cycles; shipped `src/` — src minus tsup's excludes, SUI-FEATURE-128 rev 3 — never imports the gallery or tests, while test files under `src/` may import gallery fixtures), Semgrep OSS with the `p/typescript` and `p/react` packs vendored in `.semgrep/` (no registry call), Trivy `fs` (fixable HIGH/CRITICAL), size-limit and `spec-sync licence-inventory` against `licence-allowlist.json`, ratcheted against `quality-baseline.json`: a count above its entry turns the phase red. Semgrep scans the files changed against `main`; the whole-project tools scan the repo.
 - **Added (#752):** gate phase `knip` before `unit` (`npm run knip`), entry points mirroring package.json `exports` and `bin` (the tsup plugin is off, since tsup's input is every src file), ratcheted on the same baseline.
