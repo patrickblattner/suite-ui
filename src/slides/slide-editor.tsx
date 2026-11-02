@@ -35,7 +35,6 @@ import {
   ContextMenuTrigger,
 } from "../ui/context-menu.js";
 import { CanvasOverlay, type CanvasTarget, CanvasZoom, type CanvasZoomMode } from "../ui/canvas.js";
-import { type DecimalInvalid } from "../ui/decimal-number.js";
 import { type DrawerId, DrawerRail } from "../ui/drawer-rail.js";
 import { EditorHeader, type EditorHeaderLayout, useEditorLeaveGuard } from "../ui/editor-header.js";
 import { Field } from "../ui/field.js";
@@ -46,7 +45,6 @@ import { useLeaveGuard } from "../ui/leave-guard.js";
 import { OperationIndicator, OperationLabel } from "../ui/operation-status.js";
 import { PropertyPanel } from "../ui/property-panel.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select.js";
-import { Slider } from "../ui/slider.js";
 import { SubgroupTitle } from "../ui/subgroup-title.js";
 import { toast } from "../ui/toaster.js";
 import { IconButtonTooltip, OverflowTooltip } from "../ui/tooltip.js";
@@ -76,7 +74,6 @@ import {
   type LayerMove,
   type LibraryEntry,
   libraryElement,
-  CROP_ZOOM_MAX,
   clampCrop,
   cropArea,
   croppedImageBox,
@@ -155,7 +152,7 @@ import {
   type SlidePage,
 } from "./schema.js";
 import { insertColor } from "./editor-color.js";
-import { NUMBER_ERROR, NumberField, NumberInput } from "./number-field.js";
+import { NumberField } from "./number-field.js";
 import { ChartData } from "./slide-editor-chart.js";
 import {
   type AppLibraryEntry,
@@ -165,6 +162,8 @@ import {
   parseLibraryEntry,
   type PickedMedia,
 } from "./slide-editor-library.js";
+import { CropFields } from "./crop-fields.js";
+import { BackgroundFields, type ImageBackground } from "./slide-editor-background.js";
 import { PageSorter } from "./slide-editor-pages.js";
 import {
   type CellAt,
@@ -343,6 +342,12 @@ const withCrop = (document: SlideDocument, page: number, id: string, crop: Image
   updateElements(document, page, [id], (element) =>
     element.type === "image" ? { ...element, crop } : element,
   );
+
+// The document with a page's background set (`SUI-DESIGN-002` rev 10).
+const withBackground = (document: SlideDocument, pageId: string, background: ImageBackground) => ({
+  ...document,
+  pages: document.pages.map((one) => (one.id === pageId ? { ...one, background } : one)),
+});
 
 // The text a text field or a table cell holds; `undefined` for any other element or a cell not there.
 const bodyOf = (element: SlideElement, cell: CellAt | undefined): TextBody | undefined =>
@@ -970,22 +975,15 @@ function Editor({
     if (src === undefined || src === brokenCropSrc) return undefined;
     return loadedCropSrc?.src === src ? loadedCropSrc.size : null;
   };
-  // The crop zoom % field's run (see `cropZoomRevision`): a count of the crop changes made elsewhere,
-  // the crop the field set last, and the crop its typing started from.
-  const [cropZoomRun, setCropZoomRun] = React.useState<{
-    count: number;
-    crop?: ImageCrop;
-    from?: ImageCrop;
-  }>({ count: 0 });
+  // The crop zoom % field's run (see `cropZoomRevision`): a count of the crop changes made elsewhere
+  // and the crop the field set last.
+  const [cropZoomRun, setCropZoomRun] = React.useState<{ count: number; crop?: ImageCrop }>({
+    count: 0,
+  });
   // The crop the % field set in this event, over the crop it changed: leaving the field applies its
   // clamped zoom, and when the same blur ends cropping, the crop fields hand it to `endCrop` before it
   // renders (#495).
   const cropByField = React.useRef<{ before: ImageCrop; crop: ImageCrop } | undefined>(undefined);
-  // Whether the key last pressed in the % field steps it (an arrow key): the change it makes is a step,
-  // not typing.
-  const cropZoomStep = React.useRef(false);
-  // Why the text typed in the % field is not a number, for its error under the zoom (`GL-UI-037`).
-  const [cropZoomInvalid, setCropZoomInvalid] = React.useState<DecimalInvalid | null>(null);
   // Text editing on the canvas (`SUI-FEATURE-161` §Text): the text field or table cell being
   // edited, while the selection it began with stands, and the range of its text the panel's format
   // applies to. Each editing is a session of its own: what is typed in it folds into one step.
@@ -2535,6 +2533,39 @@ function Editor({
             () => toast.error(t("slides.editor.libraryMediaFailed")),
           );
         };
+  // "Change image" of the page's background image (`SUI-DESIGN-002` rev 10, `GL-UI-035`): another
+  // medium resets the crop and the flip; a cancel changes nothing, a failing picker or a medium the
+  // page cannot take is named as the Add drawer's is. The page is the one shown as the picker opens,
+  // found by its id once the app answers: moved, it still takes the medium; removed, or no longer
+  // with an image background, nothing changes (#764).
+  const setBackgroundMedia = (pageId: string, media: string) => {
+    const current = history.document;
+    const at = current.pages.findIndex((one) => one.id === pageId);
+    if (at === -1 || current.pages[at]!.background.type !== "image") return;
+    const next = withBackground(current, pageId, {
+      type: "image",
+      media: { id: media },
+      crop: { zoom: 1, offsetX: 0, offsetY: 0 },
+      flipped: false,
+    });
+    if (fits(next, "slides.editor.libraryMediaInvalid")) history.apply(() => next, { page: at });
+  };
+  const latestBackgroundMedia = React.useRef(setBackgroundMedia);
+  React.useEffect(() => {
+    latestBackgroundMedia.current = setBackgroundMedia;
+  });
+  const replaceBackground =
+    pickMedia === undefined || pageData === undefined
+      ? undefined
+      : () => {
+          const pageId = pageData.id;
+          pickMedia().then(
+            (picked) => {
+              if (picked !== undefined) latestBackgroundMedia.current(pageId, picked.id);
+            },
+            () => toast.error(t("slides.editor.libraryMediaFailed")),
+          );
+        };
 
   // Ends cropping: `keep` takes the crop into the document as one step (clamped to the frame as it
   // is now), else it is dropped. `kept` is a crop set in the same event, not yet rendered. The canvas
@@ -3162,24 +3193,10 @@ function Editor({
   // While cropping, the panel sets the crop too, without a drag (`SUI-FEATURE-230`, WCAG 2.5.7): a zoom
   // slider about the frame's centre and the shift in the image's own px, each clamped as a drag is.
   // Focus moving between them and the canvas keeps cropping; Esc in them drops the crop.
-  // The zoom typed in the % field, clamped, from the crop its typing started with, so a prefix it
-  // passed through (100 on the way to 1000) leaves no trace in the shift (#495). The
-  // field's typed text stands while the crop is its own and goes for good once Undo, the wheel, a key,
-  // the slider or a shift changed it: each change elsewhere counts on, so a zoom that comes back never
-  // brings back what was typed (`NumberInput` `revision`, as a `NumberField` keys it to `travels`).
-  // A step by the field's arrow keys (held auto-repeat included) zooms from the crop as it is, and
-  // `ends` (leaving, Enter) closes the typing from where it started: either way the next typing
-  // starts from the crop then, never from an older one (#495, #500).
-  const zoomCropTo = (zoom: number, ends = false) => {
-    if (cropping === undefined || cropFrame === undefined) return;
-    const { width, height } = cropFrame;
-    const stepped = !ends && cropZoomStep.current;
-    const from = stepped ? cropping.crop : (cropZoomRun.from ?? cropping.crop);
-    const crop = zoomCrop(width, height, from, zoom / from.zoom, cropNatural);
-    setCropping({ ...cropping, crop });
-    setCropZoomRun({ count: cropZoomRun.count, crop, from: ends || stepped ? undefined : from });
-    cropByField.current = { before: cropping.crop, crop };
-  };
+  // The % field's typed text stands while the crop is its own and goes for good once Undo, the wheel,
+  // a key, the slider or a shift changed it: each change elsewhere counts on, so a zoom that comes
+  // back never brings back what was typed (`NumberInput` `revision`, as a `NumberField` keys it to
+  // `travels`). Where its typing zooms from is `CropFields`' (#495).
   // Deliberate setState during render (React's "adjust state on a prop change"): a crop the field did
   // not set counts on at once, so the field's revision changes in this very render.
   if (cropping !== undefined && cropping.crop !== cropZoomRun.crop)
@@ -3193,148 +3210,39 @@ function Editor({
         data-crop-fields=""
         data-testid="slide-editor-crop-fields"
         onBlur={(event) => {
-          // Leaving a crop field ends the % field's typing: the next starts from the crop then. An
-          // arrow key whose keyup lands elsewhere leaves no step mark behind either (#502).
-          setCropZoomRun((run) => ({ ...run, from: undefined }));
-          cropZoomStep.current = false;
           const byField = cropByField.current;
           // Focus going to the canvas leaves the field's crop to the canvas press that took it.
           if (event.relatedTarget !== canvas.current) cropByField.current = undefined;
           keepCropOnLeave(event, byField?.before === cropping.crop ? byField.crop : undefined);
         }}
-        // Before the % field steps on its arrow keys, so the step knows it is one.
-        onKeyDownCapture={(event) => {
-          if (
-            event.target instanceof HTMLElement &&
-            event.target.id === `${fieldId}-crop-zoom-percent`
-          )
-            cropZoomStep.current = event.key === "ArrowUp" || event.key === "ArrowDown";
-        }}
         onKeyDown={dropCropOnEscape}
-        onKeyUp={() => (cropZoomStep.current = false)}
       >
         <h3 className="text-base font-semibold">{t("slides.editor.cropFields")}</h3>
         <div className="flex flex-col gap-4">
-          <Field
-            label={t("slides.editor.cropZoom")}
-            htmlFor={`${fieldId}-crop-zoom`}
-            hint={t("slides.editor.cropZoomHint")}
-            valueHint={t("slides.editor.cropZoomValueHint")}
-            error={cropZoomInvalid === null ? undefined : t(NUMBER_ERROR[cropZoomInvalid])}
-            errorTestId="slide-editor-crop-zoom-error"
-            control={{ className: "flex items-center gap-2" }}
-          >
-            {/* A slider is no field control: it carries its value hint itself (`Field valueHint`). */}
-            <Hint text={t("slides.editor.cropZoomValueHint")}>
-              <Slider
-                id={`${fieldId}-crop-zoom`}
-                aria-labelledby={`${fieldId}-crop-zoom-label`}
-                aria-describedby={helpIdFor(`${fieldId}-crop-zoom`)}
-                value={cropping.crop.zoom}
-                min={1}
-                max={CROP_ZOOM_MAX}
-                step={0.01}
-                getAriaValueText={(value) =>
-                  new Intl.NumberFormat(i18n.language, { style: "percent" }).format(value)
-                }
-                onValueChange={(value) =>
-                  setCropping({
-                    ...cropping,
-                    crop: zoomCrop(
-                      cropFrame.width,
-                      cropFrame.height,
-                      cropping.crop,
-                      value / cropping.crop.zoom,
-                      cropNatural,
-                    ),
-                  })
-                }
-                className="flex-1"
-                data-testid="slide-editor-crop-zoom"
-              />
-            </Hint>
-            {/* The same zoom in %, beside the slider (`SUI-FEATURE-057`, `SUI-FEATURE-230` rev 4).
-                Typing applies only 100–500 %, so a first digit never zooms out to 100 % and drops
-                the shift; leaving the field or Enter clamps what is typed, as every other way of
-                zooming stops at 500 %. */}
-            <NumberInput
-              id={`${fieldId}-crop-zoom-percent`}
-              value={cropping.crop.zoom * 100}
-              unit="%"
-              size="sm"
-              min={100}
-              max={CROP_ZOOM_MAX * 100}
-              step={1}
-              aria-label={t("slides.editor.cropZoomPercent")}
-              revision={cropZoomRevision}
-              onValue={(percent) => {
-                if (percent >= 100 && percent <= CROP_ZOOM_MAX * 100) zoomCropTo(percent / 100);
-              }}
-              onLeave={(percent) => zoomCropTo(percent / 100, true)}
-              onInvalid={setCropZoomInvalid}
-              className="w-24 shrink-0"
-              testId="slide-editor-crop-zoom-input"
-            />
-          </Field>
-          <div className="grid grid-cols-2 gap-4" data-tooltip-row="">
-            {(
-              [
-                ["offsetX", "cropOffsetX"],
-                ["offsetY", "cropOffsetY"],
-              ] as const
-            ).map(([key, label]) => {
-              // How far the drawn image reaches past the frame on this axis: the clamp's bounds, named
-              // under the field (`GL-UX-001`); at 100 % only the axis its proportions overhang shifts
-              // (`SUI-FEATURE-280`).
-              const reach = clampCrop(
-                cropFrame.width,
-                cropFrame.height,
-                { ...cropping.crop, [key]: Infinity },
-                cropNatural,
-              )[key];
-              const number = new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 2 });
-              return (
-                // No `min`/`max`: the arrows would step from the reach's fraction (−62.5 → 20.5); the
-                // clamp keeps the image covering its frame.
-                <NumberField
-                  key={key}
-                  id={`${fieldId}-crop-${key}`}
-                  label={t(`slides.editor.${label}`)}
-                  hint={t(`slides.editor.${label}Hint`)}
-                  valueHint={t("slides.editor.cropOffsetValueHint")}
-                  value={cropping.crop[key]}
-                  unit="px"
-                  readOnly={false}
-                  revision={travels}
-                  onValue={(value) =>
-                    setCropping({
-                      ...cropping,
-                      crop: clampCrop(
-                        cropFrame.width,
-                        cropFrame.height,
-                        { ...cropping.crop, [key]: value },
-                        cropNatural,
-                      ),
-                    })
-                  }
-                  testId={`slide-editor-crop-${key}`}
-                  help={
-                    // While the image's size is not known, its reach is not named.
-                    Number.isFinite(reach) ? (
-                      <span data-testid={`slide-editor-crop-${key}-range`}>
-                        {reach === 0
-                          ? t("slides.editor.cropOffsetNone")
-                          : t("slides.editor.cropOffsetRange", {
-                              min: number.format(-reach),
-                              max: number.format(reach),
-                            })}
-                      </span>
-                    ) : undefined
-                  }
-                />
-              );
-            })}
-          </div>
+          <CropFields
+            id={`${fieldId}-crop`}
+            testId="slide-editor-crop"
+            width={cropFrame.width}
+            height={cropFrame.height}
+            crop={cropping.crop}
+            natural={cropNatural}
+            hints={{
+              zoom: "cropZoomHint",
+              zoomValue: "cropZoomValueHint",
+              offsetX: "cropOffsetXHint",
+              offsetY: "cropOffsetYHint",
+              offsetValue: "cropOffsetValueHint",
+            }}
+            zoomRevision={cropZoomRevision}
+            offsetRevision={travels}
+            onCrop={(crop, field) => {
+              setCropping({ ...cropping, crop });
+              if (field !== "percent") return;
+              // The field's own crop: its typed text stands.
+              setCropZoomRun({ count: cropZoomRun.count, crop });
+              cropByField.current = { before: cropping.crop, crop };
+            }}
+          />
         </div>
       </section>
     );
@@ -3597,6 +3505,24 @@ function Editor({
             ))}
           </div>
         </section>
+      ) : null}
+      {selected.length === 0 && pageData?.background.type === "image" ? (
+        <BackgroundFields
+          // Its own key beside the transition's: siblings never share one.
+          key={`${pageData.id}:background`}
+          background={pageData.background}
+          pageWidth={pageWidth}
+          pageHeight={pageHeight}
+          src={view.resolveMedia?.(pageData.background.media.id)}
+          revision={travels}
+          onBackground={(background, merge) =>
+            apply(
+              (current) => withBackground(current, pageData.id, background),
+              merge === undefined ? undefined : `${pageData.id}:${merge}`,
+            )
+          }
+          onReplace={replaceBackground}
+        />
       ) : null}
       {selected.length === 0 && pageData !== undefined ? (
         <TransitionFields

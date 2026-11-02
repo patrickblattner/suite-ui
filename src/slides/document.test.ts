@@ -220,9 +220,9 @@ describe("slide document migration", () => {
     })),
   });
 
-  it("ships eight steps, 1 → 2 up to 8 → 9, that change no content (SUI-FEATURE-192 AC4)", () => {
-    expect(SLIDE_SCHEMA_VERSION).toBe(9);
-    expect(Object.keys(SLIDE_MIGRATIONS)).toEqual(["1", "2", "3", "4", "5", "6", "7", "8"]);
+  it("ships nine steps, 1 → 2 up to 9 → 10, that change no content (SUI-FEATURE-192 AC4)", () => {
+    expect(SLIDE_SCHEMA_VERSION).toBe(10);
+    expect(Object.keys(SLIDE_MIGRATIONS)).toEqual(["1", "2", "3", "4", "5", "6", "7", "8", "9"]);
     expect(parseSlideDocument({ ...valid, schemaVersion: 1 })).toEqual(parseSlideDocument(valid));
   });
 
@@ -512,6 +512,68 @@ describe("slide document migration", () => {
     expect(
       parseSlideDocument({ ...valid, pages: [page(runs)] }).pages[0]!.elements[0],
     ).toMatchObject({ numbered: { fit: "runs" } });
+  });
+
+  // SUI-DESIGN-002 rev 10 AC 3 and AC 7: a version-9 background image loads without a crop — zoom 1,
+  // centred — and with the same image and flip, on pages, layouts and masters; a stray crop written
+  // before (its parse dropped it, so it never drew) is replaced too. Colours and gradients stay.
+  it("migrates a version-9 document with its background images uncropped (SUI-DESIGN-002 AC 7)", () => {
+    const image = { type: "image", media: { id: "media-7" }, flipped: true };
+    const stray = { ...image, crop: { zoom: 3, offsetX: 50, offsetY: -20 } };
+    const color = valid.pages[0]!.background;
+    const raw = {
+      ...valid,
+      schemaVersion: 9,
+      masters: [{ id: "m", name: "Master", background: stray }],
+      layouts: [{ id: "l", name: "Layout", masterId: "m", background: image }],
+      pages: [
+        { ...valid.pages[0]!, id: "p1", background: image },
+        { id: "p2", background: stray },
+        { id: "p3", background: color },
+      ],
+    };
+    const old = parseSlideDocument(raw);
+    expect(old.schemaVersion).toBe(SLIDE_SCHEMA_VERSION);
+    const uncropped = { ...image, crop: { zoom: 1, offsetX: 0, offsetY: 0 } };
+    expect(old.masters[0]!.background).toEqual(uncropped);
+    expect(old.layouts[0]!.background).toEqual(uncropped);
+    expect(old.pages.map((page) => page.background)).toEqual([uncropped, uncropped, color]);
+    // Content otherwise as the same document in the current version without a crop.
+    const { masters, layouts, pages, ...rest } = raw;
+    expect(old).toEqual(
+      parseSlideDocument({
+        ...rest,
+        schemaVersion: SLIDE_SCHEMA_VERSION,
+        masters: [{ ...masters[0]!, background: image }],
+        layouts,
+        pages: pages.map((page) => (page.id === "p2" ? { ...page, background: image } : page)),
+      }),
+    );
+  });
+
+  // SUI-DESIGN-002 rev 10: a background image carries an image element's crop, zoom ≥ 1.
+  it("takes a background image's crop as an image element's, zoom at least 1", () => {
+    const page = (background: unknown) => ({ ...valid.pages[0]!, background });
+    const crop = { zoom: 1.5, offsetX: -120, offsetY: 40 };
+    const image = { type: "image", media: { id: "media-7" }, crop, flipped: true };
+    expect(parseSlideDocument({ ...valid, pages: [page(image)] }).pages[0]!.background).toEqual(
+      image,
+    );
+    const issue = rejection({ ...valid, pages: [page({ ...image, crop: { ...crop, zoom: 0.5 } })] })
+      .issues[0]!;
+    expect(issue.path).toBe("pages[0].background.crop.zoom");
+    expect(issue.code).toBe("too-small");
+    expect(
+      parseSlideDocument({
+        ...valid,
+        pages: [page({ type: "image", media: { id: "media-7" } })],
+      }).pages[0]!.background,
+    ).toEqual({
+      type: "image",
+      media: { id: "media-7" },
+      crop: { zoom: 1, offsetX: 0, offsetY: 0 },
+      flipped: false,
+    });
   });
 
   // SUI-FEATURE-124 AC6: out-of-range values are rejected by name at their path; values within the

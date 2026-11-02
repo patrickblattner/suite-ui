@@ -16,8 +16,9 @@ import { shownInError } from "./shown-in-error.js";
 // element's `deletable` (`SUI-FEATURE-194`); version 5 a placeholder's `prototype` (`SUI-FEATURE-320`);
 // version 6 an icon's `strokeWidth` (`SUI-FEATURE-166`); version 7 a text field's `numbered`
 // (`SUI-FEATURE-124`); version 8 the cap on a text field's paragraphs (`maxParagraphs`, `SUI-DESIGN-002`
-// rev 8); version 9 a numbered list's `fit` (`SUI-FEATURE-124` rev 5).
-export const SLIDE_SCHEMA_VERSION = 9;
+// rev 8); version 9 a numbered list's `fit` (`SUI-FEATURE-124` rev 5); version 10 the crop of a background
+// image (`SUI-DESIGN-002` rev 10).
+export const SLIDE_SCHEMA_VERSION = 10;
 
 // The hard limits of a document, generous on purpose (`SUI-DESIGN-002` §Form): the schema is the one boundary apps
 // and servers share, so tightening a limit later would take a schema version. `maxGroupDepth` and
@@ -175,12 +176,23 @@ export const fillSchema = z.discriminatedUnion("type", [
 // `:` an id is never a URL (`data:`, `javascript:`). The view resolves it through the app, never as a URL.
 export const mediaRefSchema = z.object({ id });
 
-// Exactly one background per page: a colour, a gradient or an image, flipped only when drawn.
+// An image's crop: the image zoomed (1 = it covers the frame) and shifted inside the frame, in px of
+// the format. An image element and a background image carry the same one (`SUI-DESIGN-002` rev 10).
+const cropSchema = z.object({ zoom: z.number().min(1), offsetX: px, offsetY: px }).default({
+  zoom: 1,
+  offsetX: 0,
+  offsetY: 0,
+});
+
+// Exactly one background per page: a colour, a gradient or an image; an image carries the crop of an
+// image element over the page's cover fill (`SUI-DESIGN-002` rev 10), cropped and flipped only when
+// drawn.
 export const backgroundSchema = z.discriminatedUnion("type", [
   ...fillSchema.options,
   z.object({
     type: z.literal("image"),
     media: mediaRefSchema,
+    crop: cropSchema,
     flipped: z.boolean().default(false),
   }),
 ]);
@@ -347,11 +359,7 @@ export const imageElementSchema = z.object({
   type: z.literal("image"),
   media: mediaRefSchema,
   alt: label.default(""),
-  crop: z.object({ zoom: z.number().min(1), offsetX: px, offsetY: px }).default({
-    zoom: 1,
-    offsetX: 0,
-    offsetY: 0,
-  }),
+  crop: cropSchema,
   flipped: z.boolean().default(false),
   cornerRadius: size.default(0),
   border: borderSchema.optional(),

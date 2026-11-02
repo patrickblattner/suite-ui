@@ -605,6 +605,23 @@ for (const lng of LANGUAGES) {
       await expect(panel).toHaveScreenshot(`slide-editor-chart-pie-${lng}-${theme}.png`);
     });
 
+    // SUI-DESIGN-002 rev 10 (Q&A #5206): with nothing selected, the layout tab sets the page's
+    // background image — its crop as an image's, the flip toggle and "Change image".
+    test(`slide editor background image ${lng} ${theme}`, async ({ page }) => {
+      await page.goto(`/?page=slide-editor&ground=image&lng=${lng}&theme=${theme}`);
+      await expect(page.locator("html")).toHaveAttribute("lang", lng);
+      const { editor } = await openEditor(page, false);
+      const section = editor.getByTestId("slide-editor-background");
+      await expect(section.getByTestId("slide-editor-background-flip")).toHaveAttribute(
+        "aria-pressed",
+        "true",
+      );
+      await expect(section.getByTestId("slide-editor-background-zoom-input")).toHaveValue("150");
+      await expect(section.getByTestId("slide-editor-background-offsetX-range")).toBeVisible();
+      await parkPointer(page);
+      await expect(section).toHaveScreenshot(`slide-editor-background-${lng}-${theme}.png`);
+    });
+
     // `SUI-FEATURE-195`: a locked text field's panel locks every control the same way. Fields are
     // read-only, every other control is focusable, `aria-disabled` and described by the reason, at
     // full opacity; Tab walks through all of them, and nothing opens or changes.
@@ -13496,6 +13513,32 @@ test("slide export: a crop on the overhanging axis equals the view", async ({ pa
   await parkPointer(page);
   const editor = await view.screenshot({ animations: "disabled" });
   expect(Buffer.from(png[0]!).equals(editor)).toBe(true);
+});
+
+// SUI-DESIGN-002 rev 10 AC 7: a background image zoomed 150 %, shifted and flipped exports the same
+// section, flipped, as the editor's view draws it, pixel for pixel.
+test("slide export: a cropped, flipped background equals the view", async ({ page }) => {
+  await page.goto("/?harness=slide-export&doc=background");
+  const { png } = await exportSlidePages(page);
+  await page.goto("/?harness=slide-export&view=editor&doc=background");
+  const ground = page.locator(
+    "[data-testid=slide-editor-view][data-slide-ready=true] [data-slot=slide-page] > img[data-slide-image=sized]",
+  );
+  // The 4:3 photo covers the 1920 × 1080 page at 1920 × 1440, zoomed to 2880 × 2160, centred and
+  // shifted by −120 / 40, mirrored about the page's centre (960 + 600).
+  const drawn = await ground.evaluate((image) => {
+    const { left, top, width, transformOrigin } = getComputedStyle(image);
+    return { left, top, width, transformOrigin };
+  });
+  expect(drawn).toEqual({
+    left: "-600px",
+    top: "-500px",
+    width: "2880px",
+    transformOrigin: "1560px 1080px",
+  });
+  await parkPointer(page);
+  const shot = await page.getByTestId("slide-editor-view").screenshot({ animations: "disabled" });
+  expect(Buffer.from(png[0]!).equals(shot)).toBe(true);
 });
 
 // SUI-FEATURE-164 AC2, SUI-FEATURE-165 AC5: inline runs and badges that follow their text export

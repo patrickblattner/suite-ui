@@ -596,6 +596,20 @@ export const de: SuiteStrings = {
       cropZoomValueHint:
         "100 % füllt den Rahmen; bis 500 % zeigt einen immer kleineren Teil des Bilds.",
       cropOffsetValueHint: "Pixel ab der Mitte des Rahmens; 0 zentriert das Bild.",
+      pageBackground: "Hintergrund",
+      pageBackgroundZoomHint: "Vergrößert das Hintergrundbild auf der Seite.",
+      pageBackgroundZoomValueHint:
+        "100 % füllt die Seite; bis 500 % zeigt einen immer kleineren Teil des Bilds.",
+      pageBackgroundOffsetXHint:
+        "Verschiebt das Hintergrundbild auf der Seite nach links oder rechts.",
+      pageBackgroundOffsetYHint:
+        "Verschiebt das Hintergrundbild auf der Seite nach oben oder unten.",
+      pageBackgroundOffsetValueHint: "Pixel ab der Mitte der Seite; 0 zentriert das Bild.",
+      pageBackgroundFlipHint:
+        "Spiegelt das Hintergrundbild waagrecht; der Inhalt der Seite bleibt, wie er ist.",
+      pageBackgroundReplace: "Bild wechseln",
+      pageBackgroundReplaceHint:
+        "Öffnet die Medien-Bibliothek, um ein anderes Bild zu wählen; Ausschnitt und Spiegeln werden zurückgesetzt.",
       animationEntranceValueHint:
         "„{{fade}}“ erscheint allmählich, „{{slide}}“ gleitet herein, „{{zoom}}“ wächst; „{{none}}“ zeigt es sofort.",
       animationExitValueHint:

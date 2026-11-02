@@ -151,21 +151,28 @@ const NUMBERED_DOC =
       }
     : undefined;
 // `?ground=dark`: the first page's background is the brand's dark text colour, so a new element takes
-// a colour that stands out on it, not on white (#365).
-const DARK_DOC =
-  PARAMS.get("ground") === "dark"
+// a colour that stands out on it, not on white (#365). `?ground=image`: it is the gallery's photo,
+// zoomed 150 %, shifted and flipped, set in the layout tab's Background section (`SUI-DESIGN-002`
+// rev 10).
+const GROUNDS = {
+  dark: { type: "color" as const, color: { kind: "brand" as const, key: "text" } },
+  image: {
+    type: "image" as const,
+    media: { id: "photo" },
+    crop: { zoom: 1.5, offsetX: -60, offsetY: 20 },
+    flipped: true,
+  },
+};
+const groundParam = PARAMS.get("ground") ?? "";
+const GROUND = Object.hasOwn(GROUNDS, groundParam)
+  ? GROUNDS[groundParam as keyof typeof GROUNDS]
+  : undefined;
+const GROUND_DOC =
+  GROUND !== undefined
     ? {
         ...SLIDE_EDITOR_DOC,
         pages: SLIDE_EDITOR_DOC.pages.map((page, index) =>
-          index === 0
-            ? {
-                ...page,
-                background: {
-                  type: "color" as const,
-                  color: { kind: "brand" as const, key: "text" },
-                },
-              }
-            : page,
+          index === 0 ? { ...page, background: GROUND } : page,
         ),
       }
     : undefined;
@@ -427,7 +434,7 @@ export function SlideEditorPage() {
               FULL_DOC ??
               BADGE_DOC ??
               NUMBERED_DOC ??
-              DARK_DOC ??
+              GROUND_DOC ??
               PICTURE_DOC ??
               (INVALID
                 ? ({ ...SLIDE_EDITOR_DOC, schemaVersion: 99 } as unknown as typeof SLIDE_EDITOR_DOC)

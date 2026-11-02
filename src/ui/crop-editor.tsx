@@ -1,4 +1,4 @@
-import { CropIcon, FlipHorizontal2Icon } from "lucide-react";
+import { CropIcon } from "lucide-react";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 
@@ -11,10 +11,10 @@ import {
   resizeCrop,
   scaleCrop,
 } from "../lib/crop-geometry.js";
-import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
 import { Button } from "./button.js";
 import type { Crop } from "./cropped-image.js";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "./dialog.js";
+import { FlipToggle } from "./flip-toggle.js";
 import { Hint } from "./hint.js";
 
 type CropEditorProps = {
@@ -314,19 +314,12 @@ function ImagePlacementButtons({
   const active =
     "data-[active=true]:border-ring data-[active=true]:bg-accent data-[active=true]:text-accent-foreground dark:data-[active=true]:border-ring dark:data-[active=true]:bg-accent";
   const flip = (
-    <Button
-      type="button"
-      variant="outline"
-      size="sm"
+    <FlipToggle
       disabled={disabled}
-      aria-pressed={flipped}
-      className={PRESSED_FILL_CLASS}
-      onClick={() => onFlippedChange(!flipped)}
+      flipped={flipped}
+      onFlippedChange={onFlippedChange}
       data-testid="image-flip"
-    >
-      <FlipHorizontal2Icon aria-hidden="true" />
-      {t("flip.action")}
-    </Button>
+    />
   );
   const cropButton = (
     <Button

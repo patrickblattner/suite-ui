@@ -1,5 +1,7 @@
 import * as React from "react";
 
+import { useNaturalSize } from "../lib/use-natural-size.js";
+
 // A crop of an image as fractions 0–1 of the original (`GL-UI-002`); the image itself carries none.
 type Crop = { x: number; y: number; width: number; height: number };
 
@@ -20,30 +22,17 @@ function percent(value: number): string {
   return `${Math.round(value * 1e6) / 1e4}%`;
 }
 
-// The natural size of `src`, read once it has loaded; `given` wins when the app knows it.
-function useNaturalSize(
+// The natural size of `src`, read once it has loaded; `given` wins when the app knows it. One that
+// did not load stays unknown.
+function useKnownSize(
   src: string,
   given: { width?: number | undefined; height?: number | undefined },
   needed: boolean,
 ): { width: number; height: number } | null {
-  const [loaded, setLoaded] = React.useState<{ src: string; width: number; height: number } | null>(
-    null,
-  );
   const known = given.width !== undefined && given.height !== undefined;
-  React.useEffect(() => {
-    if (known || !needed) return;
-    const image = new Image();
-    let live = true;
-    image.onload = () => {
-      if (live) setLoaded({ src, width: image.naturalWidth, height: image.naturalHeight });
-    };
-    image.src = src;
-    return () => {
-      live = false;
-    };
-  }, [src, known, needed]);
+  const loaded = useNaturalSize(known || !needed ? undefined : src);
   if (known) return { width: given.width!, height: given.height! };
-  return loaded?.src === src ? loaded : null;
+  return loaded ?? null;
 }
 
 type CroppedImageProps = Omit<React.ComponentProps<"img">, "src" | "alt" | "children"> & {
@@ -85,11 +74,7 @@ function CroppedImage({
   style,
   ...props
 }: CroppedImageProps) {
-  const natural = useNaturalSize(
-    src,
-    { width: naturalWidth, height: naturalHeight },
-    crop !== null,
-  );
+  const natural = useKnownSize(src, { width: naturalWidth, height: naturalHeight }, crop !== null);
   const flip: React.CSSProperties = flipped ? { transform: "scaleX(-1)" } : {};
   if (fit === "cover") {
     return (
@@ -336,11 +321,7 @@ function CroppedBackground({
   children,
   ...props
 }: CroppedBackgroundProps) {
-  const natural = useNaturalSize(
-    src,
-    { width: naturalWidth, height: naturalHeight },
-    crop !== null,
-  );
+  const natural = useKnownSize(src, { width: naturalWidth, height: naturalHeight }, crop !== null);
   const image = croppedBackgroundStyle({
     src,
     crop: natural === null ? null : crop,

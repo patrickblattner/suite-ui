@@ -592,6 +592,20 @@ export const es: SuiteStrings = {
       cropZoomValueHint:
         "100 % llena el marco; hasta 500 % muestra una parte cada vez menor de la imagen.",
       cropOffsetValueHint: "Píxeles desde el centro del marco; 0 centra la imagen.",
+      pageBackground: "Fondo",
+      pageBackgroundZoomHint: "Amplía la imagen de fondo en la página.",
+      pageBackgroundZoomValueHint:
+        "100 % llena la página; hasta 500 % muestra una parte cada vez menor de la imagen.",
+      pageBackgroundOffsetXHint:
+        "Mueve la imagen de fondo a la izquierda o a la derecha en la página.",
+      pageBackgroundOffsetYHint:
+        "Mueve la imagen de fondo hacia arriba o hacia abajo en la página.",
+      pageBackgroundOffsetValueHint: "Píxeles desde el centro de la página; 0 centra la imagen.",
+      pageBackgroundFlipHint:
+        "Refleja la imagen de fondo en horizontal; el contenido de la página no cambia.",
+      pageBackgroundReplace: "Cambiar imagen",
+      pageBackgroundReplaceHint:
+        "Abre la biblioteca de medios para elegir otra imagen; el recorte y el reflejo se restablecen.",
       animationEntranceValueHint:
         "«{{fade}}» aparece poco a poco, «{{slide}}» entra por un borde, «{{zoom}}» crece; «{{none}}» lo muestra ya.",
       animationExitValueHint:

@@ -255,6 +255,7 @@ createRoot(document.getElementById("root") as HTMLElement).render(
         flow={params.get("doc") === "flow"}
         lines={params.get("doc") === "lines"}
         numbered={params.get("doc") === "numbered"}
+        background={params.get("doc") === "background"}
         wide={params.get("brand") === "wide"}
       />
     ) : fieldPair ? (

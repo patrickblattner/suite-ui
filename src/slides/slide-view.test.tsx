@@ -208,7 +208,12 @@ describe("SlideView", () => {
     const onReport = vi.fn<(report: SlideViewReport) => void>();
     const { container } = render(
       <SlideView
-        document={{ ...SLIDE_SHOWCASE, schemaVersion: 10 } as unknown as SlideViewProps["document"]}
+        document={
+          {
+            ...SLIDE_SHOWCASE,
+            schemaVersion: SLIDE_SCHEMA_VERSION + 1,
+          } as unknown as SlideViewProps["document"]
+        }
         brand={SLIDE_BRAND}
         onReport={onReport}
       />,
@@ -919,7 +924,12 @@ describe("SlideView fonts by face, and fit after a fix", () => {
     const { rerender } = render(
       <SlideView
         {...props}
-        document={{ ...SLIDE_SHOWCASE, schemaVersion: 10 } as unknown as SlideViewProps["document"]}
+        document={
+          {
+            ...SLIDE_SHOWCASE,
+            schemaVersion: SLIDE_SCHEMA_VERSION + 1,
+          } as unknown as SlideViewProps["document"]
+        }
       />,
     );
     expect(observed).toHaveLength(0);
@@ -1444,6 +1454,114 @@ describe("SlideView image crop on the overhanging axis", () => {
     expect(image).toHaveAttribute("data-slide-image", "loading");
     loadImage(image, wide);
     expect(image).toHaveAttribute("data-slide-image", "sized");
+  });
+});
+
+// SUI-DESIGN-002 rev 10 (AC 7, GL-UI-035): a background image is drawn with the crop of an image
+// element over the page's cover fill, cropped first, then flipped: the layer mirrors around the
+// page's centre, so the flipped page shows the same section, mirrored.
+describe("SlideView background crop", () => {
+  const page = SLIDE_SHOWCASE.pages[0]!;
+  const crop = { zoom: 1.5, offsetX: -120, offsetY: 40 };
+  const withBackground = (background: unknown, schemaVersion = SLIDE_SCHEMA_VERSION) =>
+    ({
+      ...SLIDE_SHOWCASE,
+      schemaVersion,
+      pages: [{ ...page, background, elements: [] }],
+    }) as SlideViewProps["document"];
+  const backgroundImage = (container: HTMLElement) =>
+    container.querySelector<HTMLImageElement>("[data-slot=slide-page] > img")!;
+  const placed = (image: HTMLImageElement) => ({
+    left: parseFloat(image.style.left),
+    top: parseFloat(image.style.top),
+    width: parseFloat(image.style.width),
+    height: parseFloat(image.style.height),
+    transform: image.style.transform,
+    origin: image.style.transformOrigin,
+  });
+  const resolveMedia = (id: string) =>
+    id === "photo" || id === "other" ? `/${id}.png` : undefined;
+
+  it("draws zoom 1.5 and the shift over the page's cover fill, flipped about the page's centre", async () => {
+    const { container } = await drawn({
+      resolveMedia,
+      document: withBackground({ type: "image", media: { id: "photo" }, crop, flipped: true }),
+    });
+    const image = backgroundImage(container);
+    // Marked until its size is known, for the export to wait on.
+    expect(image).toHaveAttribute("data-slide-image", "loading");
+    loadImage(image, { width: 1920, height: 1080 });
+    expect(image).toHaveAttribute("data-slide-image", "sized");
+    // 2880 × 1620 drawn on a 1920 × 1080 page, centred, then shifted by −120 / 40.
+    expect(placed(image)).toEqual({
+      left: -600,
+      top: -230,
+      width: 2880,
+      height: 1620,
+      transform: "scaleX(-1)",
+      // The page's centre (960) in the image's own x: 960 + 600.
+      origin: "1560px 50%",
+    });
+  });
+
+  it("keeps the crop and the flip when the app replaces the medium", async () => {
+    const { container, rerender } = await drawn({
+      resolveMedia,
+      document: withBackground({ type: "image", media: { id: "photo" }, crop, flipped: true }),
+    });
+    loadImage(backgroundImage(container), { width: 1920, height: 1080 });
+    rerender(
+      <SlideView
+        document={withBackground({ type: "image", media: { id: "other" }, crop, flipped: true })}
+        brand={SLIDE_BRAND}
+        fonts={SLIDE_FONTS}
+        resolveMedia={resolveMedia}
+        extensions={extensions}
+        scale={0.5}
+        data-testid="view"
+      />,
+    );
+    const image = backgroundImage(container);
+    expect(image).toHaveAttribute("src", "/other.png");
+    // A square medium covers the page at 1920 × 1920, zoomed 1.5, the same shift.
+    loadImage(image, { width: 1000, height: 1000 });
+    expect(placed(image)).toEqual({
+      left: -600,
+      top: -860,
+      width: 2880,
+      height: 2880,
+      transform: "scaleX(-1)",
+      origin: "1560px 50%",
+    });
+  });
+
+  it("draws a shift past the image's reach at its limit, the stored crop unchanged", async () => {
+    const far = { zoom: 1.5, offsetX: -900, offsetY: 400 };
+    const { container } = await drawn({
+      resolveMedia,
+      document: withBackground({ type: "image", media: { id: "photo" }, crop: far }),
+    });
+    loadImage(backgroundImage(container), { width: 1920, height: 1080 });
+    expect(placed(backgroundImage(container))).toMatchObject({ left: -960, top: 0, transform: "" });
+    expect(far).toEqual({ zoom: 1.5, offsetX: -900, offsetY: 400 });
+  });
+
+  it("draws a previous-version background uncropped, zoom 1 and centred, the same image", async () => {
+    const { container } = await drawn({
+      resolveMedia,
+      document: withBackground({ type: "image", media: { id: "photo" }, flipped: true }, 9),
+    });
+    const image = backgroundImage(container);
+    expect(image).toHaveAttribute("src", "/photo.png");
+    loadImage(image, { width: 1920, height: 1080 });
+    expect(placed(image)).toEqual({
+      left: 0,
+      top: 0,
+      width: 1920,
+      height: 1080,
+      transform: "scaleX(-1)",
+      origin: "960px 50%",
+    });
   });
 });
 

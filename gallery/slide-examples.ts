@@ -179,9 +179,17 @@ export const SLIDE_EXAMPLES: [name: string, document: SlideDocumentInput][] = [
   ["shape gradient", shape({ shape: "triangle", fill: gradient })],
   // Pages: background, notes, hidden, transition.
   ["background gradient", withPage({ background: gradient })],
+  // A background image with its crop, as an image element's (`SUI-DESIGN-002` rev 10).
   [
     "background image",
-    withPage({ background: { type: "image", media: { id: "media-7" }, flipped: true } }),
+    withPage({
+      background: {
+        type: "image",
+        media: { id: "media-7" },
+        crop: { zoom: 1.5, offsetX: -120, offsetY: 40 },
+        flipped: true,
+      },
+    }),
   ],
   ["page notes", withPage({ notes: "Ask for questions." })],
   ["page hidden", withPage({ hidden: true })],

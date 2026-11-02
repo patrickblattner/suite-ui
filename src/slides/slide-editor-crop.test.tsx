@@ -47,7 +47,7 @@ function renderEditor(border?: number, crop?: { zoom: number; offsetX: number; o
   render(
     <SlideEditor
       document={{
-        schemaVersion: 9,
+        schemaVersion: 10,
         format: FORMAT_16_9,
         pages: [{ id: "one", background, elements: [image] }],
       }}
@@ -301,6 +301,8 @@ describe("SlideEditor crop mode (SUI-FEATURE-230 rev 4)", () => {
   it("counts a paste as typing after an arrow key left the % field without its keyup", () => {
     renderEditor();
     startCrop();
+    // The image's own size: a zoom from another crop gives another shift (`SUI-FEATURE-280`).
+    loadRest({ width: 160, height: 100 });
     setZoom("300");
     const offsetX = screen.getByTestId<HTMLInputElement>("slide-editor-crop-offsetX");
     fireEvent.change(offsetX, { target: { value: "100" } });

@@ -624,6 +624,18 @@ export const en = {
       cropZoomValueHint:
         "100% fills the frame; up to 500% shows an ever smaller part of the image.",
       cropOffsetValueHint: "Pixels from the centre of the frame; 0 centres the image.",
+      pageBackground: "Background",
+      pageBackgroundZoomHint: "Enlarges the background image on the page.",
+      pageBackgroundZoomValueHint:
+        "100% fills the page; up to 500% shows an ever smaller part of the image.",
+      pageBackgroundOffsetXHint: "Moves the background image left or right on the page.",
+      pageBackgroundOffsetYHint: "Moves the background image up or down on the page.",
+      pageBackgroundOffsetValueHint: "Pixels from the centre of the page; 0 centres the image.",
+      pageBackgroundFlipHint:
+        "Mirrors the background image horizontally; the page's content stays as it is.",
+      pageBackgroundReplace: "Change image",
+      pageBackgroundReplaceHint:
+        "Opens the media library to choose another image; crop and flip are reset.",
       animationEntranceValueHint:
         "“{{fade}}” appears gradually, “{{slide}}” glides in from an edge, “{{zoom}}” grows; “{{none}}” shows it from the start.",
       animationExitValueHint:

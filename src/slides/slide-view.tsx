@@ -1864,6 +1864,28 @@ export function SlideView({
   }
 
   const { width, height } = document.format;
+  // A background image's crop is an image element's over the page's cover fill (`SUI-DESIGN-002`
+  // rev 10), drawn within its reach once the image has loaded, as an image's is; cropped first, then
+  // flipped about the page's centre, so the flipped page shows the same section, mirrored (`GL-UI-035`).
+  const backgroundPlace = (() => {
+    if (backgroundImage === undefined || pageData.background.type !== "image") return undefined;
+    const natural = loaded.get(backgroundImage);
+    const { zoom, offsetX, offsetY } =
+      natural === undefined
+        ? pageData.background.crop
+        : clampCrop(width, height, pageData.background.crop, natural);
+    const size = croppedImageSize(width, height, zoom, natural);
+    const left = (width - size.width) / 2 + offsetX;
+    return {
+      natural,
+      flipped: pageData.background.flipped,
+      left,
+      top: (height - size.height) / 2 + offsetY,
+      width: size.width,
+      height: size.height,
+      originX: width / 2 - left,
+    };
+  })();
   // Missing fonts and brand colours are named in a strip below the page, never over it: the page
   // gives up the strip's height (`SUI-FEATURE-180`).
   // The page's place in the view, with or without the strip of notices below it: `strip` is the room
@@ -2048,7 +2070,7 @@ export function SlideView({
           textTransform: "none",
         }}
       >
-        {backgroundImage === undefined ? null : (
+        {backgroundImage === undefined || backgroundPlace === undefined ? null : (
           <img
             src={backgroundImage}
             alt=""
@@ -2056,17 +2078,26 @@ export function SlideView({
             onError={() => {
               onBroken(backgroundImage);
             }}
+            // "sized" once its size is known and its crop drawn within its reach: the export waits for it.
+            data-slide-image={backgroundPlace.natural === undefined ? "loading" : "sized"}
+            onLoad={(event) =>
+              onLoaded(backgroundImage, {
+                width: event.currentTarget.naturalWidth,
+                height: event.currentTarget.naturalHeight,
+              })
+            }
             style={{
               position: "absolute",
-              inset: 0,
-              width: "100%",
-              height: "100%",
+              left: px(backgroundPlace.left),
+              top: px(backgroundPlace.top),
+              width: px(backgroundPlace.width),
+              height: px(backgroundPlace.height),
               maxWidth: "none",
               objectFit: "cover",
-              transform:
-                pageData.background.type === "image" && pageData.background.flipped
-                  ? "scaleX(-1)"
-                  : undefined,
+              transform: backgroundPlace.flipped ? "scaleX(-1)" : undefined,
+              transformOrigin: backgroundPlace.flipped
+                ? `${px(backgroundPlace.originX)} 50%`
+                : undefined,
             }}
           />
         )}

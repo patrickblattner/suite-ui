@@ -61,12 +61,21 @@ export const SLIDE_MIGRATIONS: Readonly<Record<number, SlideMigration>> = {
   // 8 → 9 added a numbered list's `fit` (`SUI-FEATURE-124` rev 5): no content changes; absent, a list
   // fits as before (`all`).
   8: (document) => document,
+  // 9 → 10 added a background image's `crop` (`SUI-DESIGN-002` rev 10): an older background image
+  // gets none, zoom 1 and centred, its image unchanged; a stray one written before (its parse dropped
+  // it) is replaced, on pages, layouts and masters alike.
+  9: (document) =>
+    everyBackground(document, (background) =>
+      background.type === "image"
+        ? { ...background, crop: { zoom: 1, offsetX: 0, offsetY: 0 } }
+        : background,
+    ),
 };
 
-// The document with `change` made to every element of its pages, layouts and masters, in groups too.
-function everyElement(
+// The document with `change` made to each of its pages, layouts and masters, within their caps.
+function everyHolder(
   document: Record<string, unknown>,
-  change: ElementChange,
+  change: (holder: unknown) => unknown,
 ): Record<string, unknown> {
   const next = { ...document };
   const caps = {
@@ -76,10 +85,25 @@ function everyElement(
   };
   for (const [key, cap] of Object.entries(caps)) {
     const list = next[key];
-    if (walkable(list, cap)) next[key] = list.map((holder) => holderChanged(holder, change));
+    if (walkable(list, cap)) next[key] = list.map(change);
   }
   return next;
 }
+
+// The document with `change` made to the background of each of its pages, layouts and masters.
+const everyBackground = (
+  document: Record<string, unknown>,
+  change: (background: Record<string, unknown>) => Record<string, unknown>,
+) =>
+  everyHolder(document, (holder) =>
+    isRecord(holder) && isRecord(holder.background)
+      ? { ...holder, background: change(holder.background) }
+      : holder,
+  );
+
+// The document with `change` made to every element of its pages, layouts and masters, in groups too.
+const everyElement = (document: Record<string, unknown>, change: ElementChange) =>
+  everyHolder(document, (holder) => holderChanged(holder, change));
 
 function without(element: Record<string, unknown>, key: string): Record<string, unknown> {
   const rest = { ...element };
