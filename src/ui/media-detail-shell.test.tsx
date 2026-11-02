@@ -1540,9 +1540,10 @@ describe("MediaDetailShell: view mode (SUI-FEATURE-061 rev 4)", () => {
     onReset: () => {},
   } as const;
 
-  // AC 8: without `mode` the output is byte-identical to the version before the view mode; the
-  // snapshot was recorded on that version.
-  it("without mode the output is byte-identical to the previous version", () => {
+  // AC 8: without `mode` the output is the edit output recorded in the snapshot, first on the version
+  // before the view mode. It is re-recorded only for a deliberate change of the default output
+  // (#750, #777), never to make a failing run pass.
+  it("default edit output matches recorded snapshot", () => {
     render(<MediaDetailShell {...edit} />);
     expect(stableHtml()).toMatchSnapshot();
   });

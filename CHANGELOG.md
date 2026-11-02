@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — #777: MediaDetailShell keeps the position counter on one line at 390 px (SUI-FEATURE-061) (patch)
+
+- **Fixed (#777, SUI-FEATURE-061):** the `MediaDetailShell` preview head no longer squeezes „1 von 3" onto three lines at 390 px: the counter never breaks, and when the row is too narrow the end group (step, Used by, pick, close) wraps below the chevrons and counter instead of pushing close past the panel edge; where even that row is too narrow (320 px), the pick label truncates and shows its full text as a tooltip while clipped, so close stays inside the head. Wide panels are unchanged.
+- **Tests (#777):** gallery — at 390 and 320 px (de, with pick) the counter is one line high, centred with the chevrons, and close stays inside the head row. Unit — the default-edit-output snapshot (renamed from "byte-identical to the previous version") takes the head's class changes and the pick label's truncating span.
+
 ## 0.215.0 — #750: MediaDetailShell and SettingsActionRow show a locked Save's reason on opt-in and take an app lock with its hint (SUI-FEATURE-125 rev 6, SUI-FEATURE-131) (minor)
 
 - **Added (#750, SUI-FEATURE-125 rev 5):** `showDisabledReason?: boolean` (default `false`) on `MediaDetailShell` and `SettingsActionRow`, as on `EditPanel`: while Save is locked and no save runs, the reason stands as muted text before Reset + Save, wraps above them when narrow, never truncates, and is Save's one description (`aria-describedby`); the tooltip shows it too. Without the opt-in both footers are byte-identical to before.

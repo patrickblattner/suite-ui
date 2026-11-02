@@ -37,7 +37,7 @@ import { DisabledReasonRow, type SubmitLock } from "../lib/disabled-reason-row.j
 import { Hint } from "./hint.js";
 import { useLeaveConfirm } from "./leave-guard.js";
 import { Sheet, SheetTitle } from "./sheet.js";
-import { IconButtonTooltip } from "./tooltip.js";
+import { IconButtonTooltip, OverflowTooltip } from "./tooltip.js";
 
 type MediaDetailKind = "image" | "video" | "audio" | "pdf" | "text" | "other";
 
@@ -345,10 +345,14 @@ function PickButton({ onClick, locked }: { onClick: () => void; locked: boolean 
       size="sm"
       disabled={locked}
       onClick={onClick}
+      // On a narrow head the label truncates, the full label in its tooltip; close stays in the row (#777).
+      className="min-w-0 shrink"
       data-testid="media-detail-pick"
     >
       <CheckIcon aria-hidden="true" />
-      {t("media.pick")}
+      <OverflowTooltip text={t("media.pick")}>
+        <span className="truncate">{t("media.pick")}</span>
+      </OverflowTooltip>
     </Button>
   );
   if (!locked) return button;
@@ -593,7 +597,8 @@ function MediaDetailShell({
             <div
               data-slot="media-detail-head"
               data-tooltip-row=""
-              className="flex items-center gap-1"
+              // Too narrow for one row, the end group wraps below; the counter never breaks (#777).
+              className="flex flex-wrap items-center gap-1"
             >
               <IconButtonTooltip label={t("pager.previous")}>
                 <Button
@@ -622,12 +627,12 @@ function MediaDetailShell({
               {/* A change of position is announced politely (`SUI-FEATURE-052`). */}
               <span
                 role="status"
-                className="text-sm text-muted-foreground tabular-nums"
+                className="text-sm whitespace-nowrap text-muted-foreground tabular-nums"
                 data-testid="media-detail-position"
               >
                 {t("media.position", { n: position, total })}
               </span>
-              <div className="ms-auto flex items-center gap-2">
+              <div className="ms-auto flex min-w-0 items-center gap-2">
                 {headButtons.step}
                 {usageButtons.extra}
                 {pickAction !== undefined && (

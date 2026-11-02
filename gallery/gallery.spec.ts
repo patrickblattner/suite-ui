@@ -12678,6 +12678,31 @@ test("media detail shell: showDisabledReason wraps above Save at 390 px", async 
   );
 });
 
+// #777 (`SUI-FEATURE-061`): at 390 and 320 px the position counter stays on one line beside the
+// chevrons; the end group (pick, close) wraps below, and at 320 px the pick label truncates, so close
+// stays inside the head row.
+for (const width of [390, 320]) {
+  test(`media detail shell: the position counter stays on one line at ${width} px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 800 });
+    const shell = await openMediaDetail(page, "&lng=de");
+    const counter = shell.getByTestId("media-detail-position");
+    await expect(counter).toHaveText("1 von 3");
+    await expect(shell.getByTestId("media-detail-pick")).toBeVisible();
+    const lineHeight = await counter.evaluate((el) => parseFloat(getComputedStyle(el).lineHeight));
+    const [c, next, close, head] = [
+      await box(counter),
+      await box(shell.getByTestId("media-detail-next")),
+      await box(shell.getByTestId("media-detail-close")),
+      await box(shell.locator("[data-slot=media-detail-head]")),
+    ];
+    expect(c.height).toBeLessThanOrEqual(lineHeight);
+    expect(Math.abs(c.y + c.height / 2 - (next.y + next.height / 2))).toBeLessThanOrEqual(1);
+    expect(close.x + close.width).toBeLessThanOrEqual(head.x + head.width);
+  });
+}
+
 test("settings action row: showDisabledReason wraps above Save at 390 px", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 800 });
   await page.goto("/?page=settings&layout=reason&lng=de");
