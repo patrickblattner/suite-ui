@@ -26,6 +26,14 @@ type SaveResetButtonsProps = {
   blockDrafts?: FieldDrafts | undefined;
   // The pair acts on one entry (`SettingsActionRow`): its hints name the entry, not the page (#700).
   entry?: boolean | undefined;
+  // The app's lock on Save (`SUI-FEATURE-131`): locked like an invalid entry; Reset still follows
+  // `dirty`.
+  locked?: boolean | undefined;
+  // In place of the package's locked-Save tooltip: the app's hint or the opted-in reason
+  // (`SUI-FEATURE-125`).
+  saveDisabledText?: string | undefined;
+  // The visible lock reason's id: Save's one description (`SUI-FEATURE-125`).
+  reasonId?: string | undefined;
 } & SaveResetLeft;
 
 // Reset (`destructive`) and Save (`success`), each with its fixed decorative icon before the label,
@@ -48,6 +56,9 @@ function SaveResetButtons({
   onSave,
   blockDrafts,
   entry = false,
+  locked = false,
+  saveDisabledText,
+  reasonId,
 }: SaveResetButtonsProps) {
   const { t } = useTranslation("suite");
   const hints = entry
@@ -118,16 +129,22 @@ function SaveResetButtons({
           </Button>
         </Hint>
       )}
-      <Hint text={hints.save} disabledText={dirty ? hints.saveInvalid : hints.saveDisabled}>
+      <Hint
+        text={hints.save}
+        disabledText={saveDisabledText ?? (dirty ? hints.saveInvalid : hints.saveDisabled)}
+        // The visible reason is the one description; the tooltip still shows it (`SUI-FEATURE-125`).
+        {...(reasonId !== undefined ? { describe: false } : {})}
+      >
         <Button
           ref={save}
           type={onSave === undefined ? "submit" : "button"}
           variant="success"
           size="default"
-          {...(clean || !valid ? { "aria-disabled": true } : {})}
+          {...(clean || !valid || locked ? { "aria-disabled": true } : {})}
+          {...(reasonId !== undefined ? { "aria-describedby": reasonId } : {})}
           busy={saving}
           onClickCapture={(event) => {
-            if (!valid) submitLocked(event);
+            if (!valid || locked) submitLocked(event);
           }}
           onClick={(event) => {
             // Cancels the click and with it the submit of the form, Enter in a field included.

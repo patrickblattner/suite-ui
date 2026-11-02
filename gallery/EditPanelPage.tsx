@@ -9,6 +9,7 @@ import { Button } from "../src/ui/button.js";
 import { Combobox, type ComboboxOption } from "../src/ui/combobox.js";
 import { CreateAndSelectDialog } from "../src/ui/create-and-select-dialog.js";
 import { EditPanel } from "../src/ui/edit-panel.js";
+import { Field } from "../src/ui/field.js";
 import { Input } from "../src/ui/input.js";
 import { FileFacts } from "../src/ui/file-facts.js";
 import { Hint } from "../src/ui/hint.js";
@@ -107,16 +108,19 @@ const LABELS = {
     saveCloseHint: "Saves the entries and closes the panel.",
     publish: "Publish",
     nameFirst: "Fill in the name first",
+    noSlash: "Remove the slash: a name can't contain “/”.",
   },
   de: {
     saveCloseHint: "Speichert die Eingaben und schließt das Panel.",
     publish: "Veröffentlichen",
     nameFirst: "Zuerst den Namen ausfüllen",
+    noSlash: "Schrägstrich entfernen: Ein Name darf kein „/“ enthalten.",
   },
   es: {
     saveCloseHint: "Guarda los datos y cierra el panel.",
     publish: "Publicar",
     nameFirst: "Primero rellena el nombre",
+    noSlash: "Quita la barra: un nombre no puede contener «/».",
   },
 };
 // `?step=1` gives the media detail shell its next lifecycle step (`SUI-FEATURE-330`), outside pick
@@ -125,6 +129,9 @@ const STEP = new URLSearchParams(window.location.search).get("step") === "1";
 // `?mediaView=1` opens the media detail shell in its view mode (`SUI-FEATURE-061` rev 4): no
 // Reset/Save footer, the name read-only.
 const MEDIA_VIEW = new URLSearchParams(window.location.search).get("mediaView") === "1";
+// `?mediaReason=1` gives the media detail shell `showDisabledReason` (`SUI-FEATURE-125`): nothing
+// changed shows the package reason, an emptied name the app's own lock and hint (`SUI-FEATURE-131`).
+const MEDIA_REASON = new URLSearchParams(window.location.search).get("mediaReason") === "1";
 const FIELDS = Array.from({ length: 24 }, (_, index) => `Field ${index + 1}`);
 
 // `SUI-FEATURE-093` (#264): a record picker in a panel creates a missing contact in the compact
@@ -562,19 +569,27 @@ function Demo() {
         dirty={lockedName !== ""}
         submitKind="create"
         showDisabledReason
-        submitDisabled={lockedName.trim() === ""}
-        submitDisabledHint={labels.nameFirst}
+        // A name with a slash is invalid: the package's catalogue reason (`SUI-FEATURE-125` AC 9).
+        submitDisabled={lockedName.trim() === "" || lockedName.includes("/")}
+        submitDisabledHint={
+          lockedName.includes("/") ? i18n.t("suite:form.invalid") : labels.nameFirst
+        }
         onSubmit={() => setLockedOpen(false)}
       >
         <div className="flex flex-col gap-4">
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="locked-name">Name</Label>
+          {/* The field says what is wrong (`GL-UX-001`); the footer names the lock. */}
+          <Field
+            label="Name"
+            htmlFor="locked-name"
+            error={lockedName.includes("/") ? labels.noSlash : undefined}
+            errorTestId="locked-name-error"
+          >
             <Input
               id="locked-name"
               value={lockedName}
               onChange={(event) => setLockedName(event.target.value)}
             />
-          </div>
+          </Field>
           {FIELDS.map((field) => (
             <div key={field} className="flex flex-col gap-2">
               <Label htmlFor={`locked-${field}`}>{field}</Label>
@@ -715,6 +730,9 @@ function Demo() {
           }}
           onReset={() => setShellName(savedNames[shell]!)}
           {...(STEP ? {} : { pickAction: () => setShell(null) })}
+          showDisabledReason={MEDIA_REASON}
+          submitDisabled={MEDIA_REASON && shellName.trim() === ""}
+          submitDisabledHint={labels.nameFirst}
           facts={
             <FileFacts
               kind={

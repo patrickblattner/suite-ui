@@ -131,6 +131,17 @@ describe("suite list-state texts", () => {
   );
 });
 
+// The package's lock reasons beside a primary action (`SUI-FEATURE-125` AC 7, AC 9).
+describe("suite form lock reasons", () => {
+  it.each([
+    ["de", "Noch nichts geändert", "Markierte Felder zuerst korrigieren"],
+    ["en", "Nothing changed yet", "Fix the marked fields first"],
+    ["es", "Aún no hay cambios", "Corrige primero los campos marcados"],
+  ] as const)("%s", (lng, unchanged, invalid) => {
+    expect(suiteStrings[lng].form).toEqual({ unchanged, invalid });
+  });
+});
+
 // SUI-FEATURE-044, SUI-FEATURE-049 (`failing`): the 16 state texts in sentence case, in the order of the spec.
 describe("suite state texts", () => {
   const order = [

@@ -29,6 +29,8 @@ const LABELS = {
     tabs: ["Provider", "Areas", "Prompts"],
     error: "The settings could not be loaded.",
     replaceOpen: "Finish or cancel the replacement first.",
+    testFirst: "Test the connection first",
+    noSpace: "Remove the spaces: the value can't contain any.",
   },
   de: {
     title: "Allgemein",
@@ -38,6 +40,8 @@ const LABELS = {
     tabs: ["Anbieter", "Bereiche", "Prompts"],
     error: "Die Einstellungen konnten nicht geladen werden.",
     replaceOpen: "Erst das Ersetzen abschließen oder abbrechen.",
+    testFirst: "Zuerst die Verbindung testen",
+    noSpace: "Leerzeichen entfernen: Der Wert darf keine enthalten.",
   },
   es: {
     title: "General",
@@ -47,6 +51,8 @@ const LABELS = {
     tabs: ["Proveedor", "Áreas", "Prompts"],
     error: "No se pudieron cargar los ajustes.",
     replaceOpen: "Termina o cancela primero el reemplazo.",
+    testFirst: "Prueba primero la conexión",
+    noSpace: "Quita los espacios: el valor no puede contenerlos.",
   },
 } as const;
 
@@ -75,6 +81,10 @@ const BLOCK_LAYOUT = PARAMS.get("layout") === "blocks";
 // narrows the block.
 const ACTION_ROW_LAYOUT = PARAMS.get("layout") === "action-row";
 const ACTION_ROW_WIDTH = Number(PARAMS.get("width")) || null;
+// `?layout=reason` shows two SettingsActionRows with `showDisabledReason` (`SUI-FEATURE-125`,
+// `SUI-FEATURE-131`): one locked by the package (nothing changed, or a value with a space is invalid),
+// one locked by the app with its own hint until the connection is tested.
+const REASON_LAYOUT = PARAMS.get("layout") === "reason";
 const OPTIONS = ["a", "b", "c"] as const;
 const TAB_KEYS = ["provider", "areas", "prompts"] as const;
 // Long enough for a check of the working state, short enough for the test to wait for its end.
@@ -119,6 +129,14 @@ export function SettingsPage() {
         <div style={ACTION_ROW_WIDTH === null ? undefined : { width: ACTION_ROW_WIDTH }}>
           <ReplaceBlock labels={labels} />
         </div>
+      </div>
+    );
+  }
+
+  if (REASON_LAYOUT) {
+    return (
+      <div className="flex flex-col gap-4 p-6">
+        <ReasonBlocks labels={labels} />
       </div>
     );
   }
@@ -382,6 +400,70 @@ function ReplaceBlock({ labels }: { labels: (typeof LABELS)[keyof typeof LABELS]
         />
       </form>
     </SettingsBlock>
+  );
+}
+
+// The visible lock reason on SettingsActionRow (`SUI-FEATURE-125`, `SUI-FEATURE-131`).
+function ReasonBlocks({ labels }: { labels: (typeof LABELS)[keyof typeof LABELS] }) {
+  const { t } = useTranslation("suite");
+  const [value, setValue] = useState("");
+  const [host, setHost] = useState("");
+  const [tested, setTested] = useState(false);
+  const invalid = value.includes(" ");
+  return (
+    <>
+      <SettingsBlock name={labels.field} purpose={labels.subtitle}>
+        {/* The field says what is wrong (`GL-UX-001`); the row names the lock. */}
+        <SettingsField
+          label={labels.field}
+          htmlFor="reason-value"
+          {...(invalid ? { error: labels.noSpace } : {})}
+        >
+          <Input
+            id="reason-value"
+            data-testid="reason-value"
+            value={value}
+            onChange={(event) => setValue(event.target.value)}
+          />
+        </SettingsField>
+        <SettingsActionRow
+          dirty={value !== ""}
+          valid={!invalid}
+          showDisabledReason
+          onSave={() => setValue("")}
+          onReset={() => setValue("")}
+          testIdPrefix="reason"
+        />
+      </SettingsBlock>
+      <SettingsBlock name={labels.status} purpose={labels.subtitle}>
+        <Input
+          aria-label={labels.status}
+          data-testid="reason-app-value"
+          value={host}
+          onChange={(event) => {
+            setHost(event.target.value);
+            setTested(false);
+          }}
+        />
+        <SettingsActionRow
+          dirty={host !== ""}
+          showDisabledReason
+          submitDisabled={!tested}
+          submitDisabledHint={labels.testFirst}
+          onSave={() => setHost("")}
+          onReset={() => setHost("")}
+          leading={
+            <SettingsActionButton
+              label={t("actions.testConnection")}
+              disabledText={undefined}
+              onClick={() => setTested(true)}
+              testId="reason-app-test"
+            />
+          }
+          testIdPrefix="reason-app"
+        />
+      </SettingsBlock>
+    </>
   );
 }
 

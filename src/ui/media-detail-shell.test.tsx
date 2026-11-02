@@ -43,7 +43,8 @@ function renderShell(props: Partial<MediaDetailShellProps> = {}) {
       saving={false}
       fields={<Input aria-label="Name" />}
       {...handlers}
-      {...props}
+      // Unchecked: TypeScript cannot check a partial of the whole props union.
+      {...(props as object)}
     />,
   );
   return handlers;
@@ -1671,4 +1672,122 @@ describe("MediaDetailShell: view mode (SUI-FEATURE-061 rev 4)", () => {
     expect(onToggle).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("link", { name: "Home" })).toHaveAttribute("href", "/pages/1");
   });
+});
+
+describe("MediaDetailShell: visible lock reason (SUI-FEATURE-125, SUI-FEATURE-131)", () => {
+  const footer = () => document.querySelector('[data-slot="media-detail-footer"]')!;
+
+  // SUI-FEATURE-125 AC 7: nothing changed → the package's reason before Reset + Save, Save's one
+  // description and its tooltip text; gone after one edit.
+  it.each([
+    ["de", "Noch nichts geändert"],
+    ["en", "Nothing changed yet"],
+    ["es", "Aún no hay cambios"],
+  ])("%s: nothing changed shows the package reason", async (lng, text) => {
+    await i18n.changeLanguage(lng);
+    renderShell({ showDisabledReason: true });
+    const line = screen.getByTestId("media-detail-disabled-reason");
+    const save = screen.getByTestId("media-detail-save");
+    expect(line).toHaveTextContent(text);
+    expect(line).toHaveClass("text-sm", "text-muted-foreground", "wrap-anywhere");
+    expect(footer()).toContainElement(line);
+    expect(
+      screen.getByTestId("media-detail-reset").compareDocumentPosition(line) &
+        Node.DOCUMENT_POSITION_PRECEDING,
+    ).toBeTruthy();
+    expect(save).toHaveAttribute("aria-disabled", "true");
+    expect(save).toHaveAttribute("aria-describedby", line.id);
+    expect(save).toHaveAccessibleDescription(text);
+    expect(screen.getAllByText(text)).toEqual([line]);
+  });
+
+  it("the line goes after one edit, and while a save runs", () => {
+    const props = {
+      position: 3,
+      total: 65,
+      kind: "image",
+      src: "/media/a.jpg",
+      onPrev: () => {},
+      onNext: () => {},
+      onClose: () => {},
+      onSave: () => {},
+      onReset: () => {},
+      saving: false,
+      showDisabledReason: true,
+    } as const;
+    const { rerender } = render(<MediaDetailShell {...props} dirty={false} />);
+    const save = screen.getByTestId("media-detail-save");
+    expect(screen.getByTestId("media-detail-disabled-reason")).toBeInTheDocument();
+    rerender(<MediaDetailShell {...props} dirty />);
+    expect(screen.queryByTestId("media-detail-disabled-reason")).toBeNull();
+    expect(screen.getByTestId("media-detail-save")).toBe(save);
+    expect(save).not.toHaveAttribute("aria-disabled");
+    rerender(
+      <MediaDetailShell {...props} dirty saving submitDisabled submitDisabledHint="Wait." />,
+    );
+    expect(screen.queryByTestId("media-detail-disabled-reason")).toBeNull();
+  });
+
+  // SUI-FEATURE-125 AC 8, SUI-FEATURE-131 AC 1: the app's lock and hint win, dirty or not; Reset
+  // follows dirty; a locked Save saves nothing.
+  it.each([false, true])("app lock with hint wins (dirty %s)", (dirty) => {
+    const { onSave } = renderShell({
+      dirty,
+      showDisabledReason: true,
+      submitDisabled: true,
+      submitDisabledHint: "Add a caption first",
+    });
+    const line = screen.getByTestId("media-detail-disabled-reason");
+    const save = screen.getByTestId("media-detail-save");
+    expect(line).toHaveTextContent("Add a caption first");
+    expect(screen.queryByText("Nothing changed yet")).toBeNull();
+    expect(save).toHaveAttribute("aria-disabled", "true");
+    expect(save).toHaveAccessibleDescription("Add a caption first");
+    expect(screen.getByTestId("media-detail-reset")).toHaveProperty("disabled", !dirty);
+    fireEvent.click(save);
+    fireEvent.submit(save.closest("form")!);
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  // SUI-FEATURE-131 AC 1: without the opt-in the app hint is the locked Save's description.
+  it("app lock without the opt-in: the app hint is the tooltip, no line", () => {
+    renderShell({ dirty: true, submitDisabled: true, submitDisabledHint: "Add a caption first" });
+    expect(screen.queryByTestId("media-detail-disabled-reason")).toBeNull();
+    const save = screen.getByTestId("media-detail-save");
+    expect(save).toHaveAttribute("aria-disabled", "true");
+    expect(save).toHaveAccessibleDescription("Add a caption first");
+  });
+
+  // SUI-FEATURE-131 AC 2
+  it("submitDisabled without submitDisabledHint is a type error", () => {
+    // @ts-expect-error -- a lock always names its reason (SUI-FEATURE-250)
+    const props: MediaDetailShellProps = {
+      position: 1,
+      total: 1,
+      kind: "other",
+      onPrev: () => {},
+      onNext: () => {},
+      onClose: () => {},
+      dirty: true,
+      saving: false,
+      onSave: () => {},
+      onReset: () => {},
+      submitDisabled: true,
+    };
+    expect(props.submitDisabled).toBe(true);
+  });
+
+  // SUI-FEATURE-125 AC 7: without the opt-in the footer is byte-identical; recorded on the version
+  // before the opt-in.
+  it.each([
+    ["clean", { dirty: false }],
+    ["dirty", { dirty: true }],
+    ["saving", { dirty: true, saving: true }],
+  ] as [string, Partial<MediaDetailShellProps>][])(
+    "footer without showDisabledReason unchanged: %s",
+    (_, props) => {
+      renderShell(props);
+      expect(stableIds(footer().outerHTML)).toMatchSnapshot();
+    },
+  );
 });

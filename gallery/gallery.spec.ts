@@ -12575,6 +12575,142 @@ test("edit panel: showDisabledReason wraps above the buttons on a narrow panel",
   }
 });
 
+// `SUI-FEATURE-125` AC 9: an invalid value locks with the package's catalogue reason.
+test("edit panel: an invalid value shows suite:form.invalid as the reason", async ({ page }) => {
+  await page.goto("/?page=edit-panel&lng=de");
+  await page.getByTestId("locked-panel-trigger").click();
+  await page.getByTestId("locked-panel").getByLabel("Name", { exact: true }).fill("a/b");
+  const line = page.getByTestId("locked-panel-disabled-reason");
+  await expect(line).toHaveText("Markierte Felder zuerst korrigieren");
+  await expect(page.getByTestId("locked-panel-submit")).toHaveAccessibleDescription(
+    "Markierte Felder zuerst korrigieren",
+  );
+  // The field says what is wrong once it is left (`GL-UX-001`, `GL-UI-038`).
+  await page.keyboard.press("Tab");
+  await expect(page.getByTestId("locked-name-error")).toContainText(
+    "Schrägstrich entfernen: Ein Name darf kein „/“ enthalten.",
+  );
+});
+
+// `SUI-FEATURE-125` AC 7/8, `SUI-FEATURE-131`: the media detail shell names Save's lock before Reset
+// + Save: the package's reason while nothing changed, the app's own hint while it locks.
+test("media detail shell: showDisabledReason names the package and the app lock", async ({
+  page,
+}) => {
+  const shell = await openMediaDetail(page, "&mediaReason=1&lng=en");
+  const line = shell.getByTestId("media-detail-disabled-reason");
+  const save = shell.getByTestId("media-detail-save");
+  const reset = shell.getByTestId("media-detail-reset");
+  await expect(line).toHaveText("Nothing changed yet");
+  const [l, r, s] = [await box(line), await box(reset), await box(save)];
+  expect(Math.abs(l.y + l.height / 2 - (s.y + s.height / 2))).toBeLessThanOrEqual(1);
+  expect(l.x + l.width).toBeLessThanOrEqual(r.x);
+  await expect(save).toHaveAccessibleDescription("Nothing changed yet");
+  await save.hover();
+  await expect(page.getByRole("tooltip")).toHaveText("Nothing changed yet", { timeout: 5000 });
+  await page.mouse.move(0, 0);
+  const name = shell.getByLabel("Name", { exact: true });
+  await name.fill("team.jpg");
+  await expect(line).toHaveCount(0);
+  await expect(save).not.toHaveAttribute("aria-disabled");
+  await name.fill("");
+  await expect(line).toHaveText("Fill in the name first");
+  await expect(save).toHaveAttribute("aria-disabled", "true");
+  await expect(save).toHaveAccessibleDescription("Fill in the name first");
+  await expect(reset).toBeEnabled();
+});
+
+// `SUI-FEATURE-125` AC 7/8, `SUI-FEATURE-131` AC 3/4: SettingsActionRow names Save's lock: nothing
+// changed, an invalid value, and the app's own lock with its hint.
+test("settings action row: showDisabledReason names the package and the app lock", async ({
+  page,
+}) => {
+  await page.goto("/?page=settings&layout=reason&lng=de");
+  const line = page.getByTestId("reason-disabled-reason");
+  const save = page.getByTestId("reason-save");
+  await expect(line).toHaveText("Noch nichts geändert");
+  const [l, r] = [await box(line), await box(page.getByTestId("reason-reset"))];
+  expect(l.x + l.width).toBeLessThanOrEqual(r.x);
+  await expect(save).toHaveAccessibleDescription("Noch nichts geändert");
+  await page.getByTestId("reason-value").fill("a b");
+  await expect(line).toHaveText("Markierte Felder zuerst korrigieren");
+  await expect(save).toHaveAccessibleDescription("Markierte Felder zuerst korrigieren");
+  await page.getByTestId("reason-value").blur();
+  await expect(page.locator("#reason-value-error")).toContainText(
+    "Leerzeichen entfernen: Der Wert darf keine enthalten.",
+  );
+  await page.getByTestId("reason-value").fill("ab");
+  await expect(line).toHaveCount(0);
+  const appLine = page.getByTestId("reason-app-disabled-reason");
+  const appSave = page.getByTestId("reason-app-save");
+  await expect(appLine).toHaveText("Zuerst die Verbindung testen");
+  await page.getByTestId("reason-app-value").fill("mail.example.org");
+  await expect(appLine).toHaveText("Zuerst die Verbindung testen");
+  await expect(appSave).toHaveAccessibleDescription("Zuerst die Verbindung testen");
+  await expect(page.getByTestId("reason-app-reset")).not.toHaveAttribute("aria-disabled");
+  await page.getByTestId("reason-app-test").click();
+  await expect(appLine).toHaveCount(0);
+  await expect(appSave).not.toHaveAttribute("aria-disabled");
+});
+
+// `SUI-FEATURE-125` AC 5 on the other footers: at 390 px the reason wraps onto its own row above
+// Save, its end at Save's end, and nothing overflows the row.
+async function expectReasonAbove(page: Page, lineId: string, saveId: string, rowSelector: string) {
+  const line = page.getByTestId(lineId);
+  await expect(line).toBeVisible();
+  const [l, s] = [await box(line), await box(page.getByTestId(saveId))];
+  expect(l.y + l.height).toBeLessThanOrEqual(s.y);
+  expect(Math.abs(l.x + l.width - (s.x + s.width))).toBeLessThanOrEqual(1);
+  expect(await line.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(false);
+  const row = page.locator(rowSelector).filter({ has: line });
+  expect(await row.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
+  expect(s.x + s.width).toBeLessThanOrEqual(390);
+}
+
+test("media detail shell: showDisabledReason wraps above Save at 390 px", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  await openMediaDetail(page, "&mediaReason=1&lng=de");
+  await expectReasonAbove(
+    page,
+    "media-detail-disabled-reason",
+    "media-detail-save",
+    '[data-slot="media-detail-footer"]',
+  );
+});
+
+test("settings action row: showDisabledReason wraps above Save at 390 px", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  await page.goto("/?page=settings&layout=reason&lng=de");
+  await expectReasonAbove(
+    page,
+    "reason-disabled-reason",
+    "reason-save",
+    '[data-slot="settings-action-row"]',
+  );
+  await expectReasonAbove(
+    page,
+    "reason-app-disabled-reason",
+    "reason-app-save",
+    '[data-slot="settings-action-row"]',
+  );
+});
+
+// `SUI-FEATURE-125`: with leading actions the reason wraps above the buttons, and the leading action
+// stays on the button row, as Back does in `EditPanel`.
+test("settings action row: the leading action stays on Save's row when the reason wraps", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 640, height: 800 });
+  await page.goto("/?page=settings&layout=reason&lng=de");
+  const line = page.getByTestId("reason-app-disabled-reason");
+  await expect(line).toBeVisible();
+  const [lead, s] = [
+    await box(page.getByTestId("reason-app-test")),
+    await box(page.getByTestId("reason-app-save")),
+  ];
+  expect(Math.abs(lead.y + lead.height / 2 - (s.y + s.height / 2))).toBeLessThanOrEqual(1);
+});
+
 // `SUI-FEATURE-094`: Apply takes the entries over into the outer form without an icon and without
 // a word about saving; the panel's submit, by click or Enter, never submits that outer form.
 for (const [lng, label, hint, cancelHint] of [

@@ -253,6 +253,10 @@ export const es: SuiteStrings = {
   panel: {
     close: "Cerrar",
   },
+  form: {
+    unchanged: "Aún no hay cambios",
+    invalid: "Corrige primero los campos marcados",
+  },
   editPanel: {
     viewCloseHint: "Cierra el panel.",
     backHint: "Vuelve un paso atrás.",

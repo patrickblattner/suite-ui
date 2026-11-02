@@ -30,8 +30,10 @@ import {
   FieldSubmitContext,
   FieldSubmitEndContext,
   FieldUserEditContext,
+  submitLocked,
   useFieldSubmits,
 } from "./field-error.js";
+import { DisabledReasonRow, type SubmitLock } from "../lib/disabled-reason-row.js";
 import { Hint } from "./hint.js";
 import { useLeaveConfirm } from "./leave-guard.js";
 import { Sheet, SheetTitle } from "./sheet.js";
@@ -89,7 +91,12 @@ type MediaDetailShellProps = MediaDetailSource & {
   // preview head, before "Used by"; its name and hint read "‹label› ‹rowName›". Not shown with
   // `pickAction` (rev 6).
   step?: RowAction & { rowName: string };
-} & MediaDetailMode;
+  // Opt-in (`SUI-FEATURE-125`): while Save is locked and no save runs, the footer shows the reason as
+  // muted text before Reset + Save, Save's one description: the app's `submitDisabledHint`, else
+  // `suite:form.unchanged` while nothing has changed.
+  showDisabledReason?: boolean;
+} & SubmitLock &
+  MediaDetailMode;
 
 // `edit` (the default) carries the Reset/Save footer and the dirty guard. `view` (a role that may only
 // look at media, `GL-UI-032`; as `EditPanel` `mode="view"`) has neither: paging, closing and picking
@@ -386,6 +393,9 @@ function MediaDetailShell({
   pickAction,
   usage,
   step,
+  showDisabledReason = false,
+  submitDisabled = false,
+  submitDisabledHint,
   ...slots
 }: MediaDetailShellProps) {
   const { t } = useTranslation("suite");
@@ -437,6 +447,16 @@ function MediaDetailShell({
   const [fieldDrafts] = React.useState(createFieldDrafts);
   const hasFieldDrafts = useHasFieldDrafts(fieldDrafts);
   const changed = dirty || hasFieldDrafts;
+  // Save's lock reason (`SUI-FEATURE-125`, `SUI-FEATURE-131`): the app's lock with its hint first, then
+  // nothing changed. Visible only on opt-in and never while a save runs; an empty app hint draws no line.
+  const lockReason = submitDisabled
+    ? submitDisabledHint
+    : changed
+      ? undefined
+      : showDisabledReason
+        ? t("form.unchanged")
+        : undefined;
+  const reason = showDisabledReason && !saving ? lockReason || undefined : undefined;
   // The page's submit, from its own Save and from Save in the leave dialog alike: a save that does not
   // report success shows every invalid field's error and focuses the first, also one the user never
   // left (`GL-UI-038` §Absenden, `SUI-FEATURE-150`); a successful one ends the submit state.
@@ -451,7 +471,7 @@ function MediaDetailShell({
     };
     let result: unknown;
     try {
-      result = dirty ? onSave?.() : false;
+      result = dirty && !submitDisabled ? onSave?.() : false;
     } catch (error) {
       failed();
       throw error;
@@ -500,6 +520,63 @@ function MediaDetailShell({
     document.addEventListener("keydown", onKeyDown);
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [open, guard, onClose]);
+
+  // Reset and Save, the dirty-state pair; `reasonId` is the visible lock reason, Save's one description
+  // (`SUI-FEATURE-125`).
+  const footerActions = (reasonId?: string) => (
+    <>
+      <Button
+        type="button"
+        variant="destructive"
+        size="default"
+        disabled={!changed || saving}
+        // Keeps the focus in the field, so its blur does not take a typed tag over (and
+        // announce it) just before Reset drops it.
+        onMouseDown={(event) => {
+          if (hasFieldDrafts) event.preventDefault();
+        }}
+        onClick={() => {
+          fieldDrafts.discard();
+          // Reset discards to the saved values: the submit state ends (`GL-UI-038` rev 4).
+          endSubmits();
+          onReset?.();
+        }}
+        data-testid="media-detail-reset"
+      >
+        <RotateCcwIcon aria-hidden="true" />
+        {t("actions.reset")}
+      </Button>
+      {/* Locked with `aria-disabled`, not `disabled`, when there is nothing to save: it keeps
+              the focus after a save (`SUI-FEATURE-085`) and looks locked by half-tone colours;
+              the form's submit saves only while dirty and not locked by the app. */}
+      <Hint
+        text={t("media.saveHint")}
+        disabledText={lockReason ?? t("media.saveCleanHint")}
+        // The visible reason is the one description; the tooltip still shows it (`SUI-FEATURE-125`).
+        {...(reasonId !== undefined ? { describe: false } : {})}
+      >
+        <Button
+          type="submit"
+          variant="success"
+          size="default"
+          {...(changed && !submitDisabled ? {} : { "aria-disabled": true })}
+          {...(reasonId !== undefined ? { "aria-describedby": reasonId } : {})}
+          busy={saving}
+          {...(submitDisabled
+            ? {
+                // Locked by the app: the click still submits, which shows every field's error and
+                // saves nothing (`GL-UI-038` §Absenden).
+                onClickCapture: (event: React.MouseEvent<HTMLButtonElement>) => submitLocked(event),
+              }
+            : {})}
+          data-testid="media-detail-save"
+        >
+          <SaveIcon aria-hidden="true" />
+          {t("actions.save")}
+        </Button>
+      </Hint>
+    </>
+  );
 
   // The split and the footer: in a form for `edit`, in a plain `div` for `view`.
   const body = (
@@ -638,43 +715,13 @@ function MediaDetailShell({
           data-tooltip-row=""
           className="flex shrink-0 flex-row items-center justify-end gap-2 border-t px-6 py-4"
         >
-          <Button
-            type="button"
-            variant="destructive"
-            size="default"
-            disabled={!changed || saving}
-            // Keeps the focus in the field, so its blur does not take a typed tag over (and
-            // announce it) just before Reset drops it.
-            onMouseDown={(event) => {
-              if (hasFieldDrafts) event.preventDefault();
-            }}
-            onClick={() => {
-              fieldDrafts.discard();
-              // Reset discards to the saved values: the submit state ends (`GL-UI-038` rev 4).
-              endSubmits();
-              onReset?.();
-            }}
-            data-testid="media-detail-reset"
-          >
-            <RotateCcwIcon aria-hidden="true" />
-            {t("actions.reset")}
-          </Button>
-          {/* Locked with `aria-disabled`, not `disabled`, when there is nothing to save: it keeps
-                  the focus after a save (`SUI-FEATURE-085`) and looks locked by half-tone colours;
-                  the form's submit saves only while dirty. */}
-          <Hint text={t("media.saveHint")} disabledText={t("media.saveCleanHint")}>
-            <Button
-              type="submit"
-              variant="success"
-              size="default"
-              {...(changed ? {} : { "aria-disabled": true })}
-              busy={saving}
-              data-testid="media-detail-save"
-            >
-              <SaveIcon aria-hidden="true" />
-              {t("actions.save")}
-            </Button>
-          </Hint>
+          {showDisabledReason ? (
+            <DisabledReasonRow reason={reason} testId="media-detail-disabled-reason">
+              {footerActions}
+            </DisabledReasonRow>
+          ) : (
+            footerActions()
+          )}
         </div>
       )}
     </>

@@ -14,6 +14,7 @@ import { isCompositionKey } from "./composition.js";
 import { PANEL_SURFACE_CLASS, usePanelGeometry } from "../lib/panel-geometry.js";
 import { Button } from "./button.js";
 import { CompositionTabBoundary } from "./composition-tab-internal.js";
+import { DisabledReasonRow, type SubmitLock } from "../lib/disabled-reason-row.js";
 import { FIELD_SELECTOR } from "./dialog.js";
 import { createFieldDrafts, FieldDraftsContext } from "./field-drafts-internal.js";
 import {
@@ -127,45 +128,6 @@ type PanelMode =
       // so the app wraps each of its actions in one.
       actions?: React.ReactNode;
     };
-
-// A locked primary action always names its reason (`SUI-FEATURE-250`): `submitDisabled` comes with
-// `submitDisabledHint` or not at all. The app knows the reason; the package invents none.
-type SubmitLock =
-  | { submitDisabled?: never; submitDisabledHint?: never }
-  | { submitDisabled: boolean; submitDisabledHint: string };
-
-// The footer's action cluster with the visible lock reason before it (`SUI-FEATURE-125`), first in
-// reading order and end-aligned; too narrow, the reason wraps onto its own row above the buttons. It
-// never truncates: a long unbroken token breaks anywhere. The cluster stands whether the reason shows
-// or not, so a lock never remounts the buttons. Its own component, so the id is only drawn where an app
-// opts in: every other panel keeps its ids.
-function DisabledReasonRow({
-  reason,
-  testId,
-  children,
-}: {
-  reason: string | undefined;
-  testId: string;
-  children: (reasonId?: string) => React.ReactNode;
-}) {
-  const id = React.useId();
-  return (
-    <div className="flex min-w-0 flex-1 flex-wrap items-center justify-end gap-2">
-      {reason !== undefined && (
-        <p
-          id={id}
-          className="text-end text-sm wrap-anywhere text-muted-foreground"
-          data-testid={testId}
-        >
-          {reason}
-        </p>
-      )}
-      <div className="flex items-center gap-2">
-        {children(reason === undefined ? undefined : id)}
-      </div>
-    </div>
-  );
-}
 
 // The edit panel (`GL-UI-027` §Bearbeitungsflächen, `SUI-FEATURE-030`): from the right over the whole
 // content area, its left edge at the current sidebar width, so the navigation stays visible and

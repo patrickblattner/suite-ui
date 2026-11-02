@@ -271,6 +271,11 @@ export const en = {
   panel: {
     close: "Close",
   },
+  // Reasons a form's primary action is locked, shown beside it on opt-in (`showDisabledReason`).
+  form: {
+    unchanged: "Nothing changed yet",
+    invalid: "Fix the marked fields first",
+  },
   editPanel: {
     viewCloseHint: "Closes the panel.",
     backHint: "Goes back one step.",
