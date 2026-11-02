@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #774: `hygiene:inventory` also scans devDependencies with Trivy and counts them separately; the gate stays on production (GL-CODE-003, SUI-FEATURE-128) (minor)
+## 0.214.0 — #774: `hygiene:inventory` also scans devDependencies with Trivy and counts them separately; the gate stays on production (GL-CODE-003, SUI-FEATURE-128) (minor)
 
 - **Added (#774, GL-CODE-003 rev 2, SUI-FEATURE-128 rev 4):** `npm run hygiene:inventory` additionally runs Trivy `fs --include-dev-deps` with the same flags and ignore file (`.spec-sync/hygiene/trivy-dev-deps.json`) and names the fixable HIGH/CRITICAL count for production and for devDependencies separately; the devDependency count is written to `summary.json` as `trivyDevDependencies`, outside `counts`, so it never becomes a `quality-baseline.json` ratchet entry.
 - **Unchanged (#774, GL-CODE-003):** the gate phase `hygiene` scans production dependencies only, never with `--include-dev-deps`; its log line says so. A devDependency-only finding never turns the gate red.
