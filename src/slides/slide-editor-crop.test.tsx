@@ -38,11 +38,19 @@ const photo = {
   media: { id: "photo" },
 };
 
-function renderEditor(border?: number, crop?: { zoom: number; offsetX: number; offsetY: number }) {
+function renderEditor(
+  border?: number,
+  crop?: { zoom: number; offsetX: number; offsetY: number },
+  flipped = false,
+) {
   const framed =
     border === undefined
-      ? photo
-      : { ...photo, border: { color: { kind: "free" as const, value: "#000" }, width: border } };
+      ? { ...photo, flipped }
+      : {
+          ...photo,
+          flipped,
+          border: { color: { kind: "free" as const, value: "#000" }, width: border },
+        };
   const image = crop === undefined ? framed : { ...framed, crop };
   render(
     <SlideEditor
@@ -624,5 +632,64 @@ describe("SlideEditor image flip (#767)", () => {
     fireEvent.click(flip());
     expect(flip()).toHaveAttribute("aria-pressed", "false");
     expect(drawn().style.transform).toBe("");
+  });
+});
+
+// #772 (GL-UI-035 rev 5, SUI-DESIGN-002 rev 10): a flipped image is cropped first, then flipped about
+// its frame's centre. In crop mode its dimmed rest lies mirrored about the frame's centre, and a drag
+// or an arrow key moves the image the way it goes on screen.
+describe("SlideEditor crop mode of a flipped image (#772)", () => {
+  // A 4:1 image in the 160 × 100 frame at (40, 400): drawn 400 × 100, centred on x = 120.
+  const wide = { width: 1600, height: 400 };
+  const offsetX = () => screen.getByTestId<HTMLInputElement>("slide-editor-crop-offsetX");
+  const rest = () => screen.getByTestId("slide-editor-crop-rest");
+  const at = (x: number, y: number) => ({ clientX: x * 0.25, clientY: y * 0.25, pointerId: 1 });
+
+  it("mirrors the dimmed rest about the frame's centre", () => {
+    // Stored 120 px left; flipped, the image is drawn 120 px right: from 40 to 440 on the page.
+    renderEditor(undefined, { zoom: 1, offsetX: -120, offsetY: 0 }, true);
+    startCrop();
+    loadRest(wide);
+    expect(rest().style.left).toBe(`${40 * 0.25 + 24}px`);
+    // The frame is cut out at the whole image's left edge, 160 px wide.
+    expect(rest().style.clipPath).toContain(`Z M 0 0 H ${160 * 0.25} A`);
+    expect(rest().querySelector("img")!.style.transform).toBe("scaleX(-1)");
+  });
+
+  // Dragged 40 px left or right from the frame's centre (120), the image is drawn 40 px that way: the
+  // whole image from −120 or −40 on the page. Review #772: the x field reads the shift as drawn, so a
+  // drag to the right reads positive.
+  it.each([
+    ["left", 80, -120, "-40"],
+    ["right", 160, -40, "40"],
+  ])("moves a flipped image the way it is dragged (%s)", (_, end, left, shown) => {
+    renderEditor(undefined, undefined, true);
+    startCrop();
+    loadRest(wide);
+    fireEvent.pointerDown(canvas(), { ...at(120, 450), button: 0 });
+    fireEvent.pointerMove(canvas(), at(end, 450));
+    fireEvent.pointerUp(canvas(), at(end, 450));
+    expect(rest().style.left).toBe(`${left * 0.25 + 24}px`);
+    expect(offsetX()).toHaveValue(shown);
+  });
+
+  it("moves a flipped image the way the arrow key points", () => {
+    renderEditor(undefined, undefined, true);
+    startCrop();
+    loadRest(wide);
+    fireEvent.keyDown(canvas(), { key: "ArrowLeft", shiftKey: true });
+    expect(rest().style.left).toBe(`${-90 * 0.25 + 24}px`);
+    expect(offsetX()).toHaveValue("-10");
+  });
+
+  // Review #772: the x field of a flipped image steps the way the image goes on screen.
+  it("moves a flipped image right by ArrowUp in the x field", () => {
+    renderEditor(undefined, undefined, true);
+    startCrop();
+    loadRest(wide);
+    fireEvent.keyDown(offsetX(), { key: "ArrowUp" });
+    expect(offsetX()).toHaveValue("1");
+    // Drawn 1 px right: the whole image from −79 on the page.
+    expect(rest().style.left).toBe(`${-79 * 0.25 + 24}px`);
   });
 });

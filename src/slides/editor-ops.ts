@@ -1126,6 +1126,12 @@ export function panCrop(
   );
 }
 
+// A flipped image is cropped first, then flipped about its frame's centre (`GL-UI-035`, #772): it is
+// drawn with its shift mirrored, so where it lies, which way a drag moves it and the x shift its
+// fields show take the mirrored shift. Its own inverse; `0 -` keeps a centred shift at 0, never -0.
+export const mirroredCrop = (crop: ImageCrop, flipped: boolean): ImageCrop =>
+  flipped ? { ...crop, offsetX: 0 - crop.offsetX } : crop;
+
 // The whole image of a crop where it is drawn on the page (`SUI-FEATURE-230`): the frame's placed box
 // zoomed about its centre and shifted in the image's own axes, turned as the frame is. Its part outside
 // the frame is the rest the crop can bring in.

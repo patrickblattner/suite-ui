@@ -1563,6 +1563,59 @@ describe("SlideView background crop", () => {
       origin: "960px 50%",
     });
   });
+
+  // #772 (GL-UI-035 "Erst wird zugeschnitten, dann gespiegelt"): an image element with a crop and
+  // flipped is cropped first, then flipped about its frame's centre, as the background is.
+  const imageElement = (box: { width: number; height: number }, elementCrop: unknown) =>
+    onlyPage([
+      {
+        id: "pic",
+        type: "image",
+        x: 0,
+        y: 0,
+        ...box,
+        media: { id: "photo" },
+        alt: "Pic",
+        crop: elementCrop,
+        flipped: true,
+      },
+    ]);
+  const elementImage = (container: HTMLElement) =>
+    container.querySelector<HTMLImageElement>('[data-slide-element="pic"] img')!;
+
+  it("draws a page-sized image element with the background's crop and flip as the background", async () => {
+    const { container } = await drawn({
+      resolveMedia,
+      document: imageElement({ width: 1920, height: 1080 }, crop),
+    });
+    loadImage(elementImage(container), { width: 1920, height: 1080 });
+    expect(placed(elementImage(container))).toEqual({
+      left: -600,
+      top: -230,
+      width: 2880,
+      height: 1620,
+      transform: "scaleX(-1)",
+      origin: "1560px 50%",
+    });
+  });
+
+  it("flips a cropped image element about its frame's centre, not the image's", async () => {
+    const { container } = await drawn({
+      resolveMedia,
+      document: imageElement({ width: 400, height: 400 }, { zoom: 2, offsetX: 50, offsetY: 0 }),
+    });
+    loadImage(elementImage(container), { width: 1000, height: 1000 });
+    // 800 × 800 in a 400 frame, centred at −200, shifted by 50; the frame's centre (200) in the
+    // image's own x is 350, so the flipped frame shows the same section, mirrored.
+    expect(placed(elementImage(container))).toEqual({
+      left: -150,
+      top: -200,
+      width: 800,
+      height: 800,
+      transform: "scaleX(-1)",
+      origin: "350px 50%",
+    });
+  });
 });
 
 const onlyPage = (elements: unknown[]) =>

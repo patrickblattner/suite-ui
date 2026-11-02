@@ -950,6 +950,7 @@ function image(draw: Draw, element: ElementOf<"image">) {
   const { zoom, offsetX, offsetY } =
     natural === undefined ? element.crop : clampCrop(w, h, element.crop, natural);
   const drawn = croppedImageSize(w, h, zoom, natural);
+  const left = (w - drawn.width) / 2 + offsetX;
   return (
     <div
       style={{
@@ -983,13 +984,16 @@ function image(draw: Draw, element: ElementOf<"image">) {
         }
         style={{
           position: "absolute",
-          left: px((w - drawn.width) / 2 + offsetX),
+          left: px(left),
           top: px((h - drawn.height) / 2 + offsetY),
           width: px(drawn.width),
           height: px(drawn.height),
           maxWidth: "none",
           objectFit: "cover",
+          // Cropped first, then flipped about the frame's centre, as the page background is: the
+          // flipped frame shows the same section, mirrored (`GL-UI-035`, #772).
           transform: element.flipped ? "scaleX(-1)" : undefined,
+          transformOrigin: element.flipped ? `${px(w / 2 - left)} 50%` : undefined,
         }}
       />
     </div>

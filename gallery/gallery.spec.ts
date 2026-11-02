@@ -617,6 +617,8 @@ for (const lng of LANGUAGES) {
         "true",
       );
       await expect(section.getByTestId("slide-editor-background-zoom-input")).toHaveValue("150");
+      // Stored −60, flipped: drawn and read 60 px right (#772).
+      await expect(section.getByTestId("slide-editor-background-offsetX")).toHaveValue("60");
       await expect(section.getByTestId("slide-editor-background-offsetX-range")).toBeVisible();
       await parkPointer(page);
       await expect(section).toHaveScreenshot(`slide-editor-background-${lng}-${theme}.png`);
@@ -13560,6 +13562,26 @@ test("slide export: a cropped, flipped background equals the view", async ({ pag
   });
   await parkPointer(page);
   const shot = await page.getByTestId("slide-editor-view").screenshot({ animations: "disabled" });
+  expect(Buffer.from(png[0]!).equals(shot)).toBe(true);
+});
+
+// #772 (GL-UI-035): a cropped image element, flipped, is cropped first, then flipped about its
+// frame's centre, and exports as the editor's view draws it, pixel for pixel.
+test("slide export: a cropped, flipped image equals the view", async ({ page }) => {
+  await page.goto("/?harness=slide-export&doc=image-flip");
+  const { png } = await exportSlidePages(page);
+  await page.goto("/?harness=slide-export&view=editor&doc=image-flip");
+  const view = page.getByTestId("slide-editor-view");
+  await expect(view).toHaveAttribute("data-slide-ready", "true");
+  const photo = view.locator("[data-slide-element=photo] img");
+  await expect(photo).toHaveAttribute("data-slide-image", "sized");
+  // The 4:3 photo covers the 592 × 392 area inside the border at 592 × 444, zoomed 1.2 to
+  // 710.4 wide, centred and shifted by −20: its left at −79.2, the frame's centre (296) at 375.2.
+  const origin = await photo.evaluate((image) => getComputedStyle(image).transformOrigin);
+  expect(parseFloat(origin)).toBeCloseTo(375.2, 1);
+  await expect(photo).toHaveCSS("transform", "matrix(-1, 0, 0, 1, 0, 0)");
+  await parkPointer(page);
+  const shot = await view.screenshot({ animations: "disabled" });
   expect(Buffer.from(png[0]!).equals(shot)).toBe(true);
 });
 

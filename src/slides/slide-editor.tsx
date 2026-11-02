@@ -81,6 +81,7 @@ import {
   deleteElements,
   type ImageCrop,
   type ImageSize,
+  mirroredCrop,
   moveEach,
   moveLayer,
   nextAnimationOrder,
@@ -1487,6 +1488,8 @@ function Editor({
   // listener of its own: React's wheel listener cannot prevent the scroll).
   const croppedImage =
     cropping === undefined ? undefined : findElement(elements, cropping.id)?.element;
+  // Flipped, its shift is drawn and shown mirrored (#772).
+  const croppedFlipped = croppedImage?.type === "image" && croppedImage.flipped;
   // The area its crop refers to: the frame less its border, where the view lays the image
   // (`SUI-FEATURE-230` rev 5 §Rahmen).
   const cropFrame = croppedImage === undefined ? undefined : cropArea(croppedImage);
@@ -1500,7 +1503,8 @@ function Editor({
     }
     const { box, rotation } = placedBox(elements, croppedImage);
     const inner = { x: box.x + cropBorder, y: box.y + cropBorder, ...cropFrame };
-    return croppedImageBox({ box: inner, rotation }, cropping.crop, cropNatural);
+    const shown = mirroredCrop(cropping.crop, croppedFlipped);
+    return croppedImageBox({ box: inner, rotation }, shown, cropNatural);
   })();
   // A press on the image being cropped: on the whole image or on its frame with the border, which lies
   // beside the whole image at 100 % (#426).
@@ -1642,7 +1646,8 @@ function Editor({
       ? undefined
       : (() => {
           const { width, height } = cropWhole.box;
-          const left = (width - cropFrame.width) / 2 - cropping.crop.offsetX - cropBorder;
+          const shown = mirroredCrop(cropping.crop, croppedImage.flipped);
+          const left = (width - cropFrame.width) / 2 - shown.offsetX - cropBorder;
           const top = (height - cropFrame.height) / 2 - cropping.crop.offsetY - cropBorder;
           const [x0, y0] = [left * zoom, top * zoom];
           const [x1, y1] = [(left + croppedImage.width) * zoom, (top + croppedImage.height) * zoom];
@@ -2081,9 +2086,15 @@ function Editor({
       if (image === undefined || cropping === undefined) return;
       const step = { x: point.x - drag.start.x, y: point.y - drag.start.y };
       const { width, height } = cropArea(image);
+      // A flipped image moves the way it is dragged: its drawn shift follows the pointer (#772).
+      const flipped = image.type === "image" && image.flipped;
+      const shown = mirroredCrop(drag.crop, flipped);
       setCropping({
         ...cropping,
-        crop: panCrop(width, height, drag.crop, step, drag.rotation, cropNatural),
+        crop: mirroredCrop(
+          panCrop(width, height, shown, step, drag.rotation, cropNatural),
+          flipped,
+        ),
       });
       return;
     }
@@ -2695,7 +2706,11 @@ function Editor({
       endCrop(false);
     } else if (shift !== undefined) {
       const rotation = placedBox(elements, image).rotation;
-      setCropping({ ...state, crop: panCrop(width, height, crop, shift, rotation, cropNatural) });
+      // A flipped image moves the way the arrow points, as a drag moves it (#772).
+      const flipped = image.type === "image" && image.flipped;
+      const shown = mirroredCrop(crop, flipped);
+      const next = panCrop(width, height, shown, shift, rotation, cropNatural);
+      setCropping({ ...state, crop: mirroredCrop(next, flipped) });
     } else if (factor !== undefined) {
       setCropping({ ...state, crop: zoomCrop(width, height, crop, factor, cropNatural) });
     } else {
@@ -3225,7 +3240,8 @@ function Editor({
             testId="slide-editor-crop"
             width={cropFrame.width}
             height={cropFrame.height}
-            crop={cropping.crop}
+            // Flipped, the x shift reads and steps the way the image goes on screen (#772).
+            crop={mirroredCrop(cropping.crop, croppedFlipped)}
             natural={cropNatural}
             hints={{
               zoom: "cropZoomHint",
@@ -3236,7 +3252,8 @@ function Editor({
             }}
             zoomRevision={cropZoomRevision}
             offsetRevision={travels}
-            onCrop={(crop, field) => {
+            onCrop={(shown, field) => {
+              const crop = mirroredCrop(shown, croppedFlipped);
               setCropping({ ...cropping, crop });
               if (field !== "percent") return;
               // The field's own crop: its typed text stands.

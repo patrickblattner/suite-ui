@@ -297,4 +297,21 @@ describe("SlideEditor background image", () => {
     expect(parseFloat(drawn.style.width)).toBe(2880);
     expect(parseFloat(drawn.style.left)).toBe(-600);
   });
+
+  // Review #772 (GL-UI-035): flipped about the page's centre, the image is drawn with its shift
+  // mirrored; the x field reads and steps that drawn shift, as an image element's does.
+  it("reads and steps a flipped background's x shift the way it goes on screen", async () => {
+    const { stored } = renderEditor(image({ zoom: 1.5, offsetX: -120, offsetY: 40 }, true));
+    await loaded();
+    // Stored 120 px left, drawn 120 px right.
+    expect(offset("X")).toHaveValue("120");
+    fireEvent.keyDown(offset("X"), { key: "ArrowUp" });
+    expect(offset("X")).toHaveValue("121");
+    fireEvent.blur(offset("X"));
+    // Drawn 1 px further right: the stored shift goes 1 px further left.
+    expect(stored()).toEqual(image({ zoom: 1.5, offsetX: -121, offsetY: 40 }, true));
+    fireEvent.change(offset("X"), { target: { value: "200" } });
+    fireEvent.blur(offset("X"));
+    expect(stored()).toEqual(image({ zoom: 1.5, offsetX: -200, offsetY: 40 }, true));
+  });
 });

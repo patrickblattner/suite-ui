@@ -256,6 +256,7 @@ createRoot(document.getElementById("root") as HTMLElement).render(
         lines={params.get("doc") === "lines"}
         numbered={params.get("doc") === "numbered"}
         background={params.get("doc") === "background"}
+        imageFlip={params.get("doc") === "image-flip"}
         wide={params.get("brand") === "wide"}
       />
     ) : fieldPair ? (

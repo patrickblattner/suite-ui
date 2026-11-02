@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — #772: a cropped, flipped image element is cropped first, then flipped about its frame, also in crop mode (GL-UI-035, SUI-DESIGN-002) (patch)
+
+- **Fixed (#772, GL-UI-035 rev 5, SUI-DESIGN-002 rev 10):** `SlideView` flips an image element about its frame's centre instead of the image's own, as it does the page background: with a crop and `flipped`, the frame shows the cropped section, mirrored. Before, a shifted crop showed a different section once flipped. The export draws through `SlideView` and follows.
+- **Visible change for saved documents (#772, GL-UI-035):** a saved image element that is both flipped and shifted sideways now shows the other side of the image than before, because the crop now comes before the flip. The stored crop is unchanged; to get the old section back, set the opposite x shift.
+- **Fixed (#772):** in the SlideEditor's crop mode a flipped image's dimmed rest lies mirrored about the frame's centre, where the image is drawn, and a drag or an arrow key moves the image the way it goes on screen. Before, the rest lay on the wrong side and the image moved against the drag.
+- **Fixed (#772, review):** the Offset X field of a flipped image (crop mode) and of a flipped page background reads and steps the shift as drawn: a drag to the right reads positive, and ArrowUp in the field moves the image right. The stored shift, taken before the flip, is mirrored on the way in and out.
+- **Tests (#772):** unit — a page-sized image element with the background's crop and flip is placed and mirrored as the background; a 400 × 400 frame flips about its centre (origin 350 px); crop mode: the rest of a flipped image lies mirrored, a drag left and Shift+ArrowLeft move it left, a drag right reads a positive x, ArrowUp in the x field moves it right; a flipped background's x field reads 120 for a stored −120 and ArrowUp stores −121 (all fail without the fix). Gallery: a cropped, flipped image element exports equal to the view, pixel for pixel (new, no baseline); `slide-editor-background-*` regenerated (its flipped background's Offset X now reads 60 instead of −60).
+
 ## 0.213.4 — #767: the SlideEditor's image element offers a Flip toggle; crop ranges show a typographic minus (GL-UI-035, SUI-DESIGN-002) (patch)
 
 - **Fixed (#767, GL-UI-035, SUI-DESIGN-002, Q&A #5206):** with one image element selected, the layout tab offers the shared Flip toggle (`FlipToggle`, `SUI-FEATURE-311`: fixed label, `aria-pressed`, a description hint). It sets `flipped` on the image as one history step that Undo takes back; `SlideView` and the export already drew it. On a locked image the toggle is locked with the lock reason.

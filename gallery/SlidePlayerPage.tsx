@@ -81,6 +81,18 @@ const SLIDE_BACKGROUND_CROP = {
   })),
 } as typeof SLIDE_EXPORTABLE;
 
+// #772 (`GL-UI-035`): the showcase with its cropped photo flipped, cropped first, then flipped about
+// its frame's centre.
+const SLIDE_IMAGE_FLIP = {
+  ...SLIDE_EXPORTABLE,
+  pages: SLIDE_EXPORTABLE.pages.map((page) => ({
+    ...page,
+    elements: page.elements?.map((element) =>
+      element.id === "photo" ? { ...element, flipped: true } : element,
+    ),
+  })),
+} as typeof SLIDE_EXPORTABLE;
+
 // `SUI-FEATURE-160` AC2: the export page of the showcase as an app serves it (`?harness=slide-export`),
 // and the editor's view of the same page at scale 1 (`&view=editor`) to compare it with; `&broken=1`
 // exports the showcase with its unknown type, which aborts; `&overhang=1` the shifted photo. `&doc=flow`
@@ -88,7 +100,8 @@ const SLIDE_BACKGROUND_CROP = {
 // `&brand=wide` with a wider brand font. `&doc=lines` takes the page of paragraphs in a serif and the
 // page font, with fit text on (#717). `&doc=numbered` takes the page of styled numbered lists
 // (`SUI-FEATURE-124`), with fit text on. `&doc=background` the showcase on its cropped, flipped
-// background image (`SUI-DESIGN-002` rev 10).
+// background image (`SUI-DESIGN-002` rev 10). `&doc=image-flip` the showcase with its cropped photo
+// flipped (#772).
 export function SlideExportHarness({
   editor,
   broken,
@@ -98,6 +111,7 @@ export function SlideExportHarness({
   lines = false,
   numbered = false,
   background = false,
+  imageFlip = false,
 }: {
   editor: boolean;
   broken: boolean;
@@ -107,12 +121,15 @@ export function SlideExportHarness({
   lines?: boolean;
   numbered?: boolean;
   background?: boolean;
+  imageFlip?: boolean;
 }) {
   const exportable = overhang
     ? SLIDE_OVERHANG
     : background
       ? SLIDE_BACKGROUND_CROP
-      : SLIDE_EXPORTABLE;
+      : imageFlip
+        ? SLIDE_IMAGE_FLIP
+        : SLIDE_EXPORTABLE;
   const document = numbered
     ? SLIDE_NUMBERED_LIST
     : lines

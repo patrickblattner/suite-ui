@@ -7,6 +7,7 @@ import { Button } from "../ui/button.js";
 import { FlipToggle } from "../ui/flip-toggle.js";
 import { Hint } from "../ui/hint.js";
 import { CropFields } from "./crop-fields.js";
+import { mirroredCrop } from "./editor-ops.js";
 import type { Background } from "./schema.js";
 
 export type ImageBackground = Extract<Background, { type: "image" }>;
@@ -52,7 +53,8 @@ export function BackgroundFields({
           testId="slide-editor-background"
           width={pageWidth}
           height={pageHeight}
-          crop={crop}
+          // Flipped, the x shift reads and steps the way the image goes on screen (#772).
+          crop={mirroredCrop(crop, background.flipped)}
           natural={natural}
           hints={{
             zoom: "pageBackgroundZoomHint",
@@ -66,7 +68,7 @@ export function BackgroundFields({
           // The slider and the % field set one zoom: changes in a row there are one step.
           onCrop={(next, field) =>
             onBackground(
-              { ...background, crop: next },
+              { ...background, crop: mirroredCrop(next, background.flipped) },
               `background:${field === "percent" ? "zoom" : field}`,
             )
           }
