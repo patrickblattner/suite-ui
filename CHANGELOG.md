@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #777: MediaDetailShell keeps the position counter on one line at 390 px (SUI-FEATURE-061) (patch)
+## 0.215.1 — #777: MediaDetailShell keeps the position counter on one line at 390 px (SUI-FEATURE-061) (patch)
 
 - **Fixed (#777, SUI-FEATURE-061):** the `MediaDetailShell` preview head no longer squeezes „1 von 3" onto three lines at 390 px: the counter never breaks, and when the row is too narrow the end group (step, Used by, pick, close) wraps below the chevrons and counter instead of pushing close past the panel edge; where even that row is too narrow (320 px), the pick label truncates and shows its full text as a tooltip while clipped, so close stays inside the head. Wide panels are unchanged.
 - **Tests (#777):** gallery — at 390 and 320 px (de, with pick) the counter is one line high, centred with the chevrons, and close stays inside the head row. Unit — the default-edit-output snapshot (renamed from "byte-identical to the previous version") takes the head's class changes and the pick label's truncating span.
