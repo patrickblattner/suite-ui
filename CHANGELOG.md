@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #767: the SlideEditor's image element offers a Flip toggle; crop ranges show a typographic minus (GL-UI-035, SUI-DESIGN-002) (patch)
+## 0.213.4 — #767: the SlideEditor's image element offers a Flip toggle; crop ranges show a typographic minus (GL-UI-035, SUI-DESIGN-002) (patch)
 
 - **Fixed (#767, GL-UI-035, SUI-DESIGN-002, Q&A #5206):** with one image element selected, the layout tab offers the shared Flip toggle (`FlipToggle`, `SUI-FEATURE-311`: fixed label, `aria-pressed`, a description hint). It sets `flipped` on the image as one history step that Undo takes back; `SlideView` and the export already drew it. On a locked image the toggle is locked with the lock reason.
 - **Fixed (#767, rev-764-ux):** the reach line under the crop's shift fields reads "From −480 to 480 px" with a typographic minus "−" instead of ASCII "-", for both the image crop and the page background's crop.
