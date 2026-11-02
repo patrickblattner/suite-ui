@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #769: after Undo and Redo, typing a zoom for the background image no longer shifts it from an older crop (SUI-DESIGN-002 rev 10, Codex v0.213.0 CX1) (patch)
+## 0.213.3 — #769: after Undo and Redo, typing a zoom for the background image no longer shifts it from an older crop (SUI-DESIGN-002 rev 10, Codex v0.213.0 CX1) (patch)
 
 - **Fixed (#769, Codex v0.213.0 CX1, SUI-DESIGN-002 rev 10):** the zoom % field of the page's background image starts a new typing whenever its revision changes (the history's Undo/Redo), also when history brings back the very crop that typing set. In 0.213.0, typing 100 % on a background at 150 % shifted −300 px, then Undo, Redo and typing 200 % (the field keeping the focus) zoomed from the 150 % crop and shifted the image to −400 px instead of keeping it centred. The fix is for the background crop: `CropFields` keys its typing to the revision. An image element's crop cannot take that path (Redo is locked while cropping, Undo ends cropping) and was not affected; a guard test pins that.
 - **Tests (#769):** unit — background: 150 %/−200, type 100 %, Undo, Redo, type 200 %: stays at 0 px (fails without the fix); image crop (guard, not a fix): Redo is locked while cropping and Undo ends cropping; a new crop's typing of 200 % then starts from the crop as it is (0 px).
