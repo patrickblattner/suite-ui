@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #783: list tab rows keep every trigger's `aria-controls` pointing at a panel in the DOM (GL-UX-001) (patch)
+## 0.216.1 — #783: list tab rows keep every trigger's `aria-controls` pointing at a panel in the DOM (GL-UX-001) (patch)
 
 - **Fixed (#783, GL-UX-001, WAI-ARIA tabs):** the `tabs` of `DataTableShell` and `TileGridShell` (`ListTabPanel`) now render, next to the active panel, one empty, hidden `tabpanel` per inactive tab, so every inactive trigger's `aria-controls` resolves instead of dangling. The active panel's markup, content and focus behaviour are unchanged. The triggers must be the package's `TabsTrigger` inside the package's `Tabs`: raw Radix triggers do not register and get no panel. Not covered: an app that renders its own single `TabsContent forceMount` under `Tabs` keeps its dangling references and keeps its workaround (community PR #3432 stays).
 - **Tests (#783):** unit — with three tabs every trigger's `aria-controls` names a `tabpanel` labelled by it, only the active one visible and holding the list, before and after a press and an arrow-key switch, focus staying on the tab; after a tab is added or removed after mount (no stale panel left) and after the active value changes from outside; triggers sharing a value leave no duplicate panel id. Gallery — `?page=list&slots=tabs` (four tabs), light and dark: every trigger controls a panel in the DOM before and after a switch; the list-area gap check skips the hidden panels; the existing axe scans (WCAG 2.2 AA) of that page cover light and dark.
