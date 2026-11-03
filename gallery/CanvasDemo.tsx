@@ -25,6 +25,25 @@ const SECTIONS = ["hero", "text", "image"] as const;
 // `?canvasZoom=0.34` fixes the zoom, for the 2 px check at any level.
 const fixedZoom = Number(new URLSearchParams(window.location.search).get("canvasZoom")) || null;
 
+const action = (label: string, Icon: typeof CopyIcon) => (
+  <IconButtonTooltip label={label}>
+    <Button type="button" variant="ghost" size="icon-sm">
+      <Icon aria-hidden="true" />
+    </Button>
+  </IconButtonTooltip>
+);
+
+// The selection's actions in the demo and in the layer harness (#793).
+export function CanvasActions() {
+  return (
+    <>
+      {action("Move up", ArrowUpIcon)}
+      {action("Duplicate", CopyIcon)}
+      {action("Delete", Trash2Icon)}
+    </>
+  );
+}
+
 // `SUI-FEATURE-070`: a canvas with hover, selection, its actions and the insert points, under a
 // preview toolbar with the zoom. Pointer hover and click choose; `Esc` selects the parent.
 export function CanvasRow() {
@@ -75,13 +94,6 @@ export function CanvasRow() {
       : { rect: rects[id], name: ELEMENTS[id]!.name };
   const idAt = (element: EventTarget) =>
     (element as HTMLElement).closest<HTMLElement>("[data-canvas-id]")?.dataset.canvasId ?? null;
-  const action = (label: string, Icon: typeof CopyIcon) => (
-    <IconButtonTooltip label={label}>
-      <Button type="button" variant="ghost" size="icon-sm">
-        <Icon aria-hidden="true" />
-      </Button>
-    </IconButtonTooltip>
-  );
 
   return (
     <div className="flex flex-col gap-2 rounded-md border p-2" data-testid="canvas-demo">
@@ -125,13 +137,7 @@ export function CanvasRow() {
           <CanvasOverlay
             hovered={hovered === selected ? undefined : target(hovered)}
             selected={target(selected)}
-            actions={
-              <>
-                {action("Move up", ArrowUpIcon)}
-                {action("Duplicate", CopyIcon)}
-                {action("Delete", Trash2Icon)}
-              </>
-            }
+            actions={<CanvasActions />}
             inserts={SECTIONS.flatMap((id) => {
               const rect = rects[id];
               return rect === undefined

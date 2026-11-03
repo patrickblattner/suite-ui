@@ -12,6 +12,7 @@ import { ComponentsPage } from "./ComponentsPage.js";
 import { EditorHeaderPage } from "./EditorHeaderPage.js";
 import { EditorShellPage } from "./EditorShellPage.js";
 import { EditPanelPage } from "./EditPanelPage.js";
+import { CanvasLayersHarness } from "./CanvasLayersHarness.js";
 import { DateFieldsHarness } from "./DateFieldsHarness.js";
 import { FieldPairHarness } from "./FieldPairHarness.js";
 import { GridPage } from "./GridPage.js";
@@ -245,6 +246,8 @@ const exportHarness = params.get("harness") === "slide-export";
 const fieldPair = params.get("harness") === "field-pair";
 // The date and time types of `Input`, to tab onto their calendar button (#410).
 const dateFields = params.get("harness") === "date-fields";
+// The canvas overlay's layers at 390 px: action bar over insert buttons and name badge (#793).
+const canvasLayers = params.get("harness") === "canvas-layers";
 createRoot(document.getElementById("root") as HTMLElement).render(
   <StrictMode>
     {exportHarness ? (
@@ -263,6 +266,8 @@ createRoot(document.getElementById("root") as HTMLElement).render(
       <FieldPairHarness />
     ) : dateFields ? (
       <DateFieldsHarness />
+    ) : canvasLayers ? (
+      <CanvasLayersHarness />
     ) : harness ? (
       <LeaveGuardHarness />
     ) : (

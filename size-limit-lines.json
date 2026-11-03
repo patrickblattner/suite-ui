@@ -7,6 +7,7 @@
     "./ui/button-lock-internal": { "recommended": 8179, "maximum": 8588 },
     "./ui/button": { "recommended": 8028, "maximum": 8430 },
     "./ui/canvas": { "recommended": 41957, "maximum": 44055 },
+    "./ui/canvas-inserts-internal": { "recommended": 745, "maximum": 782 },
     "./ui/card": { "recommended": 1673, "maximum": 1757 },
     "./ui/checkbox": { "recommended": 33878, "maximum": 35572 },
     "./ui/code": { "recommended": 298, "maximum": 313 },

@@ -449,3 +449,52 @@ describe("CanvasZoom (SUI-FEATURE-070)", () => {
     }
   });
 });
+
+// #793 (`SUI-FEATURE-222` rev 4 AC 4): in an overlay so narrow that every step is taken, a point
+// without room is out of sight, not focusable and `aria-hidden`; no two drawn targets overlap.
+describe("CanvasOverlay insert points without room (SUI-FEATURE-222)", () => {
+  it("hides a point whose every step is taken", () => {
+    const overlay = (node: HTMLElement, value: number) =>
+      node.dataset.testid === "canvas-overlay" ? value : 0;
+    vi.spyOn(HTMLElement.prototype, "offsetWidth", "get").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return overlay(this, 60);
+    });
+    vi.spyOn(HTMLElement.prototype, "offsetHeight", "get").mockImplementation(function (
+      this: HTMLElement,
+    ) {
+      return overlay(this, 100);
+    });
+    renderOverlay({
+      inserts: [30, 40, 50].map((top, index) => ({
+        rect: rect(0, top, 60, 0),
+        label: `Insert ${index + 1}`,
+        onInsert: () => {},
+      })),
+    });
+    const wrappers = screen.getAllByTestId("canvas-insert").map((button) => button.parentElement!);
+    const [first, ...rest] = screen.getAllByTestId("canvas-insert");
+    expect(first).not.toHaveAttribute("tabindex");
+    expect(wrappers[0]).not.toHaveAttribute("aria-hidden");
+    expect(wrappers[0]).not.toHaveClass("invisible");
+    for (const [index, button] of rest.entries()) {
+      expect(button).toHaveAttribute("tabindex", "-1");
+      expect(wrappers[index + 1]).toHaveAttribute("aria-hidden", "true");
+      expect(wrappers[index + 1]).toHaveClass("invisible");
+    }
+    expect(screen.getAllByRole("button")).toHaveLength(1);
+    // The drawn targets: none overlaps another.
+    const drawn = wrappers
+      .filter((wrapper) => !wrapper.classList.contains("invisible"))
+      .map((wrapper) => ({
+        left: Number.parseFloat(wrapper.style.left),
+        top: Number.parseFloat(wrapper.style.top),
+      }));
+    for (const [index, a] of drawn.entries()) {
+      for (const b of drawn.slice(index + 1)) {
+        expect(Math.abs(a.left - b.left) >= 24 || Math.abs(a.top - b.top) >= 24).toBe(true);
+      }
+    }
+  });
+});

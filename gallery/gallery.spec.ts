@@ -11900,6 +11900,287 @@ test("canvas: badge inside at the top edge, bar yields to the badge", async ({ p
   expect(apart).toBe(true);
 });
 
+// The centre and the four corners of a control, 3 px in on both axes: inside its rounded corners,
+// which take no hit outside the curve (#793).
+const controlPoints = ({
+  x,
+  y,
+  width,
+  height,
+}: {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}) =>
+  [
+    [x + width / 2, y + height / 2],
+    [x + 3, y + 3],
+    [x + width - 3, y + 3],
+    [x + 3, y + height - 3],
+    [x + width - 3, y + height - 3],
+  ] as const;
+// Whether the control's centre and each corner hit the control itself.
+const hitsAll = async (target: Locator) =>
+  target.evaluate(
+    (el, spots) => spots.every(([x, y]) => el.contains(document.elementFromPoint(x, y))),
+    controlPoints(await box(target)).map(([x, y]) => [x, y] as [number, number]),
+  );
+
+// #793 (`SUI-FEATURE-221` AC 1–3, `SUI-FEATURE-222` AC 3): the overlay stacks by layer — frames ·
+// inserts · badge · bar. In a 390 px frame an insert point the bar would cover stands beside the bar,
+// 4 px from it, and the centre and each corner of it and of every bar button hit that control; without
+// room on either side it stays under the bar, out of the tab order and hidden; the badge lies over the
+// frame and the bar over the badge; an insert button in the open takes the click everywhere.
+test("canvas: action bar over insert buttons and name badge at 390 px", async ({ page }) => {
+  await page.goto("/?harness=canvas-layers&lng=en");
+  const frame = page.getByTestId("harness-layers");
+  expect((await box(frame)).width).toBe(390);
+  const bar = frame.getByTestId("canvas-actions");
+  await expect(bar).toHaveAttribute("data-placement", "above");
+  const beside = frame.getByRole("button", { name: "Insert at the bar", exact: true });
+  const [plus, actions] = [await box(beside), await box(bar)];
+  expect(plus.width).toBe(24);
+  expect(plus.height).toBe(24);
+  // Beside the bar on its nearer, left side, 4 px from its edge, at the height it was put at.
+  expect(actions.x - (plus.x + plus.width)).toBeCloseTo(4, 0);
+  expect(plus.y + plus.height).toBeGreaterThan(actions.y);
+  expect(plus.y).toBeLessThan(actions.y + actions.height);
+  expect(await hitsAll(beside)).toBe(true);
+  const buttons = await bar.getByRole("button").all();
+  expect(buttons).toHaveLength(3);
+  for (const button of buttons) {
+    expect(await hitsAll(button), (await button.getAttribute("aria-label")) ?? "").toBe(true);
+  }
+  await beside.click();
+  await expect(page.getByTestId("harness-inserted")).toHaveText("Insert at the bar");
+
+  // No room beside the bar: the insert point stays under it, out of the tab order and hidden from
+  // assistive technology, and the bar's buttons keep the clicks.
+  const narrow = page.getByTestId("harness-covered");
+  await expect(narrow.getByTestId("canvas-actions")).toHaveAttribute("data-placement", "below");
+  const covered = narrow.getByTestId("canvas-insert");
+  await expect(covered).toHaveAttribute("tabindex", "-1");
+  await expect(narrow.getByRole("button", { name: "Insert under the bar" })).toHaveCount(0);
+  for (const button of await narrow.getByTestId("canvas-actions").getByRole("button").all()) {
+    expect(await hitsAll(button), (await button.getAttribute("aria-label")) ?? "").toBe(true);
+  }
+  await narrow.getByRole("button", { name: "Delete" }).focus();
+  await page.keyboard.press("Tab");
+  await expect(covered).not.toBeFocused();
+
+  // AC3: the insert button in the open takes the click at its centre and each corner.
+  const open = frame.getByRole("button", { name: "Insert in the open" });
+  expect(await hitsAll(open)).toBe(true);
+  await open.click();
+  await expect(page.getByTestId("harness-inserted")).toHaveText("Insert in the open");
+
+  // AC2: the badge lies over the frame's line; where the bar meets the badge, the bar is on top.
+  // Badge and frame take no pointer; for the probe only they do, so the point names what lies on top.
+  const probe = (scope: Locator, x: number, y: number) =>
+    scope.evaluate(
+      (el, [px, py]) => {
+        const pieces = [...el.querySelectorAll<HTMLElement>("[aria-hidden=true]")];
+        for (const piece of pieces) piece.style.pointerEvents = "auto";
+        const hit = document.elementFromPoint(px!, py!);
+        for (const piece of pieces) piece.style.pointerEvents = "";
+        return hit?.closest("[data-testid]")?.getAttribute("data-testid");
+      },
+      [x, y],
+    );
+  const badge = frame.getByTestId("canvas-name");
+  const tag = await box(badge);
+  const line = await box(frame.getByTestId("canvas-selection"));
+  expect(await probe(frame, tag.x + tag.width / 2, line.y + 1)).toBe("canvas-name");
+
+  const top = page.getByTestId("harness-badge");
+  const crossed = top.getByTestId("canvas-name");
+  const crossing = top.getByTestId("canvas-actions");
+  await expect(crossed).toHaveAttribute("data-placement", "inside");
+  await expect(crossing).toHaveAttribute("data-placement", "below");
+  const [name, row] = [await box(crossed), await box(crossing)];
+  const left = Math.max(name.x, row.x);
+  const right = Math.min(name.x + name.width, row.x + row.width);
+  const upper = Math.max(name.y, row.y);
+  const lower = Math.min(name.y + name.height, row.y + row.height);
+  expect(right - left).toBeGreaterThan(4);
+  expect(lower - upper).toBeGreaterThan(4);
+  expect(await probe(top, (left + right) / 2, (upper + lower) / 2)).not.toBe("canvas-name");
+  expect(
+    await crossing.evaluate(
+      (el, [x, y]) => el.contains(document.elementFromPoint(x!, y!)),
+      [(left + right) / 2, (upper + lower) / 2],
+    ),
+  ).toBe(true);
+});
+
+// #793 (`SUI-FEATURE-222` AC 1): three 18 px blocks between larger ones — every insert target is
+// 24 × 24 px and axe `target-size` finds no violation, at 390 and 1440 px, light and dark.
+for (const width of [390, 1440]) {
+  for (const theme of THEMES) {
+    test(`canvas: insert targets 24 px apart at ${width} px, ${theme}`, async ({ page }) => {
+      await page.goto(`/?harness=canvas-layers&lng=en&width=${width}&theme=${theme}`);
+      const blocks = page.getByTestId("harness-blocks");
+      await blocks.scrollIntoViewIfNeeded();
+      expect((await box(blocks)).width).toBe(width);
+      const inserts = blocks.getByTestId("canvas-insert");
+      await expect(inserts).toHaveCount(5);
+      for (const insert of await inserts.all()) {
+        const { width: w, height: h } = await box(insert);
+        expect([w, h]).toEqual([24, 24]);
+        expect(await hitsAll(insert)).toBe(true);
+      }
+      const { violations } = await new AxeBuilder({ page })
+        .include("[data-testid=harness-blocks]")
+        .withRules(["target-size"])
+        .analyze();
+      expect(violations.map((violation) => violation.id)).toEqual([]);
+    });
+  }
+}
+
+// #793 (`SUI-FEATURE-222` AC 2): two insert points with centres 18.6 px apart stand 32 px apart
+// sideways, the later one to the right; each centre hits its own button.
+test("canvas: insert points closer than 24 px are staggered by 32 px", async ({ page }) => {
+  await page.goto("/?harness=canvas-layers&lng=en");
+  const close = page.getByTestId("harness-close");
+  // Below the fold at 1080 px: in view, so `elementFromPoint` reaches it.
+  await close.scrollIntoViewIfNeeded();
+  const first = close.getByRole("button", { name: "Insert first" });
+  const second = close.getByRole("button", { name: "Insert second" });
+  const [a, b] = [await box(first), await box(second)];
+  expect(b.x - a.x).toBeCloseTo(32, 1);
+  expect(b.y - a.y).toBeCloseTo(18.6, 0);
+  await expectInsertsApart(close, 2);
+});
+
+// The insert buttons in `scope`: as many as `count`, no two 24 px targets meeting, and the centre of
+// each hitting its own button (#793, `SUI-FEATURE-222`).
+async function expectInsertsApart(scope: Locator, count: number) {
+  const buttons = await scope.getByTestId("canvas-insert").all();
+  expect(buttons).toHaveLength(count);
+  const boxes = await Promise.all(buttons.map((button) => box(button)));
+  for (const [index, at] of boxes.entries()) {
+    expect([at.width, at.height]).toEqual([24, 24]);
+    for (const other of boxes.slice(index + 1)) {
+      const apart = Math.abs(other.x - at.x) >= 23.5 || Math.abs(other.y - at.y) >= 23.5;
+      expect(apart, `${JSON.stringify(at)} and ${JSON.stringify(other)}`).toBe(true);
+    }
+    const centre = [at.x + at.width / 2, at.y + at.height / 2] as [number, number];
+    expect(
+      await buttons[index]!.evaluate(
+        (el, [x, y]) => el.contains(document.elementFromPoint(x, y)),
+        centre,
+      ),
+    ).toBe(true);
+  }
+}
+
+// #793 (`SUI-FEATURE-222`, review): targets stay whole inside a canvas that clips, at its top, bottom
+// and right edge, also after a stagger; three points 10 px apart and two points moved beside the bar
+// keep every pair a full target apart, each centre hitting its own button.
+test("canvas: insert targets stay inside the overlay and a full target apart", async ({ page }) => {
+  await page.goto("/?harness=canvas-layers&lng=en");
+  const edges = page.getByTestId("harness-edges");
+  await edges.scrollIntoViewIfNeeded();
+  const frame = await box(edges);
+  for (const insert of await edges.getByTestId("canvas-insert").all()) {
+    const at = await box(insert);
+    expect(at.x).toBeGreaterThanOrEqual(frame.x);
+    expect(at.y).toBeGreaterThanOrEqual(frame.y);
+    expect(at.x + at.width).toBeLessThanOrEqual(frame.x + frame.width);
+    expect(at.y + at.height).toBeLessThanOrEqual(frame.y + frame.height);
+    expect(await hitsAll(insert)).toBe(true);
+  }
+  await expectInsertsApart(edges, 4);
+  await expectInsertsApart(page.getByTestId("harness-tight"), 3);
+  // In an 80 px column the steps stay inside it: all three fit, each within the column.
+  const column = page.getByTestId("harness-column");
+  await expectInsertsApart(column, 3);
+  const columnBox = await box(column);
+  for (const insert of await column.getByTestId("canvas-insert").all()) {
+    const at = await box(insert);
+    expect(at.x).toBeGreaterThanOrEqual(columnBox.x);
+    expect(at.x + at.width).toBeLessThanOrEqual(columnBox.x + columnBox.width);
+  }
+
+  const layers = page.getByTestId("harness-layers");
+  await layers.scrollIntoViewIfNeeded();
+  const bar = await box(layers.getByTestId("canvas-actions"));
+  for (const name of ["Insert at the bar", "Insert at the bar too"]) {
+    const at = await box(layers.getByRole("button", { name, exact: true }));
+    const gap = Math.max(bar.x - (at.x + at.width), at.x - (bar.x + bar.width));
+    expect(gap, name).toBeGreaterThanOrEqual(3.5);
+  }
+  await expectInsertsApart(layers, 4);
+});
+
+// #793 (`SUI-FEATURE-222` rev 4, no room): in a 60 px column every step is taken, so the second and
+// third insert points are out of sight and never drawn over the first: a click at the second's centre
+// hits the first.
+test("canvas: an insert point without room is out of sight", async ({ page }) => {
+  await page.goto("/?harness=canvas-layers&lng=en");
+  const full = page.getByTestId("harness-full");
+  await full.scrollIntoViewIfNeeded();
+  const inserts = full.getByTestId("canvas-insert");
+  await expect(inserts).toHaveCount(3);
+  await expect(inserts.nth(0)).toBeVisible();
+  await expect(inserts.nth(1)).toBeHidden();
+  await expect(inserts.nth(2)).toBeHidden();
+  await expect(full.getByRole("button")).toHaveCount(1);
+  const hidden = await box(inserts.nth(1));
+  expect(
+    await inserts
+      .nth(0)
+      .evaluate(
+        (el, [x, y]) => el.contains(document.elementFromPoint(x!, y!)),
+        [hidden.x + hidden.width / 2, hidden.y + hidden.height / 2],
+      ),
+  ).toBe(true);
+});
+
+// #793 (`SUI-FEATURE-222` rev 5, AC 3): an insert point under the name badge steps out beside it,
+// 4 px from its edge on the nearer side, fully visible: its centre and corners take the click, and
+// the badge's text no longer inserts a block through it.
+test("canvas: an insert point under the name badge stands beside it", async ({ page }) => {
+  await page.goto("/?harness=canvas-layers&lng=en");
+  const layers = page.getByTestId("harness-layers");
+  const insert = layers.getByRole("button", { name: "Insert at the badge" });
+  const [at, tag] = [await box(insert), await box(layers.getByTestId("canvas-name"))];
+  expect(tag.x - (at.x + at.width)).toBeGreaterThanOrEqual(3.5);
+  expect(at.y + at.height).toBeGreaterThan(tag.y);
+  expect(at.y).toBeLessThan(tag.y + tag.height);
+  expect(await hitsAll(insert)).toBe(true);
+  await layers.getByTestId("canvas-name").click({ force: true });
+  await expect(page.getByTestId("harness-inserted")).toHaveText("");
+  await insert.click();
+  await expect(page.getByTestId("harness-inserted")).toHaveText("Insert at the badge");
+});
+
+// #793 (`SUI-FEATURE-222` rev 5, AC 5): an insert point whose `onInsert` selects a block that leaves
+// it no room hands the focus to the bar's first control; without a bar, to the nearest insert point
+// still drawn — never to the body.
+test("canvas: a focused insert point without room hands the focus on", async ({ page }) => {
+  await page.goto("/?harness=canvas-layers&lng=en");
+  const underBar = page.getByTestId("harness-focus-bar");
+  await underBar.scrollIntoViewIfNeeded();
+  const select = underBar.getByRole("button", { name: "Insert and select" });
+  await select.focus();
+  await page.keyboard.press("Enter");
+  const bar = underBar.getByTestId("canvas-actions");
+  await expect(bar).toBeVisible();
+  await expect(underBar.getByTestId("canvas-insert")).toBeHidden();
+  await expect(bar.getByRole("button").first()).toBeFocused();
+
+  const underBadge = page.getByTestId("harness-focus-badge");
+  await underBadge.getByRole("button", { name: "Insert under the badge" }).focus();
+  await page.keyboard.press("Enter");
+  await expect(underBadge.getByTestId("canvas-name")).toBeVisible();
+  await expect(underBadge.getByTestId("canvas-insert").first()).toBeHidden();
+  await expect(underBadge.getByRole("button", { name: "Insert below" })).toBeFocused();
+  expect(await page.evaluate(() => document.activeElement === document.body)).toBe(false);
+});
+
 // `SUI-FEATURE-070` rev 5, AC 9: at the right frame edge the name badge moves left and stays within
 // the frame; wider than the frame it ends in "…" (no title; the full name is in the announcement).
 test("canvas: badge moves left at the right edge, truncates when wider than the frame", async ({

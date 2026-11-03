@@ -6,6 +6,7 @@ import { cn } from "../lib/cn.js";
 import { useEscapeLayer } from "../lib/escape-layers.js";
 import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
 import { Button } from "./button.js";
+import { placeInserts, TARGET } from "./canvas-inserts-internal.js";
 import { Hint } from "./hint.js";
 import { IconButtonTooltip } from "./tooltip.js";
 
@@ -21,7 +22,8 @@ type CanvasOverlayProps = {
   selected?: CanvasTarget | undefined;
   // The selection's actions (`GL-UI-011` order), floating over it.
   actions?: React.ReactNode;
-  // The insert points: a `+` centred on each rect, always shown.
+  // The insert points: a 24 px `+` centred on each rect, always shown; the overlay spaces them and
+  // keeps them clear of the action bar (`SUI-FEATURE-222`).
   inserts?: readonly CanvasInsert[] | undefined;
   // `Esc` with a selection selects the parent.
   onSelectParent?: (() => void) | undefined;
@@ -148,6 +150,56 @@ function CanvasOverlay({
     !badgeInside &&
     rect.right - size.bar.width < badgeLeft + size.badge.width;
   const below = rect !== undefined && (rect.top < size.bar.height || coversBadge);
+  // The bar's box in overlay coordinates, as its style below places it; none until it is measured.
+  const bar =
+    rect === undefined || actions === undefined || size.bar.width === 0
+      ? undefined
+      : new DOMRectReadOnly(
+          rect.right < size.bar.width ? 0 : rect.right - size.bar.width,
+          below ? rect.bottom : rect.top - size.bar.height,
+          size.bar.width,
+          size.bar.height,
+        );
+  // The badge's box in overlay coordinates; none until it is measured.
+  const badge =
+    rect === undefined || size.badge.width === 0
+      ? undefined
+      : new DOMRectReadOnly(
+          badgeLeft,
+          badgeInside ? rect.top + BORDER : rect.top + BORDER - size.badge.height,
+          size.badge.width,
+          size.badge.height,
+        );
+  // Bar and badge both cover: an insert point steps out beside either (`SUI-FEATURE-222` rev 5).
+  const spots = placeInserts(
+    inserts ?? [],
+    [bar, badge].filter((cover) => cover !== undefined),
+    size.overlay,
+  );
+  const insertRefs = React.useRef<(HTMLDivElement | null)[]>([]);
+  // Focus never drops to the page (`SUI-FEATURE-222` rev 5): an insert point that loses its spot
+  // while it holds the focus hands it to the bar's first control, without a bar to the nearest insert
+  // point still drawn. Before paint, so the browser never moves it to the body first.
+  React.useLayoutEffect(() => {
+    const index = spots.findIndex(
+      (spot, at) => spot.covered && insertRefs.current[at]?.contains(document.activeElement),
+    );
+    if (index === -1) return;
+    const from = spots[index]!;
+    const nearest = spots
+      .map((spot, at) => ({ spot, at }))
+      .filter(({ spot }) => !spot.covered)
+      .sort(
+        (a, b) =>
+          Math.hypot(a.spot.x - from.x, a.spot.y - from.y) -
+          Math.hypot(b.spot.x - from.x, b.spot.y - from.y),
+      )[0];
+    const target =
+      barRef.current?.querySelector<HTMLElement>(
+        "button:not(:disabled), [href], input:not(:disabled), select, textarea, [tabindex]:not([tabindex='-1'])",
+      ) ?? (nearest === undefined ? null : insertRefs.current[nearest.at]?.querySelector("button"));
+    target?.focus();
+  });
   return (
     <div
       ref={setNode}
@@ -265,26 +317,48 @@ function CanvasOverlay({
           {actions}
         </div>
       )}
-      {inserts?.map((insert, index) => (
-        <div
-          key={index}
-          className="pointer-events-auto absolute z-[1] flex items-center justify-center"
-          style={box(insert.rect)}
-        >
-          <IconButtonTooltip label={insert.label}>
-            <Button
-              type="button"
-              variant="outline"
-              size="icon-xs"
-              className="rounded-full bg-background"
-              onClick={insert.onInsert}
-              data-testid="canvas-insert"
-            >
-              <PlusIcon aria-hidden="true" />
-            </Button>
-          </IconButtonTooltip>
-        </div>
-      ))}
+      {inserts?.map((insert, index) => {
+        const spot = spots[index]!;
+        return (
+          <div
+            key={index}
+            // Layer order, not DOM order (`SUI-FEATURE-221`): frames · inserts · badge · bar. Layer 0
+            // lies over the frames and under the badge and bar's layer 1, so a «+» left under the bar
+            // never takes a click meant for one of its buttons, however many inserts the app passes.
+            // While it holds the keyboard focus it rises over badge and bar, so they never hide the
+            // focused «+» or its ring (WCAG 2.4.11). One without room is out of sight: never drawn
+            // over another target, taking no click and no focus (`SUI-FEATURE-222` rev 5).
+            className={cn(
+              "pointer-events-auto absolute z-0 flex items-center justify-center has-[:focus-visible]:z-[2]",
+              spot.covered && "invisible",
+            )}
+            style={{
+              left: spot.x - TARGET / 2,
+              top: spot.y - TARGET / 2,
+              width: TARGET,
+              height: TARGET,
+            }}
+            aria-hidden={spot.covered ? true : undefined}
+            ref={(element) => {
+              insertRefs.current[index] = element;
+            }}
+          >
+            <IconButtonTooltip label={insert.label}>
+              <Button
+                type="button"
+                variant="outline"
+                size="icon-xs"
+                className="rounded-full bg-background"
+                onClick={insert.onInsert}
+                tabIndex={spot.covered ? -1 : undefined}
+                data-testid="canvas-insert"
+              >
+                <PlusIcon aria-hidden="true" />
+              </Button>
+            </IconButtonTooltip>
+          </div>
+        );
+      })}
       <span role="status" aria-live="polite" className="sr-only" data-testid="canvas-announcement">
         {announcement ??
           (selected === undefined
