@@ -1030,6 +1030,19 @@ function inlineNode(
   return lifted(room);
 }
 
+// The format the range shows: a key the whole range shares, else its default, undefined when mixed.
+export function shownFormat(body: TextBody, range: TextRange | undefined) {
+  const { start, end } = formatSpan(body, range);
+  const { format, mixed } = formatOfRange(body.runs, start, end);
+  const font = format.font ?? (mixed.has("font") ? undefined : DEFAULT_FONT);
+  const fill =
+    format.fill ??
+    (mixed.has("fill") ? undefined : { type: "color" as const, color: DEFAULT_TEXT_COLOR });
+  const colorKey =
+    fill?.type === "color" && fill.color.kind === "brand" ? fill.color.key : undefined;
+  return { start, end, format, mixed, font, colorKey };
+}
+
 // The range a format applies to: the selected text, or the whole field without a selection.
 export function formatSpan(body: TextBody, range: TextRange | undefined): TextRange {
   return range !== undefined && range.start !== range.end
@@ -1084,14 +1097,7 @@ export function TextFormatFields({
   // Per instance, so two mounted editors never share a field id (#566); `testIdPrefix` names the test ids.
   const id = React.useId();
   const selectedInline = onInline === undefined ? undefined : inlineAt(body.runs, range);
-  const { start, end } = formatSpan(body, range);
-  const { format, mixed } = formatOfRange(body.runs, start, end);
-  const font = format.font ?? (mixed.has("font") ? undefined : DEFAULT_FONT);
-  const fill =
-    format.fill ??
-    (mixed.has("fill") ? undefined : { type: "color" as const, color: DEFAULT_TEXT_COLOR });
-  const colorKey =
-    fill?.type === "color" && fill.color.kind === "brand" ? fill.color.key : undefined;
+  const { start, end, format, mixed, font, colorKey } = shownFormat(body, range);
   const fontKey = font?.kind === "brand" ? font.key : undefined;
   const bold = !mixed.has("weight") && (format.weight ?? 400) >= 600;
   const italic = !mixed.has("italic") && format.italic === true;

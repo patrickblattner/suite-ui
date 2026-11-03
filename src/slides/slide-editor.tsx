@@ -199,6 +199,12 @@ import {
 import { type SlideHistory, useSlideHistory } from "./use-slide-history.js";
 import { adoptBrand, mediaIds, mediaLabel, withMedia } from "./editor-adopt.js";
 import { elementClipboard, keepInClipboard } from "./element-clipboard-internal.js";
+import {
+  hasReadOnlyContent,
+  ReadOnlyContent,
+  ReadOnlyLayout,
+  ReadOnlyPage,
+} from "./slide-editor-readonly.js";
 
 // Read-only all the way down: the document `onChange` reports is the app's to read, not to change.
 type DeepReadonly<T> = T extends (...args: never[]) => unknown
@@ -252,6 +258,12 @@ export interface SlideEditorProps extends Pick<
   // The editor's header element, for the route's `useEditorShellToastOffset` (`SUI-FEATURE-086`
   // rev 3): the route passes the same ref to the hook; the editor never calls it itself.
   headerRef?: React.Ref<HTMLDivElement>;
+  // A reading role (`SUI-FEATURE-133`): the editor never changes the document. Every handle that
+  // changes it is absent (insert, group, delete, duplicate, cut, paste, handles, text editing, page
+  // changes, undo/redo, the inspector's fields) and its keys do nothing; navigation, zoom, guides,
+  // the layers list, selection and copy stay; the inspector shows the selection's properties as text.
+  // The app's server still rejects a reading role's write.
+  readOnly?: boolean;
   "data-testid"?: string;
 }
 
@@ -776,6 +788,7 @@ export function SlideEditor({
   extensions,
   renderPlaceholder,
   headerRef,
+  readOnly = false,
   "data-testid": testId,
 }: SlideEditorProps) {
   checkSlideExtensions(extensions);
@@ -811,6 +824,7 @@ export function SlideEditor({
       appMasters={masters}
       view={view}
       headerRef={headerRef}
+      readOnly={readOnly}
       testId={testId}
     />
   );
@@ -876,6 +890,7 @@ function Editor({
   appMasters: mastersProp,
   view,
   headerRef,
+  readOnly,
   testId,
 }: {
   appLayouts: SlideEditorProps["layouts"];
@@ -893,10 +908,17 @@ function Editor({
   adoptMedia: SlideEditorProps["adoptMedia"];
   view: ViewProps;
   headerRef: SlideEditorProps["headerRef"];
+  readOnly: boolean;
   testId: string | undefined;
 }) {
   const { t, i18n } = useTranslation("suite");
-  const history: SlideHistory = useSlideHistory(initial);
+  const steps: SlideHistory = useSlideHistory(initial);
+  // Under `readOnly` no step is ever made (`SUI-FEATURE-133`): whatever reaches the history (a key, a
+  // gesture, an extension) changes nothing, so `onChange` never fires. What the view measured
+  // (`amend`) is no change of the document's content and stays.
+  const history: SlideHistory = readOnly
+    ? { ...steps, apply: () => {}, undo: () => {}, redo: () => {}, reset: () => {} }
+    : steps;
   // `onChange` (`SUI-FEATURE-194`): each step is reported once it is made; a run of typing under a
   // `merge` key once the focus leaves its field, a press ends or a pointer click lands (the click that
   // makes the change too, so a button or switch of an extension reports at once), counted by
@@ -1162,6 +1184,7 @@ function Editor({
   // Save and the leave question (`GL-UI-007`). A draft the schema refuses is not handed on; the rule
   // of its first issue is named under the header in plain words, never its code or path (#586).
   const save = async () => {
+    if (readOnly) return;
     setSaveRejected(false);
     // A crop being set is part of what is saved: kept first, as Enter does (#349).
     let current = history.document;
@@ -1411,7 +1434,7 @@ function Editor({
   // (not an entry of the library) is left alone.
   const onLibraryDrop = (event: React.DragEvent) => {
     const data = event.dataTransfer.getData(LIBRARY_DRAG_TYPE);
-    if (data === "") return;
+    if (data === "" || readOnly) return;
     event.preventDefault();
     const entry = parseLibraryEntry(
       data,
@@ -1973,9 +1996,10 @@ function Editor({
       ids = [hit.id];
     }
     setSelection(ids);
+    // Under `readOnly` a press selects only, nothing moves.
     const moving = ids.flatMap((id) => {
       const found = findElement(elements, id);
-      return found === undefined || found.element.locked ? [] : [found.element];
+      return found === undefined || found.element.locked || readOnly ? [] : [found.element];
     });
     if (moving.length === 0 || (event.shiftKey && !ids.includes(hit.id))) return;
     const movingIds = moving.map((element) => element.id);
@@ -2028,6 +2052,8 @@ function Editor({
     if (cropping !== undefined) return;
     const point = toPage(event);
     const hit = hitTest(point);
+    // Under `readOnly` a double click only selects a group's child: no crop, no text editing, no fill.
+    if (readOnly && hit?.type !== "group") return;
     // A double click on an image starts cropping it (`SUI-FEATURE-162`).
     if (hit?.type === "image" && !hit.locked) {
       const ids = [hit.id];
@@ -2739,6 +2765,15 @@ function Editor({
       return;
     }
     const command = (event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey;
+    // Under `readOnly` only Copy answers: Delete, cut, paste, duplicate, the arrows and Enter change
+    // nothing (`SUI-FEATURE-133`).
+    if (readOnly) {
+      if (command && event.key.toLowerCase() === "c") {
+        event.preventDefault();
+        copyKey();
+      }
+      return;
+    }
     const clipboardKey = command
       ? {
           x: cutKey,
@@ -3620,10 +3655,42 @@ function Editor({
     </div>
   );
 
+  // Under `readOnly` the inspector's tabs (`SUI-FEATURE-133` rev 3), as the editable one's: the
+  // selected element's text format under Content, its box and animation under Layout; the page's
+  // transition and format without a selection; a line naming the count for several.
+  const readOnlyBody = single === undefined ? undefined : bodyOf(single, undefined);
+  const readOnlyContent =
+    single !== undefined && hasReadOnlyContent(single, readOnlyBody) ? (
+      <ReadOnlyContent element={single} body={readOnlyBody} brand={view.brand} />
+    ) : undefined;
+  const readOnlyLayout =
+    single !== undefined ? (
+      <ReadOnlyLayout
+        element={single}
+        rotation={inTurnedGroup ? (((single.rotation + turn) % 360) + 360) % 360 : single.rotation}
+      />
+    ) : selected.length === 0 ? (
+      pageData === undefined ? null : (
+        <ReadOnlyPage
+          transition={pageData.transition}
+          format={t("slides.editor.format", {
+            name: document.format.name,
+            width: pageWidth,
+            height: pageHeight,
+            interpolation: { escapeValue: false },
+          })}
+        />
+      )
+    ) : (
+      <p className="text-sm text-muted-foreground" data-testid="slide-editor-readonly-count">
+        {t("slides.editor.selectedCount", { count: selected.length })}
+      </p>
+    );
+
   // The selection's actions floating at it (`GL-UI-040` §5): grouping, then the layer steps. A
   // locked selection holding a protected element gets only Delete, which says why it stays.
   const actions =
-    selected.length === 0 || (editable.length === 0 && !guarded) ? undefined : (
+    readOnly || selected.length === 0 || (editable.length === 0 && !guarded) ? undefined : (
       <div
         className="flex items-center gap-1"
         data-tooltip-row=""
@@ -3660,6 +3727,20 @@ function Editor({
       </div>
     );
 
+  // A state of a layer as a mark only, focusable for its hint, as the protection's mark.
+  const layerMark = (label: string, icon: React.ReactNode, testId: string) => (
+    <Hint text={label} describe={false}>
+      <span
+        role="img"
+        aria-label={label}
+        tabIndex={0}
+        className="relative inline-flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none focus-visible:focus-ring [&_svg]:size-3"
+        data-testid={testId}
+      >
+        {icon}
+      </span>
+    </Hint>
+  );
   // The layers of the page, topmost first, groups with their children indented.
   const layerRows = (list: readonly SlideElement[], depth: number): React.ReactNode[] =>
     [...stackOrder(list)].reverse().flatMap((element) => [
@@ -3711,54 +3792,79 @@ function Editor({
             </span>
           </Hint>
         )}
-        <IconButtonTooltip
-          label={t("slides.editor.lock", {
-            name: nameOf(element),
-            interpolation: { escapeValue: false },
-          })}
-        >
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-xs"
-            aria-pressed={element.locked}
-            onClick={() =>
-              apply((current) =>
-                updateElements(current, page, [element.id], (one) => ({
-                  ...one,
-                  locked: !one.locked,
-                })),
-              )
-            }
-            data-testid="slide-editor-layer-lock"
-          >
-            {element.locked ? <LockIcon /> : <LockOpenIcon />}
-          </Button>
-        </IconButtonTooltip>
-        <IconButtonTooltip
-          label={t("slides.editor.hide", {
-            name: nameOf(element),
-            interpolation: { escapeValue: false },
-          })}
-        >
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon-xs"
-            aria-pressed={element.hidden}
-            onClick={() =>
-              apply((current) =>
-                updateElements(current, page, [element.id], (one) => ({
-                  ...one,
-                  hidden: !one.hidden,
-                })),
-              )
-            }
-            data-testid="slide-editor-layer-hide"
-          >
-            {element.hidden ? <EyeOffIcon /> : <EyeIcon />}
-          </Button>
-        </IconButtonTooltip>
+        {/* Under `readOnly` the lock and visibility as marks, the toggles gone (`SUI-FEATURE-133`). */}
+        {readOnly && element.locked
+          ? layerMark(
+              t("slides.editor.layerLocked", {
+                name: nameOf(element),
+                interpolation: { escapeValue: false },
+              }),
+              <LockIcon aria-hidden="true" />,
+              "slide-editor-layer-locked",
+            )
+          : null}
+        {readOnly && element.hidden
+          ? layerMark(
+              t("slides.editor.layerHidden", {
+                name: nameOf(element),
+                interpolation: { escapeValue: false },
+              }),
+              <EyeOffIcon aria-hidden="true" />,
+              "slide-editor-layer-hidden",
+            )
+          : null}
+        {readOnly ? null : (
+          <>
+            <IconButtonTooltip
+              label={t("slides.editor.lock", {
+                name: nameOf(element),
+                interpolation: { escapeValue: false },
+              })}
+            >
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                aria-pressed={element.locked}
+                onClick={() =>
+                  apply((current) =>
+                    updateElements(current, page, [element.id], (one) => ({
+                      ...one,
+                      locked: !one.locked,
+                    })),
+                  )
+                }
+                data-testid="slide-editor-layer-lock"
+              >
+                {element.locked ? <LockIcon /> : <LockOpenIcon />}
+              </Button>
+            </IconButtonTooltip>
+            <IconButtonTooltip
+              label={t("slides.editor.hide", {
+                name: nameOf(element),
+                interpolation: { escapeValue: false },
+              })}
+            >
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                aria-pressed={element.hidden}
+                onClick={() =>
+                  apply((current) =>
+                    updateElements(current, page, [element.id], (one) => ({
+                      ...one,
+                      hidden: !one.hidden,
+                    })),
+                  )
+                }
+                data-testid="slide-editor-layer-hide"
+              >
+                {element.hidden ? <EyeOffIcon /> : <EyeIcon />}
+              </Button>
+            </IconButtonTooltip>
+          </>
+        )}
       </li>,
       ...(element.type === "group" ? layerRows(element.children, depth + 1) : []),
     ]);
@@ -3847,6 +3953,7 @@ function Editor({
         <EditorHeader
           title={title}
           onBack={() => guard(onBack)}
+          readOnly={readOnly}
           // While cropping, Undo takes back the crop being set, also with nothing in the history (#349).
           canUndo={history.canUndo || cropping !== undefined || adopting !== undefined}
           // A waiting paste queues Redo too, behind an Undo it may hold (`SUI-FEATURE-106`, #561).
@@ -3919,19 +4026,23 @@ function Editor({
       <div className="flex min-h-0 flex-1" inert={pending}>
         <DrawerRail
           items={[
-            {
-              id: "add",
-              content: (
-                <ElementLibrary
-                  term={libraryTerm}
-                  onTerm={setLibraryTerm}
-                  onInsert={(entry, label) => insertEntry(entry, undefined, label)}
-                  onPickMedia={pickFromMedia}
-                  appEntries={appEntries}
-                  atCaret={editing !== undefined && textRange !== undefined}
-                />
-              ),
-            },
+            ...(readOnly
+              ? []
+              : [
+                  {
+                    id: "add" as const,
+                    content: (
+                      <ElementLibrary
+                        term={libraryTerm}
+                        onTerm={setLibraryTerm}
+                        onInsert={(entry, label) => insertEntry(entry, undefined, label)}
+                        onPickMedia={pickFromMedia}
+                        appEntries={appEntries}
+                        atCaret={editing !== undefined && textRange !== undefined}
+                      />
+                    ),
+                  },
+                ]),
             {
               id: "layers",
               content: (
@@ -3951,6 +4062,7 @@ function Editor({
                     layouts={offered}
                     page={page}
                     view={view}
+                    readOnly={readOnly}
                     onShow={showPage}
                     onMove={(from, to) =>
                       changePages(movePage(history.document, from, to), to, (id) => id)
@@ -3985,19 +4097,21 @@ function Editor({
                     }}
                   />
                   {/* Its own section under its heading, apart from the pages (`GL-UI-010`). */}
-                  <section className="flex flex-col gap-2" data-testid="slide-editor-grid">
-                    <h3 id={gridTitle} className="text-base font-semibold">
-                      {t("grid.label")}
-                    </h3>
-                    <GridFields
-                      value={grid}
-                      allowNone
-                      labelledBy={gridTitle}
-                      onChange={(value) =>
-                        apply((current) => ({ ...current, grid: value }), "grid")
-                      }
-                    />
-                  </section>
+                  {readOnly ? null : (
+                    <section className="flex flex-col gap-2" data-testid="slide-editor-grid">
+                      <h3 id={gridTitle} className="text-base font-semibold">
+                        {t("grid.label")}
+                      </h3>
+                      <GridFields
+                        value={grid}
+                        allowNone
+                        labelledBy={gridTitle}
+                        onChange={(value) =>
+                          apply((current) => ({ ...current, grid: value }), "grid")
+                        }
+                      />
+                    </section>
+                  )}
                 </div>
               ),
             },
@@ -4042,7 +4156,7 @@ function Editor({
             </IconButtonTooltip>
             <div className="ml-auto flex flex-wrap items-center gap-2">
               <SlidePreview document={document} page={page} view={view} />
-              {onTransfer === undefined || otherFormats.length === 0 ? null : (
+              {readOnly || onTransfer === undefined || otherFormats.length === 0 ? null : (
                 <TransferFormat formats={otherFormats} onTransfer={transfer} />
               )}
               <GridToggle
@@ -4103,7 +4217,7 @@ function Editor({
               ) : null}
               {/* Each open placeholder of the layout with its hint (`SUI-FEATURE-192`), the
                   editor's only: a double click or a drop fills it. */}
-              {placeholders.map(({ placeholder, box, rotation }) => (
+              {(readOnly ? [] : placeholders).map(({ placeholder, box, rotation }) => (
                 <div
                   key={placeholder.id}
                   aria-hidden="true"
@@ -4272,19 +4386,26 @@ function Editor({
                 <ContextMenuContent data-testid="slide-editor-menu">
                   {/* The entries call their command only when chosen; it reads the queue's refs
                       then, never while rendering (#535). */}
-                  {/* eslint-disable-next-line react-hooks/refs */}
-                  {menuEntry("cut", selected.length > 0 || menuChained, CUT_SHORTCUT, cutKey)}
+                  {/* Under `readOnly` Copy alone (`SUI-FEATURE-133`). */}
+                  {readOnly
+                    ? null
+                    : // eslint-disable-next-line react-hooks/refs
+                      menuEntry("cut", selected.length > 0 || menuChained, CUT_SHORTCUT, cutKey)}
                   {/* eslint-disable-next-line react-hooks/refs */}
                   {menuEntry("copy", selected.length > 0 || menuChained, COPY_SHORTCUT, copyKey)}
-                  {/* eslint-disable-next-line react-hooks/refs */}
-                  {menuEntry("paste", clipboardFilled, PASTE_SHORTCUT, () => void paste())}
-                  {menuEntry(
-                    "duplicate",
-                    selected.length > 0 || menuChained,
-                    DUPLICATE_SHORTCUT,
-                    // eslint-disable-next-line react-hooks/refs
-                    duplicateKey,
-                  )}
+                  {readOnly
+                    ? null
+                    : // eslint-disable-next-line react-hooks/refs
+                      menuEntry("paste", clipboardFilled, PASTE_SHORTCUT, () => void paste())}
+                  {readOnly
+                    ? null
+                    : menuEntry(
+                        "duplicate",
+                        selected.length > 0 || menuChained,
+                        DUPLICATE_SHORTCUT,
+                        // eslint-disable-next-line react-hooks/refs
+                        duplicateKey,
+                      )}
                 </ContextMenuContent>
               </ContextMenu>
               {/* Over the whole window during a gesture, so nothing under the pointer changes it; the
@@ -4388,7 +4509,8 @@ function Editor({
               {/* The handles above the floating actions, so none lies under them. */}
               {/* Over the element where it is drawn, turned with its groups (#324); a layer above
                   the name badge (#332), so the badge never covers a handle. */}
-              {single === undefined ||
+              {readOnly ||
+              single === undefined ||
               handlesBox === undefined ||
               single.locked ||
               cropping !== undefined ||
@@ -4542,74 +4664,88 @@ function Editor({
         </div>
         {/* Its read-only fields carry the lock reason with their hint (`SUI-FEATURE-195` rev 3). */}
         <ElementLockedContext.Provider value={single?.locked === true}>
-          <PropertyPanel
-            path={path}
-            tabs={[
-              ...(single !== undefined && hasContent
-                ? [
-                    {
-                      id: "content" as const,
-                      content: (
-                        <div className="flex flex-col gap-4" data-testid="slide-editor-content">
-                          {unloadedNote}
-                          {single.type === "table" ? (
-                            <TableFields
-                              key={single.id}
-                              table={single}
-                              cell={currentCell}
-                              brand={view.brand}
-                              readOnly={single.locked}
-                              revision={travels}
-                              // Its rows and columns, like the formats, wait for a composition to
-                              // end (GL-UI-039 rev 2, #736).
-                              onChange={(next, merge, move) => {
-                                if (composingText.current) return;
-                                apply(
-                                  (current) =>
-                                    updateElements(current, page, [single.id], () => next),
-                                  merge === undefined ? undefined : `table:${single.id}:${merge}`,
-                                );
-                                // The open cell field follows its cell; its row or column deleted,
-                                // editing ends (#740).
-                                if (
-                                  move === undefined ||
-                                  editing?.id !== single.id ||
-                                  editing.cell === undefined
-                                )
-                                  return;
-                                const moved = move(editing.cell);
-                                if (moved === undefined) leaveCell();
-                                else setEditing({ ...editing, cell: moved });
-                              }}
-                              onCell={(cell) => {
-                                if (!composingText.current) setTableCell({ id: single.id, cell });
-                              }}
-                            />
-                          ) : null}
-                          {textFields}
-                          {numberedFields}
-                          {single.type === "chart" ? (
-                            <ChartData
-                              key={single.id}
-                              chart={single}
-                              revision={travels}
-                              readOnly={single.locked}
-                              onChange={(next, merge) => changeChart(next, merge)}
-                            />
-                          ) : null}
-                          {iconFields}
-                          {typeFields}
-                          {addOnFields}
-                        </div>
-                      ),
-                    },
-                  ]
-                : []),
-              { id: "layout", content: layoutTab },
-            ]}
-            activeTab={!hasContent ? "layout" : contentFirst ? panelTab : builtInTab}
-            onTab={contentFirst ? setPanelTab : setBuiltInTab}
-          />
+          {readOnly ? (
+            <PropertyPanel
+              path={path}
+              tabs={[
+                ...(readOnlyContent === undefined
+                  ? []
+                  : [{ id: "content" as const, content: readOnlyContent }]),
+                { id: "layout", content: readOnlyLayout },
+              ]}
+              activeTab={readOnlyContent === undefined ? "layout" : builtInTab}
+              onTab={setBuiltInTab}
+            />
+          ) : (
+            <PropertyPanel
+              path={path}
+              tabs={[
+                ...(single !== undefined && hasContent
+                  ? [
+                      {
+                        id: "content" as const,
+                        content: (
+                          <div className="flex flex-col gap-4" data-testid="slide-editor-content">
+                            {unloadedNote}
+                            {single.type === "table" ? (
+                              <TableFields
+                                key={single.id}
+                                table={single}
+                                cell={currentCell}
+                                brand={view.brand}
+                                readOnly={single.locked}
+                                revision={travels}
+                                // Its rows and columns, like the formats, wait for a composition to
+                                // end (GL-UI-039 rev 2, #736).
+                                onChange={(next, merge, move) => {
+                                  if (composingText.current) return;
+                                  apply(
+                                    (current) =>
+                                      updateElements(current, page, [single.id], () => next),
+                                    merge === undefined ? undefined : `table:${single.id}:${merge}`,
+                                  );
+                                  // The open cell field follows its cell; its row or column deleted,
+                                  // editing ends (#740).
+                                  if (
+                                    move === undefined ||
+                                    editing?.id !== single.id ||
+                                    editing.cell === undefined
+                                  )
+                                    return;
+                                  const moved = move(editing.cell);
+                                  if (moved === undefined) leaveCell();
+                                  else setEditing({ ...editing, cell: moved });
+                                }}
+                                onCell={(cell) => {
+                                  if (!composingText.current) setTableCell({ id: single.id, cell });
+                                }}
+                              />
+                            ) : null}
+                            {textFields}
+                            {numberedFields}
+                            {single.type === "chart" ? (
+                              <ChartData
+                                key={single.id}
+                                chart={single}
+                                revision={travels}
+                                readOnly={single.locked}
+                                onChange={(next, merge) => changeChart(next, merge)}
+                              />
+                            ) : null}
+                            {iconFields}
+                            {typeFields}
+                            {addOnFields}
+                          </div>
+                        ),
+                      },
+                    ]
+                  : []),
+                { id: "layout", content: layoutTab },
+              ]}
+              activeTab={!hasContent ? "layout" : contentFirst ? panelTab : builtInTab}
+              onTab={contentFirst ? setPanelTab : setBuiltInTab}
+            />
+          )}
         </ElementLockedContext.Provider>
       </div>
       {dialog}

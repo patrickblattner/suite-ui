@@ -83,6 +83,7 @@ export function PageSorter({
   onHidden,
   onDelete,
   onNew,
+  readOnly = false,
 }: {
   document: SlideDocument;
   // The layouts a new page can come from: the document's and the app's (`SUI-FEATURE-192`).
@@ -95,6 +96,8 @@ export function PageSorter({
   onHidden: (index: number, hidden: boolean) => void;
   onDelete: (index: number) => void;
   onNew: (layoutId: string | undefined) => void;
+  // A reading role (`SUI-FEATURE-133`): the pages to show only, no move, duplicate, hide, delete or add.
+  readOnly?: boolean;
 }) {
   const { t } = useTranslation("suite");
   const [deleting, setDeleting] = React.useState<number | undefined>(undefined);
@@ -162,6 +165,28 @@ export function PageSorter({
     );
   };
   const positions = pagePositions(document);
+  // A page row's drag to its new place.
+  const sortable = (index: number): React.LiHTMLAttributes<HTMLLIElement> => ({
+    draggable: true,
+    onDragStart: (event) => {
+      event.dataTransfer.setData(PAGE_DRAG_TYPE, String(index));
+      event.dataTransfer.effectAllowed = "move";
+    },
+    onDragOver: (event) => {
+      if (!event.dataTransfer.types.includes(PAGE_DRAG_TYPE)) return;
+      event.preventDefault();
+      setOver(index);
+    },
+    onDragLeave: () => setOver(undefined),
+    onDrop: (event) => {
+      const from = Number(event.dataTransfer.getData(PAGE_DRAG_TYPE));
+      setOver(undefined);
+      if (!Number.isInteger(from)) return;
+      event.preventDefault();
+      onMove(from, index);
+    },
+    onDragEnd: () => setOver(undefined),
+  });
   return (
     <section className="flex flex-col gap-2" data-testid="slide-editor-pages">
       <h3 className="text-base font-semibold">{t("slides.editor.pages")}</h3>
@@ -173,30 +198,12 @@ export function PageSorter({
           // Enter and Space show the page natively, so the picture's button takes only Delete from
           // `rowProps`, plus its tab stop, its mark for the arrows and its inset focus ring.
           const entry = grid.rowProps({
-            onDelete: count <= 1 ? undefined : () => setDeleting(index),
+            onDelete: count <= 1 || readOnly ? undefined : () => setDeleting(index),
           });
           return (
             <li
               key={one.id}
-              draggable
-              onDragStart={(event) => {
-                event.dataTransfer.setData(PAGE_DRAG_TYPE, String(index));
-                event.dataTransfer.effectAllowed = "move";
-              }}
-              onDragOver={(event) => {
-                if (!event.dataTransfer.types.includes(PAGE_DRAG_TYPE)) return;
-                event.preventDefault();
-                setOver(index);
-              }}
-              onDragLeave={() => setOver(undefined)}
-              onDrop={(event) => {
-                const from = Number(event.dataTransfer.getData(PAGE_DRAG_TYPE));
-                setOver(undefined);
-                if (!Number.isInteger(from)) return;
-                event.preventDefault();
-                onMove(from, index);
-              }}
-              onDragEnd={() => setOver(undefined)}
+              {...(readOnly ? {} : sortable(index))}
               className={cn(
                 "flex items-start gap-2 rounded-md border border-transparent p-1",
                 index === page &&
@@ -242,51 +249,55 @@ export function PageSorter({
                     </span>
                   ) : null}
                 </span>
-                <div className="flex flex-wrap gap-0.5" data-tooltip-row="">
-                  {iconButton(
-                    t("slides.editor.movePageUp", { n }),
-                    <ArrowUpIcon />,
-                    () => onMove(index, index - 1),
-                    "slide-editor-page-up",
-                    { disabledText: index === 0 ? t("slides.editor.pageFirst") : undefined },
-                  )}
-                  {iconButton(
-                    t("slides.editor.movePageDown", { n }),
-                    <ArrowDownIcon />,
-                    () => onMove(index, index + 1),
-                    "slide-editor-page-down",
-                    { disabledText: index === count - 1 ? t("slides.editor.pageLast") : undefined },
-                  )}
-                  {iconButton(
-                    t("slides.editor.duplicatePage", { n }),
-                    <CopyIcon />,
-                    () => onDuplicate(index),
-                    "slide-editor-page-duplicate",
-                  )}
-                  {iconButton(
-                    t("slides.editor.hidePage", { n }),
-                    one.hidden ? <EyeOffIcon /> : <EyeIcon />,
-                    () => onHidden(index, !one.hidden),
-                    "slide-editor-page-hide",
-                    { pressed: one.hidden },
-                  )}
-                  {iconButton(
-                    t("slides.editor.deletePage", { n }),
-                    <Trash2Icon />,
-                    () => setDeleting(index),
-                    "slide-editor-page-delete",
-                    // The Delete chip while the grid binds the key to it.
-                    count <= 1
-                      ? { disabledText: t("slides.editor.pageOnly") }
-                      : { shortcut: DELETE_SHORTCUT },
-                  )}
-                </div>
+                {readOnly ? null : (
+                  <div className="flex flex-wrap gap-0.5" data-tooltip-row="">
+                    {iconButton(
+                      t("slides.editor.movePageUp", { n }),
+                      <ArrowUpIcon />,
+                      () => onMove(index, index - 1),
+                      "slide-editor-page-up",
+                      { disabledText: index === 0 ? t("slides.editor.pageFirst") : undefined },
+                    )}
+                    {iconButton(
+                      t("slides.editor.movePageDown", { n }),
+                      <ArrowDownIcon />,
+                      () => onMove(index, index + 1),
+                      "slide-editor-page-down",
+                      {
+                        disabledText: index === count - 1 ? t("slides.editor.pageLast") : undefined,
+                      },
+                    )}
+                    {iconButton(
+                      t("slides.editor.duplicatePage", { n }),
+                      <CopyIcon />,
+                      () => onDuplicate(index),
+                      "slide-editor-page-duplicate",
+                    )}
+                    {iconButton(
+                      t("slides.editor.hidePage", { n }),
+                      one.hidden ? <EyeOffIcon /> : <EyeIcon />,
+                      () => onHidden(index, !one.hidden),
+                      "slide-editor-page-hide",
+                      { pressed: one.hidden },
+                    )}
+                    {iconButton(
+                      t("slides.editor.deletePage", { n }),
+                      <Trash2Icon />,
+                      () => setDeleting(index),
+                      "slide-editor-page-delete",
+                      // The Delete chip while the grid binds the key to it.
+                      count <= 1
+                        ? { disabledText: t("slides.editor.pageOnly") }
+                        : { shortcut: DELETE_SHORTCUT },
+                    )}
+                  </div>
+                )}
               </div>
             </li>
           );
         })}
       </ol>
-      {layouts.length === 0 ? (
+      {readOnly ? null : layouts.length === 0 ? (
         newButton(() => onNew(undefined))
       ) : (
         <DropdownMenu>
@@ -307,18 +318,20 @@ export function PageSorter({
           </DropdownMenuContent>
         </DropdownMenu>
       )}
-      <ConfirmDeleteDialog
-        open={deleting !== undefined}
-        onOpenChange={(open) => (open ? null : setDeleting(undefined))}
-        object={t("slides.editor.pageNumber", { n: (deleting ?? 0) + 1 })}
-        description={t("slides.editor.deletePageDescription")}
-        confirmHint={t("slides.editor.deletePageHint")}
-        onConfirm={() => {
-          if (deleting !== undefined) onDelete(deleting);
-          setDeleting(undefined);
-        }}
-        data-testid="slide-editor-page-delete-dialog"
-      />
+      {readOnly ? null : (
+        <ConfirmDeleteDialog
+          open={deleting !== undefined}
+          onOpenChange={(open) => (open ? null : setDeleting(undefined))}
+          object={t("slides.editor.pageNumber", { n: (deleting ?? 0) + 1 })}
+          description={t("slides.editor.deletePageDescription")}
+          confirmHint={t("slides.editor.deletePageHint")}
+          onConfirm={() => {
+            if (deleting !== undefined) onDelete(deleting);
+            setDeleting(undefined);
+          }}
+          data-testid="slide-editor-page-delete-dialog"
+        />
+      )}
     </section>
   );
 }

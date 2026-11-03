@@ -29,6 +29,8 @@ import { GALLERY_SLIDE_PROPS, imageFilter } from "./SlidesPage.js";
 // deck's alone); a copy in another format is kept here and opened on request, as an app would.
 const PARAMS = new URLSearchParams(window.location.search);
 const INVALID = PARAMS.get("doc") === "invalid";
+// `SUI-FEATURE-133`: `?readOnly=1` opens the same deck for a reading role, beside the editable one.
+const READ_ONLY = PARAMS.get("readOnly") === "1";
 // `?doc=full`: the first page holds as many elements as a document may (Codex #362 CX1).
 const FULL = PARAMS.get("doc") === "full";
 const FULL_DOC = FULL
@@ -474,6 +476,7 @@ export function SlideEditorPage() {
               );
             }}
             onBack={() => setBacks((count) => count + 1)}
+            readOnly={READ_ONLY}
             data-testid="slide-editor"
           />
         </div>

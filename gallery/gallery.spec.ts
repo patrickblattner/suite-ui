@@ -916,6 +916,21 @@ const AXE_PAGES: [
   ["reorder", (page) => page.getByTestId("reorder-row").first()],
   ["tiles", (page) => page.getByTestId("media-tiles").getByTestId("row-menu").first(), "&step=1"],
   ["select", (page) => page.getByRole("combobox", { expanded: false }), "&select=closed"],
+  // `SUI-FEATURE-133` AC5: the read-only editor, an element selected so its properties show as text.
+  [
+    "slide-editor",
+    (page) =>
+      page.locator("[data-testid=slide-editor] [data-slot=slide-view][data-slide-ready=true]"),
+    "&readOnly=1",
+    [
+      "with a selection",
+      async (page) => {
+        await page.getByTestId("drawer-layers").click();
+        await page.getByTestId("slide-editor-layer-select").first().click();
+        await expect(page.getByTestId("slide-editor-readonly-properties")).toBeVisible();
+      },
+    ],
+  ],
 ];
 
 // A new gallery page cannot skip axe: the page switch offers exactly the pages axe scans.
@@ -19355,4 +19370,24 @@ test("switch: locked and disabled take GrayText in forced colours", async ({ pag
     expect(await border(id), id).toBe(gray);
   expect(await border("switch-busy")).not.toBe(gray);
   expect(await border("switch-run")).not.toBe(gray);
+});
+
+// `SUI-FEATURE-133` AC2: under `readOnly` a layer row selects by keyboard, Tab to it and Enter.
+test("read-only slide editor selects a layer row by keyboard", async ({ page }) => {
+  await page.goto("/?page=slide-editor&readOnly=1&lng=en&theme=light");
+  const editor = page.getByTestId("slide-editor");
+  await expect(
+    editor.locator("[data-slot=slide-view][data-slide-ready=true]").first(),
+  ).toBeVisible();
+  await editor.getByTestId("drawer-layers").click();
+  const row = editor.getByTestId("slide-editor-layer-select").first();
+  await editor.getByTestId("drawer-layers").focus();
+  for (let press = 0; press < 20; press += 1) {
+    if (await row.evaluate((node) => node === document.activeElement)) break;
+    await page.keyboard.press("Tab");
+  }
+  await expect(row).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(row).toHaveAttribute("aria-pressed", "true");
+  await expect(editor.getByTestId("slide-editor-readonly-properties")).toBeVisible();
 });
