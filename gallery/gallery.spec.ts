@@ -11601,6 +11601,21 @@ test("canvas editor: panel 340 px, drawer narrows the canvas", async ({ page }) 
   expect((await box(canvas)).width).toBe(withDrawer.width + 300);
 });
 
+// #790 (`SUI-FEATURE-136` AC 1, 2): the demo's `documentLabel` names the Document entry and its drawer;
+// with nothing selected the same word is the path's only element. Axe scans the page light and dark.
+test("canvas editor: the document drawer takes the app's documentLabel", async ({ page }) => {
+  await page.goto("/?page=components&lng=en");
+  const editor = page.getByTestId("canvas-editor");
+  const entry = editor.getByTestId("drawer-document");
+  await expect(entry).toHaveAccessibleName("Newsletter");
+  await expect(editor.getByTestId("drawer-style")).toHaveAccessibleName("Style");
+  await entry.click();
+  await expect(editor.getByTestId("drawer")).toHaveAccessibleName("Newsletter");
+  await editor.getByTestId("property-path-link").first().click();
+  await expect(editor.getByTestId("property-path-link")).toHaveCount(0);
+  await expect(editor.getByTestId("property-path-current")).toHaveText("Newsletter");
+});
+
 // #223 (`SUI-FEATURE-071` rev 4, AC 5; `GL-UX-001`): the open drawer is 300 px wide but never wider
 // than the room beside the rail, so at 320 and 390 px nothing of it is clipped by the editor frame;
 // from 1440 px it is 300 px. At 320 px the page does not scroll sideways either.

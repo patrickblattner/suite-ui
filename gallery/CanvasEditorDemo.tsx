@@ -36,13 +36,17 @@ const CONTENT_FIELDS = [
 // with `gap-4`, whose two lines below 1024 px still fit the editor.
 const EDITOR_VARIANT = new URLSearchParams(window.location.search).get("editor");
 
+// `SUI-FEATURE-136`: the editor's own word for its document, from its own i18n in a real app. It names
+// the rail's Document entry and, with nothing selected, is the path's only element.
+const DOCUMENT_LABEL = "Newsletter";
+
 // `SUI-FEATURE-071`: a visual editor's frame — the drawer rail with the style drawer open, the canvas
 // between, the property panel of the selected heading on the right.
 export function CanvasEditorRow() {
   const [open, setOpen] = useState<DrawerId | undefined>("style");
   const [tab, setTab] = useState<PropertyTabId>("content");
   const [styleDirty, setStyleDirty] = useState(true);
-  const [path, setPath] = useState(["Spring newsletter", "Hero", "Heading"]);
+  const [path, setPath] = useState([DOCUMENT_LABEL, "Hero", "Heading"]);
   const panel = (
     <PropertyPanel
       path={path.map((label, index) => ({
@@ -83,6 +87,7 @@ export function CanvasEditorRow() {
           ]}
           open={open}
           onOpen={setOpen}
+          documentLabel={DOCUMENT_LABEL}
           styleSave={{ onSave: () => setStyleDirty(false), dirty: styleDirty }}
         />
         <div

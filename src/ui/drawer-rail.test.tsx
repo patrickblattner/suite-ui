@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import i18n from "i18next";
 import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -70,6 +70,29 @@ describe("DrawerRail (SUI-FEATURE-071)", () => {
       expect(button).toHaveAttribute("data-size", "icon-sm");
     }
     expect(screen.getByTestId("drawer-layers-badge")).toHaveTextContent("12");
+  });
+
+  // SUI-FEATURE-136 AC 1: the app's noun names the Document entry; without it the package text stays.
+  it.each([
+    ["Seite", "Seite"],
+    ["", "Dokument"],
+    [undefined, "Dokument"],
+  ])("documentLabel %s: tooltip, name and drawer title read %s", async (documentLabel, name) => {
+    await i18n.changeLanguage("de");
+    render(<Rail initial="document" {...(documentLabel === undefined ? {} : { documentLabel })} />);
+    const button = screen.getByTestId("drawer-document");
+    expect(button).toHaveAccessibleName(name);
+    expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent(name);
+    expect(screen.getByTestId("drawer")).toHaveAccessibleName(name);
+    vi.useFakeTimers();
+    fireEvent.pointerMove(button, { pointerType: "mouse" });
+    act(() => {
+      vi.advanceTimersByTime(1500);
+    });
+    vi.useRealTimers();
+    expect(screen.getByRole("tooltip")).toHaveTextContent(name);
+    // The other entries keep their package texts.
+    expect(screen.getByTestId("drawer-style")).toHaveAccessibleName("Stil");
   });
 
   // AC 4

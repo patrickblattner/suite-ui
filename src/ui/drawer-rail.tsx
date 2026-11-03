@@ -28,6 +28,11 @@ type DrawerRailProps = {
   // The style drawer's own save: it applies to everything that uses the brand kit. The app supplies
   // the save and its dirty state; without it the drawer has no footer.
   styleSave?: { onSave: () => void; dirty: boolean; saving?: boolean };
+  // The app's word for its document (a page, a slide deck), from its own i18n in the active language
+  // (`SUI-FEATURE-136`, `SUI-DESIGN-011`): the Document entry's tooltip, accessible name and drawer
+  // title. Without it, `suite:canvas.drawer.document`. With nothing selected the app passes the same
+  // word as the `PropertyPanel` path's only element.
+  documentLabel?: string;
 };
 
 // In an editor frame narrower than 1024 px that also holds the property panel (`SUI-FEATURE-071`
@@ -49,8 +54,10 @@ const BESIDE_PANEL = cn(
 // never wider than the room its container leaves beside the rail (`SUI-FEATURE-071` rev 4, #223); it
 // takes its width from the canvas instead of covering it. A second click or `Esc` closes it (innermost
 // `Esc` first, `GL-UI-007`), and the focus returns to its button. The open drawer's button is pressed.
-function DrawerRail({ items, open, onOpen, styleSave }: DrawerRailProps) {
+function DrawerRail({ items, open, onOpen, styleSave, documentLabel }: DrawerRailProps) {
   const { t } = useTranslation("suite");
+  const label = (drawer: DrawerId) =>
+    drawer === "document" && documentLabel ? documentLabel : t(`canvas.drawer.${drawer}`);
   const [node, setNode] = React.useState<HTMLDivElement | null>(null);
   const id = React.useId();
   const ordered = DRAWERS.flatMap((drawer) =>
@@ -80,7 +87,7 @@ function DrawerRail({ items, open, onOpen, styleSave }: DrawerRailProps) {
         data-tooltip-row=""
       >
         {ordered.map(({ id: drawer, icon: Icon, badge }) => (
-          <IconButtonTooltip key={drawer} label={t(`canvas.drawer.${drawer}`)}>
+          <IconButtonTooltip key={drawer} label={label(drawer)}>
             <Button
               type="button"
               variant="ghost"
@@ -115,7 +122,7 @@ function DrawerRail({ items, open, onOpen, styleSave }: DrawerRailProps) {
           data-drawer-open={current.id}
         >
           <h2 id={`${id}-title`} className="border-b px-4 py-3 text-base font-semibold">
-            {t(`canvas.drawer.${current.id}`)}
+            {label(current.id)}
           </h2>
           <div className="min-h-0 flex-1 scroll-py-2 overflow-y-auto p-4">{current.content}</div>
           {current.id === "style" && styleSave !== undefined ? (
