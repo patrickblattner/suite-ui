@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #790: DrawerRail `documentLabel` — the document drawer takes the app's noun (SUI-FEATURE-136 rev 2) (minor)
+## 0.218.0 — #790: DrawerRail `documentLabel` — the document drawer takes the app's noun (SUI-FEATURE-136 rev 2) (minor)
 
 - **Added (#790, SUI-FEATURE-136 rev 2):** `documentLabel?: string` on `DrawerRail`. It names the fourth entry: its tooltip, accessible name and drawer title. The app passes its own word for its document (a page, a slide deck) from its own i18n in the active language; with nothing selected it passes the same word as the `PropertyPanel` path's first and only element. Without the property the entry reads `suite:canvas.drawer.document` (Dokument / Document / Documento) as before; the other three entries keep their package texts.
 - **Tests (#790):** unit — with `documentLabel="Seite"` the Document entry's accessible name, tooltip and drawer title read "Seite", without it "Dokument", the Style entry stays "Stil". Gallery: the canvas editor demo passes `documentLabel="Newsletter"`; the entry and its drawer read "Newsletter", and selecting the path's root leaves "Newsletter" as the only path element; the existing axe scans (WCAG 2.2 AA) of the components page cover it light and dark.
