@@ -832,3 +832,4 @@
 {"ts":"2026-11-03T16:49:16.933Z","key":"SUI-FEATURE-137","from":null,"to":2,"disposition":"ticket","ref":"791"}
 {"ts":"2026-11-03T16:49:17.323Z","key":"SUI-FEATURE-138","from":null,"to":2,"disposition":"ticket","ref":"792"}
 {"ts":"2026-11-03T16:49:17.706Z","key":"PROC-DEV-004","from":null,"to":4,"disposition":"editorial","ref":"process rule (battery floor 50%), no code impact; applied by the worker loop"}
+{"ts":"2026-11-03T16:55:36.979Z","key":"SUI-FEATURE-221","from":null,"to":2,"disposition":"ticket","ref":"793"}
