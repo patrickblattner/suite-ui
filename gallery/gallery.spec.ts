@@ -2365,12 +2365,13 @@ test("list frame: a horizontal scroller is marked while it overflows", async ({ 
 });
 
 // The children of DataTableShell's column, by test id, and the gaps between neighbours; FilterBar and
-// pager count as themselves, not as their shared-gutter wrapper.
+// pager count as themselves, not as their shared-gutter wrapper; the hidden panels of the inactive tabs
+// (#783) take no place in the column and are left out.
 async function listArea(page: Page) {
   const children = page
     .getByTestId("data-table")
     .locator(
-      ":scope > :not([data-slot=list-gutter-row]), :scope > [data-slot=list-gutter-row] > *",
+      ":scope > :not([data-slot=list-gutter-row]):not([hidden]), :scope > [data-slot=list-gutter-row] > *",
     );
   const ids = await children.evaluateAll((els) => els.map((el) => el.getAttribute("data-testid")));
   const boxes = await Promise.all((await children.all()).map(box));
@@ -2434,6 +2435,42 @@ test("list area: switching the view keeps frame, tab row and FilterBar in place"
   await expect(page.getByTestId("list-row")).toHaveCount(66);
   expect(await Promise.all(parts.map((part) => box(page.getByTestId(part))))).toEqual(before);
 });
+
+// #783 (WAI-ARIA tabs, `GL-UX-001`): on the list with four tabs every trigger's `aria-controls` names a
+// `tabpanel` in the DOM, before and after a switch; only the active one shows, with the rows.
+for (const theme of THEMES) {
+  test(`list tabs: every trigger controls a panel in the DOM ${theme}`, async ({ page }) => {
+    await page.goto(`/?page=list&slots=tabs&lng=en&theme=${theme}`);
+    const tabs = page.getByRole("tab");
+    await expect(tabs).toHaveCount(4);
+    const panels = () =>
+      tabs.evaluateAll((els) =>
+        els.map((tab) => {
+          const panel = document.getElementById(tab.getAttribute("aria-controls") ?? "");
+          return {
+            selected: tab.getAttribute("aria-selected") === "true",
+            role: panel?.getAttribute("role"),
+            labelledBy: panel?.getAttribute("aria-labelledby") === tab.id,
+            shown: panel !== null && panel.checkVisibility(),
+            rows: panel?.querySelectorAll("[data-testid=list-row]").length ?? 0,
+          };
+        }),
+      );
+    const expected = (active: number, rows: number) =>
+      Array.from({ length: 4 }, (_, i) => ({
+        selected: i === active,
+        role: "tabpanel",
+        labelledBy: true,
+        shown: i === active,
+        rows: i === active ? rows : 0,
+      }));
+    await expect(page.getByTestId("list-row")).toHaveCount(200);
+    expect(await panels()).toEqual(expected(0, 200));
+    await page.getByTestId("list-tab-error").click();
+    await expect(page.getByTestId("list-row")).toHaveCount(66);
+    expect(await panels()).toEqual(expected(3, 66));
+  });
+}
 
 // #234: the head's block `page-head` carries inline-size containment; without `w-full` it collapses to
 // 0 px in a flex row that does not grow it (community BookingsPage). Here the head moves into such a row.

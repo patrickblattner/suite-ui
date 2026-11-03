@@ -3,6 +3,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { Tabs as TabsPrimitive } from "radix-ui";
 
 import { cn } from "../lib/cn.js";
+import { TabsRegisterContext, TabsValuesContext } from "./tabs-values-internal.js";
 
 // What the triggers need for their tab stop (the focused trigger while the focus is in the list, else
 // the selected one) and to hold back the activation of a focus from outside (see `TabsTrigger`).
@@ -26,6 +27,16 @@ function Tabs({
   const [uncontrolled, setUncontrolled] = React.useState(defaultValue ?? "");
   const [focused, setFocused] = React.useState<string | null>(null);
   const heldBack = React.useRef<string | null>(null);
+  const [values, setValues] = React.useState<readonly string[]>([]);
+  // One entry per mounted trigger; unmounting removes one, so a value two triggers share stays.
+  const register = React.useCallback((registered: string) => {
+    setValues((current) => [...current, registered]);
+    return () =>
+      setValues((current) => {
+        const index = current.indexOf(registered);
+        return index === -1 ? current : current.filter((_, at) => at !== index);
+      });
+  }, []);
   const value = valueProp ?? uncontrolled;
   // Radix activates right after the trigger's own focus handler, in the same event.
   const holdBack = React.useCallback((held: string) => {
@@ -41,24 +52,31 @@ function Tabs({
   );
   return (
     <TabsFocusContext.Provider value={focusContext}>
-      <TabsPrimitive.Root
-        data-slot="tabs"
-        data-orientation={orientation}
-        orientation={orientation}
-        className={cn("group/tabs flex gap-2 data-[orientation=horizontal]:flex-col", className)}
-        value={value}
-        activationMode={activationMode}
-        onValueChange={(next) => {
-          if (heldBack.current === next) {
-            // Held back once: a press that focuses the trigger first still activates it next.
-            heldBack.current = null;
-            return;
-          }
-          if (valueProp === undefined) setUncontrolled(next);
-          onValueChange?.(next);
-        }}
-        {...props}
-      />
+      <TabsRegisterContext.Provider value={register}>
+        <TabsValuesContext.Provider value={values}>
+          <TabsPrimitive.Root
+            data-slot="tabs"
+            data-orientation={orientation}
+            orientation={orientation}
+            className={cn(
+              "group/tabs flex gap-2 data-[orientation=horizontal]:flex-col",
+              className,
+            )}
+            value={value}
+            activationMode={activationMode}
+            onValueChange={(next) => {
+              if (heldBack.current === next) {
+                // Held back once: a press that focuses the trigger first still activates it next.
+                heldBack.current = null;
+                return;
+              }
+              if (valueProp === undefined) setUncontrolled(next);
+              onValueChange?.(next);
+            }}
+            {...props}
+          />
+        </TabsValuesContext.Provider>
+      </TabsRegisterContext.Provider>
     </TabsFocusContext.Provider>
   );
 }
@@ -109,6 +127,8 @@ function TabsTrigger({
   ...props
 }: React.ComponentProps<typeof TabsPrimitive.Trigger>) {
   const focusContext = React.useContext(TabsFocusContext);
+  const register = React.useContext(TabsRegisterContext);
+  React.useLayoutEffect(() => register?.(props.value), [register, props.value]);
   return (
     <TabsPrimitive.Trigger
       data-slot="tabs-trigger"
