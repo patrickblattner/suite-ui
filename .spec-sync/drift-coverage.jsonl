@@ -841,3 +841,4 @@
 {"ts":"2026-11-03T19:13:41.512Z","key":"PROC-FLOW-003","from":4,"to":5,"disposition":"editorial","ref":"process flow page (/processes) for remote PR repos; no suite-ui code impact"}
 {"ts":"2026-11-03T20:30:21.401Z","key":"PROC-DEV-005","from":null,"to":4,"disposition":"ticket","ref":"794"}
 {"ts":"2026-11-03T21:46:47.005Z","key":"SUI-FEATURE-222","from":null,"to":4,"disposition":"ticket","ref":"793"}
+{"ts":"2026-11-03T22:20:34.141Z","key":"SUI-FEATURE-222","from":4,"to":5,"disposition":"ticket","ref":"793"}
