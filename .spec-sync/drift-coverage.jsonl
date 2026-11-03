@@ -820,3 +820,6 @@
 {"ts":"2026-11-02T19:44:20.573Z","key":"SUI-FEATURE-131","from":2,"to":3,"disposition":"ticket","ref":"781"}
 {"ts":"2026-11-02T20:42:36.922Z","key":"SUI-FEATURE-131","from":3,"to":4,"disposition":"ticket","ref":"781"}
 {"ts":"2026-11-02T21:06:50.122Z","key":"SUI-FEATURE-131","from":4,"to":5,"disposition":"ticket","ref":"781"}
+{"ts":"2026-11-03T07:03:51.565Z","key":"SUI-FEATURE-133","from":null,"to":2,"disposition":"ticket","ref":"784"}
+{"ts":"2026-11-03T07:03:52.080Z","key":"SUI-FEATURE-132","from":null,"to":2,"disposition":"ticket","ref":"785"}
+{"ts":"2026-11-03T07:03:52.548Z","key":"PROC-REL-024","from":5,"to":6,"disposition":"editorial","ref":"Renovate dashboard rule for infra/app repos; suite-ui runs no Renovate dashboard, no code impact"}
