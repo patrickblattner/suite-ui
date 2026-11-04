@@ -1361,7 +1361,9 @@ test("toast: Tab onto a FilterBar control during the toast's slide-in closes all
       true,
     );
   });
-  await page.clock.install({ time: T0 });
+  // Install before T0: the installed clock runs on real time, so a pause at the install
+  // instant fails once its 100 ms sync ran between the calls (#809).
+  await page.clock.install({ time: T0.getTime() - 60_000 });
   await page.clock.pauseAt(T0);
   await page.goto("/?page=list&toast=1");
   const success = page.locator("[data-sonner-toast][data-type=success]");
@@ -5285,7 +5287,9 @@ test("media tile: the overflow tooltip at the viewport's top and left edge is ne
 test("media tile: the overflow tooltip under a fixed app header never stands over it", async ({
   page,
 }) => {
-  await page.clock.install({ time: T0 });
+  // Install before T0: the installed clock runs on real time, so a pause at the install
+  // instant fails once its 100 ms sync ran between the calls (#809).
+  await page.clock.install({ time: T0.getTime() - 60_000 });
   await page.clock.pauseAt(T0);
   await page.setViewportSize({ width: 1280, height: 600 });
   const grid = await mediaTiles(page);
