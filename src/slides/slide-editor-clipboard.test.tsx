@@ -1385,6 +1385,82 @@ describe("SlideEditor element clipboard", () => {
   });
 });
 
+// #798: `readOnly` turned on during a drag drops what was held behind it, but Copy, and ends the
+// busy status of a paste that landed behind the drag.
+describe("SlideEditor held commands when readOnly turns on mid-drag (#798)", () => {
+  const ONE = { ...DOC, pages: [{ id: "one", background, elements: [shape("a", 0, 0)] }] };
+  const editor = (readOnly: boolean, props: Partial<React.ComponentProps<typeof SlideEditor>>) => (
+    <SlideEditor
+      document={ONE}
+      title="Deck"
+      brand={SLIDE_BRAND}
+      onSave={() => true}
+      onBack={() => {}}
+      readOnly={readOnly}
+      {...props}
+    />
+  );
+  const startDrag = () => {
+    fireEvent.pointerDown(canvas(), { ...at(50, 50), button: 0, pointerId: 1 });
+    fireEvent.pointerMove(canvas(), at(250, 50));
+  };
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("ends the busy status of a paste that landed behind the drag", async () => {
+    renderEditor();
+    select("photo");
+    key("c");
+    cleanup();
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    let answer: (remap: Record<string, string>) => void = () => {};
+    const props = {
+      adoptMedia: () => new Promise<Record<string, string>>((resolve) => (answer = resolve)),
+      resolveMedia: (id: string) => (id === "photo-copy" ? "blob:photo" : undefined),
+    };
+    const view = render(editor(false, props));
+    key("v");
+    act(() => void vi.advanceTimersByTime(300));
+    expect(canvas()).toHaveAttribute("aria-busy", "true");
+    startDrag();
+    await act(async () => {
+      answer({ photo: "photo-copy" });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    view.rerender(editor(true, props));
+    fireEvent.pointerUp(canvas(), at(250, 50));
+    expect(canvas()).not.toHaveAttribute("aria-busy");
+    expect(screen.queryByTestId("slide-editor-adopting")).toBeNull();
+  });
+
+  // #804: a dropped nudge still hands what it was meant for on to the Copy chained behind it; a
+  // dropped Paste hands on nothing, so that Copy leaves the clipboard as it was.
+  const nudge = () => void fireEvent.keyDown(canvas(), { key: "ArrowRight" });
+  it.each<[string, readonly (() => unknown)[], string[]]>([
+    ["behind the drag", [], ["a"]],
+    ["behind a dropped nudge", [nudge], ["a"]],
+    ["behind a dropped paste", [() => key("v")], ["b"]],
+  ])("runs a Copy held %s", (_, before, copied) => {
+    const B = { ...DOC, pages: [{ id: "one", background, elements: [shape("b", 0, 0)] }] };
+    render(editor(false, { document: B }));
+    select("b");
+    key("c");
+    cleanup();
+    const kept = elementClipboard.elements;
+    const view = render(editor(false, {}));
+    startDrag();
+    for (const press of before) press();
+    key("c");
+    expect(elementClipboard.elements).toBe(kept);
+    view.rerender(editor(true, {}));
+    fireEvent.pointerUp(canvas(), at(250, 50));
+    expect(elementClipboard.elements.map(({ id }) => id)).toEqual(copied);
+  });
+});
+
 function within(menu: HTMLElement, name: string) {
   return menu.querySelector<HTMLElement>(`[data-testid=slide-editor-menu-${name}]`)!;
 }

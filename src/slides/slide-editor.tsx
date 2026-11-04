@@ -1275,6 +1275,8 @@ function Editor({
   // Undo and redo show the page their step changed. While cropping, the crop being set is the newest
   // change: Undo takes it back (cropping ends, the image as it was), Redo has nothing to redo.
   const travel = (step: "undo" | "redo") => {
+    // Under `readOnly` the history keeps its host steps, but no Undo or Redo reaches the host (#798).
+    if (readOnly) return;
     // A step taken back or done again is no longer what the last crop said, nor what a number field
     // holds typed.
     setCropNote(undefined);
@@ -2444,6 +2446,10 @@ function Editor({
     meant: Meant;
     left: Meant;
     run: (ids: readonly string[], left: Meant) => readonly string[] | undefined;
+    // Changes nothing (Copy), so it still runs once `readOnly` turned on (#798).
+    readSafe?: boolean;
+    // Selects only what it makes (Paste), so dropped it hands on no ids (#804).
+    dropsToNone?: boolean;
   };
   const held = React.useRef<Held[]>([]);
   const pastePending = React.useRef(false);
@@ -2526,11 +2532,11 @@ function Editor({
       last.presses === handPresses.current
     );
   };
-  const hold = (run: Held["run"]) => {
+  const hold = (run: Held["run"], readSafe?: boolean, dropsToNone?: boolean) => {
     if (!queueBusy()) return false;
     const meant = chained() ? pressChain.current!.left : { ids: selection };
     const left: Meant = { ids: undefined };
-    held.current.push({ meant, left, run });
+    held.current.push({ meant, left, run, readSafe, dropsToNone });
     pressChain.current = { left, seen: selection, presses: handPresses.current };
     return true;
   };
@@ -2590,7 +2596,8 @@ function Editor({
   }, []);
   // `left` is given when the paste runs held, and takes what it leaves selected.
   const paste = (left?: Meant) => {
-    if (left === undefined && hold((_, own) => latestHeld.current.paste(own))) return undefined;
+    if (left === undefined && hold((_, own) => latestHeld.current.paste(own), false, true))
+      return undefined;
     const own = left ?? { ids: undefined };
     const { elements: copied, brand, titles } = elementClipboard;
     const copies = adoptBrand(copied, brand, view.brand, titles);
@@ -2655,6 +2662,24 @@ function Editor({
     };
   });
   React.useEffect(() => {
+    // Commands held from before `readOnly` turned on are dropped, never run, but Copy (#798). A paste
+    // that landed behind the drag is dropped too: its busy status ends with it. A dropped command
+    // leaves what it was meant for selected, a dropped Paste none, so a Copy chained behind it
+    // copies that (#804).
+    if (readOnly) {
+      const dropped = held.current;
+      held.current = [];
+      if (!pastePending.current) {
+        window.clearTimeout(slowTimer.current);
+        setAdopting(undefined);
+      }
+      for (const edit of dropped) {
+        const ids = edit.meant.ids ?? [];
+        if (edit.readSafe === true) edit.run(ids, edit.left);
+        edit.left.ids ??= edit.dropsToNone === true ? [] : ids;
+      }
+      return;
+    }
     if ((drag !== undefined && drag.kind !== "marquee") || pastePending.current) return;
     const edit = held.current.shift();
     if (edit === undefined) return;
@@ -2665,7 +2690,7 @@ function Editor({
     if (pastePending.current) return;
     edit.left.ids ??= result ?? ids;
     setHeldTurn((turn) => turn + 1);
-  }, [drag, heldTurn]);
+  }, [drag, heldTurn, readOnly]);
   // The commands' keys, held or at once. A held one gives what it leaves selected, none for the ids
   // it took.
   const cutKey = () => {
@@ -2673,7 +2698,7 @@ function Editor({
     if (!held) cutSelection();
   };
   const copyKey = () => {
-    if (!hold((ids) => void latestHeld.current.copy(ids))) copySelection();
+    if (!hold((ids) => void latestHeld.current.copy(ids), true)) copySelection();
   };
   const duplicateKey = () => {
     if (!hold((ids) => latestHeld.current.duplicate(ids))) duplicate();
