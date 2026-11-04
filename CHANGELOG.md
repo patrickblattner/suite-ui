@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.223.2 — #804: SlideEditor held Copy behind a dropped command copies the right selection (Codex review v0.223.1 CX1) (patch)
 
 - **Fixed (#804, Codex review v0.223.1 CX1):** a Copy held during a drag behind an arrow-key nudge copied nothing when `readOnly` turned on before the drag ended: the dropped nudge never handed on the selection it was meant for. A dropped command now leaves what it was meant for selected, so the held Copy copies it; a dropped Paste leaves nothing selected, so a Copy held behind it leaves the clipboard as it was. Tests: unit — element dragged, ArrowRight and Copy held, `readOnly` switched on, drag ended: the clipboard holds the element; the same with Paste and Copy held: the clipboard keeps what it held (each fails without the fix).
 
