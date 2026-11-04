@@ -129,10 +129,12 @@ function CanvasLayersHarness() {
 
 // `SUI-FEATURE-222` rev 5, AC 5: an insert point whose `onInsert` selects a block that leaves it no
 // room — under the bar of a 130 px canvas, under the badge of a 60 px one without actions, where an
-// insert point further down stays drawn.
+// insert point further down stays drawn. Rev 7: with neither a bar nor another drawn insert point, the
+// overlay root of a third 60 px canvas takes it, and keeps it when `Esc` clears the selection.
 function FocusHandoff() {
   const [barSelected, setBarSelected] = useState(false);
   const [badgeSelected, setBadgeSelected] = useState(false);
+  const [rootSelected, setRootSelected] = useState(false);
   const insert = (label: string, top: number, width: number, onInsert = () => {}) => ({
     rect: new DOMRectReadOnly(0, top, width, 0),
     label,
@@ -160,6 +162,15 @@ function FocusHandoff() {
             insert("Insert under the badge", 30, 60, () => setBadgeSelected(true)),
             insert("Insert below", 84, 60),
           ]}
+        />
+      </div>
+      <div className="relative h-24 w-[60px] bg-muted" data-testid="harness-focus-root">
+        <CanvasOverlay
+          selected={
+            rootSelected ? { rect: new DOMRectReadOnly(0, 40, 60, 40), name: "Section" } : undefined
+          }
+          onSelectParent={() => setRootSelected(false)}
+          inserts={[insert("Insert, then nowhere", 30, 60, () => setRootSelected(true))]}
         />
       </div>
     </div>

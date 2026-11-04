@@ -395,6 +395,7 @@ export const de: SuiteStrings = {
     readOnly: "Nur lesen",
   },
   canvas: {
+    label: "Arbeitsfläche",
     fit: "Einpassen",
     actual: "100 %",
     zoom: "Zoom",

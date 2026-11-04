@@ -82,6 +82,12 @@ function CanvasOverlay({
 }: CanvasOverlayProps) {
   const { t } = useTranslation("suite");
   const [node, setNode] = React.useState<HTMLDivElement | null>(null);
+  // The same element as `node`, as a ref the focus fallback may set a tab index on (rev 7).
+  const rootRef = React.useRef<HTMLDivElement | null>(null);
+  const setRoot = React.useCallback((element: HTMLDivElement | null) => {
+    rootRef.current = element;
+    setNode(element);
+  }, []);
   useEscapeLayer(
     selectedTarget !== undefined && onSelectParent !== undefined,
     () => onSelectParent?.(),
@@ -177,9 +183,10 @@ function CanvasOverlay({
     size.overlay,
   );
   const insertRefs = React.useRef<(HTMLDivElement | null)[]>([]);
-  // Focus never drops to the page (`SUI-FEATURE-222` rev 5): an insert point that loses its spot
+  // Focus never drops to the page (`SUI-FEATURE-222` rev 7): an insert point that loses its spot
   // while it holds the focus hands it to the bar's first control, without a bar to the nearest insert
-  // point still drawn. Before paint, so the browser never moves it to the body first.
+  // point still drawn, without either to the overlay root. Before paint, so the browser never moves
+  // it to the body first.
   React.useLayoutEffect(() => {
     const index = spots.findIndex(
       (spot, at) => spot.covered && insertRefs.current[at]?.contains(document.activeElement),
@@ -198,11 +205,27 @@ function CanvasOverlay({
       barRef.current?.querySelector<HTMLElement>(
         "button:not(:disabled), [href], input:not(:disabled), select, textarea, [tabindex]:not([tabindex='-1'])",
       ) ?? (nearest === undefined ? null : insertRefs.current[nearest.at]?.querySelector("button"));
-    target?.focus();
+    if (target != null) {
+      target.focus();
+      return;
+    }
+    // Focusable only while it holds this focus (rev 7): `onBlur` below takes the tab index off again,
+    // so a press on the bar's padding never focuses the root.
+    const root = rootRef.current;
+    if (root === null) return;
+    root.tabIndex = -1;
+    root.focus();
   });
   return (
+    // The last focus fallback (rev 7): a group with a static name, so the selection is announced
+    // only by the live region below; never the frame hidden from assistive technology.
     <div
-      ref={setNode}
+      ref={setRoot}
+      role="group"
+      aria-label={t("canvas.label")}
+      onBlur={(event) => {
+        if (event.target === event.currentTarget) event.currentTarget.removeAttribute("tabindex");
+      }}
       data-slot="canvas-overlay"
       className="pointer-events-none absolute inset-0"
       data-testid="canvas-overlay"

@@ -419,6 +419,7 @@ export const en = {
   },
   // The canvas of a visual editor (`CanvasOverlay`, `CanvasZoom`).
   canvas: {
+    label: "Canvas",
     fit: "Fit",
     actual: "100 %",
     zoom: "Zoom",

@@ -12181,6 +12181,72 @@ test("canvas: a focused insert point without room hands the focus on", async ({ 
   expect(await page.evaluate(() => document.activeElement === document.body)).toBe(false);
 });
 
+// #796 (`SUI-FEATURE-222` rev 7, AC 5): one insert point, no actions, the badge covers it — with
+// neither a bar nor another drawn insert point, the focus lands on the overlay root, a group with the
+// static name "Canvas", also after `Esc` clears the selection; never on the body or a hidden element,
+// and the selection is announced once, by the live region only.
+test("canvas: without bar or drawn insert point the overlay root takes the focus", async ({
+  page,
+}) => {
+  await page.goto("/?harness=canvas-layers&lng=en");
+  const canvas = page.getByTestId("harness-focus-root");
+  await canvas.scrollIntoViewIfNeeded();
+  const root = canvas.getByTestId("canvas-overlay");
+  await expect(root).not.toHaveAttribute("tabindex");
+  await canvas.getByRole("button", { name: "Insert, then nowhere" }).focus();
+  await page.keyboard.press("Enter");
+  await expect(canvas.getByTestId("canvas-name")).toBeVisible();
+  await expect(canvas.getByTestId("canvas-insert")).toBeHidden();
+  await expect(root).toBeFocused();
+  await expect(root).toHaveAttribute("tabindex", "-1");
+  await expect(root).toHaveRole("group");
+  await expect(root).toHaveAccessibleName("Canvas");
+  await expect(canvas.getByText("Selected: Section", { exact: true })).toHaveCount(1);
+  await expect(canvas.getByTestId("canvas-announcement")).toHaveText("Selected: Section");
+  const outsideHidden = () =>
+    page.evaluate(
+      () =>
+        document.activeElement !== document.body &&
+        document.activeElement?.closest("[aria-hidden='true']") === null,
+    );
+  expect(await outsideHidden()).toBe(true);
+  const { violations } = await new AxeBuilder({ page })
+    .include('[data-testid="harness-focus-root"]')
+    .withTags(WCAG_TAGS)
+    .analyze();
+  expect(violations).toEqual([]);
+
+  // `Esc` clears the selection: the root keeps the focus and its name; the «+» that regains its spot
+  // does not pull the focus back.
+  await page.keyboard.press("Escape");
+  await expect(canvas.getByTestId("canvas-name")).toHaveCount(0);
+  await expect(canvas.getByTestId("canvas-insert")).toBeVisible();
+  await expect(root).toBeFocused();
+  await expect(root).toHaveAccessibleName("Canvas");
+  expect(await outsideHidden()).toBe(true);
+
+  // Once the focus leaves, the root is no longer focusable.
+  await canvas.getByTestId("canvas-insert").focus();
+  await expect(root).not.toHaveAttribute("tabindex");
+});
+
+// #796 (`SUI-FEATURE-222` rev 7, AC 6): a mouse press on the action bar's padding does not focus the
+// overlay root.
+test("canvas: a press on the action bar's padding leaves the overlay root unfocused", async ({
+  page,
+}) => {
+  await page.goto("/?harness=canvas-layers&lng=en");
+  const canvas = page.getByTestId("harness-focus-bar");
+  await canvas.scrollIntoViewIfNeeded();
+  await canvas.getByRole("button", { name: "Insert and select" }).click();
+  const bar = canvas.getByTestId("canvas-actions");
+  await expect(bar).toBeVisible();
+  const frame = await box(bar);
+  await page.mouse.click(frame.x + 2, frame.y + 2);
+  await expect(canvas.getByTestId("canvas-overlay")).not.toBeFocused();
+  await expect(canvas.getByTestId("canvas-overlay")).not.toHaveAttribute("tabindex");
+});
+
 // `SUI-FEATURE-070` rev 5, AC 9: at the right frame edge the name badge moves left and stays within
 // the frame; wider than the frame it ends in "…" (no title; the full name is in the announcement).
 test("canvas: badge moves left at the right edge, truncates when wider than the frame", async ({

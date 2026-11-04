@@ -388,6 +388,7 @@ export const es: SuiteStrings = {
     readOnly: "Solo lectura",
   },
   canvas: {
+    label: "Lienzo",
     fit: "Ajustar",
     actual: "100 %",
     zoom: "Zoom",
