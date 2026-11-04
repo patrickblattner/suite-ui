@@ -1385,6 +1385,68 @@ describe("SlideEditor element clipboard", () => {
   });
 });
 
+// #798: `readOnly` turned on during a drag drops what was held behind it, but Copy, and ends the
+// busy status of a paste that landed behind the drag.
+describe("SlideEditor held commands when readOnly turns on mid-drag (#798)", () => {
+  const ONE = { ...DOC, pages: [{ id: "one", background, elements: [shape("a", 0, 0)] }] };
+  const editor = (readOnly: boolean, props: Partial<React.ComponentProps<typeof SlideEditor>>) => (
+    <SlideEditor
+      document={ONE}
+      title="Deck"
+      brand={SLIDE_BRAND}
+      onSave={() => true}
+      onBack={() => {}}
+      readOnly={readOnly}
+      {...props}
+    />
+  );
+  const startDrag = () => {
+    fireEvent.pointerDown(canvas(), { ...at(50, 50), button: 0, pointerId: 1 });
+    fireEvent.pointerMove(canvas(), at(250, 50));
+  };
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("ends the busy status of a paste that landed behind the drag", async () => {
+    renderEditor();
+    select("photo");
+    key("c");
+    cleanup();
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    let answer: (remap: Record<string, string>) => void = () => {};
+    const props = {
+      adoptMedia: () => new Promise<Record<string, string>>((resolve) => (answer = resolve)),
+      resolveMedia: (id: string) => (id === "photo-copy" ? "blob:photo" : undefined),
+    };
+    const view = render(editor(false, props));
+    key("v");
+    act(() => void vi.advanceTimersByTime(300));
+    expect(canvas()).toHaveAttribute("aria-busy", "true");
+    startDrag();
+    await act(async () => {
+      answer({ photo: "photo-copy" });
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    view.rerender(editor(true, props));
+    fireEvent.pointerUp(canvas(), at(250, 50));
+    expect(canvas()).not.toHaveAttribute("aria-busy");
+    expect(screen.queryByTestId("slide-editor-adopting")).toBeNull();
+  });
+
+  it("still runs a Copy held behind the drag", () => {
+    const view = render(editor(false, {}));
+    startDrag();
+    key("c");
+    expect(elementClipboard.elements).toEqual([]);
+    view.rerender(editor(true, {}));
+    fireEvent.pointerUp(canvas(), at(250, 50));
+    expect(elementClipboard.elements.map(({ id }) => id)).toEqual(["a"]);
+  });
+});
+
 function within(menu: HTMLElement, name: string) {
   return menu.querySelector<HTMLElement>(`[data-testid=slide-editor-menu-${name}]`)!;
 }

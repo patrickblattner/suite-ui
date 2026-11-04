@@ -1275,6 +1275,8 @@ function Editor({
   // Undo and redo show the page their step changed. While cropping, the crop being set is the newest
   // change: Undo takes it back (cropping ends, the image as it was), Redo has nothing to redo.
   const travel = (step: "undo" | "redo") => {
+    // Under `readOnly` the history keeps its host steps, but no Undo or Redo reaches the host (#798).
+    if (readOnly) return;
     // A step taken back or done again is no longer what the last crop said, nor what a number field
     // holds typed.
     setCropNote(undefined);
@@ -2444,6 +2446,8 @@ function Editor({
     meant: Meant;
     left: Meant;
     run: (ids: readonly string[], left: Meant) => readonly string[] | undefined;
+    // Changes nothing (Copy), so it still runs once `readOnly` turned on (#798).
+    readSafe?: boolean;
   };
   const held = React.useRef<Held[]>([]);
   const pastePending = React.useRef(false);
@@ -2526,11 +2530,11 @@ function Editor({
       last.presses === handPresses.current
     );
   };
-  const hold = (run: Held["run"]) => {
+  const hold = (run: Held["run"], readSafe?: boolean) => {
     if (!queueBusy()) return false;
     const meant = chained() ? pressChain.current!.left : { ids: selection };
     const left: Meant = { ids: undefined };
-    held.current.push({ meant, left, run });
+    held.current.push({ meant, left, run, readSafe });
     pressChain.current = { left, seen: selection, presses: handPresses.current };
     return true;
   };
@@ -2655,6 +2659,18 @@ function Editor({
     };
   });
   React.useEffect(() => {
+    // Commands held from before `readOnly` turned on are dropped, never run, but Copy (#798). A paste
+    // that landed behind the drag is dropped too: its busy status ends with it.
+    if (readOnly) {
+      const kept = held.current.filter((edit) => edit.readSafe === true);
+      held.current = [];
+      if (!pastePending.current) {
+        window.clearTimeout(slowTimer.current);
+        setAdopting(undefined);
+      }
+      for (const edit of kept) edit.run(edit.meant.ids ?? [], edit.left);
+      return;
+    }
     if ((drag !== undefined && drag.kind !== "marquee") || pastePending.current) return;
     const edit = held.current.shift();
     if (edit === undefined) return;
@@ -2665,7 +2681,7 @@ function Editor({
     if (pastePending.current) return;
     edit.left.ids ??= result ?? ids;
     setHeldTurn((turn) => turn + 1);
-  }, [drag, heldTurn]);
+  }, [drag, heldTurn, readOnly]);
   // The commands' keys, held or at once. A held one gives what it leaves selected, none for the ids
   // it took.
   const cutKey = () => {
@@ -2673,7 +2689,7 @@ function Editor({
     if (!held) cutSelection();
   };
   const copyKey = () => {
-    if (!hold((ids) => void latestHeld.current.copy(ids))) copySelection();
+    if (!hold((ids) => void latestHeld.current.copy(ids), true)) copySelection();
   };
   const duplicateKey = () => {
     if (!hold((ids) => latestHeld.current.duplicate(ids))) duplicate();

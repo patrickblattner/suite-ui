@@ -1,10 +1,11 @@
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import * as React from "react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SLIDE_BRAND } from "../../gallery/slide-showcase.js";
 import { elementClipboard } from "./element-clipboard-internal.js";
 import { FORMAT_16_9, SLIDE_SCHEMA_VERSION, type SlideDocumentInput } from "./schema.js";
-import { SlideEditor } from "./slide-editor.js";
+import { SlideEditor, type SlideEditorHandle } from "./slide-editor.js";
 
 // `SUI-FEATURE-133`: `readOnly` keeps every handle that changes the document out of the DOM, lets no
 // key or gesture change it, and shows the selection's properties as text.
@@ -144,6 +145,37 @@ describe("SlideEditor readOnly switched on mid-session (#789)", () => {
     view.rerender(editor(false));
     expect(document.querySelector("[contenteditable='true']")).toBeNull();
   });
+
+  // #798: an Undo or Redo held behind a drag never reaches the host once `readOnly` turned on.
+  it.each(["undo", "redo"] as const)(
+    "never runs a held host %s after readOnly turns on mid-drag",
+    (step) => {
+      const ref = React.createRef<SlideEditorHandle>();
+      const editor = (readOnly: boolean) => (
+        <SlideEditor
+          document={DOC}
+          title="Deck"
+          brand={SLIDE_BRAND}
+          onSave={() => true}
+          onBack={() => {}}
+          readOnly={readOnly}
+          ref={ref}
+        />
+      );
+      const view = render(editor(false));
+      const host = { undo: vi.fn(), redo: vi.fn() };
+      act(() => ref.current!.recordHostStep(host));
+      // Redo needs a step taken back first.
+      if (step === "redo") fireEvent.keyDown(canvas(), { key: "z", ctrlKey: true });
+      fireEvent.pointerDown(canvas(), { ...at(50, 50), button: 0, pointerId: 1 });
+      fireEvent.pointerMove(canvas(), at(250, 50));
+      fireEvent.keyDown(canvas(), { key: step === "undo" ? "z" : "y", ctrlKey: true });
+      expect(host[step]).not.toHaveBeenCalled();
+      view.rerender(editor(true));
+      fireEvent.pointerUp(canvas(), at(250, 50));
+      expect(host[step]).not.toHaveBeenCalled();
+    },
+  );
 });
 
 function renderEditor(readOnly: boolean) {
