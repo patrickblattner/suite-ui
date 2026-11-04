@@ -3,6 +3,7 @@ import * as React from "react";
 import { describe, expect, it } from "vitest";
 
 import { Tabs, TabsList, TabsTrigger } from "../ui/tabs.js";
+import { expectEveryTabControlsAPanel as expectPanels } from "../ui/test-utils.js";
 import { ListTabPanel } from "./list-tabs.js";
 
 const VALUES = ["all", "open", "done"] as const;
@@ -40,22 +41,7 @@ function Controlled({
 
 // Every trigger's `aria-controls` names a `tabpanel` in the DOM; only the active one shows, with the list.
 function expectEveryTabControlsAPanel(active: string) {
-  for (const tab of screen.getAllByRole("tab")) {
-    const panel = document.getElementById(tab.getAttribute("aria-controls") ?? "");
-    expect(panel).not.toBeNull();
-    expect(panel).toHaveAttribute("role", "tabpanel");
-    expect(panel).toHaveAttribute("aria-labelledby", tab.id);
-    if (tab.textContent === active) {
-      expect(panel).toBe(screen.getByTestId("scroller"));
-      expect(panel).toBeVisible();
-      expect(panel).toHaveTextContent(`rows of ${active}`);
-    } else {
-      expect(panel).not.toBeVisible();
-      expect(panel).toHaveAttribute("hidden");
-      expect(panel).toBeEmptyDOMElement();
-    }
-  }
-  expect(screen.getAllByRole("tabpanel")).toEqual([screen.getByTestId("scroller")]);
+  expectPanels(active, "scroller", `rows of ${active}`);
 }
 
 // #783 (WAI-ARIA tabs, `GL-UX-001`): inactive triggers keep a valid `aria-controls`.

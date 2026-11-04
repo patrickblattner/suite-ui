@@ -76,7 +76,7 @@ import {
   TableHeader,
   TableRow,
 } from "../src/ui/table.js";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../src/ui/tabs.js";
+import { Tabs, TabsContent, TabsList, TabsSharedContent, TabsTrigger } from "../src/ui/tabs.js";
 import { TagInput } from "../src/ui/tag-input.js";
 import { Textarea } from "../src/ui/textarea.js";
 import { TimezoneCombobox } from "../src/ui/timezone-combobox.js";
@@ -1176,6 +1176,32 @@ function Badges() {
   );
 }
 
+// SUI-FEATURE-132: one surface for three tabs, its content following the active tab; every trigger's
+// `aria-controls` names a panel in the DOM.
+const SHARED_TABS = [
+  ["mail", "Mail"],
+  ["push", "Push"],
+  ["sms", "SMS"],
+] as const;
+
+function SharedTabs() {
+  const [channel, setChannel] = useState<string>("mail");
+  return (
+    <Tabs value={channel} onValueChange={setChannel} data-testid="shared-tabs">
+      <TabsList>
+        {SHARED_TABS.map(([tab, label]) => (
+          <TabsTrigger key={tab} value={tab} data-testid={`shared-tab-${tab}`}>
+            {label}
+          </TabsTrigger>
+        ))}
+      </TabsList>
+      <TabsSharedContent data-testid="shared-tabs-surface">
+        Shared surface: {SHARED_TABS.find(([tab]) => tab === channel)?.[1]} template
+      </TabsSharedContent>
+    </Tabs>
+  );
+}
+
 function Structure() {
   return (
     <Section id="structure" title="Tabs · Card · Table · Accordion">
@@ -1198,6 +1224,7 @@ function Structure() {
             </TabsList>
             <TabsContent value="general">Line tabs</TabsContent>
           </Tabs>
+          <SharedTabs />
           <Accordion type="single" collapsible defaultValue="open">
             <AccordionItem value="open">
               <AccordionTrigger>Open item</AccordionTrigger>

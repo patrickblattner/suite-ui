@@ -790,6 +790,19 @@ const AXE_PAGES: [
   ["edit-panel", (page) => page.getByTestId("media-panel-trigger")],
   ["editor-shell", (page) => page.getByTestId("editor-save")],
   ["editor-shell", (page) => page.getByTestId("editor-save"), "&layout=screen"],
+  // SUI-FEATURE-132: the shared tab surface after a switch to its third tab.
+  [
+    "components",
+    (page) => page.getByTestId("shared-tabs"),
+    "",
+    [
+      "with the shared tab surface switched",
+      async (page) => {
+        await page.getByTestId("shared-tab-sms").click();
+        await expect(page.getByTestId("shared-tabs-surface")).toHaveText(/SMS/);
+      },
+    ],
+  ],
   [
     "components",
     (page) => page.getByTestId("section-crop"),
@@ -2458,6 +2471,28 @@ test("list area: switching the view keeps frame, tab row and FilterBar in place"
   expect(await Promise.all(parts.map((part) => box(page.getByTestId(part))))).toEqual(before);
 });
 
+// WAI-ARIA tabs (`GL-UX-001`): per tab, whether it is selected and the panel its `aria-controls` names —
+// role, label, visibility and content (the count of `count` matches, else the panel's text).
+function tabPanels(tabs: Locator, count?: string) {
+  return tabs.evaluateAll(
+    (els, count) =>
+      els.map((tab) => {
+        const panel = document.getElementById(tab.getAttribute("aria-controls") ?? "");
+        return {
+          selected: tab.getAttribute("aria-selected") === "true",
+          role: panel?.getAttribute("role"),
+          labelledBy: panel?.getAttribute("aria-labelledby") === tab.id,
+          shown: panel !== null && panel.checkVisibility(),
+          content:
+            count === undefined
+              ? (panel?.textContent ?? "")
+              : (panel?.querySelectorAll(count).length ?? 0),
+        };
+      }),
+    count,
+  );
+}
+
 // #783 (WAI-ARIA tabs, `GL-UX-001`): on the list with four tabs every trigger's `aria-controls` names a
 // `tabpanel` in the DOM, before and after a switch; only the active one shows, with the rows.
 for (const theme of THEMES) {
@@ -2465,32 +2500,48 @@ for (const theme of THEMES) {
     await page.goto(`/?page=list&slots=tabs&lng=en&theme=${theme}`);
     const tabs = page.getByRole("tab");
     await expect(tabs).toHaveCount(4);
-    const panels = () =>
-      tabs.evaluateAll((els) =>
-        els.map((tab) => {
-          const panel = document.getElementById(tab.getAttribute("aria-controls") ?? "");
-          return {
-            selected: tab.getAttribute("aria-selected") === "true",
-            role: panel?.getAttribute("role"),
-            labelledBy: panel?.getAttribute("aria-labelledby") === tab.id,
-            shown: panel !== null && panel.checkVisibility(),
-            rows: panel?.querySelectorAll("[data-testid=list-row]").length ?? 0,
-          };
-        }),
-      );
+    const panels = () => tabPanels(tabs, "[data-testid=list-row]");
     const expected = (active: number, rows: number) =>
       Array.from({ length: 4 }, (_, i) => ({
         selected: i === active,
         role: "tabpanel",
         labelledBy: true,
         shown: i === active,
-        rows: i === active ? rows : 0,
+        content: i === active ? rows : 0,
       }));
     await expect(page.getByTestId("list-row")).toHaveCount(200);
     expect(await panels()).toEqual(expected(0, 200));
     await page.getByTestId("list-tab-error").click();
     await expect(page.getByTestId("list-row")).toHaveCount(66);
     expect(await panels()).toEqual(expected(3, 66));
+  });
+}
+
+// SUI-FEATURE-132 (WAI-ARIA tabs, `GL-UX-001`): on the shared tab surface with three tabs every
+// trigger's `aria-controls` names a `tabpanel` in the DOM, before and after a click and an arrow-key
+// switch; only the active one shows, with the content.
+for (const theme of THEMES) {
+  test(`shared tabs: every trigger controls a panel in the DOM ${theme}`, async ({ page }) => {
+    await page.goto(`/?page=components&lng=en&theme=${theme}`);
+    const tabs = page.getByTestId("shared-tabs").getByRole("tab");
+    await expect(tabs).toHaveCount(3);
+    const panels = () => tabPanels(tabs);
+    const expected = (active: number) =>
+      ["Mail", "Push", "SMS"].map((name, i) => ({
+        selected: i === active,
+        role: "tabpanel",
+        labelledBy: true,
+        shown: i === active,
+        content: i === active ? `Shared surface: ${name} template` : "",
+      }));
+    expect(await panels()).toEqual(expected(0));
+    await page.getByTestId("shared-tab-sms").click();
+    await expect(page.getByTestId("shared-tabs-surface")).toHaveText(/SMS/);
+    expect(await panels()).toEqual(expected(2));
+    await page.keyboard.press("ArrowLeft");
+    await expect(page.getByTestId("shared-tab-push")).toBeFocused();
+    await expect(page.getByTestId("shared-tabs-surface")).toHaveText(/Push/);
+    expect(await panels()).toEqual(expected(1));
   });
 }
 

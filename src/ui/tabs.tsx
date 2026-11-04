@@ -3,7 +3,7 @@ import { cva, type VariantProps } from "class-variance-authority";
 import { Tabs as TabsPrimitive } from "radix-ui";
 
 import { cn } from "../lib/cn.js";
-import { TabsRegisterContext, TabsValuesContext } from "./tabs-values-internal.js";
+import { TabsRegisterContext, TabsValuesContext, useTabValues } from "./tabs-values-internal.js";
 
 // What the triggers need for their tab stop (the focused trigger while the focus is in the list, else
 // the selected one) and to hold back the activation of a focus from outside (see `TabsTrigger`).
@@ -189,4 +189,32 @@ function TabsContent({ className, ...props }: React.ComponentProps<typeof TabsPr
   );
 }
 
-export { Tabs, TabsList, TabsTrigger, TabsContent, tabsListVariants };
+// One surface for all tabs (`SUI-FEATURE-132`): always mounted as the active tab's panel, its content
+// following the active value, plus one empty, hidden panel per inactive trigger, so every trigger's
+// `aria-controls` names a `tabpanel` in the DOM (WAI-ARIA tabs, `GL-UX-001`). The values come from the
+// triggers registered in `Tabs`. With `asChild` the child is the panel and keeps its own look; without
+// it the panel looks and takes focus like `TabsContent` (`SUI-FEATURE-055`). Hidden panels are no tab
+// stop.
+function TabsSharedContent({
+  className,
+  asChild,
+  ...props
+}: Omit<React.ComponentProps<typeof TabsPrimitive.Content>, "value" | "forceMount">) {
+  const active = React.useContext(TabsFocusContext)?.value ?? "";
+  const values = useTabValues();
+  const inactive = [...new Set(values)].filter((value) => value !== active);
+  return (
+    <>
+      {asChild === true ? (
+        <TabsPrimitive.Content value={active} forceMount asChild className={className} {...props} />
+      ) : (
+        <TabsContent value={active} forceMount className={className} {...props} />
+      )}
+      {inactive.map((value) => (
+        <TabsPrimitive.Content key={value} value={value} forceMount hidden />
+      ))}
+    </>
+  );
+}
+
+export { Tabs, TabsList, TabsTrigger, TabsContent, TabsSharedContent, tabsListVariants };
