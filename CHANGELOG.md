@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #796: `CanvasOverlay` focus never drops when neither an action bar nor a drawn insert point remains (SUI-FEATURE-222 rev 7) (patch)
+## 0.219.1 — #796: `CanvasOverlay` focus never drops when neither an action bar nor a drawn insert point remains (SUI-FEATURE-222 rev 7) (patch)
 
 - **Fixed (#796, SUI-FEATURE-222 rev 7, Codex review v0.219.0 CX1):** an insert point that held the keyboard focus when it lost its spot, with no action bar and no other insert point still drawn, left the focus to drop to the page body. The overlay root now takes it as the last fallback. The root is always `role="group"` with the static name `canvas.label` (de "Arbeitsfläche", en "Canvas", es "Lienzo"); the selection is still announced only by the live region (`canvas.selected`). It is focusable (`tabindex="-1"`, never in the tab order) only while it holds this fallback focus, so a mouse press on the action bar's padding never focuses it; it draws no browser outline, like the package's other script-only focus targets. An insert point that regains its spot does not pull the focus back, and the frame hidden from assistive technology is never focused.
 - **Added (#796):** string `canvas.label` in de/en/es.
