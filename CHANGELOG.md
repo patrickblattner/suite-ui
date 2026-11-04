@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #787: SlideEditor host slots — `status`, `pagePanel`, labelled `overlays`, `recordHostStep`, `hostDirty`/`onReset` (SUI-FEATURE-134 rev 6, SUI-FEATURE-064 rev 7) (minor)
+## 0.220.0 — #787: SlideEditor host slots — `status`, `pagePanel`, labelled `overlays`, `recordHostStep`, `hostDirty`/`onReset` (SUI-FEATURE-134 rev 6, SUI-FEATURE-064 rev 7) (minor)
 
 - **Added (#787, SUI-FEATURE-134 rev 5):** `status?: ReactNode` on `SlideEditor`, shown in the header's status place (a waiting paste's status takes the place while it shows); without it the header is unchanged.
 - **Added (#787):** `pagePanel?: { title: string; content: ReactNode }` on `SlideEditor`: with nothing selected the inspector shows it as a titled section below the page's properties (under `readOnly` too, with the host's read-only content); a selection hides it. The editor neither reads nor stores its values.
