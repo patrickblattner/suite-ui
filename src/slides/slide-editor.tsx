@@ -3912,9 +3912,10 @@ function Editor({
     </div>
   );
 
-  // Under `readOnly` the inspector's tabs (`SUI-FEATURE-133` rev 3), as the editable one's: the
-  // selected element's text format under Content, its box and animation under Layout; the page's
-  // transition and format without a selection; a line naming the count for several.
+  // Under `readOnly` the inspector's tabs (`SUI-FEATURE-133` rev 4), as the editable one's: the
+  // selected element's text format under Content, its flip, box, line, shadow and animation under
+  // Layout; the page's flip, transition and format without a selection; a line naming the count
+  // for several.
   const readOnlyBody = single === undefined ? undefined : bodyOf(single, undefined);
   const readOnlyContent =
     single !== undefined && hasReadOnlyContent(single, readOnlyBody) ? (
