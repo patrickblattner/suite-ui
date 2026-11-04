@@ -59,7 +59,10 @@ const HOOK_SPAWN_TIMEOUT = 60_000;
 // default. A test's timeout matches the hooks'. A synchronous test is only failed once it returns, so
 // each spawn ends itself well below that: a hung process is killed and its test fails.
 vi.setConfig({ testTimeout: HOOK_SPAWN_TIMEOUT });
-const SPAWN_TIMEOUT = 20_000;
+// One `tag` spawn is itself a chain (node with the script, which starts seven git processes in turn);
+// on a saturated box (#790's gate, #794) that chain passed 20 s, the spawn was killed and its status
+// read null ("expected null to be 0"). The bound stays below the test's, so a hang still fails it.
+const SPAWN_TIMEOUT = 45_000;
 const fresh = (prefix: string) => mkdtempSync(join(tmpdir(), prefix));
 const copyOf = (template: string) => {
   const dir = fresh("suite-ui-release-");

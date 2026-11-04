@@ -18680,7 +18680,13 @@ const playingSlides = (page: Page) =>
 test("slide editor: entrances in order and a cross-fade play in the preview and the player", async ({
   page,
 }) => {
+  // #794: the preview's timers step the play (the 500 ms cross-fade, then each entrance 500 ms after
+  // the one before). In real time a loaded box fired two of them in one task, React drew step 0 → 2
+  // and step 1 was never on the page; on the page clock each step stands until the test moves on.
+  await page.clock.install({ time: T0 });
   const { editor } = await animatedPage(page);
+  // The installed clock runs on from T0; it stops a second ahead of where the page stands.
+  await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 1000);
   await editor.getByTestId("slide-editor-preview").click();
   const preview = page.getByTestId("slide-editor-preview-dialog");
   const stage = preview.locator("[data-slot=slide-preview]");
@@ -18695,12 +18701,16 @@ test("slide editor: entrances in order and a cross-fade play in the preview and 
     "suite-slide-fade-in",
   );
   await expect(stage).toHaveAttribute("data-slide-steps", "2");
+  await expect(stage).toHaveAttribute("data-slide-step", "0");
+  await page.clock.runFor(500);
   await expect(stage).toHaveAttribute("data-slide-step", "1");
   await expect(inner(stage, "picture")).toHaveCSS("animation-name", "suite-slide-fade-in");
   await expect(inner(stage, "caption")).toHaveCSS("visibility", "hidden");
+  await expect(preview.locator("[data-slot=slide-preview-outgoing]")).toHaveCount(0);
+  await page.clock.runFor(500);
   await expect(stage).toHaveAttribute("data-slide-step", "2");
   await expect(inner(stage, "caption")).toHaveCSS("animation-name", "suite-slide-slide-in-left");
-  await expect(preview.locator("[data-slot=slide-preview-outgoing]")).toHaveCount(0);
+  await page.clock.resume();
   await preview.getByTestId("slide-editor-preview-close").click();
   await expect(preview).toHaveCount(0);
   await expect(editor.getByTestId("slide-editor-preview")).toBeFocused();
