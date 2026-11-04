@@ -21,7 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { IconButtonTooltip } from "../ui/tooltip.js";
 import { LockedFieldHint, LockedTrigger } from "./element-lock-internal.js";
 import type { SlideBrandSet } from "./brand.js";
-import { brandColorItems } from "./brand-color-items-internal.js";
+import { SlideColorField } from "./brand-color-items-internal.js";
 import type { Box } from "./editor-ops.js";
 import { NumberField } from "./number-field.js";
 import {
@@ -1039,9 +1039,8 @@ export function shownFormat(body: TextBody, range: TextRange | undefined) {
   const fill =
     format.fill ??
     (mixed.has("fill") ? undefined : { type: "color" as const, color: DEFAULT_TEXT_COLOR });
-  const colorKey =
-    fill?.type === "color" && fill.color.kind === "brand" ? fill.color.key : undefined;
-  return { start, end, format, mixed, font, colorKey };
+  const color = fill?.type === "color" ? fill.color : undefined;
+  return { start, end, format, mixed, font, color };
 }
 
 // The range a format applies to: the selected text, or the whole field without a selection.
@@ -1077,6 +1076,7 @@ export function TextFormatFields({
   brand,
   readOnly,
   revision,
+  target = "",
   onFormat,
   onBody,
   onInline,
@@ -1084,6 +1084,8 @@ export function TextFormatFields({
   testIdPrefix: string;
   body: TextBody;
   range: TextRange | undefined;
+  // What the format is of (element, cell, range): the colour field's typed value belongs to it.
+  target?: string;
   brand: SlideBrandSet;
   readOnly: boolean;
   // The history's travel count, for the size field (`NumberField`).
@@ -1098,7 +1100,7 @@ export function TextFormatFields({
   // Per instance, so two mounted editors never share a field id (#566); `testIdPrefix` names the test ids.
   const id = React.useId();
   const selectedInline = onInline === undefined ? undefined : inlineAt(body.runs, range);
-  const { start, end, format, mixed, font, colorKey } = shownFormat(body, range);
+  const { start, end, format, mixed, font, color } = shownFormat(body, range);
   const fontKey = font?.kind === "brand" ? font.key : undefined;
   const bold = !mixed.has("weight") && (format.weight ?? 400) >= 600;
   const italic = !mixed.has("italic") && format.italic === true;
@@ -1190,34 +1192,22 @@ export function TextFormatFields({
             }}
             testId={`${testIdPrefix}-size`}
           />
-          <Field
+          <SlideColorField
+            id={`${id}-color`}
             label={t("slides.editor.textColor")}
-            htmlFor={`${id}-color`}
             hint={t("slides.editor.textColorHint")}
             valueHint={t("slides.editor.textColorValueHint")}
-          >
-            <Select
-              value={colorKey ?? ""}
-              onValueChange={(key) =>
-                onFormat({ fill: { type: "color", color: { kind: "brand", key } } })
-              }
-            >
-              <LockedTrigger locked={readOnly}>
-                <SelectTrigger
-                  id={`${id}-color`}
-                  aria-describedby={helpIdFor(`${id}-color`)}
-                  fieldName={t("slides.editor.textColor")}
-                  className="w-full"
-                  data-testid={`${testIdPrefix}-color`}
-                >
-                  <SelectValue
-                    placeholder={mixed.has("fill") ? mixedText : t("slides.editor.textOwnColor")}
-                  />
-                </SelectTrigger>
-              </LockedTrigger>
-              <SelectContent>{brandColorItems(brand)}</SelectContent>
-            </Select>
-          </Field>
+            color={color}
+            brand={brand}
+            readOnly={readOnly}
+            placeholder={mixed.has("fill") ? mixedText : undefined}
+            onColor={(next) => {
+              if (next !== undefined) onFormat({ fill: { type: "color", color: next } });
+            }}
+            testId={`${testIdPrefix}-color`}
+            target={target}
+            revision={revision}
+          />
         </div>
         <div className="flex flex-wrap gap-0.5" data-tooltip-row="">
           {toggle(

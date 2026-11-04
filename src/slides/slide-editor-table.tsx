@@ -16,6 +16,7 @@ import { IconButtonTooltip } from "../ui/tooltip.js";
 import { LockedTrigger } from "./element-lock-internal.js";
 import type { SlideBrandSet } from "./brand.js";
 import type { Box } from "./editor-ops.js";
+import { SlideColorField } from "./brand-color-items-internal.js";
 import {
   columnBorders,
   deleteColumn,
@@ -27,7 +28,6 @@ import {
   type Table,
 } from "./editor-table.js";
 import { NumberField } from "./number-field.js";
-import { cssColor } from "./render-style.js";
 import { SLIDE_LIMITS } from "./schema.js";
 
 // A cell of a table by its row and column.
@@ -162,12 +162,6 @@ export function TableFields({
     columns >= SLIDE_LIMITS.maxTableColumns
       ? t("slides.editor.tableMaxColumns", { max: SLIDE_LIMITS.maxTableColumns })
       : undefined;
-  const fillKey =
-    current?.fill?.type === "color" && current.fill.color.kind === "brand"
-      ? current.fill.color.key
-      : current?.fill === undefined
-        ? "none"
-        : "";
   return (
     <section className="flex flex-col gap-2" data-testid="slide-editor-table">
       <h3 className="text-base font-semibold">{t("slides.editor.tableCell", values)}</h3>
@@ -302,54 +296,36 @@ export function TableFields({
           />
         </div>
         <div className="grid grid-cols-2 gap-4" data-tooltip-row="">
-          <Field
+          <SlideColorField
+            id={`${id}-fill`}
             label={t("slides.editor.tableCellFill")}
-            htmlFor={`${id}-fill`}
             hint={t("slides.editor.tableCellFillHint")}
             valueHint={t("slides.editor.tableCellFillValueHint", {
               none: t("slides.editor.tableNoFill"),
               interpolation: { escapeValue: false },
             })}
-          >
-            <Select
-              value={fillKey}
-              onValueChange={(key) =>
-                onChange(
-                  setCell(table, cell.row, cell.column, (one) => {
-                    const next = { ...one };
-                    if (key === "none") delete next.fill;
-                    else next.fill = { type: "color", color: { kind: "brand", key } };
-                    return next;
-                  }),
-                )
-              }
-            >
-              <LockedTrigger locked={readOnly}>
-                <SelectTrigger
-                  id={`${id}-fill`}
-                  aria-describedby={helpIdFor(`${id}-fill`)}
-                  fieldName={t("slides.editor.tableCellFill")}
-                  className="w-full"
-                  data-testid="slide-editor-table-fill"
-                >
-                  <SelectValue placeholder={t("slides.editor.textOwnColor")} />
-                </SelectTrigger>
-              </LockedTrigger>
-              <SelectContent>
-                <SelectItem value="none">{t("slides.editor.tableNoFill")}</SelectItem>
-                {Object.entries(brand.colors).map(([key, { label }]) => (
-                  <SelectItem key={key} value={key}>
-                    <span
-                      aria-hidden="true"
-                      className="size-3 shrink-0 rounded-full border"
-                      style={{ background: cssColor({ kind: "brand", key }, brand) }}
-                    />
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </Field>
+            color={current?.fill?.type === "color" ? current.fill.color : undefined}
+            brand={brand}
+            readOnly={readOnly}
+            none={t("slides.editor.tableNoFill")}
+            // A gradient is no option of the field.
+            placeholder={
+              current?.fill?.type === "gradient" ? t("slides.editor.textOwnColor") : undefined
+            }
+            onColor={(color) =>
+              onChange(
+                setCell(table, cell.row, cell.column, (one) => {
+                  const next = { ...one };
+                  if (color === undefined) delete next.fill;
+                  else next.fill = { type: "color", color };
+                  return next;
+                }),
+              )
+            }
+            testId="slide-editor-table-fill"
+            target={`${table.id}:${cell.row}:${cell.column}`}
+            revision={revision}
+          />
           <Field
             label={t("slides.editor.tableVerticalAlign")}
             htmlFor={`${id}-valign`}

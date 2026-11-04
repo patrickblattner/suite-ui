@@ -3,7 +3,8 @@ import { useTranslation } from "react-i18next";
 
 import { formatDecimal } from "../ui/decimal-number.js";
 import type { SlideBrandSet } from "./brand.js";
-import { cssColor, DEFAULT_TEXT_SIZE } from "./render-style.js";
+import { ColorText } from "./brand-color-items-internal.js";
+import { DEFAULT_TEXT_SIZE } from "./render-style.js";
 import type { SlideElement, SlidePage } from "./schema.js";
 import { shownFormat, type TextBody } from "./slide-editor-text.js";
 
@@ -187,10 +188,12 @@ export function ReadOnlyContent({
   );
 
   function textRows(of: TextBody): Row[] {
-    const { format, mixed, font, colorKey } = shownFormat(of, undefined);
+    const { format, mixed, font, color } = shownFormat(of, undefined);
     const mixedText = t("slides.editor.textMixed");
     const brandFont = font?.kind === "brand" ? brand.fonts[font.key] : undefined;
-    const brandColor = colorKey === undefined ? undefined : brand.colors[colorKey];
+    // A brand colour of the set by its name, a free one marked as own colour (`SUI-FEATURE-137`).
+    const named =
+      color !== undefined && (color.kind === "free" || Object.hasOwn(brand.colors, color.key));
     const styles = [
       !mixed.has("weight") && (format.weight ?? 400) >= 600
         ? t("slides.editor.textBold")
@@ -221,18 +224,16 @@ export function ReadOnlyContent({
         label: t("slides.editor.textColor"),
         value: mixed.has("fill") ? (
           mixedText
-        ) : brandColor === undefined || colorKey === undefined ? (
+        ) : color === undefined || !named ? (
           t("slides.editor.textOwnColor")
         ) : (
-          // The swatch beside the brand name, as the editable select shows it.
+          // The swatch beside the colour's name, as the editable field shows it.
           <span className="inline-flex items-center gap-2">
-            <span
-              aria-hidden="true"
-              className="size-3 shrink-0 rounded-full border"
-              style={{ background: cssColor({ kind: "brand", key: colorKey }, brand) }}
-              data-testid="slide-editor-readonly-color-swatch"
+            <ColorText
+              color={color}
+              brand={brand}
+              swatchTestId="slide-editor-readonly-color-swatch"
             />
-            {brandColor.label}
           </span>
         ),
       },

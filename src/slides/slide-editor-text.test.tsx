@@ -556,6 +556,8 @@ describe("SlideEditor text editing", () => {
       "Accent",
       "Muted",
       "Highlight",
+      // The free entry after the brand colours (SUI-FEATURE-137).
+      "Own colour",
     ]);
   });
 

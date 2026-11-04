@@ -6,16 +6,19 @@ import { helpIdFor } from "../ui/label-with-help.js";
 import { Switch } from "../ui/switch.js";
 import type { SlideBrandSet } from "./brand.js";
 import { LockedTrigger } from "./element-lock-internal.js";
-import { BrandColorSelect } from "./brand-color-items-internal.js";
+import { SlideColorField } from "./brand-color-items-internal.js";
 import { NumberField } from "./number-field.js";
 import type { SlideElement } from "./schema.js";
 
 export type ElementShadow = NonNullable<Extract<SlideElement, { type: "text" }>["shadow"]>;
 
-// The shadow an element gets as it is switched on (`SUI-FEATURE-135` rev 3): the brand's first
-// colour, blur 8, offset 4/4.
+// The shadow an element gets as it is switched on (`SUI-FEATURE-135` rev 4): the brand's text
+// colour (`defaults.text`, `SUI-FEATURE-106`) when the set has that key, else its first colour; blur 8,
+// offset 4/4.
 const shadowFor = (brand: SlideBrandSet): ElementShadow => {
-  const key = Object.keys(brand.colors)[0];
+  const text = brand.defaults?.text;
+  const key =
+    text !== undefined && Object.hasOwn(brand.colors, text) ? text : Object.keys(brand.colors)[0];
   return {
     color: key === undefined ? { kind: "free", value: "#000000" } : { kind: "brand", key },
     blur: 8,
@@ -91,7 +94,7 @@ export function ShadowFields({
         </Field>
         {shadow === undefined ? null : (
           <>
-            <BrandColorSelect
+            <SlideColorField
               id={`${id}-color`}
               label={t("slides.editor.shadowColor")}
               hint={t("slides.editor.shadowColorHint")}
@@ -99,8 +102,12 @@ export function ShadowFields({
               color={shadow.color}
               brand={brand}
               readOnly={readOnly}
-              onColor={(color) => patched({ color })}
+              onColor={(color) => {
+                if (color !== undefined) patched({ color });
+              }}
               testId="slide-editor-shadow-color"
+              target={elementId}
+              revision={revision}
             />
             {number("blur", "shadowBlur")}
             <div className="grid grid-cols-2 gap-4" data-tooltip-row="">

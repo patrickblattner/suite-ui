@@ -5,7 +5,7 @@ import { Field } from "../ui/field.js";
 import { helpIdFor } from "../ui/label-with-help.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select.js";
 import type { SlideBrandSet } from "./brand.js";
-import { BrandColorSelect } from "./brand-color-items-internal.js";
+import { SlideColorField } from "./brand-color-items-internal.js";
 import { LockedTrigger } from "./element-lock-internal.js";
 import { NumberField } from "./number-field.js";
 import type { SlideElement } from "./schema.js";
@@ -45,7 +45,7 @@ export function LineFields({
     <section className="flex flex-col gap-2" data-testid="slide-editor-line">
       <h3 className="text-base font-semibold">{t("slides.editor.lineSection")}</h3>
       <div className="flex flex-col gap-4">
-        <BrandColorSelect
+        <SlideColorField
           id={`${id}-color`}
           label={t("slides.editor.lineColor")}
           hint={t("slides.editor.lineColorHint")}
@@ -53,8 +53,12 @@ export function LineFields({
           color={line.stroke.color}
           brand={brand}
           readOnly={readOnly}
-          onColor={(color) => onLine({ ...line, stroke: { ...line.stroke, color } })}
+          onColor={(color) => {
+            if (color !== undefined) onLine({ ...line, stroke: { ...line.stroke, color } });
+          }}
           testId="slide-editor-line-color"
+          target={line.id}
+          revision={revision}
         />
         <NumberField
           key={`${line.id}-width`}

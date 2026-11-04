@@ -8,22 +8,22 @@ import { Field } from "../ui/field.js";
 import { helpIdFor } from "../ui/label-with-help.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select.js";
 import { IconButtonTooltip } from "../ui/tooltip.js";
-import { brandColorItems } from "./brand-color-items-internal.js";
+import { SlideColorField } from "./brand-color-items-internal.js";
 import { LockedTrigger } from "./element-lock-internal.js";
 import type { SlideBrandSet } from "./brand.js";
 import { NumberField } from "./number-field.js";
-import { type ColorValue, type FontValue, type NumberedList, SLIDE_LIMITS } from "./schema.js";
+import { type FontValue, type NumberedList, SLIDE_LIMITS } from "./schema.js";
 import { MAX_TEXT_SIZE } from "./slide-editor-text.js";
 
 type Marker = NonNullable<NumberedList["marker"]>;
 type NumberKey = "start" | "markerGap" | "entryGap" | "size";
 
-// The selects' value for "as the entry": a space, so no brand key is it.
+// The font select's value for "as the entry": a space, so no brand key is it.
 const FROM_ENTRY = " ";
 
-// A select's value for a marker font or colour: its brand key, "as the entry" when absent, empty
-// (the placeholder "Own font" / "Own colour", as the run's pickers show it) when it is a free value.
-const selectValue = (value: FontValue | ColorValue | undefined) =>
+// The font select's value: its brand key, "as the entry" when absent, empty (the placeholder "Own
+// font", as the run's picker shows it) when it is a free value.
+const selectValue = (value: FontValue | undefined) =>
   value === undefined ? FROM_ENTRY : value.kind === "brand" ? value.key : "";
 
 // Whether a typed value is taken, by field: the schema's bounds (`SLIDE_LIMITS`, `SUI-FEATURE-124`).
@@ -112,45 +112,36 @@ export function NumberedListFields({
     />
   );
   const gapRange = t("slides.editor.listGapRange", { max: SLIDE_LIMITS.maxListGap });
-  const brandSelect = (
-    key: "font" | "color",
-    value: string,
-    items: React.ReactNode,
-    onKey: (key: string | undefined) => void,
-  ) => {
-    const label = t(
-      key === "font" ? "slides.editor.listMarkerFont" : "slides.editor.listMarkerColor",
-    );
+  const fontSelect = (value: string, onKey: (key: string | undefined) => void) => {
+    const label = t("slides.editor.listMarkerFont");
     return (
-      <Field
-        label={label}
-        htmlFor={`${id}-${key}`}
-        hint={t(
-          key === "font" ? "slides.editor.listMarkerFontHint" : "slides.editor.listMarkerColorHint",
-        )}
-      >
+      <Field label={label} htmlFor={`${id}-font`} hint={t("slides.editor.listMarkerFontHint")}>
         <Select
           value={value}
           onValueChange={(next) => onKey(next === FROM_ENTRY ? undefined : next)}
         >
           <LockedTrigger locked={readOnly}>
             <SelectTrigger
-              id={`${id}-${key}`}
-              aria-describedby={helpIdFor(`${id}-${key}`)}
+              id={`${id}-font`}
+              aria-describedby={helpIdFor(`${id}-font`)}
               fieldName={label}
               className="w-full"
-              data-testid={`slide-editor-list-${key}`}
+              data-testid="slide-editor-list-font"
             >
-              <SelectValue
-                placeholder={t(
-                  key === "font" ? "slides.editor.textOwnFont" : "slides.editor.textOwnColor",
-                )}
-              />
+              <SelectValue placeholder={t("slides.editor.textOwnFont")} />
             </SelectTrigger>
           </LockedTrigger>
           <SelectContent>
             <SelectItem value={FROM_ENTRY}>{t("slides.editor.listFromEntry")}</SelectItem>
-            {items}
+            {Object.entries(brand.fonts).map(([key, { family, label: name }]) => (
+              <SelectItem key={key} value={key}>
+                {t("slides.editor.textBrandFont", {
+                  label: name,
+                  family,
+                  interpolation: { escapeValue: false },
+                })}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </Field>
@@ -167,26 +158,14 @@ export function NumberedListFields({
           t("slides.editor.listStartRange", { max: SLIDE_LIMITS.maxListStart }),
           { min: 0, max: SLIDE_LIMITS.maxListStart, unit: "" },
         )}
-        {brandSelect(
-          "font",
-          selectValue(marker?.font),
-          Object.entries(brand.fonts).map(([key, { family, label }]) => (
-            <SelectItem key={key} value={key}>
-              {t("slides.editor.textBrandFont", {
-                label,
-                family,
-                interpolation: { escapeValue: false },
-              })}
-            </SelectItem>
-          )),
-          (key) =>
-            onNumbered(
-              withValue(
-                numbered,
-                "marker.font",
-                key === undefined ? undefined : { kind: "brand", key },
-              ),
+        {fontSelect(selectValue(marker?.font), (key) =>
+          onNumbered(
+            withValue(
+              numbered,
+              "marker.font",
+              key === undefined ? undefined : { kind: "brand", key },
             ),
+          ),
         )}
         {number(
           "size",
@@ -195,15 +174,20 @@ export function NumberedListFields({
           t("slides.editor.listSizeRange", { max: MAX_TEXT_SIZE }),
           { min: 1, max: MAX_TEXT_SIZE, unit: "px" },
         )}
-        {brandSelect("color", selectValue(marker?.color), brandColorItems(brand), (key) =>
-          onNumbered(
-            withValue(
-              numbered,
-              "marker.color",
-              key === undefined ? undefined : { kind: "brand", key },
-            ),
-          ),
-        )}
+        <SlideColorField
+          id={`${id}-color`}
+          label={t("slides.editor.listMarkerColor")}
+          hint={t("slides.editor.listMarkerColorHint")}
+          valueHint={t("slides.editor.listMarkerColorValueHint")}
+          color={marker?.color}
+          brand={brand}
+          readOnly={readOnly}
+          none={t("slides.editor.listFromEntry")}
+          onColor={(color) => onNumbered(withValue(numbered, "marker.color", color))}
+          testId="slide-editor-list-color"
+          target="marker"
+          revision={revision}
+        />
         {number("markerGap", "markerGap", numbered?.markerGap, gapRange, {
           min: 0,
           max: SLIDE_LIMITS.maxListGap,

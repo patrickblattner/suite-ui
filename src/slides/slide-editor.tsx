@@ -138,6 +138,7 @@ import { offersHandle, unfollowsBy } from "./text-follow.js";
 import { paragraphCount } from "./paragraph-count.js";
 import { cssColor, eachElement, stackOrder } from "./render-style.js";
 import {
+  type ColorValue,
   type Run,
   SLIDE_LIMITS,
   type SlideDocument,
@@ -165,6 +166,7 @@ import {
   parseLibraryEntry,
   type PickedMedia,
 } from "./slide-editor-library.js";
+import { RecentColorsContext, withRecentColor } from "./brand-color-items-internal.js";
 import { CropFields } from "./crop-fields.js";
 import { BackgroundFields, type ImageBackground } from "./slide-editor-background.js";
 import { LineFields } from "./slide-editor-line.js";
@@ -277,6 +279,11 @@ export interface SlideEditorProps extends Pick<
   // kept by the editor when the app leaves it out, all shown at first; never in the document.
   overlaysShown?: readonly string[];
   onOverlaysShown?: (shown: string[]) => void;
+  // The colours last applied in this editor's colour fields, newest first, at most eight
+  // (`SUI-FEATURE-137`): view state of the person, kept by the editor for the session when the app
+  // leaves it out; never in the document, never in `onChange`.
+  recentColors?: readonly ColorValue[];
+  onRecentColors?: (colors: ColorValue[]) => void;
   // The host's own fields differ from the saved state: treated like a changed document (draft,
   // Reset and Save enabled, the leave guard asks). Without it only the document counts.
   hostDirty?: boolean;
@@ -825,6 +832,8 @@ export function SlideEditor({
   pagePanel,
   overlaysShown,
   onOverlaysShown,
+  recentColors,
+  onRecentColors,
   hostDirty,
   onReset,
   ref,
@@ -869,6 +878,8 @@ export function SlideEditor({
         pagePanel,
         overlaysShown,
         onOverlaysShown,
+        recentColors,
+        onRecentColors,
         hostDirty,
         onReset,
         handle: ref,
@@ -881,7 +892,14 @@ export function SlideEditor({
 // The host's slots as `Editor` takes them (`SUI-FEATURE-134`).
 type HostSlots = Pick<
   SlideEditorProps,
-  "status" | "pagePanel" | "overlaysShown" | "onOverlaysShown" | "hostDirty" | "onReset"
+  | "status"
+  | "pagePanel"
+  | "overlaysShown"
+  | "onOverlaysShown"
+  | "recentColors"
+  | "onRecentColors"
+  | "hostDirty"
+  | "onReset"
 > & { handle: SlideEditorProps["ref"] };
 
 // A document that breaks the schema: the header with its way back and the named error, nothing drawn.
@@ -1126,6 +1144,14 @@ function Editor({
     const on = !overlaysShown.includes(id);
     setOwnHidden((hidden) => (on ? hidden.filter((one) => one !== id) : [...hidden, id]));
     host.onOverlaysShown?.(on ? [...overlaysShown, id] : overlaysShown.filter((one) => one !== id));
+  };
+  // The colours applied in the colour fields, view state like the grid (`SUI-FEATURE-137`).
+  const [ownRecent, setOwnRecent] = React.useState<readonly ColorValue[]>([]);
+  const recentColors = host.recentColors ?? ownRecent;
+  const colorsApplied = (color: ColorValue) => {
+    const next = withRecentColor(recentColors, color, view.brand);
+    setOwnRecent(next);
+    host.onRecentColors?.(next);
   };
 
   // Cropping lasts while its selection does and its image is there (an Undo can take it away).
@@ -3164,6 +3190,14 @@ function Editor({
         testIdPrefix="slide-editor-text"
         body={textBody}
         range={formatRangeOf}
+        // The element, cell and range the format is of: the colour field's entry belongs to them.
+        target={[
+          single.id,
+          textCell?.row,
+          textCell?.column,
+          formatRangeOf?.start,
+          formatRangeOf?.end,
+        ].join(":")}
         brand={view.brand}
         readOnly={single.locked}
         revision={travels}
@@ -4911,88 +4945,93 @@ function Editor({
         </div>
         {/* Its read-only fields carry the lock reason with their hint (`SUI-FEATURE-195` rev 3). */}
         <ElementLockedContext.Provider value={single?.locked === true}>
-          {readOnly ? (
-            <PropertyPanel
-              path={path}
-              tabs={[
-                ...(readOnlyContent === undefined
-                  ? []
-                  : [{ id: "content" as const, content: readOnlyContent }]),
-                { id: "layout", content: readOnlyLayout },
-              ]}
-              activeTab={readOnlyContent === undefined ? "layout" : builtInTab}
-              onTab={setBuiltInTab}
-            />
-          ) : (
-            <PropertyPanel
-              path={path}
-              tabs={[
-                ...(single !== undefined && hasContent
-                  ? [
-                      {
-                        id: "content" as const,
-                        content: (
-                          <div className="flex flex-col gap-4" data-testid="slide-editor-content">
-                            {unloadedNote}
-                            {single.type === "table" ? (
-                              <TableFields
-                                key={single.id}
-                                table={single}
-                                cell={currentCell}
-                                brand={view.brand}
-                                readOnly={single.locked}
-                                revision={travels}
-                                // Its rows and columns, like the formats, wait for a composition to
-                                // end (GL-UI-039 rev 2, #736).
-                                onChange={(next, merge, move) => {
-                                  if (composingText.current) return;
-                                  apply(
-                                    (current) =>
-                                      updateElements(current, page, [single.id], () => next),
-                                    merge === undefined ? undefined : `table:${single.id}:${merge}`,
-                                  );
-                                  // The open cell field follows its cell; its row or column deleted,
-                                  // editing ends (#740).
-                                  if (
-                                    move === undefined ||
-                                    editing?.id !== single.id ||
-                                    editing.cell === undefined
-                                  )
-                                    return;
-                                  const moved = move(editing.cell);
-                                  if (moved === undefined) leaveCell();
-                                  else setEditing({ ...editing, cell: moved });
-                                }}
-                                onCell={(cell) => {
-                                  if (!composingText.current) setTableCell({ id: single.id, cell });
-                                }}
-                              />
-                            ) : null}
-                            {textFields}
-                            {numberedFields}
-                            {single.type === "chart" ? (
-                              <ChartData
-                                key={single.id}
-                                chart={single}
-                                revision={travels}
-                                readOnly={single.locked}
-                                onChange={(next, merge) => changeChart(next, merge)}
-                              />
-                            ) : null}
-                            {iconFields}
-                            {typeFields}
-                            {addOnFields}
-                          </div>
-                        ),
-                      },
-                    ]
-                  : []),
-                { id: "layout", content: layoutTab },
-              ]}
-              activeTab={!hasContent ? "layout" : contentFirst ? panelTab : builtInTab}
-              onTab={contentFirst ? setPanelTab : setBuiltInTab}
-            />
-          )}
+          <RecentColorsContext.Provider value={{ recent: recentColors, applied: colorsApplied }}>
+            {readOnly ? (
+              <PropertyPanel
+                path={path}
+                tabs={[
+                  ...(readOnlyContent === undefined
+                    ? []
+                    : [{ id: "content" as const, content: readOnlyContent }]),
+                  { id: "layout", content: readOnlyLayout },
+                ]}
+                activeTab={readOnlyContent === undefined ? "layout" : builtInTab}
+                onTab={setBuiltInTab}
+              />
+            ) : (
+              <PropertyPanel
+                path={path}
+                tabs={[
+                  ...(single !== undefined && hasContent
+                    ? [
+                        {
+                          id: "content" as const,
+                          content: (
+                            <div className="flex flex-col gap-4" data-testid="slide-editor-content">
+                              {unloadedNote}
+                              {single.type === "table" ? (
+                                <TableFields
+                                  key={single.id}
+                                  table={single}
+                                  cell={currentCell}
+                                  brand={view.brand}
+                                  readOnly={single.locked}
+                                  revision={travels}
+                                  // Its rows and columns, like the formats, wait for a composition to
+                                  // end (GL-UI-039 rev 2, #736).
+                                  onChange={(next, merge, move) => {
+                                    if (composingText.current) return;
+                                    apply(
+                                      (current) =>
+                                        updateElements(current, page, [single.id], () => next),
+                                      merge === undefined
+                                        ? undefined
+                                        : `table:${single.id}:${merge}`,
+                                    );
+                                    // The open cell field follows its cell; its row or column deleted,
+                                    // editing ends (#740).
+                                    if (
+                                      move === undefined ||
+                                      editing?.id !== single.id ||
+                                      editing.cell === undefined
+                                    )
+                                      return;
+                                    const moved = move(editing.cell);
+                                    if (moved === undefined) leaveCell();
+                                    else setEditing({ ...editing, cell: moved });
+                                  }}
+                                  onCell={(cell) => {
+                                    if (!composingText.current)
+                                      setTableCell({ id: single.id, cell });
+                                  }}
+                                />
+                              ) : null}
+                              {textFields}
+                              {numberedFields}
+                              {single.type === "chart" ? (
+                                <ChartData
+                                  key={single.id}
+                                  chart={single}
+                                  revision={travels}
+                                  readOnly={single.locked}
+                                  onChange={(next, merge) => changeChart(next, merge)}
+                                />
+                              ) : null}
+                              {iconFields}
+                              {typeFields}
+                              {addOnFields}
+                            </div>
+                          ),
+                        },
+                      ]
+                    : []),
+                  { id: "layout", content: layoutTab },
+                ]}
+                activeTab={!hasContent ? "layout" : contentFirst ? panelTab : builtInTab}
+                onTab={contentFirst ? setPanelTab : setBuiltInTab}
+              />
+            )}
+          </RecentColorsContext.Provider>
         </ElementLockedContext.Provider>
       </div>
       {dialog}

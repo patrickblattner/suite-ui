@@ -985,6 +985,32 @@ const AXE_PAGES: [
       },
     ],
   ],
+  // `SUI-FEATURE-137` AC4: the shared colour field with a recent colour, its free entry open and
+  // an invalid value named at it.
+  [
+    "slide-editor",
+    (page) =>
+      page.locator("[data-testid=slide-editor] [data-slot=slide-view][data-slide-ready=true]"),
+    "",
+    [
+      "with the colour field",
+      async (page) => {
+        await page.getByTestId("drawer-add").click();
+        await page.getByTestId("slide-editor-library-text").click();
+        await page.getByRole("tab", { name: "Content" }).click();
+        const color = page.getByTestId("slide-editor-text-color");
+        await color.click();
+        await page.getByRole("option", { name: "Accent" }).first().click();
+        await color.click();
+        await page.getByRole("option", { name: "Own colour" }).click();
+        const entry = page.getByTestId("slide-editor-text-color-free");
+        await expect(entry).toBeFocused();
+        await entry.fill("12px");
+        await entry.press("Tab");
+        await expect(page.getByTestId("slide-editor-text-color-error")).toBeVisible();
+      },
+    ],
+  ],
   // `SUI-FEATURE-134` AC5: the host's status, page panel and overlay toggles.
   [
     "slide-editor",
