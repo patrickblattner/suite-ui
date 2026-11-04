@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Added (#801, SUI-FEATURE-133 rev 4):** `SlideEditor` `readOnly` shows flip, line and shadow as text in the Layout tab, with the editable inspector's values: an image's flip and, without a selection, a background image's flip ("Flip": Horizontal, Vertical, both or None); a line's colour (brand name with its swatch), width and ends; the shadow of text, shapes, images and lines (colour, blur, horizontal and vertical offset; "Shadow: None" when off). New strings `slides.editor.shadowNone`, `flipShown`, `flipShownHorizontal`, `flipShownVertical`, `flipShownNone` (en/de/es). Tests: unit — an image's flip and shadow, a line's colour, width and ends, a shape's shadow off and the background's flip equal the editable inspector's; gallery — axe light and dark on the read-only editor with a selection.
+
 ## 0.223.2 — #804: SlideEditor held Copy behind a dropped command copies the right selection (Codex review v0.223.1 CX1) (patch)
 
 - **Fixed (#804, Codex review v0.223.1 CX1):** a Copy held during a drag behind an arrow-key nudge copied nothing when `readOnly` turned on before the drag ended: the dropped nudge never handed on the selection it was meant for. A dropped command now leaves what it was meant for selected, so the held Copy copies it; a dropped Paste leaves nothing selected, so a Copy held behind it leaves the clipboard as it was. Tests: unit — element dragged, ArrowRight and Copy held, `readOnly` switched on, drag ended: the clipboard holds the element; the same with Paste and Copy held: the clipboard keeps what it held (each fails without the fix).

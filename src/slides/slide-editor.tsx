@@ -3925,12 +3925,14 @@ function Editor({
       <ReadOnlyLayout
         element={single}
         rotation={inTurnedGroup ? (((single.rotation + turn) % 360) + 360) % 360 : single.rotation}
+        brand={view.brand}
       />
     ) : selected.length === 0 ? (
       // Spaced as the editable inspector's layout tab.
       <div className="flex flex-col gap-4">
         {pageData === undefined ? null : (
           <ReadOnlyPage
+            background={pageData.background}
             transition={pageData.transition}
             format={t("slides.editor.format", {
               name: document.format.name,

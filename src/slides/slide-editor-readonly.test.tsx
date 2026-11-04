@@ -481,3 +481,139 @@ describe("SlideEditor readOnly (SUI-FEATURE-133)", () => {
     expect(elementClipboard.elements.map((one) => one.id)).toEqual(["box"]);
   });
 });
+
+// rev 4: an image's and a background image's flip, a line's colour, width and ends, and the shadow
+// of text, shapes, images and lines show as text with the editable inspector's values (#801).
+const FLIP_DOC: SlideDocumentInput = {
+  schemaVersion: SLIDE_SCHEMA_VERSION,
+  format: FORMAT_16_9,
+  pages: [
+    {
+      id: "one",
+      background: { type: "image", media: { id: "backdrop" }, flipped: true },
+      elements: [
+        {
+          id: "photo",
+          name: "Photo",
+          type: "image",
+          x: 0,
+          y: 0,
+          width: 200,
+          height: 100,
+          media: { id: "photo" },
+          flippedVertical: true,
+          shadow: { color: { kind: "brand", key: "primary" }, blur: 6.5, offsetX: 3, offsetY: -2 },
+        },
+        {
+          id: "rule",
+          name: "Rule",
+          type: "line",
+          x: 300,
+          y: 300,
+          width: 400,
+          height: 20,
+          cap: "round",
+          stroke: { color: { kind: "brand", key: "primary" }, width: 12.5 },
+        },
+        {
+          id: "box",
+          name: "Box",
+          type: "shape",
+          shape: "rectangle",
+          x: 800,
+          y: 600,
+          width: 100,
+          height: 100,
+        },
+      ],
+    },
+  ],
+};
+
+describe("SlideEditor readOnly: flip, line and shadow as text (SUI-FEATURE-133 rev 4)", () => {
+  const renderFlip = (readOnly: boolean) =>
+    render(
+      <SlideEditor
+        document={FLIP_DOC}
+        title="Deck"
+        brand={SLIDE_BRAND}
+        onSave={() => true}
+        onBack={() => {}}
+        readOnly={readOnly}
+      />,
+    );
+  const field = (testId: string) => screen.getByTestId<HTMLInputElement>(testId).value;
+  const trigger = (testId: string) =>
+    screen.getByTestId(testId).querySelector("[data-slot='select-value']")!.textContent;
+  const pressed = (testId: string) => screen.getByTestId(testId).getAttribute("aria-pressed");
+  const shown = (key: string) =>
+    screen.getByTestId(`slide-editor-readonly-${key}`).querySelector("dd")!.textContent;
+
+  it("AC2: an image's flip and shadow equal the editable inspector's", () => {
+    renderFlip(false);
+    select("photo");
+    const editable = {
+      horizontal: pressed("slide-editor-image-flip"),
+      vertical: pressed("slide-editor-image-flip-vertical"),
+      shadow: screen.getByTestId("slide-editor-shadow").getAttribute("aria-checked"),
+      color: trigger("slide-editor-shadow-color"),
+      blur: field("slide-editor-shadow-blur"),
+      offsetX: field("slide-editor-shadow-offsetX"),
+      offsetY: field("slide-editor-shadow-offsetY"),
+    };
+    cleanup();
+    renderFlip(true);
+    select("photo");
+    expect(editable).toMatchObject({ horizontal: "false", vertical: "true", shadow: "true" });
+    expect(shown("flip")).toBe("Vertical");
+    expect(shown("shadow-color")).toBe(editable.color);
+    expect(shown("shadow-color")).toBe("Primary colour");
+    expect(
+      screen
+        .getByTestId("slide-editor-readonly-shadow-color")
+        .querySelector("[data-testid=slide-editor-readonly-shadow-swatch]"),
+    ).not.toBeNull();
+    expect(shown("shadow-blur")).toBe(`${editable.blur} px`);
+    expect(shown("shadow-offsetX")).toBe(`${editable.offsetX} px`);
+    expect(shown("shadow-offsetY")).toBe(`${editable.offsetY} px`);
+    expect(screen.getByTestId("property-panel-body").querySelector("input, button")).toBeNull();
+  });
+
+  it("AC2: a line's colour, width and ends equal the editable inspector's, its shadow none", () => {
+    renderFlip(false);
+    select("rule");
+    const editable = {
+      color: trigger("slide-editor-line-color"),
+      width: field("slide-editor-line-width"),
+      cap: trigger("slide-editor-line-cap"),
+      shadow: screen.getByTestId("slide-editor-shadow").getAttribute("aria-checked"),
+    };
+    cleanup();
+    renderFlip(true);
+    select("rule");
+    expect(editable.shadow).toBe("false");
+    expect(shown("line-color")).toBe(editable.color);
+    expect(shown("line-width")).toBe(`${editable.width} px`);
+    expect(shown("line-cap")).toBe(editable.cap);
+    expect(shown("line-cap")).toBe("Round");
+    expect(shown("shadow")).toBe("None");
+    expect(has("slide-editor-readonly-flip")).toBe(false);
+  });
+
+  it("AC1: a shape's shadow off reads none; the background's flip shows without a selection", () => {
+    renderFlip(true);
+    select("box");
+    expect(shown("shadow")).toBe("None");
+    expect(has("slide-editor-readonly-line-color")).toBe(false);
+    cleanup();
+    renderFlip(false);
+    const editable = {
+      horizontal: pressed("slide-editor-background-flip"),
+      vertical: pressed("slide-editor-background-flip-vertical"),
+    };
+    cleanup();
+    renderFlip(true);
+    expect(editable).toEqual({ horizontal: "true", vertical: "false" });
+    expect(shown("flip")).toBe("Horizontal");
+  });
+});
