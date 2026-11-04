@@ -148,7 +148,10 @@ describe("pre-push hook on a real push", () => {
         `pwd >> "${dir}/npx-cwd.log"`,
         'case "$*" in',
         "  *repin*) exit ${FAKE_REPIN_EXIT:-2};;",
-        '  *) if [ "${FAKE_GATE_EXIT:-0}" != 0 ]; then',
+        '  *) if [ -n "$FAKE_GATE_JSON" ]; then',
+        '       echo "$FAKE_GATE_JSON"',
+        '     elif [ "${FAKE_GATE_EXIT:-0}" != 0 ]; then',
+        "       mkdir -p logs/x && echo gate-log > logs/x/gate.log",
         '       echo "{\\"exit\\":${FAKE_GATE_EXIT},\\"failures\\":[{\\"name\\":\\"lint\\"}],\\"logDir\\":\\"logs/x\\"}"',
         "     fi",
         "     exit ${FAKE_GATE_EXIT:-0};;",
@@ -197,6 +200,23 @@ describe("pre-push hook on a real push", () => {
     expect(gitIn(other, "ls-remote", "origin", "feat/x")).toContain(
       gitIn(other, "rev-parse", "HEAD"),
     );
+  });
+
+  it("refuses a secret that only a merge resolution adds", () => {
+    pushed();
+    git("checkout", "-q", "-b", "side");
+    commit("feat: side #2", "side.txt", "side\n");
+    git("checkout", "-q", "feat/x");
+    commit("feat: ahead #1", "notes.txt", "ahead\n");
+    git("merge", "-q", "--no-ff", "--no-commit", "side");
+    writeFileSync(join(work, "config.txt"), `token = "${fakeToken()}"\n`);
+    git("add", "config.txt");
+    git("commit", "-q", "-m", "wip: merge side");
+    const run = push(["feat/x"]);
+    expect(run.status).not.toBe(0);
+    expect(run.out).toContain("push refused: the secret guard found a secret");
+    expect(run.out).toContain(`commit ${git("rev-parse", "HEAD").slice(0, 12)}, file config.txt`);
+    expect(npxCalls()).toEqual([]);
   });
 
   it("refuses with an install hint when gitleaks is missing in the pinned version", () => {
@@ -255,7 +275,39 @@ describe("pre-push hook on a real push", () => {
     const run = push(["feat/x"], { FAKE_GATE_EXIT: "2" });
     expect(run.status).not.toBe(0);
     expect(run.out).toContain("merge preflight unprovable");
+    expect(run.out).toContain("next: repeat the push");
     expect(npxCalls()).toEqual([PREFLIGHT]);
+  });
+
+  it("refuses an unmet preflight precondition with the toolkit's reason and notes", () => {
+    commit("feat: done #1", "notes.txt", "done\n");
+    const run = push(["feat/x"], {
+      FAKE_GATE_EXIT: "4",
+      FAKE_GATE_JSON: JSON.stringify({
+        exit: 4,
+        error: "on battery power — plug in and repeat",
+        notes: ["queued behind gate pid 123"],
+      }),
+    });
+    expect(run.status).not.toBe(0);
+    expect(run.out).toContain("push refused: merge preflight precondition not met");
+    expect(run.out).toContain("(exit 4)");
+    expect(run.out).toContain("reason: on battery power — plug in and repeat");
+    expect(run.out).toContain("note: queued behind gate pid 123");
+    expect(run.out).toContain("next: fix the reason above, then push again");
+    expect(run.out).not.toContain(" red ");
+    expect(npxCalls()).toEqual([PREFLIGHT]);
+  });
+
+  it("keeps the logs of a red preflight run in a throwaway worktree", () => {
+    commit("feat: first #1", "notes.txt", "first\n");
+    const first = git("rev-parse", "HEAD");
+    commit("feat: second #1", "notes.txt", "second\n");
+    const run = push([`${first}:refs/heads/feat/y`], { FAKE_GATE_EXIT: "1" });
+    expect(run.status).not.toBe(0);
+    const logs = /logs: (.+)/.exec(run.out)?.[1]?.trim() ?? "";
+    expect(realpathSync(logs)).toBe(realpathSync(join(work, "logs", "x")));
+    expect(readFileSync(join(logs, "gate.log"), "utf8")).toBe("gate-log\n");
   });
 
   it("refuses owed pins with the repin step", () => {
@@ -263,7 +315,7 @@ describe("pre-push hook on a real push", () => {
     const run = push(["feat/x"], { FAKE_REPIN_EXIT: "1" });
     expect(run.status).not.toBe(0);
     expect(run.out).toContain(
-      "push refused: spec pins owed — run `npx spec-sync repin` and commit `spec-pins.json` + drift coverage",
+      "push refused: spec pins owed — run the `npx spec-sync repin --ids <keys>` the check printed above",
     );
     expect(npxCalls()).toEqual([PREFLIGHT, REPIN]);
   });
@@ -302,6 +354,8 @@ describe("pre-push hook on a real push", () => {
     git("commit", "-q", "-m", "chore: before #794");
     const run = push(["feat/x"]);
     expect(run.status).not.toBe(0);
-    expect(run.out).toContain("push refused: rebase onto main (pre-push hook needs #794)");
+    expect(run.out).toContain(
+      "push refused: this branch predates the pre-push hook (scripts/pre-push.ts missing) — merge or rebase main into it",
+    );
   });
 });

@@ -46,7 +46,12 @@ STAGE=""
 WATCHDOG=""
 CONTAINER="suite-ui-gallery-$$"
 cleanup() {
-  [ -n "$WATCHDOG" ] && kill "$WATCHDOG" 2>/dev/null
+  # The watchdog may have fired and exited already (set -e must not end the cleanup); its sleep
+  # child is killed too, or it outlives the run.
+  if [ -n "$WATCHDOG" ]; then
+    pkill -P "$WATCHDOG" 2>/dev/null || true
+    kill "$WATCHDOG" 2>/dev/null || true
+  fi
   [ -n "$STAGE" ] && rm -rf "$STAGE"
   # Only this run's own lock: a lock another run took over stays.
   [ "$(cat "$LOCK/pid" 2>/dev/null || true)" = "$$" ] && rm -rf "$LOCK"
@@ -60,7 +65,7 @@ node "$ROOT/scripts/gallery-lock.ts" "$LOCK" "$$" "$ROOT"
 # The cap of the locked work is the one this run wrote into its holder line; past it the container is
 # killed and the run ends red, so a hung run never holds the lock beyond what its waiters allow.
 CAP="$(sed -n 's/.* cap=\([0-9]*\).*/\1/p' "$LOCK/holder")"
-(sleep $((CAP * 60)) && echo "gallery-image: the run passed its cap of $CAP min" >&2 &&
+(sleep $((CAP * 60)) && echo "gallery-image: the run passed its cap of $CAP min — the container is killed and the phase is red; look for a hung test, or if the suite legitimately grew, raise GALLERY_CAP_MIN in scripts/gallery-lock.ts (PROC-REL-040)" >&2 &&
   docker kill "$CONTAINER" >/dev/null 2>&1) &
 WATCHDOG=$!
 

@@ -10,9 +10,9 @@
 //      and every pushed tip's subject starts with `wip:` — the loss-protection push of a red state.
 //      An unreadable tip counts as unmarked.
 import { execFileSync, spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from "node:fs";
+import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, symlinkSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, relative, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
 // The gitleaks hygiene pins (`TOOL_VERSIONS` in hygiene.ts; a test holds the two equal). Node needs a
@@ -144,7 +144,8 @@ function guard(refs: PushedRef[], remote: string): string[] | undefined {
           "--report-path",
           path,
           "--log-opts",
-          range.join(" "),
+          // git log prints no patch for a merge by default; remerge shows what its resolution added.
+          ["--diff-merges=remerge", ...range].join(" "),
           ".",
         ],
         { stdio: ["ignore", "ignore", "inherit"] },
@@ -200,6 +201,24 @@ function withTree<T>(sha: string, check: (cwd: string) => T): T {
   }
 }
 
+// The preflight's verdict by exit code (toolkit: 1 red, 2 unprovable, 3 ambiguous, 4 precondition
+// violated): the head line and what to do next.
+const VERDICT: Record<number, { head: string; next: string }> = {
+  1: { head: "red", next: "fix what failed and commit" },
+  2: { head: "unprovable — not green", next: "repeat the push (nothing was proven)" },
+  3: { head: "ambiguous — not green", next: "settle the reason above, then push again" },
+  4: { head: "precondition not met", next: "fix the reason above, then push again" },
+};
+
+// A log dir inside a throwaway worktree dies with it; it is copied to the same path in this checkout.
+function keptLogs(logDir: string, cwd: string): string {
+  const here = process.cwd();
+  const source = resolve(cwd, logDir);
+  const kept = resolve(here, relative(cwd, source));
+  if (kept !== source && existsSync(source)) cpSync(source, kept, { recursive: true });
+  return kept;
+}
+
 // Returns the refusal lines, or nothing when the tip may go.
 function checks(sha: string, cwd: string): string[] | undefined {
   const preflight = spawnSync("npx", ["spec-sync", "gate", "--profile", "merge", "--preflight"], {
@@ -208,20 +227,30 @@ function checks(sha: string, cwd: string): string[] | undefined {
     stdio: ["ignore", "pipe", "inherit"],
   });
   if (preflight.status !== 0) {
-    let result: { failures?: { name: string }[]; logDir?: string } = {};
+    let result: {
+      failures?: { name: string }[];
+      logDir?: string;
+      error?: string;
+      notes?: string[];
+    } = {};
     try {
       result = JSON.parse(preflight.stdout) as typeof result;
     } catch {
       // No JSON: the exit code is all there is.
     }
+    const code = preflight.status ?? preflight.signal;
+    const verdict = (typeof code === "number" ? VERDICT[code] : undefined) ?? {
+      head: "failed — not green",
+      next: "look at the output above, then push again",
+    };
     const phases = (result.failures ?? []).map((failure) => failure.name).join(", ");
     return [
-      preflight.status === 2
-        ? `push refused: merge preflight unprovable (exit 2) for ${sha.slice(0, 12)} — not green`
-        : `push refused: merge preflight red for ${sha.slice(0, 12)} (exit ${preflight.status ?? preflight.signal})`,
+      `push refused: merge preflight ${verdict.head} for ${sha.slice(0, 12)} (exit ${code})`,
+      ...(result.error === undefined ? [] : [`  reason: ${result.error}`]),
+      ...(result.notes ?? []).map((note) => `  note: ${note}`),
       ...(phases === "" ? [] : [`  failing phases: ${phases}`]),
-      ...(result.logDir === undefined ? [] : [`  logs: ${result.logDir}`]),
-      "  next: fix what failed and commit, or commit the state as `wip: …` and push it to a branch other than main",
+      ...(result.logDir === undefined ? [] : [`  logs: ${keptLogs(result.logDir, cwd)}`]),
+      `  next: ${verdict.next}, or commit the state as \`wip: …\` and push it to a branch other than main`,
     ];
   }
   const pins = spawnSync("npx", ["spec-sync", "repin", "--check"], {
@@ -232,7 +261,7 @@ function checks(sha: string, cwd: string): string[] | undefined {
     console.error("• pre-push: spec server unreachable — pin check skipped");
   } else if (pins.status === 1) {
     return [
-      "push refused: spec pins owed — run `npx spec-sync repin` and commit `spec-pins.json` + drift coverage",
+      "push refused: spec pins owed — run the `npx spec-sync repin --ids <keys>` the check printed above and commit `spec-pins.json` + drift coverage",
     ];
   } else if (pins.status !== 0) {
     return [`push refused: spec pin check failed (exit ${pins.status ?? pins.signal})`];
