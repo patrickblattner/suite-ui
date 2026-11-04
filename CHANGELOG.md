@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased — #798: SlideEditor never runs a held host Undo/Redo once `readOnly` turns on (SUI-FEATURE-133 rev 4, SUI-FEATURE-134 rev 6) (patch)
+## 0.223.1 — #798: SlideEditor never runs a held host Undo/Redo once `readOnly` turns on (SUI-FEATURE-133 rev 4, SUI-FEATURE-134 rev 6) (patch)
 
 - **Fixed (#798, Codex review v0.220.0 CX1):** an Undo or Redo pressed during a drag and held until it ends still called the host step's `undo`/`redo` (`recordHostStep`) when `readOnly` turned on before the drag ended. Undo and Redo now do nothing under `readOnly`, and commands held from before the switch are dropped, never run, except Copy, which `readOnly` keeps: a held Copy still fills the clipboard. A paste that landed behind the drag is dropped with them and its busy status (cursor, `aria-busy`, status line) ends.
 - **Tests (#798):** unit — host step recorded, element dragged, Undo held, `readOnly` switched on, drag ended: the host's undo is never called, nor the host's redo for a held Redo; a paste whose `adoptMedia` answered during the drag leaves no busy canvas or status; a Copy held behind the drag fills the clipboard with the dragged element (each fails without the fix).
