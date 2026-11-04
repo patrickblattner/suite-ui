@@ -1,4 +1,4 @@
-import { FlipHorizontal2Icon } from "lucide-react";
+import { FlipHorizontal2Icon, FlipVertical2Icon } from "lucide-react";
 import type * as React from "react";
 import { useTranslation } from "react-i18next";
 
@@ -10,6 +10,9 @@ import { rendersButton } from "./button-lock-internal.js";
 type FlipToggleProps = Omit<React.ComponentProps<"button">, "children" | "aria-pressed"> & {
   flipped: boolean;
   onFlippedChange: (flipped: boolean) => void;
+  // Which way it mirrors, named in its label where both stand side by side (`SUI-FEATURE-135`);
+  // absent, the plain "Flip" of a horizontal flip.
+  axis?: "horizontal" | "vertical";
 };
 
 /**
@@ -20,6 +23,7 @@ type FlipToggleProps = Omit<React.ComponentProps<"button">, "children" | "aria-p
 export function FlipToggle({
   flipped,
   onFlippedChange,
+  axis,
   className,
   onClick,
   ...props
@@ -32,15 +36,25 @@ export function FlipToggle({
       size="sm"
       {...props}
       aria-pressed={flipped}
-      className={cn(PRESSED_FILL_CLASS, className)}
+      // With an axis it is one of a pair side by side, each in half the row: its longer label wraps
+      // inside the button (de, es at panel width) instead of pushing the pair onto two rows.
+      className={cn(
+        PRESSED_FILL_CLASS,
+        axis !== undefined && "h-auto min-h-8 w-full py-1.5 whitespace-normal",
+        className,
+      )}
       onClick={(event) => {
         // A wrapping `Hint` composes its trigger's handlers into `onClick`.
         onClick?.(event);
         onFlippedChange(!flipped);
       }}
     >
-      <FlipHorizontal2Icon aria-hidden="true" />
-      {t("flip.action")}
+      {axis === "vertical" ? (
+        <FlipVertical2Icon aria-hidden="true" />
+      ) : (
+        <FlipHorizontal2Icon aria-hidden="true" />
+      )}
+      {t(axis === undefined ? "flip.action" : `flip.${axis}`)}
     </Button>
   );
 }

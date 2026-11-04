@@ -366,6 +366,8 @@ export const es: SuiteStrings = {
   },
   flip: {
     action: "Reflejar",
+    horizontal: "Reflejar en horizontal",
+    vertical: "Reflejar en vertical",
   },
   editor: {
     back: "Volver",
@@ -598,6 +600,7 @@ export const es: SuiteStrings = {
         "100 % llena el marco; hasta 500 % muestra una parte cada vez menor de la imagen.",
       cropOffsetValueHint: "Píxeles desde el centro del marco; 0 centra la imagen.",
       imageFlipHint: "Refleja la imagen en horizontal dentro de su área.",
+      imageFlipVerticalHint: "Refleja la imagen en vertical dentro de su área.",
       pageBackground: "Fondo",
       pageBackgroundZoomHint: "Amplía la imagen de fondo en la página.",
       pageBackgroundZoomValueHint:
@@ -609,6 +612,8 @@ export const es: SuiteStrings = {
       pageBackgroundOffsetValueHint: "Píxeles desde el centro de la página; 0 centra la imagen.",
       pageBackgroundFlipHint:
         "Refleja la imagen de fondo en horizontal; el contenido de la página no cambia.",
+      pageBackgroundFlipVerticalHint:
+        "Refleja la imagen de fondo en vertical; el contenido de la página no cambia.",
       pageBackgroundReplace: "Cambiar imagen",
       pageBackgroundReplaceHint:
         "Abre la biblioteca de medios para elegir otra imagen; el recorte y el reflejo se restablecen.",
@@ -910,6 +915,36 @@ export const es: SuiteStrings = {
       width: "Ancho",
       height: "Alto",
       rotation: "Rotación",
+      lineSection: "Línea",
+      lineColor: "Color de la línea",
+      lineColorHint: "El color de marca de la línea.",
+      lineColorValueHint: "Los colores de la marca; la lista no ofrece otros.",
+      lineWidth: "Grosor de la línea",
+      lineWidthHint: "Lo gruesa que es la línea.",
+      lineWidthValueHint: "Píxeles del formato de la página.",
+      lineWidthRange: "Introduce un grosor mayor que 0 px.",
+      lineCap: "Extremos de la línea",
+      lineCapHint: "Cómo se dibujan los dos extremos de la línea.",
+      lineCapValueHint:
+        "Plano termina donde termina la línea; redondo y cuadrado sobresalen la mitad de su grosor en cada extremo.",
+      lineCapButt: "Plano",
+      lineCapRound: "Redondo",
+      lineCapSquare: "Cuadrado",
+      shadowSection: "Sombra",
+      shadowShow: "Proyectar sombra",
+      shadowShowHint: "Proyecta una sombra detrás del elemento.",
+      shadowColor: "Color de la sombra",
+      shadowColorHint: "El color de marca de la sombra.",
+      shadowColorValueHint: "Los colores de la marca; la lista no ofrece otros.",
+      shadowBlur: "Desenfoque de la sombra",
+      shadowBlurHint: "Lo suave que es el borde de la sombra.",
+      shadowBlurValueHint: "Píxeles; 0 es un borde nítido.",
+      shadowOffsetX: "Desplazamiento horizontal",
+      shadowOffsetXHint: "Mueve la sombra a la izquierda o a la derecha del elemento.",
+      shadowOffsetXValueHint: "Píxeles; un número positivo la mueve a la derecha.",
+      shadowOffsetY: "Desplazamiento vertical",
+      shadowOffsetYHint: "Mueve la sombra hacia arriba o hacia abajo del elemento.",
+      shadowOffsetYValueHint: "Píxeles; un número positivo la mueve hacia abajo.",
       strokeWidth: "Grosor del trazo",
       strokeWidthRange:
         "Introduce un grosor mayor que 0 y de hasta {{max}} px, o deja el campo vacío.",

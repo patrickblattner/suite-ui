@@ -43,6 +43,22 @@ describe("adopting a paste into another document", () => {
     expect(kept).toEqual(text("t", "shared", "plain"));
   });
 
+  // SUI-FEATURE-135 rev 3: a line's shadow takes the target's brand as its stroke does.
+  it("rewrites the unknown key of a line's shadow as of its stroke", () => {
+    const rule = element({
+      ...box,
+      id: "r",
+      type: "line",
+      stroke: { color: brand("ink"), width: 2 },
+      shadow: { color: brand("ink"), blur: 8, offsetX: 4, offsetY: 4 },
+    });
+    const [adopted] = adoptBrand([rule], source, target, new Set());
+    expect(adopted).toMatchObject({
+      stroke: { color: brand("edge") },
+      shadow: { color: brand("edge"), blur: 8, offsetX: 4, offsetY: 4 },
+    });
+  });
+
   it("rewrites an unknown key to the target's default of its role, else its first key (AC3)", () => {
     const shape = element({
       ...box,

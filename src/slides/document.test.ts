@@ -220,9 +220,20 @@ describe("slide document migration", () => {
     })),
   });
 
-  it("ships nine steps, 1 → 2 up to 9 → 10, that change no content (SUI-FEATURE-192 AC4)", () => {
-    expect(SLIDE_SCHEMA_VERSION).toBe(10);
-    expect(Object.keys(SLIDE_MIGRATIONS)).toEqual(["1", "2", "3", "4", "5", "6", "7", "8", "9"]);
+  it("ships ten steps, 1 → 2 up to 10 → 11, that change no content (SUI-FEATURE-192 AC4)", () => {
+    expect(SLIDE_SCHEMA_VERSION).toBe(11);
+    expect(Object.keys(SLIDE_MIGRATIONS)).toEqual([
+      "1",
+      "2",
+      "3",
+      "4",
+      "5",
+      "6",
+      "7",
+      "8",
+      "9",
+      "10",
+    ]);
     expect(parseSlideDocument({ ...valid, schemaVersion: 1 })).toEqual(parseSlideDocument(valid));
   });
 
@@ -534,7 +545,11 @@ describe("slide document migration", () => {
     };
     const old = parseSlideDocument(raw);
     expect(old.schemaVersion).toBe(SLIDE_SCHEMA_VERSION);
-    const uncropped = { ...image, crop: { zoom: 1, offsetX: 0, offsetY: 0 } };
+    const uncropped = {
+      ...image,
+      crop: { zoom: 1, offsetX: 0, offsetY: 0 },
+      flippedVertical: false,
+    };
     expect(old.masters[0]!.background).toEqual(uncropped);
     expect(old.layouts[0]!.background).toEqual(uncropped);
     expect(old.pages.map((page) => page.background)).toEqual([uncropped, uncropped, color]);
@@ -555,7 +570,13 @@ describe("slide document migration", () => {
   it("takes a background image's crop as an image element's, zoom at least 1", () => {
     const page = (background: unknown) => ({ ...valid.pages[0]!, background });
     const crop = { zoom: 1.5, offsetX: -120, offsetY: 40 };
-    const image = { type: "image", media: { id: "media-7" }, crop, flipped: true };
+    const image = {
+      type: "image",
+      media: { id: "media-7" },
+      crop,
+      flipped: true,
+      flippedVertical: true,
+    };
     expect(parseSlideDocument({ ...valid, pages: [page(image)] }).pages[0]!.background).toEqual(
       image,
     );
@@ -573,7 +594,101 @@ describe("slide document migration", () => {
       media: { id: "media-7" },
       crop: { zoom: 1, offsetX: 0, offsetY: 0 },
       flipped: false,
+      flippedVertical: false,
     });
+  });
+
+  // SUI-FEATURE-135 AC3: a version-10 document loads with its images and background images not flipped
+  // vertically, its lines with flat ends and no shadow; a stray value written before (its parse dropped
+  // it) is replaced or dropped, in groups, prototypes, layouts and masters too. Its drawing is the
+  // same (`slide-view.test.tsx`).
+  it("migrates a version-10 document unflipped vertically, its lines flat and shadowless (SUI-FEATURE-135 AC3)", () => {
+    const box = { x: 0, y: 0, width: 200, height: 100 };
+    const stroke = { color: { kind: "free", value: "#000000" }, width: 4 };
+    const shadow = { color: { kind: "free", value: "#000000" }, blur: 8, offsetX: 4, offsetY: 4 };
+    const image = { id: "i", type: "image", ...box, media: { id: "media-7" }, flipped: true };
+    const line = { id: "l", type: "line", ...box, stroke };
+    // Written by a newer app into a version-10 document: replaced or dropped by the step.
+    const strays = { image: { flippedVertical: true }, line: { cap: "round", shadow } };
+    const none = { image: {}, line: {} };
+    const background = { type: "image", media: { id: "media-7" }, flipped: true };
+    const written = (extra: typeof none, schemaVersion: number) => ({
+      ...valid,
+      schemaVersion,
+      masters: [{ id: "m", name: "Master", background: { ...background, ...extra.image } }],
+      layouts: [
+        {
+          id: "ly",
+          name: "Layout",
+          masterId: "m",
+          background,
+          elements: [
+            {
+              id: "ph",
+              type: "placeholder",
+              role: "pic",
+              ...box,
+              prototype: { type: "line", stroke, ...extra.line },
+            },
+          ],
+        },
+      ],
+      pages: [
+        {
+          ...valid.pages[0]!,
+          id: "p1",
+          background: { ...background, ...extra.image },
+          elements: [
+            { ...image, ...extra.image },
+            { ...line, ...extra.line },
+            { id: "g", type: "group", ...box, children: [{ ...line, id: "l2", ...extra.line }] },
+          ],
+        },
+      ],
+    });
+    const raw = written(strays, 10);
+    const old = parseSlideDocument(raw);
+    expect(old.schemaVersion).toBe(SLIDE_SCHEMA_VERSION);
+    const [page] = old.pages;
+    expect(page!.background).toMatchObject({ flipped: true, flippedVertical: false });
+    expect(old.masters[0]!.background).toMatchObject({ flippedVertical: false });
+    expect(old.layouts[0]!.background).toMatchObject({ flippedVertical: false });
+    expect(page!.elements[0]).toMatchObject({ flipped: true, flippedVertical: false });
+    const flat = (element: unknown) => {
+      expect(element).toMatchObject({ type: "line", cap: "butt" });
+      expect(element).not.toHaveProperty("shadow");
+    };
+    flat(page!.elements[1]);
+    const group = page!.elements[2]!;
+    flat(group.type === "group" ? group.children[0] : undefined);
+    const placeholder = old.layouts[0]!.elements[0]!;
+    flat(placeholder.type === "placeholder" ? placeholder.prototype : undefined);
+    // Content otherwise as the same document written in the current version without the new values.
+    expect(old).toEqual(parseSlideDocument(written(none, SLIDE_SCHEMA_VERSION)));
+  });
+
+  // SUI-FEATURE-135: a line takes `butt`, `round` or `square` and a shadow; nothing else.
+  it("takes a line's cap and shadow, flat and shadowless by default (SUI-FEATURE-135)", () => {
+    const shadow = { color: { kind: "brand", key: "primary" }, blur: 6, offsetX: -3, offsetY: 5 };
+    const line = {
+      id: "l",
+      type: "line",
+      x: 0,
+      y: 0,
+      width: 200,
+      height: 10,
+      stroke: { color: { kind: "free", value: "#000000" }, width: 4 },
+    };
+    const page = (element: unknown) => ({ ...valid.pages[0]!, elements: [element] });
+    const plain = parseSlideDocument({ ...valid, pages: [page(line)] }).pages[0]!.elements[0];
+    expect(plain).toMatchObject({ cap: "butt" });
+    expect(plain).not.toHaveProperty("shadow");
+    expect(
+      parseSlideDocument({ ...valid, pages: [page({ ...line, cap: "round", shadow })] }).pages[0]!
+        .elements[0],
+    ).toMatchObject({ cap: "round", shadow });
+    const issue = rejection({ ...valid, pages: [page({ ...line, cap: "arrow" })] }).issues[0]!;
+    expect(issue.path).toBe("pages[0].elements[0].cap");
   });
 
   // SUI-FEATURE-124 AC6: out-of-range values are rejected by name at their path; values within the

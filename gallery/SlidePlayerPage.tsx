@@ -93,6 +93,33 @@ const SLIDE_IMAGE_FLIP = {
   })),
 } as typeof SLIDE_EXPORTABLE;
 
+// `SUI-FEATURE-135` AC1, AC2: the showcase with its cropped photo flipped vertically, on its cropped
+// background image flipped both ways, its rule with round ends and a shadow.
+const SLIDE_FLIP_CAP = {
+  ...SLIDE_BACKGROUND_CROP,
+  pages: SLIDE_BACKGROUND_CROP.pages.map((page) => ({
+    ...page,
+    background: { ...page.background, flippedVertical: true },
+    elements: page.elements?.map((element) =>
+      element.id === "photo"
+        ? { ...element, flippedVertical: true }
+        : element.id === "rule" && element.type === "line"
+          ? {
+              ...element,
+              stroke: { ...element.stroke, width: 24 },
+              cap: "round",
+              shadow: {
+                color: { kind: "free", value: "#00000088" },
+                blur: 8,
+                offsetX: 6,
+                offsetY: 10,
+              },
+            }
+          : element,
+    ),
+  })),
+} as typeof SLIDE_EXPORTABLE;
+
 // `SUI-FEATURE-160` AC2: the export page of the showcase as an app serves it (`?harness=slide-export`),
 // and the editor's view of the same page at scale 1 (`&view=editor`) to compare it with; `&broken=1`
 // exports the showcase with its unknown type, which aborts; `&overhang=1` the shifted photo. `&doc=flow`
@@ -101,7 +128,8 @@ const SLIDE_IMAGE_FLIP = {
 // page font, with fit text on (#717). `&doc=numbered` takes the page of styled numbered lists
 // (`SUI-FEATURE-124`), with fit text on. `&doc=background` the showcase on its cropped, flipped
 // background image (`SUI-DESIGN-002` rev 10). `&doc=image-flip` the showcase with its cropped photo
-// flipped (#772).
+// flipped (#772). `&doc=flip-cap` the showcase flipped vertically and both ways, its rule round and
+// with a shadow (`SUI-FEATURE-135`).
 export function SlideExportHarness({
   editor,
   broken,
@@ -112,6 +140,7 @@ export function SlideExportHarness({
   numbered = false,
   background = false,
   imageFlip = false,
+  flipCap = false,
 }: {
   editor: boolean;
   broken: boolean;
@@ -122,6 +151,7 @@ export function SlideExportHarness({
   numbered?: boolean;
   background?: boolean;
   imageFlip?: boolean;
+  flipCap?: boolean;
 }) {
   const exportable = overhang
     ? SLIDE_OVERHANG
@@ -129,7 +159,9 @@ export function SlideExportHarness({
       ? SLIDE_BACKGROUND_CROP
       : imageFlip
         ? SLIDE_IMAGE_FLIP
-        : SLIDE_EXPORTABLE;
+        : flipCap
+          ? SLIDE_FLIP_CAP
+          : SLIDE_EXPORTABLE;
   const document = numbered
     ? SLIDE_NUMBERED_LIST
     : lines

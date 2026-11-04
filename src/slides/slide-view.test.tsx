@@ -24,6 +24,8 @@ import {
 } from "./render-style.js";
 import { parseSlideDocument } from "./document.js";
 import { SLIDE_SCHEMA_VERSION } from "./schema.js";
+import { SlideExport } from "./slide-export.js";
+import { SlidePlayer } from "./slide-player.js";
 import {
   carriesUnloadedAddOn,
   checkSlideExtensions,
@@ -1615,6 +1617,247 @@ describe("SlideView background crop", () => {
       transform: "scaleX(-1)",
       origin: "350px 50%",
     });
+  });
+});
+
+// SUI-FEATURE-135 AC1: an image element and a background image are cropped first, then flipped
+// vertically, or both ways, about the frame's or the page's centre; the medium stays as it is.
+describe("SlideView vertical flip", () => {
+  const crop = { zoom: 2, offsetX: 50, offsetY: 30 };
+  const flippedImage = (flips: { flipped: boolean; flippedVertical: boolean }) =>
+    onlyPage([
+      {
+        id: "pic",
+        type: "image",
+        x: 0,
+        y: 0,
+        width: 400,
+        height: 400,
+        media: { id: "photo" },
+        alt: "Pic",
+        crop,
+        ...flips,
+      },
+    ]);
+  const picture = (container: HTMLElement) =>
+    container.querySelector<HTMLImageElement>('[data-slide-element="pic"] img')!;
+  const flip = (image: HTMLImageElement) => ({
+    transform: image.style.transform,
+    origin: image.style.transformOrigin,
+    src: image.getAttribute("src"),
+  });
+
+  // 800 × 800 in a 400 frame at zoom 2: left −200 + 50, top −200 + 30; the frame's centre (200, 200)
+  // in the image's own px is (350, 370).
+  it.each([
+    [{ flipped: false, flippedVertical: true }, "scaleY(-1)", "50% 370px"],
+    [{ flipped: true, flippedVertical: true }, "scale(-1, -1)", "350px 370px"],
+    [{ flipped: true, flippedVertical: false }, "scaleX(-1)", "350px 50%"],
+  ])("flips a cropped image %j about its frame's centre", async (flips, transform, origin) => {
+    const { container } = await drawn({ document: flippedImage(flips) });
+    loadImage(picture(container), { width: 1000, height: 1000 });
+    // The medium is unchanged: the same file, only drawn flipped.
+    expect(flip(picture(container))).toEqual({
+      transform,
+      origin,
+      src: resolveSlideMedia("photo"),
+    });
+  });
+
+  it("flips a cropped background vertically and both ways about the page's centre", async () => {
+    const page = SLIDE_SHOWCASE.pages[0]!;
+    const withBackground = (flips: { flipped: boolean; flippedVertical: boolean }) =>
+      ({
+        ...SLIDE_SHOWCASE,
+        pages: [
+          {
+            ...page,
+            elements: [],
+            background: {
+              type: "image",
+              media: { id: "photo" },
+              crop: { zoom: 1.5, offsetX: -120, offsetY: 40 },
+              ...flips,
+            },
+          },
+        ],
+      }) as SlideViewProps["document"];
+    const ground = (container: HTMLElement) =>
+      container.querySelector<HTMLImageElement>("[data-slot=slide-page] > img")!;
+    // 2880 × 1620 on the 1920 × 1080 page at −600 / −230: the page's centre at (1560, 770).
+    const both = await drawn({
+      document: withBackground({ flipped: true, flippedVertical: true }),
+    });
+    loadImage(ground(both.container), { width: 1920, height: 1080 });
+    expect(flip(ground(both.container))).toMatchObject({
+      transform: "scale(-1, -1)",
+      origin: "1560px 770px",
+    });
+    cleanup();
+    const vertical = await drawn({
+      document: withBackground({ flipped: false, flippedVertical: true }),
+    });
+    loadImage(ground(vertical.container), { width: 1920, height: 1080 });
+    expect(flip(ground(vertical.container))).toMatchObject({
+      transform: "scaleY(-1)",
+      origin: "50% 770px",
+    });
+  });
+});
+
+// SUI-FEATURE-135 AC2: a line's ends take its cap and it casts its shadow, as a shape does.
+describe("SlideView line cap and shadow", () => {
+  const stroke = { color: { kind: "brand", key: "primary" }, width: 12 };
+  const shadow = { color: { kind: "brand", key: "text" }, blur: 6, offsetX: 4, offsetY: 8 };
+  const lineOf = (extra: object) =>
+    onlyPage([
+      { id: "ln", type: "line", x: 100, y: 100, width: 600, height: 40, stroke, ...extra },
+    ]);
+  const svg = (container: HTMLElement) =>
+    container.querySelector<SVGSVGElement>('[data-slide-element="ln"] svg')!;
+
+  it("draws a round cap and the shadow as a drop shadow", async () => {
+    const { container } = await drawn({ document: lineOf({ cap: "round", shadow }) });
+    expect(svg(container).querySelector("line")).toHaveAttribute("stroke-linecap", "round");
+    expect(svg(container).style.filter).toBe("drop-shadow(4px 8px 6px #0f172a)");
+  });
+
+  it("draws a square cap, and flat ends without a shadow by default", async () => {
+    const { container } = await drawn({ document: lineOf({ cap: "square" }) });
+    expect(svg(container).querySelector("line")).toHaveAttribute("stroke-linecap", "square");
+    cleanup();
+    const plain = await drawn({ document: lineOf({}) });
+    // `butt` is SVG's own default: a line of an older document draws as it did.
+    expect(svg(plain.container).querySelector("line")).toHaveAttribute("stroke-linecap", "butt");
+    expect(svg(plain.container).style.filter).toBe("");
+  });
+});
+
+// SUI-FEATURE-135 AC3: a version-10 document is drawn as before: its image flipped horizontally
+// only, its background likewise, its line with flat ends and no shadow.
+describe("SlideView previous-version drawing", () => {
+  it("draws a version-10 image, background and line as before", async () => {
+    const page = SLIDE_SHOWCASE.pages[0]!;
+    const { container } = await drawn({
+      document: {
+        ...SLIDE_SHOWCASE,
+        schemaVersion: 10,
+        pages: [
+          {
+            ...page,
+            background: { type: "image", media: { id: "photo" }, flipped: true },
+            elements: [
+              {
+                id: "pic",
+                type: "image",
+                x: 0,
+                y: 0,
+                width: 400,
+                height: 400,
+                media: { id: "photo" },
+                flipped: true,
+              },
+              {
+                id: "ln",
+                type: "line",
+                x: 100,
+                y: 100,
+                width: 600,
+                height: 40,
+                stroke: { color: { kind: "brand", key: "primary" }, width: 12 },
+              },
+            ],
+          },
+        ],
+      } as unknown as SlideViewProps["document"],
+    });
+    const ground = container.querySelector<HTMLImageElement>("[data-slot=slide-page] > img")!;
+    loadImage(ground, { width: 1920, height: 1080 });
+    expect(ground.style.transform).toBe("scaleX(-1)");
+    expect(ground.style.transformOrigin).toBe("960px 50%");
+    const picture = container.querySelector<HTMLImageElement>('[data-slide-element="pic"] img')!;
+    loadImage(picture, { width: 1000, height: 1000 });
+    expect(picture.style.transform).toBe("scaleX(-1)");
+    expect(picture.style.transformOrigin).toBe("200px 50%");
+    const svg = container.querySelector<SVGSVGElement>('[data-slide-element="ln"] svg')!;
+    expect(svg.style.filter).toBe("");
+    expect(svg.querySelector("line")).toHaveAttribute("stroke-linecap", "butt");
+  });
+});
+
+// SUI-FEATURE-135 AC1, AC2: the editor's view, the player and the export draw a vertically and
+// doubly flipped image and background and a round-capped line with a shadow the same way: one
+// `SlideView`, the same markup in each.
+describe("SlideView, SlidePlayer and SlideExport draw flips, caps and shadows alike", () => {
+  it("renders the same element and background markup in all three", () => {
+    const page = SLIDE_SHOWCASE.pages[0]!;
+    const document = {
+      ...SLIDE_SHOWCASE,
+      pages: [
+        {
+          ...page,
+          background: {
+            type: "image",
+            media: { id: "photo" },
+            crop: { zoom: 1.5, offsetX: -120, offsetY: 40 },
+            flipped: true,
+            flippedVertical: true,
+          },
+          elements: [
+            {
+              id: "pic",
+              type: "image",
+              x: 0,
+              y: 0,
+              width: 400,
+              height: 400,
+              media: { id: "photo" },
+              crop: { zoom: 2, offsetX: 50, offsetY: 30 },
+              flippedVertical: true,
+            },
+            {
+              id: "ln",
+              type: "line",
+              x: 100,
+              y: 600,
+              width: 600,
+              height: 40,
+              stroke: { color: { kind: "brand", key: "primary" }, width: 12 },
+              cap: "round",
+              shadow: { color: { kind: "brand", key: "text" }, blur: 6, offsetX: 4, offsetY: 8 },
+            },
+          ],
+        },
+      ],
+    } as SlideViewProps["document"];
+    const shared = {
+      document,
+      brand: SLIDE_BRAND,
+      fonts: SLIDE_FONTS,
+      resolveMedia: resolveSlideMedia,
+    };
+    const markup = (root: HTMLElement) => {
+      const background = root.querySelector("[data-slot=slide-page] > img")!;
+      return {
+        background: background.outerHTML,
+        pic: root.querySelector('[data-slide-element="pic"]')!.innerHTML,
+        ln: root.querySelector('[data-slide-element="ln"]')!.innerHTML,
+      };
+    };
+    const view = render(<SlideView {...shared} scale={1} />);
+    const viewed = markup(view.container);
+    cleanup();
+    const player = render(<SlidePlayer {...shared} />);
+    const played = markup(player.container);
+    cleanup();
+    const exporter = render(<SlideExport {...shared} />);
+    const exported = markup(exporter.container);
+    expect(viewed.pic).toContain("scaleY(-1)");
+    expect(viewed.background).toContain("scale(-1, -1)");
+    expect(viewed.ln).toContain('stroke-linecap="round"');
+    expect(viewed.ln).toContain("drop-shadow(");
+    expect(played).toEqual(viewed);
+    expect(exported).toEqual(viewed);
   });
 });
 

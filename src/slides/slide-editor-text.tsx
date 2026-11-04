@@ -21,6 +21,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from ".
 import { IconButtonTooltip } from "../ui/tooltip.js";
 import { LockedFieldHint, LockedTrigger } from "./element-lock-internal.js";
 import type { SlideBrandSet } from "./brand.js";
+import { brandColorItems } from "./brand-color-items-internal.js";
 import type { Box } from "./editor-ops.js";
 import { NumberField } from "./number-field.js";
 import {
@@ -1214,18 +1215,7 @@ export function TextFormatFields({
                   />
                 </SelectTrigger>
               </LockedTrigger>
-              <SelectContent>
-                {Object.entries(brand.colors).map(([key, { value, label }]) => (
-                  <SelectItem key={key} value={key}>
-                    <span
-                      aria-hidden="true"
-                      className="size-3 shrink-0 rounded-full border"
-                      style={{ background: cssColor({ kind: "brand", key }, brand) ?? value }}
-                    />
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
+              <SelectContent>{brandColorItems(brand)}</SelectContent>
             </Select>
           </Field>
         </div>

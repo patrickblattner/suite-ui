@@ -126,6 +126,7 @@
     "./shell/user-menu": { "recommended": 49429, "maximum": 51901 },
     "./shell/version-line": { "recommended": 3480, "maximum": 3654 },
     "./slides/brand": { "recommended": 244, "maximum": 257 },
+    "./slides/brand-color-items-internal": { "recommended": 510819, "maximum": 536360 },
     "./slides/crop-fields": { "recommended": 46783, "maximum": 49123 },
     "./slides/document": { "recommended": 468733, "maximum": 492170 },
     "./slides/editor-adopt": { "recommended": 468323, "maximum": 491740 },
@@ -148,10 +149,12 @@
     "./slides/slide-editor-background": { "recommended": 51055, "maximum": 53608 },
     "./slides/slide-editor-chart": { "recommended": 514649, "maximum": 540382 },
     "./slides/slide-editor-library": { "recommended": 509032, "maximum": 534484 },
+    "./slides/slide-editor-line": { "recommended": 518324, "maximum": 544241 },
     "./slides/slide-editor-numbered": { "recommended": 522779, "maximum": 548918 },
     "./slides/slide-editor-pages": { "recommended": 561214, "maximum": 589275 },
     "./slides/slide-editor-preview": { "recommended": 554218, "maximum": 581929 },
     "./slides/slide-editor-readonly": { "recommended": 471707, "maximum": 495293 },
+    "./slides/slide-editor-shadow": { "recommended": 521497, "maximum": 547572 },
     "./slides/slide-editor-table": { "recommended": 524882, "maximum": 551127 },
     "./slides/slide-editor-text": { "recommended": 546286, "maximum": 573601 },
     "./slides/slide-editor-transfer": { "recommended": 46747, "maximum": 49085 },
@@ -168,11 +171,11 @@
     "./help/help-drawer": { "recommended": 44976, "maximum": 47225 },
     "./help/help-markdown": { "recommended": 3418, "maximum": 3589 },
     "./help/index": { "recommended": 45785, "maximum": 48075 },
-    "./strings": { "recommended": 115698, "maximum": 121483 },
-    "./strings/en": { "recommended": 35236, "maximum": 36998 },
-    "./strings/de": { "recommended": 39741, "maximum": 41729 },
-    "./strings/es": { "recommended": 39283, "maximum": 41248 },
-    "./parity": { "recommended": 115228, "maximum": 120990 },
-    "./testing": { "recommended": 118309, "maximum": 124225 }
+    "./strings": { "recommended": 115698, "maximum": 131228 },
+    "./strings/en": { "recommended": 35236, "maximum": 40001 },
+    "./strings/de": { "recommended": 39741, "maximum": 45057 },
+    "./strings/es": { "recommended": 39283, "maximum": 44661 },
+    "./parity": { "recommended": 115228, "maximum": 130735 },
+    "./testing": { "recommended": 118309, "maximum": 133970 }
   }
 }

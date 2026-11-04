@@ -143,6 +143,31 @@ export const SLIDE_EXAMPLES: [name: string, document: SlideDocumentInput][] = [
   ["image corner radius and border", image({ cornerRadius: 16, border })],
   ["image flipped", image({ flipped: true })],
   ["image crop", image({ crop: { zoom: 1.8, offsetX: -120, offsetY: 40 } })],
+  // Images and background images flip vertically too; lines take a cap and a shadow (`SUI-FEATURE-135`).
+  ["image flipped vertically", image({ flippedVertical: true })],
+  ["image flipped both ways", image({ flipped: true, flippedVertical: true })],
+  [
+    "line round cap and shadow",
+    withElement({
+      id: "line-1",
+      type: "line",
+      ...box,
+      height: 0,
+      stroke: border,
+      cap: "round",
+      shadow,
+    }),
+  ],
+  [
+    "line square cap",
+    withElement({ id: "line-1", type: "line", ...box, height: 0, stroke: border, cap: "square" }),
+  ],
+  [
+    "background image flipped both ways",
+    withPage({
+      background: { type: "image", media: { id: "media-7" }, flipped: true, flippedVertical: true },
+    }),
+  ],
   // Text runs and fields.
   [
     "text runs",

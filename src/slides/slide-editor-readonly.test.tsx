@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SLIDE_BRAND } from "../../gallery/slide-showcase.js";
 import { elementClipboard } from "./element-clipboard-internal.js";
-import { FORMAT_16_9, type SlideDocumentInput } from "./schema.js";
+import { FORMAT_16_9, SLIDE_SCHEMA_VERSION, type SlideDocumentInput } from "./schema.js";
 import { SlideEditor } from "./slide-editor.js";
 
 // `SUI-FEATURE-133`: `readOnly` keeps every handle that changes the document out of the DOM, lets no
@@ -37,7 +37,7 @@ afterEach(() => {
 const background = { type: "color" as const, color: { kind: "brand" as const, key: "background" } };
 
 const DOC: SlideDocumentInput = {
-  schemaVersion: 10,
+  schemaVersion: SLIDE_SCHEMA_VERSION,
   format: FORMAT_16_9,
   // An open placeholder at the top right, clear of the elements: a double click there would fill it.
   layouts: [

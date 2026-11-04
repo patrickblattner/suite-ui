@@ -372,6 +372,8 @@ export const de: SuiteStrings = {
   },
   flip: {
     action: "Spiegeln",
+    horizontal: "Waagrecht spiegeln",
+    vertical: "Senkrecht spiegeln",
   },
   editor: {
     back: "Zurück",
@@ -603,6 +605,7 @@ export const de: SuiteStrings = {
         "100 % füllt den Rahmen; bis 500 % zeigt einen immer kleineren Teil des Bilds.",
       cropOffsetValueHint: "Pixel ab der Mitte des Rahmens; 0 zentriert das Bild.",
       imageFlipHint: "Spiegelt das Bild waagrecht in seiner Fläche.",
+      imageFlipVerticalHint: "Spiegelt das Bild senkrecht in seiner Fläche.",
       pageBackground: "Hintergrund",
       pageBackgroundZoomHint: "Vergrößert das Hintergrundbild auf der Seite.",
       pageBackgroundZoomValueHint:
@@ -614,6 +617,8 @@ export const de: SuiteStrings = {
       pageBackgroundOffsetValueHint: "Pixel ab der Mitte der Seite; 0 zentriert das Bild.",
       pageBackgroundFlipHint:
         "Spiegelt das Hintergrundbild waagrecht; der Inhalt der Seite bleibt, wie er ist.",
+      pageBackgroundFlipVerticalHint:
+        "Spiegelt das Hintergrundbild senkrecht; der Inhalt der Seite bleibt, wie er ist.",
       pageBackgroundReplace: "Bild wechseln",
       pageBackgroundReplaceHint:
         "Öffnet die Medien-Bibliothek, um ein anderes Bild zu wählen; Ausschnitt und Spiegeln werden zurückgesetzt.",
@@ -919,6 +924,36 @@ export const de: SuiteStrings = {
       width: "Breite",
       height: "Höhe",
       rotation: "Drehung",
+      lineSection: "Linie",
+      lineColor: "Linienfarbe",
+      lineColorHint: "Die Markenfarbe der Linie.",
+      lineColorValueHint: "Die Farben der Marke; die Liste bietet keine anderen.",
+      lineWidth: "Linienbreite",
+      lineWidthHint: "Wie dick die Linie ist.",
+      lineWidthValueHint: "Pixel des Seitenformats.",
+      lineWidthRange: "Gib eine Breite über 0 px ein.",
+      lineCap: "Linienenden",
+      lineCapHint: "Wie die beiden Enden der Linie gezeichnet werden.",
+      lineCapValueHint:
+        "Flach endet genau am Linienende; rund und eckig reichen die halbe Linienbreite darüber hinaus.",
+      lineCapButt: "Flach",
+      lineCapRound: "Rund",
+      lineCapSquare: "Eckig",
+      shadowSection: "Schatten",
+      shadowShow: "Schatten werfen",
+      shadowShowHint: "Wirft einen Schatten hinter das Element.",
+      shadowColor: "Schattenfarbe",
+      shadowColorHint: "Die Markenfarbe des Schattens.",
+      shadowColorValueHint: "Die Farben der Marke; die Liste bietet keine anderen.",
+      shadowBlur: "Schattenunschärfe",
+      shadowBlurHint: "Wie weich der Rand des Schattens ist.",
+      shadowBlurValueHint: "Pixel; 0 ist ein scharfer Rand.",
+      shadowOffsetX: "Horizontaler Versatz",
+      shadowOffsetXHint: "Verschiebt den Schatten links oder rechts neben das Element.",
+      shadowOffsetXValueHint: "Pixel; eine positive Zahl verschiebt ihn nach rechts.",
+      shadowOffsetY: "Vertikaler Versatz",
+      shadowOffsetYHint: "Verschiebt den Schatten über oder unter das Element.",
+      shadowOffsetYValueHint: "Pixel; eine positive Zahl verschiebt ihn nach unten.",
       strokeWidth: "Strichstärke",
       strokeWidthRange:
         "Gib eine Strichstärke über 0 und bis {{max}} px ein oder lass das Feld leer.",

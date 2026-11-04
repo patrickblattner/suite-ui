@@ -42,20 +42,22 @@ function renderEditor(
   border?: number,
   crop?: { zoom: number; offsetX: number; offsetY: number },
   flipped = false,
+  flippedVertical = false,
 ) {
   const framed =
     border === undefined
-      ? { ...photo, flipped }
+      ? { ...photo, flipped, flippedVertical }
       : {
           ...photo,
           flipped,
+          flippedVertical,
           border: { color: { kind: "free" as const, value: "#000" }, width: border },
         };
   const image = crop === undefined ? framed : { ...framed, crop };
   const editor = (readOnly: boolean) => (
     <SlideEditor
       document={{
-        schemaVersion: 10,
+        schemaVersion: 11,
         format: FORMAT_16_9,
         pages: [{ id: "one", background, elements: [image] }],
       }}
@@ -619,7 +621,7 @@ describe("SlideEditor image flip (#767)", () => {
   it("flips the selected image and Undo takes it back", () => {
     renderEditor();
     select();
-    expect(flip()).toHaveAccessibleName("Flip");
+    expect(flip()).toHaveAccessibleName("Flip horizontally");
     expect(flip()).toHaveAttribute("aria-pressed", "false");
     expect(flip()).toHaveAccessibleDescription("Mirrors the image horizontally within its area.");
     expect(drawn().style.transform).toBe("");
@@ -631,11 +633,30 @@ describe("SlideEditor image flip (#767)", () => {
     expect(drawn().style.transform).toBe("");
   });
 
+  // SUI-FEATURE-135: "Flip vertically" stands next to "Flip horizontally"; both together flip both ways.
+  it("flips the selected image vertically next to the horizontal flip, Undo takes it back", () => {
+    renderEditor();
+    select();
+    const vertical = () => screen.getByTestId("slide-editor-image-flip-vertical");
+    expect(vertical()).toHaveAccessibleName("Flip vertically");
+    expect(vertical()).toHaveAttribute("aria-pressed", "false");
+    expect(vertical()).toHaveAccessibleDescription("Mirrors the image vertically within its area.");
+    fireEvent.click(vertical());
+    expect(vertical()).toHaveAttribute("aria-pressed", "true");
+    expect(drawn().style.transform).toBe("scaleY(-1)");
+    fireEvent.click(flip());
+    expect(drawn().style.transform).toBe("scale(-1, -1)");
+    fireEvent.click(screen.getAllByTestId("editor-undo")[0]!);
+    fireEvent.click(screen.getAllByTestId("editor-undo")[0]!);
+    expect(vertical()).toHaveAttribute("aria-pressed", "false");
+    expect(drawn().style.transform).toBe("");
+  });
+
   it("locks the toggle of a locked image with the reason", () => {
     render(
       <SlideEditor
         document={{
-          schemaVersion: 10,
+          schemaVersion: 11,
           format: FORMAT_16_9,
           pages: [{ id: "one", background, elements: [{ ...photo, locked: true }] }],
         }}
@@ -713,5 +734,42 @@ describe("SlideEditor crop mode of a flipped image (#772)", () => {
     expect(offsetX()).toHaveValue("1");
     // Drawn 1 px right: the whole image from −79 on the page.
     expect(rest().style.left).toBe(`${-79 * 0.25 + 24}px`);
+  });
+});
+
+// SUI-FEATURE-135: an image flipped vertically is cropped first, then flipped about its frame's
+// centre: in crop mode its dimmed rest lies mirrored up and down, and the y field and the arrow keys
+// move it the way it goes on screen, as #772 does sideways.
+describe("SlideEditor crop mode of a vertically flipped image (SUI-FEATURE-135)", () => {
+  // A 1:4 image in the 160 × 100 frame at (40, 400): drawn 160 × 640, centred on y = 450.
+  const tall = { width: 400, height: 1600 };
+  const offsetY = () => screen.getByTestId<HTMLInputElement>("slide-editor-crop-offsetY");
+  const rest = () => screen.getByTestId("slide-editor-crop-rest");
+
+  it("mirrors the dimmed rest about the frame's centre and reads the y shift as drawn", () => {
+    // Stored 100 px up; flipped vertically, the image is drawn 100 px down: from 230 to 870.
+    renderEditor(undefined, { zoom: 1, offsetX: 0, offsetY: -100 }, false, true);
+    startCrop();
+    loadRest(tall);
+    expect(rest().style.top).toBe(`${230 * 0.25 + 24}px`);
+    expect(rest().querySelector("img")!.style.transform).toBe("scaleY(-1)");
+    expect(offsetY()).toHaveValue("100");
+  });
+
+  it("moves a vertically flipped image the way the arrow key points", () => {
+    renderEditor(undefined, undefined, false, true);
+    startCrop();
+    loadRest(tall);
+    fireEvent.keyDown(canvas(), { key: "ArrowDown", shiftKey: true });
+    // Drawn 10 px down: the whole image from 140 on the page.
+    expect(rest().style.top).toBe(`${140 * 0.25 + 24}px`);
+    expect(offsetY()).toHaveValue("10");
+  });
+
+  it("flips the dimmed rest both ways when flipped both ways", () => {
+    renderEditor(undefined, undefined, true, true);
+    startCrop();
+    loadRest(tall);
+    expect(rest().querySelector("img")!.style.transform).toBe("scale(-1, -1)");
   });
 });

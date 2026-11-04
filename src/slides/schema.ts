@@ -17,8 +17,9 @@ import { shownInError } from "./shown-in-error.js";
 // version 6 an icon's `strokeWidth` (`SUI-FEATURE-166`); version 7 a text field's `numbered`
 // (`SUI-FEATURE-124`); version 8 the cap on a text field's paragraphs (`maxParagraphs`, `SUI-DESIGN-002`
 // rev 8); version 9 a numbered list's `fit` (`SUI-FEATURE-124` rev 5); version 10 the crop of a background
-// image (`SUI-DESIGN-002` rev 10).
-export const SLIDE_SCHEMA_VERSION = 10;
+// image (`SUI-DESIGN-002` rev 10); version 11 an image's and a background image's `flippedVertical`, a
+// line's `cap` and `shadow` (`SUI-FEATURE-135`).
+export const SLIDE_SCHEMA_VERSION = 11;
 
 // The hard limits of a document, generous on purpose (`SUI-DESIGN-002` §Form): the schema is the one boundary apps
 // and servers share, so tightening a limit later would take a schema version. `maxGroupDepth` and
@@ -186,7 +187,8 @@ const cropSchema = z.object({ zoom: z.number().min(1), offsetX: px, offsetY: px 
 
 // Exactly one background per page: a colour, a gradient or an image; an image carries the crop of an
 // image element over the page's cover fill (`SUI-DESIGN-002` rev 10), cropped and flipped only when
-// drawn.
+// drawn: cropped first, then flipped horizontally (`flipped`) and vertically (`flippedVertical`,
+// `SUI-FEATURE-135`).
 export const backgroundSchema = z.discriminatedUnion("type", [
   ...fillSchema.options,
   z.object({
@@ -194,6 +196,7 @@ export const backgroundSchema = z.discriminatedUnion("type", [
     media: mediaRefSchema,
     crop: cropSchema,
     flipped: z.boolean().default(false),
+    flippedVertical: z.boolean().default(false),
   }),
 ]);
 
@@ -353,7 +356,8 @@ export const textElementSchema = z.object({
 });
 
 // An image with its crop: the image zoomed (1 = it covers the frame) and shifted inside the frame,
-// which stays as it is. The file is never changed.
+// which stays as it is; cropped first, then flipped either way (`SUI-FEATURE-135`). The file is never
+// changed.
 export const imageElementSchema = z.object({
   ...elementBase,
   type: z.literal("image"),
@@ -361,6 +365,7 @@ export const imageElementSchema = z.object({
   alt: label.default(""),
   crop: cropSchema,
   flipped: z.boolean().default(false),
+  flippedVertical: z.boolean().default(false),
   cornerRadius: size.default(0),
   border: borderSchema.optional(),
   shadow: shadowSchema.optional(),
@@ -386,11 +391,14 @@ export const shapeElementSchema = z.object({
     .optional(),
 });
 
-// A line runs through the middle of its box from left to right; `rotation` turns it.
+// A line runs through the middle of its box from left to right; `rotation` turns it. Its ends take
+// `cap` and it casts the shadow text, shapes and images do (`SUI-FEATURE-135`).
 export const lineElementSchema = z.object({
   ...elementBase,
   type: z.literal("line"),
   stroke: borderSchema,
+  cap: z.enum(["butt", "round", "square"]).default("butt"),
+  shadow: shadowSchema.optional(),
 });
 
 // An icon of the package's icon library, by name.

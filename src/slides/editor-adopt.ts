@@ -157,7 +157,11 @@ export function adoptBrand(
           ...(element.shadow === undefined ? {} : { shadow: line(element.shadow) }),
         };
       case "line":
-        return { ...element, stroke: line(element.stroke) };
+        return {
+          ...element,
+          stroke: line(element.stroke),
+          ...(element.shadow === undefined ? {} : { shadow: line(element.shadow) }),
+        };
       case "icon":
         return element.color === undefined
           ? element

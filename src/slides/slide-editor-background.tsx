@@ -14,8 +14,8 @@ export type ImageBackground = Extract<Background, { type: "image" }>;
 
 // The page's background image in the layout tab (`SUI-DESIGN-002` rev 10, Q&A #5206): its crop by
 // the fields of an image's crop (`CropFields`) — zoom 100–500 % about the page's centre and the
-// shift in px, each clamped to the image's reach over the page's cover fill — the flip toggle
-// (`SUI-FEATURE-311`) and "Change image" through the app's picker, which resets both (`GL-UI-035`).
+// shift in px, each clamped to the image's reach over the page's cover fill — the flip toggles, either
+// way (`SUI-FEATURE-311`, `SUI-FEATURE-135`) and "Change image" through the app's picker, which resets both (`GL-UI-035`).
 // No crop mode on the canvas: the fields set every crop without a drag (WCAG 2.5.7).
 export function BackgroundFields({
   background,
@@ -53,8 +53,8 @@ export function BackgroundFields({
           testId="slide-editor-background"
           width={pageWidth}
           height={pageHeight}
-          // Flipped, the x shift reads and steps the way the image goes on screen (#772).
-          crop={mirroredCrop(crop, background.flipped)}
+          // Flipped, the shift reads and steps the way the image goes on screen (#772).
+          crop={mirroredCrop(crop, background.flipped, background.flippedVertical)}
           natural={natural}
           hints={{
             zoom: "pageBackgroundZoomHint",
@@ -68,20 +68,36 @@ export function BackgroundFields({
           // The slider and the % field set one zoom: changes in a row there are one step.
           onCrop={(next, field) =>
             onBackground(
-              { ...background, crop: mirroredCrop(next, background.flipped) },
+              {
+                ...background,
+                crop: mirroredCrop(next, background.flipped, background.flippedVertical),
+              },
               `background:${field === "percent" ? "zoom" : field}`,
             )
           }
         />
-        <div className="flex flex-wrap gap-2">
+        <div className="grid grid-cols-2 gap-2">
           <Hint text={t("slides.editor.pageBackgroundFlipHint")}>
             <FlipToggle
+              axis="horizontal"
               flipped={background.flipped}
               onFlippedChange={(flipped) => onBackground({ ...background, flipped })}
               data-testid="slide-editor-background-flip"
             />
           </Hint>
-          {onReplace === undefined ? null : (
+          <Hint text={t("slides.editor.pageBackgroundFlipVerticalHint")}>
+            <FlipToggle
+              axis="vertical"
+              flipped={background.flippedVertical}
+              onFlippedChange={(flippedVertical) =>
+                onBackground({ ...background, flippedVertical })
+              }
+              data-testid="slide-editor-background-flip-vertical"
+            />
+          </Hint>
+        </div>
+        {onReplace === undefined ? null : (
+          <div className="flex">
             <Hint text={t("slides.editor.pageBackgroundReplaceHint")}>
               <Button
                 type="button"
@@ -94,8 +110,8 @@ export function BackgroundFields({
                 {t("slides.editor.pageBackgroundReplace")}
               </Button>
             </Hint>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </section>
   );

@@ -8,10 +8,10 @@ import { Field } from "../ui/field.js";
 import { helpIdFor } from "../ui/label-with-help.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select.js";
 import { IconButtonTooltip } from "../ui/tooltip.js";
+import { brandColorItems } from "./brand-color-items-internal.js";
 import { LockedTrigger } from "./element-lock-internal.js";
 import type { SlideBrandSet } from "./brand.js";
 import { NumberField } from "./number-field.js";
-import { cssColor } from "./render-style.js";
 import { type ColorValue, type FontValue, type NumberedList, SLIDE_LIMITS } from "./schema.js";
 import { MAX_TEXT_SIZE } from "./slide-editor-text.js";
 
@@ -195,27 +195,14 @@ export function NumberedListFields({
           t("slides.editor.listSizeRange", { max: MAX_TEXT_SIZE }),
           { min: 1, max: MAX_TEXT_SIZE, unit: "px" },
         )}
-        {brandSelect(
-          "color",
-          selectValue(marker?.color),
-          Object.entries(brand.colors).map(([key, { value, label }]) => (
-            <SelectItem key={key} value={key}>
-              <span
-                aria-hidden="true"
-                className="size-3 shrink-0 rounded-full border"
-                style={{ background: cssColor({ kind: "brand", key }, brand) ?? value }}
-              />
-              {label}
-            </SelectItem>
-          )),
-          (key) =>
-            onNumbered(
-              withValue(
-                numbered,
-                "marker.color",
-                key === undefined ? undefined : { kind: "brand", key },
-              ),
+        {brandSelect("color", selectValue(marker?.color), brandColorItems(brand), (key) =>
+          onNumbered(
+            withValue(
+              numbered,
+              "marker.color",
+              key === undefined ? undefined : { kind: "brand", key },
             ),
+          ),
         )}
         {number("markerGap", "markerGap", numbered?.markerGap, gapRange, {
           min: 0,

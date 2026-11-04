@@ -1127,10 +1127,21 @@ export function panCrop(
 }
 
 // A flipped image is cropped first, then flipped about its frame's centre (`GL-UI-035`, #772): it is
-// drawn with its shift mirrored, so where it lies, which way a drag moves it and the x shift its
-// fields show take the mirrored shift. Its own inverse; `0 -` keeps a centred shift at 0, never -0.
-export const mirroredCrop = (crop: ImageCrop, flipped: boolean): ImageCrop =>
-  flipped ? { ...crop, offsetX: 0 - crop.offsetX } : crop;
+// drawn with its shift mirrored, so where it lies, which way a drag moves it and the shift its fields
+// show take the mirrored shift, x when flipped horizontally, y when flipped vertically
+// (`SUI-FEATURE-135`). Its own inverse; `0 -` keeps a centred shift at 0, never -0.
+export const mirroredCrop = (
+  crop: ImageCrop,
+  flipped: boolean,
+  flippedVertical: boolean,
+): ImageCrop =>
+  flipped || flippedVertical
+    ? {
+        ...crop,
+        offsetX: flipped ? 0 - crop.offsetX : crop.offsetX,
+        offsetY: flippedVertical ? 0 - crop.offsetY : crop.offsetY,
+      }
+    : crop;
 
 // The whole image of a crop where it is drawn on the page (`SUI-FEATURE-230`): the frame's placed box
 // zoomed about its centre and shifted in the image's own axes, turned as the frame is. Its part outside
@@ -1231,7 +1242,10 @@ function scaledContent(element: SlideElement, scale: number): SlideElement {
         scale,
       );
     case "line":
-      return { ...element, stroke: scaledLine(element.stroke, scale) };
+      return withScaledBorderAndShadow(
+        { ...element, stroke: scaledLine(element.stroke, scale) },
+        scale,
+      );
     case "table":
       return withScaledBorderAndShadow(
         {
@@ -1432,6 +1446,7 @@ export function libraryElement(
         ...box(side, Math.max(1, round(side / 10))),
         // 0.4 % of the shorter side, in whole px, at least 1 (`SUI-FEATURE-232` rev 3).
         stroke: { color, width: Math.max(1, Math.round(shorter * 0.004)) },
+        cap: "butt",
       };
     case "text":
       // Half the shorter side wide, its text a 30th of it high.
@@ -1493,6 +1508,7 @@ export function libraryElement(
         alt: entry.alt,
         crop: { zoom: 1, offsetX: 0, offsetY: 0 },
         flipped: false,
+        flippedVertical: false,
         cornerRadius: 0,
       };
     }

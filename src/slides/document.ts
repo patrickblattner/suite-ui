@@ -70,7 +70,29 @@ export const SLIDE_MIGRATIONS: Readonly<Record<number, SlideMigration>> = {
         ? { ...background, crop: { zoom: 1, offsetX: 0, offsetY: 0 } }
         : background,
     ),
+  // 10 → 11 added an image's and a background image's `flippedVertical`, a line's `cap` and its
+  // `shadow` (`SUI-FEATURE-135`): an older image is not flipped vertically, an older line has flat
+  // ends and no shadow, so it draws as before; a stray one written before (its parse dropped it) is
+  // replaced or dropped, in groups, prototypes and backgrounds of pages, layouts and masters alike.
+  10: (document) =>
+    everyBackground(
+      everyElement(document, (element) => {
+        const prototype = element.type === "placeholder" ? element.prototype : undefined;
+        return isRecord(prototype)
+          ? { ...element, prototype: unflippedOrFlat(prototype) }
+          : unflippedOrFlat(element);
+      }),
+      (background) =>
+        background.type === "image" ? { ...background, flippedVertical: false } : background,
+    ),
 };
+
+// An image or a line as before `SUI-FEATURE-135`: not flipped vertically, flat ends, no shadow.
+function unflippedOrFlat(element: Record<string, unknown>): Record<string, unknown> {
+  if (element.type === "image") return { ...element, flippedVertical: false };
+  if (element.type === "line") return { ...without(element, "shadow"), cap: "butt" };
+  return element;
+}
 
 // The document with `change` made to each of its pages, layouts and masters, within their caps.
 function everyHolder(

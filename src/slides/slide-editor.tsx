@@ -167,6 +167,8 @@ import {
 } from "./slide-editor-library.js";
 import { CropFields } from "./crop-fields.js";
 import { BackgroundFields, type ImageBackground } from "./slide-editor-background.js";
+import { LineFields } from "./slide-editor-line.js";
+import { ShadowFields } from "./slide-editor-shadow.js";
 import { PageSorter } from "./slide-editor-pages.js";
 import {
   type CellAt,
@@ -1617,6 +1619,7 @@ function Editor({
     cropping === undefined ? undefined : findElement(elements, cropping.id)?.element;
   // Flipped, its shift is drawn and shown mirrored (#772).
   const croppedFlipped = croppedImage?.type === "image" && croppedImage.flipped;
+  const croppedFlippedVertical = croppedImage?.type === "image" && croppedImage.flippedVertical;
   // The area its crop refers to: the frame less its border, where the view lays the image
   // (`SUI-FEATURE-230` rev 5 §Rahmen).
   const cropFrame = croppedImage === undefined ? undefined : cropArea(croppedImage);
@@ -1630,7 +1633,7 @@ function Editor({
     }
     const { box, rotation } = placedBox(elements, croppedImage);
     const inner = { x: box.x + cropBorder, y: box.y + cropBorder, ...cropFrame };
-    const shown = mirroredCrop(cropping.crop, croppedFlipped);
+    const shown = mirroredCrop(cropping.crop, croppedFlipped, croppedFlippedVertical);
     return croppedImageBox({ box: inner, rotation }, shown, cropNatural);
   })();
   // A press on the image being cropped: on the whole image or on its frame with the border, which lies
@@ -1773,9 +1776,13 @@ function Editor({
       ? undefined
       : (() => {
           const { width, height } = cropWhole.box;
-          const shown = mirroredCrop(cropping.crop, croppedImage.flipped);
+          const shown = mirroredCrop(
+            cropping.crop,
+            croppedImage.flipped,
+            croppedImage.flippedVertical,
+          );
           const left = (width - cropFrame.width) / 2 - shown.offsetX - cropBorder;
-          const top = (height - cropFrame.height) / 2 - cropping.crop.offsetY - cropBorder;
+          const top = (height - cropFrame.height) / 2 - shown.offsetY - cropBorder;
           const [x0, y0] = [left * zoom, top * zoom];
           const [x1, y1] = [(left + croppedImage.width) * zoom, (top + croppedImage.height) * zoom];
           const r =
@@ -1788,6 +1795,7 @@ function Editor({
             whole: cropWhole,
             src: cropSrc,
             flipped: croppedImage.flipped,
+            flippedVertical: croppedImage.flippedVertical,
             clip: `path(evenodd, "${outer} ${hole}")`,
           };
         })();
@@ -2218,12 +2226,14 @@ function Editor({
       const { width, height } = cropArea(image);
       // A flipped image moves the way it is dragged: its drawn shift follows the pointer (#772).
       const flipped = image.type === "image" && image.flipped;
-      const shown = mirroredCrop(drag.crop, flipped);
+      const flippedVertical = image.type === "image" && image.flippedVertical;
+      const shown = mirroredCrop(drag.crop, flipped, flippedVertical);
       setCropping({
         ...cropping,
         crop: mirroredCrop(
           panCrop(width, height, shown, step, drag.rotation, cropNatural),
           flipped,
+          flippedVertical,
         ),
       });
       return;
@@ -2689,6 +2699,7 @@ function Editor({
       media: { id: media },
       crop: { zoom: 1, offsetX: 0, offsetY: 0 },
       flipped: false,
+      flippedVertical: false,
     });
     if (fits(next, "slides.editor.libraryMediaInvalid")) history.apply(() => next, { page: at });
   };
@@ -2838,9 +2849,10 @@ function Editor({
       const rotation = placedBox(elements, image).rotation;
       // A flipped image moves the way the arrow points, as a drag moves it (#772).
       const flipped = image.type === "image" && image.flipped;
-      const shown = mirroredCrop(crop, flipped);
+      const flippedVertical = image.type === "image" && image.flippedVertical;
+      const shown = mirroredCrop(crop, flipped, flippedVertical);
       const next = panCrop(width, height, shown, shift, rotation, cropNatural);
-      setCropping({ ...state, crop: mirroredCrop(next, flipped) });
+      setCropping({ ...state, crop: mirroredCrop(next, flipped, flippedVertical) });
     } else if (factor !== undefined) {
       setCropping({ ...state, crop: zoomCrop(width, height, crop, factor, cropNatural) });
     } else {
@@ -3315,6 +3327,51 @@ function Editor({
         testId="slide-editor-strokeWidth"
       />
     );
+  // A line's colour, width and ends, and the one shadow section of text, shapes, images and lines
+  // (`SUI-FEATURE-135` rev 3): a choice or the switch is one step, typing in a row in one field is one.
+  const lineFields =
+    single?.type !== "line" ? undefined : (
+      <LineFields
+        key={single.id}
+        line={single}
+        brand={view.brand}
+        readOnly={single.locked}
+        revision={travels}
+        onLine={(next, merge) =>
+          apply(
+            (current) => updateElements(current, page, [single.id], () => next),
+            merge === undefined ? undefined : `field:${single.id}:${merge}`,
+          )
+        }
+      />
+    );
+  const shadowFields =
+    single === undefined ||
+    (single.type !== "text" &&
+      single.type !== "shape" &&
+      single.type !== "image" &&
+      single.type !== "line") ? undefined : (
+      <ShadowFields
+        elementId={single.id}
+        shadow={single.shadow}
+        brand={view.brand}
+        readOnly={single.locked}
+        revision={travels}
+        onShadow={(shadow, merge) =>
+          apply(
+            (current) =>
+              updateElements(current, page, [single.id], (one) => {
+                if (one.type !== single.type) return one;
+                if (shadow !== undefined) return { ...one, shadow };
+                const plain = { ...one };
+                delete plain.shadow;
+                return plain;
+              }),
+            merge === undefined ? undefined : `field:${single.id}:${merge}`,
+          )
+        }
+      />
+    );
   const hasContent =
     iconFields !== undefined ||
     single?.type === "chart" ||
@@ -3379,8 +3436,8 @@ function Editor({
             testId="slide-editor-crop"
             width={cropFrame.width}
             height={cropFrame.height}
-            // Flipped, the x shift reads and steps the way the image goes on screen (#772).
-            crop={mirroredCrop(cropping.crop, croppedFlipped)}
+            // Flipped, the shift reads and steps the way the image goes on screen (#772).
+            crop={mirroredCrop(cropping.crop, croppedFlipped, croppedFlippedVertical)}
             natural={cropNatural}
             hints={{
               zoom: "cropZoomHint",
@@ -3392,7 +3449,7 @@ function Editor({
             zoomRevision={cropZoomRevision}
             offsetRevision={travels}
             onCrop={(shown, field) => {
-              const crop = mirroredCrop(shown, croppedFlipped);
+              const crop = mirroredCrop(shown, croppedFlipped, croppedFlippedVertical);
               setCropping({ ...cropping, crop });
               if (field !== "percent") return;
               // The field's own crop: its typed text stands.
@@ -3421,12 +3478,13 @@ function Editor({
   const layoutTab = (
     <div className="flex flex-col gap-4" data-testid="slide-editor-layout">
       {unloadedNote}
-      {/* An image's flip (`GL-UI-035`, `SUI-FEATURE-311`): one step each, undone as any other. Above
+      {/* An image's flips (`GL-UI-035`, `SUI-FEATURE-311`, `SUI-FEATURE-135`): one step each, undone as any other. Above
           the crop fields, so a press that ends cropping leaves the toggle where it was (#767). */}
       {single?.type !== "image" ? null : (
-        <div className="flex flex-wrap gap-2">
+        <div className="grid grid-cols-2 gap-2">
           <Hint text={t("slides.editor.imageFlipHint")} disabledText={t("slides.lockedElement")}>
             <FlipToggle
+              axis="horizontal"
               flipped={single.flipped}
               disabled={single.locked}
               onFlippedChange={(flipped) =>
@@ -3437,6 +3495,24 @@ function Editor({
                 )
               }
               data-testid="slide-editor-image-flip"
+            />
+          </Hint>
+          <Hint
+            text={t("slides.editor.imageFlipVerticalHint")}
+            disabledText={t("slides.lockedElement")}
+          >
+            <FlipToggle
+              axis="vertical"
+              flipped={single.flippedVertical}
+              disabled={single.locked}
+              onFlippedChange={(flippedVertical) =>
+                apply((current) =>
+                  updateElements(current, page, [single.id], (one) =>
+                    one.type === "image" ? { ...one, flippedVertical } : one,
+                  ),
+                )
+              }
+              data-testid="slide-editor-image-flip-vertical"
             />
           </Hint>
         </div>
@@ -3534,6 +3610,8 @@ function Editor({
           {followField}
         </div>
       )}
+      {lineFields}
+      {shadowFields}
       {selected.length === 0 || editable.length === 0 ? null : (
         <section className="flex flex-col gap-2">
           <h3 className="text-base font-semibold">{t("slides.editor.arrange")}</h3>
@@ -4431,7 +4509,15 @@ function Editor({
                       alt=""
                       draggable={false}
                       className="size-full max-w-none object-cover"
-                      style={{ transform: cropRest.flipped ? "scaleX(-1)" : undefined }}
+                      style={{
+                        transform: cropRest.flipped
+                          ? cropRest.flippedVertical
+                            ? "scale(-1, -1)"
+                            : "scaleX(-1)"
+                          : cropRest.flippedVertical
+                            ? "scaleY(-1)"
+                            : undefined,
+                      }}
                       onError={() => {
                         setBrokenCropSrc(cropRest.src);
                         // Without a size the image keeps the area's proportions, as before

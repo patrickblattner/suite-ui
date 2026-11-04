@@ -918,15 +918,21 @@ function shape(draw: Draw, element: ElementOf<"shape">) {
   );
 }
 
+// A line's ends take its `cap` and it casts its shadow as a shape does (`SUI-FEATURE-135`).
 function line(draw: Draw, element: ElementOf<"line">) {
   const color = colorOf(draw, element.stroke.color);
+  const shadow = shadowOf(draw, element.shadow);
   const y = num(element.height / 2);
   return (
     <svg
       width="100%"
       height="100%"
       aria-hidden="true"
-      style={{ overflow: "visible", display: "block" }}
+      style={{
+        overflow: "visible",
+        display: "block",
+        filter: shadow === undefined ? undefined : `drop-shadow(${shadow})`,
+      }}
     >
       <line
         x1="0"
@@ -935,6 +941,7 @@ function line(draw: Draw, element: ElementOf<"line">) {
         y2={y}
         stroke={color ?? "transparent"}
         strokeWidth={num(element.stroke.width)}
+        strokeLinecap={element.cap}
       />
     </svg>
   );
@@ -966,6 +973,7 @@ function image(draw: Draw, element: ElementOf<"image">) {
     natural === undefined ? element.crop : clampCrop(w, h, element.crop, natural);
   const drawn = croppedImageSize(w, h, zoom, natural);
   const left = (w - drawn.width) / 2 + offsetX;
+  const top = (h - drawn.height) / 2 + offsetY;
   return (
     <div
       style={{
@@ -1000,19 +1008,33 @@ function image(draw: Draw, element: ElementOf<"image">) {
         style={{
           position: "absolute",
           left: px(left),
-          top: px((h - drawn.height) / 2 + offsetY),
+          top: px(top),
           width: px(drawn.width),
           height: px(drawn.height),
           maxWidth: "none",
           objectFit: "cover",
           // Cropped first, then flipped about the frame's centre, as the page background is: the
           // flipped frame shows the same section, mirrored (`GL-UI-035`, #772).
-          transform: element.flipped ? "scaleX(-1)" : undefined,
-          transformOrigin: element.flipped ? `${px(w / 2 - left)} 50%` : undefined,
+          ...flipStyle(element.flipped, element.flippedVertical, w / 2 - left, h / 2 - top),
         }}
       />
     </div>
   );
+}
+
+// An image flipped horizontally, vertically or both about the frame's centre, `originX`/`originY` in
+// the image's own px (`GL-UI-035`, `SUI-FEATURE-135`); unflipped, no transform.
+function flipStyle(
+  flipped: boolean,
+  flippedVertical: boolean,
+  originX: number,
+  originY: number,
+): React.CSSProperties {
+  if (!flipped && !flippedVertical) return {};
+  return {
+    transform: flipped ? (flippedVertical ? "scale(-1, -1)" : "scaleX(-1)") : "scaleY(-1)",
+    transformOrigin: `${flipped ? px(originX) : "50%"} ${flippedVertical ? px(originY) : "50%"}`,
+  };
 }
 
 function icon(draw: Draw, element: ElementOf<"icon">) {
@@ -1885,7 +1907,8 @@ export function SlideView({
   const { width, height } = document.format;
   // A background image's crop is an image element's over the page's cover fill (`SUI-DESIGN-002`
   // rev 10), drawn within its reach once the image has loaded, as an image's is; cropped first, then
-  // flipped about the page's centre, so the flipped page shows the same section, mirrored (`GL-UI-035`).
+  // flipped about the page's centre, either way, so the flipped page shows the same section, mirrored
+  // (`GL-UI-035`, `SUI-FEATURE-135`).
   const backgroundPlace = (() => {
     if (backgroundImage === undefined || pageData.background.type !== "image") return undefined;
     const natural = loaded.get(backgroundImage);
@@ -1895,14 +1918,17 @@ export function SlideView({
         : clampCrop(width, height, pageData.background.crop, natural);
     const size = croppedImageSize(width, height, zoom, natural);
     const left = (width - size.width) / 2 + offsetX;
+    const top = (height - size.height) / 2 + offsetY;
     return {
       natural,
       flipped: pageData.background.flipped,
+      flippedVertical: pageData.background.flippedVertical,
       left,
-      top: (height - size.height) / 2 + offsetY,
+      top,
       width: size.width,
       height: size.height,
       originX: width / 2 - left,
+      originY: height / 2 - top,
     };
   })();
   // Missing fonts and brand colours are named in a strip below the page, never over it: the page
@@ -2113,10 +2139,12 @@ export function SlideView({
               height: px(backgroundPlace.height),
               maxWidth: "none",
               objectFit: "cover",
-              transform: backgroundPlace.flipped ? "scaleX(-1)" : undefined,
-              transformOrigin: backgroundPlace.flipped
-                ? `${px(backgroundPlace.originX)} 50%`
-                : undefined,
+              ...flipStyle(
+                backgroundPlace.flipped,
+                backgroundPlace.flippedVertical,
+                backgroundPlace.originX,
+                backgroundPlace.originY,
+              ),
             }}
           />
         )}

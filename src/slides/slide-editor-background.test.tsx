@@ -90,11 +90,12 @@ const percent = () =>
   within(section()).getByRole<HTMLInputElement>("spinbutton", { name: "Zoom (%)" });
 const offset = (axis: "X" | "Y") =>
   within(section()).getByRole<HTMLInputElement>("spinbutton", { name: `Offset ${axis}` });
-const image = (crop: Crop, flipped = false, media = "photo") => ({
+const image = (crop: Crop, flipped = false, media = "photo", flippedVertical = false) => ({
   type: "image",
   media: { id: media },
   crop,
   flipped,
+  flippedVertical,
 });
 // The section's medium has loaded: the shift is clamped to its reach.
 const loaded = () =>
@@ -191,6 +192,42 @@ describe("SlideEditor background image", () => {
     expect(flip).toHaveAttribute("aria-pressed", "true");
     expect(flip).toHaveTextContent("Flip");
     expect(stored()).toEqual(image({ zoom: 1.5, offsetX: -120, offsetY: 40 }, true));
+  });
+
+  // SUI-FEATURE-135: "Flip vertically" next to "Flip horizontally", each its own step.
+  it("flips the background vertically with its own toggle next to the horizontal one", () => {
+    const { stored } = renderEditor(image({ zoom: 1.5, offsetX: -120, offsetY: 40 }));
+    const horizontal = screen.getByTestId("slide-editor-background-flip");
+    const vertical = screen.getByTestId("slide-editor-background-flip-vertical");
+    expect(horizontal).toHaveAccessibleName("Flip horizontally");
+    expect(vertical).toHaveAccessibleName("Flip vertically");
+    expect(vertical).toHaveAccessibleDescription(
+      "Mirrors the background image vertically; the page's content stays as it is.",
+    );
+    fireEvent.click(vertical);
+    expect(vertical).toHaveAttribute("aria-pressed", "true");
+    expect(horizontal).toHaveAttribute("aria-pressed", "false");
+    expect(stored()).toEqual(
+      image({ zoom: 1.5, offsetX: -120, offsetY: 40 }, false, "photo", true),
+    );
+    fireEvent.click(horizontal);
+    expect(stored()).toEqual(image({ zoom: 1.5, offsetX: -120, offsetY: 40 }, true, "photo", true));
+    const drawn = document.querySelector<HTMLImageElement>("[data-slot=slide-page] > img")!;
+    expect(drawn.style.transform).toBe("scale(-1, -1)");
+  });
+
+  // SUI-FEATURE-135: flipped vertically, the y field reads and steps the shift as drawn.
+  it("reads and steps a vertically flipped background's y shift the way it goes on screen", async () => {
+    const { stored } = renderEditor(
+      image({ zoom: 1.5, offsetX: -120, offsetY: 40 }, false, "photo", true),
+    );
+    await loaded();
+    expect(offset("Y")).toHaveValue("-40");
+    fireEvent.keyDown(offset("Y"), { key: "ArrowUp" });
+    fireEvent.blur(offset("Y"));
+    expect(stored()).toEqual(
+      image({ zoom: 1.5, offsetX: -120, offsetY: 39 }, false, "photo", true),
+    );
   });
 
   // GL-UI-035: the user picking another image resets the crop and the flip; a cancel changes nothing.

@@ -64,6 +64,7 @@ import {
   FORMAT_16_9,
   isTextRun,
   SLIDE_LIMITS,
+  SLIDE_SCHEMA_VERSION,
   type SlideDocument,
   type SlideElement,
   slideElementSchema,
@@ -1417,6 +1418,41 @@ describe("transfer to another format", () => {
     expect(
       transferFormat(stepped, { name: "Tiny", width: 576, height: 324 }).document.grid,
     ).toEqual({ kind: "step", step: 12 });
+  });
+
+  // SUI-FEATURE-135 rev 3: a line's shadow scales as every other shadow does.
+  it("scales a line's shadow with the shorter side", () => {
+    const black = { kind: "free", value: "#000" } as const;
+    const source = parseSlideDocument({
+      schemaVersion: SLIDE_SCHEMA_VERSION,
+      format: FORMAT_16_9,
+      pages: [
+        {
+          id: "p",
+          background: { type: "color", color: { kind: "free", value: "#fff" } },
+          elements: [
+            {
+              id: "rule",
+              type: "line",
+              x: 100,
+              y: 300,
+              width: 400,
+              height: 1,
+              stroke: { color: black, width: 2 },
+              shadow: { color: black, blur: 10, offsetX: 4, offsetY: -6 },
+            },
+          ],
+        },
+      ],
+    });
+    const { document: copy } = transferFormat(source, { name: "Big", width: 4608, height: 2592 });
+    const rule = findElement(copy.pages[0]!.elements, "rule")!.element;
+    expect(rule.type === "line" ? rule.shadow : undefined).toEqual({
+      color: black,
+      blur: 24,
+      offsetX: 9.6,
+      offsetY: -14.4,
+    });
   });
 
   // #640 (Codex #636 CX6): a following shape's inset is dimensional, so it scales as the rest does.

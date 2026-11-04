@@ -616,6 +616,11 @@ for (const lng of LANGUAGES) {
         "aria-pressed",
         "true",
       );
+      // `SUI-FEATURE-135`: "Flip vertically" next to it, not pressed.
+      await expect(section.getByTestId("slide-editor-background-flip-vertical")).toHaveAttribute(
+        "aria-pressed",
+        "false",
+      );
       await expect(section.getByTestId("slide-editor-background-zoom-input")).toHaveValue("150");
       // Stored −60, flipped: drawn and read 60 px right (#772).
       await expect(section.getByTestId("slide-editor-background-offsetX")).toHaveValue("60");
@@ -640,10 +645,46 @@ for (const lng of LANGUAGES) {
       await expect(
         editor.locator("[data-slide-element=picture] img[data-slide-image=sized]"),
       ).toHaveCSS("transform", "matrix(-1, 0, 0, 1, 0, 0)");
+      // `SUI-FEATURE-135`: "Flip vertically" next to it; both pressed, the picture is drawn
+      // mirrored both ways.
+      const vertical = editor.getByTestId("slide-editor-image-flip-vertical");
+      await expect(vertical).toHaveAttribute("aria-pressed", "false");
+      await vertical.click();
+      await expect(vertical).toHaveAttribute("aria-pressed", "true");
+      await expect(
+        editor.locator("[data-slide-element=picture] img[data-slide-image=sized]"),
+      ).toHaveCSS("transform", "matrix(-1, 0, 0, -1, 0, 0)");
       await parkPointer(page);
       await expect(editor.getByTestId("slide-editor-layout")).toHaveScreenshot(
         `slide-editor-image-flip-${lng}-${theme}.png`,
       );
+    });
+
+    // `SUI-FEATURE-135` rev 3 AC2: a new line's section sets its ends round, the shared shadow
+    // section switches a shadow on; both show their values, the line is drawn with them.
+    test(`slide editor line and shadow sections ${lng} ${theme}`, async ({ page }) => {
+      await page.goto(`/?page=slide-editor&lng=${lng}&theme=${theme}`);
+      await expect(page.locator("html")).toHaveAttribute("lang", lng);
+      const { editor } = await openEditor(page, false);
+      await editor.getByTestId("drawer-add").click();
+      await editor.getByTestId("slide-editor-library-line").click();
+      const section = editor.getByTestId("slide-editor-line");
+      await section.getByTestId("slide-editor-line-cap").click();
+      await page.getByTestId("slide-editor-line-cap-round").click();
+      const shadow = editor.getByTestId("slide-editor-shadow-section");
+      await shadow.getByTestId("slide-editor-shadow").click();
+      await expect(shadow.getByTestId("slide-editor-shadow")).toHaveAttribute(
+        "aria-checked",
+        "true",
+      );
+      await expect(shadow.getByTestId("slide-editor-shadow-blur")).toHaveValue("8");
+      const drawn = editor.locator("[data-slot=slide-view] [data-slide-element^=line] svg").first();
+      await expect(drawn.locator("line")).toHaveAttribute("stroke-linecap", "round");
+      await expect(drawn).toHaveCSS("filter", /drop-shadow/);
+      await parkPointer(page);
+      await expect(section).toHaveScreenshot(`slide-editor-line-${lng}-${theme}.png`);
+      await parkPointer(page);
+      await expect(shadow).toHaveScreenshot(`slide-editor-shadow-${lng}-${theme}.png`);
     });
 
     // `SUI-FEATURE-195`: a locked text field's panel locks every control the same way. Fields are
@@ -14244,22 +14285,52 @@ test("slide export: a cropped, flipped background equals the view", async ({ pag
 
 // #772 (GL-UI-035): a cropped image element, flipped, is cropped first, then flipped about its
 // frame's centre, and exports as the editor's view draws it, pixel for pixel.
-test("slide export: a cropped, flipped image equals the view", async ({ page }) => {
-  await page.goto("/?harness=slide-export&doc=image-flip");
+// Exports the harness document `doc`, then opens the editor's view of it with its photo sized.
+async function exportedAndViewed(page: Page, doc: string) {
+  await page.goto(`/?harness=slide-export&doc=${doc}`);
   const { png } = await exportSlidePages(page);
-  await page.goto("/?harness=slide-export&view=editor&doc=image-flip");
+  await page.goto(`/?harness=slide-export&view=editor&doc=${doc}`);
   const view = page.getByTestId("slide-editor-view");
   await expect(view).toHaveAttribute("data-slide-ready", "true");
   const photo = view.locator("[data-slide-element=photo] img");
   await expect(photo).toHaveAttribute("data-slide-image", "sized");
+  return { png, view, photo };
+}
+
+// The editor's view, the pointer parked, equals the exported first page pixel for pixel.
+async function expectViewEqualsExport(page: Page, view: Locator, png: Uint8Array[]) {
+  await parkPointer(page);
+  const shot = await view.screenshot({ animations: "disabled" });
+  expect(Buffer.from(png[0]!).equals(shot)).toBe(true);
+}
+
+test("slide export: a cropped, flipped image equals the view", async ({ page }) => {
+  const { png, view, photo } = await exportedAndViewed(page, "image-flip");
   // The 4:3 photo covers the 592 × 392 area inside the border at 592 × 444, zoomed 1.2 to
   // 710.4 wide, centred and shifted by −20: its left at −79.2, the frame's centre (296) at 375.2.
   const origin = await photo.evaluate((image) => getComputedStyle(image).transformOrigin);
   expect(parseFloat(origin)).toBeCloseTo(375.2, 1);
   await expect(photo).toHaveCSS("transform", "matrix(-1, 0, 0, 1, 0, 0)");
-  await parkPointer(page);
-  const shot = await view.screenshot({ animations: "disabled" });
-  expect(Buffer.from(png[0]!).equals(shot)).toBe(true);
+  await expectViewEqualsExport(page, view, png);
+});
+
+// SUI-FEATURE-135 AC1, AC2: a cropped photo flipped vertically, a cropped background flipped both
+// ways and a rule with round ends and a shadow export as the editor's view draws them, pixel for pixel.
+test("slide export: vertical and double flips, a round line with a shadow equal the view", async ({
+  page,
+}) => {
+  const { png, view, photo } = await exportedAndViewed(page, "flip-cap");
+  await expect(photo).toHaveCSS("transform", "matrix(1, 0, 0, -1, 0, 0)");
+  const ground = view.locator("[data-slot=slide-page] > img[data-slide-image=sized]");
+  await expect(ground).toHaveCSS("transform", "matrix(-1, 0, 0, -1, 0, 0)");
+  // The 4:3 photo zoomed to 2880 × 2160 at −600 / −500: the page's centre in the image's own px.
+  expect(await ground.evaluate((image) => getComputedStyle(image).transformOrigin)).toBe(
+    "1560px 1040px",
+  );
+  const rule = view.locator("[data-slide-element=rule] svg");
+  await expect(rule.locator("line")).toHaveAttribute("stroke-linecap", "round");
+  await expect(rule).toHaveCSS("filter", /drop-shadow/);
+  await expectViewEqualsExport(page, view, png);
 });
 
 // SUI-FEATURE-164 AC2, SUI-FEATURE-165 AC5: inline runs and badges that follow their text export
