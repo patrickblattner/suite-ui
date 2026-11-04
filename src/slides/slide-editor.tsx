@@ -2660,15 +2660,20 @@ function Editor({
   });
   React.useEffect(() => {
     // Commands held from before `readOnly` turned on are dropped, never run, but Copy (#798). A paste
-    // that landed behind the drag is dropped too: its busy status ends with it.
+    // that landed behind the drag is dropped too: its busy status ends with it. A dropped command
+    // leaves what it was meant for selected, so a Copy chained behind it still copies that (#804).
     if (readOnly) {
-      const kept = held.current.filter((edit) => edit.readSafe === true);
+      const dropped = held.current;
       held.current = [];
       if (!pastePending.current) {
         window.clearTimeout(slowTimer.current);
         setAdopting(undefined);
       }
-      for (const edit of kept) edit.run(edit.meant.ids ?? [], edit.left);
+      for (const edit of dropped) {
+        const ids = edit.meant.ids ?? [];
+        if (edit.readSafe === true) edit.run(ids, edit.left);
+        edit.left.ids ??= ids;
+      }
       return;
     }
     if ((drag !== undefined && drag.kind !== "marquee") || pastePending.current) return;

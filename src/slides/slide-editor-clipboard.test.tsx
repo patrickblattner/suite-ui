@@ -1436,9 +1436,14 @@ describe("SlideEditor held commands when readOnly turns on mid-drag (#798)", () 
     expect(screen.queryByTestId("slide-editor-adopting")).toBeNull();
   });
 
-  it("still runs a Copy held behind the drag", () => {
+  // #804: a dropped nudge still hands what it was meant for on to the Copy chained behind it.
+  it.each<[string, string[]]>([
+    ["behind the drag", []],
+    ["behind a dropped nudge", ["ArrowRight"]],
+  ])("still runs a Copy held %s", (_, before) => {
     const view = render(editor(false, {}));
     startDrag();
+    for (const pressed of before) fireEvent.keyDown(canvas(), { key: pressed });
     key("c");
     expect(elementClipboard.elements).toEqual([]);
     view.rerender(editor(true, {}));
