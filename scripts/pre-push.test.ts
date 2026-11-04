@@ -126,6 +126,14 @@ describe("pre-push hook on a real push", () => {
       .toString("base64")
       .replace(/[^A-Za-z0-9]/g, "x")
       .slice(0, 36)}`;
+  // Pushing feat/x is refused for the secret in HEAD's config.txt, before any check runs.
+  const refusesHeadSecret = () => {
+    const run = push(["feat/x"]);
+    expect(run.status).not.toBe(0);
+    expect(run.out).toContain("push refused: the secret guard found a secret");
+    expect(run.out).toContain(`commit ${git("rev-parse", "HEAD").slice(0, 12)}, file config.txt`);
+    expect(npxCalls()).toEqual([]);
+  };
   const fakeGitleaks = (body: string) => {
     writeFileSync(join(fakes, "gitleaks"), `#!/bin/sh\n${body}\n`);
     chmodSync(join(fakes, "gitleaks"), 0o755);
@@ -178,11 +186,7 @@ describe("pre-push hook on a real push", () => {
 
   it("refuses a WIP push that carries a secret, naming commit and file, before any check", () => {
     commit("wip: park", "config.txt", `token = "${fakeToken()}"\n`);
-    const run = push(["feat/x"]);
-    expect(run.status).not.toBe(0);
-    expect(run.out).toContain("push refused: the secret guard found a secret");
-    expect(run.out).toContain(`commit ${git("rev-parse", "HEAD").slice(0, 12)}, file config.txt`);
-    expect(npxCalls()).toEqual([]);
+    refusesHeadSecret();
   });
 
   it("refuses a forced WIP push with a secret over a remote advance this clone never fetched", () => {
@@ -212,11 +216,7 @@ describe("pre-push hook on a real push", () => {
     writeFileSync(join(work, "config.txt"), `token = "${fakeToken()}"\n`);
     git("add", "config.txt");
     git("commit", "-q", "-m", "wip: merge side");
-    const run = push(["feat/x"]);
-    expect(run.status).not.toBe(0);
-    expect(run.out).toContain("push refused: the secret guard found a secret");
-    expect(run.out).toContain(`commit ${git("rev-parse", "HEAD").slice(0, 12)}, file config.txt`);
-    expect(npxCalls()).toEqual([]);
+    refusesHeadSecret();
   });
 
   it("refuses with an install hint when gitleaks is missing in the pinned version", () => {
