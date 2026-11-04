@@ -375,8 +375,9 @@ const HOST_EXTENSIONS: SlideExtensions = {
       render: ({ zoom }) => (
         <div
           // A mid grey in both themes, all in the bleed: the page inside stays uncovered.
-          className="absolute inset-0 rounded-3xl border-solid border-ring"
-          style={{ borderWidth: 40 * zoom }}
+          // Its radius follows the band, so the inner corners stay square on the page's corners.
+          className="absolute inset-0 border-solid border-ring"
+          style={{ borderWidth: 40 * zoom, borderRadius: 40 * zoom }}
           data-testid="gallery-host-phone-frame"
         />
       ),

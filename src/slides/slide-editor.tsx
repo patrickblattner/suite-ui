@@ -1149,8 +1149,9 @@ function Editor({
   const overlayDrawn = ({ id, label }: SlideOverlay) =>
     label === undefined || overlaysShown.includes(id);
   // How far an overlay draws beyond each page edge, in format px; the largest one drawn is the room
-  // the canvas keeps around the page (`SUI-FEATURE-134` rev 7).
-  const bleedOf = (overlay: SlideOverlay) => Math.max(0, overlay.bleed ?? 0);
+  // the canvas keeps around the page (`SUI-FEATURE-134` rev 7); `checkSlideExtensions` refuses one
+  // that is not a finite size of 0 or more.
+  const bleedOf = (overlay: SlideOverlay) => overlay.bleed ?? 0;
   const bleed = Math.max(0, ...overlays.filter(overlayDrawn).map(bleedOf));
   // The colours applied in the colour fields, view state like the grid (`SUI-FEATURE-137`).
   const [ownRecent, setOwnRecent] = React.useState<readonly ColorValue[]>([]);

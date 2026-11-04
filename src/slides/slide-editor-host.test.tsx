@@ -217,6 +217,17 @@ describe("SlideEditor host slots (SUI-FEATURE-134)", () => {
     );
   });
 
+  // #806 review: a bleed that is not a finite size of 0 or more would leave the canvas without a size.
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, -1])(
+    "refuses an overlay with a bleed of %s",
+    (bleed) => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      expect(() =>
+        editor({ extensions: { overlays: [{ id: "frame", bleed, render: () => null }] } }),
+      ).toThrow(/"frame" has a bleed of/);
+    },
+  );
+
   it("refuses two overlays with the same id", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     const render = () => <span />;

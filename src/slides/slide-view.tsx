@@ -213,9 +213,13 @@ export function checkSlideExtensions(extensions: SlideExtensions | undefined): v
     }
   }
   const overlayIds = new Set<string>();
-  for (const { id } of extensions?.overlays ?? []) {
+  for (const { id, bleed } of extensions?.overlays ?? []) {
     if (overlayIds.has(id)) throw new Error(`Slide overlay id ${JSON.stringify(id)} is used twice`);
     overlayIds.add(id);
+    // A bleed is a finite size of 0 or more; anything else would leave the canvas without a size.
+    if (bleed !== undefined && !(Number.isFinite(bleed) && bleed >= 0)) {
+      throw new Error(`Slide overlay ${JSON.stringify(id)} has a bleed of ${String(bleed)}`);
+    }
   }
 }
 
