@@ -1436,14 +1436,28 @@ describe("SlideEditor held commands when readOnly turns on mid-drag (#798)", () 
     expect(screen.queryByTestId("slide-editor-adopting")).toBeNull();
   });
 
-  it("still runs a Copy held behind the drag", () => {
+  // #804: a dropped nudge still hands what it was meant for on to the Copy chained behind it; a
+  // dropped Paste hands on nothing, so that Copy leaves the clipboard as it was.
+  const nudge = () => void fireEvent.keyDown(canvas(), { key: "ArrowRight" });
+  it.each<[string, readonly (() => unknown)[], string[]]>([
+    ["behind the drag", [], ["a"]],
+    ["behind a dropped nudge", [nudge], ["a"]],
+    ["behind a dropped paste", [() => key("v")], ["b"]],
+  ])("runs a Copy held %s", (_, before, copied) => {
+    const B = { ...DOC, pages: [{ id: "one", background, elements: [shape("b", 0, 0)] }] };
+    render(editor(false, { document: B }));
+    select("b");
+    key("c");
+    cleanup();
+    const kept = elementClipboard.elements;
     const view = render(editor(false, {}));
     startDrag();
+    for (const press of before) press();
     key("c");
-    expect(elementClipboard.elements).toEqual([]);
+    expect(elementClipboard.elements).toBe(kept);
     view.rerender(editor(true, {}));
     fireEvent.pointerUp(canvas(), at(250, 50));
-    expect(elementClipboard.elements.map(({ id }) => id)).toEqual(["a"]);
+    expect(elementClipboard.elements.map(({ id }) => id)).toEqual(copied);
   });
 });
 

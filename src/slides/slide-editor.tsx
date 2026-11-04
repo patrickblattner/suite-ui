@@ -2448,6 +2448,8 @@ function Editor({
     run: (ids: readonly string[], left: Meant) => readonly string[] | undefined;
     // Changes nothing (Copy), so it still runs once `readOnly` turned on (#798).
     readSafe?: boolean;
+    // Selects only what it makes (Paste), so dropped it hands on no ids (#804).
+    dropsToNone?: boolean;
   };
   const held = React.useRef<Held[]>([]);
   const pastePending = React.useRef(false);
@@ -2530,11 +2532,11 @@ function Editor({
       last.presses === handPresses.current
     );
   };
-  const hold = (run: Held["run"], readSafe?: boolean) => {
+  const hold = (run: Held["run"], readSafe?: boolean, dropsToNone?: boolean) => {
     if (!queueBusy()) return false;
     const meant = chained() ? pressChain.current!.left : { ids: selection };
     const left: Meant = { ids: undefined };
-    held.current.push({ meant, left, run, readSafe });
+    held.current.push({ meant, left, run, readSafe, dropsToNone });
     pressChain.current = { left, seen: selection, presses: handPresses.current };
     return true;
   };
@@ -2594,7 +2596,8 @@ function Editor({
   }, []);
   // `left` is given when the paste runs held, and takes what it leaves selected.
   const paste = (left?: Meant) => {
-    if (left === undefined && hold((_, own) => latestHeld.current.paste(own))) return undefined;
+    if (left === undefined && hold((_, own) => latestHeld.current.paste(own), false, true))
+      return undefined;
     const own = left ?? { ids: undefined };
     const { elements: copied, brand, titles } = elementClipboard;
     const copies = adoptBrand(copied, brand, view.brand, titles);
@@ -2660,15 +2663,21 @@ function Editor({
   });
   React.useEffect(() => {
     // Commands held from before `readOnly` turned on are dropped, never run, but Copy (#798). A paste
-    // that landed behind the drag is dropped too: its busy status ends with it.
+    // that landed behind the drag is dropped too: its busy status ends with it. A dropped command
+    // leaves what it was meant for selected, a dropped Paste none, so a Copy chained behind it
+    // copies that (#804).
     if (readOnly) {
-      const kept = held.current.filter((edit) => edit.readSafe === true);
+      const dropped = held.current;
       held.current = [];
       if (!pastePending.current) {
         window.clearTimeout(slowTimer.current);
         setAdopting(undefined);
       }
-      for (const edit of kept) edit.run(edit.meant.ids ?? [], edit.left);
+      for (const edit of dropped) {
+        const ids = edit.meant.ids ?? [];
+        if (edit.readSafe === true) edit.run(ids, edit.left);
+        edit.left.ids ??= edit.dropsToNone === true ? [] : ids;
+      }
       return;
     }
     if ((drag !== undefined && drag.kind !== "marquee") || pastePending.current) return;

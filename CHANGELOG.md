@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **Fixed (#804, Codex review v0.223.1 CX1):** a Copy held during a drag behind an arrow-key nudge copied nothing when `readOnly` turned on before the drag ended: the dropped nudge never handed on the selection it was meant for. A dropped command now leaves what it was meant for selected, so the held Copy copies it; a dropped Paste leaves nothing selected, so a Copy held behind it leaves the clipboard as it was. Tests: unit — element dragged, ArrowRight and Copy held, `readOnly` switched on, drag ended: the clipboard holds the element; the same with Paste and Copy held: the clipboard keeps what it held (each fails without the fix).
+
 ## 0.223.1 — #798: SlideEditor never runs a held host Undo/Redo once `readOnly` turns on (SUI-FEATURE-133 rev 4, SUI-FEATURE-134 rev 6) (patch)
 
 - **Fixed (#798, Codex review v0.220.0 CX1):** an Undo or Redo pressed during a drag and held until it ends still called the host step's `undo`/`redo` (`recordHostStep`) when `readOnly` turned on before the drag ended. Undo and Redo now do nothing under `readOnly`, and commands held from before the switch are dropped, never run, except Copy, which `readOnly` keeps: a held Copy still fills the clipboard. A paste that landed behind the drag is dropped with them and its busy status (cursor, `aria-busy`, status line) ends.
