@@ -14,8 +14,9 @@
 # - The container's dependencies live in a Docker volume per architecture. It is reinstalled only
 #   when the lockfile or the image changes; otherwise the run installs nothing.
 # - At most one gallery run at a time, across all worktrees: a lock directory in the main checkout's
-#   `.spec-sync/`. A second run waits, at most 30 minutes (then exit 4); a lock whose owner is gone,
-#   or one left without a pid for 30 seconds, is taken over.
+#   `.spec-sync/`, taken and waited for by `scripts/gallery-lock.ts` (PROC-REL-040 rev 7). A second
+#   run waits while the holder is within its cap plus five minutes, then exits 75 (lock deadline
+#   expired, a non-run); the holder's own run ends red at its cap.
 #
 # It works on a throwaway copy of the working tree: the checkout's `node_modules` are built for the
 # host. Only the baselines and the reports come back.
@@ -40,13 +41,12 @@ COMMON="$(git -C "$ROOT" rev-parse --path-format=absolute --git-common-dir)"
 MAIN="$(dirname "$COMMON")"
 LOCK="$MAIN/.spec-sync/gallery.lock"
 mkdir -p "$MAIN/.spec-sync"
-# A lock without a pid (its run died between creating it and writing the pid) counts as stale after
-# `LOCK_GRACE` seconds; a run waits at most `LOCK_WAIT_MAX` seconds for the lock, then exits 4.
-LOCK_GRACE=30
-LOCK_WAIT_MAX=1800
 
 STAGE=""
+WATCHDOG=""
+CONTAINER="suite-ui-gallery-$$"
 cleanup() {
+  [ -n "$WATCHDOG" ] && kill "$WATCHDOG" 2>/dev/null
   [ -n "$STAGE" ] && rm -rf "$STAGE"
   # Only this run's own lock: a lock another run took over stays.
   [ "$(cat "$LOCK/pid" 2>/dev/null || true)" = "$$" ] && rm -rf "$LOCK"
@@ -55,44 +55,14 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 130' INT TERM
 
-# `mkdir` is atomic: whoever creates the directory holds the lock. A stale lock is moved aside in
-# one atomic step and only dropped if it is still the one judged stale; otherwise it goes back.
-waited=0
-until mkdir "$LOCK" 2>/dev/null; do
-  owner="$(cat "$LOCK/pid" 2>/dev/null || true)"
-  stale=0
-  if [ -n "$owner" ]; then
-    kill -0 "$owner" 2>/dev/null || stale=1
-  else
-    since="$(stat -f %m "$LOCK" 2>/dev/null || stat -c %Y "$LOCK" 2>/dev/null || date +%s)"
-    [ $(($(date +%s) - since)) -ge "$LOCK_GRACE" ] && stale=1
-  fi
-  if [ "$stale" = 1 ]; then
-    aside="$LOCK.stale.$$"
-    if mv "$LOCK" "$aside" 2>/dev/null; then
-      if [ "$(cat "$aside/pid" 2>/dev/null || true)" = "$owner" ]; then
-        echo "gallery-image: taking over the lock of ended run ${owner:-without pid}" >&2
-        rm -rf "$aside"
-      elif [ ! -e "$LOCK" ]; then
-        mv "$aside" "$LOCK" 2>/dev/null || rm -rf "$aside"
-      else
-        rm -rf "$aside"
-      fi
-    fi
-    continue
-  fi
-  holder="${owner:-?} ($(cat "$LOCK/root" 2>/dev/null || echo ?))"
-  if [ "$waited" -ge "$LOCK_WAIT_MAX" ]; then
-    echo "gallery-image: gave up after ${LOCK_WAIT_MAX}s waiting for the gallery run $holder" >&2
-    echo "gallery-image: the lock is $LOCK" >&2
-    exit 4
-  fi
-  echo "gallery-image: waiting for the gallery run $holder" >&2
-  sleep 10
-  waited=$((waited + 10))
-done
-echo $$ >"$LOCK/pid"
-echo "$ROOT" >"$LOCK/root"
+# Exit 75: the wait ran out (lock deadline expired) — a non-run, passed through unchanged.
+node "$ROOT/scripts/gallery-lock.ts" "$LOCK" "$$" "$ROOT"
+# The cap of the locked work is the one this run wrote into its holder line; past it the container is
+# killed and the run ends red, so a hung run never holds the lock beyond what its waiters allow.
+CAP="$(sed -n 's/.* cap=\([0-9]*\).*/\1/p' "$LOCK/holder")"
+(sleep $((CAP * 60)) && echo "gallery-image: the run passed its cap of $CAP min" >&2 &&
+  docker kill "$CONTAINER" >/dev/null 2>&1) &
+WATCHDOG=$!
 
 STAGE="$(mktemp -d "${TMPDIR:-/tmp}/suite-ui-gallery-XXXXXX")"
 rsync -a \
@@ -118,7 +88,7 @@ VOLUME="suite-ui-gallery-deps-$ARCH"
 # `--init` with `TINI_KILL_PROCESS_GROUP` hands Ctrl-C (proxied by `docker run`) to the whole run in
 # the container, so the run ends and the container goes with it.
 rc=0
-docker run --rm --init -e TINI_KILL_PROCESS_GROUP=1 --platform "linux/$ARCH" --ipc=host -e CI=1 \
+docker run --rm --name "$CONTAINER" --init -e TINI_KILL_PROCESS_GROUP=1 --platform "linux/$ARCH" --ipc=host -e CI=1 \
   -e DEPS_KEY="$DEPS_KEY" \
   -v "$STAGE:/work" -v "$VOLUME:/deps" "$IMAGE" \
   bash -c 'rc=1; cp -a /work /build && cd /build &&
