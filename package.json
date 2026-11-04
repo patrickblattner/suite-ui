@@ -156,6 +156,6 @@
     "vitest": "^5.0.4"
   },
   "simple-git-hooks": {
-    "pre-push": "node scripts/pre-push.ts"
+    "pre-push": "[ -f scripts/pre-push.ts ] || { echo 'push refused: rebase onto main (pre-push hook needs #794)' >&2; exit 1; }; node scripts/pre-push.ts \"$@\""
   }
 }

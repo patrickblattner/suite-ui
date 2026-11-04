@@ -1,20 +1,33 @@
 // @vitest-environment node
 import { execFileSync, spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { TOOL_VERSIONS } from "./hygiene";
-import { GITLEAKS_VERSION, isWipSubject, parseRefs, scanRanges, skipsChecks } from "./pre-push";
+import { checkPlan, GITLEAKS_VERSION, isWipSubject, parseRefs, scanRanges } from "./pre-push";
 
-// The pre-push hook (#794, PROC-DEV-005 rev 5, PROC-REL-017): the secret guard on every ref, the
-// preflight and the pin check unless every tip of a non-main push is a `wip:` commit.
+// The pre-push hook (#794, PROC-DEV-005 rev 6, PROC-REL-017): the secret guard on every ref, the
+// preflight and the pin check on the pushed tree unless every tip of a non-main push is `wip:`.
 const script = fileURLToPath(new URL("./pre-push.ts", import.meta.url));
+const pkg = JSON.parse(
+  readFileSync(fileURLToPath(new URL("../package.json", import.meta.url)), "utf8"),
+) as { "simple-git-hooks": { "pre-push": string } };
 const ZERO = "0".repeat(40);
 const A = "a".repeat(40);
 const B = "b".repeat(40);
+const PREFLIGHT = "spec-sync gate --profile merge --preflight";
+const REPIN = "spec-sync repin --check";
 
 describe("pre-push decisions", () => {
   it("guards with the gitleaks version hygiene pins", () => {
@@ -27,105 +40,189 @@ describe("pre-push decisions", () => {
     ]);
   });
 
-  it("scans the pushed range, a new ref against every remote, a deleted ref not at all", () => {
-    expect(
-      scanRanges(
-        parseRefs(
-          [
-            `refs/heads/x ${A} refs/heads/x ${B}`,
-            `refs/heads/y ${A} refs/heads/y ${ZERO}`,
-            `(delete) ${ZERO} refs/heads/z ${B}`,
-          ].join("\n"),
-        ),
-      ),
-    ).toEqual([`${B}..${A}`, `${A} --not --remotes`]);
+  it("scans the pushed range; a new ref or an unknown remote tip against the pushed remote only", () => {
+    const refs = parseRefs(
+      [
+        `refs/heads/x ${A} refs/heads/x ${B}`,
+        `refs/heads/y ${A} refs/heads/y ${ZERO}`,
+        `(delete) ${ZERO} refs/heads/z ${B}`,
+      ].join("\n"),
+    );
+    expect(scanRanges(refs, "origin", () => true)).toEqual([
+      [`${B}..${A}`],
+      [A, "--not", "--remotes=origin"],
+    ]);
+    expect(scanRanges(refs, "origin", () => false)).toEqual([
+      [A, "--not", "--remotes=origin"],
+      [A, "--not", "--remotes=origin"],
+    ]);
   });
 
-  it("skips the checks only when every tip is WIP and main is not pushed", () => {
+  it("skips the checks only for an all-WIP push off main or a push that only deletes", () => {
     const wip = () => true;
     const branch = parseRefs(`refs/heads/x ${A} refs/heads/x ${B}`);
-    expect(skipsChecks(branch, wip)).toBe(true);
-    expect(skipsChecks(branch, () => false)).toBe(false);
-    expect(skipsChecks(parseRefs(`refs/heads/main ${A} refs/heads/main ${B}`), wip)).toBe(false);
-    expect(skipsChecks(parseRefs(`(delete) ${ZERO} refs/heads/x ${B}`), wip)).toBe(false);
+    expect(checkPlan(branch, wip)).toMatchObject({ run: false });
+    expect(checkPlan(branch, () => false)).toEqual({ run: true });
+    expect(checkPlan(parseRefs(`refs/heads/main ${A} refs/heads/main ${B}`), wip)).toEqual({
+      run: true,
+      line: expect.stringContaining("refs/heads/main is pushed") as string,
+    });
+    const mixed = parseRefs(
+      `refs/heads/x ${A} refs/heads/x ${ZERO}\nrefs/heads/y ${B} refs/heads/y ${ZERO}`,
+    );
+    expect(checkPlan(mixed, (sha) => sha === A)).toEqual({
+      run: true,
+      line: expect.stringContaining("not every pushed tip") as string,
+    });
+    expect(checkPlan(parseRefs(`(delete) ${ZERO} refs/heads/x ${B}`), () => false)).toEqual({
+      run: false,
+      line: expect.stringContaining("only deletes refs") as string,
+    });
     expect(isWipSubject("wip: park the red state")).toBe(true);
     expect(isWipSubject("feat: add a wip: note #1")).toBe(false);
   });
 });
 
-// A real push into a bare remote with the hook installed; a fake `npx` on PATH logs its arguments
-// and answers `repin --check` with exit 2 (spec server down).
+// A real push into a bare remote, the hook being package.json's own command. A fake `npx` on PATH
+// logs its arguments and working directory and exits with FAKE_GATE_EXIT (default 0) for the
+// preflight, FAKE_REPIN_EXIT (default 2, spec server down) for the pin check.
 describe("pre-push hook on a real push", () => {
   let dir: string;
   let work: string;
-  let npxLog: string;
+  let fakes: string;
   let env: NodeJS.ProcessEnv;
-  const git = (...args: string[]) =>
-    execFileSync("git", args, { cwd: work, encoding: "utf8", stdio: "pipe" }).trim();
-  const commit = (subject: string, file: string, text: string) => {
-    writeFileSync(join(work, file), text);
-    git("add", file);
-    git("commit", "-q", "-m", subject);
+  const log = (name: string) =>
+    readFileSync(join(dir, name), "utf8")
+      .split("\n")
+      .filter((line) => line !== "");
+  const npxCalls = () => log("npx.log");
+  const gitIn = (cwd: string, ...args: string[]) =>
+    execFileSync("git", args, { cwd, encoding: "utf8", stdio: "pipe" }).trim();
+  const git = (...args: string[]) => gitIn(work, ...args);
+  const commitIn = (cwd: string, subject: string, file: string, text: string) => {
+    writeFileSync(join(cwd, file), text);
+    gitIn(cwd, "add", file);
+    gitIn(cwd, "commit", "-q", "-m", subject);
   };
-  const push = (ref: string) => {
-    const run = spawnSync("git", ["push", "-q", "origin", ref], {
+  const commit = (subject: string, file: string, text: string) =>
+    commitIn(work, subject, file, text);
+  const push = (args: string[], extra: NodeJS.ProcessEnv = {}) => {
+    const run = spawnSync("git", ["push", "-q", "origin", ...args], {
       cwd: work,
       encoding: "utf8",
-      env,
+      env: { ...env, ...extra },
     });
     return { status: run.status, out: run.stdout + run.stderr };
   };
-  const npxCalls = () =>
-    readFileSync(npxLog, "utf8")
-      .split("\n")
-      .filter((line) => line !== "");
+  // A clean first push of feat/x, so the remote has the branch; the call log starts empty after it.
+  const pushed = () => {
+    commit("feat: base #1", "notes.txt", "base\n");
+    expect(push(["feat/x"]).status).toBe(0);
+    writeFileSync(join(dir, "npx.log"), "");
+  };
   // Built at run time, so this file carries no token for the history scan to find.
   const fakeToken = () =>
     `ghp_${randomBytes(27)
       .toString("base64")
       .replace(/[^A-Za-z0-9]/g, "x")
       .slice(0, 36)}`;
+  const fakeGitleaks = (body: string) => {
+    writeFileSync(join(fakes, "gitleaks"), `#!/bin/sh\n${body}\n`);
+    chmodSync(join(fakes, "gitleaks"), 0o755);
+    return { PATH: `${fakes}:${env.PATH}` };
+  };
 
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "suite-ui-pre-push-"));
+    dir = mkdtempSync(join(tmpdir(), "suite-ui-pre-push-test-"));
     work = join(dir, "work");
+    fakes = join(dir, "fakes");
     const bin = join(dir, "bin");
     const hooks = join(dir, "hooks");
-    npxLog = join(dir, "npx.log");
-    writeFileSync(npxLog, "");
-    for (const d of [work, bin, hooks]) mkdirSync(d);
+    for (const d of [work, bin, hooks, fakes, join(work, "scripts")]) mkdirSync(d);
+    writeFileSync(join(dir, "npx.log"), "");
     writeFileSync(
       join(bin, "npx"),
-      `#!/bin/sh\necho "$*" >> "${npxLog}"\ncase "$*" in *repin*) exit 2;; esac\nexit 0\n`,
+      [
+        "#!/bin/sh",
+        `echo "$*" >> "${dir}/npx.log"`,
+        `pwd >> "${dir}/npx-cwd.log"`,
+        'case "$*" in',
+        "  *repin*) exit ${FAKE_REPIN_EXIT:-2};;",
+        '  *) if [ "${FAKE_GATE_EXIT:-0}" != 0 ]; then',
+        '       echo "{\\"exit\\":${FAKE_GATE_EXIT},\\"failures\\":[{\\"name\\":\\"lint\\"}],\\"logDir\\":\\"logs/x\\"}"',
+        "     fi",
+        "     exit ${FAKE_GATE_EXIT:-0};;",
+        "esac",
+        "",
+      ].join("\n"),
     );
-    writeFileSync(join(hooks, "pre-push"), `#!/bin/sh\nexec node "${script}"\n`);
+    writeFileSync(join(hooks, "pre-push"), `#!/bin/sh\n${pkg["simple-git-hooks"]["pre-push"]}\n`);
     chmodSync(join(bin, "npx"), 0o755);
     chmodSync(join(hooks, "pre-push"), 0o755);
     env = { ...process.env, PATH: `${bin}:${process.env.PATH}` };
-    execFileSync("git", ["init", "-q", "--bare", join(dir, "origin.git")]);
+    execFileSync("git", ["init", "-q", "--bare", "-b", "main", join(dir, "origin.git")]);
     git("init", "-q", "--template=", "-b", "main");
     git("config", "user.email", "test@example.com");
     git("config", "user.name", "test");
     git("config", "maintenance.auto", "false");
     git("config", "core.hooksPath", hooks);
     git("remote", "add", "origin", join(dir, "origin.git"));
-    commit("chore: start", "readme.txt", "start\n");
+    commit("chore: start", "scripts/pre-push.ts", readFileSync(script, "utf8"));
     git("checkout", "-q", "-b", "feat/x");
   });
 
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
-  it("refuses a WIP push that carries a secret, before any check", () => {
+  it("refuses a WIP push that carries a secret, naming commit and file, before any check", () => {
     commit("wip: park", "config.txt", `token = "${fakeToken()}"\n`);
-    const run = push("feat/x");
+    const run = push(["feat/x"]);
     expect(run.status).not.toBe(0);
-    expect(run.out).toContain("secret guard refused");
+    expect(run.out).toContain("push refused: the secret guard found a secret");
+    expect(run.out).toContain(`commit ${git("rev-parse", "HEAD").slice(0, 12)}, file config.txt`);
+    expect(npxCalls()).toEqual([]);
+  });
+
+  it("refuses a forced WIP push with a secret over a remote advance this clone never fetched", () => {
+    pushed();
+    const other = join(dir, "other");
+    execFileSync("git", ["clone", "-q", "-b", "feat/x", join(dir, "origin.git"), other]);
+    gitIn(other, "config", "user.email", "test@example.com");
+    gitIn(other, "config", "user.name", "test");
+    commitIn(other, "feat: elsewhere #2", "other.txt", "other\n");
+    gitIn(other, "push", "-q", "origin", "feat/x");
+    commit("wip: park", "config.txt", `token = "${fakeToken()}"\n`);
+    const run = push(["--force", "feat/x"]);
+    expect(run.status).not.toBe(0);
+    expect(run.out).toContain("found a secret");
+    expect(gitIn(other, "ls-remote", "origin", "feat/x")).toContain(
+      gitIn(other, "rev-parse", "HEAD"),
+    );
+  });
+
+  it("refuses with an install hint when gitleaks is missing in the pinned version", () => {
+    commit("feat: done #1", "notes.txt", "done\n");
+    const run = push(["feat/x"], fakeGitleaks("echo 8.0.0"));
+    expect(run.status).not.toBe(0);
+    expect(run.out).toContain(`needs gitleaks ${GITLEAKS_VERSION}, found 8.0.0`);
+    expect(run.out).toContain(`install gitleaks ${GITLEAKS_VERSION}`);
+    expect(npxCalls()).toEqual([]);
+  });
+
+  it("refuses a gitleaks tool error as its own outcome, not as a found secret", () => {
+    commit("feat: done #1", "notes.txt", "done\n");
+    const run = push(
+      ["feat/x"],
+      fakeGitleaks(`[ "$1" = version ] && { echo ${GITLEAKS_VERSION}; exit 0; }\nexit 1`),
+    );
+    expect(run.status).not.toBe(0);
+    expect(run.out).toContain("the secret guard could not scan (gitleaks exit 1)");
+    expect(run.out).not.toContain("found a secret");
     expect(npxCalls()).toEqual([]);
   });
 
   it("lets a clean WIP push through on the secret guard alone", () => {
     commit("wip: park", "notes.txt", "half done\n");
-    const run = push("feat/x");
+    const run = push(["feat/x"]);
     expect(run.status).toBe(0);
     expect(run.out).toContain("preflight and repin --check skipped");
     expect(npxCalls()).toEqual([]);
@@ -133,19 +230,78 @@ describe("pre-push hook on a real push", () => {
 
   it("runs the preflight, then the pin check, and passes when the spec server is down", () => {
     commit("feat: done #1", "notes.txt", "done\n");
-    const run = push("feat/x");
+    const run = push(["feat/x"]);
     expect(run.status).toBe(0);
     expect(run.out).toContain("spec server unreachable");
-    expect(npxCalls()).toEqual([
-      "spec-sync gate --profile merge --preflight",
-      "spec-sync repin --check",
-    ]);
+    expect(npxCalls()).toEqual([PREFLIGHT, REPIN]);
+    expect(log("npx-cwd.log")).toEqual([realpathSync(work), realpathSync(work)]);
   });
 
-  it("runs the full set on main, WIP marker or not", () => {
+  it("refuses a red preflight with its phases and the next step, before the pin check", () => {
+    commit("feat: done #1", "notes.txt", "done\n");
+    const run = push(["feat/x"], { FAKE_GATE_EXIT: "1" });
+    expect(run.status).not.toBe(0);
+    expect(run.out).toContain("push refused: merge preflight red");
+    expect(run.out).toContain("failing phases: lint");
+    expect(run.out).toContain(
+      "commit the state as `wip: …` and push it to a branch other than main",
+    );
+    expect(run.out).not.toContain("--no-verify");
+    expect(npxCalls()).toEqual([PREFLIGHT]);
+  });
+
+  it("refuses an unprovable preflight: exit 2 is not green", () => {
+    commit("feat: done #1", "notes.txt", "done\n");
+    const run = push(["feat/x"], { FAKE_GATE_EXIT: "2" });
+    expect(run.status).not.toBe(0);
+    expect(run.out).toContain("merge preflight unprovable");
+    expect(npxCalls()).toEqual([PREFLIGHT]);
+  });
+
+  it("refuses owed pins with the repin step", () => {
+    commit("feat: done #1", "notes.txt", "done\n");
+    const run = push(["feat/x"], { FAKE_REPIN_EXIT: "1" });
+    expect(run.status).not.toBe(0);
+    expect(run.out).toContain(
+      "push refused: spec pins owed — run `npx spec-sync repin` and commit `spec-pins.json` + drift coverage",
+    );
+    expect(npxCalls()).toEqual([PREFLIGHT, REPIN]);
+  });
+
+  it("runs the full set on main despite the WIP marker and says why", () => {
     git("checkout", "-q", "main");
     commit("wip: park", "notes.txt", "half done\n");
-    expect(push("main").status).toBe(0);
-    expect(npxCalls()[0]).toBe("spec-sync gate --profile merge --preflight");
+    const run = push(["main"]);
+    expect(run.status).toBe(0);
+    expect(run.out).toContain("`wip:` not honoured — refs/heads/main is pushed");
+    expect(npxCalls()).toEqual([PREFLIGHT, REPIN]);
+  });
+
+  it("checks a pushed commit that is not the checkout in a worktree of its own, then removes it", () => {
+    commit("feat: first #1", "notes.txt", "first\n");
+    const first = git("rev-parse", "HEAD");
+    commit("feat: second #1", "notes.txt", "second\n");
+    const run = push([`${first}:refs/heads/feat/y`]);
+    expect(run.status).toBe(0);
+    expect(npxCalls()).toEqual([PREFLIGHT, REPIN]);
+    const [cwd] = log("npx-cwd.log");
+    expect(cwd).toContain("suite-ui-pre-push-");
+    expect(git("worktree", "list").split("\n")).toHaveLength(1);
+  });
+
+  it("skips the checks for a push that only deletes refs, and says so", () => {
+    pushed();
+    const run = push([":feat/x"]);
+    expect(run.status).toBe(0);
+    expect(run.out).toContain("the push only deletes refs");
+    expect(npxCalls()).toEqual([]);
+  });
+
+  it("refuses with the rebase step in a checkout cut before the hook script existed", () => {
+    git("rm", "-q", "scripts/pre-push.ts");
+    git("commit", "-q", "-m", "chore: before #794");
+    const run = push(["feat/x"]);
+    expect(run.status).not.toBe(0);
+    expect(run.out).toContain("push refused: rebase onto main (pre-push hook needs #794)");
   });
 });
