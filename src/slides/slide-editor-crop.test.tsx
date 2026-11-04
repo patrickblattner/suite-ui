@@ -52,7 +52,7 @@ function renderEditor(
           border: { color: { kind: "free" as const, value: "#000" }, width: border },
         };
   const image = crop === undefined ? framed : { ...framed, crop };
-  render(
+  const editor = (readOnly: boolean) => (
     <SlideEditor
       document={{
         schemaVersion: 10,
@@ -64,8 +64,12 @@ function renderEditor(
       resolveMedia={resolveSlideMedia}
       onSave={() => true}
       onBack={() => {}}
-    />,
+      readOnly={readOnly}
+    />
   );
+  const view = render(editor(false));
+  // The same editor with `readOnly` switched (#789).
+  return (readOnly: boolean) => view.rerender(editor(readOnly));
 }
 
 const canvas = () => screen.getByTestId("slide-editor-canvas");
@@ -91,6 +95,24 @@ const setZoom = (value: string) => {
 };
 
 describe("SlideEditor crop mode (SUI-FEATURE-230 rev 4)", () => {
+  // #789: `readOnly` turned on mid-crop ends cropping; keys and the crop bar no longer act, and the
+  // crop does not come back when it turns off again.
+  it("ends cropping when readOnly turns on", () => {
+    const setReadOnly = renderEditor();
+    startCrop();
+    fireEvent.keyDown(canvas(), { key: "+" });
+    setReadOnly(true);
+    expect(canvas()).not.toHaveAttribute("data-cropping");
+    expect(screen.queryByRole("slider", { name: "Zoom" })).toBeNull();
+    expect(screen.queryByTestId("slide-editor-crop-rest")).toBeNull();
+    fireEvent.keyDown(canvas(), { key: "+" });
+    fireEvent.wheel(canvas(), { deltaY: -100 });
+    expect(canvas()).not.toHaveAttribute("data-cropping");
+    setReadOnly(false);
+    expect(canvas()).not.toHaveAttribute("data-cropping");
+    expect(screen.getAllByTestId("editor-state")[0]).toHaveTextContent("Saved");
+  });
+
   // AC3: the % field beside the slider shows the zoom; typing there moves the slider and back.
   it("keeps the zoom % field and the slider on the same value", () => {
     renderEditor();

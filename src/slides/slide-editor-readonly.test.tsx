@@ -121,6 +121,31 @@ const DOC: SlideDocumentInput = {
 // A format beside the deck's, so "Transfer format" is offered.
 const PORTRAIT = { name: "Portrait", width: 1080, height: 1920 };
 
+// #789: `readOnly` turned on while a text is edited on the canvas ends the editing: no field stays
+// editable, and it does not come back when `readOnly` turns off.
+describe("SlideEditor readOnly switched on mid-session (#789)", () => {
+  it("ends text editing when readOnly turns on", () => {
+    const editor = (readOnly: boolean) => (
+      <SlideEditor
+        document={DOC}
+        title="Deck"
+        brand={SLIDE_BRAND}
+        onSave={() => true}
+        onBack={() => {}}
+        readOnly={readOnly}
+      />
+    );
+    const view = render(editor(false));
+    select("words");
+    fireEvent.keyDown(canvas(), { key: "Enter" });
+    expect(document.querySelector("[contenteditable='true']")).not.toBeNull();
+    view.rerender(editor(true));
+    expect(document.querySelector("[contenteditable='true']")).toBeNull();
+    view.rerender(editor(false));
+    expect(document.querySelector("[contenteditable='true']")).toBeNull();
+  });
+});
+
 function renderEditor(readOnly: boolean) {
   const onChange = vi.fn();
   const onSave = vi.fn(() => true as const);

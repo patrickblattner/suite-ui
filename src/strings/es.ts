@@ -375,7 +375,7 @@ export const es: SuiteStrings = {
     redoNone: "Nada que rehacer",
     saved: "Guardado",
     draft: "Borrador · sin guardar",
-    resetConfirm: "¿Descartar el borrador y volver al estado guardado?",
+    resetConfirm: "¿Descartar el borrador y volver al estado guardado? No se puede deshacer.",
     resetHint: "Descarta el borrador y vuelve al estado guardado.",
     resetCleanHint: "Descarta el borrador — disponible en cuanto cambies algo.",
     resetSavingHint: "Descarta el borrador — bloqueado mientras se guarda.",

@@ -2,13 +2,15 @@ import { useRef, useState } from "react";
 
 import { safeParseSlideDocument } from "../src/slides/document.js";
 import { keepInClipboard } from "../src/slides/element-clipboard-internal.js";
-import { SlideEditor } from "../src/slides/slide-editor.js";
+import { SlideEditor, type SlideEditorHandle } from "../src/slides/slide-editor.js";
 import type { SlideExtensions } from "../src/slides/slide-view.js";
 import type { PickedMedia } from "../src/slides/slide-editor-library.js";
 import { SlidePlayer } from "../src/slides/slide-player.js";
 import { Button } from "../src/ui/button.js";
 import { Hint } from "../src/ui/hint.js";
 import { Input } from "../src/ui/input.js";
+import { isCompositionKey } from "../src/ui/composition.js";
+import { Label } from "../src/ui/label.js";
 import {
   Dialog,
   DialogContent,
@@ -340,6 +342,86 @@ const GALLERY_EDITOR_EXTENSIONS: SlideExtensions = {
   ),
 };
 
+// `SUI-FEATURE-134` (`?host=1`): the host's slots — an upload's status in the header, the record's
+// name in the page panel (a rename is a host step in the editor's undo, Reset restores it), and two
+// labelled overlays with their toggles in the view band.
+const HOST = PARAMS.get("host") === "1";
+const HOST_EXTENSIONS: SlideExtensions = {
+  ...GALLERY_SLIDE_PROPS.extensions,
+  overlays: [
+    {
+      id: "safe-zones",
+      label: "Safe zones",
+      render: ({ width, height }) => (
+        <div
+          className="absolute border border-dashed border-destructive"
+          style={{
+            left: width * 0.05,
+            top: height * 0.05,
+            right: width * 0.05,
+            bottom: height * 0.05,
+          }}
+          data-testid="gallery-host-safe-zones"
+        />
+      ),
+    },
+    {
+      id: "phone-frame",
+      label: "Phone frame",
+      render: ({ width, height }) => (
+        <div
+          // A mid grey in both themes: the slide stays white under the dark theme too.
+          className="absolute rounded-3xl border-4 border-ring"
+          style={{ left: (width - height * 0.5) / 2, top: 0, width: height * 0.5, height }}
+          data-testid="gallery-host-phone-frame"
+        />
+      ),
+    },
+  ],
+};
+const HOST_NAME = "Workshop deck";
+
+// The record's name as the host keeps it: a change, once the field is left, is a host step. Under
+// `readOnly` the host passes it read-only (`SUI-FEATURE-134`).
+function RecordName({
+  name,
+  onRename,
+  readOnly,
+}: {
+  name: string;
+  onRename: (from: string, to: string) => void;
+  readOnly: boolean;
+}) {
+  const [draft, setDraft] = useState(name);
+  const [shown, setShown] = useState(name);
+  // The name changed from outside (undo, redo, reset): the field follows it.
+  if (shown !== name) {
+    setShown(name);
+    setDraft(name);
+  }
+  return (
+    <div className="flex flex-col gap-2">
+      <Label htmlFor="gallery-host-name">Record name</Label>
+      <Input
+        id="gallery-host-name"
+        value={draft}
+        readOnly={readOnly}
+        onChange={(event) => setDraft(event.target.value)}
+        onBlur={() => {
+          if (draft !== name) onRename(name, draft);
+        }}
+        // Enter commits the rename as leaving the field does, never while a composition runs.
+        onKeyDown={(event) => {
+          if (event.key === "Enter" && !isCompositionKey(event) && draft !== name) {
+            onRename(name, draft);
+          }
+        }}
+        data-testid="gallery-host-name"
+      />
+    </div>
+  );
+}
+
 // `SUI-FEATURE-192`: the app's own layout with a title placeholder, offered beside the document's.
 const LAYOUTS: SlideLayoutInput[] = [
   {
@@ -386,6 +468,9 @@ export function SlideEditorPage() {
   const header = useRef<HTMLDivElement>(null);
   useEditorShellToastOffset(header);
   const picked = useRef<((media: PickedMedia | undefined) => void) | null>(null);
+  const editor = useRef<SlideEditorHandle>(null);
+  const [name, setName] = useState(HOST_NAME);
+  const [savedName, setSavedName] = useState(HOST_NAME);
   const pick = (media: PickedMedia | undefined) => {
     setPicking(false);
     picked.current?.(media);
@@ -442,10 +527,45 @@ export function SlideEditorPage() {
                 ? ({ ...SLIDE_EDITOR_DOC, schemaVersion: 99 } as unknown as typeof SLIDE_EDITOR_DOC)
                 : SLIDE_EDITOR_DOC)
             }
-            title="Workshop deck"
+            title={HOST ? name : "Workshop deck"}
             headerRef={header}
             {...GALLERY_SLIDE_PROPS}
             {...(EDITOR_EXTENSIONS ? { extensions: GALLERY_EDITOR_EXTENSIONS } : {})}
+            {...(HOST
+              ? {
+                  ref: editor,
+                  extensions: HOST_EXTENSIONS,
+                  status: (
+                    <span
+                      className="text-sm text-muted-foreground"
+                      data-testid="gallery-host-status"
+                    >
+                      Uploading cover…
+                    </span>
+                  ),
+                  pagePanel: {
+                    title: "Record",
+                    content: (
+                      <RecordName
+                        name={name}
+                        readOnly={READ_ONLY}
+                        onRename={(from, to) => {
+                          setName(to);
+                          editor.current?.recordHostStep({
+                            undo: () => setName(from),
+                            redo: () => setName(to),
+                            // The name is in the page panel: Undo and Redo show it (rev 6).
+                            reveal: "page-panel",
+                          });
+                        }}
+                      />
+                    ),
+                  },
+                  // The renamed record is part of the draft (rev 5).
+                  hostDirty: name !== savedName,
+                  onReset: () => setName(savedName),
+                }
+              : {})}
             formats={FORMATS}
             layouts={LAYOUTS}
             onTransfer={(document, { overflowIds }) => setCopy({ document, overflowIds })}
@@ -464,6 +584,7 @@ export function SlideEditorPage() {
                 }
               : {})}
             onSave={(document) => {
+              setSavedName(name);
               if (!SAVE_SLOW) {
                 setSaved(document);
                 return true;

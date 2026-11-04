@@ -160,3 +160,50 @@ describe("useSlideHistory, pinned", () => {
     expect(result.current.step).toBe(5);
   });
 });
+
+// SUI-FEATURE-134: a host step leaves the document as it is and still is a step of its own.
+describe("useSlideHistory, host steps", () => {
+  const hostStep = { undo: () => {}, redo: () => {} };
+
+  it("counts a host step with the same document as a step", () => {
+    const { result } = renderHook(() => useSlideHistory(start));
+    act(() => result.current.apply((document) => document, { host: hostStep }));
+    expect(result.current.document).toBe(start);
+    expect(result.current).toMatchObject({ step: 1, canUndo: true });
+    // Without a host step the same document is no step.
+    act(() => result.current.apply((document) => document));
+    expect(result.current.step).toBe(1);
+  });
+
+  it("names the host step undo takes back and the one redo makes again", () => {
+    const { result } = renderHook(() => useSlideHistory(start));
+    act(() => result.current.apply((document) => moveBy(document, 0, ["a"], 1, 0)));
+    expect(result.current.undoHost).toBeUndefined();
+    act(() => result.current.apply((document) => document, { host: hostStep }));
+    expect(result.current.undoHost).toBe(hostStep);
+    expect(result.current.redoHost).toBeUndefined();
+    act(() => result.current.undo());
+    expect(result.current.undoHost).toBeUndefined();
+    expect(result.current.redoHost).toBe(hostStep);
+    expect(x(result.current.document)).toBe(1);
+    act(() => result.current.redo());
+    expect(result.current.undoHost).toBe(hostStep);
+    expect(result.current.redoHost).toBeUndefined();
+  });
+
+  it("ends a run under a merge key", () => {
+    const { result } = renderHook(() => useSlideHistory(start));
+    act(() => result.current.apply((document) => moveBy(document, 0, ["a"], 1, 0), { merge: "x" }));
+    expect(result.current.merging).toBe(true);
+    act(() => result.current.apply((document) => document, { host: hostStep }));
+    expect(result.current.merging).toBe(false);
+    // The next change under the same key is a step of its own, not folded into the first.
+    act(() => result.current.apply((document) => moveBy(document, 0, ["a"], 1, 0), { merge: "x" }));
+    act(() => result.current.undo());
+    expect(x(result.current.document)).toBe(1);
+    act(() => result.current.undo());
+    expect(x(result.current.document)).toBe(1);
+    act(() => result.current.undo());
+    expect(x(result.current.document)).toBe(0);
+  });
+});

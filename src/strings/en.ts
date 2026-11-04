@@ -405,7 +405,7 @@ export const en = {
     redoNone: "Nothing to redo",
     saved: "Saved",
     draft: "Draft · unsaved",
-    resetConfirm: "Discard the draft and return to the saved state?",
+    resetConfirm: "Discard the draft and return to the saved state? This can't be undone.",
     resetHint: "Discards the draft and returns to the saved state.",
     resetCleanHint: "Discards the draft — available once you have changed something.",
     resetSavingHint: "Discards the draft — locked while it is being saved.",

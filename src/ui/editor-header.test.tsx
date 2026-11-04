@@ -157,7 +157,10 @@ describe("EditorHeader", () => {
     const { onReset } = renderHeader({ dirty: true });
     fireEvent.click(screen.getByTestId("editor-reset"));
     const dialog = await screen.findByTestId("editor-reset-confirm");
-    expect(dialog).toHaveTextContent("Discard the draft and return to the saved state?");
+    // SUI-FEATURE-064 rev 7: Reset is final, the confirm says so.
+    expect(dialog).toHaveTextContent(
+      "Discard the draft and return to the saved state? This can't be undone.",
+    );
     expect(onReset).not.toHaveBeenCalled();
     fireEvent.click(screen.getByTestId("editor-reset-confirm-cancel"));
     await waitFor(() => expect(screen.queryByTestId("editor-reset-confirm")).toBeNull());

@@ -381,7 +381,8 @@ export const de: SuiteStrings = {
     redoNone: "Nichts wiederherzustellen",
     saved: "Gespeichert",
     draft: "Entwurf · ungespeichert",
-    resetConfirm: "Entwurf verwerfen und zum gespeicherten Stand zurückkehren?",
+    resetConfirm:
+      "Entwurf verwerfen und zum gespeicherten Stand zurückkehren? Das lässt sich nicht rückgängig machen.",
     resetHint: "Verwirft den Entwurf und kehrt zum gespeicherten Stand zurück.",
     resetCleanHint: "Verwirft den Entwurf — verfügbar, sobald du etwas geändert hast.",
     resetSavingHint: "Verwirft den Entwurf — gesperrt, solange gespeichert wird.",

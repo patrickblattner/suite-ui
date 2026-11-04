@@ -27,6 +27,7 @@ import { createPortal, flushSync } from "react-dom";
 import { useTranslation } from "react-i18next";
 
 import { cn } from "../lib/cn.js";
+import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
 import { Button } from "../ui/button.js";
 import {
   ContextMenu,
@@ -196,7 +197,7 @@ import {
   SlideView,
   type SlideViewProps,
 } from "./slide-view.js";
-import { type SlideHistory, useSlideHistory } from "./use-slide-history.js";
+import { type SlideHistory, type SlideHostStep, useSlideHistory } from "./use-slide-history.js";
 import { adoptBrand, mediaIds, mediaLabel, withMedia } from "./editor-adopt.js";
 import { elementClipboard, keepInClipboard } from "./element-clipboard-internal.js";
 import {
@@ -264,8 +265,37 @@ export interface SlideEditorProps extends Pick<
   // the layers list, selection and copy stay; the inspector shows the selection's properties as text.
   // The app's server still rejects a reading role's write.
   readOnly?: boolean;
+  // The host's slots (`SUI-FEATURE-134`). `status`: a host state in the header's status place (an
+  // upload running). `pagePanel`: a titled section the inspector shows below the page's properties
+  // while nothing is selected; the host fills it (read-only content under `readOnly`), the editor
+  // neither reads nor stores its values.
+  status?: React.ReactNode;
+  pagePanel?: { title: string; content: React.ReactNode };
+  // The ids of the labelled overlays shown (`SlideExtensions.overlays`), view state like the grid:
+  // kept by the editor when the app leaves it out, all shown at first; never in the document.
+  overlaysShown?: readonly string[];
+  onOverlaysShown?: (shown: string[]) => void;
+  // The host's own fields differ from the saved state: treated like a changed document (draft,
+  // Reset and Save enabled, the leave guard asks). Without it only the document counts.
+  hostDirty?: boolean;
+  // Called once the person confirms Reset, so the host resets its own fields with the document;
+  // Reset then clears the session history, host steps too, and is never undone.
+  onReset?: () => void;
+  // The editor's handle: `recordHostStep` puts a host change into the undo history (`GL-UI-034`).
+  ref?: React.Ref<SlideEditorHandle>;
   "data-testid"?: string;
 }
+
+// What the host calls on the editor (`SUI-FEATURE-134`): a change the host made outside the document
+// (a record renamed) as a step of the editor's undo history, in order with the document's steps; Undo
+// and Redo call the host's `undo` and `redo` for it, and with `reveal: "page-panel"` clear the
+// selection so the page panel shows the value. It never changes the document, fires no `onChange`,
+// and does nothing under `readOnly`.
+export interface SlideEditorHandle {
+  recordHostStep: (step: SlideHostStep) => void;
+}
+
+export type { SlideHostStep };
 
 type ViewProps = Pick<
   SlideViewProps,
@@ -789,6 +819,13 @@ export function SlideEditor({
   renderPlaceholder,
   headerRef,
   readOnly = false,
+  status,
+  pagePanel,
+  overlaysShown,
+  onOverlaysShown,
+  hostDirty,
+  onReset,
+  ref,
   "data-testid": testId,
 }: SlideEditorProps) {
   checkSlideExtensions(extensions);
@@ -825,10 +862,25 @@ export function SlideEditor({
       view={view}
       headerRef={headerRef}
       readOnly={readOnly}
+      host={{
+        status,
+        pagePanel,
+        overlaysShown,
+        onOverlaysShown,
+        hostDirty,
+        onReset,
+        handle: ref,
+      }}
       testId={testId}
     />
   );
 }
+
+// The host's slots as `Editor` takes them (`SUI-FEATURE-134`).
+type HostSlots = Pick<
+  SlideEditorProps,
+  "status" | "pagePanel" | "overlaysShown" | "onOverlaysShown" | "hostDirty" | "onReset"
+> & { handle: SlideEditorProps["ref"] };
 
 // A document that breaks the schema: the header with its way back and the named error, nothing drawn.
 function Invalid({
@@ -891,6 +943,7 @@ function Editor({
   view,
   headerRef,
   readOnly,
+  host,
   testId,
 }: {
   appLayouts: SlideEditorProps["layouts"];
@@ -909,6 +962,7 @@ function Editor({
   view: ViewProps;
   headerRef: SlideEditorProps["headerRef"];
   readOnly: boolean;
+  host: HostSlots;
   testId: string | undefined;
 }) {
   const { t, i18n } = useTranslation("suite");
@@ -919,6 +973,18 @@ function Editor({
   const history: SlideHistory = readOnly
     ? { ...steps, apply: () => {}, undo: () => {}, redo: () => {}, reset: () => {} }
     : steps;
+  // A host step is a step that leaves the document as it is (`SUI-FEATURE-134`); none under `readOnly`.
+  // The handle is built anew only when `readOnly` changes, never on each render.
+  const applyStep = steps.apply;
+  React.useImperativeHandle(
+    host.handle,
+    () => ({
+      recordHostStep: (step) => {
+        if (!readOnly) applyStep((current) => current, { host: step });
+      },
+    }),
+    [applyStep, readOnly],
+  );
   // `onChange` (`SUI-FEATURE-194`): each step is reported once it is made; a run of typing under a
   // `merge` key once the focus leaves its field, a press ends or a pointer click lands (the click that
   // makes the change too, so a button or switch of an extension reports at once), counted by
@@ -1045,17 +1111,47 @@ function Editor({
     setOwnGridShown(shown);
     onGridShown?.(shown);
   };
+  // The app's labelled overlays shown, view state like the grid (`SUI-FEATURE-134`): each one shown
+  // until it is toggled off, one added later too, so the editor keeps the ones hidden.
+  const overlays = view.extensions?.overlays ?? [];
+  const [ownHidden, setOwnHidden] = React.useState<readonly string[]>([]);
+  const overlaysShown =
+    host.overlaysShown ??
+    overlays.flatMap(({ id, label }) =>
+      label === undefined || ownHidden.includes(id) ? [] : [id],
+    );
+  const toggleOverlay = (id: string) => {
+    const on = !overlaysShown.includes(id);
+    setOwnHidden((hidden) => (on ? hidden.filter((one) => one !== id) : [...hidden, id]));
+    host.onOverlaysShown?.(on ? [...overlaysShown, id] : overlaysShown.filter((one) => one !== id));
+  };
 
   // Cropping lasts while its selection does and its image is there (an Undo can take it away).
-  const base = preview ?? history.document;
+  const base = (readOnly ? undefined : preview) ?? history.document;
   // A step taken back can remove the page shown (a new page, a copy): the last one shows then.
   const page = Math.max(0, Math.min(pageState, base.pages.length - 1));
   const stored =
     cropState === undefined
       ? undefined
       : findElement(base.pages[page]?.elements ?? [], cropState.id)?.element;
+  // `readOnly` turned on ends a crop or text editing under way and drops a gesture's preview (#789):
+  // no session of the editable editor outlasts the switch, nor comes back when it turns off.
+  const [wasReadOnly, setWasReadOnly] = React.useState(readOnly);
+  if (readOnly !== wasReadOnly) {
+    setWasReadOnly(readOnly);
+    if (readOnly) {
+      setCropping(undefined);
+      setEditing(undefined);
+      setTextRange(undefined);
+      setPreview(undefined);
+      setDrag(undefined);
+      setGuides({});
+    }
+  }
   const cropping =
-    cropState?.selection === selection && stored?.type === "image" ? cropState : undefined;
+    !readOnly && cropState?.selection === selection && stored?.type === "image"
+      ? cropState
+      : undefined;
   const document = cropping === undefined ? base : withCrop(base, page, cropping.id, cropping.crop);
   // The stored crop as cropping starts from it: clamped to the area inside the border, as the view
   // draws it, so a crop stored for the whole frame (before `SUI-FEATURE-230` rev 5) shows, shifts and
@@ -1066,7 +1162,8 @@ function Editor({
   // (`GL-UI-007`); leaving the canvas keeps it (see `keepCropOnLeave`).
   const pendingCrop =
     cropping !== undefined && storedCrop !== undefined && !sameCrop(cropping.crop, storedCrop);
-  const dirty = history.document !== saved || pendingCrop;
+  // The host's fields count as part of the draft (`SUI-FEATURE-134` rev 5), never under `readOnly`.
+  const dirty = history.document !== saved || pendingCrop || (!readOnly && host.hostDirty === true);
   // What the leave guard watches during a save (`SUI-FEATURE-112`): the document and a crop being set,
   // which is a canvas change not yet in the document.
   const pendingCropValue = pendingCrop ? cropping.crop : undefined;
@@ -1086,6 +1183,7 @@ function Editor({
   // take it away).
   const edited = editState === undefined ? undefined : findElement(elements, editState.id)?.element;
   const editing =
+    !readOnly &&
     editState?.selection === selection &&
     edited !== undefined &&
     !edited.locked &&
@@ -1173,12 +1271,14 @@ function Editor({
       )
         leaveCell();
     }
+    const hostStep = step === "undo" ? history.undoHost : history.redoHost;
     if (step === "undo") history.undo();
     else history.redo();
+    hostStep?.[step]();
     if (target !== undefined && target !== page) {
       setPage(target);
       setSelection([]);
-    }
+    } else if (hostStep?.reveal === "page-panel") setSelection([]);
   };
 
   // Save and the leave question (`GL-UI-007`). A draft the schema refuses is not handed on; the rule
@@ -1458,9 +1558,12 @@ function Editor({
   };
 
   // Reset drops everything since the last save, a crop being set too.
+  // It is a boundary (`SUI-FEATURE-134` rev 5): the host resets its fields once, and the session
+  // history, the host's steps included, starts anew, so Reset is never undone.
   const reset = () => {
     setCropping(undefined);
-    apply(() => saved);
+    history.reset(saved);
+    host.onReset?.();
   };
   // The header's pair follows the guard's one dirty state, field drafts on the page included
   // (`SUI-FEATURE-118` rev 8).
@@ -1504,6 +1607,7 @@ function Editor({
   const cropDescription = React.useId();
   // Per instance, so two mounted editors never share a heading id.
   const animationTitle = React.useId();
+  const pagePanelTitle = React.useId();
   const gridTitle = React.useId();
   // The same for the crop, layout and page fields (#566).
   const fieldId = React.useId();
@@ -3299,6 +3403,21 @@ function Editor({
         </div>
       </section>
     );
+  // The host's section below the page's properties, with nothing selected (`SUI-FEATURE-134`); its
+  // content is the host's, read-only under `readOnly` as the host passes it.
+  const pagePanel =
+    selected.length === 0 && host.pagePanel !== undefined ? (
+      <section
+        className="flex flex-col gap-2"
+        aria-labelledby={pagePanelTitle}
+        data-testid="slide-editor-page-panel"
+      >
+        <h3 id={pagePanelTitle} className="text-base font-semibold">
+          {host.pagePanel.title}
+        </h3>
+        {host.pagePanel.content}
+      </section>
+    ) : null;
   const layoutTab = (
     <div className="flex flex-col gap-4" data-testid="slide-editor-layout">
       {unloadedNote}
@@ -3620,6 +3739,7 @@ function Editor({
           })}
         </p>
       ) : null}
+      {pagePanel}
       {/* The element's animations in their own section at the end of the tab (`SUI-FEATURE-234`
           §Felder); the page's transition stands with the page's properties above. */}
       {single === undefined ? null : (
@@ -3670,17 +3790,21 @@ function Editor({
         rotation={inTurnedGroup ? (((single.rotation + turn) % 360) + 360) % 360 : single.rotation}
       />
     ) : selected.length === 0 ? (
-      pageData === undefined ? null : (
-        <ReadOnlyPage
-          transition={pageData.transition}
-          format={t("slides.editor.format", {
-            name: document.format.name,
-            width: pageWidth,
-            height: pageHeight,
-            interpolation: { escapeValue: false },
-          })}
-        />
-      )
+      // Spaced as the editable inspector's layout tab.
+      <div className="flex flex-col gap-4">
+        {pageData === undefined ? null : (
+          <ReadOnlyPage
+            transition={pageData.transition}
+            format={t("slides.editor.format", {
+              name: document.format.name,
+              width: pageWidth,
+              height: pageHeight,
+              interpolation: { escapeValue: false },
+            })}
+          />
+        )}
+        {pagePanel}
+      </div>
     ) : (
       <p className="text-sm text-muted-foreground" data-testid="slide-editor-readonly-count">
         {t("slides.editor.selectedCount", { count: selected.length })}
@@ -3997,7 +4121,10 @@ function Editor({
                   </span>
                 ),
               }
-            : {})}
+            : // The host's state in the same place (`SUI-FEATURE-134`), while no paste waits.
+              host.status === undefined
+              ? {}
+              : { status: host.status })}
         />
         {/* Outside the head's row, from the paste's start: the live region is there before its text,
             so it announces it once; beside it the label's width, read for the room it needs. */}
@@ -4166,6 +4293,22 @@ function Editor({
                 definition={grid}
                 unavailableText={t("slides.editor.gridUnavailable")}
               />
+              {overlays.map((overlay) =>
+                overlay.label === undefined ? null : (
+                  <Button
+                    key={overlay.id}
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    aria-pressed={overlaysShown.includes(overlay.id)}
+                    className={PRESSED_FILL_CLASS}
+                    onClick={() => toggleOverlay(overlay.id)}
+                    data-testid={`slide-editor-overlay-toggle-${overlay.id}`}
+                  >
+                    {overlay.label}
+                  </Button>
+                ),
+              )}
               <CanvasZoom zoom={zoom} mode={zoomMode} onMode={setZoomMode} />
             </div>
           </div>
@@ -4206,6 +4349,24 @@ function Editor({
                     height={pageHeight * zoom}
                   />
                 </div>
+              )}
+              {/* The app's further overlays, a labelled one while it is shown (`SUI-FEATURE-134`). */}
+              {overlays.map(({ id, label, render: Overlay }) =>
+                label !== undefined && !overlaysShown.includes(id) ? null : (
+                  <div
+                    key={id}
+                    className="pointer-events-none absolute inset-0 overflow-hidden"
+                    data-testid={`slide-editor-overlay-${id}`}
+                  >
+                    <Overlay
+                      page={page}
+                      format={document.format}
+                      zoom={zoom}
+                      width={pageWidth * zoom}
+                      height={pageHeight * zoom}
+                    />
+                  </div>
+                ),
               )}
               {/* The grid above the elements, below the selection and the guides (rev 5). */}
               {gridShown && grid !== null ? (

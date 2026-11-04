@@ -1,0 +1,281 @@
+import * as React from "react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { SLIDE_BRAND, SLIDE_EDITOR_DOC } from "../../gallery/slide-showcase.js";
+import { SlideEditor, type SlideEditorHandle, type SlideEditorProps } from "./slide-editor.js";
+import type { SlideExtensions } from "./slide-view.js";
+
+// `SUI-FEATURE-134`: the host's slots — header status, page-panel section, overlay toggles, host
+// steps in the undo history with `onReset`.
+
+// jsdom has no layout observer and no scrolling; the slots need nothing more.
+const noop = () => {};
+beforeEach(() => {
+  HTMLElement.prototype.scrollIntoView = noop;
+  vi.stubGlobal(
+    "ResizeObserver",
+    class {
+      observe = noop;
+      unobserve = noop;
+      disconnect = noop;
+    },
+  );
+});
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
+
+function editor(props: Partial<SlideEditorProps> = {}) {
+  const onChange = vi.fn();
+  const ref = React.createRef<SlideEditorHandle>();
+  const element = (more: Partial<SlideEditorProps>) => (
+    <SlideEditor
+      document={SLIDE_EDITOR_DOC}
+      title="Deck"
+      brand={SLIDE_BRAND}
+      onSave={() => true}
+      onChange={onChange}
+      onBack={() => {}}
+      ref={ref}
+      {...props}
+      {...more}
+    />
+  );
+  const view = render(element({}));
+  // The same editor with some props changed.
+  const rerender = (more: Partial<SlideEditorProps>) => view.rerender(element(more));
+  return { onChange, ref, rerender };
+}
+
+const header = () => document.querySelector<HTMLElement>("[data-slot=editor-header]")!;
+const firstLayer = () => screen.getAllByTestId("slide-editor-layer")[0]!;
+const lockButton = () => within(firstLayer()).getByTestId("slide-editor-layer-lock");
+const click = (testId: string) => fireEvent.click(screen.getAllByTestId(testId)[0]!);
+
+describe("SlideEditor host slots (SUI-FEATURE-134)", () => {
+  // AC1
+  it("shows the host's status in the header's status place, and nothing there without it", () => {
+    editor({ status: <span data-testid="host-status">Uploading</span> });
+    expect(
+      within(header()).getByTestId("host-status").closest("[data-slot=editor-status]"),
+    ).not.toBeNull();
+    cleanup();
+    editor();
+    expect(header().querySelector("[data-slot=editor-status]")).toBeNull();
+  });
+
+  // AC2
+  it("shows the page panel under its title with nothing selected, hides it on a selection", () => {
+    editor({ pagePanel: { title: "Template fields", content: <p>Headline</p> } });
+    const section = screen.getByTestId("slide-editor-page-panel");
+    expect(within(section).getByRole("heading", { name: "Template fields" })).toBeInTheDocument();
+    expect(section).toHaveTextContent("Headline");
+    fireEvent.click(screen.getByTestId("drawer-layers"));
+    fireEvent.click(within(firstLayer()).getByTestId("slide-editor-layer-select"));
+    expect(screen.queryByTestId("slide-editor-page-panel")).toBeNull();
+  });
+
+  it("shows the host's read-only page panel content under readOnly", () => {
+    editor({ readOnly: true, pagePanel: { title: "Template fields", content: <p>Fixed</p> } });
+    expect(screen.getByTestId("slide-editor-page-panel")).toHaveTextContent("Fixed");
+  });
+
+  // AC3
+  it("gives each labelled overlay a toggle that shows and hides only it, never in onChange", () => {
+    const onOverlaysShown = vi.fn();
+    const extensions: SlideExtensions = {
+      overlays: [
+        { id: "safe", label: "Safe zones", render: () => <span>safe</span> },
+        { id: "phone", label: "Phone frame", render: () => <span>phone</span> },
+        { id: "always", render: () => <span>always</span> },
+      ],
+    };
+    const { onChange } = editor({ extensions, onOverlaysShown });
+    const safe = screen.getByRole("button", { name: "Safe zones" });
+    expect(screen.getByRole("button", { name: "Phone frame" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.queryByTestId("slide-editor-overlay-toggle-always")).toBeNull();
+    expect(safe).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(safe);
+    expect(safe).toHaveAttribute("aria-pressed", "false");
+    expect(screen.queryByTestId("slide-editor-overlay-safe")).toBeNull();
+    expect(screen.getByTestId("slide-editor-overlay-phone")).toBeInTheDocument();
+    expect(screen.getByTestId("slide-editor-overlay-always")).toBeInTheDocument();
+    expect(onOverlaysShown).toHaveBeenLastCalledWith(["phone"]);
+    fireEvent.click(safe);
+    expect(screen.getByTestId("slide-editor-overlay-safe")).toBeInTheDocument();
+    expect(onOverlaysShown).toHaveBeenLastCalledWith(["phone", "safe"]);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("shows a labelled overlay added after mount at once", () => {
+    const safe = { id: "safe", label: "Safe zones", render: () => <span>safe</span> };
+    const { rerender } = editor({ extensions: { overlays: [safe] } });
+    fireEvent.click(screen.getByRole("button", { name: "Safe zones" }));
+    rerender({
+      extensions: {
+        overlays: [safe, { id: "phone", label: "Phone frame", render: () => <span>phone</span> }],
+      },
+    });
+    expect(screen.getByRole("button", { name: "Phone frame" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByTestId("slide-editor-overlay-phone")).toBeInTheDocument();
+    // The one toggled off before stays off.
+    expect(screen.queryByTestId("slide-editor-overlay-safe")).toBeNull();
+  });
+
+  it("follows overlaysShown when the host keeps it", () => {
+    const extensions: SlideExtensions = {
+      overlays: [{ id: "safe", label: "Safe zones", render: () => <span>safe</span> }],
+    };
+    editor({ extensions, overlaysShown: [] });
+    expect(screen.getByRole("button", { name: "Safe zones" })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+    expect(screen.queryByTestId("slide-editor-overlay-safe")).toBeNull();
+  });
+
+  it("refuses two overlays with the same id", () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const render = () => <span />;
+    expect(() =>
+      editor({
+        extensions: {
+          overlays: [
+            { id: "x", render },
+            { id: "x", render },
+          ],
+        },
+      }),
+    ).toThrow(/used twice/);
+  });
+
+  // AC4
+  it("undoes a host step before the document edit and redoes both in order, no onChange", () => {
+    const { onChange, ref } = editor();
+    const calls: string[] = [];
+    fireEvent.click(screen.getByTestId("drawer-layers"));
+    fireEvent.click(lockButton());
+    expect(lockButton()).toHaveAttribute("aria-pressed", "true");
+    expect(onChange).toHaveBeenCalledTimes(1);
+    act(() =>
+      ref.current!.recordHostStep({
+        undo: () => calls.push("host undo"),
+        redo: () => calls.push("host redo"),
+      }),
+    );
+    expect(onChange).toHaveBeenCalledTimes(1);
+    click("editor-undo");
+    expect(calls).toEqual(["host undo"]);
+    expect(lockButton()).toHaveAttribute("aria-pressed", "true");
+    click("editor-undo");
+    expect(lockButton()).toHaveAttribute("aria-pressed", "false");
+    click("editor-redo");
+    expect(lockButton()).toHaveAttribute("aria-pressed", "true");
+    expect(calls).toEqual(["host undo"]);
+    click("editor-redo");
+    expect(calls).toEqual(["host undo", "host redo"]);
+    // The lock, its undo and its redo; the host steps fire none.
+    expect(onChange).toHaveBeenCalledTimes(3);
+  });
+
+  // AC4 (rev 6): a host step whose field is in the page panel brings the panel back on Undo and Redo.
+  it("clears the selection on Undo and Redo of a host step with reveal, keeps it without", () => {
+    const { ref } = editor({ pagePanel: { title: "Record", content: <p>Name</p> } });
+    const select = () => {
+      if (screen.queryAllByTestId("slide-editor-layer").length === 0) {
+        fireEvent.click(screen.getByTestId("drawer-layers"));
+      }
+      fireEvent.click(within(firstLayer()).getByTestId("slide-editor-layer-select"));
+      expect(screen.queryByTestId("slide-editor-page-panel")).toBeNull();
+    };
+    const host = vi.fn();
+    act(() => ref.current!.recordHostStep({ undo: host, redo: host }));
+    act(() => ref.current!.recordHostStep({ undo: host, redo: host, reveal: "page-panel" }));
+    select();
+    click("editor-undo");
+    expect(host).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId("slide-editor-page-panel")).toBeInTheDocument();
+    select();
+    click("editor-redo");
+    expect(host).toHaveBeenCalledTimes(2);
+    expect(screen.getByTestId("slide-editor-page-panel")).toBeInTheDocument();
+    // Without `reveal` the selection stays.
+    click("editor-undo");
+    select();
+    click("editor-undo");
+    expect(host).toHaveBeenCalledTimes(4);
+    expect(screen.queryByTestId("slide-editor-page-panel")).toBeNull();
+  });
+
+  // AC5 (rev 5): the host's fields count as part of the draft.
+  it("treats hostDirty like a changed document", async () => {
+    const onBack = vi.fn();
+    const { rerender } = editor({ hostDirty: true, onBack });
+    const state = () => screen.getAllByTestId("editor-state")[0]!;
+    const enabled = (testId: string) =>
+      expect(screen.getAllByTestId(testId)[0]).not.toHaveAttribute("aria-disabled", "true");
+    expect(state()).toHaveTextContent("Draft");
+    enabled("editor-reset");
+    enabled("editor-save");
+    click("editor-back");
+    expect(await screen.findByTestId("leave-guard")).toBeInTheDocument();
+    expect(onBack).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("leave-guard-cancel"));
+    rerender({ hostDirty: false });
+    expect(state()).toHaveTextContent("Saved");
+    expect(screen.getAllByTestId("editor-reset")[0]).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getAllByTestId("editor-save")[0]).toHaveAttribute("aria-disabled", "true");
+  });
+
+  it("ignores hostDirty under readOnly", () => {
+    const onBack = vi.fn();
+    editor({ readOnly: true, hostDirty: true, onBack });
+    // "Read only" stands in place of the state, never a draft.
+    expect(header()).toHaveTextContent("Read only");
+    expect(header()).not.toHaveTextContent("Draft");
+    click("editor-back");
+    expect(screen.queryByTestId("leave-guard")).toBeNull();
+    expect(onBack).toHaveBeenCalledTimes(1);
+  });
+
+  // AC6 (rev 5): Reset is a boundary — the host resets once, the history starts anew.
+  it("calls onReset once on the confirmed Reset and clears the history, host steps too", async () => {
+    const onReset = vi.fn();
+    const hostUndo = vi.fn();
+    const { ref } = editor({ onReset });
+    fireEvent.click(screen.getByTestId("drawer-layers"));
+    fireEvent.click(lockButton());
+    act(() => ref.current!.recordHostStep({ undo: hostUndo, redo: () => {} }));
+    click("editor-reset");
+    expect(onReset).not.toHaveBeenCalled();
+    fireEvent.click(await screen.findByTestId("editor-reset-confirm-confirm"));
+    expect(onReset).toHaveBeenCalledTimes(1);
+    expect(lockButton()).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getAllByTestId("editor-undo")[0]).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getAllByTestId("editor-redo")[0]).toHaveAttribute("aria-disabled", "true");
+    click("editor-undo");
+    fireEvent.keyDown(screen.getByTestId("slide-editor-canvas"), { key: "z", ctrlKey: true });
+    expect(hostUndo).not.toHaveBeenCalled();
+    expect(lockButton()).toHaveAttribute("aria-pressed", "false");
+  });
+
+  it("records no host step under readOnly", () => {
+    const { ref, rerender } = editor({ readOnly: true });
+    const undo = vi.fn();
+    act(() => ref.current!.recordHostStep({ undo, redo: () => {} }));
+    // Editable again: nothing to undo, the host's undo never runs.
+    rerender({ readOnly: false });
+    const button = screen.getAllByTestId("editor-undo")[0]!;
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(button);
+    expect(undo).not.toHaveBeenCalled();
+  });
+});

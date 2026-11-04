@@ -931,6 +931,13 @@ const AXE_PAGES: [
       },
     ],
   ],
+  // `SUI-FEATURE-134` AC5: the host's status, page panel and overlay toggles.
+  [
+    "slide-editor",
+    (page) =>
+      page.locator("[data-testid=slide-editor] [data-slot=slide-view][data-slide-ready=true]"),
+    "&host=1",
+  ],
 ];
 
 // A new gallery page cannot skip axe: the page switch offers exactly the pages axe scans.
@@ -19752,4 +19759,55 @@ test("read-only slide editor selects a layer row by keyboard", async ({ page }) 
   await page.keyboard.press("Enter");
   await expect(row).toHaveAttribute("aria-pressed", "true");
   await expect(editor.getByTestId("slide-editor-readonly-properties")).toBeVisible();
+});
+
+// `SUI-FEATURE-134` AC5: the gallery's host shows its status, page panel and overlay toggles, and a
+// rename in the page panel is undone in order with the document's steps.
+test("slide editor host slots in the gallery", async ({ page }) => {
+  await page.goto("/?page=slide-editor&host=1&lng=en&theme=light");
+  const editor = page.getByTestId("slide-editor");
+  await expect(
+    editor.locator("[data-slot=slide-view][data-slide-ready=true]").first(),
+  ).toBeVisible();
+  await expect(editor.locator("[data-slot=editor-status]").first()).toContainText("Uploading");
+  await expect(editor.getByTestId("slide-editor-page-panel")).toContainText("Record");
+  const safe = editor.getByRole("button", { name: "Safe zones" });
+  await expect(safe).toHaveAttribute("aria-pressed", "true");
+  await expect(editor.getByRole("button", { name: "Phone frame" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await expect(editor.getByTestId("gallery-host-safe-zones")).toBeVisible();
+  await safe.click();
+  await expect(editor.getByTestId("gallery-host-safe-zones")).toHaveCount(0);
+  await expect(editor.getByTestId("gallery-host-phone-frame")).toBeVisible();
+  const name = editor.getByTestId("gallery-host-name");
+  await name.fill("Renamed deck");
+  await name.blur();
+  await expect(editor.getByRole("heading", { level: 1 }).first()).toHaveText("Renamed deck");
+  // The rename alone is a draft (rev 5).
+  await expect(editor.getByTestId("editor-state").first()).toContainText("Draft");
+  await editor.getByTestId("editor-undo").first().click();
+  await expect(name).toHaveValue("Workshop deck");
+  await editor.getByTestId("editor-redo").first().click();
+  await expect(name).toHaveValue("Renamed deck");
+  // Enter commits a rename as leaving the field does.
+  await name.fill("Entered deck");
+  await name.press("Enter");
+  await expect(editor.getByRole("heading", { level: 1 }).first()).toHaveText("Entered deck");
+  // Reset brings the saved name back and leaves nothing to undo.
+  await editor.getByTestId("editor-reset").first().click();
+  await page.getByTestId("editor-reset-confirm-confirm").click();
+  await expect(name).toHaveValue("Workshop deck");
+  await expect(editor.getByTestId("editor-state").first()).toContainText("Saved");
+  await expect(editor.getByTestId("editor-undo").first()).toHaveAttribute("aria-disabled", "true");
+});
+
+test("slide editor host slots under readOnly: the host's page panel is read-only", async ({
+  page,
+}) => {
+  await page.goto("/?page=slide-editor&host=1&readOnly=1&lng=en&theme=light");
+  const editor = page.getByTestId("slide-editor");
+  await expect(editor.getByTestId("slide-editor-page-panel")).toContainText("Record");
+  await expect(editor.getByTestId("gallery-host-name")).toHaveAttribute("readonly", "");
 });

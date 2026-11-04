@@ -173,6 +173,14 @@ export interface SlideOverlayProps {
   height: number;
 }
 
+// One of an app's overlays (`SUI-FEATURE-134`): `id` keys it in the editor's `overlaysShown`; with a
+// `label` it gets a toggle of that name in the editor's view band, without one it is always drawn.
+export interface SlideOverlay {
+  id: string;
+  label?: string;
+  render: (props: SlideOverlayProps) => React.ReactNode;
+}
+
 // What an app contributes (`SUI-FEATURE-163`): its own element types by type id and add-ons to built-in
 // types, drawn the same by the view, editor, player and export; blocks for the editor's library; and
 // an overlay only the editor draws, never in the document, the player or the export.
@@ -181,6 +189,8 @@ export interface SlideExtensions {
   addOns?: readonly SlideAddOn[];
   library?: readonly SlideLibraryBlock[];
   overlay?: (props: SlideOverlayProps) => React.ReactNode;
+  // More overlays, each with an id and an optional label (`SUI-FEATURE-134`).
+  overlays?: readonly SlideOverlay[];
 }
 
 // An add-on's id: `ext.<app>.<name>`, each part lower-case letters and digits, joined by hyphens.
@@ -195,6 +205,11 @@ export function checkSlideExtensions(extensions: SlideExtensions | undefined): v
         `Slide add-on id ${JSON.stringify(addOn.id)} is not of the form ext.<app>.<name>`,
       );
     }
+  }
+  const overlayIds = new Set<string>();
+  for (const { id } of extensions?.overlays ?? []) {
+    if (overlayIds.has(id)) throw new Error(`Slide overlay id ${JSON.stringify(id)} is used twice`);
+    overlayIds.add(id);
   }
 }
 
