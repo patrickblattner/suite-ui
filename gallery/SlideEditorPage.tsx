@@ -344,7 +344,8 @@ const GALLERY_EDITOR_EXTENSIONS: SlideExtensions = {
 
 // `SUI-FEATURE-134` (`?host=1`): the host's slots — an upload's status in the header, the record's
 // name in the page panel (a rename is a host step in the editor's undo, Reset restores it), and two
-// labelled overlays with their toggles in the view band.
+// labelled overlays with their toggles and hints in the view band; the phone frame draws in a 40 format px
+// bleed around the page (rev 7).
 const HOST = PARAMS.get("host") === "1";
 const HOST_EXTENSIONS: SlideExtensions = {
   ...GALLERY_SLIDE_PROPS.extensions,
@@ -352,6 +353,7 @@ const HOST_EXTENSIONS: SlideExtensions = {
     {
       id: "safe-zones",
       label: "Safe zones",
+      hint: "Shows where text stays clear of the edge",
       render: ({ width, height }) => (
         <div
           className="absolute border border-dashed border-destructive"
@@ -368,11 +370,13 @@ const HOST_EXTENSIONS: SlideExtensions = {
     {
       id: "phone-frame",
       label: "Phone frame",
-      render: ({ width, height }) => (
+      hint: "Shows the page in a phone frame",
+      bleed: 40,
+      render: ({ zoom }) => (
         <div
-          // A mid grey in both themes: the slide stays white under the dark theme too.
-          className="absolute rounded-3xl border-4 border-ring"
-          style={{ left: (width - height * 0.5) / 2, top: 0, width: height * 0.5, height }}
+          // A mid grey in both themes, all in the bleed: the page inside stays uncovered.
+          className="absolute inset-0 rounded-3xl border-solid border-ring"
+          style={{ borderWidth: 40 * zoom }}
           data-testid="gallery-host-phone-frame"
         />
       ),

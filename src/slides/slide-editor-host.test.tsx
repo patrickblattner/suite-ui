@@ -142,6 +142,81 @@ describe("SlideEditor host slots (SUI-FEATURE-134)", () => {
     expect(screen.queryByTestId("slide-editor-overlay-safe")).toBeNull();
   });
 
+  // AC3 (rev 7): the toggle's hint, by the package `Hint`, is its description for focus and hover.
+  it("gives a labelled overlay's toggle its hint as description, none without one", () => {
+    editor({
+      extensions: {
+        overlays: [
+          { id: "safe", label: "Safe zones", hint: "Shows the safe zones", render: () => null },
+          { id: "phone", label: "Phone frame", render: () => null },
+        ],
+      },
+    });
+    expect(screen.getByRole("button", { name: "Safe zones" })).toHaveAccessibleDescription(
+      "Shows the safe zones",
+    );
+    expect(screen.getByRole("button", { name: "Phone frame" })).toHaveAccessibleDescription("");
+  });
+
+  // AC4 (rev 7): bleed 40 → the overlay's box reaches 40 format px beyond each page edge, the page
+  // keeps its size, the bleed takes no press, and fit makes room for the largest bleed shown.
+  it("draws an overlay's bleed beyond the page edge and fits the page with it", () => {
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(private callback: ResizeObserverCallback) {}
+        observe = () =>
+          this.callback(
+            [{ contentRect: { width: 1048, height: 1000 } } as ResizeObserverEntry],
+            this,
+          );
+        unobserve = noop;
+        disconnect = noop;
+      },
+    );
+    const seen: { zoom: number; width: number; height: number }[] = [];
+    const extensions: SlideExtensions = {
+      overlays: [
+        {
+          id: "phone",
+          label: "Phone frame",
+          bleed: 40,
+          render: ({ zoom, width, height }) => {
+            seen.push({ zoom, width, height });
+            return <span data-testid="phone-drawn" />;
+          },
+        },
+        { id: "safe", bleed: 10, render: () => null },
+      ],
+    };
+    const { onChange } = editor({ extensions });
+    // (1048 − 48) / (800 + 2 × 40) and (1000 − 48) / (450 + 80): the width decides, 1000 / 880.
+    const zoom = 1000 / 880;
+    const last = seen.at(-1)!;
+    expect(last.zoom).toBeCloseTo(zoom);
+    expect(last.width).toBeCloseTo(800 * zoom);
+    expect(last.height).toBeCloseTo(450 * zoom);
+    const box = screen.getByTestId("slide-editor-overlay-phone");
+    expect(parseFloat(box.style.inset)).toBeCloseTo(-40 * zoom);
+    expect(box).toHaveClass("pointer-events-none");
+    // The page keeps its size; the room for the bleed lies around it.
+    const frame = box.parentElement!;
+    expect(parseFloat(frame.style.width)).toBeCloseTo(800 * zoom);
+    expect(parseFloat(frame.style.height)).toBeCloseTo(450 * zoom);
+    expect(parseFloat(frame.style.marginBlock)).toBeCloseTo(40 * zoom);
+    // A press in the bleed selects nothing.
+    fireEvent.pointerDown(box);
+    fireEvent.click(box);
+    expect(screen.queryByTestId("slide-editor-handles")).toBeNull();
+    expect(onChange).not.toHaveBeenCalled();
+    // Hidden, its bleed no longer counts: the smaller one shown decides, (1048 − 48) / 820.
+    fireEvent.click(screen.getByRole("button", { name: "Phone frame" }));
+    expect(screen.queryByTestId("phone-drawn")).toBeNull();
+    expect(parseFloat(screen.getByTestId("slide-editor-overlay-safe").style.inset)).toBeCloseTo(
+      -10 * (1000 / 820),
+    );
+  });
+
   it("refuses two overlays with the same id", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     const render = () => <span />;

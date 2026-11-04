@@ -175,9 +175,15 @@ export interface SlideOverlayProps {
 
 // One of an app's overlays (`SUI-FEATURE-134`): `id` keys it in the editor's `overlaysShown`; with a
 // `label` it gets a toggle of that name in the editor's view band, without one it is always drawn.
+// `hint` (already translated) is that toggle's description hint (`GL-UI-017`). With `bleed` (format px,
+// default 0) its box reaches that far beyond each page edge, `bleed * zoom` screen px, with the page at
+// that offset in it, e.g. for a device frame; the bleed takes no pointer input and leaves the page as it
+// is, and the editor's fit-to-view makes room for the largest bleed shown.
 export interface SlideOverlay {
   id: string;
   label?: string;
+  hint?: string;
+  bleed?: number;
   render: (props: SlideOverlayProps) => React.ReactNode;
 }
 

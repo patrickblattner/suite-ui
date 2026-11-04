@@ -19926,6 +19926,42 @@ test("slide editor host slots in the gallery", async ({ page }) => {
     "true",
   );
   await expect(editor.getByTestId("gallery-host-safe-zones")).toBeVisible();
+  // Rev 7 AC3: the toggle's hint on hover.
+  await safe.hover();
+  await expect(page.getByRole("tooltip")).toContainText("Shows where text stays clear of the edge");
+  await page.mouse.move(0, 0);
+  // Rev 7 AC4: the phone frame draws in its 40 format px bleed around the page, fit shows it whole,
+  // and it takes no press.
+  const geometry = await editor.getByTestId("slide-editor-overlay-phone-frame").evaluate((box) => {
+    const rect = (node: Element) => {
+      const { left, top, right, bottom, width, height } = node.getBoundingClientRect();
+      return { left, top, right, bottom, width, height };
+    };
+    const area = box.parentElement!.parentElement!;
+    const pageBox = rect(box.parentElement!);
+    const centre = document.elementFromPoint(
+      rect(box).left + 2,
+      rect(box).top + rect(box).height / 2,
+    );
+    return {
+      box: rect(box),
+      page: pageBox,
+      area: rect(area),
+      hit: centre === null ? null : box.contains(centre),
+      events: getComputedStyle(box).pointerEvents,
+    };
+  });
+  const room = (geometry.page.width / 800) * 40;
+  expect(geometry.page.left - geometry.box.left).toBeCloseTo(room, 0);
+  expect(geometry.page.top - geometry.box.top).toBeCloseTo(room, 0);
+  expect(geometry.box.right - geometry.page.right).toBeCloseTo(room, 0);
+  expect(geometry.box.bottom - geometry.page.bottom).toBeCloseTo(room, 0);
+  expect(geometry.box.left).toBeGreaterThanOrEqual(geometry.area.left);
+  expect(geometry.box.top).toBeGreaterThanOrEqual(geometry.area.top);
+  expect(geometry.box.right).toBeLessThanOrEqual(geometry.area.right);
+  expect(geometry.box.bottom).toBeLessThanOrEqual(geometry.area.bottom);
+  expect(geometry.events).toBe("none");
+  expect(geometry.hit).toBe(false);
   await safe.click();
   await expect(editor.getByTestId("gallery-host-safe-zones")).toHaveCount(0);
   await expect(editor.getByTestId("gallery-host-phone-frame")).toBeVisible();

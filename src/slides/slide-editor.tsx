@@ -198,6 +198,7 @@ import {
   CELL_PADDING,
   carriesUnloadedAddOn,
   checkSlideExtensions,
+  type SlideOverlay,
   SlideView,
   type SlideViewProps,
 } from "./slide-view.js";
@@ -1145,6 +1146,12 @@ function Editor({
     setOwnHidden((hidden) => (on ? hidden.filter((one) => one !== id) : [...hidden, id]));
     host.onOverlaysShown?.(on ? [...overlaysShown, id] : overlaysShown.filter((one) => one !== id));
   };
+  const overlayDrawn = ({ id, label }: SlideOverlay) =>
+    label === undefined || overlaysShown.includes(id);
+  // How far an overlay draws beyond each page edge, in format px; the largest one drawn is the room
+  // the canvas keeps around the page (`SUI-FEATURE-134` rev 7).
+  const bleedOf = (overlay: SlideOverlay) => Math.max(0, overlay.bleed ?? 0);
+  const bleed = Math.max(0, ...overlays.filter(overlayDrawn).map(bleedOf));
   // The colours applied in the colour fields, view state like the grid (`SUI-FEATURE-137`).
   const [ownRecent, setOwnRecent] = React.useState<readonly ColorValue[]>([]);
   const recentColors = host.recentColors ?? ownRecent;
@@ -1245,9 +1252,22 @@ function Editor({
       ? 0.25
       : Math.max(
           0.05,
-          Math.min((areaSize.width - 48) / pageWidth, (areaSize.height - 48) / pageHeight),
+          Math.min(
+            (areaSize.width - 48) / (pageWidth + 2 * bleed),
+            (areaSize.height - 48) / (pageHeight + 2 * bleed),
+          ),
         );
   const zoom = zoomMode === "actual" ? 1 : fit;
+  // The room around the page for the largest bleed shown: as tall above and below, at least as wide
+  // left (centred while it fits, so a page wider than the area keeps its left bleed in reach).
+  const frameMargin: React.CSSProperties =
+    bleed === 0
+      ? {}
+      : {
+          marginBlock: bleed * zoom,
+          marginLeft: `max(${bleed * zoom}px, calc((100% - ${pageWidth * zoom}px) / 2))`,
+          marginRight: bleed * zoom,
+        };
 
   // Every change is one step of the history and names the page it changes.
   const apply = (change: (document: SlideDocument) => SlideDocument, merge?: string) =>
@@ -1829,14 +1849,16 @@ function Editor({
         })();
   // Where the dimmed rest may show, around the page: the canvas area's content with its padding (`p-6`),
   // in the page's px at the canvas zoom; the page stands centred in it (`SUI-FEATURE-230` rev 4).
+  // An overlay's bleed shown moves the page in by that room (`frameMargin`).
   const cropRestBounds = (() => {
     const [width, height] = [pageWidth * zoom, pageHeight * zoom];
-    const margin = Math.max(0, (areaSize.width - width) / 2);
+    const room = bleed * zoom;
+    const margin = Math.max(room, (areaSize.width - width) / 2);
     return {
       left: -(margin + 24),
-      top: -24,
-      width: Math.max(areaSize.width, width) + 48,
-      height: Math.max(areaSize.height, height) + 48,
+      top: -(room + 24),
+      width: Math.max(areaSize.width, width + 2 * room) + 48,
+      height: Math.max(areaSize.height, height + 2 * room) + 48,
     };
   })();
   // What people read for a placeholder: its name, else the generic word, numbered in page order
@@ -4430,8 +4452,9 @@ function Editor({
                 definition={grid}
                 unavailableText={t("slides.editor.gridUnavailable")}
               />
-              {overlays.map((overlay) =>
-                overlay.label === undefined ? null : (
+              {overlays.map((overlay) => {
+                if (overlay.label === undefined) return null;
+                const toggle = (
                   <Button
                     key={overlay.id}
                     type="button"
@@ -4444,8 +4467,16 @@ function Editor({
                   >
                     {overlay.label}
                   </Button>
-                ),
-              )}
+                );
+                // The app's hint, already translated, on hover and focus (`GL-UI-017`).
+                return overlay.hint === undefined ? (
+                  toggle
+                ) : (
+                  <Hint key={overlay.id} text={overlay.hint}>
+                    {toggle}
+                  </Hint>
+                );
+              })}
               <CanvasZoom zoom={zoom} mode={zoomMode} onMode={setZoomMode} />
             </div>
           </div>
@@ -4455,7 +4486,7 @@ function Editor({
               // No text selection on the canvas: a double click would select the page's text, and the
               // next press would drag that selection natively and cancel the editor's drag.
               className="relative mx-auto select-none"
-              style={{ width: pageWidth * zoom, height: pageHeight * zoom }}
+              style={{ width: pageWidth * zoom, height: pageHeight * zoom, ...frameMargin }}
             >
               {/* Each element that reaches past the page edge carries a notice, always, placed as a
                   text notice is: overflow comes from the geometry, not from the model
@@ -4488,11 +4519,16 @@ function Editor({
                 </div>
               )}
               {/* The app's further overlays, a labelled one while it is shown (`SUI-FEATURE-134`). */}
-              {overlays.map(({ id, label, render: Overlay }) =>
-                label !== undefined && !overlaysShown.includes(id) ? null : (
+              {/* With a bleed its box reaches that far beyond each page edge (rev 7). */}
+              {overlays.map((overlay) => {
+                if (!overlayDrawn(overlay)) return null;
+                const { id, render: Overlay } = overlay;
+                const room = bleedOf(overlay) * zoom;
+                return (
                   <div
                     key={id}
-                    className="pointer-events-none absolute inset-0 overflow-hidden"
+                    className="pointer-events-none absolute overflow-hidden"
+                    style={{ inset: -room }}
                     data-testid={`slide-editor-overlay-${id}`}
                   >
                     <Overlay
@@ -4503,8 +4539,8 @@ function Editor({
                       height={pageHeight * zoom}
                     />
                   </div>
-                ),
-              )}
+                );
+              })}
               {/* The grid above the elements, below the selection and the guides (rev 5). */}
               {gridShown && grid !== null ? (
                 <GridOverlay
