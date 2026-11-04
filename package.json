@@ -74,7 +74,7 @@
     "suite-ui-parity": "./dist/parity/cli.js"
   },
   "scripts": {
-    "prepare": "tsup",
+    "prepare": "tsup && (simple-git-hooks || true)",
     "build": "tsup",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -143,9 +143,10 @@
     "react-markdown": "^10.1.0",
     "react-router-dom": "^7.18.4",
     "remark-gfm": "^4.0.1",
+    "simple-git-hooks": "^2.14.0",
     "size-limit": "^14.3.0",
     "sonner": "^2.0.8",
-    "spec-sync-toolkit": "github:patrickblattner/spec-sync-toolkit#v0.35.0",
+    "spec-sync-toolkit": "github:patrickblattner/spec-sync-toolkit#v0.36.1",
     "tailwind-merge": "^3.7.0",
     "tailwindcss": "^4.3.3",
     "tsup": "^9.0.0",
@@ -153,5 +154,8 @@
     "typescript-eslint": "^8.71.1",
     "vite": "^7.3.7",
     "vitest": "^5.0.4"
+  },
+  "simple-git-hooks": {
+    "pre-push": "node scripts/pre-push.ts"
   }
 }
