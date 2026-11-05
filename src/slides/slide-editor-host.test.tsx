@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SLIDE_BRAND, SLIDE_EDITOR_DOC } from "../../gallery/slide-showcase.js";
 import { SlideEditor, type SlideEditorHandle, type SlideEditorProps } from "./slide-editor.js";
-import type { SlideExtensions } from "./slide-view.js";
+import type { SlideExtensions, SlideOverlay } from "./slide-view.js";
 
 // `SUI-FEATURE-134`: the host's slots — header status, page-panel section, overlay toggles, host
 // steps in the undo history with `onReset`.
@@ -87,8 +87,18 @@ describe("SlideEditor host slots (SUI-FEATURE-134)", () => {
     const onOverlaysShown = vi.fn();
     const extensions: SlideExtensions = {
       overlays: [
-        { id: "safe", label: "Safe zones", render: () => <span>safe</span> },
-        { id: "phone", label: "Phone frame", render: () => <span>phone</span> },
+        {
+          id: "safe",
+          label: "Safe zones",
+          hint: "Shows the safe zones",
+          render: () => <span>safe</span>,
+        },
+        {
+          id: "phone",
+          label: "Phone frame",
+          hint: "Shows the phone frame",
+          render: () => <span>phone</span>,
+        },
         { id: "always", render: () => <span>always</span> },
       ],
     };
@@ -113,12 +123,25 @@ describe("SlideEditor host slots (SUI-FEATURE-134)", () => {
   });
 
   it("shows a labelled overlay added after mount at once", () => {
-    const safe = { id: "safe", label: "Safe zones", render: () => <span>safe</span> };
+    const safe = {
+      id: "safe",
+      label: "Safe zones",
+      hint: "Shows the safe zones",
+      render: () => <span>safe</span>,
+    };
     const { rerender } = editor({ extensions: { overlays: [safe] } });
     fireEvent.click(screen.getByRole("button", { name: "Safe zones" }));
     rerender({
       extensions: {
-        overlays: [safe, { id: "phone", label: "Phone frame", render: () => <span>phone</span> }],
+        overlays: [
+          safe,
+          {
+            id: "phone",
+            label: "Phone frame",
+            hint: "Shows the phone frame",
+            render: () => <span>phone</span>,
+          },
+        ],
       },
     });
     expect(screen.getByRole("button", { name: "Phone frame" })).toHaveAttribute(
@@ -132,7 +155,14 @@ describe("SlideEditor host slots (SUI-FEATURE-134)", () => {
 
   it("follows overlaysShown when the host keeps it", () => {
     const extensions: SlideExtensions = {
-      overlays: [{ id: "safe", label: "Safe zones", render: () => <span>safe</span> }],
+      overlays: [
+        {
+          id: "safe",
+          label: "Safe zones",
+          hint: "Shows the safe zones",
+          render: () => <span>safe</span>,
+        },
+      ],
     };
     editor({ extensions, overlaysShown: [] });
     expect(screen.getByRole("button", { name: "Safe zones" })).toHaveAttribute(
@@ -141,6 +171,110 @@ describe("SlideEditor host slots (SUI-FEATURE-134)", () => {
     );
     expect(screen.queryByTestId("slide-editor-overlay-safe")).toBeNull();
   });
+
+  // AC3 (rev 7): the toggle's hint, by the package `Hint`, is its description for focus and hover.
+  it("gives each labelled overlay's toggle its own hint as description", () => {
+    editor({
+      extensions: {
+        overlays: [
+          { id: "safe", label: "Safe zones", hint: "Shows the safe zones", render: () => null },
+          { id: "phone", label: "Phone frame", hint: "Shows the phone frame", render: () => null },
+        ],
+      },
+    });
+    expect(screen.getByRole("button", { name: "Safe zones" })).toHaveAccessibleDescription(
+      "Shows the safe zones",
+    );
+    expect(screen.getByRole("button", { name: "Phone frame" })).toHaveAccessibleDescription(
+      "Shows the phone frame",
+    );
+  });
+
+  // AC3 (rev 8): a labelled entry without `hint` fails type-checking (checked by `tsc`); a hint
+  // without a label too, and an unlabelled entry needs neither.
+  it("requires a hint with a label in the overlay type", () => {
+    const render = () => null;
+    const overlays: SlideOverlay[] = [
+      // @ts-expect-error -- a labelled overlay without its hint
+      { id: "safe", label: "Safe zones", render },
+      // @ts-expect-error -- a hint without a label
+      { id: "lost", hint: "Shows nothing", render },
+      { id: "always", render },
+      { id: "phone", label: "Phone frame", hint: "Shows the phone frame", render },
+    ];
+    expect(overlays).toHaveLength(4);
+  });
+
+  // AC4 (rev 7): bleed 40 → the overlay's box reaches 40 format px beyond each page edge, the page
+  // keeps its size, the bleed takes no press, and fit makes room for the largest bleed shown.
+  it("draws an overlay's bleed beyond the page edge and fits the page with it", () => {
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        constructor(private callback: ResizeObserverCallback) {}
+        observe = () =>
+          this.callback(
+            [{ contentRect: { width: 1048, height: 1000 } } as ResizeObserverEntry],
+            this,
+          );
+        unobserve = noop;
+        disconnect = noop;
+      },
+    );
+    const seen: { zoom: number; width: number; height: number }[] = [];
+    const extensions: SlideExtensions = {
+      overlays: [
+        {
+          id: "phone",
+          label: "Phone frame",
+          hint: "Shows the phone frame",
+          bleed: 40,
+          render: ({ zoom, width, height }) => {
+            seen.push({ zoom, width, height });
+            return <span data-testid="phone-drawn" />;
+          },
+        },
+        { id: "safe", bleed: 10, render: () => null },
+      ],
+    };
+    const { onChange } = editor({ extensions });
+    // (1048 − 48) / (800 + 2 × 40) and (1000 − 48) / (450 + 80): the width decides, 1000 / 880.
+    const zoom = 1000 / 880;
+    const last = seen.at(-1)!;
+    expect(last.zoom).toBeCloseTo(zoom);
+    expect(last.width).toBeCloseTo(800 * zoom);
+    expect(last.height).toBeCloseTo(450 * zoom);
+    const box = screen.getByTestId("slide-editor-overlay-phone");
+    expect(parseFloat(box.style.inset)).toBeCloseTo(-40 * zoom);
+    expect(box).toHaveClass("pointer-events-none");
+    // The page keeps its size; the room for the bleed lies around it.
+    const frame = box.parentElement!;
+    expect(parseFloat(frame.style.width)).toBeCloseTo(800 * zoom);
+    expect(parseFloat(frame.style.height)).toBeCloseTo(450 * zoom);
+    expect(parseFloat(frame.style.marginBlock)).toBeCloseTo(40 * zoom);
+    // A press in the bleed selects nothing.
+    fireEvent.pointerDown(box);
+    fireEvent.click(box);
+    expect(screen.queryByTestId("slide-editor-handles")).toBeNull();
+    expect(onChange).not.toHaveBeenCalled();
+    // Hidden, its bleed no longer counts: the smaller one shown decides, (1048 − 48) / 820.
+    fireEvent.click(screen.getByRole("button", { name: "Phone frame" }));
+    expect(screen.queryByTestId("phone-drawn")).toBeNull();
+    expect(parseFloat(screen.getByTestId("slide-editor-overlay-safe").style.inset)).toBeCloseTo(
+      -10 * (1000 / 820),
+    );
+  });
+
+  // #806 review: a bleed that is not a finite size of 0 or more would leave the canvas without a size.
+  it.each([Number.NaN, Number.POSITIVE_INFINITY, -1])(
+    "refuses an overlay with a bleed of %s",
+    (bleed) => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      expect(() =>
+        editor({ extensions: { overlays: [{ id: "frame", bleed, render: () => null }] } }),
+      ).toThrow(/"frame" has a bleed of/);
+    },
+  );
 
   it("refuses two overlays with the same id", () => {
     vi.spyOn(console, "error").mockImplementation(() => {});

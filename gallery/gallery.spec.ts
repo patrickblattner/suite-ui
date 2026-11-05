@@ -1361,7 +1361,10 @@ test("toast: Tab onto a FilterBar control during the toast's slide-in closes all
       true,
     );
   });
-  await page.clock.install({ time: T0 });
+  // Install 60 s before T0 (only a safety margin): after install the clock follows real
+  // time and syncs about every 100 ms, so by the pauseAt call T0 can already lie in the
+  // past and pauseAt throws "Cannot fast-forward to the past" (#809).
+  await page.clock.install({ time: T0.getTime() - 60_000 });
   await page.clock.pauseAt(T0);
   await page.goto("/?page=list&toast=1");
   const success = page.locator("[data-sonner-toast][data-type=success]");
@@ -5285,7 +5288,10 @@ test("media tile: the overflow tooltip at the viewport's top and left edge is ne
 test("media tile: the overflow tooltip under a fixed app header never stands over it", async ({
   page,
 }) => {
-  await page.clock.install({ time: T0 });
+  // Install 60 s before T0 (only a safety margin): after install the clock follows real
+  // time and syncs about every 100 ms, so by the pauseAt call T0 can already lie in the
+  // past and pauseAt throws "Cannot fast-forward to the past" (#809).
+  await page.clock.install({ time: T0.getTime() - 60_000 });
   await page.clock.pauseAt(T0);
   await page.setViewportSize({ width: 1280, height: 600 });
   const grid = await mediaTiles(page);
@@ -18680,7 +18686,13 @@ const playingSlides = (page: Page) =>
 test("slide editor: entrances in order and a cross-fade play in the preview and the player", async ({
   page,
 }) => {
+  // #794: the preview's timers step the play (the 500 ms cross-fade, then each entrance 500 ms after
+  // the one before). In real time a loaded box fired two of them in one task, React drew step 0 → 2
+  // and step 1 was never on the page; on the page clock each step stands until the test moves on.
+  await page.clock.install({ time: T0 });
   const { editor } = await animatedPage(page);
+  // The installed clock runs on from T0; it stops a second ahead of where the page stands.
+  await page.clock.pauseAt((await page.evaluate(() => Date.now())) + 1000);
   await editor.getByTestId("slide-editor-preview").click();
   const preview = page.getByTestId("slide-editor-preview-dialog");
   const stage = preview.locator("[data-slot=slide-preview]");
@@ -18695,12 +18707,16 @@ test("slide editor: entrances in order and a cross-fade play in the preview and 
     "suite-slide-fade-in",
   );
   await expect(stage).toHaveAttribute("data-slide-steps", "2");
+  await expect(stage).toHaveAttribute("data-slide-step", "0");
+  await page.clock.runFor(500);
   await expect(stage).toHaveAttribute("data-slide-step", "1");
   await expect(inner(stage, "picture")).toHaveCSS("animation-name", "suite-slide-fade-in");
   await expect(inner(stage, "caption")).toHaveCSS("visibility", "hidden");
+  await expect(preview.locator("[data-slot=slide-preview-outgoing]")).toHaveCount(0);
+  await page.clock.runFor(500);
   await expect(stage).toHaveAttribute("data-slide-step", "2");
   await expect(inner(stage, "caption")).toHaveCSS("animation-name", "suite-slide-slide-in-left");
-  await expect(preview.locator("[data-slot=slide-preview-outgoing]")).toHaveCount(0);
+  await page.clock.resume();
   await preview.getByTestId("slide-editor-preview-close").click();
   await expect(preview).toHaveCount(0);
   await expect(editor.getByTestId("slide-editor-preview")).toBeFocused();
@@ -19926,6 +19942,42 @@ test("slide editor host slots in the gallery", async ({ page }) => {
     "true",
   );
   await expect(editor.getByTestId("gallery-host-safe-zones")).toBeVisible();
+  // Rev 7 AC3: the toggle's hint on hover.
+  await safe.hover();
+  await expect(page.getByRole("tooltip")).toContainText("Shows where text stays clear of the edge");
+  await page.mouse.move(0, 0);
+  // Rev 7 AC4: the phone frame draws in its 40 format px bleed around the page, fit shows it whole,
+  // and it takes no press.
+  const geometry = await editor.getByTestId("slide-editor-overlay-phone-frame").evaluate((box) => {
+    const rect = (node: Element) => {
+      const { left, top, right, bottom, width, height } = node.getBoundingClientRect();
+      return { left, top, right, bottom, width, height };
+    };
+    const area = box.parentElement!.parentElement!;
+    const pageBox = rect(box.parentElement!);
+    const centre = document.elementFromPoint(
+      rect(box).left + 2,
+      rect(box).top + rect(box).height / 2,
+    );
+    return {
+      box: rect(box),
+      page: pageBox,
+      area: rect(area),
+      hit: centre === null ? null : box.contains(centre),
+      events: getComputedStyle(box).pointerEvents,
+    };
+  });
+  const room = (geometry.page.width / 800) * 40;
+  expect(geometry.page.left - geometry.box.left).toBeCloseTo(room, 0);
+  expect(geometry.page.top - geometry.box.top).toBeCloseTo(room, 0);
+  expect(geometry.box.right - geometry.page.right).toBeCloseTo(room, 0);
+  expect(geometry.box.bottom - geometry.page.bottom).toBeCloseTo(room, 0);
+  expect(geometry.box.left).toBeGreaterThanOrEqual(geometry.area.left);
+  expect(geometry.box.top).toBeGreaterThanOrEqual(geometry.area.top);
+  expect(geometry.box.right).toBeLessThanOrEqual(geometry.area.right);
+  expect(geometry.box.bottom).toBeLessThanOrEqual(geometry.area.bottom);
+  expect(geometry.events).toBe("none");
+  expect(geometry.hit).toBe(false);
   await safe.click();
   await expect(editor.getByTestId("gallery-host-safe-zones")).toHaveCount(0);
   await expect(editor.getByTestId("gallery-host-phone-frame")).toBeVisible();
