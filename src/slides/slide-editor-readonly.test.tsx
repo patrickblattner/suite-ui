@@ -525,6 +525,28 @@ const FLIP_DOC: SlideDocumentInput = {
           width: 100,
           height: 100,
         },
+        {
+          id: "plain",
+          name: "Plain",
+          type: "image",
+          x: 0,
+          y: 300,
+          width: 200,
+          height: 100,
+          media: { id: "photo" },
+        },
+        {
+          id: "mirror",
+          name: "Mirror",
+          type: "image",
+          x: 0,
+          y: 600,
+          width: 200,
+          height: 100,
+          media: { id: "photo" },
+          flipped: true,
+          flippedVertical: true,
+        },
       ],
     },
   ],
@@ -615,5 +637,22 @@ describe("SlideEditor readOnly: flip, line and shadow as text (SUI-FEATURE-133 r
     renderFlip(true);
     expect(editable).toEqual({ horizontal: "true", vertical: "false" });
     expect(shown("flip")).toBe("Horizontal");
+  });
+
+  it.each([
+    ["plain", { horizontal: "false", vertical: "false" }, "None"],
+    ["mirror", { horizontal: "true", vertical: "true" }, "Horizontal, Vertical"],
+  ])("AC2: image %s's flip equals the editable inspector's", (id, flags, text) => {
+    renderFlip(false);
+    select(id);
+    const editable = {
+      horizontal: pressed("slide-editor-image-flip"),
+      vertical: pressed("slide-editor-image-flip-vertical"),
+    };
+    cleanup();
+    renderFlip(true);
+    select(id);
+    expect(editable).toEqual(flags);
+    expect(shown("flip")).toBe(text);
   });
 });
