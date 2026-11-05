@@ -2,7 +2,7 @@
 
 ## Unreleased — #808: hygiene secret scan covers merge resolutions (patch)
 
-- **Fixed (#808):** the hygiene full-history secret scan (`scripts/hygiene.ts`) runs gitleaks with `--log-opts --diff-merges=remerge`, so content added while resolving a merge is scanned too; before, `git log -p` printed no patch for merge commits. Tests: unit — a merge commit whose resolution adds a fake token makes the scan report it.
+- **Fixed (#808):** the hygiene full-history secret scan (`scripts/hygiene.ts`) runs gitleaks with `--log-opts "--full-history --all --diff-merges=remerge"`, so content added while resolving a merge is scanned too (`--full-history --all` is named again because a set `--log-opts` replaces gitleaks' default); before, `git log -p` printed no patch for merge commits. Tests: unit — a merge commit whose resolution adds a fake token, and a fake token on a branch HEAD does not reach, are both reported.
 
 ## Unreleased — #801: SlideEditor readOnly shows flip, line and shadow as text (SUI-FEATURE-133 rev 4) (minor)
 

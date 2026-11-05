@@ -169,41 +169,63 @@ describe("hygiene tool counts", () => {
     expect(gitleaksCommitsScanned("fatal: not a git repository")).toBeUndefined();
   });
 
-  // #808: git log prints no patch for a merge by default, so a secret only its resolution adds hid.
-  it("finds a secret that only a merge resolution adds", () => {
+  // #808: builds a scratch repo, scans it with the hygiene's gitleaks args, returns the files found.
+  const scanRepo = (build: (git: (...args: string[]) => string, token: string) => void) => {
     const dir = mkdtempSync(join(tmpdir(), "suite-ui-hygiene-gitleaks-"));
     try {
       const git = (...args: string[]) => execFileSync("git", args, { cwd: dir, encoding: "utf8" });
-      const commit = (message: string, file: string, text: string) => {
-        writeFileSync(join(dir, file), text);
-        git("add", file);
-        git("commit", "-q", "-m", message);
-      };
       git("init", "-q", "--template=", "-b", "main");
       git("config", "user.email", "test@example.com");
       git("config", "user.name", "test");
+      // Built at run time, so this file carries no token for the history scan to find.
+      const token = `ghp_${randomBytes(27)
+        .toString("base64")
+        .replace(/[^A-Za-z0-9]/g, "x")
+        .slice(0, 36)}`;
+      build(git, token);
+      const report = join(dir, "gitleaks.json");
+      const scan = spawnSync("gitleaks", gitleaksArgs(report, dir), { encoding: "utf8" });
+      expect(scan.status).toBe(1);
+      return (JSON.parse(readFileSync(report, "utf8")) as { File: string }[]).map((f) => f.File);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  };
+  const write = (git: (...args: string[]) => string, file: string, text: string) => {
+    writeFileSync(join(git("rev-parse", "--show-toplevel").trim(), file), text);
+    git("add", file);
+  };
+
+  // #808: git log prints no patch for a merge by default, so a secret only its resolution adds hid.
+  it("finds a secret that only a merge resolution adds", () => {
+    const files = scanRepo((git, token) => {
+      const commit = (message: string, file: string, text: string) => {
+        write(git, file, text);
+        git("commit", "-q", "-m", message);
+      };
       commit("base", "notes.txt", "base\n");
       git("checkout", "-q", "-b", "side");
       commit("side", "side.txt", "side\n");
       git("checkout", "-q", "main");
       commit("ahead", "notes.txt", "ahead\n");
       git("merge", "-q", "--no-ff", "--no-commit", "side");
-      // Built at run time, so this file carries no token for the history scan to find.
-      const token = `ghp_${randomBytes(27)
-        .toString("base64")
-        .replace(/[^A-Za-z0-9]/g, "x")
-        .slice(0, 36)}`;
-      writeFileSync(join(dir, "config.txt"), `token = "${token}"\n`);
-      git("add", "config.txt");
+      write(git, "config.txt", `token = "${token}"\n`);
       git("commit", "-q", "-m", "merge side");
-      const report = join(dir, "gitleaks.json");
-      const scan = spawnSync("gitleaks", gitleaksArgs(report, dir), { encoding: "utf8" });
-      expect(scan.status).toBe(1);
-      const findings = JSON.parse(readFileSync(report, "utf8")) as { File: string }[];
-      expect(findings.map((f) => f.File)).toEqual(["config.txt"]);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
+    });
+    expect(files).toEqual(["config.txt"]);
+  });
+
+  // #808: a set --log-opts drops gitleaks' default --all; a branch HEAD does not reach stays scanned.
+  it("finds a secret on a branch HEAD does not reach", () => {
+    const files = scanRepo((git, token) => {
+      write(git, "notes.txt", "base\n");
+      git("commit", "-q", "-m", "base");
+      git("checkout", "-q", "-b", "side");
+      write(git, "config.txt", `token = "${token}"\n`);
+      git("commit", "-q", "-m", "side");
+      git("checkout", "-q", "main");
+    });
+    expect(files).toEqual(["config.txt"]);
   });
 });
 

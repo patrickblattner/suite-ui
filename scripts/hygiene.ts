@@ -416,8 +416,9 @@ export function gitleaksArgs(reportPath: string, repo = "."): string[] {
     "--report-path",
     reportPath,
     // git log prints no patch for a merge by default; remerge shows what its resolution added.
+    // A set --log-opts replaces gitleaks' default `--full-history --all`, so it is named again.
     "--log-opts",
-    "--diff-merges=remerge",
+    "--full-history --all --diff-merges=remerge",
     repo,
   ];
 }
