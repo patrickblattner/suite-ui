@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SLIDE_BRAND, SLIDE_EDITOR_DOC } from "../../gallery/slide-showcase.js";
 import { SlideEditor, type SlideEditorHandle, type SlideEditorProps } from "./slide-editor.js";
-import type { SlideExtensions } from "./slide-view.js";
+import type { SlideExtensions, SlideOverlay } from "./slide-view.js";
 
 // `SUI-FEATURE-134`: the host's slots — header status, page-panel section, overlay toggles, host
 // steps in the undo history with `onReset`.
@@ -87,8 +87,18 @@ describe("SlideEditor host slots (SUI-FEATURE-134)", () => {
     const onOverlaysShown = vi.fn();
     const extensions: SlideExtensions = {
       overlays: [
-        { id: "safe", label: "Safe zones", render: () => <span>safe</span> },
-        { id: "phone", label: "Phone frame", render: () => <span>phone</span> },
+        {
+          id: "safe",
+          label: "Safe zones",
+          hint: "Shows the safe zones",
+          render: () => <span>safe</span>,
+        },
+        {
+          id: "phone",
+          label: "Phone frame",
+          hint: "Shows the phone frame",
+          render: () => <span>phone</span>,
+        },
         { id: "always", render: () => <span>always</span> },
       ],
     };
@@ -113,12 +123,25 @@ describe("SlideEditor host slots (SUI-FEATURE-134)", () => {
   });
 
   it("shows a labelled overlay added after mount at once", () => {
-    const safe = { id: "safe", label: "Safe zones", render: () => <span>safe</span> };
+    const safe = {
+      id: "safe",
+      label: "Safe zones",
+      hint: "Shows the safe zones",
+      render: () => <span>safe</span>,
+    };
     const { rerender } = editor({ extensions: { overlays: [safe] } });
     fireEvent.click(screen.getByRole("button", { name: "Safe zones" }));
     rerender({
       extensions: {
-        overlays: [safe, { id: "phone", label: "Phone frame", render: () => <span>phone</span> }],
+        overlays: [
+          safe,
+          {
+            id: "phone",
+            label: "Phone frame",
+            hint: "Shows the phone frame",
+            render: () => <span>phone</span>,
+          },
+        ],
       },
     });
     expect(screen.getByRole("button", { name: "Phone frame" })).toHaveAttribute(
@@ -132,7 +155,14 @@ describe("SlideEditor host slots (SUI-FEATURE-134)", () => {
 
   it("follows overlaysShown when the host keeps it", () => {
     const extensions: SlideExtensions = {
-      overlays: [{ id: "safe", label: "Safe zones", render: () => <span>safe</span> }],
+      overlays: [
+        {
+          id: "safe",
+          label: "Safe zones",
+          hint: "Shows the safe zones",
+          render: () => <span>safe</span>,
+        },
+      ],
     };
     editor({ extensions, overlaysShown: [] });
     expect(screen.getByRole("button", { name: "Safe zones" })).toHaveAttribute(
@@ -143,19 +173,36 @@ describe("SlideEditor host slots (SUI-FEATURE-134)", () => {
   });
 
   // AC3 (rev 7): the toggle's hint, by the package `Hint`, is its description for focus and hover.
-  it("gives a labelled overlay's toggle its hint as description, none without one", () => {
+  it("gives each labelled overlay's toggle its own hint as description", () => {
     editor({
       extensions: {
         overlays: [
           { id: "safe", label: "Safe zones", hint: "Shows the safe zones", render: () => null },
-          { id: "phone", label: "Phone frame", render: () => null },
+          { id: "phone", label: "Phone frame", hint: "Shows the phone frame", render: () => null },
         ],
       },
     });
     expect(screen.getByRole("button", { name: "Safe zones" })).toHaveAccessibleDescription(
       "Shows the safe zones",
     );
-    expect(screen.getByRole("button", { name: "Phone frame" })).toHaveAccessibleDescription("");
+    expect(screen.getByRole("button", { name: "Phone frame" })).toHaveAccessibleDescription(
+      "Shows the phone frame",
+    );
+  });
+
+  // AC3 (rev 8): a labelled entry without `hint` fails type-checking (checked by `tsc`); a hint
+  // without a label too, and an unlabelled entry needs neither.
+  it("requires a hint with a label in the overlay type", () => {
+    const render = () => null;
+    const overlays: SlideOverlay[] = [
+      // @ts-expect-error -- a labelled overlay without its hint
+      { id: "safe", label: "Safe zones", render },
+      // @ts-expect-error -- a hint without a label
+      { id: "lost", hint: "Shows nothing", render },
+      { id: "always", render },
+      { id: "phone", label: "Phone frame", hint: "Shows the phone frame", render },
+    ];
+    expect(overlays).toHaveLength(4);
   });
 
   // AC4 (rev 7): bleed 40 → the overlay's box reaches 40 format px beyond each page edge, the page
@@ -180,6 +227,7 @@ describe("SlideEditor host slots (SUI-FEATURE-134)", () => {
         {
           id: "phone",
           label: "Phone frame",
+          hint: "Shows the phone frame",
           bleed: 40,
           render: ({ zoom, width, height }) => {
             seen.push({ zoom, width, height });

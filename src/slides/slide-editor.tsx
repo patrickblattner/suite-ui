@@ -4453,31 +4453,25 @@ function Editor({
                 definition={grid}
                 unavailableText={t("slides.editor.gridUnavailable")}
               />
-              {overlays.map((overlay) => {
-                if (overlay.label === undefined) return null;
-                const toggle = (
-                  <Button
-                    key={overlay.id}
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    aria-pressed={overlaysShown.includes(overlay.id)}
-                    className={PRESSED_FILL_CLASS}
-                    onClick={() => toggleOverlay(overlay.id)}
-                    data-testid={`slide-editor-overlay-toggle-${overlay.id}`}
-                  >
-                    {overlay.label}
-                  </Button>
-                );
-                // The app's hint, already translated, on hover and focus (`GL-UI-017`).
-                return overlay.hint === undefined ? (
-                  toggle
-                ) : (
+              {/* A labelled overlay's toggle with the app's hint, already translated, on hover and
+                  focus; the type requires it, never the label in its place (`GL-UI-017`, rev 8). */}
+              {overlays.map((overlay) =>
+                overlay.label === undefined ? null : (
                   <Hint key={overlay.id} text={overlay.hint}>
-                    {toggle}
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      aria-pressed={overlaysShown.includes(overlay.id)}
+                      className={PRESSED_FILL_CLASS}
+                      onClick={() => toggleOverlay(overlay.id)}
+                      data-testid={`slide-editor-overlay-toggle-${overlay.id}`}
+                    >
+                      {overlay.label}
+                    </Button>
                   </Hint>
-                );
-              })}
+                ),
+              )}
               <CanvasZoom zoom={zoom} mode={zoomMode} onMode={setZoomMode} />
             </div>
           </div>

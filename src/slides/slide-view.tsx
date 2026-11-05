@@ -175,17 +175,16 @@ export interface SlideOverlayProps {
 
 // One of an app's overlays (`SUI-FEATURE-134`): `id` keys it in the editor's `overlaysShown`; with a
 // `label` it gets a toggle of that name in the editor's view band, without one it is always drawn.
-// `hint` (already translated) is that toggle's description hint (`GL-UI-017`). With `bleed` (format px,
-// default 0) its box reaches that far beyond each page edge, `bleed * zoom` screen px, with the page at
-// that offset in it, e.g. for a device frame; the bleed takes no pointer input and leaves the page as it
-// is, and the editor's fit-to-view makes room for the largest bleed shown.
-export interface SlideOverlay {
+// A labelled one requires `hint` (already translated), that toggle's description hint, never the label
+// in its place (`GL-UI-017`, rev 8). With `bleed` (format px, default 0) its box reaches that far beyond
+// each page edge, `bleed * zoom` screen px, with the page at that offset in it, e.g. for a device frame;
+// the bleed takes no pointer input and leaves the page as it is, and the editor's fit-to-view makes room
+// for the largest bleed shown.
+export type SlideOverlay = {
   id: string;
-  label?: string;
-  hint?: string;
   bleed?: number;
   render: (props: SlideOverlayProps) => React.ReactNode;
-}
+} & ({ label: string; hint: string } | { label?: undefined; hint?: undefined });
 
 // What an app contributes (`SUI-FEATURE-163`): its own element types by type id and add-ons to built-in
 // types, drawn the same by the view, editor, player and export; blocks for the editor's library; and
