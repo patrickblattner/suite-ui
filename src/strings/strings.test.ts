@@ -257,6 +257,15 @@ describe("suite save-as-block texts", () => {
     expect(editor.saveAsBlockNeedsSelection).toBe(needs);
   });
 
+  // #821: the reason a selection too big for one block keeps the action locked.
+  it.each([
+    ["de", "Weniger Elemente oder weniger tief verschachtelte Gruppen wählen"],
+    ["en", "Select fewer elements or less deeply nested groups"],
+    ["es", "Selecciona menos elementos o grupos menos anidados"],
+  ] as const)("%s saveAsBlockTooBig", (lng, tooBig) => {
+    expect(suiteStrings[lng].slides.editor.saveAsBlockTooBig).toBe(tooBig);
+  });
+
   // `GL-UI-017`: the menu entry, the library action and the padding group carry a one-sentence hint.
   it.each(["de", "en", "es"] as const)("%s saveAsBlockHint and insetGroupHint", (lng) => {
     const { editor } = suiteStrings[lng].slides;

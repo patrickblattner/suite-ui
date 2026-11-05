@@ -7,6 +7,7 @@ import { animationOrders, DEFAULT_TEXT_SIZE, pageLists, stackOrder } from "./ren
 import {
   CHART_PATTERNS,
   SLIDE_LIMITS,
+  slideElementSchema,
   type ColorValue,
   type SlideDocument,
   type SlideElement,
@@ -1913,9 +1914,38 @@ export function duplicateElements(
   };
 }
 
+// Whether the selection fits one block (`blockOf`, #821): the elements `copyElements` takes, those
+// in groups counted, plus the wrapping group of several, within `SLIDE_LIMITS` as the element schema
+// counts them — walked without a copy, so the editor can ask on every selection change.
+export function blockFits(document: SlideDocument, page: number, ids: readonly string[]): boolean {
+  const wanted = new Set(ids);
+  const picked: SlideElement[] = [];
+  const pick = (list: readonly SlideElement[]) => {
+    for (const element of list) {
+      if (wanted.has(element.id)) picked.push(element);
+      else if (element.type === "group") pick(element.children);
+    }
+  };
+  pick(document.pages[page]?.elements ?? []);
+  const wrapped = picked.length > 1 ? 1 : 0;
+  let count = wrapped;
+  const stack = picked.map((element) => ({ element, depth: wrapped }));
+  while (stack.length > 0) {
+    const { element, depth } = stack.pop()!;
+    count += 1;
+    if (count > SLIDE_LIMITS.maxElements) return false;
+    if (element.type !== "group") continue;
+    if (depth + 1 > SLIDE_LIMITS.maxGroupDepth) return false;
+    for (const child of element.children) stack.push({ element: child, depth: depth + 1 });
+  }
+  return true;
+}
+
 // The selection as a block for the host to keep (`SUI-FEATURE-380`): deep copies as they are drawn on
 // the page (`copyElements`), positioned relative to their common box; several wrapped as one group.
-// The document is not changed.
+// The document is not changed. A block the element schema rejects is none: the wrapping group adds
+// an element and a level, so a full page or a group at the deepest level plus another would exceed
+// `SLIDE_LIMITS` and the library would drop it (Codex #821 CX1).
 export function blockOf(
   document: SlideDocument,
   page: number,
@@ -1941,5 +1971,5 @@ export function blockOf(
     opacity: 100,
     children: placed,
   };
-  return { elements: [group] };
+  return slideElementSchema.safeParse(group).success ? { elements: [group] } : undefined;
 }

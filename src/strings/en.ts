@@ -569,6 +569,7 @@ export const en = {
       },
       saveAsBlock: "Save as block",
       saveAsBlockNeedsSelection: "Select elements first",
+      saveAsBlockTooBig: "Select fewer elements or less deeply nested groups",
       saveAsBlockHint:
         "Saves a copy of the selection as a block you can add again later; the page stays as it is.",
       libraryIcons: "Icons",

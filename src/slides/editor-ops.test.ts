@@ -5,6 +5,8 @@ import { parseSlideDocument, safeParseSlideDocument } from "./document.js";
 import { duplicatePage } from "./editor-pages.js";
 import {
   alignElements,
+  blockFits,
+  blockOf,
   boundsOf,
   distributeElements,
   duplicateElements,
@@ -1991,5 +1993,50 @@ describe("setFollow", () => {
     const result = setFollow(document, 0, "back", "x");
     valid(result);
     expect(result).toEqual(document);
+  });
+});
+
+// Codex #821 CX1: the group that wraps a multi-selection adds an element and a level, so a block
+// past `SLIDE_LIMITS` is none, never one the library drops (`SUI-FEATURE-380`).
+describe("blockOf at the limits", () => {
+  const nested = (depth: number, id: string): unknown =>
+    depth === 0
+      ? shape(id, 0, 0)
+      : {
+          id: `${id}-${depth}`,
+          type: "group",
+          x: 0,
+          y: 0,
+          width: 100,
+          height: 100,
+          children: [nested(depth - 1, id)],
+        };
+
+  it("gives none for a full page, whose wrapping group would be one element too many", () => {
+    const full = doc(
+      Array.from({ length: SLIDE_LIMITS.maxElements }, (_, index) => shape(`e${index}`, index, 0)),
+    );
+    expect(blockOf(full, 0, ids(full))).toBeUndefined();
+    expect(blockFits(full, 0, ids(full))).toBe(false);
+    const fewer = ids(full).slice(0, SLIDE_LIMITS.maxElements - 1);
+    expect(blockFits(full, 0, fewer)).toBe(true);
+    const block = blockOf(full, 0, fewer)!;
+    expect(block.elements).toHaveLength(1);
+    expect(slideElementSchema.safeParse(block.elements[0]).success).toBe(true);
+  });
+
+  it("gives none for a group at the deepest level plus another, a level too deep", () => {
+    const deep = doc([nested(SLIDE_LIMITS.maxGroupDepth, "deep"), shape("other", 300, 0)]);
+    expect(blockOf(deep, 0, ["deep-32", "other"])).toBeUndefined();
+    expect(blockFits(deep, 0, ["deep-32", "other"])).toBe(false);
+    // Alone it is not wrapped, and one level less leaves room for the wrapping group.
+    expect(blockOf(deep, 0, ["deep-32"])!.elements[0]).toMatchObject({ id: "deep-32" });
+    expect(blockFits(deep, 0, ["deep-32"])).toBe(true);
+    // A selected child counts from where it is taken out, as `copyElements` takes it.
+    expect(blockFits(deep, 0, ["deep-31", "other"])).toBe(true);
+    const shallower = doc([nested(SLIDE_LIMITS.maxGroupDepth - 1, "deep"), shape("other", 300, 0)]);
+    expect(blockFits(shallower, 0, ["deep-31", "other"])).toBe(true);
+    const block = blockOf(shallower, 0, ["deep-31", "other"])!;
+    expect(slideElementSchema.safeParse(block.elements[0]).success).toBe(true);
   });
 });

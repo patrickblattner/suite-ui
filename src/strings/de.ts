@@ -543,6 +543,7 @@ export const de: SuiteStrings = {
       },
       saveAsBlock: "Als Baustein speichern",
       saveAsBlockNeedsSelection: "Erst Elemente wählen",
+      saveAsBlockTooBig: "Weniger Elemente oder weniger tief verschachtelte Gruppen wählen",
       saveAsBlockHint:
         "Speichert eine Kopie der Auswahl als Baustein, den man später wieder einfügen kann; die Seite bleibt, wie sie ist.",
       libraryIcons: "Icons",

@@ -60,6 +60,7 @@ import {
   type AnimationStep,
   borderWidthFor,
   type Box,
+  blockFits,
   blockOf,
   boundsOf,
   boxOf,
@@ -2118,8 +2119,9 @@ function Editor({
       // Always carried, so every entry stands in the same full-width grid and toggling never
       // remounts it.
       disabledText={t(
+        // The entry stands only with a selection: locked, the selection is too big for one block.
         name === "saveAsBlock"
-          ? "slides.editor.saveAsBlockNeedsSelection"
+          ? "slides.editor.saveAsBlockTooBig"
           : `slides.editor.${name}Unavailable`,
       )}
       carrierClassName="grid rounded-sm focus-visible:focus-ring-inset"
@@ -2144,10 +2146,16 @@ function Editor({
     </Hint>
   );
   // "Save as block" (`SUI-FEATURE-380`): the host's call with a copy of the selection; the document
-  // and `onChange` stay as they are. None under `readOnly` or without the host's call.
+  // and `onChange` stay as they are. None under `readOnly` or without the host's call. A selection
+  // too big for one block (`blockFits`, a count without copies) keeps the action locked with the
+  // reason (#821); the block itself is made on the click only.
   const onSaveBlock = readOnly ? undefined : host.onSaveBlock;
+  const saveBlockTooBig =
+    onSaveBlock !== undefined &&
+    selected.length > 0 &&
+    !blockFits(history.document, page, selection);
   const saveBlock =
-    onSaveBlock === undefined || selection.length === 0
+    onSaveBlock === undefined || selected.length === 0 || saveBlockTooBig
       ? undefined
       : () => {
           const block = blockOf(history.document, page, selection);
@@ -4445,6 +4453,7 @@ function Editor({
                         appEntries={appEntries}
                         atCaret={editing !== undefined && textRange !== undefined}
                         onSaveBlock={onSaveBlock === undefined ? undefined : (saveBlock ?? null)}
+                        saveBlockTooBig={saveBlockTooBig}
                       />
                     ),
                   },
@@ -4899,9 +4908,11 @@ function Editor({
                         // eslint-disable-next-line react-hooks/refs
                         duplicateKey,
                       )}
-                  {saveBlock === undefined || selected.length === 0
+                  {(saveBlock === undefined && !saveBlockTooBig) || selected.length === 0
                     ? null
-                    : menuEntry("saveAsBlock", true, undefined, saveBlock)}
+                    : menuEntry("saveAsBlock", saveBlock !== undefined, undefined, () =>
+                        saveBlock?.(),
+                      )}
                 </ContextMenuContent>
               </ContextMenu>
               {/* Over the whole window during a gesture, so nothing under the pointer changes it; the

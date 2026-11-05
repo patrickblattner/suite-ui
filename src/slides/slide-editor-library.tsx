@@ -164,6 +164,7 @@ export function ElementLibrary({
   appEntries = [],
   atCaret = false,
   onSaveBlock,
+  saveBlockTooBig = false,
 }: {
   term: string;
   onTerm: (term: string) => void;
@@ -173,8 +174,10 @@ export function ElementLibrary({
   // A caret is set in a text field: an icon or a medium goes into the text there (`SUI-FEATURE-164`).
   atCaret?: boolean;
   // The host keeps the selection as a block (`SUI-FEATURE-380`), the library's last action; `null`
-  // while nothing is selected (shown, locked with the reason), `undefined` without the host's call.
+  // while nothing is selected or the selection is too big (shown, locked with the reason), `undefined` without the host's call.
   onSaveBlock?: (() => void) | null | undefined;
+  // Locked because the selection is too big for one block (`SLIDE_LIMITS`, #821), not for none.
+  saveBlockTooBig?: boolean;
 }) {
   const { t } = useTranslation("suite");
   const names = React.useMemo(() => slideIconNames(), []);
@@ -359,7 +362,11 @@ export function ElementLibrary({
           </h3>
           <Hint
             text={t("slides.editor.saveAsBlockHint")}
-            disabledText={t("slides.editor.saveAsBlockNeedsSelection")}
+            disabledText={t(
+              saveBlockTooBig
+                ? "slides.editor.saveAsBlockTooBig"
+                : "slides.editor.saveAsBlockNeedsSelection",
+            )}
           >
             <Button
               type="button"

@@ -535,6 +535,7 @@ export const es: SuiteStrings = {
       },
       saveAsBlock: "Guardar como bloque",
       saveAsBlockNeedsSelection: "Selecciona primero elementos",
+      saveAsBlockTooBig: "Selecciona menos elementos o grupos menos anidados",
       saveAsBlockHint:
         "Guarda una copia de la selección como bloque que puedes volver a añadir más tarde; la página no cambia.",
       libraryIcons: "Iconos",

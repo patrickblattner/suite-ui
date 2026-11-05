@@ -1564,6 +1564,72 @@ describe("SlideEditor save as block", () => {
     expect(screen.queryByText("From this app")).toBeNull();
   });
 
+  // Codex #821 CX1: the wrapping group adds a level and an element. A group at the deepest level
+  // plus another is a level too deep; a group of all but one element of a full page plus that one
+  // is an element too many.
+  const nested = (depth: number): unknown =>
+    depth === 0
+      ? shape("leaf", 0, 0)
+      : {
+          id: `deep-${depth}`,
+          type: "group",
+          x: 0,
+          y: 0,
+          width: 100,
+          height: 100,
+          children: [nested(depth - 1)],
+        };
+  const many = {
+    id: "many",
+    type: "group",
+    x: 0,
+    y: 0,
+    width: 100,
+    height: 100,
+    children: Array.from({ length: SLIDE_LIMITS.maxElements - 2 }, (_, index) =>
+      shape(`e${index}`, 0, 0),
+    ),
+  };
+  it.each([
+    ["a group at the deepest level", nested(SLIDE_LIMITS.maxGroupDepth)],
+    ["all but one element of a full page", many],
+  ])("locks the action with the reason for %s plus another", (_, first) => {
+    const deck = {
+      ...DOC,
+      pages: [{ ...DOC.pages[0]!, elements: [first, shape("other", 300, 0)] }],
+    } as typeof DOC;
+    const { onSaveBlock, onChange } = saving({ document: deck });
+    click(50, 50);
+    click(350, 50, true);
+    const reason = "Select fewer elements or less deeply nested groups";
+    const entry = within(openMenu(50, 50), "saveAsBlock");
+    expect(entry).toHaveAttribute("aria-disabled", "true");
+    expect(entry).toHaveAccessibleDescription(reason);
+    fireEvent.click(entry);
+    fireEvent.keyDown(document.activeElement ?? document.body, { key: "Escape" });
+    fireEvent.click(screen.getByTestId("drawer-add"));
+    const action = screen.getByTestId("slide-editor-library-save-block");
+    expect(action).toHaveAttribute("aria-disabled", "true");
+    expect(action).toHaveAccessibleDescription(reason);
+    fireEvent.click(action);
+    expect(onSaveBlock).not.toHaveBeenCalled();
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  // #821 review: a selection whose elements are gone (undone) needs a selection, not fewer elements.
+  it("asks for a selection, not fewer elements, once the selected elements are gone", () => {
+    const { onSaveBlock } = saving();
+    click(50, 50);
+    // The copy a duplicate selects is undone: the selection names an element that is no more.
+    key("d");
+    key("z");
+    fireEvent.click(screen.getByTestId("drawer-add"));
+    const action = screen.getByTestId("slide-editor-library-save-block");
+    expect(action).toHaveAttribute("aria-disabled", "true");
+    expect(action).toHaveAccessibleDescription("Select elements first");
+    expect(onSaveBlock).not.toHaveBeenCalled();
+  });
+
   it("offers nothing without onSaveBlock or under readOnly", () => {
     renderEditor();
     fireEvent.click(screen.getByTestId("drawer-add"));
