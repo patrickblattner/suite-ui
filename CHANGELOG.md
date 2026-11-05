@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — #808: hygiene secret scan covers merge resolutions (patch)
+
+- **Fixed (#808):** the hygiene full-history secret scan (`scripts/hygiene.ts`) runs gitleaks with `--log-opts "--full-history --all --diff-merges=remerge"`, so content added while resolving a merge is scanned too (`--full-history --all` is named again because a set `--log-opts` replaces gitleaks' default); before, `git log -p` printed no patch for merge commits. Tests: unit — a merge commit whose resolution adds a fake token, and a fake token on a branch HEAD does not reach, are both reported.
+
 ## Unreleased — #807: spec-sync-toolkit v0.36.2 (patch)
 
 - **Changed (#807, architect Q#5371/Q#5372):** the `spec-sync-toolkit` devDependency moved from v0.36.1 to v0.36.2 (74803eb). A gate phase that exits 75 (gallery lock deadline expired, PROC-REL-040) now counts as unprovable, not red, and carries the note `phase gallery: lock deadline expired (exit 75) — not run`. The gate exits 2 only when every red phase is unprovable; if another phase in the same run is truly red, the gate still exits 1. Checked by reading the toolkit's gate code (the toolkit carries the test); not reproduced here.

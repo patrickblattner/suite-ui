@@ -406,22 +406,30 @@ function knip(out: string) {
   return knipCounts(json("knip", text));
 }
 
+export function gitleaksArgs(reportPath: string, repo = "."): string[] {
+  return [
+    "git",
+    "--no-banner",
+    "--redact",
+    "--report-format",
+    "json",
+    "--report-path",
+    reportPath,
+    // git log prints no patch for a merge by default; remerge shows what its resolution added.
+    // A set --log-opts replaces gitleaks' default `--full-history --all`, so it is named again.
+    "--log-opts",
+    "--full-history --all --diff-merges=remerge",
+    repo,
+  ];
+}
+
 function gitleaks(out: string) {
   checkVersion("gitleaks", ["version"]);
   let stderr = "";
   // `gitleaks git` scans the full history; exit 1 only means it found leaks. `--redact` keeps a
   // found secret out of the report on disk.
   const findings = freshReport<unknown[]>(join(out, "gitleaks.json"), "gitleaks", () => {
-    stderr = run("gitleaks", [
-      "git",
-      "--no-banner",
-      "--redact",
-      "--report-format",
-      "json",
-      "--report-path",
-      join(out, "gitleaks.json"),
-      ".",
-    ]).stderr;
+    stderr = run("gitleaks", gitleaksArgs(join(out, "gitleaks.json"))).stderr;
   });
   const commits = gitleaksCommitsScanned(stderr);
   if (!commits)
