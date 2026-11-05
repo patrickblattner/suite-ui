@@ -84,6 +84,7 @@ export function PageSorter({
   onDelete,
   onNew,
   readOnly = false,
+  limitText,
 }: {
   document: SlideDocument;
   // The layouts a new page can come from: the document's and the app's (`SUI-FEATURE-192`).
@@ -98,6 +99,9 @@ export function PageSorter({
   onNew: (layoutId: string | undefined) => void;
   // A reading role (`SUI-FEATURE-133`): the pages to show only, no move, duplicate, hide, delete or add.
   readOnly?: boolean;
+  // The app's page cap is reached (`SUI-FEATURE-381`): adding and duplicating are locked with this
+  // reason; moving, hiding and deleting stay.
+  limitText?: string | undefined;
 }) {
   const { t } = useTranslation("suite");
   const [deleting, setDeleting] = React.useState<number | undefined>(undefined);
@@ -143,6 +147,7 @@ export function PageSorter({
         variant="outline"
         size="sm"
         className="self-start"
+        disabled={limitText !== undefined}
         onClick={onClick}
         data-testid="slide-editor-page-new"
       >
@@ -155,8 +160,11 @@ export function PageSorter({
         text={t(
           onClick === undefined ? "slides.editor.newPageMenuHint" : "slides.editor.newPageHint",
         )}
+        disabledText={limitText}
       >
-        {onClick === undefined ? (
+        {/* At the cap no menu trigger: the locked button keeps the focus and names the reason, as
+            the duplicate action does (`SUI-FEATURE-381` AC1). */}
+        {onClick === undefined && limitText === undefined ? (
           <DropdownMenuTrigger asChild>{button}</DropdownMenuTrigger>
         ) : (
           button
@@ -272,6 +280,7 @@ export function PageSorter({
                       <CopyIcon />,
                       () => onDuplicate(index),
                       "slide-editor-page-duplicate",
+                      { disabledText: limitText },
                     )}
                     {iconButton(
                       t("slides.editor.hidePage", { n }),

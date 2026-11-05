@@ -15,9 +15,11 @@ import { PRESSED_FILL_CLASS } from "../lib/pressed-fill.js";
 import { Button } from "../ui/button.js";
 import { isCompositionKey } from "../ui/composition.js";
 import { Field } from "../ui/field.js";
+import { Hint } from "../ui/hint.js";
 import { Input } from "../ui/input.js";
 import { helpIdFor } from "../ui/label-with-help.js";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select.js";
+import { SubgroupTitle } from "../ui/subgroup-title.js";
 import { IconButtonTooltip } from "../ui/tooltip.js";
 import { LockedFieldHint, LockedTrigger } from "./element-lock-internal.js";
 import type { SlideBrandSet } from "./brand.js";
@@ -1380,12 +1382,7 @@ export function TextSizingField({
 
 type Shape = Extract<SlideElement, { type: "shape" }>;
 type Inset = NonNullable<Shape["follow"]>["inset"];
-const INSET_SIDES = [
-  ["top", "insetTop"],
-  ["right", "insetRight"],
-  ["bottom", "insetBottom"],
-  ["left", "insetLeft"],
-] as const;
+const INSET_SIDES = ["top", "right", "bottom", "left"] as const;
 // The select's value for a shape that follows no text field: a space, so no element id is it.
 const FOLLOW_NONE = " ";
 const LABEL_LENGTH = 40;
@@ -1402,8 +1399,10 @@ function textLabel(text: Extract<SlideElement, { type: "text" }>) {
 
 // A shape's "Follows text" in the panel (`SUI-FEATURE-165` §Editor): a text field of its group, or
 // none, and the padding on each side. Grid cells of the panel's two-column number grid: the select in
-// the first column, the paddings two by two (Top, Right / Bottom, Left). Text fields that read the
-// same are told apart by their place in the group.
+// the first column, the paddings two by two (Top, Right / Bottom, Left) in one group named "Padding",
+// each labelled by its side alone so the label keeps one line (`SUI-FEATURE-380` rev 5); its name is
+// group and side ("Padding, Right"). Text fields that read the same are told apart by their place in
+// the group.
 export function FollowTextField({
   follow,
   texts,
@@ -1469,13 +1468,26 @@ export function FollowTextField({
           </Select>
         </Field>
       </div>
-      {follow === undefined
-        ? null
-        : INSET_SIDES.map(([side, key]) => (
-            <div key={side} className={side === "top" ? "col-start-1" : undefined}>
+      {follow === undefined ? null : (
+        <fieldset
+          className="col-span-2 grid grid-cols-2 gap-4"
+          data-testid="slide-editor-inset-group"
+        >
+          <SubgroupTitle asChild>
+            <legend className="mb-2">
+              {/* The group's own hint on its title (`GL-UI-017`); each side's field describes its
+                  value. */}
+              <Hint text={t("slides.editor.insetGroupHint")}>
+                <span>{t("slides.editor.inset")}</span>
+              </Hint>
+            </legend>
+          </SubgroupTitle>
+          {INSET_SIDES.map((side) => (
+            <div key={side}>
               <NumberField
                 id={`${id}-inset-${side}`}
-                label={t(`slides.editor.${key}`)}
+                label={t(`slides.editor.insetSide.${side}`)}
+                aria-label={`${t("slides.editor.inset")}, ${t(`slides.editor.insetSide.${side}`)}`}
                 hint={t("slides.editor.insetHint")}
                 valueHint={t("slides.editor.insetValueHint")}
                 value={follow.inset[side]}
@@ -1488,6 +1500,8 @@ export function FollowTextField({
               />
             </div>
           ))}
+        </fieldset>
+      )}
     </>
   );
 }

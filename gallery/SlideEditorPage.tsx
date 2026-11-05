@@ -2,7 +2,11 @@ import { useRef, useState } from "react";
 
 import { safeParseSlideDocument } from "../src/slides/document.js";
 import { keepInClipboard } from "../src/slides/element-clipboard-internal.js";
-import { SlideEditor, type SlideEditorHandle } from "../src/slides/slide-editor.js";
+import {
+  type PickMediaContext,
+  SlideEditor,
+  type SlideEditorHandle,
+} from "../src/slides/slide-editor.js";
 import type { SlideExtensions } from "../src/slides/slide-view.js";
 import type { PickedMedia } from "../src/slides/slide-editor-library.js";
 import { SlidePlayer } from "../src/slides/slide-player.js";
@@ -187,6 +191,13 @@ const PICTURES: Record<string, object | undefined> = {
   bleed: { x: 0, y: 0, width: 800, height: 450 },
   border: { border: { color: { kind: "free", value: "#dc2626" }, width: 10 } },
 };
+// `SUI-FEATURE-381` (`?maxPages=1`): a single-image format, its one page only, capped at one page;
+// another `?maxPages=<n>` caps the deck as it is.
+const MAX_PAGES = Number(PARAMS.get("maxPages")) || undefined;
+const SINGLE = MAX_PAGES === 1;
+const SINGLE_DOC = SINGLE
+  ? { ...SLIDE_EDITOR_DOC, pages: [SLIDE_EDITOR_DOC.pages[0]!] }
+  : undefined;
 const pictureParam = PARAMS.get("picture") ?? "";
 const PICTURE = Object.hasOwn(PICTURES, pictureParam) ? PICTURES[pictureParam] : undefined;
 const PICTURE_DOC =
@@ -345,7 +356,8 @@ const GALLERY_EDITOR_EXTENSIONS: SlideExtensions = {
 // `SUI-FEATURE-134` (`?host=1`): the host's slots — an upload's status in the header, the record's
 // name in the page panel (a rename is a host step in the editor's undo, Reset restores it), and two
 // labelled overlays with their toggles and hints in the view band; the phone frame draws in a 40 format px
-// bleed around the page (rev 7).
+// bleed around the page (rev 7). `SUI-FEATURE-380`: the record's id as the header's subtitle and
+// "Save as block", whose block the app line below keeps for the tests.
 const HOST = PARAMS.get("host") === "1";
 const HOST_EXTENSIONS: SlideExtensions = {
   ...GALLERY_SLIDE_PROPS.extensions,
@@ -476,6 +488,9 @@ export function SlideEditorPage() {
   const editor = useRef<SlideEditorHandle>(null);
   const [name, setName] = useState(HOST_NAME);
   const [savedName, setSavedName] = useState(HOST_NAME);
+  const [block, setBlock] = useState<{ elements: unknown[] } | null>(null);
+  // What the picker was last opened for (`SUI-FEATURE-380`), for the tests.
+  const [pickContext, setPickContext] = useState<PickMediaContext | null>(null);
   const pick = (media: PickedMedia | undefined) => {
     setPicking(false);
     picked.current?.(media);
@@ -528,6 +543,7 @@ export function SlideEditorPage() {
               NUMBERED_DOC ??
               GROUND_DOC ??
               PICTURE_DOC ??
+              SINGLE_DOC ??
               (INVALID
                 ? ({ ...SLIDE_EDITOR_DOC, schemaVersion: 99 } as unknown as typeof SLIDE_EDITOR_DOC)
                 : SLIDE_EDITOR_DOC)
@@ -540,6 +556,8 @@ export function SlideEditorPage() {
               ? {
                   ref: editor,
                   extensions: HOST_EXTENSIONS,
+                  subtitle: "Record WS-0042",
+                  onSaveBlock: setBlock,
                   status: (
                     <span
                       className="text-sm text-muted-foreground"
@@ -579,13 +597,15 @@ export function SlideEditorPage() {
               : {})}
             {...(MEDIA
               ? {
-                  pickMedia: () =>
-                    MEDIA_FAILS
+                  pickMedia: (context: PickMediaContext) => {
+                    setPickContext(context);
+                    return MEDIA_FAILS
                       ? Promise.reject(new Error("The gallery's picker failed."))
                       : new Promise<PickedMedia | undefined>((resolve) => {
                           picked.current = resolve;
                           setPicking(true);
-                        }),
+                        });
+                  },
                 }
               : {})}
             onSave={(document) => {
@@ -603,6 +623,7 @@ export function SlideEditorPage() {
             }}
             onBack={() => setBacks((count) => count + 1)}
             readOnly={READ_ONLY}
+            {...(MAX_PAGES === undefined ? {} : { maxPages: MAX_PAGES })}
             data-testid="slide-editor"
           />
         </div>
@@ -612,6 +633,8 @@ export function SlideEditorPage() {
           data-testid="slide-editor-app"
           data-saved={saved === null ? undefined : JSON.stringify(saved)}
           data-transfer={copy === null ? undefined : JSON.stringify(copy)}
+          data-block={block === null ? undefined : JSON.stringify(block)}
+          data-pick-context={pickContext === null ? undefined : JSON.stringify(pickContext)}
         >
           Saved: {saved === null ? "nothing" : `${saved.pages[0]!.elements.length} elements`} ·
           Back: {backs}

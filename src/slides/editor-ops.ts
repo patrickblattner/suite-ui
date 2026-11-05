@@ -1912,3 +1912,34 @@ export function duplicateElements(
     ids: [...copies.values()].map((copy) => copy.id),
   };
 }
+
+// The selection as a block for the host to keep (`SUI-FEATURE-380`): deep copies as they are drawn on
+// the page (`copyElements`), positioned relative to their common box; several wrapped as one group.
+// The document is not changed.
+export function blockOf(
+  document: SlideDocument,
+  page: number,
+  ids: readonly string[],
+): { elements: SlideElement[] } | undefined {
+  const copies = structuredClone(copyElements(document.pages[page]?.elements ?? [], ids));
+  const box = boundsOf(copies.map(drawnBox));
+  if (box === undefined) return undefined;
+  const placed = copies.map((copy) => ({ ...shifted(copy, { x: -box.x, y: -box.y }), layer: 0 }));
+  if (placed.length === 1) return { elements: placed };
+  const group: SlideElement = {
+    id: uniqueId(document, "group"),
+    type: "group",
+    x: 0,
+    y: 0,
+    width: box.width,
+    height: box.height,
+    rotation: 0,
+    layer: 0,
+    locked: false,
+    deletable: true,
+    hidden: false,
+    opacity: 100,
+    children: placed,
+  };
+  return { elements: [group] };
+}

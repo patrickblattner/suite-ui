@@ -1,4 +1,5 @@
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import type * as React from "react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { SLIDE_BRAND, SLIDE_EDITOR_DOC } from "../../gallery/slide-showcase.js";
@@ -27,9 +28,13 @@ const shown = () => screen.getByTestId("slide-editor").getAttribute("data-slide-
 const undo = () => fireEvent.click(screen.getAllByTestId("editor-undo")[0]!);
 const redo = () => fireEvent.click(screen.getAllByTestId("editor-redo")[0]!);
 
-function renderEditor(document = SLIDE_EDITOR_DOC) {
+function renderEditor(
+  document = SLIDE_EDITOR_DOC,
+  more: Partial<React.ComponentProps<typeof SlideEditor>> = {},
+) {
   render(
     <SlideEditor
+      {...more}
       document={document}
       title="Deck"
       brand={SLIDE_BRAND}
@@ -196,5 +201,137 @@ describe("SlideEditor document tab grid", () => {
     expect(group).not.toHaveAttribute("aria-label");
     // Apart from the pages, not inside their section.
     expect(screen.getByTestId("slide-editor-pages")).not.toContainElement(section);
+  });
+});
+
+// SUI-FEATURE-381: the app's page cap.
+describe("SlideEditor page cap (maxPages)", () => {
+  const onePageDoc = { ...SLIDE_EDITOR_DOC, pages: [SLIDE_EDITOR_DOC.pages[0]!] };
+  const locked = (testId: string) => {
+    const button = screen.getAllByTestId(testId)[0]!;
+    expect(button).toHaveAttribute("aria-disabled", "true");
+    expect(button).toHaveAccessibleDescription("This format has at most 2 pages");
+  };
+
+  // AC1 (with the deck's two pages at a cap of 2)
+  it("locks adding and duplicating at the cap with the reason; after a delete adding works again", async () => {
+    renderEditor(SLIDE_EDITOR_DOC, { maxPages: 2 });
+    locked("slide-editor-page-new");
+    locked("slide-editor-page-duplicate");
+    fireEvent.click(screen.getByTestId("slide-editor-page-new"));
+    fireEvent.click(within(rows()[0]!).getByTestId("slide-editor-page-duplicate"));
+    expect(ids()).toEqual(["edit-one", "edit-two"]);
+    fireEvent.click(within(rows()[1]!).getByTestId("slide-editor-page-delete"));
+    fireEvent.click(await screen.findByTestId("slide-editor-page-delete-dialog-confirm"));
+    expect(ids()).toEqual(["edit-one"]);
+    expect(screen.getByTestId("slide-editor-page-new")).not.toHaveAttribute("aria-disabled");
+    fireEvent.click(screen.getByTestId("slide-editor-page-new"));
+    expect(ids()).toHaveLength(2);
+  });
+
+  // AC1 with the app's layouts: the new-page button opens no layout menu at the cap
+  it("locks the layout menu's new-page button at the cap; Enter, Space and a click open no menu", () => {
+    renderEditor(SLIDE_EDITOR_DOC, {
+      maxPages: 2,
+      layouts: [
+        {
+          id: "app-title",
+          name: "Title",
+          elements: [
+            {
+              id: "app-title-ph",
+              type: "placeholder",
+              role: "title",
+              x: 300,
+              y: 10,
+              width: 300,
+              height: 60,
+            },
+          ],
+        },
+      ],
+    });
+    locked("slide-editor-page-new");
+    const button = screen.getByTestId("slide-editor-page-new");
+    button.focus();
+    expect(button).toHaveFocus();
+    fireEvent.keyDown(button, { key: "Enter" });
+    fireEvent.keyDown(button, { key: " " });
+    fireEvent.pointerDown(button, { button: 0, ctrlKey: false });
+    fireEvent.click(button);
+    expect(screen.queryByTestId("slide-editor-page-layouts")).toBeNull();
+    expect(ids()).toEqual(["edit-one", "edit-two"]);
+  });
+
+  // AC2
+  it("shows no page list, navigation or counter for one page under a cap of 1", () => {
+    renderEditor(onePageDoc, { maxPages: 1 });
+    for (const id of [
+      "slide-editor-pages",
+      "slide-editor-page-new",
+      "slide-editor-previous-page",
+      "slide-editor-next-page",
+      "slide-editor-page",
+    ]) {
+      expect(screen.queryByTestId(id), id).toBeNull();
+    }
+    // The page's own properties stay.
+    expect(screen.getByTestId("slide-editor-grid")).toBeInTheDocument();
+  });
+
+  // AC3
+  it("keeps a document over the cap whole, navigable, adding locked, no onChange on load", async () => {
+    const onChange = vi.fn();
+    renderEditor(SLIDE_EDITOR_DOC, { maxPages: 1, onChange });
+    expect(ids()).toEqual(["edit-one", "edit-two"]);
+    expect(screen.getByTestId("slide-editor-next-page")).toBeInTheDocument();
+    expect(screen.getByTestId("slide-editor-page-new")).toHaveAttribute("aria-disabled", "true");
+    expect(screen.getByTestId("slide-editor-page-new")).toHaveAccessibleDescription(
+      "This format has at most 1 page",
+    );
+    expect(onChange).not.toHaveBeenCalled();
+    fireEvent.click(within(rows()[1]!).getByTestId("slide-editor-page-delete"));
+    fireEvent.click(await screen.findByTestId("slide-editor-page-delete-dialog-confirm"));
+    expect(screen.queryByTestId("slide-editor-next-page")).toBeNull();
+    expect(screen.queryByTestId("slide-editor-pages")).toBeNull();
+    // The confirm dialog left with the page list: the focus goes to the canvas, not the body.
+    await waitFor(() => expect(screen.getByTestId("slide-editor-canvas")).toHaveFocus());
+  });
+
+  it("offers no Document pane read-only with one page under a cap of 1", () => {
+    render(
+      <SlideEditor
+        maxPages={1}
+        readOnly
+        document={onePageDoc}
+        title="Deck"
+        brand={SLIDE_BRAND}
+        onSave={() => true}
+        onBack={() => {}}
+      />,
+    );
+    expect(screen.getByTestId("drawer-layers")).toBeInTheDocument();
+    expect(screen.queryByTestId("drawer-document")).toBeNull();
+    cleanup();
+    // Over the cap, its page list still has the pages to reach.
+    renderEditor(SLIDE_EDITOR_DOC, { maxPages: 1, readOnly: true });
+    expect(screen.getByTestId("drawer-document")).toBeInTheDocument();
+  });
+
+  it("counts a cap above the model limit as the limit", () => {
+    renderEditor(SLIDE_EDITOR_DOC, { maxPages: SLIDE_LIMITS.maxPages + 5 });
+    expect(screen.getByTestId("slide-editor-page-new")).not.toHaveAttribute("aria-disabled");
+  });
+
+  it.each([0, 0.5, -3])("counts a cap of %s as 1", (maxPages) => {
+    renderEditor(onePageDoc, { maxPages });
+    expect(screen.queryByTestId("slide-editor-pages")).toBeNull();
+    expect(screen.queryByTestId("slide-editor-page-new")).toBeNull();
+    expect(screen.getByTestId("slide-editor-grid")).toBeInTheDocument();
+  });
+
+  it("rounds a fractional cap down to whole pages", () => {
+    renderEditor(SLIDE_EDITOR_DOC, { maxPages: 2.5 });
+    locked("slide-editor-page-new");
   });
 });

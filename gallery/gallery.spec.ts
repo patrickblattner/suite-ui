@@ -584,7 +584,8 @@ for (const lng of LANGUAGES) {
     });
 
     // #536: a new chart as a pie — its second series marked as not drawn in at most two lines of
-    // its 80 px column, the table within the panel's width, no sideways scroll.
+    // its 76 px column, the table within the panel's width, no sideways scroll; the default
+    // category names show in full (#818).
     test(`slide editor chart panel in a pie ${lng} ${theme}`, async ({ page }) => {
       await page.goto(`/?page=slide-editor&lng=${lng}&theme=${theme}`);
       await expect(page.locator("html")).toHaveAttribute("lang", lng);
@@ -601,6 +602,13 @@ for (const lng of LANGUAGES) {
       expect(lines).toBeLessThanOrEqual(2);
       const scroll = panel.getByTestId("slide-editor-chart-scroll");
       expect(await scroll.evaluate((el) => el.scrollWidth - el.clientWidth)).toBe(0);
+      for (const row of [0, 1, 2]) {
+        const category = panel.getByTestId(`slide-editor-chart-category-${row}`);
+        expect(
+          await category.evaluate((el) => el.scrollWidth <= el.clientWidth),
+          `category ${row} clipped`,
+        ).toBe(true);
+      }
       await parkPointer(page);
       await expect(panel).toHaveScreenshot(`slide-editor-chart-pie-${lng}-${theme}.png`);
     });
@@ -1049,6 +1057,13 @@ const AXE_PAGES: [
     (page) =>
       page.locator("[data-testid=slide-editor] [data-slot=slide-view][data-slide-ready=true]"),
     "&host=1",
+  ],
+  // `SUI-FEATURE-381` AC5: the single-page editor.
+  [
+    "slide-editor",
+    (page) =>
+      page.locator("[data-testid=slide-editor] [data-slot=slide-view][data-slide-ready=true]"),
+    "&maxPages=1",
   ],
 ];
 
@@ -20083,6 +20098,166 @@ test("slide editor host slots in the gallery", async ({ page }) => {
   await expect(editor.getByTestId("editor-state").first()).toContainText("Saved");
   await expect(editor.getByTestId("editor-undo").first()).toHaveAttribute("aria-disabled", "true");
 });
+
+// `SUI-FEATURE-380` AC1–AC4 in the gallery's host: the record's id as subtitle, "Save as block" from
+// the canvas menu, the picker told what it opens for, the canvas scroller and the panel body as inner
+// scroll areas (`GL-UI-018`) at 1920 px.
+test("slide editor host props: subtitle, save as block, picker context, inner gutter", async ({
+  page,
+}) => {
+  await page.goto("/?page=slide-editor&host=1&lng=en&theme=light");
+  const editor = page.getByTestId("slide-editor");
+  await expect(
+    editor.locator("[data-slot=slide-view][data-slide-ready=true]").first(),
+  ).toBeVisible();
+  // AC1
+  await expect(editor.getByTestId("page-subtitle")).toHaveCount(1);
+  await expect(editor.getByTestId("page-subtitle")).toHaveText("Record WS-0042");
+  // AC2: the stamp and the pair, one group of two at their common box's origin.
+  const app = page.getByTestId("slide-editor-app");
+  await editor.getByTestId("canvas-zoom-actual").click();
+  const origin = (await editor.getByTestId("slide-editor-canvas").boundingBox())!;
+  await page.mouse.click(origin.x + 140, origin.y + 340);
+  await page.keyboard.down("Shift");
+  await page.mouse.click(origin.x + 600, origin.y + 340);
+  await page.keyboard.up("Shift");
+  await page.mouse.click(origin.x + 600, origin.y + 340, { button: "right" });
+  await page.getByTestId("slide-editor-menu-saveAsBlock").click();
+  await expect(app).toHaveAttribute("data-block", /group/);
+  const block = JSON.parse((await app.getAttribute("data-block"))!) as {
+    elements: { type: string; x: number; y: number; children: { x: number; y: number }[] }[];
+  };
+  expect(block.elements).toHaveLength(1);
+  expect(block.elements[0]).toMatchObject({ type: "group", x: 0, y: 0, width: 600, height: 80 });
+  expect(block.elements[0]!.children.map(({ x, y }) => [x, y])).toEqual([
+    [0, 0],
+    [460, 0],
+  ]);
+  await expect(editor.getByTestId("editor-state").first()).toContainText("Saved");
+  // AC3: the Add drawer's media entry opens the picker for an insert.
+  await editor.getByTestId("drawer-add").click();
+  await expect(editor.getByTestId("slide-editor-library-save-block")).toBeVisible();
+  await editor.getByTestId("slide-editor-library-media").click();
+  await expect(page.getByTestId("gallery-media-picker")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(app).toHaveAttribute("data-pick-context", JSON.stringify({ purpose: "insert" }));
+  // AC4: each scroller's content starts flush with the head above it; its end padding is the page
+  // gutter, with the stable bar gutter on the same element.
+  const measure = (testId: string) =>
+    editor.getByTestId(testId).evaluate((el) => {
+      const style = getComputedStyle(el);
+      const rect = el.getBoundingClientRect();
+      const above = el.previousElementSibling ?? el.parentElement!.firstElementChild!;
+      const head = above.getBoundingClientRect();
+      return {
+        contentLeft: rect.left + el.clientLeft + parseFloat(style.paddingLeft),
+        headLeft: head.left + parseFloat(getComputedStyle(above).paddingLeft),
+        paddingEnd: parseFloat(style.paddingRight),
+        scrollbarGutter: style.scrollbarGutter,
+        gutter:
+          parseFloat(getComputedStyle(document.documentElement).getPropertyValue("--page-gutter")) *
+          16,
+      };
+    });
+  for (const testId of ["slide-editor-canvas-area", "property-panel-body"]) {
+    const scroller = await measure(testId);
+    expect(Math.abs(scroller.contentLeft - scroller.headLeft), testId).toBeLessThanOrEqual(1);
+    expect(scroller.gutter).toBe(24);
+    expect(scroller.paddingEnd, testId).toBe(scroller.gutter);
+    expect(scroller.scrollbarGutter, testId).toBe("stable");
+  }
+});
+
+// `SUI-FEATURE-381` AC2/AC5: a single-image format shows no page list, navigation or counter.
+test("slide editor with maxPages 1: no page list, navigation or counter", async ({ page }) => {
+  await page.goto("/?page=slide-editor&maxPages=1&lng=en&theme=light");
+  const editor = page.getByTestId("slide-editor");
+  await expect(
+    editor.locator("[data-slot=slide-view][data-slide-ready=true]").first(),
+  ).toBeVisible();
+  await editor.getByTestId("drawer-document").click();
+  await expect(editor.getByTestId("slide-editor-grid")).toBeVisible();
+  for (const id of [
+    "slide-editor-pages",
+    "slide-editor-page-new",
+    "slide-editor-previous-page",
+    "slide-editor-next-page",
+    "slide-editor-page",
+  ]) {
+    await expect(editor.getByTestId(id), id).toHaveCount(0);
+  }
+});
+
+// `SUI-FEATURE-381` rev 4 AC1: at the cap, new page and duplicate page add nothing by keyboard
+// either. The new-page menu trigger and the duplicate action keep the focus, name the reason, and
+// Enter and Space do nothing.
+test("slide editor at its page cap: no page added by keyboard", async ({ page }) => {
+  await page.goto("/?page=slide-editor&maxPages=2&lng=en&theme=light");
+  const editor = page.getByTestId("slide-editor");
+  await expect(
+    editor.locator("[data-slot=slide-view][data-slide-ready=true]").first(),
+  ).toBeVisible();
+  await editor.getByTestId("drawer-document").click();
+  const duplicates = editor.getByTestId("slide-editor-page-duplicate");
+  await expect(duplicates).toHaveCount(2);
+  for (const locked of [editor.getByTestId("slide-editor-page-new"), duplicates.first()]) {
+    await locked.focus();
+    await expect(locked).toBeFocused();
+    await expect(locked).toHaveAttribute("aria-disabled", "true");
+    await expect(locked).toHaveAccessibleDescription("This format has at most 2 pages");
+    for (const key of ["Enter", "Space"]) await page.keyboard.press(key);
+    await expect(locked).toBeFocused();
+    await expect(duplicates).toHaveCount(2);
+    await expect(page.getByRole("menu")).toHaveCount(0);
+  }
+});
+
+// `SUI-FEATURE-380` AC4 (`SUI-FEATURE-087` AC3) at 1920 px with classic scrollbars: every label of
+// the property panel stays on one line inside the narrower body — the page with its background
+// image, and each kind of element, the shape's shadow switched on.
+for (const lng of LANGUAGES) {
+  test(`slide editor property panel: every label on one line ${lng} @scrollbars`, async ({
+    page,
+  }) => {
+    await page.goto(`/?page=slide-editor&ground=image&lng=${lng}&theme=light`);
+    await expect(page.locator("html")).toHaveAttribute("lang", lng);
+    const { editor } = await openEditor(page, false);
+    const body = editor.getByTestId("property-panel-body");
+    const oneLine = async (what: string) => {
+      const labels = body.locator("label:visible, legend:visible");
+      // The chart's table names its fields without visible labels.
+      if (what !== "chart") expect(await labels.count(), what).toBeGreaterThan(0);
+      for (const label of await labels.all()) {
+        const { text, lines, overflows } = await label.evaluate((node) => ({
+          text: node.textContent,
+          lines:
+            node.getBoundingClientRect().height / parseFloat(getComputedStyle(node).lineHeight),
+          overflows: node.scrollWidth > node.clientWidth,
+        }));
+        expect(lines, `${what}: "${text}" wraps`).toBeLessThan(1.5);
+        expect(overflows, `${what}: "${text}" overflows`).toBe(false);
+      }
+    };
+    await oneLine("page");
+    for (const kind of ["text", "rectangle", "line", "table", "chart"]) {
+      // The drawer stays open after an insert; a second press would close it.
+      if (!(await editor.getByTestId("slide-editor-library-search").isVisible()))
+        await editor.getByTestId("drawer-add").click();
+      await editor.getByTestId(`slide-editor-library-${kind}`).click();
+      const shadow = body.getByTestId("slide-editor-shadow");
+      if (kind === "rectangle" && (await shadow.count()) > 0) {
+        await shadow.click();
+        await expect(shadow).toHaveAttribute("aria-checked", "true");
+      }
+      await oneLine(kind);
+    }
+    await editor.getByTestId("slide-editor-next-page").click();
+    await editor.getByTestId("drawer-layers").click();
+    await editor.locator("[data-layer-id=picture] > button").first().click();
+    await expect(editor.getByTestId("slide-editor-image-flip")).toBeVisible();
+    await oneLine("image");
+  });
+}
 
 test("slide editor host slots under readOnly: the host's page panel is read-only", async ({
   page,

@@ -252,7 +252,7 @@ export function ChartData({
           (`SUI-FEATURE-233`). */}
       <div className="overflow-x-auto" data-testid="slide-editor-chart-scroll">
         <table
-          className="border-separate border-spacing-1 text-sm"
+          className="border-separate border-spacing-x-0.5 border-spacing-y-1 text-sm"
           aria-label={t("slides.editor.chartData")}
           data-testid="slide-editor-chart-data"
         >
@@ -272,7 +272,7 @@ export function ChartData({
                   key={index}
                   scope="col"
                   aria-label={seriesName(index)}
-                  className="w-20 text-left align-top font-normal"
+                  className="w-19 text-left align-top font-normal"
                 >
                   <div className="flex flex-col items-start gap-0.5">
                     <NameField
@@ -289,7 +289,7 @@ export function ChartData({
                         )
                       }
                       status={pie && index > 0 ? `${notInPie}-${index}` : undefined}
-                      className="h-8 w-20 px-2"
+                      className="h-8 w-19 px-2"
                       data-testid={`slide-editor-chart-series-${index}`}
                     />
                     <IconButtonTooltip
@@ -358,9 +358,11 @@ export function ChartData({
                       }
                       // All as wide as the column, whatever their names, so the remove buttons
                       // line up and the values do not move while a name is typed (#379). From `md`,
-                      // at the 14 px text, 100 px, so the table with two series fits the panel
-                      // without scrolling (#536); below, at 16 px, the default names need 112 px.
-                      className="h-8 min-w-28 flex-1 px-2 md:min-w-25"
+                      // at the 14 px text, 92 px: the default names show in full, and with 76 px
+                      // series columns and 2 px between columns the table with two series fits the
+                      // panel body without scrolling (#536, #818); below, at 16 px, the default
+                      // names need 112 px.
+                      className="h-8 min-w-28 flex-1 px-2 md:min-w-23"
                       data-testid={`slide-editor-chart-category-${row}`}
                     />
                     <IconButtonTooltip

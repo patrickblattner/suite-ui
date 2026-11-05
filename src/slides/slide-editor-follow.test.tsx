@@ -433,11 +433,27 @@ describe("SlideEditor sizes that follow the text", () => {
     const insets = (["top", "right", "bottom", "left"] as const).map((side) =>
       screen.getByTestId(`slide-editor-inset-${side}`),
     );
-    // The select takes a cell of its own in the first column; the insets follow two by two.
+    // The select takes a cell of its own in the first column; the insets follow two by two in one
+    // group spanning both columns, two columns of its own (`SUI-FEATURE-380` rev 5).
     const at0 = cellOf(follow);
     expect(cells[at0]).toHaveClass("col-start-1");
-    expect(insets.map(cellOf)).toEqual([at0 + 1, at0 + 2, at0 + 3, at0 + 4]);
-    expect(cells[at0 + 1]).toHaveClass("col-start-1");
+    expect(insets.map(cellOf)).toEqual([at0 + 1, at0 + 1, at0 + 1, at0 + 1]);
+    const group = screen.getByTestId("slide-editor-inset-group");
+    expect(cells[at0 + 1]).toBe(group);
+    expect(group).toHaveClass("col-span-2", "grid-cols-2");
+    expect(screen.getByRole("group", { name: "Padding" })).toBe(group);
+    const sideCells = [...group.children].filter((cell) => cell.tagName !== "LEGEND");
+    expect(insets.map((inset) => sideCells.findIndex((cell) => cell.contains(inset)))).toEqual([
+      0, 1, 2, 3,
+    ]);
+    // Each field is labelled by its side; its name is group and side.
+    expect(insets.map((inset) => (inset as HTMLInputElement).labels?.[0]?.textContent)).toEqual([
+      "Top",
+      "Right",
+      "Bottom",
+      "Left",
+    ]);
+    expect(insets[1]).toHaveAccessibleName("Padding, Right");
     expect(insets.map((inset) => (inset as HTMLInputElement).value)).toEqual([
       "8",
       "16",

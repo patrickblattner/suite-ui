@@ -60,6 +60,7 @@ import {
   type AnimationStep,
   borderWidthFor,
   type Box,
+  blockOf,
   boundsOf,
   boxOf,
   copyElements,
@@ -232,6 +233,8 @@ export interface SlideEditorProps extends Pick<
   document: SlideDocumentInput | SlideDocument;
   // The record's title in the header.
   title: React.ReactNode;
+  // A line under the title (`SUI-FEATURE-380`), handed to `EditorHeader.subtitle` as it is.
+  subtitle?: React.ReactNode;
   // Saves the validated document; `true` (or a promise of it) reports success (`GL-UI-007`).
   onSave: (document: SlideDocument) => unknown;
   // Every change of the document the editor takes over, as a valid document (`SUI-FEATURE-194`): undo,
@@ -253,7 +256,8 @@ export interface SlideEditorProps extends Pick<
   onTransfer?: (copy: SlideDocument, details: { overflowIds: string[] }) => void;
   // The app's media picker (`SUI-FEATURE-232`, `GL-UI-002`): the Add drawer's "Media" entry opens it
   // and inserts the chosen medium as an image; `undefined` is a cancel. Without it there is no entry.
-  pickMedia?: () => Promise<PickedMedia | undefined>;
+  // It is told what the medium is for (`SUI-FEATURE-380`); `current` is the background's medium.
+  pickMedia?: (context: PickMediaContext) => Promise<PickedMedia | undefined>;
   // The app's media entries for a paste from another document (`SUI-FEATURE-106`): called once per
   // paste with the media ids `resolveMedia` does not resolve; the app makes their entries and answers
   // old id → new id (an id it leaves out stays). Without it, or when it fails, the paste goes in anyway
@@ -278,6 +282,15 @@ export interface SlideEditorProps extends Pick<
   // neither reads nor stores its values.
   status?: React.ReactNode;
   pagePanel?: { title: string; content: React.ReactNode };
+  // The host keeps the selection as a block (`SUI-FEATURE-380`): "Save as block" in the canvas menu
+  // and the Add drawer hands it a deep copy (`blockOf`); naming and storage are the host's, the
+  // document is unchanged. Without it, and under `readOnly`, there is no such action.
+  onSaveBlock?: (block: { elements: SlideElement[] }) => void;
+  // The format's page cap (`SUI-FEATURE-381`), 1 up to `SLIDE_LIMITS.maxPages` (larger counts as
+  // that): at the cap adding and duplicating a page are locked with the reason; deleting stays. With
+  // 1 and one page there is no page list, navigation or counter. A document over the cap is shown
+  // whole, never cut.
+  maxPages?: number;
   // The ids of the labelled overlays shown (`SlideExtensions.overlays`), view state like the grid:
   // kept by the editor when the app leaves it out, all shown at first; never in the document.
   overlaysShown?: readonly string[];
@@ -297,6 +310,12 @@ export interface SlideEditorProps extends Pick<
   ref?: React.Ref<SlideEditorHandle>;
   "data-testid"?: string;
 }
+
+// What the app's media picker is opened for (`SUI-FEATURE-380`).
+export type PickMediaContext = {
+  purpose: "insert" | "background";
+  current?: string;
+};
 
 // What the host calls on the editor (`SUI-FEATURE-134`): a change the host made outside the document
 // (a record renamed) as a step of the editor's undo history, in order with the document's steps; Undo
@@ -325,6 +344,10 @@ const CROP_ZOOM_STEP = 1.1;
 const CROP_KEY_STEP = 0.1;
 // The canvas area's width below which the crop bar leaves its hint out.
 const CROP_HINT_ROOM = 480;
+// The canvas area's inline padding before it is measured: `ps-2` at its start (flush with the
+// toolbar), `--page-gutter` (1.5rem) at its end (`GL-UI-018`, `SUI-FEATURE-380`).
+const CANVAS_AREA_START_PX = 8;
+const PAGE_GUTTER_PX = 24;
 // What a number field takes: a box at most twice the largest format side off the page and as large,
 // so nothing typed loses an element or overflows the document's numbers.
 const FIELD_RANGE = 2 * SLIDE_LIMITS.maxFormatSide;
@@ -812,6 +835,7 @@ const sameCrop = (a: ImageCrop, b: ImageCrop) =>
 export function SlideEditor({
   document: source,
   title,
+  subtitle,
   onSave,
   onChange,
   onBack,
@@ -833,6 +857,8 @@ export function SlideEditor({
   readOnly = false,
   status,
   pagePanel,
+  onSaveBlock,
+  maxPages,
   overlaysShown,
   onOverlaysShown,
   recentColors,
@@ -849,6 +875,7 @@ export function SlideEditor({
     return (
       <Invalid
         title={title}
+        subtitle={subtitle}
         onBack={onBack}
         error={parsed.error}
         source={source}
@@ -877,8 +904,11 @@ export function SlideEditor({
       headerRef={headerRef}
       readOnly={readOnly}
       host={{
+        subtitle,
         status,
         pagePanel,
+        onSaveBlock,
+        maxPages,
         overlaysShown,
         onOverlaysShown,
         recentColors,
@@ -895,8 +925,11 @@ export function SlideEditor({
 // The host's slots as `Editor` takes them (`SUI-FEATURE-134`).
 type HostSlots = Pick<
   SlideEditorProps,
+  | "subtitle"
   | "status"
   | "pagePanel"
+  | "onSaveBlock"
+  | "maxPages"
   | "overlaysShown"
   | "onOverlaysShown"
   | "recentColors"
@@ -908,6 +941,7 @@ type HostSlots = Pick<
 // A document that breaks the schema: the header with its way back and the named error, nothing drawn.
 function Invalid({
   title,
+  subtitle,
   onBack,
   error,
   source,
@@ -916,6 +950,7 @@ function Invalid({
   testId,
 }: {
   title: React.ReactNode;
+  subtitle: React.ReactNode;
   onBack: () => void;
   error: SlideDocumentError;
   source: SlideEditorProps["document"];
@@ -930,6 +965,7 @@ function Invalid({
       <div ref={headerRef} className="shrink-0">
         <EditorHeader
           title={title}
+          subtitle={subtitle}
           onBack={onBack}
           canUndo={false}
           canRedo={false}
@@ -1216,6 +1252,14 @@ function Editor({
   const pageData = document.pages[page] ?? document.pages[0];
   const elements = pageData?.elements ?? [];
   const { width: pageWidth, height: pageHeight } = document.format;
+  // The app's page cap (`SUI-FEATURE-381`) and whether the document is at it; a single page under a
+  // cap of 1 shows no page list, navigation or counter.
+  const pageCap =
+    host.maxPages === undefined
+      ? undefined
+      : Math.min(SLIDE_LIMITS.maxPages, Math.max(1, Math.floor(host.maxPages)));
+  const pagesFull = pageCap !== undefined && document.pages.length >= pageCap;
+  const onePage = pageCap === 1 && document.pages.length === 1;
   const grid = document.grid;
   // Editing lasts while its selection does and its field or cell is there, unlocked (an Undo can
   // take it away).
@@ -1239,12 +1283,25 @@ function Editor({
 
   // The canvas area's size, for "Fit".
   const [area, setArea] = React.useState<HTMLDivElement | null>(null);
-  const [areaSize, setAreaSize] = React.useState({ width: 0, height: 0 });
+  // Its inline padding too: the start flush with the toolbar, the end the page gutter (`GL-UI-018`
+  // §Inner scroll areas, `SUI-FEATURE-380`). Measured; until then the classes' values.
+  const [areaSize, setAreaSize] = React.useState({
+    width: 0,
+    height: 0,
+    start: CANVAS_AREA_START_PX,
+    end: PAGE_GUTTER_PX,
+  });
   React.useLayoutEffect(() => {
     if (area === null || typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(([entry]) => {
       if (entry !== undefined) {
-        setAreaSize({ width: entry.contentRect.width, height: entry.contentRect.height });
+        const style = getComputedStyle(area);
+        setAreaSize({
+          width: entry.contentRect.width,
+          height: entry.contentRect.height,
+          start: parseFloat(style.paddingInlineStart) || 0,
+          end: parseFloat(style.paddingInlineEnd) || 0,
+        });
       }
     });
     observer.observe(area);
@@ -1263,12 +1320,21 @@ function Editor({
   const zoom = zoomMode === "actual" ? 1 : fit;
   // The room around the page for the largest bleed shown: as tall above and below, at least as wide
   // left (centred while it fits, so a page wider than the area keeps its left bleed in reach).
+  // Centred on a whole pixel once the area is measured: its inline padding is not symmetric
+  // (`GL-UI-018`), and a page on a half pixel blurs its one-pixel lines (guides, frames).
+  const pageLeft =
+    areaSize.width === 0
+      ? undefined
+      : Math.max(bleed * zoom, Math.floor((areaSize.width - pageWidth * zoom) / 2));
   const frameMargin: React.CSSProperties =
     bleed === 0
-      ? {}
+      ? pageLeft === undefined
+        ? {}
+        : { marginLeft: pageLeft }
       : {
           marginBlock: bleed * zoom,
-          marginLeft: `max(${bleed * zoom}px, calc((100% - ${pageWidth * zoom}px) / 2))`,
+          marginLeft:
+            pageLeft ?? `max(${bleed * zoom}px, calc((100% - ${pageWidth * zoom}px) / 2))`,
           marginRight: bleed * zoom,
         };
 
@@ -1657,6 +1723,15 @@ function Editor({
     return shownCrop(image, src === brokenCropSrc ? undefined : size);
   };
   const canvas = React.useRef<HTMLDivElement>(null);
+  // A delete down to the one page under a cap of 1 takes the page list away with its confirm dialog,
+  // whose focus would fall to the body: the canvas takes it, after the dialog's own focus return.
+  const focusCanvasOnOnePage = React.useRef(false);
+  React.useEffect(() => {
+    if (!onePage || !focusCanvasOnOnePage.current) return;
+    focusCanvasOnOnePage.current = false;
+    const timer = setTimeout(() => canvas.current?.focus());
+    return () => clearTimeout(timer);
+  }, [onePage]);
   const cropDescription = React.useId();
   // Per instance, so two mounted editors never share a heading id.
   const animationTitle = React.useId();
@@ -1850,17 +1925,17 @@ function Editor({
             clip: `path(evenodd, "${outer} ${hole}")`,
           };
         })();
-  // Where the dimmed rest may show, around the page: the canvas area's content with its padding (`p-6`),
+  // Where the dimmed rest may show, around the page: the canvas area's content with its padding,
   // in the page's px at the canvas zoom; the page stands centred in it (`SUI-FEATURE-230` rev 4).
   // An overlay's bleed shown moves the page in by that room (`frameMargin`).
   const cropRestBounds = (() => {
     const [width, height] = [pageWidth * zoom, pageHeight * zoom];
     const room = bleed * zoom;
-    const margin = Math.max(room, (areaSize.width - width) / 2);
+    const margin = pageLeft ?? Math.max(room, (areaSize.width - width) / 2);
     return {
-      left: -(margin + 24),
+      left: -(margin + areaSize.start),
       top: -(room + 24),
-      width: Math.max(areaSize.width, width + 2 * room) + 48,
+      width: Math.max(areaSize.width, width + 2 * room) + areaSize.start + areaSize.end,
       height: Math.max(areaSize.height, height + 2 * room) + 48,
     };
   })();
@@ -2032,9 +2107,9 @@ function Editor({
     if (hit !== undefined && !selection.includes(hit.id)) setSelection([hit.id]);
   };
   const menuEntry = (
-    name: "cut" | "copy" | "paste" | "duplicate",
+    name: "cut" | "copy" | "paste" | "duplicate" | "saveAsBlock",
     usable: boolean,
-    shortcut: readonly string[],
+    shortcut: readonly string[] | undefined,
     onSelect: () => void,
   ) => (
     <Hint
@@ -2042,7 +2117,11 @@ function Editor({
       text={t(`slides.editor.${name}Hint`)}
       // Always carried, so every entry stands in the same full-width grid and toggling never
       // remounts it.
-      disabledText={t(`slides.editor.${name}Unavailable`)}
+      disabledText={t(
+        name === "saveAsBlock"
+          ? "slides.editor.saveAsBlockNeedsSelection"
+          : `slides.editor.${name}Unavailable`,
+      )}
       carrierClassName="grid rounded-sm focus-visible:focus-ring-inset"
       shortcut={shortcut}
     >
@@ -2064,6 +2143,16 @@ function Editor({
       </ContextMenuItem>
     </Hint>
   );
+  // "Save as block" (`SUI-FEATURE-380`): the host's call with a copy of the selection; the document
+  // and `onChange` stay as they are. None under `readOnly` or without the host's call.
+  const onSaveBlock = readOnly ? undefined : host.onSaveBlock;
+  const saveBlock =
+    onSaveBlock === undefined || selection.length === 0
+      ? undefined
+      : () => {
+          const block = blockOf(history.document, page, selection);
+          if (block !== undefined) onSaveBlock(block);
+        };
   const startEditing = (id: string, cell?: CellAt) => {
     const ids = [id];
     setSelection(ids);
@@ -2744,7 +2833,7 @@ function Editor({
     pickMedia === undefined
       ? undefined
       : () => {
-          pickMedia().then(
+          pickMedia({ purpose: "insert" }).then(
             (picked) => {
               if (picked === undefined) return;
               const aspect =
@@ -2788,7 +2877,11 @@ function Editor({
       ? undefined
       : () => {
           const pageId = pageData.id;
-          pickMedia().then(
+          const shown = pageData.background;
+          pickMedia({
+            purpose: "background",
+            ...(shown.type === "image" ? { current: shown.media.id } : {}),
+          }).then(
             (picked) => {
               if (picked !== undefined) latestBackgroundMedia.current(pageId, picked.id);
             },
@@ -4260,6 +4353,7 @@ function Editor({
       <div ref={headerRef} className="shrink-0">
         <EditorHeader
           title={title}
+          subtitle={host.subtitle}
           onBack={() => guard(onBack)}
           readOnly={readOnly}
           // While cropping, Undo takes back the crop being set, also with nothing in the history (#349).
@@ -4350,6 +4444,7 @@ function Editor({
                         onPickMedia={pickFromMedia}
                         appEntries={appEntries}
                         atCaret={editing !== undefined && textRange !== undefined}
+                        onSaveBlock={onSaveBlock === undefined ? undefined : (saveBlock ?? null)}
                       />
                     ),
                   },
@@ -4362,109 +4457,140 @@ function Editor({
                 </ul>
               ),
             },
-            {
-              id: "document",
-              content: (
-                <div className="flex flex-col gap-4">
-                  {/* The saved steps only: a drag's preview or a crop being set never redraws the
+            // Read-only with one page under a cap of 1, the pane would hold nothing: no item
+            // (`SUI-FEATURE-381`).
+            ...(onePage && readOnly
+              ? []
+              : [
+                  {
+                    id: "document" as const,
+                    content: (
+                      <div className="flex flex-col gap-4">
+                        {/* The saved steps only: a drag's preview or a crop being set never redraws the
                       pictures. */}
-                  <PageSorter
-                    document={history.document}
-                    layouts={offered}
-                    page={page}
-                    view={view}
-                    readOnly={readOnly}
-                    onShow={showPage}
-                    onMove={(from, to) =>
-                      changePages(movePage(history.document, from, to), to, (id) => id)
-                    }
-                    onDuplicate={(index) => {
-                      const made = duplicatePage(history.document, index);
-                      if (!fits(made.document, "slides.editor.pageRefused")) return;
-                      changePages(
-                        made.document,
-                        made.index,
-                        () => made.document.pages[made.index]!.id,
-                      );
-                    }}
-                    onHidden={(index, hidden) =>
-                      changePages(setPageHidden(history.document, index, hidden), index, (id) => id)
-                    }
-                    onDelete={(index) => {
-                      const next = deletePage(history.document, index);
-                      const shown = Math.min(index, next.pages.length - 1);
-                      changePages(next, shown, (id) =>
-                        next.pages.some((one) => one.id === id) ? id : next.pages[shown]!.id,
-                      );
-                    }}
-                    onNew={(layoutId) => {
-                      const made = newPage(holding(history.document, layoutId), page, layoutId);
-                      if (!fits(made.document, "slides.editor.pageRefused")) return;
-                      changePages(
-                        made.document,
-                        made.index,
-                        () => made.document.pages[made.index]!.id,
-                      );
-                    }}
-                  />
-                  {/* Its own section under its heading, apart from the pages (`GL-UI-010`). */}
-                  {readOnly ? null : (
-                    <section className="flex flex-col gap-2" data-testid="slide-editor-grid">
-                      <h3 id={gridTitle} className="text-base font-semibold">
-                        {t("grid.label")}
-                      </h3>
-                      <GridFields
-                        value={grid}
-                        allowNone
-                        labelledBy={gridTitle}
-                        onChange={(value) =>
-                          apply((current) => ({ ...current, grid: value }), "grid")
-                        }
-                      />
-                    </section>
-                  )}
-                </div>
-              ),
-            },
+                        {onePage ? null : (
+                          <PageSorter
+                            document={history.document}
+                            layouts={offered}
+                            page={page}
+                            view={view}
+                            readOnly={readOnly}
+                            limitText={
+                              pagesFull
+                                ? t("slides.editor.pageLimitReached", { count: pageCap })
+                                : undefined
+                            }
+                            onShow={showPage}
+                            onMove={(from, to) =>
+                              changePages(movePage(history.document, from, to), to, (id) => id)
+                            }
+                            onDuplicate={(index) => {
+                              if (pagesFull) return;
+                              const made = duplicatePage(history.document, index);
+                              if (!fits(made.document, "slides.editor.pageRefused")) return;
+                              changePages(
+                                made.document,
+                                made.index,
+                                () => made.document.pages[made.index]!.id,
+                              );
+                            }}
+                            onHidden={(index, hidden) =>
+                              changePages(
+                                setPageHidden(history.document, index, hidden),
+                                index,
+                                (id) => id,
+                              )
+                            }
+                            onDelete={(index) => {
+                              const next = deletePage(history.document, index);
+                              if (pageCap === 1 && next.pages.length === 1)
+                                focusCanvasOnOnePage.current = true;
+                              const shown = Math.min(index, next.pages.length - 1);
+                              changePages(next, shown, (id) =>
+                                next.pages.some((one) => one.id === id)
+                                  ? id
+                                  : next.pages[shown]!.id,
+                              );
+                            }}
+                            onNew={(layoutId) => {
+                              if (pagesFull) return;
+                              const made = newPage(
+                                holding(history.document, layoutId),
+                                page,
+                                layoutId,
+                              );
+                              if (!fits(made.document, "slides.editor.pageRefused")) return;
+                              changePages(
+                                made.document,
+                                made.index,
+                                () => made.document.pages[made.index]!.id,
+                              );
+                            }}
+                          />
+                        )}
+                        {/* Its own section under its heading, apart from the pages (`GL-UI-010`). */}
+                        {readOnly ? null : (
+                          <section className="flex flex-col gap-2" data-testid="slide-editor-grid">
+                            <h3 id={gridTitle} className="text-base font-semibold">
+                              {t("grid.label")}
+                            </h3>
+                            <GridFields
+                              value={grid}
+                              allowNone
+                              labelledBy={gridTitle}
+                              onChange={(value) =>
+                                apply((current) => ({ ...current, grid: value }), "grid")
+                              }
+                            />
+                          </section>
+                        )}
+                      </div>
+                    ),
+                  },
+                ]),
           ]}
           open={drawer}
           onOpen={setDrawer}
         />
         <div className="flex min-w-0 flex-1 flex-col">
           <div className="flex flex-wrap items-center gap-2 border-b px-2 py-1" data-tooltip-row="">
-            <IconButtonTooltip label={t("slides.editor.previousPage")}>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                disabled={page === 0}
-                onClick={() => {
-                  setPage(page - 1);
-                  setSelection([]);
-                }}
-                data-testid="slide-editor-previous-page"
-              >
-                <ChevronLeftIcon />
-              </Button>
-            </IconButtonTooltip>
-            <span className="text-sm tabular-nums" data-testid="slide-editor-page">
-              {t("slides.editor.page", { current: page + 1, total: document.pages.length })}
-            </span>
-            <IconButtonTooltip label={t("slides.editor.nextPage")}>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                disabled={page >= document.pages.length - 1}
-                onClick={() => {
-                  setPage(page + 1);
-                  setSelection([]);
-                }}
-                data-testid="slide-editor-next-page"
-              >
-                <ChevronRightIcon />
-              </Button>
-            </IconButtonTooltip>
+            {onePage ? null : (
+              <>
+                <IconButtonTooltip label={t("slides.editor.previousPage")}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    disabled={page === 0}
+                    onClick={() => {
+                      setPage(page - 1);
+                      setSelection([]);
+                    }}
+                    data-testid="slide-editor-previous-page"
+                  >
+                    <ChevronLeftIcon />
+                  </Button>
+                </IconButtonTooltip>
+                <span className="text-sm tabular-nums" data-testid="slide-editor-page">
+                  {t("slides.editor.page", { current: page + 1, total: document.pages.length })}
+                </span>
+                <IconButtonTooltip label={t("slides.editor.nextPage")}>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    disabled={page >= document.pages.length - 1}
+                    onClick={() => {
+                      setPage(page + 1);
+                      setSelection([]);
+                    }}
+                    data-testid="slide-editor-next-page"
+                  >
+                    <ChevronRightIcon />
+                  </Button>
+                </IconButtonTooltip>
+              </>
+            )}
             <div className="ml-auto flex flex-wrap items-center gap-2">
               <SlidePreview document={document} page={page} view={view} />
               {readOnly || onTransfer === undefined || otherFormats.length === 0 ? null : (
@@ -4499,7 +4625,13 @@ function Editor({
               <CanvasZoom zoom={zoom} mode={zoomMode} onMode={setZoomMode} />
             </div>
           </div>
-          <div ref={setArea} className="relative min-h-0 flex-1 overflow-auto bg-muted p-6">
+          <div
+            ref={setArea}
+            // An inner scroll area (`GL-UI-018`): its start flush with the toolbar's content, the gap
+            // to its own scrollbar the page gutter, on the scrolling element itself.
+            className="relative min-h-0 flex-1 overflow-auto bg-muted py-6 ps-2 pe-[var(--page-gutter)] [scrollbar-gutter:stable]"
+            data-testid="slide-editor-canvas-area"
+          >
             <div
               ref={frame}
               // No text selection on the canvas: a double click would select the page's text, and the
@@ -4767,6 +4899,9 @@ function Editor({
                         // eslint-disable-next-line react-hooks/refs
                         duplicateKey,
                       )}
+                  {saveBlock === undefined || selected.length === 0
+                    ? null
+                    : menuEntry("saveAsBlock", true, undefined, saveBlock)}
                 </ContextMenuContent>
               </ContextMenu>
               {/* Over the whole window during a gesture, so nothing under the pointer changes it; the

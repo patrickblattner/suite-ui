@@ -413,3 +413,28 @@ describe("SlideEditor host slots (SUI-FEATURE-134)", () => {
     expect(undo).not.toHaveBeenCalled();
   });
 });
+
+describe("SlideEditor subtitle and inner gutter (SUI-FEATURE-380)", () => {
+  // AC1
+  it("renders the subtitle as the header's one page-subtitle, none without it", () => {
+    editor({ subtitle: "Record WS-0042" });
+    const subtitles = header().querySelectorAll("[data-testid=page-subtitle]");
+    expect(subtitles).toHaveLength(1);
+    expect(subtitles[0]).toHaveTextContent("Record WS-0042");
+    cleanup();
+    editor();
+    expect(header().querySelector("[data-testid=page-subtitle]")).toBeNull();
+  });
+
+  // AC4: the measurement at 1920 px is the gallery's; here the classes on the scrolling elements.
+  it("gives the canvas scroller and the panel body the end gutter and a stable bar gutter", () => {
+    editor();
+    for (const id of ["slide-editor-canvas-area", "property-panel-body"]) {
+      const scroller = screen.getByTestId(id);
+      expect(scroller).toHaveClass("pe-[var(--page-gutter)]", "[scrollbar-gutter:stable]");
+      expect(scroller.className).not.toMatch(/(^|\s)(p|px)-\d/);
+    }
+    expect(screen.getByTestId("slide-editor-canvas-area")).toHaveClass("ps-2", "overflow-auto");
+    expect(screen.getByTestId("property-panel-body")).toHaveClass("ps-4", "overflow-y-auto");
+  });
+});

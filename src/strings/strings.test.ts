@@ -244,3 +244,69 @@ describe("suite page wording", () => {
     expect(said).toEqual([]);
   });
 });
+
+// SUI-FEATURE-380 §Texts: "Save as block" and its reason, exactly as the spec gives them.
+describe("suite save-as-block texts", () => {
+  it.each([
+    ["de", "Als Baustein speichern", "Erst Elemente wählen"],
+    ["en", "Save as block", "Select elements first"],
+    ["es", "Guardar como bloque", "Selecciona primero elementos"],
+  ] as const)("%s saveAsBlock and saveAsBlockNeedsSelection", (lng, save, needs) => {
+    const { editor } = suiteStrings[lng].slides;
+    expect(editor.saveAsBlock).toBe(save);
+    expect(editor.saveAsBlockNeedsSelection).toBe(needs);
+  });
+
+  // `GL-UI-017`: the menu entry, the library action and the padding group carry a one-sentence hint.
+  it.each(["de", "en", "es"] as const)("%s saveAsBlockHint and insetGroupHint", (lng) => {
+    const { editor } = suiteStrings[lng].slides;
+    for (const hint of [editor.saveAsBlockHint, editor.insetGroupHint]) {
+      expect(hint.length).toBeGreaterThan(0);
+      expect(hint.length).toBeLessThanOrEqual(120);
+    }
+  });
+});
+
+// SUI-FEATURE-380 rev 6 §Texts: the library's "Blocks" section.
+describe("suite library blocks section text", () => {
+  it.each([
+    ["de", "Bausteine"],
+    ["en", "Blocks"],
+    ["es", "Bloques"],
+  ] as const)("%s librarySection.blocks", (lng, blocks) => {
+    expect(suiteStrings[lng].slides.editor.librarySection.blocks).toBe(blocks);
+  });
+});
+
+// SUI-FEATURE-380 rev 5 §Texts: the text-inset fields labelled by their side alone.
+describe("suite inset side texts", () => {
+  it.each([
+    ["de", ["Oben", "Rechts", "Unten", "Links"]],
+    ["en", ["Top", "Right", "Bottom", "Left"]],
+    ["es", ["Arriba", "Derecha", "Abajo", "Izquierda"]],
+  ] as const)("%s insetSide", (lng, sides) => {
+    const { insetSide } = suiteStrings[lng].slides.editor;
+    expect([insetSide.top, insetSide.right, insetSide.bottom, insetSide.left]).toEqual(sides);
+  });
+});
+
+// SUI-FEATURE-381 §Texts: the page cap's reason, with its plural forms.
+describe("suite page limit texts", () => {
+  it.each([
+    [
+      "de",
+      "Dieses Format hat höchstens {{count}} Seite",
+      "Dieses Format hat höchstens {{count}} Seiten",
+    ],
+    ["en", "This format has at most {{count}} page", "This format has at most {{count}} pages"],
+    [
+      "es",
+      "Este formato tiene como máximo {{count}} página",
+      "Este formato tiene como máximo {{count}} páginas",
+    ],
+  ] as const)("%s pageLimitReached", (lng, one, other) => {
+    const { editor } = suiteStrings[lng].slides;
+    expect(editor.pageLimitReached_one).toBe(one);
+    expect(editor.pageLimitReached_other).toBe(other);
+  });
+});

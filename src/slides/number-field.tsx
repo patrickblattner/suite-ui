@@ -43,6 +43,7 @@ export function NumberField({
   warningTestId,
   hint,
   valueHint,
+  "aria-label": ariaLabel,
 }: {
   id: string;
   label: string;
@@ -72,6 +73,8 @@ export function NumberField({
   hint?: string | undefined;
   // What the number counts and its unit, as the input's own hint and description (`Field valueHint`).
   valueHint?: string | undefined;
+  // The input's name when the label alone does not say it (a side in a named group).
+  "aria-label"?: string | undefined;
 }) {
   const { t } = useTranslation("suite");
   const [why, setWhy] = React.useState<DecimalInvalid | null>(null);
@@ -96,6 +99,7 @@ export function NumberField({
           readOnly={readOnly}
           min={min}
           max={max}
+          aria-label={ariaLabel}
           aria-describedby={
             [
               hint && helpIdFor(id),

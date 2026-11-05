@@ -450,13 +450,13 @@ describe("SlideEditor crop mode (SUI-FEATURE-230 rev 4)", () => {
 
   // Codex CX1: with a border the view draws the image inside it, in the frame less the border
   // (`SUI-FEATURE-230` rev 5); the rest and its cut-out follow (at the jsdom zoom 0.25, the rest's
-  // layer starting 24 px before the page).
+  // layer starting the canvas area's padding before the page: 8 px left, 24 px above).
   it("aligns the dimmed rest and its cut-out with a bordered image", () => {
     renderEditor(10);
     startCrop();
     const rest = screen.getByTestId("slide-editor-crop-rest");
     // The whole image at (50, 410) on the page: 40 + 10, 400 + 10.
-    expect(rest.style.left).toBe(`${50 * 0.25 + 24}px`);
+    expect(rest.style.left).toBe(`${50 * 0.25 + 8}px`);
     expect(rest.style.top).toBe(`${410 * 0.25 + 24}px`);
     // The cut-out is the frame with its border, 160 × 100, which starts 10 px before the image.
     expect(rest.style.clipPath).toContain(`M ${-10 * 0.25} ${-10 * 0.25} H ${150 * 0.25}`);
@@ -515,7 +515,7 @@ describe("SlideEditor crop mode (SUI-FEATURE-230 rev 4)", () => {
     // The whole image, 210 × 120 about the frame's centre (120, 450) shifted by −35, −20, starts at
     // (−20, 370): where the view draws it.
     const rest = screen.getByTestId("slide-editor-crop-rest");
-    expect(rest.style.left).toBe(`${-20 * 0.25 + 24}px`);
+    expect(rest.style.left).toBe(`${-20 * 0.25 + 8}px`);
     expect(rest.style.top).toBe(`${370 * 0.25 + 24}px`);
     expect(screen.getAllByTestId("editor-state")[0]).toHaveTextContent(state);
     fireEvent.keyDown(canvas(), { key: "Enter" });
@@ -553,7 +553,7 @@ describe("SlideEditor crop mode on the overhanging axis (SUI-FEATURE-280)", () =
     expect(offsetX()).toHaveValue("-120");
     // The whole image, 400 × 100 about the frame's centre (120, 450) shifted 120 px left.
     const rest = screen.getByTestId("slide-editor-crop-rest");
-    expect(rest.style.left).toBe(`${-200 * 0.25 + 24}px`);
+    expect(rest.style.left).toBe(`${-200 * 0.25 + 8}px`);
     expect(rest.style.width).toBe(`${400 * 0.25}px`);
   });
 
@@ -693,7 +693,7 @@ describe("SlideEditor crop mode of a flipped image (#772)", () => {
     renderEditor(undefined, { zoom: 1, offsetX: -120, offsetY: 0 }, true);
     startCrop();
     loadRest(wide);
-    expect(rest().style.left).toBe(`${40 * 0.25 + 24}px`);
+    expect(rest().style.left).toBe(`${40 * 0.25 + 8}px`);
     // The frame is cut out at the whole image's left edge, 160 px wide.
     expect(rest().style.clipPath).toContain(`Z M 0 0 H ${160 * 0.25} A`);
     expect(rest().querySelector("img")!.style.transform).toBe("scaleX(-1)");
@@ -712,7 +712,7 @@ describe("SlideEditor crop mode of a flipped image (#772)", () => {
     fireEvent.pointerDown(canvas(), { ...at(120, 450), button: 0 });
     fireEvent.pointerMove(canvas(), at(end, 450));
     fireEvent.pointerUp(canvas(), at(end, 450));
-    expect(rest().style.left).toBe(`${left * 0.25 + 24}px`);
+    expect(rest().style.left).toBe(`${left * 0.25 + 8}px`);
     expect(offsetX()).toHaveValue(shown);
   });
 
@@ -721,7 +721,7 @@ describe("SlideEditor crop mode of a flipped image (#772)", () => {
     startCrop();
     loadRest(wide);
     fireEvent.keyDown(canvas(), { key: "ArrowLeft", shiftKey: true });
-    expect(rest().style.left).toBe(`${-90 * 0.25 + 24}px`);
+    expect(rest().style.left).toBe(`${-90 * 0.25 + 8}px`);
     expect(offsetX()).toHaveValue("-10");
   });
 
@@ -733,7 +733,7 @@ describe("SlideEditor crop mode of a flipped image (#772)", () => {
     fireEvent.keyDown(offsetX(), { key: "ArrowUp" });
     expect(offsetX()).toHaveValue("1");
     // Drawn 1 px right: the whole image from −79 on the page.
-    expect(rest().style.left).toBe(`${-79 * 0.25 + 24}px`);
+    expect(rest().style.left).toBe(`${-79 * 0.25 + 8}px`);
   });
 });
 

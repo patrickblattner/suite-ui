@@ -2,6 +2,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   ChartColumnIcon,
   CircleIcon,
+  BookmarkPlusIcon,
   GroupIcon,
   ImageIcon,
   MinusIcon,
@@ -162,6 +163,7 @@ export function ElementLibrary({
   onPickMedia,
   appEntries = [],
   atCaret = false,
+  onSaveBlock,
 }: {
   term: string;
   onTerm: (term: string) => void;
@@ -170,6 +172,9 @@ export function ElementLibrary({
   appEntries?: readonly AppLibraryEntry[];
   // A caret is set in a text field: an icon or a medium goes into the text there (`SUI-FEATURE-164`).
   atCaret?: boolean;
+  // The host keeps the selection as a block (`SUI-FEATURE-380`), the library's last action; `null`
+  // while nothing is selected (shown, locked with the reason), `undefined` without the host's call.
+  onSaveBlock?: (() => void) | null | undefined;
 }) {
   const { t } = useTranslation("suite");
   const names = React.useMemo(() => slideIconNames(), []);
@@ -256,6 +261,31 @@ export function ElementLibrary({
       </Button>
     </Hint>
   );
+  // The host's own entries, under the heading that names them.
+  const appGridOf = (labelledBy: string) => (
+    <div
+      className="grid grid-cols-2 gap-1"
+      role="group"
+      aria-labelledby={labelledBy}
+      onKeyDown={appGrid.onKeyDown}
+      data-tooltip-row=""
+      data-testid="slide-editor-library-app"
+    >
+      {appEntries.map(({ entry, label }) =>
+        entryButton(
+          entry,
+          label,
+          entry.kind === "custom" ? (
+            <PuzzleIcon aria-hidden="true" />
+          ) : (
+            <GroupIcon aria-hidden="true" />
+          ),
+          appTestId(entry),
+          appGrid.roving(appTestId(entry)),
+        ),
+      )}
+    </div>
+  );
   return (
     <div className="flex flex-col gap-4" data-testid="slide-editor-library">
       <p className="text-sm text-muted-foreground" data-testid="slide-editor-library-hint">
@@ -286,33 +316,14 @@ export function ElementLibrary({
           )}
         </div>
       </section>
-      {appEntries.length === 0 ? null : (
+      {/* With "Save as block" the host's entries are its saved blocks: they follow the action in
+          the "Blocks" section (`SUI-FEATURE-380` rev 6). */}
+      {appEntries.length === 0 || onSaveBlock !== undefined ? null : (
         <section className="flex flex-col gap-2" aria-labelledby={`${searchId}-app`}>
           <h3 id={`${searchId}-app`} className="text-base font-semibold">
             {t("slides.editor.libraryApp")}
           </h3>
-          <div
-            className="grid grid-cols-2 gap-1"
-            role="group"
-            aria-labelledby={`${searchId}-app`}
-            onKeyDown={appGrid.onKeyDown}
-            data-tooltip-row=""
-            data-testid="slide-editor-library-app"
-          >
-            {appEntries.map(({ entry, label }) =>
-              entryButton(
-                entry,
-                label,
-                entry.kind === "custom" ? (
-                  <PuzzleIcon aria-hidden="true" />
-                ) : (
-                  <GroupIcon aria-hidden="true" />
-                ),
-                appTestId(entry),
-                appGrid.roving(appTestId(entry)),
-              ),
-            )}
-          </div>
+          {appGridOf(`${searchId}-app`)}
         </section>
       )}
       {onPickMedia === undefined ? null : (
@@ -335,6 +346,37 @@ export function ElementLibrary({
               </OverflowTooltip>
             </Button>
           </Hint>
+        </section>
+      )}
+      {onSaveBlock === undefined ? null : (
+        <section
+          className="flex flex-col gap-2"
+          aria-labelledby={`${searchId}-blocks`}
+          data-testid="slide-editor-library-blocks"
+        >
+          <h3 id={`${searchId}-blocks`} className="text-base font-semibold">
+            {t("slides.editor.librarySection.blocks")}
+          </h3>
+          <Hint
+            text={t("slides.editor.saveAsBlockHint")}
+            disabledText={t("slides.editor.saveAsBlockNeedsSelection")}
+          >
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="min-w-0 justify-start gap-2"
+              disabled={onSaveBlock === null}
+              onClick={onSaveBlock ?? undefined}
+              data-testid="slide-editor-library-save-block"
+            >
+              <BookmarkPlusIcon aria-hidden="true" />
+              <OverflowTooltip>
+                <span className="min-w-0 truncate">{t("slides.editor.saveAsBlock")}</span>
+              </OverflowTooltip>
+            </Button>
+          </Hint>
+          {appEntries.length === 0 ? null : appGridOf(`${searchId}-blocks`)}
         </section>
       )}
       <section className="flex flex-col gap-2" aria-labelledby={`${searchId}-icons`}>

@@ -1461,6 +1461,124 @@ describe("SlideEditor held commands when readOnly turns on mid-drag (#798)", () 
   });
 });
 
+// SUI-FEATURE-380 AC2: "Save as block" hands the host a copy of the selection; the document stays.
+describe("SlideEditor save as block", () => {
+  const saving = (more: Partial<React.ComponentProps<typeof SlideEditor>> = {}) => {
+    const onSaveBlock = vi.fn<(block: { elements: SlideElement[] }) => void>();
+    const onChange = vi.fn();
+    renderEditor({ onSaveBlock, onChange, ...more });
+    return { onSaveBlock, onChange };
+  };
+  const group = {
+    elements: [
+      {
+        type: "group",
+        x: 0,
+        y: 0,
+        width: 400,
+        height: 100,
+        rotation: 0,
+        children: [
+          { id: "a", x: 0, y: 0, width: 100, height: 100 },
+          { id: "b", x: 300, y: 0, width: 100, height: 100 },
+        ],
+      },
+    ],
+  };
+
+  it("hands two selected elements from the canvas menu as one group, relative, as a deep copy", () => {
+    const { onSaveBlock, onChange } = saving();
+    click(50, 50);
+    click(350, 50, true);
+    fireEvent.click(within(openMenu(50, 50), "saveAsBlock"));
+    expect(onSaveBlock).toHaveBeenCalledTimes(1);
+    expect(onSaveBlock.mock.lastCall![0]).toMatchObject(group);
+    const given = onSaveBlock.mock.lastCall![0].elements[0]!;
+    if (given.type === "group") given.children[0]!.x = 999;
+    fireEvent.click(within(openMenu(50, 50), "saveAsBlock"));
+    expect(onSaveBlock.mock.lastCall![0]).toMatchObject(group);
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("hands a copy whose nested fields are the host's alone", () => {
+    const { onSaveBlock, onChange } = saving();
+    click(50, 50);
+    click(400, 420, true);
+    fireEvent.click(within(openMenu(50, 50), "saveAsBlock"));
+    const given = onSaveBlock.mock.lastCall![0].elements[0]!;
+    const words = given.type === "group" ? given.children[1] : undefined;
+    expect(words).toMatchObject({ type: "text", runs: [{ text: "Some words", size: 20 }] });
+    // The host edits a text run of the block it was handed: the live document keeps its own.
+    const run = words?.type === "text" ? words.runs[0] : undefined;
+    if (run !== undefined && run.inline === undefined) {
+      run.text = "Changed by the host";
+      run.size = 99;
+    }
+    fireEvent.click(within(openMenu(50, 50), "saveAsBlock"));
+    const again = onSaveBlock.mock.lastCall![0].elements[0]!;
+    expect(again.type === "group" ? again.children[1] : undefined).toMatchObject({
+      runs: [{ text: "Some words", size: 20 }],
+    });
+    expect(DOC.pages[0]!.elements[4]).toMatchObject({ runs: [{ text: "Some words", size: 20 }] });
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  it("opens the library's Blocks section before the icons, locked with the reason until something is selected", () => {
+    const { onSaveBlock, onChange } = saving();
+    fireEvent.click(screen.getByTestId("drawer-add"));
+    const action = () => screen.getByTestId("slide-editor-library-save-block");
+    const blocks = screen.getByTestId("slide-editor-library-blocks");
+    expect(blocks).toHaveAccessibleName("Blocks");
+    expect(blocks.querySelector("button")).toBe(action());
+    expect(
+      blocks.compareDocumentPosition(screen.getByTestId("slide-editor-library-icons")) &
+        Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(action()).toHaveTextContent("Save as block");
+    expect(action()).toHaveAttribute("aria-disabled", "true");
+    expect(action()).toHaveAccessibleDescription("Select elements first");
+    fireEvent.click(action());
+    expect(onSaveBlock).not.toHaveBeenCalled();
+    click(350, 50);
+    expect(action()).not.toHaveAttribute("aria-disabled");
+    fireEvent.click(action());
+    expect(onSaveBlock.mock.lastCall![0]).toMatchObject({
+      elements: [{ id: "b", type: "shape", x: 0, y: 0, width: 100, height: 100 }],
+    });
+    expect(onChange).not.toHaveBeenCalled();
+  });
+
+  // SUI-FEATURE-380 rev 6: the host's entries (its saved blocks) follow the action in the section.
+  it("lists the host's library entries after the action in the Blocks section", () => {
+    saving({
+      extensions: {
+        library: [{ id: "saved", label: "Saved block", element: shape("saved", 0, 0) }],
+      },
+    });
+    fireEvent.click(screen.getByTestId("drawer-add"));
+    const blocks = screen.getByTestId("slide-editor-library-blocks");
+    expect([...blocks.querySelectorAll("button")].map((button) => button.textContent)).toEqual([
+      "Save as block",
+      "Saved block",
+    ]);
+    expect(screen.queryByText("From this app")).toBeNull();
+  });
+
+  it("offers nothing without onSaveBlock or under readOnly", () => {
+    renderEditor();
+    fireEvent.click(screen.getByTestId("drawer-add"));
+    expect(screen.queryByTestId("slide-editor-library-blocks")).toBeNull();
+    expect(screen.queryByTestId("slide-editor-library-save-block")).toBeNull();
+    click(50, 50);
+    expect(within(openMenu(50, 50), "saveAsBlock")).toBeNull();
+    cleanup();
+    saving({ readOnly: true });
+    expect(screen.queryByTestId("drawer-add")).toBeNull();
+    click(50, 50);
+    expect(within(openMenu(50, 50), "saveAsBlock")).toBeNull();
+  });
+});
+
 function within(menu: HTMLElement, name: string) {
   return menu.querySelector<HTMLElement>(`[data-testid=slide-editor-menu-${name}]`)!;
 }

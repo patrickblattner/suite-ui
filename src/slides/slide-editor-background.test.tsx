@@ -5,7 +5,7 @@ import { SLIDE_BRAND } from "../../gallery/slide-showcase.js";
 import { toast } from "../ui/toaster.js";
 import type { PickedMedia } from "./slide-editor-library.js";
 import { FORMAT_16_9, SLIDE_SCHEMA_VERSION } from "./schema.js";
-import { type ReadonlySlideDocument, SlideEditor } from "./slide-editor.js";
+import { type PickMediaContext, type ReadonlySlideDocument, SlideEditor } from "./slide-editor.js";
 
 // The media the app resolves, each loaded at its natural size by the section's own `Image`.
 const NATURAL: Record<string, { width: number; height: number }> = {
@@ -55,7 +55,7 @@ type Crop = { zoom: number; offsetX: number; offsetY: number };
 
 function renderEditor(
   background: unknown,
-  pickMedia?: () => Promise<PickedMedia | undefined>,
+  pickMedia?: (context: PickMediaContext) => Promise<PickedMedia | undefined>,
   morePages: unknown[] = [],
 ) {
   const onChange = vi.fn<(document: ReadonlySlideDocument) => void>();
@@ -80,6 +80,7 @@ function renderEditor(
   const last = () => onChange.mock.lastCall?.[0];
   return {
     stored: () => last()?.pages[0]!.background,
+    elements: () => last()?.pages[0]!.elements,
     byId: (id: string) => last()?.pages.find((page) => page.id === id)?.background,
     pageIds: () => last()?.pages.map((page) => page.id),
   };
@@ -350,5 +351,45 @@ describe("SlideEditor background image", () => {
     fireEvent.change(offset("X"), { target: { value: "200" } });
     fireEvent.blur(offset("X"));
     expect(stored()).toEqual(image({ zoom: 1.5, offsetX: -200, offsetY: 40 }, true));
+  });
+});
+
+// SUI-FEATURE-380 AC3: the picker is told what it opens for; a host that takes no argument works on.
+describe("SlideEditor media picker context", () => {
+  it("opens the picker for the background with its current medium", async () => {
+    const pickMedia = vi.fn<(context: PickMediaContext) => Promise<PickedMedia | undefined>>(() =>
+      Promise.resolve(undefined),
+    );
+    renderEditor(image({ zoom: 1, offsetX: 0, offsetY: 0 }), pickMedia);
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("slide-editor-background-replace"));
+      await Promise.resolve();
+    });
+    expect(pickMedia).toHaveBeenCalledWith({ purpose: "background", current: "photo" });
+  });
+
+  it("opens the picker for an insert from the Add drawer, without a current medium", async () => {
+    const pickMedia = vi.fn<(context: PickMediaContext) => Promise<PickedMedia | undefined>>(() =>
+      Promise.resolve(undefined),
+    );
+    renderEditor(image({ zoom: 1, offsetX: 0, offsetY: 0 }), pickMedia);
+    fireEvent.click(screen.getByTestId("drawer-add"));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("slide-editor-library-media"));
+      await Promise.resolve();
+    });
+    expect(pickMedia).toHaveBeenCalledWith({ purpose: "insert" });
+  });
+
+  it("still inserts for a host that takes no argument", async () => {
+    const { elements } = renderEditor(image({ zoom: 1, offsetX: 0, offsetY: 0 }), () =>
+      Promise.resolve({ id: "hills", alt: "Hills" }),
+    );
+    fireEvent.click(screen.getByTestId("drawer-add"));
+    await act(async () => {
+      fireEvent.click(screen.getByTestId("slide-editor-library-media"));
+      await Promise.resolve();
+    });
+    expect(elements()).toMatchObject([{ type: "image", media: { id: "hills" } }]);
   });
 });

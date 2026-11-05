@@ -81,7 +81,9 @@ function PropertyPanel({ path, tabs, activeTab, onTab }: PropertyPanelProps) {
           </TabsList>
         </div>
         <div
-          className="min-h-0 flex-1 scroll-py-2 overflow-y-auto p-4"
+          // An inner scroll area (`GL-UI-018`, `SUI-FEATURE-380`): its start flush with the head's
+          // content, the gap to its own scrollbar the page gutter, on the scrolling element itself.
+          className="min-h-0 flex-1 scroll-py-2 overflow-y-auto py-4 ps-4 pe-[var(--page-gutter)] [scrollbar-gutter:stable]"
           data-testid="property-panel-body"
         >
           {ordered.map(({ id, content }) => (
