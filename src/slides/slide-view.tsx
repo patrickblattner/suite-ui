@@ -175,11 +175,16 @@ export interface SlideOverlayProps {
 
 // One of an app's overlays (`SUI-FEATURE-134`): `id` keys it in the editor's `overlaysShown`; with a
 // `label` it gets a toggle of that name in the editor's view band, without one it is always drawn.
-export interface SlideOverlay {
+// A labelled one requires `hint` (already translated), that toggle's description hint, never the label
+// in its place (`GL-UI-017`, rev 8). With `bleed` (format px, default 0) its box reaches that far beyond
+// each page edge, `bleed * zoom` screen px, with the page at that offset in it, e.g. for a device frame;
+// the bleed takes no pointer input and leaves the page as it is, and the editor's fit-to-view makes room
+// for the largest bleed shown.
+export type SlideOverlay = {
   id: string;
-  label?: string;
+  bleed?: number;
   render: (props: SlideOverlayProps) => React.ReactNode;
-}
+} & ({ label: string; hint: string } | { label?: undefined; hint?: undefined });
 
 // What an app contributes (`SUI-FEATURE-163`): its own element types by type id and add-ons to built-in
 // types, drawn the same by the view, editor, player and export; blocks for the editor's library; and
@@ -207,9 +212,13 @@ export function checkSlideExtensions(extensions: SlideExtensions | undefined): v
     }
   }
   const overlayIds = new Set<string>();
-  for (const { id } of extensions?.overlays ?? []) {
+  for (const { id, bleed } of extensions?.overlays ?? []) {
     if (overlayIds.has(id)) throw new Error(`Slide overlay id ${JSON.stringify(id)} is used twice`);
     overlayIds.add(id);
+    // A bleed is a finite size of 0 or more; anything else would leave the canvas without a size.
+    if (bleed !== undefined && !(Number.isFinite(bleed) && bleed >= 0)) {
+      throw new Error(`Slide overlay ${JSON.stringify(id)} has a bleed of ${String(bleed)}`);
+    }
   }
 }
 
