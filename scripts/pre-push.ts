@@ -102,12 +102,44 @@ export function checkPlan(refs: PushedRef[], isWip: (sha: string) => boolean): C
       };
 }
 
+// The buffer hygiene's run() allows, so a large file shown for the octopus rule is read whole.
 const git = (args: string[], cwd?: string) =>
-  spawnSync("git", args, { cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
+  spawnSync("git", args, {
+    cwd,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    maxBuffer: 512 * 1024 * 1024,
+  });
 
 function subjectIsWip(sha: string): boolean {
   const run = git(["log", "-1", "--format=%s", sha]);
   return run.status === 0 && isWipSubject(run.stdout);
+}
+
+type Leak = { Commit: string; File: string; StartLine: number; EndLine: number };
+
+// Hygiene's octopusOwnLeaks, for the hook (a test holds the two equal on a table of cases): the
+// octopus pass diffs against the first parent, so it also shows what the other parents bring in. A
+// finding whose whole block (StartLine..EndLine — a multi-line key in full, not by its shared BEGIN
+// line) one of the merge's parents already holds in that file came with that parent: the first
+// pass found it there (or .gitleaksignore excused it there). Only blocks the merge itself adds
+// count; an unreadable block counts (#814).
+export function octopusOwnLeaks<T extends Leak>(leaks: T[], cwd?: string): T[] {
+  const fileText = (rev: string, file: string): string | undefined => {
+    const shown = git(["show", `${rev}:${file}`], cwd);
+    return shown.status === 0 ? `\n${shown.stdout}\n` : undefined;
+  };
+  return leaks.filter((leak) => {
+    const lines = fileText(leak.Commit, leak.File)?.split("\n") ?? [];
+    const block = lines.slice(leak.StartLine, leak.EndLine + 1);
+    if (!(leak.EndLine >= leak.StartLine) || block.length !== leak.EndLine - leak.StartLine + 1)
+      return true;
+    const [, ...parents] = git(["rev-list", "--parents", "-n", "1", leak.Commit], cwd)
+      .stdout.trim()
+      .split(" ");
+    const wanted = `\n${block.join("\n")}\n`;
+    return parents.every((parent) => !fileText(parent, leak.File)?.includes(wanted));
+  });
 }
 
 const hasCommit = (sha: string) => git(["cat-file", "-e", `${sha}^{commit}`]).status === 0;
@@ -158,12 +190,12 @@ function guard(refs: PushedRef[], remote: string): string[] | undefined {
           ],
           { stdio: ["ignore", "ignore", "inherit"] },
         );
-        if (scan.status === LEAK_EXIT) {
-          const leaks = JSON.parse(readFileSync(path, "utf8")) as {
-            Commit: string;
-            File: string;
-            RuleID: string;
-          }[];
+        const found =
+          scan.status === LEAK_EXIT
+            ? (JSON.parse(readFileSync(path, "utf8")) as (Leak & { RuleID: string })[])
+            : [];
+        const leaks = pass === MERGE_PASSES[1] ? octopusOwnLeaks(found) : found;
+        if (leaks.length > 0) {
           return [
             "push refused: the secret guard found a secret",
             ...leaks.map(
@@ -173,7 +205,7 @@ function guard(refs: PushedRef[], remote: string): string[] | undefined {
             "  take it out of that commit (amend or rebase), rotate the secret, and push again",
           ];
         }
-        if (scan.status !== 0) {
+        if (scan.status !== 0 && scan.status !== LEAK_EXIT) {
           return [
             `push refused: the secret guard could not scan (gitleaks exit ${scan.status ?? scan.signal})`,
             "  nothing was found and nothing was proven clean; fix gitleaks and push again",

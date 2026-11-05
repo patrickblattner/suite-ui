@@ -14,15 +14,17 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { GITLEAKS_PASSES, TOOL_VERSIONS } from "./hygiene";
+import { GITLEAKS_PASSES, octopusOwnLeaks as hygieneOwnLeaks, TOOL_VERSIONS } from "./hygiene";
 import {
   checkPlan,
   GITLEAKS_VERSION,
   isWipSubject,
   MERGE_PASSES,
+  octopusOwnLeaks,
   parseRefs,
   scanRanges,
 } from "./pre-push";
+import { fakeKey } from "./secret-fixtures";
 
 // The pre-push hook (#794, PROC-DEV-005 rev 6, PROC-REL-017): the secret guard on every ref, the
 // preflight and the pin check on the pushed tree unless every tip of a non-main push is `wip:`.
@@ -140,12 +142,32 @@ describe("pre-push hook on a real push", () => {
       .toString("base64")
       .replace(/[^A-Za-z0-9]/g, "x")
       .slice(0, 36)}`;
-  // Pushing feat/x is refused for the secret in HEAD's config.txt, before any check runs.
-  const refusesHeadSecret = () => {
+  // Octopus-merges branches `side` (committing `onSide`) and `other` into feat/x; the resolution
+  // writes `resolved` on top.
+  const octopus = (onSide: Record<string, string>, resolved: Record<string, string>) => {
+    git("checkout", "-q", "-b", "side", "feat/x");
+    for (const [file, text] of Object.entries(onSide)) commit("feat: side #2", file, text);
+    git("checkout", "-q", "-b", "other", "feat/x");
+    commit("feat: other #2", "other.txt", "other\n");
+    git("checkout", "-q", "feat/x");
+    commit("feat: ahead #1", "notes.txt", "ahead\n");
+    git("merge", "-q", "--no-ff", "--no-commit", "side", "other");
+    for (const [file, text] of Object.entries(resolved)) {
+      writeFileSync(join(work, file), text);
+      git("add", file);
+    }
+    git("commit", "-q", "-m", "feat: merge side and other #2");
+    expect(git("rev-list", "--parents", "-n", "1", "HEAD").split(" ")).toHaveLength(4);
+  };
+  // .gitleaksignore excuses the side branch's finding in `file` by its side-commit fingerprint.
+  const ignoreOnSide = (file: string, rule: string) =>
+    writeFileSync(join(work, ".gitleaksignore"), `${git("rev-parse", "side")}:${file}:${rule}:1\n`);
+  // Pushing feat/x is refused for the secret in HEAD's `file`, before any check runs.
+  const refusesHeadSecret = (file = "config.txt") => {
     const run = push(["feat/x"]);
     expect(run.status).not.toBe(0);
     expect(run.out).toContain("push refused: the secret guard found a secret");
-    expect(run.out).toContain(`commit ${git("rev-parse", "HEAD").slice(0, 12)}, file config.txt`);
+    expect(run.out).toContain(`commit ${git("rev-parse", "HEAD").slice(0, 12)}, file ${file}`);
     expect(npxCalls()).toEqual([]);
   };
   const fakeGitleaks = (body: string) => {
@@ -248,6 +270,57 @@ describe("pre-push hook on a real push", () => {
     git("commit", "-q", "-m", "wip: merge side and other");
     expect(git("rev-list", "--parents", "-n", "1", "HEAD").split(" ")).toHaveLength(4);
     refusesHeadSecret();
+  });
+
+  // #814: a side-branch secret .gitleaksignore excuses on its side commit stays excused when an
+  // octopus merges it; the octopus pass drops what a merge parent brings in, as hygiene does.
+  it("lets an octopus merge a side-branch secret .gitleaksignore excuses on the side commit", () => {
+    pushed();
+    octopus({ "config.txt": `token = "${fakeToken()}"\n` }, {});
+    ignoreOnSide("config.txt", "github-pat");
+    const run = push(["feat/x"]);
+    expect(run.out).not.toContain("found a secret");
+    expect(run.status).toBe(0);
+  });
+
+  // #814: every private key starts with the same BEGIN line; a second key an octopus resolution
+  // adds to a file whose side parent holds an (excused) key is a new block and refuses the push.
+  it("refuses a key an octopus resolution adds next to an excused key a parent already holds", () => {
+    pushed();
+    const first = fakeKey();
+    octopus({ "keys.pem": first }, { "keys.pem": first + fakeKey() });
+    ignoreOnSide("keys.pem", "private-key");
+    refusesHeadSecret("keys.pem");
+  });
+
+  // #814: the hook's rule equals hygiene's on every kind of finding.
+  it("drops only inherited octopus findings, as hygiene does", () => {
+    const first = fakeKey();
+    const second = fakeKey();
+    octopus(
+      { "keys.pem": first, "config.txt": "plain\n" },
+      { "keys.pem": first + second, "config.txt": `plain\ntoken = "${fakeToken()}"\n` },
+    );
+    const head = git("rev-parse", "HEAD");
+    const rows = [
+      { name: "merge-added line", File: "config.txt", StartLine: 2, EndLine: 2, own: true },
+      { name: "inherited line", File: "config.txt", StartLine: 1, EndLine: 1, own: false },
+      { name: "inherited block", File: "keys.pem", StartLine: 1, EndLine: 5, own: false },
+      {
+        name: "new block, shared first line",
+        File: "keys.pem",
+        StartLine: 6,
+        EndLine: 10,
+        own: true,
+      },
+      { name: "block past the file's end", File: "keys.pem", StartLine: 1, EndLine: 99, own: true },
+      { name: "reversed block", File: "keys.pem", StartLine: 5, EndLine: 1, own: true },
+      { name: "missing file", File: "missing.txt", StartLine: 1, EndLine: 1, own: true },
+    ].map((row) => ({ ...row, Commit: head }));
+    expect(octopusOwnLeaks(rows, work)).toEqual(hygieneOwnLeaks(rows, work));
+    expect(octopusOwnLeaks(rows, work).map((row) => row.name)).toEqual(
+      rows.filter((row) => row.own).map((row) => row.name),
+    );
   });
 
   it("refuses with an install hint when gitleaks is missing in the pinned version", () => {

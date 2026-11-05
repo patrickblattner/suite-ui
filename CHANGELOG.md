@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — #814: the octopus secret pass compares whole finding blocks; the hook keeps inherited, excused side-branch secrets excused (patch)
+
+- **Fix (#814, Codex review v0.224.1 CX1):** the hook's octopus pass (#811) refused every finding, so a side-branch secret `.gitleaksignore` excuses by its side-commit fingerprint was reported again under an octopus merge that brought it in, and the push was refused. The hook now applies hygiene's rule (`octopusOwnLeaks`): an octopus finding a merge parent already holds is dropped; findings the merge itself adds still refuse the push.
+- **Security (#814):** that rule (hook and hygiene) compared only a finding's first line, so a second private key an octopus resolution added to a file whose parent already held one (the same `BEGIN … PRIVATE KEY` line) was dropped. Both now compare the finding's whole block (StartLine..EndLine) against the parent's same file; a block past the file's end, a reversed range or an unreadable file counts. The hook reads `git show` output with hygiene's buffer (512 MiB). Tests: unit (`scripts/pre-push.test.ts`, `scripts/hygiene.test.ts`) — an octopus merging an excused side-branch secret pushes; a key an octopus resolution adds next to a parent's key refuses the push and counts in hygiene (both dropped before the fix); hook and hygiene agree on a table of merge-added line, inherited line and block, new block with a shared first line, out-of-range and reversed blocks and a missing file; an octopus resolution's own secret is still refused.
+
 ## 0.224.1 — #812: the slide importer caps every XML part in bytes, whatever its name (patch)
 
 - **Security (#812, Codex review v0.224.0 CX2, SUI-FEATURE-138):** the 20 MiB cap on an XML part was enforced by file name only, so an XML part renamed (e.g. `slide1.bin`, relationships updated) was decoded and parsed without it. `parseXml` now checks the part's byte length before decoding, for every part it parses; an oversized part is rejected as `zip-bomb` — the same code as an oversized `.xml` part — and gives no document.

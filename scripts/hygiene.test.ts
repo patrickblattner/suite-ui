@@ -27,6 +27,7 @@ import {
   Unreadable,
   type SizeLines,
 } from "./hygiene";
+import { fakeKey } from "./secret-fixtures";
 
 const root = new URL("..", import.meta.url);
 
@@ -207,16 +208,18 @@ describe("hygiene tool counts", () => {
     writeFileSync(join(git("rev-parse", "--show-toplevel").trim(), file), text);
     git("add", file);
   };
+  const commitWith =
+    (git: (...args: string[]) => string) => (message: string, file: string, text: string) => {
+      write(git, file, text);
+      git("commit", "-q", "-m", message);
+    };
 
   // Merges the given branches into main with a secret the merge resolution adds, or with one the
   // first side branch commits (`onSide`).
   const mergeSecret =
     (sides: string[], onSide = false): Build =>
     (git, token) => {
-      const commit = (message: string, file: string, text: string) => {
-        write(git, file, text);
-        git("commit", "-q", "-m", message);
-      };
+      const commit = commitWith(git);
       commit("base", "notes.txt", "base\n");
       for (const side of sides) {
         git("checkout", "-q", "-b", side, "main");
@@ -264,6 +267,26 @@ describe("hygiene tool counts", () => {
       );
     });
     expect(count).toBe(0);
+  });
+
+  // #814: a private key's BEGIN line is the same in every key; an octopus resolution that adds a
+  // second key to a file whose parent already holds one adds a new block and counts.
+  it("counts a key an octopus resolution adds next to a key a parent already holds", () => {
+    const count = historyCount((git) => {
+      const commit = commitWith(git);
+      commit("base", "notes.txt", "base\n");
+      const first = fakeKey();
+      git("checkout", "-q", "-b", "side", "main");
+      commit("side key", "keys.pem", first);
+      git("checkout", "-q", "-b", "other", "main");
+      commit("other", "other.txt", "other\n");
+      git("checkout", "-q", "main");
+      commit("ahead", "notes.txt", "ahead\n");
+      git("merge", "-q", "--no-ff", "--no-commit", "side", "other");
+      write(git, "keys.pem", first + fakeKey());
+      git("commit", "-q", "-m", "merge side and other");
+    });
+    expect(count).toBe(2);
   });
 
   it("sums both passes and needs a scanned-commit count from each", () => {

@@ -434,22 +434,27 @@ export function gitleaksArgs(
   ];
 }
 
-type Leak = { Commit: string; File: string; StartLine: number };
+type Leak = { Commit: string; File: string; StartLine: number; EndLine: number };
 
 // The octopus pass diffs against the first parent, so it also shows what the other parents bring
-// in. A finding whose line one of the merge's parents already holds came with that parent: the
-// history pass found it there (or .gitleaksignore excused it there), so it is not counted again.
-// Only lines the merge itself adds count; an unreadable line counts.
+// in. A finding whose whole block (StartLine..EndLine, so a multi-line key is compared in full, not
+// by its shared BEGIN line) one of the merge's parents already holds in that file came with that
+// parent: the history pass found it there (or .gitleaksignore excused it there), so it is not
+// counted again. Only blocks the merge itself adds count; an unreadable block counts (#814).
 export function octopusOwnLeaks<T extends Leak>(leaks: T[], repo: string): T[] {
-  const lines = (rev: string): string[] | undefined => {
+  const show = (rev: string): string | undefined => {
     const shown = run("git", ["show", rev], repo);
-    return shown.status === 0 ? shown.stdout.split("\n") : undefined;
+    return shown.status === 0 ? `\n${shown.stdout}\n` : undefined;
   };
   return leaks.filter((leak) => {
-    const line = lines(`${leak.Commit}:${leak.File}`)?.[leak.StartLine - 1];
-    if (line === undefined) return true;
+    const size = leak.EndLine - leak.StartLine + 1;
+    const block = show(`${leak.Commit}:${leak.File}`)
+      ?.split("\n")
+      .slice(leak.StartLine, leak.EndLine + 1);
+    if (!(size >= 1) || block?.length !== size) return true;
     const parents = run("git", ["rev-parse", `${leak.Commit}^@`], repo).stdout.split(/\s+/);
-    return !parents.some((parent) => parent && lines(`${parent}:${leak.File}`)?.includes(line));
+    const wanted = `\n${block.join("\n")}\n`;
+    return !parents.some((parent) => parent && show(`${parent}:${leak.File}`)?.includes(wanted));
   });
 }
 
