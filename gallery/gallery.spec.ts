@@ -985,6 +985,27 @@ const AXE_PAGES: [
       },
     ],
   ],
+  // `SUI-FEATURE-133` rev 4: the read-only editor with the image "Picture" selected, so its flip
+  // and shadow rows show as text.
+  [
+    "slide-editor",
+    (page) =>
+      page.locator("[data-testid=slide-editor] [data-slot=slide-view][data-slide-ready=true]"),
+    "&readOnly=1&ground=image",
+    [
+      "with an image selected",
+      async (page) => {
+        await page.getByTestId("slide-editor-next-page").click();
+        await page.getByTestId("drawer-layers").click();
+        await page
+          .locator("[data-layer-id=picture]")
+          .getByTestId("slide-editor-layer-select")
+          .click();
+        await expect(page.getByTestId("slide-editor-readonly-flip")).toBeVisible();
+        await expect(page.getByTestId("slide-editor-readonly-shadow")).toBeVisible();
+      },
+    ],
+  ],
   // `SUI-FEATURE-137` AC4: the shared colour field with a recent colour, its free entry open and
   // an invalid value named at it.
   [

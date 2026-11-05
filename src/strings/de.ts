@@ -965,6 +965,11 @@ export const de: SuiteStrings = {
       shadowOffsetY: "Vertikaler Versatz",
       shadowOffsetYHint: "Verschiebt den Schatten über oder unter das Element.",
       shadowOffsetYValueHint: "Pixel; eine positive Zahl verschiebt ihn nach unten.",
+      shadowNone: "Keiner",
+      flipShown: "Spiegelung",
+      flipShownHorizontal: "Waagrecht",
+      flipShownVertical: "Senkrecht",
+      flipShownNone: "Keine",
       strokeWidth: "Strichstärke",
       strokeWidthRange:
         "Gib eine Strichstärke über 0 und bis {{max}} px ein oder lass das Feld leer.",

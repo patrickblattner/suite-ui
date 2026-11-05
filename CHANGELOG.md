@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — #801: SlideEditor readOnly shows flip, line and shadow as text (SUI-FEATURE-133 rev 4) (minor)
+
+- **Added (#801, SUI-FEATURE-133 rev 4):** `SlideEditor` `readOnly` shows flip, line and shadow as text in the Layout tab, with the editable inspector's values: an image's flip and, without a selection, a background image's flip ("Flip": Horizontal, Vertical, both or None); a line's colour (brand name with its swatch), width and ends; the shadow of text, shapes, images and lines (colour, blur, horizontal and vertical offset; "Shadow: None" when off). New strings `slides.editor.shadowNone`, `flipShown`, `flipShownHorizontal`, `flipShownVertical`, `flipShownNone` (en/de/es). Tests: unit — an image's flip and shadow, a line's colour, width and ends, a shape's shadow off, the background's flip and an image's flip with neither axis ("None") and both ("Horizontal, Vertical") equal the editable inspector's; gallery — a new axe case, light and dark, "slide-editor with an image selected": the read-only editor on page 2 with the image "Picture" selected, so its flip and shadow rows are scanned (the gallery deck has no line; the line rows are covered by the unit tests only). The gallery overview baselines (`gallery-{de,en,es}-{light,dark}`, de at 390/1440 px) are refreshed for the five new strings in its string table.
+
 ## Unreleased — #806: SlideEditor overlays take `hint` and `bleed` (SUI-FEATURE-134 rev 8) (minor)
 
 - **Added (#806, SUI-FEATURE-134 rev 8 AC3, Q#5376, Q#5390):** `SlideOverlay` (`SlideExtensions.overlays`) takes `hint: string`, already translated, and requires it whenever `label` is set: a labelled overlay's view-band toggle shows it through the package `Hint` on hover and as its description on focus (`GL-UI-017`), never the label in its place. `SlideOverlay` is now a type alias, a union of a labelled entry (`label` and `hint`) and an unlabelled one (neither).
