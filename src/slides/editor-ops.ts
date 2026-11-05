@@ -1403,6 +1403,12 @@ export type LibraryEntry =
     }
   | { kind: "block"; id: string; element: SlideElement };
 
+// A border's width as one is first drawn (a table's, a shape's): 0.2 % of the format's shorter side,
+// in whole px, at least 1.
+export function borderWidthFor(format: { width: number; height: number }): number {
+  return Math.max(1, Math.round(Math.min(format.width, format.height) * 0.002));
+}
+
 // A new element for a library entry: 20 % of the page's shorter side (its larger side for an image;
 // a chart's 50 %), centred on `at` (page px), in `color` (a shape's fill, a line's stroke, an icon's
 // colour), above everything on the page.
@@ -1484,7 +1490,7 @@ export function libraryElement(
         ...box(width, shorter * 0.125 * 3),
         columnWidths: [1, 2, 3].map(() => round(width / 3)),
         rows: [1, 2, 3].map(() => [1, 2, 3].map(() => structuredClone(cell))),
-        border: { color, width: Math.max(1, Math.round(shorter * 0.002)) },
+        border: { color, width: borderWidthFor(document.format) },
       };
     }
     case "icon":

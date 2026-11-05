@@ -11,7 +11,7 @@ import {
 } from "./schema.js";
 import { type ReadonlySlideDocument, SlideEditor, type SlideEditorProps } from "./slide-editor.js";
 import { withRecentColor } from "./brand-color-items-internal.js";
-import { setUpEditorTestEnv } from "./test-utils.js";
+import { setUpEditorTestEnv, typeFreeColor as typeFree } from "./test-utils.js";
 
 setUpEditorTestEnv();
 
@@ -115,12 +115,6 @@ const pick = (testId: string, name: string, from: "brand" | "recent" = "brand") 
   const scope =
     from === "recent" ? screen.getByTestId(`${testId}-recent`) : screen.getByRole("listbox");
   fireEvent.click(within(scope).getAllByRole("option", { name })[0]!);
-};
-const typeFree = (testId: string, value: string) => {
-  pick(testId, "Own colour");
-  const entry = screen.getByTestId(`${testId}-free`);
-  fireEvent.change(entry, { target: { value } });
-  fireEvent.keyDown(entry, { key: "Enter" });
 };
 
 const BRAND_NAMES = Object.values(SLIDE_BRAND.colors).map(({ label }) => label);

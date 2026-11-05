@@ -10,7 +10,7 @@ import {
   SLIDE_SCHEMA_VERSION,
 } from "./schema.js";
 import { type ReadonlySlideDocument, SlideEditor } from "./slide-editor.js";
-import { setUpEditorTestEnv } from "./test-utils.js";
+import { setUpEditorTestEnv, typeAndLeave as type } from "./test-utils.js";
 
 setUpEditorTestEnv();
 
@@ -70,11 +70,6 @@ function renderEditor(element: SlideElementInput = line) {
 const pick = (testId: string, option: string) => {
   fireEvent.keyDown(screen.getByTestId(testId), { key: "Enter" });
   fireEvent.click(screen.getByRole("option", { name: option }));
-};
-const type = (testId: string, value: string) => {
-  const field = screen.getByTestId<HTMLInputElement>(testId);
-  fireEvent.change(field, { target: { value } });
-  fireEvent.blur(field);
 };
 const shadowSwitch = () => screen.getByTestId("slide-editor-shadow");
 

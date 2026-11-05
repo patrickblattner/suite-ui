@@ -107,7 +107,7 @@ function Section({
 }
 
 // The Layout tab of a single selection: an image's flip, its box and rotation, a line's colour, width
-// and ends, the shadow of text, shapes, images and lines, and its animation.
+// and ends, a shape's fill and border, the shadow of text, shapes, images and lines, and its animation.
 export function ReadOnlyLayout({
   element,
   rotation,
@@ -166,6 +166,40 @@ export function ReadOnlyLayout({
               label: t("slides.editor.lineCap"),
               value: t(`slides.editor.lineCap${cap(element.cap)}`),
             },
+          ]}
+        />
+      ) : null}
+      {element.type === "shape" ? (
+        <Section
+          title={t("slides.editor.shapeSection")}
+          rows={[
+            {
+              key: "shape-fill",
+              label: t("slides.editor.shapeFill"),
+              value:
+                element.fill === undefined
+                  ? t("slides.editor.shapeNoFill")
+                  : element.fill.type === "gradient"
+                    ? t("slides.editor.shapeFillGradient")
+                    : colorOf(element.fill.color, "slide-editor-readonly-shape-fill-swatch"),
+            },
+            {
+              key: "shape-border",
+              label: t("slides.editor.shapeBorderColor"),
+              value:
+                element.border === undefined
+                  ? t("slides.editor.shapeNoBorder")
+                  : colorOf(element.border.color, "slide-editor-readonly-shape-border-swatch"),
+            },
+            ...(element.border === undefined
+              ? []
+              : [
+                  {
+                    key: "shape-border-width",
+                    label: t("slides.editor.shapeBorderWidth"),
+                    value: number(element.border.width, "px"),
+                  },
+                ]),
           ]}
         />
       ) : null}

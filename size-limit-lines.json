@@ -159,6 +159,7 @@
     "./slides/slide-editor-preview": { "recommended": 554218, "maximum": 581929 },
     "./slides/slide-editor-readonly": { "recommended": 471707, "maximum": 495293 },
     "./slides/slide-editor-shadow": { "recommended": 521497, "maximum": 547572 },
+    "./slides/slide-editor-shape": { "recommended": 521615, "maximum": 547696 },
     "./slides/slide-editor-table": { "recommended": 524882, "maximum": 551127 },
     "./slides/slide-editor-text": { "recommended": 546286, "maximum": 573601 },
     "./slides/slide-editor-transfer": { "recommended": 46747, "maximum": 49085 },

@@ -58,6 +58,7 @@ import {
   alignElements,
   type AnimationKind,
   type AnimationStep,
+  borderWidthFor,
   type Box,
   boundsOf,
   boxOf,
@@ -171,6 +172,7 @@ import { CropFields } from "./crop-fields.js";
 import { BackgroundFields, type ImageBackground } from "./slide-editor-background.js";
 import { LineFields } from "./slide-editor-line.js";
 import { ShadowFields } from "./slide-editor-shadow.js";
+import { ShapeFields } from "./slide-editor-shape.js";
 import { PageSorter } from "./slide-editor-pages.js";
 import {
   type CellAt,
@@ -3409,6 +3411,15 @@ function Editor({
         testId="slide-editor-strokeWidth"
       />
     );
+  // The selected element replaced by a panel (a line's, a shape's); `merge` names the field whose
+  // changes in a row are one step.
+  const replaceSingle = (next: SlideElement, merge?: string) => {
+    if (single === undefined) return;
+    apply(
+      (current) => updateElements(current, page, [single.id], () => next),
+      merge === undefined ? undefined : `field:${single.id}:${merge}`,
+    );
+  };
   // A line's colour, width and ends, and the one shadow section of text, shapes, images and lines
   // (`SUI-FEATURE-135` rev 3): a choice or the switch is one step, typing in a row in one field is one.
   const lineFields =
@@ -3419,12 +3430,21 @@ function Editor({
         brand={view.brand}
         readOnly={single.locked}
         revision={travels}
-        onLine={(next, merge) =>
-          apply(
-            (current) => updateElements(current, page, [single.id], () => next),
-            merge === undefined ? undefined : `field:${single.id}:${merge}`,
-          )
-        }
+        onLine={replaceSingle}
+      />
+    );
+  // A shape's fill and border (`SUI-FEATURE-137` rev 3 §Shape); a border first drawn takes a table's
+  // width for the page format (`borderWidthFor`).
+  const shapeFields =
+    single?.type !== "shape" ? undefined : (
+      <ShapeFields
+        key={single.id}
+        shape={single}
+        brand={view.brand}
+        readOnly={single.locked}
+        revision={travels}
+        borderWidth={borderWidthFor(history.document.format)}
+        onShape={replaceSingle}
       />
     );
   const shadowFields =
@@ -3693,6 +3713,7 @@ function Editor({
         </div>
       )}
       {lineFields}
+      {shapeFields}
       {shadowFields}
       {selected.length === 0 || editable.length === 0 ? null : (
         <section className="flex flex-col gap-2">

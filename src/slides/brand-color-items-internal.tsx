@@ -95,12 +95,14 @@ const BRAND = "brand:";
 const RECENT = "recent:";
 const FREE = "free:";
 const NONE = " ";
+const OTHER = "other:";
 
 // The one colour field of the editor (`SUI-FEATURE-137`): the brand colours by name first, then the
 // recent ones, then "Own colour", which opens a free entry under the select; a free value is taken as
 // `isSlideColor` takes it and is shown marked as own colour. `none` names an option that clears the
 // colour (`undefined`); `placeholder` stands in the trigger for a value no option is (a selection of
-// several colours, a gradient). What is typed and the open entry belong to `target` (the element, the
+// several colours); `other` names a set value no option is (a gradient), shown as a value, never as
+// a placeholder. What is typed and the open entry belong to `target` (the element, the
 // cell, the text range) and to the history's `revision`: either one changed drops them.
 export function SlideColorField({
   id,
@@ -114,6 +116,7 @@ export function SlideColorField({
   testId,
   none,
   placeholder,
+  other,
   target,
   revision,
 }: {
@@ -128,6 +131,7 @@ export function SlideColorField({
   testId: string;
   none?: string | undefined;
   placeholder?: string | undefined;
+  other?: string | undefined;
   target: string;
   revision: number;
 }) {
@@ -156,17 +160,19 @@ export function SlideColorField({
     applied(next);
   };
   const value =
-    placeholder !== undefined
-      ? ""
-      : color === undefined
-        ? none === undefined
-          ? ""
-          : NONE
-        : color.kind === "free"
-          ? FREE
-          : brand.colors[color.key] === undefined
+    other !== undefined
+      ? OTHER
+      : placeholder !== undefined
+        ? ""
+        : color === undefined
+          ? none === undefined
             ? ""
-            : `${BRAND}${color.key}`;
+            : NONE
+          : color.kind === "free"
+            ? FREE
+            : brand.colors[color.key] === undefined
+              ? ""
+              : `${BRAND}${color.key}`;
   const free = color?.kind === "free" ? color.value : "";
   const typed = draft ?? free;
   const errorId = `${id}-free-error`;
@@ -214,7 +220,9 @@ export function SlideColorField({
             data-testid={testId}
           >
             <SelectValue placeholder={placeholder ?? t("slides.editor.textOwnColor")}>
-              {value === "" ? undefined : value === NONE ? (
+              {value === "" ? undefined : value === OTHER ? (
+                other
+              ) : value === NONE ? (
                 none
               ) : color === undefined ? undefined : (
                 <ColorText color={color} brand={brand} />
