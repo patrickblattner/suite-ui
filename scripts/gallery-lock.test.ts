@@ -108,10 +108,14 @@ describe("acquire", () => {
   let lock: string;
   let clock: number;
   let lines: string[];
-  const deps = (alive: (pid: string) => boolean, onSleep: () => void = () => {}): Deps => ({
+  const deps = (
+    alive: (pid: string) => boolean,
+    onSleep: () => void = () => {},
+    stride?: number,
+  ): Deps => ({
     now: () => clock,
     sleep: (ms) => {
-      clock += ms;
+      clock += stride ?? ms;
       onSleep();
       return Promise.resolve();
     },
@@ -191,9 +195,11 @@ describe("acquire", () => {
       "42",
       "/x/wt-794",
       "o/r",
+      // The allowance is under test, not the poll cadence: 5 min per poll (#809).
       deps(
         () => true,
         () => hold("7", line(clock)),
+        5 * MIN,
       ),
     );
     expect(code).toBe(LOCK_EXPIRED);
