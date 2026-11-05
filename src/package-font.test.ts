@@ -25,10 +25,13 @@ describe("package font (SUI-FEATURE-076)", () => {
   });
 
   it("loads the substitute font only from gallery.css, in the cuts 400/500/600/700", () => {
-    // Beside it only the serif a slide test hands its `SlideView` as a font file (#717).
+    // Beside it only the faces slide tests hand their `SlideView` as font files: the serif (#717), and
+    // the sans italic and serif bold the imported fixture asks for (#792).
     expect(fontFiles("gallery").sort()).toEqual([
+      "fonts/inter-latin-400-italic.woff2",
       ...[400, 500, 600, 700].map((weight) => `fonts/inter-latin-${weight}-normal.woff2`),
       "fonts/playfair-display-latin-400-normal.woff2",
+      "fonts/playfair-display-latin-700-normal.woff2",
     ]);
     expect(existsSync(`${root}gallery/fonts/OFL.txt`)).toBe(true);
     expect(existsSync(`${root}gallery/fonts/OFL-playfair-display.txt`)).toBe(true);

@@ -952,6 +952,17 @@ const AXE_PAGES: [
     ],
   ],
   ...PAGES.map(([name, ready]): [string, (page: Page) => Locator] => [name, ready]),
+  // SUI-FEATURE-138: the imported fixture, drawn.
+  [
+    "slide-import",
+    (page) => page.locator("[data-testid=slide-import-view-1][data-slide-ready=true]"),
+  ],
+  // Review #792 ui: the placeholders of what the model cannot rebuild, drawn.
+  [
+    "slide-import",
+    (page) => page.locator("[data-testid=slide-import-view-0][data-slide-ready=true]"),
+    "&file=as-image",
+  ],
   ["list", (page) => page.getByTestId("list-tabs"), "&slots=tabs"],
   [
     "list",
@@ -14184,6 +14195,55 @@ test("create and select: “ada lovelace” with Ada Lovelace listed offers no c
   await picker.fill("ada lovelace");
   await expect(page.getByTestId("contact-picker-option")).toHaveText(["Ada Lovelace"]);
   await expect(page.getByTestId("contact-picker-create")).toHaveCount(0);
+});
+
+// SUI-FEATURE-138 AC1/AC5: `importPptx` runs in the browser; the fixture's pages are drawn with their
+// text, picture, shapes and table, its report beside them.
+test("slide import: the fixture .pptx imports in the browser and is drawn", async ({ page }) => {
+  await page.goto("/?page=slide-import&lng=en");
+  await expect(page.getByTestId("slide-import-error")).toHaveCount(0);
+  const first = page.getByTestId("slide-import-view-0");
+  await expect(first).toHaveAttribute("data-slide-ready", "true");
+  await expect(page.getByTestId("slide-import-view-1")).toHaveAttribute("data-slide-ready", "true");
+  // Every face the import asks for is loaded: no view draws a missing font (review #792 U1).
+  for (const index of [0, 1])
+    await expect(page.getByTestId(`slide-import-view-${index}`)).not.toHaveAttribute(
+      "data-slide-missing-fonts",
+    );
+  await expect(first).toContainText("Quarterly review");
+  await expect(first).toContainText("Revenue grew by twelve percent.");
+  await expect(first).toContainText("Q2");
+  await expect(first.locator("img")).toHaveJSProperty("complete", true);
+  expect(await first.locator("img").evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(
+    400,
+  );
+  await expect(page.getByTestId("slide-import-report-0")).toContainText(
+    "Font Calibri → Gallery Slide Sans",
+  );
+  await expect(page.getByTestId("slide-import-report-0")).toContainText(
+    "Open with the revenue line.",
+  );
+  // Beside each page, LibreOffice's render of the same file (scripts/pptx-render.sh).
+  for (const index of [0, 1]) {
+    const render = page.getByTestId(`slide-import-pdf-${index}`);
+    await expect(render).toHaveJSProperty("complete", true);
+    expect(await render.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(960);
+  }
+});
+
+// SUI-FEATURE-138 AC2, review #792 ui: the placeholders of what the model cannot rebuild are drawn
+// in the browser, each labelled inside its box.
+test("slide import: placeholders of what cannot be rebuilt are drawn", async ({ page }) => {
+  await page.goto("/?page=slide-import&lng=en&file=as-image");
+  await expect(page.getByTestId("slide-import-error")).toHaveCount(0);
+  const view = page.getByTestId("slide-import-view-0");
+  await expect(view).toHaveAttribute("data-slide-ready", "true");
+  await expect(page.getByTestId("slide-import-report-0")).toContainText("As image: smartart");
+  const placeholder = view.getByRole("img", { name: "SmartArt: Process diagram" });
+  await expect(placeholder).toHaveJSProperty("complete", true);
+  expect(await placeholder.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(
+    0,
+  );
 });
 
 // SUI-DESIGN-002 §Abnahme 1 and 2: every example document validates in the browser; the invalid one

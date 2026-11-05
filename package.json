@@ -92,6 +92,8 @@
     "hygiene:inventory": "node scripts/hygiene.ts inventory"
   },
   "dependencies": {
+    "@xmldom/xmldom": "0.9.12",
+    "fflate": "0.8.3",
     "jiti": "^2.7.0",
     "zod": "^4.6.6"
   },
